@@ -38,6 +38,10 @@ namespace codepad {
 					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, static_cast<wchar_t>(wparam));
 					return (wparam == UNICODE_NOCHAR ? TRUE : FALSE);
 
+				case WM_CHAR:
+					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, static_cast<wchar_t>(wparam));
+					return 0;
+
 				case WM_MOUSEWHEEL:
 					_form_onevent<ui::mouse_scroll_info>(
 						*form, &window::_on_mouse_scroll, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)
@@ -84,22 +88,12 @@ namespace codepad {
 			return DefWindowProc(hwnd, msg, wparam, lparam);
 		}
 
+		window::_wndclass window::_class;
 		window::window(const str_t &clsname) {
-			HINSTANCE hinst = GetModuleHandle(nullptr);
-			winapi_check(hinst);
-			WNDCLASSEX wcex;
-			std::memset(&wcex, 0, sizeof(wcex));
-			wcex.style = CS_OWNDC;
-			wcex.hInstance = hinst;
-			winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
-			wcex.cbSize = sizeof(wcex);
-			wcex.lpfnWndProc = _wndproc;
-			wcex.lpszClassName = clsname.c_str();
-			winapi_check(_wndatom = RegisterClassEx(&wcex));
 			winapi_check(_hwnd = CreateWindowEx(
-				0, clsname.c_str(), clsname.c_str(), WS_OVERLAPPEDWINDOW,
+				0, reinterpret_cast<LPCSTR>(static_cast<size_t>(_class.atom)), clsname.c_str(), WS_OVERLAPPEDWINDOW,
 				CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-				nullptr, nullptr, hinst, nullptr
+				nullptr, nullptr, GetModuleHandle(nullptr), nullptr
 			));
 			winapi_check(_dc = GetDC(_hwnd));
 			SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));

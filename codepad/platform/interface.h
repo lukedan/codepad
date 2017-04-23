@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ui/element.h"
+#include "../ui/panel.h"
 #include "../utilities/textconfig.h"
 
 namespace codepad {
@@ -10,7 +10,7 @@ namespace codepad {
 			}
 			const vec2i new_size;
 		};
-		class window_base : public ui::element {
+		class window_base : public ui::panel {
 		public:
 			virtual void set_caption(const str_t&) = 0;
 
@@ -42,11 +42,12 @@ namespace codepad {
 			virtual void delete_window(window_base&) = 0;
 
 			virtual void begin(window_base&, recti) = 0;
+			virtual void draw_character(texture_id, vec2d, colord) = 0;
 			virtual void draw_triangles(const vec2d*, const vec2d*, const colord*, size_t, texture_id) = 0;
 			virtual void end() = 0;
 
-			virtual texture_id new_texture_grayscale(size_t, size_t, const void*) = 0;
-			virtual void delete_texture(texture_id) = 0;
+			virtual texture_id new_character_texture(size_t, size_t, const void*) = 0;
+			virtual void delete_character_texture(texture_id) = 0;
 		};
 	}
 }

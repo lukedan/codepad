@@ -12,11 +12,18 @@
 #include "interface.h"
 #include "../utilities/textconfig.h"
 
-#include <iostream>
+#ifndef NDEBUG
+#	include <iostream>
+#endif
 
 namespace codepad {
 	namespace platform {
 		template <typename T> inline void winapi_check(T v) {
+#ifndef NDEBUG
+			if (!v) {
+				std::cout << "ERROR: " << GetLastError() << "\n";
+			}
+#endif
 			assert(v);
 		}
 		inline vec2i get_mouse_position() {
@@ -40,7 +47,6 @@ namespace codepad {
 			window &operator=(window&&) = delete;
 			~window() {
 				DestroyWindow(_hwnd);
-				UnregisterClass(reinterpret_cast<LPCTSTR>(_wndatom), GetModuleHandle(nullptr));
 			}
 
 			bool idle() override {
@@ -73,8 +79,27 @@ namespace codepad {
 			}
 		protected:
 			HWND _hwnd;
-			ATOM _wndatom;
 			HDC _dc;
+
+			struct _wndclass {
+				_wndclass() {
+					WNDCLASSEX wcex;
+					std::memset(&wcex, 0, sizeof(wcex));
+					wcex.style = CS_OWNDC;
+					wcex.hInstance = GetModuleHandle(nullptr);
+					winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
+					wcex.cbSize = sizeof(wcex);
+					wcex.lpfnWndProc = _wndproc;
+					wcex.lpszClassName = CPTEXT("Codepad");
+					winapi_check(atom = RegisterClassEx(&wcex));
+				}
+				~_wndclass() {
+					UnregisterClass(reinterpret_cast<LPCTSTR>(atom), GetModuleHandle(nullptr));
+				}
+
+				ATOM atom;
+			};
+			static _wndclass _class;
 
 			void _recalc_layout() {
 				RECT cln;
@@ -85,6 +110,10 @@ namespace codepad {
 
 		class software_renderer : public renderer_base {
 		public:
+			software_renderer() : renderer_base() {
+				_txs.push_back(_tex_rec());
+			}
+
 			bool support_partial_redraw() const override {
 				return true;
 			}
@@ -112,6 +141,7 @@ namespace codepad {
 					}
 				}
 			}
+			void draw_character(texture_id tex, vec2d, colord) override; // TODO
 			void draw_triangles(
 				const vec2d *poss, const vec2d *uvs, const colord *cs,
 				size_t sz, texture_id tid
@@ -129,12 +159,12 @@ namespace codepad {
 				));
 			}
 
-			texture_id new_texture_grayscale(size_t w, size_t h, const void *gs) override {
+			texture_id new_character_texture(size_t w, size_t h, const void *gs) override {
 				texture_id nid = _alloc_id();
 				_txs[nid].set_grayscale(w, h, static_cast<const unsigned char*>(gs));
 				return nid;
 			}
-			void delete_texture(texture_id id) {
+			void delete_character_texture(texture_id id) {
 				_txs[id].dispose();
 				_id_realloc.push_back(id);
 			}
@@ -168,6 +198,9 @@ namespace codepad {
 					return data[y * w + x];
 				}
 				colord sample(vec2d uv) const {
+					if (!data) {
+						return colord();
+					}
 					double xf = uv.x * w - 0.5, yf = uv.y * h - 0.5;
 					int x = static_cast<int>(std::floor(xf)), y = static_cast<int>(std::floor(yf)), x1 = x + 1, y1 = y + 1;
 					xf -= x;
@@ -340,13 +373,272 @@ namespace codepad {
 				}
 			}
 		};
+
 		class opengl_renderer : public renderer_base {
 		public:
+			opengl_renderer() {
+				std::memset(&_pfd, 0, sizeof(_pfd));
+				_pfd.nSize = sizeof(_pfd);
+				_pfd.nVersion = 1;
+				_pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+				_pfd.iPixelType = PFD_TYPE_RGBA;
+				_pfd.cColorBits = 32;
+				_pfd.iLayerType = PFD_MAIN_PLANE;
+				winapi_check(_pformat = ChoosePixelFormat(GetDC(nullptr), &_pfd));
+			}
+			~opengl_renderer() {
+				_atl.dispose();
+				winapi_check(wglMakeCurrent(nullptr, nullptr));
+				winapi_check(wglDeleteContext(_rc));
+			}
+
 			bool support_partial_redraw() const override {
 				return false;
 			}
+
+			void new_window(window_base &wnd) override {
+				window *cw = static_cast<window*>(&wnd);
+				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
+				if (!_rc) {
+					winapi_check(_rc = wglCreateContext(cw->_dc));
+				}
+				_on_window_size_changed(cw, static_cast<GLsizei>(cw->_layout.width()), static_cast<GLsizei>(cw->_layout.height()));
+				cw->size_changed += [this, cw](size_changed_info &info) {
+					_on_window_size_changed(cw, info.new_size.x, info.new_size.y);
+				};
+				glEnable(GL_TEXTURE_2D);
+				glEnable(GL_BLEND);
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glEnableClientState(GL_VERTEX_ARRAY);
+				glEnableClientState(GL_NORMAL_ARRAY);
+				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				glEnableClientState(GL_COLOR_ARRAY);
+			}
+			void delete_window(window_base&) override {
+			}
+
+			void begin(window_base &wnd, recti) override {
+				window *cw = static_cast<window*>(&wnd);
+				_curdc = cw->_dc;
+				winapi_check(wglMakeCurrent(_curdc, _rc));
+				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
+			void draw_character(texture_id id, vec2d pos, colord color) override {
+				const text_atlas::char_data &cd = _atl.get_char_data(id);
+				if (_lstpg != cd.page) {
+					_flush_text_buffer();
+					_lstpg = cd.page;
+				}
+				unsigned int beg = static_cast<unsigned int>(_text_cache.size());
+				_text_cache.push_back(_vertex(pos, cd.layout.xmin_ymin(), color));
+				_text_cache.push_back(_vertex(pos + vec2d(cd.w, 0.0), cd.layout.xmax_ymin(), color));
+				_text_cache.push_back(_vertex(pos + vec2d(0.0, cd.h), cd.layout.xmin_ymax(), color));
+				_text_cache.push_back(_vertex(pos + vec2d(cd.w, cd.h), cd.layout.xmax_ymax(), color));
+				_text_cache_ids.push_back(beg);
+				_text_cache_ids.push_back(beg + 1);
+				_text_cache_ids.push_back(beg + 2);
+				_text_cache_ids.push_back(beg + 1);
+				_text_cache_ids.push_back(beg + 3);
+				_text_cache_ids.push_back(beg + 2);
+			}
+			void draw_triangles(const vec2d *ps, const vec2d *us, const colord *cs, size_t n, texture_id t) override {
+				_flush_text_buffer();
+				glVertexPointer(2, GL_DOUBLE, sizeof(vec2d), ps);
+				glTexCoordPointer(2, GL_DOUBLE, sizeof(vec2d), us);
+				glColorPointer(4, GL_DOUBLE, sizeof(colord), cs);
+				glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(t));
+				glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(n));
+			}
+			void end() override {
+				_flush_text_buffer();
+				winapi_check(SwapBuffers(_curdc));
+				_gl_verify();
+			}
+
+			texture_id new_character_texture(size_t w, size_t h, const void *data) override {
+				return _atl.new_char(w, h, data);
+			}
+			void delete_character_texture(texture_id id) override {
+				_atl.delete_char(id);
+			}
 		protected:
-			HGLRC _rc;
+			struct text_atlas {
+				void dispose() {
+					for (auto i = _ps.begin(); i != _ps.end(); ++i) {
+						i->dispose();
+					}
+				}
+
+				struct page {
+					void create(size_t w, size_t h) {
+						width = w;
+						height = h;
+						data = static_cast<unsigned char*>(std::malloc(width * height * 4));
+						glGenTextures(1, &tex_id);
+						glBindTexture(GL_TEXTURE_2D, tex_id);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+					}
+					void flush() {
+						glBindTexture(GL_TEXTURE_2D, tex_id);
+						glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+					}
+					void dispose() {
+						std::free(data);
+						glDeleteTextures(1, &tex_id);
+					}
+
+					size_t width, height;
+					unsigned char *data;
+					GLuint tex_id;
+				};
+				struct char_data {
+					size_t w, h, page;
+					rectd layout;
+				};
+
+				const char_data &get_char_data(size_t id) const {
+					return _cd_slots[id];
+				}
+				const page &get_page(size_t page) {
+					if (_lpdirty && page + 1 == _ps.size()) {
+						_ps.back().flush();
+					}
+					return _ps[page];
+				}
+
+				size_t page_width = 600, page_height = 300, border = 1;
+			protected:
+				size_t _cx = 0, _cy = 0, _my = 0;
+				std::vector<page> _ps;
+				std::vector<char_data> _cd_slots;
+				std::vector<texture_id> _cd_alloc;
+				bool _lpdirty = false;
+
+				void _new_page() {
+					page np;
+					np.create(page_width, page_height);
+					_ps.push_back(np);
+				}
+				texture_id _alloc_id() {
+					texture_id res;
+					if (_cd_alloc.size() > 0) {
+						res = _cd_alloc.back();
+						_cd_alloc.pop_back();
+					} else {
+						res = _cd_slots.size();
+						_cd_slots.push_back(char_data());
+					}
+					return res;
+				}
+			public:
+				texture_id new_char(size_t w, size_t h, const void *data) {
+					if (_ps.size() == 0) {
+						_new_page();
+					}
+					texture_id id = _alloc_id();
+					char_data &cd = _cd_slots[id];
+					cd.w = w;
+					cd.h = h;
+					if (w == 0 || h == 0) {
+						cd.layout = rectd(0.0, 0.0, 0.0, 0.0);
+						cd.page = _ps.size() - 1;
+					} else {
+						page curp = _ps.back();
+						if (_cx + w + border > curp.width) { // next row
+							_cx = 0;
+							_cy += _my;
+							_my = 0;
+						}
+						size_t t, l;
+						if (_cy + h + border > curp.height) { // next page
+							if (_lpdirty) {
+								curp.flush();
+							}
+							_new_page();
+							curp = _ps.back();
+							l = t = border;
+							_cy = 0;
+							_my = h + border;
+						} else {
+							l = _cx + border;
+							t = _cy + border;
+							_my = std::max(_my, h + border);
+						}
+						const unsigned char *src = static_cast<const unsigned char*>(data);
+						for (size_t y = 0; y < h; ++y) {
+							unsigned char *cur = curp.data + ((y + t) * curp.width + l) * 4;
+							for (size_t x = 0; x < w; ++x) {
+								*(cur++) = 255;
+								*(cur++) = 255;
+								*(cur++) = 255;
+								*(cur++) = *(src++);
+							}
+						}
+						_cx = l + w;
+						cd.layout = rectd(
+							l / static_cast<double>(curp.width), (l + w) / static_cast<double>(curp.width),
+							t / static_cast<double>(curp.height), (t + h) / static_cast<double>(curp.height)
+						);
+						cd.page = _ps.size() - 1;
+						_lpdirty = true;
+					}
+					return id;
+				}
+				void delete_char(texture_id id) {
+					_cd_alloc.push_back(id);
+				}
+			};
+
+			struct _vertex {
+				_vertex(vec2d p, vec2d u, colord c) : pos(p), uv(u), color(c) {
+				}
+
+				vec2d pos, uv;
+				colord color;
+			};
+
+			HGLRC _rc = nullptr;
+			PIXELFORMATDESCRIPTOR _pfd;
+			HDC _curdc;
+			int _pformat;
+
+			text_atlas _atl;
+			std::vector<_vertex> _text_cache;
+			std::vector<unsigned int> _text_cache_ids;
+			size_t _lstpg;
+
+			void _flush_text_buffer() {
+				if (_text_cache.size() > 0) {
+					glVertexPointer(2, GL_DOUBLE, sizeof(_vertex), &_text_cache[0].pos);
+					glTexCoordPointer(2, GL_DOUBLE, sizeof(_vertex), &_text_cache[0].uv);
+					glColorPointer(4, GL_DOUBLE, sizeof(_vertex), &_text_cache[0].color);
+					glBindTexture(GL_TEXTURE_2D, _atl.get_page(_lstpg).tex_id);
+					glDrawElements(GL_TRIANGLES, _text_cache_ids.size(), GL_UNSIGNED_INT, _text_cache_ids.data());
+					_text_cache.clear();
+					_text_cache_ids.clear();
+				}
+			}
+
+			void _gl_verify() {
+				GLenum error = glGetError();
+#ifndef NDEBUG
+				if (error != GL_NO_ERROR) {
+					std::cout << "OpenGL error: " << error << "\n";
+				}
+#endif
+				assert(error == GL_NO_ERROR);
+			}
+			void _on_window_size_changed(window *wnd, GLsizei w, GLsizei h) {
+				winapi_check(wglMakeCurrent(wnd->_dc, _rc));
+				glViewport(0, 0, w, h);
+				glMatrixMode(GL_PROJECTION);
+				glLoadIdentity();
+				glOrtho(0.0, w, h, 0.0, 0.0, -1.0);
+			}
 		};
 	}
 }

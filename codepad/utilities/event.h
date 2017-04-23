@@ -22,11 +22,11 @@ namespace codepad {
 		event(const event&) = delete;
 		event &operator =(const event&) = delete;
 
-		reg_token operator +=(const std::function<void(T&)> &handler) {
+		reg_token operator+=(const std::function<void(T&)> &handler) {
 			_list.push_front(handler);
 			return reg_token(_list.begin());
 		}
-		event &operator -=(const reg_token &tok) {
+		event &operator-=(const reg_token &tok) {
 			_list.erase(tok._tok);
 			return *this;
 		}

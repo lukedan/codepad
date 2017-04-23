@@ -13,11 +13,11 @@ namespace codepad {
 
 		T x = 0, y = 0;
 
-		T &operator[](std::size_t sub) {
+		T &operator[](size_t sub) {
 			assert(sub < 2);
 			return (&x)[sub];
 		}
-		const T &operator[](std::size_t sub) const {
+		const T &operator[](size_t sub) const {
 			assert(sub < 2);
 			return (&x)[sub];
 		}
@@ -93,13 +93,25 @@ namespace codepad {
 		T height() const {
 			return ymax - ymin;
 		}
-		T size() const {
-			return width() * height();
+		vec2<T> size() const {
+			return vec2<T>(width(), height());
 		}
-		bool positive_size() const {
+		vec2<T> xmin_ymin() const {
+			return vec2<T>(xmin, ymin);
+		}
+		vec2<T> xmax_ymin() const {
+			return vec2<T>(xmax, ymin);
+		}
+		vec2<T> xmin_ymax() const {
+			return vec2<T>(xmin, ymax);
+		}
+		vec2<T> xmax_ymax() const {
+			return vec2<T>(xmax, ymax);
+		}
+		bool positive_area() const {
 			return xmax > xmin && ymax > ymin;
 		}
-		bool nonnegative_size() const {
+		bool nonnegative_area() const {
 			return xmax >= xmin && ymax >= ymin;
 		}
 

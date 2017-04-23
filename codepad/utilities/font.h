@@ -20,33 +20,32 @@ namespace codepad {
 			platform::texture_id texture;
 		};
 
-		font(const std::string &str, size_t sz) {
+		font(const std::string &str, size_t sz, platform::renderer_base &base) : _rend(base) {
 			_ft_verify(FT_New_Face(_lib.lib, str.c_str(), 0, &_face));
 			_ft_verify(FT_Set_Pixel_Sizes(_face, 0, static_cast<FT_UInt>(sz)));
 		}
 		font(const font&) = delete;
-		font(font &&movefrom) : _face(movefrom._face), _map(std::move(movefrom._map)) {
-			movefrom._face = nullptr;
-		}
+		font(font&&) = delete;
 		font &operator =(const font&) = delete;
 		font &operator =(font&&) = delete;
 		~font() {
-			if (_face) {
-				_ft_verify(FT_Done_Face(_face));
+			for (auto i = _map.begin(); i != _map.end(); ++i) {
+				_rend.delete_character_texture(i->second.texture);
 			}
+			_ft_verify(FT_Done_Face(_face));
 		}
 
-		const entry &get_char_entry(char_t c, platform::renderer_base &rend) {
+		const entry &get_char_entry(char_t c) {
 			auto found = _map.find(c);
 			if (found == _map.end()) {
 				_ft_verify(FT_Load_Char(_face, c, FT_LOAD_DEFAULT | FT_LOAD_RENDER));
 				const FT_Bitmap &bmpdata = _face->glyph->bitmap;
 				entry &et = _map[c] = entry();
-				et.texture = rend.new_texture_grayscale(bmpdata.width, bmpdata.rows, bmpdata.buffer);
+				et.texture = _rend.new_character_texture(bmpdata.width, bmpdata.rows, bmpdata.buffer);
 				et.advance = _face->glyph->metrics.horiAdvance * _ft_fixed_scale;
 				et.placement = rectd::from_xywh(
 					_face->glyph->metrics.horiBearingX * _ft_fixed_scale,
-					(_face->glyph->metrics.horiBearingY - _face->glyph->metrics.height - _face->size->metrics.ascender) * _ft_fixed_scale,
+					(_face->size->metrics.ascender - _face->glyph->metrics.horiBearingY) * _ft_fixed_scale,
 					bmpdata.width,
 					bmpdata.rows
 				);
@@ -55,20 +54,24 @@ namespace codepad {
 			return found->second;
 		}
 
-		double get_height() const {
+		double height() const {
 			return _face->size->metrics.height * _ft_fixed_scale;
 		}
 		vec2d get_kerning(char_t left, char_t right) const {
 			FT_Vector v;
-			// TODO strange behavior, different from doc
 			_ft_verify(FT_Get_Kerning(_face, FT_Get_Char_Index(_face, left), FT_Get_Char_Index(_face, right), FT_KERNING_UNFITTED, &v));
 			return vec2d(v.x, v.y) * _ft_fixed_scale;
+		}
+
+		platform::renderer_base &bound_renderer() const {
+			return _rend;
 		}
 	protected:
 		constexpr static double _ft_fixed_scale = 1.0 / 64.0;
 
 		FT_Face _face = nullptr;
 		std::map<char_t, entry> _map;
+		platform::renderer_base &_rend;
 
 		inline static void _ft_verify(FT_Error code) {
 			assert(code == 0);
