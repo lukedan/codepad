@@ -4,24 +4,36 @@
 
 #include "../utilities/event.h"
 #include "../utilities/misc.h"
+#include "../platform/renderer.h"
 
 namespace codepad {
 	namespace ui {
 		struct mouse_move_info {
-			mouse_move_info(vec2i p) : new_pos(p) {
+			mouse_move_info(vec2d p) : new_pos(p) {
 			}
-			const vec2i new_pos;
+			const vec2d new_pos;
 		};
 		struct mouse_scroll_info {
-			mouse_scroll_info(double d) : delta(d) {
+			mouse_scroll_info(double d, vec2d pos) : delta(d), position(pos) {
 			}
 			const double delta;
+			const vec2d position;
+			bool handled() const {
+				return _handled;
+			}
+			void mark_handled() {
+				assert(!_handled);
+				_handled = true;
+			}
+		protected:
+			bool _handled = false;
 		};
 		enum class mouse_button { left, middle, right };
 		struct mouse_button_info {
-			mouse_button_info(mouse_button mb) : button(mb) {
+			mouse_button_info(mouse_button mb, vec2d pos) : button(mb), position(pos) {
 			}
 			const mouse_button button;
+			const vec2d position;
 		};
 		struct key_info {
 			key_info(int k) : key(k) {
@@ -53,6 +65,23 @@ namespace codepad {
 			}
 		};
 
+		enum class cursor {
+			normal,
+			busy,
+			crosshair,
+			hand,
+			help,
+			text_beam,
+			denied,
+			arrow_all,
+			arrow_northeast_southwest,
+			arrow_north_south,
+			arrow_northwest_southeast,
+			arrow_east_west,
+
+			invisible,
+			not_specified
+		};
 		enum class anchor : unsigned char {
 			none = 0,
 
@@ -76,15 +105,21 @@ namespace codepad {
 
 			all = left | top | right | bottom
 		};
+		enum class visibility : unsigned char {
+			ignored = 0,
+			render_only = 1,
+			interaction_only = 2,
+			visible = render_only | interaction_only
+		};
 		class panel_base;
 		class manager;
 		class element {
 			friend class manager;
 			friend class element_collection;
+			friend class panel_base;
+			friend class platform::window_base;
 		public:
 			virtual ~element();
-
-			virtual void mark_redraw();
 
 			rectd layout() const {
 				return _layout;
@@ -97,34 +132,121 @@ namespace codepad {
 				return _parent;
 			}
 
+			virtual void set_width(double w) {
+				_width = w;
+				_has_width = true;
+				invalidate_layout();
+			}
+			virtual void set_height(double h) {
+				_height = h;
+				_has_height = true;
+				invalidate_layout();
+			}
+			virtual void unset_width() {
+				_has_width = false;
+				invalidate_layout();
+			}
+			virtual void unset_height() {
+				_has_height = false;
+				invalidate_layout();
+			}
 			virtual void set_size(vec2d s) {
-				_size = s;
-				_has_size = true;
+				_width = s.x;
+				_height = s.y;
+				_has_width = _has_height = true;
 				invalidate_layout();
 			}
 			virtual void unset_size() {
-				_dsize_cache = _has_size = false;
+				_has_width = _has_height = false;
+				invalidate_layout();
 			}
-			virtual bool has_size() const {
-				return _has_size;
+			virtual bool has_width() const {
+				return _has_width;
 			}
-			virtual vec2d get_desired_size() {
+			virtual bool has_height() const {
+				return _has_height;
+			}
+			virtual vec2d get_desired_size() const {
 				return _padding.size();
 			}
-			virtual vec2d get_target_size() {
-				if (!_has_size && !_dsize_cache) {
-					_dsize_cache = true;
-					_size = get_desired_size();
+			virtual vec2d get_target_size() const {
+				if (_has_width && _has_height) {
+					return vec2d(_width, _height);
 				}
-				return _size;
+				vec2d des = get_desired_size();
+				if (_has_width) {
+					des.x = _width;
+				} else if (_has_height) {
+					des.y = _height;
+				}
+				return des;
 			}
 			virtual vec2d get_actual_size() const {
 				return _layout.size();
 			}
 
-			void invalidate_layout();
+			virtual void set_margin(thickness t) {
+				_margin = t;
+				invalidate_layout();
+			}
+			virtual thickness get_margin() const {
+				return _margin;
+			}
+			virtual void set_padding(thickness t) {
+				_padding = t;
+				_on_padding_changed();
+			}
+			virtual thickness get_padding() const {
+				return _padding;
+			}
 
-			template <typename T> inline T *create() {
+			virtual void set_anchor(anchor a) {
+				_anchor = static_cast<unsigned char>(a);
+				invalidate_layout();
+			}
+			virtual anchor get_anchor() const {
+				return static_cast<anchor>(_anchor);
+			}
+
+			virtual void set_visibility(visibility v) {
+				if ((
+					(static_cast<unsigned char>(v) ^ _vis) &
+					static_cast<unsigned char>(visibility::render_only)
+					) != 0) {
+					invalidate_visual();
+				}
+			}
+			virtual visibility get_visibility() const {
+				return static_cast<visibility>(_vis);
+			}
+
+			virtual bool hit_test(vec2d p) const {
+				return _layout.contains(p);
+			}
+
+			virtual cursor get_default_cursor() const {
+				return cursor::normal;
+			}
+			virtual void set_overriden_cursor(cursor c) {
+				_crsr = c;
+			}
+			virtual cursor get_overriden_cursor() const {
+				return _crsr;
+			}
+			virtual cursor get_current_display_cursor() const {
+				if (_crsr == cursor::not_specified) {
+					return get_default_cursor();
+				}
+				return _crsr;
+			}
+
+			virtual platform::window_base *get_window();
+
+			void invalidate_visual();
+			void invalidate_layout();
+			void revalidate_layout();
+
+			template <typename T> inline static T *create() {
 				static_assert(std::is_base_of<element, T>::value, "cannot create non-element");
 				element *elem = new T();
 				elem->_initialize();
@@ -148,11 +270,13 @@ namespace codepad {
 			rectd _layout;
 			// layout params
 			unsigned char _anchor = static_cast<unsigned char>(anchor::all);
-			bool _has_size = false, _dsize_cache = false;
-			vec2d _size;
+			bool _has_width = false, _has_height = false;
+			double _width, _height;
 			thickness _margin, _padding;
+			unsigned char _vis = static_cast<unsigned char>(visibility::visible);
 			// input
 			bool _mouse_over = false;
+			cursor _crsr = cursor::not_specified;
 
 			virtual void _on_mouse_enter(void_info &p) {
 				_mouse_over = true;
@@ -171,9 +295,7 @@ namespace codepad {
 			virtual void _on_mouse_move(mouse_move_info &p) {
 				mouse_move(p);
 			}
-			virtual void _on_mouse_down(mouse_button_info &p) {
-				mouse_down(p);
-			}
+			virtual void _on_mouse_down(mouse_button_info&);
 			virtual void _on_mouse_up(mouse_button_info &p) {
 				mouse_up(p);
 			}
@@ -190,9 +312,25 @@ namespace codepad {
 				keyboard_text(p);
 			}
 
+			virtual void _on_padding_changed() {
+			}
+
 			virtual void _on_update() {
 			}
-			virtual void _on_render() {
+
+			virtual void _on_prerender(platform::renderer_base &r) const {
+				r.push_clip(_layout.minimum_bounding_box<int>());
+			}
+			virtual void _render(platform::renderer_base&) const = 0;
+			virtual void _on_postrender(platform::renderer_base &r) const {
+				r.pop_clip();
+			}
+			virtual void _on_render(platform::renderer_base &r) const {
+				if (_vis & static_cast<unsigned char>(visibility::render_only)) {
+					_on_prerender(r);
+					_render(r);
+					_on_postrender(r);
+				}
 			}
 
 			inline static void _calc_layout_onedir(bool amin, bool amax, double &cmin, double &cmax, double pmin, double pmax, double sz) {
@@ -210,9 +348,9 @@ namespace codepad {
 					cmax = cmin + sz;
 				}
 			}
-			virtual void _on_invalid_layout();
 			virtual void _recalc_layout();
 			virtual void _finish_layout() {
+				invalidate_visual();
 			}
 
 			virtual void _initialize() {

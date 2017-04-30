@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <map>
+#include <unordered_map>
 #include <cassert>
 
 #include <ft2build.h>
@@ -9,7 +9,7 @@
 
 #include "textconfig.h"
 #include "misc.h"
-#include "../platform/interface.h"
+#include "../platform/renderer.h"
 
 namespace codepad {
 	class font {
@@ -35,7 +35,7 @@ namespace codepad {
 			_ft_verify(FT_Done_Face(_face));
 		}
 
-		const entry &get_char_entry(char_t c) {
+		const entry &get_char_entry(char_t c) const {
 			auto found = _map.find(c);
 			if (found == _map.end()) {
 				_ft_verify(FT_Load_Char(_face, c, FT_LOAD_DEFAULT | FT_LOAD_RENDER));
@@ -57,6 +57,9 @@ namespace codepad {
 		double height() const {
 			return _face->size->metrics.height * _ft_fixed_scale;
 		}
+		double max_width() const {
+			return _face->size->metrics.max_advance * _ft_fixed_scale;
+		}
 		vec2d get_kerning(char_t left, char_t right) const {
 			FT_Vector v;
 			_ft_verify(FT_Get_Kerning(_face, FT_Get_Char_Index(_face, left), FT_Get_Char_Index(_face, right), FT_KERNING_UNFITTED, &v));
@@ -70,7 +73,7 @@ namespace codepad {
 		constexpr static double _ft_fixed_scale = 1.0 / 64.0;
 
 		FT_Face _face = nullptr;
-		std::map<char_t, entry> _map;
+		mutable std::unordered_map<char_t, entry> _map;
 		platform::renderer_base &_rend;
 
 		inline static void _ft_verify(FT_Error code) {
@@ -88,5 +91,18 @@ namespace codepad {
 			FT_Library lib = nullptr;
 		};
 		static _library _lib;
+	};
+	enum class font_style {
+		normal = 0,
+		bold = 1,
+		italic = 2,
+		bold_italic = bold | italic
+	};
+	struct font_family {
+		const font *normal = nullptr, *bold = nullptr, *italic = nullptr, *bold_italic = nullptr;
+
+		double maximum_height() const {
+			return std::max({ normal->height(), bold->height(), italic->height(), bold_italic->height() });
+		}
 	};
 }

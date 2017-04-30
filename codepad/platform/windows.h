@@ -1,6 +1,6 @@
 #pragma once
 
-#include <map>
+#include <unordered_map>
 #include <vector>
 
 #include <Windows.h>
@@ -9,21 +9,14 @@
 #undef max
 #include <gl/GL.h>
 
-#include "interface.h"
+#include "window.h"
+#include "renderer.h"
 #include "../utilities/textconfig.h"
-
-#ifndef NDEBUG
-#	include <iostream>
-#endif
+#include "../utilities/textproc.h"
 
 namespace codepad {
 	namespace platform {
 		template <typename T> inline void winapi_check(T v) {
-#ifndef NDEBUG
-			if (!v) {
-				std::cout << "ERROR: " << GetLastError() << "\n";
-			}
-#endif
 			assert(v);
 		}
 		inline vec2i get_mouse_position() {
@@ -39,12 +32,8 @@ namespace codepad {
 			friend LRESULT CALLBACK _wndproc(HWND, UINT, WPARAM, LPARAM);
 			friend class software_renderer;
 			friend class opengl_renderer;
+			friend class ui::element;
 		public:
-			explicit window(const str_t&);
-			window(const window&) = delete;
-			window(window&&) = delete;
-			window &operator=(const window&) = delete;
-			window &operator=(window&&) = delete;
 			~window() {
 				DestroyWindow(_hwnd);
 			}
@@ -60,7 +49,18 @@ namespace codepad {
 			}
 
 			void set_caption(const str_t &cap) override {
-				winapi_check(SetWindowText(_hwnd, cap.c_str()));
+				auto u16str = utf32_to_utf16(cap);
+				winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
+			}
+
+			ui::cursor get_current_display_cursor() const override {
+				if (_children_cursor != ui::cursor::not_specified) {
+					return _children_cursor;
+				}
+				if (is_mouse_over()) {
+					return window_base::get_current_display_cursor();
+				}
+				return ui::cursor::not_specified;
 			}
 
 			vec2i screen_to_client(vec2i v) const override {
@@ -78,6 +78,10 @@ namespace codepad {
 				return vec2i(p.x, p.y);
 			}
 		protected:
+			window() : window(U"Codepad") {
+			}
+			explicit window(const str_t&);
+
 			HWND _hwnd;
 			HDC _dc;
 
@@ -90,7 +94,7 @@ namespace codepad {
 					winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
 					wcex.cbSize = sizeof(wcex);
 					wcex.lpfnWndProc = _wndproc;
-					wcex.lpszClassName = CPTEXT("Codepad");
+					wcex.lpszClassName = L"Codepad";
 					winapi_check(atom = RegisterClassEx(&wcex));
 				}
 				~_wndclass() {
@@ -101,7 +105,17 @@ namespace codepad {
 			};
 			static _wndclass _class;
 
-			void _recalc_layout() {
+			void _setup_mouse_tracking() {
+				TRACKMOUSEEVENT tme;
+				std::memset(&tme, 0, sizeof(tme));
+				tme.cbSize = sizeof(tme);
+				tme.dwFlags = TME_HOVER | TME_LEAVE;
+				tme.dwHoverTime = HOVER_DEFAULT;
+				tme.hwndTrack = _hwnd;
+				winapi_check(TrackMouseEvent(&tme));
+			}
+
+			void _recalc_layout() override { // TODO autosize mode for windows
 				RECT cln;
 				winapi_check(GetClientRect(_hwnd, &cln));
 				_layout = rectd::from_xywh(0.0, 0.0, cln.right, cln.bottom);
@@ -112,10 +126,6 @@ namespace codepad {
 		public:
 			software_renderer() : renderer_base() {
 				_txs.push_back(_tex_rec());
-			}
-
-			bool support_partial_redraw() const override {
-				return true;
 			}
 
 			void new_window(window_base &wnd) override {
@@ -131,17 +141,16 @@ namespace codepad {
 				_wnds[static_cast<window*>(&wnd)].dispose_buffer();
 			}
 
-			void begin(window_base &wnd, recti rgn) override {
-				_cwnd = static_cast<window*>(&wnd);
-				_crgn = rgn;
-				_crec = &_wnds[_cwnd];
-				for (int y = rgn.ymin; y < rgn.ymax; ++y) {
-					for (int x = rgn.xmin; x < rgn.xmax; ++x) {
+			void begin(const window_base &wnd) override {
+				_cwnd = static_cast<const window*>(&wnd);
+				_crec = &_wnds.find(_cwnd)->second;
+				for (size_t y = 0; y < _crec->bmp.h; ++y) {
+					for (size_t x = 0; x < _crec->bmp.w; ++x) {
 						_crec->bmp.arr[(_crec->bmp.h - y - 1) * _crec->bmp.w + x] = 0;
 					}
 				}
 			}
-			void draw_character(texture_id tex, vec2d, colord) override; // TODO
+			void draw_character(texture_id tex, vec2d, colord) override; // TODO draw_character of software_renderer
 			void draw_triangles(
 				const vec2d *poss, const vec2d *uvs, const colord *cs,
 				size_t sz, texture_id tid
@@ -269,8 +278,8 @@ namespace codepad {
 
 			std::vector<_tex_rec> _txs;
 			std::vector<texture_id> _id_realloc;
-			std::map<window*, _wnd_rec> _wnds;
-			window *_cwnd = nullptr;
+			std::unordered_map<const window*, _wnd_rec> _wnds;
+			const window *_cwnd = nullptr;
 			_wnd_rec *_crec = nullptr;
 			recti _crgn;
 
@@ -392,10 +401,6 @@ namespace codepad {
 				winapi_check(wglDeleteContext(_rc));
 			}
 
-			bool support_partial_redraw() const override {
-				return false;
-			}
-
 			void new_window(window_base &wnd) override {
 				window *cw = static_cast<window*>(&wnd);
 				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
@@ -417,30 +422,44 @@ namespace codepad {
 			void delete_window(window_base&) override {
 			}
 
-			void begin(window_base &wnd, recti) override {
-				window *cw = static_cast<window*>(&wnd);
+			void begin(const window_base &wnd) override {
+				const window *cw = static_cast<const window*>(&wnd);
 				_curdc = cw->_dc;
+				_curheight = static_cast<int>(cw->get_actual_size().y);
 				winapi_check(wglMakeCurrent(_curdc, _rc));
 				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
+			void push_clip(recti r) override {
+				_flush_text_buffer();
+				if (_clpstk.size() > 0) {
+					r = recti::common_part(r, _clpstk.back());
+				}
+				r.make_valid_max();
+				int ymin = r.ymin;
+				r.ymin = _curheight - r.ymax;
+				r.ymax = _curheight - ymin;
+				_clpstk.push_back(r);
+				glEnable(GL_SCISSOR_TEST);
+				glScissor(r.xmin, r.ymin, r.width(), r.height());
+			}
+			void pop_clip() override {
+				_flush_text_buffer();
+				_clpstk.pop_back();
+				if (_clpstk.size() > 0) {
+					const recti &r = _clpstk.back();
+					glScissor(r.xmin, r.ymin, r.width(), r.height());
+				} else {
+					glDisable(GL_SCISSOR_TEST);
+				}
+			}
 			void draw_character(texture_id id, vec2d pos, colord color) override {
-				const text_atlas::char_data &cd = _atl.get_char_data(id);
+				const _text_atlas::char_data &cd = _atl.get_char_data(id);
 				if (_lstpg != cd.page) {
 					_flush_text_buffer();
 					_lstpg = cd.page;
 				}
-				unsigned int beg = static_cast<unsigned int>(_text_cache.size());
-				_text_cache.push_back(_vertex(pos, cd.layout.xmin_ymin(), color));
-				_text_cache.push_back(_vertex(pos + vec2d(cd.w, 0.0), cd.layout.xmax_ymin(), color));
-				_text_cache.push_back(_vertex(pos + vec2d(0.0, cd.h), cd.layout.xmin_ymax(), color));
-				_text_cache.push_back(_vertex(pos + vec2d(cd.w, cd.h), cd.layout.xmax_ymax(), color));
-				_text_cache_ids.push_back(beg);
-				_text_cache_ids.push_back(beg + 1);
-				_text_cache_ids.push_back(beg + 2);
-				_text_cache_ids.push_back(beg + 1);
-				_text_cache_ids.push_back(beg + 3);
-				_text_cache_ids.push_back(beg + 2);
+				_textbuf.append(pos, pos + vec2d(cd.w, cd.h), cd.layout, color);
 			}
 			void draw_triangles(const vec2d *ps, const vec2d *us, const colord *cs, size_t n, texture_id t) override {
 				_flush_text_buffer();
@@ -450,6 +469,13 @@ namespace codepad {
 				glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(t));
 				glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(n));
 			}
+			void draw_lines(const vec2d *ps, const colord *cs, size_t n) override {
+				_flush_text_buffer();
+				glVertexPointer(2, GL_DOUBLE, sizeof(vec2d), ps);
+				glColorPointer(4, GL_DOUBLE, sizeof(colord), cs);
+				glBindTexture(GL_TEXTURE_2D, 0);
+				glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(n));
+			}
 			void end() override {
 				_flush_text_buffer();
 				winapi_check(SwapBuffers(_curdc));
@@ -457,13 +483,14 @@ namespace codepad {
 			}
 
 			texture_id new_character_texture(size_t w, size_t h, const void *data) override {
+				assert(_rc);
 				return _atl.new_char(w, h, data);
 			}
 			void delete_character_texture(texture_id id) override {
 				_atl.delete_char(id);
 			}
 		protected:
-			struct text_atlas {
+			struct _text_atlas {
 				void dispose() {
 					for (auto i = _ps.begin(); i != _ps.end(); ++i) {
 						i->dispose();
@@ -592,13 +619,48 @@ namespace codepad {
 					_cd_alloc.push_back(id);
 				}
 			};
+			struct _text_buffer {
+				struct vertex {
+					vertex(vec2d p, vec2d u, colord color) : v(p), uv(u), c(color) {
+					}
+					vec2d v, uv;
+					colord c;
+				};
+				std::vector<vertex> vxs;
+				std::vector<unsigned int> ids;
+				size_t vertcount = 0, count = 0;
 
-			struct _vertex {
-				_vertex(vec2d p, vec2d u, colord c) : pos(p), uv(u), color(c) {
+				void append(vec2d tl, vec2d br, rectd layout, colord c) {
+					if (vertcount == vxs.size()) {
+						unsigned int id = static_cast<unsigned int>(vxs.size());
+						ids.push_back(id);
+						ids.push_back(id + 1);
+						ids.push_back(id + 2);
+						ids.push_back(id + 1);
+						ids.push_back(id + 3);
+						ids.push_back(id + 2);
+						vxs.push_back(vertex(tl, layout.xmin_ymin(), c));
+						vxs.push_back(vertex(vec2d(br.x, tl.y), layout.xmax_ymin(), c));
+						vxs.push_back(vertex(vec2d(tl.x, br.y), layout.xmin_ymax(), c));
+						vxs.push_back(vertex(br, layout.xmax_ymax(), c));
+						vertcount = vxs.size();
+						count = ids.size();
+					} else {
+						vxs[vertcount++] = vertex(tl, layout.xmin_ymin(), c);
+						vxs[vertcount++] = vertex(vec2d(br.x, tl.y), layout.xmax_ymin(), c);
+						vxs[vertcount++] = vertex(vec2d(tl.x, br.y), layout.xmin_ymax(), c);
+						vxs[vertcount++] = vertex(br, layout.xmax_ymax(), c);
+						count += 6;
+					}
 				}
-
-				vec2d pos, uv;
-				colord color;
+				void flush_nocheck(GLuint tex) {
+					glVertexPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].v);
+					glTexCoordPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].uv);
+					glColorPointer(4, GL_DOUBLE, sizeof(vertex), &vxs[0].c);
+					glBindTexture(GL_TEXTURE_2D, tex);
+					glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, ids.data());
+					count = vertcount = 0;
+				}
 			};
 
 			HGLRC _rc = nullptr;
@@ -606,31 +668,20 @@ namespace codepad {
 			HDC _curdc;
 			int _pformat;
 
-			text_atlas _atl;
-			std::vector<_vertex> _text_cache;
-			std::vector<unsigned int> _text_cache_ids;
+			int _curheight;
+			std::vector<recti> _clpstk;
+
+			_text_atlas _atl;
+			_text_buffer _textbuf;
 			size_t _lstpg;
 
 			void _flush_text_buffer() {
-				if (_text_cache.size() > 0) {
-					glVertexPointer(2, GL_DOUBLE, sizeof(_vertex), &_text_cache[0].pos);
-					glTexCoordPointer(2, GL_DOUBLE, sizeof(_vertex), &_text_cache[0].uv);
-					glColorPointer(4, GL_DOUBLE, sizeof(_vertex), &_text_cache[0].color);
-					glBindTexture(GL_TEXTURE_2D, _atl.get_page(_lstpg).tex_id);
-					glDrawElements(GL_TRIANGLES, _text_cache_ids.size(), GL_UNSIGNED_INT, _text_cache_ids.data());
-					_text_cache.clear();
-					_text_cache_ids.clear();
+				if (_textbuf.vertcount > 0) {
+					_textbuf.flush_nocheck(_atl.get_page(_lstpg).tex_id);
 				}
 			}
-
 			void _gl_verify() {
-				GLenum error = glGetError();
-#ifndef NDEBUG
-				if (error != GL_NO_ERROR) {
-					std::cout << "OpenGL error: " << error << "\n";
-				}
-#endif
-				assert(error == GL_NO_ERROR);
+				assert(glGetError() == GL_NO_ERROR);
 			}
 			void _on_window_size_changed(window *wnd, GLsizei w, GLsizei h) {
 				winapi_check(wglMakeCurrent(wnd->_dc, _rc));

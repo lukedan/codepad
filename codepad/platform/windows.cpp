@@ -1,7 +1,25 @@
+#define OEMRESOURCE
+#include <Windows.h>
+
 #include "windows.h"
 
 namespace codepad {
 	namespace platform {
+		const int _cursor_id_mapping[] = {
+			OCR_NORMAL,
+			OCR_WAIT,
+			OCR_CROSS,
+			OCR_HAND,
+			OCR_NORMAL, // TODO OCR_HELP not in header?
+			OCR_IBEAM,
+			OCR_NO,
+			OCR_SIZEALL,
+			OCR_SIZENESW,
+			OCR_SIZENS,
+			OCR_SIZENWSE,
+			OCR_SIZEWE
+		};
+
 		template <typename Inf, typename ...Args> inline void _form_onevent(
 			window &w, void (window::*handle)(Inf&), Args &&...args
 		) {
@@ -43,46 +61,90 @@ namespace codepad {
 					return 0;
 
 				case WM_MOUSEWHEEL:
+				{
+					POINT p;
+					p.x = GET_X_LPARAM(lparam);
+					p.y = GET_Y_LPARAM(lparam);
+					winapi_check(ScreenToClient(form->_hwnd, &p));
 					_form_onevent<ui::mouse_scroll_info>(
-						*form, &window::_on_mouse_scroll, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)
-					);
+						*form, &window::_on_mouse_scroll,
+						GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), vec2d(p.x, p.y)
+						);
 					return 0;
+				}
 
 				case WM_MOUSEMOVE:
 					if (!form->_mouse_over) {
+						form->_setup_mouse_tracking();
 						_form_onevent<void_info>(*form, &window::_on_mouse_enter);
 					}
-					_form_onevent<ui::mouse_move_info>(*form, &window::_on_mouse_move, vec2i(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)));
+					_form_onevent<ui::mouse_move_info>(*form, &window::_on_mouse_move, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)));
 					return 0;
 				case WM_MOUSELEAVE:
 					_form_onevent<void_info>(*form, &window::_on_mouse_leave);
 					return 0;
 
 				case WM_LBUTTONDOWN:
-					_form_onevent<ui::mouse_button_info>(*form, &window::_on_mouse_down, ui::mouse_button::left);
+					_form_onevent<ui::mouse_button_info>(
+						*form, &window::_on_mouse_down,
+						ui::mouse_button::left, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						);
 					return 0;
 				case WM_LBUTTONUP:
-					_form_onevent<ui::mouse_button_info>(*form, &window::_on_mouse_up, ui::mouse_button::left);
+					_form_onevent<ui::mouse_button_info>(
+						*form, &window::_on_mouse_up,
+						ui::mouse_button::left, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						);
 					return 0;
 				case WM_RBUTTONDOWN:
-					_form_onevent<ui::mouse_button_info>(*form, &window::_on_mouse_down, ui::mouse_button::right);
+					_form_onevent<ui::mouse_button_info>(
+						*form, &window::_on_mouse_down,
+						ui::mouse_button::right, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						);
 					return 0;
 				case WM_RBUTTONUP:
-					_form_onevent<ui::mouse_button_info>(*form, &window::_on_mouse_up, ui::mouse_button::right);
+					_form_onevent<ui::mouse_button_info>(
+						*form, &window::_on_mouse_up,
+						ui::mouse_button::right, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						);
 					return 0;
 				case WM_MBUTTONDOWN:
-					_form_onevent<ui::mouse_button_info>(*form, &window::_on_mouse_down, ui::mouse_button::middle);
+					_form_onevent<ui::mouse_button_info>(
+						*form, &window::_on_mouse_down,
+						ui::mouse_button::middle, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						);
 					return 0;
 				case WM_MBUTTONUP:
-					_form_onevent<ui::mouse_button_info>(*form, &window::_on_mouse_up, ui::mouse_button::middle);
+					_form_onevent<ui::mouse_button_info>(
+						*form, &window::_on_mouse_up,
+						ui::mouse_button::middle, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						);
 					return 0;
 
 				case WM_SETFOCUS:
-					_form_onevent<void_info>(*form, &window::_on_got_focus);
+					_form_onevent<void_info>(*form, &window::_on_got_window_focus);
 					return 0;
 				case WM_KILLFOCUS:
-					_form_onevent<void_info>(*form, &window::_on_lost_focus);
+					_form_onevent<void_info>(*form, &window::_on_lost_window_focus);
 					return 0;
+
+				case WM_SETCURSOR:
+				{
+					ui::cursor c = form->get_current_display_cursor();
+					if (c == ui::cursor::not_specified) {
+						return DefWindowProc(hwnd, msg, wparam, lparam);
+					} else if (c == ui::cursor::invisible) {
+						SetCursor(nullptr);
+					} else {
+						HANDLE img = LoadImage(
+							nullptr, MAKEINTRESOURCE(_cursor_id_mapping[static_cast<int>(c)]),
+							IMAGE_CURSOR, 0, 0, LR_SHARED | LR_DEFAULTSIZE
+						);
+						winapi_check(img);
+						SetCursor(static_cast<HCURSOR>(img));
+					}
+					return TRUE;
+				}
 				}
 			}
 			return DefWindowProc(hwnd, msg, wparam, lparam);
@@ -90,8 +152,10 @@ namespace codepad {
 
 		window::_wndclass window::_class;
 		window::window(const str_t &clsname) {
+			auto u16str = utf32_to_utf16(clsname);
 			winapi_check(_hwnd = CreateWindowEx(
-				0, reinterpret_cast<LPCSTR>(static_cast<size_t>(_class.atom)), clsname.c_str(), WS_OVERLAPPEDWINDOW,
+				0, reinterpret_cast<LPCWSTR>(static_cast<size_t>(_class.atom)),
+				reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
 				CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 				nullptr, nullptr, GetModuleHandle(nullptr), nullptr
 			));

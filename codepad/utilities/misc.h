@@ -115,6 +115,30 @@ namespace codepad {
 			return xmax >= xmin && ymax >= ymin;
 		}
 
+		bool contains(vec2<T> v) const {
+			return v.x >= xmin && v.x <= xmax && v.y >= ymin && v.y <= ymax;
+		}
+		bool fully_contains(vec2<T> v) const {
+			return v.x > xmin && v.x < xmax && v.y > ymin && v.y < ymax;
+		}
+
+		void make_valid_min() {
+			if (xmin > xmax) {
+				xmin = xmax;
+			}
+			if (ymin > ymax) {
+				ymin = ymax;
+			}
+		}
+		void make_valid_max() {
+			if (xmin > xmax) {
+				xmax = xmin;
+			}
+			if (ymin > ymax) {
+				ymax = ymin;
+			}
+		}
+
 		template <typename U> typename std::enable_if<std::is_integral<T>::value, rect<U>>::type convert() const {
 			return rect<U>(static_cast<U>(xmin), static_cast<U>(xmax), static_cast<U>(ymin), static_cast<U>(ymax));
 		}

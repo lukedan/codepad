@@ -31,10 +31,13 @@ namespace codepad {
 			return *this;
 		}
 
-		void operator()(T &param) {
+		void invoke(T &param) {
 			for (auto i = _list.begin(); i != _list.end(); ++i) {
 				(*i)(param);
 			}
+		}
+		void operator()(T &param) {
+			invoke(param);
 		}
 	protected:
 		std::list<std::function<void(T&)>> _list;

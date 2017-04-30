@@ -21,16 +21,10 @@
     <ClInclude Include="utilities\misc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="platform\interface.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\element.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="platform\windows.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="utilities\textconfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="utilities\font.h">
@@ -46,6 +40,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="utilities\textproc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="platform\renderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="platform\window.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\commonelements.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities\textconfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editor\codebox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
