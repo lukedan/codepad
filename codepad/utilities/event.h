@@ -36,6 +36,10 @@ namespace codepad {
 				(*i)(param);
 			}
 		}
+		template <typename ...Args> void invoke_noret(Args &&...args) {
+			T p(std::forward<Args>(args)...);
+			invoke(p);
+		}
 		void operator()(T &param) {
 			invoke(param);
 		}

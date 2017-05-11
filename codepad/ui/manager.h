@@ -36,7 +36,54 @@ namespace codepad {
 			void invalidate_visual(element *e) {
 				_dirty.insert(e);
 			}
-			void update_invalid_visuals(platform::renderer_base&);
+			void update_invalid_visuals();
+
+			void schedule_update(element *e) {
+				_upd.insert(e);
+			}
+			void update_scheduled_elements() {
+				if (!_upd.empty()) {
+					std::unordered_set<element*> list;
+					std::swap(list, _upd);
+					for (auto i = list.begin(); i != list.end(); ++i) {
+						(*i)->_on_update();
+					}
+				}
+			}
+
+			void mark_disposal(element *e) { // may be called on one element multiple times before the element's disposed
+				_del.insert(e);
+			}
+			void dispose_marked_elements() {
+				while (!_del.empty()) {
+					std::unordered_set<element*> batch;
+					std::swap(batch, _del);
+					for (auto i = batch.begin(); i != batch.end(); ++i) {
+#ifndef NDEBUG
+						++_dispose_rec.reg_disposed;
+#endif
+						_targets.erase(*i);
+						_dirty.erase(*i);
+						_upd.erase(*i);
+						_del.erase(*i);
+						(*i)->_dispose();
+#ifndef NDEBUG
+						assert(!(*i)->_initialized); // you must call base::_dispose!
+#endif
+						delete *i;
+					}
+				}
+			}
+
+			void update_layout_and_visual() {
+				update_invalid_layouts();
+				update_invalid_visuals();
+			}
+			void update() {
+				dispose_marked_elements();
+				update_scheduled_elements();
+				update_layout_and_visual();
+			}
 
 			element *get_focused() const {
 				return _focus;
@@ -59,17 +106,10 @@ namespace codepad {
 			std::unordered_set<element*> _dirty;
 			// focus
 			element *_focus = nullptr;
-
-			void _on_element_disposed(element *e) {
-				auto layoutit = _targets.find(e);
-				if (layoutit != _targets.end()) {
-					_targets.erase(layoutit);
-				}
-				auto renderit = _dirty.find(e);
-				if (renderit != _dirty.end()) {
-					_dirty.erase(renderit);
-				}
-			}
+			// scheduled controls to update
+			std::unordered_set<element*> _upd;
+			// scheduled controls to delete
+			std::unordered_set<element*> _del;
 
 			static manager _sman;
 		};
@@ -84,7 +124,10 @@ namespace codepad {
 		}
 		inline void element::_on_mouse_down(mouse_button_info &p) {
 			mouse_down(p);
-			manager::default().set_focus(this);
+			if (_can_focus) {
+				p.mark_focus_set();
+				manager::default().set_focus(this);
+			}
 		}
 	}
 }

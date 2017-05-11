@@ -38,6 +38,20 @@ namespace codepad {
 			std::list<element*>::const_iterator end() const {
 				return _cs.end();
 			}
+
+			std::list<element*>::reverse_iterator rbegin() {
+				return _cs.rbegin();
+			}
+			std::list<element*>::const_reverse_iterator rbegin() const {
+				return _cs.rbegin();
+			}
+			std::list<element*>::reverse_iterator rend() {
+				return _cs.rend();
+			}
+			std::list<element*>::const_reverse_iterator rend() const {
+				return _cs.rend();
+			}
+
 			size_t size() const {
 				return _cs.size();
 			}
@@ -49,12 +63,13 @@ namespace codepad {
 		};
 		class panel_base : public element {
 			friend class element;
+			friend class element_collection;
 		public:
 			virtual bool override_children_layout() const {
 				return false;
 			}
 			virtual bool dependent_relayout() const {
-				return !has_width() || !has_height() || override_children_layout();
+				return override_children_layout() || !has_width() || !has_height();
 			}
 
 			cursor get_current_display_cursor() const override {
@@ -63,17 +78,26 @@ namespace codepad {
 				}
 				return element::get_current_display_cursor();
 			}
-		protected:
-			panel_base() : element(), _children(*this) {
-				_children.changed += [this](collection_change_info &info) {
-					if (info.change_type == collection_change_info::type::add) {
-						_on_add_child(info.changed);
-					} else {
-						_on_remove_child(info.changed);
-					}
-				};
-			}
 
+			virtual void set_dispose_children(bool v) {
+				_dispose_children = v;
+			}
+			virtual bool get_dispose_children() const {
+				return _dispose_children;
+			}
+		protected:
+			virtual void _on_children_changed(collection_change_info &p) {
+				if (dependent_relayout()) {
+					invalidate_layout();
+				} else {
+					invalidate_visual();
+				}
+				if (p.change_type == collection_change_info::type::add) {
+					_on_add_child(p.changed);
+				} else {
+					_on_remove_child(p.changed);
+				}
+			}
 			virtual void _on_add_child(element *e) {
 				e->invalidate_layout();
 				invalidate_visual();
@@ -91,16 +115,18 @@ namespace codepad {
 				}
 			}
 
-			void _render(platform::renderer_base &r) const override {
-				for (auto i = _children.begin(); i != _children.end(); ++i) {
-					(*i)->_on_render(r);
+			void _render() const override {
+				for (auto i = _children.rbegin(); i != _children.rend(); ++i) {
+					(*i)->_on_render();
 				}
 			}
 
 			void _finish_layout() override {
 				element::_finish_layout();
-				for (auto i = _children.begin(); i != _children.end(); ++i) {
-					(*i)->invalidate_layout();
+				if (!override_children_layout()) {
+					for (auto i = _children.begin(); i != _children.end(); ++i) {
+						(*i)->invalidate_layout();
+					}
 				}
 			}
 
@@ -114,7 +140,8 @@ namespace codepad {
 						break;
 					}
 				}
-				if (!hit) {
+				if (_can_focus && !p.focus_set()) {
+					p.mark_focus_set();
 					manager::default().set_focus(this);
 				}
 			}
@@ -166,27 +193,56 @@ namespace codepad {
 				}
 			}
 
-			element_collection _children;
+			void _initialize() override {
+				element::_initialize();
+				_can_focus = false;
+			}
+			void _dispose() override {
+				for (auto i = _children.begin(); i != _children.end(); ++i) {
+					manager::default().mark_disposal(*i);
+				}
+				element::_dispose();
+			}
+
+			void _child_recalc_layout(element *e, rectd r) const {
+				assert(e->_parent == this);
+				e->_recalc_layout(r);
+			}
+			void _child_set_layout(element *e, rectd r) const {
+				assert(e->_parent == this);
+				e->_layout = r;
+				e->_clientrgn = e->get_padding().shrink(e->get_layout());
+			}
+			void _child_on_render(element *e) const {
+				assert(e->_parent == this);
+				e->_on_render();
+			}
+
+			element_collection _children{ *this };
 			cursor _children_cursor = cursor::not_specified;
+			bool _dispose_children = true; // if true, marks all children for disposal on disposal
 		};
 
-		inline void element::_recalc_layout() {
-			_layout = _parent->_padding.shrink(_parent->_layout);
+		inline void element::_recalc_layout(rectd prgn) {
+			_layout = prgn;
 			vec2d sz = get_target_size();
 			_calc_layout_onedir(
-				_anchor & static_cast<unsigned char>(anchor::left), _anchor & static_cast<unsigned char>(anchor::right),
+				test_bit(_anchor, anchor::left), test_bit(_anchor, anchor::right),
 				_layout.xmin, _layout.xmax, _margin.left, _margin.right, sz.x
 			);
 			_calc_layout_onedir(
-				_anchor & static_cast<unsigned char>(anchor::top), _anchor & static_cast<unsigned char>(anchor::bottom),
+				test_bit(_anchor, anchor::top), test_bit(_anchor, anchor::bottom),
 				_layout.ymin, _layout.ymax, _margin.top, _margin.bottom, sz.y
 			);
+			_clientrgn = get_padding().shrink(get_layout());
 		}
-		inline element::~element() {
+		inline void element::_dispose() {
 			if (_parent) {
 				_parent->_children.remove(*this);
 			}
-			manager::default()._on_element_disposed(this);
+#ifndef NDEBUG
+			_initialized = false;
+#endif
 		}
 
 		inline void element_collection::add(element &elem) {
@@ -194,24 +250,21 @@ namespace codepad {
 			elem._parent = &_f;
 			elem._tok = _cs.insert(_cs.end(), &elem);
 			collection_change_info ci(collection_change_info::type::add, &elem);
-			changed(ci);
-		}
-		inline void element_collection::remove(element &elem) {
-			assert(elem._parent == &_f);
-			elem._parent = nullptr;
-			_cs.erase(elem._tok);
-			collection_change_info ci(collection_change_info::type::remove, &elem);
+			_f._on_children_changed(ci);
 			changed(ci);
 		}
 
 		inline void manager::update_invalid_layouts() {
 			if (!_targets.empty()) {
+				CP_INFO("relayout");
 				_layouting = true;
 				std::unordered_map<element*, bool> ftg;
 				for (auto i = _targets.begin(); i != _targets.end(); ++i) {
 					element *cur = i->first;
-					while (cur->_parent && cur->_parent->dependent_relayout()) {
-						cur = cur->_parent;
+					if (i->second) {
+						while (cur->_parent && cur->_parent->dependent_relayout()) {
+							cur = cur->_parent;
+						}
 					}
 					bool &v = ftg[cur];
 					v = v || i->second;
@@ -224,7 +277,11 @@ namespace codepad {
 					_layout_info li = _q.front();
 					_q.pop_front();
 					if (li.need_recalc) {
-						li.elem->_recalc_layout();
+						rectd prgn;
+						if (li.elem->_parent) {
+							prgn = li.elem->_parent->get_client_region();
+						}
+						li.elem->_recalc_layout(prgn);
 					}
 					li.elem->_finish_layout();
 				}
@@ -238,6 +295,10 @@ namespace codepad {
 				return _children;
 			}
 		protected:
+			void _initialize() override {
+				panel_base::_initialize();
+				_can_focus = true;
+			}
 		};
 	}
 }

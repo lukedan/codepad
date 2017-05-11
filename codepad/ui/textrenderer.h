@@ -23,7 +23,7 @@ namespace codepad {
 						if (last != U'\0') {
 							cur.x += static_cast<int>(std::round(lastw + fnt.get_kerning(last, *i).x));
 						}
-						fnt.bound_renderer().draw_character(et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color);
+						platform::renderer_base::default().draw_character(et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color);
 						last = *i;
 						lastw = et.advance;
 					}

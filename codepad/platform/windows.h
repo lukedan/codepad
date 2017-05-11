@@ -11,6 +11,7 @@
 
 #include "window.h"
 #include "renderer.h"
+#include "input.h"
 #include "../utilities/textconfig.h"
 #include "../utilities/textproc.h"
 
@@ -19,48 +20,91 @@ namespace codepad {
 		template <typename T> inline void winapi_check(T v) {
 			assert(v);
 		}
-		inline vec2i get_mouse_position() {
-			POINT p;
-			winapi_check(GetCursorPos(&p));
-			return vec2i(p.x, p.y);
-		}
-		inline void set_mouse_position(vec2i p) {
-			winapi_check(SetCursorPos(p.x, p.y));
+
+		namespace input {
+			extern const int _key_id_mapping[64];
+			inline bool is_key_down(key k) {
+				return (GetAsyncKeyState(_key_id_mapping[static_cast<int>(k)]) & ~1) != 0;
+			}
+			inline bool is_mouse_button_swapped() {
+				return GetSystemMetrics(SM_SWAPBUTTON) != 0;
+			}
+			inline bool is_mouse_button_down(mouse_button mb) {
+				switch (mb) {
+				case mouse_button::left:
+					if (is_mouse_button_swapped()) {
+						return is_key_down(key::physical_right_mouse);
+					}
+					return is_key_down(key::physical_left_mouse);
+				case mouse_button::right:
+					if (is_mouse_button_swapped()) {
+						return is_key_down(key::physical_left_mouse);
+					}
+					return is_key_down(key::physical_right_mouse);
+				case mouse_button::middle:
+					return is_key_down(key::middle_mouse);
+				}
+				assert(false);
+				return false;
+			}
+
+			inline vec2i get_mouse_position() {
+				POINT p;
+				winapi_check(GetCursorPos(&p));
+				return vec2i(p.x, p.y);
+			}
+			inline void set_mouse_position(vec2i p) {
+				winapi_check(SetCursorPos(p.x, p.y));
+			}
 		}
 
-		class window : public window_base {
+		class window : public window_base { // TODO set_size, set_visibility, etc.
 			friend LRESULT CALLBACK _wndproc(HWND, UINT, WPARAM, LPARAM);
 			friend class software_renderer;
 			friend class opengl_renderer;
 			friend class ui::element;
 		public:
-			~window() {
-				DestroyWindow(_hwnd);
-			}
-
-			bool idle() override {
-				MSG msg;
-				if (PeekMessage(&msg, _hwnd, 0, 0, PM_REMOVE)) {
-					TranslateMessage(&msg);
-					DispatchMessage(&msg);
-					return true;
-				}
-				return false;
-			}
-
 			void set_caption(const str_t &cap) override {
 				auto u16str = utf32_to_utf16(cap);
 				winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
+			}
+			vec2i get_position() const override {
+				POINT tl;
+				winapi_check(ClientToScreen(_hwnd, &tl));
+				return vec2i(tl.x, tl.y);
+			}
+			void set_position(vec2i pos) override {
+				RECT r;
+				POINT tl;
+				tl.x = tl.y = 0;
+				winapi_check(GetWindowRect(_hwnd, &r));
+				winapi_check(ClientToScreen(_hwnd, &tl));
+				tl.x -= r.left;
+				tl.y -= r.top;
+				winapi_check(MoveWindow(_hwnd, pos.x - tl.x, pos.y - tl.y, r.right - r.left, r.bottom - r.top, false));
+			}
+			vec2i get_size() const override {
+				RECT r;
+				winapi_check(GetClientRect(_hwnd, &r));
+				return vec2i(r.right, r.bottom);
+			}
+			void set_size(vec2i sz) override {
+				RECT wndrgn, cln;
+				winapi_check(GetWindowRect(_hwnd, &wndrgn));
+				winapi_check(GetClientRect(_hwnd, &cln));
+				winapi_check(MoveWindow(
+					_hwnd, wndrgn.left, wndrgn.top,
+					wndrgn.right - wndrgn.left - cln.right + sz.x,
+					wndrgn.bottom - wndrgn.top - cln.bottom + sz.y,
+					false
+				));
 			}
 
 			ui::cursor get_current_display_cursor() const override {
 				if (_children_cursor != ui::cursor::not_specified) {
 					return _children_cursor;
 				}
-				if (is_mouse_over()) {
-					return window_base::get_current_display_cursor();
-				}
-				return ui::cursor::not_specified;
+				return window_base::get_current_display_cursor();
 			}
 
 			vec2i screen_to_client(vec2i v) const override {
@@ -115,10 +159,42 @@ namespace codepad {
 				winapi_check(TrackMouseEvent(&tme));
 			}
 
-			void _recalc_layout() override { // TODO autosize mode for windows
+			void _on_resize() {
 				RECT cln;
 				winapi_check(GetClientRect(_hwnd, &cln));
 				_layout = rectd::from_xywh(0.0, 0.0, cln.right, cln.bottom);
+				size_changed_info p(vec2i(cln.right, cln.bottom));
+				if (p.new_size.x > 0 && p.new_size.y > 0) {
+					_on_size_changed(p);
+					ui::manager::default().update_layout_and_visual();
+				}
+			}
+
+			bool _idle() {
+				MSG msg;
+				if (PeekMessage(&msg, _hwnd, 0, 0, PM_REMOVE)) {
+					TranslateMessage(&msg);
+					DispatchMessage(&msg);
+					return true;
+				}
+				return false;
+			}
+			void _on_update() override {
+				while (_idle()) {
+				}
+				_update_drag();
+				ui::manager::default().schedule_update(this);
+			}
+
+			void _initialize() override {
+				window_base::_initialize();
+				SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+				ShowWindow(_hwnd, SW_SHOW);
+				ui::manager::default().schedule_update(this);
+			}
+			void _dispose() override {
+				winapi_check(DestroyWindow(_hwnd));
+				window_base::_dispose();
 			}
 		};
 
@@ -126,19 +202,6 @@ namespace codepad {
 		public:
 			software_renderer() : renderer_base() {
 				_txs.push_back(_tex_rec());
-			}
-
-			void new_window(window_base &wnd) override {
-				window *w = static_cast<window*>(&wnd);
-				_wnd_rec wr;
-				wr.create_buffer(w->_dc, static_cast<int>(w->_layout.width()), static_cast<int>(w->_layout.height()));
-				auto it = _wnds.insert(std::make_pair(w, wr)).first;
-				w->size_changed += [it](size_changed_info &info) {
-					it->second.resize_buffer(info.new_size.x, info.new_size.y);
-				};
-			}
-			void delete_window(window_base &wnd) override {
-				_wnds[static_cast<window*>(&wnd)].dispose_buffer();
 			}
 
 			void begin(const window_base &wnd) override {
@@ -150,7 +213,19 @@ namespace codepad {
 					}
 				}
 			}
-			void draw_character(texture_id tex, vec2d, colord) override; // TODO draw_character of software_renderer
+			void draw_character(texture_id tex, vec2d pos, colord c) override {
+				const _tex_rec &tr = _txs[tex];
+				rectd rv = rectd::from_xywh(pos.x, pos.y, static_cast<double>(tr.w), static_cast<double>(tr.h));
+				vec2d vxs[6] = {
+					rv.xmin_ymin(), rv.xmax_ymin(), rv.xmin_ymax(),
+					rv.xmax_ymin(), rv.xmax_ymax(), rv.xmin_ymax()
+				}, uvs[6] = {
+					vec2d(0.0, 0.0), vec2d(1.0, 0.0), vec2d(0.0, 1.0),
+					vec2d(1.0, 0.0), vec2d(0.0, 1.0), vec2d(1.0, 1.0)
+				};
+				colord cs[6] = { c, c, c, c, c, c };
+				draw_triangles(vxs, uvs, cs, 6, tex);
+			}
 			void draw_triangles(
 				const vec2d *poss, const vec2d *uvs, const colord *cs,
 				size_t sz, texture_id tid
@@ -178,6 +253,19 @@ namespace codepad {
 				_id_realloc.push_back(id);
 			}
 		protected:
+			void _new_window(window_base &wnd) override {
+				window *w = static_cast<window*>(&wnd);
+				_wnd_rec wr;
+				wr.create_buffer(w->_dc, static_cast<int>(w->_layout.width()), static_cast<int>(w->_layout.height()));
+				auto it = _wnds.insert(std::make_pair(w, wr)).first;
+				w->size_changed += [it](size_changed_info &info) {
+					it->second.resize_buffer(info.new_size.x, info.new_size.y);
+				};
+			}
+			void _delete_window(window_base &wnd) override {
+				_wnds[static_cast<window*>(&wnd)].dispose_buffer();
+			}
+
 			struct _tex_rec {
 				void set(size_t ww, size_t hh) {
 					w = ww;
@@ -232,8 +320,8 @@ namespace codepad {
 					BITMAPINFO info;
 					std::memset(&info, 0, sizeof(info));
 					info.bmiHeader.biSize = sizeof(info.bmiHeader);
-					info.bmiHeader.biWidth = w;
-					info.bmiHeader.biHeight = h;
+					info.bmiHeader.biWidth = static_cast<LONG>(w);
+					info.bmiHeader.biHeight = static_cast<LONG>(h);
 					info.bmiHeader.biPlanes = 1;
 					info.bmiHeader.biBitCount = 32;
 					info.bmiHeader.biCompression = BI_RGB;
@@ -401,27 +489,6 @@ namespace codepad {
 				winapi_check(wglDeleteContext(_rc));
 			}
 
-			void new_window(window_base &wnd) override {
-				window *cw = static_cast<window*>(&wnd);
-				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
-				if (!_rc) {
-					winapi_check(_rc = wglCreateContext(cw->_dc));
-				}
-				_on_window_size_changed(cw, static_cast<GLsizei>(cw->_layout.width()), static_cast<GLsizei>(cw->_layout.height()));
-				cw->size_changed += [this, cw](size_changed_info &info) {
-					_on_window_size_changed(cw, info.new_size.x, info.new_size.y);
-				};
-				glEnable(GL_TEXTURE_2D);
-				glEnable(GL_BLEND);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glEnableClientState(GL_VERTEX_ARRAY);
-				glEnableClientState(GL_NORMAL_ARRAY);
-				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-				glEnableClientState(GL_COLOR_ARRAY);
-			}
-			void delete_window(window_base&) override {
-			}
-
 			void begin(const window_base &wnd) override {
 				const window *cw = static_cast<const window*>(&wnd);
 				_curdc = cw->_dc;
@@ -429,16 +496,19 @@ namespace codepad {
 				winapi_check(wglMakeCurrent(_curdc, _rc));
 				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
+#ifndef NDEBUG
+				_gl_verify();
+#endif
 			}
 			void push_clip(recti r) override {
 				_flush_text_buffer();
+				int ymin = r.ymin;
+				r.ymin = _curheight - r.ymax;
+				r.ymax = _curheight - ymin;
 				if (_clpstk.size() > 0) {
 					r = recti::common_part(r, _clpstk.back());
 				}
 				r.make_valid_max();
-				int ymin = r.ymin;
-				r.ymin = _curheight - r.ymax;
-				r.ymax = _curheight - ymin;
 				_clpstk.push_back(r);
 				glEnable(GL_SCISSOR_TEST);
 				glScissor(r.xmin, r.ymin, r.width(), r.height());
@@ -459,7 +529,7 @@ namespace codepad {
 					_flush_text_buffer();
 					_lstpg = cd.page;
 				}
-				_textbuf.append(pos, pos + vec2d(cd.w, cd.h), cd.layout, color);
+				_textbuf.append(pos, pos + vec2d(static_cast<double>(cd.w), static_cast<double>(cd.h)), cd.layout, color);
 			}
 			void draw_triangles(const vec2d *ps, const vec2d *us, const colord *cs, size_t n, texture_id t) override {
 				_flush_text_buffer();
@@ -490,6 +560,27 @@ namespace codepad {
 				_atl.delete_char(id);
 			}
 		protected:
+			void _new_window(window_base &wnd) override {
+				window *cw = static_cast<window*>(&wnd);
+				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
+				if (!_rc) {
+					winapi_check(_rc = wglCreateContext(cw->_dc));
+				}
+				winapi_check(wglMakeCurrent(cw->_dc, _rc));
+				glEnable(GL_TEXTURE_2D);
+				glEnable(GL_BLEND);
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glEnableClientState(GL_VERTEX_ARRAY);
+				glEnableClientState(GL_NORMAL_ARRAY);
+				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				glEnableClientState(GL_COLOR_ARRAY);
+				cw->size_changed += [this, cw](size_changed_info &info) {
+					_on_window_size_changed(cw, info.new_size.x, info.new_size.y);
+				};
+			}
+			void _delete_window(window_base&) override {
+			}
+
 			struct _text_atlas {
 				void dispose() {
 					for (auto i = _ps.begin(); i != _ps.end(); ++i) {
@@ -501,7 +592,9 @@ namespace codepad {
 					void create(size_t w, size_t h) {
 						width = w;
 						height = h;
-						data = static_cast<unsigned char*>(std::malloc(width * height * 4));
+						size_t sz = width * height * 4;
+						data = static_cast<unsigned char*>(std::malloc(sz));
+						std::memset(data, 0, sz);
 						glGenTextures(1, &tex_id);
 						glBindTexture(GL_TEXTURE_2D, tex_id);
 						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -511,7 +604,10 @@ namespace codepad {
 					}
 					void flush() {
 						glBindTexture(GL_TEXTURE_2D, tex_id);
-						glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+						glTexImage2D(
+							GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height),
+							0, GL_RGBA, GL_UNSIGNED_BYTE, data
+						);
 					}
 					void dispose() {
 						std::free(data);
@@ -658,7 +754,7 @@ namespace codepad {
 					glTexCoordPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].uv);
 					glColorPointer(4, GL_DOUBLE, sizeof(vertex), &vxs[0].c);
 					glBindTexture(GL_TEXTURE_2D, tex);
-					glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, ids.data());
+					glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(count), GL_UNSIGNED_INT, ids.data());
 					count = vertcount = 0;
 				}
 			};

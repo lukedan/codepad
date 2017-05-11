@@ -5,6 +5,75 @@
 
 namespace codepad {
 	namespace platform {
+		namespace input {
+			const int _key_id_mapping[64] = {
+				VK_LBUTTON,
+				VK_RBUTTON,
+				VK_MBUTTON,
+				VK_CANCEL,
+				VK_XBUTTON1,
+				VK_XBUTTON2,
+				VK_BACK,
+				VK_TAB,
+				VK_CLEAR,
+				VK_RETURN,
+				VK_SHIFT,
+				VK_CONTROL,
+				VK_MENU,
+				VK_PAUSE,
+				VK_CAPITAL,
+				VK_ESCAPE,
+				VK_CONVERT,
+				VK_NONCONVERT,
+				VK_SPACE,
+				VK_PRIOR,
+				VK_NEXT,
+				VK_END,
+				VK_HOME,
+				VK_LEFT,
+				VK_UP,
+				VK_RIGHT,
+				VK_DOWN,
+				VK_SELECT,
+				VK_PRINT,
+				VK_EXECUTE,
+				VK_SNAPSHOT,
+				VK_INSERT,
+				VK_DELETE,
+				VK_HELP,
+				VK_LWIN,
+				VK_RWIN,
+				VK_APPS,
+				VK_SLEEP,
+				VK_MULTIPLY,
+				VK_ADD,
+				VK_SEPARATOR,
+				VK_SUBTRACT,
+				VK_DECIMAL,
+				VK_DIVIDE,
+				VK_F1,
+				VK_F2,
+				VK_F3,
+				VK_F4,
+				VK_F5,
+				VK_F6,
+				VK_F7,
+				VK_F8,
+				VK_F9,
+				VK_F10,
+				VK_F11,
+				VK_F12,
+				VK_NUMLOCK,
+				VK_SCROLL,
+				VK_LSHIFT,
+				VK_RSHIFT,
+				VK_LCONTROL,
+				VK_RCONTROL,
+				VK_LMENU,
+				VK_RMENU
+			};
+		}
+
 		const int _cursor_id_mapping[] = {
 			OCR_NORMAL,
 			OCR_WAIT,
@@ -36,14 +105,8 @@ namespace codepad {
 					return 0;
 
 				case WM_SIZE:
-				{
-					form->_recalc_layout();
-					vec2i newsz(LOWORD(lparam), HIWORD(lparam));
-					if (newsz.x > 0 && newsz.y > 0) {
-						_form_onevent<size_changed_info>(*form, &window::_on_size_changed, newsz);
-					}
+					form->_on_resize();
 					return 0;
-				}
 
 				case WM_KEYDOWN:
 					_form_onevent<ui::key_info>(*form, &window::_on_key_up, static_cast<int>(wparam));
@@ -87,37 +150,37 @@ namespace codepad {
 				case WM_LBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						ui::mouse_button::left, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::left, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_LBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						ui::mouse_button::left, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::left, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_RBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						ui::mouse_button::right, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::right, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_RBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						ui::mouse_button::right, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::right, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_MBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						ui::mouse_button::middle, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::middle, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_MBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						ui::mouse_button::middle, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::middle, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 
@@ -130,6 +193,9 @@ namespace codepad {
 
 				case WM_SETCURSOR:
 				{
+					if (!form->is_mouse_over()) {
+						return DefWindowProc(hwnd, msg, wparam, lparam);
+					}
 					ui::cursor c = form->get_current_display_cursor();
 					if (c == ui::cursor::not_specified) {
 						return DefWindowProc(hwnd, msg, wparam, lparam);
@@ -160,8 +226,6 @@ namespace codepad {
 				nullptr, nullptr, GetModuleHandle(nullptr), nullptr
 			));
 			winapi_check(_dc = GetDC(_hwnd));
-			SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-			ShowWindow(_hwnd, SW_SHOW);
 		}
 	}
 }

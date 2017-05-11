@@ -5,7 +5,9 @@
 #include "platform/windows.h"
 #include "utilities/font.h"
 #include "ui/textrenderer.h"
+#include "ui/commonelements.h"
 #include "editor/codebox.h"
+#include "editor/docking.h"
 
 using namespace codepad;
 using namespace codepad::platform;
@@ -13,36 +15,42 @@ using namespace codepad::ui;
 using namespace codepad::editor;
 
 int main() {
-	file_context ctx(U"platform/windows.h");
-	//software_renderer rend;
-	opengl_renderer rend;
-	font fnt("UbuntuMono-R.ttf", 18, rend);
+#ifndef NDEBUG
+	enable_mem_checking();
+#endif
 
-	window *wnd = element::create<window>();
+	renderer_base::create_default<opengl_renderer>();
+
+	file_context ctx(U"platform/windows.h");
+	font fnt("times.ttf", 18);
+
+	content_host::set_default_font(&fnt);
+
+	tab *codetab = dock_manager::default().new_tab(dock_manager::default().get_focused_tab_host());
+	codetab->set_caption(U"code");
 	codebox *cp = element::create<codebox>();
-	wnd->children().add(*cp);
 	cp->context = &ctx;
 	cp->font.normal = cp->font.bold = cp->font.italic = cp->font.bold_italic = &fnt;
-	cp->set_margin(thickness(100.0));
+	codetab->children().add(*cp);
+	manager::default().set_focus(codetab);
 
-	rend.new_window(*wnd);
+	tab *lbltab = dock_manager::default().new_tab(dock_manager::default().get_focused_tab_host());
+	lbltab->set_caption(U"label");
+	label *lbl = element::create<label>();
+	lbl->set_margin(thickness(1.0, 1.0, 1.0, 1.0));
+	lbl->set_anchor(anchor::none);
+	lbl->set_overriden_cursor(cursor::denied);
+	lbl->content().set_color(colord(1.0, 0.0, 0.0, 1.0));
+	lbl->content().set_text(U"[text test]");
+	lbl->content().set_text_offset(vec2d(0.5, 0.5));
+	lbltab->children().add(*lbl);
 
-	bool stop = false;
-	wnd->close_request += [&stop](void_info&) {
-		stop = true;
-	};
-	while (!stop) {
-		wnd->idle();
-
-		manager::default().update_invalid_layouts();
-		manager::default().update_invalid_visuals(rend);
-
+	while (!dock_manager::default().empty()) {
+		manager::default().update();
+		dock_manager::default().update();
 		std::this_thread::sleep_for(std::chrono::milliseconds::duration(1));
 	}
-
-	rend.delete_window(*wnd);
-
-	delete wnd;
+	manager::default().dispose_marked_elements();
 
 	return 0;
 }

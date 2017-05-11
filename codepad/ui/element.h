@@ -2,9 +2,11 @@
 
 #include <list>
 
+#include "visual.h"
 #include "../utilities/event.h"
 #include "../utilities/misc.h"
 #include "../platform/renderer.h"
+#include "../platform/input.h"
 
 namespace codepad {
 	namespace ui {
@@ -28,12 +30,20 @@ namespace codepad {
 		protected:
 			bool _handled = false;
 		};
-		enum class mouse_button { left, middle, right };
 		struct mouse_button_info {
-			mouse_button_info(mouse_button mb, vec2d pos) : button(mb), position(pos) {
+			mouse_button_info(platform::input::mouse_button mb, vec2d pos) : button(mb), position(pos) {
 			}
-			const mouse_button button;
+			const platform::input::mouse_button button;
 			const vec2d position;
+			bool focus_set() const {
+				return _focus_set;
+			}
+			void mark_focus_set() {
+				assert(!_focus_set);
+				_focus_set = true;
+			}
+		protected:
+			bool _focus_set = false;
 		};
 		struct key_info {
 			key_info(int k) : key(k) {
@@ -60,8 +70,14 @@ namespace codepad {
 				return rectd(r.xmin + left, r.xmax - right, r.ymin + top, r.ymax - bottom);
 			}
 
+			double width() const {
+				return left + right;
+			}
+			double height() const {
+				return top + bottom;
+			}
 			vec2d size() const {
-				return vec2d(left + right, top + bottom);
+				return vec2d(width(), height());
 			}
 		};
 
@@ -113,16 +129,32 @@ namespace codepad {
 		};
 		class panel_base;
 		class manager;
+#ifndef NDEBUG
+		struct control_dispose_rec {
+			~control_dispose_rec() {
+				assert(reg_created == disposed && reg_disposed == disposed);
+			}
+			size_t reg_created = 0, disposed = 0, reg_disposed = 0;
+		};
+		extern control_dispose_rec _dispose_rec;
+#endif
 		class element {
 			friend class manager;
 			friend class element_collection;
 			friend class panel_base;
 			friend class platform::window_base;
 		public:
-			virtual ~element();
+			virtual ~element() {
+#ifndef NDEBUG
+				++_dispose_rec.disposed;
+#endif
+			}
 
-			rectd layout() const {
+			rectd get_layout() const {
 				return _layout;
+			}
+			rectd get_client_region() const {
+				return _clientrgn;
 			}
 			bool is_mouse_over() const {
 				return _mouse_over;
@@ -209,19 +241,17 @@ namespace codepad {
 			}
 
 			virtual void set_visibility(visibility v) {
-				if ((
-					(static_cast<unsigned char>(v) ^ _vis) &
-					static_cast<unsigned char>(visibility::render_only)
-					) != 0) {
+				if (test_bit(static_cast<unsigned char>(v) ^ _vis, visibility::render_only)) {
 					invalidate_visual();
 				}
+				_vis = static_cast<unsigned char>(v);
 			}
 			virtual visibility get_visibility() const {
 				return static_cast<visibility>(_vis);
 			}
 
 			virtual bool hit_test(vec2d p) const {
-				return _layout.contains(p);
+				return test_bit(_vis, visibility::interaction_only) && _layout.contains(p);
 			}
 
 			virtual cursor get_default_cursor() const {
@@ -240,16 +270,29 @@ namespace codepad {
 				return _crsr;
 			}
 
+			virtual void set_can_focus(bool v) {
+				_can_focus = v;
+			}
+			virtual bool get_can_focus() const {
+				return _can_focus;
+			}
+
 			virtual platform::window_base *get_window();
 
 			void invalidate_visual();
 			void invalidate_layout();
 			void revalidate_layout();
 
-			template <typename T> inline static T *create() {
+			template <typename T, typename ...Args> inline static T *create(Args &&...arg) {
 				static_assert(std::is_base_of<element, T>::value, "cannot create non-element");
-				element *elem = new T();
+				element *elem = new T(std::forward<Args>(arg)...);
+#ifndef NDEBUG
+				++_dispose_rec.reg_created;
+#endif
 				elem->_initialize();
+#ifndef NDEBUG
+				assert(elem->_initialized); // you must call base::_initialize!
+#endif
 				return static_cast<T*>(elem);
 			}
 
@@ -267,7 +310,7 @@ namespace codepad {
 			panel_base *_parent = nullptr;
 			std::list<element*>::iterator _tok;
 			// layout result
-			rectd _layout;
+			rectd _layout, _clientrgn;
 			// layout params
 			unsigned char _anchor = static_cast<unsigned char>(anchor::all);
 			bool _has_width = false, _has_height = false;
@@ -275,7 +318,7 @@ namespace codepad {
 			thickness _margin, _padding;
 			unsigned char _vis = static_cast<unsigned char>(visibility::visible);
 			// input
-			bool _mouse_over = false;
+			bool _mouse_over = false, _can_focus = true;
 			cursor _crsr = cursor::not_specified;
 
 			virtual void _on_mouse_enter(void_info &p) {
@@ -313,23 +356,25 @@ namespace codepad {
 			}
 
 			virtual void _on_padding_changed() {
+				invalidate_visual();
 			}
 
 			virtual void _on_update() {
 			}
 
-			virtual void _on_prerender(platform::renderer_base &r) const {
-				r.push_clip(_layout.minimum_bounding_box<int>());
+			virtual void _on_prerender() const {
+				platform::renderer_base::default().push_clip(_layout.minimum_bounding_box<int>());
 			}
-			virtual void _render(platform::renderer_base&) const = 0;
-			virtual void _on_postrender(platform::renderer_base &r) const {
-				r.pop_clip();
+			virtual void _render() const = 0;
+			virtual void _on_postrender() const {
+				texture_brush(colord(1.0, 1.0, 1.0, 0.1)).fill_rect(get_layout());
+				platform::renderer_base::default().pop_clip();
 			}
-			virtual void _on_render(platform::renderer_base &r) const {
-				if (_vis & static_cast<unsigned char>(visibility::render_only)) {
-					_on_prerender(r);
-					_render(r);
-					_on_postrender(r);
+			virtual void _on_render() const {
+				if (test_bit(_vis, visibility::render_only)) {
+					_on_prerender();
+					_render();
+					_on_postrender();
 				}
 			}
 
@@ -348,13 +393,22 @@ namespace codepad {
 					cmax = cmin + sz;
 				}
 			}
-			virtual void _recalc_layout();
+			virtual void _recalc_layout(rectd);
 			virtual void _finish_layout() {
 				invalidate_visual();
 			}
 
+#ifndef NDEBUG
+		private:
+			bool _initialized = false;
+		public:
+#endif
 			virtual void _initialize() {
+#ifndef NDEBUG
+				_initialized = true;
+#endif
 			}
+			virtual void _dispose();
 		};
 	}
 }

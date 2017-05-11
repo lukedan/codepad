@@ -275,4 +275,27 @@ namespace codepad {
 		}
 		return v > max ? max : v;
 	}
+
+	template <typename T, typename U> inline bool test_bit(T v, U bit) {
+		return (v & static_cast<T>(bit)) != 0;
+	}
+	template <typename T, typename U> inline void set_bit(T &v, U bit) {
+		v |= static_cast<T>(bit);
+	}
+	template <typename T, typename U> inline void unset_bit(T &v, U bit) {
+		v &= ~static_cast<T>(bit);
+	}
 }
+
+#define CP_INFO(STR, ...) ::std::printf("INFO|%s:%d|" STR "\n", __func__, __LINE__, __VA_ARGS__)
+
+#if defined(_MSC_VER) && !defined(NDEBUG)
+#	define _CRTDBG_MAP_ALLOC
+#	include <stdlib.h>
+#	include <crtdbg.h>
+namespace codepad {
+	inline void enable_mem_checking() {
+		_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	}
+}
+#endif

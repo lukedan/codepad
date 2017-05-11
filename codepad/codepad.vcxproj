@@ -124,11 +124,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="editor\codebox.h" />
+    <ClInclude Include="editor\docking.h" />
+    <ClInclude Include="platform\current.h" />
+    <ClInclude Include="platform\input.h" />
     <ClInclude Include="platform\renderer.h" />
     <ClInclude Include="ui\commonelements.h" />
     <ClInclude Include="ui\manager.h" />
     <ClInclude Include="ui\panel.h" />
     <ClInclude Include="ui\textrenderer.h" />
+    <ClInclude Include="ui\visual.h" />
     <ClInclude Include="utilities\font.h" />
     <ClInclude Include="utilities\textconfig.h" />
     <ClInclude Include="utilities\textproc.h" />

@@ -20,7 +20,7 @@ namespace codepad {
 			platform::texture_id texture;
 		};
 
-		font(const std::string &str, size_t sz, platform::renderer_base &base) : _rend(base) {
+		font(const std::string &str, size_t sz) {
 			_ft_verify(FT_New_Face(_lib.lib, str.c_str(), 0, &_face));
 			_ft_verify(FT_Set_Pixel_Sizes(_face, 0, static_cast<FT_UInt>(sz)));
 		}
@@ -30,7 +30,7 @@ namespace codepad {
 		font &operator =(font&&) = delete;
 		~font() {
 			for (auto i = _map.begin(); i != _map.end(); ++i) {
-				_rend.delete_character_texture(i->second.texture);
+				platform::renderer_base::default().delete_character_texture(i->second.texture);
 			}
 			_ft_verify(FT_Done_Face(_face));
 		}
@@ -41,7 +41,7 @@ namespace codepad {
 				_ft_verify(FT_Load_Char(_face, c, FT_LOAD_DEFAULT | FT_LOAD_RENDER));
 				const FT_Bitmap &bmpdata = _face->glyph->bitmap;
 				entry &et = _map[c] = entry();
-				et.texture = _rend.new_character_texture(bmpdata.width, bmpdata.rows, bmpdata.buffer);
+				et.texture = platform::renderer_base::default().new_character_texture(bmpdata.width, bmpdata.rows, bmpdata.buffer);
 				et.advance = _face->glyph->metrics.horiAdvance * _ft_fixed_scale;
 				et.placement = rectd::from_xywh(
 					_face->glyph->metrics.horiBearingX * _ft_fixed_scale,
@@ -65,16 +65,11 @@ namespace codepad {
 			_ft_verify(FT_Get_Kerning(_face, FT_Get_Char_Index(_face, left), FT_Get_Char_Index(_face, right), FT_KERNING_UNFITTED, &v));
 			return vec2d(v.x, v.y) * _ft_fixed_scale;
 		}
-
-		platform::renderer_base &bound_renderer() const {
-			return _rend;
-		}
 	protected:
 		constexpr static double _ft_fixed_scale = 1.0 / 64.0;
 
 		FT_Face _face = nullptr;
 		mutable std::unordered_map<char_t, entry> _map;
-		platform::renderer_base &_rend;
 
 		inline static void _ft_verify(FT_Error code) {
 			assert(code == 0);

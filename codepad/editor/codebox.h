@@ -10,19 +10,22 @@
 
 namespace codepad {
 	namespace editor {
+		// TODO syntax highlighting, line numbers, etc.
 		class file_context {
 		public:
-			file_context(const str_t &fn) : path(fn) {
+			file_context(const str_t &fn, size_t buffer_size = 32768) : path(fn) {
 				std::list<line> ls;
 				std::stringstream ss;
 				{
-					char buffer[32768] = { 0 };
+					assert(buffer_size > 1);
+					char *buffer = static_cast<char*>(std::malloc(sizeof(char) * buffer_size));
 					std::ifstream fin(convert_to_utf8(path), std::ios::binary);
 					while (fin) {
-						fin.read(buffer, sizeof(buffer) / sizeof(char) - 1);
+						fin.read(buffer, buffer_size - 1);
 						buffer[fin.gcount()] = '\0';
 						ss << buffer;
 					}
+					std::free(buffer);
 				}
 				str_t fullcontent = convert_from_utf8<char_t>(ss.str());
 				std::basic_ostringstream<char_t> nss;
@@ -183,7 +186,10 @@ namespace codepad {
 				}
 			}
 
-			void _render(platform::renderer_base&) const override {
+			void _render() const override {
+				if (_layout.height() < 0.0) {
+					return;
+				}
 				double lh = font.maximum_height();
 				size_t
 					line_beg = static_cast<size_t>(_pos / lh),
