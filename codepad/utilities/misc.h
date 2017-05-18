@@ -7,8 +7,8 @@
 
 namespace codepad {
 	template <typename T> struct vec2 {
-		vec2() = default;
-		vec2(T xx, T yy) : x(xx), y(yy) {
+		constexpr vec2() = default;
+		constexpr vec2(T xx, T yy) : x(xx), y(yy) {
 		}
 
 		T x = 0, y = 0;
@@ -22,14 +22,14 @@ namespace codepad {
 			return (&x)[sub];
 		}
 
-		template <typename U> vec2<U> convert() const {
+		template <typename U> constexpr vec2<U> convert() const {
 			return vec2<U>(static_cast<U>(x), static_cast<U>(y));
 		}
 
-		T length_sqr() const {
+		constexpr T length_sqr() const {
 			return x * x + y * y;
 		}
-		T length() const {
+		constexpr T length() const {
 			return std::sqrt(length_sqr());
 		}
 
@@ -38,11 +38,11 @@ namespace codepad {
 			y += rhs.y;
 			return *this;
 		}
-		friend vec2 operator+(vec2 lhs, vec2 rhs) {
+		constexpr friend vec2 operator+(vec2 lhs, vec2 rhs) {
 			return vec2(lhs.x + rhs.x, lhs.y + rhs.y);
 		}
 
-		friend vec2 operator-(vec2 v) {
+		constexpr friend vec2 operator-(vec2 v) {
 			return vec2(-v.x, -v.y);
 		}
 		vec2 &operator-=(vec2 rhs) {
@@ -50,7 +50,7 @@ namespace codepad {
 			y -= rhs.y;
 			return *this;
 		}
-		friend vec2 operator-(vec2 lhs, vec2 rhs) {
+		constexpr friend vec2 operator-(vec2 lhs, vec2 rhs) {
 			return vec2(lhs.x - rhs.x, lhs.y - rhs.y);
 		}
 
@@ -59,10 +59,10 @@ namespace codepad {
 			y *= rhs;
 			return *this;
 		}
-		friend vec2 operator*(vec2 lhs, T rhs) {
+		constexpr friend vec2 operator*(vec2 lhs, T rhs) {
 			return vec2(lhs.x * rhs, lhs.y * rhs);
 		}
-		friend vec2 operator*(T lhs, vec2 rhs) {
+		constexpr friend vec2 operator*(T lhs, vec2 rhs) {
 			return vec2(lhs * rhs.x, lhs * rhs.y);
 		}
 
@@ -71,7 +71,7 @@ namespace codepad {
 			y /= rhs;
 			return *this;
 		}
-		friend vec2 operator/(vec2 lhs, T rhs) {
+		constexpr friend vec2 operator/(vec2 lhs, T rhs) {
 			return vec2(lhs.x / rhs, lhs.y / rhs);
 		}
 	};
@@ -81,44 +81,55 @@ namespace codepad {
 	typedef vec2<unsigned int> vec2u;
 
 	template <typename T> struct rect {
-		rect() = default;
-		rect(T minx, T maxx, T miny, T maxy) : xmin(minx), xmax(maxx), ymin(miny), ymax(maxy) {
+		constexpr rect() = default;
+		constexpr rect(T minx, T maxx, T miny, T maxy) : xmin(minx), xmax(maxx), ymin(miny), ymax(maxy) {
 		}
 
 		T xmin = 0, xmax = 0, ymin = 0, ymax = 0;
 
-		T width() const {
+		constexpr T width() const {
 			return xmax - xmin;
 		}
-		T height() const {
+		constexpr T height() const {
 			return ymax - ymin;
 		}
-		vec2<T> size() const {
+		constexpr vec2<T> size() const {
 			return vec2<T>(width(), height());
 		}
-		vec2<T> xmin_ymin() const {
+		constexpr vec2<T> xmin_ymin() const {
 			return vec2<T>(xmin, ymin);
 		}
-		vec2<T> xmax_ymin() const {
+		constexpr vec2<T> xmax_ymin() const {
 			return vec2<T>(xmax, ymin);
 		}
-		vec2<T> xmin_ymax() const {
+		constexpr vec2<T> xmin_ymax() const {
 			return vec2<T>(xmin, ymax);
 		}
-		vec2<T> xmax_ymax() const {
+		constexpr vec2<T> xmax_ymax() const {
 			return vec2<T>(xmax, ymax);
 		}
-		bool positive_area() const {
+
+		constexpr double centerx() const {
+			return (xmin + xmax) * 0.5f;
+		}
+		constexpr double centery() const {
+			return (ymin + ymax) * 0.5f;
+		}
+		constexpr vec2<T> center() const {
+			return vec2<T>(centerx(), centery());
+		}
+
+		constexpr bool positive_area() const {
 			return xmax > xmin && ymax > ymin;
 		}
-		bool nonnegative_area() const {
+		constexpr bool nonnegative_area() const {
 			return xmax >= xmin && ymax >= ymin;
 		}
 
-		bool contains(vec2<T> v) const {
+		constexpr bool contains(vec2<T> v) const {
 			return v.x >= xmin && v.x <= xmax && v.y >= ymin && v.y <= ymax;
 		}
-		bool fully_contains(vec2<T> v) const {
+		constexpr bool fully_contains(vec2<T> v) const {
 			return v.x > xmin && v.x < xmax && v.y > ymin && v.y < ymax;
 		}
 
@@ -139,40 +150,40 @@ namespace codepad {
 			}
 		}
 
-		template <typename U> typename std::enable_if<std::is_integral<T>::value, rect<U>>::type convert() const {
+		template <typename U> constexpr typename std::enable_if<std::is_integral<T>::value, rect<U>>::type convert() const {
 			return rect<U>(static_cast<U>(xmin), static_cast<U>(xmax), static_cast<U>(ymin), static_cast<U>(ymax));
 		}
-		template <typename U> typename std::enable_if<std::is_integral<U>::value, rect<U>>::type minimum_bounding_box() const {
+		template <typename U> constexpr typename std::enable_if<std::is_integral<U>::value, rect<U>>::type minimum_bounding_box() const {
 			return rect<U>(
 				static_cast<U>(std::floor(xmin)), static_cast<U>(std::ceil(xmax)),
 				static_cast<U>(std::floor(ymin)), static_cast<U>(std::ceil(ymax))
 				);
 		}
-		template <typename U> typename std::enable_if<std::is_integral<U>::value, rect<U>>::type maximum_contained_box() const {
+		template <typename U> constexpr typename std::enable_if<std::is_integral<U>::value, rect<U>>::type maximum_contained_box() const {
 			return rect<U>(
 				static_cast<U>(std::ceil(xmin)), static_cast<U>(std::floor(xmax)),
 				static_cast<U>(std::ceil(ymin)), static_cast<U>(std::floor(ymax))
 				);
 		}
 
-		rect translated(vec2<T> diff) const {
+		constexpr rect translated(vec2<T> diff) const {
 			return rect(xmin + diff.x, xmax + diff.x, ymin + diff.y, ymax + diff.y);
 		}
 
-		inline static rect common_part(rect lhs, rect rhs) {
+		inline static constexpr rect common_part(rect lhs, rect rhs) {
 			return rect(
 				std::max(lhs.xmin, rhs.xmin), std::min(lhs.xmax, rhs.xmax),
 				std::max(lhs.ymin, rhs.ymin), std::min(lhs.ymax, rhs.ymax)
 			);
 		}
-		inline static rect bounding_box(rect lhs, rect rhs) {
+		inline static constexpr rect bounding_box(rect lhs, rect rhs) {
 			return rect(
 				std::min(lhs.xmin, rhs.xmin), std::max(lhs.xmax, rhs.xmax),
 				std::min(lhs.ymin, rhs.ymin), std::max(lhs.ymax, rhs.ymax)
 			);
 		}
 
-		inline static rect from_xywh(T x, T y, T w, T h) {
+		inline static constexpr rect from_xywh(T x, T y, T w, T h) {
 			return rect(x, x + w, y, y + h);
 		}
 	};
@@ -280,14 +291,18 @@ namespace codepad {
 		return (v & static_cast<T>(bit)) != 0;
 	}
 	template <typename T, typename U> inline void set_bit(T &v, U bit) {
-		v |= static_cast<T>(bit);
+		v = static_cast<T>(v | static_cast<T>(bit));
 	}
 	template <typename T, typename U> inline void unset_bit(T &v, U bit) {
-		v &= ~static_cast<T>(bit);
+		v = static_cast<T>(v & ~static_cast<T>(bit));
 	}
 }
 
-#define CP_INFO(STR, ...) ::std::printf("INFO|%s:%d|" STR "\n", __func__, __LINE__, __VA_ARGS__)
+#ifdef __GNUC__
+#	define CP_INFO(STR, ...) ::std::printf("INFO|%s:%d|" STR "\n", __func__, __LINE__, ##__VA_ARGS__)
+#else
+#	define CP_INFO(STR, ...) ::std::printf("INFO|%s:%d|" STR "\n", __func__, __LINE__, __VA_ARGS__)
+#endif
 
 #if defined(_MSC_VER) && !defined(NDEBUG)
 #	define _CRTDBG_MAP_ALLOC

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include "element.h"
 #include "manager.h"
 #include "../platform/renderer.h"
@@ -132,17 +134,15 @@ namespace codepad {
 
 			void _on_mouse_down(mouse_button_info &p) override {
 				mouse_down(p);
-				bool hit = false;
 				for (auto i = _children.begin(); i != _children.end(); ++i) {
 					if ((*i)->hit_test(p.position)) {
 						(*i)->_on_mouse_down(p);
-						hit = true;
 						break;
 					}
 				}
 				if (_can_focus && !p.focus_set()) {
 					p.mark_focus_set();
-					manager::default().set_focus(this);
+					manager::get().set_focus(this);
 				}
 			}
 			void _on_mouse_leave(void_info &p) override {
@@ -199,7 +199,7 @@ namespace codepad {
 			}
 			void _dispose() override {
 				for (auto i = _children.begin(); i != _children.end(); ++i) {
-					manager::default().mark_disposal(*i);
+					manager::get().mark_disposal(*i);
 				}
 				element::_dispose();
 			}
@@ -256,7 +256,7 @@ namespace codepad {
 
 		inline void manager::update_invalid_layouts() {
 			if (!_targets.empty()) {
-				CP_INFO("relayout");
+				auto start = std::chrono::high_resolution_clock::now();
 				_layouting = true;
 				std::unordered_map<element*, bool> ftg;
 				for (auto i = _targets.begin(); i != _targets.end(); ++i) {
@@ -286,6 +286,10 @@ namespace codepad {
 					li.elem->_finish_layout();
 				}
 				_layouting = false;
+				CP_INFO(
+					"relayout %fms",
+					std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start).count()
+				);
 			}
 		}
 

@@ -129,6 +129,8 @@ namespace codepad {
 						v -= i->lines.size();
 					}
 				}
+				assert(false);
+				return line_iterator(blocks.begin(), blocks.begin()->lines.begin());
 			}
 			line_iterator begin() {
 				return line_iterator(blocks.begin(), blocks.begin()->lines.begin());
@@ -165,7 +167,7 @@ namespace codepad {
 			font_family font;
 
 			void set_text_position(double v) {
-				_pos = clamp(v, 0.0, (context->get_line_number() - 1) * font.maximum_height());
+				_pos = clamp(v, 0.0, static_cast<double>(context->get_line_number() - 1) * font.maximum_height());
 				invalidate_visual();
 			}
 			double get_text_position() {
@@ -199,7 +201,7 @@ namespace codepad {
 				for (; i < line_beg && it != context->before_end(); ++i, ++it) {
 				}
 				if (i == line_beg) {
-					double cury = _layout.ymin - _pos + line_beg * lh;
+					double cury = _layout.ymin - _pos + static_cast<double>(line_beg) * lh;
 					for (; i <= line_end; ++i, ++it, cury += lh) {
 						ui::text_renderer::render_plain_text(it->content, *font.normal, vec2d(_layout.xmin, cury), colord());
 						if (it == context->before_end()) {

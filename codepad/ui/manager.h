@@ -11,7 +11,7 @@ namespace codepad {
 		class manager {
 			friend class element;
 		public:
-			inline static manager &default() {
+			inline static manager &get() {
 				return _sman;
 			}
 
@@ -114,19 +114,19 @@ namespace codepad {
 			static manager _sman;
 		};
 		inline void element::invalidate_layout() {
-			manager::default().invalidate_layout(this);
+			manager::get().invalidate_layout(this);
 		}
 		inline void element::revalidate_layout() {
-			manager::default().revalidate_layout(this);
+			manager::get().revalidate_layout(this);
 		}
 		inline void element::invalidate_visual() {
-			manager::default().invalidate_visual(this);
+			manager::get().invalidate_visual(this);
 		}
 		inline void element::_on_mouse_down(mouse_button_info &p) {
 			mouse_down(p);
 			if (_can_focus) {
 				p.mark_focus_set();
-				manager::default().set_focus(this);
+				manager::get().set_focus(this);
 			}
 		}
 	}

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <functional>
 
 #include "renderer.h"
@@ -21,8 +22,8 @@ namespace codepad {
 			virtual void set_caption(const str_t&) = 0;
 			virtual vec2i get_position() const = 0;
 			virtual void set_position(vec2i) = 0;
-			virtual vec2i get_size() const = 0;
-			virtual void set_size(vec2i) = 0;
+			virtual vec2i get_client_size() const = 0;
+			virtual void set_client_size(vec2i) = 0;
 
 			virtual vec2i screen_to_client(vec2i) const = 0;
 			virtual vec2i client_to_screen(vec2i) const = 0;
@@ -39,7 +40,7 @@ namespace codepad {
 			event<void_info> close_request, got_window_focus, lost_window_focus;
 			event<size_changed_info> size_changed;
 		protected:
-			element *_focus{ this };
+			element *_focus = this;
 			bool _drag = false;
 			vec2i _doffset;
 			std::function<bool()> _dragcontinue;
@@ -56,12 +57,12 @@ namespace codepad {
 			}
 
 			void _on_prerender() const override {
-				platform::renderer_base::default().begin(*this);
+				platform::renderer_base::get().begin(*this);
 				panel::_on_prerender();
 			}
 			void _on_postrender() const override {
 				panel::_on_postrender();
-				platform::renderer_base::default().end();
+				platform::renderer_base::get().end();
 			}
 
 			virtual void _on_close_request(void_info &p) {
@@ -103,37 +104,34 @@ namespace codepad {
 				for (; ef && e != ef; ef = ef->parent()) {
 				}
 				if (ef) {
-					ui::element *cur = _focus->parent();
-					for (; !cur->get_can_focus(); cur = cur->parent()) {
-					}
-					if (ui::manager::default().get_focused() == _focus) {
-						ui::manager::default().set_focus(cur);
+					if (ui::manager::get().get_focused() == _focus) {
+						ui::manager::get().set_focus(this);
 					} else {
-						_focus = cur;
+						_focus = this;
 					}
 				}
 			}
 
 			virtual void _on_got_window_focus(void_info &p) {
-				ui::manager::default().set_focus(_focus);
+				ui::manager::get().set_focus(_focus);
 				got_window_focus(p);
 			}
 			virtual void _on_lost_window_focus(void_info &p) {
-				if (ui::manager::default().get_focused() == _focus) { // in case the focus has already shifted
-					ui::manager::default().set_focus(nullptr);
+				if (ui::manager::get().get_focused() == _focus) { // in case the focus has already shifted
+					ui::manager::get().set_focus(nullptr);
 				}
 				lost_window_focus(p);
 			}
 
 			void _initialize() override {
 				panel::_initialize();
-				renderer_base::default()._new_window(*this);
+				renderer_base::get()._new_window(*this);
 			}
 			void _dispose() override {
-				if (ui::manager::default().get_focused() == _focus) {
-					ui::manager::default().set_focus(nullptr);
+				if (ui::manager::get().get_focused() == _focus) {
+					ui::manager::get().set_focus(nullptr);
 				}
-				renderer_base::default()._delete_window(*this);
+				renderer_base::get()._delete_window(*this);
 				ui::panel::_dispose();
 			}
 		};
@@ -141,7 +139,7 @@ namespace codepad {
 	namespace ui {
 		inline void manager::update_invalid_visuals() {
 			if (!_dirty.empty()) {
-				CP_INFO("repaint");
+				auto start = std::chrono::high_resolution_clock::now();
 				std::unordered_set<element*> ss;
 				for (auto i = _dirty.begin(); i != _dirty.end(); ++i) {
 					platform::window_base *wnd = (*i)->get_window();
@@ -153,6 +151,10 @@ namespace codepad {
 				for (auto i = ss.begin(); i != ss.end(); ++i) {
 					(*i)->_on_render();
 				}
+				CP_INFO(
+					"repaint %fms",
+					std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start).count()
+				);
 			}
 		}
 		inline void manager::set_focus(element *elem) {
@@ -160,6 +162,7 @@ namespace codepad {
 				return;
 			}
 			platform::window_base *neww = elem ? elem->get_window() : nullptr;
+			assert((neww != nullptr) == (elem != nullptr));
 			void_info vp;
 			element *oldf = _focus;
 			_focus = elem;

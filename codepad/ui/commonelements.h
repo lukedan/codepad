@@ -45,7 +45,7 @@ namespace codepad {
 
 			inline static void set_default_font(const font *fnt) {
 				_def_fnt = fnt;
-				_def_fnt_ts = ((_def_fnt_ts + 1) & _mask_szcachets) | _mask_hasszcache;
+				_def_fnt_ts = static_cast<unsigned char>(((_def_fnt_ts + 1) & _mask_szcachets) | _mask_hasszcache);
 			}
 			inline static const font *get_default_font() {
 				return _def_fnt;
@@ -160,7 +160,7 @@ namespace codepad {
 			void _on_mouse_leave(void_info &p) override {
 				unset_bit(_state, state::mouse_over);
 				if (test_bit(_state, state::mouse_down)) {
-					manager::default().schedule_update(this);
+					manager::get().schedule_update(this);
 				}
 				element::_on_mouse_leave(p);
 			}
@@ -185,7 +185,7 @@ namespace codepad {
 				if (!platform::input::is_mouse_button_down(platform::input::mouse_button::left)) {
 					unset_bit(_state, state::mouse_down);
 				} else if (!test_bit(_state, state::mouse_over)) {
-					manager::default().schedule_update(this);
+					manager::get().schedule_update(this);
 				}
 			}
 

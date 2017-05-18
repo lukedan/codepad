@@ -57,26 +57,26 @@ namespace codepad {
 		};
 
 		struct thickness {
-			explicit thickness(double uni = 0.0) : left(uni), top(uni), right(uni), bottom(uni) {
+			constexpr explicit thickness(double uni = 0.0) : left(uni), top(uni), right(uni), bottom(uni) {
 			}
-			thickness(double l, double t, double r, double b) : left(l), top(t), right(r), bottom(b) {
+			constexpr thickness(double l, double t, double r, double b) : left(l), top(t), right(r), bottom(b) {
 			}
 			double left, top, right, bottom;
 
-			rectd extend(rectd r) const {
+			constexpr rectd extend(rectd r) const {
 				return rectd(r.xmin - left, r.xmax + right, r.ymin - top, r.ymax + bottom);
 			}
-			rectd shrink(rectd r) const {
+			constexpr rectd shrink(rectd r) const {
 				return rectd(r.xmin + left, r.xmax - right, r.ymin + top, r.ymax - bottom);
 			}
 
-			double width() const {
+			constexpr double width() const {
 				return left + right;
 			}
-			double height() const {
+			constexpr double height() const {
 				return top + bottom;
 			}
-			vec2d size() const {
+			constexpr vec2d size() const {
 				return vec2d(width(), height());
 			}
 		};
@@ -363,12 +363,12 @@ namespace codepad {
 			}
 
 			virtual void _on_prerender() const {
-				platform::renderer_base::default().push_clip(_layout.minimum_bounding_box<int>());
+				platform::renderer_base::get().push_clip(_layout.minimum_bounding_box<int>());
 			}
 			virtual void _render() const = 0;
 			virtual void _on_postrender() const {
 				texture_brush(colord(1.0, 1.0, 1.0, 0.1)).fill_rect(get_layout());
-				platform::renderer_base::default().pop_clip();
+				platform::renderer_base::get().pop_clip();
 			}
 			virtual void _on_render() const {
 				if (test_bit(_vis, visibility::render_only)) {

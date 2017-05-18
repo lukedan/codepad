@@ -23,7 +23,7 @@ namespace codepad {
 			virtual texture_id new_character_texture(size_t, size_t, const void*) = 0;
 			virtual void delete_character_texture(texture_id) = 0;
 
-			inline static renderer_base &default() {
+			inline static renderer_base &get() {
 				assert(_rend.rend);
 				return *_rend.rend;
 			}

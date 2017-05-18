@@ -23,7 +23,7 @@ namespace codepad {
 						if (last != U'\0') {
 							cur.x += static_cast<int>(std::round(lastw + fnt.get_kerning(last, *i).x));
 						}
-						platform::renderer_base::default().draw_character(et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color);
+						platform::renderer_base::get().draw_character(et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color);
 						last = *i;
 						lastw = et.advance;
 					}
@@ -48,7 +48,7 @@ namespace codepad {
 						lastw = et.advance;
 					}
 				}
-				return vec2d(std::max(maxw, curline + lastw), linen * std::ceil(fnt.height()));
+				return vec2d(std::max(maxw, curline + lastw), static_cast<double>(linen) * std::ceil(fnt.height()));
 			}
 		}
 	}

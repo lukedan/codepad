@@ -124,17 +124,17 @@ namespace codepad {
 					return 0;
 
 				case WM_MOUSEWHEEL:
-				{
-					POINT p;
-					p.x = GET_X_LPARAM(lparam);
-					p.y = GET_Y_LPARAM(lparam);
-					winapi_check(ScreenToClient(form->_hwnd, &p));
-					_form_onevent<ui::mouse_scroll_info>(
-						*form, &window::_on_mouse_scroll,
-						GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), vec2d(p.x, p.y)
-						);
-					return 0;
-				}
+					{
+						POINT p;
+						p.x = GET_X_LPARAM(lparam);
+						p.y = GET_Y_LPARAM(lparam);
+						winapi_check(ScreenToClient(form->_hwnd, &p));
+						_form_onevent<ui::mouse_scroll_info>(
+							*form, &window::_on_mouse_scroll,
+							GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), vec2d(p.x, p.y)
+							);
+						return 0;
+					}
 
 				case WM_MOUSEMOVE:
 					if (!form->_mouse_over) {
@@ -192,31 +192,43 @@ namespace codepad {
 					return 0;
 
 				case WM_SETCURSOR:
-				{
-					if (!form->is_mouse_over()) {
-						return DefWindowProc(hwnd, msg, wparam, lparam);
+					{
+						if (!form->is_mouse_over()) {
+							return DefWindowProc(hwnd, msg, wparam, lparam);
+						}
+						ui::cursor c = form->get_current_display_cursor();
+						if (c == ui::cursor::not_specified) {
+							return DefWindowProc(hwnd, msg, wparam, lparam);
+						} else if (c == ui::cursor::invisible) {
+							SetCursor(nullptr);
+						} else {
+							HANDLE img = LoadImage(
+								nullptr, MAKEINTRESOURCE(_cursor_id_mapping[static_cast<int>(c)]),
+								IMAGE_CURSOR, 0, 0, LR_SHARED | LR_DEFAULTSIZE
+							);
+							winapi_check(img);
+							SetCursor(static_cast<HCURSOR>(img));
+						}
+						return TRUE;
 					}
-					ui::cursor c = form->get_current_display_cursor();
-					if (c == ui::cursor::not_specified) {
-						return DefWindowProc(hwnd, msg, wparam, lparam);
-					} else if (c == ui::cursor::invisible) {
-						SetCursor(nullptr);
-					} else {
-						HANDLE img = LoadImage(
-							nullptr, MAKEINTRESOURCE(_cursor_id_mapping[static_cast<int>(c)]),
-							IMAGE_CURSOR, 0, 0, LR_SHARED | LR_DEFAULTSIZE
-						);
-						winapi_check(img);
-						SetCursor(static_cast<HCURSOR>(img));
-					}
-					return TRUE;
-				}
 				}
 			}
 			return DefWindowProc(hwnd, msg, wparam, lparam);
 		}
 
 		window::_wndclass window::_class;
+		window::_wndclass::_wndclass() {
+			WNDCLASSEX wcex;
+			std::memset(&wcex, 0, sizeof(wcex));
+			wcex.style = CS_OWNDC;
+			wcex.hInstance = GetModuleHandle(nullptr);
+			winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
+			wcex.cbSize = sizeof(wcex);
+			wcex.lpfnWndProc = _wndproc;
+			wcex.lpszClassName = L"Codepad";
+			winapi_check(atom = RegisterClassEx(&wcex));
+		}
+
 		window::window(const str_t &clsname) {
 			auto u16str = utf32_to_utf16(clsname);
 			winapi_check(_hwnd = CreateWindowEx(

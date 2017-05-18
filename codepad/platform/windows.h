@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <cstring>
 
 #include <Windows.h>
 #include <windowsx.h>
@@ -83,12 +84,12 @@ namespace codepad {
 				tl.y -= r.top;
 				winapi_check(MoveWindow(_hwnd, pos.x - tl.x, pos.y - tl.y, r.right - r.left, r.bottom - r.top, false));
 			}
-			vec2i get_size() const override {
+			vec2i get_client_size() const override {
 				RECT r;
 				winapi_check(GetClientRect(_hwnd, &r));
 				return vec2i(r.right, r.bottom);
 			}
-			void set_size(vec2i sz) override {
+			void set_client_size(vec2i sz) override {
 				RECT wndrgn, cln;
 				winapi_check(GetWindowRect(_hwnd, &wndrgn));
 				winapi_check(GetClientRect(_hwnd, &cln));
@@ -130,17 +131,7 @@ namespace codepad {
 			HDC _dc;
 
 			struct _wndclass {
-				_wndclass() {
-					WNDCLASSEX wcex;
-					std::memset(&wcex, 0, sizeof(wcex));
-					wcex.style = CS_OWNDC;
-					wcex.hInstance = GetModuleHandle(nullptr);
-					winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
-					wcex.cbSize = sizeof(wcex);
-					wcex.lpfnWndProc = _wndproc;
-					wcex.lpszClassName = L"Codepad";
-					winapi_check(atom = RegisterClassEx(&wcex));
-				}
+				_wndclass();
 				~_wndclass() {
 					UnregisterClass(reinterpret_cast<LPCTSTR>(atom), GetModuleHandle(nullptr));
 				}
@@ -166,7 +157,7 @@ namespace codepad {
 				size_changed_info p(vec2i(cln.right, cln.bottom));
 				if (p.new_size.x > 0 && p.new_size.y > 0) {
 					_on_size_changed(p);
-					ui::manager::default().update_layout_and_visual();
+					ui::manager::get().update_layout_and_visual();
 				}
 			}
 
@@ -183,14 +174,14 @@ namespace codepad {
 				while (_idle()) {
 				}
 				_update_drag();
-				ui::manager::default().schedule_update(this);
+				ui::manager::get().schedule_update(this);
 			}
 
 			void _initialize() override {
 				window_base::_initialize();
 				SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 				ShowWindow(_hwnd, SW_SHOW);
-				ui::manager::default().schedule_update(this);
+				ui::manager::get().schedule_update(this);
 			}
 			void _dispose() override {
 				winapi_check(DestroyWindow(_hwnd));
@@ -248,7 +239,7 @@ namespace codepad {
 				_txs[nid].set_grayscale(w, h, static_cast<const unsigned char*>(gs));
 				return nid;
 			}
-			void delete_character_texture(texture_id id) {
+			void delete_character_texture(texture_id id) override {
 				_txs[id].dispose();
 				_id_realloc.push_back(id);
 			}
@@ -256,10 +247,10 @@ namespace codepad {
 			void _new_window(window_base &wnd) override {
 				window *w = static_cast<window*>(&wnd);
 				_wnd_rec wr;
-				wr.create_buffer(w->_dc, static_cast<int>(w->_layout.width()), static_cast<int>(w->_layout.height()));
+				wr.create_buffer(w->_dc, static_cast<size_t>(w->_layout.width()), static_cast<size_t>(w->_layout.height()));
 				auto it = _wnds.insert(std::make_pair(w, wr)).first;
 				w->size_changed += [it](size_changed_info &info) {
-					it->second.resize_buffer(info.new_size.x, info.new_size.y);
+					it->second.resize_buffer(static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y));
 				};
 			}
 			void _delete_window(window_base &wnd) override {
@@ -298,7 +289,7 @@ namespace codepad {
 					if (!data) {
 						return colord();
 					}
-					double xf = uv.x * w - 0.5, yf = uv.y * h - 0.5;
+					double xf = uv.x * static_cast<double>(w) - 0.5, yf = uv.y * static_cast<double>(h) - 0.5;
 					int x = static_cast<int>(std::floor(xf)), y = static_cast<int>(std::floor(yf)), x1 = x + 1, y1 = y + 1;
 					xf -= x;
 					yf -= y;
@@ -306,7 +297,12 @@ namespace codepad {
 					clamp_coords(x1, w);
 					clamp_coords(y, h);
 					clamp_coords(y1, h);
-					colord v[4] = { fetch(x, y), fetch(x1, y), fetch(x, y1), fetch(x1, y1) };
+					colord v[4] = {
+						fetch(static_cast<size_t>(x), static_cast<size_t>(y)),
+						fetch(static_cast<size_t>(x1), static_cast<size_t>(y)),
+						fetch(static_cast<size_t>(x), static_cast<size_t>(y1)),
+						fetch(static_cast<size_t>(x1), static_cast<size_t>(y1))
+					};
 					return v[0] + (v[1] - v[0]) * (1.0 - yf) * xf + (v[2] - v[0] + (v[3] - v[2]) * xf) * yf;
 				}
 
@@ -398,7 +394,7 @@ namespace codepad {
 
 				double xpi, m12c, xqi, m22c, vxc, vyc, xri;
 				void get_pq(size_t x, size_t y, double &p, double &q) const {
-					double vx = vxc + x, vy = vyc + y;
+					double vx = vxc + static_cast<double>(x), vy = vyc + static_cast<double>(y);
 					p = xpi * vx + m12c * vy;
 					q = xqi * vx + m22c * vy;
 				}
@@ -439,7 +435,12 @@ namespace codepad {
 					static_cast<DWORD>(cv.g) << 8 | cv.b;
 			}
 			inline static colori _conv_to_uchar(DWORD dv) {
-				return colori((dv >> 16) & 0xFF, (dv >> 8) & 0xFF, dv & 0xFF, dv >> 24);
+				return colori(
+					static_cast<unsigned char>((dv >> 16) & 0xFF),
+					static_cast<unsigned char>((dv >> 8) & 0xFF),
+					static_cast<unsigned char>(dv & 0xFF),
+					static_cast<unsigned char>(dv >> 24)
+				);
 			}
 			void _draw_triangle_half(
 				double sx, double sy, double invk1, double invk2, double ymin, double ymax,
@@ -452,7 +453,7 @@ namespace codepad {
 					miny = static_cast<size_t>(std::max<double>(ymin + 0.5, _crgn.ymin)),
 					maxy = static_cast<size_t>(clamp<double>(ymax + 0.5, _crgn.ymin, _crgn.ymax));
 				for (size_t y = miny; y < maxy; ++y) {
-					double diff = y - sy, left = diff * invk1 + sx, right = diff * invk2 + sx;
+					double diff = static_cast<double>(y) - sy, left = diff * invk1 + sx, right = diff * invk2 + sx;
 					size_t
 						l = static_cast<size_t>(std::max<double>(left, _crgn.xmin)),
 						r = static_cast<size_t>(clamp<double>(right, _crgn.xmin, _crgn.xmax));
@@ -494,6 +495,11 @@ namespace codepad {
 				_curdc = cw->_dc;
 				_curheight = static_cast<int>(cw->get_actual_size().y);
 				winapi_check(wglMakeCurrent(_curdc, _rc));
+				vec2i sz = wnd.get_client_size();
+				glViewport(0, 0, sz.x, sz.y);
+				glMatrixMode(GL_PROJECTION);
+				glLoadIdentity();
+				glOrtho(0.0, sz.x, sz.y, 0.0, 0.0, -1.0);
 				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 #ifndef NDEBUG
@@ -574,9 +580,6 @@ namespace codepad {
 				glEnableClientState(GL_NORMAL_ARRAY);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glEnableClientState(GL_COLOR_ARRAY);
-				cw->size_changed += [this, cw](size_changed_info &info) {
-					_on_window_size_changed(cw, info.new_size.x, info.new_size.y);
-				};
 			}
 			void _delete_window(window_base&) override {
 			}
@@ -703,8 +706,10 @@ namespace codepad {
 						}
 						_cx = l + w;
 						cd.layout = rectd(
-							l / static_cast<double>(curp.width), (l + w) / static_cast<double>(curp.width),
-							t / static_cast<double>(curp.height), (t + h) / static_cast<double>(curp.height)
+							static_cast<double>(l) / static_cast<double>(curp.width),
+							static_cast<double>(l + w) / static_cast<double>(curp.width),
+							static_cast<double>(t) / static_cast<double>(curp.height),
+							static_cast<double>(t + h) / static_cast<double>(curp.height)
 						);
 						cd.page = _ps.size() - 1;
 						_lpdirty = true;
@@ -778,13 +783,6 @@ namespace codepad {
 			}
 			void _gl_verify() {
 				assert(glGetError() == GL_NO_ERROR);
-			}
-			void _on_window_size_changed(window *wnd, GLsizei w, GLsizei h) {
-				winapi_check(wglMakeCurrent(wnd->_dc, _rc));
-				glViewport(0, 0, w, h);
-				glMatrixMode(GL_PROJECTION);
-				glLoadIdentity();
-				glOrtho(0.0, w, h, 0.0, 0.0, -1.0);
 			}
 		};
 	}

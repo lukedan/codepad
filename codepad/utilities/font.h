@@ -30,7 +30,7 @@ namespace codepad {
 		font &operator =(font&&) = delete;
 		~font() {
 			for (auto i = _map.begin(); i != _map.end(); ++i) {
-				platform::renderer_base::default().delete_character_texture(i->second.texture);
+				platform::renderer_base::get().delete_character_texture(i->second.texture);
 			}
 			_ft_verify(FT_Done_Face(_face));
 		}
@@ -41,7 +41,7 @@ namespace codepad {
 				_ft_verify(FT_Load_Char(_face, c, FT_LOAD_DEFAULT | FT_LOAD_RENDER));
 				const FT_Bitmap &bmpdata = _face->glyph->bitmap;
 				entry &et = _map[c] = entry();
-				et.texture = platform::renderer_base::default().new_character_texture(bmpdata.width, bmpdata.rows, bmpdata.buffer);
+				et.texture = platform::renderer_base::get().new_character_texture(bmpdata.width, bmpdata.rows, bmpdata.buffer);
 				et.advance = _face->glyph->metrics.horiAdvance * _ft_fixed_scale;
 				et.placement = rectd::from_xywh(
 					_face->glyph->metrics.horiBearingX * _ft_fixed_scale,
