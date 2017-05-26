@@ -11,7 +11,7 @@ namespace codepad {
 				cancel,
 				xbutton_1,
 				xbutton_2,
-				back,
+				backspace,
 				tab,
 				clear,
 				enter,
@@ -24,8 +24,8 @@ namespace codepad {
 				convert,
 				nonconvert,
 				space,
-				prior,
-				next,
+				page_up,
+				page_down,
 				end,
 				home,
 				left,
@@ -72,7 +72,24 @@ namespace codepad {
 			};
 			bool is_key_down(key);
 			bool is_mouse_button_swapped();
-			bool is_mouse_button_down(mouse_button);
+			inline bool is_mouse_button_down(mouse_button mb) {
+				switch (mb) {
+				case mouse_button::left:
+					if (is_mouse_button_swapped()) {
+						return is_key_down(key::physical_right_mouse);
+					}
+					return is_key_down(key::physical_left_mouse);
+				case mouse_button::right:
+					if (is_mouse_button_swapped()) {
+						return is_key_down(key::physical_left_mouse);
+					}
+					return is_key_down(key::physical_right_mouse);
+				case mouse_button::middle:
+					return is_key_down(key::middle_mouse);
+				}
+				assert(false);
+				return false;
+			}
 
 			vec2i get_mouse_position();
 			void set_mouse_position(vec2i);

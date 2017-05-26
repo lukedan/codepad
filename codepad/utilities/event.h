@@ -20,7 +20,7 @@ namespace codepad {
 
 		event() = default;
 		event(const event&) = delete;
-		event &operator =(const event&) = delete;
+		event &operator=(const event&) = delete;
 
 		reg_token operator+=(const std::function<void(T&)> &handler) {
 			_list.push_front(handler);

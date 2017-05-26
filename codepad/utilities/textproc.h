@@ -8,8 +8,12 @@
 
 namespace codepad {
 	inline bool is_newline(char_t c) {
-		return c == '\n' || c == '\r';
+		return c == U'\n' || c == U'\r';
 	}
+	inline bool is_graphical_char(char_t c) { // TODO incomplete
+		return c != U'\n' && c != U'\r' && c != U'\t';
+	}
+
 	inline std::basic_string<char16_t> utf32_to_utf16(const std::basic_string<char32_t> &str) {
 		std::basic_ostringstream<char16_t> result;
 		for (auto i = str.begin(); i != str.end(); ++i) {

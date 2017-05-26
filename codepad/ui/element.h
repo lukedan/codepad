@@ -3,6 +3,7 @@
 #include <list>
 
 #include "visual.h"
+#include "../utilities/textconfig.h"
 #include "../utilities/event.h"
 #include "../utilities/misc.h"
 #include "../platform/renderer.h"
@@ -46,14 +47,14 @@ namespace codepad {
 			bool _focus_set = false;
 		};
 		struct key_info {
-			key_info(int k) : key(k) {
+			key_info(platform::input::key k) : key(k) {
 			}
-			const int key;
+			const platform::input::key key;
 		};
 		struct text_info {
-			text_info(wchar_t c) : character(c) {
+			text_info(char_t c) : character(c) {
 			}
-			const wchar_t character;
+			const char_t character;
 		};
 
 		struct thickness {
@@ -241,7 +242,7 @@ namespace codepad {
 			}
 
 			virtual void set_visibility(visibility v) {
-				if (test_bit(static_cast<unsigned char>(v) ^ _vis, visibility::render_only)) {
+				if (test_bit_all(static_cast<unsigned char>(v) ^ _vis, visibility::render_only)) {
 					invalidate_visual();
 				}
 				_vis = static_cast<unsigned char>(v);
@@ -251,7 +252,7 @@ namespace codepad {
 			}
 
 			virtual bool hit_test(vec2d p) const {
-				return test_bit(_vis, visibility::interaction_only) && _layout.contains(p);
+				return test_bit_all(_vis, visibility::interaction_only) && _layout.contains(p);
 			}
 
 			virtual cursor get_default_cursor() const {
@@ -371,7 +372,7 @@ namespace codepad {
 				platform::renderer_base::get().pop_clip();
 			}
 			virtual void _on_render() const {
-				if (test_bit(_vis, visibility::render_only)) {
+				if (test_bit_all(_vis, visibility::render_only)) {
 					_on_prerender();
 					_render();
 					_on_postrender();

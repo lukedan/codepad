@@ -1,8 +1,9 @@
 #pragma once
 
-#include <unordered_map>
-#include <unordered_set>
+#include <map>
+#include <set>
 #include <deque>
+#include <chrono>
 
 #include "element.h"
 
@@ -42,13 +43,25 @@ namespace codepad {
 				_upd.insert(e);
 			}
 			void update_scheduled_elements() {
+				_now = std::chrono::high_resolution_clock::now();
+#ifndef NDEBUG
+				_updating = true;
+#endif
 				if (!_upd.empty()) {
-					std::unordered_set<element*> list;
+					std::set<element*> list;
 					std::swap(list, _upd);
 					for (auto i = list.begin(); i != list.end(); ++i) {
 						(*i)->_on_update();
 					}
 				}
+#ifndef NDEBUG
+				_updating = false;
+#endif
+				_lasttp = _now;
+			}
+			std::chrono::duration<double> delta_time() const {
+				assert(_updating);
+				return _now - _lasttp;
 			}
 
 			void mark_disposal(element *e) { // may be called on one element multiple times before the element's disposed
@@ -56,7 +69,7 @@ namespace codepad {
 			}
 			void dispose_marked_elements() {
 				while (!_del.empty()) {
-					std::unordered_set<element*> batch;
+					std::set<element*> batch;
 					std::swap(batch, _del);
 					for (auto i = batch.begin(); i != batch.end(); ++i) {
 #ifndef NDEBUG
@@ -100,16 +113,20 @@ namespace codepad {
 
 			// layout
 			bool _layouting = false;
-			std::unordered_map<element*, bool> _targets;
+			std::map<element*, bool> _targets;
 			std::deque<_layout_info> _q;
 			// visual
-			std::unordered_set<element*> _dirty;
+			std::set<element*> _dirty;
 			// focus
 			element *_focus = nullptr;
 			// scheduled controls to update
-			std::unordered_set<element*> _upd;
+			std::chrono::time_point<std::chrono::high_resolution_clock> _lasttp, _now;
+			std::set<element*> _upd;
+#ifndef NDEBUG
+			bool _updating = false;
+#endif
 			// scheduled controls to delete
-			std::unordered_set<element*> _del;
+			std::set<element*> _del;
 
 			static manager _sman;
 		};

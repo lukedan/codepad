@@ -28,6 +28,15 @@ namespace codepad {
 			virtual vec2i screen_to_client(vec2i) const = 0;
 			virtual vec2i client_to_screen(vec2i) const = 0;
 
+			virtual void set_mouse_capture(ui::element &elem) {
+				assert(!_capture);
+				_capture = &elem;
+			}
+			virtual void release_mouse_capture() {
+				assert(_capture);
+				_capture = nullptr;
+			}
+
 			virtual void start_drag(std::function<bool()> dst = []() {
 				return input::is_mouse_button_down(input::mouse_button::left);
 			}) {
@@ -40,7 +49,7 @@ namespace codepad {
 			event<void_info> close_request, got_window_focus, lost_window_focus;
 			event<size_changed_info> size_changed;
 		protected:
-			element *_focus = this;
+			element *_focus = this, *_capture = nullptr;
 			bool _drag = false;
 			vec2i _doffset;
 			std::function<bool()> _dragcontinue;
@@ -132,7 +141,56 @@ namespace codepad {
 					ui::manager::get().set_focus(nullptr);
 				}
 				renderer_base::get()._delete_window(*this);
-				ui::panel::_dispose();
+				panel::_dispose();
+			}
+
+			void _on_mouse_enter(void_info &p) override {
+				if (_capture) {
+					_capture->_on_mouse_enter(p);
+					ui::element::_on_mouse_enter(p);
+				} else {
+					panel::_on_mouse_enter(p);
+				}
+			}
+			void _on_mouse_leave(void_info &p) override {
+				if (_capture) {
+					_capture->_on_mouse_leave(p);
+					ui::element::_on_mouse_leave(p);
+				} else {
+					panel::_on_mouse_leave(p);
+				}
+			}
+			void _on_mouse_move(ui::mouse_move_info &p) override {
+				if (_capture) {
+					_capture->_on_mouse_move(p);
+					ui::element::_on_mouse_move(p);
+				} else {
+					panel::_on_mouse_move(p);
+				}
+			}
+			void _on_mouse_down(ui::mouse_button_info &p) override {
+				if (_capture) {
+					_capture->_on_mouse_down(p);
+					mouse_down(p);
+				} else {
+					panel::_on_mouse_down(p);
+				}
+			}
+			void _on_mouse_up(ui::mouse_button_info &p) override {
+				if (_capture) {
+					_capture->_on_mouse_up(p);
+					ui::element::_on_mouse_up(p);
+				} else {
+					panel::_on_mouse_up(p);
+				}
+			}
+			void _on_mouse_scroll(ui::mouse_scroll_info &p) override {
+				if (_capture) {
+					_capture->_on_mouse_scroll(p);
+					ui::element::_on_mouse_scroll(p);
+				} else {
+					panel::_on_mouse_scroll(p);
+				}
 			}
 		};
 	}
@@ -140,7 +198,7 @@ namespace codepad {
 		inline void manager::update_invalid_visuals() {
 			if (!_dirty.empty()) {
 				auto start = std::chrono::high_resolution_clock::now();
-				std::unordered_set<element*> ss;
+				std::set<element*> ss;
 				for (auto i = _dirty.begin(); i != _dirty.end(); ++i) {
 					platform::window_base *wnd = (*i)->get_window();
 					if (wnd) {

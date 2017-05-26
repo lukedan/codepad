@@ -133,13 +133,13 @@ namespace codepad {
 			}
 
 			void _on_mouse_down(mouse_button_info &p) override {
-				mouse_down(p);
 				for (auto i = _children.begin(); i != _children.end(); ++i) {
 					if ((*i)->hit_test(p.position)) {
 						(*i)->_on_mouse_down(p);
 						break;
 					}
 				}
+				mouse_down(p);
 				if (_can_focus && !p.focus_set()) {
 					p.mark_focus_set();
 					manager::get().set_focus(this);
@@ -175,22 +175,22 @@ namespace codepad {
 				element::_on_mouse_move(p);
 			}
 			void _on_mouse_scroll(mouse_scroll_info &p) override {
-				element::_on_mouse_scroll(p);
 				for (auto i = _children.begin(); i != _children.end(); ++i) {
 					if ((*i)->hit_test(p.position)) {
 						(*i)->_on_mouse_scroll(p);
 						break;
 					}
 				}
+				element::_on_mouse_scroll(p);
 			}
 			void _on_mouse_up(mouse_button_info &p) override {
-				element::_on_mouse_up(p);
 				for (auto i = _children.begin(); i != _children.end(); ++i) {
 					if ((*i)->hit_test(p.position)) {
 						(*i)->_on_mouse_up(p);
 						break;
 					}
 				}
+				element::_on_mouse_up(p);
 			}
 
 			void _initialize() override {
@@ -227,11 +227,11 @@ namespace codepad {
 			_layout = prgn;
 			vec2d sz = get_target_size();
 			_calc_layout_onedir(
-				test_bit(_anchor, anchor::left), test_bit(_anchor, anchor::right),
+				test_bit_all(_anchor, anchor::left), test_bit_all(_anchor, anchor::right),
 				_layout.xmin, _layout.xmax, _margin.left, _margin.right, sz.x
 			);
 			_calc_layout_onedir(
-				test_bit(_anchor, anchor::top), test_bit(_anchor, anchor::bottom),
+				test_bit_all(_anchor, anchor::top), test_bit_all(_anchor, anchor::bottom),
 				_layout.ymin, _layout.ymax, _margin.top, _margin.bottom, sz.y
 			);
 			_clientrgn = get_padding().shrink(get_layout());

@@ -18,7 +18,16 @@
 
 namespace codepad {
 	namespace platform {
-		template <typename T> inline void winapi_check(T v) {
+		template <typename T> inline void winapi_check(T
+#ifndef NDEBUG
+			v
+#endif
+		) {
+#ifndef NDEBUG
+			if (!v) {
+				CP_INFO("WinAPI error %u", GetLastError());
+			}
+#endif
 			assert(v);
 		}
 
@@ -29,24 +38,6 @@ namespace codepad {
 			}
 			inline bool is_mouse_button_swapped() {
 				return GetSystemMetrics(SM_SWAPBUTTON) != 0;
-			}
-			inline bool is_mouse_button_down(mouse_button mb) {
-				switch (mb) {
-				case mouse_button::left:
-					if (is_mouse_button_swapped()) {
-						return is_key_down(key::physical_right_mouse);
-					}
-					return is_key_down(key::physical_left_mouse);
-				case mouse_button::right:
-					if (is_mouse_button_swapped()) {
-						return is_key_down(key::physical_left_mouse);
-					}
-					return is_key_down(key::physical_right_mouse);
-				case mouse_button::middle:
-					return is_key_down(key::middle_mouse);
-				}
-				assert(false);
-				return false;
 			}
 
 			inline vec2i get_mouse_position() {
@@ -59,7 +50,7 @@ namespace codepad {
 			}
 		}
 
-		class window : public window_base { // TODO set_size, set_visibility, etc.
+		class window : public window_base {
 			friend LRESULT CALLBACK _wndproc(HWND, UINT, WPARAM, LPARAM);
 			friend class software_renderer;
 			friend class opengl_renderer;
@@ -82,7 +73,7 @@ namespace codepad {
 				winapi_check(ClientToScreen(_hwnd, &tl));
 				tl.x -= r.left;
 				tl.y -= r.top;
-				winapi_check(MoveWindow(_hwnd, pos.x - tl.x, pos.y - tl.y, r.right - r.left, r.bottom - r.top, false));
+				winapi_check(SetWindowPos(_hwnd, nullptr, pos.x - tl.x, pos.y - tl.y, 0, 0, SWP_NOSIZE));
 			}
 			vec2i get_client_size() const override {
 				RECT r;
@@ -93,17 +84,17 @@ namespace codepad {
 				RECT wndrgn, cln;
 				winapi_check(GetWindowRect(_hwnd, &wndrgn));
 				winapi_check(GetClientRect(_hwnd, &cln));
-				winapi_check(MoveWindow(
-					_hwnd, wndrgn.left, wndrgn.top,
+				winapi_check(SetWindowPos(
+					_hwnd, nullptr, 0, 0,
 					wndrgn.right - wndrgn.left - cln.right + sz.x,
 					wndrgn.bottom - wndrgn.top - cln.bottom + sz.y,
-					false
+					SWP_NOMOVE
 				));
 			}
 
 			ui::cursor get_current_display_cursor() const override {
-				if (_children_cursor != ui::cursor::not_specified) {
-					return _children_cursor;
+				if (_capture) {
+					return _capture->get_current_display_cursor();
 				}
 				return window_base::get_current_display_cursor();
 			}
@@ -121,6 +112,15 @@ namespace codepad {
 				p.y = v.y;
 				winapi_check(ClientToScreen(_hwnd, &p));
 				return vec2i(p.x, p.y);
+			}
+
+			void set_mouse_capture(ui::element &elem) override {
+				window_base::set_mouse_capture(elem);
+				SetCapture(_hwnd);
+			}
+			void release_mouse_capture() {
+				window_base::release_mouse_capture();
+				winapi_check(ReleaseCapture());
 			}
 		protected:
 			window() : window(U"Codepad") {
@@ -577,7 +577,6 @@ namespace codepad {
 				glEnable(GL_BLEND);
 				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 				glEnableClientState(GL_VERTEX_ARRAY);
-				glEnableClientState(GL_NORMAL_ARRAY);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glEnableClientState(GL_COLOR_ARRAY);
 			}

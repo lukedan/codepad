@@ -287,7 +287,10 @@ namespace codepad {
 		return v > max ? max : v;
 	}
 
-	template <typename T, typename U> inline bool test_bit(T v, U bit) {
+	template <typename T, typename U> inline bool test_bit_all(T v, U bit) {
+		return (v & static_cast<T>(bit)) == static_cast<T>(bit);
+	}
+	template <typename T, typename U> inline bool test_bit_any(T v, U bit) {
 		return (v & static_cast<T>(bit)) != 0;
 	}
 	template <typename T, typename U> inline void set_bit(T &v, U bit) {

@@ -26,8 +26,8 @@ namespace codepad {
 		}
 		font(const font&) = delete;
 		font(font&&) = delete;
-		font &operator =(const font&) = delete;
-		font &operator =(font&&) = delete;
+		font &operator=(const font&) = delete;
+		font &operator=(font&&) = delete;
 		~font() {
 			for (auto i = _map.begin(); i != _map.end(); ++i) {
 				platform::renderer_base::get().delete_character_texture(i->second.texture);
@@ -71,7 +71,11 @@ namespace codepad {
 		FT_Face _face = nullptr;
 		mutable std::unordered_map<char_t, entry> _map;
 
-		inline static void _ft_verify(FT_Error code) {
+		inline static void _ft_verify(FT_Error
+#ifndef NDEBUG
+			code
+#endif
+		) {
 			assert(code == 0);
 		}
 
@@ -94,8 +98,15 @@ namespace codepad {
 		bold_italic = bold | italic
 	};
 	struct font_family {
+		font_family() = default;
+		font_family(font &n, font &b, font &i, font &bi) : normal(&n), bold(&b), italic(&i), bold_italic(&bi) {
+		}
+
 		const font *normal = nullptr, *bold = nullptr, *italic = nullptr, *bold_italic = nullptr;
 
+		double maximum_width() const {
+			return std::max({ normal->max_width(), bold->max_width(), italic->max_width(), bold_italic->max_width() });
+		}
 		double maximum_height() const {
 			return std::max({ normal->height(), bold->height(), italic->height(), bold_italic->height() });
 		}

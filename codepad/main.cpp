@@ -22,34 +22,40 @@ int main() {
 	renderer_base::create_default<opengl_renderer>();
 
 	file_context ctx(U"platform/windows.h");
-	font fnt("times.ttf", 18);
+	font fnt("segoeui.ttf", 14), codefnt("UbuntuMono-R.ttf", 16);
+	pen p(colord(0.9, 0.9, 0.9, 1.0));
+	texture_brush texb(colord(0.0, 0.6, 1.0, 0.2));
 
 	content_host::set_default_font(&fnt);
+	codebox::set_font(font_family(codefnt, codefnt, codefnt, codefnt));
+	codebox::set_caret_pen(&p);
+	codebox::set_selection_brush(&texb);
 
 	tab *codetab = dock_manager::get().new_tab(dock_manager::get().get_focused_tab_host());
 	codetab->set_caption(U"code");
 	codebox *cp = element::create<codebox>();
+	cp->set_padding(ui::thickness(2.0, 0.0, 0.0, 0.0));
 	cp->context = &ctx;
-	cp->font.normal = cp->font.bold = cp->font.italic = cp->font.bold_italic = &fnt;
+	cp->auto_set_line_ending();
 	codetab->children().add(*cp);
 	manager::get().set_focus(codetab);
 
-	for (size_t i = 0; i < 10; ++i) {
-		tab *lbltab = dock_manager::get().new_tab(dock_manager::get().get_focused_tab_host());
-		lbltab->set_caption(U"label" + to_str(i));
-		label *lbl = element::create<label>();
-		lbl->set_margin(thickness(1.0, 1.0, 1.0, 1.0));
-		lbl->set_anchor(anchor::none);
-		lbl->set_overriden_cursor(cursor::denied);
-		lbl->content().set_color(colord(1.0, 0.0, 0.0, 1.0));
-		str_t s;
-		for (size_t j = 0; j <= i; ++j) {
-			s += U"fuck this\n";
-		}
-		lbl->content().set_text(s);
-		lbl->content().set_text_offset(vec2d(0.5, 0.5));
-		lbltab->children().add(*lbl);
-	}
+	//for (size_t i = 0; i < 10; ++i) {
+	//	tab *lbltab = dock_manager::get().new_tab(dock_manager::get().get_focused_tab_host());
+	//	lbltab->set_caption(U"label" + to_str(i));
+	//	label *lbl = element::create<label>();
+	//	lbl->set_margin(thickness(1.0, 1.0, 1.0, 1.0));
+	//	lbl->set_anchor(anchor::none);
+	//	lbl->set_overriden_cursor(cursor::denied);
+	//	lbl->content().set_color(colord(1.0, 0.0, 0.0, 1.0));
+	//	str_t s;
+	//	for (size_t j = 0; j <= i; ++j) {
+	//		s += U"fuck this\n";
+	//	}
+	//	lbl->content().set_text(s);
+	//	lbl->content().set_text_offset(vec2d(0.5, 0.5));
+	//	lbltab->children().add(*lbl);
+	//}
 
 	while (!dock_manager::get().empty()) {
 		manager::get().update();

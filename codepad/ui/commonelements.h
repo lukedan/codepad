@@ -6,6 +6,7 @@
 #include "../utilities/misc.h"
 #include "../utilities/textconfig.h"
 #include "../utilities/font.h"
+#include "../platform/window.h"
 
 namespace codepad {
 	namespace ui {
@@ -159,34 +160,33 @@ namespace codepad {
 			}
 			void _on_mouse_leave(void_info &p) override {
 				unset_bit(_state, state::mouse_over);
-				if (test_bit(_state, state::mouse_down)) {
-					manager::get().schedule_update(this);
-				}
 				element::_on_mouse_leave(p);
 			}
 			void _on_mouse_down(mouse_button_info &p) override {
 				if (p.button == platform::input::mouse_button::left) {
 					set_bit(_state, state::mouse_down);
+					get_window()->set_mouse_capture(*this);
 				}
 				element::_on_mouse_down(p);
 			}
 			void _on_mouse_up(mouse_button_info &p) override {
-				bool valid = test_bit(_state, state::mouse_down);
+				bool valid = test_bit_all(_state, state::pressed);
 				if (p.button == platform::input::mouse_button::left) {
 					unset_bit(_state, state::mouse_down);
+					get_window()->release_mouse_capture();
 				}
 				if (valid) {
 					_on_click();
 				}
 				element::_on_mouse_up(p);
 			}
-
-			void _on_update() override {
-				if (!platform::input::is_mouse_button_down(platform::input::mouse_button::left)) {
-					unset_bit(_state, state::mouse_down);
-				} else if (!test_bit(_state, state::mouse_over)) {
-					manager::get().schedule_update(this);
+			void _on_mouse_move(mouse_move_info &p) override {
+				if (hit_test(p.new_pos)) {
+					set_bit(_state, state::mouse_over);
+				} else {
+					unset_bit(_state, state::mouse_over);
 				}
+				element::_on_mouse_move(p);
 			}
 
 			virtual void _on_click() = 0;

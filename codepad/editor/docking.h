@@ -170,24 +170,33 @@ namespace codepad {
 			draggable_separator *_sep = nullptr;
 			bool _passivepos = false;
 
-			void _maintain_separator_position(bool minchanged, double oldv, double newv) {
-				double newpos;
-				if (minchanged) { // oldp + (1 - oldp) * oldmp = newp + (1 - newp) * newmp
-					double leftportion = oldv + (1.0 - oldv) * _sep->get_position();
-					newpos = (leftportion - newv) / (1.0 - newv);
+			void _maintain_separator_position(bool minchanged, double totv, double oldv, double newv) {
+				double newpos, sw;
+				if (_sep->get_orientation() == ui::orientation::horizontal) {
+					sw = _sep->get_actual_size().x;
+				} else {
+					sw = _sep->get_actual_size().y;
+				}
+				if (minchanged) { // (totv * (1 - oldv) - sw) * (1 - oldmv) = (totv * (1 - newv) - sw) * (1 - newmv)
+					double
+						ototw = totv * (1.0 - oldv) - sw, ntotw = totv * (1.0 - newv) - sw,
+						oldpos = _sep->get_position(), fixw = ototw * (1.0 - oldpos), ofw = totv - sw - fixw;
+					newpos = 1.0 - fixw / ntotw;
 					split_panel *sp = dynamic_cast<split_panel*>(_c1);
 					if (sp && sp->get_orientation() == _sep->get_orientation()) {
-						sp->_maintain_separator_position(minchanged, oldv / leftportion, newv / leftportion);
+						sp->_maintain_separator_position(minchanged, ofw, totv * oldv / ofw, totv * newv / ofw);
 					}
-				} else { // oldp * oldmp = newp * newmp
-					double leftportion = oldv * _sep->get_position(), rightportion = 1.0 - leftportion;
-					newpos = leftportion / newv;
+				} else { // (totv * oldv - sw) * oldmv = (totv * newv - sw) * newmv
+					double
+						ototw = totv * oldv - sw, ntotw = totv * newv - sw,
+						oldpos = _sep->get_position(), fixw = ototw * oldpos, ofw = totv - sw - fixw;
+					newpos = fixw / ntotw;
 					split_panel *sp = dynamic_cast<split_panel*>(_c2);
 					if (sp && sp->get_orientation() == _sep->get_orientation()) {
 						sp->_maintain_separator_position(
-							minchanged,
-							(oldv - leftportion) / rightportion,
-							(newv - leftportion) / rightportion
+							minchanged, ofw,
+							ototw * (1.0 - oldpos) / ofw,
+							ntotw * (1.0 - newpos) / ofw
 						);
 					}
 				}
@@ -279,13 +288,17 @@ namespace codepad {
 				_sep = ui::element::create<draggable_separator>();
 				_sep->value_changed += [this](separator_value_changed_info &p) {
 					if (!_passivepos) {
+						double totw =
+							_sep->get_orientation() == ui::orientation::horizontal ?
+							get_layout().width() - _sep->get_actual_size().x :
+							get_layout().height() - _sep->get_actual_size().y;
 						split_panel *sp = dynamic_cast<split_panel*>(_c1);
 						if (sp && sp->get_orientation() == _sep->get_orientation()) {
-							sp->_maintain_separator_position(false, p.old_value, _sep->get_position());
+							sp->_maintain_separator_position(false, totw, p.old_value, _sep->get_position());
 						}
 						sp = dynamic_cast<split_panel*>(_c2);
 						if (sp && sp->get_orientation() == _sep->get_orientation()) {
-							sp->_maintain_separator_position(true, p.old_value, _sep->get_position());
+							sp->_maintain_separator_position(true, totw, p.old_value, _sep->get_position());
 						}
 					}
 					invalidate_layout();
@@ -345,6 +358,8 @@ namespace codepad {
 					_mdpos = p.position;
 					ui::manager::get().schedule_update(this);
 					click.invoke_noret();
+				} else if (p.button == platform::input::mouse_button::middle) {
+					request_close.invoke_noret();
 				}
 			}
 
@@ -373,8 +388,8 @@ namespace codepad {
 				_btn = ui::element::create<ui::button>();
 				_btn->set_anchor(ui::anchor::dock_right);
 				_btn->set_can_focus(false);
-				_btn->click += [this](void_info &vp) {
-					request_close(vp);
+				_btn->click += [this](void_info&) {
+					request_close.invoke_noret();
 				};
 				_children.add(*_btn);
 				_padding = content_padding;
@@ -676,7 +691,7 @@ namespace codepad {
 				new_pnl_d
 			};
 			size_t _wndcnt = 0;
-			std::unordered_set<tab_host*> _changed;
+			std::set<tab_host*> _changed;
 			std::list<tab_host*> _hostlist;
 			// drag related stuff
 			tab *_drag = nullptr;

@@ -72,6 +72,14 @@ namespace codepad {
 				VK_LMENU,
 				VK_RMENU
 			};
+			struct _key_id_backmapping_t {
+				_key_id_backmapping_t() {
+					for (int i = 0; i < 64; ++i) {
+						v[_key_id_mapping[i]] = i;
+					}
+				}
+				int v[255];
+			} _key_id_backmapping;
 		}
 
 		const int _cursor_id_mapping[] = {
@@ -109,18 +117,31 @@ namespace codepad {
 					return 0;
 
 				case WM_KEYDOWN:
-					_form_onevent<ui::key_info>(*form, &window::_on_key_up, static_cast<int>(wparam));
+					_form_onevent<ui::key_info>(
+						*form, &window::_on_key_down, static_cast<input::key>(input::_key_id_backmapping.v[wparam])
+						);
 					return 0;
 				case WM_KEYUP:
-					_form_onevent<ui::key_info>(*form, &window::_on_key_down, static_cast<int>(wparam));
+					_form_onevent<ui::key_info>(
+						*form, &window::_on_key_up, static_cast<input::key>(input::_key_id_backmapping.v[wparam])
+						);
 					return 0;
 
 				case WM_UNICHAR:
-					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, static_cast<wchar_t>(wparam));
+					if (wparam != VK_BACK && wparam != VK_ESCAPE) {
+						_form_onevent<ui::text_info>(
+							*form, &window::_on_keyboard_text,
+							wparam == VK_RETURN ? U'\n' : static_cast<char_t>(wparam)
+							);
+					}
 					return (wparam == UNICODE_NOCHAR ? TRUE : FALSE);
-
 				case WM_CHAR:
-					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, static_cast<wchar_t>(wparam));
+					if (wparam != VK_BACK && wparam != VK_ESCAPE) {
+						_form_onevent<ui::text_info>(
+							*form, &window::_on_keyboard_text,
+							wparam == VK_RETURN ? U'\n' : static_cast<char_t>(wparam)
+							);
+					}
 					return 0;
 
 				case WM_MOUSEWHEEL:
@@ -233,10 +254,11 @@ namespace codepad {
 			auto u16str = utf32_to_utf16(clsname);
 			winapi_check(_hwnd = CreateWindowEx(
 				0, reinterpret_cast<LPCWSTR>(static_cast<size_t>(_class.atom)),
-				reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
+				reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW | WS_EX_LAYERED,
 				CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 				nullptr, nullptr, GetModuleHandle(nullptr), nullptr
 			));
+			//winapi_check(SetLayeredWindowAttributes(_hwnd, RGB(0, 0, 0), 128, LWA_ALPHA));
 			winapi_check(_dc = GetDC(_hwnd));
 		}
 	}
