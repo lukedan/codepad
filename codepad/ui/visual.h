@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "../utilities/misc.h"
-#include "../platform/renderer.h"
+#include "../os/renderer.h"
 
 namespace codepad {
 	namespace ui {
@@ -19,7 +19,7 @@ namespace codepad {
 			texture_brush() = default;
 			texture_brush(colord cv) : color(cv) {
 			}
-			texture_brush(colord cv, platform::texture_id tex) : color(cv), texture(tex) {
+			texture_brush(colord cv, os::texture_id tex) : color(cv), texture(tex) {
 			}
 
 			void fill_rect(rectd r) const override {
@@ -32,11 +32,11 @@ namespace codepad {
 					vec2d(1.0, 0.0), vec2d(1.0, 1.0), vec2d(0.0, 1.0)
 				};
 				colord c[6] = { color, color, color, color, color, color };
-				platform::renderer_base::get().draw_triangles(v, u, c, 6, texture);
+				os::renderer_base::get().draw_triangles(v, u, c, 6, texture);
 			}
 
 			colord color;
-			platform::texture_id texture = 0;
+			os::texture_id texture = 0;
 		};
 
 		class basic_pen {
@@ -54,7 +54,7 @@ namespace codepad {
 
 			void draw_lines(const std::vector<vec2d> &poss) const override {
 				std::vector<colord> cs(poss.size(), color);
-				platform::renderer_base::get().draw_lines(poss.data(), cs.data(), poss.size());
+				os::renderer_base::get().draw_lines(poss.data(), cs.data(), poss.size());
 			}
 
 			colord color;

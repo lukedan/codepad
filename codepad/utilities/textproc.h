@@ -29,7 +29,7 @@ namespace codepad {
 	}
 
 	// TODO utilization of deprecated functionality
-	namespace helper {
+	namespace _helper {
 		template <typename T> struct deletable_facet : public T {
 			template <typename ...Args> deletable_facet(Args &&...args) : T(std::forward<Args>(args)...) {
 			}
@@ -54,20 +54,20 @@ namespace codepad {
 #ifdef _MSC_VER
 		// TODO fuck visual studio
 		typedef typename std::conditional<std::is_same<To, char32_t>::value, __int32, To>::type _To_t;
-		std::wstring_convert<helper::deletable_facet<std::codecvt<_To_t, char, std::mbstate_t>>, _To_t> conv;
-		return helper::final_str_conv<_To_t>::conv(conv.from_bytes(str));
+		std::wstring_convert<_helper::deletable_facet<std::codecvt<_To_t, char, std::mbstate_t>>, _To_t> conv;
+		return _helper::final_str_conv<_To_t>::conv(conv.from_bytes(str));
 #else
-		std::wstring_convert<helper::deletable_facet<std::codecvt<To, char, std::mbstate_t>>, To> conv;
+		std::wstring_convert<_helper::deletable_facet<std::codecvt<To, char, std::mbstate_t>>, To> conv;
 		return conv.from_bytes(str);
 #endif
 	}
 	template <typename From> inline std::string convert_to_utf8(const std::basic_string<From> &str) {
-		std::wstring_convert<helper::deletable_facet<std::codecvt<From, char, std::mbstate_t>>, From> conv;
+		std::wstring_convert<_helper::deletable_facet<std::codecvt<From, char, std::mbstate_t>>, From> conv;
 		return conv.to_bytes(str);
 	}
 #ifdef _MSC_VER
 	inline std::string convert_to_utf8(const std::basic_string<char32_t> &str) {
-		std::wstring_convert<helper::deletable_facet<std::codecvt<__int32, char, std::mbstate_t>>, __int32> conv;
+		std::wstring_convert<_helper::deletable_facet<std::codecvt<__int32, char, std::mbstate_t>>, __int32> conv;
 		return conv.to_bytes(std::basic_string<__int32>(reinterpret_cast<const __int32*>(str.c_str())));
 	}
 #endif
@@ -81,7 +81,7 @@ namespace codepad {
 	}
 #else
 	template <typename T> inline str_t to_str(T t) {
-		std::basic_stringstream<char_t> ss;
+		std::basic_ostringstream<char_t> ss;
 		ss << t;
 		return ss.str();
 	}

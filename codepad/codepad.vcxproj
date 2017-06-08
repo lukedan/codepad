@@ -128,27 +128,28 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="editor\codebox.h" />
+    <ClInclude Include="editor\components.h" />
     <ClInclude Include="editor\docking.h" />
-    <ClInclude Include="platform\current.h" />
-    <ClInclude Include="platform\input.h" />
-    <ClInclude Include="platform\renderer.h" />
+    <ClInclude Include="os\current.h" />
+    <ClInclude Include="os\input.h" />
+    <ClInclude Include="os\renderer.h" />
     <ClInclude Include="ui\commonelements.h" />
     <ClInclude Include="ui\manager.h" />
     <ClInclude Include="ui\panel.h" />
     <ClInclude Include="ui\textrenderer.h" />
     <ClInclude Include="ui\visual.h" />
-    <ClInclude Include="utilities\font.h" />
+    <ClInclude Include="ui\font.h" />
     <ClInclude Include="utilities\textconfig.h" />
     <ClInclude Include="utilities\textproc.h" />
-    <ClInclude Include="platform\window.h" />
-    <ClInclude Include="platform\windows.h" />
+    <ClInclude Include="os\window.h" />
+    <ClInclude Include="os\windows.h" />
     <ClInclude Include="ui\element.h" />
     <ClInclude Include="utilities\event.h" />
     <ClInclude Include="utilities\misc.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="platform\windows.cpp" />
+    <ClCompile Include="os\windows.cpp" />
     <ClCompile Include="utilities\globalvars.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

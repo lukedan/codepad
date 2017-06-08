@@ -4,7 +4,7 @@
 
 #include "element.h"
 #include "manager.h"
-#include "../platform/renderer.h"
+#include "../os/renderer.h"
 
 namespace codepad {
 	namespace ui {
@@ -124,12 +124,12 @@ namespace codepad {
 			}
 
 			void _finish_layout() override {
-				element::_finish_layout();
 				if (!override_children_layout()) {
 					for (auto i = _children.begin(); i != _children.end(); ++i) {
 						(*i)->invalidate_layout();
 					}
 				}
+				element::_finish_layout();
 			}
 
 			void _on_mouse_down(mouse_button_info &p) override {
@@ -199,20 +199,29 @@ namespace codepad {
 			}
 			void _dispose() override {
 				for (auto i = _children.begin(); i != _children.end(); ++i) {
-					manager::get().mark_disposal(*i);
+					manager::get().mark_disposal(**i);
 				}
 				element::_dispose();
 			}
 
-			void _child_recalc_layout(element *e, rectd r) const {
+			void _child_recalc_layout_noreval(element *e, rectd r) const {
 				assert(e->_parent == this);
 				e->_recalc_layout(r);
 			}
-			void _child_set_layout(element *e, rectd r) const {
+			void _child_set_layout_noreval(element *e, rectd r) const {
 				assert(e->_parent == this);
 				e->_layout = r;
 				e->_clientrgn = e->get_padding().shrink(e->get_layout());
 			}
+			void _child_recalc_layout(element *e, rectd r) const {
+				_child_recalc_layout_noreval(e, r);
+				e->revalidate_layout();
+			}
+			void _child_set_layout(element *e, rectd r) const {
+				_child_set_layout_noreval(e, r);
+				e->revalidate_layout();
+			}
+
 			void _child_on_render(element *e) const {
 				assert(e->_parent == this);
 				e->_on_render();
@@ -286,10 +295,9 @@ namespace codepad {
 					li.elem->_finish_layout();
 				}
 				_layouting = false;
-				CP_INFO(
-					"relayout %fms",
-					std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start).count()
-				);
+				CP_INFO("relayout ", std::chrono::duration<double, std::milli>(
+					std::chrono::high_resolution_clock::now() - start
+					).count(), "ms");
 			}
 		}
 

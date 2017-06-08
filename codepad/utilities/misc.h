@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <iostream>
 #include <cassert>
 #include <algorithm>
 #include <type_traits>
@@ -206,8 +207,8 @@ namespace codepad {
 			static_assert(!std::is_same<T, U>::value, "invalid conversion");
 			if (std::is_same<U, unsigned char>::value) {
 				return color<U>(
-					static_cast<U>(std::round(r * 255.0)), static_cast<U>(std::round(g * 255.0)),
-					static_cast<U>(std::round(b * 255.0)), static_cast<U>(std::round(a * 255.0))
+					static_cast<U>(0.5 + r * 255.0), static_cast<U>(0.5 + g * 255.0),
+					static_cast<U>(0.5 + b * 255.0), static_cast<U>(0.5 + a * 255.0)
 					);
 			} else if (std::is_same<T, unsigned char>::value) {
 				return color<U>(
@@ -294,18 +295,29 @@ namespace codepad {
 		return (v & static_cast<T>(bit)) != 0;
 	}
 	template <typename T, typename U> inline void set_bit(T &v, U bit) {
-		v = static_cast<T>(v | static_cast<T>(bit));
+		v = v | static_cast<T>(bit);
 	}
 	template <typename T, typename U> inline void unset_bit(T &v, U bit) {
-		v = static_cast<T>(v & ~static_cast<T>(bit));
+		v = v & ~static_cast<T>(bit);
+	}
+	template <typename T, typename U> inline T with_bit_set(T v, U bit) {
+		return v | static_cast<T>(bit);
+	}
+	template <typename T, typename U> inline T with_bit_unset(T v, U bit) {
+		return v & static_cast<T>(~static_cast<T>(bit));
 	}
 }
 
-#ifdef __GNUC__
-#	define CP_INFO(STR, ...) ::std::printf("INFO|%s:%d|" STR "\n", __func__, __LINE__, ##__VA_ARGS__)
-#else
-#	define CP_INFO(STR, ...) ::std::printf("INFO|%s:%d|" STR "\n", __func__, __LINE__, __VA_ARGS__)
-#endif
+namespace codepad {
+	template <typename T> inline void print_to_cout(T &&arg) {
+		std::cout << std::forward<T>(arg);
+	}
+	template <typename First, typename ...Others> inline void print_to_cout(First &&f, Others &&...args) {
+		print_to_cout(std::forward<First>(f));
+		print_to_cout(std::forward<Others>(args)...);
+	}
+}
+#define CP_INFO(...) ::codepad::print_to_cout("INFO|", __func__, ":", __LINE__, "|", __VA_ARGS__, "\n")
 
 #if defined(_MSC_VER) && !defined(NDEBUG)
 #	define _CRTDBG_MAP_ALLOC

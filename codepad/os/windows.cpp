@@ -4,7 +4,7 @@
 #include "windows.h"
 
 namespace codepad {
-	namespace platform {
+	namespace os {
 		namespace input {
 			const int _key_id_mapping[64] = {
 				VK_LBUTTON,
@@ -254,11 +254,10 @@ namespace codepad {
 			auto u16str = utf32_to_utf16(clsname);
 			winapi_check(_hwnd = CreateWindowEx(
 				0, reinterpret_cast<LPCWSTR>(static_cast<size_t>(_class.atom)),
-				reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW | WS_EX_LAYERED,
+				reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
 				CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 				nullptr, nullptr, GetModuleHandle(nullptr), nullptr
 			));
-			//winapi_check(SetLayeredWindowAttributes(_hwnd, RGB(0, 0, 0), 128, LWA_ALPHA));
 			winapi_check(_dc = GetDC(_hwnd));
 		}
 	}

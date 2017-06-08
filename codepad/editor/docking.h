@@ -4,18 +4,13 @@
 #include "../ui/panel.h"
 #include "../ui/commonelements.h"
 #include "../ui/manager.h"
-#include "../platform/input.h"
-#include "../platform/renderer.h"
-#include "../platform/window.h"
-#include "../platform/current.h"
+#include "../os/input.h"
+#include "../os/renderer.h"
+#include "../os/window.h"
+#include "../os/current.h"
 
 namespace codepad {
 	namespace editor {
-		struct separator_value_changed_info {
-			separator_value_changed_info(double v) : old_value(v) {
-			}
-			const double old_value;
-		};
 		class draggable_separator : public ui::element {
 			friend class ui::element;
 		public:
@@ -80,11 +75,12 @@ namespace codepad {
 					rectd(plo.xmin, plo.xmax, _layout.ymax, plo.ymax);
 			}
 
-			event<separator_value_changed_info> value_changed;
+			event<value_update_info<double>> value_changed;
 			event<void_info> start_drag, stop_drag;
 		protected:
 			ui::orientation _orient = ui::orientation::horizontal;
 			double _posv = 0.5, _minv = 0.0, _maxv = 1.0;
+			bool _drag = false;
 
 			void _on_orient_changed() {
 				if (_orient == ui::orientation::horizontal) {
@@ -97,11 +93,35 @@ namespace codepad {
 			}
 
 			void _on_mouse_down(ui::mouse_button_info &p) override {
-				if (p.button == platform::input::mouse_button::left) {
+				if (p.button == os::input::mouse_button::left) {
 					start_drag.invoke_noret();
-					ui::manager::get().schedule_update(this);
+					_drag = true;
+					get_window()->set_mouse_capture(*this);
 				}
 				element::_on_mouse_down(p);
+			}
+			void _on_mouse_move(ui::mouse_move_info &p) override {
+				if (_drag) {
+					set_position(
+						_orient == ui::orientation::horizontal ?
+						(p.new_pos.x - _parent->get_layout().xmin - 0.5 * default_thickness) /
+						(_parent->get_layout().width() - default_thickness) :
+						(p.new_pos.y - _parent->get_layout().ymin - 0.5 * default_thickness) /
+						(_parent->get_layout().height() - default_thickness)
+					);
+				}
+			}
+			void _on_end_drag() {
+				_drag = false;
+				get_window()->release_mouse_capture();
+			}
+			void _on_capture_lost() override {
+				_on_end_drag();
+			}
+			void _on_mouse_up(ui::mouse_button_info &p) override {
+				if (_drag && p.button == os::input::mouse_button::left) {
+					_on_end_drag();
+				}
 			}
 
 			void _render() const override { // TODO change appearance
@@ -115,21 +135,7 @@ namespace codepad {
 					colord(0.4, 0.4, 0.4, 1.0), colord(0.4, 0.4, 0.4, 1.0), colord(0.4, 0.4, 0.4, 1.0),
 					colord(0.4, 0.4, 0.4, 1.0), colord(0.4, 0.4, 0.4, 1.0), colord(0.4, 0.4, 0.4, 1.0)
 				};
-				platform::renderer_base::get().draw_triangles(vs, us, cs, 6, 0);
-			}
-			void _on_update() override {
-				if (!platform::input::is_mouse_button_down(platform::input::mouse_button::left)) {
-					return;
-				}
-				vec2i pos = get_window()->screen_to_client(platform::input::get_mouse_position());
-				set_position(
-					_orient == ui::orientation::horizontal ?
-					(pos.x - _parent->get_layout().xmin - 0.5 * default_thickness) /
-					(_parent->get_layout().width() - default_thickness) :
-					(pos.y - _parent->get_layout().ymin - 0.5 * default_thickness) /
-					(_parent->get_layout().height() - default_thickness)
-				);
-				ui::manager::get().schedule_update(this);
+				os::renderer_base::get().draw_triangles(vs, us, cs, 6, 0);
 			}
 
 			void _initialize() override {
@@ -258,27 +264,24 @@ namespace codepad {
 			void _render() const override {
 				_child_on_render(_sep);
 				if (_c1) {
-					platform::renderer_base::get().push_clip(_sep->get_region1().minimum_bounding_box<int>());
+					os::renderer_base::get().push_clip(_sep->get_region1().minimum_bounding_box<int>());
 					_child_on_render(_c1);
-					platform::renderer_base::get().pop_clip();
+					os::renderer_base::get().pop_clip();
 				}
 				if (_c2) {
-					platform::renderer_base::get().push_clip(_sep->get_region2().minimum_bounding_box<int>());
+					os::renderer_base::get().push_clip(_sep->get_region2().minimum_bounding_box<int>());
 					_child_on_render(_c2);
-					platform::renderer_base::get().pop_clip();
+					os::renderer_base::get().pop_clip();
 				}
 			}
 
 			void _finish_layout() override {
 				_child_recalc_layout(_sep, get_client_region());
-				_sep->revalidate_layout();
 				if (_c1) {
 					_child_recalc_layout(_c1, _sep->get_region1());
-					_c1->revalidate_layout();
 				}
 				if (_c2) {
 					_child_recalc_layout(_c2, _sep->get_region2());
-					_c2->revalidate_layout();
 				}
 				ui::panel_base::_finish_layout();
 			}
@@ -286,7 +289,7 @@ namespace codepad {
 			void _initialize() override {
 				ui::panel_base::_initialize();
 				_sep = ui::element::create<draggable_separator>();
-				_sep->value_changed += [this](separator_value_changed_info &p) {
+				_sep->value_changed += [this](value_update_info<double> &p) {
 					if (!_passivepos) {
 						double totw =
 							_sep->get_orientation() == ui::orientation::horizontal ?
@@ -353,23 +356,23 @@ namespace codepad {
 
 			void _on_mouse_down(ui::mouse_button_info &p) override {
 				panel_base::_on_mouse_down(p);
-				if (p.button == platform::input::mouse_button::left && !_btn->hit_test(p.position)) {
+				if (p.button == os::input::mouse_button::left && !_btn->hit_test(p.position)) {
 					p.mark_focus_set();
 					_mdpos = p.position;
-					ui::manager::get().schedule_update(this);
+					ui::manager::get().schedule_update(*this);
 					click.invoke_noret();
-				} else if (p.button == platform::input::mouse_button::middle) {
+				} else if (p.button == os::input::mouse_button::middle) {
 					request_close.invoke_noret();
 				}
 			}
 
 			void _on_update() override {
-				if (platform::input::is_mouse_button_down(platform::input::mouse_button::left)) {
-					vec2d diff = get_window()->screen_to_client(platform::input::get_mouse_position()).convert<double>() - _mdpos;
+				if (os::input::is_mouse_button_down(os::input::mouse_button::left)) {
+					vec2d diff = get_window()->screen_to_client(os::input::get_mouse_position()).convert<double>() - _mdpos;
 					if (diff.length_sqr() > drag_pivot * drag_pivot) {
 						start_drag.invoke_noret(get_layout().xmin_ymin() - _mdpos);
 					} else {
-						ui::manager::get().schedule_update(this);
+						ui::manager::get().schedule_update(*this);
 					}
 				}
 			}
@@ -456,12 +459,12 @@ namespace codepad {
 
 			virtual void _on_request_close() {
 				_get_host()->remove_tab(*this);
-				ui::manager::get().mark_disposal(this);
+				ui::manager::get().mark_disposal(*this);
 			}
 
 			void _initialize() override;
 			void _dispose() override {
-				ui::manager::get().mark_disposal(_btn);
+				ui::manager::get().mark_disposal(*_btn);
 				ui::panel::_dispose();
 			}
 		};
@@ -498,7 +501,7 @@ namespace codepad {
 			}
 
 			bool empty() const {
-				return _wndcnt == 0 && _drag == nullptr;
+				return window_count() == 0 && _drag == nullptr;
 			}
 
 			void update_changed_hosts() {
@@ -519,19 +522,19 @@ namespace codepad {
 									ff->set_child2(other);
 								}
 							} else {
-								platform::window_base *f = dynamic_cast<platform::window_base*>(father->parent());
+								os::window_base *f = dynamic_cast<os::window_base*>(father->parent());
 								assert(f);
 								f->children().remove(*father);
 								f->children().add(*other);
 							}
-							ui::manager::get().mark_disposal(father);
+							ui::manager::get().mark_disposal(*father);
 						} else {
-							platform::window_base *f = dynamic_cast<platform::window_base*>((*i)->parent());
+							os::window_base *f = dynamic_cast<os::window_base*>((*i)->parent());
 							assert(f);
-							ui::manager::get().mark_disposal(f);
+							ui::manager::get().mark_disposal(*f);
 							--_wndcnt;
 						}
-						ui::manager::get().mark_disposal((*i));
+						ui::manager::get().mark_disposal(**i);
 					}
 				}
 				_changed.clear();
@@ -542,12 +545,12 @@ namespace codepad {
 						switch (_dtype) {
 						case _drag_dest_type::new_wnd:
 							{
-								platform::window_base *wnd = _new_window();
+								os::window_base *wnd = _new_window();
 								tab_host *nhst = ui::element::create<tab_host>();
 								wnd->children().add(*nhst);
 								nhst->add_tab(*_drag);
 								wnd->set_client_size(vec2d(_dragrect.width(), _dragrect.ymax - _dragdiff.y).convert<int>());
-								wnd->set_position(platform::input::get_mouse_position() + _dragdiff.convert<int>());
+								wnd->set_position(os::input::get_mouse_position() + _dragdiff.convert<int>());
 							}
 							break;
 						case _drag_dest_type::combine_intab:
@@ -584,7 +587,7 @@ namespace codepad {
 						_drag = nullptr;
 						return;
 					}
-					vec2i mouse = platform::input::get_mouse_position();
+					vec2i mouse = os::input::get_mouse_position();
 					if (_dtype == _drag_dest_type::combine_intab) {
 						rectd rgn = _dest->get_tab_button_region();
 						vec2d mpos = _dest->get_window()->screen_to_client(mouse).convert<double>();
@@ -602,18 +605,16 @@ namespace codepad {
 					vec2d ddiff;
 					tab_host *mindp = nullptr;
 					double minsql = 0.0;
-					platform::window_base *moverwnd = nullptr;
+					os::window_base *moverwnd = nullptr;
 					if (_dtype != _drag_dest_type::combine_intab) {
 						for (auto i = _hostlist.begin(); i != _hostlist.end(); ++i) {
-							platform::window_base *curw = (*i)->get_window();
+							os::window_base *curw = (*i)->get_window();
 							if (moverwnd && curw != moverwnd) {
 								continue;
 							}
 							vec2d mpos = curw->screen_to_client(mouse).convert<double>();
-							if (!moverwnd) {
-								if (curw->get_layout().contains(mpos)) {
-									moverwnd = curw;
-								}
+							if (!moverwnd && curw->hit_test_full_client(mouse)) {
+								moverwnd = curw;
 							}
 							if (moverwnd) {
 								rectd rgn = (*i)->get_tab_button_region();
@@ -625,6 +626,7 @@ namespace codepad {
 									_dest->move_tab_before(
 										*_drag, _get_drag_tab_before(mpos.x + _dragdiff.x - rgn.xmin, rgn.width(), _drag->_btn->_xoffset)
 									);
+									moverwnd->activate();
 									break;
 								}
 							}
@@ -660,7 +662,7 @@ namespace codepad {
 			}
 
 			void start_drag_tab(tab &t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
-				return !platform::input::is_mouse_button_down(platform::input::mouse_button::left);
+				return !os::input::is_mouse_button_down(os::input::mouse_button::left);
 			}) {
 				assert(_drag == nullptr);
 				tab_host *hst = t._get_host();
@@ -701,8 +703,8 @@ namespace codepad {
 			rectd _dragrect;
 			std::function<bool()> _stopdrag;
 
-			platform::window_base *_new_window() {
-				platform::window_base *wnd = ui::element::create<platform::window>();
+			os::window_base *_new_window() {
+				os::window_base *wnd = ui::element::create<os::window>();
 				wnd->got_window_focus += [this, wnd](void_info&) {
 					_enumerate_hosts(wnd, [this](tab_host &hst) {
 						_hostlist.erase(hst._tok);
@@ -734,7 +736,7 @@ namespace codepad {
 						f->set_child2(sp);
 					}
 				} else {
-					platform::window_base *w = dynamic_cast<platform::window_base*>(hst.parent());
+					os::window_base *w = dynamic_cast<os::window_base*>(hst.parent());
 					assert(w);
 					w->children().remove(hst);
 					w->children().add(*sp);
@@ -746,7 +748,7 @@ namespace codepad {
 				_changed.insert(&host);
 			}
 
-			template <typename T> inline static void _enumerate_hosts(platform::window_base *base, const T &cb) {
+			template <typename T> inline static void _enumerate_hosts(os::window_base *base, const T &cb) {
 				assert(base->children().size() == 1);
 				std::vector<ui::element*> hsts;
 				hsts.push_back(*base->children().begin());
@@ -783,11 +785,11 @@ namespace codepad {
 			}
 
 			void _on_tab_host_created(tab_host &hst) {
-				CP_INFO("tab host 0x%p created", &hst);
+				CP_INFO("tab host 0x", &hst, " created");
 				hst._tok = _hostlist.insert(_hostlist.begin(), &hst);
 			}
 			void _on_tab_host_disposed(tab_host &hst) {
-				CP_INFO("tab host 0x%p disposed", &hst);
+				CP_INFO("tab host 0x", &hst, "disposed");
 				if (_drag && _dest == &hst) {
 					CP_INFO("resetting drag destination");
 					_dest = nullptr;
@@ -796,7 +798,7 @@ namespace codepad {
 				_hostlist.erase(hst._tok);
 			}
 			void _on_tab_host_relayout(tab_host &hst) {
-				CP_INFO("tab host 0x%p relayout", &hst);
+				CP_INFO("tab host 0x", &hst, " relayout");
 			}
 
 			static dock_manager _dman;
@@ -895,12 +897,10 @@ namespace codepad {
 				_child_set_layout((*i)->_btn, rectd(
 					x + (*i)->_btn->_xoffset, x + w + (*i)->_btn->_xoffset, client.ymin, client.ymin + y
 				));
-				(*i)->_btn->revalidate_layout();
 				x += w;
 			}
 			if (_active_tab != _tabs.end()) {
 				_child_set_layout(*_active_tab, rectd(client.xmin, client.xmax, client.ymin + y, client.ymax));
-				(*_active_tab)->revalidate_layout();
 			}
 			ui::panel_base::_finish_layout();
 		}

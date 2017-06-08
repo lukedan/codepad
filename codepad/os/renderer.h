@@ -3,7 +3,7 @@
 #include "../utilities/misc.h"
 
 namespace codepad {
-	namespace platform {
+	namespace os {
 		typedef size_t texture_id;
 		class window_base;
 		class renderer_base {

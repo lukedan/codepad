@@ -16,31 +16,31 @@ namespace codepad {
 				return _sman;
 			}
 
-			void invalidate_layout(element *e) {
+			void invalidate_layout(element &e) {
 				if (_layouting) {
-					_q.push_back(_layout_info(e, true));
+					_q.push_back(_layout_info(&e, true));
 				} else {
-					_targets[e] = true;
+					_targets[&e] = true;
 				}
 			}
-			void revalidate_layout(element *e) {
+			void revalidate_layout(element &e) {
 				if (_layouting) {
-					_q.push_back(_layout_info(e, false));
+					_q.push_back(_layout_info(&e, false));
 				} else {
-					if (_targets.find(e) == _targets.end()) {
-						_targets.insert(std::make_pair(e, false));
+					if (_targets.find(&e) == _targets.end()) {
+						_targets.insert(std::make_pair(&e, false));
 					}
 				}
 			}
 			void update_invalid_layouts();
 
-			void invalidate_visual(element *e) {
-				_dirty.insert(e);
+			void invalidate_visual(element &e) {
+				_dirty.insert(&e);
 			}
 			void update_invalid_visuals();
 
-			void schedule_update(element *e) {
-				_upd.insert(e);
+			void schedule_update(element &e) {
+				_upd.insert(&e);
 			}
 			void update_scheduled_elements() {
 				_now = std::chrono::high_resolution_clock::now();
@@ -64,8 +64,8 @@ namespace codepad {
 				return _now - _lasttp;
 			}
 
-			void mark_disposal(element *e) { // may be called on one element multiple times before the element's disposed
-				_del.insert(e);
+			void mark_disposal(element &e) { // may be called on one element multiple times before the element's disposed
+				_del.insert(&e);
 			}
 			void dispose_marked_elements() {
 				while (!_del.empty()) {
@@ -131,13 +131,13 @@ namespace codepad {
 			static manager _sman;
 		};
 		inline void element::invalidate_layout() {
-			manager::get().invalidate_layout(this);
+			manager::get().invalidate_layout(*this);
 		}
 		inline void element::revalidate_layout() {
-			manager::get().revalidate_layout(this);
+			manager::get().revalidate_layout(*this);
 		}
 		inline void element::invalidate_visual() {
-			manager::get().invalidate_visual(this);
+			manager::get().invalidate_visual(*this);
 		}
 		inline void element::_on_mouse_down(mouse_button_info &p) {
 			mouse_down(p);

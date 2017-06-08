@@ -9,7 +9,7 @@
 #include "../utilities/textconfig.h"
 
 namespace codepad {
-	namespace platform {
+	namespace os {
 		struct size_changed_info {
 			size_changed_info(vec2i v) : new_size(v) {
 			}
@@ -25,14 +25,21 @@ namespace codepad {
 			virtual vec2i get_client_size() const = 0;
 			virtual void set_client_size(vec2i) = 0;
 
+			virtual void activate() = 0;
+			virtual void prompt_ready() = 0;
+
+			virtual bool hit_test_full_client(vec2i) const = 0;
+
 			virtual vec2i screen_to_client(vec2i) const = 0;
 			virtual vec2i client_to_screen(vec2i) const = 0;
 
 			virtual void set_mouse_capture(ui::element &elem) {
+				CP_INFO("set mouse capture 0x", &elem, " <", typeid(elem).name(), ">");
 				assert(!_capture);
 				_capture = &elem;
 			}
 			virtual void release_mouse_capture() {
+				CP_INFO("release mouse capture");
 				assert(_capture);
 				_capture = nullptr;
 			}
@@ -66,12 +73,12 @@ namespace codepad {
 			}
 
 			void _on_prerender() const override {
-				platform::renderer_base::get().begin(*this);
+				os::renderer_base::get().begin(*this);
 				panel::_on_prerender();
 			}
 			void _on_postrender() const override {
 				panel::_on_postrender();
-				platform::renderer_base::get().end();
+				os::renderer_base::get().end();
 			}
 
 			virtual void _on_close_request(void_info &p) {
@@ -128,6 +135,9 @@ namespace codepad {
 			virtual void _on_lost_window_focus(void_info &p) {
 				if (ui::manager::get().get_focused() == _focus) { // in case the focus has already shifted
 					ui::manager::get().set_focus(nullptr);
+				}
+				if (_capture) {
+					_capture->_on_capture_lost();
 				}
 				lost_window_focus(p);
 			}
@@ -186,7 +196,10 @@ namespace codepad {
 			}
 			void _on_mouse_scroll(ui::mouse_scroll_info &p) override {
 				if (_capture) {
-					_capture->_on_mouse_scroll(p);
+					for (element *e = _capture; !p.handled() && e != this; e = e->parent()) {
+						assert(e);
+						e->_on_mouse_scroll(p);
+					}
 					ui::element::_on_mouse_scroll(p);
 				} else {
 					panel::_on_mouse_scroll(p);
@@ -200,7 +213,7 @@ namespace codepad {
 				auto start = std::chrono::high_resolution_clock::now();
 				std::set<element*> ss;
 				for (auto i = _dirty.begin(); i != _dirty.end(); ++i) {
-					platform::window_base *wnd = (*i)->get_window();
+					os::window_base *wnd = (*i)->get_window();
 					if (wnd) {
 						ss.insert(wnd);
 					}
@@ -209,17 +222,16 @@ namespace codepad {
 				for (auto i = ss.begin(); i != ss.end(); ++i) {
 					(*i)->_on_render();
 				}
-				CP_INFO(
-					"repaint %fms",
-					std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start).count()
-				);
+				CP_INFO("repaint ", std::chrono::duration<double, std::milli>(
+					std::chrono::high_resolution_clock::now() - start
+					).count(), "ms");
 			}
 		}
 		inline void manager::set_focus(element *elem) {
 			if (elem == _focus) {
 				return;
 			}
-			platform::window_base *neww = elem ? elem->get_window() : nullptr;
+			os::window_base *neww = elem ? elem->get_window() : nullptr;
 			assert((neww != nullptr) == (elem != nullptr));
 			void_info vp;
 			element *oldf = _focus;
@@ -233,20 +245,20 @@ namespace codepad {
 			if (_focus) {
 				_focus->_on_got_focus(vp);
 			}
-			CP_INFO("focus changed to 0x%p <%s>", _focus, _focus ? typeid(*_focus).name() : "nullptr");
+			CP_INFO("focus changed to 0x", _focus, " <", _focus ? typeid(*_focus).name() : "nullptr", ">");
 		}
 
-		inline platform::window_base *element::get_window() {
+		inline os::window_base *element::get_window() {
 			element *cur = this;
 			while (cur->_parent) {
 				cur = cur->_parent;
 			}
-			return dynamic_cast<platform::window_base*>(cur);
+			return dynamic_cast<os::window_base*>(cur);
 		}
 
 		inline void element_collection::remove(element &elem) {
 			assert(elem._parent == &_f);
-			platform::window_base *wnd = _f.get_window();
+			os::window_base *wnd = _f.get_window();
 			if (wnd) {
 				wnd->_on_removing_window_element(&elem);
 			}

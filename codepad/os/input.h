@@ -1,7 +1,7 @@
 #pragma once
 
 namespace codepad {
-	namespace platform {
+	namespace os {
 		namespace input {
 			enum class mouse_button { left, middle, right };
 			enum class key {

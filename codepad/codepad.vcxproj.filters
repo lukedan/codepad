@@ -24,12 +24,6 @@
     <ClInclude Include="ui\element.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="platform\windows.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="utilities\font.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\textrenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -40,12 +34,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="utilities\textproc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="platform\renderer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="platform\window.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ui\commonelements.h">
@@ -60,13 +48,28 @@
     <ClInclude Include="ui\visual.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="platform\input.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="editor\docking.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="platform\current.h">
+    <ClInclude Include="os\current.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\input.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\renderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\window.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\windows.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\font.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editor\components.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -74,10 +77,10 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="platform\windows.cpp">
+    <ClCompile Include="utilities\globalvars.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="utilities\globalvars.cpp">
+    <ClCompile Include="os\windows.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

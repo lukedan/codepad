@@ -6,8 +6,8 @@
 #include "../utilities/textconfig.h"
 #include "../utilities/event.h"
 #include "../utilities/misc.h"
-#include "../platform/renderer.h"
-#include "../platform/input.h"
+#include "../os/renderer.h"
+#include "../os/input.h"
 
 namespace codepad {
 	namespace ui {
@@ -32,9 +32,9 @@ namespace codepad {
 			bool _handled = false;
 		};
 		struct mouse_button_info {
-			mouse_button_info(platform::input::mouse_button mb, vec2d pos) : button(mb), position(pos) {
+			mouse_button_info(os::input::mouse_button mb, vec2d pos) : button(mb), position(pos) {
 			}
-			const platform::input::mouse_button button;
+			const os::input::mouse_button button;
 			const vec2d position;
 			bool focus_set() const {
 				return _focus_set;
@@ -47,9 +47,9 @@ namespace codepad {
 			bool _focus_set = false;
 		};
 		struct key_info {
-			key_info(platform::input::key k) : key(k) {
+			key_info(os::input::key k) : key(k) {
 			}
-			const platform::input::key key;
+			const os::input::key key;
 		};
 		struct text_info {
 			text_info(char_t c) : character(c) {
@@ -143,7 +143,7 @@ namespace codepad {
 			friend class manager;
 			friend class element_collection;
 			friend class panel_base;
-			friend class platform::window_base;
+			friend class os::window_base;
 		public:
 			virtual ~element() {
 #ifndef NDEBUG
@@ -278,7 +278,7 @@ namespace codepad {
 				return _can_focus;
 			}
 
-			virtual platform::window_base *get_window();
+			virtual os::window_base *get_window();
 
 			void invalidate_visual();
 			void invalidate_layout();
@@ -360,16 +360,32 @@ namespace codepad {
 				invalidate_visual();
 			}
 
+			virtual void _on_capture_lost() {
+			}
+
 			virtual void _on_update() {
 			}
 
 			virtual void _on_prerender() const {
-				platform::renderer_base::get().push_clip(_layout.minimum_bounding_box<int>());
+#ifndef NDEBUG
+				texture_brush(colord(1.0, 1.0, 1.0, 0.02)).fill_rect(get_layout());
+				pen p(colord(1.0, 1.0, 1.0, 1.0));
+				std::vector<vec2d> lines;
+				lines.push_back(get_layout().xmin_ymin());
+				lines.push_back(get_layout().xmax_ymin());
+				lines.push_back(get_layout().xmin_ymin());
+				lines.push_back(get_layout().xmin_ymax());
+				lines.push_back(get_layout().xmax_ymax());
+				lines.push_back(get_layout().xmin_ymax());
+				lines.push_back(get_layout().xmax_ymax());
+				lines.push_back(get_layout().xmax_ymin());
+				p.draw_lines(lines);
+#endif
+				os::renderer_base::get().push_clip(_layout.minimum_bounding_box<int>());
 			}
 			virtual void _render() const = 0;
 			virtual void _on_postrender() const {
-				texture_brush(colord(1.0, 1.0, 1.0, 0.1)).fill_rect(get_layout());
-				platform::renderer_base::get().pop_clip();
+				os::renderer_base::get().pop_clip();
 			}
 			virtual void _on_render() const {
 				if (test_bit_all(_vis, visibility::render_only)) {

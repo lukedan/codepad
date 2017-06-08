@@ -2,8 +2,8 @@
 
 #include "../utilities/textconfig.h"
 #include "../utilities/textproc.h"
-#include "../utilities/font.h"
-#include "../platform/renderer.h"
+#include "../os/renderer.h"
+#include "font.h"
 
 namespace codepad {
 	namespace ui {
@@ -23,7 +23,7 @@ namespace codepad {
 						if (last != U'\0') {
 							cur.x += static_cast<int>(std::round(lastw + fnt.get_kerning(last, *i).x));
 						}
-						platform::renderer_base::get().draw_character(et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color);
+						os::renderer_base::get().draw_character(et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color);
 						last = *i;
 						lastw = et.advance;
 					}

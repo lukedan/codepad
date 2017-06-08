@@ -17,7 +17,7 @@
 #include "../utilities/textproc.h"
 
 namespace codepad {
-	namespace platform {
+	namespace os {
 		template <typename T> inline void winapi_check(T
 #ifndef NDEBUG
 			v
@@ -25,7 +25,7 @@ namespace codepad {
 		) {
 #ifndef NDEBUG
 			if (!v) {
-				CP_INFO("WinAPI error %u", GetLastError());
+				CP_INFO("WinAPI error ", GetLastError());
 			}
 #endif
 			assert(v);
@@ -90,6 +90,26 @@ namespace codepad {
 					wndrgn.bottom - wndrgn.top - cln.bottom + sz.y,
 					SWP_NOMOVE
 				));
+			}
+
+			void activate() override {
+				winapi_check(BringWindowToTop(_hwnd));
+			}
+			void prompt_ready() override {
+				FLASHWINFO fwi;
+				std::memset(&fwi, 0, sizeof(fwi));
+				fwi.cbSize = sizeof(fwi);
+				fwi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
+				fwi.dwTimeout = 0;
+				fwi.hwnd = _hwnd;
+				fwi.uCount = 0;
+				FlashWindowEx(&fwi);
+			}
+
+			bool hit_test_full_client(vec2i v) const override {
+				RECT r;
+				winapi_check(GetWindowRect(_hwnd, &r));
+				return r.left <= v.x && r.right > v.x && r.top <= v.y && r.bottom > v.y;
 			}
 
 			ui::cursor get_current_display_cursor() const override {
@@ -174,14 +194,14 @@ namespace codepad {
 				while (_idle()) {
 				}
 				_update_drag();
-				ui::manager::get().schedule_update(this);
+				ui::manager::get().schedule_update(*this);
 			}
 
 			void _initialize() override {
 				window_base::_initialize();
 				SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 				ShowWindow(_hwnd, SW_SHOW);
-				ui::manager::get().schedule_update(this);
+				ui::manager::get().schedule_update(*this);
 			}
 			void _dispose() override {
 				winapi_check(DestroyWindow(_hwnd));
@@ -194,13 +214,19 @@ namespace codepad {
 			software_renderer() : renderer_base() {
 				_txs.push_back(_tex_rec());
 			}
+			~software_renderer() {
+				_dispose_buffer();
+			}
 
 			void begin(const window_base &wnd) override {
 				_cwnd = static_cast<const window*>(&wnd);
+				_wcsz = _cwnd->get_client_size();
+				_crgn = recti(0, _wcsz.x, 0, _wcsz.y);
 				_crec = &_wnds.find(_cwnd)->second;
+				_check_buffer();
 				for (size_t y = 0; y < _crec->bmp.h; ++y) {
 					for (size_t x = 0; x < _crec->bmp.w; ++x) {
-						_crec->bmp.arr[(_crec->bmp.h - y - 1) * _crec->bmp.w + x] = 0;
+						_dbuf[(_crec->bmp.h - y - 1) * _crec->bmp.w + x] = colord(0.0, 0.0, 0.0, 0.0);
 					}
 				}
 			}
@@ -212,7 +238,7 @@ namespace codepad {
 					rv.xmax_ymin(), rv.xmax_ymax(), rv.xmin_ymax()
 				}, uvs[6] = {
 					vec2d(0.0, 0.0), vec2d(1.0, 0.0), vec2d(0.0, 1.0),
-					vec2d(1.0, 0.0), vec2d(0.0, 1.0), vec2d(1.0, 1.0)
+					vec2d(1.0, 0.0), vec2d(1.0, 1.0), vec2d(0.0, 1.0)
 				};
 				colord cs[6] = { c, c, c, c, c, c };
 				draw_triangles(vxs, uvs, cs, 6, tex);
@@ -227,7 +253,17 @@ namespace codepad {
 					_draw_triangle(cp, cuv, cc, tid);
 				}
 			}
+			void draw_lines(const vec2d *vs, const colord *cs, size_t sz) override {
+				for (size_t i = 0; i < sz; i += 2) {
+					_draw_line(vs[i], vs[i + 1], cs[i]); // TODO get the color right
+				}
+			}
 			void end() override {
+				DWORD *to = _crec->bmp.arr;
+				colord *from = _dbuf;
+				for (size_t i = _wcsz.x * _wcsz.y; i > 0; --i, ++from, ++to) {
+					*to = _conv_to_dword(from->convert<unsigned char>());
+				}
 				winapi_check(BitBlt(
 					_cwnd->_dc, _crgn.xmin, _crgn.ymin, _crgn.width(), _crgn.height(),
 					_crec->dc, _crgn.xmin, _crgn.ymin, SRCCOPY
@@ -243,11 +279,28 @@ namespace codepad {
 				_txs[id].dispose();
 				_id_realloc.push_back(id);
 			}
+			void push_clip(recti r) override {
+				if (_clpstk.size() > 0) {
+					r = recti::common_part(r, _clpstk.back());
+				}
+				r.make_valid_max();
+				_crgn = r;
+				_clpstk.push_back(r);
+			}
+			void pop_clip() override {
+				_clpstk.pop_back();
+				if (_clpstk.size() > 0) {
+					_crgn = _clpstk.back();
+				} else {
+					_crgn = _cwnd->get_layout().minimum_bounding_box<int>();
+				}
+			}
 		protected:
 			void _new_window(window_base &wnd) override {
 				window *w = static_cast<window*>(&wnd);
 				_wnd_rec wr;
-				wr.create_buffer(w->_dc, static_cast<size_t>(w->_layout.width()), static_cast<size_t>(w->_layout.height()));
+				vec2i sz = w->get_client_size();
+				wr.create_buffer(w->_dc, sz.x, sz.y);
 				auto it = _wnds.insert(std::make_pair(w, wr)).first;
 				w->size_changed += [it](size_changed_info &info) {
 					it->second.resize_buffer(static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y));
@@ -255,6 +308,22 @@ namespace codepad {
 			}
 			void _delete_window(window_base &wnd) override {
 				_wnds[static_cast<window*>(&wnd)].dispose_buffer();
+			}
+
+			colord *_dbuf = nullptr;
+			vec2i _bufsz, _wcsz;
+			void _dispose_buffer() {
+				if (_dbuf) {
+					std::free(_dbuf);
+				}
+			}
+			void _check_buffer() {
+				if (_wcsz.x > _bufsz.x || _wcsz.y > _bufsz.y) {
+					_dispose_buffer();
+					_bufsz.x = std::max(_bufsz.x, _wcsz.x);
+					_bufsz.y = std::max(_bufsz.y, _wcsz.y);
+					_dbuf = static_cast<colord*>(std::malloc(sizeof(colord) * _bufsz.x * _bufsz.y));
+				}
 			}
 
 			struct _tex_rec {
@@ -286,9 +355,9 @@ namespace codepad {
 					return data[y * w + x];
 				}
 				colord sample(vec2d uv) const {
-					if (!data) {
-						return colord();
-					}
+					//double xf = (uv.x - std::floor(uv.x)) * static_cast<double>(w), yf = (uv.y - std::floor(uv.y)) * static_cast<double>(h);
+					//return fetch(static_cast<size_t>(xf), static_cast<size_t>(yf));
+
 					double xf = uv.x * static_cast<double>(w) - 0.5, yf = uv.y * static_cast<double>(h) - 0.5;
 					int x = static_cast<int>(std::floor(xf)), y = static_cast<int>(std::floor(yf)), x1 = x + 1, y1 = y + 1;
 					xf -= x;
@@ -365,6 +434,7 @@ namespace codepad {
 			std::unordered_map<const window*, _wnd_rec> _wnds;
 			const window *_cwnd = nullptr;
 			_wnd_rec *_crec = nullptr;
+			std::vector<recti> _clpstk;
 			recti _crgn;
 
 			texture_id _alloc_id() {
@@ -434,14 +504,6 @@ namespace codepad {
 					static_cast<DWORD>(cv.a) << 24 | static_cast<DWORD>(cv.r) << 16 |
 					static_cast<DWORD>(cv.g) << 8 | cv.b;
 			}
-			inline static colori _conv_to_uchar(DWORD dv) {
-				return colori(
-					static_cast<unsigned char>((dv >> 16) & 0xFF),
-					static_cast<unsigned char>((dv >> 8) & 0xFF),
-					static_cast<unsigned char>(dv & 0xFF),
-					static_cast<unsigned char>(dv >> 24)
-				);
-			}
 			void _draw_triangle_half(
 				double sx, double sy, double invk1, double invk2, double ymin, double ymax,
 				const _tex_rec &tex, const _pq_params &params,
@@ -452,22 +514,95 @@ namespace codepad {
 				size_t
 					miny = static_cast<size_t>(std::max<double>(ymin + 0.5, _crgn.ymin)),
 					maxy = static_cast<size_t>(clamp<double>(ymax + 0.5, _crgn.ymin, _crgn.ymax));
+				vec2d uvd = uvs[0] * params.xpi + uvs[1] * params.xqi + uvs[2] * params.xri;
+				colord cd = cs[0] * params.xpi + cs[1] * params.xqi + cs[2] * params.xri;
 				for (size_t y = miny; y < maxy; ++y) {
 					double diff = static_cast<double>(y) - sy, left = diff * invk1 + sx, right = diff * invk2 + sx;
 					size_t
 						l = static_cast<size_t>(std::max<double>(left, _crgn.xmin)),
 						r = static_cast<size_t>(clamp<double>(right, _crgn.xmin, _crgn.xmax));
-					DWORD *pixel = _crec->bmp.arr + (_crec->bmp.h - y - 1) * _crec->bmp.w + l;
+					colord *pixel = _dbuf + (_crec->bmp.h - y - 1) * _crec->bmp.w + l;
 					double p, q, mpq;
 					params.get_pq(l, y, p, q);
 					mpq = 1.0 - p - q;
-					for (size_t cx = l; cx < r; ++cx, ++pixel, p += params.xpi, q += params.xqi, mpq += params.xri) {
-						vec2d uv = uvs[0] * p + uvs[1] * q + uvs[2] * mpq;
-						colord cc = tex.sample(uv) * (cs[0] * p + cs[1] * q + cs[2] * mpq);
-						*pixel = _conv_to_dword((
-							cc * cc.a + _conv_to_uchar(*pixel).convert<double>() * (1.0 - cc.a)
-							).convert<unsigned char>());
+					vec2d uv = uvs[0] * p + uvs[1] * q + uvs[2] * mpq;
+					colord cc = cs[0] * p + cs[1] * q + cs[2] * mpq;
+					for (size_t cx = l; cx < r; ++cx, ++pixel, uv += uvd, cc += cd) {
+						if (tex.data) {
+							colord ncc = cc * tex.sample(uv);
+							*pixel += (ncc - *pixel) * ncc.a;
+						} else {
+							*pixel += (cc - *pixel) * cc.a;
+						}
 					}
+				}
+			}
+
+			inline static void _clip_line_onedir_fixup(double &y, double &k, double &v, double &x) {
+				y += k * (v - x);
+				x = v;
+			}
+			inline static bool _clip_line_onedir(double &fx, double &fy, double &tx, double &ty, double xmin, double xmax) {
+				if (fx < tx) {
+					if (tx < xmin || fx > xmax) {
+						return false;
+					}
+					double k = (ty - fy) / (tx - fx);
+					if (fx < xmin) {
+						_clip_line_onedir_fixup(fx, fy, xmin, k);
+					}
+					if (tx > xmax) {
+						_clip_line_onedir_fixup(tx, ty, xmax, k);
+					}
+				} else {
+					if (fx < xmin || tx > xmax) {
+						return false;
+					}
+					double k = (ty - fy) / (tx - fx);
+					if (fx > xmax) {
+						_clip_line_onedir_fixup(fx, fy, xmax, k);
+					}
+					if (tx < xmin) {
+						_clip_line_onedir_fixup(tx, ty, xmin, k);
+					}
+				}
+				return true;
+			}
+			void _draw_line(vec2d p1, vec2d p2, colord c) {
+				p1.y = _wcsz.y - p1.y;
+				p2.y = _wcsz.y - p2.y;
+				if (p1.x + p1.y > p2.x + p2.y) {
+					std::swap(p1, p2);
+				}
+				vec2d diff = p2 - p1;
+				if (diff.x < 0.0 ? true : (diff.y < 0.0 ? false : (std::fabs(diff.y) > std::fabs(diff.x)))) {
+					if (_clip_line_onedir(p1.x, p1.y, p2.x, p2.y, _crgn.xmin + 0.5, _crgn.xmax - 0.5)) {
+						_draw_line_up(p1.y, p1.x, p2.y, diff.x / diff.y, c);
+					}
+				} else {
+					if (_clip_line_onedir(p1.y, p1.x, p2.y, p2.x, _crgn.ymin + 0.5, _crgn.ymax - 0.5)) {
+						_draw_line_right(p1.x, p1.y, p2.x, diff.y / diff.x, c);
+					}
+				}
+			}
+			void _draw_pixel_with_blend(size_t x, size_t y, colord c) {
+				colord *pixel = _dbuf + (y * _wcsz.x + x);
+				*pixel += (c - *pixel) * c.a;
+			}
+			void _draw_line_right(double fx, double fy, double tx, double k, colord c) {
+				size_t t = static_cast<size_t>(clamp(tx, 0.0, static_cast<double>(_wcsz.x - 1)));
+				tx -= fx;
+				fx -= 0.5;
+				for (size_t cx = static_cast<size_t>(std::max(fx + 0.5, 0.0)); cx <= t; ++cx) {
+					_draw_pixel_with_blend(cx, static_cast<size_t>(fy + k * clamp(cx - fx, 0.0, tx)), c);
+				}
+			}
+			void _draw_line_up(double by, double bx, double ty, double invk, colord c) {
+				size_t t = static_cast<size_t>(clamp(ty, 0.0, static_cast<double>(_wcsz.y - 1)));
+				ty -= by;
+				by -= 0.5;
+				for (size_t cy = static_cast<size_t>(std::max(by + 0.5, 0.0)); cy <= t; ++cy) {
+					_draw_pixel_with_blend(static_cast<size_t>(bx + invk * clamp(cy - by, 0.0, ty)), cy, c);
 				}
 			}
 		};

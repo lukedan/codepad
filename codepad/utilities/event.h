@@ -49,4 +49,9 @@ namespace codepad {
 
 	struct void_info {
 	};
+	template <typename T> struct value_update_info {
+		value_update_info(T ov) : old_value(ov) {
+		}
+		const T old_value;
+	};
 }

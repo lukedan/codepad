@@ -3,10 +3,10 @@
 #include "element.h"
 #include "panel.h"
 #include "textrenderer.h"
+#include "font.h"
 #include "../utilities/misc.h"
 #include "../utilities/textconfig.h"
-#include "../utilities/font.h"
-#include "../platform/window.h"
+#include "../os/window.h"
 
 namespace codepad {
 	namespace ui {
@@ -151,40 +151,67 @@ namespace codepad {
 				mouse_down = 2,
 				pressed = mouse_over | mouse_down
 			};
+			enum class trigger_type {
+				mouse_down,
+				mouse_up
+			};
 		protected:
 			unsigned char _state = static_cast<unsigned char>(state::normal);
+			trigger_type _trigtype = trigger_type::mouse_up;
+			os::input::mouse_button _trigbtn = os::input::mouse_button::left;
+
+			virtual void _on_state_changed() {
+			}
+
+			void _set_state(unsigned char s) {
+				if (_state != s) {
+					_state = s;
+					_on_state_changed();
+				}
+			}
 
 			void _on_mouse_enter(void_info &p) override {
-				set_bit(_state, state::mouse_over);
+				_set_state(with_bit_set(_state, state::mouse_over));
 				element::_on_mouse_enter(p);
 			}
 			void _on_mouse_leave(void_info &p) override {
-				unset_bit(_state, state::mouse_over);
+				_set_state(with_bit_unset(_state, state::mouse_over));
 				element::_on_mouse_leave(p);
 			}
 			void _on_mouse_down(mouse_button_info &p) override {
-				if (p.button == platform::input::mouse_button::left) {
-					set_bit(_state, state::mouse_down);
+				if (p.button == _trigbtn) {
+					_set_state(with_bit_set(_state, state::mouse_down));
 					get_window()->set_mouse_capture(*this);
+					if (_trigtype == trigger_type::mouse_down) {
+						_on_click();
+					}
 				}
 				element::_on_mouse_down(p);
 			}
-			void _on_mouse_up(mouse_button_info &p) override {
-				bool valid = test_bit_all(_state, state::pressed);
-				if (p.button == platform::input::mouse_button::left) {
-					unset_bit(_state, state::mouse_down);
+			void _on_mouse_lbutton_up() {
+				if (test_bit_all(_state, state::mouse_down)) {
 					get_window()->release_mouse_capture();
 				}
-				if (valid) {
+				_set_state(with_bit_unset(_state, state::mouse_down));
+			}
+			void _on_capture_lost() override {
+				_on_mouse_lbutton_up();
+			}
+			void _on_mouse_up(mouse_button_info &p) override {
+				bool valid = test_bit_all(_state, state::pressed);
+				if (p.button == _trigbtn) {
+					_on_mouse_lbutton_up();
+				}
+				if (valid && _trigtype == trigger_type::mouse_up) {
 					_on_click();
 				}
 				element::_on_mouse_up(p);
 			}
 			void _on_mouse_move(mouse_move_info &p) override {
 				if (hit_test(p.new_pos)) {
-					set_bit(_state, state::mouse_over);
+					_set_state(with_bit_set(_state, state::mouse_over));
 				} else {
-					unset_bit(_state, state::mouse_over);
+					_set_state(with_bit_unset(_state, state::mouse_over));
 				}
 				element::_on_mouse_move(p);
 			}
@@ -193,6 +220,36 @@ namespace codepad {
 		};
 		class button : public button_base {
 			friend class element;
+		public:
+			state get_state() const {
+				return static_cast<state>(_state);
+			}
+
+			void set_trigger_button(os::input::mouse_button btn) {
+				_trigbtn = btn;
+			}
+			os::input::mouse_button get_trigger_button() const {
+				return _trigbtn;
+			}
+
+			void set_trigger_type(trigger_type t) {
+				_trigtype = t;
+			}
+			trigger_type get_trigger_type() const {
+				return _trigtype;
+			}
+
+			event<void_info> click;
+		protected:
+			void _on_click() override {
+				click.invoke_noret();
+			}
+
+			void _render() const override {
+				// TODO brushes
+			}
+		};
+		class content_button : public button {
 		public:
 			content_host &content() {
 				return _content;
@@ -204,24 +261,169 @@ namespace codepad {
 			vec2d get_desired_size() const override {
 				return _content.get_text_size() + _padding.size();
 			}
-
-			event<void_info> click;
 		protected:
-			void _on_click() override {
-				click.invoke_noret();
-			}
+			content_host _content{ *this };
 
 			void _render() const override {
 				_content.render();
 			}
-
-			content_host _content{ *this };
 		};
 
-		class stack_panel : public panel_base {
-			friend class element;
+		class scroll_bar;
+		class scroll_bar_drag_button : public button_base {
+			friend class scroll_bar;
 		public:
 		protected:
+			scroll_bar *_get_bar() const;
+			double _doffset;
+
+			void _initialize() override {
+				button_base::_initialize();
+				_trigtype = trigger_type::mouse_down;
+			}
+
+			void _on_click() override {
+			}
+			void _render() const override {
+			}
+
+			void _on_mouse_down(mouse_button_info&) override;
+			void _on_mouse_move(mouse_move_info&) override;
 		};
+		class scroll_bar : public panel_base {
+			friend class element;
+			friend class scroll_bar_drag_button;
+		public:
+			void set_orientation(orientation o) {
+				if (_ori != o) {
+					_ori = o;
+					invalidate_layout();
+				}
+			}
+			orientation get_orientation() const {
+				return _ori;
+			}
+
+			vec2d get_desired_size() const override {
+				return vec2d(10.0, 10.0) + get_padding().size();
+			}
+
+			void set_value(double v) {
+				double ov = _curv;
+				_curv = clamp(v, 0.0, _totrng - _range);
+				invalidate_layout();
+				value_changed.invoke_noret(ov);
+			}
+			double get_value() const {
+				return _curv;
+			}
+			void set_params(double tot, double vis) {
+				assert(vis <= tot);
+				_totrng = tot;
+				_range = vis;
+				set_value(_curv);
+			}
+			double get_total_range() const {
+				return _totrng;
+			}
+			double get_visible_range() const {
+				return _range;
+			}
+
+			void make_point_visible(double v) {
+				if (_curv > v) {
+					set_value(v);
+				} else {
+					v -= _range;
+					if (_curv < v) {
+						set_value(v);
+					}
+				}
+			}
+
+			bool override_children_layout() const override {
+				return true;
+			}
+
+			event<value_update_info<double>> value_changed;
+		protected:
+			orientation _ori = orientation::vertical;
+			double _totrng = 1.0, _curv = 0.0, _range = 0.1;
+			scroll_bar_drag_button *_drag;
+			button *_pgup, *_pgdn;
+
+			void _finish_layout() override {
+				rectd cln = get_client_region();
+				if (_ori == orientation::vertical) {
+					double
+						tszratio = cln.height() / _totrng,
+						mid1 = cln.ymin + tszratio * _curv,
+						mid2 = mid1 + tszratio * _range;
+					_child_set_layout(_drag, rectd(cln.xmin, cln.xmax, mid1, mid2));
+					_child_set_layout(_pgup, rectd(cln.xmin, cln.xmax, cln.ymin, mid1));
+					_child_set_layout(_pgdn, rectd(cln.xmin, cln.xmax, mid2, cln.ymax));
+				} else {
+					double
+						tszratio = cln.width() / _totrng,
+						mid1 = cln.xmin + tszratio * _curv,
+						mid2 = mid1 + tszratio * _range;
+					_child_set_layout(_drag, rectd(mid1, mid2, cln.ymin, cln.ymax));
+					_child_set_layout(_pgup, rectd(cln.xmin, mid1, cln.ymin, cln.ymax));
+					_child_set_layout(_pgdn, rectd(mid2, cln.xmax, cln.ymin, cln.ymax));
+				}
+			}
+
+			void _initialize() override {
+				panel_base::_initialize();
+				_drag = element::create<scroll_bar_drag_button>();
+				_children.add(*_drag);
+				_pgup = element::create<button>();
+				_pgup->set_trigger_type(button_base::trigger_type::mouse_down);
+				_pgup->click += [this](void_info&) {
+					set_value(get_value() - get_visible_range());
+				};
+				_children.add(*_pgup);
+				_pgdn = element::create<button>();
+				_pgdn->set_trigger_type(button_base::trigger_type::mouse_down);
+				_pgdn->click += [this](void_info&) {
+					set_value(get_value() + get_visible_range());
+				};
+				_children.add(*_pgdn);
+			}
+		};
+		inline scroll_bar *scroll_bar_drag_button::_get_bar() const {
+#ifndef NDEBUG
+			scroll_bar *res = dynamic_cast<scroll_bar*>(_parent);
+			assert(res);
+			return res;
+#else
+			return static_cast<scroll_bar*>(_parent);
+#endif
 	}
+		inline void scroll_bar_drag_button::_on_mouse_down(mouse_button_info &p) {
+			if (p.button == _trigbtn) {
+				scroll_bar *b = _get_bar();
+				if (b->get_orientation() == orientation::horizontal) {
+					_doffset = p.position.x - get_layout().xmin;
+				} else {
+					_doffset = p.position.y - get_layout().ymin;
+				}
+			}
+			button_base::_on_mouse_down(p);
+		}
+		inline void scroll_bar_drag_button::_on_mouse_move(mouse_move_info &p) {
+			if (test_bit_all(_state, state::mouse_down)) {
+				scroll_bar *b = _get_bar();
+				double totsz, diff;
+				if (b->get_orientation() == orientation::horizontal) {
+					diff = p.new_pos.x - b->get_client_region().xmin - _doffset;
+					totsz = b->get_client_region().width();
+				} else {
+					diff = p.new_pos.y - b->get_client_region().ymin - _doffset;
+					totsz = b->get_client_region().height();
+				}
+				b->set_value(diff * b->get_total_range() / totsz);
+			}
+		}
+}
 }
