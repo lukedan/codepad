@@ -76,7 +76,7 @@ namespace codepad {
 			}
 
 			event<value_update_info<double>> value_changed;
-			event<void_info> start_drag, stop_drag;
+			event<void> start_drag, stop_drag;
 		protected:
 			ui::orientation _orient = ui::orientation::horizontal;
 			double _posv = 0.5, _minv = 0.0, _maxv = 1.0;
@@ -94,7 +94,7 @@ namespace codepad {
 
 			void _on_mouse_down(ui::mouse_button_info &p) override {
 				if (p.button == os::input::mouse_button::left) {
-					start_drag.invoke_noret();
+					start_drag.invoke();
 					_drag = true;
 					get_window()->set_mouse_capture(*this);
 				}
@@ -306,10 +306,10 @@ namespace codepad {
 					}
 					invalidate_layout();
 				};
-				_sep->start_drag += [this](void_info&) {
+				_sep->start_drag += [this]() {
 					_reset_separator_range();
 				};
-				_sep->stop_drag += [this](void_info&) {
+				_sep->stop_drag += [this]() {
 					_sep->set_range(0.0, 1.0);
 				};
 				_children.add(*_sep);
@@ -329,8 +329,8 @@ namespace codepad {
 			constexpr static double drag_pivot = 5.0;
 			constexpr static ui::thickness content_padding = ui::thickness(5.0);
 
-			void set_text(const str_t &str) {
-				_content.set_text(str);
+			void set_text(str_t str) {
+				_content.set_text(std::move(str));
 			}
 			const str_t &get_text() const {
 				return _content.get_text();
@@ -346,7 +346,7 @@ namespace codepad {
 				return ui::content_host::get_default_font()->height() + tab_button::content_padding.height();
 			}
 
-			event<void_info> click, request_close;
+			event<void> click, request_close;
 			event<tab_drag_info> start_drag;
 		protected:
 			ui::content_host _content = *this;
@@ -360,9 +360,9 @@ namespace codepad {
 					p.mark_focus_set();
 					_mdpos = p.position;
 					ui::manager::get().schedule_update(*this);
-					click.invoke_noret();
+					click.invoke();
 				} else if (p.button == os::input::mouse_button::middle) {
-					request_close.invoke_noret();
+					request_close.invoke();
 				}
 			}
 
@@ -391,8 +391,8 @@ namespace codepad {
 				_btn = ui::element::create<ui::button>();
 				_btn->set_anchor(ui::anchor::dock_right);
 				_btn->set_can_focus(false);
-				_btn->click += [this](void_info&) {
-					request_close.invoke_noret();
+				_btn->click += [this]() {
+					request_close.invoke();
 				};
 				_children.add(*_btn);
 				_padding = content_padding;
@@ -441,24 +441,32 @@ namespace codepad {
 			friend class tab_host;
 			friend class dock_manager;
 		public:
-			void set_caption(const str_t &s) {
-				_btn->set_text(s);
+			void set_caption(str_t s) {
+				_btn->set_text(std::move(s));
 			}
 			const str_t &get_caption() const {
 				return _btn->get_text();
+			}
+
+			void activate() {
+				get_host()->activate_tab(*this);
+			}
+
+			tab_host *get_host() const {
+#ifndef NDEBUG
+				tab_host *hst = dynamic_cast<tab_host*>(parent());
+				assert(hst);
+				return hst;
+#else
+				return static_cast<tab_host*>(parent());
+#endif
 			}
 		protected:
 			tab_button *_btn;
 			std::list<tab*>::iterator _tok;
 
-			tab_host *_get_host() const {
-				tab_host *hst = dynamic_cast<tab_host*>(parent());
-				assert(hst);
-				return hst;
-			}
-
 			virtual void _on_request_close() {
-				_get_host()->remove_tab(*this);
+				get_host()->remove_tab(*this);
 				ui::manager::get().mark_disposal(*this);
 			}
 
@@ -486,7 +494,10 @@ namespace codepad {
 				}
 				return host;
 			}
-			tab *new_tab(tab_host *host = nullptr) {
+			tab *new_tab() {
+				return new_tab_in(_lasthost);
+			}
+			tab *new_tab_in(tab_host *host = nullptr) {
 				if (!host) {
 					host = ui::element::create<tab_host>();
 					_new_window()->children().add(*host);
@@ -665,7 +676,7 @@ namespace codepad {
 				return !os::input::is_mouse_button_down(os::input::mouse_button::left);
 			}) {
 				assert(_drag == nullptr);
-				tab_host *hst = t._get_host();
+				tab_host *hst = t.get_host();
 				if (hst) {
 					_dest = hst;
 					_dtype = _drag_dest_type::combine_intab;
@@ -695,6 +706,7 @@ namespace codepad {
 			size_t _wndcnt = 0;
 			std::set<tab_host*> _changed;
 			std::list<tab_host*> _hostlist;
+			tab_host *_lasthost = nullptr;
 			// drag related stuff
 			tab *_drag = nullptr;
 			tab_host *_dest = nullptr;
@@ -705,13 +717,17 @@ namespace codepad {
 
 			os::window_base *_new_window() {
 				os::window_base *wnd = ui::element::create<os::window>();
-				wnd->got_window_focus += [this, wnd](void_info&) {
+				wnd->got_window_focus += [this, wnd]() {
+					_lasthost = get_focused_tab_host();
 					_enumerate_hosts(wnd, [this](tab_host &hst) {
+						if (!_lasthost) {
+							_lasthost = &hst;
+						}
 						_hostlist.erase(hst._tok);
 						hst._tok = _hostlist.insert(_hostlist.begin(), &hst);
 					});
 				};
-				wnd->close_request += [wnd](void_info&) {
+				wnd->close_request += [wnd]() {
 					_enumerate_hosts(wnd, [](tab_host &hst) {
 						std::vector<tab*> ts;
 						for (auto i = hst._tabs.begin(); i != hst._tabs.end(); ++i) {
@@ -787,6 +803,7 @@ namespace codepad {
 			void _on_tab_host_created(tab_host &hst) {
 				CP_INFO("tab host 0x", &hst, " created");
 				hst._tok = _hostlist.insert(_hostlist.begin(), &hst);
+				_lasthost = &hst;
 			}
 			void _on_tab_host_disposed(tab_host &hst) {
 				CP_INFO("tab host 0x", &hst, "disposed");
@@ -807,11 +824,11 @@ namespace codepad {
 		inline void tab::_initialize() {
 			ui::panel::_initialize();
 			_btn = ui::element::create<tab_button>();
-			_btn->click += [this](void_info&) {
-				_get_host()->activate_tab(*this);
+			_btn->click += [this]() {
+				get_host()->activate_tab(*this);
 				ui::manager::get().set_focus(this);
 			};
-			_btn->request_close += [this](void_info&) {
+			_btn->request_close += [this]() {
 				_on_request_close();
 			};
 			_btn->start_drag += [this](tab_drag_info &p) {

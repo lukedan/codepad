@@ -5,6 +5,7 @@
 
 #include "renderer.h"
 #include "../ui/panel.h"
+#include "../ui/window_hotkey_manager.h"
 #include "../utilities/event.h"
 #include "../utilities/textconfig.h"
 
@@ -27,6 +28,12 @@ namespace codepad {
 
 			virtual void activate() = 0;
 			virtual void prompt_ready() = 0;
+
+			virtual void set_display_maximize_button(bool) = 0;
+			virtual void set_display_minimize_button(bool) = 0;
+			virtual void set_display_caption_bar(bool) = 0;
+			virtual void set_display_border(bool) = 0;
+			virtual void set_sizable(bool) = 0;
 
 			virtual bool hit_test_full_client(vec2i) const = 0;
 
@@ -53,10 +60,12 @@ namespace codepad {
 				_doffset = get_position() - input::get_mouse_position();
 			}
 
-			event<void_info> close_request, got_window_focus, lost_window_focus;
+			event<void> close_request, got_window_focus, lost_window_focus;
 			event<size_changed_info> size_changed;
+
+			ui::window_hotkey_manager hotkey_manager;
 		protected:
-			element *_focus = this, *_capture = nullptr;
+			ui::element *_focus = this, *_capture = nullptr;
 			bool _drag = false;
 			vec2i _doffset;
 			std::function<bool()> _dragcontinue;
@@ -81,8 +90,8 @@ namespace codepad {
 				os::renderer_base::get().end();
 			}
 
-			virtual void _on_close_request(void_info &p) {
-				close_request(p);
+			virtual void _on_close_request() {
+				close_request();
 			}
 			virtual void _on_size_changed(size_changed_info &p) {
 				invalidate_layout();
@@ -115,31 +124,45 @@ namespace codepad {
 				_clientrgn = get_padding().shrink(get_layout());
 			}
 
-			virtual void _on_removing_window_element(element *e) {
-				element *ef = _focus;
+			virtual void _on_removing_window_element(ui::element *e) {
+				ui::element *ef = _focus;
 				for (; ef && e != ef; ef = ef->parent()) {
 				}
 				if (ef) {
 					if (ui::manager::get().get_focused() == _focus) {
 						ui::manager::get().set_focus(this);
 					} else {
-						_focus = this;
+						_set_window_focus_element(this);
 					}
 				}
 			}
-
-			virtual void _on_got_window_focus(void_info &p) {
-				ui::manager::get().set_focus(_focus);
-				got_window_focus(p);
+			virtual void _set_window_focus_element(ui::element *e) {
+				assert(e && e->get_window() == this);
+				if (e != _focus) {
+					_focus = e;
+					std::vector<ui::element_hotkey_group_data> gps;
+					for (ui::element *cur = _focus; cur; cur = cur->parent()) {
+						std::vector<const ui::element_hotkey_group*> cgps = cur->get_hotkey_groups();
+						for (auto i = cgps.begin(); i != cgps.end(); ++i) {
+							gps.push_back(ui::element_hotkey_group_data(*i, cur));
+						}
+					}
+					hotkey_manager.reset_groups_prefiltered(gps);
+				}
 			}
-			virtual void _on_lost_window_focus(void_info &p) {
+
+			virtual void _on_got_window_focus() {
+				ui::manager::get().set_focus(_focus);
+				got_window_focus.invoke();
+			}
+			virtual void _on_lost_window_focus() {
 				if (ui::manager::get().get_focused() == _focus) { // in case the focus has already shifted
 					ui::manager::get().set_focus(nullptr);
 				}
 				if (_capture) {
 					_capture->_on_capture_lost();
 				}
-				lost_window_focus(p);
+				lost_window_focus.invoke();
 			}
 
 			void _initialize() override {
@@ -154,20 +177,20 @@ namespace codepad {
 				panel::_dispose();
 			}
 
-			void _on_mouse_enter(void_info &p) override {
+			void _on_mouse_enter() override {
 				if (_capture) {
-					_capture->_on_mouse_enter(p);
-					ui::element::_on_mouse_enter(p);
+					_capture->_on_mouse_enter();
+					ui::element::_on_mouse_enter();
 				} else {
-					panel::_on_mouse_enter(p);
+					panel::_on_mouse_enter();
 				}
 			}
-			void _on_mouse_leave(void_info &p) override {
+			void _on_mouse_leave() override {
 				if (_capture) {
-					_capture->_on_mouse_leave(p);
-					ui::element::_on_mouse_leave(p);
+					_capture->_on_mouse_leave();
+					ui::element::_on_mouse_leave();
 				} else {
-					panel::_on_mouse_leave(p);
+					panel::_on_mouse_leave();
 				}
 			}
 			void _on_mouse_move(ui::mouse_move_info &p) override {
@@ -233,17 +256,17 @@ namespace codepad {
 			}
 			os::window_base *neww = elem ? elem->get_window() : nullptr;
 			assert((neww != nullptr) == (elem != nullptr));
-			void_info vp;
 			element *oldf = _focus;
 			_focus = elem;
 			if (neww) {
-				neww->_focus = elem;
+				neww->_set_window_focus_element(elem);
+				neww->activate();
 			}
 			if (oldf) {
-				oldf->_on_lost_focus(vp);
+				oldf->_on_lost_focus();
 			}
 			if (_focus) {
-				_focus->_on_got_focus(vp);
+				_focus->_on_got_focus();
 			}
 			CP_INFO("focus changed to 0x", _focus, " <", _focus ? typeid(*_focus).name() : "nullptr", ">");
 		}

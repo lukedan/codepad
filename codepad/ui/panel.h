@@ -145,13 +145,13 @@ namespace codepad {
 					manager::get().set_focus(this);
 				}
 			}
-			void _on_mouse_leave(void_info &p) override {
+			void _on_mouse_leave() override {
 				for (auto i = _children.begin(); i != _children.end(); ++i) {
 					if ((*i)->is_mouse_over()) {
-						(*i)->_on_mouse_leave(p);
+						(*i)->_on_mouse_leave();
 					}
 				}
-				element::_on_mouse_leave(p);
+				element::_on_mouse_leave();
 			}
 			void _on_mouse_move(mouse_move_info &p) override {
 				bool hit = false;
@@ -159,8 +159,7 @@ namespace codepad {
 				for (auto i = _children.begin(); i != _children.end(); ++i) {
 					if (!hit && (*i)->hit_test(p.new_pos)) {
 						if (!(*i)->is_mouse_over()) {
-							void_info vi;
-							(*i)->_on_mouse_enter(vi);
+							(*i)->_on_mouse_enter();
 						}
 						(*i)->_on_mouse_move(p);
 						_children_cursor = (*i)->get_current_display_cursor();
@@ -168,8 +167,7 @@ namespace codepad {
 						continue;
 					}
 					if ((*i)->is_mouse_over()) {
-						void_info vi;
-						(*i)->_on_mouse_leave(vi);
+						(*i)->_on_mouse_leave();
 					}
 				}
 				element::_on_mouse_move(p);

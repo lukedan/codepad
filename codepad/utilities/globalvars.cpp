@@ -2,7 +2,7 @@
 #include "../ui/manager.h"
 #include "../ui/commonelements.h"
 #include "../editor/docking.h"
-#include "../editor/codebox.h"
+#include "../editor/editor_code.h"
 
 namespace codepad {
 	ui::font::_library ui::font::_lib;
@@ -25,11 +25,10 @@ namespace codepad {
 	namespace editor {
 		dock_manager dock_manager::_dman;
 
-		double codebox::_lines_per_scroll = 3.0;
-
-		const ui::basic_pen *codebox_editor::_caretpen = nullptr;
-		const ui::basic_brush *codebox_editor::_selbrush = nullptr;
-		ui::font_family codebox_editor::_font;
+		const ui::basic_pen *codebox_editor_code::_caretpen = nullptr;
+		const ui::basic_brush *codebox_editor_code::_selbrush = nullptr;
+		ui::font_family codebox_editor_code::_font;
+		double codebox_editor_code::_lines_per_scroll = 3.0;
 
 #ifdef __GNUC__
 		constexpr ui::thickness tab_button::content_padding; // wtf?

@@ -4,51 +4,55 @@
 #include <list>
 
 namespace codepad {
-	template <typename T> struct event {
-	public:
+	template <typename ...Args> struct event_base {
+		typedef std::function<void(Args...)> handler;
+
 		struct reg_token {
-			friend struct event<T>;
+			friend struct event_base<Args...>;
 		public:
 			reg_token() = default;
 		protected:
-			typedef typename std::list<std::function<void(T&)>>::iterator _tok_t;
+			typedef typename std::list<handler>::iterator _tok_t;
 			_tok_t _tok;
 
 			explicit reg_token(const _tok_t &tok) : _tok(tok) {
 			}
 		};
 
-		event() = default;
-		event(const event&) = delete;
-		event &operator=(const event&) = delete;
+		event_base() = default;
+		event_base(const event_base&) = delete;
+		event_base &operator=(const event_base&) = delete;
 
-		reg_token operator+=(const std::function<void(T&)> &handler) {
-			_list.push_front(handler);
+		template <typename T> reg_token operator+=(T h) {
+			_list.push_front(handler(std::move(h)));
 			return reg_token(_list.begin());
 		}
-		event &operator-=(const reg_token &tok) {
+		event_base &operator-=(const reg_token &tok) {
 			_list.erase(tok._tok);
 			return *this;
 		}
 
-		void invoke(T &param) {
+		void invoke(Args &&...p) {
 			for (auto i = _list.begin(); i != _list.end(); ++i) {
-				(*i)(param);
+				(*i)(std::forward<Args>(p)...);
 			}
 		}
-		template <typename ...Args> void invoke_noret(Args &&...args) {
-			T p(std::forward<Args>(args)...);
-			invoke(p);
-		}
-		void operator()(T &param) {
-			invoke(param);
+		void operator()(Args &&...p) {
+			invoke(std::forward<Args>(p)...);
 		}
 	protected:
-		std::list<std::function<void(T&)>> _list;
+		std::list<handler> _list;
 	};
 
-	struct void_info {
+	template <typename T> struct event : public event_base<T&> {
+		template <typename ...Con> void invoke_noret(Con &&...args) {
+			T p(std::forward<Con>(args)...);
+			this->invoke(p);
+		}
 	};
+	template <> struct event<void> : public event_base<> {
+	};
+
 	template <typename T> struct value_update_info {
 		value_update_info(T ov) : old_value(ov) {
 		}

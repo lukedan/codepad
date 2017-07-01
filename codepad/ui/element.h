@@ -2,12 +2,13 @@
 
 #include <list>
 
-#include "visual.h"
+#include "../utilities/hotkey_registry.h"
 #include "../utilities/textconfig.h"
 #include "../utilities/event.h"
 #include "../utilities/misc.h"
 #include "../os/renderer.h"
 #include "../os/input.h"
+#include "visual.h"
 
 namespace codepad {
 	namespace ui {
@@ -128,7 +129,10 @@ namespace codepad {
 			interaction_only = 2,
 			visible = render_only | interaction_only
 		};
+
 		class panel_base;
+		class element;
+		typedef hotkey_group<void(element*)> element_hotkey_group;
 		class manager;
 #ifndef NDEBUG
 		struct control_dispose_rec {
@@ -139,6 +143,7 @@ namespace codepad {
 		};
 		extern control_dispose_rec _dispose_rec;
 #endif
+
 		class element {
 			friend class manager;
 			friend class element_collection;
@@ -279,6 +284,15 @@ namespace codepad {
 			}
 
 			virtual os::window_base *get_window();
+			virtual void set_default_hotkey_group(const element_hotkey_group *hgp) {
+				_hotkey_gp = hgp;
+			}
+			virtual std::vector<const element_hotkey_group*> get_hotkey_groups() {
+				if (_hotkey_gp) {
+					return { _hotkey_gp };
+				}
+				return std::vector<const element_hotkey_group*>();
+			}
 
 			void invalidate_visual();
 			void invalidate_layout();
@@ -297,7 +311,7 @@ namespace codepad {
 				return static_cast<T*>(elem);
 			}
 
-			event<void_info> mouse_enter, mouse_leave, got_focus, lost_focus;
+			event<void> mouse_enter, mouse_leave, got_focus, lost_focus;
 			event<mouse_move_info> mouse_move;
 			event<mouse_button_info> mouse_down, mouse_up;
 			event<mouse_scroll_info> mouse_scroll;
@@ -321,39 +335,40 @@ namespace codepad {
 			// input
 			bool _mouse_over = false, _can_focus = true;
 			cursor _crsr = cursor::not_specified;
+			const element_hotkey_group *_hotkey_gp = nullptr;
 
-			virtual void _on_mouse_enter(void_info &p) {
+			virtual void _on_mouse_enter() {
 				_mouse_over = true;
-				mouse_enter(p);
+				mouse_enter.invoke();
 			}
-			virtual void _on_mouse_leave(void_info &p) {
+			virtual void _on_mouse_leave() {
 				_mouse_over = false;
-				mouse_leave(p);
+				mouse_leave.invoke();
 			}
-			virtual void _on_got_focus(void_info &p) {
-				got_focus(p);
+			virtual void _on_got_focus() {
+				got_focus.invoke();
 			}
-			virtual void _on_lost_focus(void_info &p) {
-				lost_focus(p);
+			virtual void _on_lost_focus() {
+				lost_focus.invoke();
 			}
 			virtual void _on_mouse_move(mouse_move_info &p) {
-				mouse_move(p);
+				mouse_move.invoke(p);
 			}
 			virtual void _on_mouse_down(mouse_button_info&);
 			virtual void _on_mouse_up(mouse_button_info &p) {
-				mouse_up(p);
+				mouse_up.invoke(p);
 			}
 			virtual void _on_mouse_scroll(mouse_scroll_info &p) {
-				mouse_scroll(p);
+				mouse_scroll.invoke(p);
 			}
 			virtual void _on_key_down(key_info &p) {
-				key_down(p);
+				key_down.invoke(p);
 			}
 			virtual void _on_key_up(key_info &p) {
-				key_up(p);
+				key_up.invoke(p);
 			}
 			virtual void _on_keyboard_text(text_info &p) {
-				keyboard_text(p);
+				keyboard_text.invoke(p);
 			}
 
 			virtual void _on_padding_changed() {

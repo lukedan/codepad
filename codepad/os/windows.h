@@ -32,7 +32,7 @@ namespace codepad {
 		}
 
 		namespace input {
-			extern const int _key_id_mapping[64];
+			extern const int _key_id_mapping[total_num_keys];
 			inline bool is_key_down(key k) {
 				return (GetAsyncKeyState(_key_id_mapping[static_cast<int>(k)]) & ~1) != 0;
 			}
@@ -93,7 +93,7 @@ namespace codepad {
 			}
 
 			void activate() override {
-				winapi_check(BringWindowToTop(_hwnd));
+				winapi_check(SetWindowPos(_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
 			}
 			void prompt_ready() override {
 				FLASHWINFO fwi;
@@ -104,6 +104,22 @@ namespace codepad {
 				fwi.hwnd = _hwnd;
 				fwi.uCount = 0;
 				FlashWindowEx(&fwi);
+			}
+
+			void set_display_maximize_button(bool disp) override {
+				_set_window_style_bit(disp, WS_MAXIMIZE);
+			}
+			void set_display_minimize_button(bool disp) override {
+				_set_window_style_bit(disp, WS_MINIMIZE);
+			}
+			void set_display_caption_bar(bool disp) override {
+				_set_window_style_bit(disp, WS_CAPTION ^ WS_BORDER);
+			}
+			void set_display_border(bool disp) override {
+				_set_window_style_bit(disp, WS_BORDER);
+			}
+			void set_sizable(bool size) override {
+				_set_window_style_bit(size, WS_THICKFRAME);
 			}
 
 			bool hit_test_full_client(vec2i v) const override {
@@ -160,6 +176,14 @@ namespace codepad {
 			};
 			static _wndclass _class;
 
+			void _set_window_style_bit(bool v, LONG bit) {
+				LONG old = GetWindowLong(_hwnd, GWL_STYLE);
+				SetWindowLong(_hwnd, GWL_STYLE, v ? old | bit : old & ~bit);
+				winapi_check(SetWindowPos(
+					_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+				));
+			}
+
 			void _setup_mouse_tracking() {
 				TRACKMOUSEEVENT tme;
 				std::memset(&tme, 0, sizeof(tme));
@@ -181,15 +205,7 @@ namespace codepad {
 				}
 			}
 
-			bool _idle() {
-				MSG msg;
-				if (PeekMessage(&msg, _hwnd, 0, 0, PM_REMOVE)) {
-					TranslateMessage(&msg);
-					DispatchMessage(&msg);
-					return true;
-				}
-				return false;
-			}
+			bool _idle();
 			void _on_update() override {
 				while (_idle()) {
 				}
@@ -594,7 +610,7 @@ namespace codepad {
 				tx -= fx;
 				fx -= 0.5;
 				for (size_t cx = static_cast<size_t>(std::max(fx + 0.5, 0.0)); cx <= t; ++cx) {
-					_draw_pixel_with_blend(cx, static_cast<size_t>(fy + k * clamp(cx - fx, 0.0, tx)), c);
+					_draw_pixel_with_blend(cx, static_cast<size_t>(fy + k * clamp(static_cast<double>(cx) - fx, 0.0, tx)), c);
 				}
 			}
 			void _draw_line_up(double by, double bx, double ty, double invk, colord c) {
@@ -602,7 +618,7 @@ namespace codepad {
 				ty -= by;
 				by -= 0.5;
 				for (size_t cy = static_cast<size_t>(std::max(by + 0.5, 0.0)); cy <= t; ++cy) {
-					_draw_pixel_with_blend(static_cast<size_t>(bx + invk * clamp(cy - by, 0.0, ty)), cy, c);
+					_draw_pixel_with_blend(static_cast<size_t>(bx + invk * clamp(static_cast<double>(cy) - by, 0.0, ty)), cy, c);
 				}
 			}
 		};

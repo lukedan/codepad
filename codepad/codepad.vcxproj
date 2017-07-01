@@ -130,6 +130,7 @@
     <ClInclude Include="editor\codebox.h" />
     <ClInclude Include="editor\components.h" />
     <ClInclude Include="editor\docking.h" />
+    <ClInclude Include="editor\editor_code.h" />
     <ClInclude Include="os\current.h" />
     <ClInclude Include="os\input.h" />
     <ClInclude Include="os\renderer.h" />
@@ -139,6 +140,8 @@
     <ClInclude Include="ui\textrenderer.h" />
     <ClInclude Include="ui\visual.h" />
     <ClInclude Include="ui\font.h" />
+    <ClInclude Include="ui\window_hotkey_manager.h" />
+    <ClInclude Include="utilities\hotkey_registry.h" />
     <ClInclude Include="utilities\textconfig.h" />
     <ClInclude Include="utilities\textproc.h" />
     <ClInclude Include="os\window.h" />

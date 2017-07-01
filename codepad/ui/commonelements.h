@@ -20,8 +20,8 @@ namespace codepad {
 			content_host(element &p) : _parent(p) {
 			}
 
-			void set_text(const str_t &s) {
-				_text = s;
+			void set_text(str_t s) {
+				_text = std::move(s);
 				_mark_text_size_change();
 			}
 			const str_t &get_text() const {
@@ -170,13 +170,13 @@ namespace codepad {
 				}
 			}
 
-			void _on_mouse_enter(void_info &p) override {
+			void _on_mouse_enter() override {
 				_set_state(with_bit_set(_state, state::mouse_over));
-				element::_on_mouse_enter(p);
+				element::_on_mouse_enter();
 			}
-			void _on_mouse_leave(void_info &p) override {
+			void _on_mouse_leave() override {
 				_set_state(with_bit_unset(_state, state::mouse_over));
-				element::_on_mouse_leave(p);
+				element::_on_mouse_leave();
 			}
 			void _on_mouse_down(mouse_button_info &p) override {
 				if (p.button == _trigbtn) {
@@ -239,10 +239,10 @@ namespace codepad {
 				return _trigtype;
 			}
 
-			event<void_info> click;
+			event<void> click;
 		protected:
 			void _on_click() override {
-				click.invoke_noret();
+				click.invoke();
 			}
 
 			void _render() const override {
@@ -379,13 +379,13 @@ namespace codepad {
 				_children.add(*_drag);
 				_pgup = element::create<button>();
 				_pgup->set_trigger_type(button_base::trigger_type::mouse_down);
-				_pgup->click += [this](void_info&) {
+				_pgup->click += [this]() {
 					set_value(get_value() - get_visible_range());
 				};
 				_children.add(*_pgup);
 				_pgdn = element::create<button>();
 				_pgdn->set_trigger_type(button_base::trigger_type::mouse_down);
-				_pgdn->click += [this](void_info&) {
+				_pgdn->click += [this]() {
 					set_value(get_value() + get_visible_range());
 				};
 				_children.add(*_pgdn);
@@ -399,7 +399,7 @@ namespace codepad {
 #else
 			return static_cast<scroll_bar*>(_parent);
 #endif
-	}
+		}
 		inline void scroll_bar_drag_button::_on_mouse_down(mouse_button_info &p) {
 			if (p.button == _trigbtn) {
 				scroll_bar *b = _get_bar();
@@ -425,5 +425,5 @@ namespace codepad {
 				b->set_value(diff * b->get_total_range() / totsz);
 			}
 		}
-}
+	}
 }
