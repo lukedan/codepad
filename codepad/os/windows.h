@@ -8,7 +8,8 @@
 #include <windowsx.h>
 #undef min
 #undef max
-#include <gl/GL.h>
+#define GLEW_STATIC
+#include <GL/glew.h>
 
 #include "window.h"
 #include "renderer.h"
@@ -225,7 +226,7 @@ namespace codepad {
 			}
 		};
 
-		class software_renderer : public renderer_base {
+		class software_renderer : public renderer_base { // TODO framebuffer & matrix operations
 		public:
 			software_renderer() : renderer_base() {
 				_txs.push_back(_tex_rec());
@@ -236,7 +237,7 @@ namespace codepad {
 
 			void begin(const window_base &wnd) override {
 				_cwnd = static_cast<const window*>(&wnd);
-				_wcsz = _cwnd->get_client_size();
+				_wcsz = _cwnd->get_actual_size().convert<int>();
 				_crgn = recti(0, _wcsz.x, 0, _wcsz.y);
 				_crec = &_wnds.find(_cwnd)->second;
 				_check_buffer();
@@ -256,7 +257,7 @@ namespace codepad {
 					vec2d(0.0, 0.0), vec2d(1.0, 0.0), vec2d(0.0, 1.0),
 					vec2d(1.0, 0.0), vec2d(1.0, 1.0), vec2d(0.0, 1.0)
 				};
-				colord cs[6] = { c, c, c, c, c, c };
+				colord cs[6] = {c, c, c, c, c, c};
 				draw_triangles(vxs, uvs, cs, 6, tex);
 			}
 			void draw_triangles(
@@ -315,7 +316,7 @@ namespace codepad {
 			void _new_window(window_base &wnd) override {
 				window *w = static_cast<window*>(&wnd);
 				_wnd_rec wr;
-				vec2i sz = w->get_client_size();
+				vec2i sz = w->get_actual_size().convert<int>();
 				wr.create_buffer(w->_dc, sz.x, sz.y);
 				auto it = _wnds.insert(std::make_pair(w, wr)).first;
 				w->size_changed += [it](size_changed_info &info) {
@@ -488,7 +489,7 @@ namespace codepad {
 			void _draw_triangle(
 				const vec2d *ps, const vec2d *uvs, const colord *cs, texture_id tex
 			) {
-				const vec2d *yi[3]{ ps, ps + 1, ps + 2 };
+				const vec2d *yi[3]{ps, ps + 1, ps + 2};
 				if (yi[0]->y > yi[1]->y) {
 					std::swap(yi[0], yi[1]);
 				}
@@ -644,13 +645,10 @@ namespace codepad {
 			void begin(const window_base &wnd) override {
 				const window *cw = static_cast<const window*>(&wnd);
 				_curdc = cw->_dc;
-				_curheight = static_cast<int>(cw->get_actual_size().y);
+				_invert_y = true;
+				vec2i sz = cw->get_actual_size().convert<int>();
 				winapi_check(wglMakeCurrent(_curdc, _rc));
-				vec2i sz = wnd.get_client_size();
-				glViewport(0, 0, sz.x, sz.y);
-				glMatrixMode(GL_PROJECTION);
-				glLoadIdentity();
-				glOrtho(0.0, sz.x, sz.y, 0.0, 0.0, -1.0);
+				_begin_viewport_size(sz.x, sz.y);
 				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 #ifndef NDEBUG
@@ -659,9 +657,11 @@ namespace codepad {
 			}
 			void push_clip(recti r) override {
 				_flush_text_buffer();
-				int ymin = r.ymin;
-				r.ymin = _curheight - r.ymax;
-				r.ymax = _curheight - ymin;
+				if (_invert_y) {
+					int ymin = r.ymin;
+					r.ymin = _curheight - r.ymax;
+					r.ymax = _curheight - ymin;
+				}
 				if (_clpstk.size() > 0) {
 					r = recti::common_part(r, _clpstk.back());
 				}
@@ -686,7 +686,10 @@ namespace codepad {
 					_flush_text_buffer();
 					_lstpg = cd.page;
 				}
-				_textbuf.append(pos, pos + vec2d(static_cast<double>(cd.w), static_cast<double>(cd.h)), cd.layout, color);
+				_textbuf.append(
+					pos, pos + vec2d(static_cast<double>(cd.w), static_cast<double>(cd.h)),
+					cd.layout, color, _matstk.size() > 0 ? &_matstk.back() : nullptr
+				);
 			}
 			void draw_triangles(const vec2d *ps, const vec2d *us, const colord *cs, size_t n, texture_id t) override {
 				_flush_text_buffer();
@@ -716,14 +719,87 @@ namespace codepad {
 			void delete_character_texture(texture_id id) override {
 				_atl.delete_char(id);
 			}
+
+			framebuffer new_framebuffer(size_t w, size_t h) override {
+				GLuint fbid, tid;
+				glGenFramebuffers(1, &fbid);
+				glGenTextures(1, &tid);
+				glBindFramebuffer(GL_FRAMEBUFFER, fbid);
+				glBindTexture(GL_TEXTURE_2D, tid);
+				_set_default_texture_params();
+				glTexImage2D(
+					GL_TEXTURE_2D, 0, GL_RGBA8,
+					static_cast<GLsizei>(w), static_cast<GLsizei>(h),
+					0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr
+				);
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tid, 0);
+				GLenum fbstat = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+				assert(fbstat == GL_FRAMEBUFFER_COMPLETE);
+				return framebuffer(fbid, tid, w, h);
+			}
+			void delete_framebuffer(framebuffer &fb) override {
+				GLuint id = static_cast<GLuint>(fb._id), tid = static_cast<GLuint>(fb._tid);
+				glDeleteFramebuffers(1, &id);
+				glDeleteTextures(1, &tid);
+				fb._tid = 0;
+			}
+			void begin_framebuffer(const framebuffer &fb) override {
+				continue_framebuffer(fb);
+				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
+			void continue_framebuffer(const framebuffer &fb) override {
+				assert(fb._tid != 0);
+				_invert_y = false;
+				glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fb._id));
+				_begin_viewport_size(fb._w, fb._h);
+				_gl_verify();
+			}
+			void end_framebuffer() override {
+				_flush_text_buffer();
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				_gl_verify();
+			}
+
+			void push_matrix(const matd3x3 &m) override {
+				_matstk.push_back(m);
+				glMatrixMode(GL_MODELVIEW);
+				glPushMatrix();
+				double d[16];
+				_set_gl_matrix(m, d);
+				glLoadMatrixd(d);
+			}
+			void push_matrix_mult(const matd3x3 &m) override {
+				glMatrixMode(GL_MODELVIEW);
+				glPushMatrix();
+				double d[16];
+				_set_gl_matrix(m, d);
+				glMultMatrixd(d);
+			}
+			matd3x3 top_matrix() const override {
+				double d[16];
+				glGetDoublev(GL_MODELVIEW_MATRIX, d);
+				return _get_gl_matrix(d);
+			}
+			void pop_matrix() override {
+				_matstk.pop_back();
+				glMatrixMode(GL_MODELVIEW);
+				glPopMatrix();
+			}
 		protected:
 			void _new_window(window_base &wnd) override {
 				window *cw = static_cast<window*>(&wnd);
 				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
+				bool glewinit = false;
 				if (!_rc) {
+					glewinit = true;
 					winapi_check(_rc = wglCreateContext(cw->_dc));
 				}
 				winapi_check(wglMakeCurrent(cw->_dc, _rc));
+				if (glewinit) {
+					GLenum id = glewInit();
+					assert(id == GLEW_OK);
+				}
 				glEnable(GL_TEXTURE_2D);
 				glEnable(GL_BLEND);
 				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -732,6 +808,39 @@ namespace codepad {
 				glEnableClientState(GL_COLOR_ARRAY);
 			}
 			void _delete_window(window_base&) override {
+			}
+
+			inline static void _set_default_texture_params() {
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			}
+			inline static void _set_gl_matrix(const matd3x3 &m, double(&res)[16]) {
+				res[0] = m[0][0];
+				res[1] = m[1][0];
+				res[3] = m[2][0];
+				res[4] = m[0][1];
+				res[5] = m[1][1];
+				res[7] = m[2][1];
+				res[12] = m[0][2];
+				res[13] = m[1][2];
+				res[15] = m[2][2];
+				res[2] = res[6] = res[8] = res[9] = res[11] = res[14] = 0.0;
+				res[10] = 1.0;
+			}
+			inline static matd3x3 _get_gl_matrix(const double(&res)[16]) {
+				matd3x3 result;
+				result[0][0] = res[0];
+				result[1][0] = res[1];
+				result[2][0] = res[3];
+				result[0][1] = res[4];
+				result[1][1] = res[5];
+				result[2][1] = res[7];
+				result[0][2] = res[12];
+				result[1][2] = res[13];
+				result[2][2] = res[15];
+				return result;
 			}
 
 			struct _text_atlas {
@@ -750,10 +859,7 @@ namespace codepad {
 						std::memset(data, 0, sz);
 						glGenTextures(1, &tex_id);
 						glBindTexture(GL_TEXTURE_2D, tex_id);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+						_set_default_texture_params();
 					}
 					void flush() {
 						glBindTexture(GL_TEXTURE_2D, tex_id);
@@ -881,7 +987,13 @@ namespace codepad {
 				std::vector<unsigned int> ids;
 				size_t vertcount = 0, count = 0;
 
-				void append(vec2d tl, vec2d br, rectd layout, colord c) {
+				void append(vec2d tl, vec2d br, rectd layout, colord c, const matd3x3 *m) {
+					vec2d v[4]{tl, vec2d(br.x, tl.y), vec2d(tl.x, br.y), br};
+					if (m) {
+						for (size_t i = 0; i < 4; ++i) {
+							v[i] = m->transform(v[i]);
+						}
+					}
 					if (vertcount == vxs.size()) {
 						unsigned int id = static_cast<unsigned int>(vxs.size());
 						ids.push_back(id);
@@ -890,26 +1002,30 @@ namespace codepad {
 						ids.push_back(id + 1);
 						ids.push_back(id + 3);
 						ids.push_back(id + 2);
-						vxs.push_back(vertex(tl, layout.xmin_ymin(), c));
-						vxs.push_back(vertex(vec2d(br.x, tl.y), layout.xmax_ymin(), c));
-						vxs.push_back(vertex(vec2d(tl.x, br.y), layout.xmin_ymax(), c));
-						vxs.push_back(vertex(br, layout.xmax_ymax(), c));
+						vxs.push_back(vertex(v[0], layout.xmin_ymin(), c));
+						vxs.push_back(vertex(v[1], layout.xmax_ymin(), c));
+						vxs.push_back(vertex(v[2], layout.xmin_ymax(), c));
+						vxs.push_back(vertex(v[3], layout.xmax_ymax(), c));
 						vertcount = vxs.size();
 						count = ids.size();
 					} else {
-						vxs[vertcount++] = vertex(tl, layout.xmin_ymin(), c);
-						vxs[vertcount++] = vertex(vec2d(br.x, tl.y), layout.xmax_ymin(), c);
-						vxs[vertcount++] = vertex(vec2d(tl.x, br.y), layout.xmin_ymax(), c);
-						vxs[vertcount++] = vertex(br, layout.xmax_ymax(), c);
+						vxs[vertcount++] = vertex(v[0], layout.xmin_ymin(), c);
+						vxs[vertcount++] = vertex(v[1], layout.xmax_ymin(), c);
+						vxs[vertcount++] = vertex(v[2], layout.xmin_ymax(), c);
+						vxs[vertcount++] = vertex(v[3], layout.xmax_ymax(), c);
 						count += 6;
 					}
 				}
 				void flush_nocheck(GLuint tex) {
+					glMatrixMode(GL_MODELVIEW);
+					glPushMatrix();
+					glLoadIdentity();
 					glVertexPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].v);
 					glTexCoordPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].uv);
 					glColorPointer(4, GL_DOUBLE, sizeof(vertex), &vxs[0].c);
 					glBindTexture(GL_TEXTURE_2D, tex);
 					glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(count), GL_UNSIGNED_INT, ids.data());
+					glPopMatrix();
 					count = vertcount = 0;
 				}
 			};
@@ -921,11 +1037,24 @@ namespace codepad {
 
 			int _curheight;
 			std::vector<recti> _clpstk;
+			std::vector<matd3x3> _matstk;
+			bool _invert_y = true;
 
 			_text_atlas _atl;
 			_text_buffer _textbuf;
 			size_t _lstpg;
 
+			void _begin_viewport_size(size_t w, size_t h) {
+				_curheight = static_cast<int>(h);
+				glViewport(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h));
+				glMatrixMode(GL_PROJECTION);
+				glLoadIdentity();
+				if (_invert_y) {
+					glOrtho(0.0, static_cast<GLdouble>(w), static_cast<GLdouble>(h), 0.0, 0.0, -1.0);
+				} else {
+					glOrtho(0.0, static_cast<GLdouble>(w), 0.0, static_cast<GLdouble>(h), 0.0, -1.0);
+				}
+			}
 			void _flush_text_buffer() {
 				if (_textbuf.vertcount > 0) {
 					_textbuf.flush_nocheck(_atl.get_page(_lstpg).tex_id);

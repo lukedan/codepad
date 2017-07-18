@@ -1,17 +1,28 @@
+#include "../utilities/tasks.h"
 #include "../ui/font.h"
 #include "../ui/manager.h"
 #include "../ui/commonelements.h"
-#include "../editor/docking.h"
-#include "../editor/editor_code.h"
+#include "../editors/docking.h"
+#include "../editors/code/editor.h"
 
-namespace codepad {
-	ui::font::_library ui::font::_lib;
+namespace codepad { // TODO move singletons into functions
+	async_task_pool &async_task_pool::get() {
+		static async_task_pool _default;
+		return _default;
+	}
+
+	callback_buffer &callback_buffer::get() {
+		static callback_buffer _default;
+		return _default;
+	}
 
 	namespace os {
 		renderer_base::_default_renderer renderer_base::_rend;
 	}
 
 	namespace ui {
+		font::_library font::_lib;
+
 		manager manager::_sman;
 
 		unsigned char content_host::_def_fnt_ts = 0;
@@ -25,13 +36,11 @@ namespace codepad {
 	namespace editor {
 		dock_manager dock_manager::_dman;
 
-		const ui::basic_pen *codebox_editor_code::_caretpen = nullptr;
-		const ui::basic_brush *codebox_editor_code::_selbrush = nullptr;
-		ui::font_family codebox_editor_code::_font;
-		double codebox_editor_code::_lines_per_scroll = 3.0;
+		const ui::basic_pen *codebox_editor::_caretpen = nullptr;
+		const ui::basic_brush *codebox_editor::_selbrush = nullptr;
+		ui::font_family codebox_editor::_font;
+		double codebox_editor::_lines_per_scroll = 3.0;
 
-#ifdef __GNUC__
-		constexpr ui::thickness tab_button::content_padding; // wtf?
-#endif
+		constexpr ui::thickness tab_button::content_padding;
 	}
 }

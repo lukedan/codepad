@@ -193,6 +193,160 @@ namespace codepad {
 	typedef rect<int> recti;
 	typedef rect<unsigned int> rectu;
 
+	template <typename T, size_t W, size_t H> struct matrix {
+		typedef T row[W];
+
+		row elem[H]{};
+
+		void set_zero() {
+			for (size_t y = 0; y < H; ++y) {
+				for (size_t x = 0; x < W; ++x) {
+					elem[y][x] = 0;
+				}
+			}
+		}
+		void set_identity() {
+			for (size_t y = 0; y < H; ++y) {
+				for (size_t x = 0; x < W; ++x) {
+					elem[y][x] = (x == y ? 1 : 0);
+				}
+			}
+		}
+
+		row &operator[](size_t y) {
+			return elem[y];
+		}
+		const row &operator[](size_t y) const {
+			return elem[y];
+		}
+
+		matrix &operator+=(const matrix &rhs) {
+			for (size_t y = 0; y < H; ++y) {
+				for (size_t x = 0; x < W; ++x) {
+					elem[y][x] += rhs[y][x];
+				}
+			}
+			return *this;
+		}
+		friend matrix operator+(matrix lhs, const matrix &rhs) {
+			return lhs += rhs;
+		}
+
+		matrix &operator-=(const matrix &rhs) {
+			for (size_t y = 0; y < H; ++y) {
+				for (size_t x = 0; x < W; ++x) {
+					elem[y][x] -= rhs[y][x];
+				}
+			}
+			return *this;
+		}
+		friend matrix operator-(matrix lhs, const matrix &rhs) {
+			return lhs -= rhs;
+		}
+
+		matrix &operator*=(T rhs) {
+			for (size_t y = 0; y < H; ++y) {
+				for (size_t x = 0; x < W; ++x) {
+					elem[y][x] *= rhs;
+				}
+			}
+			return *this;
+		}
+		friend matrix operator*(matrix lhs, T rhs) {
+			return lhs *= rhs;
+		}
+		friend matrix operator*(T lhs, matrix rhs) {
+			return rhs *= lhs;
+		}
+
+		matrix &operator/=(T rhs) {
+			for (size_t y = 0; y < H; ++y) {
+				for (size_t x = 0; x < W; ++x) {
+					elem[y][x] /= rhs;
+				}
+			}
+			return *this;
+		}
+		friend matrix operator/(matrix lhs, T rhs) {
+			return lhs /= rhs;
+		}
+
+		typename std::enable_if<W == 3 && H == 3, vec2<T>>::type transform(vec2<T> v) const {
+			return vec2<T>(elem[0][0] * v.x + elem[0][1] * v.y + elem[0][2], elem[1][0] * v.x + elem[1][1] * v.y + elem[1][2]);
+		}
+
+		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type translate(vec2<T> off) {
+			matrix res;
+			res[0][0] = res[1][1] = res[2][2] = 1.0;
+			res[0][2] = off.x;
+			res[1][2] = off.y;
+			return res;
+		}
+		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type rotate_by_vector(vec2<T> center, vec2<T> rotv) {
+			/*
+			 * [1  0  cx] [rx  -ry  0] [1  0  -cx] [vx]
+			 * [0  1  cy] [ry  rx   0] [0  1  -cy] [vy]
+			 * [0  0  1 ] [0    0   1] [0  0   1 ] [1 ]
+			 *            [rx  -ry  ry*cy-rx*cx ]
+			 *            [ry  rx   -ry*cx-rx*cy]
+			 *            [0    0         1     ]
+			 * [rx  -ry  ry*cy-rx*cx+cx ]
+			 * [ry  rx   -ry*cx-rx*cy+cy]
+			 * [0    0          1       ]
+			 */
+			matrix res;
+			res[0][0] = rotv.x;
+			res[0][1] = -rotv.y;
+			res[0][2] = center.x + rotv.y * center.y - rotv.x * center.x;
+			res[1][0] = rotv.y;
+			res[1][1] = rotv.x;
+			res[1][2] = center.y - rotv.y * center.x - rotv.x * center.y;
+			res[2][2] = 1.0;
+			return res;
+		}
+		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type rotate_clockwise(vec2<T> center, double radians) {
+			return rotate_by_vector(center, vec2<T>(std::cos(radians), std::sin(radians)));
+		}
+		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type scale(vec2<T> center, vec2<T> scale) {
+			/*
+			* [1  0  cx] [sx  0   0] [1  0  -cx] [vx]
+			* [0  1  cy] [0   sy  0] [0  1  -cy] [vy]
+			* [0  0  1 ] [0   0   1] [0  0   1 ] [1 ]
+			*            [sx  0   -cx*sx]
+			*            [0   sy  -cy*sy]
+			*            [0   0      1  ]
+			* [sx  0   cx-cx*sx]
+			* [0   sy  cy-cy*sy]
+			* [0   0       1   ]
+			*/
+			matrix res;
+			res[0][0] = scale.x;
+			res[0][2] = center.x * (1.0 - scale.x);
+			res[1][1] = scale.y;
+			res[1][2] = center.y * (1.0 - scale.y);
+			res[2][2] = 1.0;
+			return res;
+		}
+	};
+	template <typename T, size_t M, size_t N, size_t P> inline matrix<T, P, M> operator*(
+		const matrix<T, N, M> &lhs, const matrix<T, P, N> &rhs
+		) {
+		matrix<T, P, M> result;
+		for (size_t y = 0; y < M; ++y) {
+			for (size_t x = 0; x < P; ++x) {
+				for (size_t k = 0; k < N; ++k) {
+					result[y][x] += lhs[y][k] * rhs[k][x];
+				}
+			}
+		}
+		return result;
+	}
+	template <typename T> inline vec2<T> operator*(const matrix<T, 2, 2> &lhs, vec2<T> rhs) {
+		return vec2<T>(lhs[0][0] * rhs.x + lhs[0][1] * rhs.y, lhs[1][0] * rhs.x + lhs[1][1] * rhs.y);
+	}
+	typedef matrix<double, 2, 2> matd2x2;
+	typedef matrix<double, 3, 3> matd3x3;
+
 	template <typename T> struct color {
 		static_assert(std::is_same<T, unsigned char>::value || std::is_floating_point<T>::value, "invalid color component type");
 		constexpr static T max_value = std::is_floating_point<T>::value ? 1 : 255;
@@ -204,20 +358,27 @@ namespace codepad {
 		T r = max_value, g = max_value, b = max_value, a = max_value;
 
 		template <typename U> color<U> convert() const {
-			static_assert(!std::is_same<T, U>::value, "invalid conversion");
-			if (std::is_same<U, unsigned char>::value) {
-				return color<U>(
-					static_cast<U>(0.5 + r * 255.0), static_cast<U>(0.5 + g * 255.0),
-					static_cast<U>(0.5 + b * 255.0), static_cast<U>(0.5 + a * 255.0)
-					);
-			} else if (std::is_same<T, unsigned char>::value) {
-				return color<U>(
-					static_cast<U>(r / 255.0), static_cast<U>(g / 255.0),
-					static_cast<U>(b / 255.0), static_cast<U>(a / 255.0)
-					);
-			} else {
-				return color<U>(static_cast<U>(r), static_cast<U>(g), static_cast<U>(b), static_cast<U>(a));
+			if (!std::is_same<T, U>::value) {
+				if (std::is_same<U, unsigned char>::value) {
+					return color<U>(
+						static_cast<U>(0.5 + r * 255.0), static_cast<U>(0.5 + g * 255.0),
+						static_cast<U>(0.5 + b * 255.0), static_cast<U>(0.5 + a * 255.0)
+						);
+				} else if (std::is_same<T, unsigned char>::value) {
+					return color<U>(
+						static_cast<U>(r / 255.0), static_cast<U>(g / 255.0),
+						static_cast<U>(b / 255.0), static_cast<U>(a / 255.0)
+						);
+				}
 			}
+			return color<U>(static_cast<U>(r), static_cast<U>(g), static_cast<U>(b), static_cast<U>(a));
+		}
+
+		friend bool operator==(color<T> lhs, color<T> rhs) {
+			return lhs.r == rhs.r && lhs.g == rhs.g && lhs.b == rhs.b && lhs.a == rhs.a;
+		}
+		friend bool operator!=(color<T> lhs, color<T> rhs) {
+			return !(lhs == rhs);
 		}
 
 		color &operator+=(color val) {

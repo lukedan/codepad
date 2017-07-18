@@ -65,7 +65,7 @@ namespace codepad {
 
 			ui::window_hotkey_manager hotkey_manager;
 		protected:
-			ui::element *_focus = this, *_capture = nullptr;
+			ui::element *_focus{this}, *_capture = nullptr;
 			bool _drag = false;
 			vec2i _doffset;
 			std::function<bool()> _dragcontinue;

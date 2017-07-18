@@ -42,13 +42,7 @@
     <ClInclude Include="utilities\textconfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editor\codebox.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\visual.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="editor\docking.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\current.h">
@@ -69,16 +63,28 @@
     <ClInclude Include="ui\font.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editor\components.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="editor\editor_code.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="utilities\hotkey_registry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ui\window_hotkey_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities\tasks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\components.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\editor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\docking.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\codebox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

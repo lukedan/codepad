@@ -7,15 +7,15 @@ namespace codepad {
 	template <typename ...Args> struct event_base {
 		typedef std::function<void(Args...)> handler;
 
-		struct reg_token {
+		struct token {
 			friend struct event_base<Args...>;
 		public:
-			reg_token() = default;
+			token() = default;
 		protected:
 			typedef typename std::list<handler>::iterator _tok_t;
 			_tok_t _tok;
 
-			explicit reg_token(const _tok_t &tok) : _tok(tok) {
+			explicit token(_tok_t tok) : _tok(tok) {
 			}
 		};
 
@@ -23,11 +23,11 @@ namespace codepad {
 		event_base(const event_base&) = delete;
 		event_base &operator=(const event_base&) = delete;
 
-		template <typename T> reg_token operator+=(T h) {
-			_list.push_front(handler(std::move(h)));
-			return reg_token(_list.begin());
+		template <typename T> token operator+=(T &&h) {
+			_list.push_front(handler(std::forward<T>(h)));
+			return token(_list.begin());
 		}
-		event_base &operator-=(const reg_token &tok) {
+		event_base &operator-=(const token &tok) {
 			_list.erase(tok._tok);
 			return *this;
 		}

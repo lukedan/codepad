@@ -196,8 +196,10 @@ namespace codepad {
 				_can_focus = false;
 			}
 			void _dispose() override {
-				for (auto i = _children.begin(); i != _children.end(); ++i) {
-					manager::get().mark_disposal(**i);
+				if (_dispose_children) {
+					for (auto i = _children.begin(); i != _children.end(); ++i) {
+						manager::get().mark_disposal(**i);
+					}
 				}
 				element::_dispose();
 			}
@@ -225,7 +227,7 @@ namespace codepad {
 				e->_on_render();
 			}
 
-			element_collection _children{ *this };
+			element_collection _children{*this};
 			cursor _children_cursor = cursor::not_specified;
 			bool _dispose_children = true; // if true, marks all children for disposal on disposal
 		};

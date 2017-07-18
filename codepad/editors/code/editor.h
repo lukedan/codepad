@@ -1,317 +1,28 @@
 #pragma once
 
-#include "codebox.h"
+#include "context.h"
 
 namespace codepad {
 	namespace editor {
-		enum class line_ending : char_t {
-			none,
-			r,
-			n,
-			rn
-		};
-	}
-	template <> inline str_t to_str<editor::line_ending>(editor::line_ending le) {
-		switch (le) {
-		case editor::line_ending::r:
-			return U"\r";
-		case editor::line_ending::n:
-			return U"\n";
-		case editor::line_ending::rn:
-			return U"\r\n";
-		default:
-			return U"";
-		}
-	}
-	namespace editor {
-		struct caret_position {
-			caret_position() = default;
-			caret_position(size_t l, size_t c) : line(l), column(c) {
-			}
-
-			size_t line, column;
-
-			friend bool operator<(caret_position p1, caret_position p2) {
-				return p1.line == p2.line ? p1.column < p2.column : p1.line < p2.line;
-			}
-			friend bool operator>(caret_position p1, caret_position p2) {
-				return p2 < p1;
-			}
-			friend bool operator<=(caret_position p1, caret_position p2) {
-				return !(p2 < p1);
-			}
-			friend bool operator>=(caret_position p1, caret_position p2) {
-				return !(p1 < p2);
-			}
-			friend bool operator==(caret_position p1, caret_position p2) {
-				return p1.line == p2.line && p1.column == p2.column;
-			}
-			friend bool operator!=(caret_position p1, caret_position p2) {
-				return !(p1 == p2);
-			}
-		};
-		template <typename Cb> inline void convert_to_lines(const str_t &s, Cb callback) {
-			char_t last = U'\0';
-			std::basic_ostringstream<char_t> nss;
-			for (auto i = s.begin(); i != s.end(); ++i) {
-				if (last == U'\r') {
-					callback(nss.str(), *i == U'\n' ? line_ending::rn : line_ending::r);
-					nss = std::basic_ostringstream<char_t>();
-				} else {
-					if (*i == U'\n') {
-						callback(nss.str(), line_ending::n);
-						nss = std::basic_ostringstream<char_t>();
-					} else if (*i != U'\r') {
-						nss << *i;
-					}
-				}
-				last = *i;
-			}
-			if (last == U'\r') {
-				callback(nss.str(), line_ending::r);
-				callback(str_t(), line_ending::none);
-			} else {
-				callback(nss.str(), line_ending::none);
-			}
-		}
-
-		// TODO syntax highlighting, drag & drop, redo & undo, etc.
-		class editor_code_context {
-		public:
-			void clear() {
-				_blocks.clear();
-			}
-
-			void load_from_file(const str_t &fn, size_t buffer_size = 32768) {
-				std::list<line> ls;
-				std::stringstream ss;
-				{
-					assert(buffer_size > 1);
-					char *buffer = static_cast<char*>(std::malloc(sizeof(char) * buffer_size));
-					std::ifstream fin(convert_to_utf8(fn), std::ios::binary);
-					while (fin) {
-						fin.read(buffer, buffer_size - 1);
-						buffer[fin.gcount()] = '\0';
-						ss << buffer;
-					}
-					std::free(buffer);
-				}
-				_blocks.push_back(block());
-				convert_to_lines(convert_from_utf8<char_t>(ss.str()), std::bind(
-					&editor_code_context::_init_append_line, this,
-					std::placeholders::_1, std::placeholders::_2
-				));
-			}
-			void save_to_file(const str_t &fn) const {
-				std::basic_ostringstream<char_t> ss;
-				for (auto it = begin(); ; ++it) {
-					assert((it == before_end()) == (it->ending_type == line_ending::none));
-					ss << it->content;
-					switch (it->ending_type) {
-					case line_ending::n:
-						ss << U'\n';
-						break;
-					case line_ending::r:
-						ss << U'\r';
-						break;
-					case line_ending::rn:
-						ss << U"\r\n";
-						break;
-					case line_ending::none: // nothing to do
-						break;
-					}
-					if (it == before_end()) {
-						break;
-					}
-				}
-				std::string utf8str = convert_to_utf8(ss.str());
-				std::ofstream fout(convert_to_utf8(fn), std::ios::binary);
-				fout.write(utf8str.c_str(), utf8str.length());
-			}
-
-			struct line {
-				line() = default;
-				line(str_t c, line_ending t) : content(std::move(c)), ending_type(t) {
-				}
-				str_t content;
-				line_ending ending_type;
-			};
-			struct block {
-				constexpr static size_t advised_lines = 1000;
-				std::list<line> lines;
-			};
-
-			template <typename BlkIt, typename LnIt> struct line_iterator_base {
-				friend class editor_code_context;
-			public:
-				line_iterator_base() = default;
-				line_iterator_base(BlkIt bk, LnIt l) : _block(bk), _line(l) {
-				}
-
-				typename LnIt::reference operator*() const {
-					return *_line;
-				}
-				typename LnIt::pointer operator->() const {
-					return &*_line;
-				}
-
-				line_iterator_base &operator++() {
-					if ((++_line) == _block->lines.end()) {
-						++_block;
-						_line = _block->lines.begin();
-					}
-					return *this;
-				}
-				line_iterator_base operator++(int) {
-					line_iterator_base tmp = *this;
-					++*this;
-					return tmp;
-				}
-				line_iterator_base &operator--() {
-					if (_line == _block->lines.begin()) {
-						--_block;
-						_line = _block->lines.end();
-					}
-					--_line;
-					return *this;
-				}
-				line_iterator_base operator--(int) {
-					line_iterator_base tmp = *this;
-					--*this;
-					return tmp;
-				}
-
-				friend bool operator==(const line_iterator_base &l1, const line_iterator_base &l2) {
-					return l1._block == l2._block && l1._line == l2._line;
-				}
-				friend bool operator!=(const line_iterator_base &l1, const line_iterator_base &l2) {
-					return !(l1 == l2);
-				}
-			protected:
-				BlkIt _block;
-				LnIt _line;
-			};
-			typedef line_iterator_base<std::list<block>::iterator, std::list<line>::iterator> line_iterator;
-			typedef line_iterator_base<std::list<block>::const_iterator, std::list<line>::const_iterator> const_line_iterator;
-
-			line_iterator at(size_t v) {
-				return _at_impl<line_iterator>(*this, v);
-			}
-			const_line_iterator at(size_t v) const {
-				return _at_impl<const_line_iterator>(*this, v);
-			}
-			line_iterator begin() {
-				return line_iterator(_blocks.begin(), _blocks.begin()->lines.begin());
-			}
-			const_line_iterator begin() const {
-				return const_line_iterator(_blocks.begin(), _blocks.begin()->lines.begin());
-			}
-			line_iterator before_end() {
-				return _before_end_impl<line_iterator>(*this);
-			}
-			const_line_iterator before_end() const {
-				return _before_end_impl<const_line_iterator>(*this);
-			}
-
-			// TODO splinter_block
-			line_iterator insert(line_iterator it, const line &l) {
-				it._line = it._block->lines.insert(it._line, l);
-				return it;
-			}
-			line_iterator insert_after(line_iterator it, const line &l) {
-				++it._line;
-				it._line = it._block->lines.insert(it._line, l);
-				return it;
-			}
-			line_iterator erase(line_iterator it) {
-				if (it == before_end()) { // TODO hackish
-					_do_erase(it--);
-				} else {
-					_do_erase(it++);
-				}
-				return it;
-			}
-
-			size_t num_lines() const { // TODO do some caching
-				size_t res = 0;
-				for (auto i = _blocks.begin(); i != _blocks.end(); ++i) {
-					res += i->lines.size();
-				}
-				return res;
-			}
-
-			str_t substr(caret_position beg, caret_position end) const {
-				assert(end >= beg);
-				if (beg.line == end.line) {
-					auto lit = at(beg.line);
-					return lit->content.substr(beg.column, end.column - beg.column);
-				}
-				std::basic_ostringstream<char_t> ss;
-				auto lit = at(beg.line);
-				ss << lit->content.substr(beg.column) << to_str(lit->ending_type);
-				++lit;
-				for (size_t cl = beg.line + 1; cl < end.line; ++cl, ++lit) {
-					ss << lit->content << to_str(lit->ending_type);
-				}
-				ss << lit->content.substr(0, end.column);
-				return ss.str();
-			}
-
-			event<void> modified;
-		protected:
-			std::list<block> _blocks;
-
-			template <typename It, typename S> inline static It _at_impl(S &s, size_t v) {
-				for (auto i = s._blocks.begin(); i != s._blocks.end(); ++i) {
-					if (i->lines.size() > v) {
-						auto j = i->lines.begin();
-						for (size_t k = 0; k < v; ++k, ++j) {
-						}
-						return It(i, j);
-					} else {
-						v -= i->lines.size();
-					}
-				}
-				assert(false);
-				return It(s._blocks.begin(), s._blocks.begin()->lines.begin());
-			}
-			template <typename It, typename S> inline static It _before_end_impl(S &s) {
-				auto lastblk = s._blocks.end();
-				--lastblk;
-				auto lastln = lastblk->lines.end();
-				return It(lastblk, --lastln);
-			}
-
-			void _init_append_line(str_t s, line_ending end) {
-				if (_blocks.back().lines.size() == block::advised_lines) {
-					_blocks.push_back(block());
-				}
-				_blocks.back().lines.push_back(line(std::move(s), end));
-			}
-			void _do_erase(line_iterator it) {
-				it._block->lines.erase(it._line);
-				if (it._block->lines.size() == 0) {
-					_blocks.erase(it._block);
-				}
-			}
-		};
-		class codebox_editor_code : public codebox_editor {
+		class codebox_editor : public codebox_component {
 		public:
 			constexpr static double
 				move_speed_scale = 15.0,
 				dragdrop_distance = 5.0;
 
-			void set_context(editor_code_context *nctx) {
+			void set_context(text_context *nctx) {
 				if (_ctx) {
 					_ctx->modified -= _mod_tok;
+					_ctx->theme_changed -= _tc_tok;
 				}
 				_ctx = nctx;
 				if (_ctx) {
-					_mod_tok = (_ctx->modified += std::bind(&codebox_editor_code::_on_content_modified, this));
+					_mod_tok = (_ctx->modified += std::bind(&codebox_editor::_on_content_modified, this));
+					_tc_tok = (_ctx->theme_changed += std::bind(&codebox_editor::_on_content_theme_changed, this));
 				}
-				_get_box()->_on_content_modified();
+				_on_content_modified();
 			}
-			editor_code_context *get_context() const {
+			text_context *get_context() const {
 				return _ctx;
 			}
 
@@ -324,19 +35,17 @@ namespace codepad {
 			}
 
 			void auto_set_line_ending() {
-				size_t n[3] = { 0, 0, 0 };
-				for (auto i = _ctx->begin(); ; ++i) {
+				size_t n[3] = {0, 0, 0};
+				for (auto i = _ctx->begin(); i != _ctx->end(); ++i) {
 					if (i->ending_type != line_ending::none) {
 						++n[static_cast<int>(i->ending_type) - 1];
 					}
 #ifndef NDEBUG
 					if (i->ending_type == line_ending::none) {
-						assert(i == _ctx->before_end());
+						auto ni = i;
+						assert((++ni) == _ctx->end());
 					}
 #endif
-					if (i == _ctx->before_end()) {
-						break;
-					}
 				}
 				_le = static_cast<line_ending>(n[0] > n[1] && n[0] > n[2] ? 1 : (n[1] > n[2] ? 2 : 3));
 				CP_INFO("\\r ", n[0], ", \\n ", n[1], ", \\r\\n ", n[2], ", selected ", static_cast<int>(_le));
@@ -349,10 +58,10 @@ namespace codepad {
 				return _le;
 			}
 
-			double get_scroll_delta() const override {
+			double get_scroll_delta() const {
 				return get_line_height() * _lines_per_scroll;
 			}
-			double get_vertical_scroll_range() const override {
+			double get_vertical_scroll_range() const {
 				return
 					get_line_height() * static_cast<double>(_ctx->num_lines() - 1) +
 					_get_box()->get_client_region().height() -
@@ -364,7 +73,7 @@ namespace codepad {
 			}
 
 			ui::cursor get_current_display_cursor() const override {
-				if (!_cset.selecting && _is_in_selection(_mouse_cache)) {
+				if (!_selecting && _is_in_selection(_mouse_cache)) {
 					return ui::cursor::normal;
 				}
 				return ui::cursor::text_beam;
@@ -398,6 +107,8 @@ namespace codepad {
 				}
 				return false;
 			}
+
+			event<void> display_changed, content_modified;
 
 			inline static void set_font(const ui::font_family &ff) {
 				_font = ff;
@@ -438,23 +149,28 @@ namespace codepad {
 			};
 			struct _caret_set {
 				std::multimap<caret_position, _caret_range> carets;
-				std::pair<caret_position, _caret_range> current_selection;
-				bool selecting = false;
+
+				std::multimap<caret_position, _caret_range>::iterator add(std::pair<caret_position, _caret_range> p) {
+					return add_caret(carets, p);
+				}
+				std::multimap<caret_position, _caret_range>::iterator add(std::pair<caret_position, _caret_range> p, bool &merged) {
+					return add_caret(carets, p, merged);
+				}
 
 				inline static std::multimap<caret_position, _caret_range>::iterator add_caret(
 					std::multimap<caret_position, _caret_range> &mp,
-					const std::pair<caret_position, _caret_range> &c
+					std::pair<caret_position, _caret_range> c
 				) {
 					bool dummy;
 					return add_caret(mp, c, dummy);
 				}
 				inline static std::multimap<caret_position, _caret_range>::iterator add_caret(
 					std::multimap<caret_position, _caret_range> &mp,
-					const std::pair<caret_position, _caret_range> &c,
+					std::pair<caret_position, _caret_range> c,
 					bool &merged
 				) {
 					merged = false;
-					auto minmaxv = std::minmax({ c.first, c.second.selection_end });
+					auto minmaxv = std::minmax({c.first, c.second.selection_end});
 					auto beg = mp.lower_bound(minmaxv.first);
 					if (beg != mp.begin()) {
 						--beg;
@@ -505,19 +221,21 @@ namespace codepad {
 				}
 			};
 
-			editor_code_context *_ctx = nullptr;
-			event<void>::reg_token _mod_tok;
+			text_context *_ctx = nullptr;
+			event<void>::token _mod_tok, _tc_tok;
 			// settings
 			double _tab_w = 4.0;
 			line_ending _le;
 			// current state
 			double _scrolldiff = 0.0;
 			_caret_set _cset;
+			std::pair<caret_position, _caret_range> _cur_sel;
 			vec2d _predrag_pos;
-			bool _insert = true, _predrag = false;
+			bool _insert = true, _predrag = false, _selecting = false;
 			// cache
 			caret_position _mouse_cache;
 #ifndef NDEBUG
+			// debug stuff
 			bool _modifying = false;
 #endif
 
@@ -526,88 +244,29 @@ namespace codepad {
 			static ui::font_family _font;
 			static double _lines_per_scroll;
 
-			struct _char_pos_iterator {
-			public:
-				_char_pos_iterator(const str_t &s, const ui::font_family &ff, double tabsize) :
-					_cc(s.begin()), _end(s.end()), _ff(ff), _tabw(tabsize * _ff.maximum_width()) {
-				}
-
-				bool end() const {
-					return _cc == _end;
-				}
-				bool next() {
-					if (_cc == _end) {
-						return false;
-					}
-					_pos += _ndiff;
-					_curc = *_cc;
-					_cet = &_ff.normal->get_char_entry(_curc);
-					if (_curc == '\t') {
-						_cw = _tabw * (std::floor(_pos / _tabw) + 1.0) - _pos;
-					} else {
-						_cw = _cet->advance;
-					}
-					if (++_cc != _end) {
-						_ndiff = _cw + _ff.normal->get_kerning(_curc, *_cc).x;
-					} else {
-						_ndiff = _cw;
-					}
-					_ndiff = std::round(_ndiff);
-					return true;
-				}
-
-				double char_left() const {
-					return _pos;
-				}
-				double char_right() const {
-					return _pos + _cw;
-				}
-				double next_char_left() const {
-					return _pos + _ndiff;
-				}
-				char_t current_char() const {
-					return _curc;
-				}
-				const ui::font::entry &current_char_entry() const {
-					return *_cet;
-				}
-			protected:
-				str_t::const_iterator _cc, _end;
-				const ui::font_family &_ff;
-				double _ndiff = 0.0, _cw = 0.0, _pos = 0.0, _tabw;
-				char_t _curc = U'\0';
-				const ui::font::entry *_cet = nullptr;
-			};
-
-			size_t _hit_test_for_caret_x(const editor_code_context::line &ln, double pos) const {
-				_char_pos_iterator it(ln.content, _font, _tab_w);
-				for (size_t i = 0; it.next(); ++i) {
+			size_t _hit_test_for_caret_x(const text_context::line &ln, size_t line_num, double pos) const {
+				ui::line_character_iterator it(ln.content, _font, _tab_w);
+				text_theme_data::char_iterator ci = _ctx->get_text_theme().get_iter_at(caret_position(line_num, 0));
+				for (size_t i = 0; it.next(ci.current_theme.style); _ctx->get_text_theme().incr_iter(ci, caret_position(line_num, ++i))) {
 					if (pos < (it.char_left() + it.next_char_left()) * 0.5) {
 						return i;
 					}
 				}
 				return ln.content.length();
 			}
-			void _render_line(const str_t &str, vec2d pos) const {
-				int sx = static_cast<int>(std::ceil(pos.x)), sy = static_cast<int>(std::ceil(pos.y));
-				for (_char_pos_iterator it(str, _font, _tab_w); it.next(); ) {
-					if (is_graphical_char(it.current_char())) {
-						os::renderer_base::get().draw_character(
-							it.current_char_entry().texture,
-							vec2d(sx + it.char_left(), sy) + it.current_char_entry().placement.xmin_ymin(),
-							colord(1.0, 1.0, 1.0, 1.0)
-						);
-					}
-				}
-			}
-			double _get_caret_pos_x(editor_code_context::line_iterator lit, size_t pos) const {
-				_char_pos_iterator it(lit->content, _font, _tab_w);
-				for (size_t i = 0; i < pos; ++i, it.next()) {
+			double _get_caret_pos_x(const text_context::line &ln, caret_position pos) const {
+				ui::line_character_iterator it(ln.content, _font, _tab_w);
+				text_theme_data::char_iterator ci = _ctx->get_text_theme().get_iter_at(caret_position(pos.line, 0));
+				for (
+					size_t i = 0;
+					i < pos.column;
+					it.next(ci.current_theme.style), _ctx->get_text_theme().incr_iter(ci, caret_position(pos.line, ++i))
+					) {
 				}
 				return it.next_char_left();
 			}
 			double _get_caret_pos_x(caret_position pos) const {
-				return _get_caret_pos_x(_ctx->at(pos.line), pos.column);
+				return _get_caret_pos_x(*_ctx->at(pos.line), pos);
 			}
 
 			struct _modification {
@@ -620,7 +279,7 @@ namespace codepad {
 				}
 
 				caret_position front_pos, rear_pos; // positions of caret, AFTER all modifications.
-				bool caret_front, caret_sel, addition;
+				bool caret_front, caret_sel, addition, end_of_group = false;
 				str_t content;
 			};
 			struct _modpack {
@@ -670,7 +329,7 @@ namespace codepad {
 						++_ly;
 						_dx -= static_cast<int>(_smin.column);
 						auto newline = _cb->_ctx->insert_after(
-							_lit, editor_code_context::line(_lit->content.substr(_smin.column), _lit->ending_type)
+							_lit, text_context::line(_lit->content.substr(_smin.column), _lit->ending_type)
 						);
 						_lit->content = _lit->content.substr(0, _smin.column);
 						_lit->ending_type = _cb->_le;
@@ -678,14 +337,14 @@ namespace codepad {
 						++_smin.line;
 						_smin.column = 0;
 					} else {
-						mod.content = str_t({ c });
+						mod.content = str_t({c});
 						if (_cb->_insert || had_selection || _smin.column == _lit->content.length()) {
 							_lit->content.insert(_smin.column, 1, c);
 							++_dx;
 						} else {
 							_mpk.mods.push_back(_modification(
 								_smin, caret_position(_smin.line, _smin.column + 1),
-								true, false, false, str_t({ _lit->content[_smin.column] })
+								true, false, false, str_t({_lit->content[_smin.column]})
 							));
 							_lit->content[_smin.column] = c;
 						}
@@ -708,6 +367,7 @@ namespace codepad {
 						} else {
 							--_smin.column;
 						}
+						_minmain = false;
 						_delete_selection(true);
 					}
 				}
@@ -723,6 +383,7 @@ namespace codepad {
 						} else {
 							return;
 						}
+						_minmain = true;
 						_delete_selection(true);
 					}
 				}
@@ -753,7 +414,7 @@ namespace codepad {
 					return *_cur;
 				}
 
-				codebox_editor_code &get_context() const {
+				codebox_editor &get_context() const {
 					return *_cb;
 				}
 				const _modpack &get_modification() const {
@@ -763,34 +424,34 @@ namespace codepad {
 					return _mpk;
 				}
 
-				void start(codebox_editor_code &cb) {
+				void start(codebox_editor &cb) {
 					_prepare_for_modification(cb);
 					_cur = _cb->_cset.carets.begin();
 					_switch_to_next_caret(std::make_pair(_cur->first, _cur->second.selection_end), _cur->second.baseline);
 				}
-				void start_manual(codebox_editor_code &cb, std::pair<caret_position, caret_position> pos, double baseline = 0.0) {
+				void start_manual(codebox_editor &cb, std::pair<caret_position, caret_position> pos, double baseline = 0.0) {
 					_prepare_for_modification(cb);
 					_switch_to_next_caret(pos, baseline);
 				}
 				void next() {
 					if (++_cur != _cb->_cset.carets.end()) {
-						next_manual(std::make_pair(_cur->first, _cur->second.selection_end), _cur->second.baseline);
+						next_manual(std::make_pair(_cur->first, _cur->second.selection_end), true, _cur->second.baseline);
 					} else {
-						end_manual();
+						end_manual(true);
 					}
 				}
-				void next_manual(std::pair<caret_position, caret_position> caret, double baseline = 0.0) {
-					next_manual_nofixup(std::make_pair(_fixup_pos(caret.first), _fixup_pos(caret.second)), baseline);
+				void next_manual(std::pair<caret_position, caret_position> caret, bool app_caret, double baseline = 0.0) {
+					next_manual_nofixup(std::make_pair(_fixup_pos(caret.first), _fixup_pos(caret.second)), app_caret, baseline);
 				}
-				void next_manual_nofixup(std::pair<caret_position, caret_position> caret, double baseline = 0.0) {
-					_append_current_caret();
+				void next_manual_nofixup(std::pair<caret_position, caret_position> caret, bool app_caret, double baseline = 0.0) {
+					_end_group(app_caret);
 					_switch_to_next_caret(caret, baseline);
 				}
 				bool ended() {
 					return _ended;
 				}
-				void end_manual() {
-					_append_current_caret();
+				void end_manual(bool app_caret) {
+					_end_group(app_caret);
 					std::swap(_cb->_cset.carets, _newcs);
 					_cb->_rebuild_selection_cache();
 					_cb->_make_caret_visible(_cb->_cset.carets.rbegin()->first); // TODO move to a better position
@@ -808,8 +469,8 @@ namespace codepad {
 				std::map<caret_position, _caret_range>::iterator _cur;
 				caret_position _smin, _smax;
 				double _baseline;
-				editor_code_context::line_iterator _lit;
-				codebox_editor_code *_cb = nullptr;
+				text_context::line_iterator _lit;
+				codebox_editor *_cb = nullptr;
 				int _dx = 0, _dy = 0;
 				size_t _ly = 0;
 				bool _modified = false, _minmain = false, _ended = false;
@@ -836,14 +497,14 @@ namespace codepad {
 					}
 				}
 
-				void _prepare_for_modification(codebox_editor_code &cb) {
+				void _prepare_for_modification(codebox_editor &cb) {
 					_cb = &cb;
 					assert(!_ended);
 #ifndef NDEBUG
 					assert(!_cb->_modifying);
 					_cb->_modifying = true;
 #endif
-					if (_cb->_cset.selecting) {
+					if (_cb->_selecting) {
 						_cb->_end_selection();
 					}
 					_lit = _cb->_ctx->begin();
@@ -864,6 +525,14 @@ namespace codepad {
 					_baseline = baseline;
 					_on_minmax_changed();
 				}
+				void _end_group(bool app_caret) {
+					if (_mpk.mods.size() > 0) {
+						_mpk.mods.back().end_of_group = true;
+					}
+					if (app_caret) {
+						_append_current_caret();
+					}
+				}
 
 				void _insert_text(const str_t &s, bool selected, bool cfront) {
 					bool first = true;
@@ -876,7 +545,7 @@ namespace codepad {
 							_lit->ending_type = le;
 							first = false;
 						} else {
-							_lit = _cb->_ctx->insert_after(_lit, editor_code_context::line(std::move(cline), le));
+							_lit = _cb->_ctx->insert_after(_lit, text_context::line(std::move(cline), le));
 							++_dy;
 							++_ly;
 						}
@@ -889,7 +558,11 @@ namespace codepad {
 					_mpk.mods.push_back(_modification(_smin, _smax, cfront, selected, true, s));
 					_minmain = cfront;
 					if (!selected) {
-						_smin = _smax;
+						if (_minmain) {
+							_smax = _smin;
+						} else {
+							_smin = _smax;
+						}
 					}
 				}
 				void _delete_selection(bool vsel) {
@@ -918,7 +591,7 @@ namespace codepad {
 						cmod.content = ss.str();
 					}
 					_smax = _smin;
-					_baseline = _cb->_get_caret_pos_x(_lit, _smin.column);
+					_baseline = _cb->_get_caret_pos_x(*_lit, _smin);
 					_mpk.mods.push_back(std::move(cmod));
 				}
 			};
@@ -935,11 +608,12 @@ namespace codepad {
 				_modify_iterator it;
 				it.start_manual(*this, _get_redo_caret_pos(jmp.mods[0]));
 				it.redo_modification(jmp.mods[0]);
-				for (auto i = jmp.mods.begin() + 1; i != jmp.mods.end(); ++i) {
-					it.next_manual_nofixup(_get_redo_caret_pos(*i));
+				bool lgp = jmp.mods[0].end_of_group;
+				for (auto i = jmp.mods.begin() + 1; i != jmp.mods.end(); lgp = i->end_of_group, ++i) {
+					it.next_manual_nofixup(_get_redo_caret_pos(*i), lgp);
 					it.redo_modification(*i);
 				}
-				it.end_manual();
+				it.end_manual(lgp);
 			}
 			void _redo_last() {
 				_redo_mod(_modhist[_nmodid]);
@@ -952,11 +626,12 @@ namespace codepad {
 				_modify_iterator it;
 				it.start_manual(*this, _get_undo_caret_pos(jmp.mods[0]));
 				it.undo_modification(jmp.mods[0]);
-				for (auto i = jmp.mods.begin() + 1; i != jmp.mods.end(); ++i) {
-					it.next_manual(_get_undo_caret_pos(*i));
+				bool lgp = jmp.mods[0].end_of_group, llgp = true;
+				for (auto i = jmp.mods.begin() + 1; i != jmp.mods.end(); llgp = lgp, lgp = i->end_of_group, ++i) {
+					it.next_manual(_get_undo_caret_pos(*i), llgp);
 					it.undo_modification(*i);
 				}
-				it.end_manual();
+				it.end_manual(llgp);
 			}
 			void _undo_last() {
 				_undo_mod(_modhist[--_nmodid]);
@@ -966,9 +641,6 @@ namespace codepad {
 			size_t _nmodid = 0, _modstksz = 0;
 
 			void _on_modify(_modpack mp) {
-				_on_modify_rvref(std::move(mp));
-			}
-			void _on_modify_rvref(_modpack &&mp) {
 				if (_nmodid < _modhist.size()) {
 					_modhist[_nmodid] = std::move(mp);
 				} else {
@@ -979,11 +651,13 @@ namespace codepad {
 
 			template <bool AppMod> struct _modify_iterator_rsrc_base {
 			public:
-				_modify_iterator_rsrc_base(codebox_editor_code &cb) {
+				_modify_iterator_rsrc_base(codebox_editor &cb) {
 					_rsrc.start(cb);
 				}
 				~_modify_iterator_rsrc_base() {
-					_rsrc.get_context()._on_modify_rvref(std::move(_rsrc.get_modification()));
+					if (_rsrc.get_modification().mods.size() > 0) {
+						_rsrc.get_context()._on_modify(std::move(_rsrc.get_modification()));
+					}
 				}
 
 				_modify_iterator *operator->() {
@@ -1011,18 +685,23 @@ namespace codepad {
 			}
 
 			void _on_content_modified() {
-				_get_box()->_on_content_modified();
+				content_modified.invoke();
+				display_changed.invoke();
 			}
+			void _on_content_theme_changed() {
+				display_changed.invoke();
+			}
+
 			void _begin_selection(caret_position cp, double basel) {
-				assert(!_cset.selecting);
-				_cset.selecting = true;
-				_cset.current_selection = std::make_pair(cp, _caret_range(cp, basel));
+				assert(!_selecting);
+				_selecting = true;
+				_cur_sel = std::make_pair(cp, _caret_range(cp, basel));
 			}
 			void _end_selection() {
-				assert(_cset.selecting);
-				_cset.selecting = false;
+				assert(_selecting);
+				_selecting = false;
 				bool merged = false;
-				auto it = _cset.add_caret(_cset.carets, _cset.current_selection, merged);
+				auto it = _cset.add_caret(_cset.carets, _cur_sel, merged);
 				if (merged) {
 					it->second.baseline = _get_caret_pos_x(it->first);
 				}
@@ -1036,7 +715,7 @@ namespace codepad {
 				if (cp.line >= _ctx->num_lines()) {
 					cp.line = _ctx->num_lines() - 1;
 				}
-				cp.column = _hit_test_for_caret_x(*_ctx->at(cp.line), pos.x);
+				cp.column = _hit_test_for_caret_x(*_ctx->at(cp.line), cp.line, pos.x);
 				return cp;
 			}
 			bool _is_in_selection(caret_position cp) const {
@@ -1057,7 +736,7 @@ namespace codepad {
 			}
 
 			std::pair<caret_position, double> _get_left_position(caret_position cp) const {
-				editor_code_context::line_iterator lit = _ctx->at(cp.line);
+				text_context::line_iterator lit = _ctx->at(cp.line);
 				if (cp.column == 0) {
 					if (cp.line > 0) {
 						--lit;
@@ -1068,10 +747,10 @@ namespace codepad {
 				} else {
 					--cp.column;
 				}
-				return std::make_pair(cp, _get_caret_pos_x(lit, cp.column));
+				return std::make_pair(cp, _get_caret_pos_x(*lit, cp));
 			}
 			std::pair<caret_position, double> _get_right_position(caret_position cp) const {
-				editor_code_context::line_iterator lit = _ctx->at(cp.line);
+				text_context::line_iterator lit = _ctx->at(cp.line);
 				if (cp.column == lit->content.length()) {
 					if (cp.line + 1 < _ctx->num_lines()) {
 						++lit;
@@ -1081,20 +760,22 @@ namespace codepad {
 				} else {
 					++cp.column;
 				}
-				return std::make_pair(cp, _get_caret_pos_x(lit, cp.column));
+				return std::make_pair(cp, _get_caret_pos_x(*lit, cp));
 			}
 			caret_position _get_up_position(caret_position cp, double bl) const {
 				if (cp.line == 0) {
 					return cp;
 				}
-				cp.column = _hit_test_for_caret_x(*_ctx->at(--cp.line), bl);
+				--cp.line;
+				cp.column = _hit_test_for_caret_x(*_ctx->at(cp.line), cp.line, bl);
 				return cp;
 			}
 			caret_position _get_down_position(caret_position cp, double bl) const {
 				if (cp.line + 1 == _ctx->num_lines()) {
 					return cp;
 				}
-				cp.column = _hit_test_for_caret_x(*_ctx->at(++cp.line), bl);
+				++cp.line;
+				cp.column = _hit_test_for_caret_x(*_ctx->at(cp.line), cp.line, bl);
 				return cp;
 			}
 
@@ -1154,12 +835,12 @@ namespace codepad {
 					}
 				}
 				_mouse_cache = _hit_test_for_caret(clampedpos);
-				if (_cset.selecting) {
-					if (_mouse_cache != _cset.current_selection.first) {
-						_cset.current_selection.first = _mouse_cache;
-						_cset.current_selection.second.baseline = _get_caret_pos_x(_cset.current_selection.first);
-						_cset.current_selection.second.selection_cache.clear();
-						_make_selection_cache_of(&_cset.current_selection, get_line_height());
+				if (_selecting) {
+					if (_mouse_cache != _cur_sel.first) {
+						_cur_sel.first = _mouse_cache;
+						_cur_sel.second.baseline = _get_caret_pos_x(_cur_sel.first);
+						_cur_sel.second.selection_cache.clear();
+						_make_selection_cache_of(&_cur_sel, get_line_height());
 						invalidate_visual();
 					}
 				}
@@ -1185,7 +866,7 @@ namespace codepad {
 							_cset.carets.clear();
 						}
 						_begin_selection(_mouse_cache, _get_caret_pos_x(_mouse_cache));
-						_make_selection_cache_of(&_cset.current_selection, get_line_height());
+						_make_selection_cache_of(&_cur_sel, get_line_height());
 						invalidate_visual();
 					} else {
 						_predrag_pos = info.position;
@@ -1197,7 +878,7 @@ namespace codepad {
 				}
 			}
 			void _on_mouse_lbutton_up() {
-				if (_cset.selecting) {
+				if (_selecting) {
 					_end_selection();
 					invalidate_visual();
 				} else if (_predrag) {
@@ -1235,20 +916,20 @@ namespace codepad {
 
 					// movement control
 				case os::input::key::left:
-					_on_key_down_lr(&codebox_editor_code::_get_left_position, static_cast<
+					_on_key_down_lr(&codebox_editor::_get_left_position, static_cast<
 						const caret_position&(*)(const caret_position&, const caret_position&)
 					>(std::min));
 					break;
 				case os::input::key::right:
-					_on_key_down_lr(&codebox_editor_code::_get_right_position, static_cast<
+					_on_key_down_lr(&codebox_editor::_get_right_position, static_cast<
 						const caret_position&(*)(const caret_position&, const caret_position&)
 					>(std::max));
 					break;
 				case os::input::key::up:
-					_on_key_down_ud<std::greater<caret_position>>(&codebox_editor_code::_get_up_position);
+					_on_key_down_ud<std::greater<caret_position>>(&codebox_editor::_get_up_position);
 					break;
 				case os::input::key::down:
-					_on_key_down_ud<std::less<caret_position>>(&codebox_editor_code::_get_down_position);
+					_on_key_down_ud<std::less<caret_position>>(&codebox_editor::_get_down_position);
 					break;
 				case os::input::key::home:
 					{
@@ -1268,7 +949,7 @@ namespace codepad {
 								((*it).*fptr)(cp, 0.0);
 							} else {
 								cp.column = i;
-								((*it).*fptr)(cp, _get_caret_pos_x(lit, cp.column));
+								((*it).*fptr)(cp, _get_caret_pos_x(*lit, cp));
 							}
 						}
 					}
@@ -1318,7 +999,7 @@ namespace codepad {
 				}
 			}
 			void _on_update() override {
-				if (_cset.selecting) {
+				if (_selecting) {
 					codebox *editor = _get_box();
 					editor->set_vertical_position(
 						editor->get_vertical_position() +
@@ -1381,7 +1062,7 @@ namespace codepad {
 					auto lit = _ctx->at(sp.first.line);
 					double cw =
 						sp.first.column < lit->content.length() ?
-						_get_caret_pos_x(lit, sp.first.column + 1) :
+						_get_caret_pos_x(*lit, caret_position(sp.first.line, sp.first.column + 1)) :
 						sp.second.pos_cache + _font.normal->get_char_entry(U'\n').advance;
 					double yv = y + h;
 					ls.push_back(vec2d(x, yv));
@@ -1394,7 +1075,7 @@ namespace codepad {
 					}
 				}
 			}
-			void _render() const override {
+			void _render() const override { // TODO baseline alignment for different fonts
 #ifndef NDEBUG
 				assert(!_modifying);
 #endif
@@ -1408,19 +1089,37 @@ namespace codepad {
 				// text rendering stuff
 				auto lit = _ctx->at(line_beg);
 				double cury = get_client_region().ymin - pos + static_cast<double>(line_beg) * lh;
-				for (size_t i = line_beg; i <= line_end; ++i, ++lit, cury += lh) {
-					_render_line(lit->content, vec2d(get_client_region().xmin, cury));
-					if (lit == _ctx->before_end()) {
-						break;
+				text_theme_data::char_iterator tit = _ctx->get_text_theme().get_iter_at(caret_position(line_beg, 0));
+				ui::font_family::baseline_info bi = _font.get_baseline_info();
+				for (
+					size_t i = line_beg;
+					lit != _ctx->end() && i <= line_end;
+					_ctx->get_text_theme().incr_iter(tit, caret_position(++i, 0)), ++lit, cury += lh
+					) {
+					int sx = static_cast<int>(std::round(get_client_region().xmin)), sy = static_cast<int>(std::round(cury));
+					size_t col = 0;
+					for (
+						ui::line_character_iterator it(lit->content, _font, _tab_w);
+						it.next(tit.current_theme.style);
+						_ctx->get_text_theme().incr_iter(tit, caret_position(i, ++col))
+						) {
+						if (is_graphical_char(it.current_char())) {
+							os::renderer_base::get().draw_character(
+								it.current_char_entry().texture,
+								vec2d(sx + it.char_left(), sy + bi.get(tit.current_theme.style)) +
+								it.current_char_entry().placement.xmin_ymin(),
+								tit.current_theme.color
+							);
+						}
 					}
 				}
 				// render carets
 				std::vector<vec2d> cls;
 				std::multimap<caret_position, _caret_range> val;
 				const std::multimap<caret_position, _caret_range> *csetptr = &_cset.carets;
-				if (_cset.selecting) {
+				if (_selecting) {
 					val = _cset.carets;
-					auto it = _caret_set::add_caret(val, _cset.current_selection);
+					auto it = _caret_set::add_caret(val, _cur_sel);
 					it->second.selection_cache.clear();
 					_make_selection_cache_of(it, lh);
 					csetptr = &val;
@@ -1455,5 +1154,59 @@ namespace codepad {
 				codebox_component::_dispose();
 			}
 		};
+
+		inline codebox_editor *codebox_component::_get_editor() const {
+			return _get_box()->get_editor();
+		}
+
+		inline void codebox::_initialize() {
+			panel_base::_initialize();
+
+			_vscroll = element::create<ui::scroll_bar>();
+			_vscroll->set_anchor(ui::anchor::dock_right);
+			_vscroll->value_changed += [this](value_update_info<double>&) {
+				invalidate_visual();
+			};
+			_children.add(*_vscroll);
+
+			_editor = element::create<codebox_editor>();
+			_editor->content_modified += std::bind(&codebox::_on_content_modified, this);
+			_children.add(*_editor);
+		}
+		inline void codebox::_reset_scrollbars() {
+			_vscroll->set_params(_editor->get_vertical_scroll_range(), get_layout().height());
+		}
+		inline void codebox::_on_mouse_scroll(ui::mouse_scroll_info &p) {
+			_vscroll->set_value(_vscroll->get_value() - _editor->get_scroll_delta() * p.delta);
+			p.mark_handled();
+		}
+		inline void codebox::_finish_layout() {
+			rectd lo = get_client_region();
+			_child_recalc_layout(_vscroll, lo);
+
+			double lpos = lo.xmin;
+			for (auto i = _lcs.begin(); i != _lcs.end(); ++i) {
+				double cw = (*i)->get_desired_size().x;
+				ui::thickness mg = (*i)->get_margin();
+				lpos += mg.left;
+				_child_set_layout(*i, rectd(lpos, lpos + cw, lo.ymin, lo.ymax));
+				lpos += cw + mg.right;
+			}
+
+			double rpos = _vscroll->get_layout().xmin;
+			for (auto i = _rcs.rbegin(); i != _rcs.rend(); ++i) {
+				double cw = (*i)->get_desired_size().x;
+				ui::thickness mg = (*i)->get_margin();
+				rpos -= mg.right;
+				_child_set_layout(*i, rectd(rpos - cw, rpos, lo.ymin, lo.ymax));
+				rpos -= cw - mg.left;
+			}
+
+			ui::thickness emg = _editor->get_margin();
+			_child_set_layout(_editor, rectd(lpos + emg.left, rpos - emg.right, lo.ymin, lo.ymax));
+
+			_reset_scrollbars();
+			panel_base::_finish_layout();
+		}
 	}
 }

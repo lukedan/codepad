@@ -7,6 +7,60 @@
 
 namespace codepad {
 	namespace ui {
+		struct line_character_iterator {
+		public:
+			line_character_iterator(const str_t &s, const ui::font_family &ff, double tabsize) :
+				_cc(s.begin()), _end(s.end()), _ff(ff), _tabw(tabsize * _ff.maximum_width()) {
+			}
+
+			bool end() const {
+				return _cc == _end;
+			}
+			bool next(ui::font_style fs) {
+				if (_cc == _end) {
+					return false;
+				}
+				_pos += _ndiff;
+				_curc = *_cc;
+				_cet = &_ff.get_by_style(fs)->get_char_entry(_curc);
+				if (_curc == '\t') {
+					_cw = _tabw * (std::floor(_pos / _tabw) + 1.0) - _pos;
+				} else {
+					_cw = _cet->advance;
+				}
+				_ndiff = _cw;
+				if (++_cc != _end && fs == _lstyle) {
+					_ndiff += _ff.get_by_style(fs)->get_kerning(_curc, *_cc).x;
+				}
+				_ndiff = std::round(_ndiff);
+				_lstyle = fs;
+				return true;
+			}
+
+			double char_left() const {
+				return _pos;
+			}
+			double char_right() const {
+				return _pos + _cw;
+			}
+			double next_char_left() const {
+				return _pos + _ndiff;
+			}
+			char_t current_char() const {
+				return _curc;
+			}
+			const ui::font::entry &current_char_entry() const {
+				return *_cet;
+			}
+		protected:
+			ui::font_style _lstyle = ui::font_style::normal;
+			str_t::const_iterator _cc, _end;
+			const ui::font_family &_ff;
+			double _ndiff = 0.0, _cw = 0.0, _pos = 0.0, _tabw;
+			char_t _curc = U'\0';
+			const ui::font::entry *_cet = nullptr;
+		};
+
 		namespace text_renderer {
 			inline void render_plain_text(const str_t &str, const font &fnt, vec2d topleft, colord color) {
 				int sx = static_cast<int>(std::round(topleft.x)), dy = static_cast<int>(std::ceil(fnt.height()));

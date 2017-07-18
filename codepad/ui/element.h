@@ -287,9 +287,9 @@ namespace codepad {
 			virtual void set_default_hotkey_group(const element_hotkey_group *hgp) {
 				_hotkey_gp = hgp;
 			}
-			virtual std::vector<const element_hotkey_group*> get_hotkey_groups() {
+			virtual std::vector<const element_hotkey_group*> get_hotkey_groups() const {
 				if (_hotkey_gp) {
-					return { _hotkey_gp };
+					return {_hotkey_gp};
 				}
 				return std::vector<const element_hotkey_group*>();
 			}

@@ -102,7 +102,7 @@ namespace codepad {
 
 	template <typename Func> class hotkey_group {
 	public:
-		template <typename T> bool register_hotkey(const std::vector<key_gesture> &sks, T func) {
+		template <typename T> bool register_hotkey(const std::vector<key_gesture> &sks, T &&func) {
 			assert(sks.size() > 0);
 			auto i = sks.begin();
 			_gesture_rec *c = &_reg;
@@ -124,7 +124,7 @@ namespace codepad {
 			c->next_layer.emplace(
 				std::piecewise_construct,
 				std::forward_as_tuple(sks.back()),
-				std::forward_as_tuple(std::function<Func>(std::move(func)))
+				std::forward_as_tuple(std::function<Func>(std::forward<T>(func)))
 			);
 			return true;
 		}

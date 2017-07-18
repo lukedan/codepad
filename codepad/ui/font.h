@@ -61,6 +61,9 @@ namespace codepad {
 			double max_width() const {
 				return _face->size->metrics.max_advance * _ft_fixed_scale;
 			}
+			double baseline() const {
+				return _face->size->metrics.ascender * _ft_fixed_scale;
+			}
 			vec2d get_kerning(char_t left, char_t right) const {
 				FT_Vector v;
 				_ft_verify(FT_Get_Kerning(_face, FT_Get_Char_Index(_face, left), FT_Get_Char_Index(_face, right), FT_KERNING_UNFITTED, &v));
@@ -99,6 +102,30 @@ namespace codepad {
 			bold_italic = bold | italic
 		};
 		struct font_family {
+			struct baseline_info {
+				baseline_info() = default;
+				baseline_info(double n, double b, double i, double bi) :
+					normal_diff(n), bold_diff(b), italic_diff(i), bold_italic_diff(bi) {
+				}
+
+				double normal_diff, bold_diff, italic_diff, bold_italic_diff;
+
+				double get(font_style fs) {
+					switch (fs) {
+					case font_style::normal:
+						return normal_diff;
+					case font_style::bold:
+						return bold_diff;
+					case font_style::italic:
+						return italic_diff;
+					case font_style::bold_italic:
+						return bold_italic_diff;
+					}
+					assert(false);
+					return 0.0;
+				}
+			};
+
 			font_family() = default;
 			font_family(font &n, font &b, font &i, font &bi) : normal(&n), bold(&b), italic(&i), bold_italic(&bi) {
 			}
@@ -106,10 +133,33 @@ namespace codepad {
 			const font *normal = nullptr, *bold = nullptr, *italic = nullptr, *bold_italic = nullptr;
 
 			double maximum_width() const {
-				return std::max({ normal->max_width(), bold->max_width(), italic->max_width(), bold_italic->max_width() });
+				return std::max({normal->max_width(), bold->max_width(), italic->max_width(), bold_italic->max_width()});
 			}
 			double maximum_height() const {
-				return std::max({ normal->height(), bold->height(), italic->height(), bold_italic->height() });
+				return std::max({normal->height(), bold->height(), italic->height(), bold_italic->height()});
+			}
+			double common_baseline() const {
+				return std::max({normal->baseline(), bold->baseline(), italic->baseline(), bold_italic->baseline()});
+			}
+			baseline_info get_baseline_info() const {
+				double bl = common_baseline();
+				return baseline_info(
+					bl - normal->baseline(), bl - bold->baseline(), bl - italic->baseline(), bl - bold_italic->baseline()
+				);
+			}
+			const font *get_by_style(font_style fs) const {
+				switch (fs) {
+				case font_style::normal:
+					return normal;
+				case font_style::bold:
+					return bold;
+				case font_style::italic:
+					return italic;
+				case font_style::bold_italic:
+					return bold_italic;
+				}
+				assert(false);
+				return nullptr;
 			}
 		};
 	}

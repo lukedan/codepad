@@ -214,12 +214,6 @@ namespace codepad {
 						}
 						return TRUE;
 					}
-
-				case WM_COMMAND:
-					if (HIWORD(lparam) == 1 && LOWORD(wparam) == 0) {
-						CP_INFO("detected!");
-					}
-					return 0;
 				}
 			}
 			return DefWindowProc(hwnd, msg, wparam, lparam);

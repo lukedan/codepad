@@ -31,7 +31,7 @@ namespace codepad {
 					vec2d(0.0, 0.0), vec2d(1.0, 0.0), vec2d(0.0, 1.0),
 					vec2d(1.0, 0.0), vec2d(1.0, 1.0), vec2d(0.0, 1.0)
 				};
-				colord c[6] = { color, color, color, color, color, color };
+				colord c[6] = {color, color, color, color, color, color};
 				os::renderer_base::get().draw_triangles(v, u, c, 6, texture);
 			}
 

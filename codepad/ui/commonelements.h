@@ -139,7 +139,7 @@ namespace codepad {
 				_can_focus = false;
 			}
 
-			content_host _content{ *this };
+			content_host _content{*this};
 		};
 
 		class button_base : public element {
@@ -262,7 +262,7 @@ namespace codepad {
 				return _content.get_text_size() + _padding.size();
 			}
 		protected:
-			content_host _content{ *this };
+			content_host _content{*this};
 
 			void _render() const override {
 				_content.render();

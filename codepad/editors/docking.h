@@ -806,16 +806,13 @@ namespace codepad {
 				_lasthost = &hst;
 			}
 			void _on_tab_host_disposed(tab_host &hst) {
-				CP_INFO("tab host 0x", &hst, "disposed");
+				CP_INFO("tab host 0x", &hst, " disposed");
 				if (_drag && _dest == &hst) {
 					CP_INFO("resetting drag destination");
 					_dest = nullptr;
 					_dtype = _drag_dest_type::new_wnd;
 				}
 				_hostlist.erase(hst._tok);
-			}
-			void _on_tab_host_relayout(tab_host &hst) {
-				CP_INFO("tab host 0x", &hst, " relayout");
 			}
 
 			static dock_manager _dman;
