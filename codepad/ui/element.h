@@ -305,8 +305,8 @@ namespace codepad {
 				++_dispose_rec.reg_created;
 #endif
 				elem->_initialize();
-#ifndef NDEBUG
-				assert(elem->_initialized); // you must call base::_initialize!
+#ifdef CP_DETECT_USAGE_ERRORS
+				assert_true_usgerr(elem->_initialized, "element::_initialize() must be called by children classes");
 #endif
 				return static_cast<T*>(elem);
 			}
@@ -323,7 +323,7 @@ namespace codepad {
 
 			// children-parent stuff
 			panel_base *_parent = nullptr;
-			std::list<element*>::iterator _tok;
+			std::list<element*>::iterator _text_tok;
 			// layout result
 			rectd _layout, _clientrgn;
 			// layout params
@@ -430,17 +430,16 @@ namespace codepad {
 				invalidate_visual();
 			}
 
-#ifndef NDEBUG
-		private:
-			bool _initialized = false;
-		public:
-#endif
 			virtual void _initialize() {
-#ifndef NDEBUG
+#ifdef CP_DETECT_USAGE_ERRORS
 				_initialized = true;
 #endif
 			}
 			virtual void _dispose();
+#ifdef CP_DETECT_USAGE_ERRORS
+		private:
+			bool _initialized = false;
+#endif
 		};
 	}
 }

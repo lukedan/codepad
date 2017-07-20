@@ -1,11 +1,12 @@
 #pragma once
 
-#include <cassert>
 #include <list>
 #include <vector>
 #include <thread>
 #include <mutex>
 #include <atomic>
+
+#include "misc.h"
 
 namespace codepad {
 	class callback_buffer {
@@ -48,7 +49,7 @@ namespace codepad {
 	};
 	class async_task_pool {
 	public:
-#ifndef NDEBUG
+#ifdef CP_DETECT_USAGE_ERRORS
 		async_task_pool() : _creator(std::this_thread::get_id()) {
 		}
 #endif
@@ -98,7 +99,7 @@ namespace codepad {
 						_st = task_status::cancelled;
 					}
 				} else {
-					assert(exp == task_status::cancel_requested);
+					assert_true_logical(exp == task_status::cancel_requested, "");
 					_st = task_status::cancelled;
 				}
 			}
@@ -106,7 +107,7 @@ namespace codepad {
 		typedef typename std::list<async_task>::iterator token;
 
 		template <typename T, typename ...Args> token run_task(T &&func, Args &&...args) {
-			assert(std::this_thread::get_id() == _creator);
+			assert_true_usgerr(std::this_thread::get_id() == _creator, "cannot run task from other threads");
 			_lst.emplace_back(async_task::operation_t(std::bind(
 				std::forward<T>(func), std::forward<Args>(args)..., std::placeholders::_1
 			)));
@@ -152,7 +153,7 @@ namespace codepad {
 		static async_task_pool &get();
 	protected:
 		std::list<async_task> _lst;
-#ifndef NDEBUG
+#ifdef CP_DETECT_USAGE_ERRORS
 		std::thread::id _creator;
 #endif
 	};

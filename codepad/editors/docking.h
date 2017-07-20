@@ -431,7 +431,7 @@ namespace codepad {
 		protected:
 			std::list<tab*> _tabs;
 			std::list<tab*>::iterator _active_tab = _tabs.end();
-			std::list<tab_host*>::iterator _tok;
+			std::list<tab_host*>::iterator _text_tok;
 
 			void _finish_layout() override;
 
@@ -453,9 +453,9 @@ namespace codepad {
 			}
 
 			tab_host *get_host() const {
-#ifndef NDEBUG
+#ifdef CP_DETECT_LOGICAL_ERRORS
 				tab_host *hst = dynamic_cast<tab_host*>(parent());
-				assert(hst);
+				assert_true_logical(hst, "parent is not a tab host when get_host() is called");
 				return hst;
 #else
 				return static_cast<tab_host*>(parent());
@@ -463,7 +463,7 @@ namespace codepad {
 			}
 		protected:
 			tab_button *_btn;
-			std::list<tab*>::iterator _tok;
+			std::list<tab*>::iterator _text_tok;
 
 			virtual void _on_request_close() {
 				get_host()->remove_tab(*this);
@@ -529,19 +529,27 @@ namespace codepad {
 								if (father == ff->get_child1()) {
 									ff->set_child1(other);
 								} else {
-									assert(father == ff->get_child2());
+									assert_true_logical(father == ff->get_child2(), "corrupted element graph");
 									ff->set_child2(other);
 								}
 							} else {
+#ifdef CP_DETECT_LOGICAL_ERRORS
 								os::window_base *f = dynamic_cast<os::window_base*>(father->parent());
-								assert(f);
+								assert_true_logical(f, "parent of parent must be a window or a split panel");
+#else
+								os::window_base *f = static_cast<os::window_base*>(father->parent());
+#endif
 								f->children().remove(*father);
 								f->children().add(*other);
 							}
 							ui::manager::get().mark_disposal(*father);
 						} else {
+#ifdef CP_DETECT_LOGICAL_ERRORS
 							os::window_base *f = dynamic_cast<os::window_base*>((*i)->parent());
-							assert(f);
+							assert_true_logical(f, "parent must be a window or a split panel");
+#else
+							os::window_base *f = static_cast<os::window_base*>((*i)->parent());
+#endif
 							ui::manager::get().mark_disposal(*f);
 							--_wndcnt;
 						}
@@ -574,11 +582,11 @@ namespace codepad {
 							break;
 						default:
 							{
-								assert(_dest);
+								assert_true_logical(_dest, "invalid split target");
 								split_panel *sp = _replace_with_split_panel(*_dest);
 								tab_host *th = ui::element::create<tab_host>();
-								_hostlist.erase(th->_tok);
-								th->_tok = _hostlist.insert(_dest->_tok, th);
+								_hostlist.erase(th->_text_tok);
+								th->_text_tok = _hostlist.insert(_dest->_text_tok, th);
 								if (_dtype == _drag_dest_type::new_pnl_l || _dtype == _drag_dest_type::new_pnl_u) {
 									sp->set_child1(th);
 									sp->set_child2(_dest);
@@ -675,7 +683,7 @@ namespace codepad {
 			void start_drag_tab(tab &t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
 				return !os::input::is_mouse_button_down(os::input::mouse_button::left);
 			}) {
-				assert(_drag == nullptr);
+				assert_true_usgerr(_drag == nullptr, "a tab is currently being dragged");
 				tab_host *hst = t.get_host();
 				if (hst) {
 					_dest = hst;
@@ -723,8 +731,8 @@ namespace codepad {
 						if (!_lasthost) {
 							_lasthost = &hst;
 						}
-						_hostlist.erase(hst._tok);
-						hst._tok = _hostlist.insert(_hostlist.begin(), &hst);
+						_hostlist.erase(hst._text_tok);
+						hst._text_tok = _hostlist.insert(_hostlist.begin(), &hst);
 					});
 				};
 				wnd->close_request += [wnd]() {
@@ -802,7 +810,7 @@ namespace codepad {
 
 			void _on_tab_host_created(tab_host &hst) {
 				CP_INFO("tab host 0x", &hst, " created");
-				hst._tok = _hostlist.insert(_hostlist.begin(), &hst);
+				hst._text_tok = _hostlist.insert(_hostlist.begin(), &hst);
 				_lasthost = &hst;
 			}
 			void _on_tab_host_disposed(tab_host &hst) {
@@ -812,7 +820,7 @@ namespace codepad {
 					_dest = nullptr;
 					_dtype = _drag_dest_type::new_wnd;
 				}
-				_hostlist.erase(hst._tok);
+				_hostlist.erase(hst._text_tok);
 			}
 
 			static dock_manager _dman;
@@ -835,7 +843,7 @@ namespace codepad {
 		}
 
 		inline void tab_host::add_tab(tab &t) {
-			t._tok = _tabs.insert(_tabs.end(), &t);
+			t._text_tok = _tabs.insert(_tabs.end(), &t);
 			_children.add(t);
 			_children.add(*t._btn);
 			t.set_visibility(ui::visibility::ignored);
@@ -845,7 +853,7 @@ namespace codepad {
 			invalidate_layout();
 		}
 		inline void tab_host::remove_tab(tab &t) {
-			if (t._tok == _active_tab) {
+			if (t._text_tok == _active_tab) {
 				if (_tabs.size() == 1) {
 					_active_tab = _tabs.end();
 				} else {
@@ -861,7 +869,7 @@ namespace codepad {
 			}
 			_children.remove(t);
 			_children.remove(*t._btn);
-			_tabs.erase(t._tok);
+			_tabs.erase(t._text_tok);
 			invalidate_layout();
 			dock_manager::get()._on_tab_detached(*this, t);
 		}
@@ -870,7 +878,7 @@ namespace codepad {
 			if (_active_tab != _tabs.end()) {
 				(*_active_tab)->set_visibility(ui::visibility::ignored);
 			}
-			_active_tab = t._tok;
+			_active_tab = t._text_tok;
 			t.set_visibility(ui::visibility::visible);
 			invalidate_layout();
 		}
@@ -896,10 +904,10 @@ namespace codepad {
 			if (setactive) {
 				_active_tab = _tabs.end();
 			}
-			_tabs.erase(target._tok);
-			target._tok = _tabs.insert(before ? before->_tok : _tabs.end(), &target);
+			_tabs.erase(target._text_tok);
+			target._text_tok = _tabs.insert(before ? before->_text_tok : _tabs.end(), &target);
 			if (setactive) {
-				_active_tab = target._tok;
+				_active_tab = target._text_tok;
 			}
 			invalidate_layout();
 		}

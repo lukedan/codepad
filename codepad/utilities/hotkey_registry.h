@@ -103,7 +103,7 @@ namespace codepad {
 	template <typename Func> class hotkey_group {
 	public:
 		template <typename T> bool register_hotkey(const std::vector<key_gesture> &sks, T &&func) {
-			assert(sks.size() > 0);
+			assert_true_usgerr(sks.size() > 0, "hotkey is blank");
 			auto i = sks.begin();
 			_gesture_rec *c = &_reg;
 			for (; i != sks.end(); ++i) {
@@ -134,10 +134,10 @@ namespace codepad {
 			for (auto i = sks.begin(); i != sks.end(); ++i) {
 				stk.push_back(c);
 				auto nl = c->next_layer.find(*i);
-				assert(nl != c->next_layer.end());
+				assert_true_logical(nl != c->next_layer.end());
 				c = &nl->second;
 			}
-			assert(c->is_leaf);
+			assert_true_logical(c->is_leaf, "invalid hotkey chain to unregister");
 			size_t kid = sks.size();
 			for (auto i = stk.rbegin(); i != stk.rend(); ++i, --kid) {
 				if ((*i)->next_layer.size() > 1) {
@@ -185,7 +185,7 @@ namespace codepad {
 			}
 
 			const std::function<Func> &get_callback() const {
-				assert(is_trigger());
+				assert_true_usgerr(is_trigger(), "intermediate nodes doesn't have callbacks");
 				return _ptr->callback;
 			}
 

@@ -40,10 +40,10 @@ namespace codepad {
 					if (i->ending_type != line_ending::none) {
 						++n[static_cast<int>(i->ending_type) - 1];
 					}
-#ifndef NDEBUG
+#ifdef CP_DETECT_LOGICAL_ERRORS
 					if (i->ending_type == line_ending::none) {
 						auto ni = i;
-						assert((++ni) == _ctx->end());
+						assert_true_logical((++ni) == _ctx->end(), "invalid ending type encountered");
 					}
 #endif
 				}
@@ -51,7 +51,7 @@ namespace codepad {
 				CP_INFO("\\r ", n[0], ", \\n ", n[1], ", \\r\\n ", n[2], ", selected ", static_cast<int>(_le));
 			}
 			void set_line_ending(line_ending l) {
-				assert(l != line_ending::none);
+				assert_true_usgerr(l != line_ending::none, "invalid line ending");
 				_le = l;
 			}
 			line_ending get_line_ending() const {
@@ -62,10 +62,7 @@ namespace codepad {
 				return get_line_height() * _lines_per_scroll;
 			}
 			double get_vertical_scroll_range() const {
-				return
-					get_line_height() * static_cast<double>(_ctx->num_lines() - 1) +
-					_get_box()->get_client_region().height() -
-					get_padding().height();
+				return get_line_height() * static_cast<double>(_ctx->num_lines() - 1) + get_client_region().height();
 			}
 
 			double get_line_height() const {
@@ -83,7 +80,7 @@ namespace codepad {
 				return _nmodid > 0;
 			}
 			void undo() {
-				assert(can_undo());
+				assert_true_usgerr(can_undo(), "cannot undo");
 				_undo_last();
 			}
 			bool try_undo() {
@@ -97,7 +94,7 @@ namespace codepad {
 				return _nmodid < _modstksz;
 			}
 			void redo() {
-				assert(can_redo());
+				assert_true_usgerr(can_redo(), "cannot redo");
 				_redo_last();
 			}
 			bool try_redo() {
@@ -106,6 +103,80 @@ namespace codepad {
 					return true;
 				}
 				return false;
+			}
+
+			struct character_rendering_iterator {
+				friend class codebox_editor;
+			public:
+				character_rendering_iterator() = delete;
+
+				bool next_char() {
+					if (_cur_line >= _tg_line || _line_it == _editor->get_context()->end()) {
+						return false;
+					}
+					if (!_char_it.next(_theme_it.current_theme.style)) {
+						do {
+							++_cur_line;
+							++_line_it;
+							if (_cur_line >= _tg_line || _line_it == _editor->get_context()->end()) {
+								return false;
+							}
+							_cury += _c_lh;
+							_rcy = static_cast<int>(std::round(_cury));
+							_cur_col = 0;
+							_editor->get_context()->get_text_theme().incr_iter(_theme_it, caret_position(_cur_line, 0));
+							_char_it = ui::line_character_iterator(_line_it->content, codebox_editor::get_font(), _editor->get_tab_width());
+						} while (!_char_it.next(_theme_it.current_theme.style));
+					} else {
+						++_cur_col;
+						_editor->get_context()->get_text_theme().incr_iter(_theme_it, caret_position(_cur_line, _cur_col));
+					}
+					return true;
+				}
+
+				const ui::line_character_iterator &character_info() const {
+					return _char_it;
+				}
+				const text_theme_data::char_iterator &theme_info() const {
+					return _theme_it;
+				}
+				size_t current_line() const {
+					return _cur_line;
+				}
+				size_t current_column() const {
+					return _cur_col;
+				}
+				double y_offset() const {
+					return _cury;
+				}
+				int rounded_y_offset() const {
+					return _rcy;
+				}
+			protected:
+				character_rendering_iterator(const codebox_editor &ce, size_t sl, size_t pel) :
+					_line_it(ce.get_context()->at(sl)),
+					_theme_it(ce.get_context()->get_text_theme().get_iter_at(caret_position(sl, 0))),
+					_char_it(_line_it->content, codebox_editor::get_font(), ce.get_tab_width()),
+					_editor(&ce), _cur_line(sl), _tg_line(pel), _c_lh(ce.get_line_height()) {
+				}
+
+				text_context::line_iterator _line_it;
+				text_theme_data::char_iterator _theme_it;
+				ui::line_character_iterator _char_it;
+				const codebox_editor *_editor = nullptr;
+				size_t _cur_line = 0, _cur_col = 0, _tg_line = 0;
+				double _cury = 0.0, _c_lh = 0.0;
+				int _rcy = 0;
+			};
+			character_rendering_iterator start_rendering(size_t s, size_t e) const {
+				return character_rendering_iterator(*this, s, e);
+			}
+
+			std::pair<size_t, size_t> get_visible_lines() const {
+				double lh = get_line_height(), pos = _get_box()->get_vertical_position();
+				return std::make_pair(static_cast<size_t>(std::max(0.0, pos / lh)), std::min(
+					static_cast<size_t>((pos + get_client_region().height()) / lh) + 1, get_context()->num_lines()
+				));
 			}
 
 			event<void> display_changed, content_modified;
@@ -209,7 +280,7 @@ namespace codepad {
 						return false;
 					}
 					caret_position gmin = std::min(p1mmv.first, p2mmv.first), gmax = std::max(p1mmv.second, p2mmv.second);
-					assert(!((mm == gmin && sm == gmax) || (mm == gmax && sm == gmin)));
+					assert_true_logical(!((mm == gmin && sm == gmax) || (mm == gmax && sm == gmin)), "caret layout shouldn't occur");
 					if (mm < ms) {
 						rm = gmin;
 						rs = gmax;
@@ -360,7 +431,7 @@ namespace codepad {
 						_delete_selection(false);
 					} else if (_smin != caret_position(0, 0)) {
 						if (_smin.column == 0) {
-							assert(_dx == 0);
+							assert_true_logical(_dx == 0, "because it should be?");
 							--_lit;
 							--_ly;
 							_smin = caret_position(_smin.line - 1, _lit->content.length());
@@ -499,7 +570,7 @@ namespace codepad {
 
 				void _prepare_for_modification(codebox_editor &cb) {
 					_cb = &cb;
-					assert(!_ended);
+					assert_true_usgerr(!_ended, "a modify iterator cannot be used twice");
 #ifndef NDEBUG
 					assert(!_cb->_modifying);
 					_cb->_modifying = true;
@@ -655,7 +726,7 @@ namespace codepad {
 					_rsrc.start(cb);
 				}
 				~_modify_iterator_rsrc_base() {
-					if (_rsrc.get_modification().mods.size() > 0) {
+					if (AppMod && _rsrc.get_modification().mods.size() > 0) {
 						_rsrc.get_context()._on_modify(std::move(_rsrc.get_modification()));
 					}
 				}
@@ -741,7 +812,7 @@ namespace codepad {
 					if (cp.line > 0) {
 						--lit;
 						--cp.line;
-						assert(lit->ending_type != line_ending::none);
+						assert_true_logical(lit->ending_type != line_ending::none, "invalid line ending encountered");
 						cp.column = lit->content.length();
 					}
 				} else {
@@ -823,13 +894,13 @@ namespace codepad {
 					rtextpos = pos - get_client_region().xmin_ymin(), clampedpos = rtextpos,
 					relempos = pos - get_layout().xmin_ymin();
 				if (relempos.y < 0.0) {
-					clampedpos.y = -get_padding().top;
+					clampedpos.y = 0.0;
 					_scrolldiff = relempos.y;
 					ui::manager::get().schedule_update(*this);
 				} else {
 					double h = get_layout().height();
 					if (relempos.y > h) {
-						clampedpos.y = h + get_padding().bottom;
+						clampedpos.y = h;
 						_scrolldiff = relempos.y - get_layout().height();
 						ui::manager::get().schedule_update(*this);
 					}
@@ -1010,7 +1081,7 @@ namespace codepad {
 			}
 
 			template <typename T> void _make_selection_cache_of(T it, double h) const {
-				assert(it->second.selection_cache.size() == 0);
+				assert_true_logical(it->second.selection_cache.size() == 0, "cache has already been built");
 				it->second.pos_cache = _get_caret_pos_x(it->first);
 				if (it->first != it->second.selection_end) {
 					double begp = it->second.pos_cache, endp = _get_caret_pos_x(it->second.selection_end);
@@ -1082,37 +1153,29 @@ namespace codepad {
 				if (get_client_region().height() < 0.0) {
 					return;
 				}
-				double lh = get_line_height(), pos = _get_box()->get_vertical_position();
-				size_t
-					line_beg = static_cast<size_t>(std::max(0.0, pos - get_padding().top) / lh),
-					line_end = static_cast<size_t>((pos + get_client_region().height() + get_padding().bottom) / lh);
-				// text rendering stuff
-				auto lit = _ctx->at(line_beg);
-				double cury = get_client_region().ymin - pos + static_cast<double>(line_beg) * lh;
-				text_theme_data::char_iterator tit = _ctx->get_text_theme().get_iter_at(caret_position(line_beg, 0));
+				double lh = get_line_height();
+				std::pair<size_t, size_t> be = get_visible_lines();
+
+				// render text
+				int
+					sx = static_cast<int>(std::round(get_client_region().xmin)),
+					sy = static_cast<int>(std::round(
+						get_client_region().ymin - _get_box()->get_vertical_position() + static_cast<double>(be.first) * lh
+					));
 				ui::font_family::baseline_info bi = _font.get_baseline_info();
-				for (
-					size_t i = line_beg;
-					lit != _ctx->end() && i <= line_end;
-					_ctx->get_text_theme().incr_iter(tit, caret_position(++i, 0)), ++lit, cury += lh
-					) {
-					int sx = static_cast<int>(std::round(get_client_region().xmin)), sy = static_cast<int>(std::round(cury));
-					size_t col = 0;
-					for (
-						ui::line_character_iterator it(lit->content, _font, _tab_w);
-						it.next(tit.current_theme.style);
-						_ctx->get_text_theme().incr_iter(tit, caret_position(i, ++col))
-						) {
-						if (is_graphical_char(it.current_char())) {
-							os::renderer_base::get().draw_character(
-								it.current_char_entry().texture,
-								vec2d(sx + it.char_left(), sy + bi.get(tit.current_theme.style)) +
-								it.current_char_entry().placement.xmin_ymin(),
-								tit.current_theme.color
-							);
-						}
+				for (character_rendering_iterator it = start_rendering(be.first, be.second); it.next_char(); ) {
+					const ui::line_character_iterator &ci = it.character_info();
+					const text_theme_data::char_iterator &ti = it.theme_info();
+					if (is_graphical_char(ci.current_char())) {
+						os::renderer_base::get().draw_character(
+							ci.current_char_entry().texture,
+							vec2d(sx + ci.char_left(), (sy + it.rounded_y_offset()) + bi.get(ti.current_theme.style)) +
+							ci.current_char_entry().placement.xmin_ymin(),
+							ti.current_theme.color
+						);
 					}
 				}
+
 				// render carets
 				std::vector<vec2d> cls;
 				std::multimap<caret_position, _caret_range> val;
@@ -1125,16 +1188,16 @@ namespace codepad {
 					csetptr = &val;
 				}
 				auto
-					caret_beg = csetptr->lower_bound(caret_position(line_beg, 0)),
-					caret_end = csetptr->lower_bound(caret_position(line_end + 1, 0));
+					caret_beg = csetptr->lower_bound(caret_position(be.first, 0)),
+					caret_end = csetptr->lower_bound(caret_position(be.second, 0));
 				if (caret_beg != csetptr->begin()) {
 					auto prev = caret_beg;
 					--prev;
-					if (prev->second.selection_end.line >= line_beg) {
+					if (prev->second.selection_end.line >= be.first) {
 						caret_beg = prev;
 					}
 				}
-				if (caret_end != csetptr->end() && caret_end->second.selection_end.line <= line_end) {
+				if (caret_end != csetptr->end() && caret_end->second.selection_end.line < be.second) {
 					++caret_end;
 				}
 				for (auto i = caret_beg; i != caret_end; ++i) {
@@ -1164,7 +1227,8 @@ namespace codepad {
 
 			_vscroll = element::create<ui::scroll_bar>();
 			_vscroll->set_anchor(ui::anchor::dock_right);
-			_vscroll->value_changed += [this](value_update_info<double>&) {
+			_vscroll->value_changed += [this](value_update_info<double> &info) {
+				vertical_viewport_changed.invoke(info);
 				invalidate_visual();
 			};
 			_children.add(*_vscroll);

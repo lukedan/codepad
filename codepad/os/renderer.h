@@ -43,9 +43,6 @@ namespace codepad {
 			bool has_content() const {
 				return _tid != 0;
 			}
-			operator bool() const {
-				return has_content();
-			}
 		protected:
 			framebuffer(framebuffer_id rid, texture_id tid, size_t w, size_t h) : _id(rid), _tid(tid), _w(w), _h(h) {
 			}
@@ -95,7 +92,7 @@ namespace codepad {
 			virtual void pop_matrix() = 0;
 
 			inline static renderer_base &get() {
-				assert(_rend.rend);
+				assert_true_usgerr(_rend.rend, "renderer not yet created");
 				return *_rend.rend;
 			}
 			template <typename T, typename ...Args> inline static void create_default(Args &&...args) {
@@ -107,11 +104,11 @@ namespace codepad {
 
 			struct _default_renderer {
 				template <typename T, typename ...Args> void create(Args &&...args) {
-					assert(!rend);
+					assert_true_usgerr(!rend, "renderer already created");
 					rend = new T(std::forward<Args>(args)...);
 				}
 				~_default_renderer() {
-					assert(rend);
+					assert_true_usgerr(rend, "no renderer created yet");
 					delete rend;
 				}
 				renderer_base *rend = nullptr;

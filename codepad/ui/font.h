@@ -75,12 +75,8 @@ namespace codepad {
 			FT_Face _face = nullptr;
 			mutable std::unordered_map<char_t, entry> _map;
 
-			inline static void _ft_verify(FT_Error
-#ifndef NDEBUG
-				code
-#endif
-			) {
-				assert(code == 0);
+			inline static void _ft_verify(FT_Error code) {
+				assert_true_syserr(code == 0, "FreeType error");
 			}
 
 			struct _library {
@@ -121,7 +117,7 @@ namespace codepad {
 					case font_style::bold_italic:
 						return bold_italic_diff;
 					}
-					assert(false);
+					assert_true_usgerr(false, "invalid font style encountered");
 					return 0.0;
 				}
 			};
@@ -158,7 +154,7 @@ namespace codepad {
 				case font_style::bold_italic:
 					return bold_italic;
 				}
-				assert(false);
+				assert_true_usgerr(false, "invalid font style encountered");
 				return nullptr;
 			}
 		};

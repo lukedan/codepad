@@ -205,11 +205,11 @@ namespace codepad {
 			}
 
 			void _child_recalc_layout_noreval(element *e, rectd r) const {
-				assert(e->_parent == this);
+				assert_true_usgerr(e->_parent == this, "can only invoke _recalc_layout() on children");
 				e->_recalc_layout(r);
 			}
 			void _child_set_layout_noreval(element *e, rectd r) const {
-				assert(e->_parent == this);
+				assert_true_usgerr(e->_parent == this, "can only set layout of children");
 				e->_layout = r;
 				e->_clientrgn = e->get_padding().shrink(e->get_layout());
 			}
@@ -223,7 +223,7 @@ namespace codepad {
 			}
 
 			void _child_on_render(element *e) const {
-				assert(e->_parent == this);
+				assert_true_usgerr(e->_parent == this, "can only invoke _on_render() on children");
 				e->_on_render();
 			}
 
@@ -249,15 +249,15 @@ namespace codepad {
 			if (_parent) {
 				_parent->_children.remove(*this);
 			}
-#ifndef NDEBUG
+#ifdef CP_DETECT_USAGE_ERRORS
 			_initialized = false;
 #endif
 		}
 
 		inline void element_collection::add(element &elem) {
-			assert(elem._parent == nullptr);
+			assert_true_usgerr(elem._parent == nullptr, "the element is already a child of another panel");
 			elem._parent = &_f;
-			elem._tok = _cs.insert(_cs.end(), &elem);
+			elem._text_tok = _cs.insert(_cs.end(), &elem);
 			collection_change_info ci(collection_change_info::type::add, &elem);
 			_f._on_children_changed(ci);
 			changed(ci);

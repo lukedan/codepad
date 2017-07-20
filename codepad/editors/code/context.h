@@ -102,7 +102,7 @@ namespace codepad {
 				_changes[caret_position(0, 0)] = def;
 			}
 			void set_range(caret_position s, caret_position pe, T c) {
-				assert(s < pe);
+				assert_true_usgerr(s < pe, "invalid range");
 				auto beg = _at(s), end = _at(pe);
 				T begv = beg->second, endv = end->second;
 				_changes.erase(++beg, ++end);
@@ -171,8 +171,8 @@ namespace codepad {
 				char_iterator rv;
 				rv.style_iterator = style.get_iter_at(p);
 				rv.color_iterator = color.get_iter_at(p);
-				assert(rv.style_iterator != style.end());
-				assert(rv.color_iterator != color.end());
+				assert_true_logical(rv.style_iterator != style.end(), "empty theme parameter info encountered");
+				assert_true_logical(rv.color_iterator != color.end(), "empty theme parameter info encountered");
 				rv.current_theme = text_theme_specification(rv.style_iterator->second, rv.color_iterator->second);
 				++rv.style_iterator;
 				++rv.color_iterator;
@@ -203,10 +203,10 @@ namespace codepad {
 			}
 
 			void load_from_file(const str_t &fn, size_t buffer_size = 32768) {
+				assert_true_usgerr(buffer_size > 1, "buffer size must be greater than one");
 				std::list<line> ls;
 				std::stringstream ss;
 				{
-					assert(buffer_size > 1);
 					char *buffer = static_cast<char*>(std::malloc(sizeof(char) * buffer_size));
 					std::ifstream fin(convert_to_utf8(fn), std::ios::binary);
 					while (fin) {
@@ -224,9 +224,9 @@ namespace codepad {
 			void save_to_file(const str_t &fn) const {
 				std::basic_ostringstream<char_t> ss;
 				for (auto it = begin(); it != end(); ++it) {
-#ifndef NDEBUG
+#ifdef CP_DETECT_LOGICAL_ERRORS
 					auto nit = it;
-					assert(((++nit) == end()) == (it->ending_type == line_ending::none));
+					assert_true_logical(((++nit) == end()) == (it->ending_type == line_ending::none), "invalid line ending encountered");
 #endif
 					ss << it->content;
 					switch (it->ending_type) {
@@ -361,7 +361,7 @@ namespace codepad {
 			}
 
 			str_t substr(caret_position beg, caret_position end) const {
-				assert(end >= beg);
+				assert_true_usgerr(end >= beg, "invalid range");
 				if (beg.line == end.line) {
 					auto lit = at(beg.line);
 					return lit->content.substr(beg.column, end.column - beg.column);

@@ -318,7 +318,7 @@ namespace codepad {
 				return _curv;
 			}
 			void set_params(double tot, double vis) {
-				assert(vis <= tot);
+				assert_true_usgerr(vis <= tot, "scrollbar visible range too large");
 				_totrng = tot;
 				_range = vis;
 				set_value(_curv);
@@ -392,9 +392,9 @@ namespace codepad {
 			}
 		};
 		inline scroll_bar *scroll_bar_drag_button::_get_bar() const {
-#ifndef NDEBUG
+#ifdef CP_DETECT_LOGICAL_ERRORS
 			scroll_bar *res = dynamic_cast<scroll_bar*>(_parent);
-			assert(res);
+			assert_true_logical(res, "the button is not a child of a scroll bar");
 			return res;
 #else
 			return static_cast<scroll_bar*>(_parent);

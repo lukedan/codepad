@@ -34,11 +34,13 @@ namespace codepad {
 				_reset_groups(hs);
 			}
 			void reset_groups_prefiltered(std::vector<element_hotkey_group_data> gp) {
+#ifdef CP_DETECT_USAGE_ERRORS
+				for (auto i = gp.begin(); i != gp.end(); ++i) {
+					assert_true_usgerr(i->reg, "hotkey group has no registered target");
+				}
+#endif
 				std::vector<_hotkey_group_state> hs;
 				for (auto i = gp.begin(); i != gp.end(); ++i) {
-#ifndef NDEBUG
-					assert(i->reg);
-#endif
 					hs.push_back(_hotkey_group_state(*i));
 				}
 				_reset_groups(hs);
@@ -62,10 +64,11 @@ namespace codepad {
 						}
 						i->state = element_hotkey_group::state();
 						_gests.clear();
+#ifdef CP_DETECT_USAGE_ERRORS
 						for (auto j = _groups.begin(); j != _groups.end(); ++j) {
-							assert(j->state.is_empty());
-							j->state = element_hotkey_group::state();
+							assert_true_usgerr(j->state.is_empty(), "conflicting hotkey chains detected");
 						}
+#endif
 						return true;
 					} else if (!i->state.is_empty()) {
 						all_emp = false;

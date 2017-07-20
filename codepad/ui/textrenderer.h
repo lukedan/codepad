@@ -9,8 +9,8 @@ namespace codepad {
 	namespace ui {
 		struct line_character_iterator {
 		public:
-			line_character_iterator(const str_t &s, const ui::font_family &ff, double tabsize) :
-				_cc(s.begin()), _end(s.end()), _ff(ff), _tabw(tabsize * _ff.maximum_width()) {
+			line_character_iterator(const str_t &s, ui::font_family ff, double tabsize) :
+				_cc(s.begin()), _end(s.end()), _ff(std::move(ff)), _tabw(tabsize * _ff.maximum_width()) {
 			}
 
 			bool end() const {
@@ -55,7 +55,7 @@ namespace codepad {
 		protected:
 			ui::font_style _lstyle = ui::font_style::normal;
 			str_t::const_iterator _cc, _end;
-			const ui::font_family &_ff;
+			ui::font_family _ff;
 			double _ndiff = 0.0, _cw = 0.0, _pos = 0.0, _tabw;
 			char_t _curc = U'\0';
 			const ui::font::entry *_cet = nullptr;

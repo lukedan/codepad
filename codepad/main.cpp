@@ -18,7 +18,7 @@ using namespace codepad::ui;
 using namespace codepad::editor;
 
 int main() {
-#if defined(_MSC_VER) && !defined(NDEBUG)
+#if defined(_MSC_VER) && defined(CP_DETECT_USAGE_ERRORS)
 	enable_mem_checking();
 #endif
 
@@ -43,7 +43,7 @@ int main() {
 		}
 	});
 
-	ctx.load_from_file(U"editors/code/editor.h");
+	ctx.load_from_file(U"hugetext.txt");
 	content_host::set_default_font(&fnt);
 	codebox_editor::set_font(font_family(codefnt, codefnt, codefnt, codefnt));
 	codebox_editor::set_caret_pen(&p);

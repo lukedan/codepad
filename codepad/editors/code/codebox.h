@@ -65,6 +65,8 @@ namespace codepad {
 			void remove_component_right(codebox_component &e) {
 				_remove_component_from(e, _rcs);
 			}
+
+			event<value_update_info<double>> vertical_viewport_changed;
 		protected:
 			ui::scroll_bar *_vscroll;
 			codebox_editor *_editor;
@@ -76,9 +78,9 @@ namespace codepad {
 				e._on_added();
 			}
 			void _remove_component_from(codebox_component &e, std::vector<codebox_component*> &v) {
-				assert(e.parent() == this);
+				assert_true_usgerr(e.parent() == this, "the component is not a child of this codebox");
 				auto it = std::find(v.begin(), v.end(), &e);
-				assert(it != v.end());
+				assert_true_logical(it != v.end(), "component not found in expected list");
 				e._on_removing();
 				v.erase(it);
 				_children.remove(e);
@@ -115,9 +117,9 @@ namespace codepad {
 		};
 
 		inline codebox *codebox_component::_get_box() const {
-#ifndef NDEBUG
+#ifdef CP_DETECT_LOGICAL_ERRORS
 			codebox *cb = dynamic_cast<codebox*>(_parent);
-			assert(cb);
+			assert_true_logical(cb, "the component is not a child of any codebox but certain actions are triggered");
 			return cb;
 #else
 			return static_cast<codebox*>(_parent);

@@ -19,17 +19,8 @@
 
 namespace codepad {
 	namespace os {
-		template <typename T> inline void winapi_check(T
-#ifndef NDEBUG
-			v
-#endif
-		) {
-#ifndef NDEBUG
-			if (!v) {
-				CP_INFO("WinAPI error ", GetLastError());
-			}
-#endif
-			assert(v);
+		template <typename T> inline void winapi_check(T v) {
+			assert_true_syserr(v, "WinAPI error");
 		}
 
 		namespace input {
@@ -651,9 +642,7 @@ namespace codepad {
 				_begin_viewport_size(sz.x, sz.y);
 				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
-#ifndef NDEBUG
 				_gl_verify();
-#endif
 			}
 			void push_clip(recti r) override {
 				_flush_text_buffer();
@@ -733,8 +722,10 @@ namespace codepad {
 					0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr
 				);
 				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tid, 0);
-				GLenum fbstat = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-				assert(fbstat == GL_FRAMEBUFFER_COMPLETE);
+				assert_true_syserr(
+					glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+					"OpenGL error: unable to create framebuffer"
+				);
 				return framebuffer(fbid, tid, w, h);
 			}
 			void delete_framebuffer(framebuffer &fb) override {
@@ -749,7 +740,7 @@ namespace codepad {
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
 			void continue_framebuffer(const framebuffer &fb) override {
-				assert(fb._tid != 0);
+				assert_true_usgerr(fb.has_content(), "cannot draw to an empty frame buffer");
 				_invert_y = false;
 				glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fb._id));
 				_begin_viewport_size(fb._w, fb._h);
@@ -797,8 +788,7 @@ namespace codepad {
 				}
 				winapi_check(wglMakeCurrent(cw->_dc, _rc));
 				if (glewinit) {
-					GLenum id = glewInit();
-					assert(id == GLEW_OK);
+					assert_true_syserr(glewInit() == GLEW_OK, "GLEW initialization failed");
 				}
 				glEnable(GL_TEXTURE_2D);
 				glEnable(GL_BLEND);
@@ -1061,7 +1051,7 @@ namespace codepad {
 				}
 			}
 			void _gl_verify() {
-				assert(glGetError() == GL_NO_ERROR);
+				assert_true_syserr(glGetError() == GL_NO_ERROR, "OpenGL error");
 			}
 		};
 	}

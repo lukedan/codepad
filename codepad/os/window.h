@@ -42,19 +42,19 @@ namespace codepad {
 
 			virtual void set_mouse_capture(ui::element &elem) {
 				CP_INFO("set mouse capture 0x", &elem, " <", typeid(elem).name(), ">");
-				assert(!_capture);
+				assert_true_usgerr(!_capture, "mouse already captured");
 				_capture = &elem;
 			}
 			virtual void release_mouse_capture() {
 				CP_INFO("release mouse capture");
-				assert(_capture);
+				assert_true_usgerr(_capture, "mouse not captured");
 				_capture = nullptr;
 			}
 
 			virtual void start_drag(std::function<bool()> dst = []() {
 				return input::is_mouse_button_down(input::mouse_button::left);
 			}) {
-				assert(!_drag);
+				assert_true_usgerr(!_drag, "the window is already being dragged");
 				_dragcontinue = dst;
 				_drag = true;
 				_doffset = get_position() - input::get_mouse_position();
@@ -286,7 +286,7 @@ namespace codepad {
 				wnd->_on_removing_window_element(&elem);
 			}
 			elem._parent = nullptr;
-			_cs.erase(elem._tok);
+			_cs.erase(elem._text_tok);
 			collection_change_info ci(collection_change_info::type::remove, &elem);
 			_f._on_children_changed(ci);
 			changed(ci);

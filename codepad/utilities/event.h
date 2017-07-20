@@ -13,9 +13,9 @@ namespace codepad {
 			token() = default;
 		protected:
 			typedef typename std::list<handler>::iterator _tok_t;
-			_tok_t _tok;
+			_tok_t _text_tok;
 
-			explicit token(_tok_t tok) : _tok(tok) {
+			explicit token(_tok_t tok) : _text_tok(tok) {
 			}
 		};
 
@@ -28,7 +28,7 @@ namespace codepad {
 			return token(_list.begin());
 		}
 		event_base &operator-=(const token &tok) {
-			_list.erase(tok._tok);
+			_list.erase(tok._text_tok);
 			return *this;
 		}
 

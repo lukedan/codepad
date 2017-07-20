@@ -15,11 +15,11 @@ namespace codepad {
 		T x = 0, y = 0;
 
 		T &operator[](size_t sub) {
-			assert(sub < 2);
+			assert_true_usage(sub < 2, "invalid subscript");
 			return (&x)[sub];
 		}
 		const T &operator[](size_t sub) const {
-			assert(sub < 2);
+			assert_true_usage(sub < 2, "invalid subscript");
 			return (&x)[sub];
 		}
 
@@ -477,10 +477,91 @@ namespace codepad {
 		print_to_cout(std::forward<First>(f));
 		print_to_cout(std::forward<Others>(args)...);
 	}
-}
 #define CP_INFO(...) ::codepad::print_to_cout("INFO|", __func__, ":", __LINE__, "|", __VA_ARGS__, "\n")
 
-#if defined(_MSC_VER) && !defined(NDEBUG)
+	enum class error_level {
+		system_error, // errors with system api, opengl, etc. nothing we can do
+		usage_error, // wrong usage of internal classes, which can also be treated as exceptions
+		logical_error // logical errors in codepad which basically shouldn't happen
+	};
+
+#ifdef NDEBUG
+#	define CP_ERROR_LEVEL 2
+#else
+#	define CP_ERROR_LEVEL 3
+#endif
+
+#if CP_ERROR_LEVEL > 0
+#	define CP_DETECT_SYSTEM_ERRORS
+#endif
+#if CP_ERROR_LEVEL > 1
+#		define CP_DETECT_USAGE_ERRORS
+#endif
+#if CP_ERROR_LEVEL > 2
+#	define CP_DETECT_LOGICAL_ERRORS
+#endif
+
+	template <error_level Lvl> inline void assert_true(bool v, const char *msg) {
+		if (!v) {
+			throw std::exception(msg);
+		}
+	}
+
+#ifdef CP_DETECT_SYSTEM_ERRORS
+	template <> inline void assert_true<error_level::system_error>(bool v, const char *msg) {
+		if (!v) {
+			print_to_cout("System error encountered: ", msg, "\n");
+			std::abort();
+		}
+	}
+#else
+	template <> inline void assert_true<error_level::system_error>(bool, const char*) {
+	}
+#endif
+#ifdef CP_DETECT_USAGE_ERRORS
+	template <> inline void assert_true<error_level::usage_error>(bool v, const char *msg) {
+		if (!v) {
+			print_to_cout("Usage error encountered: ", msg, "\n");
+			std::abort();
+		}
+	}
+#else
+	template <> inline void assert_true<error_level::usage_error>(bool, const char*) {
+	}
+#endif
+#ifdef CP_DETECT_LOGICAL_ERRORS
+	template <> inline void assert_true<error_level::logical_error>(bool v, const char *msg) {
+		if (!v) {
+			print_to_cout("Logical error encountered: ", msg, "\n");
+			std::abort();
+		}
+	}
+#else
+	template <> inline void assert_true<error_level::logical_error>(bool, const char*) {
+	}
+#endif
+
+	inline void assert_true_sys(bool v, const char *msg) {
+		assert_true<error_level::system_error>(v, msg);
+	}
+	inline void assert_true_usage(bool v, const char *msg) {
+		assert_true<error_level::usage_error>(v, msg);
+	}
+	inline void assert_true_logical(bool v, const char *msg) {
+		assert_true<error_level::logical_error>(v, msg);
+	}
+	inline void assert_true_sys(bool v) {
+		assert_true<error_level::system_error>(v, "default system error message");
+	}
+	inline void assert_true_usage(bool v) {
+		assert_true<error_level::usage_error>(v, "default usage error message");
+	}
+	inline void assert_true_logical(bool v) {
+		assert_true<error_level::logical_error>(v, "default logical error message");
+	}
+}
+
+#if defined(_MSC_VER) && defined(CP_DETECT_USAGE_ERRORS)
 #	define _CRTDBG_MAP_ALLOC
 #	include <stdlib.h>
 #	include <crtdbg.h>
