@@ -13,7 +13,7 @@
 namespace codepad {
 	namespace ui {
 		struct mouse_move_info {
-			mouse_move_info(vec2d p) : new_pos(p) {
+			explicit mouse_move_info(vec2d p) : new_pos(p) {
 			}
 			const vec2d new_pos;
 		};
@@ -26,7 +26,7 @@ namespace codepad {
 				return _handled;
 			}
 			void mark_handled() {
-				assert(!_handled);
+				assert_true_usage(!_handled, "event is being marked as handled twice");
 				_handled = true;
 			}
 		protected:
@@ -41,19 +41,19 @@ namespace codepad {
 				return _focus_set;
 			}
 			void mark_focus_set() {
-				assert(!_focus_set);
+				assert_true_usage(!_focus_set, "event is being marked as handled twice");
 				_focus_set = true;
 			}
 		protected:
 			bool _focus_set = false;
 		};
 		struct key_info {
-			key_info(os::input::key k) : key(k) {
+			explicit key_info(os::input::key k) : key(k) {
 			}
 			const os::input::key key;
 		};
 		struct text_info {
-			text_info(char_t c) : character(c) {
+			explicit text_info(char_t c) : character(c) {
 			}
 			const char_t character;
 		};
@@ -150,6 +150,10 @@ namespace codepad {
 			friend class panel_base;
 			friend class os::window_base;
 		public:
+			element(const element&) = delete;
+			element(element&&) = delete;
+			element &operator=(const element&) = delete;
+			element &operator=(element&&) = delete;
 			virtual ~element() {
 #ifndef NDEBUG
 				++_dispose_rec.disposed;
@@ -288,7 +292,7 @@ namespace codepad {
 				_hotkey_gp = hgp;
 			}
 			virtual std::vector<const element_hotkey_group*> get_hotkey_groups() const {
-				if (_hotkey_gp) {
+				if (_hotkey_gp != nullptr) {
 					return {_hotkey_gp};
 				}
 				return std::vector<const element_hotkey_group*>();
@@ -306,7 +310,7 @@ namespace codepad {
 #endif
 				elem->_initialize();
 #ifdef CP_DETECT_USAGE_ERRORS
-				assert_true_usgerr(elem->_initialized, "element::_initialize() must be called by children classes");
+				assert_true_usage(elem->_initialized, "element::_initialize() must be called by children classes");
 #endif
 				return static_cast<T*>(elem);
 			}
@@ -318,8 +322,7 @@ namespace codepad {
 			event<key_info> key_down, key_up;
 			event<text_info> keyboard_text;
 		protected:
-			element() {
-			}
+			element() = default;
 
 			// children-parent stuff
 			panel_base *_parent = nullptr;
@@ -329,7 +332,7 @@ namespace codepad {
 			// layout params
 			unsigned char _anchor = static_cast<unsigned char>(anchor::all);
 			bool _has_width = false, _has_height = false;
-			double _width, _height;
+			double _width = 0.0, _height = 0.0;
 			thickness _margin, _padding;
 			unsigned char _vis = static_cast<unsigned char>(visibility::visible);
 			// input
@@ -382,7 +385,6 @@ namespace codepad {
 			}
 
 			virtual void _on_prerender() const {
-#ifndef NDEBUG
 				texture_brush(colord(1.0, 1.0, 1.0, 0.02)).fill_rect(get_layout());
 				pen p(colord(1.0, 1.0, 1.0, 1.0));
 				std::vector<vec2d> lines;
@@ -395,7 +397,6 @@ namespace codepad {
 				lines.push_back(get_layout().xmax_ymax());
 				lines.push_back(get_layout().xmax_ymin());
 				p.draw_lines(lines);
-#endif
 				os::renderer_base::get().push_clip(_layout.minimum_bounding_box<int>());
 			}
 			virtual void _render() const = 0;

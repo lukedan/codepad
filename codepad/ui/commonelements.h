@@ -2,7 +2,7 @@
 
 #include "element.h"
 #include "panel.h"
-#include "textrenderer.h"
+#include "draw.h"
 #include "font.h"
 #include "../utilities/misc.h"
 #include "../utilities/textconfig.h"
@@ -275,7 +275,7 @@ namespace codepad {
 		public:
 		protected:
 			scroll_bar *_get_bar() const;
-			double _doffset;
+			double _doffset = 0.0;
 
 			void _initialize() override {
 				button_base::_initialize();
@@ -318,7 +318,7 @@ namespace codepad {
 				return _curv;
 			}
 			void set_params(double tot, double vis) {
-				assert_true_usgerr(vis <= tot, "scrollbar visible range too large");
+				assert_true_usage(vis <= tot, "scrollbar visible range too large");
 				_totrng = tot;
 				_range = vis;
 				set_value(_curv);
@@ -349,8 +349,8 @@ namespace codepad {
 		protected:
 			orientation _ori = orientation::vertical;
 			double _totrng = 1.0, _curv = 0.0, _range = 0.1;
-			scroll_bar_drag_button *_drag;
-			button *_pgup, *_pgdn;
+			scroll_bar_drag_button *_drag = nullptr;
+			button *_pgup = nullptr, *_pgdn = nullptr;
 
 			void _finish_layout() override {
 				rectd cln = get_client_region();
@@ -393,8 +393,8 @@ namespace codepad {
 		};
 		inline scroll_bar *scroll_bar_drag_button::_get_bar() const {
 #ifdef CP_DETECT_LOGICAL_ERRORS
-			scroll_bar *res = dynamic_cast<scroll_bar*>(_parent);
-			assert_true_logical(res, "the button is not a child of a scroll bar");
+			auto res = dynamic_cast<scroll_bar*>(_parent);
+			assert_true_logical(res != nullptr, "the button is not a child of a scroll bar");
 			return res;
 #else
 			return static_cast<scroll_bar*>(_parent);

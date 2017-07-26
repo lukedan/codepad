@@ -8,8 +8,8 @@
 #include <windowsx.h>
 #undef min
 #undef max
-#define GLEW_STATIC
-#include <GL/glew.h>
+#include <gl/GL.h>
+#include <gl/glext.h>
 
 #include "window.h"
 #include "renderer.h"
@@ -20,7 +20,10 @@
 namespace codepad {
 	namespace os {
 		template <typename T> inline void winapi_check(T v) {
-			assert_true_syserr(v, "WinAPI error");
+			if (!v) {
+				logger::get().log_error(CP_HERE, "WinAPI error code ", GetLastError());
+				assert_true_sys(false, "WinAPI error");
+			}
 		}
 
 		namespace input {
@@ -199,8 +202,7 @@ namespace codepad {
 
 			bool _idle();
 			void _on_update() override {
-				while (_idle()) {
-				}
+				_idle();
 				_update_drag();
 				ui::manager::get().schedule_update(*this);
 			}
@@ -217,7 +219,7 @@ namespace codepad {
 			}
 		};
 
-		class software_renderer : public renderer_base { // TODO framebuffer & matrix operations
+		class software_renderer : public renderer_base {
 		public:
 			software_renderer() : renderer_base() {
 				_txs.push_back(_tex_rec());
@@ -702,7 +704,7 @@ namespace codepad {
 			}
 
 			texture_id new_character_texture(size_t w, size_t h, const void *data) override {
-				assert(_rc);
+				assert_true_usage(_rc, "texture allocation requested before establishing any context");
 				return _atl.new_char(w, h, data);
 			}
 			void delete_character_texture(texture_id id) override {
@@ -711,9 +713,9 @@ namespace codepad {
 
 			framebuffer new_framebuffer(size_t w, size_t h) override {
 				GLuint fbid, tid;
-				glGenFramebuffers(1, &fbid);
+				_gl.GenFramebuffers(1, &fbid);
 				glGenTextures(1, &tid);
-				glBindFramebuffer(GL_FRAMEBUFFER, fbid);
+				_gl.BindFramebuffer(GL_FRAMEBUFFER, fbid);
 				glBindTexture(GL_TEXTURE_2D, tid);
 				_set_default_texture_params();
 				glTexImage2D(
@@ -721,16 +723,16 @@ namespace codepad {
 					static_cast<GLsizei>(w), static_cast<GLsizei>(h),
 					0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr
 				);
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tid, 0);
-				assert_true_syserr(
-					glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+				_gl.FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tid, 0);
+				assert_true_sys(
+					_gl.CheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
 					"OpenGL error: unable to create framebuffer"
 				);
 				return framebuffer(fbid, tid, w, h);
 			}
 			void delete_framebuffer(framebuffer &fb) override {
 				GLuint id = static_cast<GLuint>(fb._id), tid = static_cast<GLuint>(fb._tid);
-				glDeleteFramebuffers(1, &id);
+				_gl.DeleteFramebuffers(1, &id);
 				glDeleteTextures(1, &tid);
 				fb._tid = 0;
 			}
@@ -740,15 +742,15 @@ namespace codepad {
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
 			void continue_framebuffer(const framebuffer &fb) override {
-				assert_true_usgerr(fb.has_content(), "cannot draw to an empty frame buffer");
+				assert_true_usage(fb.has_content(), "cannot draw to an empty frame buffer");
 				_invert_y = false;
-				glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fb._id));
+				_gl.BindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fb._id));
 				_begin_viewport_size(fb._w, fb._h);
 				_gl_verify();
 			}
 			void end_framebuffer() override {
 				_flush_text_buffer();
-				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				_gl.BindFramebuffer(GL_FRAMEBUFFER, 0);
 				_gl_verify();
 			}
 
@@ -781,14 +783,14 @@ namespace codepad {
 			void _new_window(window_base &wnd) override {
 				window *cw = static_cast<window*>(&wnd);
 				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
-				bool glewinit = false;
+				bool initgl = false;
 				if (!_rc) {
-					glewinit = true;
 					winapi_check(_rc = wglCreateContext(cw->_dc));
+					initgl = true;
 				}
 				winapi_check(wglMakeCurrent(cw->_dc, _rc));
-				if (glewinit) {
-					assert_true_syserr(glewInit() == GLEW_OK, "GLEW initialization failed");
+				if (initgl) {
+					_gl.init();
 				}
 				glEnable(GL_TEXTURE_2D);
 				glEnable(GL_BLEND);
@@ -1020,9 +1022,30 @@ namespace codepad {
 				}
 			};
 
+			struct _wgl_funcs {
+			public:
+				void init() {
+					_get_func(GenFramebuffers, "glGenFramebuffers");
+					_get_func(BindFramebuffer, "glBindFramebuffer");
+					_get_func(FramebufferTexture2D, "glFramebufferTexture2D");
+					_get_func(CheckFramebufferStatus, "glCheckFramebufferStatus");
+					_get_func(DeleteFramebuffers, "glDeleteFramebuffers");
+				}
+				PFNGLGENFRAMEBUFFERSPROC GenFramebuffers;
+				PFNGLBINDFRAMEBUFFERPROC BindFramebuffer;
+				PFNGLFRAMEBUFFERTEXTURE2DPROC FramebufferTexture2D;
+				PFNGLCHECKFRAMEBUFFERSTATUSPROC CheckFramebufferStatus;
+				PFNGLDELETEFRAMEBUFFERSPROC DeleteFramebuffers;
+			protected:
+				template <typename T> inline static void _get_func(T &f, LPCSTR name) {
+					winapi_check(f = reinterpret_cast<T>(wglGetProcAddress(name)));
+				}
+			};
+
 			HGLRC _rc = nullptr;
 			PIXELFORMATDESCRIPTOR _pfd;
 			HDC _curdc;
+			_wgl_funcs _gl;
 			int _pformat;
 
 			int _curheight;
@@ -1051,7 +1074,11 @@ namespace codepad {
 				}
 			}
 			void _gl_verify() {
-				assert_true_syserr(glGetError() == GL_NO_ERROR, "OpenGL error");
+				GLenum errorcode = glGetError();
+				if (errorcode != GL_NO_ERROR) {
+					logger::get().log_error(CP_HERE, "OpenGL error code ", errorcode);
+					assert_true_sys(false, "OpenGL error");
+				}
 			}
 		};
 	}

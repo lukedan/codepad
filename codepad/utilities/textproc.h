@@ -31,9 +31,7 @@ namespace codepad {
 	// TODO utilization of deprecated functionality
 	namespace _helper {
 		template <typename T> struct deletable_facet : public T {
-			template <typename ...Args> deletable_facet(Args &&...args) : T(std::forward<Args>(args)...) {
-			}
-			~deletable_facet() {
+			template <typename ...Args> explicit deletable_facet(Args &&...args) : T(std::forward<Args>(args)...) {
 			}
 		};
 #ifdef _MSC_VER
@@ -66,11 +64,14 @@ namespace codepad {
 		return conv.to_bytes(str);
 	}
 #ifdef _MSC_VER
-	inline std::string convert_to_utf8(const std::basic_string<char32_t> &str) {
+	template <> inline std::string convert_to_utf8<char32_t>(const std::basic_string<char32_t> &str) {
 		std::wstring_convert<_helper::deletable_facet<std::codecvt<__int32, char, std::mbstate_t>>, __int32> conv;
 		return conv.to_bytes(std::basic_string<__int32>(reinterpret_cast<const __int32*>(str.c_str())));
 	}
 #endif
+	inline std::string convert_to_utf8(std::string str) {
+		return std::move(str);
+	}
 
 #if defined(_MSC_VER) || defined(__GNUC__)
 	// TODO fuck again, ugly workaround for VS AND g++

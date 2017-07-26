@@ -23,16 +23,7 @@ namespace codepad {
 			}
 
 			void fill_rect(rectd r) const override {
-				vec2d v[6] = {
-					r.xmin_ymin(), r.xmax_ymin(), r.xmin_ymax(),
-					r.xmax_ymin(), r.xmax_ymax(), r.xmin_ymax()
-				};
-				const vec2d u[6] = {
-					vec2d(0.0, 0.0), vec2d(1.0, 0.0), vec2d(0.0, 1.0),
-					vec2d(1.0, 0.0), vec2d(1.0, 1.0), vec2d(0.0, 1.0)
-				};
-				colord c[6] = {color, color, color, color, color, color};
-				os::renderer_base::get().draw_triangles(v, u, c, 6, texture);
+				os::renderer_base::get().draw_quad(r, rectd(0.0, 1.0, 0.0, 1.0), color, texture);
 			}
 
 			colord color;

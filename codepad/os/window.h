@@ -12,7 +12,7 @@
 namespace codepad {
 	namespace os {
 		struct size_changed_info {
-			size_changed_info(vec2i v) : new_size(v) {
+			explicit size_changed_info(vec2i v) : new_size(v) {
 			}
 			const vec2i new_size;
 		};
@@ -41,20 +41,20 @@ namespace codepad {
 			virtual vec2i client_to_screen(vec2i) const = 0;
 
 			virtual void set_mouse_capture(ui::element &elem) {
-				CP_INFO("set mouse capture 0x", &elem, " <", typeid(elem).name(), ">");
-				assert_true_usgerr(!_capture, "mouse already captured");
+				logger::get().log_info(CP_HERE, "set mouse capture 0x", &elem, " <", typeid(elem).name(), ">");
+				assert_true_usage(_capture == nullptr, "mouse already captured");
 				_capture = &elem;
 			}
 			virtual void release_mouse_capture() {
-				CP_INFO("release mouse capture");
-				assert_true_usgerr(_capture, "mouse not captured");
+				logger::get().log_info(CP_HERE, "release mouse capture");
+				assert_true_usage(_capture != nullptr, "mouse not captured");
 				_capture = nullptr;
 			}
 
 			virtual void start_drag(std::function<bool()> dst = []() {
 				return input::is_mouse_button_down(input::mouse_button::left);
 			}) {
-				assert_true_usgerr(!_drag, "the window is already being dragged");
+				assert_true_usage(!_drag, "the window is already being dragged");
 				_dragcontinue = dst;
 				_drag = true;
 				_doffset = get_position() - input::get_mouse_position();
@@ -126,9 +126,9 @@ namespace codepad {
 
 			virtual void _on_removing_window_element(ui::element *e) {
 				ui::element *ef = _focus;
-				for (; ef && e != ef; ef = ef->parent()) {
+				for (; ef != nullptr && e != ef; ef = ef->parent()) {
 				}
-				if (ef) {
+				if (ef != nullptr) {
 					if (ui::manager::get().get_focused() == _focus) {
 						ui::manager::get().set_focus(this);
 					} else {
@@ -137,11 +137,11 @@ namespace codepad {
 				}
 			}
 			virtual void _set_window_focus_element(ui::element *e) {
-				assert(e && e->get_window() == this);
+				assert_true_logical(e && e->get_window() == this, "corrupted element tree");
 				if (e != _focus) {
 					_focus = e;
 					std::vector<ui::element_hotkey_group_data> gps;
-					for (ui::element *cur = _focus; cur; cur = cur->parent()) {
+					for (ui::element *cur = _focus; cur != nullptr; cur = cur->parent()) {
 						std::vector<const ui::element_hotkey_group*> cgps = cur->get_hotkey_groups();
 						for (auto i = cgps.begin(); i != cgps.end(); ++i) {
 							gps.push_back(ui::element_hotkey_group_data(*i, cur));
@@ -159,7 +159,7 @@ namespace codepad {
 				if (ui::manager::get().get_focused() == _focus) { // in case the focus has already shifted
 					ui::manager::get().set_focus(nullptr);
 				}
-				if (_capture) {
+				if (_capture != nullptr) {
 					_capture->_on_capture_lost();
 				}
 				lost_window_focus.invoke();
@@ -178,7 +178,7 @@ namespace codepad {
 			}
 
 			void _on_mouse_enter() override {
-				if (_capture) {
+				if (_capture != nullptr) {
 					_capture->_on_mouse_enter();
 					ui::element::_on_mouse_enter();
 				} else {
@@ -186,7 +186,7 @@ namespace codepad {
 				}
 			}
 			void _on_mouse_leave() override {
-				if (_capture) {
+				if (_capture != nullptr) {
 					_capture->_on_mouse_leave();
 					ui::element::_on_mouse_leave();
 				} else {
@@ -194,7 +194,7 @@ namespace codepad {
 				}
 			}
 			void _on_mouse_move(ui::mouse_move_info &p) override {
-				if (_capture) {
+				if (_capture != nullptr) {
 					_capture->_on_mouse_move(p);
 					ui::element::_on_mouse_move(p);
 				} else {
@@ -202,7 +202,7 @@ namespace codepad {
 				}
 			}
 			void _on_mouse_down(ui::mouse_button_info &p) override {
-				if (_capture) {
+				if (_capture != nullptr) {
 					_capture->_on_mouse_down(p);
 					mouse_down(p);
 				} else {
@@ -210,7 +210,7 @@ namespace codepad {
 				}
 			}
 			void _on_mouse_up(ui::mouse_button_info &p) override {
-				if (_capture) {
+				if (_capture != nullptr) {
 					_capture->_on_mouse_up(p);
 					ui::element::_on_mouse_up(p);
 				} else {
@@ -218,9 +218,9 @@ namespace codepad {
 				}
 			}
 			void _on_mouse_scroll(ui::mouse_scroll_info &p) override {
-				if (_capture) {
+				if (_capture != nullptr) {
 					for (element *e = _capture; !p.handled() && e != this; e = e->parent()) {
-						assert(e);
+						assert_true_logical(e, "corrupted element tree");
 						e->_on_mouse_scroll(p);
 					}
 					ui::element::_on_mouse_scroll(p);
@@ -245,7 +245,7 @@ namespace codepad {
 				for (auto i = ss.begin(); i != ss.end(); ++i) {
 					(*i)->_on_render();
 				}
-				CP_INFO("repaint ", std::chrono::duration<double, std::milli>(
+				logger::get().log_info(CP_HERE, "repaint ", std::chrono::duration<double, std::milli>(
 					std::chrono::high_resolution_clock::now() - start
 					).count(), "ms");
 			}
@@ -254,35 +254,37 @@ namespace codepad {
 			if (elem == _focus) {
 				return;
 			}
-			os::window_base *neww = elem ? elem->get_window() : nullptr;
-			assert((neww != nullptr) == (elem != nullptr));
+			os::window_base *neww = elem == nullptr ? nullptr : elem->get_window();
+			assert_true_logical((neww != nullptr) == (elem != nullptr), "corrupted element tree");
 			element *oldf = _focus;
 			_focus = elem;
-			if (neww) {
+			if (neww != nullptr) {
 				neww->_set_window_focus_element(elem);
 				neww->activate();
 			}
-			if (oldf) {
+			if (oldf != nullptr) {
 				oldf->_on_lost_focus();
 			}
-			if (_focus) {
+			if (_focus != nullptr) {
 				_focus->_on_got_focus();
 			}
-			CP_INFO("focus changed to 0x", _focus, " <", _focus ? typeid(*_focus).name() : "nullptr", ">");
+			logger::get().log_info(
+				CP_HERE, "focus changed to 0x", _focus, " <", _focus ? typeid(*_focus).name() : "nullptr", ">"
+			);
 		}
 
 		inline os::window_base *element::get_window() {
 			element *cur = this;
-			while (cur->_parent) {
+			while (cur->_parent != nullptr) {
 				cur = cur->_parent;
 			}
 			return dynamic_cast<os::window_base*>(cur);
 		}
 
 		inline void element_collection::remove(element &elem) {
-			assert(elem._parent == &_f);
+			assert_true_logical(elem._parent == &_f, "corrupted element tree");
 			os::window_base *wnd = _f.get_window();
-			if (wnd) {
+			if (wnd != nullptr) {
 				wnd->_on_removing_window_element(&elem);
 			}
 			elem._parent = nullptr;

@@ -205,11 +205,11 @@ namespace codepad {
 			}
 
 			void _child_recalc_layout_noreval(element *e, rectd r) const {
-				assert_true_usgerr(e->_parent == this, "can only invoke _recalc_layout() on children");
+				assert_true_usage(e->_parent == this, "can only invoke _recalc_layout() on children");
 				e->_recalc_layout(r);
 			}
 			void _child_set_layout_noreval(element *e, rectd r) const {
-				assert_true_usgerr(e->_parent == this, "can only set layout of children");
+				assert_true_usage(e->_parent == this, "can only set layout of children");
 				e->_layout = r;
 				e->_clientrgn = e->get_padding().shrink(e->get_layout());
 			}
@@ -223,7 +223,7 @@ namespace codepad {
 			}
 
 			void _child_on_render(element *e) const {
-				assert_true_usgerr(e->_parent == this, "can only invoke _on_render() on children");
+				assert_true_usage(e->_parent == this, "can only invoke _on_render() on children");
 				e->_on_render();
 			}
 
@@ -255,7 +255,7 @@ namespace codepad {
 		}
 
 		inline void element_collection::add(element &elem) {
-			assert_true_usgerr(elem._parent == nullptr, "the element is already a child of another panel");
+			assert_true_usage(elem._parent == nullptr, "the element is already a child of another panel");
 			elem._parent = &_f;
 			elem._text_tok = _cs.insert(_cs.end(), &elem);
 			collection_change_info ci(collection_change_info::type::add, &elem);
@@ -295,7 +295,7 @@ namespace codepad {
 					li.elem->_finish_layout();
 				}
 				_layouting = false;
-				CP_INFO("relayout ", std::chrono::duration<double, std::milli>(
+				logger::get().log_info(CP_HERE, "relayout ", std::chrono::duration<double, std::milli>(
 					std::chrono::high_resolution_clock::now() - start
 					).count(), "ms");
 			}

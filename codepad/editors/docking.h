@@ -683,7 +683,7 @@ namespace codepad {
 			void start_drag_tab(tab &t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
 				return !os::input::is_mouse_button_down(os::input::mouse_button::left);
 			}) {
-				assert_true_usgerr(_drag == nullptr, "a tab is currently being dragged");
+				assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 				tab_host *hst = t.get_host();
 				if (hst) {
 					_dest = hst;
@@ -756,12 +756,12 @@ namespace codepad {
 					if (f->get_child1() == &hst) {
 						f->set_child1(sp);
 					} else {
-						assert(f->get_child2() == &hst);
+						assert_true_logical(f->get_child2() == &hst, "corrupted element tree");
 						f->set_child2(sp);
 					}
 				} else {
 					os::window_base *w = dynamic_cast<os::window_base*>(hst.parent());
-					assert(w);
+					assert_true_logical(w, "root element must be a window");
 					w->children().remove(hst);
 					w->children().add(*sp);
 				}
@@ -773,7 +773,7 @@ namespace codepad {
 			}
 
 			template <typename T> inline static void _enumerate_hosts(os::window_base *base, const T &cb) {
-				assert(base->children().size() == 1);
+				assert_true_logical(base->children().size() == 1, "window must have only one child");
 				std::vector<ui::element*> hsts;
 				hsts.push_back(*base->children().begin());
 				while (!hsts.empty()) {
@@ -784,7 +784,7 @@ namespace codepad {
 						cb(*hst);
 					} else {
 						split_panel *sp = dynamic_cast<split_panel*>(ce);
-						assert(sp);
+						assert_true_logical(sp, "corrupted element tree");
 						hsts.push_back(sp->get_child1());
 						hsts.push_back(sp->get_child2());
 					}
@@ -809,14 +809,14 @@ namespace codepad {
 			}
 
 			void _on_tab_host_created(tab_host &hst) {
-				CP_INFO("tab host 0x", &hst, " created");
+				logger::get().log_info(CP_HERE, "tab host 0x", &hst, " created");
 				hst._text_tok = _hostlist.insert(_hostlist.begin(), &hst);
 				_lasthost = &hst;
 			}
 			void _on_tab_host_disposed(tab_host &hst) {
-				CP_INFO("tab host 0x", &hst, " disposed");
+				logger::get().log_info(CP_HERE, "tab host 0x", &hst, " disposed");
 				if (_drag && _dest == &hst) {
-					CP_INFO("resetting drag destination");
+					logger::get().log_info(CP_HERE, "resetting drag destination");
 					_dest = nullptr;
 					_dtype = _drag_dest_type::new_wnd;
 				}
@@ -874,7 +874,7 @@ namespace codepad {
 			dock_manager::get()._on_tab_detached(*this, t);
 		}
 		inline void tab_host::activate_tab(tab &t) {
-			assert(t._parent == this);
+			assert_true_logical(t._parent == this, "corrupted element tree");
 			if (_active_tab != _tabs.end()) {
 				(*_active_tab)->set_visibility(ui::visibility::ignored);
 			}
@@ -883,14 +883,14 @@ namespace codepad {
 			invalidate_layout();
 		}
 		inline size_t tab_host::get_tab_position(tab &tb) const {
-			assert(tb.parent() == this);
+			assert_true_logical(tb.parent() == this, "corrupted element tree");
 			size_t d = 0;
 			for (auto i = _tabs.begin(); i != _tabs.end(); ++i, ++d) {
 				if (*i == &tb) {
 					return d;
 				}
 			}
-			assert(false);
+			assert_true_logical(false, "corrupted element tree");
 			return 0;
 		}
 		inline tab &tab_host::get_tab_at(size_t pos) const {

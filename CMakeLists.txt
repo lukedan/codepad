@@ -7,7 +7,7 @@ set(SOURCE_FILES
         codepad/editors/code/components.h
         codepad/editors/code/context.h
         codepad/editors/code/editor.h
-        codepad/editors/codebox.h
+        codepad/editors/code/codebox.h
         codepad/editors/docking.h
         codepad/os/current.h
         codepad/os/input.h
@@ -20,7 +20,7 @@ set(SOURCE_FILES
         codepad/ui/font.h
         codepad/ui/manager.h
         codepad/ui/panel.h
-        codepad/ui/textrenderer.h
+        codepad/ui/draw.h
         codepad/ui/visual.h
         codepad/ui/window_hotkey_manager.h
         codepad/utilities/event.h
@@ -32,7 +32,13 @@ set(SOURCE_FILES
         codepad/utilities/textproc.h
         codepad/main.cpp)
 
-add_definitions(-DUNICODE -D_UNICODE)
+add_definitions(-DUNICODE -D_UNICODE -DCP_LOG_STACKTRACE)
+
+if(WIN32)
+    add_definitions(-DCP_PLATFORM_WINDOWS)
+elseif(UNIX)
+    add_definitions(-DCP_PLATFORM_UNIX)
+endif()
 
 add_executable(codepad ${SOURCE_FILES})
-target_link_libraries(codepad opengl32 glew32 gdi32 freetype)
+target_link_libraries(codepad opengl32 glew32.dll gdi32 freetype)

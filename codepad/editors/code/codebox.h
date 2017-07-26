@@ -9,121 +9,126 @@
 
 #include "../../ui/element.h"
 #include "../../ui/manager.h"
-#include "../../ui/textrenderer.h"
+#include "../../ui/draw.h"
 #include "../../os/window.h"
 
 namespace codepad {
 	namespace editor {
-		class codebox;
-		class codebox_editor;
+		namespace code {
+			class codebox;
+			class editor;
 
-		class codebox_component : public ui::element { // TODO move focus to codebox, make elements non-focusable
-			friend class codebox;
-		public:
-		protected:
-			codebox *_get_box() const;
-			codebox_editor *_get_editor() const;
+			class component : public ui::element { // TODO move focus to codebox, make elements non-focusable
+				friend class codebox;
+			public:
+			protected:
+				codebox *_get_box() const;
+				editor *_get_editor() const;
 
-			virtual void _on_added() {
-			}
-			virtual void _on_removing() {
-			}
-		};
-		class codebox : public ui::panel_base {
-			friend class codebox_editor;
-		public:
-			void set_vertical_position(double p) {
-				_vscroll->set_value(p);
-			}
-			double get_vertical_position() const {
-				return _vscroll->get_value();
-			}
-
-			void make_point_visible(vec2d v) {
-				_vscroll->make_point_visible(v.y);
-				// TODO horizontal view
-			}
-
-			bool override_children_layout() const override {
-				return true;
-			}
-
-			codebox_editor *get_editor() const {
-				return _editor;
-			}
-
-			void add_component_left(codebox_component &e) {
-				_add_component_to(e, _lcs);
-			}
-			void remove_component_left(codebox_component &e) {
-				_remove_component_from(e, _lcs);
-			}
-
-			void add_component_right(codebox_component &e) {
-				_add_component_to(e, _rcs);
-			}
-			void remove_component_right(codebox_component &e) {
-				_remove_component_from(e, _rcs);
-			}
-
-			event<value_update_info<double>> vertical_viewport_changed;
-		protected:
-			ui::scroll_bar *_vscroll;
-			codebox_editor *_editor;
-			std::vector<codebox_component*> _lcs, _rcs;
-
-			void _add_component_to(codebox_component &e, std::vector<codebox_component*> &v) {
-				_children.add(e);
-				v.push_back(&e);
-				e._on_added();
-			}
-			void _remove_component_from(codebox_component &e, std::vector<codebox_component*> &v) {
-				assert_true_usgerr(e.parent() == this, "the component is not a child of this codebox");
-				auto it = std::find(v.begin(), v.end(), &e);
-				assert_true_logical(it != v.end(), "component not found in expected list");
-				e._on_removing();
-				v.erase(it);
-				_children.remove(e);
-			}
-
-			void _reset_scrollbars();
-			void _on_content_modified() {
-				_reset_scrollbars();
-			}
-
-			void _on_mouse_scroll(ui::mouse_scroll_info&) override;
-
-			void _finish_layout() override;
-
-			void _initialize() override;
-			void _dispose() override {
-				while (_lcs.size() > 0) {
-					codebox_component &cmp = *_lcs.back();
-					_remove_component_from(cmp, _lcs);
-					if (_dispose_children) {
-						ui::manager::get().mark_disposal(cmp);
-					}
+				virtual void _on_added() {
 				}
-				while (_rcs.size() > 0) {
-					codebox_component &cmp = *_rcs.back();
-					_remove_component_from(cmp, _rcs);
-					if (_dispose_children) {
-						ui::manager::get().mark_disposal(cmp);
-					}
+				virtual void _on_removing() {
+				}
+			};
+			class codebox : public ui::panel_base {
+				friend class editor;
+			public:
+				void set_vertical_position(double p) {
+					_vscroll->set_value(p);
+				}
+				double get_vertical_position() const {
+					return _vscroll->get_value();
 				}
 
-				panel_base::_dispose();
-			}
-		};
+				void make_point_visible(vec2d v) {
+					_vscroll->make_point_visible(v.y);
+					// TODO horizontal view
+				}
 
-		inline codebox *codebox_component::_get_box() const {
+				bool override_children_layout() const override {
+					return true;
+				}
+
+				editor *get_editor() const {
+					return _editor;
+				}
+
+				void add_component_left(component &e) {
+					_add_component_to(e, _lcs);
+				}
+				void remove_component_left(component &e) {
+					_remove_component_from(e, _lcs);
+				}
+
+				void add_component_right(component &e) {
+					_add_component_to(e, _rcs);
+				}
+				void remove_component_right(component &e) {
+					_remove_component_from(e, _rcs);
+				}
+
+				event<value_update_info<double>> vertical_viewport_changed;
+			protected:
+				ui::scroll_bar *_vscroll;
+				editor *_editor;
+				std::vector<component*> _lcs, _rcs;
+
+				void _add_component_to(component &e, std::vector<component*> &v) {
+					_children.add(e);
+					v.push_back(&e);
+					e._on_added();
+				}
+				void _remove_component_from(component &e, std::vector<component*> &v) {
+					assert_true_usage(e.parent() == this, "the component is not a child of this codebox");
+					auto it = std::find(v.begin(), v.end(), &e);
+					assert_true_logical(it != v.end(), "component not found in expected list");
+					e._on_removing();
+					v.erase(it);
+					_children.remove(e);
+				}
+
+				void _reset_scrollbars();
+				void _on_content_modified() {
+					_reset_scrollbars();
+				}
+
+				void _on_mouse_scroll(ui::mouse_scroll_info&) override;
+
+				void _finish_layout() override;
+
+				void _initialize() override;
+				void _dispose() override {
+					while (_lcs.size() > 0) {
+						component &cmp = *_lcs.back();
+						_remove_component_from(cmp, _lcs);
+						if (_dispose_children) {
+							ui::manager::get().mark_disposal(cmp);
+						}
+					}
+					while (_rcs.size() > 0) {
+						component &cmp = *_rcs.back();
+						_remove_component_from(cmp, _rcs);
+						if (_dispose_children) {
+							ui::manager::get().mark_disposal(cmp);
+						}
+					}
+
+					panel_base::_dispose();
+				}
+			};
+
+			inline codebox *component::_get_box() const {
 #ifdef CP_DETECT_LOGICAL_ERRORS
-			codebox *cb = dynamic_cast<codebox*>(_parent);
-			assert_true_logical(cb, "the component is not a child of any codebox but certain actions are triggered");
-			return cb;
+				codebox *cb = dynamic_cast<codebox*>(_parent);
+				assert_true_logical(
+					cb != nullptr,
+					"the component is not a child of any codebox but certain actions are triggered"
+				);
+				return cb;
 #else
-			return static_cast<codebox*>(_parent);
+				return static_cast<codebox*>(_parent);
 #endif
+			}
 		}
 	}
 }

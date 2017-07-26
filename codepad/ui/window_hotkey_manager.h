@@ -36,7 +36,7 @@ namespace codepad {
 			void reset_groups_prefiltered(std::vector<element_hotkey_group_data> gp) {
 #ifdef CP_DETECT_USAGE_ERRORS
 				for (auto i = gp.begin(); i != gp.end(); ++i) {
-					assert_true_usgerr(i->reg, "hotkey group has no registered target");
+					assert_true_usage(i->reg, "hotkey group has no registered target");
 				}
 #endif
 				std::vector<_hotkey_group_state> hs;
@@ -66,7 +66,7 @@ namespace codepad {
 						_gests.clear();
 #ifdef CP_DETECT_USAGE_ERRORS
 						for (auto j = _groups.begin(); j != _groups.end(); ++j) {
-							assert_true_usgerr(j->state.is_empty(), "conflicting hotkey chains detected");
+							assert_true_usage(j->state.is_empty(), "conflicting hotkey chains detected");
 						}
 #endif
 						return true;
@@ -76,7 +76,7 @@ namespace codepad {
 				}
 				if (all_emp) {
 					if (_gests.size() > 1) {
-						CP_INFO("hotkey chain interrupted");
+						logger::get().log_info(CP_HERE, "hotkey chain interrupted");
 						chain_interrupted.invoke();
 					}
 					_gests.clear();

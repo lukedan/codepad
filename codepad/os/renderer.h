@@ -92,7 +92,7 @@ namespace codepad {
 			virtual void pop_matrix() = 0;
 
 			inline static renderer_base &get() {
-				assert_true_usgerr(_rend.rend, "renderer not yet created");
+				assert_true_usage(_rend.rend, "renderer not yet created");
 				return *_rend.rend;
 			}
 			template <typename T, typename ...Args> inline static void create_default(Args &&...args) {
@@ -104,11 +104,11 @@ namespace codepad {
 
 			struct _default_renderer {
 				template <typename T, typename ...Args> void create(Args &&...args) {
-					assert_true_usgerr(!rend, "renderer already created");
+					assert_true_usage(!rend, "renderer already created");
 					rend = new T(std::forward<Args>(args)...);
 				}
 				~_default_renderer() {
-					assert_true_usgerr(rend, "no renderer created yet");
+					assert_true_usage(rend, "no renderer created yet");
 					delete rend;
 				}
 				renderer_base *rend = nullptr;

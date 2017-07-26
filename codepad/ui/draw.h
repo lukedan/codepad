@@ -13,28 +13,27 @@ namespace codepad {
 				_cc(s.begin()), _end(s.end()), _ff(std::move(ff)), _tabw(tabsize * _ff.maximum_width()) {
 			}
 
-			bool end() const {
-				return _cc == _end;
+			void begin(ui::font_style fs) {
+				if (_cc != _end) {
+					_calc_char_metrics(fs);
+					_lstyle = fs;
+				}
 			}
-			bool next(ui::font_style fs) {
-				if (_cc == _end) {
-					return false;
+			void next(ui::font_style fs) {
+				++_cc;
+				_pos += _cw;
+				_lce = _pos;
+				if (_cc != _end) {
+					if (fs == _lstyle) {
+						_pos += _ff.get_by_style(fs)->get_kerning(_curc, *_cc).x;
+					}
+					_pos = std::round(_pos);
+					_calc_char_metrics(fs);
+					_lstyle = fs;
 				}
-				_pos += _ndiff;
-				_curc = *_cc;
-				_cet = &_ff.get_by_style(fs)->get_char_entry(_curc);
-				if (_curc == '\t') {
-					_cw = _tabw * (std::floor(_pos / _tabw) + 1.0) - _pos;
-				} else {
-					_cw = _cet->advance;
-				}
-				_ndiff = _cw;
-				if (++_cc != _end && fs == _lstyle) {
-					_ndiff += _ff.get_by_style(fs)->get_kerning(_curc, *_cc).x;
-				}
-				_ndiff = std::round(_ndiff);
-				_lstyle = fs;
-				return true;
+			}
+			bool ended() const {
+				return _cc == _end;
 			}
 
 			double char_left() const {
@@ -43,8 +42,8 @@ namespace codepad {
 			double char_right() const {
 				return _pos + _cw;
 			}
-			double next_char_left() const {
-				return _pos + _ndiff;
+			double prev_char_right() const {
+				return _lce;
 			}
 			char_t current_char() const {
 				return _curc;
@@ -52,13 +51,31 @@ namespace codepad {
 			const ui::font::entry &current_char_entry() const {
 				return *_cet;
 			}
+
+			void set_tab_width(double tw) {
+				_tabw = tw * _ff.maximum_width();
+			}
+
+			font_family get_font_family() const {
+				return _ff;
+			}
 		protected:
 			ui::font_style _lstyle = ui::font_style::normal;
 			str_t::const_iterator _cc, _end;
 			ui::font_family _ff;
-			double _ndiff = 0.0, _cw = 0.0, _pos = 0.0, _tabw;
+			double _lce = 0.0, _cw = 0.0, _pos = 0.0, _tabw;
 			char_t _curc = U'\0';
 			const ui::font::entry *_cet = nullptr;
+
+			void _calc_char_metrics(ui::font_style fs) {
+				_curc = *_cc;
+				_cet = &_ff.get_by_style(fs)->get_char_entry(_curc);
+				if (_curc == '\t') {
+					_cw = _tabw * (std::floor(_pos / _tabw) + 1.0) - _pos;
+				} else {
+					_cw = _cet->advance;
+				}
+			}
 		};
 
 		namespace text_renderer {
@@ -105,5 +122,37 @@ namespace codepad {
 				return vec2d(std::max(maxw, curline + lastw), static_cast<double>(linen) * std::ceil(fnt.height()));
 			}
 		}
+
+		struct render_batch {
+		public:
+			void add_triangle(vec2d v1, vec2d v2, vec2d v3, vec2d uv1, vec2d uv2, vec2d uv3, colord c1, colord c2, colord c3) {
+				_vs.push_back(v1);
+				_vs.push_back(v2);
+				_vs.push_back(v3);
+				_uvs.push_back(uv1);
+				_uvs.push_back(uv2);
+				_uvs.push_back(uv3);
+				_cs.push_back(c1);
+				_cs.push_back(c2);
+				_cs.push_back(c3);
+			}
+			void add_quad(rectd r, vec2d uvtl, vec2d uvtr, vec2d uvbl, vec2d uvbr, colord ctl, colord ctr, colord cbl, colord cbr) {
+				add_triangle(r.xmin_ymin(), r.xmax_ymin(), r.xmin_ymax(), uvtl, uvtr, uvbl, ctl, ctr, cbl);
+				add_triangle(r.xmax_ymin(), r.xmax_ymax(), r.xmin_ymax(), uvtr, uvbr, uvbl, ctr, cbr, cbl);
+			}
+			void add_quad(rectd r, rectd uv, colord ctl, colord ctr, colord cbl, colord cbr) {
+				add_quad(r, uv.xmin_ymin(), uv.xmax_ymin(), uv.xmin_ymax(), uv.xmax_ymax(), ctl, ctr, cbl, cbr);
+			}
+			void add_quad(rectd r, rectd uv, colord c) {
+				add_quad(r, uv, c, c, c, c);
+			}
+
+			void draw(os::texture_id tex) {
+				os::renderer_base::get().draw_triangles(_vs.data(), _uvs.data(), _cs.data(), _vs.size(), tex);
+			}
+		protected:
+			std::vector<vec2d> _vs, _uvs;
+			std::vector<colord> _cs;
+		};
 	}
 }

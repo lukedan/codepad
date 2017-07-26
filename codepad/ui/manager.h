@@ -81,7 +81,7 @@ namespace codepad {
 						_del.erase(*i);
 						(*i)->_dispose();
 #ifndef NDEBUG
-						assert_true_usgerr(!(*i)->_initialized, "element::_dispose() must be invoked by children classses");
+						assert_true_usage(!(*i)->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
 						delete *i;
 					}

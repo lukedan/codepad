@@ -1,10 +1,16 @@
 #pragma once
 
 #include <cmath>
+#include <exception>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 #include <cassert>
+#include <cstdlib>
 #include <algorithm>
 #include <type_traits>
+
+#include "textproc.h"
 
 namespace codepad {
 	template <typename T> struct vec2 {
@@ -14,14 +20,8 @@ namespace codepad {
 
 		T x = 0, y = 0;
 
-		T &operator[](size_t sub) {
-			assert_true_usage(sub < 2, "invalid subscript");
-			return (&x)[sub];
-		}
-		const T &operator[](size_t sub) const {
-			assert_true_usage(sub < 2, "invalid subscript");
-			return (&x)[sub];
-		}
+		T &operator[](size_t);
+		const T &operator[](size_t) const;
 
 		template <typename U> constexpr vec2<U> convert() const {
 			return vec2<U>(static_cast<U>(x), static_cast<U>(y));
@@ -465,19 +465,109 @@ namespace codepad {
 		return v | static_cast<T>(bit);
 	}
 	template <typename T, typename U> inline T with_bit_unset(T v, U bit) {
-		return v & static_cast<T>(~static_cast<T>(bit));
+		return v & ~static_cast<T>(bit);
 	}
-}
 
-namespace codepad {
-	template <typename T> inline void print_to_cout(T &&arg) {
-		std::cout << std::forward<T>(arg);
+
+	template <typename St, typename T> inline void print_to(St &s, T &&arg) {
+		s << std::forward<T>(arg);
 	}
-	template <typename First, typename ...Others> inline void print_to_cout(First &&f, Others &&...args) {
-		print_to_cout(std::forward<First>(f));
-		print_to_cout(std::forward<Others>(args)...);
+	template <typename St, typename First, typename ...Others> inline void print_to(St &s, First &&f, Others &&...args) {
+		print_to(s, std::forward<First>(f));
+		print_to(s, std::forward<Others>(args)...);
 	}
-#define CP_INFO(...) ::codepad::print_to_cout("INFO|", __func__, ":", __LINE__, "|", __VA_ARGS__, "\n")
+
+	enum class log_level {
+		other,
+		info,
+		warning,
+		error
+	};
+	struct code_position {
+		code_position(const char *fil, const char *func, int l) : file(fil), function(func), line(l) {
+		}
+
+		friend std::ostream &operator<<(std::ostream &out, const code_position &cp) {
+			return out << cp.function << " @" << cp.file << ":" << cp.line;
+		}
+
+		const char *file, *function;
+		int line;
+	};
+#define CP_HERE ::codepad::code_position(__FILE__, __func__, __LINE__)
+	struct logger {
+	public:
+		logger() : logger("default.log") {
+		}
+		explicit logger(const std::string &s) : _fout(s, std::ios::app), _epoch(std::chrono::high_resolution_clock::now()) {
+			log_raw("\n\n####################\n\n");
+			log_info(CP_HERE, "new logger \"", s, "\" created");
+		}
+		~logger() {
+			log_info(CP_HERE, "session shutdown");
+		}
+
+		template <typename ...Args> void log(log_level level, const code_position &cp, Args &&...args) {
+			switch (level) {
+			case log_level::info:
+				log_info(cp, std::forward<Args>(args)...);
+				break;
+			case log_level::warning:
+				log_warning(cp, std::forward<Args>(args)...);
+				break;
+			case log_level::error:
+				log_error(cp, std::forward<Args>(args)...);
+				break;
+			default:
+				log_raw(std::forward<Args>(args)...);
+				break;
+			}
+		}
+		template <typename ...Args> void log_info(const code_position &cp, Args &&...args) {
+			_log_fmt("INFO", cp, std::forward<Args>(args)...);
+		}
+		template <typename ...Args> void log_warning(const code_position &cp, Args &&...args) {
+			_log_fmt("WARNING", cp, std::forward<Args>(args)...);
+		}
+		template <typename ...Args> void log_error(const code_position &cp, Args &&...args) {
+			_log_fmt("ERROR", cp, std::forward<Args>(args)...);
+			_fout.flush();
+		}
+		template <typename ...Args> void log_error_with_stacktrace(const code_position &cp, Args &&...args) {
+			log_error(cp, std::forward<Args>(args)...);
+			log_stacktrace();
+			_fout.flush();
+		}
+
+		template <typename ...Args> void log_custom(Args &&...args) {
+			char ss[9];
+			std::snprintf(
+				ss, sizeof(ss) / sizeof(char),
+				"%8.02f", std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - _epoch).count()
+			);
+			log_raw(ss, "|", std::forward<Args>(args)..., "\n");
+		}
+		template <typename ...Args> void log_raw(Args &&...args) {
+			print_to(_fout, std::forward<Args>(args)...);
+			print_to(std::cout, std::forward<Args>(args)...);
+		}
+
+		void log_stacktrace();
+
+		void flush() {
+			_fout.flush();
+		}
+
+		static logger &get();
+	protected:
+		std::ofstream _fout;
+		std::chrono::time_point<std::chrono::high_resolution_clock> _epoch;
+
+		template <typename ...Args> void _log_fmt(const char *header, const code_position &cp, Args &&...args) {
+			log_custom(header, "|", cp, "|", std::forward<Args>(args)...);
+		}
+	};
+
 
 	enum class error_level {
 		system_error, // errors with system api, opengl, etc. nothing we can do
@@ -503,14 +593,14 @@ namespace codepad {
 
 	template <error_level Lvl> inline void assert_true(bool v, const char *msg) {
 		if (!v) {
-			throw std::exception(msg);
+			throw std::runtime_error(msg);
 		}
 	}
 
 #ifdef CP_DETECT_SYSTEM_ERRORS
 	template <> inline void assert_true<error_level::system_error>(bool v, const char *msg) {
 		if (!v) {
-			print_to_cout("System error encountered: ", msg, "\n");
+			logger::get().log_error_with_stacktrace(CP_HERE, "System error encountered: ", msg);
 			std::abort();
 		}
 	}
@@ -521,7 +611,7 @@ namespace codepad {
 #ifdef CP_DETECT_USAGE_ERRORS
 	template <> inline void assert_true<error_level::usage_error>(bool v, const char *msg) {
 		if (!v) {
-			print_to_cout("Usage error encountered: ", msg, "\n");
+			logger::get().log_error_with_stacktrace(CP_HERE, "Usage error encountered: ", msg);
 			std::abort();
 		}
 	}
@@ -532,7 +622,7 @@ namespace codepad {
 #ifdef CP_DETECT_LOGICAL_ERRORS
 	template <> inline void assert_true<error_level::logical_error>(bool v, const char *msg) {
 		if (!v) {
-			print_to_cout("Logical error encountered: ", msg, "\n");
+			logger::get().log_error_with_stacktrace(CP_HERE, "Logical error encountered: ", msg);
 			std::abort();
 		}
 	}
@@ -544,30 +634,125 @@ namespace codepad {
 	inline void assert_true_sys(bool v, const char *msg) {
 		assert_true<error_level::system_error>(v, msg);
 	}
-	inline void assert_true_usage(bool v, const char *msg) {
-		assert_true<error_level::usage_error>(v, msg);
-	}
-	inline void assert_true_logical(bool v, const char *msg) {
-		assert_true<error_level::logical_error>(v, msg);
-	}
 	inline void assert_true_sys(bool v) {
 		assert_true<error_level::system_error>(v, "default system error message");
+	}
+	inline void assert_true_usage(bool v, const char *msg) {
+		assert_true<error_level::usage_error>(v, msg);
 	}
 	inline void assert_true_usage(bool v) {
 		assert_true<error_level::usage_error>(v, "default usage error message");
 	}
+	inline void assert_true_logical(bool v, const char *msg) {
+		assert_true<error_level::logical_error>(v, msg);
+	}
 	inline void assert_true_logical(bool v) {
 		assert_true<error_level::logical_error>(v, "default logical error message");
 	}
+
+	template <typename T> inline T &vec2<T>::operator[](size_t sub) {
+		assert_true_usage(sub < 2, "invalid subscript");
+		return (&x)[sub];
+	}
+	template <typename T> inline const T &vec2<T>::operator[](size_t sub) const {
+		assert_true_usage(sub < 2, "invalid subscript");
+		return (&x)[sub];
+	}
 }
 
-#if defined(_MSC_VER) && defined(CP_DETECT_USAGE_ERRORS)
-#	define _CRTDBG_MAP_ALLOC
-#	include <stdlib.h>
-#	include <crtdbg.h>
+#if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
+// memory leak detection
+#	ifdef CP_DETECT_USAGE_ERRORS
+#		define _CRTDBG_MAP_ALLOC
+#		include <crtdbg.h>
 namespace codepad {
 	inline void enable_mem_checking() {
 		_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	}
+}
+#	endif
+#endif
+
+#ifdef CP_LOG_STACKTRACE
+#	if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
+#		include <Windows.h>
+#		pragma comment(lib, "dbghelp.lib")
+#		ifdef UNICODE
+#			define DBGHELP_TRANSLATE_TCHAR
+#		endif
+#		include <DbgHelp.h>
+#		undef min
+#		undef max
+namespace codepad {
+	inline void logger::log_stacktrace() {
+		constexpr static DWORD max_frames = 1000;
+		constexpr static size_t max_symbol_length = 1000;
+
+		log_custom("STACKTRACE");
+		void *frames[max_frames];
+		HANDLE proc = GetCurrentProcess();
+		unsigned char symmem[sizeof(SYMBOL_INFO) + max_symbol_length * sizeof(TCHAR)];
+		PSYMBOL_INFO syminfo = reinterpret_cast<PSYMBOL_INFO>(symmem);
+		syminfo->MaxNameLen = max_symbol_length;
+		syminfo->SizeOfStruct = sizeof(SYMBOL_INFO);
+		IMAGEHLP_LINE64 lineinfo;
+		lineinfo.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+		DWORD line_disp;
+		assert_true_sys(
+			SymInitialize(GetCurrentProcess(), nullptr, true),
+			"failed to initialize symbols"
+		);
+		WORD numframes = CaptureStackBackTrace(0, max_frames, frames, nullptr);
+		for (WORD i = 0; i < numframes; ++i) {
+			DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
+			std::string func, file, line;
+			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
+				func = convert_to_utf8<TCHAR>(syminfo->Name);
+			} else {
+				func = "??(" + std::to_string(GetLastError()) + ")";
+			}
+			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
+				file = convert_to_utf8<TCHAR>(lineinfo.FileName);
+				line = std::to_string(lineinfo.LineNumber);
+			} else {
+				file = "??";
+				line = "??(" + std::to_string(GetLastError()) + ")";
+			}
+			log_custom("    ", func, "(0x", frames[i], ") @", file, ":", line);
+		}
+		assert_true_sys(SymCleanup(GetCurrentProcess()), "failed to clean up symbols");
+		log_custom("STACKTRACE|END");
+	}
+}
+#	elif defined(CP_PLATFORM_UNIX) && defined(__GNUC__)
+#		include <execinfo.h>
+namespace codepad {
+	inline void logger::log_stacktrace() {
+		constexpr static int max_frames = 1000;
+
+		void *frames[max_frames];
+		int numframes = backtrace(frames, max_frames);
+		char **symbols = backtrace_symbols(frames, numframes);
+		assert_true_sys(symbols, "backtrace_symbols() failed");
+		log_custom("STACKTRACE");
+		for (int i = 0; i < numframes; ++i) {
+			log_custom("    ", symbols[i]);
+		}
+		log_custom("STACKTRACE|END");
+		free(symbols);
+	}
+}
+#	else
+namespace codepad {
+	inline void logger::log_stacktrace() {
+		log_warning(CP_HERE, "stacktrace logging is not supported with this configuration");
+	}
+}
+#	endif
+#else
+namespace codepad {
+	inline void logger::log_stacktrace() {
+		log_warning(CP_HERE, "stacktrace logging has been disabled");
 	}
 }
 #endif

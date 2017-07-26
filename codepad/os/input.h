@@ -66,7 +66,7 @@ namespace codepad {
 				case mouse_button::middle:
 					return is_key_down(key::middle_mouse);
 				}
-				assert_true_usgerr(false, "invalid mouse button encountered");
+				assert_true_usage(false, "invalid mouse button encountered");
 				return false;
 			}
 

@@ -17,7 +17,7 @@ namespace codepad {
 		}
 		void flush() {
 			std::lock_guard<std::mutex> guard(_lock);
-			if (_cbs.size() > 0) {
+			if (!_cbs.empty()) {
 				for (auto i = _cbs.begin(); i != _cbs.end(); ++i) {
 					(*i)();
 				}
@@ -66,10 +66,11 @@ namespace codepad {
 				return _st;
 			}
 			bool is_cancel_requested() const {
-				return _st == task_status::cancel_requested;
+				return _st.load() == task_status::cancel_requested;
 			}
 			bool is_finished() const {
-				return _st == task_status::completed || _st == task_status::cancelled;
+				task_status cst = _st.load();
+				return cst == task_status::completed || cst == task_status::cancelled;
 			}
 
 			template <typename T, typename Func> bool acquire_data(T &obj, const Func &f) {
@@ -107,7 +108,7 @@ namespace codepad {
 		typedef typename std::list<async_task>::iterator token;
 
 		template <typename T, typename ...Args> token run_task(T &&func, Args &&...args) {
-			assert_true_usgerr(std::this_thread::get_id() == _creator, "cannot run task from other threads");
+			assert_true_usage(std::this_thread::get_id() == _creator, "cannot run task from other threads");
 			_lst.emplace_back(async_task::operation_t(std::bind(
 				std::forward<T>(func), std::forward<Args>(args)..., std::placeholders::_1
 			)));

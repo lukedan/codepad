@@ -6,6 +6,11 @@
 #include "../editors/code/editor.h"
 
 namespace codepad { // TODO move singletons into functions
+	logger &logger::get() {
+		static logger _default;
+		return _default;
+	}
+
 	async_task_pool &async_task_pool::get() {
 		static async_task_pool _default;
 		return _default;
@@ -36,11 +41,13 @@ namespace codepad { // TODO move singletons into functions
 	namespace editor {
 		dock_manager dock_manager::_dman;
 
-		const ui::basic_pen *codebox_editor::_caretpen = nullptr;
-		const ui::basic_brush *codebox_editor::_selbrush = nullptr;
-		ui::font_family codebox_editor::_font;
-		double codebox_editor::_lines_per_scroll = 3.0;
-
 		constexpr ui::thickness tab_button::content_padding;
+
+		namespace code {
+			const ui::basic_pen *editor::_caretpen = nullptr;
+			const ui::basic_brush *editor::_selbrush = nullptr;
+			ui::font_family editor::_font;
+			double editor::_lines_per_scroll = 3.0;
+		}
 	}
 }

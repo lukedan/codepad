@@ -34,7 +34,7 @@ namespace codepad {
 	template <> inline str_t to_str<modifier_keys>(modifier_keys mk) {
 		std::basic_ostringstream<char_t> ss;
 		bool first = true;
-		unsigned mkv = static_cast<unsigned>(mk);
+		auto mkv = static_cast<unsigned>(mk);
 		if (test_bit_all(mkv, modifier_keys::control)) {
 			ss << "Control";
 			first = false;
@@ -66,7 +66,7 @@ namespace codepad {
 		key_gesture(os::input::key prim, modifier_keys k) : primary(prim), mod_keys(k) {
 		}
 
-		os::input::key primary;
+		os::input::key primary = os::input::key::escape;
 		modifier_keys mod_keys = modifier_keys::none;
 
 		friend bool operator==(key_gesture lhs, key_gesture rhs) {
@@ -103,7 +103,7 @@ namespace codepad {
 	template <typename Func> class hotkey_group {
 	public:
 		template <typename T> bool register_hotkey(const std::vector<key_gesture> &sks, T &&func) {
-			assert_true_usgerr(sks.size() > 0, "hotkey is blank");
+			assert_true_usage(sks.size() > 0, "hotkey is blank");
 			auto i = sks.begin();
 			_gesture_rec *c = &_reg;
 			for (; i != sks.end(); ++i) {
@@ -150,8 +150,10 @@ namespace codepad {
 		struct _gesture_rec {
 			_gesture_rec() : next_layer(), is_leaf(false) {
 			}
-			_gesture_rec(std::function<Func> cb) : callback(std::move(cb)), is_leaf(true) {
+			explicit _gesture_rec(std::function<Func> cb) : callback(std::move(cb)), is_leaf(true) {
 			}
+			_gesture_rec(const _gesture_rec&) = delete;
+			_gesture_rec &operator=(const _gesture_rec&) = delete;
 			~_gesture_rec() {
 				if (is_leaf) {
 					callback.~function();
@@ -185,7 +187,7 @@ namespace codepad {
 			}
 
 			const std::function<Func> &get_callback() const {
-				assert_true_usgerr(is_trigger(), "intermediate nodes doesn't have callbacks");
+				assert_true_usage(is_trigger(), "intermediate nodes doesn't have callbacks");
 				return _ptr->callback;
 			}
 
@@ -196,7 +198,7 @@ namespace codepad {
 				return !(lhs == rhs);
 			}
 		private:
-			state(const _gesture_rec *rec) : _ptr(rec) {
+			explicit state(const _gesture_rec *rec) : _ptr(rec) {
 			}
 
 			const _gesture_rec *_ptr = nullptr;

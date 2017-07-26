@@ -76,7 +76,10 @@ namespace codepad {
 			mutable std::unordered_map<char_t, entry> _map;
 
 			inline static void _ft_verify(FT_Error code) {
-				assert_true_syserr(code == 0, "FreeType error");
+				if (code) {
+					logger::get().log_error(CP_HERE, "FreeType error code ", code);
+					assert_true_sys(false, "FreeType error");
+				}
 			}
 
 			struct _library {
@@ -117,7 +120,7 @@ namespace codepad {
 					case font_style::bold_italic:
 						return bold_italic_diff;
 					}
-					assert_true_usgerr(false, "invalid font style encountered");
+					assert_true_usage(false, "invalid font style encountered");
 					return 0.0;
 				}
 			};
@@ -154,7 +157,7 @@ namespace codepad {
 				case font_style::bold_italic:
 					return bold_italic;
 				}
-				assert_true_usgerr(false, "invalid font style encountered");
+				assert_true_usage(false, "invalid font style encountered");
 				return nullptr;
 			}
 		};
