@@ -35,7 +35,7 @@ namespace codepad {
 
 			class minimap : public component {
 			public:
-				constexpr static double scale = 0.1;
+				constexpr static double scale = 0.1, page_rendering_time_redline = 30.0;
 				constexpr static size_t maximum_width = 150, minimum_page_size = 500; // in pixels
 
 				vec2d get_desired_size() const override {
@@ -83,15 +83,15 @@ namespace codepad {
 
 				void _on_added() override {
 					_text_tok = (
-						_get_editor()->display_changed +=
-						std::bind(&minimap::_on_editor_display_changed, this)
+						_get_editor()->visual_changed +=
+						std::bind(&minimap::_on_editor_visual_changed, this)
 						);
 					_vpos_tok = (_get_box()->vertical_viewport_changed += [this](value_update_info<double>&) {
 						_on_viewport_changed();
 					});
 				}
 				void _on_removing() override {
-					_get_editor()->display_changed -= _text_tok;
+					_get_editor()->visual_changed -= _text_tok;
 					_get_box()->vertical_viewport_changed -= _vpos_tok;
 				}
 
@@ -155,10 +155,12 @@ namespace codepad {
 					os::renderer_base::get().pop_matrix();
 					os::renderer_base::get().end_framebuffer();
 
-					auto dur = std::chrono::high_resolution_clock::now() - start_time;
-					logger::get().log_info(
-						CP_HERE, "minimap rendering cost ", std::chrono::duration<double, std::milli>(dur).count(), "ms"
-					);
+					double dur = std::chrono::duration<double, std::milli>(
+						std::chrono::high_resolution_clock::now() - start_time
+						).count();
+					if (dur > page_rendering_time_redline) {
+						logger::get().log_info(CP_HERE, "minimap rendering cost ", dur, "ms");
+					}
 					return buf;
 				}
 
@@ -216,7 +218,7 @@ namespace codepad {
 						}
 					}
 				}
-				void _on_editor_display_changed() {
+				void _on_editor_visual_changed() {
 					_restart_cache();
 				}
 

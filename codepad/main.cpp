@@ -43,11 +43,13 @@ int main() {
 		}
 	});
 
-	ctx.load_from_file(U"hugetext.cpp");
 	content_host::set_default_font(&fnt);
 	code::editor::set_font(font_family(codefnt, codefnt, codefnt, codefnt));
 	code::editor::set_caret_pen(&p);
 	code::editor::set_selection_brush(&texb);
+
+	ctx.load_from_file(U"hugetext.cpp");
+	ctx.auto_set_default_line_ending();
 
 	tab *codetab = dock_manager::get().new_tab();
 	codetab->set_caption(U"code");
@@ -60,12 +62,11 @@ int main() {
 	cp->add_component_right(*mmp);
 
 	cpe->set_context(&ctx);
-	cpe->auto_set_line_ending();
 	codetab->children().add(*cp);
 
 	auto tok = async_task_pool::get().run_task([&ctx, cpe](async_task_pool::async_task &tk) {
 		code::text_theme_data data;
-		for (size_t i = 0; i < 220000; i += 10) {
+		for (size_t i = 0; i < 1340000; i += 10) {
 			double n6 = std::rand() / (double)RAND_MAX, n7 = std::rand() / (double)RAND_MAX, n8 = std::rand() / (double)RAND_MAX;
 			data.set_range(
 				code::caret_position(i, 1),

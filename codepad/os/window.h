@@ -245,9 +245,12 @@ namespace codepad {
 				for (auto i = ss.begin(); i != ss.end(); ++i) {
 					(*i)->_on_render();
 				}
-				logger::get().log_info(CP_HERE, "repaint ", std::chrono::duration<double, std::milli>(
+				double dur = std::chrono::duration<double, std::milli>(
 					std::chrono::high_resolution_clock::now() - start
-					).count(), "ms");
+					).count();
+				if (dur > render_time_redline) {
+					logger::get().log_info(CP_HERE, "render cost ", dur, "ms");
+				}
 			}
 		}
 		inline void manager::set_focus(element *elem) {

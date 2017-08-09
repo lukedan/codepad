@@ -76,7 +76,7 @@ namespace codepad {
 			mutable std::unordered_map<char_t, entry> _map;
 
 			inline static void _ft_verify(FT_Error code) {
-				if (code) {
+				if (code != 0) {
 					logger::get().log_error(CP_HERE, "FreeType error code ", code);
 					assert_true_sys(false, "FreeType error");
 				}

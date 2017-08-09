@@ -41,4 +41,4 @@ elseif(UNIX)
 endif()
 
 add_executable(codepad ${SOURCE_FILES})
-target_link_libraries(codepad opengl32 glew32.dll gdi32 freetype)
+target_link_libraries(codepad opengl32 gdi32 freetype)

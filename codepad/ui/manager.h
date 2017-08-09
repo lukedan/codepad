@@ -12,6 +12,8 @@ namespace codepad {
 		class manager {
 			friend class element;
 		public:
+			constexpr static double relayout_time_redline = 10.0, render_time_redline = 40.0;
+
 			inline static manager &get() {
 				return _sman;
 			}
@@ -44,7 +46,7 @@ namespace codepad {
 			}
 			void update_scheduled_elements() {
 				_now = std::chrono::high_resolution_clock::now();
-#ifndef NDEBUG
+#ifdef CP_DETECT_USAGE_ERRORS
 				_updating = true;
 #endif
 				if (!_upd.empty()) {
@@ -54,17 +56,20 @@ namespace codepad {
 						(*i)->_on_update();
 					}
 				}
-#ifndef NDEBUG
+#ifdef CP_DETECT_USAGE_ERRORS
 				_updating = false;
 #endif
 				_lasttp = _now;
 			}
 			std::chrono::duration<double> delta_time() const {
-				assert(_updating);
+#ifdef CP_DETECT_USAGE_ERRORS
+				assert_true_usage(_updating, "can only get delta time while updating");
+#endif
 				return _now - _lasttp;
 			}
 
-			void mark_disposal(element &e) { // may be called on one element multiple times before the element's disposed
+			// may be called on one element multiple times before the element's disposed
+			void mark_disposal(element &e) {
 				_del.insert(&e);
 			}
 			void dispose_marked_elements() {
@@ -80,7 +85,7 @@ namespace codepad {
 						_upd.erase(*i);
 						_del.erase(*i);
 						(*i)->_dispose();
-#ifndef NDEBUG
+#ifdef CP_DETECT_USAGE_ERRORS
 						assert_true_usage(!(*i)->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
 						delete *i;
@@ -122,7 +127,7 @@ namespace codepad {
 			// scheduled controls to update
 			std::chrono::time_point<std::chrono::high_resolution_clock> _lasttp, _now;
 			std::set<element*> _upd;
-#ifndef NDEBUG
+#ifdef CP_DETECT_USAGE_ERRORS
 			bool _updating = false;
 #endif
 			// scheduled controls to delete

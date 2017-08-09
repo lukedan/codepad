@@ -295,9 +295,12 @@ namespace codepad {
 					li.elem->_finish_layout();
 				}
 				_layouting = false;
-				logger::get().log_info(CP_HERE, "relayout ", std::chrono::duration<double, std::milli>(
+				double dur = std::chrono::duration<double, std::milli>(
 					std::chrono::high_resolution_clock::now() - start
-					).count(), "ms");
+					).count();
+				if (dur > relayout_time_redline) {
+					logger::get().log_info(CP_HERE, "relayout cost ", dur, "ms");
+				}
 			}
 		}
 

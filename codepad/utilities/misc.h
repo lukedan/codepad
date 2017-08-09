@@ -448,6 +448,21 @@ namespace codepad {
 		}
 		return v > max ? max : v;
 	}
+	template <typename S, typename U> inline S unsigned_diff(U lhs, U rhs) {
+		static_assert(std::is_unsigned<U>::value, "must pass unsigned value");
+		static_assert(std::is_signed<S>::value, "must pass signed value");
+		return lhs > rhs ? static_cast<S>(lhs - rhs) : -static_cast<S>(rhs - lhs);
+	}
+	template <typename S, typename U> inline U add_unsigned_diff(U lhs, S rhs) {
+		static_assert(std::is_unsigned<U>::value, "must pass unsigned value");
+		static_assert(std::is_signed<S>::value, "must pass signed value");
+		return rhs > 0 ? lhs + static_cast<U>(rhs) : lhs - static_cast<U>(-rhs);
+	}
+	template <typename S, typename U> inline U subtract_unsigned_diff(U lhs, S rhs) {
+		static_assert(std::is_unsigned<U>::value, "must pass unsigned value");
+		static_assert(std::is_signed<S>::value, "must pass signed value");
+		return rhs > 0 ? lhs - static_cast<U>(rhs) : lhs + static_cast<U>(-rhs);
+	}
 
 	template <typename T, typename U> inline bool test_bit_all(T v, U bit) {
 		return (v & static_cast<T>(bit)) == static_cast<T>(bit);
