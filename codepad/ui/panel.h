@@ -17,7 +17,7 @@ namespace codepad {
 		};
 		class element_collection {
 		public:
-			element_collection(panel_base &b) : _f(b) {
+			explicit element_collection(panel_base &b) : _f(b) {
 			}
 			~element_collection() {
 				for (auto i = _cs.begin(); i != _cs.end(); ++i) {

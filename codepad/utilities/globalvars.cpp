@@ -4,6 +4,7 @@
 #include "../ui/commonelements.h"
 #include "../editors/docking.h"
 #include "../editors/code/editor.h"
+#include "../editors/code/components.h"
 
 namespace codepad { // TODO move singletons into functions
 	logger &logger::get() {
@@ -48,6 +49,8 @@ namespace codepad { // TODO move singletons into functions
 			const ui::basic_brush *editor::_selbrush = nullptr;
 			ui::font_family editor::_font;
 			double editor::_lines_per_scroll = 3.0;
+
+			const ui::basic_brush *minimap::_viewport_brush = nullptr;
 		}
 	}
 }

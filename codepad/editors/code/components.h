@@ -44,6 +44,13 @@ namespace codepad {
 						static_cast<double>(maximum_width), cb->get_actual_size().x * scale / (1.0 + scale)
 						), 0.0);
 				}
+
+				inline static void set_viewport_brush(const ui::basic_brush *b) {
+					_viewport_brush = b;
+				}
+				inline static const ui::basic_brush *get_viewport_brush() {
+					return _viewport_brush;
+				}
 			protected:
 				void _render() const override {
 					std::pair<size_t, size_t> vlines = _get_visible_lines();
@@ -58,6 +65,9 @@ namespace codepad {
 						crgn.ymax = crgn.ymin + i->second.get_height();
 						os::renderer_base::get().draw_quad(crgn, rectd(0.0, 1.0, 0.0, 1.0), colord(), i->second.get_texture());
 					}
+					if (_viewport_brush != nullptr) {
+						_viewport_brush->fill_rect(_get_viewport_rect());
+					}
 				}
 
 				double _get_y_offset() const {
@@ -66,32 +76,37 @@ namespace codepad {
 					size_t nlines = editor->get_context()->num_lines();
 					double
 						lh = editor->get_line_height(),
-						vh = editor->get_client_region().height(),
+						vh = get_client_region().height(),
 						maxh = nlines * lh - vh,
 						maxvh = nlines * lh * scale - vh,
 						perc = _get_box()->get_vertical_position() / maxh;
 					perc = clamp(perc, 0.0, 1.0);
 					return std::max(0.0, perc * maxvh);
 				}
+				rectd _get_viewport_rect() const {
+					const editor *e = _get_editor();
+					rectd clnrgn = get_client_region();
+					return rectd::from_xywh(
+						clnrgn.xmin, clnrgn.ymin - _get_y_offset() + _get_box()->get_vertical_position() * scale,
+						e->get_client_region().width() * scale, get_client_region().height() * scale
+					);
+				}
 				std::pair<size_t, size_t> _get_visible_lines() const {
 					const editor *editor = _get_editor();
 					double lh = editor->get_line_height() * scale, ys = _get_y_offset();
 					return std::make_pair(static_cast<size_t>(ys / lh), std::min(
-						static_cast<size_t>((ys + editor->get_client_region().height()) / lh) + 1, editor->get_context()->num_lines()
+						static_cast<size_t>((ys + get_client_region().height()) / lh) + 1, editor->get_context()->num_lines()
 					));
 				}
 
 				void _on_added() override {
-					_text_tok = (
-						_get_editor()->visual_changed +=
-						std::bind(&minimap::_on_editor_visual_changed, this)
-						);
+					_vc_tok = (_get_editor()->content_visual_changed += std::bind(&minimap::_on_editor_visual_changed, this));
 					_vpos_tok = (_get_box()->vertical_viewport_changed += [this](value_update_info<double>&) {
 						_on_viewport_changed();
 					});
 				}
 				void _on_removing() override {
-					_get_editor()->visual_changed -= _text_tok;
+					_get_editor()->content_visual_changed -= _vc_tok;
 					_get_box()->vertical_viewport_changed -= _vpos_tok;
 				}
 
@@ -108,6 +123,7 @@ namespace codepad {
 
 					ui::font_family::baseline_info bi = editor::get_font().get_baseline_info();
 					// TODO improve drawing method
+					ui::render_batch rb;
 					std::vector<vec2d> poss;
 					std::vector<colord> colors;
 					character_rendering_iterator it(*ce, s, pe);
@@ -120,26 +136,7 @@ namespace codepad {
 									ci.char_left(),
 									(std::round((it.y_offset() + bi.get(ti.current_theme.style)) * scale + buftop) - rbtop) / scale
 								));
-								poss.push_back(crec.xmin_ymin());
-								poss.push_back(crec.xmax_ymin());
-								poss.push_back(crec.xmin_ymax());
-								poss.push_back(crec.xmax_ymin());
-								poss.push_back(crec.xmax_ymax());
-								poss.push_back(crec.xmin_ymax());
-								colors.push_back(ti.current_theme.color);
-								colors.push_back(ti.current_theme.color);
-								colors.push_back(ti.current_theme.color);
-								colors.push_back(ti.current_theme.color);
-								colors.push_back(ti.current_theme.color);
-								colors.push_back(ti.current_theme.color);
-
-								//os::renderer_base::get().draw_quad(
-								//	ci.current_char_entry().placement.translated(vec2d(
-								//		ci.char_left(),
-								//		(std::round((it.y_offset() + bi.get(ti.current_theme.style)) * scale + buftop) - rbtop) / scale
-								//	)),
-								//	rectd(), ti.current_theme.color, 0
-								//);
+								rb.add_quad(crec, rectd(), ti.current_theme.color);
 
 								//os::renderer_base::get().draw_character(
 								//	ci.current_char_entry().texture,
@@ -150,8 +147,7 @@ namespace codepad {
 							}
 						}
 					}
-					os::renderer_base::get().draw_triangles(poss.data(), nullptr, colors.data(), poss.size(), 0);
-
+					rb.draw(0);
 					os::renderer_base::get().pop_matrix();
 					os::renderer_base::get().end_framebuffer();
 
@@ -159,7 +155,7 @@ namespace codepad {
 						std::chrono::high_resolution_clock::now() - start_time
 						).count();
 					if (dur > page_rendering_time_redline) {
-						logger::get().log_info(CP_HERE, "minimap rendering cost ", dur, "ms");
+						logger::get().log_info(CP_HERE, "minimap rendering [", s, ", ", pe, ") cost ", dur, "ms");
 					}
 					return buf;
 				}
@@ -184,7 +180,9 @@ namespace codepad {
 							_page_end = page_beg + pgsize;
 						}
 					}
+					logger::get().log_info(CP_HERE, "minimap cache cleared");
 					_pgs.insert(std::make_pair(page_beg, _render_page(page_beg, _page_end)));
+					invalidate_visual();
 				}
 				void _on_viewport_changed() {
 					if (_pgs.empty()) {
@@ -222,10 +220,57 @@ namespace codepad {
 					_restart_cache();
 				}
 
+				void _on_mouse_down(ui::mouse_button_info &info) override {
+					if (info.button == os::input::mouse_button::left) {
+						rectd rv = _get_viewport_rect();
+						if (rv.contains(info.position)) {
+							_dragoffset = rv.ymin - info.position.y;
+							get_window()->set_mouse_capture(*this);
+							_dragging = true;
+						} else {
+							double ch = get_client_region().height();
+							const editor *edt = _get_editor();
+							_get_box()->set_vertical_position(std::min(
+								(info.position.y - get_client_region().ymin + _get_y_offset()) / scale - 0.5 * ch,
+								edt->get_context()->num_lines() * edt->get_line_height() - ch
+							));
+						}
+					}
+				}
+				void _on_mouse_lbutton_up() {
+					if (_dragging) {
+						_dragging = false;
+						get_window()->release_mouse_capture();
+					}
+				}
+				void _on_mouse_up(ui::mouse_button_info &info) override {
+					if (info.button == os::input::mouse_button::left) {
+						_on_mouse_lbutton_up();
+					}
+				}
+				void _on_mouse_move(ui::mouse_move_info &info) override {
+					if (_dragging) {
+						const editor *edt = _get_editor();
+						const text_context *ctx = edt->get_context();
+						double
+							yp = info.new_pos.y + _dragoffset - get_client_region().ymin,
+							toth = ctx->num_lines() * edt->get_line_height() - get_client_region().height(),
+							totch = std::min(get_client_region().height() * (1.0 - scale), toth * scale);
+						_get_box()->set_vertical_position(toth * yp / totch);
+					}
+				}
+				void _on_capture_lost() override {
+					_on_mouse_lbutton_up();
+				}
+
 				size_t _page_end;
 				std::map<size_t, os::framebuffer> _pgs;
-				event<void>::token _text_tok;
+				bool _dragging = false;
+				double _dragoffset;
+				event<void>::token _vc_tok;
 				event<value_update_info<double>>::token _vpos_tok;
+
+				static const ui::basic_brush *_viewport_brush;
 			};
 		}
 	}

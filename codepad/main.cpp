@@ -28,6 +28,7 @@ int main() {
 	font fnt("segoeui.ttf", 14), codefnt("UbuntuMono-R.ttf", 16), f1("pala.ttf", 14), f2("times.ttf", 14);
 	pen p(colord(0.9, 0.9, 0.9, 1.0));
 	texture_brush texb(colord(0.0, 0.6, 1.0, 0.2));
+	texture_brush viewb(colord(0.5, 0.5, 1.0, 0.2));
 	element_hotkey_group hg;
 
 	hg.register_hotkey({key_gesture(input::key::z, modifier_keys::control)}, [](element *e) {
@@ -47,6 +48,7 @@ int main() {
 	code::editor::set_font(font_family(codefnt, codefnt, codefnt, codefnt));
 	code::editor::set_caret_pen(&p);
 	code::editor::set_selection_brush(&texb);
+	code::minimap::set_viewport_brush(&viewb);
 
 	ctx.load_from_file(U"hugetext.cpp");
 	ctx.auto_set_default_line_ending();

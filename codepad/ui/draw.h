@@ -150,6 +150,13 @@ namespace codepad {
 			void draw(os::texture_id tex) {
 				os::renderer_base::get().draw_triangles(_vs.data(), _uvs.data(), _cs.data(), _vs.size(), tex);
 			}
+
+			void reserve(size_t num) {
+				num *= 3;
+				_vs.reserve(num);
+				_uvs.reserve(num);
+				_cs.reserve(num);
+			}
 		protected:
 			std::vector<vec2d> _vs, _uvs;
 			std::vector<colord> _cs;

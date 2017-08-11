@@ -23,7 +23,7 @@ namespace codepad {
 					_cset.reset();
 					if (_ctx) {
 						_mod_tok = (_ctx->modified += std::bind(&editor::_on_content_modified, this));
-						_tc_tok = (_ctx->visual_changed += std::bind(&editor::_on_visual_changed, this));
+						_tc_tok = (_ctx->visual_changed += std::bind(&editor::_on_content_visual_changed, this));
 					}
 					_on_content_modified();
 				}
@@ -63,7 +63,7 @@ namespace codepad {
 					assert_true_logical(cs.carets.size() > 0, "must have at least one caret");
 					_cset = std::move(cs);
 					_make_caret_visible(_cset.carets.rbegin()->first.first);
-					_on_visual_changed();
+					_on_carets_changed();
 				}
 				template <typename GetData> void move_carets_raw(const GetData &gd) {
 					caret_set ncs;
@@ -121,7 +121,7 @@ namespace codepad {
 					));
 				}
 
-				event<void> visual_changed, content_modified;
+				event<void> content_visual_changed, content_modified, carets_changed;
 
 				inline static void set_font(const ui::font_family &ff) {
 					_font = ff;
@@ -203,10 +203,14 @@ namespace codepad {
 
 				void _on_content_modified() {
 					content_modified.invoke();
-					_on_visual_changed();
+					_on_content_visual_changed();
 				}
-				void _on_visual_changed() {
-					visual_changed.invoke();
+				void _on_content_visual_changed() {
+					content_visual_changed.invoke();
+					invalidate_visual();
+				}
+				void _on_carets_changed() {
+					carets_changed.invoke();
 					invalidate_visual();
 				}
 
@@ -214,7 +218,7 @@ namespace codepad {
 					assert_true_logical(!_selecting, "_begin_selection() called when selecting");
 					_selecting = true;
 					_cur_sel = csel;
-					_on_visual_changed();
+					_on_carets_changed();
 				}
 				void _end_selection() {
 					assert_true_logical(_selecting, "_end_selection() called when not selecting");
@@ -226,7 +230,7 @@ namespace codepad {
 					if (merged) {
 						it->second.alignment = _ctx->get_horizontal_caret_position(it->first.first, _font);
 					}
-					_on_visual_changed();
+					_on_carets_changed();
 				}
 
 				caret_position _hit_test_for_caret(vec2d pos) {
@@ -284,7 +288,7 @@ namespace codepad {
 					if (_selecting) {
 						if (_mouse_cache != _cur_sel.first) {
 							_cur_sel.first = _mouse_cache;
-							_on_visual_changed();
+							_on_carets_changed();
 						}
 					}
 				}
@@ -298,7 +302,7 @@ namespace codepad {
 						_cset.carets.insert(std::make_pair(
 							std::make_pair(hitp, hitp), caret_data(_ctx->get_horizontal_caret_position(hitp, _font))
 						));
-						_on_visual_changed();
+						_on_carets_changed();
 					} else {
 						return;
 					}
