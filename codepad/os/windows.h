@@ -202,7 +202,8 @@ namespace codepad {
 
 			bool _idle();
 			void _on_update() override {
-				_idle();
+				while (_idle()) {
+				}
 				_update_drag();
 				ui::manager::get().schedule_update(*this);
 			}
@@ -637,21 +638,22 @@ namespace codepad {
 
 			void begin(const window_base &wnd) override {
 				const window *cw = static_cast<const window*>(&wnd);
-				_curdc = cw->_dc;
-				_invert_y = true;
 				vec2i sz = cw->get_actual_size().convert<int>();
-				winapi_check(wglMakeCurrent(_curdc, _rc));
-				_begin_viewport_size(sz.x, sz.y);
+				_begin_render_target(_render_target_stackframe(
+					true, sz.x, sz.y,
+					std::bind(static_cast<void(*)(BOOL)>(winapi_check), std::bind(wglMakeCurrent, cw->_dc, _rc)),
+					std::bind(static_cast<void(*)(BOOL)>(winapi_check), std::bind(SwapBuffers, cw->_dc))
+				));
 				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 				_gl_verify();
 			}
 			void push_clip(recti r) override {
 				_flush_text_buffer();
-				if (_invert_y) {
-					int ymin = r.ymin;
-					r.ymin = _curheight - r.ymax;
-					r.ymax = _curheight - ymin;
+				if (_rtfstk.back().invert_y) {
+					int ymin = r.ymin, ch = static_cast<int>(_rtfstk.back().height);
+					r.ymin = ch - r.ymax;
+					r.ymax = ch - ymin;
 				}
 				if (_clpstk.size() > 0) {
 					r = recti::common_part(r, _clpstk.back());
@@ -699,13 +701,13 @@ namespace codepad {
 			}
 			void end() override {
 				_flush_text_buffer();
-				winapi_check(SwapBuffers(_curdc));
+				_end_render_target();
 				_gl_verify();
 			}
 
 			texture_id new_character_texture(size_t w, size_t h, const void *data) override {
 				assert_true_usage(_rc, "texture allocation requested before establishing any context");
-				return _atl.new_char(w, h, data);
+				return _atl.new_char(_gl, w, h, data);
 			}
 			void delete_character_texture(texture_id id) override {
 				_atl.delete_char(id);
@@ -723,6 +725,7 @@ namespace codepad {
 					static_cast<GLsizei>(w), static_cast<GLsizei>(h),
 					0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr
 				);
+				_gl.GenerateMipmap(GL_TEXTURE_2D);
 				_gl.FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tid, 0);
 				assert_true_sys(
 					_gl.CheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
@@ -743,14 +746,15 @@ namespace codepad {
 			}
 			void continue_framebuffer(const framebuffer &fb) override {
 				assert_true_usage(fb.has_content(), "cannot draw to an empty frame buffer");
-				_invert_y = false;
-				_gl.BindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fb._id));
-				_begin_viewport_size(fb._w, fb._h);
-				_gl_verify();
-			}
-			void end_framebuffer() override {
-				_flush_text_buffer();
-				_gl.BindFramebuffer(GL_FRAMEBUFFER, 0);
+				_begin_render_target(_render_target_stackframe(
+					false, fb._w, fb._h,
+					std::bind(_gl.BindFramebuffer, GL_FRAMEBUFFER, static_cast<GLuint>(fb._id)),
+					[this, tex = static_cast<GLuint>(fb._tid)]() {
+					_gl.BindFramebuffer(GL_FRAMEBUFFER, 0);
+					glBindTexture(GL_TEXTURE_2D, tex);
+					_gl.GenerateMipmap(GL_TEXTURE_2D);
+				}
+				));
 				_gl_verify();
 			}
 
@@ -780,6 +784,28 @@ namespace codepad {
 				glPopMatrix();
 			}
 		protected:
+			struct _wgl_funcs {
+			public:
+				void init() {
+					_get_func(GenFramebuffers, "glGenFramebuffers");
+					_get_func(BindFramebuffer, "glBindFramebuffer");
+					_get_func(FramebufferTexture2D, "glFramebufferTexture2D");
+					_get_func(CheckFramebufferStatus, "glCheckFramebufferStatus");
+					_get_func(DeleteFramebuffers, "glDeleteFramebuffers");
+					_get_func(GenerateMipmap, "glGenerateMipmap");
+				}
+				PFNGLGENFRAMEBUFFERSPROC GenFramebuffers;
+				PFNGLBINDFRAMEBUFFERPROC BindFramebuffer;
+				PFNGLFRAMEBUFFERTEXTURE2DPROC FramebufferTexture2D;
+				PFNGLCHECKFRAMEBUFFERSTATUSPROC CheckFramebufferStatus;
+				PFNGLDELETEFRAMEBUFFERSPROC DeleteFramebuffers;
+				PFNGLGENERATEMIPMAPPROC GenerateMipmap;
+			protected:
+				template <typename T> inline static void _get_func(T &f, LPCSTR name) {
+					winapi_check(f = reinterpret_cast<T>(wglGetProcAddress(name)));
+				}
+			};
+
 			void _new_window(window_base &wnd) override {
 				window *cw = static_cast<window*>(&wnd);
 				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
@@ -805,7 +831,7 @@ namespace codepad {
 			inline static void _set_default_texture_params() {
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			}
 			inline static void _set_gl_matrix(const matd3x3 &m, double(&res)[16]) {
@@ -853,12 +879,13 @@ namespace codepad {
 						glBindTexture(GL_TEXTURE_2D, tex_id);
 						_set_default_texture_params();
 					}
-					void flush() {
+					void flush(const _wgl_funcs &gl) {
 						glBindTexture(GL_TEXTURE_2D, tex_id);
 						glTexImage2D(
 							GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height),
 							0, GL_RGBA, GL_UNSIGNED_BYTE, data
 						);
+						gl.GenerateMipmap(GL_TEXTURE_2D);
 					}
 					void dispose() {
 						std::free(data);
@@ -877,9 +904,9 @@ namespace codepad {
 				const char_data &get_char_data(size_t id) const {
 					return _cd_slots[id];
 				}
-				const page &get_page(size_t page) {
+				const page &get_page(const _wgl_funcs &gl, size_t page) {
 					if (_lpdirty && page + 1 == _ps.size()) {
-						_ps.back().flush();
+						_ps.back().flush(gl);
 					}
 					return _ps[page];
 				}
@@ -909,7 +936,7 @@ namespace codepad {
 					return res;
 				}
 			public:
-				texture_id new_char(size_t w, size_t h, const void *data) {
+				texture_id new_char(const _wgl_funcs &gl, size_t w, size_t h, const void *data) {
 					if (_ps.size() == 0) {
 						_new_page();
 					}
@@ -930,7 +957,7 @@ namespace codepad {
 						size_t t, l;
 						if (_cy + h + border > curp.height) { // next page
 							if (_lpdirty) {
-								curp.flush();
+								curp.flush(gl);
 							}
 							_new_page();
 							curp = _ps.back();
@@ -1022,55 +1049,57 @@ namespace codepad {
 				}
 			};
 
-			struct _wgl_funcs {
-			public:
-				void init() {
-					_get_func(GenFramebuffers, "glGenFramebuffers");
-					_get_func(BindFramebuffer, "glBindFramebuffer");
-					_get_func(FramebufferTexture2D, "glFramebufferTexture2D");
-					_get_func(CheckFramebufferStatus, "glCheckFramebufferStatus");
-					_get_func(DeleteFramebuffers, "glDeleteFramebuffers");
+			struct _render_target_stackframe {
+				_render_target_stackframe() = default;
+				template <typename T, typename U> _render_target_stackframe(bool invy, size_t w, size_t h, T fbeg, U fend) :
+					invert_y(invy), width(w), height(h), begin(std::move(fbeg)), end(std::move(fend)) {
 				}
-				PFNGLGENFRAMEBUFFERSPROC GenFramebuffers;
-				PFNGLBINDFRAMEBUFFERPROC BindFramebuffer;
-				PFNGLFRAMEBUFFERTEXTURE2DPROC FramebufferTexture2D;
-				PFNGLCHECKFRAMEBUFFERSTATUSPROC CheckFramebufferStatus;
-				PFNGLDELETEFRAMEBUFFERSPROC DeleteFramebuffers;
-			protected:
-				template <typename T> inline static void _get_func(T &f, LPCSTR name) {
-					winapi_check(f = reinterpret_cast<T>(wglGetProcAddress(name)));
-				}
+				bool invert_y = false;
+				size_t width = 0, height = 0;
+				std::function<void()> begin, end;
 			};
 
 			HGLRC _rc = nullptr;
 			PIXELFORMATDESCRIPTOR _pfd;
-			HDC _curdc;
 			_wgl_funcs _gl;
 			int _pformat;
 
-			int _curheight;
 			std::vector<recti> _clpstk;
 			std::vector<matd3x3> _matstk;
-			bool _invert_y = true;
+			std::vector<_render_target_stackframe> _rtfstk;
 
 			_text_atlas _atl;
 			_text_buffer _textbuf;
 			size_t _lstpg;
 
-			void _begin_viewport_size(size_t w, size_t h) {
-				_curheight = static_cast<int>(h);
-				glViewport(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h));
+			void _begin_render_target(_render_target_stackframe rtf) {
+				_rtfstk.push_back(std::move(rtf));
+				_continue_last_render_target();
+			}
+			void _continue_last_render_target() {
+				_render_target_stackframe &rtf = _rtfstk.back();
+				rtf.begin();
+				glViewport(0, 0, static_cast<GLsizei>(rtf.width), static_cast<GLsizei>(rtf.height));
 				glMatrixMode(GL_PROJECTION);
 				glLoadIdentity();
-				if (_invert_y) {
-					glOrtho(0.0, static_cast<GLdouble>(w), static_cast<GLdouble>(h), 0.0, 0.0, -1.0);
+				_gl_verify();
+				if (rtf.invert_y) {
+					glOrtho(0.0, static_cast<GLdouble>(rtf.width), static_cast<GLdouble>(rtf.height), 0.0, 0.0, -1.0);
 				} else {
-					glOrtho(0.0, static_cast<GLdouble>(w), 0.0, static_cast<GLdouble>(h), 0.0, -1.0);
+					glOrtho(0.0, static_cast<GLdouble>(rtf.width), 0.0, static_cast<GLdouble>(rtf.height), 0.0, -1.0);
 				}
 			}
+			void _end_render_target() {
+				_rtfstk.back().end();
+				_rtfstk.pop_back();
+				if (!_rtfstk.empty()) {
+					_continue_last_render_target();
+				}
+			}
+
 			void _flush_text_buffer() {
 				if (_textbuf.vertcount > 0) {
-					_textbuf.flush_nocheck(_atl.get_page(_lstpg).tex_id);
+					_textbuf.flush_nocheck(_atl.get_page(_gl, _lstpg).tex_id);
 				}
 			}
 			void _gl_verify() {

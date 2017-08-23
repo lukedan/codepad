@@ -286,6 +286,7 @@ namespace codepad {
 			virtual bool get_can_focus() const {
 				return _can_focus;
 			}
+			bool has_focus() const;
 
 			virtual os::window_base *get_window();
 			virtual void set_default_hotkey_group(const element_hotkey_group *hgp) {
@@ -384,9 +385,9 @@ namespace codepad {
 			virtual void _on_update() {
 			}
 
-			virtual void _on_prerender() const {
-				texture_brush(colord(1.0, 1.0, 1.0, 0.02)).fill_rect(get_layout());
-				pen p(colord(1.0, 1.0, 1.0, 1.0));
+			virtual void _on_prerender() {
+				texture_brush(has_focus() ? colord(0.0, 1.0, 0.0, 0.02) : colord(1.0, 1.0, 1.0, 0.02)).fill_rect(get_layout());
+				pen p(has_focus() ? colord(0.0, 1.0, 0.0, 1.0) : colord(1.0, 1.0, 1.0, 0.3));
 				std::vector<vec2d> lines;
 				lines.push_back(get_layout().xmin_ymin());
 				lines.push_back(get_layout().xmax_ymin());
@@ -400,10 +401,10 @@ namespace codepad {
 				os::renderer_base::get().push_clip(_layout.minimum_bounding_box<int>());
 			}
 			virtual void _render() const = 0;
-			virtual void _on_postrender() const {
+			virtual void _on_postrender() {
 				os::renderer_base::get().pop_clip();
 			}
-			virtual void _on_render() const {
+			virtual void _on_render() {
 				if (test_bit_all(_vis, visibility::render_only)) {
 					_on_prerender();
 					_render();

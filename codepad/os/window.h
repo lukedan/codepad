@@ -81,11 +81,11 @@ namespace codepad {
 				return false;
 			}
 
-			void _on_prerender() const override {
+			void _on_prerender() override {
 				os::renderer_base::get().begin(*this);
 				panel::_on_prerender();
 			}
-			void _on_postrender() const override {
+			void _on_postrender() override {
 				panel::_on_postrender();
 				os::renderer_base::get().end();
 			}

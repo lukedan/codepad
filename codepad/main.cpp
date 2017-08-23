@@ -32,15 +32,37 @@ int main() {
 	element_hotkey_group hg;
 
 	hg.register_hotkey({key_gesture(input::key::z, modifier_keys::control)}, [](element *e) {
-		code::editor *editor = dynamic_cast<code::editor*>(e);
+		code::codebox *editor = dynamic_cast<code::codebox*>(e);
 		if (editor) {
-			editor->try_undo();
+			editor->get_editor()->try_undo();
 		}
 	});
 	hg.register_hotkey({key_gesture(input::key::y, modifier_keys::control)}, [](element *e) {
-		code::editor *editor = dynamic_cast<code::editor*>(e);
+		code::codebox *editor = dynamic_cast<code::codebox*>(e);
 		if (editor) {
-			editor->try_redo();
+			editor->get_editor()->try_redo();
+		}
+	});
+	hg.register_hotkey({key_gesture(input::key::f, modifier_keys::control)}, [](element *e) {
+		code::codebox *cb = dynamic_cast<code::codebox*>(e);
+		if (cb) {
+			code::editor *editor = cb->get_editor();
+			auto rgn = editor->get_carets().carets.rbegin()->first;
+			code::editor::fold_region fr = std::minmax(rgn.first, rgn.second);
+			logger::get().log_info(CP_HERE, "folding region: (", fr.first.column, ", ", fr.first.line, ") -> (", fr.second.column, ", ", fr.second.line, ")");
+			std::vector<code::editor::fold_region> list = editor->add_fold_region(fr);
+			for (auto i = list.begin(); i != list.end(); ++i) {
+				logger::get().log_info(CP_HERE, "  overwrote region: (", i->first.column, ", ", i->first.line, ") -> (", i->second.column, ", ", i->second.line, ")");
+			}
+		}
+	});
+	hg.register_hotkey({key_gesture(input::key::u, modifier_keys::control)}, [](element *e) {
+		code::codebox *cb = dynamic_cast<code::codebox*>(e);
+		if (cb) {
+			code::editor *editor = cb->get_editor();
+			while (editor->get_folding_info().size() > 0) {
+				editor->remove_fold_region(editor->get_folding_info().begin());
+			}
 		}
 	});
 
@@ -50,7 +72,7 @@ int main() {
 	code::editor::set_selection_brush(&texb);
 	code::minimap::set_viewport_brush(&viewb);
 
-	ctx.load_from_file(U"hugetext.cpp");
+	ctx.load_from_file(U"editors/code/context.h");
 	ctx.auto_set_default_line_ending();
 
 	tab *codetab = dock_manager::get().new_tab();
@@ -59,7 +81,7 @@ int main() {
 	code::editor *cpe = cp->get_editor();
 	code::line_number *ln = element::create<code::line_number>();
 	code::minimap *mmp = element::create<code::minimap>();
-	cpe->set_default_hotkey_group(&hg);
+	cp->set_default_hotkey_group(&hg);
 	cp->add_component_left(*ln);
 	cp->add_component_right(*mmp);
 

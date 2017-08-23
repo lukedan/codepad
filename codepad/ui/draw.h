@@ -10,13 +10,19 @@ namespace codepad {
 		struct line_character_iterator {
 		public:
 			line_character_iterator(const str_t &s, ui::font_family ff, double tabsize) :
-				_cc(s.begin()), _end(s.end()), _ff(std::move(ff)), _tabw(tabsize * _ff.maximum_width()) {
+				line_character_iterator(s.begin(), s.end(), ff, tabsize) {
+			}
+			line_character_iterator(
+				str_t::const_iterator beg, str_t::const_iterator end,
+				ui::font_family ff, double tabsize
+			) : _cc(beg), _end(end), _ff(ff), _tabw(tabsize * ff.maximum_width()) {
 			}
 
 			void begin(ui::font_style fs) {
+				_lce = _pos;
 				if (_cc != _end) {
 					_calc_char_metrics(fs);
-					_lstyle = fs;
+					_lstyle = static_cast<int>(fs);
 				}
 			}
 			void next(ui::font_style fs) {
@@ -24,16 +30,21 @@ namespace codepad {
 				_pos += _cw;
 				_lce = _pos;
 				if (_cc != _end) {
-					if (fs == _lstyle) {
+					if (static_cast<int>(fs) == _lstyle) {
 						_pos += _ff.get_by_style(fs)->get_kerning(_curc, *_cc).x;
 					}
 					_pos = std::round(_pos);
 					_calc_char_metrics(fs);
-					_lstyle = fs;
+					_lstyle = static_cast<int>(fs);
 				}
 			}
 			bool ended() const {
 				return _cc == _end;
+			}
+
+			void create_blank(double width) {
+				_lstyle = _invalid_style;
+				_pos += std::ceil(width);
 			}
 
 			double char_left() const {
@@ -60,7 +71,9 @@ namespace codepad {
 				return _ff;
 			}
 		protected:
-			ui::font_style _lstyle = ui::font_style::normal;
+			constexpr static int _invalid_style = -1; // cancels kerning
+
+			int _lstyle = _invalid_style;
 			str_t::const_iterator _cc, _end;
 			ui::font_family _ff;
 			double _lce = 0.0, _cw = 0.0, _pos = 0.0, _tabw;

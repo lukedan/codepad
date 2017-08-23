@@ -327,6 +327,9 @@ namespace codepad {
 			res[2][2] = 1.0;
 			return res;
 		}
+		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type scale(vec2<T> center, T uniscale) {
+			return scale(center, vec2<T>(uniscale, uniscale));
+		}
 	};
 	template <typename T, size_t M, size_t N, size_t P> inline matrix<T, P, M> operator*(
 		const matrix<T, N, M> &lhs, const matrix<T, P, N> &rhs
@@ -711,7 +714,7 @@ namespace codepad {
 		syminfo->MaxNameLen = max_symbol_length;
 		syminfo->SizeOfStruct = sizeof(SYMBOL_INFO);
 		IMAGEHLP_LINE64 lineinfo;
-		lineinfo.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+		lineinfo.SizeOfStruct = sizeof(lineinfo);
 		DWORD line_disp;
 		assert_true_sys(
 			SymInitialize(GetCurrentProcess(), nullptr, true),
@@ -724,14 +727,14 @@ namespace codepad {
 			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
 				func = convert_to_utf8<TCHAR>(syminfo->Name);
 			} else {
-				func = "??(" + std::to_string(GetLastError()) + ")";
+				func = "??";
 			}
 			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
 				file = convert_to_utf8<TCHAR>(lineinfo.FileName);
 				line = std::to_string(lineinfo.LineNumber);
 			} else {
 				file = "??";
-				line = "??(" + std::to_string(GetLastError()) + ")";
+				line = "??";
 			}
 			log_custom("    ", func, "(0x", frames[i], ") @", file, ":", line);
 		}
@@ -768,6 +771,6 @@ namespace codepad {
 namespace codepad {
 	inline void logger::log_stacktrace() {
 		log_warning(CP_HERE, "stacktrace logging has been disabled");
-	}
+}
 }
 #endif

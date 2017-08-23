@@ -280,6 +280,7 @@ namespace codepad {
 			void _initialize() override {
 				button_base::_initialize();
 				_trigtype = trigger_type::mouse_down;
+				set_can_focus(false);
 			}
 
 			void _on_click() override {
@@ -379,16 +380,19 @@ namespace codepad {
 				_children.add(*_drag);
 				_pgup = element::create<button>();
 				_pgup->set_trigger_type(button_base::trigger_type::mouse_down);
+				_pgup->set_can_focus(false);
 				_pgup->click += [this]() {
 					set_value(get_value() - get_visible_range());
 				};
 				_children.add(*_pgup);
 				_pgdn = element::create<button>();
 				_pgdn->set_trigger_type(button_base::trigger_type::mouse_down);
+				_pgdn->set_can_focus(false);
 				_pgdn->click += [this]() {
 					set_value(get_value() + get_visible_range());
 				};
 				_children.add(*_pgdn);
+				_can_focus = false;
 			}
 		};
 		inline scroll_bar *scroll_bar_drag_button::_get_bar() const {

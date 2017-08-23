@@ -84,7 +84,6 @@ namespace codepad {
 			virtual void delete_framebuffer(framebuffer&) = 0;
 			virtual void begin_framebuffer(const framebuffer&) = 0;
 			virtual void continue_framebuffer(const framebuffer&) = 0;
-			virtual void end_framebuffer() = 0;
 
 			virtual void push_matrix(const matd3x3&) = 0;
 			virtual void push_matrix_mult(const matd3x3&) = 0;

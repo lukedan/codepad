@@ -18,7 +18,7 @@ namespace codepad {
 			class codebox;
 			class editor;
 
-			class component : public ui::element { // TODO move focus to codebox, make elements non-focusable
+			class component : public ui::element {
 				friend class codebox;
 			public:
 			protected:
@@ -29,9 +29,13 @@ namespace codepad {
 				}
 				virtual void _on_removing() {
 				}
+
+				void _initialize() override {
+					element::_initialize();
+					_can_focus = false;
+				}
 			};
-			class codebox : public ui::panel_base {
-				friend class editor;
+			class codebox : public ui::panel_base { // TODO horizontal view
 			public:
 				void set_vertical_position(double p) {
 					_vscroll->set_value(p);
@@ -42,7 +46,6 @@ namespace codepad {
 
 				void make_point_visible(vec2d v) {
 					_vscroll->make_point_visible(v.y);
-					// TODO horizontal view
 				}
 
 				bool override_children_layout() const override {
@@ -59,12 +62,24 @@ namespace codepad {
 				void remove_component_left(component &e) {
 					_remove_component_from(e, _lcs);
 				}
+				const std::vector<component*> &get_components_left() const {
+					return _lcs;
+				}
+				const std::vector<component*> &get_components_right() const {
+					return _rcs;
+				}
 
 				void add_component_right(component &e) {
 					_add_component_to(e, _rcs);
 				}
 				void remove_component_right(component &e) {
 					_remove_component_from(e, _rcs);
+				}
+
+				rectd get_components_region() const {
+					rectd client = get_client_region();
+					client.xmax = _vscroll->get_layout().xmin;
+					return client;
 				}
 
 				event<value_update_info<double>> vertical_viewport_changed;
@@ -88,11 +103,11 @@ namespace codepad {
 				}
 
 				void _reset_scrollbars();
-				void _on_content_modified() {
-					_reset_scrollbars();
-				}
 
 				void _on_mouse_scroll(ui::mouse_scroll_info&) override;
+				void _on_key_down(ui::key_info&) override;
+				void _on_key_up(ui::key_info&) override;
+				void _on_keyboard_text(ui::text_info&) override;
 
 				void _finish_layout() override;
 

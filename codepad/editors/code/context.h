@@ -31,8 +31,8 @@ namespace codepad {
 
 			typedef vec2<int> caret_position_diff;
 			struct caret_position {
-				caret_position() = default;
-				caret_position(size_t l, size_t c) : line(l), column(c) {
+				constexpr caret_position() = default;
+				constexpr caret_position(size_t l, size_t c) : line(l), column(c) {
 				}
 
 				size_t line = 0, column = 0;
@@ -571,7 +571,7 @@ namespace codepad {
 					return ss.str();
 				}
 
-				// modification made by these functions will not invoke modified
+				// modification made by these functions will neither invoke modified nor be recorded
 				caret_position insert_text(caret_position cp, const str_t &s) {
 					return cp + insert_text(at(cp.line), cp.column, s).first;
 				}
@@ -613,6 +613,20 @@ namespace codepad {
 					insert_after(it, line(it->content.substr(col), it->ending_type));
 					it->content = it->content.substr(0, col);
 					it->ending_type = le;
+				}
+				void insert_char(caret_position cp, char_t c) {
+					if (is_newline(c)) {
+						insert_newline(cp);
+					} else {
+						insert_char_nonnewline(cp, c);
+					}
+				}
+				void insert_char(line_iterator it, size_t col, char_t c) {
+					if (is_newline(c)) {
+						insert_newline(it, col);
+					} else {
+						insert_char_nonnewline(it, col, c);
+					}
 				}
 
 				size_t delete_text(caret_position p1, caret_position p2) {
@@ -675,6 +689,7 @@ namespace codepad {
 					visual_changed.invoke();
 				}
 
+				// these functions do NOT consider folding
 				size_t hit_test_for_caret(const_line_iterator ln, size_t line_num, double pos, ui::font_family font) const {
 					ui::line_character_iterator it(ln->content, font, get_tab_width());
 					text_theme_data::char_iterator ci = get_text_theme().get_iter_at(caret_position(line_num, 0));
@@ -707,41 +722,6 @@ namespace codepad {
 				}
 				double get_horizontal_caret_position(caret_position pos, ui::font_family font) const {
 					return get_horizontal_caret_position(at(pos.line), pos.column, font);
-				}
-
-				caret_position move_caret_right(caret_position cp) const {
-					const_line_iterator lit = at(cp.line);
-					if (cp.column == lit->content.length()) {
-						++lit;
-						if (lit == end()) {
-							return cp;
-						}
-						return caret_position(cp.line + 1, 0);
-					}
-					return caret_position(cp.line, cp.column + 1);
-				}
-				caret_position move_caret_left(caret_position cp) const {
-					if (cp.column == 0) {
-						if (cp.line == 0) {
-							return cp;
-						}
-						--cp.line;
-						const_line_iterator lit = at(cp.line);
-						return caret_position(cp.line, lit->content.length());
-					}
-					return caret_position(cp.line, cp.column - 1);
-				}
-				caret_position move_caret_vertically(size_t line, int ydiff, double xpos, ui::font_family f) const {
-					if (ydiff <= 0) {
-						if (static_cast<size_t>(-ydiff) > line) {
-							line = 0;
-						} else {
-							line = add_unsigned_diff(line, ydiff);
-						}
-					} else {
-						line = std::min(add_unsigned_diff(line, ydiff), num_lines() - 1);
-					}
-					return caret_position(line, hit_test_for_caret(line, xpos, f));
 				}
 
 				bool can_undo() const {
@@ -816,6 +796,9 @@ namespace codepad {
 
 				// fields used: added_content, removed_range, position, caret_back_after, selected_after
 				// fields modified: removed_content, added_range
+				// PITFALL: if you want to use (alter, save, etc.) the position of the caret or addition/deletion
+				//          ranges before applying the modification, call fixup_caret_position() before using
+				//          them, and then use the nofixup version of these apply_* functions
 				void apply_modification_nofixup(modification mod) {
 					assert_true_usage(mod.position >= _lastmax, "positions must be increasing");
 					auto lit = _ctx->at(mod.position.line);
@@ -830,11 +813,11 @@ namespace codepad {
 					_edit.push_back(std::move(mod));
 				}
 				void apply_modification(modification mod) {
-					_fixup_caretpos(mod);
+					fixup_caret_position(mod);
 					apply_modification_nofixup(std::move(mod));
 				}
 
-				// added_content may not be filled
+				// added_content need not be filled
 				void apply_char_modification_nofixup(modification mod, char_t c) {
 					assert_true_usage(mod.position >= _lastmax, "positions must be increasing");
 					auto lit = _ctx->at(mod.position.line);
@@ -855,7 +838,7 @@ namespace codepad {
 					_edit.push_back(std::move(mod));
 				}
 				void apply_char_modification(modification mod, char_t c) {
-					_fixup_caretpos(mod);
+					fixup_caret_position(mod);
 					apply_char_modification_nofixup(std::move(mod), c);
 				}
 
@@ -873,9 +856,9 @@ namespace codepad {
 				}
 				void undo_modification(const modification &mod) {
 					caret_position
-						pos = _fixup_caretpos(mod.position),
-						addend = _fixup_caretpos(mod.position + mod.added_range),
-						delend = _fixup_caretpos(mod.position + mod.removed_range);
+						pos = fixup_caret_position(mod.position),
+						addend = fixup_caret_position(mod.position + mod.added_range),
+						delend = fixup_caret_position(mod.position + mod.removed_range);
 					assert_true_usage(pos >= _lastmax, "positions must be increasing");
 					auto lit = _ctx->at(pos.line);
 					if (mod.added_content.length() > 0) {
@@ -904,6 +887,19 @@ namespace codepad {
 					return res;
 				}
 
+				caret_position fixup_caret_position(caret_position c) const {
+					c.line = add_unsigned_diff(c.line, _fixup.y);
+					if (c.line == _lastmax.line) {
+						c.column = add_unsigned_diff(c.column, _fixup.x);
+					}
+					return c;
+				}
+				void fixup_caret_position(modification &m) const {
+					caret_position rmend = fixup_caret_position(m.position + m.removed_range);
+					m.position = fixup_caret_position(m.position);
+					m.removed_range = rmend - m.position;
+				}
+
 				void on_text(caret_selection cs, char_t c) {
 					modification mod(cs);
 					mod.caret_front_after = false;
@@ -912,9 +908,10 @@ namespace codepad {
 				}
 				void on_text_overwrite(caret_selection cs, char_t c) {
 					modification mod(cs);
+					fixup_caret_position(mod);
 					if (!is_newline(c) && !mod.selected_before) {
 						auto lit = _ctx->at(mod.position.line);
-						if (mod.position.column < lit->content.length()) {
+						if (mod.position.column != lit->content.length()) {
 							mod.removed_range = caret_position_diff(1, 0);
 							mod.caret_front_before = true;
 							mod.selected_before = false;
@@ -922,10 +919,11 @@ namespace codepad {
 					}
 					mod.caret_front_after = false;
 					mod.selected_after = false;
-					apply_char_modification(std::move(mod), c);
+					apply_char_modification_nofixup(std::move(mod), c);
 				}
 				void on_backspace(caret_selection cs) {
 					modification mod(cs);
+					fixup_caret_position(mod);
 					if (!mod.selected_before) {
 						if (mod.position.column == 0) {
 							if (mod.position.line > 0) {
@@ -943,21 +941,27 @@ namespace codepad {
 					}
 					mod.caret_front_after = false;
 					mod.selected_after = false;
-					apply_modification(std::move(mod));
+					apply_modification_nofixup(std::move(mod));
 				}
 				void on_delete(caret_selection cs) {
 					modification mod(cs);
+					fixup_caret_position(mod);
 					if (!mod.selected_before) {
-						auto lit = _ctx->at(mod.position.line), nlit = lit;
-						if (mod.position.column == lit->content.length() && ++nlit != _ctx->end()) {
-							mod.removed_range = caret_position_diff(-static_cast<int>(lit->content.length()), 1);
-							mod.caret_front_before = true;
-							mod.selected_before = false;
+						auto lit = _ctx->at(mod.position.line);
+						if (mod.position.column == lit->content.length()) {
+							auto nlit = lit;
+							if (++nlit != _ctx->end()) {
+								mod.removed_range = caret_position_diff(-static_cast<int>(lit->content.length()), 1);
+							}
+						} else {
+							mod.removed_range = caret_position_diff(1, 0);
 						}
+						mod.caret_front_before = true;
+						mod.selected_before = false;
 					}
 					mod.caret_front_after = false;
 					mod.selected_after = false;
-					apply_modification(std::move(mod));
+					apply_modification_nofixup(std::move(mod));
 				}
 
 				caret_set finish_edit(editor *source) {
@@ -975,23 +979,11 @@ namespace codepad {
 				edit _edit;
 				caret_set _newcarets;
 
-				caret_position _fixup_caretpos(caret_position c) const {
-					c.line = add_unsigned_diff(c.line, _fixup.y);
-					if (c.line == _lastmax.line) {
-						c.column = add_unsigned_diff(c.column, _fixup.x);
-					}
-					return c;
-				}
-				void _fixup_caretpos(modification &m) const {
-					caret_position rmend = _fixup_caretpos(m.position + m.removed_range);
-					m.position = _fixup_caretpos(m.position);
-					m.removed_range = rmend - m.position;
-				}
 				void _update_fixup(const modification &mod) {
 					_update_fixup(mod.position, mod.added_range, mod.removed_range);
 				}
 				void _update_fixup(caret_position pos, caret_position_diff addrng, caret_position_diff remrng) {
-					if (pos.line != _lastmax.line) {
+					if (pos.line != _lastmax.line || remrng.y != 0) {
 						_fixup.x = 0;
 					}
 					_fixup += addrng - remrng;

@@ -193,7 +193,6 @@ namespace codepad {
 
 			void _initialize() override {
 				element::_initialize();
-				_can_focus = false;
 			}
 			void _dispose() override {
 				if (_dispose_children) {
@@ -312,7 +311,7 @@ namespace codepad {
 		protected:
 			void _initialize() override {
 				panel_base::_initialize();
-				_can_focus = true;
+				_can_focus = false;
 			}
 		};
 	}

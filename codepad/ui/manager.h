@@ -80,11 +80,11 @@ namespace codepad {
 #ifndef NDEBUG
 						++_dispose_rec.reg_disposed;
 #endif
+						(*i)->_dispose();
 						_targets.erase(*i);
 						_dirty.erase(*i);
 						_upd.erase(*i);
 						_del.erase(*i);
-						(*i)->_dispose();
 #ifdef CP_DETECT_USAGE_ERRORS
 						assert_true_usage(!(*i)->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
@@ -135,6 +135,7 @@ namespace codepad {
 
 			static manager _sman;
 		};
+
 		inline void element::invalidate_layout() {
 			manager::get().invalidate_layout(*this);
 		}
@@ -150,6 +151,9 @@ namespace codepad {
 				p.mark_focus_set();
 				manager::get().set_focus(this);
 			}
+		}
+		inline bool element::has_focus() const {
+			return manager::get().get_focused() == this;
 		}
 	}
 }
