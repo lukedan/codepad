@@ -14,9 +14,7 @@ namespace codepad {
 		public:
 			constexpr static double relayout_time_redline = 10.0, render_time_redline = 40.0;
 
-			inline static manager &get() {
-				return _sman;
-			}
+			static manager &get();
 
 			void invalidate_layout(element &e) {
 				if (_layouting) {
@@ -77,8 +75,8 @@ namespace codepad {
 					std::set<element*> batch;
 					std::swap(batch, _del);
 					for (auto i = batch.begin(); i != batch.end(); ++i) {
-#ifndef NDEBUG
-						++_dispose_rec.reg_disposed;
+#ifdef CP_DETECT_LOGICAL_ERRORS
+						++control_dispose_rec::get().reg_disposed;
 #endif
 						(*i)->_dispose();
 						_targets.erase(*i);
@@ -132,8 +130,6 @@ namespace codepad {
 #endif
 			// scheduled controls to delete
 			std::set<element*> _del;
-
-			static manager _sman;
 		};
 
 		inline void element::invalidate_layout() {

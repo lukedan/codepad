@@ -232,16 +232,6 @@ namespace codepad {
 			winapi_check(atom = RegisterClassEx(&wcex));
 		}
 
-		window::window(const str_t &clsname) {
-			auto u16str = utf32_to_utf16(clsname);
-			winapi_check(_hwnd = CreateWindowEx(
-				0, reinterpret_cast<LPCWSTR>(static_cast<size_t>(_class.atom)),
-				reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
-				CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-				nullptr, nullptr, GetModuleHandle(nullptr), nullptr
-			));
-			winapi_check(_dc = GetDC(_hwnd));
-		}
 		bool window::_idle() {
 			MSG msg;
 			if (PeekMessage(&msg, _hwnd, 0, 0, PM_REMOVE)) {

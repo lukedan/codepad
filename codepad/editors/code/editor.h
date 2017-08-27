@@ -8,8 +8,17 @@ namespace codepad {
 			struct character_rendering_iterator;
 			template <bool SkipFolded, typename ...AddOns> struct rendering_iterator;
 
+			struct switch_char_info {
+				switch_char_info() = default;
+				switch_char_info(bool jmp, caret_position next) : is_jump(jmp), next_position(next) {
+				}
+				const bool is_jump = false;
+				const caret_position next_position{};
+			};
+
 			// TODO syntax highlighting, drag & drop, code folding, etc.
 			class editor : public ui::panel_base {
+				friend struct codepad::globals;
 				friend class codebox;
 			public:
 				constexpr static double
@@ -44,7 +53,7 @@ namespace codepad {
 					return l;
 				}
 				double get_line_height() const {
-					return _font.maximum_height();
+					return _get_font().maximum_height();
 				}
 				double get_scroll_delta() const {
 					return get_line_height() * _lines_per_scroll;
@@ -83,7 +92,9 @@ namespace codepad {
 					}
 					set_caret_keepalign(ncs);
 				}
-				template <typename GetPos, typename SelPos> void move_carets_special_selection(const GetPos &gp, const SelPos &sp) {
+				template <typename GetPos, typename SelPos> void move_carets_special_selection(
+					const GetPos &gp, const SelPos &sp
+				) {
 					if (os::input::is_key_down(os::input::key::shift)) {
 						move_carets_raw([this, &gp](const caret_set::entry &et) {
 							return _complete_caret_entry(gp(et), et.first.second);
@@ -318,10 +329,10 @@ namespace codepad {
 					carets_changed, editing_visual_changed, folding_changed;
 
 				inline static void set_font(const ui::font_family &ff) {
-					_font = ff;
+					_get_font() = ff;
 				}
 				inline static const ui::font_family &get_font() {
-					return _font;
+					return _get_font();
 				}
 				inline static void set_caret_pen(const ui::basic_pen *p) {
 					_caretpen = p;
@@ -357,10 +368,13 @@ namespace codepad {
 				// folding
 				folding_info _fold;
 
+				struct _used_font_family {
+					ui::font_family family;
+				};
 				static const ui::basic_pen *_caretpen;
 				static const ui::basic_brush *_selbrush;
-				static ui::font_family _font;
 				static double _lines_per_scroll;
+				static ui::font_family &_get_font();
 
 				codebox *_get_box() const {
 #ifdef CP_DETECT_LOGICAL_ERRORS
@@ -409,11 +423,41 @@ namespace codepad {
 					return hit_test_for_caret(vec2d(pos.x, pos.y + _get_box()->get_vertical_position()));
 				}
 
-				void _on_content_modified(modification_info &mi) { // TODO move folded regions
+				void _on_content_modified(modification_info &mi) {
+					caret_fixup_info::context fctx(mi.caret_fixup);
+					std::list<fold_region> frs;
+					for (auto i = _fold.begin(); i != _fold.end(); ++i) {
+						fold_region fr;
+						fr.first = mi.caret_fixup.fixup_caret_max(i->first, fctx);
+						fr.second = mi.caret_fixup.fixup_caret_min(i->second, fctx);
+						if (fr.first < fr.second) {
+							frs.push_back(fr);
+						}
+					}
+					_fold = folding_info(frs.begin(), frs.end());
+
 					content_modified.invoke();
 					_on_content_visual_changed();
 					if (mi.source != this) {
-						// TODO adjust carets
+						caret_fixup_info::context cctx(mi.caret_fixup);
+						caret_set nset;
+						for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
+							bool cfront = i->first.first < i->first.second;
+							caret_selection cs(i->first.first, i->first.second);
+							if (!cfront) {
+								std::swap(cs.first, cs.second);
+							}
+							cs.first = mi.caret_fixup.fixup_caret_max(cs.first, cctx);
+							cs.second = mi.caret_fixup.fixup_caret_min(cs.second, cctx);
+							if (cs.first > cs.second) {
+								cs.second = cs.first;
+							}
+							if (!cfront) {
+								std::swap(cs.first, cs.second);
+							}
+							nset.add(caret_set::entry(cs, caret_data(0.0)));
+						}
+						set_carets(nset);
 					}
 				}
 				void _on_context_switch() {
@@ -794,7 +838,7 @@ namespace codepad {
 						_check_next(0.0, sp);
 					}
 
-					void switching_char(const character_rendering_iterator&);
+					void switching_char(const character_rendering_iterator&, switch_char_info&);
 					void switching_line(const character_rendering_iterator&);
 				protected:
 					caret_set::const_iterator _beg, _end;
@@ -866,30 +910,31 @@ namespace codepad {
 							_char_it.begin(_theme_it.current_theme.style);
 						}
 					} else {
-						switching_char.invoke();
+						switching_char.invoke_noret(false, caret_position(_cur_line, _cur_col + 1));
 						++_cur_col;
 						_ctx->get_text_theme().incr_iter(_theme_it, caret_position(_cur_line, _cur_col));
 						_char_it.next(_theme_it.current_theme.style);
 					}
 				}
 				void jump_to(caret_position cp) {
-					switching_char.invoke();
+					switching_char.invoke_noret(true, cp);
 					_cur_col = cp.column;
 					if (cp.line != _cur_line) {
 						_cur_line = cp.line;
 						_line_it = _ctx->at(_cur_line);
 					}
 					_theme_it = _ctx->get_text_theme().get_iter_at(cp);
-					double gapx = _char_it.prev_char_right();
-					_char_it = ui::line_character_iterator(
-						_line_it->content.begin() + cp.column, _line_it->content.end(), editor::get_font(), _ctx->get_tab_width()
-					);
-					_char_it.create_blank(gapx);
-					_char_it.begin(_theme_it.current_theme.style);
+					_char_it.reposition(_line_it->content.begin() + cp.column, _line_it->content.end(), _theme_it.current_theme.style);
 				}
 
+				ui::line_character_iterator &character_info() {
+					return _char_it;
+				}
 				const ui::line_character_iterator &character_info() const {
 					return _char_it;
+				}
+				text_theme_data::char_iterator &theme_info() {
+					return _theme_it;
 				}
 				const text_theme_data::char_iterator &theme_info() const {
 					return _theme_it;
@@ -922,7 +967,8 @@ namespace codepad {
 					return _edt;
 				}
 
-				event<void> switching_line, switching_char;
+				event<void> switching_line;
+				event<switch_char_info> switching_char;
 			protected:
 				text_context::const_line_iterator _line_it;
 				text_theme_data::char_iterator _theme_it;
@@ -946,9 +992,10 @@ namespace codepad {
 					if (_nextfr != _max && _nextfr->first == npos) {
 						do {
 							npos = _nextfr->second;
+							it.jump_to(npos);
+							it.character_info().create_blank(20.0);
 							++_nextfr;
 						} while (_nextfr != _max && _nextfr->first == npos);
-						it.jump_to(npos);
 						return true;
 					}
 					return false;
@@ -959,104 +1006,93 @@ namespace codepad {
 
 			template <
 				bool SkipFolded, typename F, typename ...Others
-			> struct rendering_iterator<SkipFolded, F, Others...> {
-				template <bool SF, typename ...Args> friend struct rendering_iterator;
+			> struct rendering_iterator<SkipFolded, F, Others...> :
+				public rendering_iterator<SkipFolded, Others...> {
 			public:
-				template <typename ...Args> rendering_iterator(Args &&...args) :
-					rendering_iterator(nullptr, std::forward<Args>(args)...) {
-					_begin();
-				}
-
-				void next() {
-					_base.next();
-				}
-				bool ended() const {
-					return _base.ended();
-				}
-
-				const character_rendering_iterator &char_iter() const {
-					return _base.char_iter();
-				}
-			protected:
 				template <size_t ...I, typename FCA, typename ...OCA> rendering_iterator(
-					std::index_sequence<I...>, FCA &&f, OCA &&...ot
-				) : _curaddon(std::get<I>(std::forward<FCA>(f))...), _base(nullptr, std::forward<OCA>(ot)...) {
-					_char_iter().switching_char += [this]() {
-						_curaddon.switching_char(_char_iter());
-					};
-					_char_iter().switching_line += [this]() {
-						_curaddon.switching_line(_char_iter());
-					};
-				}
-				template <size_t ...I, typename FCA, typename ...OCA> rendering_iterator(
-					std::nullptr_t, FCA &&f, OCA &&...ot
+					FCA &&f, OCA &&...ot
 				) : rendering_iterator(
 					std::make_index_sequence<std::tuple_size<typename std::decay<FCA>::type>::value>(),
 					std::forward<FCA>(f), std::forward<OCA>(ot)...
 				) {
 				}
 
-				character_rendering_iterator &_char_iter() {
-					return _base._char_iter();
+				template <typename T> T &get_addon() {
+					return _get_addon_impl(_helper<T>());
 				}
-				void _begin() {
-					_base._begin();
+			protected:
+				typedef rendering_iterator<SkipFolded, Others...> _direct_base;
+				typedef rendering_iterator<SkipFolded> _root_base;
+
+				template <size_t ...I, typename FCA, typename ...OCA> rendering_iterator(
+					std::index_sequence<I...>, FCA &&f, OCA &&...ot
+				) : _direct_base(std::forward<OCA>(ot)...), _curaddon(std::get<I>(std::forward<FCA>(f))...) {
+					_root_base::char_iter().switching_char += [this](switch_char_info &pi) {
+						_curaddon.switching_char(_root_base::char_iter(), pi);
+					};
+					_root_base::char_iter().switching_line += [this]() {
+						_curaddon.switching_line(_root_base::char_iter());
+					};
+				}
+
+				template <typename T> struct _helper {
+				};
+				template <typename T> T &_get_addon_impl(_helper<T>) {
+					return _direct_base::template get_addon<T>();
+				}
+				F &_get_addon_impl(_helper<F>) {
+					return _curaddon;
 				}
 
 				F _curaddon;
-				rendering_iterator<SkipFolded, Others...> _base;
 			};
-			template <bool SkipFolded> struct rendering_iterator<SkipFolded> {
-				template <bool SF, typename ...Args> friend struct rendering_iterator;
-			public:
-				rendering_iterator(const std::tuple<const editor&, size_t, size_t> &p) :
-					rendering_iterator(std::get<0>(p), std::get<1>(p), std::get<2>(p)) {
-				}
-				rendering_iterator(const editor &ce, size_t sl, size_t pel) :
-					rendering_iterator(nullptr, ce, sl, pel) {
-					_begin();
-				}
-
-				void next() {
-					_citer.next_char();
-					_jiter.check(_citer);
-				}
-				bool ended() const {
-					return _citer.ended();
-				}
-
-				const character_rendering_iterator &char_iter() const {
-					return _citer;
-				}
-			protected:
-				template <bool Bv> struct _optional_skipper {
-					_optional_skipper(const editor&, size_t, size_t) {
+			namespace _helper {
+				template <bool Bv> struct optional_skipper {
+					optional_skipper(const editor&, size_t, size_t) {
 					}
 					bool check(character_rendering_iterator &r) {
 						return false;
 					}
 				};
-				template <> struct _optional_skipper<true> : public fold_region_skipper {
-					_optional_skipper(const editor &e, size_t sl, size_t pel) :
+				template <> struct optional_skipper<true> : public fold_region_skipper {
+					optional_skipper(const editor &e, size_t sl, size_t pel) :
 						fold_region_skipper(e.get_folding_info(), sl, pel) {
 					}
 				};
-				rendering_iterator(std::nullptr_t, const std::tuple<const editor&, size_t, size_t> &p) :
-					rendering_iterator(nullptr, std::get<0>(p), std::get<1>(p), std::get<2>(p)) {
+			}
+			template <bool SkipFolded> struct rendering_iterator<SkipFolded> {
+			public:
+				rendering_iterator(const std::tuple<const editor&, size_t, size_t> &p) :
+					rendering_iterator(std::get<0>(p), std::get<1>(p), std::get<2>(p)) {
 				}
-				rendering_iterator(std::nullptr_t, const editor &ce, size_t sl, size_t pel) :
-					_citer(ce, sl, pel), _jiter(ce, sl, pel) {
+				rendering_iterator(const editor &ce, size_t sl, size_t pel) :
+					_jiter(ce, sl, pel), _citer(ce, sl, pel) {
+				}
+				virtual ~rendering_iterator() {
 				}
 
-				character_rendering_iterator &_char_iter() {
+				bool begin() {
+					_citer.begin();
+					return _jiter.check(_citer);
+				}
+				bool next() {
+					_citer.next_char();
+					return _jiter.check(_citer);
+				}
+				bool ended() const {
+					return _citer.ended();
+				}
+
+				template <typename T> typename std::enable_if<
+					std::is_same<T, fold_region_skipper>::value && SkipFolded, T
+				>::type &get_addon() {
+					return _jiter;
+				}
+				character_rendering_iterator &char_iter() {
 					return _citer;
 				}
-				void _begin() {
-					_citer.begin();
-					_jiter.check(_citer);
-				}
-
-				_optional_skipper<SkipFolded> _jiter;
+			protected:
+				_helper::optional_skipper<SkipFolded> _jiter;
 				character_rendering_iterator _citer;
 			};
 
@@ -1064,7 +1100,9 @@ namespace codepad {
 				return _get_box()->get_editor();
 			}
 
-			inline void editor::caret_renderer::switching_char(const character_rendering_iterator &it) {
+			inline void editor::caret_renderer::switching_char(
+				const character_rendering_iterator &it, switch_char_info&
+			) {
 				double cx = it.character_info().char_left(), cy = it.y_offset();
 				if (_insel) {
 					if (_minmax.second <= it.current_position()) {
@@ -1083,7 +1121,7 @@ namespace codepad {
 						if (it.is_line_break()) {
 							_pen->draw_lines({
 								vec2d(cx, cy + it.line_height()),
-								vec2d(cx + _font.normal->get_char_entry(U' ').advance, cy + it.line_height())
+								vec2d(cx + _get_font().normal->get_char_entry(U' ').advance, cy + it.line_height())
 							});
 						} else {
 							_pen->draw_lines({
@@ -1095,7 +1133,8 @@ namespace codepad {
 				}
 			}
 			inline void editor::caret_renderer::switching_line(const character_rendering_iterator &it) {
-				switching_char(it);
+				switch_char_info dummy;
+				switching_char(it, dummy);
 				if (_insel) {
 					double finx =
 						it.character_info().char_left() +
@@ -1120,7 +1159,7 @@ namespace codepad {
 					used = &ncon;
 					caret_set::add_caret(ncon, std::make_pair(_cur_sel, caret_data(0.0)));
 				}
-				ui::font_family::baseline_info bi = _font.get_baseline_info();
+				ui::font_family::baseline_info bi = _get_font().get_baseline_info();
 
 				os::renderer_base::get().push_matrix(matd3x3::translate(vec2d(
 					std::round(get_client_region().xmin),
@@ -1129,14 +1168,11 @@ namespace codepad {
 						static_cast<double>(unfolded_to_folded_linebeg(be.first)) * lh
 					)
 				)));
-				for (
-					rendering_iterator<true, caret_renderer> it(
-						std::make_tuple(std::cref(*used), be.first, be.second, get_line_height(), _selbrush, _caretpen),
-						std::make_tuple(std::cref(*this), be.first, be.second)
-					);
-					!it.ended();
-					it.next()
-					) {
+				rendering_iterator<true, caret_renderer> it(
+					std::make_tuple(std::cref(*used), be.first, be.second, get_line_height(), _selbrush, _caretpen),
+					std::make_tuple(std::cref(*this), be.first, be.second)
+				);
+				for (it.begin(); !it.ended(); it.next()) {
 					const character_rendering_iterator &cri = it.char_iter();
 					if (!cri.is_line_break()) {
 						const ui::line_character_iterator &lci = cri.character_info();
@@ -1156,24 +1192,56 @@ namespace codepad {
 			inline double editor::get_horizontal_caret_position(caret_position pos) const {
 				size_t fline = unfolded_to_folded_linebeg(pos.line);
 				rendering_iterator<true> iter(*this, fline, _ctx->num_lines());
-				while (iter.char_iter().current_position() < pos) {
-					iter.next();
+				for (iter.begin(); iter.char_iter().current_position() < pos; iter.next()) {
 				}
 				return iter.char_iter().character_info().prev_char_right();
 			}
 			inline caret_position editor::hit_test_for_caret(size_t line, double x) const {
 				rendering_iterator<true> iter(*this, line, _ctx->num_lines());
-				while (!iter.char_iter().is_line_break()) {
-					double midv = (
-						iter.char_iter().character_info().char_left() +
-						iter.char_iter().character_info().char_right()
-						) * 0.5;
-					if (x < midv) {
-						break;
+				caret_position lastpos(line, 0);
+				bool stop = false, lastjmp = false;
+				iter.char_iter().switching_char += [&](switch_char_info &pi) {
+					if (!stop) {
+						if (lastjmp) {
+							double midv = (
+								iter.char_iter().character_info().prev_char_right() +
+								iter.char_iter().character_info().char_left()
+								) * 0.5;
+							if (x < midv) {
+								lastjmp = false;
+								stop = true;
+								return;
+							}
+							lastpos = iter.char_iter().current_position();
+						}
+						lastjmp = pi.is_jump;
+						if (!pi.is_jump) {
+							double midv = (
+								iter.char_iter().character_info().char_left() +
+								iter.char_iter().character_info().char_right()
+								) * 0.5;
+							if (x < midv) {
+								stop = true;
+								return;
+							}
+							lastpos = pi.next_position;
+						} else {
+							lastpos = iter.char_iter().current_position();
+						}
 					}
-					iter.next();
+				};
+				for (iter.begin(); !stop && !iter.char_iter().is_line_break(); iter.next()) {
 				}
-				return iter.char_iter().current_position();
+				if (lastjmp) {
+					double midv = (
+						iter.char_iter().character_info().prev_char_right() +
+						iter.char_iter().character_info().char_left()
+						) * 0.5;
+					if (x > midv) {
+						return iter.char_iter().current_position();
+					}
+				}
+				return lastpos;
 			}
 
 			inline void codebox::_initialize() {

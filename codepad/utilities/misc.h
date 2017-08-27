@@ -5,14 +5,16 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
-#include <cassert>
 #include <cstdlib>
 #include <algorithm>
 #include <type_traits>
+#include <chrono>
 
 #include "textproc.h"
 
 namespace codepad {
+	struct globals;
+
 	template <typename T> struct vec2 {
 		constexpr vec2() = default;
 		constexpr vec2(T xx, T yy) : x(xx), y(yy) {
@@ -477,13 +479,13 @@ namespace codepad {
 		v = v | static_cast<T>(bit);
 	}
 	template <typename T, typename U> inline void unset_bit(T &v, U bit) {
-		v = v & ~static_cast<T>(bit);
+		v = v & static_cast<T>(~static_cast<T>(bit));
 	}
 	template <typename T, typename U> inline T with_bit_set(T v, U bit) {
 		return v | static_cast<T>(bit);
 	}
 	template <typename T, typename U> inline T with_bit_unset(T v, U bit) {
-		return v & ~static_cast<T>(bit);
+		return v & static_cast<T>(~static_cast<T>(bit));
 	}
 
 
@@ -771,6 +773,6 @@ namespace codepad {
 namespace codepad {
 	inline void logger::log_stacktrace() {
 		log_warning(CP_HERE, "stacktrace logging has been disabled");
-}
+	}
 }
 #endif

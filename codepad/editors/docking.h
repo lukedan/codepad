@@ -356,8 +356,10 @@ namespace codepad {
 
 			void _on_mouse_down(ui::mouse_button_info &p) override {
 				panel_base::_on_mouse_down(p);
-				if (p.button == os::input::mouse_button::left && !_btn->hit_test(p.position)) {
-					p.mark_focus_set();
+				if (
+					p.button == os::input::mouse_button::left &&
+					!test_bit_all(static_cast<unsigned>(_btn->get_state()), ui::button_base::state::mouse_over)
+					) {
 					_mdpos = p.position;
 					ui::manager::get().schedule_update(*this);
 					click.invoke();
@@ -698,9 +700,7 @@ namespace codepad {
 				_stopdrag = stop;
 			}
 
-			inline static dock_manager &get() {
-				return _dman;
-			}
+			static dock_manager &get();
 		protected:
 			enum class _drag_dest_type {
 				new_wnd,
@@ -822,8 +822,6 @@ namespace codepad {
 				}
 				_hostlist.erase(hst._text_tok);
 			}
-
-			static dock_manager _dman;
 		};
 
 		inline void tab::_initialize() {

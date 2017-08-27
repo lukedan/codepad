@@ -60,9 +60,6 @@
     <ClInclude Include="os\windows.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ui\font.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="utilities\hotkey_registry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -90,15 +87,24 @@
     <ClInclude Include="ui\draw.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="os\font.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\font_family.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities\globals.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="utilities\globalvars.cpp">
+    <ClCompile Include="os\windows.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="os\windows.cpp">
+    <ClCompile Include="utilities\globals.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

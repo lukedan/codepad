@@ -54,6 +54,7 @@ namespace codepad {
 
 		class renderer_base {
 			friend class window_base;
+			friend struct codepad::globals;
 		public:
 			virtual ~renderer_base() {
 			}
@@ -91,11 +92,11 @@ namespace codepad {
 			virtual void pop_matrix() = 0;
 
 			inline static renderer_base &get() {
-				assert_true_usage(_rend.rend, "renderer not yet created");
-				return *_rend.rend;
+				assert_true_usage(_get_rend().rend, "renderer not yet created");
+				return *_get_rend().rend;
 			}
 			template <typename T, typename ...Args> inline static void create_default(Args &&...args) {
-				_rend.create<T, Args...>(std::forward<Args>(args)...);
+				_get_rend().create<T, Args...>(std::forward<Args>(args)...);
 			}
 		protected:
 			virtual void _new_window(window_base&) = 0;
@@ -112,7 +113,7 @@ namespace codepad {
 				}
 				renderer_base *rend = nullptr;
 			};
-			static _default_renderer _rend;
+			static _default_renderer &_get_rend();
 		};
 
 		inline framebuffer::~framebuffer() {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <unordered_map>
 
 #include "element.h"
 #include "manager.h"
@@ -298,7 +299,7 @@ namespace codepad {
 					std::chrono::high_resolution_clock::now() - start
 					).count();
 				if (dur > relayout_time_redline) {
-					logger::get().log_info(CP_HERE, "relayout cost ", dur, "ms");
+					logger::get().log_warning(CP_HERE, "relayout cost ", dur, "ms");
 				}
 			}
 		}

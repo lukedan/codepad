@@ -1,10 +1,11 @@
 #include <thread>
 #include <fstream>
 
+#include "utilities/globals.h"
 #include "utilities/event.h"
 #include "utilities/tasks.h"
 #include "os/current.h"
-#include "ui/font.h"
+#include "ui/font_family.h"
 #include "ui/draw.h"
 #include "ui/commonelements.h"
 #include "editors/docking.h"
@@ -22,10 +23,13 @@ int main() {
 	enable_mem_checking();
 #endif
 
+	globals gb;
+
 	renderer_base::create_default<opengl_renderer>();
 
 	code::text_context ctx;
-	font fnt("segoeui.ttf", 14), codefnt("UbuntuMono-R.ttf", 16), f1("pala.ttf", 14), f2("times.ttf", 14);
+	auto fnt = std::make_shared<default_font>(U"Segoe UI", 14.0, font_style::normal);
+	font_family codefnt(U"Iosevka", 14.0);
 	pen p(colord(0.9, 0.9, 0.9, 1.0));
 	texture_brush texb(colord(0.0, 0.6, 1.0, 0.2));
 	texture_brush viewb(colord(0.5, 0.5, 1.0, 0.2));
@@ -49,10 +53,12 @@ int main() {
 			code::editor *editor = cb->get_editor();
 			auto rgn = editor->get_carets().carets.rbegin()->first;
 			code::editor::fold_region fr = std::minmax(rgn.first, rgn.second);
-			logger::get().log_info(CP_HERE, "folding region: (", fr.first.column, ", ", fr.first.line, ") -> (", fr.second.column, ", ", fr.second.line, ")");
-			std::vector<code::editor::fold_region> list = editor->add_fold_region(fr);
-			for (auto i = list.begin(); i != list.end(); ++i) {
-				logger::get().log_info(CP_HERE, "  overwrote region: (", i->first.column, ", ", i->first.line, ") -> (", i->second.column, ", ", i->second.line, ")");
+			if (fr.first != fr.second) {
+				logger::get().log_info(CP_HERE, "folding region: (", fr.first.column, ", ", fr.first.line, ") -> (", fr.second.column, ", ", fr.second.line, ")");
+				std::vector<code::editor::fold_region> list = editor->add_fold_region(fr);
+				for (auto i = list.begin(); i != list.end(); ++i) {
+					logger::get().log_info(CP_HERE, "  overwrote region: (", i->first.column, ", ", i->first.line, ") -> (", i->second.column, ", ", i->second.line, ")");
+				}
 			}
 		}
 	});
@@ -66,29 +72,37 @@ int main() {
 		}
 	});
 
-	content_host::set_default_font(&fnt);
-	code::editor::set_font(font_family(codefnt, codefnt, codefnt, codefnt));
+	content_host::set_default_font(fnt);
+	code::editor::set_font(codefnt);
 	code::editor::set_caret_pen(&p);
 	code::editor::set_selection_brush(&texb);
 	code::minimap::set_viewport_brush(&viewb);
 
-	ctx.load_from_file(U"editors/code/context.h");
+	ctx.load_from_file(U"main.cpp");
+	//ctx.load_from_file(U"editors/code/context.h");
 	ctx.auto_set_default_line_ending();
 
-	tab *codetab = dock_manager::get().new_tab();
-	codetab->set_caption(U"code");
-	code::codebox *cp = element::create<code::codebox>();
-	code::editor *cpe = cp->get_editor();
-	code::line_number *ln = element::create<code::line_number>();
-	code::minimap *mmp = element::create<code::minimap>();
-	cp->set_default_hotkey_group(&hg);
-	cp->add_component_left(*ln);
-	cp->add_component_right(*mmp);
+	tab *codetab1 = dock_manager::get().new_tab();
+	codetab1->set_caption(U"code1");
+	code::codebox *cp1 = element::create<code::codebox>();
+	cp1->set_default_hotkey_group(&hg);
+	cp1->add_component_left(*element::create<code::line_number>());
+	cp1->add_component_right(*element::create<code::minimap>());
 
-	cpe->set_context(&ctx);
-	codetab->children().add(*cp);
+	cp1->get_editor()->set_context(&ctx);
+	codetab1->children().add(*cp1);
 
-	auto tok = async_task_pool::get().run_task([&ctx, cpe](async_task_pool::async_task &tk) {
+	tab *codetab2 = dock_manager::get().new_tab();
+	codetab2->set_caption(U"code2");
+	code::codebox *cp2 = element::create<code::codebox>();
+	cp2->set_default_hotkey_group(&hg);
+	cp2->add_component_left(*element::create<code::line_number>());
+	cp2->add_component_right(*element::create<code::minimap>());
+
+	cp2->get_editor()->set_context(&ctx);
+	codetab2->children().add(*cp2);
+
+	async_task_pool::get().run_task([&ctx](async_task_pool::async_task&) {
 		code::text_theme_data data;
 		for (size_t i = 0; i < 1340000; i += 10) {
 			double n6 = std::rand() / (double)RAND_MAX, n7 = std::rand() / (double)RAND_MAX, n8 = std::rand() / (double)RAND_MAX;
@@ -98,9 +112,8 @@ int main() {
 				code::text_theme_specification(font_style::normal, colord(n6, n7, n8, 1.0))
 			);
 		}
-		callback_buffer::get().add([d = std::move(data), &ctx, cpe]() {
+		callback_buffer::get().add([d = std::move(data), &ctx]() {
 			ctx.set_text_theme(d);
-			cpe->invalidate_visual();
 			logger::get().log_stacktrace();
 		});
 	});

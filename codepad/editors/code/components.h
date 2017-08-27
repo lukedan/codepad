@@ -29,9 +29,9 @@ namespace codepad {
 						static_cast<double>(editor->unfolded_to_folded_linebeg(be.first)) * lh;
 					for (size_t curi = be.first; curi < be.second; ++curi, cury += lh) {
 						str_t curlbl = to_str(curi + 1);
-						double w = ui::text_renderer::measure_plain_text(curlbl, *editor::get_font().normal).x;
+						double w = ui::text_renderer::measure_plain_text(curlbl, editor::get_font().normal.get()).x;
 						ui::text_renderer::render_plain_text(
-							curlbl, *editor::get_font().normal,
+							curlbl, editor::get_font().normal.get(),
 							vec2d(get_client_region().xmax - w, cury), colord()
 						);
 						while (it != editor->get_folding_info().end() && it->first.line == curi) {
@@ -45,7 +45,9 @@ namespace codepad {
 			class minimap : public component {
 			public:
 				constexpr static double target_font_height = 2.0, page_rendering_time_redline = 30.0;
-				constexpr static size_t maximum_width = 150, minimum_page_size = 500; // in pixels
+				constexpr static size_t
+					maximum_width = 150, minimum_page_size = 500, // in pixels
+					expected_triangles_per_line = 200;
 
 				vec2d get_desired_size() const override {
 					codebox *cb = _get_box();
@@ -83,9 +85,11 @@ namespace codepad {
 					void render_page(size_t s, size_t pe) {
 						auto start_time = std::chrono::high_resolution_clock::now();
 						const editor *ce = parent->_get_editor();
-						double lh = ce->get_line_height(), buftop = s * lh * get_scale(), rbtop = std::round(buftop);
+						double
+							lh = ce->get_line_height(),
+							buftop = static_cast<double>(s) * lh * get_scale(), rbtop = std::round(buftop);
 						os::framebuffer buf = os::renderer_base::get().new_framebuffer(
-							maximum_width, static_cast<size_t>(std::ceil(lh * get_scale() * (pe - s)))
+							maximum_width, static_cast<size_t>(std::ceil(lh * get_scale() * static_cast<double>(pe - s)))
 						);
 
 						os::renderer_base::get().begin_framebuffer(buf);
@@ -97,7 +101,9 @@ namespace codepad {
 						size_t
 							ufs = parent->_get_editor()->folded_to_unfolded_linebeg(s),
 							ufpe = parent->_get_editor()->folded_to_unfolded_linebeg(pe);
-						for (rendering_iterator<true> it(*ce, ufs, ufpe); !it.ended(); it.next()) {
+						rendering_iterator<true> it(*ce, ufs, ufpe);
+						rb.reserve(expected_triangles_per_line * (pe - s));
+						for (it.begin(); !it.ended(); it.next()) {
 							if (!it.char_iter().is_line_break()) {
 								const ui::line_character_iterator &ci = it.char_iter().character_info();
 								const text_theme_data::char_iterator &ti = it.char_iter().theme_info();
@@ -129,7 +135,7 @@ namespace codepad {
 							std::chrono::high_resolution_clock::now() - start_time
 							).count();
 						if (dur > page_rendering_time_redline) {
-							logger::get().log_info(CP_HERE, "minimap rendering [", s, ", ", pe, ") cost ", dur, "ms");
+							logger::get().log_warning(CP_HERE, "minimap rendering [", s, ", ", pe, ") cost ", dur, "ms");
 						}
 						pages.insert(std::make_pair(s, std::move(buf)));
 					}
@@ -190,7 +196,10 @@ namespace codepad {
 				};
 
 				void _on_prerender() override {
-					_pgcache.make_valid();
+					if (!_cachevalid) {
+						_pgcache.make_valid();
+						_cachevalid = true;
+					}
 					component::_on_prerender();
 				}
 				void _render() const override {
@@ -202,8 +211,8 @@ namespace codepad {
 					auto ibeg = --_pgcache.pages.upper_bound(vlines.first), iend = _pgcache.pages.lower_bound(vlines.second);
 					for (auto i = ibeg; i != iend; ++i) {
 						rectd crgn = clnrgn;
-						crgn.ymin = std::round(crgn.ymin + slh * i->first);
-						crgn.ymax = crgn.ymin + i->second.get_height();
+						crgn.ymin = std::round(crgn.ymin + slh * static_cast<double>(i->first));
+						crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_height());
 						os::renderer_base::get().draw_quad(crgn, rectd(0.0, 1.0, 0.0, 1.0), colord(), i->second.get_texture());
 					}
 					if (_viewport_brush != nullptr) {
@@ -218,8 +227,8 @@ namespace codepad {
 					double
 						lh = editor->get_line_height(),
 						vh = get_client_region().height(),
-						maxh = nlines * lh - vh,
-						maxvh = nlines * lh * get_scale() - vh,
+						maxh = static_cast<double>(nlines) * lh - vh,
+						maxvh = static_cast<double>(nlines) * lh * get_scale() - vh,
 						perc = cb->get_vertical_position() / maxh;
 					perc = clamp(perc, 0.0, 1.0);
 					return std::max(0.0, perc * maxvh);
@@ -275,7 +284,7 @@ namespace codepad {
 							const editor *edt = _get_editor();
 							_get_box()->set_vertical_position(std::min(
 								(info.position.y - get_client_region().ymin + _get_y_offset()) / get_scale() - 0.5 * ch,
-								edt->get_num_lines_with_folding() * edt->get_line_height() - ch
+								static_cast<double>(edt->get_num_lines_with_folding()) * edt->get_line_height() - ch
 							));
 						}
 					}
@@ -298,7 +307,9 @@ namespace codepad {
 						const editor *edt = _get_editor();
 						double
 							yp = info.new_pos.y + _dragoffset - get_client_region().ymin,
-							toth = edt->get_num_lines_with_folding() * edt->get_line_height() - get_client_region().height(),
+							toth =
+							static_cast<double>(edt->get_num_lines_with_folding()) * edt->get_line_height() -
+							get_client_region().height(),
 							totch = std::min(get_client_region().height() * (1.0 - get_scale()), toth * get_scale());
 						_get_box()->set_vertical_position(toth * yp / totch);
 					}

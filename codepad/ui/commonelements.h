@@ -3,7 +3,7 @@
 #include "element.h"
 #include "panel.h"
 #include "draw.h"
-#include "font.h"
+#include "font_family.h"
 #include "../utilities/misc.h"
 #include "../utilities/textconfig.h"
 #include "../os/window.h"
@@ -16,6 +16,7 @@ namespace codepad {
 		};
 
 		class content_host {
+			friend struct codepad::globals;
 		public:
 			content_host(element &p) : _parent(p) {
 			}
@@ -28,11 +29,11 @@ namespace codepad {
 				return _text;
 			}
 
-			void set_font(const font *fnt) {
+			void set_font(std::shared_ptr<const os::font> fnt) {
 				_fnt = fnt;
 				_mark_text_size_change();
 			}
-			const font *get_font() const {
+			std::shared_ptr<const os::font> get_font() const {
 				return _fnt;
 			}
 
@@ -44,12 +45,12 @@ namespace codepad {
 				return _clr;
 			}
 
-			inline static void set_default_font(const font *fnt) {
-				_def_fnt = fnt;
+			inline static void set_default_font(std::shared_ptr<const os::font> fnt) {
+				_get_deffnt() = std::move(fnt);
 				_def_fnt_ts = static_cast<unsigned char>(((_def_fnt_ts + 1) & _mask_szcachets) | _mask_hasszcache);
 			}
-			inline static const font *get_default_font() {
-				return _def_fnt;
+			inline static std::shared_ptr<const os::font> get_default_font() {
+				return _get_deffnt();
 			}
 
 			void set_text_offset(vec2d o) {
@@ -66,14 +67,17 @@ namespace codepad {
 						return _sz_cch;
 					} else {
 						_sz_cached = _mask_hasszcache;
-						return _sz_cch = text_renderer::measure_plain_text(_text, *_fnt);
+						return _sz_cch = text_renderer::measure_plain_text(_text, _fnt.get());
 					}
-				} else if (_def_fnt) {
-					if (_sz_cached == _def_fnt_ts) {
-						return _sz_cch;
-					} else {
-						_sz_cached = _def_fnt_ts;
-						return _sz_cch = text_renderer::measure_plain_text(_text, *_def_fnt);
+				} else {
+					const os::font *fnt = _get_deffnt().get();
+					if (fnt) {
+						if (_sz_cached == _def_fnt_ts) {
+							return _sz_cch;
+						} else {
+							_sz_cached = _def_fnt_ts;
+							return _sz_cch = text_renderer::measure_plain_text(_text, fnt);
+						}
 					}
 				}
 				return vec2d();
@@ -85,9 +89,9 @@ namespace codepad {
 			}
 
 			void render() const {
-				const font *f = _fnt ? _fnt : _def_fnt;
+				const os::font *f = _fnt ? _fnt.get() : _get_deffnt().get();
 				if (f) {
-					text_renderer::render_plain_text(_text, *f, get_text_position(), _clr);
+					text_renderer::render_plain_text(_text, f, get_text_position(), _clr);
 				}
 			}
 		protected:
@@ -98,7 +102,7 @@ namespace codepad {
 			mutable vec2d _sz_cch;
 			// text stuff
 			str_t _text;
-			const font *_fnt = nullptr;
+			std::shared_ptr<const os::font> _fnt;
 			colord _clr;
 			vec2d _textoffset;
 			// parent
@@ -113,7 +117,10 @@ namespace codepad {
 			}
 
 			static unsigned char _def_fnt_ts;
-			static const font *_def_fnt;
+			struct _default_font {
+				std::shared_ptr<const os::font> font;
+			};
+			static std::shared_ptr<const os::font> &_get_deffnt();
 		};
 
 		class label : public element {
@@ -179,6 +186,7 @@ namespace codepad {
 				element::_on_mouse_leave();
 			}
 			void _on_mouse_down(mouse_button_info &p) override {
+				_on_update_mouse_pos(p.position);
 				if (p.button == _trigbtn) {
 					_set_state(with_bit_set(_state, state::mouse_down));
 					get_window()->set_mouse_capture(*this);
@@ -198,6 +206,7 @@ namespace codepad {
 				_on_mouse_lbutton_up();
 			}
 			void _on_mouse_up(mouse_button_info &p) override {
+				_on_update_mouse_pos(p.position);
 				bool valid = test_bit_all(_state, state::pressed);
 				if (p.button == _trigbtn) {
 					_on_mouse_lbutton_up();
@@ -207,12 +216,15 @@ namespace codepad {
 				}
 				element::_on_mouse_up(p);
 			}
-			void _on_mouse_move(mouse_move_info &p) override {
-				if (hit_test(p.new_pos)) {
+			void _on_update_mouse_pos(vec2d pos) {
+				if (hit_test(pos)) {
 					_set_state(with_bit_set(_state, state::mouse_over));
 				} else {
 					_set_state(with_bit_unset(_state, state::mouse_over));
 				}
+			}
+			void _on_mouse_move(mouse_move_info &p) override {
+				_on_update_mouse_pos(p.new_pos);
 				element::_on_mouse_move(p);
 			}
 

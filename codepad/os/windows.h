@@ -10,20 +10,33 @@
 #undef max
 #include <gl/GL.h>
 #include <gl/glext.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include <d2d1.h>
+#include <dwrite.h>
 
 #include "window.h"
 #include "renderer.h"
 #include "input.h"
+#include "font.h"
 #include "../utilities/textconfig.h"
 #include "../utilities/textproc.h"
 
 namespace codepad {
 	namespace os {
 		template <typename T> inline void winapi_check(T v) {
+#ifdef CP_DETECT_SYSTEM_ERRORS
 			if (!v) {
 				logger::get().log_error(CP_HERE, "WinAPI error code ", GetLastError());
 				assert_true_sys(false, "WinAPI error");
 			}
+#endif
+		}
+		inline void gdi_check(DWORD v) {
+			assert_true_sys(v != GDI_ERROR, "GDI error");
+		}
+		inline void gdi_check(HGDIOBJ v) {
+			assert_true_sys(v != HGDI_ERROR, "GDI error");
 		}
 
 		namespace input {
@@ -44,6 +57,181 @@ namespace codepad {
 				winapi_check(SetCursorPos(p.x, p.y));
 			}
 		}
+
+		// TODO (not urgent):
+		//   windows fonts (CreateFont, GetCharABCWidths, GetKerningPairs, GetGlyphOutline, GetGlyphIndices)
+		//   directwrite (IDWriteTextLayout::GetPairKerning)
+		class freetype_font : public font {
+			friend struct codepad::globals;
+		public:
+			freetype_font(const str_t &str, double sz, font_style style) : font() {
+				constexpr size_t maximum_font_name_length = 100;
+				std::basic_string<char16_t> utf16string = utf32_to_utf16(str);
+				HFONT font = CreateFont(
+					0, 0, 0, 0,
+					test_bit_all(static_cast<unsigned>(style), font_style::bold) ? FW_BOLD : FW_NORMAL,
+					test_bit_all(static_cast<unsigned>(style), font_style::italic), false, false,
+					DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FF_DONTCARE,
+					reinterpret_cast<const TCHAR*>(utf16string.c_str())
+				);
+				winapi_check(font);
+				HDC dc = GetDC(nullptr);
+				winapi_check(dc);
+				HGDIOBJ original = SelectObject(dc, font);
+				gdi_check(original);
+				DWORD size = GetFontData(dc, 0, 0, nullptr, 0);
+				gdi_check(size);
+				_data = std::malloc(size);
+				assert_true_sys(GetFontData(dc, 0, 0, _data, size) == size, "error getting font data");
+				TCHAR buf[maximum_font_name_length];
+				GetTextFace(dc, maximum_font_name_length, buf);
+				logger::get().log_info(CP_HERE, "font loaded: ", convert_to_utf8(std::basic_string<TCHAR>(buf)));
+				gdi_check(SelectObject(dc, original));
+				winapi_check(DeleteObject(font));
+				_ft_verify(FT_New_Memory_Face(_get_library().lib, static_cast<FT_Byte*>(_data), size, 0, &_face));
+				_ft_verify(FT_Set_Pixel_Sizes(_face, 0, static_cast<FT_UInt>(sz)));
+			}
+			~freetype_font() override {
+				for (auto i = _map.begin(); i != _map.end(); ++i) {
+					os::renderer_base::get().delete_character_texture(i->second.texture);
+				}
+				_ft_verify(FT_Done_Face(_face));
+				std::free(_data);
+			}
+
+			const entry &get_char_entry(char_t c) const override {
+				auto found = _map.find(c);
+				if (found == _map.end()) {
+					_ft_verify(FT_Load_Char(_face, c, FT_LOAD_DEFAULT | FT_LOAD_RENDER));
+					const FT_Bitmap &bmpdata = _face->glyph->bitmap;
+					entry &et = _map[c] = entry();
+					et.texture = os::renderer_base::get().new_character_texture(bmpdata.width, bmpdata.rows, bmpdata.buffer);
+					et.advance = _face->glyph->metrics.horiAdvance * _ft_fixed_scale;
+					et.placement = rectd::from_xywh(
+						_face->glyph->metrics.horiBearingX * _ft_fixed_scale,
+						(_face->size->metrics.ascender - _face->glyph->metrics.horiBearingY) * _ft_fixed_scale,
+						bmpdata.width,
+						bmpdata.rows
+					);
+					return et;
+				}
+				return found->second;
+			}
+
+			double height() const override {
+				return _face->size->metrics.height * _ft_fixed_scale;
+			}
+			double max_width() const override {
+				return _face->size->metrics.max_advance * _ft_fixed_scale;
+			}
+			double baseline() const override {
+				return _face->size->metrics.ascender * _ft_fixed_scale;
+			}
+			vec2d get_kerning(char_t left, char_t right) const override {
+				FT_Vector v;
+				_ft_verify(FT_Get_Kerning(_face, FT_Get_Char_Index(_face, left), FT_Get_Char_Index(_face, right), FT_KERNING_UNFITTED, &v));
+				return vec2d(v.x, v.y) * _ft_fixed_scale;
+			}
+		protected:
+			constexpr static double _ft_fixed_scale = 1.0 / 64.0;
+
+			FT_Face _face = nullptr;
+			mutable std::unordered_map<char_t, entry> _map;
+			void *_data = nullptr;
+
+			inline static void _ft_verify(FT_Error code) {
+#ifdef CP_DETECT_SYSTEM_ERRORS
+				if (code != 0) {
+					logger::get().log_error(CP_HERE, "FreeType error code ", code);
+					assert_true_sys(false, "FreeType error");
+				}
+#endif
+			}
+
+			struct _library {
+				_library() {
+					_ft_verify(FT_Init_FreeType(&lib));
+				}
+				~_library() {
+					_ft_verify(FT_Done_FreeType(lib));
+				}
+
+				FT_Library lib = nullptr;
+			};
+			static _library &_get_library();
+		};
+		class gdi_font : public font {
+			// TODO
+		};
+		class directwrite_font : public font {
+			friend struct codepad::globals;
+		public:
+			directwrite_font(const str_t &s, size_t sz, font_style style) : font() {
+				std::basic_string<char16_t> utf16str = utf32_to_utf16(s);
+				_factory &f = _get_factory();
+				_verify(f.dwrite_factory->CreateTextFormat(
+					reinterpret_cast<const TCHAR*>(utf16str.c_str()), nullptr, (
+						test_bit_all(static_cast<unsigned>(style), font_style::bold) ?
+						DWRITE_FONT_WEIGHT_BOLD : DWRITE_FONT_WEIGHT_REGULAR
+						), (
+							test_bit_all(static_cast<unsigned>(style), font_style::italic) ?
+							DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL
+							), DWRITE_FONT_STRETCH_NORMAL, static_cast<FLOAT>(sz), TEXT(""), &_format
+				));
+				_verify(_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING));
+				_verify(_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR));
+			}
+			~directwrite_font() override {
+				_format->Release();
+			}
+
+			const entry &get_char_entry(char_t) const override {
+				// TODO
+			}
+
+			double height() const override {
+				// TODO
+			}
+			double max_width() const override {
+				// TODO
+			}
+			double baseline() const override {
+				// TODO
+			}
+			vec2d get_kerning(char_t, char_t) const override {
+				return vec2d(); // FIXME directwrite doesn't support getting kerning directly
+			}
+		protected:
+			IDWriteTextFormat *_format = nullptr;
+
+			inline static void _verify(HRESULT res) {
+#ifdef CP_DETECT_SYSTEM_ERRORS
+				if (res != S_OK) {
+					logger::get().log_error(CP_HERE, "DirectWrite error code ", res);
+					assert_true_sys(false, "DirectWrite error");
+				}
+#endif
+			}
+
+			struct _factory {
+				_factory() {
+					_verify(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &d2d1_factory));
+					_verify(DWriteCreateFactory(
+						DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
+						reinterpret_cast<IUnknown**>(&dwrite_factory)
+					));
+				}
+				~_factory() {
+					d2d1_factory->Release();
+					dwrite_factory->Release();
+				}
+
+				ID2D1Factory *d2d1_factory = nullptr;
+				IDWriteFactory *dwrite_factory = nullptr;
+			};
+			static _factory &_get_factory();
+		};
+		typedef freetype_font default_font;
 
 		class window : public window_base {
 			friend LRESULT CALLBACK _wndproc(HWND, UINT, WPARAM, LPARAM);
@@ -156,7 +344,16 @@ namespace codepad {
 		protected:
 			window() : window(U"Codepad") {
 			}
-			explicit window(const str_t&);
+			explicit window(const str_t &clsname) {
+				auto u16str = utf32_to_utf16(clsname);
+				winapi_check(_hwnd = CreateWindowEx(
+					0, reinterpret_cast<LPCWSTR>(static_cast<size_t>(_class.atom)),
+					reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
+					CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+					nullptr, nullptr, GetModuleHandle(nullptr), nullptr
+				));
+				winapi_check(_dc = GetDC(_hwnd));
+			}
 
 			HWND _hwnd;
 			HDC _dc;
@@ -225,7 +422,7 @@ namespace codepad {
 			software_renderer() : renderer_base() {
 				_txs.push_back(_tex_rec());
 			}
-			~software_renderer() {
+			~software_renderer() override {
 				_dispose_buffer();
 			}
 
@@ -630,7 +827,7 @@ namespace codepad {
 				_pfd.iLayerType = PFD_MAIN_PLANE;
 				winapi_check(_pformat = ChoosePixelFormat(GetDC(nullptr), &_pfd));
 			}
-			~opengl_renderer() {
+			~opengl_renderer() override {
 				_atl.dispose();
 				winapi_check(wglMakeCurrent(nullptr, nullptr));
 				winapi_check(wglDeleteContext(_rc));
@@ -650,28 +847,13 @@ namespace codepad {
 			}
 			void push_clip(recti r) override {
 				_flush_text_buffer();
-				if (_rtfstk.back().invert_y) {
-					int ymin = r.ymin, ch = static_cast<int>(_rtfstk.back().height);
-					r.ymin = ch - r.ymax;
-					r.ymax = ch - ymin;
-				}
-				if (_clpstk.size() > 0) {
-					r = recti::common_part(r, _clpstk.back());
-				}
-				r.make_valid_max();
-				_clpstk.push_back(r);
-				glEnable(GL_SCISSOR_TEST);
-				glScissor(r.xmin, r.ymin, r.width(), r.height());
+				_rtfstk.back().push_clip(r);
+				_rtfstk.back().apply_clip();
 			}
 			void pop_clip() override {
 				_flush_text_buffer();
-				_clpstk.pop_back();
-				if (_clpstk.size() > 0) {
-					const recti &r = _clpstk.back();
-					glScissor(r.xmin, r.ymin, r.width(), r.height());
-				} else {
-					glDisable(GL_SCISSOR_TEST);
-				}
+				_rtfstk.back().pop_clip();
+				_rtfstk.back().apply_clip();
 			}
 			void draw_character(texture_id id, vec2d pos, colord color) override {
 				const _text_atlas::char_data &cd = _atl.get_char_data(id);
@@ -907,6 +1089,7 @@ namespace codepad {
 				const page &get_page(const _wgl_funcs &gl, size_t page) {
 					if (_lpdirty && page + 1 == _ps.size()) {
 						_ps.back().flush(gl);
+						_lpdirty = false;
 					}
 					return _ps[page];
 				}
@@ -1054,9 +1237,36 @@ namespace codepad {
 				template <typename T, typename U> _render_target_stackframe(bool invy, size_t w, size_t h, T fbeg, U fend) :
 					invert_y(invy), width(w), height(h), begin(std::move(fbeg)), end(std::move(fend)) {
 				}
+
 				bool invert_y = false;
 				size_t width = 0, height = 0;
 				std::function<void()> begin, end;
+				std::vector<recti> clip_stack;
+
+				void push_clip(recti r) {
+					if (invert_y) {
+						int ymin = r.ymin, ch = static_cast<int>(height);
+						r.ymin = ch - r.ymax;
+						r.ymax = ch - ymin;
+					}
+					if (clip_stack.size() > 0) {
+						r = recti::common_part(r, clip_stack.back());
+					}
+					r.make_valid_max();
+					clip_stack.push_back(r);
+				}
+				void pop_clip() {
+					clip_stack.pop_back();
+				}
+				void apply_clip() {
+					if (clip_stack.size() > 0) {
+						glEnable(GL_SCISSOR_TEST);
+						const recti &r = clip_stack.back();
+						glScissor(r.xmin, r.ymin, r.width(), r.height());
+					} else {
+						glDisable(GL_SCISSOR_TEST);
+					}
+				}
 			};
 
 			HGLRC _rc = nullptr;
@@ -1064,7 +1274,6 @@ namespace codepad {
 			_wgl_funcs _gl;
 			int _pformat;
 
-			std::vector<recti> _clpstk;
 			std::vector<matd3x3> _matstk;
 			std::vector<_render_target_stackframe> _rtfstk;
 
@@ -1075,25 +1284,34 @@ namespace codepad {
 			void _begin_render_target(_render_target_stackframe rtf) {
 				_rtfstk.push_back(std::move(rtf));
 				_continue_last_render_target();
+				glMatrixMode(GL_MODELVIEW);
+				glPushMatrix();
+				glLoadIdentity();
 			}
 			void _continue_last_render_target() {
 				_render_target_stackframe &rtf = _rtfstk.back();
 				rtf.begin();
+				rtf.apply_clip();
 				glViewport(0, 0, static_cast<GLsizei>(rtf.width), static_cast<GLsizei>(rtf.height));
 				glMatrixMode(GL_PROJECTION);
 				glLoadIdentity();
-				_gl_verify();
 				if (rtf.invert_y) {
 					glOrtho(0.0, static_cast<GLdouble>(rtf.width), static_cast<GLdouble>(rtf.height), 0.0, 0.0, -1.0);
 				} else {
 					glOrtho(0.0, static_cast<GLdouble>(rtf.width), 0.0, static_cast<GLdouble>(rtf.height), 0.0, -1.0);
 				}
+				_gl_verify();
 			}
 			void _end_render_target() {
+				glMatrixMode(GL_MODELVIEW);
+				glPopMatrix();
 				_rtfstk.back().end();
+				assert_true_usage(_rtfstk.back().clip_stack.empty(), "pushclip/popclip mismatch");
 				_rtfstk.pop_back();
 				if (!_rtfstk.empty()) {
 					_continue_last_render_target();
+				} else {
+					assert_true_usage(_matstk.size() == 0, "pushmatrix/popmatrix mismatch");
 				}
 			}
 
@@ -1103,11 +1321,13 @@ namespace codepad {
 				}
 			}
 			void _gl_verify() {
+#ifdef CP_DETECT_SYSTEM_ERRORS
 				GLenum errorcode = glGetError();
 				if (errorcode != GL_NO_ERROR) {
 					logger::get().log_error(CP_HERE, "OpenGL error code ", errorcode);
 					assert_true_sys(false, "OpenGL error");
 				}
+#endif
 			}
 		};
 	}

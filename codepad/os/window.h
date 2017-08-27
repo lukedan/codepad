@@ -249,7 +249,7 @@ namespace codepad {
 					std::chrono::high_resolution_clock::now() - start
 					).count();
 				if (dur > render_time_redline) {
-					logger::get().log_info(CP_HERE, "render cost ", dur, "ms");
+					logger::get().log_warning(CP_HERE, "render cost ", dur, "ms");
 				}
 			}
 		}

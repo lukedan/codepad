@@ -134,14 +134,18 @@ namespace codepad {
 		class element;
 		typedef hotkey_group<void(element*)> element_hotkey_group;
 		class manager;
-#ifndef NDEBUG
+#ifdef CP_DETECT_LOGICAL_ERRORS
 		struct control_dispose_rec {
 			~control_dispose_rec() {
-				assert(reg_created == disposed && reg_disposed == disposed);
+				assert_true_logical(
+					reg_created == disposed && reg_disposed == disposed,
+					"undisposed controls remaining"
+				);
 			}
 			size_t reg_created = 0, disposed = 0, reg_disposed = 0;
+
+			static control_dispose_rec &get();
 		};
-		extern control_dispose_rec _dispose_rec;
 #endif
 
 		class element {
@@ -155,8 +159,8 @@ namespace codepad {
 			element &operator=(const element&) = delete;
 			element &operator=(element&&) = delete;
 			virtual ~element() {
-#ifndef NDEBUG
-				++_dispose_rec.disposed;
+#ifdef CP_DETECT_LOGICAL_ERRORS
+				++control_dispose_rec::get().disposed;
 #endif
 			}
 
@@ -306,8 +310,8 @@ namespace codepad {
 			template <typename T, typename ...Args> inline static T *create(Args &&...arg) {
 				static_assert(std::is_base_of<element, T>::value, "cannot create non-element");
 				element *elem = new T(std::forward<Args>(arg)...);
-#ifndef NDEBUG
-				++_dispose_rec.reg_created;
+#ifdef CP_DETECT_LOGICAL_ERRORS
+				++control_dispose_rec::get().reg_created;
 #endif
 				elem->_initialize();
 #ifdef CP_DETECT_USAGE_ERRORS
