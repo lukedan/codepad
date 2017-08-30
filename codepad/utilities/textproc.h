@@ -7,84 +7,227 @@
 #include "textconfig.h"
 
 namespace codepad {
+	typedef unsigned char char8_t;
+	typedef std::basic_string<char8_t> u8str_t;
+	constexpr char32_t
+		replacement_character = 0xFFFD,
+		invalid_min = 0xD800, invalid_max = 0xDFFF,
+		unicode_max = 0x10FFFF;
+
 	inline bool is_newline(char_t c) {
 		return c == U'\n' || c == U'\r';
 	}
 	inline bool is_graphical_char(char_t c) { // TODO incomplete
-		return c != U'\n' && c != U'\r' && c != U'\t';
+		return c != U'\n' && c != U'\r' && c != U'\t' && c != U' ';
+	}
+	inline bool is_valid_codepoint(char_t c) {
+		return c < invalid_min || (c > invalid_max && c <= unicode_max);
 	}
 
-	inline std::basic_string<char16_t> utf32_to_utf16(const std::basic_string<char32_t> &str) {
-		std::basic_ostringstream<char16_t> result;
-		for (auto i = str.begin(); i != str.end(); ++i) {
-			if (*i < 0x10000) {
-				result << static_cast<char16_t>(*i);
-			} else {
-				char32_t mined = *i - 0x10000;
-				result << static_cast<char16_t>((mined >> 10) | 0xD800);
-				result << static_cast<char16_t>((mined & 0x03FF) | 0xDC00);
+	// the caller is responsible of determining whether i == end
+	template <typename Iter> inline bool next_codepoint(
+		Iter &i, u8str_t::const_iterator end, char32_t &v
+	) {
+		char8_t fc = *i;
+		if ((fc & 0x80) == 0) {
+			v = fc;
+		} else if ((fc & 0xE0) == 0xC0) {
+			v = static_cast<char32_t>(fc & 0x1F) << 6;
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			v |= *i & 0x3F;
+		} else if ((fc & 0xF0) == 0xE0) {
+			v = static_cast<char32_t>(fc & 0x0F) << 12;
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			v |= static_cast<char32_t>(*i & 0x3F) << 6;
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			v |= *i & 0x3F;
+		} else if ((fc & 0xF8) == 0xF0) {
+			v = static_cast<char32_t>(fc & 0x07) << 18;
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			v |= static_cast<char32_t>(*i & 0x3F) << 12;
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			v |= static_cast<char32_t>(*i & 0x3F) << 6;
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			v |= *i & 0x3F;
+		} else {
+			++i;
+			return false;
+		}
+		++i;
+		return true;
+	}
+	template <typename Iter> inline bool next_codepoint(
+		Iter &i, std::u16string::const_iterator end, char32_t &v
+	) {
+		char16_t fc = *i;
+		if ((fc & 0xDC00) == 0xD800) {
+			v = (fc & 0x03FF) << 10;
+			if (++i == end || (*i & 0xDC00) != 0xDC00) {
+				return false;
+			}
+			v |= *i & 0x03FF;
+		} else {
+			v = fc;
+			if ((fc & 0xDC00) == 0xDC00) {
+				++i;
+				return false;
 			}
 		}
-		return result.str();
+		++i;
+		return true;
 	}
 
-	// TODO utilization of deprecated functionality
-	namespace _helper {
-		template <typename T> struct deletable_facet : public T {
-			template <typename ...Args> explicit deletable_facet(Args &&...args) : T(std::forward<Args>(args)...) {
-			}
-		};
-#ifdef _MSC_VER
-		template <typename T> struct final_str_conv {
-			inline static std::basic_string<T> conv(const std::basic_string<T> &s) {
-				return s;
-			}
-		};
-		template <> struct final_str_conv<__int32> {
-			inline static std::basic_string<char32_t> conv(const std::basic_string<__int32> &s) {
-				return std::basic_string<char32_t>(reinterpret_cast<const char32_t*>(s.c_str()));
-			}
-		};
-#endif
+	inline void append_codepoint(u8str_t &s, char32_t c) {
+		if (c < 0x80) {
+			s.append({static_cast<char8_t>(c)});
+		} else if (c < 0x800) {
+			s.append({
+				static_cast<char8_t>(0xC0 | (c >> 6)),
+				static_cast<char8_t>(0x80 | (c & 0x3F))
+			});
+		} else if (c < 0x10000) {
+			s.append({
+				static_cast<char8_t>(0xE0 | (c >> 12)),
+				static_cast<char8_t>(0x80 | ((c >> 6) & 0x3F)),
+				static_cast<char8_t>(0x80 | (c & 0x3F))
+			});
+		} else {
+			s.append({
+				static_cast<char8_t>(0xF0 | (c >> 18)),
+				static_cast<char8_t>(0x80 | ((c >> 12) & 0x3F)),
+				static_cast<char8_t>(0x80 | ((c >> 6) & 0x3F)),
+				static_cast<char8_t>(0x80 | (c & 0x3F))
+			});
+		}
 	}
-	template <typename To> inline std::basic_string<To> convert_from_utf8(const std::string &str) {
-		// TODO utilization of deprecated functionality
-#ifdef _MSC_VER
-		// TODO fuck visual studio
-		typedef typename std::conditional<std::is_same<To, char32_t>::value, __int32, To>::type _To_t;
-		std::wstring_convert<_helper::deletable_facet<std::codecvt<_To_t, char, std::mbstate_t>>, _To_t> conv;
-		return _helper::final_str_conv<_To_t>::conv(conv.from_bytes(str));
-#else
-		std::wstring_convert<_helper::deletable_facet<std::codecvt<To, char, std::mbstate_t>>, To> conv;
-		return conv.from_bytes(str);
-#endif
-	}
-	template <typename From> inline std::string convert_to_utf8(const std::basic_string<From> &str) {
-		std::wstring_convert<_helper::deletable_facet<std::codecvt<From, char, std::mbstate_t>>, From> conv;
-		return conv.to_bytes(str);
-	}
-#ifdef _MSC_VER
-	template <> inline std::string convert_to_utf8<char32_t>(const std::basic_string<char32_t> &str) {
-		std::wstring_convert<_helper::deletable_facet<std::codecvt<__int32, char, std::mbstate_t>>, __int32> conv;
-		return conv.to_bytes(std::basic_string<__int32>(reinterpret_cast<const __int32*>(str.c_str())));
-	}
-#endif
-	inline std::string convert_to_utf8(std::string str) {
-		return std::move(str);
+	inline void append_codepoint(std::u16string &s, char32_t c) {
+		if (c < 0x10000) {
+			s.append({static_cast<char16_t>(c)});
+		} else {
+			char32_t mined = c - 0x10000;
+			s.append({
+				static_cast<char16_t>((mined >> 10) | 0xD800),
+				static_cast<char16_t>((mined & 0x03FF) | 0xDC00)
+			});
+		}
 	}
 
-#if defined(_MSC_VER) || defined(__GNUC__)
-	// TODO fuck again, ugly workaround for VS AND g++
-	template <typename T> inline str_t to_str(T t) {
-		std::stringstream ss;
-		ss << t;
-		return convert_from_utf8<char32_t>(ss.str());
+	template <typename Char> inline std::u32string convert_to_utf32(
+		const std::basic_string<Char> &str
+	) {
+		std::u32string result;
+		result.reserve(str.length());
+		auto i = str.begin(), end = str.end();
+		char32_t c;
+		while (i != end) {
+			if (!next_codepoint(i, end, c)) {
+				c = replacement_character;
+			}
+			result.append({c});
+		}
+		return result;
 	}
-#else
-	template <typename T> inline str_t to_str(T t) {
-		std::basic_ostringstream<char_t> ss;
-		ss << t;
-		return ss.str();
+	template <typename Char> inline std::basic_string<Char> convert_from_utf32(
+		const std::u32string &str
+	) {
+		std::basic_string<Char> result;
+		result.reserve(str.length());
+		for (auto i = str.begin(); i != str.end(); ++i) {
+			char32_t curc = *i;
+			if (!is_valid_codepoint(curc)) {
+				curc = replacement_character;
+			}
+			append_codepoint(result, curc);
+		}
+		return result;
 	}
-#endif
+	template <typename To, typename From> inline std::basic_string<To> convert_between_utf16_and_utf8(
+		const std::basic_string<From> &str
+	) {
+		std::basic_string<To> result;
+		result.reserve(str.length());
+		auto i = str.begin(), end = str.end();
+		char32_t c;
+		while (i != end) {
+			if (!next_codepoint(i, end, c)) {
+				c = replacement_character;
+			}
+			append_codepoint(result, c);
+		}
+		return result;
+	}
+
+	inline std::u16string utf32_to_utf16(const std::u32string &str) {
+		return convert_from_utf32<char16_t>(str);
+	}
+	inline u8str_t utf32_to_utf8(const std::u32string &str) {
+		return convert_from_utf32<char8_t>(str);
+	}
+	inline u8str_t utf16_to_utf8(const std::u16string &str) {
+		return convert_between_utf16_and_utf8<char8_t>(str);
+	}
+	inline std::u16string utf8_to_utf16(const u8str_t &str) {
+		return convert_between_utf16_and_utf8<char16_t>(str);
+	}
+	inline std::u32string utf16_to_utf32(const std::u16string &str) {
+		return convert_to_utf32(str);
+	}
+	inline std::u32string utf8_to_utf32(const u8str_t &str) {
+		return convert_to_utf32(str);
+	}
+
+	// TODO deprecate this function due to performance?
+	inline std::string utf8_to_chars(const u8str_t &s) {
+		return std::string(reinterpret_cast<const char*>(s.c_str()));
+	}
+
+	inline u8str_t convert_to_utf8(u8str_t s) {
+		return s;
+	}
+	inline u8str_t convert_to_utf8(const std::u16string &s) {
+		return utf16_to_utf8(s);
+	}
+	inline u8str_t convert_to_utf8(const std::u32string &s) {
+		return utf32_to_utf8(s);
+	}
+	inline std::u16string convert_to_utf16(std::u16string s) {
+		return s;
+	}
+	inline std::u16string convert_to_utf16(const std::u32string &s) {
+		return utf32_to_utf16(s);
+	}
+	inline std::u16string convert_to_utf16(const u8str_t &s) {
+		return utf8_to_utf16(s);
+	}
+	inline std::u32string convert_to_utf32(std::u32string s) {
+		return s;
+	}
+	inline std::u32string convert_to_utf32(const u8str_t &s) {
+		return utf8_to_utf32(s);
+	}
+	inline std::u32string convert_to_utf32(const std::u16string &s) {
+		return utf16_to_utf32(s);
+	}
+
+	template <typename T> inline str_t to_str(T t) {
+		std::string res = std::to_string(t);
+		str_t result;
+		result.reserve(res.length());
+		for (auto i = res.begin(); i != res.end(); ++i) {
+			result.append({static_cast<char_t>(*i)});
+		}
+		return result;
+	}
 }

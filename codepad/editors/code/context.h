@@ -279,25 +279,28 @@ namespace codepad {
 
 			template <typename Cb> inline void convert_to_lines(const str_t &s, const Cb &callback) {
 				char_t last = U'\0';
-				std::basic_ostringstream<char_t> nss;
-				for (auto i = s.begin(); i != s.end(); ++i) {
+				size_t lasti = 0;
+				for (size_t i = 0; i < s.length(); ++i) {
+					char_t cur = s[i];
 					if (last == U'\r') {
-						callback(nss.str(), *i == U'\n' ? line_ending::rn : line_ending::r);
-						nss.str(U"");
-					} else if (*i == U'\n') {
-						callback(nss.str(), line_ending::n);
-						nss.str(U"");
+						if (cur == U'\n') {
+							callback(s.substr(lasti, i - lasti - 1), line_ending::rn);
+							lasti = i + 1;
+						} else {
+							callback(s.substr(lasti, i - lasti - 1), line_ending::r);
+							lasti = i;
+						}
+					} else if (cur == U'\n') {
+						callback(s.substr(lasti, i - lasti), line_ending::n);
+						lasti = i + 1;
 					}
-					if (*i != U'\n' && *i != U'\r') {
-						nss << *i;
-					}
-					last = *i;
+					last = cur;
 				}
 				if (last == U'\r') {
-					callback(nss.str(), line_ending::r);
+					callback(s.substr(lasti, s.size() - lasti - 1), line_ending::r);
 					callback(str_t(), line_ending::none);
 				} else {
-					callback(nss.str(), line_ending::none);
+					callback(s.substr(lasti), line_ending::none);
 				}
 			}
 
@@ -440,59 +443,65 @@ namespace codepad {
 					assert_true_usage(buffer_size > 1, "buffer size must be greater than one");
 					auto begt = std::chrono::high_resolution_clock::now();
 					std::list<line> ls;
-					std::stringstream ss;
+					u8str_t ss;
 					{
 						char *buffer = static_cast<char*>(std::malloc(sizeof(char) * buffer_size));
-						std::ifstream fin(convert_to_utf8(fn), std::ios::binary);
+						std::ifstream fin(utf8_to_chars(convert_to_utf8(fn)), std::ios::binary);
 						while (fin) {
 							fin.read(buffer, buffer_size - 1);
 							buffer[fin.gcount()] = '\0';
-							ss << buffer;
+							ss.append(reinterpret_cast<unsigned char*>(buffer));
 						}
 						std::free(buffer);
 					}
 					auto midt = std::chrono::high_resolution_clock::now();
 					logger::get().log_info(
-						CP_HERE, "read text file cost ", std::chrono::duration<double, std::milli>(midt - begt).count(), "ms"
+						CP_HERE, "read text file cost ",
+						std::chrono::duration<double, std::milli>(midt - begt).count(), "ms"
 					);
-					auto s2 = convert_from_utf8<char_t>(ss.str());
+					auto s2 = utf8_to_utf32(ss);
 					auto mid2t = std::chrono::high_resolution_clock::now();
 					logger::get().log_info(
-						CP_HERE, "decoding cost ", std::chrono::duration<double, std::milli>(mid2t - midt).count(), "ms"
+						CP_HERE, "decoding cost ",
+						std::chrono::duration<double, std::milli>(mid2t - midt).count(), "ms"
 					);
-					convert_to_lines(convert_from_utf8<char_t>(ss.str()), std::bind(
+					convert_to_lines(s2, std::bind(
 						&text_context::_append_line, this,
 						std::placeholders::_1, std::placeholders::_2
 					));
 					auto endt = std::chrono::high_resolution_clock::now();
 					logger::get().log_info(
-						CP_HERE, "converting to lines cost ", std::chrono::duration<double, std::milli>(endt - mid2t).count(), "ms"
+						CP_HERE, "converting to lines cost ",
+						std::chrono::duration<double, std::milli>(endt - mid2t).count(), "ms"
 					);
 				}
 				void save_to_file(const str_t &fn) const {
-					std::basic_ostringstream<char_t> ss;
+					str_t result;
 					for (auto it = begin(); it != end(); ++it) {
 #ifdef CP_DETECT_LOGICAL_ERRORS
 						auto nit = it;
-						assert_true_logical(((++nit) == end()) == (it->ending_type == line_ending::none), "invalid line ending encountered");
+						assert_true_logical(
+							((++nit) == end()) == (it->ending_type == line_ending::none),
+							"invalid line ending encountered"
+						);
 #endif
-						ss << it->content;
+						result.append(it->content);
 						switch (it->ending_type) {
 						case line_ending::n:
-							ss << U'\n';
+							result.append(U"\n");
 							break;
 						case line_ending::r:
-							ss << U'\r';
+							result.append(U"\r");
 							break;
 						case line_ending::rn:
-							ss << U"\r\n";
+							result.append(U"\r\n");
 							break;
 						case line_ending::none: // nothing to do
 							break;
 						}
 					}
-					std::string utf8str = convert_to_utf8(ss.str());
-					std::ofstream fout(convert_to_utf8(fn), std::ios::binary);
+					std::string utf8str = utf8_to_chars(convert_to_utf8(result));
+					std::ofstream fout(utf8_to_chars(convert_to_utf8(fn)), std::ios::binary);
 					fout.write(utf8str.c_str(), utf8str.length());
 				}
 
@@ -650,15 +659,14 @@ namespace codepad {
 						auto lit = at(beg.line);
 						return lit->content.substr(beg.column, end.column - beg.column);
 					}
-					std::basic_ostringstream<char_t> ss;
+					str_t res;
 					auto lit = at(beg.line);
-					ss << lit->content.substr(beg.column) << to_str(lit->ending_type);
+					res.append(lit->content.substr(beg.column)).append(to_str(lit->ending_type));
 					++lit;
 					for (size_t cl = beg.line + 1; cl < end.line; ++cl, ++lit) {
-						ss << lit->content << to_str(lit->ending_type);
+						res.append(lit->content).append(to_str(lit->ending_type));
 					}
-					ss << lit->content.substr(0, end.column);
-					return ss.str();
+					return res.append(lit->content.substr(0, end.column));
 				}
 
 				// modification made by these functions will neither invoke modified nor be recorded
@@ -744,11 +752,11 @@ namespace codepad {
 					return cut_text(at(p1.line), p1.column, p2 - p1);
 				}
 				str_t cut_text(line_iterator beg, size_t bcol, caret_position_diff diff) {
-					std::basic_ostringstream<char_t> ss;
-					cut_text(beg, bcol, diff, [&ss](str_t s, line_ending le) {
-						ss << std::move(s) << to_str(le);
+					str_t res;
+					cut_text(beg, bcol, diff, [&res](str_t s, line_ending le) {
+						res.append(std::move(s)).append(to_str(le));
 					});
-					return ss.str();
+					return res;
 				}
 				template <typename C> void cut_text(line_iterator beg, size_t bcol, caret_position_diff diff, const C &cb) {
 					if (diff.y == 0) {

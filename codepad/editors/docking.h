@@ -4,7 +4,7 @@
 #include "../ui/panel.h"
 #include "../ui/commonelements.h"
 #include "../ui/manager.h"
-#include "../os/input.h"
+#include "../os/misc.h"
 #include "../os/renderer.h"
 #include "../os/window.h"
 #include "../os/current.h"

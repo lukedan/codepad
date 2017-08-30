@@ -19,6 +19,7 @@ namespace codepad {
 
 				double normal_diff, bold_diff, italic_diff, bold_italic_diff;
 
+				// TODO disassembly shows stupid comparisons, but function is not hot
 				double get(font_style fs) {
 					switch (fs) {
 					case font_style::normal:
@@ -43,8 +44,8 @@ namespace codepad {
 				bold_italic(std::make_shared<os::default_font>(family, size, font_style::bold_italic)) {
 			}
 			font_family(
-				std::shared_ptr<const os::font> n, std::shared_ptr<const os::font> &b,
-				std::shared_ptr<const os::font> &i, std::shared_ptr<const os::font> &bi
+				std::shared_ptr<const os::font> n, std::shared_ptr<const os::font> b,
+				std::shared_ptr<const os::font> i, std::shared_ptr<const os::font> bi
 			) : normal(std::move(n)), bold(std::move(b)), italic(std::move(i)), bold_italic(std::move(bi)) {
 			}
 
@@ -65,7 +66,7 @@ namespace codepad {
 					bl - normal->baseline(), bl - bold->baseline(), bl - italic->baseline(), bl - bold_italic->baseline()
 				);
 			}
-			std::shared_ptr<const os::font> get_by_style(font_style fs) const {
+			const std::shared_ptr<const os::font> &get_by_style(font_style fs) const {
 				switch (fs) {
 				case font_style::normal:
 					return normal;
@@ -77,7 +78,7 @@ namespace codepad {
 					return bold_italic;
 				}
 				assert_true_usage(false, "invalid font style encountered");
-				return nullptr;
+				return normal;
 			}
 		};
 	}

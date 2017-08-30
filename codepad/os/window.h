@@ -229,6 +229,18 @@ namespace codepad {
 				}
 			}
 		};
+
+		inline void opengl_renderer_base::begin(const window_base &wnd) {
+			vec2i sz = wnd.get_actual_size().convert<int>();
+			_begin_render_target(_render_target_stackframe(
+				true, sz.x, sz.y,
+				_get_begin_window_func(wnd),
+				_get_end_window_func(wnd)
+			));
+			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+			_gl_verify();
+		}
 	}
 	namespace ui {
 		inline void manager::update_invalid_visuals() {

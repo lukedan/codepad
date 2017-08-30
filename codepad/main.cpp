@@ -28,8 +28,8 @@ int main() {
 	renderer_base::create_default<opengl_renderer>();
 
 	code::text_context ctx;
-	auto fnt = std::make_shared<default_font>(U"Segoe UI", 14.0, font_style::normal);
-	font_family codefnt(U"Iosevka", 14.0);
+	auto fnt = std::make_shared<default_font>(U"segoe ui", 14.0, font_style::normal);
+	font_family codefnt(U"iosevka", 14.0);
 	pen p(colord(0.9, 0.9, 0.9, 1.0));
 	texture_brush texb(colord(0.0, 0.6, 1.0, 0.2));
 	texture_brush viewb(colord(0.5, 0.5, 1.0, 0.2));
@@ -78,7 +78,7 @@ int main() {
 	code::editor::set_selection_brush(&texb);
 	code::minimap::set_viewport_brush(&viewb);
 
-	ctx.load_from_file(U"main.cpp");
+	ctx.load_from_file(U"hugetext.cpp");
 	//ctx.load_from_file(U"editors/code/context.h");
 	ctx.auto_set_default_line_ending();
 

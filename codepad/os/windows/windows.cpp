@@ -1,7 +1,6 @@
 #define OEMRESOURCE
-#include <Windows.h>
-
-#include "windows.h"
+#include "../windows.h"
+#include "../../utilities/globals.h"
 
 namespace codepad {
 	namespace os {
@@ -33,6 +32,8 @@ namespace codepad {
 				VK_INSERT,
 				VK_DELETE,
 				VK_HELP,
+				'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+				'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 				VK_LWIN,
 				VK_RWIN,
 				VK_APPS,
@@ -50,9 +51,7 @@ namespace codepad {
 				VK_SCROLL,
 				VK_LSHIFT, VK_RSHIFT,
 				VK_LCONTROL, VK_RCONTROL,
-				VK_LMENU, VK_RMENU,
-				'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-				'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+				VK_LMENU, VK_RMENU
 			};
 			struct _key_id_backmapping_t {
 				_key_id_backmapping_t() {

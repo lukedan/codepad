@@ -31,6 +31,8 @@ namespace codepad {
 				insert,
 				del,
 				help,
+				a, b, c, d, e, f, g, h, i, j, k, l, m,
+				n, o, p, q, r, s, t, u, v, w, x, y, z,
 				left_win, right_win,
 				apps,
 				sleep,
@@ -43,8 +45,6 @@ namespace codepad {
 				left_shift, right_shift,
 				left_control, right_control,
 				left_alt, right_alt,
-				a, b, c, d, e, f, g, h, i, j, k, l, m,
-				n, o, p, q, r, s, t, u, v, w, x, y, z,
 
 				max_value
 			};

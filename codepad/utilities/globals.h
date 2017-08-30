@@ -87,7 +87,7 @@ namespace codepad {
 		};
 
 		_cur_setter _csetter{*this};
-		singleton_factory <
+		singleton_factory<
 			logger,
 			callback_buffer,
 			async_task_pool,
@@ -95,6 +95,7 @@ namespace codepad {
 #ifdef CP_PLATFORM_WINDOWS
 			os::freetype_font::_library,
 			os::directwrite_font::_factory,
+			os::wic_image_loader,
 #endif
 			ui::manager,
 #ifdef CP_DETECT_LOGICAL_ERRORS
@@ -126,6 +127,9 @@ namespace codepad {
 	}
 	inline os::directwrite_font::_factory &os::directwrite_font::_get_factory() {
 		return globals::current().get<_factory>();
+	}
+	inline os::wic_image_loader &os::wic_image_loader::get() {
+		return globals::current().get<wic_image_loader>();
 	}
 #endif
 	inline ui::manager &ui::manager::get() {

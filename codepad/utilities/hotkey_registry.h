@@ -4,7 +4,7 @@
 #include <map>
 #include <functional>
 
-#include "../os/input.h"
+#include "../os/misc.h"
 #include "textconfig.h"
 #include "textproc.h"
 
@@ -32,34 +32,34 @@ namespace codepad {
 		control_shift_alt_cmd = control | shift | alt | cmd
 	};
 	template <> inline str_t to_str<modifier_keys>(modifier_keys mk) {
-		std::basic_ostringstream<char_t> ss;
+		str_t ss;
 		bool first = true;
 		auto mkv = static_cast<unsigned>(mk);
 		if (test_bit_all(mkv, modifier_keys::control)) {
-			ss << "Control";
+			ss.append(U"Control");
 			first = false;
 		}
 		if (test_bit_all(mkv, modifier_keys::shift)) {
 			if (first) {
-				ss << "+";
+				ss.append(U"+");
 				first = false;
 			}
-			ss << "Shift";
+			ss.append(U"Shift");
 		}
 		if (test_bit_all(mkv, modifier_keys::alt)) {
 			if (first) {
-				ss << "+";
+				ss.append(U"+");
 				first = false;
 			}
-			ss << "Alt";
+			ss.append(U"Alt");
 		}
 		if (test_bit_all(mkv, modifier_keys::cmd)) {
 			if (first) {
-				ss << "+";
+				ss.append(U"+");
 			}
-			ss << "Cmd";
+			ss.append(U"Cmd");
 		}
-		return ss.str();
+		return ss;
 	}
 	struct key_gesture {
 		key_gesture() = default;

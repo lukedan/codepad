@@ -8,13 +8,13 @@
 namespace codepad {
 	namespace editor {
 		namespace code {
-			class line_number : public component {
+			class line_number : public component { // TODO width measurement inaccurate
 			public:
 				vec2d get_desired_size() const override {
 					size_t ln = _get_editor()->get_context()->num_lines(), w = 0;
 					for (; ln > 0; ++w, ln /= 10) {
 					}
-					return vec2d(get_padding().width() + static_cast<double>(w) * editor::get_font().maximum_width(), 0.0);
+					return vec2d(get_padding().width() + static_cast<double>(w) * editor::get_font().normal->max_width(), 0.0);
 				}
 			protected:
 				void _render() const override {
@@ -81,38 +81,68 @@ namespace codepad {
 					std::map<size_t, os::framebuffer> pages;
 					const minimap *parent;
 
+					struct line_top_cache {
+						explicit line_top_cache(double top) : page_top(top), rounded_page_top(std::round(page_top)) {
+						}
+
+						double get_render_line_top(double y, double baseline) const {
+							return (std::round((y + baseline) * get_scale() + page_top) - rounded_page_top) / get_scale();
+						}
+						void refresh(double y) {
+							normal = get_render_line_top(y, baselines.get(font_style::normal));
+							bold = get_render_line_top(y, baselines.get(font_style::bold));
+							italic = get_render_line_top(y, baselines.get(font_style::italic));
+							bold_italic = get_render_line_top(y, baselines.get(font_style::bold_italic));
+						}
+						double get(font_style fs) {
+							switch (fs) {
+							case font_style::normal:
+								return normal;
+							case font_style::bold:
+								return bold;
+							case font_style::italic:
+								return italic;
+							case font_style::bold_italic:
+								return bold_italic;
+							}
+							assert_true_logical(false, "invalid font style");
+							return 0.0;
+						}
+
+						ui::font_family::baseline_info baselines{editor::get_font().get_baseline_info()};
+						double page_top, rounded_page_top, normal, bold, italic, bold_italic;
+					};
 					// accepts folded line numbers
 					void render_page(size_t s, size_t pe) {
 						auto start_time = std::chrono::high_resolution_clock::now();
 						const editor *ce = parent->_get_editor();
-						double
-							lh = ce->get_line_height(),
-							buftop = static_cast<double>(s) * lh * get_scale(), rbtop = std::round(buftop);
+						double lh = ce->get_line_height();
+						line_top_cache lct(static_cast<double>(s) * lh * get_scale());
+						bool needrefresh = true;
+
+						// TODO improve drawing method
 						os::framebuffer buf = os::renderer_base::get().new_framebuffer(
 							maximum_width, static_cast<size_t>(std::ceil(lh * get_scale() * static_cast<double>(pe - s)))
 						);
-
 						os::renderer_base::get().begin_framebuffer(buf);
 						os::renderer_base::get().push_matrix(matd3x3::scale(vec2d(), get_scale()));
-
-						ui::font_family::baseline_info bi = editor::get_font().get_baseline_info();
-						// TODO improve drawing method
 						ui::render_batch rb;
-						size_t
-							ufs = parent->_get_editor()->folded_to_unfolded_linebeg(s),
-							ufpe = parent->_get_editor()->folded_to_unfolded_linebeg(pe);
-						rendering_iterator<true> it(*ce, ufs, ufpe);
 						rb.reserve(expected_triangles_per_line * (pe - s));
+						rendering_iterator<true> it(
+							*ce,
+							parent->_get_editor()->folded_to_unfolded_linebeg(s),
+							parent->_get_editor()->folded_to_unfolded_linebeg(pe)
+						);
 						for (it.begin(); !it.ended(); it.next()) {
 							if (!it.char_iter().is_line_break()) {
+								if (needrefresh) {
+									lct.refresh(it.char_iter().y_offset());
+								}
 								const ui::line_character_iterator &ci = it.char_iter().character_info();
 								const text_theme_data::char_iterator &ti = it.char_iter().theme_info();
 								if (is_graphical_char(ci.current_char())) {
 									rectd crec = ci.current_char_entry().placement.translated(vec2d(
-										ci.char_left(),
-										(std::round(
-										(it.char_iter().y_offset() + bi.get(ti.current_theme.style)) * get_scale() + buftop
-										) - rbtop) / get_scale()
+										ci.char_left(), lct.get(ti.current_theme.style)
 									));
 									rb.add_quad(crec, rectd(), ti.current_theme.color);
 
@@ -120,11 +150,16 @@ namespace codepad {
 									//	ci.current_char_entry().texture,
 									//	vec2d(
 									//		ci.char_left(),
-									//		(std::round((it.y_offset() + bi.get(ti.current_theme.style)) * get_scale() + buftop) - rbtop) / get_scale()
+									//		(std::round(
+									//		(it.char_iter().y_offset() + bi.get(ti.current_theme.style)) * get_scale() + buftop
+									//		) - rbtop) / get_scale()
 									//	) + ci.current_char_entry().placement.xmin_ymin(),
 									//	ti.current_theme.color
 									//);
 								}
+								needrefresh = false;
+							} else {
+								needrefresh = true;
 							}
 						}
 						rb.draw(0);
@@ -322,7 +357,7 @@ namespace codepad {
 
 				_page_cache _pgcache{this};
 				bool _dragging = false, _cachevalid = true;
-				double _dragoffset;
+				double _dragoffset = 0.0;
 				event<void>::token _vc_tok, _fold_tok;
 				event<value_update_info<double>>::token _vpos_tok;
 

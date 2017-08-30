@@ -107,7 +107,7 @@
       <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -119,7 +119,7 @@
       <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -136,7 +136,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -154,7 +154,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -173,7 +173,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -191,7 +191,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -204,8 +204,13 @@
     <ClInclude Include="editors\code\context.h" />
     <ClInclude Include="os\current.h" />
     <ClInclude Include="os\font.h" />
-    <ClInclude Include="os\input.h" />
+    <ClInclude Include="os\misc.h" />
     <ClInclude Include="os\renderer.h" />
+    <ClInclude Include="os\windows.h" />
+    <ClInclude Include="os\windows\font.h" />
+    <ClInclude Include="os\windows\misc.h" />
+    <ClInclude Include="os\windows\renderer.h" />
+    <ClInclude Include="os\windows\window.h" />
     <ClInclude Include="ui\commonelements.h" />
     <ClInclude Include="ui\draw.h" />
     <ClInclude Include="ui\manager.h" />
@@ -220,14 +225,13 @@
     <ClInclude Include="utilities\textconfig.h" />
     <ClInclude Include="utilities\textproc.h" />
     <ClInclude Include="os\window.h" />
-    <ClInclude Include="os\windows.h" />
     <ClInclude Include="ui\element.h" />
     <ClInclude Include="utilities\event.h" />
     <ClInclude Include="utilities\misc.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="os\windows.cpp" />
+    <ClCompile Include="os\windows\windows.cpp" />
     <ClCompile Include="utilities\globals.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

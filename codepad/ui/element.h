@@ -7,7 +7,7 @@
 #include "../utilities/event.h"
 #include "../utilities/misc.h"
 #include "../os/renderer.h"
-#include "../os/input.h"
+#include "../os/misc.h"
 #include "visual.h"
 
 namespace codepad {

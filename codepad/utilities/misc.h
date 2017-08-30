@@ -727,12 +727,12 @@ namespace codepad {
 			DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
 			std::string func, file, line;
 			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
-				func = convert_to_utf8<TCHAR>(syminfo->Name);
+				func = utf8_to_chars(convert_to_utf8(reinterpret_cast<const char16_t*>(syminfo->Name)));
 			} else {
 				func = "??";
 			}
 			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
-				file = convert_to_utf8<TCHAR>(lineinfo.FileName);
+				file = utf8_to_chars(convert_to_utf8(reinterpret_cast<const char16_t*>(lineinfo.FileName)));
 				line = std::to_string(lineinfo.LineNumber);
 			} else {
 				file = "??";
