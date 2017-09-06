@@ -121,6 +121,10 @@ namespace codepad {
 				window_base::release_mouse_capture();
 				winapi_check(ReleaseCapture());
 			}
+
+			inline static str_t get_default_class() {
+				return U"window";
+			}
 		protected:
 			window() : window(U"Codepad") {
 			}

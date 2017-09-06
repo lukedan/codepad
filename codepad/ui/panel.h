@@ -118,7 +118,7 @@ namespace codepad {
 				}
 			}
 
-			void _render() const override {
+			void _custom_render() const override {
 				for (auto i = _children.rbegin(); i != _children.rend(); ++i) {
 					(*i)->_on_render();
 				}
@@ -235,11 +235,11 @@ namespace codepad {
 		inline void element::_recalc_layout(rectd prgn) {
 			_layout = prgn;
 			vec2d sz = get_target_size();
-			_calc_layout_onedir(
+			layout_on_direction(
 				test_bit_all(_anchor, anchor::left), test_bit_all(_anchor, anchor::right),
 				_layout.xmin, _layout.xmax, _margin.left, _margin.right, sz.x
 			);
-			_calc_layout_onedir(
+			layout_on_direction(
 				test_bit_all(_anchor, anchor::top), test_bit_all(_anchor, anchor::bottom),
 				_layout.ymin, _layout.ymax, _margin.top, _margin.bottom, sz.y
 			);

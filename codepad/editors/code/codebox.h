@@ -83,6 +83,10 @@ namespace codepad {
 				}
 
 				event<value_update_info<double>> vertical_viewport_changed;
+
+				inline static str_t get_default_class() {
+					return U"codebox";
+				}
 			protected:
 				ui::scroll_bar *_vscroll;
 				editor *_editor;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "context.h"
 
 namespace codepad {
@@ -13,7 +15,7 @@ namespace codepad {
 				switch_char_info(bool jmp, caret_position next) : is_jump(jmp), next_position(next) {
 				}
 				const bool is_jump = false;
-				const caret_position next_position{};
+				const caret_position next_position;
 			};
 
 			// TODO syntax highlighting, drag & drop, code folding, etc.
@@ -28,12 +30,12 @@ namespace codepad {
 				typedef std::pair<caret_position, caret_position> fold_region;
 				typedef std::set<fold_region> folding_info;
 
-				void set_context(text_context *nctx) {
+				void set_context(std::shared_ptr<text_context> nctx) {
 					if (_ctx) {
 						_ctx->modified -= _mod_tok;
 						_ctx->visual_changed -= _tc_tok;
 					}
-					_ctx = nctx;
+					_ctx = std::move(nctx);
 					_cset.reset();
 					if (_ctx) {
 						_mod_tok = (_ctx->modified += std::bind(&editor::_on_content_modified, this, std::placeholders::_1));
@@ -41,7 +43,7 @@ namespace codepad {
 					}
 					_on_context_switch();
 				}
-				text_context *get_context() const {
+				const std::shared_ptr<text_context> &get_context() const {
 					return _ctx;
 				}
 
@@ -53,7 +55,7 @@ namespace codepad {
 					return l;
 				}
 				double get_line_height() const {
-					return _get_font().maximum_height();
+					return get_font().maximum_height();
 				}
 				double get_scroll_delta() const {
 					return get_line_height() * _lines_per_scroll;
@@ -329,22 +331,28 @@ namespace codepad {
 					carets_changed, editing_visual_changed, folding_changed;
 
 				inline static void set_font(const ui::font_family &ff) {
-					_get_font() = ff;
+					_get_appearance().family = ff;
 				}
 				inline static const ui::font_family &get_font() {
-					return _get_font();
+					return _get_appearance().family;
 				}
-				inline static void set_caret_pen(const ui::basic_pen *p) {
-					_caretpen = p;
+				inline static void set_insert_caret_brush(std::shared_ptr<ui::basic_brush> b) {
+					_get_appearance().caret_brush_insert = std::move(b);
 				}
-				inline static const ui::basic_pen *get_caret_pen() {
-					return _caretpen;
+				inline static const std::shared_ptr<ui::basic_brush> &get_insert_caret_brush() {
+					return _get_appearance().caret_brush_insert;
 				}
-				inline static void set_selection_brush(const ui::basic_brush *b) {
-					_selbrush = b;
+				inline static void set_overwrite_caret_brush(std::shared_ptr<ui::basic_brush> b) {
+					_get_appearance().caret_brush_overwrite = std::move(b);
 				}
-				inline static const ui::basic_brush *get_selection_brush() {
-					return _selbrush;
+				inline static const std::shared_ptr<ui::basic_brush> &get_overwrite_caret_brush() {
+					return _get_appearance().caret_brush_overwrite;
+				}
+				inline static void set_selection_brush(std::shared_ptr<ui::basic_brush> b) {
+					_get_appearance().selection_brush = std::move(b);
+				}
+				inline static const std::shared_ptr<ui::basic_brush> &get_selection_brush() {
+					return _get_appearance().selection_brush;
 				}
 
 				inline static void set_num_lines_per_scroll(double v) {
@@ -353,8 +361,12 @@ namespace codepad {
 				inline static double get_num_lines_per_scroll() {
 					return _lines_per_scroll;
 				}
+
+				inline static str_t get_default_class() {
+					return U"editor";
+				}
 			protected:
-				text_context *_ctx = nullptr;
+				std::shared_ptr<text_context> _ctx;
 				event<void>::token _tc_tok;
 				event<modification_info>::token _mod_tok;
 				// current state
@@ -368,13 +380,12 @@ namespace codepad {
 				// folding
 				folding_info _fold;
 
-				struct _used_font_family {
+				struct _appearance_config {
 					ui::font_family family;
+					std::shared_ptr<ui::basic_brush> caret_brush_insert, caret_brush_overwrite, selection_brush;
 				};
-				static const ui::basic_pen *_caretpen;
-				static const ui::basic_brush *_selbrush;
 				static double _lines_per_scroll;
-				static ui::font_family &_get_font();
+				static _appearance_config &_get_appearance();
 
 				codebox *_get_box() const {
 #ifdef CP_DETECT_LOGICAL_ERRORS
@@ -790,13 +801,13 @@ namespace codepad {
 						codebox *editor = _get_box();
 						editor->set_vertical_position(
 							editor->get_vertical_position() +
-							move_speed_scale * _scrolldiff * ui::manager::get().delta_time().count()
+							move_speed_scale * _scrolldiff * ui::manager::get().delta_time()
 						);
 						_on_selecting_mouse_move(get_window()->screen_to_client(os::input::get_mouse_position()).convert<double>());
 					}
 				}
 
-				void _render() const override;
+				void _custom_render() const override;
 
 				void _initialize() override {
 					panel_base::_initialize();
@@ -815,8 +826,10 @@ namespace codepad {
 				public:
 					caret_renderer(
 						const caret_set::container &c, size_t sl, size_t pel, double lh,
-						const ui::basic_brush *b, const ui::basic_pen *p
-					) : _lh(lh), _brush(b), _pen(p) {
+						const std::shared_ptr<ui::basic_brush> &b,
+						const std::shared_ptr<ui::basic_brush> &ins,
+						const std::shared_ptr<ui::basic_brush> &ovw
+					) : _lh(lh), _sel_brush(b), _ins_caret(ins), _ovw_caret(ovw) {
 						caret_position sp(sl, 0), pep(pel, 0);
 						_beg = c.lower_bound(std::make_pair(sp, caret_position()));
 						if (_beg != c.begin()) {
@@ -846,8 +859,7 @@ namespace codepad {
 					double _lastl = 0.0, _lh = 0.0;
 					bool _insel = false;
 					caret_position _cpos;
-					const ui::basic_brush *_brush = nullptr;
-					const ui::basic_pen *_pen = nullptr;
+					const std::shared_ptr<ui::basic_brush> &_sel_brush, &_ins_caret, &_ovw_caret;
 
 					void _check_next(double cl, caret_position cp) {
 						if (_beg != _end) {
@@ -1012,7 +1024,7 @@ namespace codepad {
 				template <size_t ...I, typename FCA, typename ...OCA> rendering_iterator(
 					FCA &&f, OCA &&...ot
 				) : rendering_iterator(
-					std::make_index_sequence<std::tuple_size<typename std::decay<FCA>::type>::value>(),
+					std::make_index_sequence<std::tuple_size<std::decay_t<FCA>>::value>(),
 					std::forward<FCA>(f), std::forward<OCA>(ot)...
 				) {
 				}
@@ -1083,9 +1095,9 @@ namespace codepad {
 					return _citer.ended();
 				}
 
-				template <typename T> typename std::enable_if<
+				template <typename T> std::enable_if_t<
 					std::is_same<T, fold_region_skipper>::value && SkipFolded, T
-				>::type &get_addon() {
+				> &get_addon() {
 					return _jiter;
 				}
 				character_rendering_iterator &char_iter() {
@@ -1106,7 +1118,7 @@ namespace codepad {
 				double cx = it.character_info().char_left(), cy = it.y_offset();
 				if (_insel) {
 					if (_minmax.second <= it.current_position()) {
-						_brush->fill_rect(rectd(_lastl, cx, cy, cy + it.line_height()));
+						_sel_brush->fill_rect(rectd(_lastl, cx, cy, cy + it.line_height()));
 						_insel = false;
 					}
 				}
@@ -1115,19 +1127,15 @@ namespace codepad {
 				}
 				if (it.current_position() == _cpos) {
 					const editor *e = it.get_editor();
-					if (e && e->is_insert_mode()) {
-						_pen->draw_lines({vec2d(cx, cy), vec2d(cx, cy + it.line_height())});
-					} else {
+					if (e) {
 						if (it.is_line_break()) {
-							_pen->draw_lines({
-								vec2d(cx, cy + it.line_height()),
-								vec2d(cx + _get_font().normal->get_char_entry(U' ').advance, cy + it.line_height())
-							});
+							_ins_caret->fill_rect(rectd::from_xywh(
+								cx, cy, get_font().normal->get_char_entry(U' ').advance, it.line_height()
+							));
 						} else {
-							_pen->draw_lines({
-								vec2d(cx, cy + it.line_height()),
-								vec2d(it.character_info().char_right(), cy + it.line_height())
-							});
+							((e == nullptr || e->is_insert_mode()) ? _ins_caret : _ovw_caret)->fill_rect(
+								rectd(cx, it.character_info().char_right(), cy, cy + it.line_height())
+							);
 						}
 					}
 				}
@@ -1141,12 +1149,12 @@ namespace codepad {
 						it.character_info().get_font_family().get_by_style(
 							it.theme_info().current_theme.style
 						)->get_char_entry(U' ').advance;
-					_brush->fill_rect(rectd(_lastl, finx, it.y_offset(), it.y_offset() + it.line_height()));
+					_sel_brush->fill_rect(rectd(_lastl, finx, it.y_offset(), it.y_offset() + it.line_height()));
 					_lastl = 0.0;
 				}
 			}
 
-			inline void editor::_render() const {
+			inline void editor::_custom_render() const {
 				if (get_client_region().height() < 0.0) {
 					return;
 				}
@@ -1159,7 +1167,7 @@ namespace codepad {
 					used = &ncon;
 					caret_set::add_caret(ncon, std::make_pair(_cur_sel, caret_data(0.0)));
 				}
-				ui::font_family::baseline_info bi = _get_font().get_baseline_info();
+				ui::font_family::baseline_info bi = get_font().get_baseline_info();
 
 				os::renderer_base::get().push_matrix(matd3x3::translate(vec2d(
 					std::round(get_client_region().xmin),
@@ -1169,7 +1177,12 @@ namespace codepad {
 					)
 				)));
 				rendering_iterator<true, caret_renderer> it(
-					std::make_tuple(std::cref(*used), be.first, be.second, get_line_height(), _selbrush, _caretpen),
+					std::make_tuple(
+						std::cref(*used), be.first, be.second, get_line_height(),
+						_get_appearance().selection_brush,
+						_get_appearance().caret_brush_insert,
+						_get_appearance().caret_brush_overwrite
+					),
 					std::make_tuple(std::cref(*this), be.first, be.second)
 				);
 				for (it.begin(); !it.ended(); it.next()) {

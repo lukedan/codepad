@@ -153,16 +153,16 @@ namespace codepad {
 			}
 		}
 
-		template <typename U> constexpr typename std::enable_if<std::is_integral<T>::value, rect<U>>::type convert() const {
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> convert() const {
 			return rect<U>(static_cast<U>(xmin), static_cast<U>(xmax), static_cast<U>(ymin), static_cast<U>(ymax));
 		}
-		template <typename U> constexpr typename std::enable_if<std::is_integral<U>::value, rect<U>>::type minimum_bounding_box() const {
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> minimum_bounding_box() const {
 			return rect<U>(
 				static_cast<U>(std::floor(xmin)), static_cast<U>(std::ceil(xmax)),
 				static_cast<U>(std::floor(ymin)), static_cast<U>(std::ceil(ymax))
 				);
 		}
-		template <typename U> constexpr typename std::enable_if<std::is_integral<U>::value, rect<U>>::type maximum_contained_box() const {
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> maximum_contained_box() const {
 			return rect<U>(
 				static_cast<U>(std::ceil(xmin)), static_cast<U>(std::floor(xmax)),
 				static_cast<U>(std::ceil(ymin)), static_cast<U>(std::floor(ymax))
@@ -273,18 +273,21 @@ namespace codepad {
 			return lhs /= rhs;
 		}
 
-		typename std::enable_if<W == 3 && H == 3, vec2<T>>::type transform(vec2<T> v) const {
-			return vec2<T>(elem[0][0] * v.x + elem[0][1] * v.y + elem[0][2], elem[1][0] * v.x + elem[1][1] * v.y + elem[1][2]);
+		std::enable_if_t<W == 3 && H == 3, vec2<T>> transform(vec2<T> v) const {
+			return vec2<T>(
+				elem[0][0] * v.x + elem[0][1] * v.y + elem[0][2],
+				elem[1][0] * v.x + elem[1][1] * v.y + elem[1][2]
+				);
 		}
 
-		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type translate(vec2<T> off) {
+		inline static std::enable_if_t<W == 3 && H == 3, matrix> translate(vec2<T> off) {
 			matrix res;
 			res[0][0] = res[1][1] = res[2][2] = 1.0;
 			res[0][2] = off.x;
 			res[1][2] = off.y;
 			return res;
 		}
-		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type rotate_by_vector(vec2<T> center, vec2<T> rotv) {
+		inline static std::enable_if_t<W == 3 && H == 3, matrix> rotate_by_vector(vec2<T> center, vec2<T> rotv) {
 			/*
 			 * [1  0  cx] [rx  -ry  0] [1  0  -cx] [vx]
 			 * [0  1  cy] [ry  rx   0] [0  1  -cy] [vy]
@@ -306,10 +309,10 @@ namespace codepad {
 			res[2][2] = 1.0;
 			return res;
 		}
-		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type rotate_clockwise(vec2<T> center, double radians) {
+		inline static std::enable_if_t<W == 3 && H == 3, matrix> rotate_clockwise(vec2<T> center, double radians) {
 			return rotate_by_vector(center, vec2<T>(std::cos(radians), std::sin(radians)));
 		}
-		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type scale(vec2<T> center, vec2<T> scale) {
+		inline static std::enable_if_t<W == 3 && H == 3, matrix> scale(vec2<T> center, vec2<T> scale) {
 			/*
 			* [1  0  cx] [sx  0   0] [1  0  -cx] [vx]
 			* [0  1  cy] [0   sy  0] [0  1  -cy] [vy]
@@ -329,7 +332,7 @@ namespace codepad {
 			res[2][2] = 1.0;
 			return res;
 		}
-		inline static typename std::enable_if<W == 3 && H == 3, matrix>::type scale(vec2<T> center, T uniscale) {
+		inline static std::enable_if_t<W == 3 && H == 3, matrix> scale(vec2<T> center, T uniscale) {
 			return scale(center, vec2<T>(uniscale, uniscale));
 		}
 	};
@@ -348,6 +351,9 @@ namespace codepad {
 	}
 	template <typename T> inline vec2<T> operator*(const matrix<T, 2, 2> &lhs, vec2<T> rhs) {
 		return vec2<T>(lhs[0][0] * rhs.x + lhs[0][1] * rhs.y, lhs[1][0] * rhs.x + lhs[1][1] * rhs.y);
+	}
+	template <typename T> inline vec2<T> apply_transform(const matrix<T, 3, 3> &lhs, vec2<T> rhs) {
+		return vec2<T>(lhs[0][0] * rhs.x + lhs[0][1] * rhs.y + lhs[0][2], lhs[1][0] * rhs.x + lhs[1][1] * rhs.y + lhs[1][2]);
 	}
 	typedef matrix<double, 2, 2> matd2x2;
 	typedef matrix<double, 3, 3> matd3x3;
@@ -453,6 +459,10 @@ namespace codepad {
 		}
 		return v > max ? max : v;
 	}
+	template <typename T> inline T lerp(T from, T to, double perc) {
+		return from + (to - from) * perc;
+	}
+
 	template <typename S, typename U> inline S unsigned_diff(U lhs, U rhs) {
 		static_assert(std::is_unsigned<U>::value, "must pass unsigned value");
 		static_assert(std::is_signed<S>::value, "must pass signed value");
@@ -645,7 +655,7 @@ namespace codepad {
 			logger::get().log_error_with_stacktrace(CP_HERE, "Logical error encountered: ", msg);
 			std::abort();
 		}
-	}
+}
 #else
 	template <> inline void assert_true<error_level::logical_error>(bool, const char*) {
 	}
@@ -678,11 +688,12 @@ namespace codepad {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
-}
+		}
 
-#if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
 // memory leak detection
+#if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
 #	ifdef CP_DETECT_USAGE_ERRORS
+#		define CP_CAN_DETECT_MEMORY_LEAKS
 #		define _CRTDBG_MAP_ALLOC
 #		include <crtdbg.h>
 namespace codepad {
@@ -691,6 +702,27 @@ namespace codepad {
 	}
 }
 #	endif
+#endif
+
+// demangle
+#ifdef _MSC_VER
+namespace codepad {
+	inline std::string demangle(std::string s) {
+		return s;
+	}
+}
+#elif defined(__GNUC__)
+#	include <cxxabi.h>
+namespace codepad {
+	inline std::string demangle(const std::string &s) {
+		int st;
+		char *result = abi::__cxa_demangle(s.c_str(), nullptr, nullptr, &st);
+		assert_true_sys(st == 0, "demangling failed");
+		std::string res(result);
+		std::free(result);
+		return res;
+	}
+}
 #endif
 
 #ifdef CP_LOG_STACKTRACE

@@ -43,10 +43,8 @@ namespace codepad {
 				_upd.insert(&e);
 			}
 			void update_scheduled_elements() {
+				_lasttp = _now;
 				_now = std::chrono::high_resolution_clock::now();
-#ifdef CP_DETECT_USAGE_ERRORS
-				_updating = true;
-#endif
 				if (!_upd.empty()) {
 					std::set<element*> list;
 					std::swap(list, _upd);
@@ -54,16 +52,9 @@ namespace codepad {
 						(*i)->_on_update();
 					}
 				}
-#ifdef CP_DETECT_USAGE_ERRORS
-				_updating = false;
-#endif
-				_lasttp = _now;
 			}
-			std::chrono::duration<double> delta_time() const {
-#ifdef CP_DETECT_USAGE_ERRORS
-				assert_true_usage(_updating, "can only get delta time while updating");
-#endif
-				return _now - _lasttp;
+			double delta_time() const {
+				return std::chrono::duration<double>(_now - _lasttp).count();
 			}
 
 			// may be called on one element multiple times before the element's disposed
@@ -125,9 +116,6 @@ namespace codepad {
 			// scheduled controls to update
 			std::chrono::time_point<std::chrono::high_resolution_clock> _lasttp, _now;
 			std::set<element*> _upd;
-#ifdef CP_DETECT_USAGE_ERRORS
-			bool _updating = false;
-#endif
 			// scheduled controls to delete
 			std::set<element*> _del;
 		};
@@ -141,6 +129,9 @@ namespace codepad {
 		inline void element::invalidate_visual() {
 			manager::get().invalidate_visual(*this);
 		}
+		inline bool element::has_focus() const {
+			return manager::get().get_focused() == this;
+		}
 		inline void element::_on_mouse_down(mouse_button_info &p) {
 			mouse_down(p);
 			if (_can_focus) {
@@ -148,8 +139,19 @@ namespace codepad {
 				manager::get().set_focus(this);
 			}
 		}
-		inline bool element::has_focus() const {
-			return manager::get().get_focused() == this;
+		inline void element::_on_render() {
+			if (!_rst.stationary()) {
+				_rst.update(manager::get().delta_time());
+			}
+			if (test_bit_all(_vis, visibility::render_only)) {
+				_on_prerender();
+				_rst.render(get_layout());
+				_custom_render();
+				_on_postrender();
+			}
+			if (!_rst.stationary()) {
+				invalidate_visual();
+			}
 		}
 	}
 }

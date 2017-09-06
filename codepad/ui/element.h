@@ -8,7 +8,8 @@
 #include "../utilities/misc.h"
 #include "../os/renderer.h"
 #include "../os/misc.h"
-#include "visual.h"
+#include "theme_providers.h"
+#include "draw.h"
 
 namespace codepad {
 	namespace ui {
@@ -58,78 +59,6 @@ namespace codepad {
 			const char_t character;
 		};
 
-		struct thickness {
-			constexpr explicit thickness(double uni = 0.0) : left(uni), top(uni), right(uni), bottom(uni) {
-			}
-			constexpr thickness(double l, double t, double r, double b) : left(l), top(t), right(r), bottom(b) {
-			}
-			double left, top, right, bottom;
-
-			constexpr rectd extend(rectd r) const {
-				return rectd(r.xmin - left, r.xmax + right, r.ymin - top, r.ymax + bottom);
-			}
-			constexpr rectd shrink(rectd r) const {
-				return rectd(r.xmin + left, r.xmax - right, r.ymin + top, r.ymax - bottom);
-			}
-
-			constexpr double width() const {
-				return left + right;
-			}
-			constexpr double height() const {
-				return top + bottom;
-			}
-			constexpr vec2d size() const {
-				return vec2d(width(), height());
-			}
-		};
-
-		enum class cursor {
-			normal,
-			busy,
-			crosshair,
-			hand,
-			help,
-			text_beam,
-			denied,
-			arrow_all,
-			arrow_northeast_southwest,
-			arrow_north_south,
-			arrow_northwest_southeast,
-			arrow_east_west,
-
-			invisible,
-			not_specified
-		};
-		enum class anchor : unsigned char {
-			none = 0,
-
-			left = 1,
-			top = 2,
-			right = 4,
-			bottom = 8,
-
-			top_left = top | left,
-			top_right = top | right,
-			bottom_left = bottom | left,
-			bottom_right = bottom | right,
-
-			stretch_horizontally = left | right,
-			stretch_vertically = top | bottom,
-
-			dock_left = stretch_vertically | left,
-			dock_top = stretch_horizontally | top,
-			dock_right = stretch_vertically | right,
-			dock_bottom = stretch_horizontally | bottom,
-
-			all = left | top | right | bottom
-		};
-		enum class visibility : unsigned char {
-			ignored = 0,
-			render_only = 1,
-			interaction_only = 2,
-			visible = render_only | interaction_only
-		};
-
 		class panel_base;
 		class element;
 		typedef hotkey_group<void(element*)> element_hotkey_group;
@@ -153,6 +82,8 @@ namespace codepad {
 			friend class element_collection;
 			friend class panel_base;
 			friend class os::window_base;
+			friend class visual_provider_state;
+			friend class visual_provider;
 		public:
 			element(const element&) = delete;
 			element(element&&) = delete;
@@ -171,45 +102,45 @@ namespace codepad {
 				return _clientrgn;
 			}
 			bool is_mouse_over() const {
-				return _mouse_over;
+				return _rst.test_state_bit(visual_manager::default_states().mouse_over);
 			}
 
 			panel_base *parent() const {
 				return _parent;
 			}
 
-			virtual void set_width(double w) {
+			void set_width(double w) {
 				_width = w;
 				_has_width = true;
 				invalidate_layout();
 			}
-			virtual void set_height(double h) {
+			void set_height(double h) {
 				_height = h;
 				_has_height = true;
 				invalidate_layout();
 			}
-			virtual void unset_width() {
+			void unset_width() {
 				_has_width = false;
 				invalidate_layout();
 			}
-			virtual void unset_height() {
+			void unset_height() {
 				_has_height = false;
 				invalidate_layout();
 			}
-			virtual void set_size(vec2d s) {
+			void set_size(vec2d s) {
 				_width = s.x;
 				_height = s.y;
 				_has_width = _has_height = true;
 				invalidate_layout();
 			}
-			virtual void unset_size() {
+			void unset_size() {
 				_has_width = _has_height = false;
 				invalidate_layout();
 			}
-			virtual bool has_width() const {
+			bool has_width() const {
 				return _has_width;
 			}
-			virtual bool has_height() const {
+			bool has_height() const {
 				return _has_height;
 			}
 			virtual vec2d get_desired_size() const {
@@ -231,36 +162,36 @@ namespace codepad {
 				return _layout.size();
 			}
 
-			virtual void set_margin(thickness t) {
+			void set_margin(thickness t) {
 				_margin = t;
 				invalidate_layout();
 			}
-			virtual thickness get_margin() const {
+			thickness get_margin() const {
 				return _margin;
 			}
-			virtual void set_padding(thickness t) {
+			void set_padding(thickness t) {
 				_padding = t;
 				_on_padding_changed();
 			}
-			virtual thickness get_padding() const {
+			thickness get_padding() const {
 				return _padding;
 			}
 
-			virtual void set_anchor(anchor a) {
+			void set_anchor(anchor a) {
 				_anchor = static_cast<unsigned char>(a);
 				invalidate_layout();
 			}
-			virtual anchor get_anchor() const {
+			anchor get_anchor() const {
 				return static_cast<anchor>(_anchor);
 			}
 
-			virtual void set_visibility(visibility v) {
+			void set_visibility(visibility v) {
 				if (test_bit_all(static_cast<unsigned char>(v) ^ _vis, visibility::render_only)) {
 					invalidate_visual();
 				}
 				_vis = static_cast<unsigned char>(v);
 			}
-			virtual visibility get_visibility() const {
+			visibility get_visibility() const {
 				return static_cast<visibility>(_vis);
 			}
 
@@ -284,32 +215,40 @@ namespace codepad {
 				return _crsr;
 			}
 
-			virtual void set_can_focus(bool v) {
+			void set_can_focus(bool v) {
 				_can_focus = v;
 			}
-			virtual bool get_can_focus() const {
+			bool get_can_focus() const {
 				return _can_focus;
 			}
 			bool has_focus() const;
 
-			virtual os::window_base *get_window();
-			virtual void set_default_hotkey_group(const element_hotkey_group *hgp) {
+			os::window_base *get_window();
+			void set_default_hotkey_group(const element_hotkey_group *hgp) {
 				_hotkey_gp = hgp;
 			}
-			virtual std::vector<const element_hotkey_group*> get_hotkey_groups() const {
+			std::vector<const element_hotkey_group*> get_hotkey_groups() const {
 				if (_hotkey_gp != nullptr) {
 					return {_hotkey_gp};
 				}
 				return std::vector<const element_hotkey_group*>();
 			}
 
+			void set_class(str_t s) {
+				_rst.set_class(std::move(s));
+				invalidate_visual();
+			}
+			const str_t &get_class() const {
+				return _rst.get_class();
+			}
+
 			void invalidate_visual();
 			void invalidate_layout();
 			void revalidate_layout();
 
-			template <typename T, typename ...Args> inline static T *create(Args &&...arg) {
+			template <typename T> inline static T *create() {
 				static_assert(std::is_base_of<element, T>::value, "cannot create non-element");
-				element *elem = new T(std::forward<Args>(arg)...);
+				element *elem = new T();
 #ifdef CP_DETECT_LOGICAL_ERRORS
 				++control_dispose_rec::get().reg_created;
 #endif
@@ -317,7 +256,27 @@ namespace codepad {
 #ifdef CP_DETECT_USAGE_ERRORS
 				assert_true_usage(elem->_initialized, "element::_initialize() must be called by children classes");
 #endif
+				elem->set_class(T::get_default_class());
 				return static_cast<T*>(elem);
+			}
+
+			inline static void layout_on_direction(
+				bool anchormin, bool anchormax, double &clientmin, double &clientmax,
+				double marginmin, double marginmax, double size
+			) {
+				if (anchormin && anchormax) {
+					clientmin += marginmin;
+					clientmax -= marginmax;
+				} else if (anchormin) {
+					clientmin += marginmin;
+					clientmax = clientmin + size;
+				} else if (anchormax) {
+					clientmax -= marginmax;
+					clientmin = clientmax - size;
+				} else {
+					clientmin += (clientmax - clientmin - size) * marginmin / (marginmin + marginmax);
+					clientmax = clientmin + size;
+				}
 			}
 
 			event<void> mouse_enter, mouse_leave, got_focus, lost_focus;
@@ -341,16 +300,18 @@ namespace codepad {
 			thickness _margin, _padding;
 			unsigned char _vis = static_cast<unsigned char>(visibility::visible);
 			// input
-			bool _mouse_over = false, _can_focus = true;
+			bool _can_focus = true;
 			cursor _crsr = cursor::not_specified;
 			const element_hotkey_group *_hotkey_gp = nullptr;
+			// visual info
+			visual_provider::render_state _rst;
 
 			virtual void _on_mouse_enter() {
-				_mouse_over = true;
+				_set_state(visual_manager::default_states().mouse_over, true);
 				mouse_enter.invoke();
 			}
 			virtual void _on_mouse_leave() {
-				_mouse_over = false;
+				_set_state(visual_manager::default_states().mouse_over, false);
 				mouse_leave.invoke();
 			}
 			virtual void _on_got_focus() {
@@ -389,6 +350,11 @@ namespace codepad {
 			virtual void _on_update() {
 			}
 
+			virtual void _set_state(visual_state_id sid, bool set) {
+				_rst.set_state_bit(sid, set);
+				invalidate_visual();
+			}
+
 			virtual void _on_prerender() {
 				texture_brush(has_focus() ? colord(0.0, 1.0, 0.0, 0.02) : colord(1.0, 1.0, 1.0, 0.02)).fill_rect(get_layout());
 				pen p(has_focus() ? colord(0.0, 1.0, 0.0, 1.0) : colord(1.0, 1.0, 1.0, 0.3));
@@ -404,33 +370,13 @@ namespace codepad {
 				p.draw_lines(lines);
 				os::renderer_base::get().push_clip(_layout.minimum_bounding_box<int>());
 			}
-			virtual void _render() const = 0;
+			virtual void _custom_render() const {
+			}
 			virtual void _on_postrender() {
 				os::renderer_base::get().pop_clip();
 			}
-			virtual void _on_render() {
-				if (test_bit_all(_vis, visibility::render_only)) {
-					_on_prerender();
-					_render();
-					_on_postrender();
-				}
-			}
+			virtual void _on_render();
 
-			inline static void _calc_layout_onedir(bool amin, bool amax, double &cmin, double &cmax, double pmin, double pmax, double sz) {
-				if (amin && amax) {
-					cmin += pmin;
-					cmax -= pmax;
-				} else if (amin) {
-					cmin += pmin;
-					cmax = cmin + sz;
-				} else if (amax) {
-					cmax -= pmax;
-					cmin = cmax - sz;
-				} else {
-					cmin += (cmax - cmin - sz) * pmin / (pmin + pmax);
-					cmax = cmin + sz;
-				}
-			}
 			virtual void _recalc_layout(rectd);
 			virtual void _finish_layout() {
 				invalidate_visual();
@@ -447,5 +393,23 @@ namespace codepad {
 			bool _initialized = false;
 #endif
 		};
+
+		inline rectd visual_layer::get_center_rect(const state &s, rectd client) const {
+			element::layout_on_direction(
+				test_bit_all(static_cast<int>(rect_anchor), anchor::left),
+				test_bit_all(static_cast<int>(rect_anchor), anchor::right),
+				client.xmin, client.xmax,
+				s.current_margin.current_value.left, s.current_margin.current_value.right,
+				s.current_size.current_value.x
+			);
+			element::layout_on_direction(
+				test_bit_all(static_cast<int>(rect_anchor), anchor::top),
+				test_bit_all(static_cast<int>(rect_anchor), anchor::bottom),
+				client.ymin, client.ymax,
+				s.current_margin.current_value.top, s.current_margin.current_value.bottom,
+				s.current_size.current_value.y
+			);
+			return client;
+		}
 	}
 }

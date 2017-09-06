@@ -15,48 +15,82 @@ namespace codepad {
 		class renderer_base;
 		class opengl_renderer_base;
 
-		typedef size_t texture_id;
-		typedef size_t framebuffer_id;
-		struct framebuffer {
+		struct texture {
 			friend class renderer_base;
-			friend class opengl_renderer_base;
 		public:
-			framebuffer() = default;
-			framebuffer(const framebuffer&) = delete;
-			framebuffer(framebuffer &&r) : _id(r._id), _tid(r._tid), _w(r._w), _h(r._h) {
-				r._tid = 0;
-				r._w = r._h = 0;
+			typedef size_t id_t;
+
+			texture() = default;
+			texture(const texture&) = delete;
+			texture(texture &&t) : _id(t._id), _rend(t._rend), _w(t._w), _h(t._h) {
+				if (&t != this) {
+					t._id = 0;
+					t._rend = nullptr;
+					t._w = t._h = 0;
+				}
 			}
-			framebuffer &operator=(const framebuffer&) = delete;
-			framebuffer &operator=(framebuffer &&r) {
-				std::swap(_id, r._id);
-				std::swap(_tid, r._tid);
-				std::swap(_w, r._w);
-				std::swap(_h, r._h);
+			texture &operator=(const texture&) = delete;
+			texture &operator=(texture &&t) {
+				std::swap(_id, t._id);
+				std::swap(_rend, t._rend);
+				std::swap(_w, t._w);
+				std::swap(_h, t._h);
 				return *this;
 			}
-			~framebuffer();
+			~texture();
 
+			renderer_base *get_renderer() const {
+				return _rend;
+			}
 			size_t get_width() const {
 				return _w;
 			}
 			size_t get_height() const {
 				return _h;
 			}
-			texture_id get_texture() const {
-				return _tid;
+
+			bool has_content() const {
+				return _rend != nullptr;
+			}
+		protected:
+			texture(id_t id, renderer_base *r, size_t w, size_t h) : _id(id), _rend(r), _w(w), _h(h) {
+			}
+
+			id_t _id = 0;
+			renderer_base *_rend = nullptr;
+			size_t _w = 0, _h = 0;
+		};
+		typedef size_t framebuffer_id;
+		struct framebuffer {
+			friend class renderer_base;
+		public:
+			typedef size_t id_t;
+
+			framebuffer() = default;
+			framebuffer(const framebuffer&) = delete;
+			framebuffer(framebuffer &&r) : _id(r._id), _tex(std::move(r._tex)) {
+			}
+			framebuffer &operator=(const framebuffer&) = delete;
+			framebuffer &operator=(framebuffer &&r) {
+				std::swap(_id, r._id);
+				_tex = std::move(r._tex);
+				return *this;
+			}
+			~framebuffer();
+
+			const texture &get_texture() const {
+				return _tex;
 			}
 
 			bool has_content() const {
-				return _tid != 0;
+				return _tex.has_content();
 			}
 		protected:
-			framebuffer(framebuffer_id rid, texture_id tid, size_t w, size_t h) : _id(rid), _tid(tid), _w(w), _h(h) {
+			framebuffer(id_t rid, texture &&t) : _id(rid), _tex(std::move(t)) {
 			}
 
-			framebuffer_id _id;
-			texture_id _tid = 0;
-			size_t _w = 0, _h = 0;
+			id_t _id;
+			texture _tex;
 		};
 
 		class renderer_base {
@@ -69,10 +103,10 @@ namespace codepad {
 			virtual void begin(const window_base&) = 0;
 			virtual void push_clip(recti) = 0;
 			virtual void pop_clip() = 0;
-			virtual void draw_character(texture_id, vec2d, colord) = 0;
-			virtual void draw_triangles(const vec2d*, const vec2d*, const colord*, size_t, texture_id) = 0;
+			virtual void draw_character(const texture&, vec2d, colord) = 0;
+			virtual void draw_triangles(const texture&, const vec2d*, const vec2d*, const colord*, size_t) = 0;
 			virtual void draw_lines(const vec2d*, const colord*, size_t) = 0;
-			virtual void draw_quad(rectd r, rectd t, colord c, texture_id tex) {
+			virtual void draw_quad(const texture &tex, rectd r, rectd t, colord c) {
 				vec2d vs[6]{
 					r.xmin_ymin(), r.xmax_ymin(), r.xmin_ymax(),
 					r.xmax_ymin(), r.xmax_ymax(), r.xmin_ymax()
@@ -81,14 +115,14 @@ namespace codepad {
 					t.xmax_ymin(), t.xmax_ymax(), t.xmin_ymax()
 				};
 				colord cs[6] = {c, c, c, c, c, c};
-				draw_triangles(vs, uvs, cs, 6, tex);
+				draw_triangles(tex, vs, uvs, cs, 6);
 			}
 			virtual void end() = 0;
 
-			virtual texture_id new_character_texture(size_t, size_t, const void*) = 0;
-			virtual void delete_character_texture(texture_id) = 0;
-			virtual texture_id new_texture(size_t, size_t, const void*) = 0;
-			virtual void delete_texture(texture_id) = 0;
+			virtual texture new_character_texture(size_t, size_t, const void*) = 0;
+			virtual void delete_character_texture(texture&) = 0;
+			virtual texture new_texture(size_t, size_t, const void*) = 0;
+			virtual void delete_texture(texture&) = 0;
 
 			virtual framebuffer new_framebuffer(size_t, size_t) = 0;
 			virtual void delete_framebuffer(framebuffer&) = 0;
@@ -111,6 +145,28 @@ namespace codepad {
 			virtual void _new_window(window_base&) = 0;
 			virtual void _delete_window(window_base&) = 0;
 
+			inline static texture::id_t _get_id(const texture &t) {
+				return t._id;
+			}
+			inline static framebuffer::id_t _get_id(const framebuffer &f) {
+				return f._id;
+			}
+			texture _make_texture(texture::id_t id, size_t w, size_t h) {
+				return texture(id, this, w, h);
+			}
+			framebuffer _make_framebuffer(framebuffer::id_t id, texture &&tex) {
+				return framebuffer(id, std::move(tex));
+			}
+			inline static void _erase_texture(texture &t) {
+				t._id = 0;
+				t._w = t._h = 0;
+				t._rend = nullptr;
+			}
+			inline static void _erase_framebuffer(framebuffer &fb) {
+				fb._id = 0;
+				_erase_texture(fb._tex);
+			}
+
 			struct _default_renderer {
 				template <typename T, typename ...Args> void create(Args &&...args) {
 					assert_true_usage(!rend, "renderer already created");
@@ -125,8 +181,8 @@ namespace codepad {
 			static _default_renderer &_get_rend();
 		};
 
-		texture_id load_image(renderer_base&, const str_t&); // not recommended
-		inline texture_id load_image(const str_t &filename) {
+		texture load_image(renderer_base&, const str_t&);
+		inline texture load_image(const str_t &filename) {
 			return load_image(renderer_base::get(), filename);
 		}
 
@@ -149,23 +205,23 @@ namespace codepad {
 				_rtfstk.back().pop_clip();
 				_rtfstk.back().apply_clip();
 			}
-			void draw_character(texture_id id, vec2d pos, colord color) override {
-				const _text_atlas::char_data &cd = _atl.get_char_data(id);
+			void draw_character(const texture &id, vec2d pos, colord color) override {
+				const _text_atlas::char_data &cd = _atl.get_char_data(_get_id(id));
 				if (_lstpg != cd.page) {
 					_flush_text_buffer();
 					_lstpg = cd.page;
 				}
 				_textbuf.append(
 					pos, pos + vec2d(static_cast<double>(cd.w), static_cast<double>(cd.h)),
-					cd.layout, color, _matstk.size() > 0 ? &_matstk.back() : nullptr
+					cd.layout, color
 				);
 			}
-			void draw_triangles(const vec2d *ps, const vec2d *us, const colord *cs, size_t n, texture_id t) override {
+			void draw_triangles(const texture &t, const vec2d *ps, const vec2d *us, const colord *cs, size_t n) override {
 				_flush_text_buffer();
 				glVertexPointer(2, GL_DOUBLE, sizeof(vec2d), ps);
 				glTexCoordPointer(2, GL_DOUBLE, sizeof(vec2d), us);
 				glColorPointer(4, GL_DOUBLE, sizeof(colord), cs);
-				glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(t));
+				glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_get_id(t)));
 				glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(n));
 			}
 			void draw_lines(const vec2d *ps, const colord *cs, size_t n) override {
@@ -176,18 +232,17 @@ namespace codepad {
 				glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(n));
 			}
 			void end() override {
-				_flush_text_buffer();
 				_end_render_target();
 				_gl_verify();
 			}
 
-			texture_id new_character_texture(size_t w, size_t h, const void *data) override {
-				return _atl.new_char(_get_gl_funcs(), w, h, data);
+			texture new_character_texture(size_t w, size_t h, const void *data) override {
+				return _atl.new_char(*this, w, h, data);
 			}
-			void delete_character_texture(texture_id id) override {
+			void delete_character_texture(texture &id) override {
 				_atl.delete_char(id);
 			}
-			texture_id new_texture(size_t w, size_t h, const void *data) override {
+			texture new_texture(size_t w, size_t h, const void *data) override {
 				GLuint texid;
 				glGenTextures(1, &texid);
 				glBindTexture(GL_TEXTURE_2D, texid);
@@ -198,11 +253,12 @@ namespace codepad {
 					0, GL_RGBA, GL_UNSIGNED_BYTE, data
 				);
 				_get_gl_funcs().GenerateMipmap(GL_TEXTURE_2D);
-				return static_cast<texture_id>(texid);
+				return _make_texture(static_cast<texture::id_t>(texid), w, h);
 			}
-			void delete_texture(texture_id tex) override {
-				GLuint t = static_cast<GLuint>(tex);
+			void delete_texture(texture &tex) override {
+				GLuint t = static_cast<GLuint>(_get_id(tex));
 				glDeleteTextures(1, &t);
+				_erase_texture(tex);
 			}
 
 			framebuffer new_framebuffer(size_t w, size_t h) override {
@@ -224,13 +280,13 @@ namespace codepad {
 					gl.CheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
 					"OpenGL error: unable to create framebuffer"
 				);
-				return framebuffer(fbid, tid, w, h);
+				return _make_framebuffer(fbid, _make_texture(static_cast<texture::id_t>(tid), w, h));
 			}
 			void delete_framebuffer(framebuffer &fb) override {
-				GLuint id = static_cast<GLuint>(fb._id), tid = static_cast<GLuint>(fb._tid);
+				GLuint id = static_cast<GLuint>(_get_id(fb)), tid = static_cast<GLuint>(_get_id(fb.get_texture()));
 				_get_gl_funcs().DeleteFramebuffers(1, &id);
 				glDeleteTextures(1, &tid);
-				fb._tid = 0;
+				_erase_framebuffer(fb);
 			}
 			void begin_framebuffer(const framebuffer &fb) override {
 				continue_framebuffer(fb);
@@ -241,9 +297,9 @@ namespace codepad {
 				assert_true_usage(fb.has_content(), "cannot draw to an empty frame buffer");
 				const _gl_funcs &gl = _get_gl_funcs();
 				_begin_render_target(_render_target_stackframe(
-					false, fb._w, fb._h,
-					std::bind(gl.BindFramebuffer, GL_FRAMEBUFFER, static_cast<GLuint>(fb._id)),
-					[this, tex = static_cast<GLuint>(fb._tid), gl]() {
+					false, fb.get_texture().get_width(), fb.get_texture().get_height(),
+					std::bind(gl.BindFramebuffer, GL_FRAMEBUFFER, static_cast<GLuint>(_get_id(fb))),
+					[this, tex = static_cast<GLuint>(_get_id(fb.get_texture())), gl]() {
 					gl.BindFramebuffer(GL_FRAMEBUFFER, 0);
 					glBindTexture(GL_TEXTURE_2D, tex);
 					gl.GenerateMipmap(GL_TEXTURE_2D);
@@ -253,7 +309,7 @@ namespace codepad {
 			}
 
 			void push_matrix(const matd3x3 &m) override {
-				_matstk.push_back(m);
+				_flush_text_buffer();
 				glMatrixMode(GL_MODELVIEW);
 				glPushMatrix();
 				double d[16];
@@ -261,6 +317,7 @@ namespace codepad {
 				glLoadMatrixd(d);
 			}
 			void push_matrix_mult(const matd3x3 &m) override {
+				_flush_text_buffer();
 				glMatrixMode(GL_MODELVIEW);
 				glPushMatrix();
 				double d[16];
@@ -273,7 +330,7 @@ namespace codepad {
 				return _get_gl_matrix(d);
 			}
 			void pop_matrix() override {
-				_matstk.pop_back();
+				_flush_text_buffer();
 				glMatrixMode(GL_MODELVIEW);
 				glPopMatrix();
 			}
@@ -347,7 +404,7 @@ namespace codepad {
 					for (auto i = _ps.begin(); i != _ps.end(); ++i) {
 						i->dispose();
 					}
-			}
+				}
 
 				struct page {
 					void create(size_t w, size_t h) {
@@ -401,16 +458,25 @@ namespace codepad {
 				size_t _cx = 0, _cy = 0, _my = 0;
 				std::vector<page> _ps;
 				std::vector<char_data> _cd_slots;
-				std::vector<texture_id> _cd_alloc;
+				std::vector<texture::id_t> _cd_alloc;
 				bool _lpdirty = false;
 
 				void _new_page() {
 					page np;
 					np.create(page_width, page_height);
+					for (size_t y = 0; y < np.height; ++y) {
+						unsigned char *cur = np.data + y * np.width * 4;
+						for (size_t x = 0; x < np.width; ++x) {
+							*(cur++) = 255;
+							*(cur++) = 255;
+							*(cur++) = 255;
+							*(cur++) = 0;
+						}
+					}
 					_ps.push_back(np);
 				}
-				texture_id _alloc_id() {
-					texture_id res;
+				texture::id_t _alloc_id() {
+					texture::id_t res;
 					if (_cd_alloc.size() > 0) {
 						res = _cd_alloc.back();
 						_cd_alloc.pop_back();
@@ -421,11 +487,11 @@ namespace codepad {
 					return res;
 				}
 			public:
-				texture_id new_char(const _gl_funcs &gl, size_t w, size_t h, const void *data) {
+				texture new_char(opengl_renderer_base &r, size_t w, size_t h, const void *data) {
 					if (_ps.size() == 0) {
 						_new_page();
 					}
-					texture_id id = _alloc_id();
+					texture::id_t id = _alloc_id();
 					char_data &cd = _cd_slots[id];
 					cd.w = w;
 					cd.h = h;
@@ -442,7 +508,7 @@ namespace codepad {
 						size_t t, l;
 						if (_cy + h + border > curp.height) { // next page
 							if (_lpdirty) {
-								curp.flush(gl);
+								curp.flush(r._get_gl_funcs());
 							}
 							_new_page();
 							curp = _ps.back();
@@ -456,12 +522,9 @@ namespace codepad {
 						}
 						const unsigned char *src = static_cast<const unsigned char*>(data);
 						for (size_t y = 0; y < h; ++y) {
-							unsigned char *cur = curp.data + ((y + t) * curp.width + l) * 4;
-							for (size_t x = 0; x < w; ++x) {
-								*(cur++) = 255;
-								*(cur++) = 255;
-								*(cur++) = 255;
-								*(cur++) = *(src++);
+							unsigned char *cur = curp.data + ((y + t) * curp.width + l) * 4 + 3;
+							for (size_t x = 0; x < w; ++x, ++src, cur += 4) {
+								*cur = *src;
 							}
 						}
 						_cx = l + w;
@@ -474,12 +537,13 @@ namespace codepad {
 						cd.page = _ps.size() - 1;
 						_lpdirty = true;
 					}
-					return id;
+					return r._make_texture(id, w, h);
 				}
-				void delete_char(texture_id id) {
-					_cd_alloc.push_back(id);
+				void delete_char(texture &id) {
+					_cd_alloc.push_back(_get_id(id));
+					_erase_texture(id);
 				}
-		};
+			};
 			struct _text_buffer {
 				struct vertex {
 					vertex(vec2d p, vec2d u, colord color) : v(p), uv(u), c(color) {
@@ -491,13 +555,8 @@ namespace codepad {
 				std::vector<unsigned int> ids;
 				size_t vertcount = 0, count = 0;
 
-				void append(vec2d tl, vec2d br, rectd layout, colord c, const matd3x3 *m) {
+				void append(vec2d tl, vec2d br, rectd layout, colord c) {
 					vec2d v[4]{tl, vec2d(br.x, tl.y), vec2d(tl.x, br.y), br};
-					if (m) {
-						for (size_t i = 0; i < 4; ++i) {
-							v[i] = m->transform(v[i]);
-						}
-					}
 					if (vertcount == vxs.size()) {
 						unsigned int id = static_cast<unsigned int>(vxs.size());
 						ids.push_back(id);
@@ -521,23 +580,19 @@ namespace codepad {
 					}
 				}
 				void flush_nocheck(GLuint tex) {
-					glMatrixMode(GL_MODELVIEW);
-					glPushMatrix();
-					glLoadIdentity();
 					glVertexPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].v);
 					glTexCoordPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].uv);
 					glColorPointer(4, GL_DOUBLE, sizeof(vertex), &vxs[0].c);
 					glBindTexture(GL_TEXTURE_2D, tex);
 					glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(count), GL_UNSIGNED_INT, ids.data());
-					glPopMatrix();
 					count = vertcount = 0;
 				}
 			};
 
 			struct _render_target_stackframe {
-				_render_target_stackframe() = default;
-				template <typename T, typename U> _render_target_stackframe(bool invy, size_t w, size_t h, T fbeg, U fend) :
-					invert_y(invy), width(w), height(h), begin(std::move(fbeg)), end(std::move(fend)) {
+				template <typename T, typename U> _render_target_stackframe(
+					bool invy, size_t w, size_t h, T &&fbeg, U &&fend
+				) : invert_y(invy), width(w), height(h), begin(std::forward<T>(fbeg)), end(std::forward<U>(fend)) {
 				}
 
 				bool invert_y = false;
@@ -571,7 +626,6 @@ namespace codepad {
 				}
 			};
 
-			std::vector<matd3x3> _matstk;
 			std::vector<_render_target_stackframe> _rtfstk;
 
 			_text_atlas _atl;
@@ -579,6 +633,9 @@ namespace codepad {
 			size_t _lstpg;
 
 			void _begin_render_target(_render_target_stackframe rtf) {
+				if (_rtfstk.size() > 0) {
+					_flush_text_buffer();
+				}
 				_rtfstk.push_back(std::move(rtf));
 				_continue_last_render_target();
 				glMatrixMode(GL_MODELVIEW);
@@ -600,6 +657,7 @@ namespace codepad {
 				_gl_verify();
 			}
 			void _end_render_target() {
+				_flush_text_buffer();
 				glMatrixMode(GL_MODELVIEW);
 				glPopMatrix();
 				_rtfstk.back().end();
@@ -607,8 +665,6 @@ namespace codepad {
 				_rtfstk.pop_back();
 				if (!_rtfstk.empty()) {
 					_continue_last_render_target();
-				} else {
-					assert_true_usage(_matstk.size() == 0, "pushmatrix/popmatrix mismatch");
 				}
 			}
 
@@ -626,12 +682,17 @@ namespace codepad {
 				}
 #endif
 			}
-	};
+		};
 
-		inline framebuffer::~framebuffer() {
-			if (_tid != 0) {
-				renderer_base::get().delete_framebuffer(*this);
+		inline texture::~texture() {
+			if (has_content()) {
+				_rend->delete_texture(*this);
 			}
 		}
-}
+		inline framebuffer::~framebuffer() {
+			if (has_content()) {
+				_tex.get_renderer()->delete_framebuffer(*this);
+			}
+		}
 	}
+}

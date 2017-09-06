@@ -38,7 +38,7 @@ set(SOURCE_FILES
 		codepad/ui/manager.h
 		codepad/ui/panel.h
 		codepad/ui/draw.h
-		codepad/ui/visual.h
+		codepad/ui/theme_providers.h
 		codepad/ui/window_hotkey_manager.h
 		codepad/utilities/event.h
 		codepad/utilities/globals.cpp

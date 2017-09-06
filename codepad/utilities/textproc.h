@@ -14,6 +14,35 @@ namespace codepad {
 		invalid_min = 0xD800, invalid_max = 0xDFFF,
 		unicode_max = 0x10FFFF;
 
+	namespace json {
+		inline str_t get_as_string(const value_t &v) {
+			return str_t(v.GetString(), v.GetStringLength());
+		}
+
+		template <typename Res, typename Obj, Res(Obj::*Getter)() const> inline Res get_or_default(
+			const Obj &v, const str_t &s, Res def
+		) {
+			auto found = v.FindMember(s.c_str());
+			if (found == v.MemberEnd()) {
+				return def;
+			}
+			return (found->value.*Getter)();
+		}
+		inline bool get_bool_or_default(const value_t &v, const str_t &s, bool def = false) {
+			return get_or_default<bool, value_t, &value_t::IsTrue>(v, s, def);
+		}
+		inline double get_double_or_default(const value_t &v, const str_t &s, double def = 0.0) {
+			return get_or_default<double, value_t, &value_t::GetDouble>(v, s, def);
+		}
+		inline str_t get_string_or_default(const value_t &v, const str_t &s, const str_t &def) {
+			auto found = v.FindMember(s.c_str());
+			if (found == v.MemberEnd()) {
+				return def;
+			}
+			return get_as_string(found->value);
+		}
+	}
+
 	inline bool is_newline(char_t c) {
 		return c == U'\n' || c == U'\r';
 	}
@@ -88,6 +117,13 @@ namespace codepad {
 		++i;
 		return true;
 	}
+	template <typename Iter> inline bool next_codepoint(
+		Iter &i, std::u32string::const_iterator, char32_t &v
+	) {
+		v = *i;
+		++i;
+		return is_valid_codepoint(v);
+	}
 
 	inline void append_codepoint(u8str_t &s, char32_t c) {
 		if (c < 0x80) {
@@ -123,37 +159,11 @@ namespace codepad {
 			});
 		}
 	}
+	inline void append_codepoint(std::u32string &s, char32_t c) {
+		s.append({c});
+	}
 
-	template <typename Char> inline std::u32string convert_to_utf32(
-		const std::basic_string<Char> &str
-	) {
-		std::u32string result;
-		result.reserve(str.length());
-		auto i = str.begin(), end = str.end();
-		char32_t c;
-		while (i != end) {
-			if (!next_codepoint(i, end, c)) {
-				c = replacement_character;
-			}
-			result.append({c});
-		}
-		return result;
-	}
-	template <typename Char> inline std::basic_string<Char> convert_from_utf32(
-		const std::u32string &str
-	) {
-		std::basic_string<Char> result;
-		result.reserve(str.length());
-		for (auto i = str.begin(); i != str.end(); ++i) {
-			char32_t curc = *i;
-			if (!is_valid_codepoint(curc)) {
-				curc = replacement_character;
-			}
-			append_codepoint(result, curc);
-		}
-		return result;
-	}
-	template <typename To, typename From> inline std::basic_string<To> convert_between_utf16_and_utf8(
+	template <typename To, typename From> inline std::basic_string<To> convert_encoding(
 		const std::basic_string<From> &str
 	) {
 		std::basic_string<To> result;
@@ -169,23 +179,23 @@ namespace codepad {
 		return result;
 	}
 
-	inline std::u16string utf32_to_utf16(const std::u32string &str) {
-		return convert_from_utf32<char16_t>(str);
-	}
 	inline u8str_t utf32_to_utf8(const std::u32string &str) {
-		return convert_from_utf32<char8_t>(str);
+		return convert_encoding<char8_t>(str);
 	}
 	inline u8str_t utf16_to_utf8(const std::u16string &str) {
-		return convert_between_utf16_and_utf8<char8_t>(str);
+		return convert_encoding<char8_t>(str);
+	}
+	inline std::u16string utf32_to_utf16(const std::u32string &str) {
+		return convert_encoding<char16_t>(str);
 	}
 	inline std::u16string utf8_to_utf16(const u8str_t &str) {
-		return convert_between_utf16_and_utf8<char16_t>(str);
+		return convert_encoding<char16_t>(str);
 	}
 	inline std::u32string utf16_to_utf32(const std::u16string &str) {
-		return convert_to_utf32(str);
+		return convert_encoding<char32_t>(str);
 	}
 	inline std::u32string utf8_to_utf32(const u8str_t &str) {
-		return convert_to_utf32(str);
+		return convert_encoding<char32_t>(str);
 	}
 
 	// TODO deprecate this function due to performance?

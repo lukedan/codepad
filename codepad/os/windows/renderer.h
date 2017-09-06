@@ -16,24 +16,27 @@ namespace codepad {
 			software_renderer() : renderer_base() {
 				_txs.push_back(_tex_rec());
 			}
-			~software_renderer() override {
-				_dispose_buffer();
-			}
 
 			void begin(const window_base &wnd) override {
-				_cwnd = static_cast<const window*>(&wnd);
-				_wcsz = _cwnd->get_actual_size().convert<int>();
-				_crgn = recti(0, _wcsz.x, 0, _wcsz.y);
-				_crec = &_wnds.find(_cwnd)->second;
-				_check_buffer();
-				for (size_t y = 0; y < _crec->bmp.h; ++y) {
-					for (size_t x = 0; x < _crec->bmp.w; ++x) {
-						_dbuf[(_crec->bmp.h - y - 1) * _crec->bmp.w + x] = colord(0.0, 0.0, 0.0, 0.0);
+				const window *cwnd = static_cast<const window*>(&wnd);
+				_wnd_rec *crec = &_wnds.find(cwnd)->second;
+				_begin_render_target(_render_target_stackframe(
+					crec->width, crec->height, crec->buffer, [this, cwnd, crec]() {
+					DWORD *to = crec->bmp.arr;
+					colord *from = _tarbuf;
+					for (size_t i = crec->width * crec->height; i > 0; --i, ++from, ++to) {
+						*to = _conv_to_dword(from->convert<unsigned char>());
 					}
+					winapi_check(BitBlt(
+						cwnd->_dc, 0, 0, static_cast<int>(crec->width), static_cast<int>(crec->height),
+						crec->dc, 0, 0, SRCCOPY
+					));
 				}
+				));
+				_clear_texture(_tarbuf, crec->width, crec->height);
 			}
-			void draw_character(texture_id tex, vec2d pos, colord c) override {
-				const _tex_rec &tr = _txs[tex];
+			void draw_character(const texture &tex, vec2d pos, colord c) override {
+				const _tex_rec &tr = _txs[_get_id(tex)];
 				rectd rv = rectd::from_xywh(pos.x, pos.y, static_cast<double>(tr.w), static_cast<double>(tr.h));
 				vec2d vxs[6] = {
 					rv.xmin_ymin(), rv.xmax_ymin(), rv.xmin_ymax(),
@@ -43,59 +46,88 @@ namespace codepad {
 					vec2d(1.0, 0.0), vec2d(1.0, 1.0), vec2d(0.0, 1.0)
 				};
 				colord cs[6] = {c, c, c, c, c, c};
-				draw_triangles(vxs, uvs, cs, 6, tex);
+				draw_triangles(tex, vxs, uvs, cs, 6);
 			}
 			void draw_triangles(
-				const vec2d *poss, const vec2d *uvs, const colord *cs,
-				size_t sz, texture_id tid
+				const texture &tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
 			) override {
 				const vec2d *cp = poss, *cuv = uvs;
 				const colord *cc = cs;
+				vec2d tmp[3];
 				for (; sz > 2; sz -= 3, cp += 3, cuv += 3, cc += 3) {
-					_draw_triangle(cp, cuv, cc, tid);
+					tmp[0] = apply_transform(_matstk.back(), cp[0]);
+					tmp[1] = apply_transform(_matstk.back(), cp[1]);
+					tmp[2] = apply_transform(_matstk.back(), cp[2]);
+					_draw_triangle(tmp, cuv, cc, _get_id(tid));
 				}
 			}
 			void draw_lines(const vec2d *vs, const colord *cs, size_t sz) override {
 				for (size_t i = 0; i < sz; i += 2) {
-					_draw_line(vs[i], vs[i + 1], cs[i]); // TODO get the color right
+					_draw_line(
+						apply_transform(_matstk.back(), vs[i]),
+						apply_transform(_matstk.back(), vs[i + 1]),
+						cs[i]
+					); // TODO get the color right
 				}
 			}
 			void end() override {
-				DWORD *to = _crec->bmp.arr;
-				colord *from = _dbuf;
-				for (size_t i = _wcsz.x * _wcsz.y; i > 0; --i, ++from, ++to) {
-					*to = _conv_to_dword(from->convert<unsigned char>());
-				}
-				winapi_check(BitBlt(
-					_cwnd->_dc, _crgn.xmin, _crgn.ymin, _crgn.width(), _crgn.height(),
-					_crec->dc, _crgn.xmin, _crgn.ymin, SRCCOPY
-				));
+				_end_render_target();
 			}
 
-			texture_id new_character_texture(size_t w, size_t h, const void *gs) override {
-				texture_id nid = _alloc_id();
-				_txs[nid].set_grayscale(w, h, static_cast<const unsigned char*>(gs));
-				return nid;
+			texture new_texture(size_t w, size_t h, const void *rgba) override {
+				texture::id_t nid = _alloc_id();
+				_txs[nid].set_rgba(w, h, static_cast<const unsigned char*>(rgba));
+				return _make_texture(nid, w, h);
 			}
-			void delete_character_texture(texture_id id) override {
-				_txs[id].dispose();
-				_id_realloc.push_back(id);
+			void delete_texture(texture &id) override {
+				_delete_texture_by_id(_get_id(id));
+				_erase_texture(id);
+			}
+
+			texture new_character_texture(size_t w, size_t h, const void *gs) override {
+				texture::id_t nid = _alloc_id();
+				_txs[nid].set_grayscale(w, h, static_cast<const unsigned char*>(gs));
+				return _make_texture(nid, w, h);
+			}
+			void delete_character_texture(texture &id) override {
+				delete_texture(id);
 			}
 			void push_clip(recti r) override {
-				if (_clpstk.size() > 0) {
-					r = recti::common_part(r, _clpstk.back());
-				}
-				r.make_valid_max();
-				_crgn = r;
-				_clpstk.push_back(r);
+				_rtfstk.back().push_clip(r);
 			}
 			void pop_clip() override {
-				_clpstk.pop_back();
-				if (_clpstk.size() > 0) {
-					_crgn = _clpstk.back();
-				} else {
-					_crgn = _cwnd->get_layout().minimum_bounding_box<int>();
-				}
+				_rtfstk.back().pop_clip();
+			}
+
+			framebuffer new_framebuffer(size_t w, size_t h) override {
+				texture::id_t nid = _alloc_id();
+				_txs[nid].set(w, h);
+				return _make_framebuffer(nid, _make_texture(nid, w, h));
+			}
+			void delete_framebuffer(framebuffer &fb) override {
+				_delete_texture_by_id(_get_id(fb.get_texture()));
+				_erase_framebuffer(fb);
+			}
+			void begin_framebuffer(const framebuffer &fb) override {
+				continue_framebuffer(fb);
+				_clear_texture(_tarbuf, _rtfstk.back().width, _rtfstk.back().height);
+			}
+			void continue_framebuffer(const framebuffer &fb) override {
+				_tex_rec &tr = _txs[_get_id(fb.get_texture())];
+				_begin_render_target(_render_target_stackframe(tr.w, tr.h, tr.data));
+			}
+
+			void push_matrix(const matd3x3 &m) override {
+				_matstk.push_back(m);
+			}
+			void push_matrix_mult(const matd3x3 &m) override {
+				_matstk.push_back(_matstk.back() * m);
+			}
+			matd3x3 top_matrix() const override {
+				return _matstk.back();
+			}
+			void pop_matrix() override {
+				_matstk.pop_back();
 			}
 		protected:
 			void _new_window(window_base &wnd) override {
@@ -112,19 +144,11 @@ namespace codepad {
 				_wnds[static_cast<window*>(&wnd)].dispose_buffer();
 			}
 
-			colord *_dbuf = nullptr;
-			vec2i _bufsz, _wcsz;
-			void _dispose_buffer() {
-				if (_dbuf) {
-					std::free(_dbuf);
-				}
-			}
-			void _check_buffer() {
-				if (_wcsz.x > _bufsz.x || _wcsz.y > _bufsz.y) {
-					_dispose_buffer();
-					_bufsz.x = std::max(_bufsz.x, _wcsz.x);
-					_bufsz.y = std::max(_bufsz.y, _wcsz.y);
-					_dbuf = static_cast<colord*>(std::malloc(sizeof(colord) * _bufsz.x * _bufsz.y));
+			colord *_tarbuf = nullptr;
+
+			inline static void _clear_texture(colord *arr, size_t w, size_t h) {
+				for (size_t i = w * h; i > 0; --i, ++arr) {
+					*arr = colord(0.0, 0.0, 0.0, 0.0);
 				}
 			}
 
@@ -137,10 +161,19 @@ namespace codepad {
 				void set_grayscale(size_t ww, size_t hh, const unsigned char *gs) {
 					set(ww, hh);
 					colord *target = data;
-					const unsigned char *source = gs;
-					for (size_t i = w * h; i > 0; --i, ++target, ++source) {
+					for (size_t i = w * h; i > 0; --i, ++target, ++gs) {
 						target->r = target->g = target->b = 1.0;
-						target->a = *source / 255.0;
+						target->a = *gs / 255.0;
+					}
+				}
+				void set_rgba(size_t ww, size_t hh, const unsigned char *rgba) {
+					set(ww, hh);
+					colord *target = data;
+					for (size_t i = w * h; i > 0; --i, ++target, ++rgba) {
+						target->r = *rgba / 255.0;
+						target->g = *++rgba / 255.0;
+						target->b = *++rgba / 255.0;
+						target->a = *++rgba / 255.0;
 					}
 				}
 				void dispose() {
@@ -181,14 +214,12 @@ namespace codepad {
 				colord *data = nullptr;
 			};
 			struct _dev_bitmap {
-				HGDIOBJ create_and_select(HDC dc, size_t ww, size_t hh) {
-					w = ww;
-					h = hh;
+				HGDIOBJ create_and_select(HDC dc, size_t w, size_t h) {
 					BITMAPINFO info;
 					std::memset(&info, 0, sizeof(info));
 					info.bmiHeader.biSize = sizeof(info.bmiHeader);
 					info.bmiHeader.biWidth = static_cast<LONG>(w);
-					info.bmiHeader.biHeight = static_cast<LONG>(h);
+					info.bmiHeader.biHeight = -static_cast<LONG>(h);
 					info.bmiHeader.biPlanes = 1;
 					info.bmiHeader.biBitCount = 32;
 					info.bmiHeader.biCompression = BI_RGB;
@@ -208,39 +239,104 @@ namespace codepad {
 
 				HBITMAP handle;
 				DWORD *arr;
-				size_t w, h;
 			};
 			struct _wnd_rec {
 				void create_buffer(HDC ndc, size_t w, size_t h) {
+					width = w;
+					height = h;
 					winapi_check(dc = CreateCompatibleDC(ndc));
-					old = bmp.create_and_select(dc, w, h);
+					if (width != 0 && height != 0) {
+						old = bmp.create_and_select(dc, width, height);
+					}
+					buffer = new colord[width * height];
 				}
 				void resize_buffer(size_t w, size_t h) {
-					_dev_bitmap newbmp;
-					newbmp.create_and_select(dc, w, h);
-					bmp.dispose();
-					bmp = newbmp;
+					width = w;
+					height = h;
+					if (width != 0 && height != 0) {
+						_dev_bitmap newbmp;
+						HGDIOBJ ov = newbmp.create_and_select(dc, width, height);
+						if (old == nullptr) {
+							old = ov;
+						} else {
+							bmp.dispose();
+						}
+						bmp = newbmp;
+					}
+					delete[] buffer;
+					buffer = new colord[width * height];
 				}
 				void dispose_buffer() {
-					bmp.unselect_and_dispose(dc, old);
+					if (old != nullptr) {
+						bmp.unselect_and_dispose(dc, old);
+					}
 					winapi_check(DeleteDC(dc));
+					delete[] buffer;
 				}
 
-				HGDIOBJ old;
+				HGDIOBJ old = nullptr;
 				HDC dc;
 				_dev_bitmap bmp;
+				colord *buffer = nullptr;
+				size_t width, height;
+			};
+			struct _render_target_stackframe {
+				_render_target_stackframe(size_t w, size_t h, colord *buf) :
+					_render_target_stackframe(w, h, buf, nullptr) {
+				}
+				template <typename T> _render_target_stackframe(
+					size_t w, size_t h, colord *buf, T &&e
+				) :
+					width(w), height(h), buffer(buf), end(std::forward<T>(e)),
+					clip_stack({recti(0, static_cast<int>(width), 0, static_cast<int>(height))}) {
+				}
+
+				size_t width = 0, height = 0;
+				colord *buffer = nullptr;
+				std::function<void()> end;
+				std::vector<recti> clip_stack;
+
+				void push_clip(recti r) {
+					r = recti::common_part(r, clip_stack.back());
+					r.make_valid_max();
+					clip_stack.push_back(r);
+				}
+				void pop_clip() {
+					clip_stack.pop_back();
+				}
 			};
 
 			std::vector<_tex_rec> _txs;
-			std::vector<texture_id> _id_realloc;
+			std::vector<texture::id_t> _id_realloc;
 			std::unordered_map<const window*, _wnd_rec> _wnds;
-			const window *_cwnd = nullptr;
-			_wnd_rec *_crec = nullptr;
-			std::vector<recti> _clpstk;
-			recti _crgn;
+			std::vector<_render_target_stackframe> _rtfstk;
+			std::vector<matd3x3> _matstk;
 
-			texture_id _alloc_id() {
-				texture_id nid;
+			void _begin_render_target(_render_target_stackframe sf) {
+				_matstk.push_back(matd3x3());
+				_matstk.back().set_identity();
+				_rtfstk.push_back(std::move(sf));
+				_continue_last_render_target();
+			}
+			void _continue_last_render_target() {
+				_tarbuf = _rtfstk.back().buffer;
+			}
+			void _end_render_target() {
+				assert_true_usage(_rtfstk.back().clip_stack.size() == 1, "pushclip/popclip mismatch");
+				if (_rtfstk.back().end) {
+					_rtfstk.back().end();
+				}
+				_rtfstk.pop_back();
+				_matstk.pop_back();
+				if (!_rtfstk.empty()) {
+					_continue_last_render_target();
+				} else {
+					assert_true_usage(_matstk.size() == 0, "pushmatrix/popmatrix mismatch");
+				}
+			}
+
+			texture::id_t _alloc_id() {
+				texture::id_t nid;
 				if (_id_realloc.empty()) {
 					nid = _txs.size();
 					_txs.push_back(_tex_rec());
@@ -249,6 +345,16 @@ namespace codepad {
 					_id_realloc.pop_back();
 				}
 				return nid;
+			}
+			void _delete_texture_by_id(texture::id_t id) {
+				_txs[id].dispose();
+				_id_realloc.push_back(id);
+			}
+
+			inline static DWORD _conv_to_dword(colori cv) {
+				return
+					static_cast<DWORD>(cv.a) << 24 | static_cast<DWORD>(cv.r) << 16 |
+					static_cast<DWORD>(cv.g) << 8 | cv.b;
 			}
 
 			struct _pq_params {
@@ -272,7 +378,7 @@ namespace codepad {
 				}
 			};
 			void _draw_triangle(
-				const vec2d *ps, const vec2d *uvs, const colord *cs, texture_id tex
+				const vec2d *ps, const vec2d *uvs, const colord *cs, texture::id_t tex
 			) {
 				const vec2d *yi[3]{ps, ps + 1, ps + 2};
 				if (yi[0]->y > yi[1]->y) {
@@ -301,11 +407,6 @@ namespace codepad {
 					_draw_triangle_half(yi[2]->x, yi[2]->y, invk_12, invk_02, yi[1]->y, yi[2]->y, tr, pq, uvs, cs);
 				}
 			}
-			inline static DWORD _conv_to_dword(colori cv) {
-				return
-					static_cast<DWORD>(cv.a) << 24 | static_cast<DWORD>(cv.r) << 16 |
-					static_cast<DWORD>(cv.g) << 8 | cv.b;
-			}
 			void _draw_triangle_half(
 				double sx, double sy, double invk1, double invk2, double ymin, double ymax,
 				const _tex_rec &tex, const _pq_params &params,
@@ -313,17 +414,19 @@ namespace codepad {
 			) {
 				sx += 0.5;
 				sy -= 0.5;
+				recti crgn = _rtfstk.back().clip_stack.back();
 				size_t
-					miny = static_cast<size_t>(std::max<double>(ymin + 0.5, _crgn.ymin)),
-					maxy = static_cast<size_t>(clamp<double>(ymax + 0.5, _crgn.ymin, _crgn.ymax));
+					miny = static_cast<size_t>(std::max<double>(ymin + 0.5, crgn.ymin)),
+					maxy = static_cast<size_t>(clamp<double>(ymax + 0.5, crgn.ymin, crgn.ymax)),
+					scrw = _rtfstk.back().width;
 				vec2d uvd = uvs[0] * params.xpi + uvs[1] * params.xqi + uvs[2] * params.xri;
 				colord cd = cs[0] * params.xpi + cs[1] * params.xqi + cs[2] * params.xri;
 				for (size_t y = miny; y < maxy; ++y) {
 					double diff = static_cast<double>(y) - sy, left = diff * invk1 + sx, right = diff * invk2 + sx;
 					size_t
-						l = static_cast<size_t>(std::max<double>(left, _crgn.xmin)),
-						r = static_cast<size_t>(clamp<double>(right, _crgn.xmin, _crgn.xmax));
-					colord *pixel = _dbuf + (_crec->bmp.h - y - 1) * _crec->bmp.w + l;
+						l = static_cast<size_t>(std::max<double>(left, crgn.xmin)),
+						r = static_cast<size_t>(clamp<double>(right, crgn.xmin, crgn.xmax));
+					colord *pixel = _tarbuf + y * scrw + l;
 					double p, q, mpq;
 					params.get_pq(l, y, p, q);
 					mpq = 1.0 - p - q;
@@ -370,40 +473,39 @@ namespace codepad {
 				}
 				return true;
 			}
-			void _draw_line(vec2d p1, vec2d p2, colord c) {
-				p1.y = _wcsz.y - p1.y;
-				p2.y = _wcsz.y - p2.y;
+			void _draw_line(vec2d p1, vec2d p2, colord c) { // FIXME clipping is not working, rounding issues
 				if (p1.x + p1.y > p2.x + p2.y) {
 					std::swap(p1, p2);
 				}
 				vec2d diff = p2 - p1;
+				recti crgn = _rtfstk.back().clip_stack.back();
 				if (diff.x < 0.0 ? true : (diff.y < 0.0 ? false : (std::fabs(diff.y) > std::fabs(diff.x)))) {
-					if (_clip_line_onedir(p1.x, p1.y, p2.x, p2.y, _crgn.xmin + 0.5, _crgn.xmax - 0.5)) {
+					if (_clip_line_onedir(p1.x, p1.y, p2.x, p2.y, crgn.xmin + 0.5, crgn.xmax - 0.5)) {
 						_draw_line_up(p1.y, p1.x, p2.y, diff.x / diff.y, c);
 					}
 				} else {
-					if (_clip_line_onedir(p1.y, p1.x, p2.y, p2.x, _crgn.ymin + 0.5, _crgn.ymax - 0.5)) {
+					if (_clip_line_onedir(p1.y, p1.x, p2.y, p2.x, crgn.ymin + 0.5, crgn.ymax - 0.5)) {
 						_draw_line_right(p1.x, p1.y, p2.x, diff.y / diff.x, c);
 					}
 				}
 			}
 			void _draw_pixel_with_blend(size_t x, size_t y, colord c) {
-				colord *pixel = _dbuf + (y * _wcsz.x + x);
+				colord *pixel = _tarbuf + (y * _rtfstk.back().width + x);
 				*pixel += (c - *pixel) * c.a;
 			}
 			void _draw_line_right(double fx, double fy, double tx, double k, colord c) {
-				size_t t = static_cast<size_t>(clamp(tx, 0.0, static_cast<double>(_wcsz.x - 1)));
+				size_t t = static_cast<size_t>(clamp(tx, 0.0, static_cast<double>(_rtfstk.back().width - 1)));
 				tx -= fx;
 				fx -= 0.5;
-				for (size_t cx = static_cast<size_t>(std::max(fx + 0.5, 0.0)); cx <= t; ++cx) {
+				for (size_t cx = static_cast<size_t>(std::max(fx + 0.5, 0.0)); cx < t; ++cx) {
 					_draw_pixel_with_blend(cx, static_cast<size_t>(fy + k * clamp(static_cast<double>(cx) - fx, 0.0, tx)), c);
 				}
 			}
 			void _draw_line_up(double by, double bx, double ty, double invk, colord c) {
-				size_t t = static_cast<size_t>(clamp(ty, 0.0, static_cast<double>(_wcsz.y - 1)));
+				size_t t = static_cast<size_t>(clamp(ty, 0.0, static_cast<double>(_rtfstk.back().height - 1)));
 				ty -= by;
 				by -= 0.5;
-				for (size_t cy = static_cast<size_t>(std::max(by + 0.5, 0.0)); cy <= t; ++cy) {
+				for (size_t cy = static_cast<size_t>(std::max(by + 0.5, 0.0)); cy < t; ++cy) {
 					_draw_pixel_with_blend(static_cast<size_t>(bx + invk * clamp(static_cast<double>(cy) - by, 0.0, ty)), cy, c);
 				}
 			}

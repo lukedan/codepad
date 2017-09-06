@@ -64,7 +64,7 @@ namespace codepad {
 			~wic_image_loader() {
 				factory->Release();
 			}
-			texture_id load_image(renderer_base &r, const str_t &filename) {
+			texture load_image(renderer_base &r, const str_t &filename) {
 				IWICBitmapDecoder *decoder = nullptr;
 				std::u16string fn = convert_to_utf16(filename);
 				com_check(factory->CreateDecoderFromFilename(
@@ -84,7 +84,7 @@ namespace codepad {
 					nullptr, static_cast<UINT>(4 * w), static_cast<UINT>(bufsize),
 					static_cast<BYTE*>(buffer))
 				);
-				texture_id res = r.new_texture(static_cast<size_t>(w), static_cast<size_t>(h), buffer);
+				texture res = r.new_texture(static_cast<size_t>(w), static_cast<size_t>(h), buffer);
 				std::free(buffer);
 				convertedframe->Release();
 				decoder->Release();
@@ -95,7 +95,7 @@ namespace codepad {
 
 			IWICImagingFactory *factory = nullptr;
 		};
-		inline texture_id load_image(renderer_base &r, const str_t &filename) {
+		inline texture load_image(renderer_base &r, const str_t &filename) {
 			return wic_image_loader::get().load_image(r, filename);
 		}
 	}

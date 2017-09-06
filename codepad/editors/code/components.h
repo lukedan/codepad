@@ -16,8 +16,12 @@ namespace codepad {
 					}
 					return vec2d(get_padding().width() + static_cast<double>(w) * editor::get_font().normal->max_width(), 0.0);
 				}
+
+				inline static str_t get_default_class() {
+					return U"line_number";
+				}
 			protected:
-				void _render() const override {
+				void _custom_render() const override {
 					editor *editor = _get_editor();
 					double lh = editor->get_line_height();
 					std::pair<size_t, size_t> be = editor->get_visible_lines();
@@ -42,9 +46,9 @@ namespace codepad {
 				}
 			};
 
-			class minimap : public component {
+			class minimap : public component { // FIXME horizontal blank lines in minimap due to rounding
 			public:
-				constexpr static double target_font_height = 2.0, page_rendering_time_redline = 30.0;
+				constexpr static double page_rendering_time_redline = 30.0;
 				constexpr static size_t
 					maximum_width = 150, minimum_page_size = 500, // in pixels
 					expected_triangles_per_line = 200;
@@ -70,7 +74,18 @@ namespace codepad {
 				}
 
 				inline static double get_scale() {
-					return target_font_height / editor::get_font().maximum_height();
+					return _target_height / editor::get_font().maximum_height();
+				}
+
+				inline static void set_target_font_height(double h) {
+					_target_height = h;
+				}
+				inline static double get_target_font_height() {
+					return _target_height;
+				}
+
+				inline static str_t get_default_class() {
+					return U"minimap";
 				}
 			protected:
 				struct _page_cache {
@@ -143,17 +158,13 @@ namespace codepad {
 								if (is_graphical_char(ci.current_char())) {
 									rectd crec = ci.current_char_entry().placement.translated(vec2d(
 										ci.char_left(), lct.get(ti.current_theme.style)
-									));
+									)).minimum_bounding_box<double>();
 									rb.add_quad(crec, rectd(), ti.current_theme.color);
 
 									//os::renderer_base::get().draw_character(
 									//	ci.current_char_entry().texture,
-									//	vec2d(
-									//		ci.char_left(),
-									//		(std::round(
-									//		(it.char_iter().y_offset() + bi.get(ti.current_theme.style)) * get_scale() + buftop
-									//		) - rbtop) / get_scale()
-									//	) + ci.current_char_entry().placement.xmin_ymin(),
+									//	vec2d(ci.char_left(), lct.get(ti.current_theme.style)) +
+									//	ci.current_char_entry().placement.xmin_ymin(),
 									//	ti.current_theme.color
 									//);
 								}
@@ -162,7 +173,7 @@ namespace codepad {
 								needrefresh = true;
 							}
 						}
-						rb.draw(0);
+						rb.draw(os::texture());
 						os::renderer_base::get().pop_matrix();
 						os::renderer_base::get().end();
 
@@ -237,18 +248,19 @@ namespace codepad {
 					}
 					component::_on_prerender();
 				}
-				void _render() const override {
+				void _custom_render() const override {
 					std::pair<size_t, size_t> vlines = _get_visible_lines_folded();
 					double slh = _get_editor()->get_line_height() * get_scale();
 					rectd clnrgn = get_client_region();
 					clnrgn.xmax = clnrgn.xmin + maximum_width;
 					clnrgn.ymin = std::round(clnrgn.ymin - _get_y_offset());
 					auto ibeg = --_pgcache.pages.upper_bound(vlines.first), iend = _pgcache.pages.lower_bound(vlines.second);
+					// TODO wrong blend func
 					for (auto i = ibeg; i != iend; ++i) {
 						rectd crgn = clnrgn;
 						crgn.ymin = std::round(crgn.ymin + slh * static_cast<double>(i->first));
-						crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_height());
-						os::renderer_base::get().draw_quad(crgn, rectd(0.0, 1.0, 0.0, 1.0), colord(), i->second.get_texture());
+						crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_texture().get_height());
+						os::renderer_base::get().draw_quad(i->second.get_texture(), crgn, rectd(0.0, 1.0, 0.0, 1.0), colord());
 					}
 					if (_viewport_brush != nullptr) {
 						_viewport_brush->fill_rect(_get_viewport_rect());
@@ -279,9 +291,9 @@ namespace codepad {
 				std::pair<size_t, size_t> _get_visible_lines_folded() const {
 					const editor *editor = _get_editor();
 					double lh = editor->get_line_height() * get_scale(), ys = _get_y_offset();
-					return std::make_pair(static_cast<size_t>(ys / lh), std::min(
-						static_cast<size_t>((ys + get_client_region().height()) / lh) + 1, editor->get_num_lines_with_folding()
-					));
+					return std::make_pair(static_cast<size_t>(ys / lh), std::min(static_cast<size_t>(
+						std::max(ys + get_client_region().height(), 0.0) / lh
+						) + 1, editor->get_num_lines_with_folding()));
 				}
 
 				void _on_added() override {
@@ -362,6 +374,7 @@ namespace codepad {
 				event<value_update_info<double>>::token _vpos_tok;
 
 				static const ui::basic_brush *_viewport_brush;
+				static double _target_height;
 			};
 		}
 	}

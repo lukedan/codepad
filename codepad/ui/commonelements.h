@@ -136,8 +136,12 @@ namespace codepad {
 			vec2d get_desired_size() const override {
 				return _content.get_text_size() + _padding.size();
 			}
+
+			inline static str_t get_default_class() {
+				return U"label";
+			}
 		protected:
-			void _render() const override {
+			void _custom_render() const override {
 				_content.render();
 			}
 
@@ -162,6 +166,10 @@ namespace codepad {
 				mouse_down,
 				mouse_up
 			};
+
+			inline static str_t get_default_class() {
+				return U"button_base";
+			}
 		protected:
 			unsigned char _state = static_cast<unsigned char>(state::normal);
 			trigger_type _trigtype = trigger_type::mouse_up;
@@ -252,32 +260,13 @@ namespace codepad {
 			}
 
 			event<void> click;
+
+			inline static str_t get_default_class() {
+				return U"button";
+			}
 		protected:
 			void _on_click() override {
 				click.invoke();
-			}
-
-			void _render() const override {
-				// TODO brushes
-			}
-		};
-		class content_button : public button {
-		public:
-			content_host &content() {
-				return _content;
-			}
-			const content_host &content() const {
-				return _content;
-			}
-
-			vec2d get_desired_size() const override {
-				return _content.get_text_size() + _padding.size();
-			}
-		protected:
-			content_host _content{*this};
-
-			void _render() const override {
-				_content.render();
 			}
 		};
 
@@ -285,6 +274,9 @@ namespace codepad {
 		class scroll_bar_drag_button : public button_base {
 			friend class scroll_bar;
 		public:
+			inline static str_t get_default_class() {
+				return U"scroll_bar_drag_button";
+			}
 		protected:
 			scroll_bar *_get_bar() const;
 			double _doffset = 0.0;
@@ -296,8 +288,6 @@ namespace codepad {
 			}
 
 			void _on_click() override {
-			}
-			void _render() const override {
 			}
 
 			void _on_mouse_down(mouse_button_info&) override;
@@ -359,6 +349,10 @@ namespace codepad {
 			}
 
 			event<value_update_info<double>> value_changed;
+
+			inline static str_t get_default_class() {
+				return U"scroll_bar";
+			}
 		protected:
 			orientation _ori = orientation::vertical;
 			double _totrng = 1.0, _curv = 0.0, _range = 0.1;

@@ -5,6 +5,7 @@
 #include "../os/renderer.h"
 #include "../os/current.h"
 #include "../ui/manager.h"
+#include "../ui/theme_providers.h"
 #include "../editors/docking.h"
 #include "../editors/code/editor.h"
 
@@ -28,7 +29,7 @@ namespace codepad {
 			if (!std::is_same<logger, typename T::object_type>::value) {
 				logger::get().log_info(CP_HERE,
 					"initializing variable: ",
-					typeid(typename T::object_type).name()
+					demangle(typeid(typename T::object_type).name())
 				);
 			}
 			T *var = new T(std::forward<Args>(args)...);
@@ -88,27 +89,44 @@ namespace codepad {
 
 		_cur_setter _csetter{*this};
 		singleton_factory<
-			logger,
-			callback_buffer,
-			async_task_pool,
-			os::renderer_base::_default_renderer,
 #ifdef CP_PLATFORM_WINDOWS
 			os::freetype_font::_library,
 			os::directwrite_font::_factory,
 			os::wic_image_loader,
 #endif
-			ui::manager,
 #ifdef CP_DETECT_LOGICAL_ERRORS
 			ui::control_dispose_rec,
 #endif
+			logger,
+			callback_buffer,
+			async_task_pool,
+			os::renderer_base::_default_renderer,
+			ui::manager,
 			ui::content_host::_default_font,
+			ui::visual_manager::_registration,
 			editor::dock_manager,
-			editor::code::editor::_used_font_family
+			editor::code::editor::_appearance_config
 		> _vars;
 
 		static globals *_cur;
 	};
 
+#ifdef CP_PLATFORM_WINDOWS
+	inline os::freetype_font::_library &os::freetype_font::_get_library() {
+		return globals::current().get<_library>();
+	}
+	inline os::directwrite_font::_factory &os::directwrite_font::_get_factory() {
+		return globals::current().get<_factory>();
+	}
+	inline os::wic_image_loader &os::wic_image_loader::get() {
+		return globals::current().get<wic_image_loader>();
+	}
+#endif
+#ifdef CP_DETECT_LOGICAL_ERRORS
+	inline ui::control_dispose_rec &ui::control_dispose_rec::get() {
+		return globals::current().get<control_dispose_rec>();
+	}
+#endif
 	inline logger &logger::get() {
 		return globals::current().get<logger>();
 	}
@@ -121,32 +139,19 @@ namespace codepad {
 	inline os::renderer_base::_default_renderer &os::renderer_base::_get_rend() {
 		return globals::current().get<_default_renderer>();
 	}
-#ifdef CP_PLATFORM_WINDOWS
-	inline os::freetype_font::_library &os::freetype_font::_get_library() {
-		return globals::current().get<_library>();
-	}
-	inline os::directwrite_font::_factory &os::directwrite_font::_get_factory() {
-		return globals::current().get<_factory>();
-	}
-	inline os::wic_image_loader &os::wic_image_loader::get() {
-		return globals::current().get<wic_image_loader>();
-	}
-#endif
 	inline ui::manager &ui::manager::get() {
 		return globals::current().get<manager>();
 	}
-#ifdef CP_DETECT_LOGICAL_ERRORS
-	inline ui::control_dispose_rec &ui::control_dispose_rec::get() {
-		return globals::current().get<control_dispose_rec>();
-	}
-#endif
 	inline std::shared_ptr<const os::font> &ui::content_host::_get_deffnt() {
 		return globals::current().get<_default_font>().font;
+	}
+	inline ui::visual_manager::_registration &ui::visual_manager::_get_table() {
+		return globals::current().get<_registration>();
 	}
 	inline editor::dock_manager &editor::dock_manager::get() {
 		return globals::current().get<dock_manager>();
 	}
-	inline ui::font_family &editor::code::editor::_get_font() {
-		return globals::current().get<_used_font_family>().family;
+	inline editor::code::editor::_appearance_config &editor::code::editor::_get_appearance() {
+		return globals::current().get<_appearance_config>();
 	}
 }

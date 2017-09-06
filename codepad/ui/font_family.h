@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <memory>
 
 #include "../utilities/textconfig.h"
 #include "../utilities/misc.h"

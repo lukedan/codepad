@@ -1,0 +1,34 @@
+{
+	"tab_button": [
+		{
+			"states": [],
+			"layers": [
+				{
+					"color": {
+						"to": [0.6, 0.6, 0.6, 1.0],
+						"duration": 0.1
+					},
+					"margins": {
+						"to": 5,
+						"duration": 0.1
+					}
+				}
+			]
+		},
+		{
+			"states": ["mouse_over"],
+			"layers": [
+				{
+					"color": {
+						"to": [0.8, 0.8, 0.8, 1.0],
+						"duration": 0.1
+					},
+					"margins": {
+						"to": 0,
+						"duration": 0.1
+					}
+				}
+			]
+		}
+	]
+}

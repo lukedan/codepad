@@ -77,6 +77,10 @@ namespace codepad {
 
 			event<value_update_info<double>> value_changed;
 			event<void> start_drag, stop_drag;
+
+			inline static str_t get_default_class() {
+				return U"draggable_separator";
+			}
 		protected:
 			ui::orientation _orient = ui::orientation::horizontal;
 			double _posv = 0.5, _minv = 0.0, _maxv = 1.0;
@@ -124,20 +128,6 @@ namespace codepad {
 				}
 			}
 
-			void _render() const override { // TODO change appearance
-				rectd lo = get_layout();
-				vec2d vs[6] = {
-					lo.xmin_ymin(), lo.xmax_ymin(), lo.xmin_ymax(), lo.xmax_ymin(), lo.xmax_ymax(), lo.xmin_ymax()
-				}, us[6] = {
-					vec2d(0.0, 0.0), vec2d(1.0, 0.0), vec2d(0.0, 1.0), vec2d(1.0, 0.0), vec2d(1.0, 1.0), vec2d(0.0, 1.0)
-				};
-				colord cs[6] = {
-					colord(0.4, 0.4, 0.4, 1.0), colord(0.4, 0.4, 0.4, 1.0), colord(0.4, 0.4, 0.4, 1.0),
-					colord(0.4, 0.4, 0.4, 1.0), colord(0.4, 0.4, 0.4, 1.0), colord(0.4, 0.4, 0.4, 1.0)
-				};
-				os::renderer_base::get().draw_triangles(vs, us, cs, 6, 0);
-			}
-
 			void _initialize() override {
 				ui::element::_initialize();
 				_can_focus = false;
@@ -170,6 +160,10 @@ namespace codepad {
 
 			bool override_children_layout() const override {
 				return true;
+			}
+
+			inline static str_t get_default_class() {
+				return U"split_panel";
 			}
 		protected:
 			ui::element *_c1 = nullptr, *_c2 = nullptr;
@@ -261,7 +255,7 @@ namespace codepad {
 				}
 			}
 
-			void _render() const override {
+			void _custom_render() const override {
 				_child_on_render(_sep);
 				if (_c1) {
 					os::renderer_base::get().push_clip(_sep->get_region1().minimum_bounding_box<int>());
@@ -348,6 +342,10 @@ namespace codepad {
 
 			event<void> click, request_close;
 			event<tab_drag_info> start_drag;
+
+			inline static str_t get_default_class() {
+				return U"tab_button";
+			}
 		protected:
 			ui::content_host _content = *this;
 			ui::button *_btn;
@@ -378,9 +376,9 @@ namespace codepad {
 					}
 				}
 			}
-			void _render() const override {
+			void _custom_render() const override {
 				_content.render();
-				panel_base::_render();
+				panel_base::_custom_render();
 			}
 
 			void _finish_layout() override {
@@ -430,6 +428,10 @@ namespace codepad {
 			size_t tab_count() const {
 				return _tabs.size();
 			}
+
+			inline static str_t get_default_class() {
+				return U"tab_host";
+			}
 		protected:
 			std::list<tab*> _tabs;
 			std::list<tab*>::iterator _active_tab = _tabs.end();
@@ -462,6 +464,10 @@ namespace codepad {
 #else
 				return static_cast<tab_host*>(parent());
 #endif
+			}
+
+			inline static str_t get_default_class() {
+				return U"tab";
 			}
 		protected:
 			tab_button *_btn;

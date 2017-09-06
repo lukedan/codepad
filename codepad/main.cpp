@@ -19,7 +19,7 @@ using namespace codepad::ui;
 using namespace codepad::editor;
 
 int main() {
-#if defined(_MSC_VER) && defined(CP_DETECT_USAGE_ERRORS)
+#ifdef CP_CAN_DETECT_MEMORY_LEAKS
 	enable_mem_checking();
 #endif
 
@@ -27,13 +27,24 @@ int main() {
 
 	renderer_base::create_default<opengl_renderer>();
 
-	code::text_context ctx;
-	auto fnt = std::make_shared<default_font>(U"segoe ui", 14.0, font_style::normal);
-	font_family codefnt(U"iosevka", 14.0);
-	pen p(colord(0.9, 0.9, 0.9, 1.0));
-	texture_brush texb(colord(0.0, 0.6, 1.0, 0.2));
-	texture_brush viewb(colord(0.5, 0.5, 1.0, 0.2));
+	auto fnt = std::make_shared<default_font>(U"", 12.0, font_style::normal);
+	font_family codefnt(U"iosevka", 13.0);
 	element_hotkey_group hg;
+
+	{
+		std::ifstream fin("skin.json", std::ios::binary);
+		fin.seekg(0, std::ios::end);
+		size_t sz = fin.tellg();
+		char *c = static_cast<char*>(std::malloc(sz));
+		fin.seekg(0);
+		fin.read(c, sz);
+		u8str_t us(reinterpret_cast<unsigned char*>(c), sz);
+		std::free(c);
+		json::parser_value_t v;
+		str_t ss = convert_to_utf32(us);
+		v.Parse(ss.c_str());
+		visual_manager::load_config(v);
+	}
 
 	hg.register_hotkey({key_gesture(input::key::z, modifier_keys::control)}, [](element *e) {
 		code::codebox *editor = dynamic_cast<code::codebox*>(e);
@@ -74,13 +85,10 @@ int main() {
 
 	content_host::set_default_font(fnt);
 	code::editor::set_font(codefnt);
-	code::editor::set_caret_pen(&p);
-	code::editor::set_selection_brush(&texb);
+	code::editor::set_insert_caret_brush(std::make_shared<texture_brush>(colord(0.0, 0.6, 1.0, 0.2)));
+	code::editor::set_selection_brush(std::make_shared<texture_brush>(colord(0.0, 0.6, 1.0, 0.2)));
+	texture_brush viewb(colord(0.5, 0.5, 1.0, 0.2));
 	code::minimap::set_viewport_brush(&viewb);
-
-	ctx.load_from_file(U"hugetext.cpp");
-	//ctx.load_from_file(U"editors/code/context.h");
-	ctx.auto_set_default_line_ending();
 
 	tab *codetab1 = dock_manager::get().new_tab();
 	codetab1->set_caption(U"code1");
@@ -89,9 +97,6 @@ int main() {
 	cp1->add_component_left(*element::create<code::line_number>());
 	cp1->add_component_right(*element::create<code::minimap>());
 
-	cp1->get_editor()->set_context(&ctx);
-	codetab1->children().add(*cp1);
-
 	tab *codetab2 = dock_manager::get().new_tab();
 	codetab2->set_caption(U"code2");
 	code::codebox *cp2 = element::create<code::codebox>();
@@ -99,24 +104,33 @@ int main() {
 	cp2->add_component_left(*element::create<code::line_number>());
 	cp2->add_component_right(*element::create<code::minimap>());
 
-	cp2->get_editor()->set_context(&ctx);
+	{
+		auto ctx = std::make_shared<code::text_context>();
+		//ctx->load_from_file(U"hugetext.cpp");
+		ctx->load_from_file(U"editors/code/context.h");
+		ctx->auto_set_default_line_ending();
+		cp1->get_editor()->set_context(ctx);
+		cp2->get_editor()->set_context(ctx);
+		async_task_pool::get().run_task([ctx](async_task_pool::async_task&) {
+			code::text_theme_data data;
+			for (size_t i = 0; i < 1340000; i += 10) {
+				double n6 = std::rand() / (double)RAND_MAX, n7 = std::rand() / (double)RAND_MAX, n8 = std::rand() / (double)RAND_MAX;
+				data.set_range(
+					code::caret_position(i, 1),
+					code::caret_position(i + 10, 0),
+					code::text_theme_specification(font_style::normal, colord(n6, n7, n8, 1.0))
+				);
+			}
+			callback_buffer::get().add([d = std::move(data), ctx]() {
+				ctx->set_text_theme(d);
+				logger::get().log_stacktrace();
+			});
+		});
+	}
+
+	codetab1->children().add(*cp1);
 	codetab2->children().add(*cp2);
 
-	async_task_pool::get().run_task([&ctx](async_task_pool::async_task&) {
-		code::text_theme_data data;
-		for (size_t i = 0; i < 1340000; i += 10) {
-			double n6 = std::rand() / (double)RAND_MAX, n7 = std::rand() / (double)RAND_MAX, n8 = std::rand() / (double)RAND_MAX;
-			data.set_range(
-				code::caret_position(i, 1),
-				code::caret_position(i + 10, 0),
-				code::text_theme_specification(font_style::normal, colord(n6, n7, n8, 1.0))
-			);
-		}
-		callback_buffer::get().add([d = std::move(data), &ctx]() {
-			ctx.set_text_theme(d);
-			logger::get().log_stacktrace();
-		});
-	});
 
 	for (size_t i = 0; i < 10; ++i) {
 		tab *lbltab = dock_manager::get().new_tab();

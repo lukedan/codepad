@@ -16,7 +16,7 @@ namespace codepad {
 			struct entry {
 				rectd placement;
 				double advance;
-				os::texture_id texture;
+				os::texture texture;
 			};
 
 			font() = default;
