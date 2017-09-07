@@ -1,16 +1,12 @@
 {
 	"tab_button": [
 		{
-			"states": [],
 			"layers": [
 				{
 					"color": {
-						"to": [0.6, 0.6, 0.6, 1.0],
-						"duration": 0.1
-					},
-					"margins": {
-						"to": 5,
-						"duration": 0.1
+						"to": ["hsl", 30, 1, 0.5],
+						"duration": 0.2,
+						"transition": "concave_quadratic"
 					}
 				}
 			]
@@ -20,12 +16,13 @@
 			"layers": [
 				{
 					"color": {
-						"to": [0.8, 0.8, 0.8, 1.0],
-						"duration": 0.1
-					},
-					"margins": {
-						"to": 0,
-						"duration": 0.1
+						"from": ["hsl", 30, 1, 0.5],
+						"to": ["hsl", 90, 1, 0.5],
+						"duration": 0.5,
+						"auto_reverse": true,
+						"reverse_duration_scale": 4.0,
+						"repeat": true,
+						"transition": "smoothstep"
 					}
 				}
 			]

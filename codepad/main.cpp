@@ -31,21 +31,6 @@ int main() {
 	font_family codefnt(U"iosevka", 13.0);
 	element_hotkey_group hg;
 
-	{
-		std::ifstream fin("skin.json", std::ios::binary);
-		fin.seekg(0, std::ios::end);
-		size_t sz = fin.tellg();
-		char *c = static_cast<char*>(std::malloc(sz));
-		fin.seekg(0);
-		fin.read(c, sz);
-		u8str_t us(reinterpret_cast<unsigned char*>(c), sz);
-		std::free(c);
-		json::parser_value_t v;
-		str_t ss = convert_to_utf32(us);
-		v.Parse(ss.c_str());
-		visual_manager::load_config(v);
-	}
-
 	hg.register_hotkey({key_gesture(input::key::z, modifier_keys::control)}, [](element *e) {
 		code::codebox *editor = dynamic_cast<code::codebox*>(e);
 		if (editor) {
@@ -123,7 +108,6 @@ int main() {
 			}
 			callback_buffer::get().add([d = std::move(data), ctx]() {
 				ctx->set_text_theme(d);
-				logger::get().log_stacktrace();
 			});
 		});
 	}
@@ -134,7 +118,7 @@ int main() {
 
 	for (size_t i = 0; i < 10; ++i) {
 		tab *lbltab = dock_manager::get().new_tab();
-		lbltab->set_caption(U"label" + to_str(i));
+		lbltab->set_caption(U"laaaaaaaaaaaaaabel" + to_str(i));
 		scroll_bar *sb = element::create<scroll_bar>();
 		if (i % 2 == 0) {
 			sb->set_anchor(anchor::stretch_vertically);
@@ -145,6 +129,21 @@ int main() {
 		}
 		sb->set_margin(thickness(1.0, 1.0, 1.0, 1.0));
 		lbltab->children().add(*sb);
+	}
+
+	{ // load skin
+		std::ifstream fin("skin.json", std::ios::binary);
+		fin.seekg(0, std::ios::end);
+		size_t sz = fin.tellg();
+		char *c = static_cast<char*>(std::malloc(sz));
+		fin.seekg(0);
+		fin.read(c, sz);
+		u8str_t us(reinterpret_cast<char8_t*>(c), sz);
+		std::free(c);
+		json::parser_value_t v;
+		str_t ss = convert_to_utf32(us);
+		v.Parse(ss.c_str());
+		visual_manager::load_config(v);
 	}
 
 	while (!dock_manager::get().empty()) {

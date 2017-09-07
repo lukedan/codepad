@@ -29,7 +29,7 @@ namespace codepad {
 		inline void com_check(HRESULT v) {
 #ifdef CP_DETECT_SYSTEM_ERRORS
 			if (v != S_OK) {
-				logger::get().log_error(CP_HERE, "COM error code ", GetLastError());
+				logger::get().log_error(CP_HERE, "COM error code ", v);
 				assert_true_sys(false, "COM error");
 			}
 #endif
@@ -54,20 +54,39 @@ namespace codepad {
 			}
 		}
 
+		namespace _helper {
+			struct com_usage {
+				com_usage() {
+					HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+					if (hr != S_FALSE) {
+						com_check(hr);
+					}
+				}
+				com_usage(const com_usage&) = delete;
+				com_usage(com_usage&&) = delete;
+				com_usage &operator=(const com_usage&) = delete;
+				com_usage &operator=(com_usage&&) = delete;
+				~com_usage() {
+					CoUninitialize();
+				}
+			};
+		}
+
 		struct wic_image_loader {
+		public:
 			wic_image_loader() {
 				com_check(CoCreateInstance(
 					CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
-					IID_IWICImagingFactory, reinterpret_cast<LPVOID*>(&factory)
+					IID_IWICImagingFactory, reinterpret_cast<LPVOID*>(&_factory)
 				));
 			}
 			~wic_image_loader() {
-				factory->Release();
+				_factory->Release();
 			}
 			texture load_image(renderer_base &r, const str_t &filename) {
 				IWICBitmapDecoder *decoder = nullptr;
 				std::u16string fn = convert_to_utf16(filename);
-				com_check(factory->CreateDecoderFromFilename(
+				com_check(_factory->CreateDecoderFromFilename(
 					reinterpret_cast<LPCWSTR>(fn.c_str()), nullptr,
 					GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder
 				));
@@ -92,8 +111,9 @@ namespace codepad {
 			}
 
 			static wic_image_loader &get();
-
-			IWICImagingFactory *factory = nullptr;
+		protected:
+			IWICImagingFactory *_factory = nullptr;
+			_helper::com_usage _uses_com;
 		};
 		inline texture load_image(renderer_base &r, const str_t &filename) {
 			return wic_image_loader::get().load_image(r, filename);

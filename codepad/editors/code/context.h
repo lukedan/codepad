@@ -446,7 +446,7 @@ namespace codepad {
 					u8str_t ss;
 					{
 						char *buffer = static_cast<char*>(std::malloc(sizeof(char) * buffer_size));
-						std::ifstream fin(utf8_to_chars(convert_to_utf8(fn)), std::ios::binary);
+						std::ifstream fin(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
 						while (fin) {
 							fin.read(buffer, buffer_size - 1);
 							buffer[fin.gcount()] = '\0';
@@ -500,8 +500,8 @@ namespace codepad {
 							break;
 						}
 					}
-					std::string utf8str = utf8_to_chars(convert_to_utf8(result));
-					std::ofstream fout(utf8_to_chars(convert_to_utf8(fn)), std::ios::binary);
+					std::string utf8str(reinterpret_cast<const char*>(convert_to_utf8(result).c_str()));
+					std::ofstream fout(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
 					fout.write(utf8str.c_str(), utf8str.length());
 				}
 

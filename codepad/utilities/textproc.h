@@ -198,11 +198,6 @@ namespace codepad {
 		return convert_encoding<char32_t>(str);
 	}
 
-	// TODO deprecate this function due to performance?
-	inline std::string utf8_to_chars(const u8str_t &s) {
-		return std::string(reinterpret_cast<const char*>(s.c_str()));
-	}
-
 	inline u8str_t convert_to_utf8(u8str_t s) {
 		return s;
 	}

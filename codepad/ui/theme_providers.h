@@ -91,7 +91,7 @@ namespace codepad {
 		}
 		inline double convex_quadratic_transition_func(double v) {
 			v = 1.0 - v;
-			return v * v;
+			return 1.0 - v * v;
 		}
 		inline double smoothstep_transition_func(double v) {
 			return v * v * (3.0 - 2.0 * v);
@@ -102,7 +102,11 @@ namespace codepad {
 		template <> struct json_object_parser<colord> {
 			inline static colord parse(const json::value_t &obj) {
 				if (obj[0].IsString() && str_t(obj[0].GetString()) == U"hsl") {
-					// TODO hsl convention
+					colord c = colord::from_hsl(obj[1].GetDouble(), obj[2].GetDouble(), obj[3].GetDouble());
+					if (obj.Size() > 4) {
+						c.a = obj[4].GetDouble();
+					}
+					return c;
 				}
 				if (obj.Size() == 3) {
 					return colord(
@@ -186,31 +190,7 @@ namespace codepad {
 				reverse_duration_scale = 1.0;
 				transition_func = linear_transition_func;
 			}
-			void parse(const json::value_t &obj) {
-				if (obj.IsArray() || obj.IsNumber()) {
-					to = value_parser::parse(obj);
-					auto_reverse = repeat = false;
-					duration = 0.0;
-					reverse_duration_scale = 1.0;
-					transition_func = linear_transition_func;
-				} else {
-					auto mem = obj.FindMember(U"from");
-					if (mem != obj.MemberEnd()) {
-						has_from = true;
-						from = value_parser::parse(mem->value);
-					} else {
-						has_from = false;
-					}
-					to = value_parser::parse(obj[U"to"]);
-					auto_reverse = json::get_bool_or_default(obj, U"auto_reverse");
-					repeat = json::get_bool_or_default(obj, U"repeat");
-					duration = json::get_double_or_default(obj, U"duration");
-					reverse_duration_scale = json::get_double_or_default(
-						obj, U"reverse_duration_scale", 1.0
-					);
-					// TODO get transition func
-				}
-			}
+			void parse(const json::value_t&);
 		};
 		template <> struct animation_params<os::texture> {
 			constexpr static double default_frametime = 1.0 / 30.0;
@@ -287,6 +267,7 @@ namespace codepad {
 			}
 			void parse(const json::value_t &obj) {
 				// TODO deferred texture loading
+				bool good = true;
 				frames.clear();
 				if (obj.IsString()) {
 					frames.push_back(texture_keyframe(
@@ -294,23 +275,33 @@ namespace codepad {
 					));
 					auto_reverse = repeat = false;
 					reverse_duration_scale = 1.0;
-				} else {
+				} else if (obj.IsObject()) {
 					auto fs = obj.FindMember(U"frames");
 					if (fs != obj.MemberEnd()) {
-						double lastframetime = default_frametime;
-						auto beg = fs->value.Begin(), end = fs->value.End();
-						for (auto i = beg; i != end; ++i) {
-							if (i->IsArray()) {
-								double frametime = (*i)[1].GetDouble();
-								frames.push_back(texture_keyframe(std::make_shared<os::texture>(
-									os::load_image(json::get_as_string((*i)[0]))
-									), frametime));
-								lastframetime = frametime;
-							} else {
-								frames.push_back(texture_keyframe(std::make_shared<os::texture>(
-									os::load_image(json::get_as_string(*i))
-									), lastframetime));
+						if (fs->value.IsArray()) {
+							double lastframetime = default_frametime;
+							auto beg = fs->value.Begin(), end = fs->value.End();
+							for (auto i = beg; i != end; ++i) {
+								if (i->IsArray()) {
+									if ((*i).Size() >= 2 && (*i)[0].IsString() && (*i)[1].IsDouble()) {
+										double frametime = (*i)[1].GetDouble();
+										frames.push_back(texture_keyframe(std::make_shared<os::texture>(
+											os::load_image(json::get_as_string((*i)[0]))
+											), frametime));
+										lastframetime = frametime;
+									} else {
+										good = false;
+									}
+								} else if (i->IsString()) {
+									frames.push_back(texture_keyframe(std::make_shared<os::texture>(
+										os::load_image(json::get_as_string(*i))
+										), lastframetime));
+								} else {
+									good = false;
+								}
 							}
+						} else {
+							good = false;
 						}
 					}
 					auto_reverse = json::get_bool_or_default(obj, U"auto_reverse");
@@ -318,6 +309,11 @@ namespace codepad {
 					reverse_duration_scale = json::get_double_or_default(
 						obj, U"reverse_duration_scale", 1.0
 					);
+				} else {
+					good = false;
+				}
+				if (!good) {
+					logger::get().log_warning(CP_HERE, "invalid texture animation format");
 				}
 			}
 		};
@@ -390,10 +386,10 @@ namespace codepad {
 						rectd
 							outer = layout, inner = get_center_rect(s, outer),
 							texr(
-								s.current_margin.current_value.left / w,
-								1.0 - s.current_margin.current_value.right / w,
-								s.current_margin.current_value.top / h,
-								1.0 - s.current_margin.current_value.bottom / h
+								s.current_margin.current_value.left / static_cast<double>(w),
+								1.0 - s.current_margin.current_value.right / static_cast<double>(w),
+								s.current_margin.current_value.top / static_cast<double>(h),
+								1.0 - s.current_margin.current_value.bottom / static_cast<double>(h)
 							);
 						colord curc = s.current_color.current_value;
 						render_batch rb;
@@ -441,6 +437,19 @@ namespace codepad {
 			}
 
 			void parse(const json::value_t &val) {
+				if (val.IsString()) {
+					texture_animation.parse(val);
+					layer_type = type::solid;
+					color_animation.clear();
+					size_animation.clear();
+					margin_animation.clear();
+					rect_anchor = anchor::all;
+					return;
+				}
+				if (!val.IsObject()) {
+					logger::get().log_warning(CP_HERE, "invalid layer info");
+					return;
+				}
 				str_t type = json::get_string_or_default(val, U"type", U"solid");
 				if (type == U"solid") {
 					layer_type = type::solid;
@@ -452,32 +461,20 @@ namespace codepad {
 				_find_and_parse(val, U"size", size_animation);
 				_find_and_parse(val, U"margins", margin_animation);
 				str_t anc = json::get_string_or_default(val, U"anchor", U"ltrb");
-				unsigned ancv = 0;
-				for (auto i = anc.begin(); i != anc.end(); ++i) {
-					switch (*i) {
-					case anchor_left_char:
-						set_bit(ancv, anchor::left);
-						break;
-					case anchor_top_char:
-						set_bit(ancv, anchor::top);
-						break;
-					case anchor_right_char:
-						set_bit(ancv, anchor::right);
-						break;
-					case anchor_bottom_char:
-						set_bit(ancv, anchor::bottom);
-						break;
-					}
-				}
-				rect_anchor = static_cast<anchor>(ancv);
+				rect_anchor = static_cast<anchor>(get_bitset_from_string<unsigned, anchor>({
+					{U'l', anchor::left},
+					{U't', anchor::top},
+					{U'r', anchor::right},
+					{U'b', anchor::bottom}
+				}, anc));
 			}
 
-			type layer_type = type::solid;
 			animation_params<os::texture> texture_animation;
 			animation_params<colord> color_animation;
-			anchor rect_anchor = anchor::all;
 			animation_params<vec2d> size_animation;
 			animation_params<thickness> margin_animation;
+			anchor rect_anchor = anchor::all;
+			type layer_type = type::solid;
 		protected:
 			template <typename T> inline static void _find_and_parse(
 				const json::value_t &val, const str_t &s, animation_params<T> &p
@@ -504,7 +501,7 @@ namespace codepad {
 			state init_state() const;
 			state init_state(const state&) const;
 			bool update(state&, double) const;
-			void visual_provider_state::render(rectd rgn, const state &s) const {
+			void render(rectd rgn, const state &s) const {
 				auto j = s.layer_states.begin();
 				for (auto i = _layers.begin(); i != _layers.end(); ++i, ++j) {
 					assert_true_usage(j != s.layer_states.end(), "invalid layer state data");
@@ -513,6 +510,10 @@ namespace codepad {
 			}
 
 			void parse(const json::value_t &val) {
+				if (!val.IsArray()) {
+					logger::get().log_warning(CP_HERE, "state format incorrect");
+					return;
+				}
 				_layers.clear();
 				for (auto i = val.Begin(); i != val.End(); ++i) {
 					visual_layer vl;
@@ -527,7 +528,7 @@ namespace codepad {
 		class visual_provider;
 		class visual_manager {
 			friend class visual_provider;
-			friend struct globals;
+			friend struct codepad::globals;
 		public:
 			constexpr static visual_state_id normal_state = 0;
 
@@ -547,33 +548,51 @@ namespace codepad {
 			inline static unsigned cconfig_timestamp() {
 				return _get_table().timestamp;
 			}
+			template <typename T> inline static bool register_transition_function(str_t &&s, T &&f) {
+				return _get_table().register_transition_func(std::forward<str_t>(s), std::forward<T>(f));
+			}
+			inline static const std::function<double(double)> &get_transition_function(const str_t &s) {
+				return _get_table().transition_func_mapping.at(s);
+			}
 			inline static void load_config(const json::value_t&);
 		protected:
 			struct _registration {
 				_registration() {
-					predefined.mouse_over = register_state(U"mouse_over");
-					predefined.mouse_down = register_state(U"mouse_down");
+					predefined.mouse_over = register_or_get_state(U"mouse_over");
+					predefined.mouse_down = register_or_get_state(U"mouse_down");
+
+					register_transition_func(U"linear", linear_transition_func);
+					register_transition_func(U"concave_quadratic", concave_quadratic_transition_func);
+					register_transition_func(U"convex_quadratic", convex_quadratic_transition_func);
+					register_transition_func(U"smoothstep", smoothstep_transition_func);
 				}
 
-				predefined_states predefined;
-				unsigned timestamp = 0;
 				std::map<str_t, visual_provider> providers;
 				std::map<str_t, visual_state_id> state_id_mapping;
 				std::map<visual_state_id, str_t> state_name_mapping; // TODO is this necessary?
+				std::map<str_t, std::function<double(double)>> transition_func_mapping;
+				predefined_states predefined;
+				unsigned timestamp = 0;
 				int mapping_alloc = 0;
 
 				visual_provider &get_provider_or_default(const str_t&);
 
-				visual_state_id register_state(str_t name) {
-					assert_true_usage(
-						state_id_mapping.find(name) == state_id_mapping.end(),
-						"name already registered"
-					);
-					visual_state_id res = 1 << mapping_alloc;
-					++mapping_alloc;
-					state_id_mapping[name] = res;
-					state_name_mapping[res] = std::move(name);
-					return res;
+				visual_state_id register_or_get_state(str_t name) {
+					auto found = state_id_mapping.find(name);
+					if (found == state_id_mapping.end()) {
+						logger::get().log_info(CP_HERE, "registering state: ", convert_to_utf8(name));
+						visual_state_id res = 1 << mapping_alloc;
+						++mapping_alloc;
+						state_id_mapping[name] = res;
+						state_name_mapping[res] = std::move(name);
+						return res;
+					}
+					return found->second;
+				}
+				template <typename T> bool register_transition_func(str_t &&s, T &&f) {
+					return transition_func_mapping.insert(
+						std::make_pair(std::forward<str_t>(s), std::forward<T>(f))
+					).second;
 				}
 			};
 			static _registration &_get_table();
@@ -636,21 +655,27 @@ namespace codepad {
 			};
 
 			void parse(const json::value_t &val) {
-				//_registration &reg = _get_table();
-				for (auto i = val.Begin(); i != val.End(); ++i) {
-					auto states = i->FindMember(U"states");
-					visual_state_id id = 0;
-					if (states != i->MemberEnd()) {
-						for (auto j = states->value.Begin(); j != states->value.End(); ++j) {
-							id |= visual_manager::get_state_id(json::get_as_string(*j));
+				if (val.IsArray()) {
+					for (auto i = val.Begin(); i != val.End(); ++i) {
+						visual_provider_state vps;
+						visual_state_id id = 0;
+						if (i->IsObject()) {
+							auto states = i->FindMember(U"states");
+							if (states != i->MemberEnd()) {
+								for (auto j = states->value.Begin(); j != states->value.End(); ++j) {
+									id |= visual_manager::get_state_id(json::get_as_string(*j));
+								}
+							}
+							vps.parse(i->FindMember(U"layers")->value);
+						} else if (i->IsArray()) {
+							vps.parse(*i);
+						}
+						if (!_states.insert(std::make_pair(id, std::move(vps))).second) {
+							logger::get().log_warning(CP_HERE, "state registration failed");
 						}
 					}
-					visual_provider_state vps;
-					vps.parse(i->FindMember(U"layers")->value);
-					assert_true_usage(
-						_states.insert(std::make_pair(id, std::move(vps))).second,
-						"visual provider state registration failed"
-					);
+				} else {
+					logger::get().log_warning(CP_HERE, "unrecognized skin format");
 				}
 			}
 
@@ -659,7 +684,8 @@ namespace codepad {
 				if (found != _states.end()) {
 					return found->second;
 				}
-				return _states[visual_manager::normal_state];
+				s = visual_manager::normal_state;
+				return _states[s];
 			}
 			visual_provider_state &get_state_or_create(visual_state_id s) {
 				return _states[s];
@@ -667,6 +693,49 @@ namespace codepad {
 		protected:
 			std::map<visual_state_id, visual_provider_state> _states;
 		};
+
+		template <typename T> void animation_params<T>::parse(const json::value_t &obj) {
+			if (obj.IsArray() || obj.IsNumber()) {
+				to = value_parser::parse(obj);
+				auto_reverse = repeat = false;
+				duration = 0.0;
+				reverse_duration_scale = 1.0;
+				transition_func = linear_transition_func;
+			} else if (obj.IsObject()) {
+				json::value_t::ConstMemberIterator mem;
+				mem = obj.FindMember(U"to");
+				if (mem == obj.MemberEnd()) {
+					logger::get().log_warning(CP_HERE, "invalid parameter format");
+					return;
+				}
+				to = value_parser::parse(mem->value);
+				mem = obj.FindMember(U"from");
+				if (mem != obj.MemberEnd()) {
+					has_from = true;
+					from = value_parser::parse(mem->value);
+				} else {
+					has_from = false;
+				}
+				auto_reverse = json::get_bool_or_default(obj, U"auto_reverse");
+				repeat = json::get_bool_or_default(obj, U"repeat");
+				duration = json::get_double_or_default(obj, U"duration");
+				reverse_duration_scale = json::get_double_or_default(
+					obj, U"reverse_duration_scale", 1.0
+				);
+				mem = obj.FindMember(U"transition");
+				if (mem != obj.MemberEnd()) {
+					if (mem->value.IsString()) {
+						transition_func = visual_manager::get_transition_function(json::get_as_string(mem->value));
+					} else {
+						logger::get().log_warning(CP_HERE, "invalid parameter format");
+					}
+				} else {
+					transition_func = linear_transition_func;
+				}
+			} else {
+				logger::get().log_warning(CP_HERE, "invalid parameter format");
+			}
+		}
 
 		inline visual_provider_state::state visual_provider_state::init_state() const {
 			state res;

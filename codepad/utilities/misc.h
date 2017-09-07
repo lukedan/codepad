@@ -448,6 +448,27 @@ namespace codepad {
 		friend color operator/(color lhs, T rhs) {
 			return lhs /= rhs;
 		}
+
+		template <typename U = T> inline static std::enable_if_t<
+			std::is_floating_point<U>::value && std::is_floating_point<T>::value, color
+		> from_hsl(U h, U s, U l, U alpha = 1) {
+			h = (h - 360 * std::floor(h / 360)) / 60;
+			U
+				c = (1 - std::abs(2 * l - 1)) * s,
+				x = c * (1 - std::abs(std::fmod(h, 2) - 1));
+			if (h < 1) {
+				return color(c, x, 0, alpha);
+			} else if (h < 2) {
+				return color(x, c, 0, alpha);
+			} else if (h < 3) {
+				return color(0, c, x, alpha);
+			} else if (h < 4) {
+				return color(0, x, c, alpha);
+			} else if (h < 5) {
+				return color(x, 0, c, alpha);
+			}
+			return color(c, 0, x, alpha);
+		}
 	};
 	typedef color<double> colord;
 	typedef color<float> colorf;
@@ -498,11 +519,36 @@ namespace codepad {
 		return v & static_cast<T>(~static_cast<T>(bit));
 	}
 
+	template <typename T, typename U, typename C> inline T get_bitset_from_string(
+		std::initializer_list<std::pair<C, U>> list, const std::basic_string<C> &str
+	) {
+		T result{};
+		for (auto i = str.begin(); i != str.end(); ++i) {
+			for (auto j = list.begin(); j != list.end(); ++j) {
+				if (*i == j->first) {
+					set_bit(result, j->second);
+					break;
+				}
+			}
+		}
+		return result;
+	}
 
-	template <typename St, typename T> inline void print_to(St &s, T &&arg) {
+
+	// u8str_t overloads
+	template <typename St> inline void print_to(St &s, const u8str_t &arg) {
+		s << reinterpret_cast<const char*>(arg.c_str());
+	}
+	template <typename St> inline void print_to(St &s, u8str_t &&arg) {
+		s << reinterpret_cast<const char*>(arg.c_str());
+	}
+	template <typename St, typename T> inline std::enable_if_t<
+		!std::is_same<std::decay_t<T>, u8str_t>::value, void
+	> print_to(St &s, T &&arg) {
 		s << std::forward<T>(arg);
 	}
-	template <typename St, typename First, typename ...Others> inline void print_to(St &s, First &&f, Others &&...args) {
+	template <typename St, typename First, typename ...Others>
+	inline std::enable_if_t<(sizeof...(Others) > 0), void> print_to(St &s, First &&f, Others &&...args) {
 		print_to(s, std::forward<First>(f));
 		print_to(s, std::forward<Others>(args)...);
 	}
@@ -655,7 +701,7 @@ namespace codepad {
 			logger::get().log_error_with_stacktrace(CP_HERE, "Logical error encountered: ", msg);
 			std::abort();
 		}
-}
+	}
 #else
 	template <> inline void assert_true<error_level::logical_error>(bool, const char*) {
 	}
@@ -688,7 +734,7 @@ namespace codepad {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
-		}
+}
 
 // memory leak detection
 #if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
@@ -757,17 +803,15 @@ namespace codepad {
 		WORD numframes = CaptureStackBackTrace(0, max_frames, frames, nullptr);
 		for (WORD i = 0; i < numframes; ++i) {
 			DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
-			std::string func, file, line;
+			u8str_t func = reinterpret_cast<const char8_t*>("??"), file = func;
+			std::string line;
 			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
-				func = utf8_to_chars(convert_to_utf8(reinterpret_cast<const char16_t*>(syminfo->Name)));
-			} else {
-				func = "??";
+				func = convert_to_utf8(reinterpret_cast<const char16_t*>(syminfo->Name));
 			}
 			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
-				file = utf8_to_chars(convert_to_utf8(reinterpret_cast<const char16_t*>(lineinfo.FileName)));
+				file = convert_to_utf8(reinterpret_cast<const char16_t*>(lineinfo.FileName));
 				line = std::to_string(lineinfo.LineNumber);
 			} else {
-				file = "??";
 				line = "??";
 			}
 			log_custom("    ", func, "(0x", frames[i], ") @", file, ":", line);

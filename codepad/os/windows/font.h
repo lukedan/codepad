@@ -46,7 +46,7 @@ namespace codepad {
 				TCHAR buf[maximum_font_name_length];
 				GetTextFace(dc, maximum_font_name_length, buf);
 				logger::get().log_info(CP_HERE,
-					"font loaded: ", utf8_to_chars(convert_to_utf8(reinterpret_cast<const char16_t*>(buf)))
+					"font loaded: ", convert_to_utf8(reinterpret_cast<const char16_t*>(buf))
 				);
 				gdi_check(SelectObject(dc, original));
 				winapi_check(DeleteObject(font));
