@@ -118,7 +118,7 @@ int main() {
 
 	for (size_t i = 0; i < 10; ++i) {
 		tab *lbltab = dock_manager::get().new_tab();
-		lbltab->set_caption(U"laaaaaaaaaaaaaabel" + to_str(i));
+		lbltab->set_caption(to_str(i));
 		scroll_bar *sb = element::create<scroll_bar>();
 		if (i % 2 == 0) {
 			sb->set_anchor(anchor::stretch_vertically);
@@ -161,7 +161,7 @@ int main() {
 	for (auto i = async_task_pool::get().tasks().begin(); i != async_task_pool::get().tasks().end(); ++i) {
 		async_task_pool::get().try_cancel(i);
 	}
-	while (async_task_pool::get().tasks().size() > 0) {
+	while (!async_task_pool::get().tasks().empty()) {
 		async_task_pool::get().wait_finish(async_task_pool::get().tasks().begin());
 	}
 

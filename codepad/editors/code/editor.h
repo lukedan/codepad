@@ -526,13 +526,13 @@ namespace codepad {
 					return false;
 				}
 				caret_set::entry _complete_caret_entry(caret_position fst, caret_position scnd) {
-					return caret_set::entry(caret_selection(fst, scnd), get_horizontal_caret_position(fst));
+					return caret_set::entry(caret_selection(fst, scnd), caret_data(get_horizontal_caret_position(fst)));
 				}
 				caret_set::entry _complete_caret_entry(std::pair<caret_position, double> fst, caret_position scnd) {
-					return caret_set::entry(caret_selection(fst.first, scnd), fst.second);
+					return caret_set::entry(caret_selection(fst.first, scnd), caret_data(fst.second));
 				}
 				caret_set::entry _complete_caret_entry(std::pair<caret_position, double> fst, std::pair<caret_position, double> scnd) {
-					return caret_set::entry(caret_selection(fst.first, scnd.first), fst.second);
+					return caret_set::entry(caret_selection(fst.first, scnd.first), caret_data(fst.second));
 				}
 
 				void _on_selecting_mouse_move(vec2d pos) {
@@ -790,9 +790,9 @@ namespace codepad {
 					_context_modifier_rsrc it(*this);
 					for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
 						if (_insert) {
-							it->on_text(i->first, info.character);
+							it->on_text(i->first, info.content);
 						} else {
-							it->on_text_overwrite(i->first, info.character);
+							it->on_text_overwrite(i->first, info.content);
 						}
 					}
 				}

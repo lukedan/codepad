@@ -15,24 +15,26 @@ namespace codepad {
 	public:
 		virtual ~singleton_factory() {
 			for (auto i = _vars.rbegin(); i != _vars.rend(); ++i) {
+				logger::get().log_info(CP_HERE, "disposing variable: ", (*i)->get_type_name());
 				delete *i;
 			}
 		}
 	protected:
 		struct _variable_wrapper {
-			virtual ~_variable_wrapper() {
-			}
+			virtual ~_variable_wrapper() = default;
+
+			virtual std::string get_type_name() const = 0;
 		};
 		std::list<_variable_wrapper*> _vars;
 
 		template <typename T, typename ...Args> T &_register(Args &&...args) {
+			T *var = new T(std::forward<Args>(args)...);
 			if (!std::is_same<logger, typename T::object_type>::value) {
 				logger::get().log_info(CP_HERE,
-					"initializing variable: ",
+					"initialized variable: ",
 					demangle(typeid(typename T::object_type).name())
 				);
 			}
-			T *var = new T(std::forward<Args>(args)...);
 			_vars.push_back(var);
 			return *var;
 		}
@@ -63,10 +65,17 @@ namespace codepad {
 		struct _t_wrapper : public _root_base::_variable_wrapper {
 			typedef T object_type;
 			T object;
+
+			std::string get_type_name() const override {
+				return demangle(typeid(T).name());
+			}
 		};
 		_t_wrapper *_var = nullptr;
 	};
 
+	// avoid pointers (including shared_ptr's)
+	// or initialize them in the constructor
+	// or use the pointed-to type first (tricky)
 	struct globals {
 	public:
 		template <typename T> T &get() {
@@ -78,7 +87,7 @@ namespace codepad {
 		}
 	protected:
 		struct _cur_setter {
-			_cur_setter(globals &g) {
+			explicit _cur_setter(globals &g) {
 				assert_true_logical(_cur == nullptr, "globals already initialized");
 				_cur = &g;
 			}
@@ -90,9 +99,12 @@ namespace codepad {
 		_cur_setter _csetter{*this};
 		singleton_factory<
 #ifdef CP_PLATFORM_WINDOWS
-			os::freetype_font::_library,
 			os::directwrite_font::_factory,
 			os::wic_image_loader,
+#endif
+#ifdef CP_PLATFORM_UNIX
+			os::_details::xlib_link,
+			os::freetype_font::_font_config,
 #endif
 #ifdef CP_DETECT_LOGICAL_ERRORS
 			ui::control_dispose_rec,
@@ -100,26 +112,32 @@ namespace codepad {
 			logger,
 			callback_buffer,
 			async_task_pool,
+			os::freetype_font_base::_library,
 			os::renderer_base::_default_renderer,
 			ui::manager,
-			ui::content_host::_default_font,
+			ui::content_host::_default_font, // TODO remove this
 			ui::visual_manager::_registration,
 			editor::dock_manager,
-			editor::code::editor::_appearance_config
+			editor::code::editor::_appearance_config // TODO remove this as well
 		> _vars;
 
 		static globals *_cur;
 	};
 
 #ifdef CP_PLATFORM_WINDOWS
-	inline os::freetype_font::_library &os::freetype_font::_get_library() {
-		return globals::current().get<_library>();
-	}
 	inline os::directwrite_font::_factory &os::directwrite_font::_get_factory() {
 		return globals::current().get<_factory>();
 	}
 	inline os::wic_image_loader &os::wic_image_loader::get() {
 		return globals::current().get<wic_image_loader>();
+	}
+#endif
+#ifdef CP_PLATFORM_UNIX
+	inline os::_details::xlib_link &os::_details::xlib_link::get() {
+		return globals::current().get<xlib_link>();
+	}
+	inline os::freetype_font::_font_config &os::freetype_font::_get_config() {
+		return globals::current().get<_font_config>();
 	}
 #endif
 #ifdef CP_DETECT_LOGICAL_ERRORS
@@ -135,6 +153,9 @@ namespace codepad {
 	}
 	inline async_task_pool &async_task_pool::get() {
 		return globals::current().get<async_task_pool>();
+	}
+	inline os::freetype_font_base::_library &os::freetype_font_base::_get_library() {
+		return globals::current().get<_library>();
 	}
 	inline os::renderer_base::_default_renderer &os::renderer_base::_get_rend() {
 		return globals::current().get<_default_renderer>();

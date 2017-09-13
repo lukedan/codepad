@@ -54,9 +54,9 @@ namespace codepad {
 			const os::input::key key;
 		};
 		struct text_info {
-			explicit text_info(char_t c) : character(c) {
+			explicit text_info(str_t s) : content(std::move(s)) {
 			}
-			const char_t character;
+			const str_t content;
 		};
 
 		class panel_base;

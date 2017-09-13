@@ -1,13 +1,12 @@
 #pragma once
 
+#include "../utilities/misc.h"
+
 namespace codepad {
 	namespace os {
 		namespace input {
 			enum class mouse_button { left, middle, right };
 			enum class key {
-				physical_left_mouse,
-				physical_right_mouse,
-				middle_mouse,
 				cancel,
 				xbutton_1, xbutton_2,
 				backspace,
@@ -50,25 +49,7 @@ namespace codepad {
 			};
 			constexpr size_t total_num_keys = static_cast<size_t>(key::max_value);
 			bool is_key_down(key);
-			bool is_mouse_button_swapped();
-			inline bool is_mouse_button_down(mouse_button mb) {
-				switch (mb) {
-				case mouse_button::left:
-					if (is_mouse_button_swapped()) {
-						return is_key_down(key::physical_right_mouse);
-					}
-					return is_key_down(key::physical_left_mouse);
-				case mouse_button::right:
-					if (is_mouse_button_swapped()) {
-						return is_key_down(key::physical_left_mouse);
-					}
-					return is_key_down(key::physical_right_mouse);
-				case mouse_button::middle:
-					return is_key_down(key::middle_mouse);
-				}
-				assert_true_usage(false, "invalid mouse button encountered");
-				return false;
-			}
+			bool is_mouse_button_down(mouse_button);
 
 			vec2i get_mouse_position();
 			void set_mouse_position(vec2i);

@@ -4,8 +4,8 @@
 #include <vector>
 #include <cstring>
 
-#include <gl/GL.h>
-#include <gl/glext.h>
+#include <GL/gl.h>
+#include <GL/glext.h>
 
 #include "../utilities/misc.h"
 
@@ -60,7 +60,6 @@ namespace codepad {
 			renderer_base *_rend = nullptr;
 			size_t _w = 0, _h = 0;
 		};
-		typedef size_t framebuffer_id;
 		struct framebuffer {
 			friend class renderer_base;
 		public:
@@ -97,8 +96,7 @@ namespace codepad {
 			friend class window_base;
 			friend struct codepad::globals;
 		public:
-			virtual ~renderer_base() {
-			}
+			virtual ~renderer_base() = default;
 
 			virtual void begin(const window_base&) = 0;
 			virtual void push_clip(recti) = 0;
@@ -135,11 +133,12 @@ namespace codepad {
 			virtual void pop_matrix() = 0;
 
 			inline static renderer_base &get() {
-				assert_true_usage(_get_rend().rend, "renderer not yet created");
+				assert_true_usage(_get_rend().rend != nullptr, "renderer not yet created");
 				return *_get_rend().rend;
 			}
 			template <typename T, typename ...Args> inline static void create_default(Args &&...args) {
-				_get_rend().create<T, Args...>(std::forward<Args>(args)...);
+				T *rend = new T(std::forward<Args>(args)...);
+				_get_rend().assign(rend);
 			}
 		protected:
 			virtual void _new_window(window_base&) = 0;
@@ -168,12 +167,12 @@ namespace codepad {
 			}
 
 			struct _default_renderer {
-				template <typename T, typename ...Args> void create(Args &&...args) {
+				void assign(renderer_base *r) {
 					assert_true_usage(!rend, "renderer already created");
-					rend = new T(std::forward<Args>(args)...);
+					rend = r;
 				}
 				~_default_renderer() {
-					assert_true_usage(rend, "no renderer created yet");
+					assert_true_usage(rend != nullptr, "no renderer created yet");
 					delete rend;
 				}
 				renderer_base *rend = nullptr;
@@ -477,18 +476,18 @@ namespace codepad {
 				}
 				texture::id_t _alloc_id() {
 					texture::id_t res;
-					if (_cd_alloc.size() > 0) {
+					if (!_cd_alloc.empty()) {
 						res = _cd_alloc.back();
 						_cd_alloc.pop_back();
 					} else {
 						res = _cd_slots.size();
-						_cd_slots.push_back(char_data());
+						_cd_slots.emplace_back();
 					}
 					return res;
 				}
 			public:
 				texture new_char(opengl_renderer_base &r, size_t w, size_t h, const void *data) {
-					if (_ps.size() == 0) {
+					if (_ps.empty()) {
 						_new_page();
 					}
 					texture::id_t id = _alloc_id();
@@ -606,7 +605,7 @@ namespace codepad {
 						r.ymin = ch - r.ymax;
 						r.ymax = ch - ymin;
 					}
-					if (clip_stack.size() > 0) {
+					if (!clip_stack.empty()) {
 						r = recti::common_part(r, clip_stack.back());
 					}
 					r.make_valid_max();
@@ -616,7 +615,7 @@ namespace codepad {
 					clip_stack.pop_back();
 				}
 				void apply_clip() {
-					if (clip_stack.size() > 0) {
+					if (!clip_stack.empty()) {
 						glEnable(GL_SCISSOR_TEST);
 						const recti &r = clip_stack.back();
 						glScissor(r.xmin, r.ymin, r.width(), r.height());
@@ -633,7 +632,7 @@ namespace codepad {
 			size_t _lstpg;
 
 			void _begin_render_target(_render_target_stackframe rtf) {
-				if (_rtfstk.size() > 0) {
+				if (!_rtfstk.empty()) {
 					_flush_text_buffer();
 				}
 				_rtfstk.push_back(std::move(rtf));

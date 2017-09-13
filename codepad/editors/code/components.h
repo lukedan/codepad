@@ -14,7 +14,8 @@ namespace codepad {
 					size_t ln = _get_editor()->get_context()->num_lines(), w = 0;
 					for (; ln > 0; ++w, ln /= 10) {
 					}
-					return vec2d(get_padding().width() + static_cast<double>(w) * editor::get_font().normal->max_width(), 0.0);
+					double maxw = editor::get_font().normal->get_max_width_charset(U"0123456789");
+					return vec2d(get_padding().width() + static_cast<double>(w) * maxw, 0.0);
 				}
 
 				inline static str_t get_default_class() {

@@ -36,12 +36,30 @@ namespace codepad {
 		}
 
 		namespace input {
-			extern const int _key_id_mapping[total_num_keys];
-			inline bool is_key_down(key k) {
-				return (GetAsyncKeyState(_key_id_mapping[static_cast<int>(k)]) & ~1) != 0;
+			namespace _details {
+				extern const int _key_id_mapping[total_num_keys];
+				inline bool is_key_down_id(int vk) {
+					return (GetAsyncKeyState(vk) & ~1) != 0;
+				}
 			}
-			inline bool is_mouse_button_swapped() {
-				return GetSystemMetrics(SM_SWAPBUTTON) != 0;
+
+			inline bool is_key_down(key k) {
+				return _details::is_key_down_id(_details::_key_id_mapping[static_cast<int>(k)]);
+			}
+			inline bool is_mouse_button_down(mouse_button mb) {
+				if (mb == mouse_button::left || mb == mouse_button::right) {
+					if (GetSystemMetrics(SM_SWAPBUTTON) != 0) {
+						mb = (mb == mouse_button::left ? mouse_button::right : mouse_button::left);
+					}
+				}
+				switch (mb) {
+				case mouse_button::left:
+					return _details::is_key_down_id(VK_LBUTTON);
+				case mouse_button::right:
+					return _details::is_key_down_id(VK_RBUTTON);
+				case mouse_button::middle:
+					return _details::is_key_down_id(VK_MBUTTON);
+				}
 			}
 
 			inline vec2i get_mouse_position() {

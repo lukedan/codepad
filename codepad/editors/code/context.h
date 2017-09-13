@@ -914,31 +914,6 @@ namespace codepad {
 					apply_modification_nofixup(std::move(mod));
 				}
 
-				// added_content need not be filled
-				void apply_char_modification_nofixup(modification mod, char_t c) {
-					assert_true_usage(mod.position >= _lastmax, "positions must be increasing");
-					auto lit = _ctx->at(mod.position.line);
-					if (mod.removed_range.x != 0 || mod.removed_range.y != 0) {
-						mod.removed_content = _ctx->cut_text(lit, mod.position.column, mod.removed_range);
-					}
-					if (is_newline(c)) {
-						_ctx->insert_newline(lit, mod.position.column);
-						mod.added_content = to_str(_ctx->get_default_line_ending());
-						mod.added_range = caret_position_diff(-static_cast<int>(mod.position.column), 1);
-					} else {
-						_ctx->insert_char_nonnewline(lit, mod.position.column, c);
-						mod.added_content = str_t({c});
-						mod.added_range = caret_position_diff(1, 0);
-					}
-					_append_fixup_item(modification_positions(mod));
-					_append_caret(get_caret_selection_after(mod));
-					_edit.push_back(std::move(mod));
-				}
-				void apply_char_modification(modification mod, char_t c) {
-					fixup_caret_position(mod);
-					apply_char_modification_nofixup(std::move(mod), c);
-				}
-
 				void redo_modification(const modification &mod) {
 					assert_true_usage(mod.position >= _lastmax, "positions must be increasing");
 					auto lit = _ctx->at(mod.position.line);
@@ -993,26 +968,28 @@ namespace codepad {
 					m.removed_range = rmend - m.position;
 				}
 
-				void on_text(caret_selection cs, char_t c) {
+				void on_text(caret_selection cs, str_t s) {
 					modification mod(cs);
 					mod.caret_front_after = false;
 					mod.selected_after = false;
-					apply_char_modification(std::move(mod), c);
+					mod.added_content = std::move(s);
+					apply_modification(std::move(mod));
 				}
-				void on_text_overwrite(caret_selection cs, char_t c) {
+				void on_text_overwrite(caret_selection cs, str_t s) {
 					modification mod(cs);
 					fixup_caret_position(mod);
-					if (!is_newline(c) && !mod.selected_before) {
+					if (!mod.selected_before) {
 						auto lit = _ctx->at(mod.position.line);
-						if (mod.position.column != lit->content.length()) {
-							mod.removed_range = caret_position_diff(1, 0);
-							mod.caret_front_before = true;
-							mod.selected_before = false;
+						caret_position remend = mod.position;
+						for (auto i = s.begin(); i != s.end(); ++i) {
+							if (!is_newline(*i) && remend.column < lit->content.length()) {
+								++remend.column;
+							}
 						}
+						mod.removed_range = remend - mod.position;
+						mod.caret_front_before = true;
 					}
-					mod.caret_front_after = false;
-					mod.selected_after = false;
-					apply_char_modification_nofixup(std::move(mod), c);
+					apply_modification_nofixup(std::move(mod));
 				}
 				void on_backspace(caret_selection cs) {
 					modification mod(cs);
@@ -1069,7 +1046,6 @@ namespace codepad {
 			protected:
 				text_context *_ctx = nullptr;
 				caret_position _lastmax;
-				//caret_position_diff _fixup;
 				edit _edit;
 				caret_fixup_info _cfixup;
 				caret_fixup_info::context _cfctx;
@@ -1080,7 +1056,7 @@ namespace codepad {
 					_cfctx.append_custom_modification(mp);
 				}
 				void _append_caret(caret_selection sel) {
-					_newcarets.add(caret_set::entry(sel, 0.0));
+					_newcarets.add(caret_set::entry(sel, caret_data(0.0)));
 				}
 			};
 

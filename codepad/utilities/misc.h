@@ -600,13 +600,13 @@ namespace codepad {
 			}
 		}
 		template <typename ...Args> void log_info(const code_position &cp, Args &&...args) {
-			_log_fmt("INFO", cp, std::forward<Args>(args)...);
+			_log_fmt("       ", cp, std::forward<Args>(args)...);
 		}
 		template <typename ...Args> void log_warning(const code_position &cp, Args &&...args) {
 			_log_fmt("WARNING", cp, std::forward<Args>(args)...);
 		}
 		template <typename ...Args> void log_error(const code_position &cp, Args &&...args) {
-			_log_fmt("ERROR", cp, std::forward<Args>(args)...);
+			_log_fmt(" ERROR ", cp, std::forward<Args>(args)...);
 			_fout.flush();
 		}
 		template <typename ...Args> void log_error_with_stacktrace(const code_position &cp, Args &&...args) {
@@ -829,7 +829,7 @@ namespace codepad {
 		void *frames[max_frames];
 		int numframes = backtrace(frames, max_frames);
 		char **symbols = backtrace_symbols(frames, numframes);
-		assert_true_sys(symbols, "backtrace_symbols() failed");
+		assert_true_sys(symbols != nullptr, "backtrace_symbols() failed");
 		log_custom("STACKTRACE");
 		for (int i = 0; i < numframes; ++i) {
 			log_custom("    ", symbols[i]);

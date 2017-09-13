@@ -450,8 +450,8 @@ namespace codepad {
 					logger::get().log_warning(CP_HERE, "invalid layer info");
 					return;
 				}
-				str_t type = json::get_string_or_default(val, U"type", U"solid");
-				if (type == U"solid") {
+				str_t typestr = json::get_string_or_default(val, U"type", U"solid");
+				if (typestr == U"solid") {
 					layer_type = type::solid;
 				} else {
 					layer_type = type::grid;

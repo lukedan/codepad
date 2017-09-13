@@ -5,62 +5,63 @@
 namespace codepad {
 	namespace os {
 		namespace input {
-			const int _key_id_mapping[static_cast<int>(total_num_keys)] = {
-				VK_LBUTTON, VK_RBUTTON, VK_MBUTTON,
-				VK_CANCEL,
-				VK_XBUTTON1, VK_XBUTTON2,
-				VK_BACK,
-				VK_TAB,
-				VK_CLEAR,
-				VK_RETURN,
-				VK_SHIFT, VK_CONTROL, VK_MENU,
-				VK_PAUSE,
-				VK_CAPITAL,
-				VK_ESCAPE,
-				VK_CONVERT,
-				VK_NONCONVERT,
-				VK_SPACE,
-				VK_PRIOR,
-				VK_NEXT,
-				VK_END,
-				VK_HOME,
-				VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN,
-				VK_SELECT,
-				VK_PRINT,
-				VK_EXECUTE,
-				VK_SNAPSHOT,
-				VK_INSERT,
-				VK_DELETE,
-				VK_HELP,
-				'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-				'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-				VK_LWIN,
-				VK_RWIN,
-				VK_APPS,
-				VK_SLEEP,
-				VK_MULTIPLY,
-				VK_ADD,
-				VK_SEPARATOR,
-				VK_SUBTRACT,
-				VK_DECIMAL,
-				VK_DIVIDE,
-				VK_F1, VK_F2, VK_F3, VK_F4,
-				VK_F5, VK_F6, VK_F7, VK_F8,
-				VK_F9, VK_F10, VK_F11, VK_F12,
-				VK_NUMLOCK,
-				VK_SCROLL,
-				VK_LSHIFT, VK_RSHIFT,
-				VK_LCONTROL, VK_RCONTROL,
-				VK_LMENU, VK_RMENU
-			};
-			struct _key_id_backmapping_t {
-				_key_id_backmapping_t() {
-					for (int i = 0; i < static_cast<int>(total_num_keys); ++i) {
-						v[_key_id_mapping[i]] = i;
+			namespace _details {
+				const int _key_id_mapping[total_num_keys] = {
+					VK_CANCEL,
+					VK_XBUTTON1, VK_XBUTTON2,
+					VK_BACK,
+					VK_TAB,
+					VK_CLEAR,
+					VK_RETURN,
+					VK_SHIFT, VK_CONTROL, VK_MENU,
+					VK_PAUSE,
+					VK_CAPITAL,
+					VK_ESCAPE,
+					VK_CONVERT,
+					VK_NONCONVERT,
+					VK_SPACE,
+					VK_PRIOR,
+					VK_NEXT,
+					VK_END,
+					VK_HOME,
+					VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN,
+					VK_SELECT,
+					VK_PRINT,
+					VK_EXECUTE,
+					VK_SNAPSHOT,
+					VK_INSERT,
+					VK_DELETE,
+					VK_HELP,
+					'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+					'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+					VK_LWIN,
+					VK_RWIN,
+					VK_APPS,
+					VK_SLEEP,
+					VK_MULTIPLY,
+					VK_ADD,
+					VK_SEPARATOR,
+					VK_SUBTRACT,
+					VK_DECIMAL,
+					VK_DIVIDE,
+					VK_F1, VK_F2, VK_F3, VK_F4,
+					VK_F5, VK_F6, VK_F7, VK_F8,
+					VK_F9, VK_F10, VK_F11, VK_F12,
+					VK_NUMLOCK,
+					VK_SCROLL,
+					VK_LSHIFT, VK_RSHIFT,
+					VK_LCONTROL, VK_RCONTROL,
+					VK_LMENU, VK_RMENU
+				};
+				struct _key_id_backmapping_t {
+					_key_id_backmapping_t() {
+						for (int i = 0; i < static_cast<int>(total_num_keys); ++i) {
+							v[_key_id_mapping[i]] = i;
+						}
 					}
-				}
-				int v[255];
-			} _key_id_backmapping;
+					int v[255];
+				} _key_id_backmapping;
+			}
 		}
 
 		const int _cursor_id_mapping[] = {
@@ -99,12 +100,12 @@ namespace codepad {
 
 				case WM_KEYDOWN:
 					_form_onevent<ui::key_info>(
-						*form, &window::_on_key_down, static_cast<input::key>(input::_key_id_backmapping.v[wparam])
+						*form, &window::_on_key_down, static_cast<input::key>(input::_details::_key_id_backmapping.v[wparam])
 						);
 					return 0;
 				case WM_KEYUP:
 					_form_onevent<ui::key_info>(
-						*form, &window::_on_key_up, static_cast<input::key>(input::_key_id_backmapping.v[wparam])
+						*form, &window::_on_key_up, static_cast<input::key>(input::_details::_key_id_backmapping.v[wparam])
 						);
 					return 0;
 
@@ -112,7 +113,7 @@ namespace codepad {
 					if (wparam != VK_BACK && wparam != VK_ESCAPE) {
 						_form_onevent<ui::text_info>(
 							*form, &window::_on_keyboard_text,
-							wparam == VK_RETURN ? U'\n' : static_cast<char_t>(wparam)
+							wparam == VK_RETURN ? U"\n" : str_t({static_cast<char_t>(wparam)})
 							);
 					}
 					return (wparam == UNICODE_NOCHAR ? TRUE : FALSE);
@@ -120,7 +121,7 @@ namespace codepad {
 					if (wparam != VK_BACK && wparam != VK_ESCAPE) {
 						_form_onevent<ui::text_info>(
 							*form, &window::_on_keyboard_text,
-							wparam == VK_RETURN ? U'\n' : static_cast<char_t>(wparam)
+							wparam == VK_RETURN ? U"\n" : str_t({static_cast<char_t>(wparam)})
 							);
 					}
 					return 0;
@@ -236,7 +237,7 @@ namespace codepad {
 			if (PeekMessage(&msg, _hwnd, 0, 0, PM_REMOVE)) {
 				if (!(
 					msg.message == WM_KEYDOWN &&
-					hotkey_manager.on_key_down(static_cast<input::key>(input::_key_id_backmapping.v[msg.wParam]))
+					hotkey_manager.on_key_down(static_cast<input::key>(input::_details::_key_id_backmapping.v[msg.wParam]))
 					)) {
 					TranslateMessage(&msg);
 					DispatchMessage(&msg);
