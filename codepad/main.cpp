@@ -4,6 +4,7 @@
 #include "utilities/globals.h"
 #include "utilities/event.h"
 #include "utilities/tasks.h"
+#include "utilities/bst.h"
 #include "os/current.h"
 #include "ui/font_family.h"
 #include "ui/draw.h"
@@ -70,10 +71,7 @@ int main() {
 
 	content_host::set_default_font(fnt);
 	code::editor::set_font(codefnt);
-	code::editor::set_insert_caret_brush(std::make_shared<texture_brush>(colord(0.0, 0.6, 1.0, 0.2)));
 	code::editor::set_selection_brush(std::make_shared<texture_brush>(colord(0.0, 0.6, 1.0, 0.2)));
-	texture_brush viewb(colord(0.5, 0.5, 1.0, 0.2));
-	code::minimap::set_viewport_brush(&viewb);
 
 	tab *codetab1 = dock_manager::get().new_tab();
 	codetab1->set_caption(U"code1");
@@ -91,7 +89,7 @@ int main() {
 
 	{
 		auto ctx = std::make_shared<code::text_context>();
-		//ctx->load_from_file(U"hugetext.cpp");
+		//ctx->load_from_file(U"hugetext.txt");
 		ctx->load_from_file(U"editors/code/context.h");
 		ctx->auto_set_default_line_ending();
 		cp1->get_editor()->set_context(ctx);

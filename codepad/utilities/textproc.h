@@ -19,27 +19,40 @@ namespace codepad {
 			return str_t(v.GetString(), v.GetStringLength());
 		}
 
-		template <typename Res, typename Obj, Res(Obj::*Getter)() const> inline Res get_or_default(
-			const Obj &v, const str_t &s, Res def
-		) {
-			auto found = v.FindMember(s.c_str());
-			if (found == v.MemberEnd()) {
-				return def;
+		namespace _details {
+			template <typename Res, typename Obj, bool(Obj::*TypeVerify)() const, Res(Obj::*Getter)() const> inline bool try_get(
+				const Obj &v, const str_t &s, Res &ret
+			) {
+				auto found = v.FindMember(s.c_str());
+				if (found != v.MemberEnd() && (found->value.*TypeVerify)()) {
+					ret = (found->value.*Getter)();
+					return true;
+				}
+				return false;
 			}
-			return (found->value.*Getter)();
 		}
-		inline bool get_bool_or_default(const value_t &v, const str_t &s, bool def = false) {
-			return get_or_default<bool, value_t, &value_t::IsTrue>(v, s, def);
+		template <typename T> bool try_get(const value_t&, const str_t&, T&);
+		template <> inline bool try_get<bool>(const value_t &v, const str_t &s, bool &ret) {
+			return _details::try_get<bool, value_t, &value_t::IsBool, &value_t::GetBool>(v, s, ret);
 		}
-		inline double get_double_or_default(const value_t &v, const str_t &s, double def = 0.0) {
-			return get_or_default<double, value_t, &value_t::GetDouble>(v, s, def);
+		template <> inline bool try_get<double>(const value_t &v, const str_t &s, double &ret) {
+			return _details::try_get<double, value_t, &value_t::IsNumber, &value_t::GetDouble>(v, s, ret);
 		}
-		inline str_t get_string_or_default(const value_t &v, const str_t &s, const str_t &def) {
+		template <> inline bool try_get<str_t>(const value_t &v, const str_t &s, str_t &ret) {
 			auto found = v.FindMember(s.c_str());
-			if (found == v.MemberEnd()) {
-				return def;
+			if (found != v.MemberEnd() && found->value.IsString()) {
+				ret = get_as_string(found->value);
+				return true;
 			}
-			return get_as_string(found->value);
+			return false;
+		}
+
+		template <typename T> inline T get_or_default(const value_t &v, const str_t &s, const T &def) {
+			T res;
+			if (try_get(v, s, res)) {
+				return res;
+			}
+			return def;
 		}
 	}
 

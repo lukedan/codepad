@@ -255,7 +255,7 @@ namespace codepad {
 				}
 			}
 
-			void _custom_render() const override {
+			void _custom_render() override {
 				_child_on_render(_sep);
 				if (_c1) {
 					os::renderer_base::get().push_clip(_sep->get_region1().minimum_bounding_box<int>());
@@ -376,7 +376,7 @@ namespace codepad {
 					}
 				}
 			}
-			void _custom_render() const override {
+			void _custom_render() override {
 				_content.render();
 				panel_base::_custom_render();
 			}

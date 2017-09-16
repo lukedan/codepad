@@ -13,6 +13,5 @@ namespace codepad {
 
 	double editor::code::editor::_lines_per_scroll = 3.0;
 
-	const ui::basic_brush *editor::code::minimap::_viewport_brush = nullptr;
 	double editor::code::minimap::_target_height = 2.0;
 }

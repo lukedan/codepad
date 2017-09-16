@@ -200,7 +200,7 @@ namespace codepad {
 				caret_position_diff removed_range, added_range;
 				caret_position position;
 			};
-			struct caret_fixup_info {
+			struct caret_fixup_info { // TODO rework this part
 			public:
 				struct context {
 					context() = default;
@@ -989,6 +989,7 @@ namespace codepad {
 						mod.removed_range = remend - mod.position;
 						mod.caret_front_before = true;
 					}
+					mod.added_content = std::move(s);
 					apply_modification_nofixup(std::move(mod));
 				}
 				void on_backspace(caret_selection cs) {

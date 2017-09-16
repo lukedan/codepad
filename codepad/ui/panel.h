@@ -118,7 +118,7 @@ namespace codepad {
 				}
 			}
 
-			void _custom_render() const override {
+			void _custom_render() override {
 				for (auto i = _children.rbegin(); i != _children.rend(); ++i) {
 					(*i)->_on_render();
 				}
@@ -140,11 +140,12 @@ namespace codepad {
 						break;
 					}
 				}
-				mouse_down(p);
+				mouse_down.invoke(p);
 				if (_can_focus && !p.focus_set()) {
 					p.mark_focus_set();
 					manager::get().set_focus(this);
 				}
+				_set_visual_style_bit(visual_manager::default_states().mouse_down, true);
 			}
 			void _on_mouse_leave() override {
 				for (auto i = _children.begin(); i != _children.end(); ++i) {

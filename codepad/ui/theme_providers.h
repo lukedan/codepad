@@ -96,48 +96,9 @@ namespace codepad {
 		inline double smoothstep_transition_func(double v) {
 			return v * v * (3.0 - 2.0 * v);
 		}
-		template <typename T> struct json_object_parser {
-			static T parse(const json::value_t&);
-		};
-		template <> struct json_object_parser<colord> {
-			inline static colord parse(const json::value_t &obj) {
-				if (obj[0].IsString() && str_t(obj[0].GetString()) == U"hsl") {
-					colord c = colord::from_hsl(obj[1].GetDouble(), obj[2].GetDouble(), obj[3].GetDouble());
-					if (obj.Size() > 4) {
-						c.a = obj[4].GetDouble();
-					}
-					return c;
-				}
-				if (obj.Size() == 3) {
-					return colord(
-						obj[0].GetDouble(), obj[1].GetDouble(), obj[2].GetDouble(), 1.0
-					);
-				}
-				return colord(
-					obj[0].GetDouble(), obj[1].GetDouble(),
-					obj[2].GetDouble(), obj[3].GetDouble()
-				);
-			}
-		};
-		template <> struct json_object_parser<thickness> {
-			inline static thickness parse(const json::value_t &obj) {
-				if (obj.IsArray()) {
-					return thickness(
-						obj[0].GetDouble(), obj[1].GetDouble(),
-						obj[2].GetDouble(), obj[3].GetDouble()
-					);
-				}
-				return thickness(obj.GetDouble());
-			}
-		};
-		template <> struct json_object_parser<vec2d> {
-			inline static vec2d parse(const json::value_t &obj) {
-				return vec2d(obj[0].GetDouble(), obj[1].GetDouble());
-			}
-		};
-		template <typename T> struct animation_params {
-			typedef json_object_parser<T> value_parser;
+		class visual_json_parser;
 
+		template <typename T> struct animation_params {
 			struct state {
 				T from, current_value;
 				double current_time_warped = 0.0;
@@ -155,45 +116,38 @@ namespace codepad {
 				s.current_value = s.from;
 				return s;
 			}
-			bool update(state &s, double dt) const {
-				if (s.stationary) {
-					return false;
-				}
-				s.current_time_warped += dt;
-				double period = duration;
-				if (auto_reverse) {
-					period += duration * reverse_duration_scale;
-				}
-				if (s.current_time_warped >= period) {
-					if (repeat) {
-						s.current_time_warped -= period * std::floor(s.current_time_warped / period);
-					} else {
-						s.current_value = to;
-						s.stationary = true;
-						return true;
+			void update(state &s, double dt) const {
+				if (!s.stationary) {
+					s.current_time_warped += dt;
+					double period = duration;
+					if (auto_reverse) {
+						period += duration * reverse_duration_scale;
 					}
+					if (s.current_time_warped >= period) {
+						if (repeat) {
+							s.current_time_warped -= period * std::floor(s.current_time_warped / period);
+						} else {
+							s.current_value = to;
+							s.stationary = true;
+							return;
+						}
+					}
+					double progress = 0.0;
+					if (s.current_time_warped < duration) {
+						progress = s.current_time_warped / duration;
+					} else {
+						progress = 1.0 - (s.current_time_warped - duration) / (duration * reverse_duration_scale);
+					}
+					s.current_value = lerp(s.from, to, transition_func(progress));
 				}
-				double progress = 0.0;
-				if (s.current_time_warped < duration) {
-					progress = s.current_time_warped / duration;
-				} else {
-					progress = 1.0 - (s.current_time_warped - duration) / (duration * reverse_duration_scale);
-				}
-				s.current_value = lerp(s.from, to, transition_func(progress));
-				return true;
 			}
-
-			void clear() {
-				from = to = T();
-				has_from = auto_reverse = repeat = false;
-				duration = 0.0;
-				reverse_duration_scale = 1.0;
-				transition_func = linear_transition_func;
-			}
-			void parse(const json::value_t&);
 		};
 		template <> struct animation_params<os::texture> {
 			constexpr static double default_frametime = 1.0 / 30.0;
+
+			animation_params() {
+				frames.push_back(texture_keyframe(std::make_shared<os::texture>(), 0.0)); // HACK otherwise objects without texture won't be rendered
+			}
 
 			typedef std::pair<std::shared_ptr<os::texture>, double> texture_keyframe;
 			struct state {
@@ -218,111 +172,47 @@ namespace codepad {
 				s.current_frame = frames.begin();
 				return s;
 			}
-			bool update(state &s, double dt) const {
+			void update(state &s, double dt) const {
 				if (s.stationary) {
-					return false;
+					return;
 				}
-				s.current_frame_time += dt;
-				bool framechanged = false;
-				while (s.current_frame_time >= s.current_frame->second) {
-					framechanged = true;
-					if (s.reversing) {
-						s.current_frame_time -= s.current_frame->second * reverse_duration_scale;
-						if (s.current_frame == frames.begin()) {
-							if (!repeat) {
-								s.stationary = true;
-								break;
-							}
-							s.reversing = false;
-						} else {
-							--s.current_frame;
-						}
-					} else {
-						s.current_frame_time -= s.current_frame->second;
-						++s.current_frame;
-						if (s.current_frame == frames.end()) {
-							if (repeat) {
-								if (auto_reverse) {
-									s.reversing = true;
-									--s.current_frame;
-								} else {
-									s.current_frame = frames.begin();
+				if (s.current_frame != frames.end()) {
+					s.current_frame_time += dt;
+					while (s.current_frame_time >= s.current_frame->second) {
+						if (s.reversing) {
+							s.current_frame_time -= s.current_frame->second * reverse_duration_scale;
+							if (s.current_frame == frames.begin()) {
+								if (!repeat) {
+									s.stationary = true;
+									break;
 								}
+								s.reversing = false;
 							} else {
 								--s.current_frame;
-								s.stationary = true;
-								break;
-							}
-						}
-					}
-				}
-				return framechanged;
-			}
-
-			void clear() {
-				frames.clear();
-				frames.push_back(texture_keyframe(std::make_shared<os::texture>(), 0.0));
-				auto_reverse = repeat = false;
-				reverse_duration_scale = 1.0;
-			}
-			void parse(const json::value_t &obj) {
-				// TODO deferred texture loading
-				bool good = true;
-				frames.clear();
-				if (obj.IsString()) {
-					frames.push_back(texture_keyframe(
-						std::make_shared<os::texture>(os::load_image(json::get_as_string(obj))), 0.0
-					));
-					auto_reverse = repeat = false;
-					reverse_duration_scale = 1.0;
-				} else if (obj.IsObject()) {
-					auto fs = obj.FindMember(U"frames");
-					if (fs != obj.MemberEnd()) {
-						if (fs->value.IsArray()) {
-							double lastframetime = default_frametime;
-							auto beg = fs->value.Begin(), end = fs->value.End();
-							for (auto i = beg; i != end; ++i) {
-								if (i->IsArray()) {
-									if ((*i).Size() >= 2 && (*i)[0].IsString() && (*i)[1].IsDouble()) {
-										double frametime = (*i)[1].GetDouble();
-										frames.push_back(texture_keyframe(std::make_shared<os::texture>(
-											os::load_image(json::get_as_string((*i)[0]))
-											), frametime));
-										lastframetime = frametime;
-									} else {
-										good = false;
-									}
-								} else if (i->IsString()) {
-									frames.push_back(texture_keyframe(std::make_shared<os::texture>(
-										os::load_image(json::get_as_string(*i))
-										), lastframetime));
-								} else {
-									good = false;
-								}
 							}
 						} else {
-							good = false;
+							s.current_frame_time -= s.current_frame->second;
+							++s.current_frame;
+							if (s.current_frame == frames.end()) {
+								if (repeat) {
+									if (auto_reverse) {
+										s.reversing = true;
+										--s.current_frame;
+									} else {
+										s.current_frame = frames.begin();
+									}
+								} else {
+									--s.current_frame;
+									s.stationary = true;
+									break;
+								}
+							}
 						}
 					}
-					auto_reverse = json::get_bool_or_default(obj, U"auto_reverse");
-					repeat = json::get_bool_or_default(obj, U"repeat");
-					reverse_duration_scale = json::get_double_or_default(
-						obj, U"reverse_duration_scale", 1.0
-					);
-				} else {
-					good = false;
-				}
-				if (!good) {
-					logger::get().log_warning(CP_HERE, "invalid texture animation format");
 				}
 			}
 		};
 		struct visual_layer {
-		public:
-			constexpr static char_t
-				anchor_top_char = U't', anchor_bottom_char = U'b',
-				anchor_left_char = U'l', anchor_right_char = U'r';
-
 			struct state {
 			public:
 				animation_params<os::texture>::state current_texture;
@@ -353,21 +243,21 @@ namespace codepad {
 				s.current_margin = margin_animation.init_state(old.current_margin.current_value);
 				return s;
 			}
-			bool update(state &s, double dt) const {
-				if (s.all_stationary) {
-					return false;
+			void update(state &s, double dt) const {
+				if (!s.all_stationary) {
+					texture_animation.update(s.current_texture, dt);
+					color_animation.update(s.current_color, dt);
+					size_animation.update(s.current_size, dt);
+					margin_animation.update(s.current_margin, dt);
+					s.all_stationary =
+						s.current_texture.stationary && s.current_color.stationary &&
+						s.current_size.stationary && s.current_margin.stationary;
 				}
-				bool needrender = false;
-				needrender = texture_animation.update(s.current_texture, dt) || needrender;
-				needrender = color_animation.update(s.current_color, dt) || needrender;
-				needrender = size_animation.update(s.current_size, dt) || needrender;
-				needrender = margin_animation.update(s.current_margin, dt) || needrender;
-				s.all_stationary =
-					s.current_texture.stationary && s.current_color.stationary &&
-					s.current_size.stationary && s.current_margin.stationary;
-				return needrender;
 			}
 			void render(rectd layout, const state &s) const {
+				if (s.current_texture.current_frame == texture_animation.frames.end()) {
+					return;
+				}
 				switch (layer_type) {
 				case type::solid:
 					{
@@ -436,37 +326,8 @@ namespace codepad {
 				}
 			}
 
-			void parse(const json::value_t &val) {
-				if (val.IsString()) {
-					texture_animation.parse(val);
-					layer_type = type::solid;
-					color_animation.clear();
-					size_animation.clear();
-					margin_animation.clear();
-					rect_anchor = anchor::all;
-					return;
-				}
-				if (!val.IsObject()) {
-					logger::get().log_warning(CP_HERE, "invalid layer info");
-					return;
-				}
-				str_t typestr = json::get_string_or_default(val, U"type", U"solid");
-				if (typestr == U"solid") {
-					layer_type = type::solid;
-				} else {
-					layer_type = type::grid;
-				}
-				_find_and_parse(val, U"texture", texture_animation);
-				_find_and_parse(val, U"color", color_animation);
-				_find_and_parse(val, U"size", size_animation);
-				_find_and_parse(val, U"margins", margin_animation);
-				str_t anc = json::get_string_or_default(val, U"anchor", U"ltrb");
-				rect_anchor = static_cast<anchor>(get_bitset_from_string<unsigned, anchor>({
-					{U'l', anchor::left},
-					{U't', anchor::top},
-					{U'r', anchor::right},
-					{U'b', anchor::bottom}
-				}, anc));
+			void clear() {
+
 			}
 
 			animation_params<os::texture> texture_animation;
@@ -475,19 +336,9 @@ namespace codepad {
 			animation_params<thickness> margin_animation;
 			anchor rect_anchor = anchor::all;
 			type layer_type = type::solid;
-		protected:
-			template <typename T> inline static void _find_and_parse(
-				const json::value_t &val, const str_t &s, animation_params<T> &p
-			) {
-				auto found = val.FindMember(s.c_str());
-				if (found != val.MemberEnd()) {
-					p.parse(found->value);
-				} else {
-					p.clear();
-				}
-			}
 		};
 		class visual_provider_state {
+			friend class visual_json_parser;
 		public:
 			struct state {
 				std::vector<visual_layer::state> layer_states;
@@ -500,25 +351,12 @@ namespace codepad {
 			}
 			state init_state() const;
 			state init_state(const state&) const;
-			bool update(state&, double) const;
+			void update(state&, double) const;
 			void render(rectd rgn, const state &s) const {
 				auto j = s.layer_states.begin();
 				for (auto i = _layers.begin(); i != _layers.end(); ++i, ++j) {
 					assert_true_usage(j != s.layer_states.end(), "invalid layer state data");
 					i->render(rgn, *j);
-				}
-			}
-
-			void parse(const json::value_t &val) {
-				if (!val.IsArray()) {
-					logger::get().log_warning(CP_HERE, "state format incorrect");
-					return;
-				}
-				_layers.clear();
-				for (auto i = val.Begin(); i != val.End(); ++i) {
-					visual_layer vl;
-					vl.parse(*i);
-					_layers.push_back(std::move(vl));
 				}
 			}
 		protected:
@@ -528,12 +366,13 @@ namespace codepad {
 		class visual_provider;
 		class visual_manager {
 			friend class visual_provider;
+			friend class visual_json_parser;
 			friend struct codepad::globals;
 		public:
 			constexpr static visual_state_id normal_state = 0;
 
 			struct predefined_states {
-				visual_state_id mouse_over, mouse_down;
+				visual_state_id mouse_over, mouse_down, focused;
 			};
 
 			inline static const predefined_states &default_states() {
@@ -545,7 +384,7 @@ namespace codepad {
 			inline static visual_provider &get_provider_or_default(const str_t &s) {
 				return _get_table().get_provider_or_default(s);
 			}
-			inline static unsigned cconfig_timestamp() {
+			inline static unsigned current_timestamp() {
 				return _get_table().timestamp;
 			}
 			template <typename T> inline static bool register_transition_function(str_t &&s, T &&f) {
@@ -560,6 +399,7 @@ namespace codepad {
 				_registration() {
 					predefined.mouse_over = register_or_get_state(U"mouse_over");
 					predefined.mouse_down = register_or_get_state(U"mouse_down");
+					predefined.focused = register_or_get_state(U"focused");
 
 					register_transition_func(U"linear", linear_transition_func);
 					register_transition_func(U"concave_quadratic", concave_quadratic_transition_func);
@@ -598,6 +438,7 @@ namespace codepad {
 			static _registration &_get_table();
 		};
 		class visual_provider {
+			friend class visual_json_parser;
 		public:
 			struct render_state {
 			public:
@@ -632,52 +473,41 @@ namespace codepad {
 				}
 
 				bool stationary() const {
-					return _animst.all_stationary;
+					return _animst.timestamp == visual_manager::current_timestamp() && _animst.all_stationary;
 				}
-				bool update(double dt) {
-					visual_provider_state &vps = visual_manager::get_provider_or_default(_cls).get_state_or_default(_state);
-					if (_animst.timestamp != visual_manager::cconfig_timestamp()) {
-						_animst = vps.init_state();
+				void update(double dt) {
+					if (!stationary()) {
+						visual_provider_state &vps = visual_manager::get_provider_or_default(_cls).get_state_or_default(_state);
+						if (_animst.timestamp != visual_manager::current_timestamp()) {
+							_animst = vps.init_state();
+						}
+						vps.update(_animst, dt);
 					}
-					return vps.update(_animst, dt);
 				}
 				void render(rectd rgn) {
 					visual_provider_state &ps = visual_manager::get_provider_or_default(_cls).get_state_or_default(_state);
-					if (_animst.timestamp != visual_manager::cconfig_timestamp()) {
+					if (_animst.timestamp != visual_manager::current_timestamp()) {
 						_animst = ps.init_state();
 					}
 					ps.render(rgn, _animst);
+				}
+				bool update_and_render(double dt, rectd rgn) {
+					update(dt);
+					render(rgn);
+					return !stationary();
+				}
+				bool update_and_render_multiple(double dt, const std::vector<rectd> &rgn) {
+					update(dt);
+					for (auto i = rgn.begin(); i != rgn.end(); ++i) {
+						render(*i);
+					}
+					return !stationary();
 				}
 			protected:
 				str_t _cls;
 				visual_state_id _state = visual_manager::normal_state;
 				visual_provider_state::state _animst;
 			};
-
-			void parse(const json::value_t &val) {
-				if (val.IsArray()) {
-					for (auto i = val.Begin(); i != val.End(); ++i) {
-						visual_provider_state vps;
-						visual_state_id id = 0;
-						if (i->IsObject()) {
-							auto states = i->FindMember(U"states");
-							if (states != i->MemberEnd()) {
-								for (auto j = states->value.Begin(); j != states->value.End(); ++j) {
-									id |= visual_manager::get_state_id(json::get_as_string(*j));
-								}
-							}
-							vps.parse(i->FindMember(U"layers")->value);
-						} else if (i->IsArray()) {
-							vps.parse(*i);
-						}
-						if (!_states.insert(std::make_pair(id, std::move(vps))).second) {
-							logger::get().log_warning(CP_HERE, "state registration failed");
-						}
-					}
-				} else {
-					logger::get().log_warning(CP_HERE, "unrecognized skin format");
-				}
-			}
 
 			visual_provider_state &get_state_or_default(visual_state_id s) {
 				auto found = _states.find(s);
@@ -694,52 +524,245 @@ namespace codepad {
 			std::map<visual_state_id, visual_provider_state> _states;
 		};
 
-		template <typename T> void animation_params<T>::parse(const json::value_t &obj) {
-			if (obj.IsArray() || obj.IsNumber()) {
-				to = value_parser::parse(obj);
-				auto_reverse = repeat = false;
-				duration = 0.0;
-				reverse_duration_scale = 1.0;
-				transition_func = linear_transition_func;
-			} else if (obj.IsObject()) {
-				json::value_t::ConstMemberIterator mem;
-				mem = obj.FindMember(U"to");
-				if (mem == obj.MemberEnd()) {
-					logger::get().log_warning(CP_HERE, "invalid parameter format");
-					return;
+		template <typename T> struct json_object_parser {
+			static T parse(const json::value_t&);
+		};
+		template <> struct json_object_parser<colord> {
+			inline static colord parse(const json::value_t &obj) {
+				if (obj.IsArray()) {
+					if (obj.Size() > 3 && obj[0].IsString() && str_t(obj[0].GetString()) == U"hsl") {
+						colord c = colord::from_hsl(obj[1].GetDouble(), obj[2].GetDouble(), obj[3].GetDouble());
+						if (obj.Size() > 4) {
+							c.a = obj[4].GetDouble();
+						}
+						return c;
+					}
+					if (obj.Size() > 3) {
+						return colord(
+							obj[0].GetDouble(), obj[1].GetDouble(),
+							obj[2].GetDouble(), obj[3].GetDouble()
+						);
+					} else if (obj.Size() == 3) {
+						return colord(
+							obj[0].GetDouble(), obj[1].GetDouble(), obj[2].GetDouble(), 1.0
+						);
+					}
 				}
-				to = value_parser::parse(mem->value);
-				mem = obj.FindMember(U"from");
-				if (mem != obj.MemberEnd()) {
-					has_from = true;
-					from = value_parser::parse(mem->value);
-				} else {
-					has_from = false;
+				logger::get().log_warning(CP_HERE, "invalid color representation");
+				return colord();
+			}
+		};
+		template <> struct json_object_parser<thickness> {
+			inline static thickness parse(const json::value_t &obj) {
+				if (obj.IsArray() && obj.Size() > 3) {
+					return thickness(
+						obj[0].GetDouble(), obj[1].GetDouble(),
+						obj[2].GetDouble(), obj[3].GetDouble()
+					);
+				} else if (obj.IsNumber()) {
+					return thickness(obj.GetDouble());
 				}
-				auto_reverse = json::get_bool_or_default(obj, U"auto_reverse");
-				repeat = json::get_bool_or_default(obj, U"repeat");
-				duration = json::get_double_or_default(obj, U"duration");
-				reverse_duration_scale = json::get_double_or_default(
-					obj, U"reverse_duration_scale", 1.0
-				);
-				mem = obj.FindMember(U"transition");
-				if (mem != obj.MemberEnd()) {
-					if (mem->value.IsString()) {
-						transition_func = visual_manager::get_transition_function(json::get_as_string(mem->value));
+				logger::get().log_warning(CP_HERE, "invalid thickness representation");
+				return thickness();
+			}
+		};
+		template <> struct json_object_parser<vec2d> {
+			inline static vec2d parse(const json::value_t &obj) {
+				if (obj.IsArray() && obj.Size() > 1) {
+					return vec2d(obj[0].GetDouble(), obj[1].GetDouble());
+				}
+				logger::get().log_warning(CP_HERE, "invalid vec2 representation");
+				return vec2d();
+			}
+		};
+
+		class visual_json_parser {
+		public:
+			constexpr static char_t
+				anchor_top_char = U't', anchor_bottom_char = U'b',
+				anchor_left_char = U'l', anchor_right_char = U'r';
+
+			template <typename T> inline static void parse_animation(animation_params<T> &ani, const json::value_t &obj) {
+				if (obj.IsObject()) {
+					json::value_t::ConstMemberIterator mem;
+					mem = obj.FindMember(U"to");
+					if (mem != obj.MemberEnd()) {
+						ani.to = json_object_parser<T>::parse(mem->value);
 					} else {
-						logger::get().log_warning(CP_HERE, "invalid parameter format");
+						logger::get().log_warning(CP_HERE, "no \"to\" property found in animation");
+					}
+					mem = obj.FindMember(U"from");
+					if (mem != obj.MemberEnd()) {
+						ani.has_from = true;
+						ani.from = json_object_parser<T>::parse(mem->value);
+					}
+					json::try_get(obj, U"auto_reverse", ani.auto_reverse);
+					json::try_get(obj, U"repeat", ani.repeat);
+					json::try_get(obj, U"duration", ani.duration);
+					json::try_get(obj, U"reverse_duration_scale", ani.reverse_duration_scale);
+					mem = obj.FindMember(U"transition");
+					if (mem != obj.MemberEnd()) {
+						if (mem->value.IsString()) {
+							ani.transition_func = visual_manager::get_transition_function(json::get_as_string(mem->value));
+						} else {
+							logger::get().log_warning(CP_HERE, "invalid transition function");
+						}
 					}
 				} else {
-					transition_func = linear_transition_func;
+					ani.to = json_object_parser<T>::parse(obj);
 				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid parameter format");
 			}
-		}
+			inline static void parse_animation(animation_params<os::texture> &ani, const json::value_t &obj) {
+				typedef animation_params<os::texture> ani_t;
+				// TODO deferred texture loading
+				bool good = true;
+				if (obj.IsString()) {
+					ani.frames.push_back(ani_t::texture_keyframe(
+						std::make_shared<os::texture>(os::load_image(json::get_as_string(obj))), 0.0
+					));
+				} else if (obj.IsObject()) {
+					auto fs = obj.FindMember(U"frames");
+					if (fs != obj.MemberEnd()) {
+						if (fs->value.IsArray()) {
+							ani.frames.clear();
+							double lastframetime = ani_t::default_frametime;
+							auto beg = fs->value.Begin(), end = fs->value.End();
+							for (auto i = beg; i != end; ++i) {
+								if (i->IsArray()) {
+									if ((*i).Size() >= 2 && (*i)[0].IsString() && (*i)[1].IsNumber()) {
+										double frametime = (*i)[1].GetDouble();
+										ani.frames.push_back(ani_t::texture_keyframe(std::make_shared<os::texture>(
+											os::load_image(json::get_as_string((*i)[0]))
+											), frametime));
+										lastframetime = frametime;
+									} else {
+										good = false;
+									}
+								} else if (i->IsString()) {
+									ani.frames.push_back(ani_t::texture_keyframe(std::make_shared<os::texture>(
+										os::load_image(json::get_as_string(*i))
+										), lastframetime));
+								} else {
+									good = false;
+								}
+							}
+						} else {
+							good = false;
+						}
+					}
+					json::try_get(obj, U"auto_reverse", ani.auto_reverse);
+					json::try_get(obj, U"repeat", ani.repeat);
+					json::try_get(obj, U"reverse_duration_scale", ani.reverse_duration_scale);
+				} else {
+					good = false;
+				}
+				if (!good) {
+					logger::get().log_warning(CP_HERE, "invalid texture animation format");
+				}
+			}
+			inline static void parse_layer(visual_layer &layer, const json::value_t &val) {
+				if (val.IsObject()) {
+					str_t typestr;
+					if (json::try_get(val, U"type", typestr)) {
+						if (typestr == U"solid") {
+							layer.layer_type = visual_layer::type::solid;
+						} else {
+							layer.layer_type = visual_layer::type::grid;
+						}
+					}
+					_find_and_parse(val, U"texture", layer.texture_animation);
+					_find_and_parse(val, U"color", layer.color_animation);
+					_find_and_parse(val, U"size", layer.size_animation);
+					_find_and_parse(val, U"margins", layer.margin_animation);
+					str_t anc;
+					if (json::try_get(val, U"anchor", anc)) {
+						layer.rect_anchor = static_cast<anchor>(get_bitset_from_string<unsigned, anchor>({
+							{U'l', anchor::left},
+							{U't', anchor::top},
+							{U'r', anchor::right},
+							{U'b', anchor::bottom}
+						}, anc));
+					}
+				} else if (val.IsString()) {
+					layer = visual_layer();
+					parse_animation(layer.texture_animation, val);
+					return;
+				} else {
+					logger::get().log_warning(CP_HERE, "invalid layer info");
+				}
+			}
+			inline static void parse_state(visual_provider_state &vs, const json::value_t &val) {
+				if (val.IsArray()) {
+					if (vs._layers.size() < val.Size()) {
+						vs._layers.resize(val.Size());
+					}
+					for (size_t i = 0; i < val.Size(); ++i) {
+						parse_layer(vs._layers[i], val[static_cast<rapidjson::SizeType>(i)]);
+					}
+				} else {
+					logger::get().log_warning(CP_HERE, "state format incorrect");
+				}
+			}
+			inline static void parse_provider(visual_provider &provider, const json::value_t &val) {
+				if (val.IsArray()) {
+					for (auto i = val.Begin(); i != val.End(); ++i) {
+						visual_provider_state vps;
+						visual_state_id id = visual_manager::normal_state;
+						if (i->IsObject()) {
+							json::value_t::ConstMemberIterator fmem;
+							fmem = i->FindMember(U"states");
+							if (fmem != i->MemberEnd()) {
+								id = _parse_vid(fmem->value);
+							}
+							fmem = i->FindMember(U"inherit_from");
+							if (fmem != i->MemberEnd()) {
+								visual_state_id pid = _parse_vid(fmem->value);
+								auto found = provider._states.find(pid);
+								if (found != provider._states.end()) {
+									vps = found->second;
+								} else {
+									logger::get().log_warning(CP_HERE, "invalid inheritance");
+								}
+							}
+							fmem = i->FindMember(U"layers");
+							if (fmem != i->MemberEnd()) {
+								parse_state(vps, fmem->value);
+							}
+						} else {
+							parse_state(vps, *i);
+						}
+						if (!provider._states.insert(std::make_pair(id, std::move(vps))).second) {
+							logger::get().log_warning(CP_HERE, "state registration failed");
+						}
+					}
+				} else {
+					logger::get().log_warning(CP_HERE, "unrecognized skin format");
+				}
+			}
+		protected:
+			template <typename T> inline static void _find_and_parse(
+				const json::value_t &val, const str_t &s, animation_params<T> &p
+			) {
+				auto found = val.FindMember(s.c_str());
+				if (found != val.MemberEnd()) {
+					parse_animation(p, found->value);
+				}
+			}
+			inline static visual_state_id _parse_vid(const json::value_t &val) {
+				if (!val.IsArray()) {
+					return visual_manager::normal_state;
+				}
+				visual_state_id id = visual_manager::normal_state;
+				for (auto j = val.Begin(); j != val.End(); ++j) {
+					id |= visual_manager::get_state_id(json::get_as_string(*j));
+				}
+				return id;
+			}
+		};
 
 		inline visual_provider_state::state visual_provider_state::init_state() const {
 			state res;
-			res.timestamp = visual_manager::cconfig_timestamp();
+			res.timestamp = visual_manager::current_timestamp();
 			for (auto i = _layers.begin(); i != _layers.end(); ++i) {
 				res.layer_states.push_back(i->init_state());
 			}
@@ -747,7 +770,7 @@ namespace codepad {
 		}
 		inline visual_provider_state::state visual_provider_state::init_state(const state &old) const {
 			state res;
-			res.timestamp = visual_manager::cconfig_timestamp();
+			res.timestamp = visual_manager::current_timestamp();
 			auto i = _layers.begin();
 			for (
 				auto j = old.layer_states.begin();
@@ -761,21 +784,19 @@ namespace codepad {
 			}
 			return res;
 		}
-		inline bool visual_provider_state::update(state &s, double dt) const {
-			if (s.timestamp != visual_manager::cconfig_timestamp()) {
+		inline void visual_provider_state::update(state &s, double dt) const {
+			if (s.timestamp != visual_manager::current_timestamp()) {
 				s = init_state();
 			}
 			s.all_stationary = true;
-			bool rerender = false;
 			auto j = s.layer_states.begin();
-			for (auto i = _layers.begin(); i != _layers.end(); ++i) {
+			for (auto i = _layers.begin(); i != _layers.end(); ++i, ++j) {
 				assert_true_usage(j != s.layer_states.end(), "invalid layer state data");
-				rerender = i->update(*j, dt) || rerender;
+				i->update(*j, dt);
 				if (!j->all_stationary) {
 					s.all_stationary = false;
 				}
 			}
-			return rerender;
 		}
 
 		inline void visual_manager::load_config(const json::value_t &val) {
@@ -784,7 +805,7 @@ namespace codepad {
 			reg.providers.clear();
 			for (auto i = val.MemberBegin(); i != val.MemberEnd(); ++i) {
 				visual_provider vp;
-				vp.parse(i->value);
+				visual_json_parser::parse_provider(vp, i->value);
 				assert_true_usage(reg.providers.insert(
 					std::make_pair(json::get_as_string(i->name), std::move(vp))
 				).second, "visual provider registration failed");

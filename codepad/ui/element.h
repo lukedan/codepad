@@ -246,15 +246,15 @@ namespace codepad {
 			void invalidate_layout();
 			void revalidate_layout();
 
-			template <typename T> inline static T *create() {
+			template <typename T, typename ...Args> inline static T *create(Args &&...args) {
 				static_assert(std::is_base_of<element, T>::value, "cannot create non-element");
-				element *elem = new T();
+				element *elem = new T(std::forward<Args>(args)...);
 #ifdef CP_DETECT_LOGICAL_ERRORS
 				++control_dispose_rec::get().reg_created;
 #endif
 				elem->_initialize();
 #ifdef CP_DETECT_USAGE_ERRORS
-				assert_true_usage(elem->_initialized, "element::_initialize() must be called by children classes");
+				assert_true_usage(elem->_initialized, "element::_initialize() must be called by derived classes");
 #endif
 				elem->set_class(T::get_default_class());
 				return static_cast<T*>(elem);
@@ -276,6 +276,14 @@ namespace codepad {
 				} else {
 					clientmin += (clientmax - clientmin - size) * marginmin / (marginmin + marginmax);
 					clientmax = clientmin + size;
+				}
+				if (clientmin > clientmax) {
+					if (!anchormin && !anchormax) {
+						clientmin = clientmax =
+							(clientmin * marginmax + clientmax * marginmin) / (marginmin + marginmax);
+					} else {
+						clientmin = clientmax = 0.5 * (clientmin + clientmax);
+					}
 				}
 			}
 
@@ -307,18 +315,20 @@ namespace codepad {
 			visual_provider::render_state _rst;
 
 			virtual void _on_mouse_enter() {
-				_set_state(visual_manager::default_states().mouse_over, true);
 				mouse_enter.invoke();
+				_set_visual_style_bit(visual_manager::default_states().mouse_over, true);
 			}
 			virtual void _on_mouse_leave() {
-				_set_state(visual_manager::default_states().mouse_over, false);
-				mouse_leave.invoke();
+				mouse_enter.invoke();
+				_set_visual_style_bit(visual_manager::default_states().mouse_over, false);
 			}
 			virtual void _on_got_focus() {
 				got_focus.invoke();
+				_set_visual_style_bit(visual_manager::default_states().focused, true);
 			}
 			virtual void _on_lost_focus() {
 				lost_focus.invoke();
+				_set_visual_style_bit(visual_manager::default_states().focused, false);
 			}
 			virtual void _on_mouse_move(mouse_move_info &p) {
 				mouse_move.invoke(p);
@@ -326,6 +336,7 @@ namespace codepad {
 			virtual void _on_mouse_down(mouse_button_info&);
 			virtual void _on_mouse_up(mouse_button_info &p) {
 				mouse_up.invoke(p);
+				_set_visual_style_bit(visual_manager::default_states().mouse_down, false);
 			}
 			virtual void _on_mouse_scroll(mouse_scroll_info &p) {
 				mouse_scroll.invoke(p);
@@ -340,6 +351,11 @@ namespace codepad {
 				keyboard_text.invoke(p);
 			}
 
+			void _set_visual_style_bit(visual_state_id id, bool v) {
+				_rst.set_state_bit(id, v);
+				_on_visual_state_changed();
+			}
+
 			virtual void _on_padding_changed() {
 				invalidate_visual();
 			}
@@ -350,27 +366,14 @@ namespace codepad {
 			virtual void _on_update() {
 			}
 
-			virtual void _set_state(visual_state_id sid, bool set) {
-				_rst.set_state_bit(sid, set);
+			virtual void _on_visual_state_changed() {
 				invalidate_visual();
 			}
 
 			virtual void _on_prerender() {
-				texture_brush(has_focus() ? colord(0.0, 1.0, 0.0, 0.02) : colord(1.0, 1.0, 1.0, 0.02)).fill_rect(get_layout());
-				pen p(has_focus() ? colord(0.0, 1.0, 0.0, 1.0) : colord(1.0, 1.0, 1.0, 0.3));
-				std::vector<vec2d> lines;
-				lines.push_back(get_layout().xmin_ymin());
-				lines.push_back(get_layout().xmax_ymin());
-				lines.push_back(get_layout().xmin_ymin());
-				lines.push_back(get_layout().xmin_ymax());
-				lines.push_back(get_layout().xmax_ymax());
-				lines.push_back(get_layout().xmin_ymax());
-				lines.push_back(get_layout().xmax_ymax());
-				lines.push_back(get_layout().xmax_ymin());
-				p.draw_lines(lines);
 				os::renderer_base::get().push_clip(_layout.minimum_bounding_box<int>());
 			}
-			virtual void _custom_render() const {
+			virtual void _custom_render() {
 			}
 			virtual void _on_postrender() {
 				os::renderer_base::get().pop_clip();

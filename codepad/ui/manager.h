@@ -43,8 +43,9 @@ namespace codepad {
 				_upd.insert(&e);
 			}
 			void update_scheduled_elements() {
-				_lasttp = _now;
-				_now = std::chrono::high_resolution_clock::now();
+				auto nnow = std::chrono::high_resolution_clock::now();
+				_dt = std::chrono::duration<double>(nnow - _now).count();
+				_now = nnow;
 				if (!_upd.empty()) {
 					std::set<element*> list;
 					std::swap(list, _upd);
@@ -54,7 +55,7 @@ namespace codepad {
 				}
 			}
 			double delta_time() const {
-				return std::chrono::duration<double>(_now - _lasttp).count();
+				return _dt;
 			}
 
 			// may be called on one element multiple times before the element's disposed
@@ -114,7 +115,8 @@ namespace codepad {
 			// focus
 			element *_focus = nullptr;
 			// scheduled controls to update
-			std::chrono::time_point<std::chrono::high_resolution_clock> _lasttp, _now;
+			std::chrono::time_point<std::chrono::high_resolution_clock> _now;
+			double _dt = 0.0;
 			std::set<element*> _upd;
 			// scheduled controls to delete
 			std::set<element*> _del;
@@ -138,19 +140,17 @@ namespace codepad {
 				p.mark_focus_set();
 				manager::get().set_focus(this);
 			}
+			_set_visual_style_bit(visual_manager::default_states().mouse_down, true);
 		}
 		inline void element::_on_render() {
-			if (!_rst.stationary()) {
-				_rst.update(manager::get().delta_time());
-			}
 			if (test_bit_all(_vis, visibility::render_only)) {
 				_on_prerender();
+				if (_rst.update_and_render(manager::get().delta_time(), get_layout())) {
+					invalidate_visual();
+				}
 				_rst.render(get_layout());
 				_custom_render();
 				_on_postrender();
-			}
-			if (!_rst.stationary()) {
-				invalidate_visual();
 			}
 		}
 	}

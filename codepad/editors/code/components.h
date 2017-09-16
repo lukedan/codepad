@@ -22,7 +22,7 @@ namespace codepad {
 					return U"line_number";
 				}
 			protected:
-				void _custom_render() const override {
+				void _custom_render() override {
 					editor *editor = _get_editor();
 					double lh = editor->get_line_height();
 					std::pair<size_t, size_t> be = editor->get_visible_lines();
@@ -67,13 +67,6 @@ namespace codepad {
 						), 0.0);
 				}
 
-				inline static void set_viewport_brush(const ui::basic_brush *b) {
-					_viewport_brush = b;
-				}
-				inline static const ui::basic_brush *get_viewport_brush() {
-					return _viewport_brush;
-				}
-
 				inline static double get_scale() {
 					return _target_height / editor::get_font().maximum_height();
 				}
@@ -87,6 +80,9 @@ namespace codepad {
 
 				inline static str_t get_default_class() {
 					return U"minimap";
+				}
+				inline static str_t get_viewport_class() {
+					return U"minimap_viewport";
 				}
 			protected:
 				struct _page_cache {
@@ -249,7 +245,7 @@ namespace codepad {
 					}
 					component::_on_prerender();
 				}
-				void _custom_render() const override {
+				void _custom_render() override {
 					std::pair<size_t, size_t> vlines = _get_visible_lines_folded();
 					double slh = _get_editor()->get_line_height() * get_scale();
 					rectd clnrgn = get_client_region();
@@ -263,8 +259,8 @@ namespace codepad {
 						crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_texture().get_height());
 						os::renderer_base::get().draw_quad(i->second.get_texture(), crgn, rectd(0.0, 1.0, 0.0, 1.0), colord());
 					}
-					if (_viewport_brush != nullptr) {
-						_viewport_brush->fill_rect(_get_viewport_rect());
+					if (_vrgnst.update_and_render(ui::manager::get().delta_time(), _get_clamped_viewport_rect())) {
+						invalidate_visual();
 					}
 				}
 
@@ -289,12 +285,22 @@ namespace codepad {
 						e->get_client_region().width() * get_scale(), get_client_region().height() * get_scale()
 					);
 				}
+				rectd _get_clamped_viewport_rect() const {
+					rectd r = _get_viewport_rect();
+					r.xmax = std::min(r.xmax, get_client_region().xmax);
+					return r;
+				}
 				std::pair<size_t, size_t> _get_visible_lines_folded() const {
 					const editor *editor = _get_editor();
 					double lh = editor->get_line_height() * get_scale(), ys = _get_y_offset();
 					return std::make_pair(static_cast<size_t>(ys / lh), std::min(static_cast<size_t>(
 						std::max(ys + get_client_region().height(), 0.0) / lh
 						) + 1, editor->get_num_lines_with_folding()));
+				}
+
+				void _on_visual_state_changed() override {
+					_vrgnst.set_state(_rst.get_state());
+					component::_on_visual_state_changed();
 				}
 
 				void _on_added() override {
@@ -368,13 +374,18 @@ namespace codepad {
 					component::_on_capture_lost();
 				}
 
+				void _initialize() override {
+					component::_initialize();
+					_vrgnst.set_class(get_viewport_class());
+				}
+
 				_page_cache _pgcache{this};
-				bool _dragging = false, _cachevalid = true;
-				double _dragoffset = 0.0;
 				event<void>::token _vc_tok, _fold_tok;
 				event<value_update_info<double>>::token _vpos_tok;
+				ui::visual_provider::render_state _vrgnst;
+				double _dragoffset = 0.0;
+				bool _dragging = false, _cachevalid = true;
 
-				static const ui::basic_brush *_viewport_brush;
 				static double _target_height;
 			};
 		}

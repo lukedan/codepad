@@ -60,6 +60,7 @@ namespace codepad {
 				case mouse_button::middle:
 					return _details::is_key_down_id(VK_MBUTTON);
 				}
+				return false; // shouldn't happen
 			}
 
 			inline vec2i get_mouse_position() {
@@ -72,7 +73,7 @@ namespace codepad {
 			}
 		}
 
-		namespace _helper {
+		namespace _details {
 			struct com_usage {
 				com_usage() {
 					HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -131,7 +132,7 @@ namespace codepad {
 			static wic_image_loader &get();
 		protected:
 			IWICImagingFactory *_factory = nullptr;
-			_helper::com_usage _uses_com;
+			_details::com_usage _uses_com;
 		};
 		inline texture load_image(renderer_base &r, const str_t &filename) {
 			return wic_image_loader::get().load_image(r, filename);

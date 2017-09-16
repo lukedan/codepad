@@ -1,6 +1,7 @@
 .vs/
+.idea/
+.vscode/
 Debug/
 Release/
 codepad/Debug/
 codepad/Release/
-.idea/

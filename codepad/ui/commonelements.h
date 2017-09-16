@@ -141,7 +141,7 @@ namespace codepad {
 				return U"label";
 			}
 		protected:
-			void _custom_render() const override {
+			void _custom_render() override {
 				_content.render();
 			}
 
@@ -275,7 +275,7 @@ namespace codepad {
 			friend class scroll_bar;
 		public:
 			inline static str_t get_default_class() {
-				return U"scroll_bar_drag_button";
+				return U"scrollbar_drag_button";
 			}
 		protected:
 			scroll_bar *_get_bar() const;
@@ -351,7 +351,13 @@ namespace codepad {
 			event<value_update_info<double>> value_changed;
 
 			inline static str_t get_default_class() {
-				return U"scroll_bar";
+				return U"scrollbar";
+			}
+			inline static str_t get_page_up_button_class() {
+				return U"scrollbar_page_up_button";
+			}
+			inline static str_t get_page_down_button_class() {
+				return U"scrollbar_page_down_button";
 			}
 		protected:
 			orientation _ori = orientation::vertical;
@@ -387,6 +393,7 @@ namespace codepad {
 				_pgup = element::create<button>();
 				_pgup->set_trigger_type(button_base::trigger_type::mouse_down);
 				_pgup->set_can_focus(false);
+				_pgup->set_class(get_page_up_button_class());
 				_pgup->click += [this]() {
 					set_value(get_value() - get_visible_range());
 				};
@@ -394,6 +401,7 @@ namespace codepad {
 				_pgdn = element::create<button>();
 				_pgdn->set_trigger_type(button_base::trigger_type::mouse_down);
 				_pgdn->set_can_focus(false);
+				_pgdn->set_class(get_page_down_button_class());
 				_pgdn->click += [this]() {
 					set_value(get_value() + get_visible_range());
 				};
