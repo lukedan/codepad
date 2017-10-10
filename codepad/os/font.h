@@ -31,7 +31,7 @@ namespace codepad {
 			font &operator=(font&&) = delete;
 			virtual ~font() = default;
 
-			virtual const entry &get_char_entry(char_t) const = 0;
+			virtual const entry &get_char_entry(char32_t) const = 0;
 
 			double get_max_width_charset(const str_t &s) const {
 				double maxw = 0.0;
@@ -44,7 +44,7 @@ namespace codepad {
 			virtual double height() const = 0;
 			virtual double max_width() const = 0;
 			virtual double baseline() const = 0;
-			virtual vec2d get_kerning(char_t, char_t) const = 0;
+			virtual vec2d get_kerning(char32_t, char32_t) const = 0;
 		};
 
 		class freetype_font_base : public font {
@@ -58,7 +58,7 @@ namespace codepad {
 				std::free(_data);
 			}
 
-			const entry &get_char_entry(char_t c) const override {
+			const entry &get_char_entry(char32_t c) const override {
 				auto found = _map.find(c);
 				if (found == _map.end()) {
 					_ft_verify(FT_Load_Char(_face, c, FT_LOAD_DEFAULT | FT_LOAD_RENDER));
@@ -86,7 +86,7 @@ namespace codepad {
 			double baseline() const override {
 				return static_cast<double>(_face->size->metrics.ascender) * _ft_fixed_scale;
 			}
-			vec2d get_kerning(char_t left, char_t right) const override {
+			vec2d get_kerning(char32_t left, char32_t right) const override {
 				FT_Vector v;
 				_ft_verify(FT_Get_Kerning(_face, FT_Get_Char_Index(_face, left), FT_Get_Char_Index(_face, right), FT_KERNING_UNFITTED, &v));
 				return vec2d(static_cast<double>(v.x), static_cast<double>(v.y)) * _ft_fixed_scale;
@@ -95,7 +95,7 @@ namespace codepad {
 			constexpr static double _ft_fixed_scale = 1.0 / 64.0;
 
 			FT_Face _face = nullptr;
-			mutable std::unordered_map<char_t, entry> _map;
+			mutable std::unordered_map<char32_t, entry> _map;
 			void *_data = nullptr;
 
 			inline static void _ft_verify(FT_Error code) {

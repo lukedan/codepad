@@ -1,87 +1,17 @@
 #pragma once
 
 #include "codebox.h"
+#include "buffer.h"
 
 namespace codepad {
 	namespace editor {
 		namespace code {
-			enum class line_ending : char_t {
-				none,
-				r,
-				n,
-				rn
-			};
-		}
-	}
-	template <> inline str_t to_str<editor::code::line_ending>(editor::code::line_ending le) {
-		switch (le) {
-		case editor::code::line_ending::r:
-			return U"\r";
-		case editor::code::line_ending::n:
-			return U"\n";
-		case editor::code::line_ending::rn:
-			return U"\r\n";
-		default:
-			return U"";
-		}
-	}
-	namespace editor {
-		namespace code {
 			class editor;
 
-			typedef vec2<int> caret_position_diff;
-			struct caret_position {
-				constexpr caret_position() = default;
-				constexpr caret_position(size_t l, size_t c) : line(l), column(c) {
-				}
+			using caret_position = size_t;
+			using caret_position_diff = std::conditional_t<sizeof(size_t) == 4, int, long long>;
+			using caret_selection = std::pair<caret_position, caret_position>;
 
-				size_t line = 0, column = 0;
-
-				friend bool operator<(caret_position p1, caret_position p2) {
-					return p1.line == p2.line ? p1.column < p2.column : p1.line < p2.line;
-				}
-				friend bool operator>(caret_position p1, caret_position p2) {
-					return p2 < p1;
-				}
-				friend bool operator<=(caret_position p1, caret_position p2) {
-					return !(p2 < p1);
-				}
-				friend bool operator>=(caret_position p1, caret_position p2) {
-					return !(p1 < p2);
-				}
-				friend bool operator==(caret_position p1, caret_position p2) {
-					return p1.line == p2.line && p1.column == p2.column;
-				}
-				friend bool operator!=(caret_position p1, caret_position p2) {
-					return !(p1 == p2);
-				}
-
-				friend caret_position_diff operator-(caret_position lhs, caret_position rhs) {
-					return caret_position_diff(
-						unsigned_diff<int>(lhs.column, rhs.column), unsigned_diff<int>(lhs.line, rhs.line)
-					);
-				}
-				caret_position &operator+=(caret_position_diff d) {
-					line = add_unsigned_diff(line, d.y);
-					column = add_unsigned_diff(column, d.x);
-					return *this;
-				}
-				friend caret_position operator+(caret_position lhs, caret_position_diff rhs) {
-					return lhs += rhs;
-				}
-				friend caret_position operator+(caret_position_diff lhs, caret_position rhs) {
-					return rhs += lhs;
-				}
-				caret_position &operator-=(caret_position_diff d) {
-					line = subtract_unsigned_diff(line, d.y);
-					column = subtract_unsigned_diff(column, d.x);
-					return *this;
-				}
-				friend caret_position operator-(caret_position lhs, caret_position_diff rhs) {
-					return lhs -= rhs;
-				}
-			};
-			typedef std::pair<caret_position, caret_position> caret_selection;
 			struct caret_data {
 				caret_data() = default;
 				explicit caret_data(double align) : alignment(align) {
@@ -89,10 +19,10 @@ namespace codepad {
 				double alignment = 0.0;
 			};
 			struct caret_set {
-				typedef std::map<caret_selection, caret_data> container;
-				typedef std::pair<caret_selection, caret_data> entry;
-				typedef container::iterator iterator;
-				typedef container::const_iterator const_iterator;
+				using container = std::map<caret_selection, caret_data>;
+				using entry = std::pair<caret_selection, caret_data>;
+				using iterator = container::iterator;
+				using const_iterator = container::const_iterator;
 
 				container carets;
 
@@ -105,7 +35,7 @@ namespace codepad {
 
 				void reset() {
 					carets.clear();
-					carets.insert(std::make_pair(std::make_pair(caret_position(), caret_position()), caret_data(0.0)));
+					carets.insert(entry(caret_selection(caret_position(), caret_position()), caret_data(0.0)));
 				}
 
 				inline static container::iterator add_caret(container &mp, entry c) {
@@ -182,11 +112,11 @@ namespace codepad {
 				bool
 					caret_front_before = false, selected_before = false,
 					caret_front_after = false, selected_after = false;
-				str_t removed_content, added_content;
-				caret_position_diff removed_range, added_range;
-				caret_position position; // position after previous modifications
+				string_buffer::string_type removed_content, added_content;
+				caret_position_diff removed_range{}, added_range{};
+				caret_position position{}; // position after previous modifications
 			};
-			typedef std::vector<modification> edit;
+			using edit = std::vector<modification>;
 
 			struct modification_positions {
 				modification_positions() = default;
@@ -197,10 +127,10 @@ namespace codepad {
 					removed_range(rem), added_range(add), position(p) {
 				}
 
-				caret_position_diff removed_range, added_range;
-				caret_position position;
+				caret_position_diff removed_range{}, added_range{};
+				caret_position position{};
 			};
-			struct caret_fixup_info { // TODO rework this part
+			struct caret_fixup_info {
 			public:
 				struct context {
 					context() = default;
@@ -208,16 +138,11 @@ namespace codepad {
 					}
 
 					void append_custom_modification(modification_positions mpos) {
-						if (mpos.position.line != curline || mpos.removed_range.y != 0) {
-							diff.x = 0;
-						}
 						diff += mpos.added_range - mpos.removed_range;
-						curline = mpos.position.line + static_cast<size_t>(mpos.added_range.y);
 					}
 
 					std::vector<modification_positions>::const_iterator next;
-					size_t curline = 0;
-					caret_position_diff diff;
+					caret_position_diff diff{};
 				};
 
 				caret_fixup_info() = default;
@@ -257,52 +182,18 @@ namespace codepad {
 					return cp;
 				}
 				caret_position fixup_caret_custom_context(caret_position cp, const context &ctx) const {
-					return _fix_raw(cp, ctx.diff, ctx.curline);
+					return _fix_raw(cp, ctx.diff);
 				}
 				caret_position fixup_caret_with_mod(caret_position cp, const modification_positions &mod) const {
-					return _fix_raw(
-						cp, mod.added_range - mod.removed_range,
-						mod.position.line + static_cast<size_t>(mod.added_range.y)
-					);
+					return _fix_raw(cp, mod.added_range - mod.removed_range);
 				}
 
 				std::vector<modification_positions> mods;
 			protected:
-				caret_position _fix_raw(caret_position cp, caret_position_diff diff, size_t line) const {
-					cp.line = add_unsigned_diff(cp.line, diff.y);
-					if (cp.line == line) {
-						cp.column = add_unsigned_diff(cp.column, diff.x);
-					}
-					return cp;
+				caret_position _fix_raw(caret_position cp, caret_position_diff diff) const {
+					return cp + diff;
 				}
 			};
-
-			template <typename Cb> inline void convert_to_lines(const str_t &s, const Cb &callback) {
-				char_t last = U'\0';
-				size_t lasti = 0;
-				for (size_t i = 0; i < s.length(); ++i) {
-					char_t cur = s[i];
-					if (last == U'\r') {
-						if (cur == U'\n') {
-							callback(s.substr(lasti, i - lasti - 1), line_ending::rn);
-							lasti = i + 1;
-						} else {
-							callback(s.substr(lasti, i - lasti - 1), line_ending::r);
-							lasti = i;
-						}
-					} else if (cur == U'\n') {
-						callback(s.substr(lasti, i - lasti), line_ending::n);
-						lasti = i + 1;
-					}
-					last = cur;
-				}
-				if (last == U'\r') {
-					callback(s.substr(lasti, s.size() - lasti - 1), line_ending::r);
-					callback(str_t(), line_ending::none);
-				} else {
-					callback(s.substr(lasti), line_ending::none);
-				}
-			}
 
 			enum class text_theme_parameter {
 				style,
@@ -317,18 +208,18 @@ namespace codepad {
 			};
 			template <typename T> class text_theme_parameter_info {
 			public:
-				typedef typename std::map<caret_position, T>::iterator iterator;
-				typedef typename std::map<caret_position, T>::const_iterator const_iterator;
+				using iterator = typename std::map<caret_position, T>::iterator;
+				using const_iterator = typename std::map<caret_position, T>::const_iterator;
 
 				text_theme_parameter_info() : text_theme_parameter_info(T()) {
 				}
 				explicit text_theme_parameter_info(T def) {
-					_changes.emplace(std::make_pair(caret_position(0, 0), std::move(def)));
+					_changes.emplace(std::make_pair(caret_position(), std::move(def)));
 				}
 
 				void clear(T def) {
 					_changes.clear();
-					_changes[caret_position(0, 0)] = def;
+					_changes[caret_position()] = def;
 				}
 				void set_range(caret_position s, caret_position pe, T c) {
 					assert_true_usage(s < pe, "invalid range");
@@ -435,94 +326,100 @@ namespace codepad {
 
 			class text_context {
 			public:
+				struct iterator {
+					friend class text_context;
+				public:
+					iterator() = default;
+
+					char32_t current_character() const {
+						return _cit.current_codepoint();
+					}
+					bool current_good() const {
+						return _cit.current_good();
+					}
+
+					iterator &operator++() {
+						if (is_linebreak()) {
+							for (size_t i = linebreak_registry::get_linebreak_length(_lbit->ending); i > 0; --i) {
+								++_cit;
+							}
+							++_lbit;
+							_col = 0;
+						} else {
+							++_cit;
+							++_col;
+						}
+						return *this;
+					}
+					iterator operator++(int) {
+						iterator oldv;
+						++*this;
+						return oldv;
+					}
+
+					size_t get_column() const {
+						return _col;
+					}
+					size_t get_line_length() const {
+						return _lbit->nonbreak_chars;
+					}
+
+					// EOF is also treated as a linebreak
+					bool is_linebreak() const {
+						return _lbit == _lbit.get_container()->end() || _col == _lbit->nonbreak_chars;
+					}
+					bool is_end() const {
+						return _cit.is_end();
+					}
+				protected:
+					iterator(string_buffer::codepoint_iterator c, linebreak_registry::iterator lb, size_t col) :
+						_cit(c), _lbit(lb), _col(col) {
+						if (_lbit == _lbit.get_container()->end() && _lbit != _lbit.get_container()->begin()) {
+							--_lbit;
+							_col = _lbit->nonbreak_chars;
+						}
+					}
+
+					string_buffer::codepoint_iterator _cit;
+					linebreak_registry::iterator _lbit;
+					size_t _col = 0;
+				};
+
 				void clear() {
-					_blocks.clear();
+					_str.clear();
+					_lbr.clear();
 				}
 
-				void load_from_file(const str_t &fn, size_t buffer_size = 32768) {
-					assert_true_usage(buffer_size > 1, "buffer size must be greater than one");
-					auto begt = std::chrono::high_resolution_clock::now();
-					std::list<line> ls;
-					u8str_t ss;
-					{
-						char *buffer = static_cast<char*>(std::malloc(sizeof(char) * buffer_size));
-						std::ifstream fin(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
-						while (fin) {
-							fin.read(buffer, buffer_size - 1);
-							buffer[fin.gcount()] = '\0';
-							ss.append(reinterpret_cast<unsigned char*>(buffer));
-						}
-						std::free(buffer);
-					}
-					auto midt = std::chrono::high_resolution_clock::now();
-					logger::get().log_info(
-						CP_HERE, "read text file cost ",
-						std::chrono::duration<double, std::milli>(midt - begt).count(), "ms"
-					);
-					auto s2 = utf8_to_utf32(ss);
-					auto mid2t = std::chrono::high_resolution_clock::now();
-					logger::get().log_info(
-						CP_HERE, "decoding cost ",
-						std::chrono::duration<double, std::milli>(mid2t - midt).count(), "ms"
-					);
-					convert_to_lines(s2, std::bind(
-						&text_context::_append_line, this,
-						std::placeholders::_1, std::placeholders::_2
-					));
-					auto endt = std::chrono::high_resolution_clock::now();
-					logger::get().log_info(
-						CP_HERE, "converting to lines cost ",
-						std::chrono::duration<double, std::milli>(endt - mid2t).count(), "ms"
-					);
+				void load_from_file(const str_t &fn) {
+					logger::get().log_info(CP_HERE, "starting to load file...");
+					clear();
+					std::ifstream fin(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
+					fin.seekg(0, std::ios::end);
+					std::streampos len = fin.tellg();
+					fin.seekg(0, std::ios::beg);
+					char8_t *cs = static_cast<char8_t*>(std::malloc(len));
+					fin.read(reinterpret_cast<char*>(cs), len);
+					logger::get().log_info(CP_HERE, "read complete");
+					insert_text(0, cs, cs + len);
+					std::free(cs);
+					logger::get().log_info(CP_HERE, "decode & format complete, load complete");
 				}
 				void save_to_file(const str_t &fn) const {
-					str_t result;
-					for (auto it = begin(); it != end(); ++it) {
-#ifdef CP_DETECT_LOGICAL_ERRORS
-						auto nit = it;
-						assert_true_logical(
-							((++nit) == end()) == (it->ending_type == line_ending::none),
-							"invalid line ending encountered"
-						);
-#endif
-						result.append(it->content);
-						switch (it->ending_type) {
-						case line_ending::n:
-							result.append(U"\n");
-							break;
-						case line_ending::r:
-							result.append(U"\r");
-							break;
-						case line_ending::rn:
-							result.append(U"\r\n");
-							break;
-						case line_ending::none: // nothing to do
-							break;
-						}
-					}
-					std::string utf8str(reinterpret_cast<const char*>(convert_to_utf8(result).c_str()));
-					std::ofstream fout(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
-					fout.write(utf8str.c_str(), utf8str.length());
+					// TODO
 				}
 
 				void auto_set_default_line_ending() {
-					size_t n[3] = {0, 0, 0};
-					for (auto i = begin(); i != end(); ++i) {
-						if (i->ending_type != line_ending::none) {
-							++n[static_cast<int>(i->ending_type) - 1];
+					size_t n[3]{};
+					for (auto i = _lbr.begin(); i != _lbr.end(); ++i) {
+						if (i->ending != line_ending::none) {
+							++n[static_cast<int>(i->ending) - 1];
 						}
-#ifdef CP_DETECT_LOGICAL_ERRORS
-						if (i->ending_type == line_ending::none) {
-							auto ni = i;
-							assert_true_logical((++ni) == end(), "invalid ending type encountered");
-						}
-#endif
 					}
-					_le = static_cast<line_ending>(n[0] > n[1] && n[0] > n[2] ? 1 : (n[1] > n[2] ? 2 : 3));
-					logger::get().log_info(CP_HERE, "\\r ", n[0], ", \\n ", n[1], ", \\r\\n ", n[2], ", selected ", static_cast<int>(_le));
+					std::ptrdiff_t choice = std::max_element(n, n + 3) - n;
+					logger::get().log_info(CP_HERE, "choosing line ending r: ", n[0], " n: ", n[1], " rn: ", n[2], " chose ", choice);
+					set_default_line_ending(static_cast<line_ending>(choice + 1));
 				}
 				void set_default_line_ending(line_ending l) {
-					assert_true_usage(l != line_ending::none, "invalid line ending");
 					_le = l;
 				}
 				line_ending get_default_line_ending() const {
@@ -537,245 +434,76 @@ namespace codepad {
 					return _tab_w;
 				}
 
-				struct line {
-					line() = default;
-					line(str_t c, line_ending t) : content(std::move(c)), ending_type(t) {
-					}
-					str_t content;
-					line_ending ending_type;
-				};
-				struct block {
-					constexpr static size_t advised_lines = 1000;
-					std::list<line> lines;
-				};
-
-				template <typename CtxC, typename BlkIt, typename LnIt> struct line_iterator_base {
-					friend class text_context;
-				public:
-					line_iterator_base() = default;
-					template <typename NCtxC, typename NBlkIt, typename NLnIt> line_iterator_base(
-						const line_iterator_base<NCtxC, NBlkIt, NLnIt> &oit
-					) : _ctx(oit._ctx), _block(oit._block), _line(oit._line) {
-					}
-
-					typename LnIt::reference operator*() const {
-						return *_line;
-					}
-					typename LnIt::pointer operator->() const {
-						return &*_line;
-					}
-
-					line_iterator_base &operator++() {
-						if ((++_line) == _block->lines.end()) {
-							if ((++_block) == _ctx->_blocks.end()) {
-								_line = LnIt();
-							} else {
-								_line = _block->lines.begin();
-							}
-						}
-						return *this;
-					}
-					line_iterator_base operator++(int) {
-						line_iterator_base tmp = *this;
-						++*this;
-						return tmp;
-					}
-					line_iterator_base &operator--() {
-						if (_block == _ctx->_blocks.end() || _line == _block->lines.begin()) {
-							--_block;
-							_line = _block->lines.end();
-						}
-						--_line;
-						return *this;
-					}
-					line_iterator_base operator--(int) {
-						line_iterator_base tmp = *this;
-						--*this;
-						return tmp;
-					}
-
-					friend bool operator==(const line_iterator_base &l1, const line_iterator_base &l2) {
-						return l1._block == l2._block && l1._line == l2._line;
-					}
-					friend bool operator!=(const line_iterator_base &l1, const line_iterator_base &l2) {
-						return !(l1 == l2);
-					}
-				protected:
-					line_iterator_base(CtxC &ctx, BlkIt bk, LnIt l) : _ctx(&ctx), _block(bk), _line(l) {
-					}
-
-					CtxC *_ctx = nullptr;
-					BlkIt _block;
-					LnIt _line;
-				};
-				typedef line_iterator_base<text_context, std::list<block>::iterator, std::list<line>::iterator> line_iterator;
-				typedef line_iterator_base<const text_context, std::list<block>::const_iterator, std::list<line>::const_iterator> const_line_iterator;
-
-				line_iterator at(size_t v) {
-					return _at_impl<line_iterator>(*this, v);
-				}
-				const_line_iterator at(size_t v) const {
-					return _at_impl<const_line_iterator>(*this, v);
-				}
-				line_iterator begin() {
-					return line_iterator(*this, _blocks.begin(), _blocks.begin()->lines.begin());
-				}
-				const_line_iterator begin() const {
-					return const_line_iterator(*this, _blocks.begin(), _blocks.begin()->lines.begin());
-				}
-				line_iterator end() {
-					return line_iterator(*this, _blocks.end(), std::list<line>::iterator());
-				}
-				const_line_iterator end() const {
-					return const_line_iterator(*this, _blocks.end(), std::list<line>::const_iterator());
-				}
-
-				// TODO splinter_block
-				line_iterator insert(line_iterator it, line l) {
-					it._line = it._block->lines.insert(it._line, std::move(l));
-					return it;
-				}
-				line_iterator insert_after(line_iterator it, line l) {
-					++it._line;
-					it._line = it._block->lines.insert(it._line, std::move(l));
-					return it;
-				}
-				line_iterator erase(line_iterator it) {
-					_do_erase(it++);
-					return it;
+				iterator at_char(caret_position pos) const {
+					auto pr = _lbr.get_line_and_column_and_codepoint_of_char(pos);
+					return iterator(_str.at_codepoint_iterator(std::get<3>(pr)), std::get<0>(pr), std::get<2>(pr));
 				}
 
 				size_t num_lines() const {
-					size_t res = 0;
-					for (auto i = _blocks.begin(); i != _blocks.end(); ++i) {
-						res += i->lines.size();
-					}
-					return res;
+					return _lbr.num_linebreaks() + 1;
 				}
 
-				str_t substr(caret_position beg, caret_position end) const {
-					assert_true_usage(end >= beg, "invalid range");
-					if (beg.line == end.line) {
-						auto lit = at(beg.line);
-						return lit->content.substr(beg.column, end.column - beg.column);
-					}
-					str_t res;
-					auto lit = at(beg.line);
-					res.append(lit->content.substr(beg.column)).append(to_str(lit->ending_type));
-					++lit;
-					for (size_t cl = beg.line + 1; cl < end.line; ++cl, ++lit) {
-						res.append(lit->content).append(to_str(lit->ending_type));
-					}
-					return res.append(lit->content.substr(0, end.column));
+				string_buffer::string_type substring(caret_position beg, caret_position end) const {
+					return _str.substring(
+						_str.at_codepoint_iterator(_lbr.position_char_to_codepoint(beg)),
+						_str.at_codepoint_iterator(_lbr.position_char_to_codepoint(end))
+					);
 				}
 
 				// modification made by these functions will neither invoke modified nor be recorded
-				caret_position insert_text(caret_position cp, const str_t &s) {
-					return cp + insert_text(at(cp.line), cp.column, s).first;
-				}
-				std::pair<caret_position_diff, line_iterator> insert_text(line_iterator it, size_t col, const str_t &s) {
-					bool first = true;
-					str_t secondpart = it->content.substr(col);
-					line_ending ole = it->ending_type;
-					it->content = it->content.substr(0, col);
-					caret_position_diff rdiff;
-					convert_to_lines(s, [&](str_t cline, line_ending le) {
-						if (first) {
-							it->content += cline;
-							it->ending_type = le;
-							first = false;
-						} else {
-							it = insert_after(it, line(std::move(cline), le));
-							++rdiff.y;
+				template <typename Iter> caret_position_diff insert_text(caret_position cp, Iter beg, Iter end) {
+					codepoint_iterator_base<Iter> it(beg, end);
+					auto pos = _lbr.get_line_and_column_and_codepoint_of_char(cp);
+					char32_t last = U'\0';
+					std::vector<linebreak_registry::line_info> lines;
+					linebreak_registry::line_info curl;
+					caret_position_diff totchars = 0;
+					_str.insert(_str.at_codepoint_iterator(std::get<3>(pos)), [&](char32_t &c) {
+						if (it.at_end()) {
+							return false;
 						}
+						c = it.current_codepoint();
+						if (c == U'\n' || last == U'\r') {
+							if (c == U'\n') {
+								curl.ending = last == U'\r' ? line_ending::rn : line_ending::n;
+							} else {
+								curl.ending = line_ending::r;
+							}
+							totchars += curl.nonbreak_chars + 1;
+							lines.push_back(curl);
+							curl = linebreak_registry::line_info();
+						}
+						if (c != U'\r' && c != U'\n') {
+							++curl.nonbreak_chars;
+						}
+						last = c;
+						++it;
+						return true;
 					});
-					rdiff.x = unsigned_diff<int>(it->content.length(), col);
-					it->content += secondpart;
-					it->ending_type = ole;
-					return std::make_pair(rdiff, it);
-				}
-				void insert_char_nonnewline(caret_position cp, char_t c) {
-					insert_char_nonnewline(at(cp.line), cp.column, c);
-				}
-				void insert_char_nonnewline(line_iterator it, size_t col, char_t c) {
-					assert_true_usage(!is_newline(c), "to insert new lines, call insert_newline");
-					it->content.insert(col, 1, c);
-				}
-				void insert_newline(caret_position cp, line_ending le = line_ending::none) {
-					insert_newline(at(cp.line), cp.column, le);
-				}
-				void insert_newline(line_iterator it, size_t col, line_ending le = line_ending::none) {
-					if (le == line_ending::none) {
-						le = _le;
+					if (last == U'\r') {
+						curl.ending = line_ending::r;
+						totchars += curl.nonbreak_chars + 1;
+						lines.push_back(curl);
+						curl = linebreak_registry::line_info();
 					}
-					insert_after(it, line(it->content.substr(col), it->ending_type));
-					it->content = it->content.substr(0, col);
-					it->ending_type = le;
+					totchars += curl.nonbreak_chars;
+					lines.push_back(curl);
+					_lbr.insert_chars(std::get<0>(pos), std::get<2>(pos), std::move(lines));
+					return totchars;
 				}
-				void insert_char(caret_position cp, char_t c) {
-					if (is_newline(c)) {
-						insert_newline(cp);
-					} else {
-						insert_char_nonnewline(cp, c);
-					}
-				}
-				void insert_char(line_iterator it, size_t col, char_t c) {
-					if (is_newline(c)) {
-						insert_newline(it, col);
-					} else {
-						insert_char_nonnewline(it, col, c);
-					}
+				caret_position_diff insert_text(caret_position cp, const string_buffer::string_type &str) {
+					return insert_text(cp, str.begin(), str.end());
 				}
 
-				size_t delete_text(caret_position p1, caret_position p2) {
-					return delete_text(at(p1.line), p1.column, p2 - p1);
-				}
-				size_t delete_text(line_iterator beg, size_t bcol, caret_position_diff diff) {
-					if (diff.y == 0) {
-						beg->content = beg->content.substr(0, bcol) + beg->content.substr(bcol + diff.x);
-						return static_cast<size_t>(diff.x);
-					}
-					size_t res = add_unsigned_diff(beg->content.length(), diff.x);
-					line_iterator nit = beg;
-					++nit;
-					for (int i = 1; i < diff.y; ++i) {
-						res += nit->content.length();
-						nit = erase(nit);
-					}
-					beg->content = beg->content.substr(0, bcol) + nit->content.substr(add_unsigned_diff(bcol, diff.x));
-					beg->ending_type = nit->ending_type;
-					erase(nit);
-					return res;
-				}
-
-				str_t cut_text(caret_position p1, caret_position p2) {
-					return cut_text(at(p1.line), p1.column, p2 - p1);
-				}
-				str_t cut_text(line_iterator beg, size_t bcol, caret_position_diff diff) {
-					str_t res;
-					cut_text(beg, bcol, diff, [&res](str_t s, line_ending le) {
-						res.append(std::move(s)).append(to_str(le));
-					});
-					return res;
-				}
-				template <typename C> void cut_text(line_iterator beg, size_t bcol, caret_position_diff diff, const C &cb) {
-					if (diff.y == 0) {
-						cb(beg->content.substr(bcol, static_cast<size_t>(diff.x)), line_ending::none);
-						beg->content = beg->content.substr(0, bcol) + beg->content.substr(bcol + diff.x);
-					} else {
-						cb(beg->content.substr(bcol), beg->ending_type);
-						line_iterator nit = beg;
-						++nit;
-						for (int i = 1; i < diff.y; ++i) {
-							cb(std::move(nit->content), nit->ending_type);
-							nit = erase(nit);
-						}
-						size_t ecol = add_unsigned_diff(bcol, diff.x);
-						cb(nit->content.substr(0, ecol), line_ending::none);
-						beg->content = beg->content.substr(0, bcol) + nit->content.substr(ecol);
-						beg->ending_type = nit->ending_type;
-						erase(nit);
-					}
+				void delete_text(caret_position p1, caret_position p2) {
+					auto
+						p1i = _lbr.get_line_and_column_and_codepoint_of_char(p1),
+						p2i = _lbr.get_line_and_column_and_codepoint_of_char(p2);
+					_str.erase(
+						_str.at_codepoint_iterator(std::get<3>(p1i)),
+						_str.at_codepoint_iterator(std::get<3>(p2i))
+					);
+					_lbr.erase_chars(std::get<0>(p1i), std::get<2>(p1i), std::get<0>(p2i), std::get<2>(p2i));
 				}
 				// till here
 
@@ -787,39 +515,11 @@ namespace codepad {
 					visual_changed.invoke();
 				}
 
-				// these functions do NOT consider folding
-				size_t hit_test_for_caret(const_line_iterator ln, size_t line_num, double pos, ui::font_family font) const {
-					ui::line_character_iterator it(ln->content, font, get_tab_width());
-					text_theme_data::char_iterator ci = get_text_theme().get_iter_at(caret_position(line_num, 0));
-					size_t i = 0;
-					for (
-						it.begin(ci.current_theme.style);
-						!it.ended();
-						get_text_theme().incr_iter(ci, caret_position(line_num, ++i)), it.next(ci.current_theme.style)
-						) {
-						if (pos < (it.char_right() + it.prev_char_right()) * 0.5) {
-							return i;
-						}
-					}
-					return ln->content.length();
+				const string_buffer &get_string_buffer() const {
+					return _str;
 				}
-				size_t hit_test_for_caret(size_t line, double pos, ui::font_family font) const {
-					return hit_test_for_caret(at(line), line, pos, font);
-				}
-				double get_horizontal_caret_position(const_line_iterator ln, size_t pos, ui::font_family font) const {
-					ui::line_character_iterator it(ln->content, font, get_tab_width());
-					text_theme_data::char_iterator ci = get_text_theme().get_iter_at(caret_position(pos, 0));
-					size_t i = 0;
-					for (
-						it.begin(ci.current_theme.style);
-						i < pos;
-						get_text_theme().incr_iter(ci, caret_position(pos, ++i)), it.next(ci.current_theme.style)
-						) {
-					}
-					return it.prev_char_right();
-				}
-				double get_horizontal_caret_position(caret_position pos, ui::font_family font) const {
-					return get_horizontal_caret_position(at(pos.line), pos.column, font);
+				const linebreak_registry &get_linebreak_registry() const {
+					return _lbr;
 				}
 
 				bool can_undo() const {
@@ -849,41 +549,17 @@ namespace codepad {
 				event<void> visual_changed;
 				event<modification_info> modified; // ONLY invoked by text_context_modifier
 			protected:
-				std::list<block> _blocks;
+				// content
+				string_buffer _str;
+				linebreak_registry _lbr;
+				// text theme
 				text_theme_data _theme;
 				// undo & redo
 				std::vector<edit> _edithist;
 				size_t _curedit = 0;
 				// settings
 				double _tab_w = 4.0;
-				line_ending _le;
-
-				template <typename It, typename S> inline static It _at_impl(S &s, size_t v) {
-					for (auto i = s._blocks.begin(); i != s._blocks.end(); ++i) {
-						if (i->lines.size() > v) {
-							auto j = i->lines.begin();
-							for (size_t k = 0; k < v; ++k, ++j) {
-							}
-							return It(s, i, j);
-						} else {
-							v -= i->lines.size();
-						}
-					}
-					return s.end();
-				}
-
-				void _append_line(str_t s, line_ending end) {
-					if (_blocks.size() == 0 || _blocks.back().lines.size() == block::advised_lines) {
-						_blocks.push_back(block());
-					}
-					_blocks.back().lines.push_back(line(std::move(s), end));
-				}
-				void _do_erase(line_iterator it) {
-					it._block->lines.erase(it._line);
-					if (it._block->lines.size() == 0) {
-						_blocks.erase(it._block);
-					}
-				}
+				line_ending _le = line_ending::n;
 			};
 
 			struct text_context_modifier {
@@ -897,13 +573,12 @@ namespace codepad {
 				//          ranges before applying the modification, call fixup_caret_position() before using
 				//          them, and then use the nofixup version of these apply_* functions
 				void apply_modification_nofixup(modification mod) {
-					assert_true_usage(mod.position >= _lastmax, "positions must be increasing");
-					auto lit = _ctx->at(mod.position.line);
-					if (mod.removed_range.x != 0 || mod.removed_range.y != 0) {
-						mod.removed_content = _ctx->cut_text(lit, mod.position.column, mod.removed_range);
+					if (mod.removed_range != 0) {
+						mod.removed_content = _ctx->substring(mod.position, mod.position + mod.removed_range);
+						_ctx->delete_text(mod.position, mod.position + mod.removed_range);
 					}
 					if (mod.added_content.length() > 0) {
-						mod.added_range = _ctx->insert_text(lit, mod.position.column, mod.added_content).first;
+						mod.added_range = _ctx->insert_text(mod.position, mod.added_content);
 					}
 					_append_fixup_item(modification_positions(mod));
 					_append_caret(get_caret_selection_after(mod));
@@ -915,13 +590,11 @@ namespace codepad {
 				}
 
 				void redo_modification(const modification &mod) {
-					assert_true_usage(mod.position >= _lastmax, "positions must be increasing");
-					auto lit = _ctx->at(mod.position.line);
 					if (mod.removed_content.length() > 0) {
-						_ctx->delete_text(lit, mod.position.column, mod.removed_range);
+						_ctx->delete_text(mod.position, mod.position + mod.removed_range);
 					}
 					if (mod.added_content.length() > 0) {
-						_ctx->insert_text(lit, mod.position.column, mod.added_content);
+						_ctx->insert_text(mod.position, mod.added_content);
 					}
 					_append_fixup_item(modification_positions(mod));
 					_append_caret(get_caret_selection_after(mod));
@@ -931,13 +604,11 @@ namespace codepad {
 						pos = fixup_caret_position(mod.position),
 						addend = fixup_caret_position(mod.position + mod.added_range),
 						delend = fixup_caret_position(mod.position + mod.removed_range);
-					assert_true_usage(pos >= _lastmax, "positions must be increasing");
-					auto lit = _ctx->at(pos.line);
 					if (mod.added_content.length() > 0) {
-						_ctx->delete_text(lit, pos.column, addend - pos);
+						_ctx->delete_text(pos, addend);
 					}
 					if (mod.removed_content.length() > 0) {
-						_ctx->insert_text(lit, pos.column, mod.removed_content);
+						_ctx->insert_text(pos, mod.removed_content);
 					}
 					_append_fixup_item(modification_positions(pos, addend - pos, delend - pos));
 					_append_caret(get_caret_selection(pos, delend - pos, mod.selected_before, mod.caret_front_before));
@@ -968,45 +639,46 @@ namespace codepad {
 					m.removed_range = rmend - m.position;
 				}
 
-				void on_text(caret_selection cs, str_t s) {
+				void on_text_insert(caret_selection cs, string_buffer::string_type s) {
 					modification mod(cs);
 					mod.caret_front_after = false;
 					mod.selected_after = false;
 					mod.added_content = std::move(s);
 					apply_modification(std::move(mod));
 				}
-				void on_text_overwrite(caret_selection cs, str_t s) {
+				void on_text_overwrite(caret_selection cs, string_buffer::string_type s) {
 					modification mod(cs);
 					fixup_caret_position(mod);
 					if (!mod.selected_before) {
-						auto lit = _ctx->at(mod.position.line);
-						caret_position remend = mod.position;
-						for (auto i = s.begin(); i != s.end(); ++i) {
-							if (!is_newline(*i) && remend.column < lit->content.length()) {
-								++remend.column;
+						text_context::iterator it = _ctx->at_char(mod.position);
+						size_t col = it.get_column();
+						for (
+							codepoint_iterator_base<string_buffer::string_type::const_iterator> cit(s.begin(), s.end());
+							!cit.at_end();
+							++cit
+						) {
+							if (!is_newline(cit.current_codepoint()) && col < it.get_line_length()) {
+								++mod.removed_range;
 							}
 						}
-						mod.removed_range = remend - mod.position;
 						mod.caret_front_before = true;
 					}
 					mod.added_content = std::move(s);
 					apply_modification_nofixup(std::move(mod));
 				}
+				void on_text(caret_selection cs, string_buffer::string_type s, bool insert) {
+					if (insert) {
+						on_text_insert(cs, std::move(s));
+					} else {
+						on_text_overwrite(cs, std::move(s));
+					}
+				}
 				void on_backspace(caret_selection cs) {
 					modification mod(cs);
 					fixup_caret_position(mod);
-					if (!mod.selected_before) {
-						if (mod.position.column == 0) {
-							if (mod.position.line > 0) {
-								--mod.position.line;
-								auto lit = _ctx->at(mod.position.line);
-								mod.removed_range = caret_position_diff(-static_cast<int>(lit->content.length()), 1);
-								mod.position.column = lit->content.length();
-							}
-						} else {
-							--mod.position.column;
-							mod.removed_range = caret_position_diff(1, 0);
-						}
+					if (!mod.selected_before && mod.position > 0) {
+						--mod.position;
+						mod.removed_range = 1;
 						mod.caret_front_before = false;
 						mod.selected_before = false;
 					}
@@ -1017,16 +689,8 @@ namespace codepad {
 				void on_delete(caret_selection cs) {
 					modification mod(cs);
 					fixup_caret_position(mod);
-					if (!mod.selected_before) {
-						auto lit = _ctx->at(mod.position.line);
-						if (mod.position.column == lit->content.length()) {
-							auto nlit = lit;
-							if (++nlit != _ctx->end()) {
-								mod.removed_range = caret_position_diff(-static_cast<int>(lit->content.length()), 1);
-							}
-						} else {
-							mod.removed_range = caret_position_diff(1, 0);
-						}
+					if (!mod.selected_before && mod.position < _ctx->get_linebreak_registry().num_chars()) {
+						mod.removed_range = 1;
 						mod.caret_front_before = true;
 						mod.selected_before = false;
 					}
@@ -1046,7 +710,6 @@ namespace codepad {
 				}
 			protected:
 				text_context *_ctx = nullptr;
-				caret_position _lastmax;
 				edit _edit;
 				caret_fixup_info _cfixup;
 				caret_fixup_info::context _cfctx;

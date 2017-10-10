@@ -61,7 +61,7 @@ namespace codepad {
 
 		class panel_base;
 		class element;
-		typedef hotkey_group<void(element*)> element_hotkey_group;
+		using element_hotkey_group = hotkey_group<void(element*)>;
 		class manager;
 #ifdef CP_DETECT_LOGICAL_ERRORS
 		struct control_dispose_rec {

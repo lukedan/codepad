@@ -115,6 +115,6 @@ namespace codepad {
 			};
 			static _factory &_get_factory();
 		};
-		typedef freetype_font default_font;
+		using default_font = freetype_font;
 	}
 }

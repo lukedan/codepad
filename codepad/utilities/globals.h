@@ -46,8 +46,8 @@ namespace codepad {
 			return _get_impl(_helper<U>());
 		}
 	protected:
-		typedef singleton_factory<Others...> _direct_base;
-		typedef singleton_factory<> _root_base;
+		using _direct_base = singleton_factory<Others...>;
+		using _root_base = singleton_factory<>;
 	private:
 		template <typename U> struct _helper {
 		};
@@ -63,7 +63,7 @@ namespace codepad {
 		}
 
 		struct _t_wrapper : public _root_base::_variable_wrapper {
-			typedef T object_type;
+			using object_type = T;
 			T object;
 
 			std::string get_type_name() const override {
@@ -97,7 +97,7 @@ namespace codepad {
 		};
 
 		_cur_setter _csetter{*this};
-		singleton_factory<
+		singleton_factory <
 #ifdef CP_PLATFORM_WINDOWS
 			os::directwrite_font::_factory,
 			os::wic_image_loader,

@@ -42,10 +42,11 @@ else()
 endif()
 
 set(SOURCE_FILES
+		codepad/editors/code/buffer.h
+		codepad/editors/code/codebox.h
 		codepad/editors/code/components.h
 		codepad/editors/code/context.h
 		codepad/editors/code/editor.h
-		codepad/editors/code/codebox.h
 		codepad/editors/docking.h
 		codepad/os/current.h
 		codepad/os/misc.h
@@ -60,6 +61,7 @@ set(SOURCE_FILES
 		codepad/ui/draw.h
 		codepad/ui/theme_providers.h
 		codepad/ui/window_hotkey_manager.h
+		codepad/utilities/bst.h
 		codepad/utilities/event.h
 		codepad/utilities/globals.cpp
 		codepad/utilities/hotkey_registry.h

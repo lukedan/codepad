@@ -57,7 +57,7 @@ namespace codepad {
 		struct async_task {
 			friend class async_task_pool;
 		public:
-			typedef std::function<void(async_task&)> operation_t;
+			using operation_t = std::function<void(async_task&)>;
 
 			explicit async_task(operation_t f) : operation(std::move(f)) {
 			}
@@ -105,7 +105,7 @@ namespace codepad {
 				}
 			}
 		};
-		typedef typename std::list<async_task>::iterator token;
+		using token = std::list<async_task>::iterator;
 
 		template <typename T, typename ...Args> token run_task(T &&func, Args &&...args) {
 			assert_true_usage(std::this_thread::get_id() == _creator, "cannot run task from other threads");

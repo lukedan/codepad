@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "../../utilities/bst.h"
 #include "context.h"
 
 namespace codepad {
@@ -18,6 +19,249 @@ namespace codepad {
 				const caret_position next_position{};
 			};
 
+			struct folding_registry {
+			public:
+				using fold_region = std::pair<caret_position, caret_position>;
+				struct fold_region_synth_data {
+					size_t
+						node_first_line = 0, node_last_line = 0,
+						node_line_span = 0, total_line_span = 0,
+						total_length = 0, tree_size = 0;
+				};
+				struct fold_region_synthesizer {
+				public:
+					using node = binary_tree_node<fold_region, fold_region_synth_data>;
+
+					explicit fold_region_synthesizer(const folding_registry &fr) : _reg(&fr) {
+					}
+
+					void operator()(fold_region_synth_data &data, const node &n) const {
+						data.node_first_line = std::get<1>(_reg->_ctx->get_linebreak_registry().get_line_and_column_of_char(n.value.first));
+						data.node_last_line = std::get<1>(_reg->_ctx->get_linebreak_registry().get_line_and_column_of_char(n.value.second));
+						data.node_line_span = data.node_last_line - data.node_first_line;
+						data.total_length = n.value.second - n.value.first;
+						data.total_line_span = data.node_line_span;
+						data.tree_size = 1;
+						if (n.left) {
+							_add(data, n.left->synth_data);
+						}
+						if (n.right) {
+							_add(data, n.right->synth_data);
+						}
+					}
+				protected:
+					const folding_registry *_reg;
+
+					inline static void _add(fold_region_synth_data &s1, const fold_region_synth_data &s2) {
+						s1.total_line_span += s2.total_line_span;
+						s1.total_length += s2.total_length;
+						s1.tree_size += s2.tree_size;
+					}
+				};
+				using tree_type = binary_tree<fold_region, fold_region_synth_data, fold_region_synthesizer>;
+				using node_type = tree_type::node;
+				using iterator = tree_type::const_iterator;
+
+				size_t folded_to_unfolded_line_number(size_t line) const {
+					_t.find_custom(_folded_to_unfolded_line(), line);
+					return line;
+				}
+				size_t unfolded_to_folded_line_number(size_t line) const {
+					_unfolded_to_folded_line selector;
+					_t.find_custom(selector, line);
+					return line - selector.delta;
+				}
+				size_t folded_to_unfolded_caret_pos(caret_position pos) const {
+					_t.find_custom(_folded_to_unfolded_pos(), pos);
+					return pos;
+				}
+				size_t unfolded_to_folded_caret_pos(caret_position pos) const {
+					_unfolded_to_folded_pos selector;
+					_t.find_custom(selector, pos);
+					return pos - selector.delta;
+				}
+
+				size_t get_beginning_line_of_folded_lines(size_t line) const {
+					return folded_to_unfolded_line_number(unfolded_to_folded_line_number(line));
+				}
+				size_t get_past_ending_line_of_folded_lines(size_t line) const {
+					return folded_to_unfolded_line_number(unfolded_to_folded_line_number(line) + 1);
+				}
+
+				iterator find_region_containing_open(caret_position cp) const {
+					_find_region_open<false, false> selector;
+					_t.find_custom(selector, cp);
+					return _t.get_iterator_for(selector.result);
+				}
+				iterator find_region_containing_or_first_after_open(caret_position cp) const {
+					_find_region_open<false, true> selector;
+					_t.find_custom(selector, cp);
+					return _t.get_iterator_for(selector.result);
+				}
+				iterator find_region_containing_or_first_before_open(caret_position cp) const {
+					_find_region_open<true, false> selector;
+					_t.find_custom(selector, cp);
+					return _t.get_iterator_for(selector.result);
+				}
+				iterator find_region_containing_or_first_after_closed(caret_position cp) const {
+					_find_region_closed<false, true> selector;
+					_t.find_custom(selector, cp);
+					return _t.get_iterator_for(selector.result);
+				}
+				iterator find_region_containing_or_first_before_closed(caret_position cp) const {
+					_find_region_closed<true, false> selector;
+					_t.find_custom(selector, cp);
+					return _t.get_iterator_for(selector.result);
+				}
+
+				template <typename Cb> iterator add_fold_region(const fold_region &fr, const Cb &callback) {
+					assert_true_usage(fr.first < fr.second, "invalid fold region");
+					iterator
+						beg = find_region_containing_or_first_after_open(fr.first),
+						end = find_region_containing_or_first_after_open(fr.second);
+					// TODO make callbacks
+					_t.erase(beg.get_node(), end.get_node());
+					node_type *n = new node_type(fr);
+					_t.get_synthesizer()(n->synth_data, *n);
+					_t.insert_before(n, end.get_node());
+					return --end;
+				}
+				void remove_folded_region(iterator it) {
+					_t.erase(it.get_node());
+				}
+
+				iterator begin() const {
+					return _t.begin();
+				}
+				iterator end() const {
+					return _t.end();
+				}
+
+				void reset(std::shared_ptr<text_context> c) {
+					_ctx = std::move(c);
+					_t.clear();
+					_t.set_synthesizer(fold_region_synthesizer(*this));
+				}
+				void set_folding(std::vector<fold_region> lines) {
+					_t = tree_type(std::move(lines), *this);
+				}
+
+				size_t folded_linebreaks() const {
+					return _t.root() ? _t.root()->synth_data.total_line_span : 0;
+				}
+				size_t folded_region_count() const {
+					return _t.root() ? _t.root()->synth_data.tree_size : 0;
+				}
+				const tree_type &get_raw() const {
+					return _t;
+				}
+			protected:
+				tree_type _t{{}, *this};
+				std::shared_ptr<text_context> _ctx;
+
+				template <bool Before, bool After, typename Cmp> struct _find_region {
+					int select_find(node_type &n, caret_position &v) {
+						Cmp cmp;
+						if (cmp(v, n.value.first)) {
+							if (After) {
+								result = &n;
+							}
+							return -1;
+						}
+						if (cmp(n.value.second, v)) {
+							if (Before) {
+								result = &n;
+							}
+							return 1;
+						}
+						result = &n;
+						return 0;
+					}
+					node_type *result = nullptr;
+				};
+				template <bool Before, bool After> using _find_region_open = _find_region<Before, After, std::less_equal<caret_position>>;
+				template <bool Before, bool After> using _find_region_closed = _find_region<Before, After, std::less<caret_position>>;
+
+				struct _get_node_first_line {
+					inline static size_t get(const node_type &n) {
+						return n.synth_data.node_first_line;
+					}
+				};
+				struct _get_node_last_line {
+					inline static size_t get(const node_type &n) {
+						return n.synth_data.node_last_line;
+					}
+				};
+				struct _get_node_line_span {
+					inline static size_t get(const node_type &n) {
+						return n.synth_data.node_line_span;
+					}
+				};
+				struct _get_node_first_char {
+					inline static size_t get(const node_type &n) {
+						return n.value.first;
+					}
+				};
+				struct _get_node_last_char {
+					inline static size_t get(const node_type &n) {
+						return n.value.second;
+					}
+				};
+				struct _get_node_char_span {
+					inline static size_t get(const node_type &n) {
+						return n.value.second - n.value.first;
+					}
+				};
+
+				template <
+					typename ValT, typename GetNodeFirst, typename GetPerNode, size_t fold_region_synth_data::*GetTotal
+				> struct _folded_to_unfolded {
+					int select_find(const node_type &n, ValT &v) const {
+						size_t nv = v + (n.left ? n.left->synth_data.*GetTotal : 0);
+						if (nv <= GetNodeFirst::get(n)) {
+							return -1;
+						}
+						v = nv + GetPerNode::get(n);
+						return 1;
+					}
+				};
+				using _folded_to_unfolded_pos = _folded_to_unfolded<
+					caret_position, _get_node_first_char, _get_node_char_span,
+					&fold_region_synth_data::total_length
+				>;
+				using _folded_to_unfolded_line = _folded_to_unfolded<
+					size_t, _get_node_first_line, _get_node_line_span,
+					&fold_region_synth_data::total_line_span
+				>;
+
+				template <
+					typename ValT, typename GetNodeFirst, typename GetNodeLast,
+					typename GetPerNode, size_t fold_region_synth_data::*GetTotal
+				> struct _unfolded_to_folded {
+					int select_find(const node_type &n, ValT &v) {
+						if (v < GetNodeFirst::get(n)) {
+							return -1;
+						}
+						delta += n.left ? n.left->synth_data.*GetTotal : 0;
+						if (v <= GetNodeLast::get(n)) {
+							delta += v - GetNodeFirst::get(n);
+							return 0;
+						}
+						delta += GetPerNode::get(n);
+						return 1;
+					}
+					size_t delta = 0;
+				};
+				using _unfolded_to_folded_pos = _unfolded_to_folded<
+					caret_position, _get_node_first_char, _get_node_last_char,
+					_get_node_char_span, &fold_region_synth_data::total_length
+				>;
+				using _unfolded_to_folded_line = _unfolded_to_folded<
+					size_t, _get_node_first_line, _get_node_last_line,
+					_get_node_line_span, &fold_region_synth_data::total_line_span
+				>;
+			};
+
 			// TODO syntax highlighting, drag & drop, code folding, etc.
 			class editor : public ui::panel_base {
 				friend struct codepad::globals;
@@ -27,15 +271,13 @@ namespace codepad {
 					move_speed_scale = 15.0,
 					dragdrop_distance = 5.0;
 
-				typedef std::pair<caret_position, caret_position> fold_region;
-				typedef std::set<fold_region> folding_info;
-
 				void set_context(std::shared_ptr<text_context> nctx) {
 					if (_ctx) {
 						_ctx->modified -= _mod_tok;
 						_ctx->visual_changed -= _tc_tok;
 					}
 					_ctx = std::move(nctx);
+					_fold.reset(_ctx);
 					_cset.reset();
 					if (_ctx) {
 						_mod_tok = (_ctx->modified += std::bind(&editor::_on_content_modified, this, std::placeholders::_1));
@@ -48,11 +290,7 @@ namespace codepad {
 				}
 
 				size_t get_num_lines_with_folding() const {
-					size_t l = _ctx->num_lines();
-					for (auto i = _fold.begin(); i != _fold.end(); ++i) {
-						l -= i->second.line - i->first.line;
-					}
-					return l;
+					return _ctx->num_lines() - _fold.folded_linebreaks();
 				}
 				double get_line_height() const {
 					return get_font().maximum_height();
@@ -77,7 +315,7 @@ namespace codepad {
 				void set_carets(caret_set cs) {
 					assert_true_usage(cs.carets.size() > 0, "must have at least one caret");
 					for (auto i = cs.carets.begin(); i != cs.carets.end(); ++i) {
-						i->second.alignment = get_horizontal_caret_position(i->first.first);
+						i->second.alignment = _get_caret_pos_x_caretpos(i->first.first);
 					}
 					set_caret_keepalign(std::move(cs));
 				}
@@ -150,161 +388,26 @@ namespace codepad {
 					return false;
 				}
 
-				const folding_info &get_folding_info() const {
+				const folding_registry &get_folding_info() const {
 					return _fold;
 				}
 				// TODO fix carets
-				template <typename C> void add_fold_region(fold_region fr, const C &callback) {
-					assert_true_usage(fr.first < fr.second, "invalid fold region");
-					auto
-						beg = _fold.lower_bound(fold_region(fr.first, fr.first)),
-						end = _fold.lower_bound(fold_region(fr.second, fr.second));
-#ifdef CP_DETECT_USAGE_ERRORS
-					if (end != _fold.begin()) {
-						auto check = end;
-						--check;
-						assert_true_usage(check->second <= fr.second, "cannot have partially overlapping fold regions");
-						if (beg != _fold.begin()) {
-							check = beg;
-							--check;
-							assert_true_usage(check->second <= fr.first, "cannot have partially overlapping fold regions");
-						}
-					}
-#endif
-					for (auto i = beg; i != end; i = _fold.erase(i)) {
-						callback(*i);
-					}
-					_fold.emplace_hint(end, fr);
+				template <typename C> void add_fold_region(folding_registry::fold_region fr, C &&callback) {
+					_fold.add_fold_region(fr, std::forward<C>(callback));
 					_on_folding_changed();
 				}
-				std::vector<fold_region> add_fold_region(fold_region fr) {
-					std::vector<fold_region> res;
-					add_fold_region(fr, [&res](fold_region f) {
+				std::vector<folding_registry::fold_region> add_fold_region(folding_registry::fold_region fr) {
+					std::vector<folding_registry::fold_region> res;
+					add_fold_region(fr, [&res](folding_registry::fold_region f) {
 						res.push_back(f);
 					});
 					return res;
 				}
-				bool remove_fold_region(fold_region fr) {
-					auto it = _fold.lower_bound(fr);
-					if (it == _fold.end() || *it != fr) {
-						return false;
-					}
-					remove_fold_region(fr);
-				}
-				void remove_fold_region(folding_info::iterator it) {
-					_fold.erase(it);
+				void remove_fold_region(folding_registry::iterator f) {
+					_fold.remove_folded_region(f);
 					_on_folding_changed();
 				}
-				folding_info::iterator find_fold_region_containing_max(caret_position cp) {
-					auto rem = _fold.lower_bound(fold_region(cp, cp));
-					if (rem != _fold.end()) {
-						if (rem->first != cp) {
-							if (rem == _fold.begin()) {
-								return _fold.end();
-							}
-							--rem;
-							if (rem->second < cp) {
-								return _fold.end();
-							}
-						}
-					}
-					return rem;
-				}
-				folding_info::iterator find_fold_region_containing_min(caret_position cp) {
-					auto rem = _fold.lower_bound(fold_region(cp, cp));
-					if (rem != _fold.begin()) {
-						auto prev = rem;
-						--prev;
-						if (prev->second >= cp) {
-							return prev;
-						}
-					}
-					if (rem != _fold.end() && rem->first > cp) {
-						return _fold.end();
-					}
-					return rem;
-				}
 
-				size_t unfolded_to_folded_linebeg(size_t l) const {
-					size_t offset = 0;
-					for (auto fiter = _fold.begin(); fiter != _fold.end(); ++fiter) {
-						if (fiter->first.line >= l) {
-							break;
-						}
-						if (fiter->second.line > l) {
-							return fiter->first.line - offset;
-						}
-						offset += fiter->second.line - fiter->first.line;
-					}
-					return l - offset;
-				}
-				size_t folded_to_unfolded_linebeg(size_t l) const {
-					for (auto fiter = _fold.begin(); fiter != _fold.end(); ++fiter) {
-						if (fiter->first.line >= l) {
-							break;
-						}
-						l += fiter->second.line - fiter->first.line;
-					}
-					return l;
-				}
-				caret_position unfolded_to_folded_pos(caret_position p) const {
-					caret_position lend;
-					caret_position_diff fixup;
-					for (auto fiter = _fold.begin(); fiter != _fold.end(); ++fiter) {
-						if (fiter->first >= p) {
-							break;
-						}
-						if (fiter->first.line != lend.line) {
-							fixup.x = 0;
-						}
-						fixup += fiter->first - fiter->second;
-						if (fiter->second >= p) {
-							return p + fixup;
-						}
-						lend = fiter->second;
-					}
-					if (p.line != lend.line) {
-						fixup.x = 0;
-					}
-					return p + fixup;
-				}
-				caret_position folded_to_unfolded_pos(caret_position p) const {
-					for (auto fiter = _fold.begin(); fiter != _fold.end(); ++fiter) {
-						if (fiter->first >= p) {
-							break;
-						}
-						p.line += fiter->second.line - fiter->first.line;
-						if (p.line == fiter->second.line) {
-							p.line = add_unsigned_diff(p.line, unsigned_diff<int>(
-								fiter->second.column, fiter->first.column
-								));
-						}
-					}
-					return p;
-				}
-				size_t unfolded_linebeg(size_t l) const {
-					fold_region queryrgn(caret_position(l, 0), caret_position(l, 0));
-					auto fiter = _fold.lower_bound(queryrgn);
-					if (fiter != _fold.begin()) {
-						for (--fiter; fiter->second.line >= l; --fiter) {
-							l = fiter->first.line;
-							if (fiter == _fold.begin()) {
-								break;
-							}
-						}
-					}
-					return l;
-				}
-				size_t unfolded_lineend(size_t l) const {
-					fold_region queryrgn(caret_position(l, 0), caret_position(l, 0));
-					for (auto fiter = _fold.lower_bound(queryrgn); fiter != _fold.end(); ++fiter) {
-						if (fiter->first.line > l) {
-							break;
-						}
-						l = fiter->second.line;
-					}
-					return l;
-				}
 				std::pair<size_t, size_t> get_visible_lines() const {
 					double top = _get_box()->get_vertical_position();
 					return get_visible_lines(top, top + get_client_region().height());
@@ -312,20 +415,18 @@ namespace codepad {
 				std::pair<size_t, size_t> get_visible_lines(double top, double bottom) const {
 					double lh = get_line_height();
 					return std::make_pair(
-						folded_to_unfolded_linebeg(static_cast<size_t>(std::max(0.0, top / lh))), std::min(
-							folded_to_unfolded_linebeg(static_cast<size_t>(bottom / lh) + 1),
+						_fold.folded_to_unfolded_line_number(static_cast<size_t>(std::max(0.0, top / lh))), std::min(
+							_fold.folded_to_unfolded_line_number(static_cast<size_t>(bottom / lh) + 1),
 							get_context()->num_lines()
 						)
 					);
 				}
-				double get_horizontal_caret_position(caret_position) const;
 				// assumes that offset is the offset from the top-left of the document, rather than the element(editor)
 				caret_position hit_test_for_caret(vec2d offset) const {
 					size_t line = static_cast<size_t>(std::max(offset.y, 0.0) / get_line_height());
-					line = std::min(folded_to_unfolded_linebeg(line), _ctx->num_lines() - 1);
-					return hit_test_for_caret(line, offset.x);
+					line = std::min(_fold.folded_to_unfolded_line_number(line), _ctx->num_lines() - 1);
+					return _hit_test_unfolded_linebeg(line, offset.x);
 				}
-				caret_position hit_test_for_caret(size_t, double) const;
 
 				event<void>
 					content_visual_changed, content_modified,
@@ -373,7 +474,7 @@ namespace codepad {
 				// cache
 				caret_position _mouse_cache;
 				// folding
-				folding_info _fold;
+				folding_registry _fold;
 				// rendering
 				ui::visual_provider::render_state _caretst;
 
@@ -416,13 +517,33 @@ namespace codepad {
 					}
 				protected:
 					text_context_modifier _rsrc;
-					editor *_editor;
+					editor *_editor = nullptr;
 				};
+
+				size_t _get_line_of_caret(caret_position cpos) const {
+					return std::get<1>(_ctx->get_linebreak_registry().get_line_and_column_of_char(cpos));
+				}
+				caret_position _hit_test_unfolded_linebeg(size_t, double) const;
+				double _get_caret_pos_x_unfolded_linebeg(size_t, caret_position) const;
+				double _get_caret_pos_x_folded_linebeg(size_t line, caret_position position) const {
+					return _get_caret_pos_x_unfolded_linebeg(_fold.folded_to_unfolded_line_number(line), position);
+				}
+				double _get_caret_pos_x_caretpos(caret_position cpos) const {
+					size_t line = _get_line_of_caret(cpos);
+					line = _fold.get_beginning_line_of_folded_lines(line);
+					return _get_caret_pos_x_unfolded_linebeg(line, cpos);
+				}
 
 				void _make_caret_visible(caret_position cp) {
 					codebox *cb = _get_box();
 					double fh = get_line_height();
-					vec2d np(get_horizontal_caret_position(cp), static_cast<double>(unfolded_to_folded_linebeg(cp.line) + 1) * fh);
+					size_t
+						ufline = _get_line_of_caret(cp),
+						fline = _fold.unfolded_to_folded_line_number(ufline);
+					vec2d np(
+						_get_caret_pos_x_folded_linebeg(fline, cp),
+						static_cast<double>(fline + 1) * fh
+					);
 					cb->make_point_visible(np);
 					np.y -= fh;
 					cb->make_point_visible(np);
@@ -436,16 +557,16 @@ namespace codepad {
 
 				void _on_content_modified(modification_info &mi) {
 					caret_fixup_info::context fctx(mi.caret_fixup);
-					std::list<fold_region> frs;
-					for (auto i = _fold.begin(); i != _fold.end(); ++i) {
-						fold_region fr;
+					std::vector<folding_registry::fold_region> frs;
+					for (auto i = _fold.get_raw().begin(); i != _fold.get_raw().end(); ++i) {
+						folding_registry::fold_region fr;
 						fr.first = mi.caret_fixup.fixup_caret_max(i->first, fctx);
 						fr.second = mi.caret_fixup.fixup_caret_min(i->second, fctx);
 						if (fr.first < fr.second) {
 							frs.push_back(fr);
 						}
 					}
-					_fold = folding_info(frs.begin(), frs.end());
+					_fold.set_folding(std::move(frs));
 
 					content_modified.invoke();
 					_on_content_visual_changed();
@@ -505,7 +626,7 @@ namespace codepad {
 					_selecting = false;
 					// the added caret may be merged, so alignment is calculated later
 					auto it = _cset.add(std::make_pair(_cur_sel, caret_data(0.0)));
-					it->second.alignment = get_horizontal_caret_position(it->first.first);
+					it->second.alignment = _get_caret_pos_x_caretpos(it->first.first);
 					_on_carets_changed();
 					get_window()->release_mouse_capture();
 				}
@@ -527,7 +648,8 @@ namespace codepad {
 					return false;
 				}
 				caret_set::entry _complete_caret_entry(caret_position fst, caret_position scnd) {
-					return caret_set::entry(caret_selection(fst, scnd), caret_data(get_horizontal_caret_position(fst)));
+					return caret_set::entry(caret_selection(fst, scnd), caret_data(
+						_get_caret_pos_x_caretpos(fst)));
 				}
 				caret_set::entry _complete_caret_entry(std::pair<caret_position, double> fst, caret_position scnd) {
 					return caret_set::entry(caret_selection(fst.first, scnd), caret_data(fst.second));
@@ -568,7 +690,7 @@ namespace codepad {
 						caret_position hitp = _hit_test_for_caret_client(_predrag_pos - get_client_region().xmin_ymin());
 						_cset.carets.clear();
 						_cset.carets.insert(std::make_pair(
-							std::make_pair(hitp, hitp), caret_data(get_horizontal_caret_position(hitp))
+							std::make_pair(hitp, hitp), caret_data(_get_caret_pos_x_caretpos(hitp))
 						));
 						_on_carets_changed();
 						get_window()->release_mouse_capture();
@@ -578,43 +700,29 @@ namespace codepad {
 				}
 
 				caret_position _move_caret_left(caret_position cp) {
-					auto iter = find_fold_region_containing_min(cp);
-					if (iter != _fold.end() && iter->first < cp) {
+					auto iter = _fold.find_region_containing_or_first_before_open(cp);
+					if (iter != _fold.end() && iter->second >= cp && iter->first < cp) {
 						return iter->first;
 					}
-					if (cp.column == 0) {
-						if (cp.line == 0) {
-							return cp;
-						}
-						--cp.line;
-						auto lit = _ctx->at(cp.line);
-						return caret_position(cp.line, lit->content.length());
-					}
-					return caret_position(cp.line, cp.column - 1);
+					return cp > 0 ? cp - 1 : 0;
 				}
 				caret_position _move_caret_right(caret_position cp) {
-					auto iter = find_fold_region_containing_max(cp);
-					if (iter != _fold.end() && iter->second > cp) {
+					auto iter = _fold.find_region_containing_or_first_after_open(cp);
+					if (iter != _fold.end() && iter->first <= cp && iter->second > cp) {
 						return iter->second;
 					}
-					auto lit = _ctx->at(cp.line);
-					if (cp.column == lit->content.length()) {
-						if (cp.line + 1 == _ctx->num_lines()) {
-							return cp;
-						}
-						return caret_position(cp.line + 1, 0);
-					}
-					return caret_position(cp.line, cp.column + 1);
+					size_t nchars = _ctx->get_linebreak_registry().num_chars();
+					return cp < nchars ? cp + 1 : nchars;
 				}
 				caret_position _move_caret_vertically(size_t line, int diff, double align) {
-					line = unfolded_to_folded_linebeg(line);
+					line = _fold.unfolded_to_folded_line_number(line);
 					if (diff < 0 && -diff > static_cast<int>(line)) {
 						line = 0;
 					} else {
-						line = folded_to_unfolded_linebeg(add_unsigned_diff(line, diff));
+						line = _fold.folded_to_unfolded_line_number(line + diff);
 						line = std::min(line, _ctx->num_lines() - 1);
 					}
-					return hit_test_for_caret(line, align);
+					return _hit_test_unfolded_linebeg(line, align);
 				}
 
 				void _on_mouse_move(ui::mouse_move_info &info) override {
@@ -669,6 +777,13 @@ namespace codepad {
 						// deleting stuff
 					case os::input::key::backspace:
 						{
+							if (
+								_cset.carets.size() == 1 &&
+								_cset.carets.begin()->first.first == _cset.carets.begin()->first.second &&
+								_cset.carets.begin()->first.first == 0
+							) {
+								break;
+							}
 							_context_modifier_rsrc it(*this);
 							for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
 								it->on_backspace(i->first);
@@ -677,6 +792,13 @@ namespace codepad {
 						break;
 					case os::input::key::del:
 						{
+							if (
+								_cset.carets.size() == 1 &&
+								_cset.carets.begin()->first.first == _cset.carets.begin()->first.second &&
+								_cset.carets.begin()->first.first == _ctx->get_linebreak_registry().num_chars()
+							) {
+								break;
+							}
 							_context_modifier_rsrc it(*this);
 							for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
 								it->on_delete(i->first);
@@ -702,14 +824,14 @@ namespace codepad {
 					case os::input::key::up:
 						move_carets_special_selection([this](const caret_set::entry &et) {
 							return std::make_pair(_move_caret_vertically(
-								et.first.first.line, -1, et.second.alignment
+								_get_line_of_caret(et.first.first), -1, et.second.alignment
 							), et.second.alignment);
 						}, [this](const caret_set::entry &et) {
-							size_t ml = et.first.first.line;
+							size_t ml = _get_line_of_caret(et.first.first);
 							double bl = et.second.alignment;
 							if (et.first.second < et.first.first) {
-								ml = et.first.second.line;
-								bl = get_horizontal_caret_position(et.first.second);
+								ml = _get_line_of_caret(et.first.second);
+								bl = _get_caret_pos_x_caretpos(et.first.second);
 							}
 							return std::make_pair(_move_caret_vertically(ml, -1, bl), bl);
 						});
@@ -717,14 +839,14 @@ namespace codepad {
 					case os::input::key::down:
 						move_carets_special_selection([this](const caret_set::entry &et) {
 							return std::make_pair(_move_caret_vertically(
-								et.first.first.line, 1, et.second.alignment
+								_get_line_of_caret(et.first.first), 1, et.second.alignment
 							), et.second.alignment);
 						}, [this](const caret_set::entry &et) {
-							size_t ml = et.first.first.line;
+							size_t ml = _get_line_of_caret(et.first.first);
 							double bl = et.second.alignment;
 							if (et.first.second > et.first.first) {
-								ml = et.first.second.line;
-								bl = get_horizontal_caret_position(et.first.second);
+								ml = _get_line_of_caret(et.first.second);
+								bl = _get_caret_pos_x_caretpos(et.first.second);
 							}
 							return std::make_pair(_move_caret_vertically(ml, 1, bl), bl);
 						});
@@ -732,33 +854,29 @@ namespace codepad {
 					case os::input::key::home:
 						move_carets([this](const caret_set::entry &et) {
 							caret_position cp = et.first.first;
-							size_t reall = unfolded_linebeg(cp.line);
-							if (reall != cp.line) {
-								cp.line = reall;
-								cp.column = 0;
+							size_t
+								line = _get_line_of_caret(cp),
+								reall = _fold.get_beginning_line_of_folded_lines(line),
+								begp = _ctx->get_linebreak_registry().get_beginning_char_of_line(reall),
+								exbegp = begp;
+							for (
+								auto cit = _ctx->at_char(begp);
+								!cit.is_linebreak() && (cit.current_character() == U' ' || cit.current_character() == U'\t');
+								++cit, ++exbegp
+							) {
 							}
-							auto lit = _ctx->at(cp.line);
-							size_t i = 0;
-							while (i < lit->content.length() && (lit->content[i] == U' ' || lit->content[i] == U'\t')) {
-								++i;
+							auto fiter = _fold.find_region_containing_open(begp);
+							if (fiter != _fold.end()) {
+								exbegp = fiter->first;
 							}
-							caret_position begp(cp.line, 0);
-							auto fiter = _fold.lower_bound(fold_region(begp, begp));
-							if (fiter != _fold.end() && fiter->first.line == cp.line) {
-								i = std::min(i, fiter->first.column);
-							}
-							cp.column = (cp.column == i ? 0 : i);
-							return cp;
+							return cp == exbegp ? begp : exbegp;
 						});
 						break;
 					case os::input::key::end:
 						move_carets([this](caret_set::entry cp) {
-							size_t line = unfolded_lineend(cp.first.first.line);
-							auto it = _ctx->at(line);
-							return std::make_pair(
-								caret_position(line, it->content.length()),
-								std::numeric_limits<double>::max()
-							);
+							return std::make_pair(_ctx->get_linebreak_registry().get_past_ending_char_of_line(
+								_fold.get_past_ending_line_of_folded_lines(_get_line_of_caret(cp.first.first)) - 1
+							), std::numeric_limits<double>::max());
 						});
 						break;
 					case os::input::key::page_up:
@@ -790,11 +908,19 @@ namespace codepad {
 				void _on_keyboard_text(ui::text_info &info) override {
 					_context_modifier_rsrc it(*this);
 					for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
-						if (_insert) {
-							it->on_text(i->first, info.content);
-						} else {
-							it->on_text_overwrite(i->first, info.content);
+						auto beg = info.content.begin();
+						string_buffer::string_type st;
+						st.reserve(info.content.length());
+						for (
+							char32_t cc = U'\0';
+							beg != info.content.end();
+							translate_codepoint_utf8([&st](std::initializer_list<char8_t> cs) {
+								st.append_as_codepoint(std::move(cs));
+							}, cc)
+						) {
+							next_codepoint(beg, info.content.end(), cc);
 						}
+						it->on_text(i->first, std::move(st), _insert);
 					}
 				}
 				void _on_update() override {
@@ -827,10 +953,9 @@ namespace codepad {
 				struct caret_renderer {
 				public:
 					caret_renderer(
-						const caret_set::container &c, size_t sl, size_t pel, double lh,
+						const caret_set::container &c, caret_position sp, caret_position pep, double lh,
 						const std::shared_ptr<ui::basic_brush> &b
 					) : _lh(lh), _sel_brush(b) {
-						caret_position sp(sl, 0), pep(pel, 0);
 						_beg = c.lower_bound(std::make_pair(sp, caret_position()));
 						if (_beg != c.begin()) {
 							auto prev = _beg;
@@ -880,75 +1005,61 @@ namespace codepad {
 						}
 					}
 				};
-
-				struct folded_region_skipper {
-				public:
-				protected:
-					folding_info::const_iterator _cp, _end;
-				};
 			};
 
 			struct character_rendering_iterator {
 			public:
-				character_rendering_iterator(const text_context &ctx, double lh, size_t sl, size_t pel) :
-					_line_it(ctx.at(sl)),
-					_theme_it(ctx.get_text_theme().get_iter_at(caret_position(sl, 0))),
-					_char_it(_line_it->content, editor::get_font(), ctx.get_tab_width()),
-					_ctx(&ctx), _cur_line(sl), _tg_line(pel), _line_h(lh) {
+				character_rendering_iterator(const text_context &ctx, double lh, caret_position sp, caret_position pep) :
+					_char_it(ctx.at_char(sp)), _theme_it(ctx.get_text_theme().get_iter_at(sp)),
+					_char_met(editor::get_font(), ctx.get_tab_width()),
+					_ctx(&ctx), _cur_pos(sp), _tg_pos(pep), _line_h(lh) {
 				}
-				character_rendering_iterator(const editor &ce, size_t sl, size_t pel) :
-					character_rendering_iterator(*ce.get_context(), ce.get_line_height(), sl, pel) {
+				character_rendering_iterator(const editor &ce, caret_position sp, caret_position pep) :
+					character_rendering_iterator(*ce.get_context(), ce.get_line_height(), sp, pep) {
 					_edt = &ce;
 				}
 
 				bool is_line_break() const {
-					return _char_it.ended();
+					return _char_it.is_linebreak();
 				}
 				bool ended() const {
-					return _cur_line >= _tg_line || _line_it == _ctx->end();
+					return _cur_pos > _tg_pos || _char_it.is_end();
 				}
 				void begin() {
-					_char_it.begin(_theme_it.current_theme.style);
+					if (!is_line_break()) {
+						_char_met.next(_char_it.current_character(), _theme_it.current_theme.style);
+					}
 				}
 				void next_char() {
 					assert_true_usage(!ended(), "incrementing an invalid rendering iterator");
-					if (_char_it.ended()) {
+					if (is_line_break()) {
 						switching_line.invoke();
-						_cur_col = 0;
-						++_cur_line;
-						++_line_it;
 						_cury += _line_h;
 						_rcy = static_cast<int>(std::round(_cury));
-						_ctx->get_text_theme().incr_iter(_theme_it, caret_position(_cur_line, 0));
-						if (!ended()) {
-							_char_it = ui::line_character_iterator(
-								_line_it->content, editor::get_font(), _ctx->get_tab_width()
-							);
-							_char_it.begin(_theme_it.current_theme.style);
-						}
+						_char_met.reset();
 					} else {
-						switching_char.invoke_noret(false, caret_position(_cur_line, _cur_col + 1));
-						++_cur_col;
-						_ctx->get_text_theme().incr_iter(_theme_it, caret_position(_cur_line, _cur_col));
-						_char_it.next(_theme_it.current_theme.style);
+						switching_char.invoke_noret(false, _cur_pos + 1);
 					}
+					++_cur_pos;
+					++_char_it;
+					_ctx->get_text_theme().incr_iter(_theme_it, _cur_pos);
+					_char_met.next(is_line_break() ? U' ' : _char_it.current_character(), _theme_it.current_theme.style);
 				}
 				void jump_to(caret_position cp) {
 					switching_char.invoke_noret(true, cp);
-					_cur_col = cp.column;
-					if (cp.line != _cur_line) {
-						_cur_line = cp.line;
-						_line_it = _ctx->at(_cur_line);
-					}
-					_theme_it = _ctx->get_text_theme().get_iter_at(cp);
-					_char_it.reposition(_line_it->content.begin() + cp.column, _line_it->content.end(), _theme_it.current_theme.style);
+					_cur_pos = cp;
+					_char_it = _ctx->at_char(_cur_pos);
+					_theme_it = _ctx->get_text_theme().get_iter_at(_cur_pos);
+					_char_met.replace_current(
+						is_line_break() ? U' ' : _char_it.current_character(), _theme_it.current_theme.style
+					);
 				}
 
-				ui::line_character_iterator &character_info() {
-					return _char_it;
+				ui::character_metrics_accumulator &character_info() {
+					return _char_met;
 				}
-				const ui::line_character_iterator &character_info() const {
-					return _char_it;
+				const ui::character_metrics_accumulator &character_info() const {
+					return _char_met;
 				}
 				text_theme_data::char_iterator &theme_info() {
 					return _theme_it;
@@ -956,21 +1067,10 @@ namespace codepad {
 				const text_theme_data::char_iterator &theme_info() const {
 					return _theme_it;
 				}
-				size_t current_line() const {
-					return _cur_line;
-				}
-				size_t current_column() const {
-					return _cur_col;
-				}
 				caret_position current_position() const {
-					return caret_position(_cur_line, _cur_col);
+					return _cur_pos;
 				}
-				caret_position next_position() const {
-					if (_char_it.ended()) {
-						return caret_position(_cur_line + 1, 0);
-					}
-					return caret_position(_cur_line, _cur_col + 1);
-				}
+
 				double y_offset() const {
 					return _cury;
 				}
@@ -987,21 +1087,20 @@ namespace codepad {
 				event<void> switching_line;
 				event<switch_char_info> switching_char;
 			protected:
-				text_context::const_line_iterator _line_it;
+				text_context::iterator _char_it;
 				text_theme_data::char_iterator _theme_it;
-				ui::line_character_iterator _char_it;
+				ui::character_metrics_accumulator _char_met;
 				const editor *_edt = nullptr;
 				const text_context *_ctx = nullptr;
-				size_t _cur_line = 0, _cur_col = 0, _tg_line = 0;
+				caret_position _cur_pos{}, _tg_pos{};
 				double _cury = 0.0, _line_h = 0.0;
 				int _rcy = 0;
 			};
 			struct fold_region_skipper {
 			public:
-				fold_region_skipper(const editor::folding_info &fold, size_t sl, size_t pel) {
-					caret_position sp(sl, 0), pep(pel, 0);
-					_nextfr = fold.upper_bound(editor::fold_region(sp, sp));
-					_max = fold.upper_bound(editor::fold_region(pep, pep));
+				fold_region_skipper(const folding_registry &fold, caret_position sp, caret_position pep) {
+					_nextfr = fold.find_region_containing_or_first_after_open(sp);
+					_max = fold.find_region_containing_or_first_after_open(pep);
 				}
 
 				bool check(character_rendering_iterator &it) {
@@ -1010,7 +1109,7 @@ namespace codepad {
 						do {
 							npos = _nextfr->second;
 							it.jump_to(npos);
-							it.character_info().create_blank(20.0);
+							it.character_info().create_blank_before(20.0);
 							++_nextfr;
 						} while (_nextfr != _max && _nextfr->first == npos);
 						return true;
@@ -1018,7 +1117,7 @@ namespace codepad {
 					return false;
 				}
 			protected:
-				editor::folding_info::const_iterator _nextfr, _max;
+				folding_registry::iterator _nextfr, _max;
 			};
 
 			template <
@@ -1038,8 +1137,8 @@ namespace codepad {
 					return _get_addon_impl(_helper<T>());
 				}
 			protected:
-				typedef rendering_iterator<SkipFolded, Others...> _direct_base;
-				typedef rendering_iterator<SkipFolded> _root_base;
+				using _direct_base = rendering_iterator<SkipFolded, Others...>;
+				using _root_base = rendering_iterator<SkipFolded>;
 
 				template <size_t ...I, typename FCA, typename ...OCA> rendering_iterator(
 					std::index_sequence<I...>, FCA &&f, OCA &&...ot
@@ -1065,25 +1164,25 @@ namespace codepad {
 			};
 			namespace _details {
 				template <bool Bv> struct optional_skipper {
-					optional_skipper(const editor&, size_t, size_t) {
+					optional_skipper(const editor&, caret_position, caret_position) {
 					}
 					bool check(character_rendering_iterator &r) {
 						return false;
 					}
 				};
 				template <> struct optional_skipper<true> : public fold_region_skipper {
-					optional_skipper(const editor &e, size_t sl, size_t pel) :
-						fold_region_skipper(e.get_folding_info(), sl, pel) {
+					optional_skipper(const editor &e, caret_position sp, caret_position pep) :
+						fold_region_skipper(e.get_folding_info(), sp, pep) {
 					}
 				};
 			}
 			template <bool SkipFolded> struct rendering_iterator<SkipFolded> {
 			public:
-				rendering_iterator(const std::tuple<const editor&, size_t, size_t> &p) :
+				rendering_iterator(const std::tuple<const editor&, caret_position, caret_position> &p) :
 					rendering_iterator(std::get<0>(p), std::get<1>(p), std::get<2>(p)) {
 				}
-				rendering_iterator(const editor &ce, size_t sl, size_t pel) :
-					_jiter(ce, sl, pel), _citer(ce, sl, pel) {
+				rendering_iterator(const editor &ce, caret_position sp, caret_position pep) :
+					_jiter(ce, sp, pep), _citer(ce, sp, pep) {
 				}
 				virtual ~rendering_iterator() {
 				}
@@ -1173,26 +1272,29 @@ namespace codepad {
 					std::round(get_client_region().xmin),
 					std::round(
 						get_client_region().ymin - _get_box()->get_vertical_position() +
-						static_cast<double>(unfolded_to_folded_linebeg(be.first)) * lh
+						static_cast<double>(_fold.unfolded_to_folded_line_number(be.first)) * lh
 					)
 				)));
+				caret_position
+					firstchar = _ctx->get_linebreak_registry().get_beginning_char_of_line(be.first),
+					plastchar = _ctx->get_linebreak_registry().get_beginning_char_of_line(be.second);
 				rendering_iterator<true, caret_renderer> it(
 					std::make_tuple(
-						std::cref(*used), be.first, be.second, get_line_height(),
+						std::cref(*used), firstchar, plastchar, get_line_height(),
 						_get_appearance().selection_brush
 					),
-					std::make_tuple(std::cref(*this), be.first, be.second)
+					std::make_tuple(std::cref(*this), firstchar, plastchar)
 				);
 				for (it.begin(); !it.ended(); it.next()) {
 					const character_rendering_iterator &cri = it.char_iter();
 					if (!cri.is_line_break()) {
-						const ui::line_character_iterator &lci = cri.character_info();
+						const ui::character_metrics_accumulator &lci = cri.character_info();
 						const text_theme_data::char_iterator &ti = cri.theme_info();
 						if (is_graphical_char(lci.current_char())) {
 							os::renderer_base::get().draw_character(
 								lci.current_char_entry().texture,
 								vec2d(lci.char_left(), std::round(cri.rounded_y_offset() + bi.get(ti.current_theme.style))) +
-								lci.current_char_entry().placement.xmin_ymin(),
+									lci.current_char_entry().placement.xmin_ymin(),
 								ti.current_theme.color
 							);
 						}
@@ -1206,16 +1308,23 @@ namespace codepad {
 				}
 				os::renderer_base::get().pop_matrix();
 			}
-			inline double editor::get_horizontal_caret_position(caret_position pos) const {
-				size_t fline = unfolded_to_folded_linebeg(pos.line);
-				rendering_iterator<true> iter(*this, fline, _ctx->num_lines());
-				for (iter.begin(); iter.char_iter().current_position() < pos; iter.next()) {
+			inline double editor::_get_caret_pos_x_unfolded_linebeg(size_t line, caret_position position) const {
+				rendering_iterator<true> iter(
+					*this,
+					_ctx->get_linebreak_registry().get_beginning_char_of_line(line),
+					_ctx->get_linebreak_registry().num_chars()
+				);
+				for (iter.begin(); iter.char_iter().current_position() < position; iter.next()) {
 				}
 				return iter.char_iter().character_info().prev_char_right();
 			}
-			inline caret_position editor::hit_test_for_caret(size_t line, double x) const {
-				rendering_iterator<true> iter(*this, line, _ctx->num_lines());
-				caret_position lastpos(line, 0);
+			inline caret_position editor::_hit_test_unfolded_linebeg(size_t line, double x) const {
+				rendering_iterator<true> iter(
+					*this,
+					_ctx->get_linebreak_registry().get_beginning_char_of_line(line),
+					_ctx->get_linebreak_registry().num_chars()
+				);
+				caret_position lastpos = _ctx->get_linebreak_registry().get_beginning_char_of_line(line);
 				bool stop = false, lastjmp = false;
 				iter.char_iter().switching_char += [&](switch_char_info &pi) {
 					if (!stop) {

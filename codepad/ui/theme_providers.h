@@ -149,7 +149,7 @@ namespace codepad {
 				frames.push_back(texture_keyframe(std::make_shared<os::texture>(), 0.0)); // HACK otherwise objects without texture won't be rendered
 			}
 
-			typedef std::pair<std::shared_ptr<os::texture>, double> texture_keyframe;
+			using texture_keyframe = std::pair<std::shared_ptr<os::texture>, double>;
 			struct state {
 				std::vector<texture_keyframe>::const_iterator current_frame;
 				double current_frame_time = 0.0;
@@ -362,7 +362,7 @@ namespace codepad {
 		protected:
 			std::vector<visual_layer> _layers;
 		};
-		typedef unsigned visual_state_id;
+		using visual_state_id = unsigned;
 		class visual_provider;
 		class visual_manager {
 			friend class visual_provider;
@@ -613,7 +613,7 @@ namespace codepad {
 				}
 			}
 			inline static void parse_animation(animation_params<os::texture> &ani, const json::value_t &obj) {
-				typedef animation_params<os::texture> ani_t;
+				using ani_t = animation_params<os::texture>;
 				// TODO deferred texture loading
 				bool good = true;
 				if (obj.IsString()) {

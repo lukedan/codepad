@@ -7,8 +7,8 @@
 #include "textconfig.h"
 
 namespace codepad {
-	typedef unsigned char char8_t;
-	typedef std::basic_string<char8_t> u8str_t;
+	using char8_t = unsigned char;
+	using u8str_t = std::basic_string<char8_t>;
 	constexpr char32_t
 		replacement_character = 0xFFFD,
 		invalid_min = 0xD800, invalid_max = 0xDFFF,
@@ -56,6 +56,13 @@ namespace codepad {
 		}
 	}
 
+	template <typename Char> inline size_t get_unit_count(const Char *cs) {
+		size_t i = 0;
+		for (; *cs; ++i, ++cs) {
+		}
+		return i;
+	}
+
 	inline bool is_newline(char_t c) {
 		return c == U'\n' || c == U'\r';
 	}
@@ -66,10 +73,19 @@ namespace codepad {
 		return c < invalid_min || (c > invalid_max && c <= unicode_max);
 	}
 
+	template <typename EncChar, typename Char, typename T> using enable_for_encoding =
+		std::enable_if<std::is_same<EncChar, std::decay_t<Char>>::value, T>;
+	template <typename Char, typename T> using enable_for_utf8 = enable_for_encoding<char8_t, Char, T>;
+	template <typename Char, typename T> using enable_for_utf8_t = typename enable_for_utf8<Char, T>::type;
+	template <typename Char, typename T> using enable_for_utf16 = enable_for_encoding<char16_t, Char, T>;
+	template <typename Char, typename T> using enable_for_utf16_t = typename enable_for_utf16<Char, T>::type;
+	template <typename Char, typename T> using enable_for_utf32 = enable_for_encoding<char32_t, Char, T>;
+	template <typename Char, typename T> using enable_for_utf32_t = typename enable_for_utf32<Char, T>::type;
+
 	// the caller is responsible of determining whether i == end
-	template <typename Iter> inline bool next_codepoint(
-		Iter &i, u8str_t::const_iterator end, char32_t &v
-	) {
+	template <typename It1, typename It2> inline enable_for_utf8_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint(It1 &i, It2 end, char32_t &v) {
 		char8_t fc = *i;
 		if ((fc & 0x80) == 0) {
 			v = fc;
@@ -110,9 +126,41 @@ namespace codepad {
 		++i;
 		return true;
 	}
-	template <typename Iter> inline bool next_codepoint(
-		Iter &i, std::u16string::const_iterator end, char32_t &v
-	) {
+	template <typename It1, typename It2> inline enable_for_utf8_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint(It1 &i, It2 end) {
+		char8_t fc = *i;
+		if ((fc & 0xE0) == 0xC0) {
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+		} else if ((fc & 0xF0) == 0xE0) {
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+		} else if ((fc & 0xF8) == 0xF0) {
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+			if (++i == end || (*i & 0xC0) != 0x80) {
+				return false;
+			}
+		} else if ((fc & 0x80) != 0) {
+			++i;
+			return false;
+		}
+		++i;
+		return true;
+	}
+	template <typename It1, typename It2> inline enable_for_utf16_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint(It1 &i, It2 end, char32_t &v) {
 		char16_t fc = *i;
 		if ((fc & 0xDC00) == 0xD800) {
 			v = (fc & 0x03FF) << 10;
@@ -130,30 +178,177 @@ namespace codepad {
 		++i;
 		return true;
 	}
-	template <typename Iter> inline bool next_codepoint(
-		Iter &i, std::u32string::const_iterator, char32_t &v
-	) {
+	template <typename It1, typename It2> inline enable_for_utf16_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint(It1 &i, It2 end) {
+		char16_t fc = *i;
+		if ((fc & 0xDC00) == 0xD800) {
+			if (++i == end || (*i & 0xDC00) != 0xDC00) {
+				return false;
+			}
+		} else {
+			if ((fc & 0xDC00) == 0xDC00) {
+				++i;
+				return false;
+			}
+		}
+		++i;
+		return true;
+	}
+	template <typename It1, typename It2> inline enable_for_utf32_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint(It1 &i, It2, char32_t &v) {
 		v = *i;
 		++i;
 		return is_valid_codepoint(v);
 	}
+	template <typename It1, typename It2> inline enable_for_utf32_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint(It1 &i, It2) {
+		bool res = is_valid_codepoint(*i);
+		++i;
+		return res;
+	}
 
-	inline void append_codepoint(u8str_t &s, char32_t c) {
+	// safe even if i == end or i == beg
+	template <typename It1, typename It2> inline enable_for_utf8_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint_rough(It1 &i, It2 end) {
+		for (; i != end && (*i & 0xC0) == 0x80; ++i) {
+		}
+	}
+	template <typename It1, typename It2> inline enable_for_utf16_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint_rough(It1 &i, It2 end) {
+		for (; i != end && (*i & 0xDC00) == 0xDC00; ++i) {
+		}
+	}
+	template <typename It1, typename It2> inline enable_for_utf32_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> next_codepoint_rough(It1 &i, It2 end) {
+		if (i != end) {
+			++i;
+		}
+	}
+	template <typename It1, typename It2> inline enable_for_utf8_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> previous_codepoint_rough(It1 &i, It2 beg) {
+		for (; i != beg && (*i & 0xC0) == 0x80; --i) {
+		}
+	}
+	template <typename It1, typename It2> inline enable_for_utf16_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> previous_codepoint_rough(It1 &i, It2 beg) {
+		for (; i != beg && (*i & 0xDC00) == 0xDC00; --i) {
+		}
+	}
+	template <typename It1, typename It2> inline enable_for_utf32_t<
+		typename std::iterator_traits<It1>::value_type, bool
+	> previous_codepoint_rough(It1 &i, It2 beg) {
+		if (i != beg) {
+			--i;
+		}
+	}
+
+	template <typename It1, typename It2> inline size_t count_codepoints(It1 beg, It2 end) {
+		size_t result = 0;
+		for (; beg != end; next_codepoint(beg, end), ++result) {
+		}
+		return result;
+	}
+	template <typename It1, typename It2> inline size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
+		size_t i = 0;
+		for (; i < num && beg != end; next_codepoint(beg, end), ++i) {
+		}
+		return i;
+	}
+
+	template <typename T> struct codepoint_iterator_base {
+		template <typename U> friend struct codepoint_iterator_base;
+	public:
+		codepoint_iterator_base() = default;
+		codepoint_iterator_base(T beg, T end, size_t cp = 0) : _ptr(beg), _next(beg), _end(end), _cps(cp) {
+			if (_next != _end) {
+				_good = next_codepoint(_next, _end, _cv);
+			}
+		}
+		template <typename U> codepoint_iterator_base(const codepoint_iterator_base<U> &it) :
+			_ptr(it._ptr), _next(it._next), _end(it._end), _cps(it._cps), _cv(it._cv), _good(it._good) {
+		}
+
+		char32_t operator*() const {
+			return _cv;
+		}
+
+		void next() {
+			assert_true_logical(!at_end(), "iterator is already at the end");
+			_ptr = _next;
+			++_cps;
+			if (_next != _end) {
+				_good = next_codepoint(_next, _end, _cv);
+			}
+		}
+
+		codepoint_iterator_base &operator++() {
+			next();
+			return *this;
+		}
+		codepoint_iterator_base operator++(int) {
+			codepoint_iterator_base oldv = *this;
+			++*this;
+			return oldv;
+		}
+
+		bool at_end() const {
+			return _ptr == _end;
+		}
+		bool next_end() const {
+			return _next == _end;
+		}
+		bool current_good() const {
+			return _good;
+		}
+		char32_t current_codepoint() const {
+			return _cv;
+		}
+		void set_current_codepoint(size_t v) {
+			_cps = v;
+		}
+		size_t codepoint_position() const {
+			return _cps;
+		}
+		size_t unit_position(const T &beg) const {
+			return _ptr - beg;
+		}
+		const T &get_raw_iterator() const {
+			return _ptr;
+		}
+		const T &get_raw_next_iterator() const {
+			return _next;
+		}
+	protected:
+		T _ptr{}, _next{}, _end{};
+		size_t _cps = 0;
+		char32_t _cv{};
+		bool _good = false;
+	};
+
+	template <typename Cb> inline void translate_codepoint_utf8(const Cb &cb, char32_t c) {
 		if (c < 0x80) {
-			s.append({static_cast<char8_t>(c)});
+			cb({static_cast<char8_t>(c)});
 		} else if (c < 0x800) {
-			s.append({
+			cb({
 				static_cast<char8_t>(0xC0 | (c >> 6)),
 				static_cast<char8_t>(0x80 | (c & 0x3F))
 			});
 		} else if (c < 0x10000) {
-			s.append({
+			cb({
 				static_cast<char8_t>(0xE0 | (c >> 12)),
 				static_cast<char8_t>(0x80 | ((c >> 6) & 0x3F)),
 				static_cast<char8_t>(0x80 | (c & 0x3F))
 			});
 		} else {
-			s.append({
+			cb({
 				static_cast<char8_t>(0xF0 | (c >> 18)),
 				static_cast<char8_t>(0x80 | ((c >> 12) & 0x3F)),
 				static_cast<char8_t>(0x80 | ((c >> 6) & 0x3F)),
@@ -161,25 +356,35 @@ namespace codepad {
 			});
 		}
 	}
-	inline void append_codepoint(std::u16string &s, char32_t c) {
+	template <typename Cb> inline void translate_codepoint_utf16(const Cb &cb, char32_t c) {
 		if (c < 0x10000) {
-			s.append({static_cast<char16_t>(c)});
+			cb({static_cast<char16_t>(c)});
 		} else {
 			char32_t mined = c - 0x10000;
-			s.append({
+			cb({
 				static_cast<char16_t>((mined >> 10) | 0xD800),
 				static_cast<char16_t>((mined & 0x03FF) | 0xDC00)
 			});
 		}
 	}
-	inline void append_codepoint(std::u32string &s, char32_t c) {
-		s.append({c});
+	template <typename Cb> inline void translate_codepoint_utf32(const Cb &cb, char32_t c) {
+		cb({c});
 	}
 
-	template <typename To, typename From> inline std::basic_string<To> convert_encoding(
-		const std::basic_string<From> &str
+	template <typename Str> inline enable_for_utf8_t<typename Str::value_type, void> append_codepoint(Str &s, char32_t c) {
+		translate_codepoint_utf8([&s, c](std::initializer_list<char8_t> l) { s.append(l); }, c);
+	}
+	template <typename Str> inline enable_for_utf16_t<typename Str::value_type, void> append_codepoint(Str &s, char32_t c) {
+		translate_codepoint_utf16([&s, c](std::initializer_list<char16_t> l) { s.append(l); }, c);
+	}
+	template <typename Str> inline enable_for_utf32_t<typename Str::value_type, void> append_codepoint(Str &s, char32_t c) {
+		translate_codepoint_utf32([&s, c](std::initializer_list<char32_t> l) { s.append(l); }, c);
+	}
+
+	template <typename To, typename From> inline To convert_encoding(
+		const From &str
 	) {
-		std::basic_string<To> result;
+		To result;
 		result.reserve(str.length());
 		auto i = str.begin(), end = str.end();
 		char32_t c;
@@ -193,22 +398,22 @@ namespace codepad {
 	}
 
 	inline u8str_t utf32_to_utf8(const std::u32string &str) {
-		return convert_encoding<char8_t>(str);
+		return convert_encoding<u8str_t>(str);
 	}
 	inline u8str_t utf16_to_utf8(const std::u16string &str) {
-		return convert_encoding<char8_t>(str);
+		return convert_encoding<u8str_t>(str);
 	}
 	inline std::u16string utf32_to_utf16(const std::u32string &str) {
-		return convert_encoding<char16_t>(str);
+		return convert_encoding<std::u16string>(str);
 	}
 	inline std::u16string utf8_to_utf16(const u8str_t &str) {
-		return convert_encoding<char16_t>(str);
+		return convert_encoding<std::u16string>(str);
 	}
 	inline std::u32string utf16_to_utf32(const std::u16string &str) {
-		return convert_encoding<char32_t>(str);
+		return convert_encoding<std::u32string>(str);
 	}
 	inline std::u32string utf8_to_utf32(const u8str_t &str) {
-		return convert_encoding<char32_t>(str);
+		return convert_encoding<std::u32string>(str);
 	}
 
 	inline u8str_t convert_to_utf8(u8str_t s) {

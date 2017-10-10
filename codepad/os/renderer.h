@@ -18,7 +18,7 @@ namespace codepad {
 		struct texture {
 			friend class renderer_base;
 		public:
-			typedef size_t id_t;
+			using id_t = size_t;
 
 			texture() = default;
 			texture(const texture&) = delete;
@@ -63,7 +63,7 @@ namespace codepad {
 		struct framebuffer {
 			friend class renderer_base;
 		public:
-			typedef size_t id_t;
+			using id_t = size_t;
 
 			framebuffer() = default;
 			framebuffer(const framebuffer&) = delete;

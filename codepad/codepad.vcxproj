@@ -145,6 +145,7 @@
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp14</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -263,6 +264,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="editors\code\buffer.h" />
     <ClInclude Include="editors\code\codebox.h" />
     <ClInclude Include="editors\code\editor.h" />
     <ClInclude Include="editors\code\components.h" />
@@ -285,6 +287,7 @@
     <ClInclude Include="ui\textrenderer.h" />
     <ClInclude Include="ui\font_family.h" />
     <ClInclude Include="ui\window_hotkey_manager.h" />
+    <ClInclude Include="utilities\bst.h" />
     <ClInclude Include="utilities\globals.h" />
     <ClInclude Include="utilities\hotkey_registry.h" />
     <ClInclude Include="utilities\tasks.h" />

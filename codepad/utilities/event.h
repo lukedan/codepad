@@ -5,14 +5,14 @@
 
 namespace codepad {
 	template <typename ...Args> struct event_base {
-		typedef std::function<void(Args...)> handler;
+		using handler = std::function<void(Args...)>;
 
 		struct token {
 			friend struct event_base<Args...>;
 		public:
 			token() = default;
 		protected:
-			typedef typename std::list<handler>::iterator _tok_t;
+			using _tok_t = typename std::list<handler>::iterator;
 			_tok_t _text_tok;
 
 			explicit token(_tok_t tok) : _text_tok(tok) {

@@ -48,6 +48,6 @@ namespace codepad {
 			};
 			static _font_config &_get_config();
 		};
-		typedef freetype_font default_font;
+		using default_font = freetype_font;
 	}
 }

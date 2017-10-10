@@ -78,10 +78,10 @@ namespace codepad {
 			return vec2(lhs.x / rhs, lhs.y / rhs);
 		}
 	};
-	typedef vec2<double> vec2d;
-	typedef vec2<float> vec2f;
-	typedef vec2<int> vec2i;
-	typedef vec2<unsigned int> vec2u;
+	using vec2d = vec2<double>;
+	using vec2f = vec2<float>;
+	using vec2i = vec2<int>;
+	using vec2u = vec2<unsigned int>;
 
 	template <typename T> struct rect {
 		constexpr rect() = default;
@@ -190,13 +190,13 @@ namespace codepad {
 			return rect(x, x + w, y, y + h);
 		}
 	};
-	typedef rect<double> rectd;
-	typedef rect<float> rectf;
-	typedef rect<int> recti;
-	typedef rect<unsigned int> rectu;
+	using rectd = rect<double>;
+	using rectf = rect<float>;
+	using recti = rect<int>;
+	using rectu = rect<unsigned int>;
 
 	template <typename T, size_t W, size_t H> struct matrix {
-		typedef T row[W];
+		using row = T[W];
 
 		row elem[H]{};
 
@@ -355,8 +355,8 @@ namespace codepad {
 	template <typename T> inline vec2<T> apply_transform(const matrix<T, 3, 3> &lhs, vec2<T> rhs) {
 		return vec2<T>(lhs[0][0] * rhs.x + lhs[0][1] * rhs.y + lhs[0][2], lhs[1][0] * rhs.x + lhs[1][1] * rhs.y + lhs[1][2]);
 	}
-	typedef matrix<double, 2, 2> matd2x2;
-	typedef matrix<double, 3, 3> matd3x3;
+	using matd2x2 = matrix<double, 2, 2>;
+	using matd3x3 = matrix<double, 3, 3>;
 
 	template <typename T> struct color {
 		static_assert(std::is_same<T, unsigned char>::value || std::is_floating_point<T>::value, "invalid color component type");
@@ -470,9 +470,9 @@ namespace codepad {
 			return color(c, 0, x, alpha);
 		}
 	};
-	typedef color<double> colord;
-	typedef color<float> colorf;
-	typedef color<unsigned char> colori;
+	using colord = color<double>;
+	using colorf = color<float>;
+	using colori = color<unsigned char>;
 
 	template <typename T> inline T clamp(T v, T min, T max) {
 		if (v < min) {
@@ -488,16 +488,6 @@ namespace codepad {
 		static_assert(std::is_unsigned<U>::value, "must pass unsigned value");
 		static_assert(std::is_signed<S>::value, "must pass signed value");
 		return lhs > rhs ? static_cast<S>(lhs - rhs) : -static_cast<S>(rhs - lhs);
-	}
-	template <typename S, typename U> inline U add_unsigned_diff(U lhs, S rhs) {
-		static_assert(std::is_unsigned<U>::value, "must pass unsigned value");
-		static_assert(std::is_signed<S>::value, "must pass signed value");
-		return rhs > 0 ? lhs + static_cast<U>(rhs) : lhs - static_cast<U>(-rhs);
-	}
-	template <typename S, typename U> inline U subtract_unsigned_diff(U lhs, S rhs) {
-		static_assert(std::is_unsigned<U>::value, "must pass unsigned value");
-		static_assert(std::is_signed<S>::value, "must pass signed value");
-		return rhs > 0 ? lhs - static_cast<U>(rhs) : lhs + static_cast<U>(-rhs);
 	}
 
 	template <typename T, typename U> inline bool test_bit_all(T v, U bit) {

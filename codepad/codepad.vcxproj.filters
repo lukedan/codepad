@@ -108,6 +108,12 @@
     <ClInclude Include="ui\theme_providers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="utilities\bst.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\buffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

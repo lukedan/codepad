@@ -8,7 +8,7 @@
 namespace codepad {
 	namespace editor {
 		namespace code {
-			class line_number : public component { // TODO width measurement inaccurate
+			class line_number : public component {
 			public:
 				vec2d get_desired_size() const override {
 					size_t ln = _get_editor()->get_context()->num_lines(), w = 0;
@@ -22,16 +22,24 @@ namespace codepad {
 					return U"line_number";
 				}
 			protected:
+				size_t _get_line_of_char(caret_position cp) {
+					return std::get<1>(_get_editor()->get_context()->get_linebreak_registry().get_line_and_column_of_char(cp));
+				}
+
 				void _custom_render() override {
 					editor *editor = _get_editor();
 					double lh = editor->get_line_height();
 					std::pair<size_t, size_t> be = editor->get_visible_lines();
-					editor::folding_info::const_iterator it = editor->get_folding_info().lower_bound(
-						editor::fold_region(caret_position(be.first, 0), caret_position(be.first, 0))
+					folding_registry::iterator it = editor->get_folding_info().find_region_containing_or_first_after_open(
+						editor->get_context()->get_linebreak_registry().get_beginning_char_of_line(be.first)
 					);
 					double cury =
 						get_client_region().ymin - _get_box()->get_vertical_position() +
-						static_cast<double>(editor->unfolded_to_folded_linebeg(be.first)) * lh;
+						static_cast<double>(editor->get_folding_info().unfolded_to_folded_line_number(be.first)) * lh;
+					size_t jline = 0;
+					if (it != editor->get_folding_info().end()) {
+						jline = _get_line_of_char(it->first);
+					}
 					for (size_t curi = be.first; curi < be.second; ++curi, cury += lh) {
 						str_t curlbl = to_str(curi + 1);
 						double w = ui::text_renderer::measure_plain_text(curlbl, editor::get_font().normal.get()).x;
@@ -39,15 +47,17 @@ namespace codepad {
 							curlbl, editor::get_font().normal.get(),
 							vec2d(get_client_region().xmax - w, cury), colord()
 						);
-						while (it != editor->get_folding_info().end() && it->first.line == curi) {
-							curi = it->second.line;
-							++it;
+						while (it != editor->get_folding_info().end() && jline == curi) {
+							curi = _get_line_of_char(it->second);
+							if (++it != editor->get_folding_info().end()) {
+								jline = _get_line_of_char(it->first);
+							}
 						}
 					}
 				}
 			};
 
-			class minimap : public component { // FIXME horizontal blank lines in minimap due to rounding
+			class minimap : public component { // FIXME vertical blank lines in minimap due to rounding
 			public:
 				constexpr static double page_rendering_time_redline = 30.0;
 				constexpr static size_t
@@ -141,16 +151,18 @@ namespace codepad {
 						ui::render_batch rb;
 						rb.reserve(expected_triangles_per_line * (pe - s));
 						rendering_iterator<true> it(
-							*ce,
-							parent->_get_editor()->folded_to_unfolded_linebeg(s),
-							parent->_get_editor()->folded_to_unfolded_linebeg(pe)
+							*ce, ce->get_context()->get_linebreak_registry().get_beginning_char_of_line(
+								ce->get_folding_info().folded_to_unfolded_line_number(s)
+							), ce->get_context()->get_linebreak_registry().get_beginning_char_of_line(
+								ce->get_folding_info().folded_to_unfolded_line_number(pe)
+							)
 						);
 						for (it.begin(); !it.ended(); it.next()) {
 							if (!it.char_iter().is_line_break()) {
 								if (needrefresh) {
 									lct.refresh(it.char_iter().y_offset());
 								}
-								const ui::line_character_iterator &ci = it.char_iter().character_info();
+								const ui::character_metrics_accumulator &ci = it.char_iter().character_info();
 								const text_theme_data::char_iterator &ti = it.char_iter().theme_info();
 								if (is_graphical_char(ci.current_char())) {
 									rectd crec = ci.current_char_entry().placement.translated(vec2d(

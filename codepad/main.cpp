@@ -13,6 +13,7 @@
 #include "editors/code/codebox.h"
 #include "editors/code/components.h"
 #include "editors/code/editor.h"
+#include "editors/code/buffer.h"
 
 using namespace codepad;
 using namespace codepad::os;
@@ -33,37 +34,37 @@ int main() {
 	element_hotkey_group hg;
 
 	hg.register_hotkey({key_gesture(input::key::z, modifier_keys::control)}, [](element *e) {
-		code::codebox *editor = dynamic_cast<code::codebox*>(e);
+		auto *editor = dynamic_cast<code::codebox*>(e);
 		if (editor) {
 			editor->get_editor()->try_undo();
 		}
 	});
 	hg.register_hotkey({key_gesture(input::key::y, modifier_keys::control)}, [](element *e) {
-		code::codebox *editor = dynamic_cast<code::codebox*>(e);
+		auto *editor = dynamic_cast<code::codebox*>(e);
 		if (editor) {
 			editor->get_editor()->try_redo();
 		}
 	});
 	hg.register_hotkey({key_gesture(input::key::f, modifier_keys::control)}, [](element *e) {
-		code::codebox *cb = dynamic_cast<code::codebox*>(e);
+		auto *cb = dynamic_cast<code::codebox*>(e);
 		if (cb) {
 			code::editor *editor = cb->get_editor();
 			auto rgn = editor->get_carets().carets.rbegin()->first;
-			code::editor::fold_region fr = std::minmax(rgn.first, rgn.second);
+			code::folding_registry::fold_region fr = std::minmax(rgn.first, rgn.second);
 			if (fr.first != fr.second) {
-				logger::get().log_info(CP_HERE, "folding region: (", fr.first.column, ", ", fr.first.line, ") -> (", fr.second.column, ", ", fr.second.line, ")");
-				std::vector<code::editor::fold_region> list = editor->add_fold_region(fr);
+				logger::get().log_info(CP_HERE, "folding region: (", fr.first, ", ", fr.second, ")");
+				std::vector<code::folding_registry::fold_region> list = editor->add_fold_region(fr);
 				for (auto i = list.begin(); i != list.end(); ++i) {
-					logger::get().log_info(CP_HERE, "  overwrote region: (", i->first.column, ", ", i->first.line, ") -> (", i->second.column, ", ", i->second.line, ")");
+					logger::get().log_info(CP_HERE, "  overwrote region: (", i->first, ", ", i->second, ")");
 				}
 			}
 		}
 	});
 	hg.register_hotkey({key_gesture(input::key::u, modifier_keys::control)}, [](element *e) {
-		code::codebox *cb = dynamic_cast<code::codebox*>(e);
+		auto *cb = dynamic_cast<code::codebox*>(e);
 		if (cb) {
 			code::editor *editor = cb->get_editor();
-			while (editor->get_folding_info().size() > 0) {
+			while (editor->get_folding_info().folded_region_count() > 0) {
 				editor->remove_fold_region(editor->get_folding_info().begin());
 			}
 		}
@@ -99,8 +100,8 @@ int main() {
 			for (size_t i = 0; i < 1340000; i += 10) {
 				double n6 = std::rand() / (double)RAND_MAX, n7 = std::rand() / (double)RAND_MAX, n8 = std::rand() / (double)RAND_MAX;
 				data.set_range(
-					code::caret_position(i, 1),
-					code::caret_position(i + 10, 0),
+					i,
+					i + 10,
 					code::text_theme_specification(font_style::normal, colord(n6, n7, n8, 1.0))
 				);
 			}
