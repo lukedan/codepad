@@ -176,7 +176,8 @@ namespace codepad {
 		template <typename Comp, typename ...Args> iterator insert(Args &&...args) {
 			return insert_custom(bst_branch_selector<Comp>(), std::forward<Args>(args)...);
 		}
-		void insert_before(node *n, node *before) {
+
+		void insert_before_raw(node *before, node *n) {
 			if (before == nullptr) {
 				before = max();
 				if (before) {
@@ -193,6 +194,14 @@ namespace codepad {
 			}
 			n->parent = before;
 			refresh_synthesized_result(before);
+		}
+		void insert_tree_before(node *before, std::vector<T> objs) {
+			insert_before_raw(before, build_tree(std::move(objs), _synth));
+		}
+		template <typename ...Args> void insert_node_before(node *before, Args &&...args) {
+			node *n = new node(std::forward<Args>(args)...);
+			_update_synth(n);
+			insert_before_raw(before, n);
 		}
 
 		template <typename BranchSelector, typename Ref> iterator find_custom(BranchSelector &&b, Ref &&ref) {
@@ -300,7 +309,7 @@ namespace codepad {
 			while (n->parent != targetroot) {
 				if (
 					n->parent->parent != targetroot &&
-						(n == n->parent->left) == (n->parent == n->parent->parent->left)
+					(n == n->parent->left) == (n->parent == n->parent->parent->left)
 					) {
 					if (n == n->parent->left) {
 						rotate_right(n->parent->parent);
@@ -346,9 +355,9 @@ namespace codepad {
 			node *oc;
 			if (n->left && n->right) {
 				node *rmin = min(n->right);
-				n->value = std::move(rmin->value);
-				n = rmin;
-				oc = n->right;
+				splay(rmin, n);
+				rotate_left(n);
+				oc = n->left;
 			} else {
 				oc = n->left ? n->left : n->right;
 			}
@@ -365,31 +374,40 @@ namespace codepad {
 			refresh_synthesized_result(f);
 		}
 		void erase(node *beg, node *end) {
+			delete_tree(detach_tree(beg, end));
+		}
+		node *detach_tree(node *beg, node *end) {
 			if (beg == nullptr) {
-				return;
+				return nullptr;
 			}
 			beg = beg->prev();
+			node *res = nullptr;
 			if (beg && end) {
 				splay(beg);
 				splay(end, beg);
 				assert_true_logical(end == beg->right, "invalid range");
-				delete_tree(end->left);
+				res = end->left;
 				end->left = nullptr;
 				_update_synth(end);
 				_update_synth(beg);
 			} else if (beg) {
 				splay(beg);
-				delete_tree(beg->right);
+				res = beg->right;
 				beg->right = nullptr;
 				_update_synth(beg);
 			} else if (end) {
 				splay(end);
-				delete_tree(end->left);
+				res = end->left;
 				end->left = nullptr;
 				_update_synth(end);
 			} else {
-				clear();
+				res = _root;
+				_root = nullptr;
 			}
+			if (res) {
+				res->parent = nullptr;
+			}
+			return res;
 		}
 		void erase(iterator it) {
 			erase(it.get_node());

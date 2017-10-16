@@ -281,7 +281,6 @@ namespace codepad {
 		}
 
 		void next() {
-			assert_true_logical(!at_end(), "iterator is already at the end");
 			_ptr = _next;
 			++_cps;
 			if (_next != _end) {
@@ -333,7 +332,7 @@ namespace codepad {
 		bool _good = false;
 	};
 
-	template <typename Cb> inline void translate_codepoint_utf8(const Cb &cb, char32_t c) {
+	template <typename Cb> inline void translate_codepoint_utf8(Cb &&cb, char32_t c) {
 		if (c < 0x80) {
 			cb({static_cast<char8_t>(c)});
 		} else if (c < 0x800) {
@@ -356,7 +355,7 @@ namespace codepad {
 			});
 		}
 	}
-	template <typename Cb> inline void translate_codepoint_utf16(const Cb &cb, char32_t c) {
+	template <typename Cb> inline void translate_codepoint_utf16(Cb &&cb, char32_t c) {
 		if (c < 0x10000) {
 			cb({static_cast<char16_t>(c)});
 		} else {
@@ -367,7 +366,7 @@ namespace codepad {
 			});
 		}
 	}
-	template <typename Cb> inline void translate_codepoint_utf32(const Cb &cb, char32_t c) {
+	template <typename Cb> inline void translate_codepoint_utf32(Cb &&cb, char32_t c) {
 		cb({c});
 	}
 

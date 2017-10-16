@@ -78,19 +78,7 @@ namespace codepad {
 				_format->Release();
 			}
 
-			const entry &get_char_entry(char_t) const override {
-				// TODO
-			}
-
-			double height() const override {
-				// TODO
-			}
-			double max_width() const override {
-				// TODO
-			}
-			double baseline() const override {
-				// TODO
-			}
+			// TODO
 			vec2d get_kerning(char_t, char_t) const override {
 				return vec2d(); // FIXME directwrite doesn't support getting kerning directly
 			}

@@ -65,6 +65,8 @@ namespace codepad {
 		key_gesture() = default;
 		key_gesture(os::input::key prim, modifier_keys k) : primary(prim), mod_keys(k) {
 		}
+		key_gesture(os::input::key k) : key_gesture(k, modifier_keys::none) {
+		}
 
 		os::input::key primary = os::input::key::escape;
 		modifier_keys mod_keys = modifier_keys::none;

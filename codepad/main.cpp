@@ -33,18 +33,112 @@ int main() {
 	font_family codefnt(U"iosevka", 13.0);
 	element_hotkey_group hg;
 
+	hg.register_hotkey({input::key::left}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_left(false);
+		}
+		});
+	hg.register_hotkey({input::key::right}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_right(false);
+		}
+		});
+	hg.register_hotkey({input::key::up}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_up(false);
+		}
+		});
+	hg.register_hotkey({input::key::down}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_down(false);
+		}
+		});
+	hg.register_hotkey({input::key::home}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_to_line_beginning_advanced(false);
+		}
+		});
+	hg.register_hotkey({input::key::end}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_to_line_ending(false);
+		}
+		});
+
+	hg.register_hotkey({key_gesture(input::key::left, modifier_keys::shift)}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_left(true);
+		}
+		});
+	hg.register_hotkey({key_gesture(input::key::right, modifier_keys::shift)}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_right(true);
+		}
+		});
+	hg.register_hotkey({key_gesture(input::key::up, modifier_keys::shift)}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_up(true);
+		}
+		});
+	hg.register_hotkey({key_gesture(input::key::down, modifier_keys::shift)}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_down(true);
+		}
+		});
+	hg.register_hotkey({key_gesture(input::key::home, modifier_keys::shift)}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_to_line_beginning_advanced(true);
+		}
+		});
+	hg.register_hotkey({key_gesture(input::key::end, modifier_keys::shift)}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->move_all_carets_to_line_ending(true);
+		}
+		});
+
+	hg.register_hotkey({input::key::backspace}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->delete_selection_or_char_before();
+		}
+		});
+	hg.register_hotkey({input::key::del}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->delete_selection_or_char_after();
+		}
+		});
+
+	hg.register_hotkey({input::key::insert}, [](element *e) {
+		auto *editor = dynamic_cast<code::codebox*>(e);
+		if (editor) {
+			editor->get_editor()->toggle_insert_mode();
+		}
+		});
+
 	hg.register_hotkey({key_gesture(input::key::z, modifier_keys::control)}, [](element *e) {
 		auto *editor = dynamic_cast<code::codebox*>(e);
 		if (editor) {
 			editor->get_editor()->try_undo();
 		}
-	});
+		});
 	hg.register_hotkey({key_gesture(input::key::y, modifier_keys::control)}, [](element *e) {
 		auto *editor = dynamic_cast<code::codebox*>(e);
 		if (editor) {
 			editor->get_editor()->try_redo();
 		}
-	});
+		});
 	hg.register_hotkey({key_gesture(input::key::f, modifier_keys::control)}, [](element *e) {
 		auto *cb = dynamic_cast<code::codebox*>(e);
 		if (cb) {
@@ -59,7 +153,7 @@ int main() {
 				}
 			}
 		}
-	});
+		});
 	hg.register_hotkey({key_gesture(input::key::u, modifier_keys::control)}, [](element *e) {
 		auto *cb = dynamic_cast<code::codebox*>(e);
 		if (cb) {
@@ -68,7 +162,14 @@ int main() {
 				editor->remove_fold_region(editor->get_folding_info().begin());
 			}
 		}
-	});
+		});
+
+	hg.register_hotkey({key_gesture(input::key::s, modifier_keys::control)}, [](element *e) {
+		auto *cb = dynamic_cast<code::codebox*>(e);
+		if (cb) {
+			cb->get_editor()->get_context()->save_to_file(U"testsave.txt");
+		}
+		});
 
 	content_host::set_default_font(fnt);
 	code::editor::set_font(codefnt);
@@ -91,7 +192,8 @@ int main() {
 	{
 		auto ctx = std::make_shared<code::text_context>();
 		//ctx->load_from_file(U"hugetext.txt");
-		ctx->load_from_file(U"editors/code/context.h");
+		//ctx->load_from_file(U"longline.txt");
+		ctx->load_from_file(U"editors/code/editor.h");
 		ctx->auto_set_default_line_ending();
 		cp1->get_editor()->set_context(ctx);
 		cp2->get_editor()->set_context(ctx);
@@ -108,7 +210,7 @@ int main() {
 			callback_buffer::get().add([d = std::move(data), ctx]() {
 				ctx->set_text_theme(d);
 			});
-		});
+			});
 	}
 
 	codetab1->children().add(*cp1);
@@ -133,11 +235,11 @@ int main() {
 	{ // load skin
 		std::ifstream fin("skin.json", std::ios::binary);
 		fin.seekg(0, std::ios::end);
-		size_t sz = fin.tellg();
-		char *c = static_cast<char*>(std::malloc(sz));
+		std::streampos sz = fin.tellg();
+		char *c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
 		fin.seekg(0);
-		fin.read(c, sz);
-		u8str_t us(reinterpret_cast<char8_t*>(c), sz);
+		fin.read(c, static_cast<std::streamsize>(sz));
+		u8str_t us(reinterpret_cast<char8_t*>(c), static_cast<size_t>(sz));
 		std::free(c);
 		json::parser_value_t v;
 		str_t ss = convert_to_utf32(us);

@@ -114,16 +114,14 @@ namespace codepad {
 					return _t.get_iterator_for(selector.result);
 				}
 
-				template <typename Cb> iterator add_fold_region(const fold_region &fr, const Cb &callback) {
+				template <typename Cb> iterator add_fold_region(const fold_region &fr, const Cb &callback) { // TODO maybe cache overlapping regions
 					assert_true_usage(fr.first < fr.second, "invalid fold region");
 					iterator
 						beg = find_region_containing_or_first_after_open(fr.first),
 						end = find_region_containing_or_first_after_open(fr.second);
 					// TODO make callbacks
 					_t.erase(beg.get_node(), end.get_node());
-					node_type *n = new node_type(fr);
-					_t.get_synthesizer()(n->synth_data, *n);
-					_t.insert_before(n, end.get_node());
+					_t.insert_node_before(end.get_node(), fr);
 					return --end;
 				}
 				void remove_folded_region(iterator it) {
@@ -182,84 +180,69 @@ namespace codepad {
 				template <bool Before, bool After> using _find_region_open = _find_region<Before, After, std::less_equal<caret_position>>;
 				template <bool Before, bool After> using _find_region_closed = _find_region<Before, After, std::less<caret_position>>;
 
-				struct _get_node_first_line {
-					inline static size_t get(const node_type &n) {
+				struct _get_node_line_info {
+					inline static size_t get_first_for_node(const node_type &n) {
 						return n.synth_data.node_first_line;
 					}
-				};
-				struct _get_node_last_line {
-					inline static size_t get(const node_type &n) {
+					inline static size_t get_last_for_node(const node_type &n) {
 						return n.synth_data.node_last_line;
 					}
-				};
-				struct _get_node_line_span {
-					inline static size_t get(const node_type &n) {
+					inline static size_t get_for_node(const node_type &n) {
 						return n.synth_data.node_line_span;
 					}
+					inline static size_t get_for_tree(const node_type &n) {
+						return n.synth_data.total_line_span;
+					}
 				};
-				struct _get_node_first_char {
-					inline static size_t get(const node_type &n) {
+				struct _get_node_char_info {
+					inline static caret_position get_first_for_node(const node_type &n) {
 						return n.value.first;
 					}
-				};
-				struct _get_node_last_char {
-					inline static size_t get(const node_type &n) {
+					inline static caret_position get_last_for_node(const node_type &n) {
 						return n.value.second;
 					}
-				};
-				struct _get_node_char_span {
-					inline static size_t get(const node_type &n) {
+					inline static caret_position get_for_node(const node_type &n) {
 						return n.value.second - n.value.first;
 					}
+					inline static caret_position get_for_tree(const node_type &n) {
+						return n.synth_data.total_length;
+					}
 				};
 
 				template <
-					typename ValT, typename GetNodeFirst, typename GetPerNode, size_t fold_region_synth_data::*GetTotal
+					typename ValT, typename GetInfo
 				> struct _folded_to_unfolded {
 					int select_find(const node_type &n, ValT &v) const {
-						size_t nv = v + (n.left ? n.left->synth_data.*GetTotal : 0);
-						if (nv <= GetNodeFirst::get(n)) {
+						ValT nv = v + (n.left ? GetInfo::get_for_tree(*n.left) : 0);
+						if (nv <= GetInfo::get_first_for_node(n)) {
 							return -1;
 						}
-						v = nv + GetPerNode::get(n);
+						v = nv + GetInfo::get_for_node(n);
 						return 1;
 					}
 				};
-				using _folded_to_unfolded_pos = _folded_to_unfolded<
-					caret_position, _get_node_first_char, _get_node_char_span,
-					&fold_region_synth_data::total_length
-				>;
-				using _folded_to_unfolded_line = _folded_to_unfolded<
-					size_t, _get_node_first_line, _get_node_line_span,
-					&fold_region_synth_data::total_line_span
-				>;
+				using _folded_to_unfolded_pos = _folded_to_unfolded<caret_position, _get_node_char_info>;
+				using _folded_to_unfolded_line = _folded_to_unfolded<size_t, _get_node_line_info>;
 
 				template <
-					typename ValT, typename GetNodeFirst, typename GetNodeLast,
-					typename GetPerNode, size_t fold_region_synth_data::*GetTotal
+					typename ValT, typename GetInfo
 				> struct _unfolded_to_folded {
 					int select_find(const node_type &n, ValT &v) {
-						if (v < GetNodeFirst::get(n)) {
+						if (v < GetInfo::get_first_for_node(n)) {
 							return -1;
 						}
-						delta += n.left ? n.left->synth_data.*GetTotal : 0;
-						if (v <= GetNodeLast::get(n)) {
-							delta += v - GetNodeFirst::get(n);
+						delta += n.left ? GetInfo::get_for_tree(*n.left) : 0;
+						if (v <= GetInfo::get_last_for_node(n)) {
+							delta += v - GetInfo::get_first_for_node(n);
 							return 0;
 						}
-						delta += GetPerNode::get(n);
+						delta += GetInfo::get_for_node(n);
 						return 1;
 					}
-					size_t delta = 0;
+					ValT delta = 0;
 				};
-				using _unfolded_to_folded_pos = _unfolded_to_folded<
-					caret_position, _get_node_first_char, _get_node_last_char,
-					_get_node_char_span, &fold_region_synth_data::total_length
-				>;
-				using _unfolded_to_folded_line = _unfolded_to_folded<
-					size_t, _get_node_first_line, _get_node_last_line,
-					_get_node_line_span, &fold_region_synth_data::total_line_span
-				>;
+				using _unfolded_to_folded_pos = _unfolded_to_folded<caret_position, _get_node_char_info>;
+				using _unfolded_to_folded_line = _unfolded_to_folded<size_t, _get_node_line_info>;
 			};
 
 			// TODO syntax highlighting, drag & drop, code folding, etc.
@@ -270,6 +253,16 @@ namespace codepad {
 				constexpr static double
 					move_speed_scale = 15.0,
 					dragdrop_distance = 5.0;
+
+				struct gizmo {
+					gizmo() = default;
+					gizmo(double w, std::shared_ptr<os::texture> tex) : width(w), texture(std::move(tex)) {
+					}
+
+					double width = 0.0;
+					std::shared_ptr<os::texture> texture;
+				};
+				using gizmo_registry = incremental_positional_registry<gizmo>;
 
 				void set_context(std::shared_ptr<text_context> nctx) {
 					if (_ctx) {
@@ -333,12 +326,12 @@ namespace codepad {
 					set_caret_keepalign(ncs);
 				}
 				template <typename GetPos, typename SelPos> void move_carets_special_selection(
-					const GetPos &gp, const SelPos &sp
+					const GetPos &gp, const SelPos &sp, bool continueselection
 				) {
-					if (os::input::is_key_down(os::input::key::shift)) {
+					if (continueselection) {
 						move_carets_raw([this, &gp](const caret_set::entry &et) {
 							return _complete_caret_entry(gp(et), et.first.second);
-						});
+							});
 					} else {
 						move_carets_raw([this, &gp, &sp](const caret_set::entry &et) {
 							if (et.first.first == et.first.second) {
@@ -348,11 +341,11 @@ namespace codepad {
 								auto x = sp(et);
 								return _complete_caret_entry(x, x);
 							}
-						});
+							});
 					}
 				}
-				template <typename GetPos> void move_carets(const GetPos &gp) {
-					return move_carets_special_selection(gp, gp);
+				template <typename GetPos> void move_carets(const GetPos &gp, bool continueselection) {
+					return move_carets_special_selection(gp, gp, continueselection);
 				}
 
 				bool is_insert_mode() const {
@@ -400,12 +393,16 @@ namespace codepad {
 					std::vector<folding_registry::fold_region> res;
 					add_fold_region(fr, [&res](folding_registry::fold_region f) {
 						res.push_back(f);
-					});
+						});
 					return res;
 				}
 				void remove_fold_region(folding_registry::iterator f) {
 					_fold.remove_folded_region(f);
 					_on_folding_changed();
+				}
+
+				const gizmo_registry &get_gizmos() const {
+					return _gizmos;
 				}
 
 				std::pair<size_t, size_t> get_visible_lines() const {
@@ -426,6 +423,119 @@ namespace codepad {
 					size_t line = static_cast<size_t>(std::max(offset.y, 0.0) / get_line_height());
 					line = std::min(_fold.folded_to_unfolded_line_number(line), _ctx->num_lines() - 1);
 					return _hit_test_unfolded_linebeg(line, offset.x);
+				}
+
+				void move_all_carets_left(bool continueselection) {
+					move_carets_special_selection([this](const caret_set::entry &et) {
+						return _move_caret_left(et.first.first);
+						}, [](const caret_set::entry &et) {
+							return std::min(et.first.first, et.first.second);
+						}, continueselection);
+				}
+				void move_all_carets_right(bool continueselection) {
+					move_carets_special_selection([this](const caret_set::entry &et) {
+						return _move_caret_right(et.first.first);
+						}, [](const caret_set::entry &et) {
+							return std::max(et.first.first, et.first.second);
+						}, continueselection);
+				}
+				void move_all_carets_up(bool continueselection) {
+					move_carets_special_selection([this](const caret_set::entry &et) {
+						return std::make_pair(_move_caret_vertically(
+							_get_line_of_caret(et.first.first), -1, et.second.alignment
+						), et.second.alignment);
+						}, [this](const caret_set::entry &et) {
+							size_t ml = _get_line_of_caret(et.first.first);
+							double bl = et.second.alignment;
+							if (et.first.second < et.first.first) {
+								ml = _get_line_of_caret(et.first.second);
+								bl = _get_caret_pos_x_caretpos(et.first.second);
+							}
+							return std::make_pair(_move_caret_vertically(ml, -1, bl), bl);
+						}, continueselection);
+				}
+				void move_all_carets_down(bool continueselection) {
+					move_carets_special_selection([this](const caret_set::entry &et) {
+						return std::make_pair(_move_caret_vertically(
+							_get_line_of_caret(et.first.first), 1, et.second.alignment
+						), et.second.alignment);
+						}, [this](const caret_set::entry &et) {
+							size_t ml = _get_line_of_caret(et.first.first);
+							double bl = et.second.alignment;
+							if (et.first.second > et.first.first) {
+								ml = _get_line_of_caret(et.first.second);
+								bl = _get_caret_pos_x_caretpos(et.first.second);
+							}
+							return std::make_pair(_move_caret_vertically(ml, 1, bl), bl);
+						}, continueselection);
+				}
+				void move_all_carets_to_line_beginning(bool continueselection) {
+					move_carets([this](const caret_set::entry &et) {
+						size_t line = _get_line_of_caret(et.first.first);
+						return _ctx->get_linebreak_registry().get_beginning_char_of_line(
+							_fold.get_beginning_line_of_folded_lines(line)
+						);
+						}, continueselection);
+				}
+				void move_all_carets_to_line_beginning_advanced(bool continueselection) {
+					move_carets([this](const caret_set::entry &et) {
+						caret_position cp = et.first.first;
+						size_t
+							line = _get_line_of_caret(cp),
+							reall = _fold.get_beginning_line_of_folded_lines(line),
+							begp = _ctx->get_linebreak_registry().get_beginning_char_of_line(reall),
+							exbegp = begp;
+						for (
+							auto cit = _ctx->at_char(begp);
+							!cit.is_linebreak() && (cit.current_character() == U' ' || cit.current_character() == U'\t');
+							++cit, ++exbegp
+							) {
+						}
+						auto fiter = _fold.find_region_containing_open(begp);
+						if (fiter != _fold.end()) {
+							exbegp = fiter->first;
+						}
+						return cp == exbegp ? begp : exbegp;
+						}, continueselection);
+				}
+				void move_all_carets_to_line_ending(bool continueselection) {
+					move_carets([this](caret_set::entry cp) {
+						return std::make_pair(_ctx->get_linebreak_registry().get_past_ending_char_of_line(
+							_fold.get_past_ending_line_of_folded_lines(_get_line_of_caret(cp.first.first)) - 1
+						), std::numeric_limits<double>::max());
+						}, continueselection);
+				}
+				void cancel_all_selections() {
+					caret_set ns;
+					for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
+						ns.add(caret_set::entry(caret_selection(i->first.first, i->first.first), caret_data(i->second.alignment)));
+					}
+					set_caret_keepalign(std::move(ns));
+				}
+
+				void delete_selection_or_char_before() {
+					if (
+						_cset.carets.size() > 1 ||
+						_cset.carets.begin()->first.first != _cset.carets.begin()->first.second ||
+						_cset.carets.begin()->first.first != 0
+						) {
+						_context_modifier_rsrc it(*this);
+						for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
+							it->on_backspace(i->first);
+						}
+					}
+				}
+				void delete_selection_or_char_after() {
+					if (
+						_cset.carets.size() > 1 ||
+						_cset.carets.begin()->first.first != _cset.carets.begin()->first.second ||
+						_cset.carets.begin()->first.first != _ctx->get_linebreak_registry().num_chars()
+						) {
+						_context_modifier_rsrc it(*this);
+						for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
+							it->on_delete(i->first);
+						}
+					}
 				}
 
 				event<void>
@@ -475,6 +585,8 @@ namespace codepad {
 				caret_position _mouse_cache;
 				// folding
 				folding_registry _fold;
+				// gizmos
+				gizmo_registry _gizmos;
 				// rendering
 				ui::visual_provider::render_state _caretst;
 
@@ -556,6 +668,7 @@ namespace codepad {
 				}
 
 				void _on_content_modified(modification_info &mi) {
+					// TODO maybe improve performance for incremental storage
 					caret_fixup_info::context fctx(mi.caret_fixup);
 					std::vector<folding_registry::fold_region> frs;
 					for (auto i = _fold.get_raw().begin(); i != _fold.get_raw().end(); ++i) {
@@ -567,6 +680,13 @@ namespace codepad {
 						}
 					}
 					_fold.set_folding(std::move(frs));
+
+					caret_fixup_info::context gzctx(mi.caret_fixup);
+					std::vector<gizmo> gzs;
+					caret_position lastpos{};
+					for (auto i = _gizmos.begin(); i != _gizmos.end(); ++i) {
+						// TODO fixup gizmos
+					}
 
 					content_modified.invoke();
 					_on_content_visual_changed();
@@ -774,111 +894,7 @@ namespace codepad {
 				}
 				void _on_key_down(ui::key_info &info) override {
 					switch (info.key) {
-						// deleting stuff
-					case os::input::key::backspace:
-						{
-							if (
-								_cset.carets.size() == 1 &&
-								_cset.carets.begin()->first.first == _cset.carets.begin()->first.second &&
-								_cset.carets.begin()->first.first == 0
-							) {
-								break;
-							}
-							_context_modifier_rsrc it(*this);
-							for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
-								it->on_backspace(i->first);
-							}
-						}
-						break;
-					case os::input::key::del:
-						{
-							if (
-								_cset.carets.size() == 1 &&
-								_cset.carets.begin()->first.first == _cset.carets.begin()->first.second &&
-								_cset.carets.begin()->first.first == _ctx->get_linebreak_registry().num_chars()
-							) {
-								break;
-							}
-							_context_modifier_rsrc it(*this);
-							for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
-								it->on_delete(i->first);
-							}
-						}
-						break;
-
 						// movement control
-					case os::input::key::left:
-						move_carets_special_selection([this](const caret_set::entry &et) {
-							return _move_caret_left(et.first.first);
-						}, [](const caret_set::entry &et) {
-							return std::min(et.first.first, et.first.second);
-						});
-						break;
-					case os::input::key::right:
-						move_carets_special_selection([this](const caret_set::entry &et) {
-							return _move_caret_right(et.first.first);
-						}, [](const caret_set::entry &et) {
-							return std::max(et.first.first, et.first.second);
-						});
-						break;
-					case os::input::key::up:
-						move_carets_special_selection([this](const caret_set::entry &et) {
-							return std::make_pair(_move_caret_vertically(
-								_get_line_of_caret(et.first.first), -1, et.second.alignment
-							), et.second.alignment);
-						}, [this](const caret_set::entry &et) {
-							size_t ml = _get_line_of_caret(et.first.first);
-							double bl = et.second.alignment;
-							if (et.first.second < et.first.first) {
-								ml = _get_line_of_caret(et.first.second);
-								bl = _get_caret_pos_x_caretpos(et.first.second);
-							}
-							return std::make_pair(_move_caret_vertically(ml, -1, bl), bl);
-						});
-						break;
-					case os::input::key::down:
-						move_carets_special_selection([this](const caret_set::entry &et) {
-							return std::make_pair(_move_caret_vertically(
-								_get_line_of_caret(et.first.first), 1, et.second.alignment
-							), et.second.alignment);
-						}, [this](const caret_set::entry &et) {
-							size_t ml = _get_line_of_caret(et.first.first);
-							double bl = et.second.alignment;
-							if (et.first.second > et.first.first) {
-								ml = _get_line_of_caret(et.first.second);
-								bl = _get_caret_pos_x_caretpos(et.first.second);
-							}
-							return std::make_pair(_move_caret_vertically(ml, 1, bl), bl);
-						});
-						break;
-					case os::input::key::home:
-						move_carets([this](const caret_set::entry &et) {
-							caret_position cp = et.first.first;
-							size_t
-								line = _get_line_of_caret(cp),
-								reall = _fold.get_beginning_line_of_folded_lines(line),
-								begp = _ctx->get_linebreak_registry().get_beginning_char_of_line(reall),
-								exbegp = begp;
-							for (
-								auto cit = _ctx->at_char(begp);
-								!cit.is_linebreak() && (cit.current_character() == U' ' || cit.current_character() == U'\t');
-								++cit, ++exbegp
-							) {
-							}
-							auto fiter = _fold.find_region_containing_open(begp);
-							if (fiter != _fold.end()) {
-								exbegp = fiter->first;
-							}
-							return cp == exbegp ? begp : exbegp;
-						});
-						break;
-					case os::input::key::end:
-						move_carets([this](caret_set::entry cp) {
-							return std::make_pair(_ctx->get_linebreak_registry().get_past_ending_char_of_line(
-								_fold.get_past_ending_line_of_folded_lines(_get_line_of_caret(cp.first.first)) - 1
-							), std::numeric_limits<double>::max());
-						});
-						break;
 					case os::input::key::page_up:
 						// TODO page_up
 						break;
@@ -886,18 +902,6 @@ namespace codepad {
 						// TODO page_down
 						break;
 					case os::input::key::escape:
-						{
-							caret_set ns;
-							for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
-								ns.add(caret_set::entry(caret_selection(i->first.first, i->first.first), caret_data(i->second.alignment)));
-							}
-							set_caret_keepalign(std::move(ns));
-						}
-						break;
-
-						// edit mode toggle
-					case os::input::key::insert:
-						toggle_insert_mode();
 						break;
 
 					default:
@@ -911,14 +915,29 @@ namespace codepad {
 						auto beg = info.content.begin();
 						string_buffer::string_type st;
 						st.reserve(info.content.length());
-						for (
-							char32_t cc = U'\0';
-							beg != info.content.end();
-							translate_codepoint_utf8([&st](std::initializer_list<char8_t> cs) {
-								st.append_as_codepoint(std::move(cs));
-							}, cc)
-						) {
+						for (char32_t cc = U'\0'; beg != info.content.end(); ) {
 							next_codepoint(beg, info.content.end(), cc);
+							if (cc != U'\n') {
+								translate_codepoint_utf8([&st](std::initializer_list<char8_t> cs) {
+									st.append_as_codepoint(std::move(cs));
+									}, cc);
+							} else {
+								char8_t tmp[2], *end = &tmp[1];
+								switch (_ctx->get_default_line_ending()) {
+								case line_ending::rn:
+									end = static_cast<char8_t*>(tmp) + 2;
+									tmp[1] = '\n';
+								case line_ending::r:
+									tmp[0] = '\r';
+									break;
+								case line_ending::n:
+									tmp[0] = '\n';
+									break;
+								default:
+									continue;
+								}
+								st.append_as_codepoint(tmp, end);
+							}
 						}
 						it->on_text(i->first, std::move(st), _insert);
 					}
@@ -953,9 +972,8 @@ namespace codepad {
 				struct caret_renderer {
 				public:
 					caret_renderer(
-						const caret_set::container &c, caret_position sp, caret_position pep, double lh,
-						const std::shared_ptr<ui::basic_brush> &b
-					) : _lh(lh), _sel_brush(b) {
+						const caret_set::container &c, caret_position sp, caret_position pep
+					) {
 						_beg = c.lower_bound(std::make_pair(sp, caret_position()));
 						if (_beg != c.begin()) {
 							auto prev = _beg;
@@ -982,14 +1000,17 @@ namespace codepad {
 					const std::vector<rectd> &get_caret_rects() const {
 						return _carets;
 					}
+					const std::vector<std::vector<rectd>> &get_selection_rects() const {
+						return _selrgns;
+					}
 				protected:
 					std::vector<rectd> _carets;
+					std::vector<std::vector<rectd>> _selrgns;
 					caret_set::const_iterator _beg, _end;
 					std::pair<caret_position, caret_position> _minmax;
-					double _lastl = 0.0, _lh = 0.0;
+					double _lastl = 0.0;
 					bool _insel = false;
 					caret_position _cpos;
-					const std::shared_ptr<ui::basic_brush> &_sel_brush;
 
 					void _check_next(double cl, caret_position cp) {
 						if (_beg != _end) {
@@ -998,12 +1019,32 @@ namespace codepad {
 								_cpos = _beg->first.first;
 								++_beg;
 								if (_minmax.first != _minmax.second) {
+									_selrgns.emplace_back();
 									_insel = true;
 									_lastl = cl;
 								}
 							}
 						}
 					}
+				};
+				struct gizmo_renderer {
+				public:
+					using gizmo_rendering_info = std::pair<vec2d, gizmo_registry::const_iterator>;
+
+					gizmo_renderer(
+						const gizmo_registry &reg, caret_position sp, caret_position pep
+					) : _beg(reg.find_at_or_first_after(sp)), _end(reg.find_at_or_first_after(pep)) {
+					}
+
+					void switching_char(const character_rendering_iterator&, switch_char_info&);
+					void switching_line(const character_rendering_iterator&);
+
+					const std::vector<gizmo_rendering_info> &get_gizmos() const {
+						return _gzs;
+					}
+				protected:
+					std::vector<gizmo_rendering_info> _gzs;
+					gizmo_registry::const_iterator _beg, _end;
 				};
 			};
 
@@ -1222,7 +1263,7 @@ namespace codepad {
 				double cx = it.character_info().char_left(), cy = it.y_offset();
 				if (_insel) {
 					if (_minmax.second <= it.current_position()) {
-						_sel_brush->fill_rect(rectd(_lastl, cx, cy, cy + it.line_height()));
+						_selrgns.back().push_back(rectd(_lastl, cx, cy, cy + it.line_height()));
 						_insel = false;
 					}
 				}
@@ -1248,9 +1289,16 @@ namespace codepad {
 						it.character_info().get_font_family().get_by_style(
 							it.theme_info().current_theme.style
 						)->get_char_entry(U' ').advance;
-					_sel_brush->fill_rect(rectd(_lastl, finx, it.y_offset(), it.y_offset() + it.line_height()));
+					_selrgns.back().push_back(rectd(_lastl, finx, it.y_offset(), it.y_offset() + it.line_height()));
 					_lastl = 0.0;
 				}
+			}
+
+			inline void editor::gizmo_renderer::switching_char(const character_rendering_iterator &it, switch_char_info&) {
+				// TODO
+			}
+			inline void editor::gizmo_renderer::switching_line(const character_rendering_iterator &it) {
+				// TODO
 			}
 
 			inline void editor::_custom_render() {
@@ -1279,10 +1327,7 @@ namespace codepad {
 					firstchar = _ctx->get_linebreak_registry().get_beginning_char_of_line(be.first),
 					plastchar = _ctx->get_linebreak_registry().get_beginning_char_of_line(be.second);
 				rendering_iterator<true, caret_renderer> it(
-					std::make_tuple(
-						std::cref(*used), firstchar, plastchar, get_line_height(),
-						_get_appearance().selection_brush
-					),
+					std::make_tuple(std::cref(*used), firstchar, plastchar),
 					std::make_tuple(std::cref(*this), firstchar, plastchar)
 				);
 				for (it.begin(); !it.ended(); it.next()) {
@@ -1294,10 +1339,15 @@ namespace codepad {
 							os::renderer_base::get().draw_character(
 								lci.current_char_entry().texture,
 								vec2d(lci.char_left(), std::round(cri.rounded_y_offset() + bi.get(ti.current_theme.style))) +
-									lci.current_char_entry().placement.xmin_ymin(),
+								lci.current_char_entry().placement.xmin_ymin(),
 								ti.current_theme.color
 							);
 						}
+					}
+				}
+				for (const auto &selrgn : it.get_addon<caret_renderer>().get_selection_rects()) {
+					for (const auto &rgn : selrgn) {
+						_get_appearance().selection_brush->fill_rect(rgn);
 					}
 				}
 				if (_caretst.update_and_render_multiple(

@@ -153,14 +153,6 @@ namespace codepad {
 					}
 				}
 
-				void increment(context &ctx) const {
-					if (ctx.next == mods.end()) {
-						return;
-					}
-					ctx.append_custom_modification(*ctx.next);
-					++ctx.next;
-				}
-
 				caret_position fixup_caret_min(caret_position cp, context &ctx) const {
 					cp = fixup_caret_custom_context(cp, ctx);
 					while (ctx.next != mods.end() && ctx.next->position < cp) {
@@ -170,7 +162,11 @@ namespace codepad {
 							break;
 						}
 						cp = fixup_caret_with_mod(cp, *ctx.next);
-						increment(ctx);
+						if (ctx.next == mods.end()) {
+							break;
+						}
+						ctx.append_custom_modification(*ctx.next);
+						++ctx.next;
 					}
 					return cp;
 				}
@@ -392,20 +388,39 @@ namespace codepad {
 
 				void load_from_file(const str_t &fn) {
 					logger::get().log_info(CP_HERE, "starting to load file...");
+					auto begt = std::chrono::high_resolution_clock::now();
 					clear();
 					std::ifstream fin(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
 					fin.seekg(0, std::ios::end);
-					std::streampos len = fin.tellg();
+					auto len = fin.tellg();
 					fin.seekg(0, std::ios::beg);
-					char8_t *cs = static_cast<char8_t*>(std::malloc(len));
-					fin.read(reinterpret_cast<char*>(cs), len);
-					logger::get().log_info(CP_HERE, "read complete");
-					insert_text(0, cs, cs + len);
+					char8_t *cs = static_cast<char8_t*>(std::malloc(static_cast<size_t>(len)));
+					fin.read(reinterpret_cast<char*>(cs), static_cast<std::streamsize>(len));
+					auto now = std::chrono::high_resolution_clock::now();
+					logger::get().log_info(
+						CP_HERE, "read complete in ",
+						std::chrono::duration<double, std::milli>(now - begt).count(),
+						"ms"
+					);
+					begt = now;
+					insert_text(0, cs, cs + static_cast<int>(len));
 					std::free(cs);
-					logger::get().log_info(CP_HERE, "decode & format complete, load complete");
+					now = std::chrono::high_resolution_clock::now();
+					logger::get().log_info(
+						CP_HERE, "decode & format complete in ",
+						std::chrono::duration<double, std::milli>(now - begt).count(),
+						"ms"
+					);
+					logger::get().log_info(CP_HERE, "file loaded");
 				}
 				void save_to_file(const str_t &fn) const {
-					// TODO
+					std::ofstream fout(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
+					for (auto i = _str.node_begin(); i != _str.node_end(); ++i) {
+						fout.write(
+							reinterpret_cast<const char*>(i->data()),
+							i->length() * sizeof(string_buffer::char_type)
+						);
+					}
 				}
 
 				void auto_set_default_line_ending() {
@@ -415,7 +430,7 @@ namespace codepad {
 							++n[static_cast<int>(i->ending) - 1];
 						}
 					}
-					std::ptrdiff_t choice = std::max_element(n, n + 3) - n;
+					auto choice = std::max_element(n, n + 3) - n;
 					logger::get().log_info(CP_HERE, "choosing line ending r: ", n[0], " n: ", n[1], " rn: ", n[2], " chose ", choice);
 					set_default_line_ending(static_cast<line_ending>(choice + 1));
 				}

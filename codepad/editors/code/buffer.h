@@ -11,6 +11,19 @@ namespace codepad {
 				n,
 				rn
 			};
+			inline const char8_t *line_ending_to_static_u8_string(line_ending le) {
+				switch (le) {
+				case line_ending::r:
+					return reinterpret_cast<const char8_t*>("\r");
+				case line_ending::n:
+					return reinterpret_cast<const char8_t*>("\n");
+				case line_ending::rn:
+					return reinterpret_cast<const char8_t*>("\r\n");
+				default:
+					break;
+				}
+				return reinterpret_cast<const char8_t*>("");
+			}
 			inline const char32_t *line_ending_to_static_u32_string(line_ending le) {
 				switch (le) {
 				case line_ending::r:
@@ -20,7 +33,7 @@ namespace codepad {
 				case line_ending::rn:
 					return U"\r\n";
 				default:
-					return U"";
+					break;
 				}
 				return U"";
 			}
@@ -44,7 +57,7 @@ namespace codepad {
 				}
 				basic_string_compact(const Char *cs, size_t len) : basic_string_compact(cs, len, count_codepoints(cs, cs + len)) {
 				}
-				basic_string_compact(const Char *cs, size_t len, size_t ncp) : _chars(_duplicate_str(cs, len)), _res(len), _len(len), _cp(ncp) {
+				basic_string_compact(const Char *cs, size_t len, size_t ncp) : _chars(_duplicate_str(cs, len)), _len(len), _res(len), _cp(ncp) {
 				}
 				basic_string_compact(const basic_string_compact &s) : basic_string_compact(s._chars, s._len, s._cp) {
 				}
@@ -57,8 +70,7 @@ namespace codepad {
 				basic_string_compact &operator=(const basic_string_compact &s) {
 					if (_res > s._len) {
 						std::memcpy(_chars, s._chars, sizeof(Char) * s._len);
-					}
-					else {
+					} else {
 						std::free(_chars);
 						_chars = _duplicate_str(s._chars, s._len);
 						_res = s._len;
@@ -83,6 +95,9 @@ namespace codepad {
 				Char operator[](size_t id) const {
 					assert_true_logical(id < _len, "access violation");
 					return _chars[id];
+				}
+				const Char *data() const {
+					return _chars;
 				}
 
 				size_t length() const {
@@ -151,8 +166,11 @@ namespace codepad {
 				}
 
 				void append_as_codepoint(std::initializer_list<Char> c) {
+					append_as_codepoint(c.begin(), c.end());
+				}
+				template <typename It> void append_as_codepoint(It beg, It end) {
 					++_cp;
-					size_t newlen = _len + c.size();
+					size_t newlen = _len + (end - beg);
 					if (newlen > _res) {
 						Char *nc = _begin_resize(newlen);
 						if (_chars) {
@@ -161,7 +179,7 @@ namespace codepad {
 						_end_resize(nc);
 					}
 					Char *cc = _chars + _len;
-					for (auto i = c.begin(); i != c.end(); ++i, ++cc) {
+					for (auto i = beg; i != end; ++i, ++cc) {
 						*cc = *i;
 					}
 					_len = newlen;
@@ -181,8 +199,7 @@ namespace codepad {
 						}
 						std::memcpy(dst + pos, str, sizeof(Char) * len);
 						_end_resize(dst);
-					}
-					else {
+					} else {
 						for (size_t i = _len, j = _len + len; i > pos; ) {
 							_chars[--j] = _chars[--i];
 						}
@@ -235,8 +252,7 @@ namespace codepad {
 							for (; remend != oldend; ++remend, ++insend) {
 								*insend = *remend;
 							}
-						}
-						else {
+						} else {
 							if (_len > _res) {
 								Char *dst = _begin_resize(_len);
 								size_t posoffset = static_cast<size_t>(pos - _chars);
@@ -247,8 +263,7 @@ namespace codepad {
 								std::memcpy(dst + posoffset, insstr, sizeof(Char) * inslen);
 								_end_resize(dst);
 								return;
-							}
-							else {
+							} else {
 								for (iterator newend = end(); oldend != remend; ) {
 									*--newend = *--oldend;
 								}
@@ -277,7 +292,7 @@ namespace codepad {
 				}
 
 				Char *_begin_resize(size_t nsz) {
-					_res = std::max(nsz, static_cast<size_t>(_res * space_extend_ratio));
+					_res = std::max(nsz, static_cast<size_t>(static_cast<double>(_res) * space_extend_ratio));
 					return static_cast<Char*>(std::malloc(sizeof(Char) * _res));
 				}
 				void _end_resize(Char *c) {
@@ -417,8 +432,7 @@ namespace codepad {
 						if (_cit.next_end()) {
 							++_tit;
 							_cit = _get_cit();
-						}
-						else {
+						} else {
 							++_cit;
 						}
 						return *this;
@@ -467,6 +481,13 @@ namespace codepad {
 				}
 				const_iterator end() const {
 					return const_iterator(_t.end(), string_type::const_iterator());
+				}
+
+				tree_type::const_iterator node_begin() const {
+					return _t.begin();
+				}
+				tree_type::const_iterator node_end() const {
+					return _t.end();
 				}
 
 				iterator at_codepoint(size_t cp) {
@@ -568,6 +589,7 @@ namespace codepad {
 					}
 					if (beg._tit == end._tit) {
 						bnode->value.erase(beg._cit, end._cit);
+						_t.refresh_synthesized_result(bnode);
 						_try_merge_small_nodes(bnode);
 						return;
 					}
@@ -633,7 +655,7 @@ namespace codepad {
 					}
 					_t.refresh_synthesized_result(node2upd);
 					if (strs.size() > 0) {
-						_t.insert_before(_t.build_tree(std::move(strs)), node2ins);
+						_t.insert_tree_before(node2ins, std::move(strs));
 					}
 					node_type
 						*lstnode = node2ins ? node2ins->prev() : _t.max(),
@@ -655,7 +677,7 @@ namespace codepad {
 					_t.clear();
 				}
 			protected:
-				template <size_t node_data::*Index, size_t (string_type::*NodeProp)() const> struct _index_finder {
+				template <size_t node_data::*Index, size_t(string_type::*NodeProp)() const> struct _index_finder {
 					int select_find(const node_type &cur, size_t &target) const {
 						if (cur.left) {
 							if (target < cur.left->synth_data.*Index) {
@@ -673,7 +695,9 @@ namespace codepad {
 				using _codepoint_index_finder = _index_finder<&node_data::total_codepoints, &string_type::num_codepoints>;
 				using _unit_index_finder = _index_finder<&node_data::total_length, &string_type::length>;
 
-				template <size_t node_data::*Field, size_t (string_type::*NodeProp)() const> size_t _synth_sum_before(const node_type *n) const {
+				template <
+					size_t node_data::*Field, size_t(string_type::*NodeProp)() const
+				> size_t _synth_sum_before(const node_type *n) const {
 					if (n == nullptr) {
 						return _t.root() ? _t.root()->synth_data.*Field : 0;
 					}
@@ -685,7 +709,7 @@ namespace codepad {
 								result += p.left->synth_data.*Field;
 							}
 						}
-					});
+						});
 					return result;
 				}
 				size_t _codepoints_before(const node_type *n) const {
@@ -723,6 +747,164 @@ namespace codepad {
 				tree_type _t;
 			};
 
+			template <typename Data> struct incremental_positional_registry {
+			public:
+				struct node_data {
+					node_data() = default;
+					node_data(size_t len, Data obj) : length(len), object(std::move(obj)) {
+					}
+
+					size_t length = 0;
+					Data object;
+				};
+				struct node_synth_data {
+					using node_type = binary_tree_node<node_data, node_synth_data>;
+
+					size_t total_length = 0;
+
+					void synthesize(const node_type &n) {
+						total_length = n.value.length;
+						if (n.left) {
+							total_length += n.left->synth_data.total_length;
+						}
+						if (n.right) {
+							total_length += n.right->synth_data.total_length;
+						}
+					}
+				};
+				using tree_type = binary_tree<node_data, node_synth_data>;
+				using node_type = typename tree_type::node;
+				template <bool Const> struct iterator_base {
+				public:
+					using raw_iterator_t = std::conditional_t<
+						Const, typename tree_type::const_iterator, typename tree_type::iterator
+					>;
+					using dereferenced_t = std::conditional_t<Const, const Data, Data>;
+					using reference = dereferenced_t&;
+					using pointer = dereferenced_t*;
+
+					iterator_base() = default;
+					explicit iterator_base(const raw_iterator_t &it) : _it(it) {
+					}
+
+					reference operator*() const {
+						return _it->object;
+					}
+					pointer operator->() const {
+						return &operator*();
+					}
+
+					friend bool operator==(const iterator_base &lhs, const iterator_base &rhs) {
+						return lhs._it == rhs._it;
+					}
+					friend bool operator!=(const iterator_base &lhs, const iterator_base &rhs) {
+						return !(lhs == rhs);
+					}
+
+					iterator_base &operator++() {
+						++_it;
+						return *this;
+					}
+					iterator_base operator++(int) {
+						iterator_base oldv = *this;
+						++*this;
+						return oldv;
+					}
+
+					iterator_base &operator--() {
+						--_it;
+						return *this;
+					}
+					iterator_base operator--(int) {
+						iterator_base oldv = *this;
+						--*this;
+						return oldv;
+					}
+
+					const node_data &data() const {
+						return *get_raw();
+					}
+					const raw_iterator_t &get_raw() const {
+						return _it;
+					}
+				protected:
+					raw_iterator_t _it;
+				};
+				using iterator = iterator_base<false>;
+				using const_iterator = iterator_base<true>;
+
+				void insert_at(const iterator &pos, size_t offset, Data d) {
+					if (pos.get_raw() != _t.end()) {
+						assert_true_usage(offset <= pos.data().length, "invalid position");
+						pos.get_raw().get_node()->value.length -= offset;
+						_t.refresh_synthesized_result(pos.get_raw().get_node());
+					}
+					_t.insert_node_before(pos.get_raw().get_node(), offset, std::move(d));
+				}
+				void insert_at(size_t pos, Data d) {
+					auto it = _t.find_custom(_find_obj(), pos);
+					insert_at(iterator(it), pos, std::move(d));
+				}
+
+				void remove(const_iterator it) {
+					assert_true_usage(it.get_raw() != _t.end(), "invalid position");
+					auto next = it;
+					++next;
+					if (next.get_raw() != _t.end()) {
+						next.get_raw().get_node()->value.length += it.data().length;
+						_t.refresh_synthesized_result(next.get_raw().get_node());
+					}
+					_t.erase(it.get_raw());
+				}
+
+				iterator begin() {
+					return iterator(_t.begin());
+				}
+				iterator end() {
+					return iterator(_t.end());
+				}
+				const_iterator begin() const {
+					return const_iterator(_t.begin());
+				}
+				const_iterator end() const {
+					return const_iterator(_t.end());
+				}
+
+				iterator find_at_or_first_after(size_t pos) {
+					return _find_at_or_first_after_impl<iterator>(*this, pos);
+				}
+				const_iterator find_at_or_first_after(size_t pos) const {
+					return _find_at_or_first_after_impl<const_iterator>(*this, pos);
+				}
+
+				void clear() {
+					_t.clear();
+				}
+			protected:
+				template <
+					typename It, typename Cont
+				> inline static It _find_at_or_first_after_impl(Cont &cnt, size_t &pos) {
+					return It(cnt._t.find_custom(_find_obj(), pos));
+				}
+
+				tree_type _t;
+
+				struct _find_obj {
+					int select_find(const node_type &n, size_t &c) {
+						if (n.left) {
+							if (c <= n.left->synth_data.total_length) {
+								return -1;
+							}
+							c -= n.left->synth_data.total_length;
+						}
+						if (c <= n.value.length) {
+							return 0;
+						}
+						c -= n.value.length;
+						return 1;
+					}
+				};
+			};
 			class linebreak_registry {
 			public:
 				struct line_info {
@@ -765,7 +947,7 @@ namespace codepad {
 				using iterator = tree_type::const_iterator;
 
 				linebreak_registry() {
-					_t.insert_before(new node_type(), nullptr);
+					_t.insert_node_before(nullptr);
 				}
 
 				size_t position_char_to_codepoint(size_t c) const {
@@ -837,14 +1019,14 @@ namespace codepad {
 							lines[0].nonbreak_chars += maxn->value.nonbreak_chars;
 							_t.erase(maxn);
 						}
-						_t.insert_before(_t.build_tree(std::move(lines)), at.get_node());
+						_t.insert_tree_before(at.get_node(), std::move(lines));
 					} else {
 						lines[0].nonbreak_chars += offset;
 						at.get_node()->value.nonbreak_chars += lines.back().nonbreak_chars - offset;
 						_t.refresh_synthesized_result(at.get_node());
 						lines.pop_back();
 						if (lines.size() > 0) {
-							_t.insert_before(_t.build_tree(std::move(lines)), at.get_node());
+							_t.insert_tree_before(at.get_node(), std::move(lines));
 						}
 					}
 				}
@@ -876,13 +1058,13 @@ namespace codepad {
 
 				inline static size_t get_linebreak_length(line_ending le) {
 					switch (le) {
-						case line_ending::none:
-							return 0;
-						case line_ending::n:
-						case line_ending::r:
-							return 1;
-						case line_ending::rn:
-							return 2;
+					case line_ending::none:
+						return 0;
+					case line_ending::n:
+					case line_ending::r:
+						return 1;
+					case line_ending::rn:
+						return 2;
 					}
 					return 0;
 				}
@@ -899,10 +1081,10 @@ namespace codepad {
 								result += p.left->synth_data.num_linebreaks;
 							}
 						}
-					});
+						});
 					return result;
 				}
-		protected:
+			protected:
 				tree_type _t; // one line break per node
 
 				struct _pos_char_to_cp {
@@ -934,7 +1116,7 @@ namespace codepad {
 							c -= n.left->synth_data.*Total;
 							total_lines += n.left->synth_data.num_linebreaks;
 						}
-						if (c < n.synth_data.*Node) {
+						if (c < n.synth_data.*Node || n.right == nullptr) {
 							return 0;
 						}
 						c -= n.synth_data.*Node;
@@ -980,7 +1162,7 @@ namespace codepad {
 								result += p.left->synth_data.*Total;
 							}
 						}
-					});
+						});
 					return result;
 				};
 			};

@@ -547,11 +547,15 @@ namespace codepad {
 			}
 			std::function<void()> _get_begin_window_func(const window_base &wnd) override {
 				const window *cw = static_cast<const window*>(&wnd);
-				return std::bind(static_cast<void(*)(BOOL)>(winapi_check), std::bind(wglMakeCurrent, cw->_dc, _rc));
+				return [this, dc = cw->_dc]() {
+					winapi_check(wglMakeCurrent(dc, _rc));
+				};
 			}
 			std::function<void()> _get_end_window_func(const window_base &wnd) override {
 				const window *cw = static_cast<const window*>(&wnd);
-				return std::bind(static_cast<void(*)(BOOL)>(winapi_check), std::bind(SwapBuffers, cw->_dc));
+				return [dc = cw->_dc]() {
+					winapi_check(SwapBuffers(dc));
+				};
 			}
 
 			template <typename T> inline static void _get_func(T &f, LPCSTR name) {

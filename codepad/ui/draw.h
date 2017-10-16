@@ -10,7 +10,7 @@ namespace codepad {
 		struct character_metrics_accumulator {
 		public:
 			character_metrics_accumulator(ui::font_family ff, double tabsize) :
-				_ff(ff), _tabw(tabsize * ff.normal->get_char_entry(U' ').advance) {
+				_ff(std::move(ff)), _tabw(tabsize * _ff.normal->get_char_entry(U' ').advance) {
 			}
 
 			void next(char32_t c, font_style fs) {
