@@ -22,31 +22,21 @@ namespace codepad {
 				_wnd_rec *crec = &_wnds.find(cwnd)->second;
 				_begin_render_target(_render_target_stackframe(
 					crec->width, crec->height, crec->buffer, [this, cwnd, crec]() {
-					DWORD *to = crec->bmp.arr;
-					colord *from = _tarbuf;
-					for (size_t i = crec->width * crec->height; i > 0; --i, ++from, ++to) {
-						*to = _conv_to_dword(from->convert<unsigned char>());
+						DWORD *to = crec->bmp.arr;
+						colord *from = _tarbuf;
+						for (size_t i = crec->width * crec->height; i > 0; --i, ++from, ++to) {
+							*to = _conv_to_dword(from->convert<unsigned char>());
+						}
+						winapi_check(BitBlt(
+							cwnd->_dc, 0, 0, static_cast<int>(crec->width), static_cast<int>(crec->height),
+							crec->dc, 0, 0, SRCCOPY
+						));
 					}
-					winapi_check(BitBlt(
-						cwnd->_dc, 0, 0, static_cast<int>(crec->width), static_cast<int>(crec->height),
-						crec->dc, 0, 0, SRCCOPY
-					));
-				}
 				));
 				_clear_texture(_tarbuf, crec->width, crec->height);
 			}
-			void draw_character(const texture &tex, vec2d pos, colord c) override {
-				const _tex_rec &tr = _txs[_get_id(tex)];
-				rectd rv = rectd::from_xywh(pos.x, pos.y, static_cast<double>(tr.w), static_cast<double>(tr.h));
-				vec2d vxs[6] = {
-					rv.xmin_ymin(), rv.xmax_ymin(), rv.xmin_ymax(),
-					rv.xmax_ymin(), rv.xmax_ymax(), rv.xmin_ymax()
-				}, uvs[6] = {
-					vec2d(0.0, 0.0), vec2d(1.0, 0.0), vec2d(0.0, 1.0),
-					vec2d(1.0, 0.0), vec2d(1.0, 1.0), vec2d(0.0, 1.0)
-				};
-				colord cs[6] = {c, c, c, c, c, c};
-				draw_triangles(tex, vxs, uvs, cs, 6);
+			void draw_character_custom(const texture &tex, rectd pos, colord c) override {
+				draw_quad(tex, pos, rectd(0.0, 1.0, 0.0, 1.0), c);
 			}
 			void draw_triangles(
 				const texture &tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
@@ -86,7 +76,7 @@ namespace codepad {
 
 			texture new_character_texture(size_t w, size_t h, const void *gs) override {
 				texture::id_t nid = _alloc_id();
-				_txs[nid].set_grayscale(w, h, static_cast<const unsigned char*>(gs));
+				_txs[nid].set_rgba(w, h, static_cast<const unsigned char*>(gs));
 				return _make_texture(nid, w, h);
 			}
 			void delete_character_texture(texture &id) override {
@@ -128,6 +118,16 @@ namespace codepad {
 			}
 			void pop_matrix() override {
 				_matstk.pop_back();
+			}
+
+			void push_blend_function(blend_function f) override {
+				_blendstk.push_back(f);
+			}
+			void pop_blend_function() override {
+				_blendstk.pop_back();
+			}
+			blend_function top_blend_function() const override {
+				return _blendstk.back();
 			}
 		protected:
 			void _new_window(window_base &wnd) override {
@@ -311,10 +311,12 @@ namespace codepad {
 			std::unordered_map<const window*, _wnd_rec> _wnds;
 			std::vector<_render_target_stackframe> _rtfstk;
 			std::vector<matd3x3> _matstk;
+			std::vector<blend_function> _blendstk;
 
 			void _begin_render_target(_render_target_stackframe sf) {
 				_matstk.push_back(matd3x3());
 				_matstk.back().set_identity();
+				_blendstk.push_back(blend_function());
 				_rtfstk.push_back(std::move(sf));
 				_continue_last_render_target();
 			}
@@ -328,10 +330,12 @@ namespace codepad {
 				}
 				_rtfstk.pop_back();
 				_matstk.pop_back();
+				_blendstk.pop_back();
 				if (!_rtfstk.empty()) {
 					_continue_last_render_target();
 				} else {
 					assert_true_usage(_matstk.size() == 0, "pushmatrix/popmatrix mismatch");
+					assert_true_usage(_blendstk.size() == 0, "pushblendfunc/popblendfunc mismatch");
 				}
 			}
 
@@ -433,12 +437,11 @@ namespace codepad {
 					vec2d uv = uvs[0] * p + uvs[1] * q + uvs[2] * mpq;
 					colord cc = cs[0] * p + cs[1] * q + cs[2] * mpq;
 					for (size_t cx = l; cx < r; ++cx, ++pixel, uv += uvd, cc += cd) {
+						colord ncc = cc;
 						if (tex.data) {
-							colord ncc = cc * tex.sample(uv);
-							*pixel += (ncc - *pixel) * ncc.a;
-						} else {
-							*pixel += (cc - *pixel) * cc.a;
+							ncc *= tex.sample(uv);
 						}
+						*pixel += (ncc - *pixel) * ncc.a; // TODO apply blend func
 					}
 				}
 			}
@@ -524,7 +527,7 @@ namespace codepad {
 				winapi_check(_pformat = ChoosePixelFormat(GetDC(nullptr), &_pfd));
 			}
 			~opengl_renderer() override {
-				_atl.dispose();
+				_dispose_gl_rsrc();
 				winapi_check(wglMakeCurrent(nullptr, nullptr));
 				winapi_check(wglDeleteContext(_rc));
 			}
@@ -547,13 +550,13 @@ namespace codepad {
 			}
 			std::function<void()> _get_begin_window_func(const window_base &wnd) override {
 				const window *cw = static_cast<const window*>(&wnd);
-				return [this, dc = cw->_dc]() {
+				return[this, dc = cw->_dc]() {
 					winapi_check(wglMakeCurrent(dc, _rc));
 				};
 			}
 			std::function<void()> _get_end_window_func(const window_base &wnd) override {
 				const window *cw = static_cast<const window*>(&wnd);
-				return [dc = cw->_dc]() {
+				return[dc = cw->_dc]() {
 					winapi_check(SwapBuffers(dc));
 				};
 			}
@@ -562,6 +565,12 @@ namespace codepad {
 				winapi_check(f = reinterpret_cast<T>(wglGetProcAddress(name)));
 			}
 			void _init_gl() {
+				_get_func(_gl.GenBuffers, "glGenBuffers");
+				_get_func(_gl.DeleteBuffers, "glDeleteBuffers");
+				_get_func(_gl.BindBuffer, "glBindBuffer");
+				_get_func(_gl.BufferData, "glBufferData");
+				_get_func(_gl.MapBuffer, "glMapBuffer");
+				_get_func(_gl.UnmapBuffer, "glUnmapBuffer");
 				_get_func(_gl.GenFramebuffers, "glGenFramebuffers");
 				_get_func(_gl.BindFramebuffer, "glBindFramebuffer");
 				_get_func(_gl.FramebufferTexture2D, "glFramebufferTexture2D");

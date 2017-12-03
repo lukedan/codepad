@@ -170,6 +170,11 @@ namespace codepad {
 				winapi_check(TrackMouseEvent(&tme));
 			}
 
+			void _on_mouse_enter() override {
+				_setup_mouse_tracking();
+				window_base::_on_mouse_enter();
+			}
+
 			void _on_resize() {
 				RECT cln;
 				winapi_check(GetClientRect(_hwnd, &cln));

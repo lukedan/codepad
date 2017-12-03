@@ -384,6 +384,7 @@ namespace codepad {
 					_child_set_layout(_pgup, rectd(cln.xmin, mid1, cln.ymin, cln.ymax));
 					_child_set_layout(_pgdn, rectd(mid2, cln.xmax, cln.ymin, cln.ymax));
 				}
+				element::_finish_layout();
 			}
 
 			void _initialize() override {

@@ -68,6 +68,53 @@ namespace codepad {
 	> struct binary_tree {
 	public:
 		using node = binary_tree_node<T, AdditionalData>;
+		template <typename Cont, typename Node> struct iterator_base;
+		struct node_value_modifier {
+			friend struct iterator_base<binary_tree, node>;
+			friend struct binary_tree;
+		public:
+			node_value_modifier() = default;
+			node_value_modifier(const node_value_modifier&) = default;
+			node_value_modifier(node_value_modifier &&mod) : _n(mod._n), _cont(mod._cont) {
+				mod._n = nullptr;
+				mod._cont = nullptr;
+			}
+			node_value_modifier &operator=(const node_value_modifier &mod) {
+				manual_refresh();
+				_n = mod._n;
+				_cont = mod._cont;
+			}
+			node_value_modifier &operator=(node_value_modifier &&mod) {
+				manual_refresh();
+				_n = mod._n;
+				_cont = mod._cont;
+				mod._n = nullptr;
+				mod._cont = nullptr;
+			}
+			~node_value_modifier() {
+				manual_refresh();
+			}
+
+			T &operator*() const {
+				return _n->value;
+			}
+			T *operator->() const {
+				return &operator*();
+			}
+
+			void manual_refresh() {
+				if (_cont) {
+					assert_true_logical(_n != nullptr, "invalid modifier");
+					_cont->refresh_synthesized_result(_n);
+				}
+			}
+		protected:
+			node_value_modifier(node *n, binary_tree *c) : _n(n), _cont(c) {
+			}
+
+			node *_n = nullptr;
+			binary_tree *_cont = nullptr;
+		};
 		template <typename Cont, typename Node> struct iterator_base {
 			friend struct binary_tree<T, AdditionalData, Synth>;
 		public:
@@ -116,12 +163,22 @@ namespace codepad {
 				return ov;
 			}
 
-			reference operator*() const {
+			T &get_value_rawmod() const {
 				return _n->value;
 			}
-			pointer operator->() const {
-				return &_n->value;
+			const T &get_value() const {
+				return _n->value;
 			}
+			node_value_modifier get_modifier() const {
+				return _con->get_modifier(_n);
+			}
+			const T &operator*() const {
+				return get_value();
+			}
+			const T *operator->() const {
+				return &get_value();
+			}
+
 			Node *get_node() const {
 				return _n;
 			}
@@ -198,10 +255,16 @@ namespace codepad {
 		void insert_tree_before(node *before, std::vector<T> objs) {
 			insert_before_raw(before, build_tree(std::move(objs), _synth));
 		}
+		void insert_tree_before(const_iterator it, std::vector<T> objs) {
+			insert_tree_before(it.get_node(), std::move(objs));
+		}
 		template <typename ...Args> void insert_node_before(node *before, Args &&...args) {
 			node *n = new node(std::forward<Args>(args)...);
-			_update_synth(n);
+			_refresh_synth(n);
 			insert_before_raw(before, n);
+		}
+		template <typename ...Args> void insert_node_before(const_iterator it, Args &&...args) {
+			insert_node_before(it.get_node(), std::forward<Args>(args)...);
 		}
 
 		template <typename BranchSelector, typename Ref> iterator find_custom(BranchSelector &&b, Ref &&ref) {
@@ -215,6 +278,9 @@ namespace codepad {
 			return iterator(this, n);
 		}
 		const_iterator get_iterator_for(node *n) const {
+			return const_iterator(this, n);
+		}
+		const_iterator get_const_iterator_for(node *n) const {
 			return const_iterator(this, n);
 		}
 
@@ -257,7 +323,37 @@ namespace codepad {
 
 		void refresh_synthesized_result(node *n) {
 			for (; n; n = n->parent) {
-				_update_synth(n);
+				_refresh_synth(n);
+			}
+		}
+	protected:
+		enum class _traverse_status {
+			not_visited,
+			visited_left,
+			visited_right
+		};
+	public:
+		void refresh_tree_synthesized_result() {
+			std::vector<std::pair<node*, _traverse_status>> stk;
+			if (_root) {
+				stk.push_back(std::make_pair(_root, _traverse_status::not_visited));
+			}
+			while (!stk.empty()) {
+				std::pair<node*, _traverse_status> &p = stk.back();
+				switch (p.second) {
+				case _traverse_status::not_visited:
+					p.second = _traverse_status::visited_left;
+					stk.push_back(std::make_pair(p.first->left, _traverse_status::not_visited));
+					break;
+				case _traverse_status::visited_left:
+					p.second = _traverse_status::visited_right;
+					stk.push_back(std::make_pair(p.first->right, _traverse_status::not_visited));
+					break;
+				case _traverse_status::visited_right:
+					_refresh_synth(p.first);
+					stk.pop_back();
+					break;
+				}
 			}
 		}
 		template <typename NewSynth> void synthesize_root_path(const node *n, NewSynth &&v) const {
@@ -284,7 +380,7 @@ namespace codepad {
 				_root = left;
 			}
 			left->synth_data = n->synth_data;
-			_update_synth(n);
+			_refresh_synth(n);
 		}
 		void rotate_left(node *n) {
 			assert_true_logical(n->right != nullptr, "cannot perform rotation");
@@ -303,7 +399,7 @@ namespace codepad {
 				_root = right;
 			}
 			right->synth_data = n->synth_data;
-			_update_synth(n);
+			_refresh_synth(n);
 		}
 		void splay(node *n, node *targetroot = nullptr) {
 			while (n->parent != targetroot) {
@@ -388,18 +484,18 @@ namespace codepad {
 				assert_true_logical(end == beg->right, "invalid range");
 				res = end->left;
 				end->left = nullptr;
-				_update_synth(end);
-				_update_synth(beg);
+				_refresh_synth(end);
+				_refresh_synth(beg);
 			} else if (beg) {
 				splay(beg);
 				res = beg->right;
 				beg->right = nullptr;
-				_update_synth(beg);
+				_refresh_synth(beg);
 			} else if (end) {
 				splay(end);
 				res = end->left;
 				end->left = nullptr;
-				_update_synth(end);
+				_refresh_synth(end);
 			} else {
 				res = _root;
 				_root = nullptr;
@@ -409,11 +505,15 @@ namespace codepad {
 			}
 			return res;
 		}
-		void erase(iterator it) {
+		void erase(const_iterator it) {
 			erase(it.get_node());
 		}
-		void erase(iterator beg, iterator end) {
+		void erase(const_iterator beg, const_iterator end) {
 			erase(beg.get_node(), end.get_node());
+		}
+
+		node_value_modifier get_modifier(node *n) {
+			return node_value_modifier(n, this);
 		}
 
 		void clear() {
@@ -498,11 +598,11 @@ namespace codepad {
 		node *_root = nullptr;
 		Synth _synth;
 
-		template <typename SynRef> inline static void _update_synth(SynRef &&sy, node *n) {
+		template <typename SynRef> inline static void _refresh_synth(SynRef &&sy, node *n) {
 			sy(n->synth_data, *n);
 		}
-		void _update_synth(node *n) {
-			_update_synth(_synth, n);
+		void _refresh_synth(node *n) {
+			_refresh_synth(_synth, n);
 		}
 
 		struct _clone_node {
@@ -533,7 +633,7 @@ namespace codepad {
 			if (cur->right) {
 				cur->right->parent = cur;
 			}
-			_update_synth(std::forward<SynRef>(s), cur);
+			_refresh_synth(std::forward<SynRef>(s), cur);
 			return cur;
 		}
 	};

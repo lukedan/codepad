@@ -11,6 +11,16 @@
 
 namespace codepad {
 	namespace editor {
+		enum class dock_destination_type {
+			new_window,
+			combine_in_tab,
+			combine,
+			new_panel_left,
+			new_panel_top,
+			new_panel_right,
+			new_panel_bottom
+		};
+
 		class draggable_separator : public ui::element {
 			friend class ui::element;
 		public:
@@ -247,7 +257,7 @@ namespace codepad {
 					_children.add(*e);
 				}
 			}
-			void _on_remove_child(element *e) override {
+			void _on_child_removed(element *e) override {
 				if (e == _c1) {
 					_c1 = nullptr;
 				} else if (e == _c2) {
@@ -258,12 +268,12 @@ namespace codepad {
 			void _custom_render() override {
 				_child_on_render(_sep);
 				if (_c1) {
-					os::renderer_base::get().push_clip(_sep->get_region1().minimum_bounding_box<int>());
+					os::renderer_base::get().push_clip(_sep->get_region1().fit_grid_enlarge<int>());
 					_child_on_render(_c1);
 					os::renderer_base::get().pop_clip();
 				}
 				if (_c2) {
-					os::renderer_base::get().push_clip(_sep->get_region2().minimum_bounding_box<int>());
+					os::renderer_base::get().push_clip(_sep->get_region2().fit_grid_enlarge<int>());
 					_child_on_render(_c2);
 					os::renderer_base::get().pop_clip();
 				}
@@ -400,6 +410,11 @@ namespace codepad {
 			}
 		};
 
+		class dock_position_selector : public ui::element {
+		public:
+			virtual dock_destination_type get_dock_destination(vec2d) const = 0;
+		};
+
 		class tab;
 		class tab_host : public ui::panel_base {
 			friend class tab;
@@ -436,6 +451,20 @@ namespace codepad {
 			std::list<tab*> _tabs;
 			std::list<tab*>::iterator _active_tab = _tabs.end();
 			std::list<tab_host*>::iterator _text_tok;
+			dock_position_selector *_dsel = nullptr;
+
+			void _set_dock_pos_selector(dock_position_selector *sel) {
+				if (_dsel == sel) {
+					return;
+				}
+				if (_dsel) {
+					_children.remove(*_dsel);
+				}
+				_dsel = sel;
+				if (_dsel) {
+					_children.add(*_dsel);
+				}
+			}
 
 			void _finish_layout() override;
 
@@ -485,10 +514,93 @@ namespace codepad {
 			}
 		};
 
+		class grid_dock_position_selector : public dock_position_selector {
+		public:
+			struct region_metrics {
+				double
+					width_left = 30.0, width_center = 30.0, width_right = 30.0,
+					height_top = 30.0, height_center = 30.0, height_bottom = 30.0;
+			};
+			const region_metrics &get_region_metrics() const {
+				return _met;
+			}
+			void set_region_metrics(const region_metrics &rm) {
+				_met = rm;
+				invalidate_visual();
+			}
+
+			dock_destination_type get_dock_destination(vec2d mouse) const override {
+				bool
+					xin = mouse.x > _inner.xmin && mouse.x < _inner.xmax,
+					yin = mouse.y > _inner.ymin && mouse.y < _inner.ymax;
+				if (xin && yin) {
+					return dock_destination_type::combine;
+				}
+				if (yin) {
+					if (mouse.x < _inner.centerx()) {
+						if (mouse.x > _outer.xmin) {
+							return dock_destination_type::new_panel_left;
+						}
+					} else {
+						if (mouse.x < _outer.xmax) {
+							return dock_destination_type::new_panel_right;
+						}
+					}
+				} else if (xin) {
+					if (mouse.y < _inner.centery()) {
+						if (mouse.y > _outer.ymin) {
+							return dock_destination_type::new_panel_top;
+						}
+					} else {
+						if (mouse.y < _outer.ymax) {
+							return dock_destination_type::new_panel_bottom;
+						}
+					}
+				}
+				return dock_destination_type::new_window;
+			}
+
+			inline static str_t get_default_class() {
+				return U"grid_dock_position_selector";
+			}
+		protected:
+			region_metrics _met;
+			rectd _inner, _outer;
+
+			void _finish_layout() override {
+				dock_position_selector::_finish_layout();
+				rectd r = get_layout();
+				_outer = _inner = rectd::from_xywh(
+					r.centerx() - _met.width_center * 0.5, r.centery() - _met.height_center * 0.5,
+					_met.width_center, _met.height_center
+				);
+				_outer.xmin -= _met.width_left;
+				_outer.ymin -= _met.height_top;
+				_outer.xmax += _met.width_right;
+				_outer.ymax += _met.height_bottom;
+			}
+
+			void _custom_render() override {
+				ui::render_batch batch;
+				batch.add_quad(_inner, rectd(), colord(1.0, 1.0, 0.0, 0.5));
+				batch.add_quad(rectd(_outer.xmin, _inner.xmin, _inner.ymin, _inner.ymax), rectd(), colord(0.0, 1.0, 0.0, 0.5));
+				batch.add_quad(rectd(_inner.xmax, _outer.xmax, _inner.ymin, _inner.ymax), rectd(), colord(0.0, 1.0, 0.0, 0.5));
+				batch.add_quad(rectd(_inner.xmin, _inner.xmax, _outer.ymin, _inner.ymin), rectd(), colord(0.0, 1.0, 0.0, 0.5));
+				batch.add_quad(rectd(_inner.xmin, _inner.xmax, _inner.ymax, _outer.ymax), rectd(), colord(0.0, 1.0, 0.0, 0.5));
+				batch.draw(os::texture());
+			}
+		};
 		class dock_manager {
 			friend class tab;
 			friend class tab_host;
 		public:
+			dock_manager() {
+				_possel = ui::element::create<grid_dock_position_selector>();
+			}
+			~dock_manager() {
+				ui::manager::get().mark_disposal(*_possel);
+			}
+
 			tab_host *get_focused_tab_host() const {
 				ui::element *focus = ui::manager::get().get_focused();
 				tab_host *host = nullptr;
@@ -521,6 +633,19 @@ namespace codepad {
 
 			bool empty() const {
 				return window_count() == 0 && _drag == nullptr;
+			}
+
+			void set_dock_position_selector(dock_position_selector *sel) {
+				if (_possel) {
+					ui::manager::get().mark_disposal(*_possel);
+				}
+				_possel = sel;
+				if (_possel) {
+					_possel->set_zindex(ui::element::max_zindex);
+				}
+			}
+			dock_position_selector *get_dock_position_selector() const {
+				return _possel;
 			}
 
 			void update_changed_hosts() {
@@ -570,7 +695,7 @@ namespace codepad {
 				if (_drag) {
 					if (_stopdrag()) {
 						switch (_dtype) {
-						case _drag_dest_type::new_wnd:
+						case dock_destination_type::new_window:
 							{
 								os::window_base *wnd = _new_window();
 								tab_host *nhst = ui::element::create<tab_host>();
@@ -580,11 +705,11 @@ namespace codepad {
 								wnd->set_position(os::input::get_mouse_position() + _dragdiff.convert<int>());
 							}
 							break;
-						case _drag_dest_type::combine_intab:
+						case dock_destination_type::combine_in_tab:
 							_drag->_btn->_xoffset = 0.0;
 							_drag->_btn->invalidate_layout();
 							break;
-						case _drag_dest_type::combine:
+						case dock_destination_type::combine:
 							_dest->add_tab(*_drag);
 							_dest->activate_tab(*_drag);
 							break;
@@ -595,7 +720,7 @@ namespace codepad {
 								tab_host *th = ui::element::create<tab_host>();
 								_hostlist.erase(th->_text_tok);
 								th->_text_tok = _hostlist.insert(_dest->_text_tok, th);
-								if (_dtype == _drag_dest_type::new_pnl_l || _dtype == _drag_dest_type::new_pnl_u) {
+								if (_dtype == dock_destination_type::new_panel_left || _dtype == dock_destination_type::new_panel_top) {
 									sp->set_child1(th);
 									sp->set_child2(_dest);
 								} else {
@@ -604,24 +729,26 @@ namespace codepad {
 								}
 								th->add_tab(*_drag);
 								sp->set_orientation(
-									_dtype == _drag_dest_type::new_pnl_l || _dtype == _drag_dest_type::new_pnl_r ?
+									_dtype == dock_destination_type::new_panel_left || _dtype == dock_destination_type::new_panel_right ?
 									ui::orientation::horizontal :
 									ui::orientation::vertical
 								);
 							}
 							break;
 						}
+						_try_dispose_preview();
+						_try_detach_possel();
 						_drag = nullptr;
 						return;
 					}
 					vec2i mouse = os::input::get_mouse_position();
-					if (_dtype == _drag_dest_type::combine_intab) {
+					if (_dtype == dock_destination_type::combine_in_tab) {
 						rectd rgn = _dest->get_tab_button_region();
 						vec2d mpos = _dest->get_window()->screen_to_client(mouse).convert<double>();
 						if (!rgn.contains(mpos)) {
 							_drag->_btn->_xoffset = 0.0f;
 							_dest->remove_tab(*_drag);
-							_dtype = _drag_dest_type::new_wnd;
+							_dtype = dock_destination_type::new_window;
 							_dest = nullptr;
 						} else {
 							_dest->move_tab_before(
@@ -629,11 +756,11 @@ namespace codepad {
 							);
 						}
 					}
-					vec2d ddiff;
+					vec2d minpos;
 					tab_host *mindp = nullptr;
 					double minsql = 0.0;
 					os::window_base *moverwnd = nullptr;
-					if (_dtype != _drag_dest_type::combine_intab) {
+					if (_dtype != dock_destination_type::combine_in_tab) {
 						for (auto i = _hostlist.begin(); i != _hostlist.end(); ++i) {
 							os::window_base *curw = (*i)->get_window();
 							if (moverwnd && curw != moverwnd) {
@@ -646,7 +773,8 @@ namespace codepad {
 							if (moverwnd) {
 								rectd rgn = (*i)->get_tab_button_region();
 								if (rgn.contains(mpos)) {
-									_dtype = _drag_dest_type::combine_intab;
+									_dtype = dock_destination_type::combine_in_tab;
+									_try_detach_possel();
 									_dest = *i;
 									_dest->add_tab(*_drag);
 									_dest->activate_tab(*_drag);
@@ -661,26 +789,41 @@ namespace codepad {
 								vec2d cdiff = mpos - (*i)->get_layout().center();
 								double dsql = cdiff.length_sqr();
 								if (!mindp || minsql > dsql) {
-									ddiff = cdiff;
+									minpos = mpos;
 									mindp = *i;
 									minsql = dsql;
 								}
 							}
 						}
 					}
-					if (_dtype != _drag_dest_type::combine_intab) {
+					if (_dtype != dock_destination_type::combine_in_tab) {
 						if (mindp) {
-							_dest = mindp;
-							if (std::abs(ddiff.x) > std::abs(ddiff.y)) {
-								_dtype = ddiff.x > 0.0 ? _drag_dest_type::new_pnl_r : _drag_dest_type::new_pnl_l;
-							} else {
-								_dtype = ddiff.y > 0.0 ? _drag_dest_type::new_pnl_d : _drag_dest_type::new_pnl_u;
+							if (_dest != mindp) {
+								if (_dest) {
+									_dest->_set_dock_pos_selector(nullptr);
+								}
+								mindp->_set_dock_pos_selector(_possel);
+							}
+							dock_destination_type newdtype = _possel->get_dock_destination(minpos);
+							if (newdtype != _dtype || _dest != mindp) {
+								_try_dispose_preview();
+								_dtype = newdtype;
+								_dest = mindp;
+								if (_dtype != dock_destination_type::new_window) {
+									_dragdec = _dest->get_window()->create_decoration();
+									_initialize_preview();
+								}
 							}
 						} else {
-							_dtype = _drag_dest_type::new_wnd;
+							_try_dispose_preview();
+							_try_detach_possel();
+							_dest = nullptr;
+							_dtype = dock_destination_type::new_window;
 						}
+					} else {
+						_try_dispose_preview();
+						_try_detach_possel();
 					}
-					// TODO preview
 				}
 			}
 			void update() {
@@ -688,17 +831,27 @@ namespace codepad {
 				update_drag();
 			}
 
+			bool is_dragging_tab() const {
+				return _drag != nullptr;
+			}
+			tab_host *get_dock_destination() const {
+				return _dest;
+			}
+			dock_destination_type get_dock_destination_type() const {
+				return _dtype;
+			}
+
 			void start_drag_tab(tab &t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
 				return !os::input::is_mouse_button_down(os::input::mouse_button::left);
-			}) {
+				}) {
 				assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 				tab_host *hst = t.get_host();
 				if (hst) {
 					_dest = hst;
-					_dtype = _drag_dest_type::combine_intab;
+					_dtype = dock_destination_type::combine_in_tab;
 				} else {
 					_dest = nullptr;
-					_dtype = _drag_dest_type::new_wnd;
+					_dtype = dock_destination_type::new_window;
 				}
 				_drag = &t;
 				_dragdiff = diff;
@@ -708,15 +861,6 @@ namespace codepad {
 
 			static dock_manager &get();
 		protected:
-			enum class _drag_dest_type {
-				new_wnd,
-				combine_intab,
-				combine,
-				new_pnl_l,
-				new_pnl_u,
-				new_pnl_r,
-				new_pnl_d
-			};
 			size_t _wndcnt = 0;
 			std::set<tab_host*> _changed;
 			std::list<tab_host*> _hostlist;
@@ -724,10 +868,12 @@ namespace codepad {
 			// drag related stuff
 			tab *_drag = nullptr;
 			tab_host *_dest = nullptr;
-			_drag_dest_type _dtype = _drag_dest_type::new_wnd;
+			dock_destination_type _dtype = dock_destination_type::new_window;
 			vec2d _dragdiff;
 			rectd _dragrect;
 			std::function<bool()> _stopdrag;
+			ui::decoration *_dragdec = nullptr;
+			dock_position_selector *_possel = nullptr;
 
 			os::window_base *_new_window() {
 				os::window_base *wnd = ui::element::create<os::window>();
@@ -739,7 +885,7 @@ namespace codepad {
 						}
 						_hostlist.erase(hst._text_tok);
 						hst._text_tok = _hostlist.insert(_hostlist.begin(), &hst);
-					});
+						});
 				};
 				wnd->close_request += [wnd]() {
 					_enumerate_hosts(wnd, [](tab_host &hst) {
@@ -750,12 +896,11 @@ namespace codepad {
 						for (auto i = ts.begin(); i != ts.end(); ++i) {
 							(*i)->_on_request_close();
 						}
-					});
+						});
 				};
 				++_wndcnt;
 				return wnd;
 			}
-
 			split_panel *_replace_with_split_panel(tab_host &hst) {
 				split_panel *sp = ui::element::create<split_panel>(), *f = dynamic_cast<split_panel*>(hst.parent());
 				if (f) {
@@ -772,6 +917,43 @@ namespace codepad {
 					w->children().add(*sp);
 				}
 				return sp;
+			}
+
+			void _initialize_preview() const {
+				_dragdec->set_class(U"dock_preview");
+				_dragdec->set_layout(_get_preview_layout(*_dest, _dtype));
+			}
+			void _try_dispose_preview() {
+				if (_dragdec) {
+					_dragdec->set_state(ui::visual_manager::default_states().corpse);
+					_dragdec = nullptr;
+				}
+			}
+			void _try_detach_possel() {
+				if (_possel->parent() != nullptr) {
+					assert_true_logical(_possel->parent() == _dest, "wrong parent for position selector");
+					_dest->_set_dock_pos_selector(nullptr);
+				}
+			}
+			inline static rectd _get_preview_layout(const tab_host &th, dock_destination_type dtype) {
+				rectd r = th.get_layout();
+				switch (dtype) {
+				case dock_destination_type::new_panel_left:
+					r.xmax = r.centerx();
+					break;
+				case dock_destination_type::new_panel_top:
+					r.ymax = r.centery();
+					break;
+				case dock_destination_type::new_panel_right:
+					r.xmin = r.centerx();
+					break;
+				case dock_destination_type::new_panel_bottom:
+					r.ymin = r.centery();
+					break;
+				default:
+					break;
+				}
+				return r;
 			}
 
 			void _on_tab_detached(tab_host &host, tab&) {
@@ -823,8 +1005,9 @@ namespace codepad {
 				logger::get().log_info(CP_HERE, "tab host 0x", &hst, " disposed");
 				if (_drag && _dest == &hst) {
 					logger::get().log_info(CP_HERE, "resetting drag destination");
+					_try_detach_possel();
 					_dest = nullptr;
-					_dtype = _drag_dest_type::new_wnd;
+					_dtype = dock_destination_type::new_window;
 				}
 				_hostlist.erase(hst._text_tok);
 			}
@@ -881,9 +1064,11 @@ namespace codepad {
 			assert_true_logical(t._parent == this, "corrupted element tree");
 			if (_active_tab != _tabs.end()) {
 				(*_active_tab)->set_visibility(ui::visibility::ignored);
+				(*_active_tab)->_btn->set_zindex(0);
 			}
 			_active_tab = t._text_tok;
 			t.set_visibility(ui::visibility::visible);
+			t._btn->set_zindex(1);
 			invalidate_layout();
 		}
 		inline size_t tab_host::get_tab_position(tab &tb) const {
@@ -920,13 +1105,16 @@ namespace codepad {
 			double x = client.xmin, y = tab_button::get_tab_button_area_height();
 			for (auto i = _tabs.begin(); i != _tabs.end(); ++i) {
 				double w = (*i)->_btn->get_desired_size().x;
-				_child_set_layout((*i)->_btn, rectd(
-					x + (*i)->_btn->_xoffset, x + w + (*i)->_btn->_xoffset, client.ymin, client.ymin + y
+				_child_set_layout((*i)->_btn, rectd::from_xywh(
+					x + (*i)->_btn->_xoffset, client.ymin, w, y
 				));
 				x += w;
 			}
 			if (_active_tab != _tabs.end()) {
 				_child_set_layout(*_active_tab, rectd(client.xmin, client.xmax, client.ymin + y, client.ymax));
+			}
+			if (_dsel) {
+				_child_set_layout(_dsel, get_layout());
 			}
 			ui::panel_base::_finish_layout();
 		}

@@ -57,7 +57,7 @@ namespace codepad {
 				}
 			};
 
-			class minimap : public component { // FIXME vertical blank lines in minimap due to rounding
+			class minimap : public component {
 			public:
 				constexpr static double page_rendering_time_redline = 30.0;
 				constexpr static size_t
@@ -138,18 +138,22 @@ namespace codepad {
 					void render_page(size_t s, size_t pe) {
 						auto start_time = std::chrono::high_resolution_clock::now();
 						const editor *ce = parent->_get_editor();
-						double lh = ce->get_line_height();
-						line_top_cache lct(static_cast<double>(s) * lh * get_scale());
+						double lh = ce->get_line_height(), scale = get_scale();
+						line_top_cache lct(static_cast<double>(s) * lh * scale);
 						bool needrefresh = true;
 
-						// TODO improve drawing method
 						os::framebuffer buf = os::renderer_base::get().new_framebuffer(
-							maximum_width, static_cast<size_t>(std::ceil(lh * get_scale() * static_cast<double>(pe - s)))
+							maximum_width, static_cast<size_t>(std::ceil(lh * scale * static_cast<double>(pe - s)))
 						);
+#ifdef CP_HIGH_QUALITY_MINIMAP
+						size_t
+							origw = static_cast<size_t>(std::ceil(maximum_width / scale)),
+							origh = static_cast<size_t>(std::ceil(lh * static_cast<double>(pe - s)));
+						os::framebuffer tmp = os::renderer_base::get().new_framebuffer(origw, origh);
+						os::renderer_base::get().begin_framebuffer(tmp);
+#else
 						os::renderer_base::get().begin_framebuffer(buf);
-						os::renderer_base::get().push_matrix(matd3x3::scale(vec2d(), get_scale()));
-						ui::render_batch rb;
-						rb.reserve(expected_triangles_per_line * (pe - s));
+#endif
 						rendering_iterator<true> it(
 							*ce, ce->get_context()->get_linebreak_registry().get_beginning_char_of_line(
 								ce->get_folding_info().folded_to_unfolded_line_number(s)
@@ -157,6 +161,7 @@ namespace codepad {
 								ce->get_folding_info().folded_to_unfolded_line_number(pe)
 							)
 						);
+						double lastx = 0.0;
 						for (it.begin(); !it.ended(); it.next()) {
 							if (!it.char_iter().is_line_break()) {
 								if (needrefresh) {
@@ -165,26 +170,45 @@ namespace codepad {
 								const ui::character_metrics_accumulator &ci = it.char_iter().character_info();
 								const text_theme_data::char_iterator &ti = it.char_iter().theme_info();
 								if (is_graphical_char(ci.current_char())) {
-									rectd crec = ci.current_char_entry().placement.translated(vec2d(
-										ci.char_left(), lct.get(ti.current_theme.style)
-									)).minimum_bounding_box<double>();
-									rb.add_quad(crec, rectd(), ti.current_theme.color);
-
-									//os::renderer_base::get().draw_character(
-									//	ci.current_char_entry().texture,
-									//	vec2d(ci.char_left(), lct.get(ti.current_theme.style)) +
-									//	ci.current_char_entry().placement.xmin_ymin(),
-									//	ti.current_theme.color
-									//);
+#ifdef CP_HIGH_QUALITY_MINIMAP
+									os::renderer_base::get().draw_character(
+										ci.current_char_entry().texture,
+										vec2d(ci.char_left(), lct.get(ti.current_theme.style)),
+										ti.current_theme.color
+									);
+#else
+									rectd crec = ci.current_char_entry().placement.translated(
+										vec2d(ci.char_left(), lct.get(ti.current_theme.style))
+									).coordinates_scaled(scale).fit_grid_enlarge<double>();
+									crec.xmin = std::max(crec.xmin, lastx);
+									lastx = crec.xmax;
+									os::renderer_base::get().draw_character_custom(
+										ci.current_char_entry().texture,
+										crec,
+										ti.current_theme.color
+									);
+#endif
 								}
 								needrefresh = false;
 							} else {
 								needrefresh = true;
+								lastx = 0.0;
 							}
 						}
-						rb.draw(os::texture());
-						os::renderer_base::get().pop_matrix();
 						os::renderer_base::get().end();
+#ifdef CP_HIGH_QUALITY_MINIMAP
+						os::renderer_base::get().begin_framebuffer(buf);
+						os::renderer_base::get().push_blend_function(os::blend_function(
+							os::blend_factor::one, os::blend_factor::one_minus_source_alpha
+						));
+						os::renderer_base::get().push_matrix(matd3x3::scale(vec2d(), scale));
+						ui::render_batch batch;
+						batch.add_quad(rectd(0, static_cast<double>(origw), 0, static_cast<double>(origh)), rectd(0.0, 1.0, 0.0, 1.0), colord());
+						batch.draw(tmp.get_texture());
+						os::renderer_base::get().pop_matrix();
+						os::renderer_base::get().pop_blend_function();
+						os::renderer_base::get().end();
+#endif
 
 						double dur = std::chrono::duration<double, std::milli>(
 							std::chrono::high_resolution_clock::now() - start_time
@@ -264,14 +288,17 @@ namespace codepad {
 					clnrgn.xmax = clnrgn.xmin + maximum_width;
 					clnrgn.ymin = std::round(clnrgn.ymin - _get_y_offset());
 					auto ibeg = --_pgcache.pages.upper_bound(vlines.first), iend = _pgcache.pages.lower_bound(vlines.second);
-					// TODO wrong blend func
+					os::renderer_base::get().push_blend_function(os::blend_function(
+						os::blend_factor::one, os::blend_factor::one_minus_source_alpha
+					));
 					for (auto i = ibeg; i != iend; ++i) {
 						rectd crgn = clnrgn;
 						crgn.ymin = std::round(crgn.ymin + slh * static_cast<double>(i->first));
 						crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_texture().get_height());
 						os::renderer_base::get().draw_quad(i->second.get_texture(), crgn, rectd(0.0, 1.0, 0.0, 1.0), colord());
 					}
-					if (_vrgnst.update_and_render(ui::manager::get().delta_time(), _get_clamped_viewport_rect())) {
+					os::renderer_base::get().pop_blend_function();
+					if (_vrgnst.update_and_render(_get_clamped_viewport_rect())) {
 						invalidate_visual();
 					}
 				}
@@ -321,7 +348,7 @@ namespace codepad {
 					_fold_tok = (_get_editor()->folding_changed += std::bind(&minimap::_on_editor_visual_changed, this));
 					_vpos_tok = (_get_box()->vertical_viewport_changed += [this](value_update_info<double>&) {
 						_on_viewport_changed();
-					});
+						});
 				}
 				void _on_removing() override {
 					_get_editor()->content_visual_changed -= _vc_tok;
@@ -394,7 +421,7 @@ namespace codepad {
 				_page_cache _pgcache{this};
 				event<void>::token _vc_tok, _fold_tok;
 				event<value_update_info<double>>::token _vpos_tok;
-				ui::visual_provider::render_state _vrgnst;
+				ui::visual::render_state _vrgnst;
 				double _dragoffset = 0.0;
 				bool _dragging = false, _cachevalid = true;
 

@@ -88,8 +88,8 @@ namespace codepad {
 					return U"codebox";
 				}
 			protected:
-				ui::scroll_bar *_vscroll;
-				editor *_editor;
+				ui::scroll_bar *_vscroll = nullptr;
+				editor *_editor = nullptr;
 				std::vector<component*> _lcs, _rcs;
 
 				void _add_component_to(component &e, std::vector<component*> &v) {
@@ -112,6 +112,9 @@ namespace codepad {
 				void _on_key_down(ui::key_info&) override;
 				void _on_key_up(ui::key_info&) override;
 				void _on_keyboard_text(ui::text_info&) override;
+
+				void _on_got_focus() override;
+				void _on_lost_focus() override;
 
 				void _finish_layout() override;
 

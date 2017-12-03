@@ -141,7 +141,6 @@ namespace codepad {
 
 				case WM_MOUSEMOVE:
 					if (!form->is_mouse_over()) {
-						form->_setup_mouse_tracking();
 						form->_on_mouse_enter();
 					}
 					_form_onevent<ui::mouse_move_info>(*form, &window::_on_mouse_move, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)));

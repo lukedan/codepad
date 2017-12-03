@@ -5,8 +5,6 @@
 
 #include "../utilities/textconfig.h"
 #include "../utilities/misc.h"
-#include "../os/renderer.h"
-#include "../os/font.h"
 #include "../os/current.h"
 
 namespace codepad {
@@ -20,7 +18,6 @@ namespace codepad {
 
 				double normal_diff, bold_diff, italic_diff, bold_italic_diff;
 
-				// TODO disassembly shows stupid comparisons, but function is not hot
 				double get(font_style fs) {
 					switch (fs) {
 					case font_style::normal:

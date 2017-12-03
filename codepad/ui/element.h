@@ -82,9 +82,13 @@ namespace codepad {
 			friend class element_collection;
 			friend class panel_base;
 			friend class os::window_base;
-			friend class visual_provider_state;
-			friend class visual_provider;
+			friend class visual_state;
+			friend class visual;
 		public:
+			constexpr static int 
+				max_zindex = std::numeric_limits<int>::max(),
+				min_zindex = std::numeric_limits<int>::min();
+
 			element(const element&) = delete;
 			element(element&&) = delete;
 			element &operator=(const element&) = delete;
@@ -234,6 +238,11 @@ namespace codepad {
 				return std::vector<const element_hotkey_group*>();
 			}
 
+			void set_zindex(int);
+			int get_zindex() const {
+				return _zindex;
+			}
+
 			void set_class(str_t s) {
 				_rst.set_class(std::move(s));
 				invalidate_visual();
@@ -298,7 +307,7 @@ namespace codepad {
 
 			// children-parent stuff
 			panel_base *_parent = nullptr;
-			std::list<element*>::iterator _text_tok;
+			std::list<element*>::iterator _col_token;
 			// layout result
 			rectd _layout, _clientrgn;
 			// layout params
@@ -307,12 +316,13 @@ namespace codepad {
 			double _width = 0.0, _height = 0.0;
 			thickness _margin, _padding;
 			unsigned char _vis = static_cast<unsigned char>(visibility::visible);
+			int _zindex = 0;
 			// input
 			bool _can_focus = true;
 			cursor _crsr = cursor::not_specified;
 			const element_hotkey_group *_hotkey_gp = nullptr;
 			// visual info
-			visual_provider::render_state _rst;
+			visual::render_state _rst;
 
 			virtual void _on_mouse_enter() {
 				mouse_enter.invoke();
@@ -371,7 +381,7 @@ namespace codepad {
 			}
 
 			virtual void _on_prerender() {
-				os::renderer_base::get().push_clip(_layout.minimum_bounding_box<int>());
+				os::renderer_base::get().push_clip(_layout.fit_grid_enlarge<int>());
 			}
 			virtual void _custom_render() {
 			}
@@ -395,6 +405,55 @@ namespace codepad {
 		private:
 			bool _initialized = false;
 #endif
+		};
+
+		class decoration {
+			friend class os::window_base;
+		public:
+			decoration() = default;
+			decoration(const decoration&) = delete;
+			decoration(decoration&&) = delete;
+			decoration &operator=(const decoration&) = delete;
+			decoration &operator=(decoration&&) = delete;
+
+			void set_layout(rectd r) {
+				_layout = r;
+				_on_visual_changed();
+			}
+			rectd get_layout() const {
+				return _layout;
+			}
+
+			void set_class(str_t cls) {
+				_st.set_class(std::move(cls));
+				_on_visual_changed();
+			}
+			const str_t &get_class() const {
+				return _st.get_class();
+			}
+
+			void set_state(visual_state_id id) {
+				_st.set_state(id);
+				_on_visual_changed();
+			}
+			visual_state_id get_state() const {
+				return _st.get_state();
+			}
+
+			os::window_base *get_window() const {
+				return _wnd;
+			}
+		protected:
+			rectd _layout;
+			visual::render_state _st;
+			os::window_base *_wnd = nullptr;
+			std::list<decoration*>::const_iterator _tok;
+
+			bool _update_and_render() {
+				return _st.update_and_render(_layout);
+			}
+
+			void _on_visual_changed();
 		};
 
 		inline rectd visual_layer::get_center_rect(const state &s, rectd client) const {

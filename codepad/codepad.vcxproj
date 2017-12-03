@@ -273,8 +273,10 @@
     <ClInclude Include="os\current.h" />
     <ClInclude Include="os\font.h" />
     <ClInclude Include="os\misc.h" />
+    <ClInclude Include="os\filesystem.h" />
     <ClInclude Include="os\renderer.h" />
     <ClInclude Include="os\windows.h" />
+    <ClInclude Include="os\windows\filesystem.h" />
     <ClInclude Include="os\windows\font.h" />
     <ClInclude Include="os\windows\misc.h" />
     <ClInclude Include="os\windows\renderer.h" />

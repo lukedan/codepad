@@ -156,13 +156,13 @@ namespace codepad {
 		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> convert() const {
 			return rect<U>(static_cast<U>(xmin), static_cast<U>(xmax), static_cast<U>(ymin), static_cast<U>(ymax));
 		}
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> minimum_bounding_box() const {
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> fit_grid_enlarge() const {
 			return rect<U>(
 				static_cast<U>(std::floor(xmin)), static_cast<U>(std::ceil(xmax)),
 				static_cast<U>(std::floor(ymin)), static_cast<U>(std::ceil(ymax))
 				);
 		}
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> maximum_contained_box() const {
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> fit_grid_shrink() const {
 			return rect<U>(
 				static_cast<U>(std::ceil(xmin)), static_cast<U>(std::floor(xmax)),
 				static_cast<U>(std::ceil(ymin)), static_cast<U>(std::floor(ymax))
@@ -171,6 +171,22 @@ namespace codepad {
 
 		constexpr rect translated(vec2<T> diff) const {
 			return rect(xmin + diff.x, xmax + diff.x, ymin + diff.y, ymax + diff.y);
+		}
+		constexpr rect scaled(vec2<T> center, double scale) const {
+			return rect(
+				center.x + static_cast<T>(scale * (xmin - center.x)),
+				center.x + static_cast<T>(scale * (xmax - center.x)),
+				center.y + static_cast<T>(scale * (ymin - center.y)),
+				center.y + static_cast<T>(scale * (ymax - center.y))
+			);
+		}
+		constexpr rect coordinates_scaled(double scale) const {
+			return rect(
+				static_cast<T>(scale * xmin),
+				static_cast<T>(scale * xmax),
+				static_cast<T>(scale * ymin),
+				static_cast<T>(scale * ymax)
+			);
 		}
 
 		inline static constexpr rect common_part(rect lhs, rect rhs) {

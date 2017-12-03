@@ -10,7 +10,7 @@ namespace codepad {
 		struct character_metrics_accumulator {
 		public:
 			character_metrics_accumulator(ui::font_family ff, double tabsize) :
-				_ff(std::move(ff)), _tabw(tabsize * _ff.normal->get_char_entry(U' ').advance) {
+				_ff(std::move(ff)), _tabw(tabsize * _ff.normal->get_char_entry(' ').advance) {
 			}
 
 			void next(char32_t c, font_style fs) {
@@ -23,14 +23,14 @@ namespace codepad {
 				_update_raw(c, fs);
 			}
 			void create_blank_before(double width) {
-				if (_lastchar == U'\0') {
+				if (_lastchar == '\0') {
 					_lce = _pos;
 					_pos += std::ceil(width);
 				} else {
 					_pos = _lce + std::ceil(width);
-					_lastchar = U'\0';
+					_lastchar = '\0';
 				};
-				if (_curchar == U'\t') {
+				if (_curchar == '\t') {
 					_cw = _get_target_tab_width();
 				}
 			}
@@ -53,7 +53,7 @@ namespace codepad {
 
 			void set_tab_width(double tw) {
 				_tabw = tw * _ff.maximum_width();
-				if (_curchar == U'\t') {
+				if (_curchar == '\t') {
 					_cw = _get_target_tab_width();
 				}
 			}
@@ -61,7 +61,7 @@ namespace codepad {
 			void reset() {
 				_laststyle = _curstyle = font_style::normal;
 				_lce = _cw = _pos = 0.0;
-				_lastchar = _curchar = U'\0';
+				_lastchar = _curchar = '\0';
 				_cet = nullptr;
 			}
 
@@ -72,7 +72,7 @@ namespace codepad {
 			font_style _laststyle = font_style::normal, _curstyle = font_style::normal;
 			font_family _ff;
 			double _lce = 0.0, _cw = 0.0, _pos = 0.0, _tabw;
-			char32_t _lastchar = U'\0', _curchar = U'\0';
+			char32_t _lastchar = '\0', _curchar = '\0';
 			const os::font::entry *_cet = nullptr;
 
 			double _get_target_tab_width() const {
@@ -81,15 +81,16 @@ namespace codepad {
 			void _update_raw(char32_t c, font_style fs) {
 				_curchar = c;
 				_curstyle = fs;
-				if (_lastchar != U'\0') {
+				const auto &stylefnt = _ff.get_by_style(_curstyle);
+				if (_lastchar != '\0') {
 					_pos = _lce;
 					if (_curstyle == _laststyle) {
-						_pos += _ff.get_by_style(_curstyle)->get_kerning(_lastchar, _curchar).x;
+						_pos += stylefnt->get_kerning(_lastchar, _curchar).x;
 					}
 				}
 				_pos = std::round(_pos);
-				_cet = &_ff.get_by_style(_curstyle)->get_char_entry(_curchar);
-				if (_curchar == U'\t') {
+				_cet = &stylefnt->get_char_entry(_curchar);
+				if (_curchar == '\t') {
 					_cw = _get_target_tab_width();
 				} else {
 					_cw = _cet->advance;
@@ -101,16 +102,16 @@ namespace codepad {
 			inline void render_plain_text(const str_t &str, const os::font *fnt, vec2d topleft, colord color) {
 				int sx = static_cast<int>(std::round(topleft.x)), dy = static_cast<int>(std::ceil(fnt->height()));
 				vec2i cur = vec2i(sx, static_cast<int>(std::round(topleft.y)));
-				char32_t last = U'\0';
+				char32_t last = '\0';
 				double lastw = 0.0;
 				for (auto i = str.begin(); i != str.end(); ++i) {
 					if (is_newline(*i)) {
 						cur.x = sx;
 						cur.y += dy;
-						last = U'\0';
+						last = '\0';
 					} else {
 						const os::font::entry &et = fnt->get_char_entry(*i);
-						if (last != U'\0') {
+						if (last != '\0') {
 							cur.x += static_cast<int>(std::round(lastw + fnt->get_kerning(last, *i).x));
 						}
 						os::renderer_base::get().draw_character(et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color);
@@ -120,17 +121,17 @@ namespace codepad {
 				}
 			}
 			inline vec2d measure_plain_text(const str_t &str, const os::font *fnt) {
-				char32_t last = U'\0';
+				char32_t last = '\0';
 				double lastw = 0.0, curline = 0.0, maxw = 0.0;
 				size_t linen = 1;
 				for (auto i = str.begin(); i != str.end(); ++i) {
 					const os::font::entry &et = fnt->get_char_entry(*i);
-					if (last != U'\0') {
+					if (last != '\0') {
 						curline += static_cast<int>(std::round(lastw + fnt->get_kerning(last, *i).x));
 					}
 					if (is_newline(*i)) {
 						++linen;
-						last = U'\0';
+						last = '\0';
 						maxw = std::max(maxw, curline + et.advance);
 						lastw = curline = 0.0;
 					} else {

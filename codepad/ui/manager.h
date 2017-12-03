@@ -14,6 +14,10 @@ namespace codepad {
 		public:
 			constexpr static double relayout_time_redline = 10.0, render_time_redline = 40.0;
 
+			~manager() {
+				dispose_marked_elements();
+			}
+
 			static manager &get();
 
 			void invalidate_layout(element &e) {
@@ -44,7 +48,7 @@ namespace codepad {
 			}
 			void update_scheduled_elements() {
 				auto nnow = std::chrono::high_resolution_clock::now();
-				_dt = std::chrono::duration<double>(nnow - _now).count();
+				_upd_dt = std::chrono::duration<double>(nnow - _now).count();
 				_now = nnow;
 				if (!_upd.empty()) {
 					std::set<element*> list;
@@ -54,8 +58,8 @@ namespace codepad {
 					}
 				}
 			}
-			double delta_time() const {
-				return _dt;
+			double update_delta_time() const {
+				return _upd_dt;
 			}
 
 			// may be called on one element multiple times before the element's disposed
@@ -93,6 +97,13 @@ namespace codepad {
 				update_layout_and_visual();
 			}
 
+			double get_minimum_rendering_interval() const {
+				return _min_render_interval;
+			}
+			void set_minimum_rendering_interval(double dv) {
+				_min_render_interval = dv;
+			}
+
 			element *get_focused() const {
 				return _focus;
 			}
@@ -107,19 +118,21 @@ namespace codepad {
 			};
 
 			// layout
-			bool _layouting = false;
 			std::map<element*, bool> _targets;
 			std::deque<_layout_info> _q;
-			// visual
+			bool _layouting = false;
+			// scheduled elements to render
 			std::set<element*> _dirty;
-			// focus
-			element *_focus = nullptr;
-			// scheduled controls to update
-			std::chrono::time_point<std::chrono::high_resolution_clock> _now;
-			double _dt = 0.0;
-			std::set<element*> _upd;
+			std::chrono::time_point<std::chrono::high_resolution_clock> _lastrender;
+			double _min_render_interval = 0.0;
 			// scheduled controls to delete
 			std::set<element*> _del;
+			// scheduled controls to update
+			std::set<element*> _upd;
+			std::chrono::time_point<std::chrono::high_resolution_clock> _now;
+			double _upd_dt = 0.0;
+			// focus
+			element *_focus = nullptr;
 		};
 
 		inline void element::invalidate_layout() {
@@ -145,7 +158,7 @@ namespace codepad {
 		inline void element::_on_render() {
 			if (test_bit_all(_vis, visibility::render_only)) {
 				_on_prerender();
-				if (_rst.update_and_render(manager::get().delta_time(), get_layout())) {
+				if (_rst.update_and_render(get_layout())) {
 					invalidate_visual();
 				}
 				_rst.render(get_layout());

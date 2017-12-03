@@ -1,32 +1,39 @@
 {
-	"": [{
-		"layers": [{
-			"color": [0.05, 0.03, 0.0, 0.6]
-		}]
-	}],
 	"tab_button": [{
 		"layers": [{
+			"anchor": "ltrb",
 			"color": {
-				"to": ["hsl", 30, 1, 0.5],
-				"duration": 0.2,
-				"transition": "concave_quadratic"
+				"to": ["hsl", 230, 1, 0.5, 0.0],
+				"duration": 0.1
+			},
+			"margins": {
+				"to": [0, 5, 0, 0],
+				"duration": 0.1,
+				"transition": "convex_quadratic"
 			}
 		}]
 	}, {
 		"states": ["mouse_over"],
+		"inherit_from": [],
 		"layers": [{
-				"color": {
-					"from": ["hsl", 30, 1, 0.5],
-					"to": ["hsl", 90, 1, 0.5],
-					"duration": 0.5,
-					"auto_reverse": true,
-					"reverse_duration_scale": 4.0,
-					"repeat": true,
-					"transition": "smoothstep"
-				}
+			"color": {
+				"to": ["hsl", 230, 1, 0.5, 0.6]
+			},
+			"margins": {
+				"to": 0
+			}
+		}]
+	}, {
+		"states": ["mouse_over", "mouse_down"],
+		"inherit_from": ["mouse_over"],
+		"layers": [{
+			"margins": {
+				"to": 2
+			}
 		}]
 	}],
 	"caret_insert": [{
+		"states": ["focused"],
 		"layers": [{
 			"anchor": "ltb",
 			"margins": 0.0,
@@ -40,8 +47,20 @@
 			},
 			"size": [1.0, 0.0]
 		}]
+	}, {
+		"inherit_from": ["focused"],
+		"layers": [{
+			"color": {
+				"has_from": false,
+				"to": [1.0, 1.0, 1.0, 0.8],
+				"duration": 0.1,
+				"auto_reverse": false,
+				"repeat": false
+			}
+		}]
 	}],
 	"caret_overwrite": [{
+		"states": ["focused"],
 		"layers": [{
 			"anchor": "lrtb",
 			"margins": 0.0,
@@ -52,6 +71,17 @@
 				"auto_reverse": true,
 				"repeat": true,
 				"transition": "concave_quadratic"
+			}
+		}]
+	}, {
+		"inherit_from": ["focused"],
+		"layers": [{
+			"color": {
+				"has_from": false,
+				"to": [1.0, 1.0, 1.0, 0.4],
+				"duration": 0.1,
+				"auto_reverse": false,
+				"repeat": false
 			}
 		}]
 	}],
@@ -115,6 +145,35 @@
 		"layers": [{
 			"color": {
 				"to": [0.2, 0.2, 0.2, 1.0]
+			}
+		}]
+	}],
+	"dock_preview": [{
+		"layers": [{
+			"margins": {
+				"from": 20,
+				"to": 0,
+				"transition": "convex_quadratic",
+				"duration": 0.1
+			},
+			"color": {
+				"from": [0.5, 0.5, 1.0, 0.0],
+				"to": [0.5, 0.5, 1.0, 0.6],
+				"duration": 0.1
+			}
+		}]
+	}, {
+		"states": ["corpse"],
+		"inherit_from": [],
+		"layers": [{
+			"margins": {
+				"has_from": false,
+				"to": 20,
+				"transition": "concave_quadratic"
+			},
+			"color": {
+				"has_from": false,
+				"to": [0.5, 0.5, 1.0, 0.0]
 			}
 		}]
 	}]

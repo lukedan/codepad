@@ -99,7 +99,6 @@ namespace codepad {
 		_cur_setter _csetter{*this};
 		singleton_factory <
 #ifdef CP_PLATFORM_WINDOWS
-			os::directwrite_font::_factory,
 			os::wic_image_loader,
 #endif
 #ifdef CP_PLATFORM_UNIX
@@ -125,9 +124,6 @@ namespace codepad {
 	};
 
 #ifdef CP_PLATFORM_WINDOWS
-	inline os::directwrite_font::_factory &os::directwrite_font::_get_factory() {
-		return globals::current().get<_factory>();
-	}
 	inline os::wic_image_loader &os::wic_image_loader::get() {
 		return globals::current().get<wic_image_loader>();
 	}

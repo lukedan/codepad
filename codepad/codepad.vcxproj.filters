@@ -114,6 +114,12 @@
     <ClInclude Include="editors\code\buffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="os\filesystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\windows\filesystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

@@ -15,6 +15,26 @@ namespace codepad {
 		class renderer_base;
 		class opengl_renderer_base;
 
+		enum class blend_factor {
+			zero,
+			one,
+			source_alpha,
+			one_minus_source_alpha,
+			destination_alpha,
+			one_minus_destination_alpha,
+			source_color,
+			one_minus_source_color,
+			destination_color,
+			one_minus_destination_color
+		};
+		struct blend_function {
+			blend_function() = default;
+			blend_function(blend_factor src, blend_factor dst) : source_factor(src), destination_factor(dst) {
+			}
+
+			blend_factor source_factor = blend_factor::source_alpha, destination_factor = blend_factor::one_minus_source_alpha;
+		};
+
 		struct texture {
 			friend class renderer_base;
 		public:
@@ -23,11 +43,9 @@ namespace codepad {
 			texture() = default;
 			texture(const texture&) = delete;
 			texture(texture &&t) : _id(t._id), _rend(t._rend), _w(t._w), _h(t._h) {
-				if (&t != this) {
-					t._id = 0;
-					t._rend = nullptr;
-					t._w = t._h = 0;
-				}
+				t._id = 0;
+				t._rend = nullptr;
+				t._w = t._h = 0;
 			}
 			texture &operator=(const texture&) = delete;
 			texture &operator=(texture &&t) {
@@ -101,7 +119,12 @@ namespace codepad {
 			virtual void begin(const window_base&) = 0;
 			virtual void push_clip(recti) = 0;
 			virtual void pop_clip() = 0;
-			virtual void draw_character(const texture&, vec2d, colord) = 0;
+			virtual void draw_character_custom(const texture&, rectd, colord) = 0;
+			virtual void draw_character(const texture &t, vec2d pos, colord c) {
+				draw_character_custom(t, rectd::from_xywh(
+					pos.x, pos.y, static_cast<double>(t.get_width()), static_cast<double>(t.get_height())
+				), c);
+			}
 			virtual void draw_triangles(const texture&, const vec2d*, const vec2d*, const colord*, size_t) = 0;
 			virtual void draw_lines(const vec2d*, const colord*, size_t) = 0;
 			virtual void draw_quad(const texture &tex, rectd r, rectd t, colord c) {
@@ -131,6 +154,10 @@ namespace codepad {
 			virtual void push_matrix_mult(const matd3x3&) = 0;
 			virtual matd3x3 top_matrix() const = 0;
 			virtual void pop_matrix() = 0;
+
+			virtual void push_blend_function(blend_function) = 0;
+			virtual void pop_blend_function() = 0;
+			virtual blend_function top_blend_function() const = 0;
 
 			inline static renderer_base &get() {
 				assert_true_usage(_get_rend().rend != nullptr, "renderer not yet created");
@@ -197,23 +224,21 @@ namespace codepad {
 			void push_clip(recti r) override {
 				_flush_text_buffer();
 				_rtfstk.back().push_clip(r);
-				_rtfstk.back().apply_clip();
 			}
 			void pop_clip() override {
 				_flush_text_buffer();
 				_rtfstk.back().pop_clip();
-				_rtfstk.back().apply_clip();
 			}
-			void draw_character(const texture &id, vec2d pos, colord color) override {
+			void draw_character_custom(const texture &id, rectd r, colord color) override {
 				const _text_atlas::char_data &cd = _atl.get_char_data(_get_id(id));
 				if (_lstpg != cd.page) {
 					_flush_text_buffer();
 					_lstpg = cd.page;
 				}
-				_textbuf.append(
-					pos, pos + vec2d(static_cast<double>(cd.w), static_cast<double>(cd.h)),
-					cd.layout, color
-				);
+				if (!_textbuf.initialized()) {
+					_textbuf.initialize(*this);
+				}
+				_textbuf.append(r.xmin_ymin(), r.xmax_ymax(), cd.layout, color);
 			}
 			void draw_triangles(const texture &t, const vec2d *ps, const vec2d *us, const colord *cs, size_t n) override {
 				_flush_text_buffer();
@@ -333,8 +358,31 @@ namespace codepad {
 				glMatrixMode(GL_MODELVIEW);
 				glPopMatrix();
 			}
+
+			void push_blend_function(blend_function f) override {
+				_flush_text_buffer();
+				_rtfstk.back().push_blend_func(f);
+			}
+			void pop_blend_function() override {
+				_flush_text_buffer();
+				_rtfstk.back().pop_blend_func();
+			}
+			blend_function top_blend_function() const override {
+				if (_rtfstk.back().blend_func_stack.empty()) {
+					return blend_function();
+				}
+				return _rtfstk.back().blend_func_stack.back();
+			}
 		protected:
+			static GLenum _blend_func_mapping[10];
+
 			struct _gl_funcs {
+				PFNGLGENBUFFERSPROC GenBuffers = nullptr;
+				PFNGLDELETEBUFFERSPROC DeleteBuffers = nullptr;
+				PFNGLBINDBUFFERPROC BindBuffer = nullptr;
+				PFNGLBUFFERDATAPROC BufferData = nullptr;
+				PFNGLMAPBUFFERPROC MapBuffer = nullptr;
+				PFNGLUNMAPBUFFERPROC UnmapBuffer = nullptr;
 				PFNGLGENFRAMEBUFFERSPROC GenFramebuffers = nullptr;
 				PFNGLBINDFRAMEBUFFERPROC BindFramebuffer = nullptr;
 				PFNGLFRAMEBUFFERTEXTURE2DPROC FramebufferTexture2D = nullptr;
@@ -353,7 +401,6 @@ namespace codepad {
 				_init_new_window(wnd);
 				glEnable(GL_TEXTURE_2D);
 				glEnable(GL_BLEND);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 				glEnableClientState(GL_VERTEX_ARRAY);
 				glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				glEnableClientState(GL_COLOR_ARRAY);
@@ -393,6 +440,135 @@ namespace codepad {
 				result[2][2] = res[15];
 				return result;
 			}
+
+			struct _gl_vertex_buffer {
+				friend class opengl_renderer_base;
+			public:
+				_gl_vertex_buffer() = default;
+				_gl_vertex_buffer(const _gl_vertex_buffer&) = delete;
+				_gl_vertex_buffer(_gl_vertex_buffer &&r) : _rend(r._rend), _id(r._id) {
+					r._rend = nullptr;
+					r._id = 0;
+				}
+				_gl_vertex_buffer &operator=(const _gl_vertex_buffer&) = delete;
+				_gl_vertex_buffer &operator=(_gl_vertex_buffer &&r) {
+					std::swap(_rend, r._rend);
+					std::swap(_id, r._id);
+					return *this;
+				}
+				~_gl_vertex_buffer() {
+					if (_rend && _id != 0) {
+						_rend->_delete_vertex_buffer(*this);
+					}
+				}
+
+				opengl_renderer_base *get_context() const {
+					return _rend;
+				}
+			protected:
+				opengl_renderer_base *_rend = nullptr;
+				GLuint _id = 0;
+			};
+			_gl_vertex_buffer _new_vertex_buffer() {
+				_gl_vertex_buffer res;
+				res._rend = this;
+				_get_gl_funcs().GenBuffers(1, &res._id);
+				return res;
+			}
+			void _bind_vertex_buffer(GLenum target, const _gl_vertex_buffer &buf) {
+				_get_gl_funcs().BindBuffer(target, buf._id);
+			}
+			void _unbind_vertex_buffer(GLenum target) {
+				_get_gl_funcs().BindBuffer(target, 0);
+			}
+			void _resize_vertex_buffer_stream_draw(GLenum target, const _gl_vertex_buffer &buf, size_t size) {
+				_bind_vertex_buffer(target, buf);
+				_get_gl_funcs().BufferData(target, size, nullptr, GL_DYNAMIC_DRAW);
+			}
+			void *_map_vertex_buffer(GLenum target, const _gl_vertex_buffer &buf) {
+				_bind_vertex_buffer(target, buf);
+				return _get_gl_funcs().MapBuffer(target, GL_READ_WRITE);
+			}
+			void _unmap_vertex_buffer(GLenum target, const _gl_vertex_buffer &buf) {
+				_bind_vertex_buffer(target, buf);
+				_get_gl_funcs().UnmapBuffer(target);
+			}
+			void _delete_vertex_buffer(_gl_vertex_buffer &buf) {
+				_get_gl_funcs().DeleteBuffers(1, &buf._id);
+				buf._rend = nullptr;
+				buf._id = 0;
+			}
+			template <typename T, GLenum Type> struct _automatic_gl_vertex_buffer {
+			public:
+				constexpr static size_t minimum_size = 20;
+
+				void initialize(opengl_renderer_base &rend) {
+					_buf = rend._new_vertex_buffer();
+					_cap = minimum_size;
+					rend._resize_vertex_buffer_stream_draw(Type, _buf, sizeof(T) * minimum_size);
+					_ptr = static_cast<T*>(rend._map_vertex_buffer(Type, _buf));
+				}
+				bool initialized() const {
+					return _buf.get_context() != nullptr;
+				}
+				void dispose() {
+					if (initialized()) {
+						_buf.get_context()->_unmap_vertex_buffer(Type, _buf);
+						_buf.get_context()->_delete_vertex_buffer(_buf);
+					}
+				}
+
+				void push_back(const T &obj) {
+					if (_cnt == _cap) {
+						_set_capacity(_cap * 2);
+					}
+					_ptr[_cnt++] = obj;
+				}
+				void reserve(size_t cnt) {
+					if (cnt > _cap) {
+						_set_capacity(cnt);
+					}
+				}
+
+				void bind() {
+					_buf.get_context()->_unmap_vertex_buffer(Type, _buf);
+					_buf.get_context()->_bind_vertex_buffer(Type, _buf);
+				}
+				void unbind() {
+					_ptr = static_cast<T*>(_buf.get_context()->_map_vertex_buffer(Type, _buf));
+					_buf.get_context()->_unbind_vertex_buffer(Type);
+				}
+
+				const _gl_vertex_buffer &get_raw() const {
+					return _buf;
+				}
+
+				size_t size() const {
+					return _cnt;
+				}
+				size_t capacity() const {
+					return _cap;
+				}
+				void clear() {
+					_cnt = 0;
+				}
+			protected:
+				_gl_vertex_buffer _buf;
+				T *_ptr = nullptr;
+				size_t _cnt = 0, _cap = 0;
+
+				void _set_capacity(size_t cp) {
+					_cap = cp;
+					opengl_renderer_base *rend = _buf.get_context();
+					_gl_vertex_buffer newbuf = rend->_new_vertex_buffer();
+					rend->_resize_vertex_buffer_stream_draw(Type, newbuf, sizeof(T) * _cap);
+					T *nptr = static_cast<T*>(rend->_map_vertex_buffer(Type, newbuf));
+					std::memcpy(nptr, _ptr, sizeof(T) * _cnt);
+					rend->_unmap_vertex_buffer(Type, _buf);
+					_ptr = nptr;
+					_buf = std::move(newbuf);
+				}
+			};
 
 			struct _text_atlas {
 				void dispose() {
@@ -521,9 +697,12 @@ namespace codepad {
 						}
 						const unsigned char *src = static_cast<const unsigned char*>(data);
 						for (size_t y = 0; y < h; ++y) {
-							unsigned char *cur = curp.data + ((y + t) * curp.width + l) * 4 + 3;
-							for (size_t x = 0; x < w; ++x, ++src, cur += 4) {
-								*cur = *src;
+							unsigned char *cur = curp.data + ((y + t) * curp.width + l) * 4;
+							for (size_t x = 0; x < w; ++x, src += 4, cur += 4) {
+								cur[0] = src[0];
+								cur[1] = src[1];
+								cur[2] = src[2];
+								cur[3] = src[3];
 							}
 						}
 						_cx = l + w;
@@ -550,41 +729,51 @@ namespace codepad {
 					vec2d v, uv;
 					colord c;
 				};
-				std::vector<vertex> vxs;
-				std::vector<unsigned int> ids;
-				size_t vertcount = 0, count = 0;
+				_automatic_gl_vertex_buffer<vertex, GL_ARRAY_BUFFER> vertex_buffer;
+				_automatic_gl_vertex_buffer<unsigned int, GL_ELEMENT_ARRAY_BUFFER> id_buffer;
+				size_t indexed_vertex_count = 0, used_index_count = 0;
+
+				void initialize(opengl_renderer_base &rend) {
+					vertex_buffer.initialize(rend);
+					id_buffer.initialize(rend);
+				}
+				bool initialized() const {
+					return vertex_buffer.initialized();
+				}
+				void dispose() {
+					vertex_buffer.dispose();
+					id_buffer.dispose();
+				}
 
 				void append(vec2d tl, vec2d br, rectd layout, colord c) {
-					vec2d v[4]{tl, vec2d(br.x, tl.y), vec2d(tl.x, br.y), br};
-					if (vertcount == vxs.size()) {
-						unsigned int id = static_cast<unsigned int>(vxs.size());
-						ids.push_back(id);
-						ids.push_back(id + 1);
-						ids.push_back(id + 2);
-						ids.push_back(id + 1);
-						ids.push_back(id + 3);
-						ids.push_back(id + 2);
-						vxs.push_back(vertex(v[0], layout.xmin_ymin(), c));
-						vxs.push_back(vertex(v[1], layout.xmax_ymin(), c));
-						vxs.push_back(vertex(v[2], layout.xmin_ymax(), c));
-						vxs.push_back(vertex(v[3], layout.xmax_ymax(), c));
-						vertcount = vxs.size();
-						count = ids.size();
-					} else {
-						vxs[vertcount++] = vertex(v[0], layout.xmin_ymin(), c);
-						vxs[vertcount++] = vertex(v[1], layout.xmax_ymin(), c);
-						vxs[vertcount++] = vertex(v[2], layout.xmin_ymax(), c);
-						vxs[vertcount++] = vertex(v[3], layout.xmax_ymax(), c);
-						count += 6;
+					used_index_count += 6;
+					if (indexed_vertex_count == vertex_buffer.size()) {
+						unsigned int id = static_cast<unsigned int>(vertex_buffer.size());
+						id_buffer.push_back(id);
+						id_buffer.push_back(id + 1);
+						id_buffer.push_back(id + 2);
+						id_buffer.push_back(id + 1);
+						id_buffer.push_back(id + 3);
+						id_buffer.push_back(id + 2);
+						indexed_vertex_count += 4;
 					}
+					vertex_buffer.push_back(vertex(tl, layout.xmin_ymin(), c));
+					vertex_buffer.push_back(vertex(vec2d(br.x, tl.y), layout.xmax_ymin(), c));
+					vertex_buffer.push_back(vertex(vec2d(tl.x, br.y), layout.xmin_ymax(), c));
+					vertex_buffer.push_back(vertex(br, layout.xmax_ymax(), c));
 				}
 				void flush_nocheck(GLuint tex) {
-					glVertexPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].v);
-					glTexCoordPointer(2, GL_DOUBLE, sizeof(vertex), &vxs[0].uv);
-					glColorPointer(4, GL_DOUBLE, sizeof(vertex), &vxs[0].c);
+					vertex_buffer.bind();
+					id_buffer.bind();
+					glVertexPointer(2, GL_DOUBLE, sizeof(vertex), reinterpret_cast<const GLvoid*>(offsetof(vertex, v)));
+					glTexCoordPointer(2, GL_DOUBLE, sizeof(vertex), reinterpret_cast<const GLvoid*>(offsetof(vertex, uv)));
+					glColorPointer(4, GL_DOUBLE, sizeof(vertex), reinterpret_cast<const GLvoid*>(offsetof(vertex, c)));
 					glBindTexture(GL_TEXTURE_2D, tex);
-					glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(count), GL_UNSIGNED_INT, ids.data());
-					count = vertcount = 0;
+					glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(used_index_count), GL_UNSIGNED_INT, nullptr);
+					vertex_buffer.clear();
+					used_index_count = 0;
+					vertex_buffer.unbind();
+					id_buffer.unbind();
 				}
 			};
 
@@ -598,6 +787,7 @@ namespace codepad {
 				size_t width = 0, height = 0;
 				std::function<void()> begin, end;
 				std::vector<recti> clip_stack;
+				std::vector<blend_function> blend_func_stack;
 
 				void push_clip(recti r) {
 					if (invert_y) {
@@ -610,18 +800,44 @@ namespace codepad {
 					}
 					r.make_valid_max();
 					clip_stack.push_back(r);
+					apply_clip();
 				}
 				void pop_clip() {
 					clip_stack.pop_back();
+					apply_clip();
 				}
 				void apply_clip() {
-					if (!clip_stack.empty()) {
+					if (clip_stack.empty()) {
+						glDisable(GL_SCISSOR_TEST);
+					} else {
 						glEnable(GL_SCISSOR_TEST);
 						const recti &r = clip_stack.back();
 						glScissor(r.xmin, r.ymin, r.width(), r.height());
-					} else {
-						glDisable(GL_SCISSOR_TEST);
 					}
+				}
+
+				void push_blend_func(blend_function bf) {
+					blend_func_stack.push_back(bf);
+					apply_blend_func();
+				}
+				void pop_blend_func() {
+					blend_func_stack.pop_back();
+					apply_blend_func();
+				}
+				void apply_blend_func() {
+					if (blend_func_stack.empty()) {
+						glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+					} else {
+						glBlendFunc(
+							_blend_func_mapping[static_cast<int>(blend_func_stack.back().source_factor)],
+							_blend_func_mapping[static_cast<int>(blend_func_stack.back().destination_factor)]
+						);
+					}
+				}
+
+				void apply_config() {
+					apply_clip();
+					apply_blend_func();
 				}
 			};
 
@@ -630,6 +846,11 @@ namespace codepad {
 			_text_atlas _atl;
 			_text_buffer _textbuf;
 			size_t _lstpg;
+
+			void _dispose_gl_rsrc() {
+				_atl.dispose();
+				_textbuf.dispose();
+			}
 
 			void _begin_render_target(_render_target_stackframe rtf) {
 				if (!_rtfstk.empty()) {
@@ -644,7 +865,7 @@ namespace codepad {
 			void _continue_last_render_target() {
 				_render_target_stackframe &rtf = _rtfstk.back();
 				rtf.begin();
-				rtf.apply_clip();
+				rtf.apply_config();
 				glViewport(0, 0, static_cast<GLsizei>(rtf.width), static_cast<GLsizei>(rtf.height));
 				glMatrixMode(GL_PROJECTION);
 				glLoadIdentity();
@@ -668,7 +889,7 @@ namespace codepad {
 			}
 
 			void _flush_text_buffer() {
-				if (_textbuf.vertcount > 0) {
+				if (_textbuf.used_index_count > 0) {
 					_textbuf.flush_nocheck(_atl.get_page(_get_gl_funcs(), _lstpg).tex_id);
 				}
 			}

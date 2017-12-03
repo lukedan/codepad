@@ -42,7 +42,7 @@ namespace codepad {
 				glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 				glDisableClientState(GL_COLOR_ARRAY);
 				Display *disp = _details::xlib_link::get().display;
-				_atl.dispose();
+				_dispose_gl_rsrc();
 				XSync(disp, false);
 				glXDestroyContext(disp, _ctx);
 				assert_true_sys(glXMakeCurrent(disp, None, nullptr) != False, "failed to unbind context");

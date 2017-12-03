@@ -53,56 +53,7 @@ namespace codepad {
 				_ft_verify(FT_Set_Pixel_Sizes(_face, 0, static_cast<FT_UInt>(sz)));
 			}
 		};
-		class gdi_font : public font {
-			// TODO
-		};
-		class directwrite_font : public font {
-			friend struct codepad::globals;
-		public:
-			directwrite_font(const str_t &s, size_t sz, font_style style) : font() {
-				std::u16string utf16str = convert_to_utf16(s);
-				_factory &f = _get_factory();
-				com_check(f.dwrite_factory->CreateTextFormat(
-					reinterpret_cast<const TCHAR*>(utf16str.c_str()), nullptr, (
-						test_bit_all(static_cast<unsigned>(style), font_style::bold) ?
-						DWRITE_FONT_WEIGHT_BOLD : DWRITE_FONT_WEIGHT_REGULAR
-						), (
-							test_bit_all(static_cast<unsigned>(style), font_style::italic) ?
-							DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL
-							), DWRITE_FONT_STRETCH_NORMAL, static_cast<FLOAT>(sz), TEXT(""), &_format
-				));
-				com_check(_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING));
-				com_check(_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR));
-			}
-			~directwrite_font() override {
-				_format->Release();
-			}
-
-			// TODO
-			vec2d get_kerning(char_t, char_t) const override {
-				return vec2d(); // FIXME directwrite doesn't support getting kerning directly
-			}
-		protected:
-			IDWriteTextFormat *_format = nullptr;
-
-			struct _factory {
-				_factory() {
-					com_check(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &d2d1_factory));
-					com_check(DWriteCreateFactory(
-						DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
-						reinterpret_cast<IUnknown**>(&dwrite_factory)
-					));
-				}
-				~_factory() {
-					d2d1_factory->Release();
-					dwrite_factory->Release();
-				}
-
-				ID2D1Factory *d2d1_factory = nullptr;
-				IDWriteFactory *dwrite_factory = nullptr;
-			};
-			static _factory &_get_factory();
-		};
 		using default_font = freetype_font;
+		//using default_font = backed_up_font<freetype_font, freetype_font>;
 	}
 }

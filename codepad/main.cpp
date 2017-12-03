@@ -29,8 +29,8 @@ int main() {
 
 	renderer_base::create_default<opengl_renderer>();
 
-	auto fnt = std::make_shared<default_font>(U"", 12.0, font_style::normal);
-	font_family codefnt(U"iosevka", 13.0);
+	auto fnt = std::make_shared<default_font>(U"", 13.0, font_style::normal);
+	font_family codefnt(U"Iosevka", 13.0);
 	element_hotkey_group hg;
 
 	hg.register_hotkey({input::key::left}, [](element *e) {
@@ -189,29 +189,28 @@ int main() {
 	cp2->add_component_left(*element::create<code::line_number>());
 	cp2->add_component_right(*element::create<code::minimap>());
 
-	{
-		auto ctx = std::make_shared<code::text_context>();
-		//ctx->load_from_file(U"hugetext.txt");
-		//ctx->load_from_file(U"longline.txt");
-		ctx->load_from_file(U"editors/code/editor.h");
-		ctx->auto_set_default_line_ending();
-		cp1->get_editor()->set_context(ctx);
-		cp2->get_editor()->set_context(ctx);
-		async_task_pool::get().run_task([ctx](async_task_pool::async_task&) {
-			code::text_theme_data data;
-			for (size_t i = 0; i < 1340000; i += 10) {
-				double n6 = std::rand() / (double)RAND_MAX, n7 = std::rand() / (double)RAND_MAX, n8 = std::rand() / (double)RAND_MAX;
-				data.set_range(
-					i,
-					i + 10,
-					code::text_theme_specification(font_style::normal, colord(n6, n7, n8, 1.0))
-				);
-			}
-			callback_buffer::get().add([d = std::move(data), ctx]() {
-				ctx->set_text_theme(d);
-			});
-			});
-	}
+	auto ctx = std::make_shared<code::text_context>();
+	//ctx->load_from_file(U"hugetext.txt");
+	//ctx->load_from_file(U"mix.txt");
+	//ctx->load_from_file(U"longline.txt");
+	ctx->load_from_file(U"editors/code/editor.h");
+	ctx->auto_set_default_line_ending();
+	cp1->get_editor()->set_context(ctx);
+	cp2->get_editor()->set_context(ctx);
+	async_task_pool::get().run_task([ctx](async_task_pool::async_task&) {
+		code::text_theme_data data;
+		for (size_t i = 0; i < 3000000; i += 100) {
+			double n6 = std::rand() / (double)RAND_MAX, n7 = std::rand() / (double)RAND_MAX, n8 = std::rand() / (double)RAND_MAX;
+			data.set_range(
+				i,
+				i + 100,
+				code::text_theme_specification(font_style::normal, colord(n6, n7, n8, 1.0))
+			);
+		}
+		callback_buffer::get().add([d = std::move(data), ctx]() {
+			ctx->set_text_theme(d);
+		});
+		});
 
 	codetab1->children().add(*cp1);
 	codetab2->children().add(*cp2);
@@ -232,8 +231,9 @@ int main() {
 		lbltab->children().add(*sb);
 	}
 
-	{ // load skin
-		std::ifstream fin("skin.json", std::ios::binary);
+	{
+		// load skin
+		std::ifstream fin("skin/skin.json", std::ios::binary);
 		fin.seekg(0, std::ios::end);
 		std::streampos sz = fin.tellg();
 		char *c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
@@ -244,7 +244,13 @@ int main() {
 		json::parser_value_t v;
 		str_t ss = convert_to_utf32(us);
 		v.Parse(ss.c_str());
-		visual_manager::load_config(v);
+		visual_manager::load_config(v).load_all(U"skin/");
+
+		// load folding gizmo
+		editor::code::editor::gizmo gz;
+		gz.texture = std::make_shared<os::texture>(os::load_image(U"folded.png"));
+		gz.width = static_cast<double>(gz.texture->get_width());
+		editor::code::editor::set_folding_gizmo(std::move(gz));
 	}
 
 	while (!dock_manager::get().empty()) {
@@ -254,11 +260,10 @@ int main() {
 		callback_buffer::get().flush();
 		double ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - tstart).count();
 		if (ms > 50.0) {
-			logger::get().log_info(CP_HERE, "update took ", ms, "ms");
+			logger::get().log_warning(CP_HERE, "update took ", ms, "ms");
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
-	manager::get().dispose_marked_elements();
 	for (auto i = async_task_pool::get().tasks().begin(); i != async_task_pool::get().tasks().end(); ++i) {
 		async_task_pool::get().try_cancel(i);
 	}

@@ -144,6 +144,14 @@ namespace codepad {
 					std::vector<modification_positions>::const_iterator next;
 					caret_position_diff diff{};
 				};
+				struct incremental_context {
+					incremental_context() = default;
+					explicit incremental_context(const caret_fixup_info &src) : base_context(src) {
+					}
+
+					context base_context;
+					caret_position current_position{};
+				};
 
 				caret_fixup_info() = default;
 				explicit caret_fixup_info(const edit &e) {
@@ -154,40 +162,63 @@ namespace codepad {
 				}
 
 				caret_position fixup_caret_min(caret_position cp, context &ctx) const {
-					cp = fixup_caret_custom_context(cp, ctx);
-					while (ctx.next != mods.end() && ctx.next->position < cp) {
-						if (ctx.next->position + ctx.next->removed_range > cp) {
-							// if a caret is in a removed area, move the caret to the front of it
-							cp = ctx.next->position;
-							break;
-						}
-						cp = fixup_caret_with_mod(cp, *ctx.next);
-						if (ctx.next == mods.end()) {
-							break;
-						}
-						ctx.append_custom_modification(*ctx.next);
-						++ctx.next;
+					cp = fixup_caret<true>(cp, ctx);
+					if (ctx.next != mods.end() && ctx.next->position <= cp) {
+						cp = ctx.next->position;
 					}
 					return cp;
 				}
 				caret_position fixup_caret_max(caret_position cp, context &ctx) const {
-					cp = fixup_caret_min(cp, ctx);
-					if (ctx.next != mods.end() && ctx.next->position == cp) {
+					cp = fixup_caret<true>(cp, ctx);
+					if (ctx.next != mods.end() && ctx.next->position <= cp) {
 						cp = ctx.next->position + ctx.next->added_range;
 					}
 					return cp;
 				}
-				caret_position fixup_caret_custom_context(caret_position cp, const context &ctx) const {
+				template <bool Closed> caret_position fixup_caret(caret_position cp, context &ctx) const {
+					std::conditional_t<Closed, std::less_equal<caret_position>, std::less<caret_position>> cmp;
+					for (
+						cp = fixup_caret_custom_context(cp, ctx);
+						ctx.next != mods.end() && cmp(ctx.next->position, cp);
+						++ctx.next
+						) {
+						if (cmp(cp, ctx.next->position + ctx.next->removed_range)) {
+							return std::min(cp, ctx.next->position + ctx.next->added_range);
+						}
+						cp = fixup_caret_with_mod(cp, *ctx.next);
+						ctx.append_custom_modification(*ctx.next);
+					}
+					return cp;
+				}
+				inline static caret_position fixup_caret_custom_context(caret_position cp, const context &ctx) {
 					return _fix_raw(cp, ctx.diff);
 				}
-				caret_position fixup_caret_with_mod(caret_position cp, const modification_positions &mod) const {
+				inline static caret_position fixup_caret_with_mod(caret_position cp, const modification_positions &mod) {
 					return _fix_raw(cp, mod.added_range - mod.removed_range);
+				}
+
+				caret_position_diff fixup_offset_min(caret_position_diff diff, incremental_context &ctx) const {
+					return _fix_diff<&caret_fixup_info::fixup_caret_min>(diff, ctx);
+				}
+				caret_position_diff fixup_offset_max(caret_position_diff diff, incremental_context &ctx) const {
+					return _fix_diff<&caret_fixup_info::fixup_caret_max>(diff, ctx);
+				}
+				template <bool Closed> caret_position_diff fixup_offset(caret_position_diff diff, incremental_context &ctx) const {
+					return _fix_diff<&caret_fixup_info::fixup_caret<Closed>>(diff, ctx);
 				}
 
 				std::vector<modification_positions> mods;
 			protected:
-				caret_position _fix_raw(caret_position cp, caret_position_diff diff) const {
+				inline static caret_position _fix_raw(caret_position cp, caret_position_diff diff) {
 					return cp + diff;
+				}
+
+				template <caret_position(caret_fixup_info::*FixPos)(caret_position, context&) const> caret_position_diff _fix_diff(
+					caret_position_diff diff, incremental_context &ctx
+				) const {
+					caret_position oldpos = ctx.current_position;
+					ctx.current_position += diff;
+					return (this->*FixPos)(ctx.current_position, ctx.base_context) - oldpos;
 				}
 			};
 
@@ -386,32 +417,26 @@ namespace codepad {
 					_lbr.clear();
 				}
 
-				void load_from_file(const str_t &fn) {
-					logger::get().log_info(CP_HERE, "starting to load file...");
-					auto begt = std::chrono::high_resolution_clock::now();
+				bool load_from_file(const str_t &fn) {
 					clear();
-					std::ifstream fin(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
-					fin.seekg(0, std::ios::end);
-					auto len = fin.tellg();
-					fin.seekg(0, std::ios::beg);
-					char8_t *cs = static_cast<char8_t*>(std::malloc(static_cast<size_t>(len)));
-					fin.read(reinterpret_cast<char*>(cs), static_cast<std::streamsize>(len));
+					auto begt = std::chrono::high_resolution_clock::now();
+					os::file fil(fn, os::access_rights::read, os::open_mode::open_or_create);
+					if (!fil.valid()) {
+						return false;
+					}
+					os::file_mapping mapping(fil, os::access_rights::read);
+					if (!mapping.valid()) {
+						return false;
+					}
+					char8_t *cs = static_cast<char8_t*>(mapping.get_mapped_pointer());
+					insert_text(0, cs, cs + static_cast<int>(fil.get_size()));
 					auto now = std::chrono::high_resolution_clock::now();
 					logger::get().log_info(
-						CP_HERE, "read complete in ",
+						CP_HERE, "file loaded in ",
 						std::chrono::duration<double, std::milli>(now - begt).count(),
 						"ms"
 					);
-					begt = now;
-					insert_text(0, cs, cs + static_cast<int>(len));
-					std::free(cs);
-					now = std::chrono::high_resolution_clock::now();
-					logger::get().log_info(
-						CP_HERE, "decode & format complete in ",
-						std::chrono::duration<double, std::milli>(now - begt).count(),
-						"ms"
-					);
-					logger::get().log_info(CP_HERE, "file loaded");
+					return true;
 				}
 				void save_to_file(const str_t &fn) const {
 					std::ofstream fout(reinterpret_cast<const char*>(convert_to_utf8(fn).c_str()), std::ios::binary);
@@ -469,7 +494,7 @@ namespace codepad {
 				template <typename Iter> caret_position_diff insert_text(caret_position cp, Iter beg, Iter end) {
 					codepoint_iterator_base<Iter> it(beg, end);
 					auto pos = _lbr.get_line_and_column_and_codepoint_of_char(cp);
-					char32_t last = U'\0';
+					char32_t last = '\0';
 					std::vector<linebreak_registry::line_info> lines;
 					linebreak_registry::line_info curl;
 					caret_position_diff totchars = 0;
@@ -478,9 +503,9 @@ namespace codepad {
 							return false;
 						}
 						c = it.current_codepoint();
-						if (c == U'\n' || last == U'\r') {
-							if (c == U'\n') {
-								curl.ending = last == U'\r' ? line_ending::rn : line_ending::n;
+						if (c == '\n' || last == '\r') {
+							if (c == '\n') {
+								curl.ending = last == '\r' ? line_ending::rn : line_ending::n;
 							} else {
 								curl.ending = line_ending::r;
 							}
@@ -488,14 +513,14 @@ namespace codepad {
 							lines.push_back(curl);
 							curl = linebreak_registry::line_info();
 						}
-						if (c != U'\r' && c != U'\n') {
+						if (c != '\r' && c != '\n') {
 							++curl.nonbreak_chars;
 						}
 						last = c;
 						++it;
 						return true;
-					});
-					if (last == U'\r') {
+						});
+					if (last == '\r') {
 						curl.ending = line_ending::r;
 						totchars += curl.nonbreak_chars + 1;
 						lines.push_back(curl);
@@ -646,7 +671,7 @@ namespace codepad {
 				}
 
 				caret_position fixup_caret_position(caret_position c) const {
-					return _cfixup.fixup_caret_custom_context(c, _cfctx);
+					return caret_fixup_info::fixup_caret_custom_context(c, _cfctx);
 				}
 				void fixup_caret_position(modification &m) const {
 					caret_position rmend = fixup_caret_position(m.position + m.removed_range);
@@ -671,7 +696,7 @@ namespace codepad {
 							codepoint_iterator_base<string_buffer::string_type::const_iterator> cit(s.begin(), s.end());
 							!cit.at_end();
 							++cit
-						) {
+							) {
 							if (!is_newline(cit.current_codepoint()) && col < it.get_line_length()) {
 								++mod.removed_range;
 							}
@@ -737,6 +762,195 @@ namespace codepad {
 				void _append_caret(caret_selection sel) {
 					_newcarets.add(caret_set::entry(sel, caret_data(0.0)));
 				}
+			};
+
+			template <typename Data> struct incremental_positional_registry {
+			public:
+				struct node_data {
+					node_data() = default;
+					node_data(size_t len, Data obj) : length(len), object(std::move(obj)) {
+					}
+
+					size_t length = 0;
+					Data object;
+				};
+				struct node_synth_data {
+					using node_type = binary_tree_node<node_data, node_synth_data>;
+
+					size_t total_length = 0;
+
+					void synthesize(const node_type &n) {
+						total_length = n.value.length;
+						if (n.left) {
+							total_length += n.left->synth_data.total_length;
+						}
+						if (n.right) {
+							total_length += n.right->synth_data.total_length;
+						}
+					}
+				};
+				using tree_type = binary_tree<node_data, node_synth_data>;
+				using node_type = typename tree_type::node;
+				template <bool Const> struct iterator_base {
+				public:
+					using raw_iterator_t = std::conditional_t<
+						Const, typename tree_type::const_iterator, typename tree_type::iterator
+					>;
+					using dereferenced_t = std::conditional_t<Const, const Data, Data>;
+					using reference = dereferenced_t&;
+					using pointer = dereferenced_t*;
+
+					iterator_base() = default;
+					explicit iterator_base(const raw_iterator_t &it) : _it(it) {
+					}
+
+					reference operator*() const {
+						return _it->object;
+					}
+					pointer operator->() const {
+						return &operator*();
+					}
+
+					friend bool operator==(const iterator_base &lhs, const iterator_base &rhs) {
+						return lhs._it == rhs._it;
+					}
+					friend bool operator!=(const iterator_base &lhs, const iterator_base &rhs) {
+						return !(lhs == rhs);
+					}
+
+					iterator_base &operator++() {
+						++_it;
+						return *this;
+					}
+					iterator_base operator++(int) {
+						iterator_base oldv = *this;
+						++*this;
+						return oldv;
+					}
+
+					iterator_base &operator--() {
+						--_it;
+						return *this;
+					}
+					iterator_base operator--(int) {
+						iterator_base oldv = *this;
+						--*this;
+						return oldv;
+					}
+
+					const node_data &data() const {
+						return *get_raw();
+					}
+					const raw_iterator_t &get_raw() const {
+						return _it;
+					}
+				protected:
+					raw_iterator_t _it;
+				};
+				using iterator = iterator_base<false>;
+				using const_iterator = iterator_base<true>;
+
+				void insert_at(const const_iterator &pos, size_t offset, Data d) {
+					if (pos.get_raw() != _t.end()) {
+						assert_true_usage(offset <= pos.data().length, "invalid position");
+						_t.get_modifier(pos.get_raw().get_node())->length -= offset;
+					}
+					_t.insert_node_before(pos.get_raw(), offset, std::move(d));
+				}
+				void insert_at(size_t pos, Data d) {
+					auto it = _t.find_custom(_find_obj_at_or_after(), pos);
+					insert_at(const_iterator(it), pos, std::move(d));
+				}
+
+				void erase(const const_iterator &it) {
+					assert_true_usage(it.get_raw() != _t.end(), "invalid position");
+					auto next = it;
+					++next;
+					if (next.get_raw() != _t.end()) {
+						_t.get_modifier(next.get_raw().get_node())->length += it.data().length;
+					}
+					_t.erase(it.get_raw());
+				}
+
+				iterator begin() {
+					return iterator(_t.begin());
+				}
+				iterator end() {
+					return iterator(_t.end());
+				}
+				const_iterator begin() const {
+					return const_iterator(_t.begin());
+				}
+				const_iterator end() const {
+					return const_iterator(_t.end());
+				}
+
+				void fixup(const caret_fixup_info &fixup) {
+					for (auto i = fixup.mods.begin(); i != fixup.mods.end(); ++i) {
+						size_t pos = i->position;
+						auto it = _t.find_custom(_find_obj_after(), pos);
+						if (it == _t.end()) {
+							break;
+						}
+						size_t nchars = i->removed_range + pos;
+						if (nchars <= it->length) {
+							it.get_modifier()->length += i->added_range - i->removed_range;
+						} else {
+							nchars -= it->length;
+							it.get_modifier()->length = pos;
+							auto iend = it;
+							for (++iend; iend != _t.end(); ++iend) {
+								if (iend->length < nchars) {
+									nchars -= iend->length;
+									iend.get_modifier()->length = 0;
+								} else {
+									break;
+								}
+							}
+							if (iend != _t.end()) {
+								iend.get_modifier()->length += i->added_range - nchars;
+							}
+						}
+					}
+				}
+
+				iterator find_at_or_first_after(size_t pos) {
+					return _find_at_or_first_after_impl<iterator>(*this, pos);
+				}
+				const_iterator find_at_or_first_after(size_t pos) const {
+					return _find_at_or_first_after_impl<const_iterator>(*this, pos);
+				}
+
+				void clear() {
+					_t.clear();
+				}
+			protected:
+				template <
+					typename It, typename Cont
+				> inline static It _find_at_or_first_after_impl(Cont &cnt, size_t &pos) {
+					return It(cnt._t.find_custom(_find_obj_at_or_after(), pos));
+				}
+
+				tree_type _t;
+
+				template <typename Cmp> struct _find_obj {
+					int select_find(const node_type &n, size_t &c) {
+						Cmp cmp;
+						if (n.left) {
+							if (cmp(c, n.left->synth_data.total_length)) {
+								return -1;
+							}
+							c -= n.left->synth_data.total_length;
+						}
+						if (cmp(c, n.value.length)) {
+							return 0;
+						}
+						c -= n.value.length;
+						return 1;
+					}
+				};
+				using _find_obj_at_or_after = _find_obj<std::less_equal<size_t>>;
+				using _find_obj_after = _find_obj<std::less<size_t>>;
 			};
 
 			inline caret_set text_context::undo(editor *source) {

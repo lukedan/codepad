@@ -9,14 +9,18 @@
 
 namespace codepad {
 	namespace ui {
-		struct collection_change_info {
-			enum class type { add, remove };
-			collection_change_info(type t, element *c) : change_type(t), changed(c) {
+		struct element_collection_change_info {
+			enum class type {
+				add,
+				remove,
+				set_zindex
+			};
+			element_collection_change_info(type t, element *c) : change_type(t), changed(c) {
 			}
 			const type change_type;
 			element *const changed;
 		};
-		class element_collection {
+		class element_collection { // TODO implement z-order
 		public:
 			explicit element_collection(panel_base &b) : _f(b) {
 			}
@@ -28,6 +32,7 @@ namespace codepad {
 
 			void add(element&);
 			void remove(element&);
+			void set_zindex(element&, int);
 
 			std::list<element*>::iterator begin() {
 				return _cs.begin();
@@ -59,7 +64,7 @@ namespace codepad {
 				return _cs.size();
 			}
 
-			event<collection_change_info> changed;
+			event<element_collection_change_info> changed;
 		protected:
 			panel_base &_f;
 			std::list<element*> _cs;
@@ -71,7 +76,7 @@ namespace codepad {
 			virtual bool override_children_layout() const {
 				return false;
 			}
-			virtual bool dependent_relayout() const {
+			virtual bool is_dependent_relayout() const {
 				return override_children_layout() || !has_width() || !has_height();
 			}
 
@@ -89,26 +94,34 @@ namespace codepad {
 				return _dispose_children;
 			}
 		protected:
-			virtual void _on_children_changed(collection_change_info &p) {
-				if (dependent_relayout()) {
-					invalidate_layout();
-				} else {
-					invalidate_visual();
-				}
-				if (p.change_type == collection_change_info::type::add) {
-					_on_add_child(p.changed);
-				} else {
-					_on_remove_child(p.changed);
+			virtual void _on_children_changed(element_collection_change_info &p) {
+				switch (p.change_type) {
+				case element_collection_change_info::type::add:
+					_on_child_added(p.changed);
+					break;
+				case element_collection_change_info::type::remove:
+					_on_child_removed(p.changed);
+					break;
+				case element_collection_change_info::type::set_zindex:
+					_on_child_zindex_changed(p.changed);
+					break;
 				}
 			}
-			virtual void _on_add_child(element *e) {
-				e->invalidate_layout();
+			virtual void _on_child_added(element *e) {
+				if (is_dependent_relayout()) {
+					invalidate_layout();
+				} else {
+					e->invalidate_layout();
+				}
 				invalidate_visual();
 			}
-			virtual void _on_remove_child(element*) {
-				if (dependent_relayout()) {
+			virtual void _on_child_removed(element*) {
+				if (is_dependent_relayout()) {
 					invalidate_layout();
 				}
+				invalidate_visual();
+			}
+			virtual void _on_child_zindex_changed(element*) {
 				invalidate_visual();
 			}
 
@@ -230,7 +243,7 @@ namespace codepad {
 
 			element_collection _children{*this};
 			cursor _children_cursor = cursor::not_specified;
-			bool _dispose_children = true; // if true, marks all children for disposal on disposal
+			bool _dispose_children = true; // if true, marks all children for disposal upon disposal
 		};
 
 		inline void element::_recalc_layout(rectd prgn) {
@@ -254,12 +267,51 @@ namespace codepad {
 			_initialized = false;
 #endif
 		}
+		inline void element::set_zindex(int v) {
+			if (_parent) {
+				_parent->_children.set_zindex(*this, v);
+			} else {
+				_zindex = v;
+			}
+		}
 
 		inline void element_collection::add(element &elem) {
 			assert_true_usage(elem._parent == nullptr, "the element is already a child of another panel");
 			elem._parent = &_f;
-			elem._text_tok = _cs.insert(_cs.end(), &elem);
-			collection_change_info ci(collection_change_info::type::add, &elem);
+			// use naive approach to find the item whose z-index is less or equal
+			auto ins_before = _cs.begin();
+			for (; ins_before != _cs.end(); ++ins_before) {
+				if ((*ins_before)->get_zindex() <= elem.get_zindex()) {
+					break;
+				}
+			}
+			elem._col_token = _cs.insert(ins_before, &elem);
+			element_collection_change_info ci(element_collection_change_info::type::add, &elem);
+			_f._on_children_changed(ci);
+			changed(ci);
+		}
+		inline void element_collection::set_zindex(element &elem, int newz) {
+			if (elem._zindex != newz) {
+				auto ins_before = _cs.erase(elem._col_token);
+				if (elem._zindex < newz) {
+					while (ins_before != _cs.begin()) {
+						--ins_before;
+						if ((*ins_before)->get_zindex() > newz) {
+							++ins_before;
+							break;
+						}
+					}
+				} else {
+					for (; ins_before != _cs.end(); ++ins_before) {
+						if ((*ins_before)->get_zindex() <= newz) {
+							break;
+						}
+					}
+				}
+				elem._col_token = _cs.insert(ins_before, &elem);
+				elem._zindex = newz;
+			}
+			element_collection_change_info ci(element_collection_change_info::type::set_zindex, &elem);
 			_f._on_children_changed(ci);
 			changed(ci);
 		}
@@ -272,7 +324,7 @@ namespace codepad {
 				for (auto i = _targets.begin(); i != _targets.end(); ++i) {
 					element *cur = i->first;
 					if (i->second) {
-						while (cur->_parent && cur->_parent->dependent_relayout()) {
+						while (cur->_parent && cur->_parent->is_dependent_relayout()) {
 							cur = cur->_parent;
 						}
 					}

@@ -64,10 +64,10 @@ namespace codepad {
 	}
 
 	inline bool is_newline(char_t c) {
-		return c == U'\n' || c == U'\r';
+		return c == '\n' || c == '\r';
 	}
 	inline bool is_graphical_char(char_t c) { // TODO incomplete
-		return c != U'\n' && c != U'\r' && c != U'\t' && c != U' ';
+		return c != '\n' && c != '\r' && c != '\t' && c != ' ';
 	}
 	inline bool is_valid_codepoint(char_t c) {
 		return c < invalid_min || (c > invalid_max && c <= unicode_max);

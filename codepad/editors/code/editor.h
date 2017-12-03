@@ -120,12 +120,12 @@ namespace codepad {
 						beg = find_region_containing_or_first_after_open(fr.first),
 						end = find_region_containing_or_first_after_open(fr.second);
 					// TODO make callbacks
-					_t.erase(beg.get_node(), end.get_node());
-					_t.insert_node_before(end.get_node(), fr);
+					_t.erase(beg, end);
+					_t.insert_node_before(end, fr);
 					return --end;
 				}
 				void remove_folded_region(iterator it) {
-					_t.erase(it.get_node());
+					_t.erase(it);
 				}
 
 				iterator begin() const {
@@ -404,6 +404,18 @@ namespace codepad {
 				const gizmo_registry &get_gizmos() const {
 					return _gizmos;
 				}
+				void insert_gizmo(const typename gizmo_registry::const_iterator &pos, size_t offset, gizmo g) {
+					_gizmos.insert_at(pos, offset, std::move(g));
+					_on_editing_visual_changed();
+				}
+				void insert_gizmo(caret_position pos, gizmo g) {
+					_gizmos.insert_at(pos, std::move(g));
+					_on_editing_visual_changed();
+				}
+				void remove_gizmo(const typename gizmo_registry::const_iterator &it) {
+					_gizmos.erase(it);
+					_on_editing_visual_changed();
+				}
 
 				std::pair<size_t, size_t> get_visible_lines() const {
 					double top = _get_box()->get_vertical_position();
@@ -425,6 +437,7 @@ namespace codepad {
 					return _hit_test_unfolded_linebeg(line, offset.x);
 				}
 
+				// edit operations
 				void move_all_carets_left(bool continueselection) {
 					move_carets_special_selection([this](const caret_set::entry &et) {
 						return _move_caret_left(et.first.first);
@@ -487,7 +500,7 @@ namespace codepad {
 							exbegp = begp;
 						for (
 							auto cit = _ctx->at_char(begp);
-							!cit.is_linebreak() && (cit.current_character() == U' ' || cit.current_character() == U'\t');
+							!cit.is_linebreak() && (cit.current_character() == ' ' || cit.current_character() == '\t');
 							++cit, ++exbegp
 							) {
 						}
@@ -555,6 +568,13 @@ namespace codepad {
 					return _get_appearance().selection_brush;
 				}
 
+				inline static void set_folding_gizmo(gizmo gz) {
+					_get_appearance().folding_gizmo = std::move(gz);
+				}
+				inline static const gizmo &get_folding_gizmo() {
+					return _get_appearance().folding_gizmo;
+				}
+
 				inline static void set_num_lines_per_scroll(double v) {
 					_lines_per_scroll = v;
 				}
@@ -588,9 +608,10 @@ namespace codepad {
 				// gizmos
 				gizmo_registry _gizmos;
 				// rendering
-				ui::visual_provider::render_state _caretst;
+				ui::visual::render_state _caretst;
 
 				struct _appearance_config {
+					gizmo folding_gizmo;
 					ui::font_family family;
 					std::shared_ptr<ui::basic_brush> selection_brush;
 				};
@@ -681,12 +702,7 @@ namespace codepad {
 					}
 					_fold.set_folding(std::move(frs));
 
-					caret_fixup_info::context gzctx(mi.caret_fixup);
-					std::vector<gizmo> gzs;
-					caret_position lastpos{};
-					for (auto i = _gizmos.begin(); i != _gizmos.end(); ++i) {
-						// TODO fixup gizmos
-					}
+					_gizmos.fixup(mi.caret_fixup);
 
 					content_modified.invoke();
 					_on_content_visual_changed();
@@ -732,6 +748,13 @@ namespace codepad {
 				void _on_folding_changed() {
 					folding_changed.invoke();
 					_on_editing_visual_changed();
+				}
+
+				void _on_codebox_got_focus() {
+					_caretst.set_state_bit(ui::visual_manager::default_states().focused, true);
+				}
+				void _on_codebox_lost_focus() {
+					_caretst.set_state_bit(ui::visual_manager::default_states().focused, false);
 				}
 
 				void _begin_mouse_selection(caret_selection csel) {
@@ -915,9 +938,9 @@ namespace codepad {
 						auto beg = info.content.begin();
 						string_buffer::string_type st;
 						st.reserve(info.content.length());
-						for (char32_t cc = U'\0'; beg != info.content.end(); ) {
+						for (char32_t cc = '\0'; beg != info.content.end(); ) {
 							next_codepoint(beg, info.content.end(), cc);
-							if (cc != U'\n') {
+							if (cc != '\n') {
 								translate_codepoint_utf8([&st](std::initializer_list<char8_t> cs) {
 									st.append_as_codepoint(std::move(cs));
 									}, cc);
@@ -926,7 +949,9 @@ namespace codepad {
 								switch (_ctx->get_default_line_ending()) {
 								case line_ending::rn:
 									end = static_cast<char8_t*>(tmp) + 2;
+									tmp[0] = '\r';
 									tmp[1] = '\n';
+									break;
 								case line_ending::r:
 									tmp[0] = '\r';
 									break;
@@ -947,7 +972,7 @@ namespace codepad {
 						codebox *editor = _get_box();
 						editor->set_vertical_position(
 							editor->get_vertical_position() +
-							move_speed_scale * _scrolldiff * ui::manager::get().delta_time()
+							move_speed_scale * _scrolldiff * ui::manager::get().update_delta_time()
 						);
 						_on_selecting_mouse_move(get_window()->screen_to_client(os::input::get_mouse_position()).convert<double>());
 					}
@@ -1084,7 +1109,11 @@ namespace codepad {
 					++_cur_pos;
 					++_char_it;
 					_ctx->get_text_theme().incr_iter(_theme_it, _cur_pos);
-					_char_met.next(is_line_break() ? U' ' : _char_it.current_character(), _theme_it.current_theme.style);
+					_char_met.next(is_line_break() ? ' ' : _char_it.current_character(), _theme_it.current_theme.style);
+				}
+				rectd reserve_blank(double w) {
+					_char_met.create_blank_before(w);
+					return rectd(_char_met.prev_char_right(), _char_met.char_left(), _cury, _cury + _line_h);
 				}
 				void jump_to(caret_position cp) {
 					switching_char.invoke_noret(true, cp);
@@ -1092,18 +1121,12 @@ namespace codepad {
 					_char_it = _ctx->at_char(_cur_pos);
 					_theme_it = _ctx->get_text_theme().get_iter_at(_cur_pos);
 					_char_met.replace_current(
-						is_line_break() ? U' ' : _char_it.current_character(), _theme_it.current_theme.style
+						is_line_break() ? ' ' : _char_it.current_character(), _theme_it.current_theme.style
 					);
 				}
 
-				ui::character_metrics_accumulator &character_info() {
-					return _char_met;
-				}
 				const ui::character_metrics_accumulator &character_info() const {
 					return _char_met;
-				}
-				text_theme_data::char_iterator &theme_info() {
-					return _theme_it;
 				}
 				const text_theme_data::char_iterator &theme_info() const {
 					return _theme_it;
@@ -1139,7 +1162,9 @@ namespace codepad {
 			};
 			struct fold_region_skipper {
 			public:
-				fold_region_skipper(const folding_registry &fold, caret_position sp, caret_position pep) {
+				fold_region_skipper(
+					const folding_registry &fold, caret_position sp, caret_position pep, double gzsz
+				) : _gizmo_size(gzsz) {
 					_nextfr = fold.find_region_containing_or_first_after_open(sp);
 					_max = fold.find_region_containing_or_first_after_open(pep);
 				}
@@ -1150,15 +1175,21 @@ namespace codepad {
 						do {
 							npos = _nextfr->second;
 							it.jump_to(npos);
-							it.character_info().create_blank_before(20.0);
+							_gizmo_rects.push_back(it.reserve_blank(_gizmo_size));
 							++_nextfr;
 						} while (_nextfr != _max && _nextfr->first == npos);
 						return true;
 					}
 					return false;
 				}
+
+				const std::vector<rectd> &get_gizmos() const {
+					return _gizmo_rects;
+				}
 			protected:
+				std::vector<rectd> _gizmo_rects;
 				folding_registry::iterator _nextfr, _max;
+				double _gizmo_size = 0.0;
 			};
 
 			template <
@@ -1213,7 +1244,7 @@ namespace codepad {
 				};
 				template <> struct optional_skipper<true> : public fold_region_skipper {
 					optional_skipper(const editor &e, caret_position sp, caret_position pep) :
-						fold_region_skipper(e.get_folding_info(), sp, pep) {
+						fold_region_skipper(e.get_folding_info(), sp, pep, editor::get_folding_gizmo().width) {
 					}
 				};
 			}
@@ -1273,7 +1304,7 @@ namespace codepad {
 				if (it.current_position() == _cpos) {
 					if (it.is_line_break()) {
 						_carets.push_back(rectd::from_xywh(
-							cx, cy, get_font().normal->get_char_entry(U' ').advance, it.line_height()
+							cx, cy, get_font().normal->get_char_entry(' ').advance, it.line_height()
 						));
 					} else {
 						_carets.push_back(rectd(cx, it.character_info().char_right(), cy, cy + it.line_height()));
@@ -1288,7 +1319,7 @@ namespace codepad {
 						it.character_info().char_left() +
 						it.character_info().get_font_family().get_by_style(
 							it.theme_info().current_theme.style
-						)->get_char_entry(U' ').advance;
+						)->get_char_entry(' ').advance;
 					_selrgns.back().push_back(rectd(_lastl, finx, it.y_offset(), it.y_offset() + it.line_height()));
 					_lastl = 0.0;
 				}
@@ -1345,15 +1376,19 @@ namespace codepad {
 						}
 					}
 				}
+				if (_get_appearance().folding_gizmo.texture) {
+					ui::render_batch batch;
+					for (const rectd &r : it.get_addon<fold_region_skipper>().get_gizmos()) {
+						batch.add_quad(r, rectd(0.0, 1.0, 0.0, 1.0), colord());
+					}
+					batch.draw(*_get_appearance().folding_gizmo.texture);
+				}
 				for (const auto &selrgn : it.get_addon<caret_renderer>().get_selection_rects()) {
 					for (const auto &rgn : selrgn) {
 						_get_appearance().selection_brush->fill_rect(rgn);
 					}
 				}
-				if (_caretst.update_and_render_multiple(
-					ui::manager::get().delta_time(),
-					it.get_addon<caret_renderer>().get_caret_rects()
-				)) {
+				if (_caretst.update_and_render_multiple(it.get_addon<caret_renderer>().get_caret_rects())) {
 					invalidate_visual();
 				}
 				os::renderer_base::get().pop_matrix();
@@ -1480,6 +1515,14 @@ namespace codepad {
 
 				_reset_scrollbars();
 				panel_base::_finish_layout();
+			}
+			inline void codebox::_on_got_focus() {
+				panel_base::_on_got_focus();
+				_editor->_on_codebox_got_focus();
+			}
+			inline void codebox::_on_lost_focus() {
+				_editor->_on_codebox_lost_focus();
+				panel_base::_on_lost_focus();
 			}
 		}
 	}

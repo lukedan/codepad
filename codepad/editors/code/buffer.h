@@ -213,16 +213,16 @@ namespace codepad {
 				void insert(size_t pos, const basic_string_compact &s) {
 					insert(pos, s._chars, s._len, s._cp);
 				}
-				void insert(iterator pos, const basic_string_compact &s) {
+				void insert(const_iterator pos, const basic_string_compact &s) {
 					insert(static_cast<size_t>(pos - _chars), s);
 				}
 
-				void erase(iterator beg, iterator e, size_t cpc) {
-					iterator oldend = end();
-					assert_true_logical(beg <= e && e <= oldend, "invalid range");
-					_len -= e - beg;
-					for (; e != oldend; ++beg, ++e) {
-						*beg = *e;
+				void erase(const_iterator beg, const_iterator e, size_t cpc) {
+					iterator oldend = end(), ncbeg = begin() + (beg - begin());
+					assert_true_logical(ncbeg <= e && e <= oldend, "invalid range");
+					_len -= e - ncbeg;
+					for (; e != oldend; ++ncbeg, ++e) {
+						*ncbeg = *e;
 					}
 					_cp -= cpc;
 				}
@@ -230,27 +230,27 @@ namespace codepad {
 					auto begit = begin() + beg;
 					erase(begit, begit + len, cpc);
 				}
-				void erase(iterator beg, iterator end) {
+				void erase(const_iterator beg, const_iterator end) {
 					erase(beg, end, count_codepoints(beg, end));
 				}
 				void erase(size_t beg, size_t len) {
 					auto begit = begin() + beg;
 					erase(begit, begit + len);
 				}
-				void erase(const codepoint_iterator_base<iterator> &beg, const codepoint_iterator_base<iterator> &end) {
+				void erase(const codepoint_iterator_base<const_iterator> &beg, const codepoint_iterator_base<const_iterator> &end) {
 					erase(beg.get_raw_iterator(), end.get_raw_iterator(), end.codepoint_position() - beg.codepoint_position());
 				}
 
-				void replace(iterator pos, iterator remend, size_t remcp, const Char *insstr, size_t inslen, size_t inscp) {
+				void replace(const_iterator pos, const_iterator remend, size_t remcp, const Char *insstr, size_t inslen, size_t inscp) {
 					assert_true_logical(pos <= remend && remend <= end(), "invalid range");
 					_cp = _cp - remcp + inscp;
-					iterator insend = pos + inslen;
-					if (remend != insend) {
+					iterator insend = pos + inslen, ncrmend = begin() + (remend - begin());
+					if (ncrmend != insend) {
 						iterator oldend = end();
-						_len += inslen - (remend - pos);
-						if (remend > insend) {
-							for (; remend != oldend; ++remend, ++insend) {
-								*insend = *remend;
+						_len += inslen - (ncrmend - pos);
+						if (ncrmend > insend) {
+							for (; ncrmend != oldend; ++ncrmend, ++insend) {
+								*insend = *ncrmend;
 							}
 						} else {
 							if (_len > _res) {
@@ -258,13 +258,13 @@ namespace codepad {
 								size_t posoffset = static_cast<size_t>(pos - _chars);
 								if (_chars) {
 									std::memcpy(dst, _chars, sizeof(Char) * posoffset);
-									std::memcpy(dst + posoffset + inslen, remend, sizeof(Char) * (_len - (posoffset + inslen)));
+									std::memcpy(dst + posoffset + inslen, ncrmend, sizeof(Char) * (_len - (posoffset + inslen)));
 								}
 								std::memcpy(dst + posoffset, insstr, sizeof(Char) * inslen);
 								_end_resize(dst);
 								return;
 							} else {
-								for (iterator newend = end(); oldend != remend; ) {
+								for (iterator newend = end(); oldend != ncrmend; ) {
 									*--newend = *--oldend;
 								}
 							}
@@ -272,13 +272,13 @@ namespace codepad {
 					}
 					std::memcpy(pos, insstr, sizeof(Char) * inslen);
 				}
-				void replace(iterator pos, iterator remend, size_t remcp, const basic_string_compact &s) {
+				void replace(const_iterator pos, const_iterator remend, size_t remcp, const basic_string_compact &s) {
 					replace(pos, remend, remcp, s._chars, s._len, s._cp);
 				}
-				void replace(iterator pos, iterator remend, const Char *insstr, size_t inslen) {
+				void replace(const_iterator pos, const_iterator remend, const Char *insstr, size_t inslen) {
 					replace(pos, remend, count_codepoints(pos, remend), insstr, inslen, count_codepoints(insstr, insstr + inslen));
 				}
-				void replace(iterator pos, iterator remend, const basic_string_compact &s) {
+				void replace(const_iterator pos, const_iterator remend, const basic_string_compact &s) {
 					replace(pos, remend, count_codepoints(pos, remend), s);
 				}
 			protected:
@@ -442,7 +442,7 @@ namespace codepad {
 						return _tit == _tit.get_container()->end();
 					}
 				protected:
-					using _str_cp_iter = codepoint_iterator_base<string_type::iterator>;
+					using _str_cp_iter = codepoint_iterator_base<string_type::const_iterator>;
 
 					explicit codepoint_iterator(const tree_type::const_iterator &it) :
 						_tit(it), _cit(_get_cit()) {
@@ -455,13 +455,13 @@ namespace codepad {
 						if (_tit == _tit.get_container()->end()) {
 							return _str_cp_iter(nullptr, nullptr, 0);
 						}
-						return _str_cp_iter(_tit.get_node()->value.begin(), _tit.get_node()->value.end());
+						return _str_cp_iter(_tit->begin(), _tit->end());
 					}
 					_str_cp_iter _get_cit(size_t pos) const {
 						if (_tit == _tit.get_container()->end()) {
 							return _str_cp_iter(nullptr, nullptr, 0);
 						}
-						return _str_cp_iter(_tit.get_node()->value.at_codepoint(pos), _tit.get_node()->value.end(), pos);
+						return _str_cp_iter(_tit->at_codepoint(pos), _tit->end(), pos);
 					}
 
 					tree_type::const_iterator _tit;
@@ -470,7 +470,7 @@ namespace codepad {
 
 				iterator begin() {
 					auto t = _t.begin();
-					return iterator(t, t->begin());
+					return iterator(t, t.get_value_rawmod().begin());
 				}
 				const_iterator begin() const {
 					auto t = _t.begin();
@@ -495,7 +495,7 @@ namespace codepad {
 					if (t == _t.end()) {
 						return iterator(t, string_type::iterator());
 					}
-					return iterator(t, t->at_codepoint(cp));
+					return iterator(t, t.get_value_rawmod().at_codepoint(cp));
 				}
 				const_iterator at_codepoint(size_t cp) const {
 					auto t = _t.find_custom(_codepoint_index_finder(), cp);
@@ -509,7 +509,7 @@ namespace codepad {
 					if (t == _t.end()) {
 						return iterator(t, string_type::iterator());
 					}
-					return iterator(t, t->begin() + cp);
+					return iterator(t, t.get_value_rawmod().begin() + cp);
 				}
 				const_iterator at_unit(size_t cp) const {
 					auto t = _t.find_custom(_unit_index_finder(), cp);
@@ -538,7 +538,7 @@ namespace codepad {
 					std::vector<string_type> strings;
 					string_type current;
 					current.reserve(maximum_units_per_chunk);
-					for (char32_t cc = U'\0'; getcodepoint(cc); translate_codepoint_utf8(
+					for (char32_t cc = '\0'; getcodepoint(cc); translate_codepoint_utf8(
 						[&current, &strings](std::initializer_list<char_type> chars) {
 							if (current.length() + chars.size() > maximum_units_per_chunk) {
 								strings.push_back(std::move(current));
@@ -556,7 +556,7 @@ namespace codepad {
 					_t = tree_type(std::move(strings));
 				}
 				string_type substring(codepoint_iterator beg, codepoint_iterator end) const {
-					if (beg._tit.get_node() == nullptr) {
+					if (beg._tit == _t.end()) {
 						return string_type();
 					}
 					if (beg._tit == end._tit) {
@@ -588,23 +588,20 @@ namespace codepad {
 						return;
 					}
 					if (beg._tit == end._tit) {
-						bnode->value.erase(beg._cit, end._cit);
-						_t.refresh_synthesized_result(bnode);
+						_t.get_modifier(bnode)->erase(beg._cit, end._cit);
 						_try_merge_small_nodes(bnode);
 						return;
 					}
 					_t.erase(bnode->next(), enode);
-					bnode->value.erase(
+					_t.get_modifier(bnode)->erase(
 						beg._cit.get_raw_iterator(), bnode->value.end(),
 						bnode->value.num_codepoints() - beg._cit.codepoint_position()
 					);
-					_t.refresh_synthesized_result(bnode);
 					if (enode) {
-						enode->value.erase(
+						_t.get_modifier(enode)->erase(
 							enode->value.begin(), end._cit.get_raw_iterator(),
 							end._cit.codepoint_position()
 						);
-						_t.refresh_synthesized_result(enode);
 						_try_merge_small_nodes(enode);
 					}
 					_try_merge_small_nodes(bnode);
@@ -631,7 +628,7 @@ namespace codepad {
 						node2upd = it.get_node();
 						curstr = &node2upd->value;
 					}
-					for (char32_t cc = U'\0'; getcodepoint(cc); translate_codepoint_utf8(
+					for (char32_t cc = '\0'; getcodepoint(cc); translate_codepoint_utf8(
 						[&curstr, &strs](std::initializer_list<char_type> chars) {
 							if (curstr->length() + chars.size() > maximum_units_per_chunk) {
 								string_type ss;
@@ -729,15 +726,13 @@ namespace codepad {
 					}
 					node_type *prev = n->prev();
 					if (prev && prev->value.length() + nvl < maximum_units_per_chunk) {
-						prev->value.insert(prev->value.end(), n->value);
-						_t.refresh_synthesized_result(prev);
+						_t.get_modifier(prev)->insert(prev->value.end(), n->value);
 						_t.erase(n);
 						return;
 					}
 					node_type *next = n->next();
 					if (next && next->value.length() + nvl < maximum_units_per_chunk) {
-						n->value.insert(n->value.end(), next->value);
-						_t.refresh_synthesized_result(n);
+						_t.get_modifier(n)->insert(n->value.end(), next->value);
 						_t.erase(next);
 						return;
 					}
@@ -747,164 +742,6 @@ namespace codepad {
 				tree_type _t;
 			};
 
-			template <typename Data> struct incremental_positional_registry {
-			public:
-				struct node_data {
-					node_data() = default;
-					node_data(size_t len, Data obj) : length(len), object(std::move(obj)) {
-					}
-
-					size_t length = 0;
-					Data object;
-				};
-				struct node_synth_data {
-					using node_type = binary_tree_node<node_data, node_synth_data>;
-
-					size_t total_length = 0;
-
-					void synthesize(const node_type &n) {
-						total_length = n.value.length;
-						if (n.left) {
-							total_length += n.left->synth_data.total_length;
-						}
-						if (n.right) {
-							total_length += n.right->synth_data.total_length;
-						}
-					}
-				};
-				using tree_type = binary_tree<node_data, node_synth_data>;
-				using node_type = typename tree_type::node;
-				template <bool Const> struct iterator_base {
-				public:
-					using raw_iterator_t = std::conditional_t<
-						Const, typename tree_type::const_iterator, typename tree_type::iterator
-					>;
-					using dereferenced_t = std::conditional_t<Const, const Data, Data>;
-					using reference = dereferenced_t&;
-					using pointer = dereferenced_t*;
-
-					iterator_base() = default;
-					explicit iterator_base(const raw_iterator_t &it) : _it(it) {
-					}
-
-					reference operator*() const {
-						return _it->object;
-					}
-					pointer operator->() const {
-						return &operator*();
-					}
-
-					friend bool operator==(const iterator_base &lhs, const iterator_base &rhs) {
-						return lhs._it == rhs._it;
-					}
-					friend bool operator!=(const iterator_base &lhs, const iterator_base &rhs) {
-						return !(lhs == rhs);
-					}
-
-					iterator_base &operator++() {
-						++_it;
-						return *this;
-					}
-					iterator_base operator++(int) {
-						iterator_base oldv = *this;
-						++*this;
-						return oldv;
-					}
-
-					iterator_base &operator--() {
-						--_it;
-						return *this;
-					}
-					iterator_base operator--(int) {
-						iterator_base oldv = *this;
-						--*this;
-						return oldv;
-					}
-
-					const node_data &data() const {
-						return *get_raw();
-					}
-					const raw_iterator_t &get_raw() const {
-						return _it;
-					}
-				protected:
-					raw_iterator_t _it;
-				};
-				using iterator = iterator_base<false>;
-				using const_iterator = iterator_base<true>;
-
-				void insert_at(const iterator &pos, size_t offset, Data d) {
-					if (pos.get_raw() != _t.end()) {
-						assert_true_usage(offset <= pos.data().length, "invalid position");
-						pos.get_raw().get_node()->value.length -= offset;
-						_t.refresh_synthesized_result(pos.get_raw().get_node());
-					}
-					_t.insert_node_before(pos.get_raw().get_node(), offset, std::move(d));
-				}
-				void insert_at(size_t pos, Data d) {
-					auto it = _t.find_custom(_find_obj(), pos);
-					insert_at(iterator(it), pos, std::move(d));
-				}
-
-				void remove(const_iterator it) {
-					assert_true_usage(it.get_raw() != _t.end(), "invalid position");
-					auto next = it;
-					++next;
-					if (next.get_raw() != _t.end()) {
-						next.get_raw().get_node()->value.length += it.data().length;
-						_t.refresh_synthesized_result(next.get_raw().get_node());
-					}
-					_t.erase(it.get_raw());
-				}
-
-				iterator begin() {
-					return iterator(_t.begin());
-				}
-				iterator end() {
-					return iterator(_t.end());
-				}
-				const_iterator begin() const {
-					return const_iterator(_t.begin());
-				}
-				const_iterator end() const {
-					return const_iterator(_t.end());
-				}
-
-				iterator find_at_or_first_after(size_t pos) {
-					return _find_at_or_first_after_impl<iterator>(*this, pos);
-				}
-				const_iterator find_at_or_first_after(size_t pos) const {
-					return _find_at_or_first_after_impl<const_iterator>(*this, pos);
-				}
-
-				void clear() {
-					_t.clear();
-				}
-			protected:
-				template <
-					typename It, typename Cont
-				> inline static It _find_at_or_first_after_impl(Cont &cnt, size_t &pos) {
-					return It(cnt._t.find_custom(_find_obj(), pos));
-				}
-
-				tree_type _t;
-
-				struct _find_obj {
-					int select_find(const node_type &n, size_t &c) {
-						if (n.left) {
-							if (c <= n.left->synth_data.total_length) {
-								return -1;
-							}
-							c -= n.left->synth_data.total_length;
-						}
-						if (c <= n.value.length) {
-							return 0;
-						}
-						c -= n.value.length;
-						return 1;
-					}
-				};
-			};
 			class linebreak_registry {
 			public:
 				struct line_info {
@@ -1019,14 +856,13 @@ namespace codepad {
 							lines[0].nonbreak_chars += maxn->value.nonbreak_chars;
 							_t.erase(maxn);
 						}
-						_t.insert_tree_before(at.get_node(), std::move(lines));
+						_t.insert_tree_before(at, std::move(lines));
 					} else {
 						lines[0].nonbreak_chars += offset;
-						at.get_node()->value.nonbreak_chars += lines.back().nonbreak_chars - offset;
-						_t.refresh_synthesized_result(at.get_node());
+						_t.get_modifier(at.get_node())->nonbreak_chars += lines.back().nonbreak_chars - offset;
 						lines.pop_back();
 						if (lines.size() > 0) {
-							_t.insert_tree_before(at.get_node(), std::move(lines));
+							_t.insert_tree_before(at, std::move(lines));
 						}
 					}
 				}
@@ -1039,10 +875,9 @@ namespace codepad {
 				}
 				void erase_chars(iterator beg, size_t begoff, iterator end, size_t endoff) {
 					assert_true_logical(!(end == _t.end() && endoff != 0), "invalid iterator position");
-					_t.erase(beg.get_node(), end.get_node());
+					_t.erase(beg, end);
 					if (end != _t.end()) {
-						end.get_node()->value.nonbreak_chars += begoff - endoff;
-						_t.refresh_synthesized_result(end.get_node());
+						_t.get_modifier(end.get_node())->nonbreak_chars += begoff - endoff;
 					}
 				}
 

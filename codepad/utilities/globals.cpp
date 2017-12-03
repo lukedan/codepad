@@ -1,4 +1,5 @@
 #include "globals.h"
+#include "../os/renderer.h"
 #include "../ui/font_family.h"
 #include "../ui/commonelements.h"
 #include "../editors/code/editor.h"
@@ -14,4 +15,17 @@ namespace codepad {
 	double editor::code::editor::_lines_per_scroll = 3.0;
 
 	double editor::code::minimap::_target_height = 2.0;
+
+	GLenum os::opengl_renderer_base::_blend_func_mapping[10] = {
+		GL_ZERO,
+		GL_ONE,
+		GL_SRC_ALPHA,
+		GL_ONE_MINUS_SRC_ALPHA,
+		GL_DST_ALPHA,
+		GL_ONE_MINUS_DST_ALPHA,
+		GL_SRC_COLOR,
+		GL_ONE_MINUS_SRC_COLOR,
+		GL_DST_COLOR,
+		GL_ONE_MINUS_DST_COLOR
+	};
 }

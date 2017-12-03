@@ -48,6 +48,9 @@ namespace codepad {
 				assert_true_usage(_capture == nullptr, "mouse already captured");
 				_capture = &elem;
 			}
+			virtual ui::element *get_mouse_capture() const {
+				return _capture;
+			}
 			virtual void release_mouse_capture() {
 				logger::get().log_info(CP_HERE, "release mouse capture");
 				assert_true_usage(_capture != nullptr, "mouse not captured");
@@ -56,11 +59,24 @@ namespace codepad {
 
 			virtual void start_drag(std::function<bool()> dst = []() {
 				return input::is_mouse_button_down(input::mouse_button::left);
-			}) {
+				}) {
 				assert_true_usage(!_drag, "the window is already being dragged");
 				_dragcontinue = dst;
 				_drag = true;
 				_doffset = get_position() - input::get_mouse_position();
+			}
+
+			ui::decoration *create_decoration() {
+				ui::decoration *d = new ui::decoration();
+				d->_wnd = this;
+				_decos.push_back(d);
+				d->_tok = --_decos.end();
+				return d;
+			}
+			void delete_decoration(ui::decoration *d) {
+				_decos.erase(d->_tok);
+				delete d;
+				invalidate_visual();
 			}
 
 			event<void> close_request, got_window_focus, lost_window_focus;
@@ -72,6 +88,7 @@ namespace codepad {
 			bool _drag = false;
 			vec2i _doffset;
 			std::function<bool()> _dragcontinue;
+			std::list<ui::decoration*> _decos;
 
 			virtual bool _update_drag() { // TODO still buggy
 				if (_drag) {
@@ -168,11 +185,35 @@ namespace codepad {
 				lost_window_focus.invoke();
 			}
 
+			void _custom_render() override {
+				panel::_custom_render();
+				// render decorations
+				bool has_active = false;
+				for (auto i = _decos.begin(); i != _decos.end(); ) {
+					if ((*i)->_update_and_render()) {
+						has_active = true;
+					} else {
+						if (test_bit_all((*i)->get_state(), ui::visual_manager::default_states().corpse)) {
+							delete *i;
+							i = _decos.erase(i);
+							continue;
+						}
+					}
+					++i;
+				}
+				if (has_active) {
+					invalidate_visual();
+				}
+			}
+
 			void _initialize() override {
 				panel::_initialize();
 				renderer_base::get()._new_window(*this);
 			}
 			void _dispose() override {
+				for (ui::decoration *dec : _decos) {
+					delete dec;
+				}
 				if (ui::manager::get().get_focused() == _focus) {
 					ui::manager::get().set_focus(nullptr);
 				}
@@ -198,6 +239,9 @@ namespace codepad {
 			}
 			void _on_mouse_move(ui::mouse_move_info &p) override {
 				if (_capture != nullptr) {
+					if (!_capture->is_mouse_over()) {
+						_capture->_on_mouse_enter();
+					}
 					_capture->_on_mouse_move(p);
 					ui::element::_on_mouse_move(p);
 				} else {
@@ -247,25 +291,31 @@ namespace codepad {
 	}
 	namespace ui {
 		inline void manager::update_invalid_visuals() {
-			if (!_dirty.empty()) {
-				auto start = std::chrono::high_resolution_clock::now();
-				std::set<element*> ss;
-				for (auto i = _dirty.begin(); i != _dirty.end(); ++i) {
-					os::window_base *wnd = (*i)->get_window();
-					if (wnd) {
-						ss.insert(wnd);
-					}
+			if (_dirty.empty()) {
+				return;
+			}
+			auto start = std::chrono::high_resolution_clock::now();
+			double diff = std::chrono::duration<double>(start - _lastrender).count();
+			if (diff < _min_render_interval) {
+				return;
+			}
+			_lastrender = start;
+			std::set<element*> ss;
+			for (auto i = _dirty.begin(); i != _dirty.end(); ++i) {
+				os::window_base *wnd = (*i)->get_window();
+				if (wnd) {
+					ss.insert(wnd);
 				}
-				_dirty.clear();
-				for (auto i = ss.begin(); i != ss.end(); ++i) {
-					(*i)->_on_render();
-				}
-				double dur = std::chrono::duration<double, std::milli>(
-					std::chrono::high_resolution_clock::now() - start
-					).count();
-				if (dur > render_time_redline) {
-					logger::get().log_warning(CP_HERE, "render cost ", dur, "ms");
-				}
+			}
+			_dirty.clear();
+			for (auto i = ss.begin(); i != ss.end(); ++i) {
+				(*i)->_on_render();
+			}
+			double dur = std::chrono::duration<double, std::milli>(
+				std::chrono::high_resolution_clock::now() - start
+				).count();
+			if (dur > render_time_redline) {
+				logger::get().log_warning(CP_HERE, "render cost ", dur, "ms");
 			}
 		}
 		inline void manager::set_focus(element *elem) {
@@ -300,6 +350,10 @@ namespace codepad {
 			return dynamic_cast<os::window_base*>(cur);
 		}
 
+		inline void decoration::_on_visual_changed() {
+			_wnd->invalidate_visual();
+		}
+
 		inline void element_collection::remove(element &elem) {
 			assert_true_logical(elem._parent == &_f, "corrupted element tree");
 			os::window_base *wnd = _f.get_window();
@@ -307,8 +361,8 @@ namespace codepad {
 				wnd->_on_removing_window_element(&elem);
 			}
 			elem._parent = nullptr;
-			_cs.erase(elem._text_tok);
-			collection_change_info ci(collection_change_info::type::remove, &elem);
+			_cs.erase(elem._col_token);
+			element_collection_change_info ci(element_collection_change_info::type::remove, &elem);
 			_f._on_children_changed(ci);
 			changed(ci);
 		}
