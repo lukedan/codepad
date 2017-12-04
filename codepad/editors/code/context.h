@@ -779,14 +779,14 @@ namespace codepad {
 
 					size_t total_length = 0;
 
-					void synthesize(const node_type &n) {
-						total_length = n.value.length;
-						if (n.left) {
-							total_length += n.left->synth_data.total_length;
-						}
-						if (n.right) {
-							total_length += n.right->synth_data.total_length;
-						}
+					using length_property = sum_synthesizer::implicit_property<
+						size_t, node_synth_data,
+						synthesization_helper::field_value_property<size_t, node_data, &node_data::length>,
+						&node_synth_data::total_length
+					>;
+
+					inline static void synthesize(node_type &n) {
+						sum_synthesizer::synthesize<length_property>(n);
 					}
 				};
 				using tree_type = binary_tree<node_data, node_synth_data>;
@@ -858,7 +858,7 @@ namespace codepad {
 					_t.insert_node_before(pos.get_raw(), offset, std::move(d));
 				}
 				void insert_at(size_t pos, Data d) {
-					auto it = _t.find_custom(_find_obj_at_or_after(), pos);
+					auto it = _t.find_custom(_finder_at_or_after(), pos);
 					insert_at(const_iterator(it), pos, std::move(d));
 				}
 
@@ -888,7 +888,7 @@ namespace codepad {
 				void fixup(const caret_fixup_info &fixup) {
 					for (auto i = fixup.mods.begin(); i != fixup.mods.end(); ++i) {
 						size_t pos = i->position;
-						auto it = _t.find_custom(_find_obj_after(), pos);
+						auto it = _t.find_custom(_finder_after(), pos);
 						if (it == _t.end()) {
 							break;
 						}
@@ -928,29 +928,15 @@ namespace codepad {
 				template <
 					typename It, typename Cont
 				> inline static It _find_at_or_first_after_impl(Cont &cnt, size_t &pos) {
-					return It(cnt._t.find_custom(_find_obj_at_or_after(), pos));
+					return It(cnt._t.find_custom(_finder_at_or_after(), pos));
 				}
 
 				tree_type _t;
 
-				template <typename Cmp> struct _find_obj {
-					int select_find(const node_type &n, size_t &c) {
-						Cmp cmp;
-						if (n.left) {
-							if (cmp(c, n.left->synth_data.total_length)) {
-								return -1;
-							}
-							c -= n.left->synth_data.total_length;
-						}
-						if (cmp(c, n.value.length)) {
-							return 0;
-						}
-						c -= n.value.length;
-						return 1;
-					}
-				};
-				using _find_obj_at_or_after = _find_obj<std::less_equal<size_t>>;
-				using _find_obj_after = _find_obj<std::less<size_t>>;
+				using _finder_after = sum_synthesizer::index_finder<typename node_synth_data::length_property>;
+				using _finder_at_or_after = sum_synthesizer::index_finder<
+					typename node_synth_data::length_property, false, std::less_equal<size_t>
+				>;
 			};
 
 			inline caret_set text_context::undo(editor *source) {

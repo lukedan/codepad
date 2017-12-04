@@ -41,7 +41,7 @@ namespace codepad {
 			virtual vec2i client_to_screen(vec2i) const = 0;
 
 			virtual void set_mouse_capture(ui::element &elem) {
-				logger::get().log_info(
+				logger::get().log_verbose(
 					CP_HERE, "set mouse capture 0x", &elem,
 					" <", demangle(typeid(elem).name()), ">"
 				);
@@ -52,7 +52,7 @@ namespace codepad {
 				return _capture;
 			}
 			virtual void release_mouse_capture() {
-				logger::get().log_info(CP_HERE, "release mouse capture");
+				logger::get().log_verbose(CP_HERE, "release mouse capture");
 				assert_true_usage(_capture != nullptr, "mouse not captured");
 				_capture = nullptr;
 			}
@@ -336,7 +336,7 @@ namespace codepad {
 			if (_focus != nullptr) {
 				_focus->_on_got_focus();
 			}
-			logger::get().log_info(
+			logger::get().log_verbose(
 				CP_HERE, "focus changed to 0x", _focus,
 				" <", _focus ? demangle(typeid(*_focus).name()) : "nullptr", ">"
 			);

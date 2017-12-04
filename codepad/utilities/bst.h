@@ -10,8 +10,8 @@ namespace codepad {
 		}
 	};
 	template <typename T> struct default_synthesizer {
-		template <typename N> void operator()(T &obj, const N &node) const {
-			obj.synthesize(node);
+		template <typename Node> void operator()(Node &&node) const {
+			T::synthesize(std::forward<Node>(node));
 		}
 	};
 	template <typename Comp> struct bst_branch_selector {
@@ -599,7 +599,7 @@ namespace codepad {
 		Synth _synth;
 
 		template <typename SynRef> inline static void _refresh_synth(SynRef &&sy, node *n) {
-			sy(n->synth_data, *n);
+			sy(*n);
 		}
 		void _refresh_synth(node *n) {
 			_refresh_synth(_synth, n);
@@ -636,5 +636,139 @@ namespace codepad {
 			_refresh_synth(std::forward<SynRef>(s), cur);
 			return cur;
 		}
+	};
+
+	namespace synthesization_helper {
+		template <typename T, typename Cont, T Cont::*Prop> struct field_value_property {
+			template <typename Node> inline static T get(Node &&n) {
+				return n.value.*Prop;
+			}
+		};
+		template <typename T, typename Cont, T(Cont::*Func)()> struct func_value_property {
+			template <typename Node> inline static T get(Node &&n) {
+				return (n.value.*Func)();
+			}
+		};
+		template <typename T, typename Cont, T(Cont::*Func)() const> struct const_func_value_property {
+			template <typename Node> inline static T get(Node &&n) {
+				return (n.value.*Func)();
+			}
+		};
+	}
+	namespace sum_synthesizer {
+		template <typename T, typename Synth, typename GetForNode, T Synth::*NodeVal, T Synth::*TreeVal> struct property {
+			using value_type = T;
+
+			template <typename Node> inline static auto get_node_value(Node &&n) {
+				return GetForNode::get(std::forward<Node>(n));
+			}
+			template <typename Node> inline static T get_node_synth_value(Node &&n) {
+				return n.synth_data.*NodeVal;
+			}
+			template <typename Node> inline static void set_node_synth_value(Node &&n, T v) {
+				n.synth_data.*NodeVal = std::move(v);
+			}
+			template <typename Node> inline static T get_tree_synth_value(Node &&n) {
+				return n.synth_data.*TreeVal;
+			}
+			template <typename Node> inline static void set_tree_synth_value(Node &&n, T v) {
+				n.synth_data.*TreeVal = std::move(v);
+			}
+		};
+		template <typename T, typename Synth, typename GetForNode, T Synth::*TreeVal> struct implicit_property {
+			using value_type = T;
+
+			template <typename Node> inline static T get_node_value(Node &&n) {
+				return GetForNode::get(std::forward<Node>(n));
+			}
+			template <typename Node> inline static T get_node_synth_value(Node &&n) {
+				return get_node_value(std::forward<Node>(n));
+			}
+			template <typename Node> inline static void set_node_synth_value(Node&&, T) { // does nothing
+			}
+			template <typename Node> inline static T get_tree_synth_value(Node &&n) {
+				return n.synth_data.*TreeVal;
+			}
+			template <typename Node> inline static void set_tree_synth_value(Node &&n, T v) {
+				n.synth_data.*TreeVal = std::move(v);
+			}
+		};
+
+		namespace _details {
+			template <typename Node> inline void set_node_values(Node&&) {
+			}
+			template <typename FirstProp, typename ...OtherProps, typename Node> inline void set_node_values(Node &&n) {
+				auto v = FirstProp::get_node_value(std::forward<Node>(n));
+				FirstProp::set_node_synth_value(std::forward<Node>(n), v);
+				FirstProp::set_tree_synth_value(std::forward<Node>(n), v);
+				set_node_values<OtherProps...>(std::forward<Node>(n));
+			}
+
+			template <
+				typename ParentNode, typename ChildNode
+			> inline void add_subtree_values(ParentNode&&, ChildNode&&) {
+			}
+			template <
+				typename FirstProp, typename ...OtherProps, typename ParentNode, typename ChildNode
+			> inline void add_subtree_values(ParentNode &&n, ChildNode &&sub) {
+				FirstProp::set_tree_synth_value(
+					std::forward<ParentNode>(n),
+					FirstProp::get_tree_synth_value(std::forward<ParentNode>(n)) +
+					FirstProp::get_tree_synth_value(std::forward<ChildNode>(sub))
+				);
+				add_subtree_values<OtherProps...>(std::forward<ParentNode>(n), std::forward<ChildNode>(sub));
+			}
+
+			template <typename Node> inline void add_synth_node_values(Node&&) {
+			}
+			template <
+				typename FirstProp, typename ...OtherProps, typename FirstVal, typename ...OtherVals, typename Node
+			> inline void add_synth_node_values(Node &&n, FirstVal &&fv, OtherVals &&...otvals) {
+				fv += FirstProp::get_node_synth_value(std::forward<Node>(n));
+				add_synth_node_values<OtherProps...>(std::forward<Node>(n), std::forward<OtherVals>(otvals)...);
+			}
+
+			template <typename Node> inline void add_synth_tree_values(Node&&) {
+			}
+			template <
+				typename FirstProp, typename ...OtherProps, typename FirstVal, typename ...OtherVals, typename Node
+			> inline void add_synth_tree_values(Node &&n, FirstVal &&fv, OtherVals &&...otvals) {
+				fv += FirstProp::get_tree_synth_value(std::forward<Node>(n));
+				add_synth_node_values<OtherProps...>(std::forward<Node>(n), std::forward<OtherVals>(otvals)...);
+			}
+		}
+
+		template <typename ...Props, typename Node> inline void synthesize(Node &&n) {
+			_details::set_node_values<Props...>(std::forward<Node>(n));
+			if (n.left) {
+				_details::add_subtree_values<Props...>(std::forward<Node>(n), *n.left);
+			}
+			if (n.right) {
+				_details::add_subtree_values<Props...>(std::forward<Node>(n), *n.right);
+			}
+		}
+		template <typename Property, bool PreventOverflow = false, typename Comp = std::less<typename Property::value_type>> struct index_finder {
+			template <
+				typename ...Props, typename ...AddVals, typename Node, typename V
+			> inline static int select_find(Node &&n, V &target, AddVals &&...avals) {
+				static_assert(sizeof...(Props) == sizeof...(AddVals), "wrong number of additional accumulators");
+				Comp cmp;
+				if (n.left) {
+					auto lval = Property::get_tree_synth_value(*n.left);
+					if (cmp(target, lval)) {
+						return -1;
+					}
+					target -= lval;
+					_details::add_synth_tree_values<Props...>(*n.left, std::forward<AddVals>(avals)...);
+				}
+				auto nval = Property::get_node_synth_value(std::forward<Node>(n));
+				if (cmp(target, nval) || (PreventOverflow && n.right == nullptr)) {
+					return 0;
+				}
+				target -= nval;
+				_details::add_synth_node_values<Props...>(std::forward<Node>(n), std::forward<AddVals>(avals)...);
+				return 1;
+			}
+		};
 	};
 }

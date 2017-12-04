@@ -321,20 +321,19 @@ namespace codepad {
 
 					size_t total_length = 0, total_codepoints = 0;
 
-					void synthesize(const node &tn) {
-						total_length = tn.value.length();
-						total_codepoints = tn.value.num_codepoints();
-						if (tn.left) {
-							_add(tn.left->synth_data);
-						}
-						if (tn.right) {
-							_add(tn.right->synth_data);
-						}
-					}
-				protected:
-					void _add(const node_data &s) {
-						total_length += s.total_length;
-						total_codepoints += s.total_codepoints;
+					using length_property = sum_synthesizer::implicit_property<
+						size_t, node_data,
+						synthesization_helper::const_func_value_property<size_t, string_type, &string_type::length>,
+						&node_data::total_length
+					>;
+					using num_codepoints_property = sum_synthesizer::implicit_property<
+						size_t, node_data,
+						synthesization_helper::const_func_value_property<size_t, string_type, &string_type::num_codepoints>,
+						&node_data::total_codepoints
+					>;
+
+					inline static void synthesize(node &tn) {
+						sum_synthesizer::synthesize<length_property, num_codepoints_property>(tn);
 					}
 				};
 				using tree_type = binary_tree<string_type, node_data>;
@@ -674,23 +673,8 @@ namespace codepad {
 					_t.clear();
 				}
 			protected:
-				template <size_t node_data::*Index, size_t(string_type::*NodeProp)() const> struct _index_finder {
-					int select_find(const node_type &cur, size_t &target) const {
-						if (cur.left) {
-							if (target < cur.left->synth_data.*Index) {
-								return -1;
-							}
-							target -= cur.left->synth_data.*Index;
-						}
-						if (target < (cur.value.*NodeProp)()) {
-							return 0;
-						}
-						target -= (cur.value.*NodeProp)();
-						return 1;
-					}
-				};
-				using _codepoint_index_finder = _index_finder<&node_data::total_codepoints, &string_type::num_codepoints>;
-				using _unit_index_finder = _index_finder<&node_data::total_length, &string_type::length>;
+				using _codepoint_index_finder = sum_synthesizer::index_finder<node_data::num_codepoints_property>;
+				using _unit_index_finder = sum_synthesizer::index_finder<node_data::length_property>;
 
 				template <
 					size_t node_data::*Field, size_t(string_type::*NodeProp)() const
@@ -755,28 +739,47 @@ namespace codepad {
 				struct line_synth_data {
 				public:
 					using node_type = binary_tree_node<line_info, line_synth_data>;
+					struct get_node_codepoint_num {
+						inline static size_t get(const node_type &n) {
+							return n.value.nonbreak_chars + get_linebreak_length(n.value.ending);
+						}
+					};
+					struct get_node_char_num {
+						inline static size_t get(const node_type &n) {
+							return n.value.nonbreak_chars + get_node_linebreak_num::get(n);
+						}
+					};
+					struct get_node_linebreak_num {
+						inline static size_t get(const node_type &n) {
+							return n.value.ending == line_ending::none ? 0 : 1;
+						}
+					};
+					struct get_node_line_num {
+						inline static size_t get(const node_type&) {
+							return 1;
+						}
+					};
 
 					size_t
 						total_codepoints = 0, node_codepoints = 0,
 						total_chars = 0, node_chars = 0,
 						num_linebreaks = 0;
 
-					void synthesize(const node_type &n) {
-						num_linebreaks = (n.value.ending == line_ending::none ? 0 : 1);
-						total_codepoints = node_codepoints = n.value.nonbreak_chars + get_linebreak_length(n.value.ending);
-						total_chars = node_chars = n.value.nonbreak_chars + num_linebreaks;
-						if (n.left) {
-							_add(n.left->synth_data);
-						}
-						if (n.right) {
-							_add(n.right->synth_data);
-						}
-					}
-				protected:
-					void _add(const line_synth_data &lt) {
-						total_codepoints += lt.total_codepoints;
-						total_chars += lt.total_chars;
-						num_linebreaks += lt.num_linebreaks;
+					using num_codepoints_property = sum_synthesizer::property<
+						size_t, line_synth_data, get_node_codepoint_num, &line_synth_data::node_codepoints, &line_synth_data::total_codepoints
+					>;
+					using num_chars_property = sum_synthesizer::property<
+						size_t, line_synth_data, get_node_char_num, &line_synth_data::node_chars, &line_synth_data::total_chars
+					>;
+					using num_linebreaks_property = sum_synthesizer::implicit_property<
+						size_t, line_synth_data, get_node_linebreak_num, &line_synth_data::num_linebreaks
+					>;
+					using num_lines_property = sum_synthesizer::implicit_property<
+						size_t, line_synth_data, get_node_line_num, &line_synth_data::num_linebreaks
+					>; // not used in synthesizer, maybe inaccurate for right subtrees
+
+					inline static void synthesize(node_type &n) {
+						sum_synthesizer::synthesize<num_codepoints_property, num_chars_property, num_linebreaks_property>(n);
 					}
 				};
 				using tree_type = binary_tree<line_info, line_synth_data>;
@@ -793,12 +796,12 @@ namespace codepad {
 					return selector.total_codepoints + c;
 				}
 				size_t get_beginning_char_of_line(size_t l) const {
-					_get_line_beg<&line_synth_data::total_chars, &line_synth_data::node_chars> selector;
+					_line_beg_accum_finder<line_synth_data::num_chars_property> selector;
 					_t.find_custom(selector, l);
 					return selector.total;
 				}
 				size_t get_past_ending_char_of_line(size_t l) const {
-					_get_line_beg<&line_synth_data::total_chars, &line_synth_data::node_chars> selector;
+					_line_beg_accum_finder<line_synth_data::num_chars_property> selector;
 					auto it = _t.find_custom(selector, l);
 					if (it != _t.end()) {
 						return selector.total + it->nonbreak_chars;
@@ -806,7 +809,7 @@ namespace codepad {
 					return selector.total;
 				}
 				size_t get_beginning_codepoint_of_line(size_t l) const {
-					_get_line_beg<&line_synth_data::total_codepoints, &line_synth_data::node_codepoints> selector;
+					_line_beg_accum_finder<line_synth_data::num_codepoints_property> selector;
 					_t.find_custom(selector, l);
 					return selector.total;
 				}
@@ -818,16 +821,16 @@ namespace codepad {
 					return _t.end();
 				}
 				iterator at_line(size_t line) const {
-					return _t.find_custom(_get_line_beg<nullptr, nullptr>(), line);
+					return _t.find_custom(_line_beg_finder(), line);
 				}
 
 				std::tuple<iterator, size_t, size_t> get_line_and_column_of_codepoint(size_t cp) const {
-					_get_line<&line_synth_data::total_codepoints, &line_synth_data::node_codepoints> selector;
+					_get_line<line_synth_data::num_codepoints_property> selector;
 					iterator it = _t.find_custom(selector, cp);
 					return std::make_tuple(it, selector.total_lines, cp);
 				}
 				std::tuple<iterator, size_t, size_t> get_line_and_column_of_char(size_t c) const {
-					_get_line<&line_synth_data::total_chars, &line_synth_data::node_chars> selector;
+					_get_line<line_synth_data::num_chars_property> selector;
 					iterator it = _t.find_custom(selector, c);
 					return std::make_tuple(it, selector.total_lines, c);
 				}
@@ -923,62 +926,25 @@ namespace codepad {
 				tree_type _t; // one line break per node
 
 				struct _pos_char_to_cp {
+					using finder = sum_synthesizer::index_finder<line_synth_data::num_chars_property, true>;
 					int select_find(const node_type &n, size_t &c) {
-						if (n.left) {
-							if (c < n.left->synth_data.total_chars) {
-								return -1;
-							}
-							c -= n.left->synth_data.total_chars;
-							total_codepoints += n.left->synth_data.total_codepoints;
-							total_lines += n.left->synth_data.num_linebreaks;
-						}
-						if (c < n.synth_data.node_chars || n.right == nullptr) {
-							return 0;
-						}
-						c -= n.synth_data.node_chars;
-						total_codepoints += n.synth_data.node_codepoints;
-						++total_lines;
-						return 1;
+						return finder::select_find<
+							line_synth_data::num_codepoints_property, line_synth_data::num_lines_property
+						>(n, c, total_codepoints, total_lines);
 					}
 					size_t total_codepoints = 0, total_lines = 0;
 				};
-				template <size_t line_synth_data::*Total, size_t line_synth_data::*Node> struct _get_line {
+				template <typename Prop> struct _get_line {
+					using finder = sum_synthesizer::index_finder<Prop, true>;
 					int select_find(const node_type &n, size_t &c) {
-						if (n.left) {
-							if (c < n.left->synth_data.*Total) {
-								return -1;
-							}
-							c -= n.left->synth_data.*Total;
-							total_lines += n.left->synth_data.num_linebreaks;
-						}
-						if (c < n.synth_data.*Node || n.right == nullptr) {
-							return 0;
-						}
-						c -= n.synth_data.*Node;
-						++total_lines;
-						return 1;
+						return finder::select_find<line_synth_data::num_lines_property>(n, c, total_lines);
 					}
 					size_t total_lines = 0;
 				};
-				template <size_t line_synth_data::*Total, size_t line_synth_data::*Node> struct _get_line_beg {
+				using _line_beg_finder = sum_synthesizer::index_finder<line_synth_data::num_lines_property>;
+				template <typename AccumProp> struct _line_beg_accum_finder {
 					int select_find(const node_type &n, size_t &l) {
-						if (n.left) {
-							if (l < n.left->synth_data.num_linebreaks) {
-								return -1;
-							}
-							l -= n.left->synth_data.num_linebreaks;
-							if (Total != nullptr) {
-								total += n.left->synth_data.*Total;
-							}
-						}
-						if (l == 0) {
-							return 0;
-						}
-						--l;
-						if (Node != nullptr) {
-							total += n.synth_data.*Node;
-						}
-						return 1;
+						return _line_beg_finder::select_find<AccumProp>(n, l, total);
 					}
 					size_t total = 0;
 				};

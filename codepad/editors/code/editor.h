@@ -35,7 +35,8 @@ namespace codepad {
 					explicit fold_region_synthesizer(const folding_registry &fr) : _reg(&fr) {
 					}
 
-					void operator()(fold_region_synth_data &data, const node &n) const {
+					void operator()(node &n) const {
+						fold_region_synth_data &data = n.synth_data;
 						data.node_first_line = std::get<1>(_reg->_ctx->get_linebreak_registry().get_line_and_column_of_char(n.value.first));
 						data.node_last_line = std::get<1>(_reg->_ctx->get_linebreak_registry().get_line_and_column_of_char(n.value.second));
 						data.node_line_span = data.node_last_line - data.node_first_line;

@@ -560,10 +560,12 @@ namespace codepad {
 	}
 
 	enum class log_level {
-		other,
+		verbose,
 		info,
 		warning,
-		error
+		error,
+
+		other
 	};
 	struct code_position {
 		code_position(const char *fil, const char *func, int l) : file(fil), function(func), line(l) {
@@ -591,6 +593,9 @@ namespace codepad {
 
 		template <typename ...Args> void log(log_level level, const code_position &cp, Args &&...args) {
 			switch (level) {
+			case log_level::verbose:
+				log_verbose(cp, std::forward<Args>(args)...);
+				break;
 			case log_level::info:
 				log_info(cp, std::forward<Args>(args)...);
 				break;
@@ -605,8 +610,12 @@ namespace codepad {
 				break;
 			}
 		}
-		template <typename ...Args> void log_info(const code_position &cp, Args &&...args) {
+
+		template <typename ...Args> void log_verbose(const code_position &cp, Args &&...args) {
 			_log_fmt("       ", cp, std::forward<Args>(args)...);
+		}
+		template <typename ...Args> void log_info(const code_position &cp, Args &&...args) {
+			_log_fmt(" INFO  ", cp, std::forward<Args>(args)...);
 		}
 		template <typename ...Args> void log_warning(const code_position &cp, Args &&...args) {
 			_log_fmt("WARNING", cp, std::forward<Args>(args)...);
@@ -645,7 +654,7 @@ namespace codepad {
 		std::ofstream _fout;
 		std::chrono::time_point<std::chrono::high_resolution_clock> _epoch;
 
-		template <typename ...Args> void _log_fmt(const char *header, const code_position &cp, Args &&...args) {
+		template <typename ...Args> void _log_fmt(const char(&header)[8], const code_position &cp, Args &&...args) {
 			log_custom(header, "|", cp, "|", std::forward<Args>(args)...);
 		}
 	};
