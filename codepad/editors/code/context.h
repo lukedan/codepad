@@ -6,6 +6,7 @@
 namespace codepad {
 	namespace editor {
 		namespace code {
+			class view_formatting;
 			class editor;
 
 			using caret_position = size_t;
@@ -282,6 +283,10 @@ namespace codepad {
 				const_iterator get_iter_at(caret_position cp) const {
 					return _at(cp);
 				}
+
+				size_t size() const {
+					return _changes.size();
+				}
 			protected:
 				std::map<caret_position, T> _changes;
 
@@ -482,6 +487,9 @@ namespace codepad {
 				size_t num_lines() const {
 					return _lbr.num_linebreaks() + 1;
 				}
+				size_t num_chars() const {
+					return _lbr.num_chars();
+				}
 
 				string_buffer::string_type substring(caret_position beg, caret_position end) const {
 					return _str.substring(
@@ -546,6 +554,8 @@ namespace codepad {
 					_lbr.erase_chars(std::get<0>(p1i), std::get<2>(p1i), std::get<0>(p2i), std::get<2>(p2i));
 				}
 				// till here
+
+				view_formatting create_view_formatting();
 
 				const text_theme_data &get_text_theme() const {
 					return _theme;
@@ -729,7 +739,7 @@ namespace codepad {
 				void on_delete(caret_selection cs) {
 					modification mod(cs);
 					fixup_caret_position(mod);
-					if (!mod.selected_before && mod.position < _ctx->get_linebreak_registry().num_chars()) {
+					if (!mod.selected_before && mod.position < _ctx->num_chars()) {
 						mod.removed_range = 1;
 						mod.caret_front_before = true;
 						mod.selected_before = false;
@@ -749,7 +759,7 @@ namespace codepad {
 					return std::move(_newcarets);
 				}
 			protected:
-				text_context *_ctx = nullptr;
+				text_context * _ctx = nullptr;
 				edit _edit;
 				caret_fixup_info _cfixup;
 				caret_fixup_info::context _cfctx;
@@ -779,7 +789,7 @@ namespace codepad {
 
 					size_t total_length = 0;
 
-					using length_property = sum_synthesizer::implicit_property<
+					using length_property = sum_synthesizer::compact_property<
 						size_t, node_synth_data,
 						synthesization_helper::field_value_property<size_t, node_data, &node_data::length>,
 						&node_synth_data::total_length
@@ -797,8 +807,8 @@ namespace codepad {
 						Const, typename tree_type::const_iterator, typename tree_type::iterator
 					>;
 					using dereferenced_t = std::conditional_t<Const, const Data, Data>;
-					using reference = dereferenced_t&;
-					using pointer = dereferenced_t*;
+					using reference = dereferenced_t & ;
+					using pointer = dereferenced_t * ;
 
 					iterator_base() = default;
 					explicit iterator_base(const raw_iterator_t &it) : _it(it) {

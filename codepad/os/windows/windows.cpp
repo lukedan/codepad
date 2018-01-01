@@ -113,7 +113,7 @@ namespace codepad {
 					if (wparam != VK_BACK && wparam != VK_ESCAPE) {
 						_form_onevent<ui::text_info>(
 							*form, &window::_on_keyboard_text,
-							wparam == VK_RETURN ? U"\n" : str_t({static_cast<char_t>(wparam)})
+							wparam == VK_RETURN ? CP_STRLIT("\n") : str_t({static_cast<char_t>(wparam)})
 							);
 					}
 					return (wparam == UNICODE_NOCHAR ? TRUE : FALSE);
@@ -121,7 +121,7 @@ namespace codepad {
 					if (wparam != VK_BACK && wparam != VK_ESCAPE) {
 						_form_onevent<ui::text_info>(
 							*form, &window::_on_keyboard_text,
-							wparam == VK_RETURN ? U"\n" : str_t({static_cast<char_t>(wparam)})
+							wparam == VK_RETURN ? CP_STRLIT("\n") : str_t({static_cast<char_t>(wparam)})
 							);
 					}
 					return 0;

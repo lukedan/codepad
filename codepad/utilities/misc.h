@@ -5,12 +5,14 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
-#include <cstdlib>
 #include <algorithm>
 #include <type_traits>
 #include <chrono>
+#include <mutex>
+#include <condition_variable>
+#include <cstdlib>
 
-#include "textproc.h"
+#include "encodings.h"
 
 namespace codepad {
 	struct globals;
@@ -500,12 +502,6 @@ namespace codepad {
 		return from + (to - from) * perc;
 	}
 
-	template <typename S, typename U> inline S unsigned_diff(U lhs, U rhs) {
-		static_assert(std::is_unsigned<U>::value, "must pass unsigned value");
-		static_assert(std::is_signed<S>::value, "must pass signed value");
-		return lhs > rhs ? static_cast<S>(lhs - rhs) : -static_cast<S>(rhs - lhs);
-	}
-
 	template <typename T, typename U> inline bool test_bit_all(T v, U bit) {
 		return (v & static_cast<T>(bit)) == static_cast<T>(bit);
 	}
@@ -529,9 +525,10 @@ namespace codepad {
 		std::initializer_list<std::pair<C, U>> list, const std::basic_string<C> &str
 	) {
 		T result{};
-		for (auto i = str.begin(); i != str.end(); ++i) {
+		codepoint_iterator_base<typename std::basic_string<C>::const_iterator> it(str.begin(), str.end());
+		for (; !it.at_end(); it.next()) {
 			for (auto j = list.begin(); j != list.end(); ++j) {
-				if (*i == j->first) {
+				if (*it == j->first) {
 					set_bit(result, j->second);
 					break;
 				}
@@ -539,6 +536,52 @@ namespace codepad {
 		}
 		return result;
 	}
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> get_app_epoch();
+	std::chrono::duration<double> get_uptime();
+
+
+	struct semaphore { // copied from stackoverflow
+	public:
+		semaphore() = default;
+		semaphore(unsigned v) : _v(v) {
+		}
+
+		void signal() {
+			_unique_lock_t lock(_mtx);
+			++_v;
+			_cv.notify_one();
+		}
+		void wait() {
+			_unique_lock_t lock(_mtx);
+			while (_v == 0) {
+				_cv.wait(lock);
+			}
+			--_v;
+		}
+		bool try_wait() {
+			_unique_lock_t lock(_mtx);
+			if (_v > 0) {
+				--_v;
+				return true;
+			}
+			return false;
+		}
+	protected:
+		using _unique_lock_t = std::unique_lock<std::mutex>;
+
+		std::mutex _mtx;
+		std::condition_variable _cv;
+		unsigned _v = 0;
+	};
+
+
+#if __cplusplus > 201703L
+	template <typename Func> using func_invoke_result = std::invoke_result<Func>;
+#else
+	template <typename Func> using func_invoke_result = std::result_of<Func>;
+#endif
+	template <typename Func> using func_invoke_result_t = typename func_invoke_result<Func>::type;
 
 
 	// u8str_t overloads
@@ -583,7 +626,7 @@ namespace codepad {
 	public:
 		logger() : logger("default.log") {
 		}
-		explicit logger(const std::string &s) : _fout(s, std::ios::app), _epoch(std::chrono::high_resolution_clock::now()) {
+		explicit logger(const std::string &s) : _fout(s, std::ios::app) {
 			log_raw("\n\n####################\n\n");
 			log_info(CP_HERE, "new logger \"", s, "\" created");
 		}
@@ -632,10 +675,7 @@ namespace codepad {
 
 		template <typename ...Args> void log_custom(Args &&...args) {
 			char ss[9];
-			std::snprintf(
-				ss, sizeof(ss) / sizeof(char),
-				"%8.02f", std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - _epoch).count()
-			);
+			std::snprintf(ss, sizeof(ss) / sizeof(char), "%8.02f", get_uptime().count());
 			log_raw(ss, "|", std::forward<Args>(args)..., "\n");
 		}
 		template <typename ...Args> void log_raw(Args &&...args) {
@@ -652,7 +692,6 @@ namespace codepad {
 		static logger &get();
 	protected:
 		std::ofstream _fout;
-		std::chrono::time_point<std::chrono::high_resolution_clock> _epoch;
 
 		template <typename ...Args> void _log_fmt(const char(&header)[8], const code_position &cp, Args &&...args) {
 			log_custom(header, "|", cp, "|", std::forward<Args>(args)...);
@@ -686,7 +725,7 @@ namespace codepad {
 		if (!v) {
 			throw std::runtime_error(msg);
 		}
-	}
+}
 
 #ifdef CP_DETECT_SYSTEM_ERRORS
 	template <> inline void assert_true<error_level::system_error>(bool v, const char *msg) {
@@ -749,7 +788,7 @@ namespace codepad {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
-}
+		}
 
 // memory leak detection
 #if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
@@ -786,6 +825,7 @@ namespace codepad {
 }
 #endif
 
+// stacktrace
 #ifdef CP_LOG_STACKTRACE
 #	if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
 #		include <Windows.h>

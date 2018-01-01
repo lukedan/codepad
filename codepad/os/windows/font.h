@@ -51,6 +51,8 @@ namespace codepad {
 				winapi_check(DeleteObject(font));
 				_ft_verify(FT_New_Memory_Face(_get_library().lib, static_cast<FT_Byte*>(_data), size, 0, &_face));
 				_ft_verify(FT_Set_Pixel_Sizes(_face, 0, static_cast<FT_UInt>(sz)));
+
+				_cache_kerning();
 			}
 		};
 		using default_font = freetype_font;

@@ -17,12 +17,16 @@ namespace codepad {
 			_cbs.emplace_back(std::forward<T>(func));
 		}
 		void flush() {
-			std::lock_guard<std::mutex> guard(_lock);
+			_lock.lock();
 			if (!_cbs.empty()) {
-				for (auto i = _cbs.begin(); i != _cbs.end(); ++i) {
-					(*i)();
-				}
+				std::vector<std::function<void()>> list = std::move(_cbs);
 				_cbs.clear();
+				_lock.unlock();
+				for (auto &&f : list) {
+					f();
+				}
+			} else {
+				_lock.unlock();
 			}
 		}
 
@@ -74,18 +78,15 @@ namespace codepad {
 				return cst == task_status::completed || cst == task_status::cancelled;
 			}
 
-			template <typename T, typename Func> bool acquire_data(T &obj, const Func &f) {
-				std::atomic_bool bv(false);
-				callback_buffer::get().add([&bv, &obj, &f]() {
-					obj = f();
-					bv = true;
-				});
-				while (!bv) {
-					if (is_cancel_requested()) {
-						return false;
-					}
-				}
-				return true;
+			template <typename Func> func_invoke_result_t<Func()> acquire_data(Func &&f) {
+				semaphore sem;
+				func_invoke_result_t<Func()> res;
+				callback_buffer::get().add([&f, &sem, &res]() {
+					res = f();
+					sem.signal();
+					});
+				sem.wait();
+				return res;
 			}
 
 			const operation_t operation;

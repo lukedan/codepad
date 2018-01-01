@@ -35,27 +35,29 @@ namespace codepad {
 			blend_factor source_factor = blend_factor::source_alpha, destination_factor = blend_factor::one_minus_source_alpha;
 		};
 
-		struct texture {
+		template <bool IsNormal> struct texture_base {
 			friend class renderer_base;
 		public:
+			constexpr static bool is_normal_texture = IsNormal;
+
 			using id_t = size_t;
 
-			texture() = default;
-			texture(const texture&) = delete;
-			texture(texture &&t) : _id(t._id), _rend(t._rend), _w(t._w), _h(t._h) {
+			texture_base() = default;
+			texture_base(const texture_base&) = delete;
+			texture_base(texture_base &&t) : _id(t._id), _rend(t._rend), _w(t._w), _h(t._h) {
 				t._id = 0;
 				t._rend = nullptr;
 				t._w = t._h = 0;
 			}
-			texture &operator=(const texture&) = delete;
-			texture &operator=(texture &&t) {
+			texture_base &operator=(const texture_base&) = delete;
+			texture_base &operator=(texture_base &&t) {
 				std::swap(_id, t._id);
 				std::swap(_rend, t._rend);
 				std::swap(_w, t._w);
 				std::swap(_h, t._h);
 				return *this;
 			}
-			~texture();
+			~texture_base();
 
 			renderer_base *get_renderer() const {
 				return _rend;
@@ -71,13 +73,15 @@ namespace codepad {
 				return _rend != nullptr;
 			}
 		protected:
-			texture(id_t id, renderer_base *r, size_t w, size_t h) : _id(id), _rend(r), _w(w), _h(h) {
+			texture_base(id_t id, renderer_base *r, size_t w, size_t h) : _id(id), _rend(r), _w(w), _h(h) {
 			}
 
 			id_t _id = 0;
 			renderer_base *_rend = nullptr;
 			size_t _w = 0, _h = 0;
 		};
+		using texture = texture_base<true>;
+		using char_texture = texture_base<false>;
 		struct framebuffer {
 			friend class renderer_base;
 		public:
@@ -119,8 +123,8 @@ namespace codepad {
 			virtual void begin(const window_base&) = 0;
 			virtual void push_clip(recti) = 0;
 			virtual void pop_clip() = 0;
-			virtual void draw_character_custom(const texture&, rectd, colord) = 0;
-			virtual void draw_character(const texture &t, vec2d pos, colord c) {
+			virtual void draw_character_custom(const char_texture&, rectd, colord) = 0;
+			virtual void draw_character(const char_texture &t, vec2d pos, colord c) {
 				draw_character_custom(t, rectd::from_xywh(
 					pos.x, pos.y, static_cast<double>(t.get_width()), static_cast<double>(t.get_height())
 				), c);
@@ -140,10 +144,13 @@ namespace codepad {
 			}
 			virtual void end() = 0;
 
-			virtual texture new_character_texture(size_t, size_t, const void*) = 0;
-			virtual void delete_character_texture(texture&) = 0;
+			virtual char_texture new_character_texture(size_t, size_t, const void*) = 0;
+			virtual void delete_character_texture(char_texture&) = 0;
 			virtual texture new_texture(size_t, size_t, const void*) = 0;
 			virtual void delete_texture(texture&) = 0;
+			void delete_texture(char_texture &tex) {
+				delete_character_texture(tex);
+			}
 
 			virtual framebuffer new_framebuffer(size_t, size_t) = 0;
 			virtual void delete_framebuffer(framebuffer&) = 0;
@@ -171,19 +178,19 @@ namespace codepad {
 			virtual void _new_window(window_base&) = 0;
 			virtual void _delete_window(window_base&) = 0;
 
-			inline static texture::id_t _get_id(const texture &t) {
+			template <bool V> inline static typename texture_base<V>::id_t _get_id(const texture_base<V> &t) {
 				return t._id;
 			}
 			inline static framebuffer::id_t _get_id(const framebuffer &f) {
 				return f._id;
 			}
-			texture _make_texture(texture::id_t id, size_t w, size_t h) {
-				return texture(id, this, w, h);
+			template <bool Normal = true> texture_base<Normal> _make_texture(typename texture_base<Normal>::id_t id, size_t w, size_t h) {
+				return texture_base<Normal>(id, this, w, h);
 			}
 			framebuffer _make_framebuffer(framebuffer::id_t id, texture &&tex) {
 				return framebuffer(id, std::move(tex));
 			}
-			inline static void _erase_texture(texture &t) {
+			template <bool Normal> inline static void _erase_texture(texture_base<Normal> &t) {
 				t._id = 0;
 				t._w = t._h = 0;
 				t._rend = nullptr;
@@ -191,6 +198,13 @@ namespace codepad {
 			inline static void _erase_framebuffer(framebuffer &fb) {
 				fb._id = 0;
 				_erase_texture(fb._tex);
+			}
+
+			void _del_tex_univ(texture &tex) {
+				delete_texture(tex);
+			}
+			void _del_tex_univ(char_texture &tex) {
+				delete_character_texture(tex);
 			}
 
 			struct _default_renderer {
@@ -229,7 +243,7 @@ namespace codepad {
 				_flush_text_buffer();
 				_rtfstk.back().pop_clip();
 			}
-			void draw_character_custom(const texture &id, rectd r, colord color) override {
+			void draw_character_custom(const char_texture &id, rectd r, colord color) override {
 				const _text_atlas::char_data &cd = _atl.get_char_data(_get_id(id));
 				if (_lstpg != cd.page) {
 					_flush_text_buffer();
@@ -260,10 +274,10 @@ namespace codepad {
 				_gl_verify();
 			}
 
-			texture new_character_texture(size_t w, size_t h, const void *data) override {
+			char_texture new_character_texture(size_t w, size_t h, const void *data) override {
 				return _atl.new_char(*this, w, h, data);
 			}
-			void delete_character_texture(texture &id) override {
+			void delete_character_texture(char_texture &id) override {
 				_atl.delete_char(id);
 			}
 			texture new_texture(size_t w, size_t h, const void *data) override {
@@ -466,7 +480,7 @@ namespace codepad {
 					return _rend;
 				}
 			protected:
-				opengl_renderer_base *_rend = nullptr;
+				opengl_renderer_base * _rend = nullptr;
 				GLuint _id = 0;
 			};
 			_gl_vertex_buffer _new_vertex_buffer() {
@@ -633,7 +647,7 @@ namespace codepad {
 				size_t _cx = 0, _cy = 0, _my = 0;
 				std::vector<page> _ps;
 				std::vector<char_data> _cd_slots;
-				std::vector<texture::id_t> _cd_alloc;
+				std::vector<char_texture::id_t> _cd_alloc;
 				bool _lpdirty = false;
 
 				void _new_page() {
@@ -650,7 +664,7 @@ namespace codepad {
 					}
 					_ps.push_back(np);
 				}
-				texture::id_t _alloc_id() {
+				char_texture::id_t _alloc_id() {
 					texture::id_t res;
 					if (!_cd_alloc.empty()) {
 						res = _cd_alloc.back();
@@ -662,7 +676,7 @@ namespace codepad {
 					return res;
 				}
 			public:
-				texture new_char(opengl_renderer_base &r, size_t w, size_t h, const void *data) {
+				char_texture new_char(opengl_renderer_base &r, size_t w, size_t h, const void *data) {
 					if (_ps.empty()) {
 						_new_page();
 					}
@@ -715,9 +729,9 @@ namespace codepad {
 						cd.page = _ps.size() - 1;
 						_lpdirty = true;
 					}
-					return r._make_texture(id, w, h);
+					return r._make_texture<false>(id, w, h);
 				}
-				void delete_char(texture &id) {
+				void delete_char(char_texture &id) {
 					_cd_alloc.push_back(_get_id(id));
 					_erase_texture(id);
 				}
@@ -904,7 +918,7 @@ namespace codepad {
 			}
 		};
 
-		inline texture::~texture() {
+		template <bool Normal> inline texture_base<Normal>::~texture_base() {
 			if (has_content()) {
 				_rend->delete_texture(*this);
 			}

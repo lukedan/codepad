@@ -122,8 +122,8 @@ namespace codepad {
 			using dereferenced_type = std::conditional_t<
 				std::is_const<Cont>::value, const value_type, value_type
 			>;
-			using reference = dereferenced_type&;
-			using pointer = dereferenced_type*;
+			using reference = dereferenced_type & ;
+			using pointer = dereferenced_type * ;
 			using iterator_category = std::bidirectional_iterator_tag;
 
 			iterator_base() = default;
@@ -198,8 +198,9 @@ namespace codepad {
 		using const_reverse_iterator = std::reverse_iterator<iterator>;
 
 		binary_tree() = default;
-		template <typename ...Args> binary_tree(std::vector<T> v, Args &&...args) : _synth(std::forward<Args>(args)...) {
-			_root = _build_tree(v.begin(), v.end(), _synth);
+		template <typename Cont, typename ...Args> binary_tree(Cont &&cont, Args &&...args) :
+			_synth(std::forward<Args>(args)...) {
+			_root = build_tree(std::forward<Cont>(cont), _synth);
 		}
 		binary_tree(const binary_tree &tree) : _root(clone_tree(tree._root)) {
 		}
@@ -252,19 +253,20 @@ namespace codepad {
 			n->parent = before;
 			refresh_synthesized_result(before);
 		}
-		void insert_tree_before(node *before, std::vector<T> objs) {
-			insert_before_raw(before, build_tree(std::move(objs), _synth));
+		template <typename Cont> void insert_tree_before(node *before, Cont &&objs) {
+			insert_before_raw(before, build_tree(std::forward<Cont>(objs), _synth));
 		}
-		void insert_tree_before(const_iterator it, std::vector<T> objs) {
-			insert_tree_before(it.get_node(), std::move(objs));
+		template <typename Cont> void insert_tree_before(const_iterator it, Cont &&objs) {
+			insert_tree_before(it.get_node(), std::forward<Cont>(objs));
 		}
-		template <typename ...Args> void insert_node_before(node *before, Args &&...args) {
+		template <typename ...Args> node *insert_node_before(node *before, Args &&...args) {
 			node *n = new node(std::forward<Args>(args)...);
 			_refresh_synth(n);
 			insert_before_raw(before, n);
+			return n;
 		}
-		template <typename ...Args> void insert_node_before(const_iterator it, Args &&...args) {
-			insert_node_before(it.get_node(), std::forward<Args>(args)...);
+		template <typename ...Args> iterator insert_node_before(const_iterator it, Args &&...args) {
+			return get_iterator_for(insert_node_before(it.get_node(), std::forward<Args>(args)...));
 		}
 
 		template <typename BranchSelector, typename Ref> iterator find_custom(BranchSelector &&b, Ref &&ref) {
@@ -521,8 +523,8 @@ namespace codepad {
 			_root = nullptr;
 		}
 
-		node *build_tree(std::vector<T> objs) const {
-			return build_tree(std::move(objs), _synth);
+		template <typename Cont> node *build_tree(Cont &&objs) const {
+			return build_tree(std::forward<Cont>(objs), _synth);
 		}
 
 		template <typename SynRef> void set_synthesizer(SynRef &&s) {
@@ -572,8 +574,13 @@ namespace codepad {
 				delete c;
 			} while (!ns.empty());
 		}
-		template <typename SynRef> inline static node *build_tree(std::vector<T> objs, SynRef &&synth) {
-			return _build_tree(objs.begin(), objs.end(), std::forward<SynRef>(synth));
+		template <typename Cont, typename SynRef> inline static node *build_tree(const Cont &objs, SynRef &&synth) {
+			return _build_tree<_copy_value>(objs.begin(), objs.end(), std::forward<SynRef>(synth));
+		}
+		template <typename Cont, typename SynRef> inline static std::enable_if_t<
+			!std::is_lvalue_reference<Cont>::value, node*
+		> build_tree(Cont &&objs, SynRef &&synth) {
+			return _build_tree<_move_value>(objs.begin(), objs.end(), std::forward<SynRef>(synth));
 		}
 	protected:
 		template <
@@ -613,18 +620,29 @@ namespace codepad {
 			const node *src = nullptr;
 			node *parent = nullptr, **assign = nullptr;
 		};
+		struct _copy_value {
+			template <typename It> inline static node *get(It it) {
+				return new node(*it);
+			}
+		};
+		struct _move_value {
+			template <typename It> inline static node *get(It it) {
+				return new node(std::move(*it));
+			}
+		};
 
 		// items will be moved out of the container
-		template <typename SynRef> inline static node *_build_tree(
-			typename std::vector<T>::iterator beg, typename std::vector<T>::iterator end, SynRef &&s
+		template <typename Op, typename It, typename SynRef> inline static node *_build_tree(
+			It beg, It end, SynRef &&s
 		) {
 			if (beg == end) {
 				return nullptr;
 			}
 			auto half = beg + (end - beg) / 2;
 			node
-				*left = _build_tree(beg, half, s), *right = _build_tree(half + 1, end, s),
-				*cur = new node(std::move(*half));
+				*left = _build_tree<Op, It, SynRef>(beg, half, std::forward<SynRef>(s)),
+				*right = _build_tree<Op, It, SynRef>(half + 1, end, std::forward<SynRef>(s)),
+				*cur = Op::get(half);
 			cur->left = left;
 			cur->right = right;
 			if (cur->left) {
@@ -675,7 +693,7 @@ namespace codepad {
 				n.synth_data.*TreeVal = std::move(v);
 			}
 		};
-		template <typename T, typename Synth, typename GetForNode, T Synth::*TreeVal> struct implicit_property {
+		template <typename T, typename Synth, typename GetForNode, T Synth::*TreeVal> struct compact_property {
 			using value_type = T;
 
 			template <typename Node> inline static T get_node_value(Node &&n) {

@@ -5,8 +5,7 @@
 #include <functional>
 
 #include "../os/misc.h"
-#include "textconfig.h"
-#include "textproc.h"
+#include "encodings.h"
 
 namespace codepad {
 	enum class modifier_keys {
@@ -36,28 +35,28 @@ namespace codepad {
 		bool first = true;
 		auto mkv = static_cast<unsigned>(mk);
 		if (test_bit_all(mkv, modifier_keys::control)) {
-			ss.append(U"Control");
+			ss.append(CP_STRLIT("Control"));
 			first = false;
 		}
 		if (test_bit_all(mkv, modifier_keys::shift)) {
 			if (first) {
-				ss.append(U"+");
+				ss.append(CP_STRLIT("+"));
 				first = false;
 			}
-			ss.append(U"Shift");
+			ss.append(CP_STRLIT("Shift"));
 		}
 		if (test_bit_all(mkv, modifier_keys::alt)) {
 			if (first) {
-				ss.append(U"+");
+				ss.append(CP_STRLIT("+"));
 				first = false;
 			}
-			ss.append(U"Alt");
+			ss.append(CP_STRLIT("Alt"));
 		}
 		if (test_bit_all(mkv, modifier_keys::cmd)) {
 			if (first) {
-				ss.append(U"+");
+				ss.append(CP_STRLIT("+"));
 			}
-			ss.append(U"Cmd");
+			ss.append(CP_STRLIT("Cmd"));
 		}
 		return ss;
 	}

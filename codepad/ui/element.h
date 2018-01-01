@@ -3,7 +3,7 @@
 #include <list>
 
 #include "../utilities/hotkey_registry.h"
-#include "../utilities/textconfig.h"
+#include "../utilities/encodings.h"
 #include "../utilities/event.h"
 #include "../utilities/misc.h"
 #include "../os/renderer.h"

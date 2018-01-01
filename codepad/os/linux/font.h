@@ -29,6 +29,8 @@ namespace codepad {
 				_ft_verify(FT_New_Face(_get_library().lib, reinterpret_cast<const char*>(file), 0, &_face));
 				_ft_verify(FT_Set_Pixel_Sizes(_face, 0, static_cast<FT_UInt>(sz)));
 				FcPatternDestroy(font);
+
+				_cache_kerning();
 			}
 		protected:
 			struct _font_config {

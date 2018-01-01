@@ -65,13 +65,12 @@ set(SOURCE_FILES
 		codepad/ui/theme_providers.h
 		codepad/ui/window_hotkey_manager.h
 		codepad/utilities/bst.h
+		codepad/utilities/encodings.h
 		codepad/utilities/event.h
 		codepad/utilities/globals.cpp
 		codepad/utilities/hotkey_registry.h
 		codepad/utilities/misc.h
 		codepad/utilities/tasks.h
-		codepad/utilities/textconfig.h
-		codepad/utilities/textproc.h
 		codepad/main.cpp
 		${PLATFORM_SOURCE})
 add_definitions(-DUNICODE -D_UNICODE -DCP_LOG_STACKTRACE ${PLATFORM_DEFINITIONS})

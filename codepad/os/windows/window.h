@@ -123,10 +123,10 @@ namespace codepad {
 			}
 
 			inline static str_t get_default_class() {
-				return U"window";
+				return CP_STRLIT("window");
 			}
 		protected:
-			explicit window(window *parent = nullptr) : window(U"Codepad", parent) {
+			explicit window(window *parent = nullptr) : window(CP_STRLIT("Codepad"), parent) {
 			}
 			explicit window(const str_t &clsname, window *parent = nullptr) {
 				auto u16str = convert_to_utf16(clsname);

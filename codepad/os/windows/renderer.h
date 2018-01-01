@@ -35,21 +35,22 @@ namespace codepad {
 				));
 				_clear_texture(_tarbuf, crec->width, crec->height);
 			}
-			void draw_character_custom(const texture &tex, rectd pos, colord c) override {
-				draw_quad(tex, pos, rectd(0.0, 1.0, 0.0, 1.0), c);
+			void draw_character_custom(const char_texture &tex, rectd r, colord c) override {
+				rectd t(0.0, 1.0, 0.0, 1.0);
+				vec2d vs[6]{
+					r.xmin_ymin(), r.xmax_ymin(), r.xmin_ymax(),
+					r.xmax_ymin(), r.xmax_ymax(), r.xmin_ymax()
+				}, uvs[6]{
+					t.xmin_ymin(), t.xmax_ymin(), t.xmin_ymax(),
+					t.xmax_ymin(), t.xmax_ymax(), t.xmin_ymax()
+				};
+				colord cs[6] = {c, c, c, c, c, c};
+				_draw_triangles_impl(_get_id(tex), vs, uvs, cs, 6);
 			}
 			void draw_triangles(
 				const texture &tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
 			) override {
-				const vec2d *cp = poss, *cuv = uvs;
-				const colord *cc = cs;
-				vec2d tmp[3];
-				for (; sz > 2; sz -= 3, cp += 3, cuv += 3, cc += 3) {
-					tmp[0] = apply_transform(_matstk.back(), cp[0]);
-					tmp[1] = apply_transform(_matstk.back(), cp[1]);
-					tmp[2] = apply_transform(_matstk.back(), cp[2]);
-					_draw_triangle(tmp, cuv, cc, _get_id(tid));
-				}
+				_draw_triangles_impl(_get_id(tid), poss, uvs, cs, sz);
 			}
 			void draw_lines(const vec2d *vs, const colord *cs, size_t sz) override {
 				for (size_t i = 0; i < sz; i += 2) {
@@ -70,17 +71,16 @@ namespace codepad {
 				return _make_texture(nid, w, h);
 			}
 			void delete_texture(texture &id) override {
-				_delete_texture_by_id(_get_id(id));
-				_erase_texture(id);
+				_delete_texture_impl(id);
 			}
 
-			texture new_character_texture(size_t w, size_t h, const void *gs) override {
-				texture::id_t nid = _alloc_id();
+			char_texture new_character_texture(size_t w, size_t h, const void *gs) override {
+				char_texture::id_t nid = _alloc_id();
 				_txs[nid].set_rgba(w, h, static_cast<const unsigned char*>(gs));
-				return _make_texture(nid, w, h);
+				return _make_texture<false>(nid, w, h);
 			}
-			void delete_character_texture(texture &id) override {
-				delete_texture(id);
+			void delete_character_texture(char_texture &id) override {
+				_delete_texture_impl(id);
 			}
 			void push_clip(recti r) override {
 				_rtfstk.back().push_clip(r);
@@ -353,6 +353,23 @@ namespace codepad {
 			void _delete_texture_by_id(texture::id_t id) {
 				_txs[id].dispose();
 				_id_realloc.push_back(id);
+			}
+			template <bool V> void _delete_texture_impl(texture_base<V> &tex) {
+				_delete_texture_by_id(_get_id(tex));
+				_erase_texture(tex);
+			}
+			void _draw_triangles_impl(
+				texture::id_t tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
+			) {
+				const vec2d *cp = poss, *cuv = uvs;
+				const colord *cc = cs;
+				vec2d tmp[3];
+				for (; sz > 2; sz -= 3, cp += 3, cuv += 3, cc += 3) {
+					tmp[0] = apply_transform(_matstk.back(), cp[0]);
+					tmp[1] = apply_transform(_matstk.back(), cp[1]);
+					tmp[2] = apply_transform(_matstk.back(), cp[2]);
+					_draw_triangle(tmp, cuv, cc, tid);
+				}
 			}
 
 			inline static DWORD _conv_to_dword(colori cv) {

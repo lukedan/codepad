@@ -5,7 +5,7 @@
 #include "draw.h"
 #include "font_family.h"
 #include "../utilities/misc.h"
-#include "../utilities/textconfig.h"
+#include "../utilities/encodings.h"
 #include "../os/window.h"
 
 namespace codepad {
@@ -67,10 +67,10 @@ namespace codepad {
 						return _sz_cch;
 					} else {
 						_sz_cached = _mask_hasszcache;
-						return _sz_cch = text_renderer::measure_plain_text(_text, _fnt.get());
+						return _sz_cch = text_renderer::measure_plain_text(_text, _fnt);
 					}
 				} else {
-					const os::font *fnt = _get_deffnt().get();
+					auto &&fnt = _get_deffnt();
 					if (fnt) {
 						if (_sz_cached == _def_fnt_ts) {
 							return _sz_cch;
@@ -89,7 +89,7 @@ namespace codepad {
 			}
 
 			void render() const {
-				const os::font *f = _fnt ? _fnt.get() : _get_deffnt().get();
+				auto &&f = _fnt ? _fnt : _get_deffnt();
 				if (f) {
 					text_renderer::render_plain_text(_text, f, get_text_position(), _clr);
 				}
@@ -138,7 +138,7 @@ namespace codepad {
 			}
 
 			inline static str_t get_default_class() {
-				return U"label";
+				return CP_STRLIT("label");
 			}
 		protected:
 			void _custom_render() override {
@@ -168,7 +168,7 @@ namespace codepad {
 			};
 
 			inline static str_t get_default_class() {
-				return U"button_base";
+				return CP_STRLIT("button_base");
 			}
 		protected:
 			unsigned char _state = static_cast<unsigned char>(state::normal);
@@ -262,7 +262,7 @@ namespace codepad {
 			event<void> click;
 
 			inline static str_t get_default_class() {
-				return U"button";
+				return CP_STRLIT("button");
 			}
 		protected:
 			void _on_click() override {
@@ -275,7 +275,7 @@ namespace codepad {
 			friend class scroll_bar;
 		public:
 			inline static str_t get_default_class() {
-				return U"scrollbar_drag_button";
+				return CP_STRLIT("scrollbar_drag_button");
 			}
 		protected:
 			scroll_bar *_get_bar() const;
@@ -351,13 +351,13 @@ namespace codepad {
 			event<value_update_info<double>> value_changed;
 
 			inline static str_t get_default_class() {
-				return U"scrollbar";
+				return CP_STRLIT("scrollbar");
 			}
 			inline static str_t get_page_up_button_class() {
-				return U"scrollbar_page_up_button";
+				return CP_STRLIT("scrollbar_page_up_button");
 			}
 			inline static str_t get_page_down_button_class() {
-				return U"scrollbar_page_down_button";
+				return CP_STRLIT("scrollbar_page_down_button");
 			}
 		protected:
 			orientation _ori = orientation::vertical;

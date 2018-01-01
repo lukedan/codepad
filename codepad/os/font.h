@@ -1,11 +1,13 @@
 #pragma once
 
+#include <map>
 #include <unordered_map>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
 #include "../utilities/misc.h"
+#include "../utilities/hash_set.h"
 #include "renderer.h"
 
 namespace codepad {
@@ -23,7 +25,7 @@ namespace codepad {
 			struct entry {
 				rectd placement;
 				double advance;
-				os::texture texture;
+				os::char_texture texture;
 			};
 
 			font() = default;
@@ -38,7 +40,7 @@ namespace codepad {
 				return _get_modify_char_entry(c);
 			}
 
-			double get_max_width_charset(const str_t &s) const {
+			double get_max_width_charset(const std::u32string &s) const {
 				double maxw = 0.0;
 				for (auto i = s.begin(); i != s.end(); ++i) {
 					maxw = std::max(maxw, get_char_entry(*i).advance);
@@ -58,9 +60,6 @@ namespace codepad {
 			friend struct codepad::globals;
 		public:
 			~freetype_font_base() override {
-				for (auto i = _map.begin(); i != _map.end(); ++i) {
-					os::renderer_base::get().delete_character_texture(i->second.texture);
-				}
 				_ft_verify(FT_Done_Face(_face));
 				std::free(_data);
 			}
@@ -79,26 +78,100 @@ namespace codepad {
 				return static_cast<double>(_face->size->metrics.ascender) * _ft_fixed_scale;
 			}
 			vec2d get_kerning(char32_t left, char32_t right) const override {
-				auto cached = _kerncache.find(std::make_pair(left, right));
-				if (cached != _kerncache.end()) {
-					return cached->second;
+				vec2d res;
+				if (!_kerncache.find_freq({left, right}, res)) {
+					if (!_kerncache.find_infreq({left, right}, res)) {
+						res = _get_kerning_impl(left, right);
+						_kerncache.set_infreq({left, right}, res);
+					}
 				}
-				FT_Vector v;
-				_ft_verify(FT_Get_Kerning(_face, FT_Get_Char_Index(_face, left), FT_Get_Char_Index(_face, right), FT_KERNING_UNFITTED, &v));
-				vec2d res(static_cast<double>(v.x), static_cast<double>(v.y));
-				res *= _ft_fixed_scale;
-				_kerncache.insert(std::make_pair(std::make_pair(left, right), res));
 				return res;
 			}
 		protected:
 			constexpr static double _ft_fixed_scale = 1.0 / 64.0;
 
-			struct _kern_pair_hash {
-			public:
-				template <typename T, typename U> std::size_t operator()(const std::pair<T, U> &x) const {
-					size_t lhs = std::hash<U>()(x.first), rhs = std::hash<U>()(x.second);
-					return lhs ^ (rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2));
+			struct _kerning_pair_cache {
+				constexpr static size_t fast_size = 128;
+
+				struct item {
+					vec2d value;
+					bool valid = false;
+				};
+				struct _kern_pair_hash {
+				public:
+					size_t operator()(const std::pair<char32_t, char32_t> &x) const { // TODO collides A LOT
+						//size_t a = x.first, b = x.second;
+						//return a >= b ? a * a + a + b : a + b * b;
+
+						//size_t k2 = x.second, sum = k2 + x.first;
+						//return ((sum * (sum + 1)) >> 1) + k2;
+
+						return (static_cast<size_t>(x.first) * 0x1F1F1F1F) ^ static_cast<size_t>(x.second);
+					}
+				};
+
+				bool find_freq(const std::pair<char32_t, char32_t> &p, vec2d &res) {
+					if (p.first < fast_size && p.second < fast_size) {
+						res = small_cache[p.first][p.second];
+						return true;
+					}
+					return false;
 				}
+				bool find_infreq(const std::pair<char32_t, char32_t> &p, vec2d &res) {
+					auto found = _kerncache.find(p);
+					if (found != _kerncache.end()) {
+						res = found->second;
+						return true;
+					}
+					return false;
+				}
+
+				void set_infreq(const std::pair<char32_t, char32_t> &p, const vec2d &v) {
+					_kerncache.insert({p, v});
+				}
+
+				vec2d small_cache[fast_size][fast_size];
+				std::unordered_map<std::pair<char32_t, char32_t>, vec2d, _kern_pair_hash> _kerncache;
+			};
+
+			struct _entry_table {
+				constexpr static size_t fast_size = 128;
+
+				struct entry_rec {
+					entry_rec() {
+					}
+					~entry_rec() {
+						if (valid) {
+							value.~entry();
+						}
+					}
+
+					union {
+						entry value;
+					};
+					bool valid = false;
+				};
+
+				entry &get(char32_t v, bool &valid) {
+					if (v < fast_size) {
+						entry_rec &er = small_cache[v];
+						valid = er.valid;
+						if (!er.valid) {
+							new (&er.value) entry();
+							er.valid = true;
+						}
+						return er.value;
+					}
+					auto found = _map.find(v);
+					valid = found != _map.end();
+					if (!valid) {
+						return _map[v];
+					}
+					return found->second;
+				}
+
+				entry_rec small_cache[fast_size];
+				std::unordered_map<char32_t, entry> _map;
 			};
 
 			template <FT_Pixel_Mode V> struct _helper {
@@ -148,12 +221,19 @@ namespace codepad {
 				dst[3] = xptr[3];
 			}
 
+			vec2d _get_kerning_impl(char32_t l, char32_t r) const {
+				FT_Vector v;
+				_ft_verify(FT_Get_Kerning(
+					_face, FT_Get_Char_Index(_face, l), FT_Get_Char_Index(_face, r), FT_KERNING_UNFITTED, &v)
+				);
+				return vec2d(static_cast<double>(v.x), static_cast<double>(v.y)) * _ft_fixed_scale;
+			}
 			entry &_get_modify_char_entry(char32_t c) const override {
-				auto found = _map.find(c);
-				if (found == _map.end()) {
+				bool found;
+				entry &et = _ents.get(c, found);
+				if (!found) {
 					_ft_verify(FT_Load_Char(_face, c, FT_LOAD_DEFAULT | FT_LOAD_RENDER));
 					const FT_Bitmap &bmpdata = _face->glyph->bitmap;
-					entry &et = _map[c] = entry();
 					{
 						unsigned char *buf = static_cast<unsigned char*>(std::malloc(4 * bmpdata.width * bmpdata.rows));
 						_copy_image(buf, bmpdata);
@@ -178,14 +258,21 @@ namespace codepad {
 						bmpdata.width,
 						bmpdata.rows
 					);
-					return et;
 				}
-				return found->second;
+				return et;
 			}
 
+			void _cache_kerning() {
+				for (char32_t i = 0; i < _kerning_pair_cache::fast_size; ++i) {
+					for (char32_t j = 0; j < _kerning_pair_cache::fast_size; ++j) {
+						_kerncache.small_cache[i][j] = _get_kerning_impl(i, j);
+					}
+				}
+			}
+
+			mutable _kerning_pair_cache _kerncache;
+			mutable _entry_table _ents;
 			FT_Face _face = nullptr;
-			mutable std::unordered_map<char32_t, entry> _map;
-			mutable std::unordered_map<std::pair<char32_t, char32_t>, vec2d, _kern_pair_hash> _kerncache;
 			void *_data = nullptr;
 
 			inline static void _ft_verify(FT_Error code) {

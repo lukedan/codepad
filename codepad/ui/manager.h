@@ -6,6 +6,7 @@
 #include <chrono>
 
 #include "element.h"
+#include "../utilities/performance_monitor.h"
 
 namespace codepad {
 	namespace ui {
@@ -42,11 +43,13 @@ namespace codepad {
 				_dirty.insert(&e);
 			}
 			void update_invalid_visuals();
+			void update_visual_immediate(element&);
 
 			void schedule_update(element &e) {
 				_upd.insert(&e);
 			}
 			void update_scheduled_elements() {
+				monitor_performance mon(CP_HERE);
 				auto nnow = std::chrono::high_resolution_clock::now();
 				_upd_dt = std::chrono::duration<double>(nnow - _now).count();
 				_now = nnow;
@@ -67,6 +70,7 @@ namespace codepad {
 				_del.insert(&e);
 			}
 			void dispose_marked_elements() {
+				monitor_performance mon(CP_HERE);
 				while (!_del.empty()) {
 					std::set<element*> batch;
 					std::swap(batch, _del);
@@ -92,6 +96,7 @@ namespace codepad {
 				update_invalid_visuals();
 			}
 			void update() {
+				monitor_performance mon(CP_STRLIT_U8("Update UI"));
 				dispose_marked_elements();
 				update_scheduled_elements();
 				update_layout_and_visual();

@@ -7,7 +7,7 @@
 #include "../ui/panel.h"
 #include "../ui/window_hotkey_manager.h"
 #include "../utilities/event.h"
-#include "../utilities/textconfig.h"
+#include "../utilities/encodings.h"
 
 namespace codepad {
 	namespace os {
@@ -291,6 +291,7 @@ namespace codepad {
 	}
 	namespace ui {
 		inline void manager::update_invalid_visuals() {
+			monitor_performance mon(CP_HERE);
 			if (_dirty.empty()) {
 				return;
 			}
@@ -308,14 +309,21 @@ namespace codepad {
 				}
 			}
 			_dirty.clear();
-			for (auto i = ss.begin(); i != ss.end(); ++i) {
-				(*i)->_on_render();
+			for (auto i : ss) {
+				i->_on_render();
+				update_visual_immediate(*i);
 			}
 			double dur = std::chrono::duration<double, std::milli>(
 				std::chrono::high_resolution_clock::now() - start
 				).count();
 			if (dur > render_time_redline) {
 				logger::get().log_warning(CP_HERE, "render cost ", dur, "ms");
+			}
+		}
+		inline void manager::update_visual_immediate(element &e) {
+			os::window_base *wnd = e.get_window();
+			if (wnd) {
+				wnd->_on_render();
 			}
 		}
 		inline void manager::set_focus(element *elem) {

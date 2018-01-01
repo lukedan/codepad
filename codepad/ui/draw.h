@@ -1,7 +1,6 @@
 #pragma once
 
-#include "../utilities/textconfig.h"
-#include "../utilities/textproc.h"
+#include "../utilities/encodings.h"
 #include "../os/renderer.h"
 #include "font_family.h"
 
@@ -88,8 +87,8 @@ namespace codepad {
 						_pos += stylefnt->get_kerning(_lastchar, _curchar).x;
 					}
 				}
-				_pos = std::round(_pos);
 				_cet = &stylefnt->get_char_entry(_curchar);
+				_pos = static_cast<int>(_pos + 0.5);
 				if (_curchar == '\t') {
 					_cw = _get_target_tab_width();
 				} else {
@@ -99,12 +98,19 @@ namespace codepad {
 		};
 
 		namespace text_renderer {
-			inline void render_plain_text(const str_t &str, const os::font *fnt, vec2d topleft, colord color) {
+			template <typename Cont> inline void render_plain_text(
+				Cont &&c, const std::shared_ptr<const os::font> &fnt, vec2d topleft, colord color
+			) {
+				render_plain_text(c.begin(), c.end(), fnt, topleft, color);
+			}
+			template <typename It> inline void render_plain_text(
+				It &&beg, It &&end, const std::shared_ptr<const os::font> &fnt, vec2d topleft, colord color
+			) {
 				int sx = static_cast<int>(std::round(topleft.x)), dy = static_cast<int>(std::ceil(fnt->height()));
 				vec2i cur = vec2i(sx, static_cast<int>(std::round(topleft.y)));
 				char32_t last = '\0';
 				double lastw = 0.0;
-				for (auto i = str.begin(); i != str.end(); ++i) {
+				for (codepoint_iterator_base<std::decay_t<It>> i(beg, end); !i.at_end(); i.next()) {
 					if (is_newline(*i)) {
 						cur.x = sx;
 						cur.y += dy;
@@ -114,17 +120,27 @@ namespace codepad {
 						if (last != '\0') {
 							cur.x += static_cast<int>(std::round(lastw + fnt->get_kerning(last, *i).x));
 						}
-						os::renderer_base::get().draw_character(et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color);
+						os::renderer_base::get().draw_character(
+							et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color
+						);
 						last = *i;
 						lastw = et.advance;
 					}
 				}
 			}
-			inline vec2d measure_plain_text(const str_t &str, const os::font *fnt) {
+
+			template <typename Cont> inline vec2d measure_plain_text(
+				Cont &&cont, const std::shared_ptr<const os::font> &fnt
+			) {
+				return measure_plain_text(cont.begin(), cont.end(), fnt);
+			}
+			template <typename It> inline vec2d measure_plain_text(
+				It &&beg, It &&end, const std::shared_ptr<const os::font> &fnt
+			) {
 				char32_t last = '\0';
 				double lastw = 0.0, curline = 0.0, maxw = 0.0;
 				size_t linen = 1;
-				for (auto i = str.begin(); i != str.end(); ++i) {
+				for (codepoint_iterator_base<std::decay_t<It>> i(beg, end); !i.at_end(); i.next()) {
 					const os::font::entry &et = fnt->get_char_entry(*i);
 					if (last != '\0') {
 						curline += static_cast<int>(std::round(lastw + fnt->get_kerning(last, *i).x));
@@ -145,7 +161,10 @@ namespace codepad {
 
 		struct render_batch {
 		public:
-			void add_triangle(vec2d v1, vec2d v2, vec2d v3, vec2d uv1, vec2d uv2, vec2d uv3, colord c1, colord c2, colord c3) {
+			void add_triangle(
+				vec2d v1, vec2d v2, vec2d v3, vec2d uv1, vec2d uv2, vec2d uv3,
+				colord c1, colord c2, colord c3
+			) {
 				_vs.push_back(v1);
 				_vs.push_back(v2);
 				_vs.push_back(v3);

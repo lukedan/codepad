@@ -1,10 +1,13 @@
 #pragma once
 
-#include <sstream>
+#include <string>
 #include <codecvt>
 #include <locale>
 
-#include "textconfig.h"
+#include <rapidjson/document.h>
+
+#define CP_USE_UTF8
+
 
 namespace codepad {
 	using char8_t = unsigned char;
@@ -14,7 +17,30 @@ namespace codepad {
 		invalid_min = 0xD800, invalid_max = 0xDFFF,
 		unicode_max = 0x10FFFF;
 
+#define CP_STRLIT_U8(X) reinterpret_cast<const char8_t*>(X)
+#define CP_STRLIT_U32(X) U##X
+
+	// encoding settings
+#ifdef CP_USE_UTF8
+	using char_t = char8_t;
+#	define CP_STRLIT(X) CP_STRLIT_U8(X)
+#elif defined(CP_USE_UTF32)
+	using char_t = char32_t;
+#	define CP_STRLIT(X) CP_STRLIT_U32(X)
+#endif
+	using str_t = std::basic_string<char_t>;
+
 	namespace json {
+		// encoding settings
+#ifdef CP_USE_UTF8
+		using encoding = rapidjson::UTF8<char_t>;
+#elif defined(CP_USE_UTF32)
+		using encoding = rapidjson::UTF32<char_t>;
+#endif
+
+		using value_t = rapidjson::GenericValue<encoding>;
+		using parser_value_t = rapidjson::GenericDocument<encoding>;
+
 		inline str_t get_as_string(const value_t &v) {
 			return str_t(v.GetString(), v.GetStringLength());
 		}
@@ -63,13 +89,13 @@ namespace codepad {
 		return i;
 	}
 
-	inline bool is_newline(char_t c) {
+	inline bool is_newline(char32_t c) {
 		return c == '\n' || c == '\r';
 	}
-	inline bool is_graphical_char(char_t c) { // TODO incomplete
+	inline bool is_graphical_char(char32_t c) { // TODO incomplete
 		return c != '\n' && c != '\r' && c != '\t' && c != ' ';
 	}
-	inline bool is_valid_codepoint(char_t c) {
+	inline bool is_valid_codepoint(char32_t c) {
 		return c < invalid_min || (c > invalid_max && c <= unicode_max);
 	}
 
@@ -331,6 +357,8 @@ namespace codepad {
 		char32_t _cv{};
 		bool _good = false;
 	};
+	using string_codepoint_iterator = codepoint_iterator_base<str_t::const_iterator>;
+	using raw_codepoint_iterator = codepoint_iterator_base<const char_t*>;
 
 	template <typename Cb> inline void translate_codepoint_utf8(Cb &&cb, char32_t c) {
 		if (c < 0x80) {
@@ -339,20 +367,20 @@ namespace codepad {
 			cb({
 				static_cast<char8_t>(0xC0 | (c >> 6)),
 				static_cast<char8_t>(0x80 | (c & 0x3F))
-			});
+				});
 		} else if (c < 0x10000) {
 			cb({
 				static_cast<char8_t>(0xE0 | (c >> 12)),
 				static_cast<char8_t>(0x80 | ((c >> 6) & 0x3F)),
 				static_cast<char8_t>(0x80 | (c & 0x3F))
-			});
+				});
 		} else {
 			cb({
 				static_cast<char8_t>(0xF0 | (c >> 18)),
 				static_cast<char8_t>(0x80 | ((c >> 12) & 0x3F)),
 				static_cast<char8_t>(0x80 | ((c >> 6) & 0x3F)),
 				static_cast<char8_t>(0x80 | (c & 0x3F))
-			});
+				});
 		}
 	}
 	template <typename Cb> inline void translate_codepoint_utf16(Cb &&cb, char32_t c) {
@@ -363,7 +391,7 @@ namespace codepad {
 			cb({
 				static_cast<char16_t>((mined >> 10) | 0xD800),
 				static_cast<char16_t>((mined & 0x03FF) | 0xDC00)
-			});
+				});
 		}
 	}
 	template <typename Cb> inline void translate_codepoint_utf32(Cb &&cb, char32_t c) {
@@ -441,6 +469,14 @@ namespace codepad {
 	}
 	inline std::u32string convert_to_utf32(const std::u16string &s) {
 		return utf16_to_utf32(s);
+	}
+
+	template <typename Char> inline str_t convert_to_current_encoding(const std::basic_string<Char> &s) {
+#ifdef CP_USE_UTF8
+		return convert_to_utf8(s);
+#elif defined(CP_USE_UTF32)
+		return convert_to_utf32(s);
+#endif
 	}
 
 	template <typename T> inline str_t to_str(T t) {

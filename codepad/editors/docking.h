@@ -89,7 +89,7 @@ namespace codepad {
 			event<void> start_drag, stop_drag;
 
 			inline static str_t get_default_class() {
-				return U"draggable_separator";
+				return CP_STRLIT("draggable_separator");
 			}
 		protected:
 			ui::orientation _orient = ui::orientation::horizontal;
@@ -173,7 +173,7 @@ namespace codepad {
 			}
 
 			inline static str_t get_default_class() {
-				return U"split_panel";
+				return CP_STRLIT("split_panel");
 			}
 		protected:
 			ui::element *_c1 = nullptr, *_c2 = nullptr;
@@ -354,7 +354,7 @@ namespace codepad {
 			event<tab_drag_info> start_drag;
 
 			inline static str_t get_default_class() {
-				return U"tab_button";
+				return CP_STRLIT("tab_button");
 			}
 		protected:
 			ui::content_host _content = *this;
@@ -445,7 +445,7 @@ namespace codepad {
 			}
 
 			inline static str_t get_default_class() {
-				return U"tab_host";
+				return CP_STRLIT("tab_host");
 			}
 		protected:
 			std::list<tab*> _tabs;
@@ -496,7 +496,7 @@ namespace codepad {
 			}
 
 			inline static str_t get_default_class() {
-				return U"tab";
+				return CP_STRLIT("tab");
 			}
 		protected:
 			tab_button *_btn;
@@ -561,7 +561,7 @@ namespace codepad {
 			}
 
 			inline static str_t get_default_class() {
-				return U"grid_dock_position_selector";
+				return CP_STRLIT("grid_dock_position_selector");
 			}
 		protected:
 			region_metrics _met;
@@ -920,7 +920,7 @@ namespace codepad {
 			}
 
 			void _initialize_preview() const {
-				_dragdec->set_class(U"dock_preview");
+				_dragdec->set_class(CP_STRLIT("dock_preview"));
 				_dragdec->set_layout(_get_preview_layout(*_dest, _dtype));
 			}
 			void _try_dispose_preview() {

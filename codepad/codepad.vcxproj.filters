@@ -33,13 +33,7 @@
     <ClInclude Include="ui\panel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="utilities\textproc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\commonelements.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="utilities\textconfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\current.h">
@@ -118,6 +112,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\windows\filesystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\view.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities\hash_set.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities\performance_monitor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities\performance_view.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities\encodings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -414,15 +414,15 @@ namespace codepad {
 		protected:
 			struct _registration {
 				_registration() {
-					predefined.mouse_over = register_or_get_state(U"mouse_over");
-					predefined.mouse_down = register_or_get_state(U"mouse_down");
-					predefined.focused = register_or_get_state(U"focused");
-					predefined.corpse = register_or_get_state(U"corpse");
+					predefined.mouse_over = register_or_get_state(CP_STRLIT("mouse_over"));
+					predefined.mouse_down = register_or_get_state(CP_STRLIT("mouse_down"));
+					predefined.focused = register_or_get_state(CP_STRLIT("focused"));
+					predefined.corpse = register_or_get_state(CP_STRLIT("corpse"));
 
-					register_transition_func(U"linear", linear_transition_func);
-					register_transition_func(U"concave_quadratic", concave_quadratic_transition_func);
-					register_transition_func(U"convex_quadratic", convex_quadratic_transition_func);
-					register_transition_func(U"smoothstep", smoothstep_transition_func);
+					register_transition_func(CP_STRLIT("linear"), linear_transition_func);
+					register_transition_func(CP_STRLIT("concave_quadratic"), concave_quadratic_transition_func);
+					register_transition_func(CP_STRLIT("convex_quadratic"), convex_quadratic_transition_func);
+					register_transition_func(CP_STRLIT("smoothstep"), smoothstep_transition_func);
 				}
 
 				std::map<str_t, visual> providers;
@@ -560,7 +560,7 @@ namespace codepad {
 		template <> struct json_object_parser<colord> {
 			inline static colord parse(const json::value_t &obj) {
 				if (obj.IsArray()) {
-					if (obj.Size() > 3 && obj[0].IsString() && str_t(obj[0].GetString()) == U"hsl") {
+					if (obj.Size() > 3 && obj[0].IsString() && str_t(obj[0].GetString()) == CP_STRLIT("hsl")) {
 						colord c = colord::from_hsl(obj[1].GetDouble(), obj[2].GetDouble(), obj[3].GetDouble());
 						if (obj.Size() > 4) {
 							c.a = obj[4].GetDouble();
@@ -615,24 +615,24 @@ namespace codepad {
 			template <typename T> inline static void parse_animation(animation_params<T> &ani, const json::value_t &obj) {
 				if (obj.IsObject()) {
 					json::value_t::ConstMemberIterator mem;
-					mem = obj.FindMember(U"to");
+					mem = obj.FindMember(CP_STRLIT("to"));
 					if (mem != obj.MemberEnd()) {
 						ani.to = json_object_parser<T>::parse(mem->value);
 					} else {
 						logger::get().log_warning(CP_HERE, "no \"to\" property found in animation");
 					}
-					mem = obj.FindMember(U"from");
+					mem = obj.FindMember(CP_STRLIT("from"));
 					if (mem != obj.MemberEnd()) {
 						ani.has_from = true;
 						ani.from = json_object_parser<T>::parse(mem->value);
 					} else {
-						json::try_get(obj, U"has_from", ani.has_from);
+						json::try_get(obj, CP_STRLIT("has_from"), ani.has_from);
 					}
-					json::try_get(obj, U"auto_reverse", ani.auto_reverse);
-					json::try_get(obj, U"repeat", ani.repeat);
-					json::try_get(obj, U"duration", ani.duration);
-					json::try_get(obj, U"reverse_duration_scale", ani.reverse_duration_scale);
-					mem = obj.FindMember(U"transition");
+					json::try_get(obj, CP_STRLIT("auto_reverse"), ani.auto_reverse);
+					json::try_get(obj, CP_STRLIT("repeat"), ani.repeat);
+					json::try_get(obj, CP_STRLIT("duration"), ani.duration);
+					json::try_get(obj, CP_STRLIT("reverse_duration_scale"), ani.reverse_duration_scale);
+					mem = obj.FindMember(CP_STRLIT("transition"));
 					if (mem != obj.MemberEnd()) {
 						if (mem->value.IsString()) {
 							ani.transition_func = visual_manager::get_transition_function(json::get_as_string(mem->value));
@@ -652,7 +652,7 @@ namespace codepad {
 				if (obj.IsString()) {
 					ani.frames.push_back(ani_t::texture_keyframe(table.get(json::get_as_string(obj)), 0.0));
 				} else if (obj.IsObject()) {
-					auto fs = obj.FindMember(U"frames");
+					auto fs = obj.FindMember(CP_STRLIT("frames"));
 					if (fs != obj.MemberEnd()) {
 						if (fs->value.IsArray()) {
 							ani.frames.clear();
@@ -681,9 +681,9 @@ namespace codepad {
 							good = false;
 						}
 					}
-					json::try_get(obj, U"auto_reverse", ani.auto_reverse);
-					json::try_get(obj, U"repeat", ani.repeat);
-					json::try_get(obj, U"reverse_duration_scale", ani.reverse_duration_scale);
+					json::try_get(obj, CP_STRLIT("auto_reverse"), ani.auto_reverse);
+					json::try_get(obj, CP_STRLIT("repeat"), ani.repeat);
+					json::try_get(obj, CP_STRLIT("reverse_duration_scale"), ani.reverse_duration_scale);
 				} else {
 					good = false;
 				}
@@ -694,25 +694,25 @@ namespace codepad {
 			inline static void parse_layer(visual_layer &layer, const json::value_t &val, texture_table &table) {
 				if (val.IsObject()) {
 					str_t typestr;
-					if (json::try_get(val, U"type", typestr)) {
-						if (typestr == U"solid") {
+					if (json::try_get(val, CP_STRLIT("type"), typestr)) {
+						if (typestr == CP_STRLIT("solid")) {
 							layer.layer_type = visual_layer::type::solid;
 						} else {
 							layer.layer_type = visual_layer::type::grid;
 						}
 					}
-					_find_and_parse(val, U"texture", layer.texture_animation, table);
-					_find_and_parse(val, U"color", layer.color_animation);
-					_find_and_parse(val, U"size", layer.size_animation);
-					_find_and_parse(val, U"margins", layer.margin_animation);
+					_find_and_parse(val, CP_STRLIT("texture"), layer.texture_animation, table);
+					_find_and_parse(val, CP_STRLIT("color"), layer.color_animation);
+					_find_and_parse(val, CP_STRLIT("size"), layer.size_animation);
+					_find_and_parse(val, CP_STRLIT("margins"), layer.margin_animation);
 					str_t anc;
-					if (json::try_get(val, U"anchor", anc)) {
+					if (json::try_get(val, CP_STRLIT("anchor"), anc)) {
 						layer.rect_anchor = static_cast<anchor>(get_bitset_from_string<unsigned, anchor>({
 							{'l', anchor::left},
 							{'t', anchor::top},
 							{'r', anchor::right},
 							{'b', anchor::bottom}
-						}, anc));
+							}, anc));
 					}
 				} else if (val.IsString()) {
 					layer = visual_layer();
@@ -741,11 +741,11 @@ namespace codepad {
 						visual_state_id id = visual_manager::normal_state;
 						if (i->IsObject()) {
 							json::value_t::ConstMemberIterator fmem;
-							fmem = i->FindMember(U"states");
+							fmem = i->FindMember(CP_STRLIT("states"));
 							if (fmem != i->MemberEnd()) {
 								id = _parse_vid(fmem->value);
 							}
-							fmem = i->FindMember(U"inherit_from");
+							fmem = i->FindMember(CP_STRLIT("inherit_from"));
 							if (fmem != i->MemberEnd()) {
 								visual_state_id pid = _parse_vid(fmem->value);
 								auto found = provider._states.find(pid);
@@ -755,7 +755,7 @@ namespace codepad {
 									logger::get().log_warning(CP_HERE, "invalid inheritance");
 								}
 							}
-							fmem = i->FindMember(U"layers");
+							fmem = i->FindMember(CP_STRLIT("layers"));
 							if (fmem != i->MemberEnd()) {
 								parse_state(vps, fmem->value, table);
 							}

@@ -19,40 +19,31 @@ namespace codepad {
 				}
 
 				inline static str_t get_default_class() {
-					return U"line_number";
+					return CP_STRLIT("line_number");
 				}
 			protected:
 				size_t _get_line_of_char(caret_position cp) {
-					return std::get<1>(_get_editor()->get_context()->get_linebreak_registry().get_line_and_column_of_char(cp));
+					return
+						_get_editor()->get_formatting().get_linebreaks().get_visual_line_and_column_of_char(cp).first;
 				}
 
 				void _custom_render() override {
-					editor *editor = _get_editor();
-					double lh = editor->get_line_height();
-					std::pair<size_t, size_t> be = editor->get_visible_lines();
-					folding_registry::iterator it = editor->get_folding_info().find_region_containing_or_first_after_open(
-						editor->get_context()->get_linebreak_registry().get_beginning_char_of_line(be.first)
-					);
+					// TODO correct line numbers
+					editor *edt = _get_editor();
+					const view_formatting &fmt = edt->get_formatting();
+					double lh = edt->get_line_height();
+					std::pair<size_t, size_t> be = edt->get_visible_lines();
 					double cury =
 						get_client_region().ymin - _get_box()->get_vertical_position() +
-						static_cast<double>(editor->get_folding_info().unfolded_to_folded_line_number(be.first)) * lh;
+						static_cast<double>(fmt.get_folding().unfolded_to_folded_line_number(be.first)) * lh;
 					size_t jline = 0;
-					if (it != editor->get_folding_info().end()) {
-						jline = _get_line_of_char(it->first);
-					}
 					for (size_t curi = be.first; curi < be.second; ++curi, cury += lh) {
 						str_t curlbl = to_str(curi + 1);
-						double w = ui::text_renderer::measure_plain_text(curlbl, editor::get_font().normal.get()).x;
+						double w = ui::text_renderer::measure_plain_text(curlbl, editor::get_font().normal).x;
 						ui::text_renderer::render_plain_text(
-							curlbl, editor::get_font().normal.get(),
+							curlbl, editor::get_font().normal,
 							vec2d(get_client_region().xmax - w, cury), colord()
 						);
-						while (it != editor->get_folding_info().end() && jline == curi) {
-							curi = _get_line_of_char(it->second);
-							if (++it != editor->get_folding_info().end()) {
-								jline = _get_line_of_char(it->first);
-							}
-						}
 					}
 				}
 			};
@@ -89,10 +80,10 @@ namespace codepad {
 				}
 
 				inline static str_t get_default_class() {
-					return U"minimap";
+					return CP_STRLIT("minimap");
 				}
 				inline static str_t get_viewport_class() {
-					return U"minimap_viewport";
+					return CP_STRLIT("minimap_viewport");
 				}
 			protected:
 				struct _page_cache {
@@ -154,16 +145,21 @@ namespace codepad {
 #else
 						os::renderer_base::get().begin_framebuffer(buf);
 #endif
-						rendering_iterator<true> it(
-							*ce, ce->get_context()->get_linebreak_registry().get_beginning_char_of_line(
-								ce->get_folding_info().folded_to_unfolded_line_number(s)
-							), ce->get_context()->get_linebreak_registry().get_beginning_char_of_line(
-								ce->get_folding_info().folded_to_unfolded_line_number(pe)
-							)
+						const view_formatting &fmt = ce->get_formatting();
+						size_t
+							firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
+								fmt.get_folding().folded_to_unfolded_line_number(s)
+							),
+							plastchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
+								fmt.get_folding().folded_to_unfolded_line_number(pe)
+							);
+						rendering_iterator<view_formatter> it(
+							std::make_tuple(std::cref(fmt), firstchar, plastchar),
+							std::make_tuple(std::cref(*ce), firstchar, plastchar)
 						);
 						double lastx = 0.0;
 						for (it.begin(); !it.ended(); it.next()) {
-							if (!it.char_iter().is_line_break()) {
+							if (!it.char_iter().is_hard_line_break()) {
 								if (needrefresh) {
 									lct.refresh(it.char_iter().y_offset());
 								}
@@ -182,11 +178,13 @@ namespace codepad {
 									).coordinates_scaled(scale).fit_grid_enlarge<double>();
 									crec.xmin = std::max(crec.xmin, lastx);
 									lastx = crec.xmax;
-									os::renderer_base::get().draw_character_custom(
-										ci.current_char_entry().texture,
-										crec,
-										ti.current_theme.color
-									);
+									if (crec.xmin < maximum_width) {
+										os::renderer_base::get().draw_character_custom(
+											ci.current_char_entry().texture,
+											crec,
+											ti.current_theme.color
+										);
+									}
 #endif
 								}
 								needrefresh = false;
@@ -224,7 +222,7 @@ namespace codepad {
 						std::pair<size_t, size_t> be = parent->_get_visible_lines_folded();
 						double slh = editor->get_line_height() * get_scale();
 						size_t
-							numlines = editor->get_num_lines_with_folding(),
+							numlines = editor->get_num_visual_lines(),
 							pgsize = std::max(be.second - be.first, static_cast<size_t>(minimum_page_size / slh) + 1),
 							page_beg = 0;
 						page_end = numlines;
@@ -265,7 +263,7 @@ namespace codepad {
 									render_page(frontline, page_beg);
 								}
 								if (be.second > page_end) {
-									size_t backline = std::min(editor->get_context()->num_lines(), page_end + page_lines);
+									size_t backline = std::min(editor->get_num_visual_lines(), page_end + page_lines);
 									render_page(page_end, backline);
 									page_end = backline;
 								}
@@ -306,7 +304,7 @@ namespace codepad {
 				double _get_y_offset() const {
 					const codebox *cb = _get_box();
 					const editor *editor = cb->get_editor();
-					size_t nlines = editor->get_num_lines_with_folding();
+					size_t nlines = editor->get_num_visual_lines();
 					double
 						lh = editor->get_line_height(),
 						vh = get_client_region().height(),
@@ -334,7 +332,7 @@ namespace codepad {
 					double lh = editor->get_line_height() * get_scale(), ys = _get_y_offset();
 					return std::make_pair(static_cast<size_t>(ys / lh), std::min(static_cast<size_t>(
 						std::max(ys + get_client_region().height(), 0.0) / lh
-						) + 1, editor->get_num_lines_with_folding()));
+						) + 1, editor->get_num_visual_lines()));
 				}
 
 				void _on_visual_state_changed() override {
@@ -377,7 +375,7 @@ namespace codepad {
 							const editor *edt = _get_editor();
 							_get_box()->set_vertical_position(std::min(
 								(info.position.y - get_client_region().ymin + _get_y_offset()) / get_scale() - 0.5 * ch,
-								static_cast<double>(edt->get_num_lines_with_folding()) * edt->get_line_height() - ch
+								static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - ch
 							));
 						}
 					}
@@ -401,7 +399,7 @@ namespace codepad {
 						double
 							yp = info.new_pos.y + _dragoffset - get_client_region().ymin,
 							toth =
-							static_cast<double>(edt->get_num_lines_with_folding()) * edt->get_line_height() -
+							static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() -
 							get_client_region().height(),
 							totch = std::min(get_client_region().height() * (1.0 - get_scale()), toth * get_scale());
 						_get_box()->set_vertical_position(toth * yp / totch);

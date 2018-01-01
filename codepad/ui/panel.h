@@ -317,6 +317,7 @@ namespace codepad {
 		}
 
 		inline void manager::update_invalid_layouts() {
+			monitor_performance mon(CP_HERE);
 			if (!_targets.empty()) {
 				auto start = std::chrono::high_resolution_clock::now();
 				_layouting = true;

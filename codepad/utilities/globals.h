@@ -2,6 +2,7 @@
 
 #include "misc.h"
 #include "tasks.h"
+#include "performance_monitor.h"
 #include "../os/renderer.h"
 #include "../os/current.h"
 #include "../ui/manager.h"
@@ -73,17 +74,25 @@ namespace codepad {
 		_t_wrapper *_var = nullptr;
 	};
 
-	// avoid pointers (including shared_ptr's)
-	// or initialize them in the constructor
-	// or use the pointed-to type first (tricky)
+	// ordering is important
 	struct globals {
 	public:
+		globals() : _epoch(std::chrono::high_resolution_clock::now()) {
+		}
+
 		template <typename T> T &get() {
 			return _vars.get<T>();
 		}
 
 		inline static globals &current() {
 			return *_cur;
+		}
+
+		const std::chrono::time_point<std::chrono::high_resolution_clock> &get_app_epoch() const {
+			return _epoch;
+		}
+		std::chrono::duration<double> get_uptime() const {
+			return std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - _epoch);
 		}
 	protected:
 		struct _cur_setter {
@@ -96,6 +105,7 @@ namespace codepad {
 			}
 		};
 
+		std::chrono::time_point<std::chrono::high_resolution_clock> _epoch;
 		_cur_setter _csetter{*this};
 		singleton_factory <
 #ifdef CP_PLATFORM_WINDOWS
@@ -111,6 +121,7 @@ namespace codepad {
 			logger,
 			callback_buffer,
 			async_task_pool,
+			performance_monitor,
 			os::freetype_font_base::_library,
 			os::renderer_base::_default_renderer,
 			ui::manager,
@@ -150,6 +161,9 @@ namespace codepad {
 	inline async_task_pool &async_task_pool::get() {
 		return globals::current().get<async_task_pool>();
 	}
+	inline performance_monitor &performance_monitor::get() {
+		return globals::current().get<performance_monitor>();
+	}
 	inline os::freetype_font_base::_library &os::freetype_font_base::_get_library() {
 		return globals::current().get<_library>();
 	}
@@ -170,5 +184,12 @@ namespace codepad {
 	}
 	inline editor::code::editor::_appearance_config &editor::code::editor::_get_appearance() {
 		return globals::current().get<_appearance_config>();
+	}
+
+	inline std::chrono::time_point<std::chrono::high_resolution_clock> get_app_epoch() {
+		return globals::current().get_app_epoch();
+	}
+	inline std::chrono::duration<double> get_uptime() {
+		return globals::current().get_uptime();
 	}
 }

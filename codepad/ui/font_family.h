@@ -3,7 +3,7 @@
 #include <string>
 #include <memory>
 
-#include "../utilities/textconfig.h"
+#include "../utilities/encodings.h"
 #include "../utilities/misc.h"
 #include "../os/current.h"
 
