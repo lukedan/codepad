@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <memory>
 
-#include "../os/current.h"
+#include "../os/filesystem.h"
 #include "draw.h"
 
 namespace codepad {
@@ -33,23 +33,6 @@ namespace codepad {
 			constexpr vec2d size() const {
 				return vec2d(width(), height());
 			}
-		};
-		enum class cursor {
-			normal,
-			busy,
-			crosshair,
-			hand,
-			help,
-			text_beam,
-			denied,
-			arrow_all,
-			arrow_northeast_southwest,
-			arrow_north_south,
-			arrow_northwest_southeast,
-			arrow_east_west,
-
-			invisible,
-			not_specified
 		};
 		enum class anchor : unsigned char {
 			none = 0,
@@ -108,7 +91,7 @@ namespace codepad {
 			double duration = 0.0, reverse_duration_scale = 1.0;
 			std::function<double(double)> transition_func = linear_transition_func;
 
-			state init_state(T curv) const { // FIXME sometimes animation does not start from `from'
+			state init_state(T curv) const {
 				state s;
 				s.from = has_from ? from : curv;
 				s.current_value = s.from;

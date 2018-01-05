@@ -91,7 +91,7 @@ namespace codepad {
 				return r.left <= v.x && r.right > v.x && r.top <= v.y && r.bottom > v.y;
 			}
 
-			ui::cursor get_current_display_cursor() const override {
+			cursor get_current_display_cursor() const override {
 				if (_capture) {
 					return _capture->get_current_display_cursor();
 				}

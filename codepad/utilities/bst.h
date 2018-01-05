@@ -344,13 +344,19 @@ namespace codepad {
 				std::pair<node*, _traverse_status> &p = stk.back();
 				switch (p.second) {
 				case _traverse_status::not_visited:
-					p.second = _traverse_status::visited_left;
-					stk.push_back(std::make_pair(p.first->left, _traverse_status::not_visited));
-					break;
+					if (p.first->left) {
+						p.second = _traverse_status::visited_left;
+						stk.push_back(std::make_pair(p.first->left, _traverse_status::not_visited));
+						break;
+					}
+					// fallthrough
 				case _traverse_status::visited_left:
-					p.second = _traverse_status::visited_right;
-					stk.push_back(std::make_pair(p.first->right, _traverse_status::not_visited));
-					break;
+					if (p.first->right) {
+						p.second = _traverse_status::visited_right;
+						stk.push_back(std::make_pair(p.first->right, _traverse_status::not_visited));
+						break;
+					}
+					// fallthrough
 				case _traverse_status::visited_right:
 					_refresh_synth(p.first);
 					stk.pop_back();

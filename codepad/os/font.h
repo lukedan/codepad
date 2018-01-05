@@ -99,13 +99,7 @@ namespace codepad {
 				};
 				struct _kern_pair_hash {
 				public:
-					size_t operator()(const std::pair<char32_t, char32_t> &x) const { // TODO collides A LOT
-						//size_t a = x.first, b = x.second;
-						//return a >= b ? a * a + a + b : a + b * b;
-
-						//size_t k2 = x.second, sum = k2 + x.first;
-						//return ((sum * (sum + 1)) >> 1) + k2;
-
+					size_t operator()(const std::pair<char32_t, char32_t> &x) const {
 						return (static_cast<size_t>(x.first) * 0x1F1F1F1F) ^ static_cast<size_t>(x.second);
 					}
 				};

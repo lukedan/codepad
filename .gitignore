@@ -3,5 +3,8 @@
 .vscode/
 Debug/
 Release/
+x64/
 codepad/Debug/
 codepad/Release/
+codepad/x64/
+codepad/test_text/

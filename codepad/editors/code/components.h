@@ -22,7 +22,7 @@ namespace codepad {
 					return CP_STRLIT("line_number");
 				}
 			protected:
-				size_t _get_line_of_char(caret_position cp) {
+				size_t _get_line_of_char(size_t cp) {
 					return
 						_get_editor()->get_formatting().get_linebreaks().get_visual_line_and_column_of_char(cp).first;
 				}
@@ -154,11 +154,18 @@ namespace codepad {
 								fmt.get_folding().folded_to_unfolded_line_number(pe)
 							);
 						rendering_iterator<view_formatter> it(
-							std::make_tuple(std::cref(fmt), firstchar, plastchar),
+							std::make_tuple(std::cref(fmt), firstchar),
 							std::make_tuple(std::cref(*ce), firstchar, plastchar)
 						);
 						double lastx = 0.0;
 						for (it.begin(); !it.ended(); it.next()) {
+							if (
+								it.get_addon<view_formatter>().
+								get_soft_linebreak_inserter().is_linebreak(it.char_iter())
+								) {
+								needrefresh = true;
+								lastx = 0.0;
+							}
 							if (!it.char_iter().is_hard_line_break()) {
 								if (needrefresh) {
 									lct.refresh(it.char_iter().y_offset());
@@ -188,9 +195,6 @@ namespace codepad {
 #endif
 								}
 								needrefresh = false;
-							} else {
-								needrefresh = true;
-								lastx = 0.0;
 							}
 						}
 						os::renderer_base::get().end();
@@ -201,7 +205,10 @@ namespace codepad {
 						));
 						os::renderer_base::get().push_matrix(matd3x3::scale(vec2d(), scale));
 						ui::render_batch batch;
-						batch.add_quad(rectd(0, static_cast<double>(origw), 0, static_cast<double>(origh)), rectd(0.0, 1.0, 0.0, 1.0), colord());
+						batch.add_quad(
+							rectd(0, static_cast<double>(origw), 0, static_cast<double>(origh)),
+							rectd(0.0, 1.0, 0.0, 1.0), colord()
+						);
 						batch.draw(tmp.get_texture());
 						os::renderer_base::get().pop_matrix();
 						os::renderer_base::get().pop_blend_function();
@@ -250,7 +257,8 @@ namespace codepad {
 								return;
 							}
 							size_t page_lines = std::max(
-								be.second - be.first, static_cast<size_t>(minimum_page_size / (editor->get_line_height() * get_scale())) + 1
+								be.second - be.first,
+								static_cast<size_t>(minimum_page_size / (editor->get_line_height() * get_scale())) + 1
 							);
 							if (be.first + page_lines < page_beg || page_end + page_lines < be.second) {
 								restart();
@@ -285,7 +293,9 @@ namespace codepad {
 					rectd clnrgn = get_client_region();
 					clnrgn.xmax = clnrgn.xmin + maximum_width;
 					clnrgn.ymin = std::round(clnrgn.ymin - _get_y_offset());
-					auto ibeg = --_pgcache.pages.upper_bound(vlines.first), iend = _pgcache.pages.lower_bound(vlines.second);
+					auto
+						ibeg = --_pgcache.pages.upper_bound(vlines.first),
+						iend = _pgcache.pages.lower_bound(vlines.second);
 					os::renderer_base::get().push_blend_function(os::blend_function(
 						os::blend_factor::one, os::blend_factor::one_minus_source_alpha
 					));
@@ -293,7 +303,9 @@ namespace codepad {
 						rectd crgn = clnrgn;
 						crgn.ymin = std::round(crgn.ymin + slh * static_cast<double>(i->first));
 						crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_texture().get_height());
-						os::renderer_base::get().draw_quad(i->second.get_texture(), crgn, rectd(0.0, 1.0, 0.0, 1.0), colord());
+						os::renderer_base::get().draw_quad(
+							i->second.get_texture(), crgn, rectd(0.0, 1.0, 0.0, 1.0), colord()
+						);
 					}
 					os::renderer_base::get().pop_blend_function();
 					if (_vrgnst.update_and_render(_get_clamped_viewport_rect())) {
@@ -330,9 +342,11 @@ namespace codepad {
 				std::pair<size_t, size_t> _get_visible_lines_folded() const {
 					const editor *editor = _get_editor();
 					double lh = editor->get_line_height() * get_scale(), ys = _get_y_offset();
-					return std::make_pair(static_cast<size_t>(ys / lh), std::min(static_cast<size_t>(
-						std::max(ys + get_client_region().height(), 0.0) / lh
-						) + 1, editor->get_num_visual_lines()));
+					return {
+						static_cast<size_t>(ys / lh), std::min(static_cast<size_t>(
+							std::max(ys + get_client_region().height(), 0.0) / lh
+							) + 1, editor->get_num_visual_lines())
+					};
 				}
 
 				void _on_visual_state_changed() override {
@@ -342,15 +356,15 @@ namespace codepad {
 
 				void _on_added() override {
 					component::_on_added();
-					_vc_tok = (_get_editor()->content_visual_changed += std::bind(&minimap::_on_editor_visual_changed, this));
-					_fold_tok = (_get_editor()->folding_changed += std::bind(&minimap::_on_editor_visual_changed, this));
+					_vis_tok = (_get_editor()->editing_visual_changed += [this]() {
+						_on_editor_visual_changed();
+						});
 					_vpos_tok = (_get_box()->vertical_viewport_changed += [this](value_update_info<double>&) {
 						_on_viewport_changed();
 						});
 				}
 				void _on_removing() override {
-					_get_editor()->content_visual_changed -= _vc_tok;
-					_get_editor()->folding_changed -= _fold_tok;
+					_get_editor()->editing_visual_changed -= _vis_tok;
 					_get_box()->vertical_viewport_changed -= _vpos_tok;
 					component::_on_removing();
 				}
@@ -417,7 +431,7 @@ namespace codepad {
 				}
 
 				_page_cache _pgcache{this};
-				event<void>::token _vc_tok, _fold_tok;
+				event<void>::token _vis_tok;
 				event<value_update_info<double>>::token _vpos_tok;
 				ui::visual::render_state _vrgnst;
 				double _dragoffset = 0.0;

@@ -62,8 +62,8 @@ namespace codepad {
 				return _orient;
 			}
 
-			ui::cursor get_default_cursor() const override {
-				return _orient == ui::orientation::horizontal ? ui::cursor::arrow_east_west : ui::cursor::arrow_north_south;
+			os::cursor get_default_cursor() const override {
+				return _orient == ui::orientation::horizontal ? os::cursor::arrow_east_west : os::cursor::arrow_north_south;
 			}
 
 			vec2d get_desired_size() const override {

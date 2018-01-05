@@ -4,6 +4,24 @@
 
 namespace codepad {
 	namespace os {
+		enum class cursor {
+			normal,
+			busy,
+			crosshair,
+			hand,
+			help,
+			text_beam,
+			denied,
+			arrow_all,
+			arrow_northeast_southwest,
+			arrow_north_south,
+			arrow_northwest_southeast,
+			arrow_east_west,
+
+			invisible,
+			not_specified
+		};
+
 		namespace input {
 			enum class mouse_button { left, middle, right };
 			enum class key {

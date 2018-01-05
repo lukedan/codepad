@@ -68,7 +68,7 @@ namespace codepad {
 					}
 					return hardc + hard->value.nonbreak_chars;
 				}
-				std::tuple<iterator, size_t, size_t> get_softbreak_before_char(size_t c) const {
+				std::tuple<iterator, size_t, size_t> get_softbreak_before_or_at_char(size_t c) const {
 					_get_softbreaks_before selector;
 					size_t nc = c;
 					auto it = _t.find_custom(selector, nc);
@@ -77,13 +77,24 @@ namespace codepad {
 				size_t get_visual_line_of_char(size_t c) const {
 					return
 						std::get<1>(_reg->get_line_and_column_of_char(c)) +
-						std::get<1>(get_softbreak_before_char(c));
+						std::get<1>(get_softbreak_before_or_at_char(c));
 				}
 				std::pair<size_t, size_t> get_visual_line_and_column_of_char(size_t c) const {
 					auto hard = _reg->get_line_and_column_of_char(c);
 					_get_softbreaks_before selector;
 					auto it = _t.find_custom(selector, c);
 					return {std::get<1>(hard) + selector.num_softbreaks, std::min(c, std::get<2>(hard))};
+				}
+				std::tuple<size_t, size_t, iterator, size_t>
+					get_visual_line_and_column_and_softbreak_before_or_at_char(size_t c) const {
+					size_t nc = c;
+					auto hard = _reg->get_line_and_column_of_char(c);
+					_get_softbreaks_before selector;
+					auto it = _t.find_custom(selector, nc);
+					return {
+						std::get<1>(hard) + selector.num_softbreaks,
+						std::min(nc, std::get<2>(hard)), it, c - nc
+					};
 				}
 
 				iterator begin() const {
@@ -97,11 +108,11 @@ namespace codepad {
 					_t.clear();
 				}
 				// assumes that poss is sorted
-				void set_softbreaks(const std::vector<caret_position> &poss) {
+				void set_softbreaks(const std::vector<size_t> &poss) {
 					std::vector<node_data> vs;
 					vs.reserve(poss.size());
 					size_t last = 0; // no reason to insert softbreak at position 0
-					for (caret_position cp : poss) {
+					for (size_t cp : poss) {
 						assert_true_usage(cp > last, "softbreak list not properly sorted");
 						vs.push_back(cp - last);
 						last = cp;
@@ -129,10 +140,12 @@ namespace codepad {
 				tree_type _t;
 				const linebreak_registry *_reg = nullptr;
 
+				// caller needs to ensure that softc == hardc == 0
 				void _find_line_ending(
 					const node_type *&softit, const linebreak_registry::node_type *&hardit,
 					size_t &softc, size_t &hardc, size_t line
-				) const { // caller needs to ensure that softc == hardc == 0
+				) const {
+					assert_true_logical(softc == 0 && hardc == 0, "inresponsible caller");
 					size_t cursc = 0, softl = 0;
 					linebreak_registry::iterator hres;
 					linebreak_registry::_line_beg_char_accum_finder finder;
@@ -365,12 +378,12 @@ namespace codepad {
 					}
 					return finder.total_unfolded + line;
 				}
-				size_t folded_to_unfolded_caret_pos(caret_position pos) const {
+				size_t folded_to_unfolded_caret_pos(size_t pos) const {
 					_folded_to_unfolded_pos finder;
 					_t.find_custom(finder, pos);
 					return finder.total + pos;
 				}
-				size_t unfolded_to_folded_caret_pos(caret_position pos) const {
+				size_t unfolded_to_folded_caret_pos(size_t pos) const {
 					_unfolded_to_folded_pos finder;
 					auto it = _t.find_custom(finder, pos);
 					if (it != _t.end()) {
@@ -387,7 +400,7 @@ namespace codepad {
 				}
 
 				// iterator to region, chars before (not incl.) the gap, lines before (not incl.) the gap
-				std::tuple<iterator, size_t, size_t> find_region_containing_open(caret_position cp) const {
+				std::tuple<iterator, size_t, size_t> find_region_containing_open(size_t cp) const {
 					_find_region_open finder;
 					auto it = _t.find_custom(finder, cp);
 					if (it != _t.end() && cp > it->gap) {
@@ -395,7 +408,7 @@ namespace codepad {
 					}
 					return {_t.end(), 0, 0};
 				}
-				std::tuple<iterator, size_t, size_t> find_region_containing_closed(caret_position cp) const {
+				std::tuple<iterator, size_t, size_t> find_region_containing_closed(size_t cp) const {
 					_find_region_closed finder;
 					auto it = _t.find_custom(finder, cp);
 					if (it != _t.end() && cp >= it->gap) {
@@ -403,12 +416,12 @@ namespace codepad {
 					}
 					return {_t.end(), 0, 0};
 				}
-				std::tuple<iterator, size_t, size_t> find_region_containing_or_first_after_open(caret_position cp) const {
+				std::tuple<iterator, size_t, size_t> find_region_containing_or_first_after_open(size_t cp) const {
 					_find_region_open finder;
 					auto it = _t.find_custom(finder, cp);
 					return {it, finder.total_chars, finder.total_lines};
 				}
-				std::tuple<iterator, size_t, size_t> find_region_containing_or_first_before_open(caret_position cp) const {
+				std::tuple<iterator, size_t, size_t> find_region_containing_or_first_before_open(size_t cp) const {
 					_find_region_closed finder;
 					auto it = _t.find_custom(finder, cp);
 					if (it == _t.end() || cp <= it->gap) {
@@ -421,12 +434,12 @@ namespace codepad {
 					}
 					return {it, finder.total_chars, finder.total_lines};
 				}
-				std::tuple<iterator, size_t, size_t> find_region_containing_or_first_after_closed(caret_position cp) const {
+				std::tuple<iterator, size_t, size_t> find_region_containing_or_first_after_closed(size_t cp) const {
 					_find_region_closed finder;
 					auto it = _t.find_custom(finder, cp);
 					return {it, finder.total_chars, finder.total_lines};
 				}
-				std::tuple<iterator, size_t, size_t> find_region_containing_or_first_before_closed(caret_position cp) const {
+				std::tuple<iterator, size_t, size_t> find_region_containing_or_first_before_closed(size_t cp) const {
 					_find_region_open finder;
 					auto it = _t.find_custom(finder, cp);
 					if (it == _t.end() || cp < it->gap) {
@@ -457,7 +470,7 @@ namespace codepad {
 						mod->gap += std::get<1>(end) - fr.end;
 						mod->gap_lines += std::get<2>(end) - fr.end_line;
 					}
-					_t.erase(std::get<0>(beg), endit); // TODO maybe cache the regions
+					_t.erase(std::get<0>(beg), endit); // TODO maybe save the regions
 					return _t.insert_node_before(
 						endit,
 						fr.begin - std::get<1>(beg), fr.end - fr.begin,
@@ -545,7 +558,7 @@ namespace codepad {
 
 			class view_formatting {
 			public:
-				using fold_region = std::pair<caret_position, caret_position>;
+				using fold_region = std::pair<size_t, size_t>;
 
 				view_formatting() = default;
 				view_formatting(const linebreak_registry &reg) : _lbr(reg) {

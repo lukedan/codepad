@@ -191,16 +191,13 @@ int main() {
 	cp2->add_component_right(*element::create<code::minimap>());
 
 	auto ctx = std::make_shared<code::text_context>();
-	ctx->load_from_file(CP_STRLIT("hugetext.txt"));
-	//ctx->load_from_file(CP_STRLIT("mix.txt"));
-	//ctx->load_from_file(CP_STRLIT("longline.txt"));
-	//ctx->load_from_file(CP_STRLIT("editors/code/editor.h"));
+	//ctx->load_from_file(CP_STRLIT("test_text/hugetext.txt"));
+	//ctx->load_from_file(CP_STRLIT("test_text/mix.txt"));
+	//ctx->load_from_file(CP_STRLIT("test_text/longline.txt"));
+	ctx->load_from_file(CP_STRLIT("editors/code/editor.h"));
 	ctx->auto_set_default_line_ending();
 	cp1->get_editor()->set_context(ctx);
 	cp2->get_editor()->set_context(ctx);
-	//while (true) {
-	//	cp1->get_editor()->test_full_layout();
-	//}
 
 	std::function<void(async_task_pool::async_task&)> f;
 	f = [&f, ctx](async_task_pool::async_task &tsk) { // just for demonstration purposes

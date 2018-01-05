@@ -198,10 +198,10 @@ namespace codepad {
 						if (!form->is_mouse_over()) {
 							return DefWindowProc(hwnd, msg, wparam, lparam);
 						}
-						ui::cursor c = form->get_current_display_cursor();
-						if (c == ui::cursor::not_specified) {
+						cursor c = form->get_current_display_cursor();
+						if (c == cursor::not_specified) {
 							return DefWindowProc(hwnd, msg, wparam, lparam);
-						} else if (c == ui::cursor::invisible) {
+						} else if (c == cursor::invisible) {
 							SetCursor(nullptr);
 						} else {
 							HANDLE img = LoadImage(

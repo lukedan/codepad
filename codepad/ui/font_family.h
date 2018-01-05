@@ -5,7 +5,7 @@
 
 #include "../utilities/encodings.h"
 #include "../utilities/misc.h"
-#include "../os/current.h"
+#include "../os/current/font.h"
 
 namespace codepad {
 	namespace ui {

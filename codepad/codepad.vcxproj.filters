@@ -129,6 +129,24 @@
     <ClInclude Include="utilities\encodings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="os\current\font.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\current\filesystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\current\window.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\current\renderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\current\misc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\current\all.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -138,6 +156,21 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="os\windows\windows.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editors\code\editor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\element.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editors\code\codebox.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\panel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "codebox.h"
+#include "../../os/current/filesystem.h"
 #include "buffer.h"
 
 namespace codepad {
@@ -9,15 +9,14 @@ namespace codepad {
 			class view_formatting;
 			class editor;
 
-			using caret_position = size_t;
-			using caret_position_diff = std::conditional_t<sizeof(size_t) == 4, int, long long>;
-			using caret_selection = std::pair<caret_position, caret_position>;
+			using caret_selection = std::pair<size_t, size_t>;
 
 			struct caret_data {
 				caret_data() = default;
-				explicit caret_data(double align) : alignment(align) {
+				caret_data(double align, bool sbnext) : alignment(align), softbreak_next_line(sbnext) {
 				}
 				double alignment = 0.0;
+				bool softbreak_next_line = true;
 			};
 			struct caret_set {
 				using container = std::map<caret_selection, caret_data>;
@@ -36,7 +35,7 @@ namespace codepad {
 
 				void reset() {
 					carets.clear();
-					carets.insert(entry(caret_selection(caret_position(), caret_position()), caret_data(0.0)));
+					carets.insert(entry(caret_selection(0, 0), caret_data()));
 				}
 
 				inline static container::iterator add_caret(container &mp, entry c) {
@@ -65,9 +64,7 @@ namespace codepad {
 					return mp.insert(c).first;
 				}
 				inline static bool can_merge_selection(
-					caret_position mm, caret_position ms,
-					caret_position sm, caret_position ss,
-					caret_position &rm, caret_position &rs
+					size_t mm, size_t ms, size_t sm, size_t ss, size_t &rm, size_t &rs
 				) {
 					auto p1mmv = std::minmax(mm, ms), p2mmv = std::minmax(sm, ss);
 					if (mm == ms && mm >= p2mmv.first && mm <= p2mmv.second) {
@@ -83,7 +80,7 @@ namespace codepad {
 					if (p1mmv.second <= p2mmv.first || p1mmv.first >= p2mmv.second) {
 						return false;
 					}
-					caret_position gmin = std::min(p1mmv.first, p2mmv.first), gmax = std::max(p1mmv.second, p2mmv.second);
+					size_t gmin = std::min(p1mmv.first, p2mmv.first), gmax = std::max(p1mmv.second, p2mmv.second);
 					assert_true_logical(!((mm == gmin && sm == gmax) || (mm == gmax && sm == gmin)), "caret layout shouldn't occur");
 					if (mm < ms) {
 						rm = gmin;
@@ -114,8 +111,7 @@ namespace codepad {
 					caret_front_before = false, selected_before = false,
 					caret_front_after = false, selected_after = false;
 				string_buffer::string_type removed_content, added_content;
-				caret_position_diff removed_range{}, added_range{};
-				caret_position position{}; // position after previous modifications
+				size_t removed_range = 0, added_range = 0, position = 0; // position after previous modifications
 			};
 			using edit = std::vector<modification>;
 
@@ -124,26 +120,27 @@ namespace codepad {
 				explicit modification_positions(const modification &mod) :
 					removed_range(mod.removed_range), added_range(mod.added_range), position(mod.position) {
 				}
-				modification_positions(caret_position p, caret_position_diff rem, caret_position_diff add) :
+				modification_positions(size_t p, size_t rem, size_t add) :
 					removed_range(rem), added_range(add), position(p) {
 				}
 
-				caret_position_diff removed_range{}, added_range{};
-				caret_position position{};
+				size_t removed_range = 0, added_range = 0, position = 0;
 			};
 			struct caret_fixup_info {
 			public:
 				struct context {
+					friend struct caret_fixup_info;
+				public:
 					context() = default;
-					explicit context(const caret_fixup_info &src) : next(src.mods.begin()) {
+					explicit context(const caret_fixup_info &src) : _next(src.mods.begin()) {
 					}
 
 					void append_custom_modification(modification_positions mpos) {
-						diff += mpos.added_range - mpos.removed_range;
+						_diff += mpos.added_range - mpos.removed_range;
 					}
-
-					std::vector<modification_positions>::const_iterator next;
-					caret_position_diff diff{};
+				protected:
+					std::vector<modification_positions>::const_iterator _next;
+					size_t _diff = 0; // the value may overflow, however the result will be correct
 				};
 				struct incremental_context {
 					incremental_context() = default;
@@ -151,7 +148,7 @@ namespace codepad {
 					}
 
 					context base_context;
-					caret_position current_position{};
+					size_t current_position{};
 				};
 
 				caret_fixup_info() = default;
@@ -162,62 +159,62 @@ namespace codepad {
 					}
 				}
 
-				caret_position fixup_caret_min(caret_position cp, context &ctx) const {
+				size_t fixup_caret_min(size_t cp, context &ctx) const {
 					cp = fixup_caret<true>(cp, ctx);
-					if (ctx.next != mods.end() && ctx.next->position <= cp) {
-						cp = ctx.next->position;
+					if (ctx._next != mods.end() && ctx._next->position <= cp) {
+						cp = ctx._next->position;
 					}
 					return cp;
 				}
-				caret_position fixup_caret_max(caret_position cp, context &ctx) const {
+				size_t fixup_caret_max(size_t cp, context &ctx) const {
 					cp = fixup_caret<true>(cp, ctx);
-					if (ctx.next != mods.end() && ctx.next->position <= cp) {
-						cp = ctx.next->position + ctx.next->added_range;
+					if (ctx._next != mods.end() && ctx._next->position <= cp) {
+						cp = ctx._next->position + ctx._next->added_range;
 					}
 					return cp;
 				}
-				template <bool Closed> caret_position fixup_caret(caret_position cp, context &ctx) const {
-					std::conditional_t<Closed, std::less_equal<caret_position>, std::less<caret_position>> cmp;
+				template <bool Closed> size_t fixup_caret(size_t cp, context &ctx) const {
+					std::conditional_t<Closed, std::less_equal<size_t>, std::less<size_t>> cmp;
 					for (
 						cp = fixup_caret_custom_context(cp, ctx);
-						ctx.next != mods.end() && cmp(ctx.next->position, cp);
-						++ctx.next
+						ctx._next != mods.end() && cmp(ctx._next->position, cp);
+						++ctx._next
 						) {
-						if (cmp(cp, ctx.next->position + ctx.next->removed_range)) {
-							return std::min(cp, ctx.next->position + ctx.next->added_range);
+						if (cmp(cp, ctx._next->position + ctx._next->removed_range)) {
+							return std::min(cp, ctx._next->position + ctx._next->added_range);
 						}
-						cp = fixup_caret_with_mod(cp, *ctx.next);
-						ctx.append_custom_modification(*ctx.next);
+						cp = fixup_caret_with_mod(cp, *ctx._next);
+						ctx.append_custom_modification(*ctx._next);
 					}
 					return cp;
 				}
-				inline static caret_position fixup_caret_custom_context(caret_position cp, const context &ctx) {
-					return _fix_raw(cp, ctx.diff);
+				inline static size_t fixup_caret_custom_context(size_t cp, const context &ctx) {
+					return _fix_raw(cp, ctx._diff);
 				}
-				inline static caret_position fixup_caret_with_mod(caret_position cp, const modification_positions &mod) {
+				inline static size_t fixup_caret_with_mod(size_t cp, const modification_positions &mod) {
 					return _fix_raw(cp, mod.added_range - mod.removed_range);
 				}
 
-				caret_position_diff fixup_offset_min(caret_position_diff diff, incremental_context &ctx) const {
+				size_t fixup_offset_min(size_t diff, incremental_context &ctx) const {
 					return _fix_diff<&caret_fixup_info::fixup_caret_min>(diff, ctx);
 				}
-				caret_position_diff fixup_offset_max(caret_position_diff diff, incremental_context &ctx) const {
+				size_t fixup_offset_max(size_t diff, incremental_context &ctx) const {
 					return _fix_diff<&caret_fixup_info::fixup_caret_max>(diff, ctx);
 				}
-				template <bool Closed> caret_position_diff fixup_offset(caret_position_diff diff, incremental_context &ctx) const {
+				template <bool Closed> size_t fixup_offset(size_t diff, incremental_context &ctx) const {
 					return _fix_diff<&caret_fixup_info::fixup_caret<Closed>>(diff, ctx);
 				}
 
 				std::vector<modification_positions> mods;
 			protected:
-				inline static caret_position _fix_raw(caret_position cp, caret_position_diff diff) {
+				inline static size_t _fix_raw(size_t cp, size_t diff) {
 					return cp + diff;
 				}
 
-				template <caret_position(caret_fixup_info::*FixPos)(caret_position, context&) const> caret_position_diff _fix_diff(
-					caret_position_diff diff, incremental_context &ctx
+				template <size_t(caret_fixup_info::*FixPos)(size_t, context&) const> size_t _fix_diff(
+					size_t diff, incremental_context &ctx
 				) const {
-					caret_position oldpos = ctx.current_position;
+					size_t oldpos = ctx.current_position;
 					ctx.current_position += diff;
 					return (this->*FixPos)(ctx.current_position, ctx.base_context) - oldpos;
 				}
@@ -236,20 +233,20 @@ namespace codepad {
 			};
 			template <typename T> class text_theme_parameter_info {
 			public:
-				using iterator = typename std::map<caret_position, T>::iterator;
-				using const_iterator = typename std::map<caret_position, T>::const_iterator;
+				using iterator = typename std::map<size_t, T>::iterator;
+				using const_iterator = typename std::map<size_t, T>::const_iterator;
 
 				text_theme_parameter_info() : text_theme_parameter_info(T()) {
 				}
 				explicit text_theme_parameter_info(T def) {
-					_changes.emplace(std::make_pair(caret_position(), std::move(def)));
+					_changes.emplace(std::make_pair(0, std::move(def)));
 				}
 
 				void clear(T def) {
 					_changes.clear();
-					_changes[caret_position()] = def;
+					_changes[0] = def;
 				}
-				void set_range(caret_position s, caret_position pe, T c) {
+				void set_range(size_t s, size_t pe, T c) {
 					assert_true_usage(s < pe, "invalid range");
 					auto beg = _at(s), end = _at(pe);
 					T begv = beg->second, endv = end->second;
@@ -261,7 +258,7 @@ namespace codepad {
 						_changes[pe] = endv;
 					}
 				}
-				T get_at(caret_position cp) const {
+				T get_at(size_t cp) const {
 					return _at(cp)->second;
 				}
 
@@ -271,7 +268,7 @@ namespace codepad {
 				iterator end() {
 					return _changes.end();
 				}
-				iterator get_iter_at(caret_position cp) {
+				iterator get_iter_at(size_t cp) {
 					return _at(cp);
 				}
 				const_iterator begin() const {
@@ -280,7 +277,7 @@ namespace codepad {
 				const_iterator end() const {
 					return _changes.end();
 				}
-				const_iterator get_iter_at(caret_position cp) const {
+				const_iterator get_iter_at(size_t cp) const {
 					return _at(cp);
 				}
 
@@ -288,12 +285,12 @@ namespace codepad {
 					return _changes.size();
 				}
 			protected:
-				std::map<caret_position, T> _changes;
+				std::map<size_t, T> _changes;
 
-				iterator _at(caret_position cp) {
+				iterator _at(size_t cp) {
 					return --_changes.upper_bound(cp);
 				}
-				const_iterator _at(caret_position cp) const {
+				const_iterator _at(size_t cp) const {
 					return --_changes.upper_bound(cp);
 				}
 			};
@@ -307,11 +304,11 @@ namespace codepad {
 					text_theme_parameter_info<colord>::const_iterator color_iterator;
 				};
 
-				void set_range(caret_position s, caret_position pe, text_theme_specification tc) {
+				void set_range(size_t s, size_t pe, text_theme_specification tc) {
 					color.set_range(s, pe, tc.color);
 					style.set_range(s, pe, tc.style);
 				}
-				text_theme_specification get_at(caret_position p) const {
+				text_theme_specification get_at(size_t p) const {
 					return text_theme_specification(style.get_at(p), color.get_at(p));
 				}
 				void clear(text_theme_specification def) {
@@ -319,7 +316,7 @@ namespace codepad {
 					color.clear(def.color);
 				}
 
-				char_iterator get_iter_at(caret_position p) const {
+				char_iterator get_iter_at(size_t p) const {
 					char_iterator rv;
 					rv.style_iterator = style.get_iter_at(p);
 					rv.color_iterator = color.get_iter_at(p);
@@ -332,7 +329,7 @@ namespace codepad {
 				}
 			protected:
 				template <typename T> inline static void _incr_iter_elem(
-					caret_position cp,
+					size_t cp,
 					typename text_theme_parameter_info<T>::const_iterator &it,
 					const text_theme_parameter_info<T> &fullset,
 					T &fval
@@ -343,7 +340,7 @@ namespace codepad {
 					}
 				}
 			public:
-				void incr_iter(char_iterator &cv, caret_position cp) const {
+				void incr_iter(char_iterator &cv, size_t cp) const {
 					_incr_iter_elem(cp, cv.color_iterator, color, cv.current_theme.color);
 					_incr_iter_elem(cp, cv.style_iterator, style, cv.current_theme.style);
 				}
@@ -399,6 +396,9 @@ namespace codepad {
 					// EOF is also treated as a linebreak
 					bool is_linebreak() const {
 						return _lbit == _lbit.get_container()->end() || _col == _lbit->nonbreak_chars;
+					}
+					line_ending current_linebreak() const {
+						return _lbit->ending;
 					}
 					bool is_end() const {
 						return _cit.is_end();
@@ -479,7 +479,7 @@ namespace codepad {
 					return _tab_w;
 				}
 
-				iterator at_char(caret_position pos) const {
+				iterator at_char(size_t pos) const {
 					auto pr = _lbr.get_line_and_column_and_codepoint_of_char(pos);
 					return iterator(_str.at_codepoint_iterator(std::get<3>(pr)), std::get<0>(pr), std::get<2>(pr));
 				}
@@ -491,7 +491,7 @@ namespace codepad {
 					return _lbr.num_chars();
 				}
 
-				string_buffer::string_type substring(caret_position beg, caret_position end) const {
+				string_buffer::string_type substring(size_t beg, size_t end) const {
 					return _str.substring(
 						_str.at_codepoint_iterator(_lbr.position_char_to_codepoint(beg)),
 						_str.at_codepoint_iterator(_lbr.position_char_to_codepoint(end))
@@ -499,13 +499,13 @@ namespace codepad {
 				}
 
 				// modification made by these functions will neither invoke modified nor be recorded
-				template <typename Iter> caret_position_diff insert_text(caret_position cp, Iter beg, Iter end) {
+				template <typename Iter> size_t insert_text(size_t cp, Iter beg, Iter end) {
 					codepoint_iterator_base<Iter> it(beg, end);
 					auto pos = _lbr.get_line_and_column_and_codepoint_of_char(cp);
 					char32_t last = '\0';
 					std::vector<linebreak_registry::line_info> lines;
 					linebreak_registry::line_info curl;
-					caret_position_diff totchars = 0;
+					size_t totchars = 0;
 					_str.insert(_str.at_codepoint_iterator(std::get<3>(pos)), [&](char32_t &c) {
 						if (it.at_end()) {
 							return false;
@@ -539,11 +539,11 @@ namespace codepad {
 					_lbr.insert_chars(std::get<0>(pos), std::get<2>(pos), std::move(lines));
 					return totchars;
 				}
-				caret_position_diff insert_text(caret_position cp, const string_buffer::string_type &str) {
+				size_t insert_text(size_t cp, const string_buffer::string_type &str) {
 					return insert_text(cp, str.begin(), str.end());
 				}
 
-				void delete_text(caret_position p1, caret_position p2) {
+				void delete_text(size_t p1, size_t p2) {
 					auto
 						p1i = _lbr.get_line_and_column_and_codepoint_of_char(p1),
 						p2i = _lbr.get_line_and_column_and_codepoint_of_char(p2);
@@ -650,7 +650,7 @@ namespace codepad {
 					_append_caret(get_caret_selection_after(mod));
 				}
 				void undo_modification(const modification &mod) {
-					caret_position
+					size_t
 						pos = fixup_caret_position(mod.position),
 						addend = fixup_caret_position(mod.position + mod.added_range),
 						delend = fixup_caret_position(mod.position + mod.removed_range);
@@ -668,7 +668,7 @@ namespace codepad {
 					return get_caret_selection(mod.position, mod.added_range, mod.selected_after, mod.caret_front_after);
 				}
 				inline static caret_selection get_caret_selection(
-					caret_position pos, caret_position_diff diff, bool selected, bool caretfront
+					size_t pos, size_t diff, bool selected, bool caretfront
 				) {
 					caret_selection res = std::make_pair(pos, pos + diff);
 					if (!caretfront) {
@@ -680,11 +680,11 @@ namespace codepad {
 					return res;
 				}
 
-				caret_position fixup_caret_position(caret_position c) const {
+				size_t fixup_caret_position(size_t c) const {
 					return caret_fixup_info::fixup_caret_custom_context(c, _cfctx);
 				}
 				void fixup_caret_position(modification &m) const {
-					caret_position rmend = fixup_caret_position(m.position + m.removed_range);
+					size_t rmend = fixup_caret_position(m.position + m.removed_range);
 					m.position = fixup_caret_position(m.position);
 					m.removed_range = rmend - m.position;
 				}
@@ -770,7 +770,7 @@ namespace codepad {
 					_cfctx.append_custom_modification(mp);
 				}
 				void _append_caret(caret_selection sel) {
-					_newcarets.add(caret_set::entry(sel, caret_data(0.0)));
+					_newcarets.add(caret_set::entry(sel, caret_data()));
 				}
 			};
 

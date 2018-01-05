@@ -48,19 +48,7 @@ namespace codepad {
 			void schedule_update(element &e) {
 				_upd.insert(&e);
 			}
-			void update_scheduled_elements() {
-				monitor_performance mon(CP_HERE);
-				auto nnow = std::chrono::high_resolution_clock::now();
-				_upd_dt = std::chrono::duration<double>(nnow - _now).count();
-				_now = nnow;
-				if (!_upd.empty()) {
-					std::set<element*> list;
-					std::swap(list, _upd);
-					for (auto i = list.begin(); i != list.end(); ++i) {
-						(*i)->_on_update();
-					}
-				}
-			}
+			void update_scheduled_elements();
 			double update_delta_time() const {
 				return _upd_dt;
 			}
@@ -69,27 +57,7 @@ namespace codepad {
 			void mark_disposal(element &e) {
 				_del.insert(&e);
 			}
-			void dispose_marked_elements() {
-				monitor_performance mon(CP_HERE);
-				while (!_del.empty()) {
-					std::set<element*> batch;
-					std::swap(batch, _del);
-					for (auto i = batch.begin(); i != batch.end(); ++i) {
-#ifdef CP_DETECT_LOGICAL_ERRORS
-						++control_dispose_rec::get().reg_disposed;
-#endif
-						(*i)->_dispose();
-						_targets.erase(*i);
-						_dirty.erase(*i);
-						_upd.erase(*i);
-						_del.erase(*i);
-#ifdef CP_DETECT_USAGE_ERRORS
-						assert_true_usage(!(*i)->_initialized, "element::_dispose() must be invoked by children classses");
-#endif
-						delete *i;
-					}
-				}
-			}
+			void dispose_marked_elements();
 
 			void update_layout_and_visual() {
 				update_invalid_layouts();
@@ -139,37 +107,5 @@ namespace codepad {
 			// focus
 			element *_focus = nullptr;
 		};
-
-		inline void element::invalidate_layout() {
-			manager::get().invalidate_layout(*this);
-		}
-		inline void element::revalidate_layout() {
-			manager::get().revalidate_layout(*this);
-		}
-		inline void element::invalidate_visual() {
-			manager::get().invalidate_visual(*this);
-		}
-		inline bool element::has_focus() const {
-			return manager::get().get_focused() == this;
-		}
-		inline void element::_on_mouse_down(mouse_button_info &p) {
-			mouse_down(p);
-			if (_can_focus) {
-				p.mark_focus_set();
-				manager::get().set_focus(this);
-			}
-			_set_visual_style_bit(visual_manager::default_states().mouse_down, true);
-		}
-		inline void element::_on_render() {
-			if (test_bit_all(_vis, visibility::render_only)) {
-				_on_prerender();
-				if (_rst.update_and_render(get_layout())) {
-					invalidate_visual();
-				}
-				_rst.render(get_layout());
-				_custom_render();
-				_on_postrender();
-			}
-		}
 	}
 }

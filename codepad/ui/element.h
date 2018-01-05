@@ -58,11 +58,8 @@ namespace codepad {
 			}
 			const str_t content;
 		};
-
-		class panel_base;
 		class element;
 		using element_hotkey_group = hotkey_group<void(element*)>;
-		class manager;
 #ifdef CP_DETECT_LOGICAL_ERRORS
 		struct control_dispose_rec {
 			~control_dispose_rec() {
@@ -203,17 +200,17 @@ namespace codepad {
 				return test_bit_all(_vis, visibility::interaction_only) && _layout.contains(p);
 			}
 
-			virtual cursor get_default_cursor() const {
-				return cursor::normal;
+			virtual os::cursor get_default_cursor() const {
+				return os::cursor::normal;
 			}
-			virtual void set_overriden_cursor(cursor c) {
+			virtual void set_overriden_cursor(os::cursor c) {
 				_crsr = c;
 			}
-			virtual cursor get_overriden_cursor() const {
+			virtual os::cursor get_overriden_cursor() const {
 				return _crsr;
 			}
-			virtual cursor get_current_display_cursor() const {
-				if (_crsr == cursor::not_specified) {
+			virtual os::cursor get_current_display_cursor() const {
+				if (_crsr == os::cursor::not_specified) {
 					return get_default_cursor();
 				}
 				return _crsr;
@@ -319,7 +316,7 @@ namespace codepad {
 			int _zindex = 0;
 			// input
 			bool _can_focus = true;
-			cursor _crsr = cursor::not_specified;
+			os::cursor _crsr = os::cursor::not_specified;
 			const element_hotkey_group *_hotkey_gp = nullptr;
 			// visual info
 			visual::render_state _rst;

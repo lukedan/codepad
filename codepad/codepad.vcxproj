@@ -272,6 +272,12 @@
     <ClInclude Include="editors\docking.h" />
     <ClInclude Include="editors\code\context.h" />
     <ClInclude Include="os\current.h" />
+    <ClInclude Include="os\current\all.h" />
+    <ClInclude Include="os\current\filesystem.h" />
+    <ClInclude Include="os\current\font.h" />
+    <ClInclude Include="os\current\misc.h" />
+    <ClInclude Include="os\current\renderer.h" />
+    <ClInclude Include="os\current\window.h" />
     <ClInclude Include="os\font.h" />
     <ClInclude Include="os\misc.h" />
     <ClInclude Include="os\filesystem.h" />
@@ -304,8 +310,13 @@
     <ClInclude Include="utilities\misc.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="editors\code\codebox.cpp" />
+    <ClCompile Include="editors\code\editor.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="os\windows\windows.cpp" />
+    <ClCompile Include="ui\element.cpp" />
+    <ClCompile Include="ui\manager.cpp" />
+    <ClCompile Include="ui\panel.cpp" />
     <ClCompile Include="utilities\globals.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
