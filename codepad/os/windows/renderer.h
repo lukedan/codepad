@@ -2,11 +2,11 @@
 
 #include <cstring>
 
+#include "misc.h"
 #include <gl/GL.h>
 #include <gl/glext.h>
 
 #include "../../ui/element.h"
-#include "misc.h"
 #include "window.h"
 
 namespace codepad {

@@ -38,7 +38,7 @@
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{445597FE-EDD4-476C-A24A-18D97E6B6BDF}</ProjectGuid>
     <RootNamespace>codepad</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -132,10 +132,12 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -144,11 +146,12 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -159,13 +162,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -177,14 +181,15 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -196,13 +201,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -215,13 +221,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -233,14 +240,15 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -252,13 +260,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PreprocessorDefinitions>CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -271,6 +280,8 @@
     <ClInclude Include="editors\code\view.h" />
     <ClInclude Include="editors\docking.h" />
     <ClInclude Include="editors\code\context.h" />
+    <ClInclude Include="ui\element_classes.h" />
+    <ClInclude Include="ui\native_commands.h" />
     <ClInclude Include="os\current.h" />
     <ClInclude Include="os\current\all.h" />
     <ClInclude Include="os\current\filesystem.h" />
@@ -290,12 +301,12 @@
     <ClInclude Include="os\windows\window.h" />
     <ClInclude Include="ui\commonelements.h" />
     <ClInclude Include="ui\draw.h" />
-    <ClInclude Include="ui\theme_providers.h" />
+    <ClInclude Include="ui\visual.h" />
     <ClInclude Include="ui\manager.h" />
     <ClInclude Include="ui\panel.h" />
     <ClInclude Include="ui\textrenderer.h" />
     <ClInclude Include="ui\font_family.h" />
-    <ClInclude Include="ui\window_hotkey_manager.h" />
+    <ClInclude Include="ui\commands.h" />
     <ClInclude Include="utilities\bst.h" />
     <ClInclude Include="utilities\globals.h" />
     <ClInclude Include="utilities\hash_set.h" />
@@ -311,12 +322,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="editors\code\codebox.cpp" />
+    <ClCompile Include="editors\code\context.cpp" />
     <ClCompile Include="editors\code\editor.cpp" />
+    <ClCompile Include="editors\docking.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="os\windows\windows.cpp" />
     <ClCompile Include="ui\element.cpp" />
     <ClCompile Include="ui\manager.cpp" />
+    <ClCompile Include="ui\native_commands.cpp" />
     <ClCompile Include="ui\panel.cpp" />
+    <ClCompile Include="ui\visual.cpp" />
     <ClCompile Include="utilities\globals.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

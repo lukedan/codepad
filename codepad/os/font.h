@@ -2,6 +2,7 @@
 
 #include <map>
 #include <unordered_map>
+#include <variant>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -131,30 +132,16 @@ namespace codepad {
 			struct _entry_table {
 				constexpr static size_t fast_size = 128;
 
-				struct entry_rec {
-					entry_rec() {
-					}
-					~entry_rec() {
-						if (valid) {
-							value.~entry();
-						}
-					}
-
-					union {
-						entry value;
-					};
-					bool valid = false;
-				};
+				using entry_rec = std::variant<std::monostate, entry>;
 
 				entry &get(char32_t v, bool &valid) {
 					if (v < fast_size) {
 						entry_rec &er = small_cache[v];
-						valid = er.valid;
-						if (!er.valid) {
-							new (&er.value) entry();
-							er.valid = true;
+						valid = (er.index() == 1);
+						if (!valid) {
+							er.emplace<1>();
 						}
-						return er.value;
+						return std::get<entry>(er);
 					}
 					auto found = _map.find(v);
 					valid = found != _map.end();
@@ -295,8 +282,8 @@ namespace codepad {
 		public:
 			backed_up_font(const str_t &str, double sz, font_style style) :
 				_prim(str, sz, style), _bkup(U"", sz, style) {
-				static_assert(std::is_base_of<font, Primary>::value, "Primary must be a font type");
-				static_assert(std::is_base_of<font, Backup>::value, "Backup must be a font type");
+				static_assert(std::is_base_of_v<font, Primary>, "Primary must be a font type");
+				static_assert(std::is_base_of_v<font, Backup>, "Backup must be a font type");
 			}
 
 			virtual bool has_valid_char_entry(char32_t c) const override {

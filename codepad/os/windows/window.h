@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../renderer.h"
 #include <cstring>
 
 #include "../window.h"
@@ -19,6 +20,8 @@ namespace codepad {
 			friend class opengl_renderer;
 			friend class ui::element;
 		public:
+			using native_handle_t = HWND;
+
 			void set_caption(const str_t &cap) override {
 				auto u16str = convert_to_utf16(cap);
 				winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
@@ -122,6 +125,10 @@ namespace codepad {
 				winapi_check(ReleaseCapture());
 			}
 
+			native_handle_t get_native_handle() const {
+				return _hwnd;
+			}
+
 			inline static str_t get_default_class() {
 				return CP_STRLIT("window");
 			}
@@ -194,13 +201,13 @@ namespace codepad {
 				ui::manager::get().schedule_update(*this);
 			}
 			void _on_prerender() override {
-				ShowWindow(_hwnd, SW_SHOW);
 				window_base::_on_prerender();
 			}
 
 			void _initialize() override {
 				window_base::_initialize();
 				SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+				ShowWindow(_hwnd, SW_SHOW);
 				ui::manager::get().schedule_update(*this);
 			}
 			void _dispose() override {

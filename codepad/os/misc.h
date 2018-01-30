@@ -4,6 +4,8 @@
 
 namespace codepad {
 	namespace os {
+		class window_base;
+
 		enum class cursor {
 			normal,
 			busy,
@@ -23,7 +25,9 @@ namespace codepad {
 		};
 
 		namespace input {
-			enum class mouse_button { left, middle, right };
+			enum class mouse_button {
+				left, middle, right
+			};
 			enum class key {
 				cancel,
 				xbutton_1, xbutton_2,
@@ -72,5 +76,7 @@ namespace codepad {
 			vec2i get_mouse_position();
 			void set_mouse_position(vec2i);
 		}
+
+		std::vector<std::filesystem::path> open_file_dialog(const window_base*);
 	}
 }

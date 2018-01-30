@@ -1,6 +1,10 @@
-#define OEMRESOURCE
+#include <ShObjIdl.h>
+#include <Shlwapi.h>
+
 #include "../windows.h"
 #include "../../utilities/globals.h"
+
+using namespace std;
 
 namespace codepad {
 	namespace os {
@@ -82,7 +86,7 @@ namespace codepad {
 		template <typename Inf, typename ...Args> inline void _form_onevent(
 			window &w, void (window::*handle)(Inf&), Args &&...args
 		) {
-			Inf inf(std::forward<Args>(args)...);
+			Inf inf(forward<Args>(args)...);
 			(w.*handle)(inf);
 		}
 
@@ -218,10 +222,11 @@ namespace codepad {
 			return DefWindowProc(hwnd, msg, wparam, lparam);
 		}
 
+
 		window::_wndclass window::_class;
 		window::_wndclass::_wndclass() {
 			WNDCLASSEX wcex;
-			std::memset(&wcex, 0, sizeof(wcex));
+			memset(&wcex, 0, sizeof(wcex));
 			wcex.style = CS_OWNDC;
 			wcex.hInstance = GetModuleHandle(nullptr);
 			winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
@@ -230,6 +235,7 @@ namespace codepad {
 			wcex.lpszClassName = L"Codepad";
 			winapi_check(atom = RegisterClassEx(&wcex));
 		}
+
 
 		bool window::_idle() {
 			MSG msg;
@@ -245,5 +251,204 @@ namespace codepad {
 			}
 			return false;
 		}
+
+
+#define CP_USE_LEGACY_OPEN_FILE_DIALOG // new open file dialog doesn't work right now
+
+#ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
+		vector<filesystem::path> open_file_dialog(const window_base *parent) {
+#	ifdef CP_DETECT_LOGICAL_ERRORS
+			const window *wnd = dynamic_cast<const window*>(parent);
+			assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
+#	else
+			const window *wnd = static_cast<const window*>(parent);
+#	endif
+			OPENFILENAME ofn;
+			TCHAR file[260];
+
+			memset(&ofn, 0, sizeof(ofn));
+			ofn.lStructSize = sizeof(ofn);
+			ofn.hwndOwner = wnd ? wnd->get_native_handle() : nullptr;
+			ofn.lpstrFile = file;
+			ofn.lpstrFile[0] = '\0';
+			ofn.nMaxFile = sizeof(file);
+			ofn.lpstrFilter = TEXT("All files\0*.*\0");
+			ofn.nFilterIndex = 0;
+			ofn.lpstrFileTitle = nullptr;
+			ofn.nMaxFileTitle = 0;
+			ofn.lpstrInitialDir = nullptr;
+			ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+			if (GetOpenFileName(&ofn) == TRUE) {
+				return {filesystem::path(file)};
+			}
+			return {};
+		}
+#else
+		class dialog_event_handler : public IFileDialogEvents, public IFileDialogControlEvents {
+		public:
+			// IUnknown methods
+			IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
+				static const QITAB qit[] = {
+					QITABENT(dialog_event_handler, IFileDialogEvents),
+					QITABENT(dialog_event_handler, IFileDialogControlEvents),
+				{0},
+				};
+				return QISearch(this, qit, riid, ppv);
+			}
+
+			IFACEMETHODIMP_(ULONG) AddRef() {
+				return InterlockedIncrement(&_cRef);
+			}
+
+			IFACEMETHODIMP_(ULONG) Release() {
+				long cRef = InterlockedDecrement(&_cRef);
+				if (!cRef) {
+					delete this;
+				}
+				return cRef;
+			}
+
+			// IFileDialogEvents methods
+			IFACEMETHODIMP OnFileOk(IFileDialog*) {
+				return S_OK;
+			};
+			IFACEMETHODIMP OnFolderChange(IFileDialog*) {
+				return S_OK;
+			};
+			IFACEMETHODIMP OnFolderChanging(IFileDialog*, IShellItem*) {
+				return S_OK;
+			};
+			IFACEMETHODIMP OnHelp(IFileDialog*) {
+				return S_OK;
+			};
+			IFACEMETHODIMP OnSelectionChange(IFileDialog*) {
+				return S_OK;
+			};
+			IFACEMETHODIMP OnShareViolation(IFileDialog*, IShellItem*, FDE_SHAREVIOLATION_RESPONSE*) {
+				return S_OK;
+			};
+			IFACEMETHODIMP OnTypeChange(IFileDialog*) {
+				return S_OK;
+			}
+			IFACEMETHODIMP OnOverwrite(IFileDialog*, IShellItem*, FDE_OVERWRITE_RESPONSE*) {
+				return S_OK;
+			};
+
+			// IFileDialogControlEvents methods
+			IFACEMETHODIMP OnItemSelected(IFileDialogCustomize*, DWORD, DWORD) {
+				return S_OK;
+			}
+			IFACEMETHODIMP OnButtonClicked(IFileDialogCustomize*, DWORD) {
+				return S_OK;
+			};
+			IFACEMETHODIMP OnCheckButtonToggled(IFileDialogCustomize*, DWORD, BOOL) {
+				return S_OK;
+			};
+			IFACEMETHODIMP OnControlActivating(IFileDialogCustomize*, DWORD) {
+				return S_OK;
+			};
+		private:
+			long _cRef = 1;
+		};
+		void create_dialog_event_handler(REFIID riid, void **ppv) {
+			*ppv = nullptr;
+			dialog_event_handler *pDialogEventHandler = new (std::nothrow) dialog_event_handler();
+			com_check(pDialogEventHandler->QueryInterface(riid, ppv));
+			pDialogEventHandler->Release();
+		}
+		vector<filesystem::path> open_file_dialog(const window_base *parent) {
+			const COMDLG_FILTERSPEC file_types = {L"All files", L"*.*"};
+
+#	ifdef CP_DETECT_LOGICAL_ERRORS
+			const window *wnd = dynamic_cast<const window*>(parent);
+			assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
+#	else
+			const window *wnd = static_cast<const window*>(parent);
+#	endif
+			_details::com_usage uses_com;
+			IFileOpenDialog *dialog = nullptr;
+			IFileDialogEvents *devents = nullptr;
+			DWORD cookie, options;
+			com_check(CoCreateInstance(
+				CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)
+			));
+			create_dialog_event_handler(IID_PPV_ARGS(&devents));
+			com_check(dialog->Advise(devents, &cookie));
+			com_check(dialog->GetOptions(&options));
+			com_check(dialog->SetOptions(options | FOS_FORCEFILESYSTEM));
+			com_check(dialog->SetFileTypes(1, &file_types));
+			com_check(dialog->SetFileTypeIndex(1));
+			HRESULT res = dialog->Show(wnd ? wnd->get_native_handle() : nullptr); // TODO bug here: program hangs
+			if (res == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+				return {};
+			}
+			com_check(res);
+			IShellItemArray *files = nullptr;
+			DWORD count;
+			com_check(dialog->GetResults(&files));
+			com_check(files->GetCount(&count));
+			vector<filesystem::path> result;
+			result.reserve(count);
+			for (DWORD i = 0; i < count; ++i) {
+				IShellItem *item;
+				com_check(files->GetItemAt(i, &item));
+				LPWSTR path = nullptr;
+				com_check(item->GetDisplayName(SIGDN_FILESYSPATH, &path));
+				result.push_back(filesystem::path(path));
+				CoTaskMemFree(path);
+			}
+			files->Release();
+			dialog->Unadvise(cookie);
+			devents->Release();
+			dialog->Release();
+			return result;
+		}
+#endif
 	}
+
+#if defined(CP_LOG_STACKTRACE) && defined(_MSC_VER)
+#	pragma comment(lib, "dbghelp.lib")
+#	ifdef UNICODE
+#		define DBGHELP_TRANSLATE_TCHAR
+#	endif
+#	include <DbgHelp.h>
+	void logger::log_stacktrace() {
+		constexpr static DWORD max_frames = 1000;
+		constexpr static size_t max_symbol_length = 1000;
+
+		log_custom("STACKTRACE");
+		void *frames[max_frames];
+		HANDLE proc = GetCurrentProcess();
+		unsigned char symmem[sizeof(SYMBOL_INFO) + max_symbol_length * sizeof(TCHAR)];
+		PSYMBOL_INFO syminfo = reinterpret_cast<PSYMBOL_INFO>(symmem);
+		syminfo->MaxNameLen = max_symbol_length;
+		syminfo->SizeOfStruct = sizeof(SYMBOL_INFO);
+		IMAGEHLP_LINE64 lineinfo;
+		lineinfo.SizeOfStruct = sizeof(lineinfo);
+		DWORD line_disp;
+		assert_true_sys(
+			SymInitialize(GetCurrentProcess(), nullptr, true),
+			"failed to initialize symbols"
+		);
+		WORD numframes = CaptureStackBackTrace(0, max_frames, frames, nullptr);
+		for (WORD i = 0; i < numframes; ++i) {
+			DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
+			u8str_t func = reinterpret_cast<const char8_t*>("??"), file = func;
+			string line;
+			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
+				func = convert_to_utf8(reinterpret_cast<const char16_t*>(syminfo->Name));
+			}
+			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
+				file = convert_to_utf8(reinterpret_cast<const char16_t*>(lineinfo.FileName));
+				line = to_string(lineinfo.LineNumber);
+			} else {
+				line = "??";
+			}
+			log_custom("    ", func, "(0x", frames[i], ") @", file, ":", line);
+		}
+		assert_true_sys(SymCleanup(GetCurrentProcess()), "failed to clean up symbols");
+		log_custom("STACKTRACE|END");
+	}
+#endif
 }

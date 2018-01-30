@@ -1,77 +1,49 @@
 #pragma once
 
+#include <variant>
+
 #include "misc.h"
 #include "tasks.h"
 #include "performance_monitor.h"
 #include "../os/renderer.h"
 #include "../os/current.h"
 #include "../ui/manager.h"
-#include "../ui/theme_providers.h"
+#include "../ui/visual.h"
+#include "../ui/commands.h"
+#include "../ui/element_classes.h"
 #include "../editors/docking.h"
 #include "../editors/code/editor.h"
 
 namespace codepad {
-	template <typename ...Args> struct singleton_factory; // TODO thread safety?
-	template <> struct singleton_factory<> {
+	template <typename ...Args> struct singleton_factory { // TODO thread safety
 	public:
-		virtual ~singleton_factory() {
-			for (auto i = _vars.rbegin(); i != _vars.rend(); ++i) {
-				logger::get().log_info(CP_HERE, "disposing variable: ", (*i)->get_type_name());
-				delete *i;
+		~singleton_factory() {
+			for (; !_dispose_order.empty(); _dispose_order.pop_back()) {
+				_dispose_order.back()();
 			}
+		}
+
+		template <typename T> T &get() {
+			_init_rec<T> &ir = std::get<_init_rec<T>>(_objs);
+			if (ir.pointer == nullptr) {
+				ir.pointer = new T();
+				if (!std::is_same_v<logger, T>) {
+					logger::get().log_info(CP_HERE, "initialized variable: ", demangle(typeid(T).name()));
+				}
+				_dispose_order.push_back([ptr = ir.pointer]() {
+					logger::get().log_info(CP_HERE, "disposing variable: ", demangle(typeid(T).name()));
+					delete ptr;
+				});
+			}
+			return *ir.pointer;
 		}
 	protected:
-		struct _variable_wrapper {
-			virtual ~_variable_wrapper() = default;
-
-			virtual std::string get_type_name() const = 0;
-		};
-		std::list<_variable_wrapper*> _vars;
-
-		template <typename T, typename ...Args> T &_register(Args &&...args) {
-			T *var = new T(std::forward<Args>(args)...);
-			if (!std::is_same<logger, typename T::object_type>::value) {
-				logger::get().log_info(CP_HERE,
-					"initialized variable: ",
-					demangle(typeid(typename T::object_type).name())
-				);
-			}
-			_vars.push_back(var);
-			return *var;
-		}
-	};
-	template <typename T, typename ...Others> struct singleton_factory<T, Others...> :
-		public singleton_factory<Others...> {
-	public:
-		template <typename U> U &get() {
-			return _get_impl(_helper<U>());
-		}
-	protected:
-		using _direct_base = singleton_factory<Others...>;
-		using _root_base = singleton_factory<>;
-	private:
-		template <typename U> struct _helper {
+		template <typename T> struct _init_rec {
+			T *pointer = nullptr;
 		};
 
-		T &_get_impl(_helper<T>) {
-			if (!_var) {
-				_var = &_root_base::_register<_t_wrapper>();
-			}
-			return _var->object;
-		}
-		template <typename U> U &_get_impl(_helper<U>) {
-			return _direct_base::template get<U>();
-		}
-
-		struct _t_wrapper : public _root_base::_variable_wrapper {
-			using object_type = T;
-			T object;
-
-			std::string get_type_name() const override {
-				return demangle(typeid(T).name());
-			}
-		};
-		_t_wrapper *_var = nullptr;
+		std::vector<std::function<void()>> _dispose_order;
+		std::tuple<_init_rec<Args>...> _objs;
 	};
 
 	// ordering is important
@@ -95,7 +67,7 @@ namespace codepad {
 			return std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - _epoch);
 		}
 	protected:
-		struct _cur_setter {
+		struct _cur_setter { // otherwise _cur will be set to null too early
 			explicit _cur_setter(globals &g) {
 				assert_true_logical(_cur == nullptr, "globals already initialized");
 				_cur = &g;
@@ -126,7 +98,9 @@ namespace codepad {
 			os::renderer_base::_default_renderer,
 			ui::manager,
 			ui::content_host::_default_font, // TODO remove this
-			ui::visual_manager::_registration,
+			ui::visual::_registry,
+			ui::class_manager,
+			ui::command_registry,
 			editor::dock_manager,
 			editor::code::editor::_appearance_config // TODO remove this as well
 		> _vars;
@@ -176,8 +150,14 @@ namespace codepad {
 	inline std::shared_ptr<const os::font> &ui::content_host::_get_deffnt() {
 		return globals::current().get<_default_font>().font;
 	}
-	inline ui::visual_manager::_registration &ui::visual_manager::_get_table() {
-		return globals::current().get<_registration>();
+	inline ui::visual::_registry &ui::visual::_registry::get() {
+		return globals::current().get<_registry>();
+	}
+	inline ui::class_manager &ui::class_manager::get() {
+		return globals::current().get<class_manager>();
+	}
+	inline ui::command_registry &ui::command_registry::get() {
+		return globals::current().get<command_registry>();
 	}
 	inline editor::dock_manager &editor::dock_manager::get() {
 		return globals::current().get<dock_manager>();

@@ -10,6 +10,7 @@ namespace codepad {
 				return _get_box()->get_editor();
 			}
 
+
 			void codebox::_initialize() {
 				panel_base::_initialize();
 
@@ -30,22 +31,28 @@ namespace codepad {
 				};
 				_children.add(*_editor);
 			}
+
 			void codebox::_reset_scrollbars() {
 				_vscroll->set_params(_editor->get_vertical_scroll_range(), get_layout().height());
 			}
+
 			void codebox::_on_mouse_scroll(mouse_scroll_info &p) {
 				_vscroll->set_value(_vscroll->get_value() - _editor->get_scroll_delta() * p.delta);
 				p.mark_handled();
 			}
+
 			void codebox::_on_key_down(key_info &p) {
 				_editor->_on_key_down(p);
 			}
+
 			void codebox::_on_key_up(key_info &p) {
 				_editor->_on_key_up(p);
 			}
+
 			void codebox::_on_keyboard_text(text_info &p) {
 				_editor->_on_keyboard_text(p);
 			}
+
 			void codebox::_finish_layout() {
 				rectd lo = get_client_region();
 				_child_recalc_layout(_vscroll, lo);
@@ -75,10 +82,12 @@ namespace codepad {
 				_reset_scrollbars();
 				panel_base::_finish_layout();
 			}
+
 			void codebox::_on_got_focus() {
 				panel_base::_on_got_focus();
 				_editor->_on_codebox_got_focus();
 			}
+
 			void codebox::_on_lost_focus() {
 				_editor->_on_codebox_lost_focus();
 				panel_base::_on_lost_focus();

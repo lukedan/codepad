@@ -1,6 +1,7 @@
 .vs/
 .idea/
 .vscode/
+cmake-build-debug/
 Debug/
 Release/
 x64/

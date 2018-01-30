@@ -27,6 +27,7 @@ namespace codepad {
 				}
 				_on_context_switch();
 			}
+
 			void editor::_custom_render() {
 				monitor_performance mon(CP_HERE);
 				if (get_client_region().height() < 0.0) {
@@ -53,8 +54,8 @@ namespace codepad {
 					)
 				)));
 				size_t
-					firstchar = _fmt.get_linebreaks().get_beginning_char_of_visual_line(be.first),
-					plastchar = _fmt.get_linebreaks().get_beginning_char_of_visual_line(be.second);
+					firstchar = _fmt.get_linebreaks().get_beginning_char_of_visual_line(be.first).first,
+					plastchar = _fmt.get_linebreaks().get_beginning_char_of_visual_line(be.second).first;
 				rendering_iterator<view_formatter, caret_renderer> it(
 					make_tuple(cref(_fmt), firstchar),
 					make_tuple(cref(*used), firstchar, plastchar),
@@ -94,29 +95,49 @@ namespace codepad {
 				}
 				renderer_base::get().pop_matrix();
 			}
-			vector<size_t> editor::_recalculate_wrapping(size_t beg, size_t end) const {
+
+			vector<size_t> editor::_recalculate_wrapping_region(size_t beg, size_t end) const {
 				rendering_iterator<fold_region_skipper> it(
 					make_tuple(cref(_fmt.get_folding()), beg),
-					make_tuple(cref(*this), beg, end)
+					make_tuple(cref(*this), beg, _ctx->num_chars())
 				);
 				vector<size_t> poss;
 				bool lb = true;
-				for (it.begin(); !it.ended(); it.next()) {
+				it.char_iter().switching_char += [this, &it, &lb, &poss](switch_char_info &info) {
+					if (info.is_jump) {
+						if (
+							it.char_iter().character_info().prev_char_right() + fold_region_skipper::gizmo_size >
+							_view_width && !lb
+							) {
+							poss.push_back(it.char_iter().current_position());
+						}
+						lb = false;
+					}
+				};
+				for (
+					it.begin();
+					!it.ended() && (
+						it.char_iter().current_position() <= end ||
+						!it.char_iter().is_hard_line_break()
+						);
+					it.next()
+					) {
 					if (
 						!lb && !it.char_iter().is_hard_line_break() &&
 						it.char_iter().character_info().char_right() > _view_width
 						) {
 						it.char_iter().insert_soft_linebreak();
 						poss.push_back(it.char_iter().current_position());
-						lb = true;
-					} else {
 						lb = false;
+					} else {
+						lb = it.char_iter().is_hard_line_break();
 					}
 				}
 				return poss;
 			}
+
 			double editor::_get_caret_pos_x_unfolded_linebeg(size_t line, size_t position) const {
-				size_t begc = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line);
+				size_t begc = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line).first;
 				rendering_iterator<fold_region_skipper> iter(
 					make_tuple(cref(_fmt.get_folding()), begc),
 					make_tuple(cref(*this), begc, _ctx->num_chars())
@@ -125,13 +146,14 @@ namespace codepad {
 				}
 				return iter.char_iter().character_info().prev_char_right();
 			}
+
 			std::pair<size_t, bool> editor::_hit_test_unfolded_linebeg(size_t line, double x) const {
-				size_t begc = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line);
+				size_t begc = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line).first;
 				rendering_iterator<view_formatter> iter(
 					make_tuple(cref(_fmt), begc),
 					make_tuple(cref(*this), begc, _ctx->num_chars())
 				);
-				size_t lastpos = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line);
+				size_t lastpos = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line).first;
 				bool stop = false, lastjmp = false, lastslb = false;
 				iter.char_iter().switching_char += [&](switch_char_info &pi) {
 					if (!stop) {
@@ -163,8 +185,10 @@ namespace codepad {
 						}
 					}
 				};
-				iter.char_iter().switching_line += [&](switch_line_info &pi) {
-					lastslb = stop = true;
+				iter.char_iter().switching_line += [&](switch_line_info&) {
+					if (!stop) {
+						lastslb = stop = true;
+					}
 				};
 				for (iter.begin(); !stop && !iter.char_iter().is_hard_line_break(); iter.next()) {
 				}
@@ -179,11 +203,14 @@ namespace codepad {
 				}
 				return {lastpos, !lastslb};
 			}
+
 			void editor::_on_content_modified(modification_info &mi) {
 				_gizmos.fixup(mi.caret_fixup);
 
-				content_modified.invoke();
-				_on_content_visual_changed();
+				// fixup view
+				_fmt.fixup_folding_positions(mi.caret_fixup);
+				_fmt.set_softbreaks(_recalculate_wrapping_region(0, _ctx->num_chars()));
+
 				if (mi.source != this) { // fixup carets
 					caret_fixup_info::context cctx(mi.caret_fixup);
 					caret_set nset;
@@ -205,7 +232,11 @@ namespace codepad {
 					}
 					set_carets(nset);
 				}
+
+				content_modified.invoke();
+				_on_content_visual_changed();
 			}
+
 
 			void editor::caret_renderer::_check_draw_caret(const character_rendering_iterator &it, bool softbreak) {
 				double cx = it.character_info().char_left(), cy = it.y_offset();
@@ -223,6 +254,7 @@ namespace codepad {
 					++_curcidx;
 				}
 			}
+
 			void editor::caret_renderer::_on_switching_char(const character_rendering_iterator &it, bool softbreak) {
 				double cx = it.character_info().char_left(), cy = it.y_offset();
 				if (_insel) {
@@ -241,9 +273,11 @@ namespace codepad {
 				}
 				_last_slb = softbreak;
 			}
+
 			void editor::caret_renderer::switching_char(const character_rendering_iterator &it, switch_char_info&) {
 				_on_switching_char(it, false);
 			}
+
 			void editor::caret_renderer::switching_line(
 				const character_rendering_iterator &it, switch_line_info &info
 			) {
@@ -260,9 +294,11 @@ namespace codepad {
 				}
 			}
 
+
 			void editor::gizmo_renderer::switching_char(const character_rendering_iterator &it, switch_char_info&) {
 				// TODO
 			}
+
 			void editor::gizmo_renderer::switching_line(const character_rendering_iterator &it) {
 				// TODO
 			}

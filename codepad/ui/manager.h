@@ -13,7 +13,7 @@ namespace codepad {
 		class manager {
 			friend class element;
 		public:
-			constexpr static double relayout_time_redline = 10.0, render_time_redline = 40.0;
+			constexpr static double relayout_time_redline = 0.01, render_time_redline = 0.04;
 
 			~manager() {
 				dispose_marked_elements();

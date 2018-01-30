@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <functional>
 
 #include "misc.h"
@@ -120,7 +121,7 @@ namespace codepad {
 		public:
 			using value_type = decltype(Node::value);
 			using dereferenced_type = std::conditional_t<
-				std::is_const<Cont>::value, const value_type, value_type
+				std::is_const_v<Cont>, const value_type, value_type
 			>;
 			using reference = dereferenced_type & ;
 			using pointer = dereferenced_type * ;
@@ -236,6 +237,9 @@ namespace codepad {
 		}
 
 		void insert_before_raw(node *before, node *n) {
+			if (n == nullptr) {
+				return;
+			}
 			if (before == nullptr) {
 				before = max();
 				if (before) {
@@ -258,6 +262,12 @@ namespace codepad {
 		}
 		template <typename Cont> void insert_tree_before(const_iterator it, Cont &&objs) {
 			insert_tree_before(it.get_node(), std::forward<Cont>(objs));
+		}
+		template <typename It> void insert_tree_before(node *before, It &&beg, It &&end) {
+			insert_before_raw(before, build_tree(std::forward<It>(beg), std::forward<It>(end)));
+		}
+		template <typename It> void insert_tree_before(const_iterator it, It &&beg, It &&end) {
+			insert_tree_before(it.get_node(), std::forward<It>(beg), std::forward<It>(end));
 		}
 		template <typename ...Args> node *insert_node_before(node *before, Args &&...args) {
 			node *n = new node(std::forward<Args>(args)...);
@@ -349,14 +359,14 @@ namespace codepad {
 						stk.push_back(std::make_pair(p.first->left, _traverse_status::not_visited));
 						break;
 					}
-					// fallthrough
+					[[fallthrough]];
 				case _traverse_status::visited_left:
 					if (p.first->right) {
 						p.second = _traverse_status::visited_right;
 						stk.push_back(std::make_pair(p.first->right, _traverse_status::not_visited));
 						break;
 					}
-					// fallthrough
+					[[fallthrough]];
 				case _traverse_status::visited_right:
 					_refresh_synth(p.first);
 					stk.pop_back();
@@ -451,6 +461,9 @@ namespace codepad {
 		node *root() const {
 			return _root;
 		}
+		bool empty() const {
+			return _root == nullptr;
+		}
 
 		void erase(node *n) {
 			if (n == nullptr) {
@@ -532,6 +545,9 @@ namespace codepad {
 		template <typename Cont> node *build_tree(Cont &&objs) const {
 			return build_tree(std::forward<Cont>(objs), _synth);
 		}
+		template <typename It> node *build_tree(It &&beg, It &&end) const {
+			return build_tree(std::forward<It>(beg), std::forward<It>(end), _synth);
+		}
 
 		template <typename SynRef> void set_synthesizer(SynRef &&s) {
 			_synth = std::forward<SynRef>(s);
@@ -584,9 +600,14 @@ namespace codepad {
 			return _build_tree<_copy_value>(objs.begin(), objs.end(), std::forward<SynRef>(synth));
 		}
 		template <typename Cont, typename SynRef> inline static std::enable_if_t<
-			!std::is_lvalue_reference<Cont>::value, node*
+			!std::is_lvalue_reference_v<Cont>, node*
 		> build_tree(Cont &&objs, SynRef &&synth) {
 			return _build_tree<_move_value>(objs.begin(), objs.end(), std::forward<SynRef>(synth));
+		}
+		template <typename It, typename SynRef> inline static node *build_tree(It &&beg, It &&end, SynRef &&synth) {
+			return _build_tree<_copy_value>(
+				std::forward<It>(beg), std::forward<It>(end), std::forward<SynRef>(synth)
+				);
 		}
 	protected:
 		template <

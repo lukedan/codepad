@@ -8,7 +8,6 @@
 
 #define CP_USE_UTF8
 
-
 namespace codepad {
 	using char8_t = unsigned char;
 	using u8str_t = std::basic_string<char8_t>;
@@ -100,7 +99,7 @@ namespace codepad {
 	}
 
 	template <typename EncChar, typename Char, typename T> using enable_for_encoding =
-		std::enable_if<std::is_same<EncChar, std::decay_t<Char>>::value, T>;
+		std::enable_if<std::is_same_v<EncChar, std::decay_t<Char>>, T>;
 	template <typename Char, typename T> using enable_for_utf8 = enable_for_encoding<char8_t, Char, T>;
 	template <typename Char, typename T> using enable_for_utf8_t = typename enable_for_utf8<Char, T>::type;
 	template <typename Char, typename T> using enable_for_utf16 = enable_for_encoding<char16_t, Char, T>;

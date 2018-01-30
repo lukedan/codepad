@@ -7,11 +7,12 @@ namespace codepad {
 	namespace os {
 		struct file {
 		public:
-			using native_handle = HANDLE;
+			using native_handle_t = HANDLE;
 			using size_type = unsigned long long;
 
 			file() = default;
-			file(const str_t &path, access_rights acc, open_mode mode) : _handle(_open_impl(path, acc, mode)) {
+			file(const std::filesystem::path &path, access_rights acc, open_mode mode) :
+				_handle(_open_impl(path, acc, mode)) {
 			}
 			file(const file&) = delete;
 			file(file &&rhs) : _handle(rhs._handle) {
@@ -26,7 +27,7 @@ namespace codepad {
 				close();
 			}
 
-			void open(const str_t &path, access_rights acc, open_mode mode) {
+			void open(const std::filesystem::path &path, access_rights acc, open_mode mode) {
 				close();
 				_handle = _open_impl(path, acc, mode);
 			}
@@ -46,7 +47,7 @@ namespace codepad {
 				return 0;
 			}
 
-			native_handle get_native_handle() const {
+			native_handle_t get_native_handle() const {
 				return _handle;
 			}
 
@@ -54,13 +55,15 @@ namespace codepad {
 				return _handle != INVALID_HANDLE_VALUE;
 			}
 		protected:
-			native_handle _handle = INVALID_HANDLE_VALUE;
+			native_handle_t _handle = INVALID_HANDLE_VALUE;
 
-			inline static native_handle _open_impl(const str_t &path, access_rights acc, open_mode mode) {
-				native_handle res = CreateFile(
-					reinterpret_cast<LPCWSTR>(convert_to_utf16(path).c_str()),
-					_interpret_access_rights(acc), FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
-					nullptr, _interpret_open_mode(mode), FILE_ATTRIBUTE_NORMAL, nullptr
+			inline static native_handle_t _open_impl(
+				const std::filesystem::path &path, access_rights acc, open_mode mode
+			) {
+				native_handle_t res = CreateFile(
+					path.c_str(), _interpret_access_rights(acc),
+					FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+					_interpret_open_mode(mode), FILE_ATTRIBUTE_NORMAL, nullptr
 				);
 				if (res == INVALID_HANDLE_VALUE) {
 					logger::get().log_warning(CP_HERE, "CreateFile failed with error code ", GetLastError());
@@ -69,10 +72,9 @@ namespace codepad {
 			}
 
 			inline static DWORD _interpret_access_rights(access_rights acc) {
-				unsigned iv = static_cast<unsigned>(acc);
 				return
-					(test_bit_any(iv, access_rights::read) ? FILE_GENERIC_READ : 0) |
-					(test_bit_any(iv, access_rights::write) ? FILE_GENERIC_WRITE : 0);
+					(test_bit_any(acc, access_rights::read) ? FILE_GENERIC_READ : 0) |
+					(test_bit_any(acc, access_rights::write) ? FILE_GENERIC_WRITE : 0);
 			}
 			inline static DWORD _interpret_open_mode(open_mode mode) {
 				switch (mode) {
@@ -147,7 +149,7 @@ namespace codepad {
 			HANDLE _handle = nullptr;
 			void *_ptr = nullptr;
 
-			void _map_impl(file::native_handle file, access_rights acc) {
+			void _map_impl(file::native_handle_t file, access_rights acc) {
 				_handle = CreateFileMapping(
 					file, nullptr, acc == access_rights::read ? PAGE_READONLY : PAGE_READWRITE, 0, 0, nullptr
 				);

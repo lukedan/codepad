@@ -4,6 +4,12 @@
 #include <vector>
 #include <cstring>
 
+// gl.h on windows depends on Windows.h
+#ifdef CP_PLATFORM_WINDOWS
+#	include <Windows.h>
+#	include <windowsx.h>
+#endif
+
 #include <GL/gl.h>
 #include <GL/glext.h>
 
@@ -221,8 +227,8 @@ namespace codepad {
 			static _default_renderer &_get_rend();
 		};
 
-		texture load_image(renderer_base&, const str_t&);
-		inline texture load_image(const str_t &filename) {
+		texture load_image(renderer_base&, const std::filesystem::path&);
+		inline texture load_image(const std::filesystem::path &filename) {
 			return load_image(renderer_base::get(), filename);
 		}
 

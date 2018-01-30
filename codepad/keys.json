@@ -1,0 +1,33 @@
+{
+	"codebox": [
+		{ "gestures": "left", "command": "editor.carets.move_left" },
+		{ "gestures": "right", "command": "editor.carets.move_right" },
+		{ "gestures": "up", "command": "editor.carets.move_up" },
+		{ "gestures": "down", "command": "editor.carets.move_down" },
+
+		{ "gestures": "shift+left", "command": "editor.carets.move_left_selected" },
+		{ "gestures": "shift+right", "command": "editor.carets.move_right_selected" },
+		{ "gestures": "shift+up", "command": "editor.carets.move_up_selected" },
+		{ "gestures": "shift+down", "command": "editor.carets.move_down_selected" },
+
+		{ "gestures": "home", "command": "editor.carets.move_leftmost_noblank" },
+		{ "gestures": "end", "command": "editor.carets.move_rightmost" },
+		{ "gestures": "ctrl+home", "command": "editor.carets.move_leftmost" },
+		{ "gestures": "shift+home", "command": "editor.carets.move_leftmost_noblank_selected" },
+		{ "gestures": "shift+end", "command": "editor.carets.move_rightmost_selected" },
+		{ "gestures": "shift+ctrl+home", "command": "editor.carets.move_leftmost_selected" },
+
+		{ "gestures": "backspace", "command": "editor.delete_before_carets" },
+		{ "gestures": "delete", "command": "editor.delete_after_carets" },
+		{ "gestures": "insert", "command": "editor.toggle_insert" },
+
+		{ "gestures": "ctrl+z", "command": "editor.undo" },
+		{ "gestures": "ctrl+y", "command": "editor.redo" }
+	],
+	"tab": [
+		{ "gestures": "ctrl+w", "command": "tab.request_close" }
+	],
+	"tab_host": [
+		{ "gestures": "ctrl+o", "command": "open_file_dialog" }
+	]
+}

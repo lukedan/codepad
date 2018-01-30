@@ -13,10 +13,10 @@ namespace codepad {
 				FcConfig *config = _get_config().refresh_and_get();
 				FcPattern *pat = FcNameParse(convert_to_utf8(str).c_str());
 				FcPatternAddInteger(pat, FC_SLANT, test_bit_any(
-					static_cast<unsigned>(style), font_style::italic
+					style, font_style::italic
 				) ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
 				FcPatternAddInteger(pat, FC_WEIGHT, test_bit_any(
-					static_cast<unsigned>(style), font_style::bold
+					style, font_style::bold
 				) ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL);
 				assert_true_sys(FcConfigSubstitute(config, pat, FcMatchPattern) != FcFalse, "cannot set pattern");
 				FcDefaultSubstitute(pat);

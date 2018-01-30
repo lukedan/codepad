@@ -78,9 +78,9 @@ namespace codepad {
 				return cst == task_status::completed || cst == task_status::cancelled;
 			}
 
-			template <typename Func> func_invoke_result_t<Func()> acquire_data(Func &&f) {
+			template <typename Func> std::invoke_result_t<Func> acquire_data(const Func &f) {
 				semaphore sem;
-				func_invoke_result_t<Func()> res;
+				std::invoke_result_t<Func> res;
 				callback_buffer::get().add([&f, &sem, &res]() {
 					res = f();
 					sem.signal();

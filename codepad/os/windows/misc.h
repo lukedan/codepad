@@ -1,9 +1,5 @@
 #pragma once
 
-#include <Windows.h>
-#include <windowsx.h>
-#undef min
-#undef max
 #include <wincodec.h>
 
 #include "../../utilities/misc.h"
@@ -95,18 +91,16 @@ namespace codepad {
 		public:
 			wic_image_loader() {
 				com_check(CoCreateInstance(
-					CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
-					IID_IWICImagingFactory, reinterpret_cast<LPVOID*>(&_factory)
+					CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_factory)
 				));
 			}
 			~wic_image_loader() {
 				_factory->Release();
 			}
-			texture load_image(renderer_base &r, const str_t &filename) {
+			texture load_image(renderer_base &r, const std::filesystem::path &filename) {
 				IWICBitmapDecoder *decoder = nullptr;
-				std::u16string fn = convert_to_utf16(filename);
 				com_check(_factory->CreateDecoderFromFilename(
-					reinterpret_cast<LPCWSTR>(fn.c_str()), nullptr,
+					filename.c_str(), nullptr,
 					GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder
 				));
 				IWICBitmapFrameDecode *frame = nullptr;
@@ -131,10 +125,10 @@ namespace codepad {
 
 			static wic_image_loader &get();
 		protected:
-			IWICImagingFactory *_factory = nullptr;
+			IWICImagingFactory * _factory = nullptr;
 			_details::com_usage _uses_com;
 		};
-		inline texture load_image(renderer_base &r, const str_t &filename) {
+		inline texture load_image(renderer_base &r, const std::filesystem::path &filename) {
 			return wic_image_loader::get().load_image(r, filename);
 		}
 	}

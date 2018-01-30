@@ -5,7 +5,8 @@
 
 #include "renderer.h"
 #include "../ui/panel.h"
-#include "../ui/window_hotkey_manager.h"
+#include "../ui/commands.h"
+#include "../ui/element_classes.h"
 #include "../utilities/event.h"
 #include "../utilities/encodings.h"
 
@@ -162,9 +163,10 @@ namespace codepad {
 					_focus = e;
 					std::vector<ui::element_hotkey_group_data> gps;
 					for (ui::element *cur = _focus; cur != nullptr; cur = cur->parent()) {
-						std::vector<const ui::element_hotkey_group*> cgps = cur->get_hotkey_groups();
-						for (auto i = cgps.begin(); i != cgps.end(); ++i) {
-							gps.push_back(ui::element_hotkey_group_data(*i, cur));
+						const ui::element_hotkey_group
+							*gp = ui::class_manager::get().hotkeys.find(cur->get_class());
+						if (gp != nullptr) {
+							gps.push_back(ui::element_hotkey_group_data(gp, cur));
 						}
 					}
 					hotkey_manager.reset_groups_prefiltered(gps);
@@ -193,7 +195,9 @@ namespace codepad {
 					if ((*i)->_update_and_render()) {
 						has_active = true;
 					} else {
-						if (test_bit_all((*i)->get_state(), ui::visual_manager::default_states().corpse)) {
+						if (test_bit_all(
+							(*i)->get_state(), ui::visual::get_predefined_states().corpse
+						)) {
 							delete *i;
 							i = _decos.erase(i);
 							continue;
@@ -287,92 +291,6 @@ namespace codepad {
 			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 			glClear(GL_COLOR_BUFFER_BIT);
 			_gl_verify();
-		}
-	}
-	namespace ui {
-		inline void manager::update_invalid_visuals() {
-			monitor_performance mon(CP_HERE);
-			if (_dirty.empty()) {
-				return;
-			}
-			auto start = std::chrono::high_resolution_clock::now();
-			double diff = std::chrono::duration<double>(start - _lastrender).count();
-			if (diff < _min_render_interval) {
-				return;
-			}
-			_lastrender = start;
-			std::set<element*> ss;
-			for (auto i = _dirty.begin(); i != _dirty.end(); ++i) {
-				os::window_base *wnd = (*i)->get_window();
-				if (wnd) {
-					ss.insert(wnd);
-				}
-			}
-			_dirty.clear();
-			for (auto i : ss) {
-				i->_on_render();
-				update_visual_immediate(*i);
-			}
-			double dur = std::chrono::duration<double, std::milli>(
-				std::chrono::high_resolution_clock::now() - start
-				).count();
-			if (dur > render_time_redline) {
-				logger::get().log_warning(CP_HERE, "render cost ", dur, "ms");
-			}
-		}
-		inline void manager::update_visual_immediate(element &e) {
-			os::window_base *wnd = e.get_window();
-			if (wnd) {
-				wnd->_on_render();
-			}
-		}
-		inline void manager::set_focus(element *elem) {
-			if (elem == _focus) {
-				return;
-			}
-			os::window_base *neww = elem == nullptr ? nullptr : elem->get_window();
-			assert_true_logical((neww != nullptr) == (elem != nullptr), "corrupted element tree");
-			element *oldf = _focus;
-			_focus = elem;
-			if (neww != nullptr) {
-				neww->_set_window_focus_element(elem);
-				neww->activate();
-			}
-			if (oldf != nullptr) {
-				oldf->_on_lost_focus();
-			}
-			if (_focus != nullptr) {
-				_focus->_on_got_focus();
-			}
-			logger::get().log_verbose(
-				CP_HERE, "focus changed to 0x", _focus,
-				" <", _focus ? demangle(typeid(*_focus).name()) : "nullptr", ">"
-			);
-		}
-
-		inline os::window_base *element::get_window() {
-			element *cur = this;
-			while (cur->_parent != nullptr) {
-				cur = cur->_parent;
-			}
-			return dynamic_cast<os::window_base*>(cur);
-		}
-
-		inline void decoration::_on_visual_changed() {
-			_wnd->invalidate_visual();
-		}
-
-		inline void element_collection::remove(element &elem) {
-			assert_true_logical(elem._parent == &_f, "corrupted element tree");
-			os::window_base *wnd = _f.get_window();
-			if (wnd != nullptr) {
-				wnd->_on_removing_window_element(&elem);
-			}
-			elem._parent = nullptr;
-			_cs.erase(elem._col_token);
-			element_collection_change_info ci(element_collection_change_info::type::remove, &elem);
-			_f._on_children_changed(ci);
-			changed(ci);
 		}
 	}
 }

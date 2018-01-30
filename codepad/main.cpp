@@ -10,6 +10,7 @@
 #include "ui/font_family.h"
 #include "ui/draw.h"
 #include "ui/commonelements.h"
+#include "ui/native_commands.h"
 #include "editors/docking.h"
 #include "editors/code/codebox.h"
 #include "editors/code/components.h"
@@ -31,146 +32,74 @@ int main() {
 	gb.get<performance_monitor>();
 
 	renderer_base::create_default<opengl_renderer>();
+	native_commands::register_all();
 
 	auto fnt = std::make_shared<default_font>(CP_STRLIT(""), 13.0, font_style::normal);
 	font_family codefnt(CP_STRLIT("Fira Code"), 13.0);
 	//font_family codefnt(CP_STRLIT("Segoe UI"), 13.0);
-	element_hotkey_group hg;
 
-	hg.register_hotkey({input::key::left}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_left(false);
-		}
-		});
-	hg.register_hotkey({input::key::right}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_right(false);
-		}
-		});
-	hg.register_hotkey({input::key::up}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_up(false);
-		}
-		});
-	hg.register_hotkey({input::key::down}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_down(false);
-		}
-		});
-	hg.register_hotkey({input::key::home}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_to_line_beginning_advanced(false);
-		}
-		});
-	hg.register_hotkey({input::key::end}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_to_line_ending(false);
-		}
-		});
+	texture_table tbl;
+	{
+		// load skin
+		std::ifstream fin("skin/skin.json", std::ios::binary);
+		fin.seekg(0, std::ios::end);
+		std::streampos sz = fin.tellg();
+		char *c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
+		fin.seekg(0);
+		fin.read(c, static_cast<std::streamsize>(sz));
+		u8str_t us(reinterpret_cast<char8_t*>(c), static_cast<size_t>(sz));
+		std::free(c);
+		json::parser_value_t v;
+		str_t ss = convert_to_current_encoding(us);
+		v.Parse(ss.c_str());
+		tbl = class_manager::get().visuals.load_json(v);
+	}
 
-	hg.register_hotkey({key_gesture(input::key::left, modifier_keys::shift)}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_left(true);
-		}
-		});
-	hg.register_hotkey({key_gesture(input::key::right, modifier_keys::shift)}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_right(true);
-		}
-		});
-	hg.register_hotkey({key_gesture(input::key::up, modifier_keys::shift)}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_up(true);
-		}
-		});
-	hg.register_hotkey({key_gesture(input::key::down, modifier_keys::shift)}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_down(true);
-		}
-		});
-	hg.register_hotkey({key_gesture(input::key::home, modifier_keys::shift)}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_to_line_beginning_advanced(true);
-		}
-		});
-	hg.register_hotkey({key_gesture(input::key::end, modifier_keys::shift)}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->move_all_carets_to_line_ending(true);
-		}
-		});
+	{
+		// load hotkeys
+		std::ifstream fin("keys.json", std::ios::binary);
+		fin.seekg(0, std::ios::end);
+		std::streampos sz = fin.tellg();
+		char *c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
+		fin.seekg(0);
+		fin.read(c, static_cast<std::streamsize>(sz));
+		u8str_t us(reinterpret_cast<char8_t*>(c), static_cast<size_t>(sz));
+		std::free(c);
+		json::parser_value_t v;
+		str_t ss = convert_to_current_encoding(us);
+		v.Parse(ss.c_str());
+		class_manager::get().hotkeys.load_json(v);
+	}
 
-	hg.register_hotkey({input::key::backspace}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->delete_selection_or_char_before();
-		}
-		});
-	hg.register_hotkey({input::key::del}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->delete_selection_or_char_after();
-		}
-		});
+	//element_hotkey_group codebox_hotkeys;
+	//codebox_hotkeys.register_hotkey({key_gesture(input::key::f, modifier_keys::control)}, [](element *e) {
+	//	auto *cb = dynamic_cast<code::codebox*>(e);
+	//	if (cb) {
+	//		code::editor *editor = cb->get_editor();
+	//		auto rgn = editor->get_carets().carets.rbegin()->first;
+	//		code::view_formatting::fold_region fr = std::minmax(rgn.first, rgn.second);
+	//		if (fr.first != fr.second) {
+	//			logger::get().log_info(CP_HERE, "folding region: (", fr.first, ", ", fr.second, ")");
+	//			editor->add_folded_region(fr);
+	//		}
+	//	}
+	//	});
+	//codebox_hotkeys.register_hotkey({key_gesture(input::key::u, modifier_keys::control)}, [](element *e) {
+	//	auto *cb = dynamic_cast<code::codebox*>(e);
+	//	if (cb) {
+	//		code::editor *editor = cb->get_editor();
+	//		while (editor->get_formatting().get_folding().folded_region_count() > 0) {
+	//			editor->remove_folded_region(editor->get_formatting().get_folding().begin());
+	//		}
+	//	}
+	//	});
 
-	hg.register_hotkey({input::key::insert}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->toggle_insert_mode();
-		}
-		});
-
-	hg.register_hotkey({key_gesture(input::key::z, modifier_keys::control)}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->try_undo();
-		}
-		});
-	hg.register_hotkey({key_gesture(input::key::y, modifier_keys::control)}, [](element *e) {
-		auto *editor = dynamic_cast<code::codebox*>(e);
-		if (editor) {
-			editor->get_editor()->try_redo();
-		}
-		});
-	hg.register_hotkey({key_gesture(input::key::f, modifier_keys::control)}, [](element *e) {
-		auto *cb = dynamic_cast<code::codebox*>(e);
-		if (cb) {
-			code::editor *editor = cb->get_editor();
-			auto rgn = editor->get_carets().carets.rbegin()->first;
-			code::view_formatting::fold_region fr = std::minmax(rgn.first, rgn.second);
-			if (fr.first != fr.second) {
-				logger::get().log_info(CP_HERE, "folding region: (", fr.first, ", ", fr.second, ")");
-				editor->add_folded_region(fr);
-			}
-		}
-		});
-	hg.register_hotkey({key_gesture(input::key::u, modifier_keys::control)}, [](element *e) {
-		auto *cb = dynamic_cast<code::codebox*>(e);
-		if (cb) {
-			code::editor *editor = cb->get_editor();
-			while (editor->get_formatting().get_folding().folded_region_count() > 0) {
-				editor->remove_folded_region(editor->get_formatting().get_folding().begin());
-			}
-		}
-		});
-
-	hg.register_hotkey({key_gesture(input::key::s, modifier_keys::control)}, [](element *e) {
-		auto *cb = dynamic_cast<code::codebox*>(e);
-		if (cb) {
-			cb->get_editor()->get_context()->save_to_file(CP_STRLIT("testsave.txt"));
-		}
-		});
+	//codebox_hotkeys.register_hotkey({key_gesture(input::key::s, modifier_keys::control)}, [](element *e) {
+	//	auto *cb = dynamic_cast<code::codebox*>(e);
+	//	if (cb) {
+	//		cb->get_editor()->get_context()->save_to_file(make_path("testsave.txt"));
+	//	}
+	//	});
 
 	content_host::set_default_font(fnt);
 	code::editor::set_font(codefnt);
@@ -179,25 +108,34 @@ int main() {
 	tab *codetab1 = dock_manager::get().new_tab();
 	codetab1->set_caption(CP_STRLIT("code1"));
 	code::codebox *cp1 = element::create<code::codebox>();
-	cp1->set_default_hotkey_group(&hg);
 	cp1->add_component_left(*element::create<code::line_number>());
 	cp1->add_component_right(*element::create<code::minimap>());
 
 	tab *codetab2 = dock_manager::get().new_tab();
 	codetab2->set_caption(CP_STRLIT("code2"));
 	code::codebox *cp2 = element::create<code::codebox>();
-	cp2->set_default_hotkey_group(&hg);
 	cp2->add_component_left(*element::create<code::line_number>());
 	cp2->add_component_right(*element::create<code::minimap>());
 
 	auto ctx = std::make_shared<code::text_context>();
-	//ctx->load_from_file(CP_STRLIT("test_text/hugetext.txt"));
-	//ctx->load_from_file(CP_STRLIT("test_text/mix.txt"));
-	//ctx->load_from_file(CP_STRLIT("test_text/longline.txt"));
-	ctx->load_from_file(CP_STRLIT("editors/code/editor.h"));
+	//ctx->load_from_file(make_path("test_text/hugetext.txt"));
+	//ctx->load_from_file(make_path("test_text/mix.txt"));
+	//ctx->load_from_file(make_path("test_text/longline.txt"));
+	ctx->load_from_file(make_path("editors/code/editor.h"));
 	ctx->auto_set_default_line_ending();
 	cp1->get_editor()->set_context(ctx);
 	cp2->get_editor()->set_context(ctx);
+	codetab1->children().add(*cp1);
+	codetab2->children().add(*cp2);
+
+	tbl.load_all(make_path("skin/"));
+	{
+		// load folding gizmo
+		editor::code::editor::gizmo gz;
+		gz.texture = std::make_shared<os::texture>(os::load_image(make_path("folded.png")));
+		gz.width = static_cast<double>(gz.texture->get_width());
+		editor::code::editor::set_folding_gizmo(std::move(gz));
+	}
 
 	std::function<void(async_task_pool::async_task&)> f;
 	f = [&f, ctx](async_task_pool::async_task &tsk) { // just for demonstration purposes
@@ -243,12 +181,7 @@ int main() {
 			//async_task_pool::get().run_task(f);
 		});
 	};
-
 	async_task_pool::get().run_task(f);
-
-	codetab1->children().add(*cp1);
-	codetab2->children().add(*cp2);
-
 
 	for (size_t i = 0; i < 10; ++i) {
 		tab *lbltab = dock_manager::get().new_tab();
@@ -265,41 +198,13 @@ int main() {
 		lbltab->children().add(*sb);
 	}
 
-	{
-		// load skin
-		std::ifstream fin("skin/skin.json", std::ios::binary);
-		fin.seekg(0, std::ios::end);
-		std::streampos sz = fin.tellg();
-		char *c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
-		fin.seekg(0);
-		fin.read(c, static_cast<std::streamsize>(sz));
-		u8str_t us(reinterpret_cast<char8_t*>(c), static_cast<size_t>(sz));
-		std::free(c);
-		json::parser_value_t v;
-		str_t ss = convert_to_current_encoding(us);
-		v.Parse(ss.c_str());
-		visual_manager::load_config(v).load_all(CP_STRLIT("skin/"));
-
-		// load folding gizmo
-		editor::code::editor::gizmo gz;
-		gz.texture = std::make_shared<os::texture>(os::load_image(CP_STRLIT("folded.png")));
-		gz.width = static_cast<double>(gz.texture->get_width());
-		editor::code::editor::set_folding_gizmo(std::move(gz));
-	}
-
 	while (!dock_manager::get().empty()) {
-		auto tstart = std::chrono::high_resolution_clock::now();
 		{
-			monitor_performance mon(CP_STRLIT("Frame"));
+			monitor_performance mon(CP_STRLIT("frame"), 0.05);
 			manager::get().update();
 			dock_manager::get().update();
 			callback_buffer::get().flush();
 			performance_monitor::get().update();
-		}
-
-		double ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - tstart).count();
-		if (ms > 50.0) {
-			logger::get().log_warning(CP_HERE, "update took ", ms, "ms");
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}

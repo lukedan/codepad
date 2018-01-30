@@ -35,7 +35,7 @@ namespace codepad {
 		void update() {
 			double mint = get_uptime().count() - _keep;
 			auto it = _ops.begin();
-			for (; it->end_time < mint; ++it) {
+			for (; it != _ops.end() && it->end_time < mint; ++it) {
 			}
 			_ops.erase(_ops.begin(), it);
 		}
@@ -45,13 +45,13 @@ namespace codepad {
 			op.register_begin();
 			return op;
 		}
-		void end_operation(operation op) {
+		operation &end_operation(operation op) {
 			--_stk;
-			end_operation_nostack(std::move(op));
+			return end_operation_nostack(std::move(op));
 		}
-		void end_operation_nostack(operation op) {
+		operation &end_operation_nostack(operation op) {
 			op.register_end();
-			_add_op(std::move(op));
+			return _add_op(std::move(op));
 		}
 
 		double get_log_duration() const {
@@ -68,7 +68,7 @@ namespace codepad {
 		size_t _stk = 0;
 
 		// assumes operations are logged in increasing order of end_time with few exceptions
-		void _add_op(operation op) {
+		operation &_add_op(operation op) {
 			auto it = _ops.end();
 			while (it != _ops.begin()) {
 				--it;
@@ -77,28 +77,39 @@ namespace codepad {
 					break;
 				}
 			}
-			_ops.insert(it, std::move(op));
+			return *_ops.insert(it, std::move(op));
 		}
 	};
 	struct monitor_performance {
 	public:
 		monitor_performance() = default;
-		explicit monitor_performance(const char8_t *slbl) :
-			_op(performance_monitor::get().begin_operation(slbl, str_t{})) {
+		explicit monitor_performance(
+			const char8_t *slbl, double exp = std::numeric_limits<double>::quiet_NaN()
+		) : _op(performance_monitor::get().begin_operation(slbl, str_t{})), _expected(exp) {
 		}
-		explicit monitor_performance(const code_position &cp) : monitor_performance(
-			reinterpret_cast<const char8_t*>(cp.function)
-		) {
+		explicit monitor_performance(
+			const code_position &cp, double exp = std::numeric_limits<double>::quiet_NaN()
+		) : monitor_performance(reinterpret_cast<const char8_t*>(cp.function), exp) {
 		}
-		monitor_performance(const char8_t *slbl, str_t dlbl) :
-			_op(performance_monitor::get().begin_operation(slbl, std::move(dlbl))) {
+		monitor_performance(
+			const char8_t *slbl, str_t dlbl, double exp = std::numeric_limits<double>::quiet_NaN()
+		) : _op(performance_monitor::get().begin_operation(slbl, std::move(dlbl))), _expected(exp) {
 		}
-		monitor_performance(const code_position &cp, str_t dlbl) : monitor_performance(
-			reinterpret_cast<const char8_t*>(cp.function), std::move(dlbl)
-		) {
+		monitor_performance(
+			const code_position &cp, str_t dlbl, double exp = std::numeric_limits<double>::quiet_NaN()
+		) : monitor_performance(reinterpret_cast<const char8_t*>(cp.function), std::move(dlbl), exp) {
 		}
 		~monitor_performance() {
-			performance_monitor::get().end_operation(std::move(_op));
+			performance_monitor::operation &res = performance_monitor::get().end_operation(std::move(_op));
+			if (!std::isnan(_expected)) {
+				double secs = std::chrono::duration<double>(res.end_time - res.begin_time).count();
+				if (secs > _expected) {
+					logger::get().log_warning(
+						CP_HERE, "operation taking longer(", secs, "s) than expected(", _expected, "s): ",
+						res.static_label, " ", res.dynamic_label
+					);
+				}
+			}
 		}
 
 		performance_monitor::operation &get_operation() {
@@ -106,5 +117,6 @@ namespace codepad {
 		}
 	protected:
 		performance_monitor::operation _op;
+		double _expected = std::numeric_limits<double>::quiet_NaN();
 	};
 }

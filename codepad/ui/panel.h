@@ -158,7 +158,7 @@ namespace codepad {
 					p.mark_focus_set();
 					manager::get().set_focus(this);
 				}
-				_set_visual_style_bit(visual_manager::default_states().mouse_down, true);
+				_set_visual_style_bit(visual::get_predefined_states().mouse_down, true);
 			}
 			void _on_mouse_leave() override {
 				for (auto i = _children.begin(); i != _children.end(); ++i) {

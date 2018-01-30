@@ -12,6 +12,21 @@
 #include <condition_variable>
 #include <cstdlib>
 
+#if __has_include(<filesystem>)
+#   include <filesystem>
+#elif __has_include(<experimental/filesystem>)
+#   define CP_EXPERIMENTAL_FILESYSTEM
+#   include <experimental/filesystem>
+#endif
+#ifdef _MSC_VER
+#   define CP_EXPERIMENTAL_FILESYSTEM
+#endif
+#ifdef CP_EXPERIMENTAL_FILESYSTEM
+namespace std {
+	namespace filesystem = experimental::filesystem;
+}
+#endif
+
 #include "encodings.h"
 
 namespace codepad {
@@ -155,16 +170,16 @@ namespace codepad {
 			}
 		}
 
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> convert() const {
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, rect<U>> convert() const {
 			return rect<U>(static_cast<U>(xmin), static_cast<U>(xmax), static_cast<U>(ymin), static_cast<U>(ymax));
 		}
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> fit_grid_enlarge() const {
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, rect<U>> fit_grid_enlarge() const {
 			return rect<U>(
 				static_cast<U>(std::floor(xmin)), static_cast<U>(std::ceil(xmax)),
 				static_cast<U>(std::floor(ymin)), static_cast<U>(std::ceil(ymax))
 				);
 		}
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic<U>::value, rect<U>> fit_grid_shrink() const {
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, rect<U>> fit_grid_shrink() const {
 			return rect<U>(
 				static_cast<U>(std::ceil(xmin)), static_cast<U>(std::floor(xmax)),
 				static_cast<U>(std::ceil(ymin)), static_cast<U>(std::floor(ymax))
@@ -377,8 +392,8 @@ namespace codepad {
 	using matd3x3 = matrix<double, 3, 3>;
 
 	template <typename T> struct color {
-		static_assert(std::is_same<T, unsigned char>::value || std::is_floating_point<T>::value, "invalid color component type");
-		constexpr static T max_value = std::is_floating_point<T>::value ? 1 : 255;
+		static_assert(std::is_same_v<T, unsigned char> || std::is_floating_point_v<T>, "invalid color component type");
+		constexpr static T max_value = std::is_floating_point_v<T> ? 1 : 255;
 
 		color() = default;
 		color(T rr, T gg, T bb, T aa) : r(rr), g(gg), b(bb), a(aa) {
@@ -387,13 +402,13 @@ namespace codepad {
 		T r = max_value, g = max_value, b = max_value, a = max_value;
 
 		template <typename U> color<U> convert() const {
-			if (!std::is_same<T, U>::value) {
-				if (std::is_same<U, unsigned char>::value) {
+			if (!std::is_same_v<T, U>) {
+				if (std::is_same_v<U, unsigned char>) {
 					return color<U>(
 						static_cast<U>(0.5 + r * 255.0), static_cast<U>(0.5 + g * 255.0),
 						static_cast<U>(0.5 + b * 255.0), static_cast<U>(0.5 + a * 255.0)
 						);
-				} else if (std::is_same<T, unsigned char>::value) {
+				} else if (std::is_same_v<T, unsigned char>) {
 					return color<U>(
 						static_cast<U>(r / 255.0), static_cast<U>(g / 255.0),
 						static_cast<U>(b / 255.0), static_cast<U>(a / 255.0)
@@ -468,7 +483,7 @@ namespace codepad {
 		}
 
 		template <typename U = T> inline static std::enable_if_t<
-			std::is_floating_point<U>::value && std::is_floating_point<T>::value, color
+			std::is_floating_point_v<U> && std::is_floating_point_v<T>, color
 		> from_hsl(U h, U s, U l, U alpha = 1) {
 			h = (h - 360 * std::floor(h / 360)) / 60;
 			U
@@ -502,23 +517,35 @@ namespace codepad {
 		return from + (to - from) * perc;
 	}
 
-	template <typename T, typename U> inline bool test_bit_all(T v, U bit) {
-		return (v & static_cast<T>(bit)) == static_cast<T>(bit);
+	template <typename T, typename U, typename Int = std::conditional_t<
+		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
+		>> inline bool test_bit_all(T v, U bit) {
+		return (static_cast<Int>(v) & static_cast<Int>(bit)) == static_cast<Int>(bit);
 	}
-	template <typename T, typename U> inline bool test_bit_any(T v, U bit) {
-		return (v & static_cast<T>(bit)) != 0;
+	template <typename T, typename U, typename Int = std::conditional_t<
+		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
+		>> inline bool test_bit_any(T v, U bit) {
+		return (static_cast<Int>(v) & static_cast<Int>(bit)) != 0;
 	}
-	template <typename T, typename U> inline void set_bit(T &v, U bit) {
-		v = v | static_cast<T>(bit);
+	template <typename T, typename U, typename Int = std::conditional_t<
+		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
+		>> inline T with_bit_set(T v, U bit) {
+		return static_cast<T>(static_cast<Int>(v) | static_cast<Int>(bit));
 	}
-	template <typename T, typename U> inline void unset_bit(T &v, U bit) {
-		v = v & static_cast<T>(~static_cast<T>(bit));
+	template <typename T, typename U, typename Int = std::conditional_t<
+		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
+		>> inline T with_bit_unset(T v, U bit) {
+		return static_cast<T>(static_cast<Int>(v) & static_cast<Int>(~static_cast<Int>(bit)));
 	}
-	template <typename T, typename U> inline T with_bit_set(T v, U bit) {
-		return v | static_cast<T>(bit);
+	template <typename T, typename U, typename Int = std::conditional_t<
+		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
+		>> inline void set_bit(T &v, U bit) {
+		v = with_bit_set(v, bit);
 	}
-	template <typename T, typename U> inline T with_bit_unset(T v, U bit) {
-		return v & static_cast<T>(~static_cast<T>(bit));
+	template <typename T, typename U, typename Int = std::conditional_t<
+		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
+		>> inline void unset_bit(T &v, U bit) {
+		v = with_bit_unset(v, bit);
 	}
 
 	template <typename T, typename U, typename C> inline T get_bitset_from_string(
@@ -539,6 +566,16 @@ namespace codepad {
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> get_app_epoch();
 	std::chrono::duration<double> get_uptime();
+
+	template <typename T> inline std::filesystem::path make_path(const T &v) {
+		return std::filesystem::path(v);
+	}
+	template <> inline std::filesystem::path make_path<u8str_t>(const u8str_t &s) {
+		return std::filesystem::path(reinterpret_cast<const char*>(s.c_str()));
+	}
+	template <> inline std::filesystem::path make_path<const char8_t*>(const char8_t *const &s) {
+		return std::filesystem::path(reinterpret_cast<const char*>(s));
+	}
 
 
 	struct semaphore { // copied from stackoverflow
@@ -576,14 +613,6 @@ namespace codepad {
 	};
 
 
-#if __cplusplus > 201703L
-	template <typename Func> using func_invoke_result = std::invoke_result<Func>;
-#else
-	template <typename Func> using func_invoke_result = std::result_of<Func>;
-#endif
-	template <typename Func> using func_invoke_result_t = typename func_invoke_result<Func>::type;
-
-
 	// u8str_t overloads
 	template <typename St> inline void print_to(St &s, const u8str_t &arg) {
 		s << reinterpret_cast<const char*>(arg.c_str());
@@ -592,7 +621,7 @@ namespace codepad {
 		s << reinterpret_cast<const char*>(arg.c_str());
 	}
 	template <typename St, typename T> inline std::enable_if_t<
-		!std::is_same<std::decay_t<T>, u8str_t>::value, void
+		!std::is_same_v<std::decay_t<T>, u8str_t>, void
 	> print_to(St &s, T &&arg) {
 		s << std::forward<T>(arg);
 	}
@@ -700,8 +729,8 @@ namespace codepad {
 
 
 	enum class error_level {
-		system_error, // errors with system api, opengl, etc. nothing we can do
-		usage_error, // wrong usage of internal classes, which can also be treated as exceptions
+		system_error, // unexpected errors with system api, opengl, etc. nothing we can do
+		usage_error, // wrong usage, which can also be treated as exceptions
 		logical_error // logical errors in codepad which basically shouldn't happen
 	};
 
@@ -725,7 +754,7 @@ namespace codepad {
 		if (!v) {
 			throw std::runtime_error(msg);
 		}
-}
+	}
 
 #ifdef CP_DETECT_SYSTEM_ERRORS
 	template <> inline void assert_true<error_level::system_error>(bool v, const char *msg) {
@@ -788,7 +817,7 @@ namespace codepad {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
-		}
+}
 
 // memory leak detection
 #if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
@@ -827,54 +856,8 @@ namespace codepad {
 
 // stacktrace
 #ifdef CP_LOG_STACKTRACE
-#	if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
-#		include <Windows.h>
-#		pragma comment(lib, "dbghelp.lib")
-#		ifdef UNICODE
-#			define DBGHELP_TRANSLATE_TCHAR
-#		endif
-#		include <DbgHelp.h>
-#		undef min
-#		undef max
-namespace codepad {
-	inline void logger::log_stacktrace() {
-		constexpr static DWORD max_frames = 1000;
-		constexpr static size_t max_symbol_length = 1000;
-
-		log_custom("STACKTRACE");
-		void *frames[max_frames];
-		HANDLE proc = GetCurrentProcess();
-		unsigned char symmem[sizeof(SYMBOL_INFO) + max_symbol_length * sizeof(TCHAR)];
-		PSYMBOL_INFO syminfo = reinterpret_cast<PSYMBOL_INFO>(symmem);
-		syminfo->MaxNameLen = max_symbol_length;
-		syminfo->SizeOfStruct = sizeof(SYMBOL_INFO);
-		IMAGEHLP_LINE64 lineinfo;
-		lineinfo.SizeOfStruct = sizeof(lineinfo);
-		DWORD line_disp;
-		assert_true_sys(
-			SymInitialize(GetCurrentProcess(), nullptr, true),
-			"failed to initialize symbols"
-		);
-		WORD numframes = CaptureStackBackTrace(0, max_frames, frames, nullptr);
-		for (WORD i = 0; i < numframes; ++i) {
-			DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
-			u8str_t func = reinterpret_cast<const char8_t*>("??"), file = func;
-			std::string line;
-			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
-				func = convert_to_utf8(reinterpret_cast<const char16_t*>(syminfo->Name));
-			}
-			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
-				file = convert_to_utf8(reinterpret_cast<const char16_t*>(lineinfo.FileName));
-				line = std::to_string(lineinfo.LineNumber);
-			} else {
-				line = "??";
-			}
-			log_custom("    ", func, "(0x", frames[i], ") @", file, ":", line);
-		}
-		assert_true_sys(SymCleanup(GetCurrentProcess()), "failed to clean up symbols");
-		log_custom("STACKTRACE|END");
-	}
-}
+#	ifdef _MSC_VER
+// windows version in os/windows/windows.cpp
 #	elif defined(CP_PLATFORM_UNIX) && defined(__GNUC__)
 #		include <execinfo.h>
 namespace codepad {

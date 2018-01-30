@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include <variant>
 
 #include "../os/misc.h"
 #include "encodings.h"
@@ -14,49 +15,48 @@ namespace codepad {
 		control = 1,
 		shift = 2,
 		alt = 4,
-		cmd = 8,
+		super = 8,
 
 		control_shift = control | shift,
 		control_alt = control | alt,
 		shift_alt = shift | alt,
-		control_cmd = control | cmd,
-		shift_cmd = shift | cmd,
-		alt_cmd = alt | cmd,
+		control_super = control | super,
+		shift_super = shift | super,
+		alt_super = alt | super,
 
 		control_shift_alt = control | shift | alt,
-		control_shift_cmd = control | shift | cmd,
-		control_alt_cmd = control | alt | cmd,
-		shift_alt_cmd = shift | alt | cmd,
+		control_shift_super = control | shift | super,
+		control_alt_super = control | alt | super,
+		shift_alt_super = shift | alt | super,
 
-		control_shift_alt_cmd = control | shift | alt | cmd
+		control_shift_alt_super = control | shift | alt | super
 	};
 	template <> inline str_t to_str<modifier_keys>(modifier_keys mk) {
 		str_t ss;
 		bool first = true;
-		auto mkv = static_cast<unsigned>(mk);
-		if (test_bit_all(mkv, modifier_keys::control)) {
+		if (test_bit_all(mk, modifier_keys::control)) {
 			ss.append(CP_STRLIT("Control"));
 			first = false;
 		}
-		if (test_bit_all(mkv, modifier_keys::shift)) {
+		if (test_bit_all(mk, modifier_keys::shift)) {
 			if (first) {
 				ss.append(CP_STRLIT("+"));
 				first = false;
 			}
 			ss.append(CP_STRLIT("Shift"));
 		}
-		if (test_bit_all(mkv, modifier_keys::alt)) {
+		if (test_bit_all(mk, modifier_keys::alt)) {
 			if (first) {
 				ss.append(CP_STRLIT("+"));
 				first = false;
 			}
 			ss.append(CP_STRLIT("Alt"));
 		}
-		if (test_bit_all(mkv, modifier_keys::cmd)) {
+		if (test_bit_all(mk, modifier_keys::super)) {
 			if (first) {
 				ss.append(CP_STRLIT("+"));
 			}
-			ss.append(CP_STRLIT("Cmd"));
+			ss.append(CP_STRLIT("Super"));
 		}
 		return ss;
 	}
@@ -101,17 +101,18 @@ namespace codepad {
 		}
 	};
 
-	template <typename Func> class hotkey_group {
+	template <typename T> class hotkey_group {
 	public:
-		template <typename T> bool register_hotkey(const std::vector<key_gesture> &sks, T &&func) {
+		bool register_hotkey(const std::vector<key_gesture> &sks, T func) {
 			assert_true_usage(sks.size() > 0, "hotkey is blank");
 			auto i = sks.begin();
-			_gesture_rec *c = &_reg;
+			_gesture_rec_t *c = &_reg;
 			for (; i != sks.end(); ++i) {
-				auto nl = c->next_layer.find(*i);
-				if (nl == c->next_layer.end()) {
+				_gesture_rec_t::layer_rec_t &children = c->get_children();
+				auto nl = children.find(*i);
+				if (nl == children.end()) {
 					break;
-				} else if (nl->second.is_leaf) {
+				} else if (nl->second.is_leaf()) {
 					return false;
 				}
 				c = &nl->second;
@@ -120,57 +121,66 @@ namespace codepad {
 				return false;
 			}
 			for (; i + 1 != sks.end(); ++i) {
-				c = &c->next_layer[*i];
+				c = &c->get_children()[*i];
 			}
-			c->next_layer.emplace(
+			c->get_children().emplace(
 				std::piecewise_construct,
 				std::forward_as_tuple(sks.back()),
-				std::forward_as_tuple(std::function<Func>(std::forward<T>(func)))
+				std::forward_as_tuple(std::in_place_type<T>, std::move(func))
 			);
 			return true;
 		}
 		void unregister_hotkey(const std::vector<key_gesture> &sks) {
-			_gesture_rec *c = &_reg;
-			std::vector<_gesture_rec*> stk;
+			_gesture_rec_t *c = &_reg;
+			std::vector<_gesture_rec_t*> stk;
 			for (auto i = sks.begin(); i != sks.end(); ++i) {
 				stk.push_back(c);
-				auto nl = c->next_layer.find(*i);
-				assert_true_logical(nl != c->next_layer.end());
+				_gesture_rec_t::layer_rec_t &children = c->get_children();
+				auto nl = children.find(*i);
+				assert_true_logical(nl != children.end());
 				c = &nl->second;
 			}
 			assert_true_logical(c->is_leaf, "invalid hotkey chain to unregister");
 			size_t kid = sks.size();
 			for (auto i = stk.rbegin(); i != stk.rend(); ++i, --kid) {
-				if ((*i)->next_layer.size() > 1) {
-					(*i)->next_layer.erase(sks[--kid]);
+				_gesture_rec_t::layer_rec_t &children = (*i)->get_children();
+				if (children.size() > 1) {
+					children.erase(sks[--kid]);
 					break;
 				}
 			}
 		}
 	protected:
-		struct _gesture_rec {
-			_gesture_rec() : next_layer(), is_leaf(false) {
-			}
-			explicit _gesture_rec(std::function<Func> cb) : callback(std::move(cb)), is_leaf(true) {
-			}
-			_gesture_rec(const _gesture_rec&) = delete;
-			_gesture_rec &operator=(const _gesture_rec&) = delete;
-			~_gesture_rec() {
-				if (is_leaf) {
-					callback.~function();
-				} else {
-					next_layer.~map();
-				}
+		struct _gesture_rec_t {
+		public:
+			using layer_rec_t = std::map<key_gesture, _gesture_rec_t>;
+
+			template <typename ...Args> explicit _gesture_rec_t(Args &&...args) :
+				_v(std::forward<Args>(args)...) {
 			}
 
-			union {
-				std::map<key_gesture, _gesture_rec> next_layer;
-				std::function<Func> callback;
-			};
-			bool is_leaf;
+			bool is_leaf() const {
+				return _v.index() == 1;
+			}
+
+			layer_rec_t &get_children() {
+				return std::get<layer_rec_t>(_v);
+			}
+			const layer_rec_t &get_children() const {
+				return std::get<layer_rec_t>(_v);
+			}
+
+			T &get_data() {
+				return std::get<T>(_v);
+			}
+			const T &get_data() const {
+				return std::get<T>(_v);
+			}
+		protected:
+			std::variant<layer_rec_t, T> _v;
 		};
 
-		_gesture_rec _reg;
+		_gesture_rec_t _reg;
 	public:
 		struct state {
 			friend class hotkey_group;
@@ -184,12 +194,12 @@ namespace codepad {
 				return _ptr == nullptr;
 			}
 			bool is_trigger() const {
-				return _ptr && _ptr->is_leaf;
+				return _ptr && _ptr->is_leaf();
 			}
 
-			const std::function<Func> &get_callback() const {
+			const T &get_data() const {
 				assert_true_usage(is_trigger(), "intermediate nodes doesn't have callbacks");
-				return _ptr->callback;
+				return _ptr->get_data();
 			}
 
 			friend bool operator==(state lhs, state rhs) {
@@ -199,10 +209,10 @@ namespace codepad {
 				return !(lhs == rhs);
 			}
 		private:
-			explicit state(const _gesture_rec *rec) : _ptr(rec) {
+			explicit state(const _gesture_rec_t *rec) : _ptr(rec) {
 			}
 
-			const _gesture_rec *_ptr = nullptr;
+			const _gesture_rec_t *_ptr = nullptr;
 		};
 
 		state update_state(key_gesture kg, state &s) const {
@@ -213,12 +223,15 @@ namespace codepad {
 				) {
 				return s;
 			}
-			const _gesture_rec *clvl = s._ptr ? s._ptr : &_reg;
-			auto cstat = clvl->next_layer.find(kg);
-			if (cstat == clvl->next_layer.end()) {
-				return state();
+			const _gesture_rec_t *clvl = s._ptr ? s._ptr : &_reg;
+			if (!clvl->is_leaf()) {
+				const _gesture_rec_t::layer_rec_t &children = clvl->get_children();
+				auto cstat = children.find(kg);
+				if (cstat != children.end()) {
+					return state(&cstat->second);
+				}
 			}
-			return state(&cstat->second);
+			return state();
 		}
 	};
 }
