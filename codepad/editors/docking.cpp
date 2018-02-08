@@ -1,6 +1,7 @@
 #include "docking.h"
 
 using namespace codepad::ui;
+using namespace codepad::os;
 
 namespace codepad::editor {
 	void tab::_initialize() {
@@ -132,5 +133,130 @@ namespace codepad::editor {
 	void tab_host::_initialize() {
 		panel_base::_initialize();
 		dock_manager::get()._on_tab_host_created(*this);
+	}
+
+
+	void dock_manager::update_drag() {
+		if (_drag) {
+			if (_stopdrag()) {
+				switch (_dtype) {
+				case dock_destination_type::new_window:
+					{
+						rectd r = _dragrect;
+						r.ymin = _dragdiff.y;
+						_move_tab_to_new_window(
+							*_drag, r.translated(input::get_mouse_position().convert<double>())
+						);
+					}
+					break;
+				case dock_destination_type::combine_in_tab:
+					_drag->_btn->_xoffset = 0.0;
+					_drag->_btn->invalidate_layout();
+					break;
+				case dock_destination_type::combine:
+					_dest->add_tab(*_drag);
+					_dest->activate_tab(*_drag);
+					break;
+				default:
+					assert_true_logical(_dest, "invalid split target");
+					_split_tab(
+						*_dest, *_drag, (
+							_dtype == dock_destination_type::new_panel_left ||
+							_dtype == dock_destination_type::new_panel_right
+							) ? ui::orientation::horizontal : ui::orientation::vertical,
+						_dtype == dock_destination_type::new_panel_left ||
+						_dtype == dock_destination_type::new_panel_top
+					);
+					break;
+				}
+				_try_dispose_preview();
+				_try_detach_possel();
+				_drag = nullptr;
+				return;
+			}
+			vec2i mouse = input::get_mouse_position();
+			if (_dtype == dock_destination_type::combine_in_tab) {
+				rectd rgn = _dest->get_tab_button_region();
+				vec2d mpos = _dest->get_window()->screen_to_client(mouse).convert<double>();
+				if (!rgn.contains(mpos)) {
+					_drag->_btn->_xoffset = 0.0f;
+					_dest->remove_tab(*_drag);
+					_dtype = dock_destination_type::new_window;
+					_dest = nullptr;
+				} else {
+					_dest->move_tab_before(
+						*_drag, _get_drag_tab_before(mpos.x + _dragdiff.x - rgn.xmin, rgn.width(), _drag->_btn->_xoffset)
+					);
+				}
+			}
+			vec2d minpos;
+			tab_host *mindp = nullptr;
+			double minsql = 0.0;
+			window_base *moverwnd = nullptr;
+			if (_dtype != dock_destination_type::combine_in_tab) {
+				for (auto i = _hostlist.begin(); i != _hostlist.end(); ++i) {
+					window_base *curw = (*i)->get_window();
+					if (moverwnd && curw != moverwnd) {
+						continue;
+					}
+					vec2d mpos = curw->screen_to_client(mouse).convert<double>();
+					if (!moverwnd && curw->hit_test_full_client(mouse)) {
+						moverwnd = curw;
+					}
+					if (moverwnd) {
+						rectd rgn = (*i)->get_tab_button_region();
+						if (rgn.contains(mpos)) {
+							_dtype = dock_destination_type::combine_in_tab;
+							_try_detach_possel();
+							_dest = *i;
+							_dest->add_tab(*_drag);
+							_dest->activate_tab(*_drag);
+							_dest->move_tab_before(
+								*_drag, _get_drag_tab_before(mpos.x + _dragdiff.x - rgn.xmin, rgn.width(), _drag->_btn->_xoffset)
+							);
+							moverwnd->activate();
+							break;
+						}
+					}
+					if ((*i)->get_layout().contains(mpos)) {
+						vec2d cdiff = mpos - (*i)->get_layout().center();
+						double dsql = cdiff.length_sqr();
+						if (!mindp || minsql > dsql) {
+							minpos = mpos;
+							mindp = *i;
+							minsql = dsql;
+						}
+					}
+				}
+			}
+			if (_dtype != dock_destination_type::combine_in_tab) {
+				if (mindp) {
+					if (_dest != mindp) {
+						if (_dest) {
+							_dest->_set_dock_pos_selector(nullptr);
+						}
+						mindp->_set_dock_pos_selector(_possel);
+					}
+					dock_destination_type newdtype = _possel->get_dock_destination(minpos);
+					if (newdtype != _dtype || _dest != mindp) {
+						_try_dispose_preview();
+						_dtype = newdtype;
+						_dest = mindp;
+						if (_dtype != dock_destination_type::new_window) {
+							_dragdec = _dest->get_window()->create_decoration();
+							_initialize_preview();
+						}
+					}
+				} else {
+					_try_dispose_preview();
+					_try_detach_possel();
+					_dest = nullptr;
+					_dtype = dock_destination_type::new_window;
+				}
+			} else {
+				_try_dispose_preview();
+				_try_detach_possel();
+			}
+		}
 	}
 }

@@ -28,6 +28,7 @@ namespace codepad {
 			}
 			vec2i get_position() const override {
 				POINT tl;
+				tl.x = tl.y = 0;
 				winapi_check(ClientToScreen(_hwnd, &tl));
 				return vec2i(tl.x, tl.y);
 			}

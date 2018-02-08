@@ -3,6 +3,7 @@
 #include <map>
 #include <unordered_map>
 #include <variant>
+#include <optional>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -132,16 +133,14 @@ namespace codepad {
 			struct _entry_table {
 				constexpr static size_t fast_size = 128;
 
-				using entry_rec = std::variant<std::monostate, entry>;
-
 				entry &get(char32_t v, bool &valid) {
 					if (v < fast_size) {
-						entry_rec &er = small_cache[v];
-						valid = (er.index() == 1);
+						std::optional<entry> &er = small_cache[v];
+						valid = er.has_value();
 						if (!valid) {
-							er.emplace<1>();
+							er.emplace();
 						}
-						return std::get<entry>(er);
+						return *er;
 					}
 					auto found = _map.find(v);
 					valid = found != _map.end();
@@ -151,7 +150,7 @@ namespace codepad {
 					return found->second;
 				}
 
-				entry_rec small_cache[fast_size];
+				std::optional<entry> small_cache[fast_size];
 				std::unordered_map<char32_t, entry> _map;
 			};
 

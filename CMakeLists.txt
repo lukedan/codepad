@@ -52,9 +52,11 @@ set(SOURCE_FILES
 		codepad/editors/code/components.h
 		codepad/editors/code/context.cpp
 		codepad/editors/code/context.h
+		codepad/editors/code/context_manager.h
 		codepad/editors/code/editor.cpp
 		codepad/editors/code/editor.h
 		codepad/editors/code/view.h
+		codepad/editors/docking.cpp
 		codepad/editors/docking.h
 		codepad/os/current/all.h
 		codepad/os/current/filesystem.h
@@ -68,17 +70,21 @@ set(SOURCE_FILES
 		codepad/os/font.h
 		codepad/os/renderer.h
 		codepad/os/window.h
+		codepad/ui/commands.h
 		codepad/ui/commonelements.h
 		codepad/ui/draw.h
 		codepad/ui/element.cpp
 		codepad/ui/element.h
+		codepad/ui/element_classes.h
 		codepad/ui/font_family.h
 		codepad/ui/manager.cpp
 		codepad/ui/manager.h
+		codepad/ui/native_commands.cpp
+		codepad/ui/native_commands.h
 		codepad/ui/panel.cpp
 		codepad/ui/panel.h
-		codepad/ui/theme_providers.h
-		codepad/ui/window_hotkey_manager.h
+		codepad/ui/visual.cpp
+		codepad/ui/visual.h
 		codepad/utilities/bst.h
 		codepad/utilities/encodings.h
 		codepad/utilities/event.h

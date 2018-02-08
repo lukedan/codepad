@@ -419,7 +419,7 @@ namespace codepad::ui {
 			} else if (gestures->value.IsArray()) {
 				for (auto i = gestures->value.Begin(); i != gestures->value.End(); ++i) {
 					key_gesture g;
-					if (!parse_hotkey_gesture(g, gestures->value)) {
+					if (!parse_hotkey_gesture(g, *i)) {
 						continue;
 					}
 					gests.push_back(g);

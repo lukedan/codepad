@@ -90,9 +90,16 @@ namespace codepad {
 		struct wic_image_loader {
 		public:
 			wic_image_loader() {
-				com_check(CoCreateInstance(
+				HRESULT res = CoCreateInstance(
 					CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_factory)
-				));
+				);
+				if (res == REGDB_E_CLASSNOTREG) { // workaround for missing component in win7
+					com_check(CoCreateInstance(
+						CLSID_WICImagingFactory1, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_factory)
+					));
+				} else {
+					com_check(res);
+				}
 			}
 			~wic_image_loader() {
 				_factory->Release();

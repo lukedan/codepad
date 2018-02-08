@@ -108,7 +108,7 @@ namespace codepad {
 			auto i = sks.begin();
 			_gesture_rec_t *c = &_reg;
 			for (; i != sks.end(); ++i) {
-				_gesture_rec_t::layer_rec_t &children = c->get_children();
+				typename _gesture_rec_t::layer_rec_t &children = c->get_children();
 				auto nl = children.find(*i);
 				if (nl == children.end()) {
 					break;
@@ -135,15 +135,15 @@ namespace codepad {
 			std::vector<_gesture_rec_t*> stk;
 			for (auto i = sks.begin(); i != sks.end(); ++i) {
 				stk.push_back(c);
-				_gesture_rec_t::layer_rec_t &children = c->get_children();
+				typename _gesture_rec_t::layer_rec_t &children = c->get_children();
 				auto nl = children.find(*i);
 				assert_true_logical(nl != children.end());
 				c = &nl->second;
 			}
-			assert_true_logical(c->is_leaf, "invalid hotkey chain to unregister");
+			assert_true_logical(c->is_leaf(), "invalid hotkey chain to unregister");
 			size_t kid = sks.size();
 			for (auto i = stk.rbegin(); i != stk.rend(); ++i, --kid) {
-				_gesture_rec_t::layer_rec_t &children = (*i)->get_children();
+				typename _gesture_rec_t::layer_rec_t &children = (*i)->get_children();
 				if (children.size() > 1) {
 					children.erase(sks[--kid]);
 					break;
@@ -160,7 +160,7 @@ namespace codepad {
 			}
 
 			bool is_leaf() const {
-				return _v.index() == 1;
+				return std::holds_alternative<T>(_v);
 			}
 
 			layer_rec_t &get_children() {
@@ -225,7 +225,7 @@ namespace codepad {
 			}
 			const _gesture_rec_t *clvl = s._ptr ? s._ptr : &_reg;
 			if (!clvl->is_leaf()) {
-				const _gesture_rec_t::layer_rec_t &children = clvl->get_children();
+				const typename _gesture_rec_t::layer_rec_t &children = clvl->get_children();
 				auto cstat = children.find(kg);
 				if (cstat != children.end()) {
 					return state(&cstat->second);

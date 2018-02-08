@@ -664,6 +664,21 @@ namespace codepad::editor {
 			return _possel;
 		}
 
+		void split_tab(tab &t, ui::orientation orient, bool newfirst) {
+			tab_host *host = t.get_host();
+			assert_true_usage(host != nullptr, "cannot split tab without host");
+			_split_tab(*host, t, orient, newfirst);
+		}
+		void move_tab_to_new_window(tab &t) {
+			rectd tglayout = t.get_layout();
+			tab_host *hst = t.get_host();
+			os::window_base *wnd = t.get_window();
+			if (hst != nullptr && wnd != nullptr) {
+				tglayout = hst->get_layout().translated(wnd->get_position().convert<double>());
+			}
+			_move_tab_to_new_window(t, tglayout);
+		}
+
 		void update_changed_hosts() {
 			for (auto i = _changed.begin(); i != _changed.end(); ++i) {
 				if ((*i)->tab_count() == 0) {
@@ -707,141 +722,7 @@ namespace codepad::editor {
 			}
 			_changed.clear();
 		}
-		void update_drag() {
-			if (_drag) {
-				if (_stopdrag()) {
-					switch (_dtype) {
-					case dock_destination_type::new_window:
-						{
-							os::window_base *wnd = _new_window();
-							tab_host *nhst = ui::element::create<tab_host>();
-							wnd->children().add(*nhst);
-							nhst->add_tab(*_drag);
-							wnd->set_client_size(vec2d(_dragrect.width(), _dragrect.ymax - _dragdiff.y).convert<int>());
-							wnd->set_position(os::input::get_mouse_position() + _dragdiff.convert<int>());
-						}
-						break;
-					case dock_destination_type::combine_in_tab:
-						_drag->_btn->_xoffset = 0.0;
-						_drag->_btn->invalidate_layout();
-						break;
-					case dock_destination_type::combine:
-						_dest->add_tab(*_drag);
-						_dest->activate_tab(*_drag);
-						break;
-					default:
-						{
-							assert_true_logical(_dest, "invalid split target");
-							split_panel *sp = _replace_with_split_panel(*_dest);
-							tab_host *th = ui::element::create<tab_host>();
-							_hostlist.erase(th->_text_tok);
-							th->_text_tok = _hostlist.insert(_dest->_text_tok, th);
-							if (_dtype == dock_destination_type::new_panel_left || _dtype == dock_destination_type::new_panel_top) {
-								sp->set_child1(th);
-								sp->set_child2(_dest);
-							} else {
-								sp->set_child1(_dest);
-								sp->set_child2(th);
-							}
-							th->add_tab(*_drag);
-							sp->set_orientation(
-								_dtype == dock_destination_type::new_panel_left || _dtype == dock_destination_type::new_panel_right ?
-								ui::orientation::horizontal :
-								ui::orientation::vertical
-							);
-						}
-						break;
-					}
-					_try_dispose_preview();
-					_try_detach_possel();
-					_drag = nullptr;
-					return;
-				}
-				vec2i mouse = os::input::get_mouse_position();
-				if (_dtype == dock_destination_type::combine_in_tab) {
-					rectd rgn = _dest->get_tab_button_region();
-					vec2d mpos = _dest->get_window()->screen_to_client(mouse).convert<double>();
-					if (!rgn.contains(mpos)) {
-						_drag->_btn->_xoffset = 0.0f;
-						_dest->remove_tab(*_drag);
-						_dtype = dock_destination_type::new_window;
-						_dest = nullptr;
-					} else {
-						_dest->move_tab_before(
-							*_drag, _get_drag_tab_before(mpos.x + _dragdiff.x - rgn.xmin, rgn.width(), _drag->_btn->_xoffset)
-						);
-					}
-				}
-				vec2d minpos;
-				tab_host *mindp = nullptr;
-				double minsql = 0.0;
-				os::window_base *moverwnd = nullptr;
-				if (_dtype != dock_destination_type::combine_in_tab) {
-					for (auto i = _hostlist.begin(); i != _hostlist.end(); ++i) {
-						os::window_base *curw = (*i)->get_window();
-						if (moverwnd && curw != moverwnd) {
-							continue;
-						}
-						vec2d mpos = curw->screen_to_client(mouse).convert<double>();
-						if (!moverwnd && curw->hit_test_full_client(mouse)) {
-							moverwnd = curw;
-						}
-						if (moverwnd) {
-							rectd rgn = (*i)->get_tab_button_region();
-							if (rgn.contains(mpos)) {
-								_dtype = dock_destination_type::combine_in_tab;
-								_try_detach_possel();
-								_dest = *i;
-								_dest->add_tab(*_drag);
-								_dest->activate_tab(*_drag);
-								_dest->move_tab_before(
-									*_drag, _get_drag_tab_before(mpos.x + _dragdiff.x - rgn.xmin, rgn.width(), _drag->_btn->_xoffset)
-								);
-								moverwnd->activate();
-								break;
-							}
-						}
-						if ((*i)->get_layout().contains(mpos)) {
-							vec2d cdiff = mpos - (*i)->get_layout().center();
-							double dsql = cdiff.length_sqr();
-							if (!mindp || minsql > dsql) {
-								minpos = mpos;
-								mindp = *i;
-								minsql = dsql;
-							}
-						}
-					}
-				}
-				if (_dtype != dock_destination_type::combine_in_tab) {
-					if (mindp) {
-						if (_dest != mindp) {
-							if (_dest) {
-								_dest->_set_dock_pos_selector(nullptr);
-							}
-							mindp->_set_dock_pos_selector(_possel);
-						}
-						dock_destination_type newdtype = _possel->get_dock_destination(minpos);
-						if (newdtype != _dtype || _dest != mindp) {
-							_try_dispose_preview();
-							_dtype = newdtype;
-							_dest = mindp;
-							if (_dtype != dock_destination_type::new_window) {
-								_dragdec = _dest->get_window()->create_decoration();
-								_initialize_preview();
-							}
-						}
-					} else {
-						_try_dispose_preview();
-						_try_detach_possel();
-						_dest = nullptr;
-						_dtype = dock_destination_type::new_window;
-					}
-				} else {
-					_try_dispose_preview();
-					_try_detach_possel();
-				}
-			}
-		}
+		void update_drag();
 		void update() {
 			update_changed_hosts();
 			update_drag();
@@ -891,6 +772,29 @@ namespace codepad::editor {
 		ui::decoration *_dragdec = nullptr;
 		dock_position_selector *_possel = nullptr;
 
+		struct _keep_intab_focus {
+		public:
+			explicit _keep_intab_focus(tab &t) {
+				for (ui::element *e = ui::manager::get().get_focused(); e != nullptr; e = e->parent()) {
+					if (e == &t) {
+						_focus = ui::manager::get().get_focused();
+						break;
+					}
+				}
+			}
+			_keep_intab_focus(_keep_intab_focus&&) = delete;
+			_keep_intab_focus(const _keep_intab_focus&) = delete;
+			_keep_intab_focus &operator=(_keep_intab_focus&&) = delete;
+			_keep_intab_focus &operator=(const _keep_intab_focus&) = delete;
+			~_keep_intab_focus() {
+				if (_focus) {
+					ui::manager::get().set_focus(_focus);
+				}
+			}
+		protected:
+			ui::element *_focus = nullptr;
+		};
+
 		os::window_base *_new_window() {
 			os::window_base *wnd = ui::element::create<os::window>();
 			wnd->got_window_focus += [this, wnd]() {
@@ -933,6 +837,39 @@ namespace codepad::editor {
 				w->children().add(*sp);
 			}
 			return sp;
+		}
+
+		void _split_tab(tab_host &host, tab &t, ui::orientation orient, bool newfirst) {
+			_keep_intab_focus keep_focus(t);
+			if (t.get_host() == &host) {
+				host.remove_tab(t);
+			}
+			split_panel *sp = _replace_with_split_panel(host);
+			tab_host *th = ui::element::create<tab_host>();
+			_hostlist.erase(th->_text_tok);
+			th->_text_tok = _hostlist.insert(host._text_tok, th);
+			if (newfirst) {
+				sp->set_child1(th);
+				sp->set_child2(&host);
+			} else {
+				sp->set_child1(&host);
+				sp->set_child2(th);
+			}
+			th->add_tab(t);
+			sp->set_orientation(orient);
+		}
+		void _move_tab_to_new_window(tab &t, rectd layout) {
+			_keep_intab_focus keep_focus(t);
+			tab_host *host = t.get_host();
+			if (host != nullptr) {
+				host->remove_tab(t);
+			}
+			os::window_base *wnd = _new_window();
+			tab_host *nhst = ui::element::create<tab_host>();
+			wnd->children().add(*nhst);
+			nhst->add_tab(t);
+			wnd->set_client_size(layout.size().convert<int>());
+			wnd->set_position(layout.xmin_ymin().convert<int>());
 		}
 
 		void _initialize_preview() const {

@@ -99,7 +99,12 @@ namespace codepad {
 	}
 
 	template <typename EncChar, typename Char, typename T> using enable_for_encoding =
-		std::enable_if<std::is_same_v<EncChar, std::decay_t<Char>>, T>;
+		std::enable_if<
+		std::is_same_v<EncChar, std::decay_t<Char>> || (
+			sizeof(wchar_t) == sizeof(EncChar) &&
+			std::is_same_v<wchar_t, std::decay_t<Char>>
+			), T
+		>;
 	template <typename Char, typename T> using enable_for_utf8 = enable_for_encoding<char8_t, Char, T>;
 	template <typename Char, typename T> using enable_for_utf8_t = typename enable_for_utf8<Char, T>::type;
 	template <typename Char, typename T> using enable_for_utf16 = enable_for_encoding<char16_t, Char, T>;
@@ -407,20 +412,23 @@ namespace codepad {
 		translate_codepoint_utf32([&s, c](std::initializer_list<char32_t> l) { s.append(l); }, c);
 	}
 
-	template <typename To, typename From> inline To convert_encoding(
-		const From &str
+	template <typename To, typename It> inline To convert_encoding(
+		It beg, It end
 	) {
 		To result;
-		result.reserve(str.length());
-		auto i = str.begin(), end = str.end();
 		char32_t c;
-		while (i != end) {
-			if (!next_codepoint(i, end, c)) {
+		while (beg != end) {
+			if (!next_codepoint(beg, end, c)) {
 				c = replacement_character;
 			}
 			append_codepoint(result, c);
 		}
 		return result;
+	}
+	template <typename To, typename From> inline To convert_encoding(
+		const From &str
+	) {
+		return convert_encoding<To>(str.begin(), str.end());
 	}
 
 	inline u8str_t utf32_to_utf8(const std::u32string &str) {
@@ -472,9 +480,9 @@ namespace codepad {
 
 	template <typename Char> inline str_t convert_to_current_encoding(const std::basic_string<Char> &s) {
 #ifdef CP_USE_UTF8
-		return convert_to_utf8(s);
+		return convert_encoding<u8str_t>(s);
 #elif defined(CP_USE_UTF32)
-		return convert_to_utf32(s);
+		return convert_encoding<std::u32string>(s);
 #endif
 	}
 

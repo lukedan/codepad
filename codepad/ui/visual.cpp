@@ -1,6 +1,7 @@
 #include "visual.h"
 #include "element_classes.h"
 #include "element.h"
+#include "draw.h"
 
 namespace codepad::ui {
 	rectd visual_layer::get_center_rect(const state &s, rectd client) const {
@@ -19,6 +20,78 @@ namespace codepad::ui {
 			s.current_size.current_value.y
 		);
 		return client;
+	}
+
+	void visual_layer::render(rectd layout, const state &s) const {
+		if (s.current_texture.current_frame == texture_animation.frames.end()) {
+			return;
+		}
+		switch (layer_type) {
+		case type::solid:
+			{
+				rectd cln = get_center_rect(s, layout);
+				os::renderer_base::get().draw_quad(
+					*s.current_texture.current_frame->first, cln,
+					rectd(0.0, 1.0, 0.0, 1.0), s.current_color.current_value
+				);
+			}
+			break;
+		case type::grid:
+			{
+				size_t
+					w = s.current_texture.current_frame->first->get_width(),
+					h = s.current_texture.current_frame->first->get_height();
+				rectd
+					outer = layout, inner = get_center_rect(s, outer),
+					texr(
+						s.current_margin.current_value.left / static_cast<double>(w),
+						1.0 - s.current_margin.current_value.right / static_cast<double>(w),
+						s.current_margin.current_value.top / static_cast<double>(h),
+						1.0 - s.current_margin.current_value.bottom / static_cast<double>(h)
+					);
+				colord curc = s.current_color.current_value;
+				render_batch rb;
+				rb.reserve(18);
+				rb.add_quad(
+					rectd(outer.xmin, inner.xmin, outer.ymin, inner.ymin),
+					rectd(0.0, texr.xmin, 0.0, texr.ymin), curc
+				);
+				rb.add_quad(
+					rectd(inner.xmin, inner.xmax, outer.ymin, inner.ymin),
+					rectd(texr.xmin, texr.xmax, 0.0, texr.ymin), curc
+				);
+				rb.add_quad(
+					rectd(inner.xmax, outer.xmax, outer.ymin, inner.ymin),
+					rectd(texr.xmax, 1.0, 0.0, texr.ymin), curc
+				);
+				rb.add_quad(
+					rectd(outer.xmin, inner.xmin, inner.ymin, inner.ymax),
+					rectd(0.0, texr.xmin, texr.ymin, texr.ymax), curc
+				);
+				rb.add_quad(
+					rectd(inner.xmin, inner.xmax, inner.ymin, inner.ymax),
+					rectd(texr.xmin, texr.xmax, texr.ymin, texr.ymax), curc
+				);
+				rb.add_quad(
+					rectd(inner.xmax, outer.xmax, inner.ymin, inner.ymax),
+					rectd(texr.xmax, 1.0, texr.ymin, texr.ymax), curc
+				);
+				rb.add_quad(
+					rectd(outer.xmin, inner.xmin, inner.ymax, outer.ymax),
+					rectd(0.0, texr.xmin, texr.ymax, 1.0), curc
+				);
+				rb.add_quad(
+					rectd(inner.xmin, inner.xmax, inner.ymax, outer.ymax),
+					rectd(texr.xmin, texr.xmax, texr.ymax, 1.0), curc
+				);
+				rb.add_quad(
+					rectd(inner.xmax, outer.xmax, inner.ymax, outer.ymax),
+					rectd(texr.xmax, 1.0, texr.ymax, 1.0), curc
+				);
+				rb.draw(*s.current_texture.current_frame->first);
+			}
+			break;
+		}
 	}
 
 

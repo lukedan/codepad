@@ -32,13 +32,13 @@ namespace codepad {
 			return *this;
 		}
 
-		void invoke(Args &&...p) {
+		template <typename ...Ts> void invoke(Ts &&...p) {
 			for (auto i = _list.begin(); i != _list.end(); ++i) {
-				(*i)(std::forward<Args>(p)...);
+				(*i)(std::forward<Ts>(p)...);
 			}
 		}
-		void operator()(Args &&...p) {
-			invoke(std::forward<Args>(p)...);
+		template <typename ...Ts> void operator()(Ts &&...p) {
+			invoke(std::forward<Ts>(p)...);
 		}
 	protected:
 		std::list<handler> _list;

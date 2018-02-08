@@ -10,6 +10,20 @@
 		{ "gestures": "shift+up", "command": "editor.carets.move_up_selected" },
 		{ "gestures": "shift+down", "command": "editor.carets.move_down_selected" },
 
+		{ "gestures": "alt+j", "command": "editor.carets.move_left" },
+		{ "gestures": "alt+l", "command": "editor.carets.move_right" },
+		{ "gestures": "alt+i", "command": "editor.carets.move_up" },
+		{ "gestures": "alt+k", "command": "editor.carets.move_down" },
+		{ "gestures": "alt+u", "command": "editor.carets.move_leftmost_noblank" },
+		{ "gestures": "alt+o", "command": "editor.carets.move_rightmost" },
+
+		{ "gestures": "alt+shift+j", "command": "editor.carets.move_left_selected" },
+		{ "gestures": "alt+shift+l", "command": "editor.carets.move_right_selected" },
+		{ "gestures": "alt+shift+i", "command": "editor.carets.move_up_selected" },
+		{ "gestures": "alt+shift+k", "command": "editor.carets.move_down_selected" },
+		{ "gestures": "alt+shift+u", "command": "editor.carets.move_leftmost_noblank_selected" },
+		{ "gestures": "alt+shift+o", "command": "editor.carets.move_rightmost_selected" },
+
 		{ "gestures": "home", "command": "editor.carets.move_leftmost_noblank" },
 		{ "gestures": "end", "command": "editor.carets.move_rightmost" },
 		{ "gestures": "ctrl+home", "command": "editor.carets.move_leftmost" },
@@ -17,14 +31,21 @@
 		{ "gestures": "shift+end", "command": "editor.carets.move_rightmost_selected" },
 		{ "gestures": "shift+ctrl+home", "command": "editor.carets.move_leftmost_selected" },
 
+		{ "gestures": "ctrl+z", "command": "editor.undo" },
+		{ "gestures": "ctrl+y", "command": "editor.redo" },
+
 		{ "gestures": "backspace", "command": "editor.delete_before_carets" },
 		{ "gestures": "delete", "command": "editor.delete_after_carets" },
-		{ "gestures": "insert", "command": "editor.toggle_insert" },
-
-		{ "gestures": "ctrl+z", "command": "editor.undo" },
-		{ "gestures": "ctrl+y", "command": "editor.redo" }
+		{ "gestures": "insert", "command": "editor.toggle_insert" }
 	],
 	"tab": [
+		{ "gestures": ["ctrl+t", "left"], "command": "tab.split_left" },
+		{ "gestures": ["ctrl+t", "right"], "command": "tab.split_right" },
+		{ "gestures": ["ctrl+t", "up"], "command": "tab.split_up" },
+		{ "gestures": ["ctrl+t", "down"], "command": "tab.split_down" },
+
+		{ "gestures": ["ctrl+t", "ctrl+n"], "command": "tab.move_to_new_window" },
+
 		{ "gestures": "ctrl+w", "command": "tab.request_close" }
 	],
 	"tab_host": [

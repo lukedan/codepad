@@ -1,6 +1,6 @@
 #pragma once
 
-#include <variant>
+#include <optional>
 
 #include "misc.h"
 #include "tasks.h"
@@ -13,6 +13,7 @@
 #include "../ui/element_classes.h"
 #include "../editors/docking.h"
 #include "../editors/code/editor.h"
+#include "../editors/code/context_manager.h"
 
 namespace codepad {
 	template <typename ...Args> struct singleton_factory { // TODO thread safety
@@ -24,26 +25,22 @@ namespace codepad {
 		}
 
 		template <typename T> T &get() {
-			_init_rec<T> &ir = std::get<_init_rec<T>>(_objs);
-			if (ir.pointer == nullptr) {
-				ir.pointer = new T();
+			std::optional<T> &ir = std::get<std::optional<T>>(_objs);
+			if (!ir.has_value()) {
+				ir.emplace();
 				if (!std::is_same_v<logger, T>) {
 					logger::get().log_info(CP_HERE, "initialized variable: ", demangle(typeid(T).name()));
 				}
-				_dispose_order.push_back([ptr = ir.pointer]() {
+				_dispose_order.push_back([this]() {
 					logger::get().log_info(CP_HERE, "disposing variable: ", demangle(typeid(T).name()));
-					delete ptr;
-				});
+					std::get<std::optional<T>>(_objs).reset();
+					});
 			}
-			return *ir.pointer;
+			return *ir;
 		}
 	protected:
-		template <typename T> struct _init_rec {
-			T *pointer = nullptr;
-		};
-
 		std::vector<std::function<void()>> _dispose_order;
-		std::tuple<_init_rec<Args>...> _objs;
+		std::tuple<std::optional<Args>...> _objs;
 	};
 
 	// ordering is important
@@ -102,7 +99,8 @@ namespace codepad {
 			ui::class_manager,
 			ui::command_registry,
 			editor::dock_manager,
-			editor::code::editor::_appearance_config // TODO remove this as well
+			editor::code::editor::_appearance_config, // TODO remove this as well
+			editor::code::context_manager
 		> _vars;
 
 		static globals *_cur;
@@ -164,6 +162,9 @@ namespace codepad {
 	}
 	inline editor::code::editor::_appearance_config &editor::code::editor::_get_appearance() {
 		return globals::current().get<_appearance_config>();
+	}
+	inline editor::code::context_manager &editor::code::context_manager::get() {
+		return globals::current().get<context_manager>();
 	}
 
 	inline std::chrono::time_point<std::chrono::high_resolution_clock> get_app_epoch() {

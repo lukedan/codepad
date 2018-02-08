@@ -153,6 +153,9 @@
     <ClInclude Include="ui\commands.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="editors\code\context_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

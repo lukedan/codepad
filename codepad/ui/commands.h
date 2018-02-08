@@ -41,7 +41,7 @@ namespace codepad::ui {
 		window_hotkey_info(str_t cmd, element *p) : command(std::move(cmd)), parameter(p) {
 		}
 		const str_t command;
-		element *const parameter;
+		element *const parameter = nullptr;
 		bool cancelled = false;
 	};
 
@@ -78,25 +78,25 @@ namespace codepad::ui {
 			key_gesture curg = key_gesture::get_current(k);
 			_gests.push_back(curg);
 			for (auto i = _groups.begin(); i != _groups.end(); ++i) {
-				intercept = intercept || i->_on_keypress(curg, first);
+				intercept = i->_on_keypress(curg, first) || intercept;
 				if (i->state.is_trigger()) {
 					window_hotkey_info hk(i->state.get_data(), i->group.param);
-					triggered.invoke(hk);
-					if (!hk.cancelled) {
-						auto *pcmd = command_registry::get().try_find_command(hk.command);
-						if (pcmd) {
-							(*pcmd)(hk.parameter);
-						} else {
-							logger::get().log_warning(CP_HERE, "invalid command name");
-						}
-					}
 					i->state = element_hotkey_group::state();
-					_gests.clear();
 #ifdef CP_DETECT_USAGE_ERRORS
 					for (auto j = _groups.begin(); j != _groups.end(); ++j) {
 						assert_true_usage(j->state.is_empty(), "conflicting hotkey chains detected");
 					}
 #endif
+					triggered.invoke(hk);
+					if (!hk.cancelled) {
+						auto *pcmd = command_registry::get().try_find_command(hk.command);
+						if (pcmd) {
+							(*pcmd)(hk.parameter); // i may be invalidated since here
+						} else {
+							logger::get().log_warning(CP_HERE, "invalid command name");
+						}
+					}
+					_gests.clear();
 					return true;
 				} else if (!i->state.is_empty()) {
 					all_emp = false;
@@ -132,7 +132,7 @@ namespace codepad::ui {
 					return false;
 				}
 				state = ns;
-				return true;
+				return !state.is_empty();
 			}
 		};
 

@@ -4,6 +4,7 @@
 #include "../editors/code/codebox.h"
 #include "../editors/code/editor.h"
 #include "../editors/code/components.h"
+#include "../editors/code/context_manager.h"
 
 using namespace codepad::os;
 using namespace codepad::editor;
@@ -111,6 +112,7 @@ namespace codepad::ui::native_commands {
 				})
 		);
 
+
 		reg.register_command(
 			CP_STRLIT("tab.request_close"), convert_type<tab>([](tab *t) {
 				t->request_close();
@@ -118,15 +120,41 @@ namespace codepad::ui::native_commands {
 		);
 
 		reg.register_command(
+			CP_STRLIT("tab.split_left"), convert_type<tab>([](tab *t) {
+				dock_manager::get().split_tab(*t, orientation::horizontal, true);
+				})
+		);
+		reg.register_command(
+			CP_STRLIT("tab.split_right"), convert_type<tab>([](tab *t) {
+				dock_manager::get().split_tab(*t, orientation::horizontal, false);
+				})
+		);
+		reg.register_command(
+			CP_STRLIT("tab.split_up"), convert_type<tab>([](tab *t) {
+				dock_manager::get().split_tab(*t, orientation::vertical, true);
+				})
+		);
+		reg.register_command(
+			CP_STRLIT("tab.split_down"), convert_type<tab>([](tab *t) {
+				dock_manager::get().split_tab(*t, orientation::vertical, false);
+				})
+		);
+
+		reg.register_command(
+			CP_STRLIT("tab.move_to_new_window"), convert_type<tab>([](tab *t) {
+				dock_manager::get().move_tab_to_new_window(*t);
+				})
+		);
+
+
+		reg.register_command(
 			CP_STRLIT("open_file_dialog"), convert_type<tab_host>([](tab_host *th) {
-				auto files = open_file_dialog(th->get_window());
+				auto files = open_file_dialog(th->get_window(), file_dialog_type::multiple_selection);
 				tab *last = nullptr;
 				for (const auto &path : files) {
-					auto ctx = std::make_shared<code::text_context>();
-					ctx->load_from_file(path);
-					ctx->auto_set_default_line_ending();
+					auto ctx = context_manager::get().open_file(path);
 					tab *tb = dock_manager::get().new_tab_in(th);
-					tb->set_caption(CP_STRLIT("code"));
+					tb->set_caption(convert_to_current_encoding(path.filename().native()));
 					code::codebox *box = element::create<codebox>();
 					box->add_component_left(*element::create<line_number>());
 					box->add_component_right(*element::create<minimap>());
@@ -137,6 +165,20 @@ namespace codepad::ui::native_commands {
 				if (last != nullptr) {
 					th->activate_tab(*last);
 				}
+				})
+		);
+
+		reg.register_command(
+			CP_STRLIT("new_file"), convert_type<tab_host>([](tab_host *th) {
+				auto ctx = context_manager::get().new_file();
+				tab *tb = dock_manager::get().new_tab_in(th);
+				tb->set_caption(CP_STRLIT("new file"));
+				code::codebox *box = element::create<codebox>();
+				box->add_component_left(*element::create<line_number>());
+				box->add_component_right(*element::create<minimap>());
+				box->get_editor()->set_context(ctx);
+				tb->children().add(*box);
+				th->activate_tab(*tb);
 				})
 		);
 	}

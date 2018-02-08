@@ -309,6 +309,19 @@ namespace codepad::editor::code {
 
 	class text_context {
 	public:
+#ifdef CP_PLATFORM_WINDOWS
+		constexpr static line_ending platform_line_ending = line_ending::rn;
+#elif defined(CP_PLATFORM_UNIX)
+		constexpr static line_ending platform_line_ending = line_ending::n;
+#endif
+
+		// all instances of text_context should be obtained from context_manager
+		// made public for std::make_shared, should NOT be called directly
+		explicit text_context(size_t id) : _fileid(std::in_place_type<size_t>, id) {
+		}
+		explicit text_context(const std::filesystem::path&);
+		~text_context();
+
 		struct iterator {
 			friend class text_context;
 		public:
@@ -371,12 +384,12 @@ namespace codepad::editor::code {
 			size_t _col = 0;
 		};
 
-		void clear() {
-			_str.clear();
-			_lbr.clear();
+		void save() {
+			assert_true_usage(std::holds_alternative<std::filesystem::path>(_fileid), "file name unknown");
+			save_to_file(std::get<std::filesystem::path>(_fileid));
 		}
-
-		bool load_from_file(const std::filesystem::path&);
+		void save_new(const std::filesystem::path&);
+		// can be used as save as
 		void save_to_file(const std::filesystem::path &fn) const {
 			std::ofstream fout(fn.u8string(), std::ios::binary);
 			for (auto i = _str.node_begin(); i != _str.node_end(); ++i) {
@@ -387,16 +400,14 @@ namespace codepad::editor::code {
 			}
 		}
 
-		void auto_set_default_line_ending() {
+		line_ending detect_most_used_line_ending() const {
 			size_t n[3]{};
 			for (auto i = _lbr.begin(); i != _lbr.end(); ++i) {
 				if (i->ending != line_ending::none) {
 					++n[static_cast<int>(i->ending) - 1];
 				}
 			}
-			auto choice = std::max_element(n, n + 3) - n;
-			logger::get().log_info(CP_HERE, "choosing line ending r: ", n[0], " n: ", n[1], " rn: ", n[2], " chose ", choice);
-			set_default_line_ending(static_cast<line_ending>(choice + 1));
+			return static_cast<line_ending>((std::max_element(n, n + 3) - n) + 1);
 		}
 		void set_default_line_ending(line_ending l) {
 			_le = l;
@@ -432,9 +443,9 @@ namespace codepad::editor::code {
 			);
 		}
 
-		struct text_clip_info {
-			text_clip_info() = default;
-			text_clip_info(size_t c, std::vector<linebreak_registry::line_info> ls) :
+		struct clip_info {
+			clip_info() = default;
+			clip_info(size_t c, std::vector<linebreak_registry::line_info> ls) :
 				total_chars(c), lines(std::move(ls)) {
 			}
 			size_t total_chars = 0;
@@ -442,7 +453,7 @@ namespace codepad::editor::code {
 		};
 
 		// modification made by these functions will neither invoke modified nor be recorded
-		template <typename Iter> text_clip_info insert_text(size_t cp, Iter beg, Iter end) {
+		template <typename Iter> clip_info insert_text(size_t cp, Iter beg, Iter end) {
 			codepoint_iterator_base<Iter> it(beg, end);
 			auto pos = _lbr.get_line_and_column_and_codepoint_of_char(cp);
 			char32_t last = '\0';
@@ -480,9 +491,9 @@ namespace codepad::editor::code {
 			totchars += curl.nonbreak_chars;
 			lines.push_back(curl);
 			_lbr.insert_chars(std::get<0>(pos), std::get<2>(pos), lines);
-			return text_clip_info(totchars, std::move(lines));
+			return clip_info(totchars, std::move(lines));
 		}
-		text_clip_info insert_text(size_t cp, const string_buffer::string_type &str) {
+		clip_info insert_text(size_t cp, const string_buffer::string_type &str) {
 			return insert_text(cp, str.begin(), str.end());
 		}
 
@@ -539,6 +550,10 @@ namespace codepad::editor::code {
 			return _curedit;
 		}
 
+		const std::variant<size_t, std::filesystem::path> &get_file_id() const {
+			return _fileid;
+		}
+
 		event<void> visual_changed;
 		event<modification_info> modified; // ONLY invoked by text_context_modifier
 	protected:
@@ -552,7 +567,9 @@ namespace codepad::editor::code {
 		size_t _curedit = 0;
 		// settings
 		double _tab_w = 4.0;
-		line_ending _le = line_ending::n;
+		line_ending _le = platform_line_ending;
+		// file token
+		std::variant<size_t, std::filesystem::path> _fileid;
 	};
 
 	struct text_context_modifier {

@@ -60,10 +60,10 @@ namespace codepad {
 				struct _key_id_backmapping_t {
 					_key_id_backmapping_t() {
 						for (int i = 0; i < static_cast<int>(total_num_keys); ++i) {
-							v[_key_id_mapping[i]] = i;
+							v[_key_id_mapping[i]] = static_cast<key>(i);
 						}
 					}
-					int v[255];
+					key v[255];
 				} _key_id_backmapping;
 			}
 		}
@@ -102,14 +102,18 @@ namespace codepad {
 					form->_on_resize();
 					return 0;
 
+				case WM_SYSKEYDOWN:
+					[[fallthrough]]; // same processing
 				case WM_KEYDOWN:
 					_form_onevent<ui::key_info>(
-						*form, &window::_on_key_down, static_cast<input::key>(input::_details::_key_id_backmapping.v[wparam])
+						*form, &window::_on_key_down, input::_details::_key_id_backmapping.v[wparam]
 						);
 					return 0;
+				case WM_SYSKEYUP:
+					[[fallthrough]];
 				case WM_KEYUP:
 					_form_onevent<ui::key_info>(
-						*form, &window::_on_key_up, static_cast<input::key>(input::_details::_key_id_backmapping.v[wparam])
+						*form, &window::_on_key_up, input::_details::_key_id_backmapping.v[wparam]
 						);
 					return 0;
 
@@ -241,8 +245,8 @@ namespace codepad {
 			MSG msg;
 			if (PeekMessage(&msg, _hwnd, 0, 0, PM_REMOVE)) {
 				if (!(
-					msg.message == WM_KEYDOWN &&
-					hotkey_manager.on_key_down(static_cast<input::key>(input::_details::_key_id_backmapping.v[msg.wParam]))
+					(msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) &&
+					hotkey_manager.on_key_down(input::_details::_key_id_backmapping.v[msg.wParam])
 					)) {
 					TranslateMessage(&msg);
 					DispatchMessage(&msg);
@@ -256,7 +260,9 @@ namespace codepad {
 #define CP_USE_LEGACY_OPEN_FILE_DIALOG // new open file dialog doesn't work right now
 
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
-		vector<filesystem::path> open_file_dialog(const window_base *parent) {
+		vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
+			const size_t file_buffer_size = 1000;
+
 #	ifdef CP_DETECT_LOGICAL_ERRORS
 			const window *wnd = dynamic_cast<const window*>(parent);
 			assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
@@ -264,23 +270,41 @@ namespace codepad {
 			const window *wnd = static_cast<const window*>(parent);
 #	endif
 			OPENFILENAME ofn;
-			TCHAR file[260];
+			TCHAR file[file_buffer_size];
 
 			memset(&ofn, 0, sizeof(ofn));
 			ofn.lStructSize = sizeof(ofn);
 			ofn.hwndOwner = wnd ? wnd->get_native_handle() : nullptr;
 			ofn.lpstrFile = file;
 			ofn.lpstrFile[0] = '\0';
-			ofn.nMaxFile = sizeof(file);
+			ofn.nMaxFile = file_buffer_size;
 			ofn.lpstrFilter = TEXT("All files\0*.*\0");
 			ofn.nFilterIndex = 0;
 			ofn.lpstrFileTitle = nullptr;
 			ofn.nMaxFileTitle = 0;
 			ofn.lpstrInitialDir = nullptr;
-			ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+			if (type == file_dialog_type::multiple_selection) {
+				ofn.Flags |= OFN_ALLOWMULTISELECT | OFN_EXPLORER;
+			}
 
 			if (GetOpenFileName(&ofn) == TRUE) {
-				return {filesystem::path(file)};
+				if (
+					ofn.nFileOffset == 0 ||
+					ofn.lpstrFile[ofn.nFileOffset - 1] != '\0' ||
+					type == file_dialog_type::single_selection
+					) {
+					return {filesystem::path(ofn.lpstrFile)};
+				} else {
+					filesystem::path wd = filesystem::path(ofn.lpstrFile);
+					vector<filesystem::path> paths;
+					const TCHAR *cur = ofn.lpstrFile + ofn.nFileOffset;
+					for (; *cur != 0; ++cur) {
+						paths.push_back(wd / cur);
+						for (; *cur != 0; ++cur) {
+						}
+					}
+					return paths;
+				}
 			}
 			return {};
 		}
@@ -357,7 +381,7 @@ namespace codepad {
 			com_check(pDialogEventHandler->QueryInterface(riid, ppv));
 			pDialogEventHandler->Release();
 		}
-		vector<filesystem::path> open_file_dialog(const window_base *parent) {
+		vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
 			const COMDLG_FILTERSPEC file_types = {L"All files", L"*.*"};
 
 #	ifdef CP_DETECT_LOGICAL_ERRORS
@@ -376,7 +400,13 @@ namespace codepad {
 			create_dialog_event_handler(IID_PPV_ARGS(&devents));
 			com_check(dialog->Advise(devents, &cookie));
 			com_check(dialog->GetOptions(&options));
-			com_check(dialog->SetOptions(options | FOS_FORCEFILESYSTEM));
+			options |= FOS_FORCEFILESYSTEM;
+			if (type == file_dialog_type::multiple_selection) {
+				options |= FOS_ALLOWMULTISELECT;
+			} else {
+				options &= ~FOS_ALLOWMULTISELECT;
+			}
+			com_check(dialog->SetOptions(options));
 			com_check(dialog->SetFileTypes(1, &file_types));
 			com_check(dialog->SetFileTypeIndex(1));
 			HRESULT res = dialog->Show(wnd ? wnd->get_native_handle() : nullptr); // TODO bug here: program hangs

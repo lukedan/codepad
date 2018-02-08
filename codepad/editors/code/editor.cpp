@@ -208,6 +208,7 @@ namespace codepad {
 				_gizmos.fixup(mi.caret_fixup);
 
 				// fixup view
+				// TODO improve performance
 				_fmt.fixup_folding_positions(mi.caret_fixup);
 				_fmt.set_softbreaks(_recalculate_wrapping_region(0, _ctx->num_chars()));
 
