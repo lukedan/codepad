@@ -1,6 +1,5 @@
 #include "context.h"
 #include "context_manager.h"
-#include "../../utilities/globals.h"
 #include "../../os/current/filesystem.h"
 
 using namespace std;
@@ -60,12 +59,12 @@ namespace codepad::editor::code {
 
 
 	text_context::text_context(const filesystem::path &fn) : _fileid(in_place_type<filesystem::path>, fn) {
-		monitor_performance monitor(CP_STRLIT("load file"));
+		performance_monitor monitor(CP_STRLIT("load file"), 0.1);
 		file fil(fn, access_rights::read, open_mode::open);
 		if (fil.valid()) {
 			file_mapping mapping(fil, access_rights::read);
 			if (mapping.valid()) {
-				unsigned char *cs = static_cast<unsigned char*>(mapping.get_mapped_pointer());
+				char *cs = static_cast<char*>(mapping.get_mapped_pointer());
 				insert_text(0, cs, cs + static_cast<int>(fil.get_size()));
 				set_default_line_ending(detect_most_used_line_ending());
 				return;

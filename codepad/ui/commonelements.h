@@ -4,8 +4,8 @@
 #include "panel.h"
 #include "draw.h"
 #include "font_family.h"
-#include "../utilities/misc.h"
-#include "../utilities/encodings.h"
+#include "../core/misc.h"
+#include "../core/encodings.h"
 #include "../os/window.h"
 
 namespace codepad::ui {
@@ -15,7 +15,6 @@ namespace codepad::ui {
 	};
 
 	class content_host {
-		friend struct codepad::globals;
 	public:
 		content_host(element &p) : _parent(p) {
 		}
@@ -312,7 +311,7 @@ namespace codepad::ui {
 
 		void set_value(double v) {
 			double ov = _curv;
-			_curv = clamp(v, 0.0, _totrng - _range);
+			_curv = std::clamp(v, 0.0, _totrng - _range);
 			invalidate_layout();
 			value_changed.invoke_noret(ov);
 		}

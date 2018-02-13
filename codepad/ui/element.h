@@ -2,10 +2,10 @@
 
 #include <list>
 
-#include "../utilities/hotkey_registry.h"
-#include "../utilities/encodings.h"
-#include "../utilities/event.h"
-#include "../utilities/misc.h"
+#include "../core/hotkey_registry.h"
+#include "../core/encodings.h"
+#include "../core/event.h"
+#include "../core/misc.h"
 #include "../os/renderer.h"
 #include "../os/misc.h"
 #include "element_classes.h"

@@ -28,7 +28,7 @@ namespace codepad::editor {
 
 		void set_position(double v) {
 			double ov = _posv;
-			_posv = clamp(v, _minv, _maxv);
+			_posv = std::clamp(v, _minv, _maxv);
 			if (_orient == ui::orientation::horizontal) {
 				set_margin(ui::thickness(_posv, 0.0, 1.0 - _posv, 0.0));
 			} else {
@@ -945,7 +945,7 @@ namespace codepad::editor {
 					cx += thisw;
 				}
 			}
-			offset = clamp(posx, halfw, maxw - halfw) - cx;
+			offset = std::clamp(posx, halfw, maxw - halfw) - cx;
 			return res;
 		}
 

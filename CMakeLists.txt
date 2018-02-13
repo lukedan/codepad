@@ -46,6 +46,13 @@ else()
 endif()
 
 set(SOURCE_FILES
+		codepad/core/bst.h
+		codepad/core/encodings.h
+		codepad/core/event.h
+		codepad/core/globals.cpp
+		codepad/core/hotkey_registry.h
+		codepad/core/misc.h
+		codepad/core/tasks.h
 		codepad/editors/code/buffer.h
 		codepad/editors/code/codebox.cpp
 		codepad/editors/code/codebox.h
@@ -85,14 +92,6 @@ set(SOURCE_FILES
 		codepad/ui/panel.h
 		codepad/ui/visual.cpp
 		codepad/ui/visual.h
-		codepad/utilities/bst.h
-		codepad/utilities/encodings.h
-		codepad/utilities/event.h
-		codepad/utilities/globals.cpp
-		codepad/utilities/hotkey_registry.h
-		codepad/utilities/misc.h
-		codepad/utilities/performance_monitor.h
-		codepad/utilities/tasks.h
 		codepad/main.cpp
 		${PLATFORM_SOURCE})
 add_definitions(-DUNICODE -D_UNICODE -DCP_LOG_STACKTRACE ${PLATFORM_DEFINITIONS})

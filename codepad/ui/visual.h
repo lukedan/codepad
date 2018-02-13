@@ -6,7 +6,7 @@
 
 #include "../os/filesystem.h"
 #include "../os/renderer.h"
-#include "../utilities/misc.h"
+#include "../core/misc.h"
 
 namespace codepad {
 	namespace ui {
@@ -275,7 +275,6 @@ namespace codepad {
 		};
 
 		class visual {
-			friend struct globals;
 			friend class visual_json_parser;
 		public:
 			struct predefined_states {

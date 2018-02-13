@@ -29,7 +29,7 @@ namespace codepad {
 			}
 
 			void editor::_custom_render() {
-				monitor_performance mon(CP_HERE);
+				performance_monitor mon(CP_HERE);
 				if (get_client_region().height() < 0.0) {
 					return;
 				}

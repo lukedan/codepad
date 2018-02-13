@@ -132,7 +132,7 @@ namespace codepad::editor::code {
 			};
 			// accepts folded line numbers
 			void render_page(size_t s, size_t pe) {
-				monitor_performance(CP_HERE, page_rendering_time_redline);
+				performance_monitor(CP_HERE, page_rendering_time_redline);
 				const editor *ce = parent->_get_editor();
 				double lh = ce->get_line_height(), scale = get_scale();
 				line_top_cache lct(static_cast<double>(s) * lh * scale);
@@ -321,7 +321,7 @@ namespace codepad::editor::code {
 				maxh = static_cast<double>(nlines) * lh - vh,
 				maxvh = static_cast<double>(nlines) * lh * get_scale() - vh,
 				perc = cb->get_vertical_position() / maxh;
-			perc = clamp(perc, 0.0, 1.0);
+			perc = std::clamp(perc, 0.0, 1.0);
 			return std::max(0.0, perc * maxvh);
 		}
 		rectd _get_viewport_rect() const {

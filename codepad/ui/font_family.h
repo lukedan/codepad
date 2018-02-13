@@ -3,8 +3,8 @@
 #include <string>
 #include <memory>
 
-#include "../utilities/encodings.h"
-#include "../utilities/misc.h"
+#include "../core/encodings.h"
+#include "../core/misc.h"
 #include "../os/current/font.h"
 
 namespace codepad {

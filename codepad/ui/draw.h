@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utilities/encodings.h"
+#include "../core/encodings.h"
 #include "../os/renderer.h"
 #include "font_family.h"
 

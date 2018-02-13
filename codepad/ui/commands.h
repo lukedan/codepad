@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "../utilities/hotkey_registry.h"
+#include "../core/hotkey_registry.h"
 #include "element.h"
 
 namespace codepad::ui {

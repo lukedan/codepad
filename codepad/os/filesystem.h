@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utilities/encodings.h"
+#include "../core/encodings.h"
 
 namespace codepad {
 	namespace os {

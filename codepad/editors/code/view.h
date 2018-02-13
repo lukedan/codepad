@@ -34,7 +34,7 @@ namespace codepad {
 
 					using length_property = sum_synthesizer::compact_property<
 						size_t, node_synth_data,
-						synthesization_helper::field_value_property<size_t, node_data, &node_data::length>,
+						synthesization_helper::field_value_property<size_t node_data::*, &node_data::length>,
 						&node_synth_data::total_length
 					>;
 					using softbreaks_property = sum_synthesizer::compact_property<
@@ -115,7 +115,7 @@ namespace codepad {
 				std::pair<size_t, size_t> get_visual_line_and_column_of_char(size_t c) const {
 					auto hard = _reg->get_line_and_column_of_char(c);
 					_get_softbreaks_before selector;
-					auto it = _t.find_custom(selector, c);
+					_t.find_custom(selector, c);
 					return {std::get<1>(hard) + selector.num_softbreaks, std::min(c, std::get<2>(hard))};
 				}
 				std::tuple<size_t, size_t, softbreak_info>
@@ -350,17 +350,17 @@ namespace codepad {
 						size_t, fold_region_synth_data, get_node_span, &fold_region_synth_data::total_length
 					>;
 					using folded_chars_property = sum_synthesizer::compact_property<
-						size_t, fold_region_synth_data, synthesization_helper::field_value_property<
-						size_t, fold_region_node_data, &fold_region_node_data::range
-						>, &fold_region_synth_data::total_folded_chars
+						size_t, fold_region_synth_data,
+						synthesization_helper::field_value_property<size_t fold_region_node_data::*, &fold_region_node_data::range>,
+						&fold_region_synth_data::total_folded_chars
 					>;
 					using line_span_property = sum_synthesizer::compact_property<
 						size_t, fold_region_synth_data, get_node_line_span, &fold_region_synth_data::total_lines
 					>;
 					using folded_lines_property = sum_synthesizer::compact_property<
-						size_t, fold_region_synth_data, synthesization_helper::field_value_property<
-						size_t, fold_region_node_data, &fold_region_node_data::folded_lines
-						>, &fold_region_synth_data::total_folded_lines
+						size_t, fold_region_synth_data,
+						synthesization_helper::field_value_property<size_t fold_region_node_data::*, &fold_region_node_data::folded_lines>,
+						&fold_region_synth_data::total_folded_lines
 					>;
 					using tree_size_property = sum_synthesizer::compact_property<
 						size_t, fold_region_synth_data, get_node_size, &fold_region_synth_data::tree_size

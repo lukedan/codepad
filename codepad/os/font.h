@@ -8,8 +8,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-#include "../utilities/misc.h"
-#include "../utilities/hash_set.h"
+#include "../core/misc.h"
 #include "renderer.h"
 
 namespace codepad {
@@ -59,7 +58,6 @@ namespace codepad {
 		};
 
 		class freetype_font_base : public font {
-			friend struct codepad::globals;
 		public:
 			~freetype_font_base() override {
 				_ft_verify(FT_Done_Face(_face));

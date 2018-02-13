@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "../../utilities/bst.h"
+#include "../../core/bst.h"
 #include "context.h"
 #include "view.h"
 #include "codebox.h"
@@ -27,7 +27,6 @@ namespace codepad::editor::code {
 
 	// TODO syntax highlighting, drag & drop, code folding, etc.
 	class editor : public ui::element {
-		friend struct codepad::globals;
 		friend class codebox;
 	public:
 		constexpr static double
@@ -717,11 +716,9 @@ namespace codepad::editor::code {
 					cc.next()
 					) {
 					if (*cc != '\n') {
-						translate_codepoint_utf8([&st](std::initializer_list<char8_t> cs) {
-							st.append_as_codepoint(std::move(cs));
-							}, *cc);
+						st.append_as_codepoint(utf8<>::encode_codepoint(*cc));
 					} else {
-						const char8_t *cs = line_ending_to_static_u8_string(_ctx->get_default_line_ending());
+						const char *cs = line_ending_to_static_u8_string(_ctx->get_default_line_ending());
 						st.append_as_codepoint(
 							cs, cs + get_linebreak_length(_ctx->get_default_line_ending())
 						);
@@ -749,7 +746,7 @@ namespace codepad::editor::code {
 			if (std::abs(cw - _view_width) > 0.1) { // TODO magik!
 				_view_width = get_client_region().width();
 				{
-					monitor_performance(CP_STRLIT("recalculate_wrapping"));
+					performance_monitor(CP_STRLIT("recalculate_wrapping"));
 					_fmt.set_softbreaks(_recalculate_wrapping_region(0, _ctx->num_chars()));
 				}
 				_on_wrapping_changed();

@@ -55,8 +55,8 @@ namespace codepad {
 			void draw_lines(const vec2d *vs, const colord *cs, size_t sz) override {
 				for (size_t i = 0; i < sz; i += 2) {
 					_draw_line(
-						apply_transform(_matstk.back(), vs[i]),
-						apply_transform(_matstk.back(), vs[i + 1]),
+						_matstk.back().transform(vs[i]),
+						_matstk.back().transform(vs[i + 1]),
 						cs[i]
 					); // TODO get the color right
 				}
@@ -365,9 +365,9 @@ namespace codepad {
 				const colord *cc = cs;
 				vec2d tmp[3];
 				for (; sz > 2; sz -= 3, cp += 3, cuv += 3, cc += 3) {
-					tmp[0] = apply_transform(_matstk.back(), cp[0]);
-					tmp[1] = apply_transform(_matstk.back(), cp[1]);
-					tmp[2] = apply_transform(_matstk.back(), cp[2]);
+					tmp[0] = _matstk.back().transform(cp[0]);
+					tmp[1] = _matstk.back().transform(cp[1]);
+					tmp[2] = _matstk.back().transform(cp[2]);
 					_draw_triangle(tmp, cuv, cc, tid);
 				}
 			}
@@ -438,7 +438,7 @@ namespace codepad {
 				recti crgn = _rtfstk.back().clip_stack.back();
 				size_t
 					miny = static_cast<size_t>(std::max<double>(ymin + 0.5, crgn.ymin)),
-					maxy = static_cast<size_t>(clamp<double>(ymax + 0.5, crgn.ymin, crgn.ymax)),
+					maxy = static_cast<size_t>(std::clamp<double>(ymax + 0.5, crgn.ymin, crgn.ymax)),
 					scrw = _rtfstk.back().width;
 				vec2d uvd = uvs[0] * params.xpi + uvs[1] * params.xqi + uvs[2] * params.xri;
 				colord cd = cs[0] * params.xpi + cs[1] * params.xqi + cs[2] * params.xri;
@@ -446,7 +446,7 @@ namespace codepad {
 					double diff = static_cast<double>(y) - sy, left = diff * invk1 + sx, right = diff * invk2 + sx;
 					size_t
 						l = static_cast<size_t>(std::max<double>(left, crgn.xmin)),
-						r = static_cast<size_t>(clamp<double>(right, crgn.xmin, crgn.xmax));
+						r = static_cast<size_t>(std::clamp<double>(right, crgn.xmin, crgn.xmax));
 					colord *pixel = _tarbuf + y * scrw + l;
 					double p, q, mpq;
 					params.get_pq(l, y, p, q);
@@ -514,19 +514,19 @@ namespace codepad {
 				*pixel += (c - *pixel) * c.a;
 			}
 			void _draw_line_right(double fx, double fy, double tx, double k, colord c) {
-				size_t t = static_cast<size_t>(clamp(tx, 0.0, static_cast<double>(_rtfstk.back().width - 1)));
+				size_t t = static_cast<size_t>(std::clamp(tx, 0.0, static_cast<double>(_rtfstk.back().width - 1)));
 				tx -= fx;
 				fx -= 0.5;
 				for (size_t cx = static_cast<size_t>(std::max(fx + 0.5, 0.0)); cx < t; ++cx) {
-					_draw_pixel_with_blend(cx, static_cast<size_t>(fy + k * clamp(static_cast<double>(cx) - fx, 0.0, tx)), c);
+					_draw_pixel_with_blend(cx, static_cast<size_t>(fy + k * std::clamp(static_cast<double>(cx) - fx, 0.0, tx)), c);
 				}
 			}
 			void _draw_line_up(double by, double bx, double ty, double invk, colord c) {
-				size_t t = static_cast<size_t>(clamp(ty, 0.0, static_cast<double>(_rtfstk.back().height - 1)));
+				size_t t = static_cast<size_t>(std::clamp(ty, 0.0, static_cast<double>(_rtfstk.back().height - 1)));
 				ty -= by;
 				by -= 0.5;
 				for (size_t cy = static_cast<size_t>(std::max(by + 0.5, 0.0)); cy < t; ++cy) {
-					_draw_pixel_with_blend(static_cast<size_t>(bx + invk * clamp(static_cast<double>(cy) - by, 0.0, ty)), cy, c);
+					_draw_pixel_with_blend(static_cast<size_t>(bx + invk * std::clamp(static_cast<double>(cy) - by, 0.0, ty)), cy, c);
 				}
 			}
 		};

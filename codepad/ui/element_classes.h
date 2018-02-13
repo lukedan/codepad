@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utilities/hotkey_registry.h"
+#include "../core/hotkey_registry.h"
 #include "visual.h"
 
 namespace codepad::ui {
@@ -128,7 +128,7 @@ namespace codepad::ui {
 			bool good = true;
 			if (obj.IsString()) {
 				ani.frames.push_back(ani_t::texture_keyframe(
-					table.get(make_path(json::get_as_string(obj))), 0.0
+					table.get(json::get_as_string(obj)), 0.0
 				));
 			} else if (obj.IsObject()) {
 				auto fs = obj.FindMember(CP_STRLIT("frames"));
@@ -142,7 +142,7 @@ namespace codepad::ui {
 								if ((*i).Size() >= 2 && (*i)[0].IsString() && (*i)[1].IsNumber()) {
 									double frametime = (*i)[1].GetDouble();
 									ani.frames.push_back(ani_t::texture_keyframe(
-										table.get(make_path(json::get_as_string((*i)[0]))), frametime
+										table.get(json::get_as_string((*i)[0])), frametime
 									));
 									lastframetime = frametime;
 								} else {
@@ -150,7 +150,7 @@ namespace codepad::ui {
 								}
 							} else if (i->IsString()) {
 								ani.frames.push_back(ani_t::texture_keyframe(
-									table.get(make_path(json::get_as_string(*i))), lastframetime
+									table.get(json::get_as_string(*i)), lastframetime
 								));
 							} else {
 								good = false;
@@ -186,12 +186,12 @@ namespace codepad::ui {
 				_find_and_parse(val, CP_STRLIT("margins"), layer.margin_animation);
 				str_t anc;
 				if (json::try_get(val, CP_STRLIT("anchor"), anc)) {
-					layer.rect_anchor = static_cast<anchor>(get_bitset_from_string<unsigned, anchor>({
-						{'l', anchor::left},
-						{'t', anchor::top},
-						{'r', anchor::right},
-						{'b', anchor::bottom}
-						}, anc));
+					layer.rect_anchor = get_bitset_from_string<anchor>({
+						{CP_STRLIT('l'), anchor::left},
+						{CP_STRLIT('t'), anchor::top},
+						{CP_STRLIT('r'), anchor::right},
+						{CP_STRLIT('b'), anchor::bottom}
+						}, anc);
 				}
 			} else if (val.IsString()) {
 				layer = visual_layer();
@@ -477,7 +477,6 @@ namespace codepad::ui {
 	};
 
 	class class_manager {
-		friend struct globals;
 	public:
 		class_visuals visuals;
 		class_hotkeys hotkeys;

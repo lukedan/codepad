@@ -6,7 +6,6 @@
 #include <chrono>
 
 #include "element.h"
-#include "../utilities/performance_monitor.h"
 
 namespace codepad {
 	namespace ui {
@@ -64,7 +63,7 @@ namespace codepad {
 				update_invalid_visuals();
 			}
 			void update() {
-				monitor_performance mon(CP_STRLIT_U8("Update UI"));
+				performance_monitor mon(CP_STRLIT("Update UI"));
 				dispose_marked_elements();
 				update_scheduled_elements();
 				update_layout_and_visual();

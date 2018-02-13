@@ -3,7 +3,7 @@
 #include <map>
 #include <vector>
 
-#include "../../utilities/bst.h"
+#include "../../core/bst.h"
 
 namespace codepad {
 	namespace editor::code {
@@ -13,18 +13,18 @@ namespace codepad {
 			n,
 			rn
 		};
-		inline const char8_t *line_ending_to_static_u8_string(line_ending le) {
+		inline const char *line_ending_to_static_u8_string(line_ending le) {
 			switch (le) {
 			case line_ending::r:
-				return reinterpret_cast<const char8_t*>("\r");
+				return "\r";
 			case line_ending::n:
-				return reinterpret_cast<const char8_t*>("\n");
+				return "\n";
 			case line_ending::rn:
-				return reinterpret_cast<const char8_t*>("\r\n");
+				return "\r\n";
 			default:
 				break;
 			}
-			return reinterpret_cast<const char8_t*>("");
+			return "";
 		}
 		inline const char32_t *line_ending_to_static_u32_string(line_ending le) {
 			switch (le) {
@@ -181,7 +181,7 @@ namespace codepad {
 				);
 			}
 
-			void append_as_codepoint(std::initializer_list<Char> c) {
+			void append_as_codepoint(const std::basic_string<Char> &c) {
 				append_as_codepoint(c.begin(), c.end());
 			}
 			template <typename It> void append_as_codepoint(It beg, It end) {
@@ -321,7 +321,7 @@ namespace codepad {
 			Char *_chars = nullptr;
 			size_t _len = 0, _res = 0, _cp = 0;
 		};
-		using u8string_compact = basic_string_compact<char8_t>;
+		using u8string_compact = basic_string_compact<char>;
 		using u16string_compact = basic_string_compact<char16_t>;
 		using u32string_compact = basic_string_compact<char32_t>;
 
@@ -329,7 +329,7 @@ namespace codepad {
 		public:
 			constexpr static size_t maximum_units_per_chunk = 1000;
 
-			using char_type = char8_t;
+			using char_type = char;
 			using string_type = basic_string_compact<char_type>;
 			struct node_data {
 			public:
@@ -339,12 +339,12 @@ namespace codepad {
 
 				using length_property = sum_synthesizer::compact_property<
 					size_t, node_data,
-					synthesization_helper::const_func_value_property<size_t, string_type, &string_type::length>,
+					synthesization_helper::func_value_property<size_t(string_type::*)() const, &string_type::length>,
 					&node_data::total_length
 				>;
 				using num_codepoints_property = sum_synthesizer::compact_property<
 					size_t, node_data,
-					synthesization_helper::const_func_value_property<size_t, string_type, &string_type::num_codepoints>,
+					synthesization_helper::func_value_property<size_t(string_type::*)() const, &string_type::num_codepoints>,
 					&node_data::total_codepoints
 				>;
 
@@ -553,16 +553,14 @@ namespace codepad {
 				std::vector<string_type> strings;
 				string_type current;
 				current.reserve(maximum_units_per_chunk);
-				for (char32_t cc = '\0'; getcodepoint(cc); translate_codepoint_utf8(
-					[&current, &strings](std::initializer_list<char_type> chars) {
-						if (current.length() + chars.size() > maximum_units_per_chunk) {
-							strings.push_back(std::move(current));
-							current = string_type();
-							current.reserve(maximum_units_per_chunk);
-						}
-						current.append_as_codepoint(std::move(chars));
-					}, cc
-				)) {
+				for (char32_t cc = '\0'; getcodepoint(cc); ) {
+					std::string chars = utf8<>::encode_codepoint(cc);
+					if (current.length() + chars.length() > maximum_units_per_chunk) {
+						strings.push_back(std::move(current));
+						current = string_type();
+						current.reserve(maximum_units_per_chunk);
+					}
+					current.append_as_codepoint(chars);
 				}
 				if (current.length() > 0) {
 					strings.push_back(std::move(current));
@@ -643,17 +641,15 @@ namespace codepad {
 					node2upd = it.get_node();
 					curstr = &node2upd->value;
 				}
-				for (char32_t cc = '\0'; getcodepoint(cc); translate_codepoint_utf8(
-					[&curstr, &strs](std::initializer_list<char_type> chars) {
-						if (curstr->length() + chars.size() > maximum_units_per_chunk) {
-							string_type ss;
-							ss.reserve(maximum_units_per_chunk);
-							strs.push_back(std::move(ss));
-							curstr = &strs.back();
-						}
-						curstr->append_as_codepoint(std::move(chars));
-					}, cc
-				)) {
+				for (char32_t cc = '\0'; getcodepoint(cc); ) {
+					std::string chars = utf8<>::encode_codepoint(cc);
+					if (curstr->length() + chars.length() > maximum_units_per_chunk) {
+						string_type ss;
+						ss.reserve(maximum_units_per_chunk);
+						strs.push_back(std::move(ss));
+						curstr = &strs.back();
+					}
+					curstr->append_as_codepoint(chars);
 				}
 				if (afterstr.length() > 0) {
 					if (curstr->length() + afterstr.length() <= maximum_units_per_chunk) {

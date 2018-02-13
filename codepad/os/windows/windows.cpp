@@ -2,7 +2,6 @@
 #include <Shlwapi.h>
 
 #include "../windows.h"
-#include "../../utilities/globals.h"
 
 using namespace std;
 
@@ -464,16 +463,15 @@ namespace codepad {
 		WORD numframes = CaptureStackBackTrace(0, max_frames, frames, nullptr);
 		for (WORD i = 0; i < numframes; ++i) {
 			DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
-			u8str_t func = reinterpret_cast<const char8_t*>("??"), file = func;
-			string line;
+			string func = "??", file = func, line = func;
 			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
-				func = convert_to_utf8(reinterpret_cast<const char16_t*>(syminfo->Name));
+				const char16_t *funcstr = reinterpret_cast<const char16_t*>(syminfo->Name);
+				func = convert_encoding<string>(funcstr, funcstr + get_unit_count(funcstr));
 			}
 			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
-				file = convert_to_utf8(reinterpret_cast<const char16_t*>(lineinfo.FileName));
+				const char16_t *fnstr = reinterpret_cast<const char16_t*>(lineinfo.FileName);
+				file = convert_encoding<string>(fnstr, fnstr + get_unit_count(fnstr));
 				line = to_string(lineinfo.LineNumber);
-			} else {
-				line = "??";
 			}
 			log_custom("    ", func, "(0x", frames[i], ") @", file, ":", line);
 		}

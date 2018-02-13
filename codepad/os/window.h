@@ -7,8 +7,8 @@
 #include "../ui/panel.h"
 #include "../ui/commands.h"
 #include "../ui/element_classes.h"
-#include "../utilities/event.h"
-#include "../utilities/encodings.h"
+#include "../core/event.h"
+#include "../core/encodings.h"
 
 namespace codepad {
 	namespace os {

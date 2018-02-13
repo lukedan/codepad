@@ -43,9 +43,9 @@ namespace codepad {
 				_data = std::malloc(size);
 				assert_true_sys(GetFontData(dc, table, 0, _data, size) == size, "error getting font data");
 				TCHAR buf[maximum_font_name_length];
-				GetTextFace(dc, maximum_font_name_length, buf);
+				int len = GetTextFace(dc, maximum_font_name_length, buf);
 				logger::get().log_info(CP_HERE,
-					"font loaded: ", convert_to_utf8(reinterpret_cast<const char16_t*>(buf))
+					"font loaded: ", convert_encoding<std::string>(buf, buf + len)
 				);
 				gdi_check(SelectObject(dc, original));
 				winapi_check(DeleteObject(font));

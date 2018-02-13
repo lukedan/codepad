@@ -308,18 +308,14 @@
     <ClInclude Include="ui\textrenderer.h" />
     <ClInclude Include="ui\font_family.h" />
     <ClInclude Include="ui\commands.h" />
-    <ClInclude Include="utilities\bst.h" />
-    <ClInclude Include="utilities\globals.h" />
-    <ClInclude Include="utilities\hash_set.h" />
-    <ClInclude Include="utilities\hotkey_registry.h" />
-    <ClInclude Include="utilities\performance_monitor.h" />
-    <ClInclude Include="utilities\performance_view.h" />
-    <ClInclude Include="utilities\tasks.h" />
-    <ClInclude Include="utilities\encodings.h" />
+    <ClInclude Include="core\bst.h" />
+    <ClInclude Include="core\hotkey_registry.h" />
+    <ClInclude Include="core\tasks.h" />
+    <ClInclude Include="core\encodings.h" />
     <ClInclude Include="os\window.h" />
     <ClInclude Include="ui\element.h" />
-    <ClInclude Include="utilities\event.h" />
-    <ClInclude Include="utilities\misc.h" />
+    <ClInclude Include="core\event.h" />
+    <ClInclude Include="core\misc.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="editors\code\codebox.cpp" />
@@ -333,7 +329,7 @@
     <ClCompile Include="ui\native_commands.cpp" />
     <ClCompile Include="ui\panel.cpp" />
     <ClCompile Include="ui\visual.cpp" />
-    <ClCompile Include="utilities\globals.cpp" />
+    <ClCompile Include="core\globals.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

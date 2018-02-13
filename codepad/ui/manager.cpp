@@ -10,7 +10,7 @@ using namespace codepad::os;
 namespace codepad {
 	namespace ui {
 		void manager::update_scheduled_elements() {
-			monitor_performance mon(CP_HERE);
+			performance_monitor mon(CP_HERE);
 			auto nnow = high_resolution_clock::now();
 			_upd_dt = duration<double>(nnow - _now).count();
 			_now = nnow;
@@ -24,7 +24,7 @@ namespace codepad {
 		}
 
 		void manager::dispose_marked_elements() {
-			monitor_performance mon(CP_HERE);
+			performance_monitor mon(CP_HERE);
 			while (!_del.empty()) {
 				set<element*> batch;
 				swap(batch, _del);
@@ -47,7 +47,7 @@ namespace codepad {
 
 		void manager::update_invalid_layouts() {
 			if (!_targets.empty()) {
-				monitor_performance mon(CP_HERE, relayout_time_redline);
+				performance_monitor mon(CP_HERE, relayout_time_redline);
 				_layouting = true;
 				unordered_map<element*, bool> ftg;
 				for (auto i = _targets.begin(); i != _targets.end(); ++i) {
@@ -84,7 +84,7 @@ namespace codepad {
 			if (_dirty.empty()) {
 				return;
 			}
-			monitor_performance mon(CP_HERE, render_time_redline);
+			performance_monitor mon(CP_HERE, render_time_redline);
 			auto now = high_resolution_clock::now();
 			double diff = duration<double>(now - _lastrender).count();
 			if (diff < _min_render_interval) {

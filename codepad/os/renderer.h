@@ -13,7 +13,7 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 
-#include "../utilities/misc.h"
+#include "../core/misc.h"
 
 namespace codepad {
 	namespace os {
@@ -122,7 +122,6 @@ namespace codepad {
 
 		class renderer_base {
 			friend class window_base;
-			friend struct codepad::globals;
 		public:
 			virtual ~renderer_base() = default;
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../utilities/event.h"
+#include "../../core/event.h"
 #include "../../os/font.h"
 #include "buffer.h"
 
@@ -751,7 +751,7 @@ namespace codepad::editor::code {
 
 			using length_property = sum_synthesizer::compact_property<
 				size_t, node_synth_data,
-				synthesization_helper::field_value_property<size_t, node_data, &node_data::length>,
+				synthesization_helper::field_value_property<size_t node_data::*, &node_data::length>,
 				&node_synth_data::total_length
 			>;
 

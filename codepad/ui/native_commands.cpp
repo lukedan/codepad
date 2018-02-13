@@ -154,7 +154,7 @@ namespace codepad::ui::native_commands {
 				for (const auto &path : files) {
 					auto ctx = context_manager::get().open_file(path);
 					tab *tb = dock_manager::get().new_tab_in(th);
-					tb->set_caption(convert_to_current_encoding(path.filename().native()));
+					tb->set_caption(convert_to_default_encoding(path.filename().native()));
 					code::codebox *box = element::create<codebox>();
 					box->add_component_left(*element::create<line_number>());
 					box->add_component_right(*element::create<minimap>());

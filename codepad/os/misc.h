@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utilities/misc.h"
+#include "../core/misc.h"
 
 namespace codepad::os {
 	class window_base;
@@ -53,7 +53,7 @@ namespace codepad::os {
 			help,
 			a, b, c, d, e, f, g, h, i, j, k, l, m,
 			n, o, p, q, r, s, t, u, v, w, x, y, z,
-			left_win, right_win,
+			left_super, right_super,
 			apps,
 			sleep,
 			multiply, add, separator, subtract, decimal, divide,
