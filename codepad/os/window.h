@@ -59,7 +59,7 @@ namespace codepad {
 			}
 
 			virtual void start_drag(std::function<bool()> dst = []() {
-				return input::is_mouse_button_down(input::mouse_button::left);
+				return input::is_mouse_button_down(input::mouse_button::primary);
 				}) {
 				assert_true_usage(!_drag, "the window is already being dragged");
 				_dragcontinue = dst;
@@ -142,7 +142,6 @@ namespace codepad {
 			}
 
 			void _recalc_layout(rectd) override {
-				_clientrgn = get_padding().shrink(get_layout());
 			}
 
 			virtual void _on_removing_window_element(ui::element *e) {
@@ -165,11 +164,9 @@ namespace codepad {
 					for (ui::element *cur = _focus; cur != nullptr; cur = cur->parent()) {
 						const ui::element_hotkey_group
 							*gp = ui::class_manager::get().hotkeys.find(cur->get_class());
-						if (gp != nullptr) {
-							gps.push_back(ui::element_hotkey_group_data(gp, cur));
-						}
+						gps.push_back(ui::element_hotkey_group_data(gp, cur));
 					}
-					hotkey_manager.reset_groups_prefiltered(gps);
+					hotkey_manager.reset_groups(gps);
 				}
 			}
 
@@ -192,7 +189,7 @@ namespace codepad {
 				// render decorations
 				bool has_active = false;
 				for (auto i = _decos.begin(); i != _decos.end(); ) {
-					if ((*i)->_update_and_render()) {
+					if ((*i)->_st.update_and_render((*i)->_layout)) {
 						has_active = true;
 					} else {
 						if (test_bit_all(

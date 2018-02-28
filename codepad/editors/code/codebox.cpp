@@ -37,7 +37,7 @@ namespace codepad {
 			}
 
 			void codebox::_on_mouse_scroll(mouse_scroll_info &p) {
-				_vscroll->set_value(_vscroll->get_value() - _editor->get_scroll_delta() * p.delta);
+				_vscroll->set_value(_vscroll->get_value() - _editor->get_scroll_delta() * p.offset);
 				p.mark_handled();
 			}
 
@@ -78,14 +78,15 @@ namespace codepad {
 
 				thickness emg = _editor->get_margin();
 				_child_set_layout(_editor, rectd(lpos + emg.left, rpos - emg.right, lo.ymin, lo.ymax));
-
-				_reset_scrollbars();
+				
+				_editor->_check_wrapping_width(); // re-calculate line wrap or the scrollbar will get wrong values
+				_reset_scrollbars(); // set scrollbar parameters
 				panel_base::_finish_layout();
 			}
 
 			void codebox::_on_got_focus() {
-				panel_base::_on_got_focus();
 				_editor->_on_codebox_got_focus();
+				panel_base::_on_got_focus();
 			}
 
 			void codebox::_on_lost_focus() {

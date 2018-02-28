@@ -1,25 +1,54 @@
 #pragma once
 
+/// \file draw.h
+/// Auxiliary classes for rendering text, primitives, etc.
+
 #include "../core/encodings.h"
 #include "../os/renderer.h"
 #include "font_family.h"
 
 namespace codepad::ui {
+	/// Struct for measuring and layouting text. Note that it only does so for one line of text,
+	/// and all line breaks are treated as normal characters, i.e., doesn't start new lines.
 	struct character_metrics_accumulator {
 	public:
+		/// Constructs the struct, given a \ref font_family and a tab size.
+		///
+		/// \param ff The \ref font_family used for all the calculations.
+		/// \param tabsize Specifies how many whitespaces the width of a tab is.
 		character_metrics_accumulator(ui::font_family ff, double tabsize) :
 			_ff(std::move(ff)), _tabw(tabsize * _ff.normal->get_char_entry(' ').advance) {
 		}
 
+		/// Appends a character to the end of the line, with the given \ref font_style.
 		void next(char32_t c, font_style fs) {
 			_lastchar = _curchar;
 			_laststyle = _curstyle;
 			_lce = _pos + _cw;
-			_update_raw(c, fs);
+			replace_current(c, fs);
 		}
+		/// Replaces the current character with a given character with a specified font style.
 		void replace_current(char32_t c, font_style fs) {
-			_update_raw(c, fs);
+			_curchar = c;
+			_curstyle = fs;
+			const auto &stylefnt = _ff.get_by_style(_curstyle);
+			if (_lastchar != '\0') {
+				_pos = _lce;
+				if (_curstyle == _laststyle) {
+					_pos += stylefnt->get_kerning(_lastchar, _curchar).x;
+				}
+			}
+			_cet = &stylefnt->get_char_entry(_curchar);
+			// the position is rounded here
+			// std::round harms performance, and _pos is (assumingly) always positive
+			_pos = static_cast<int>(_pos + 0.5);
+			if (_curchar == '\t') {
+				_cw = _get_target_tab_width();
+			} else {
+				_cw = _cet->advance;
+			}
 		}
+		/// Creates a blank of the specified width (in pixels) before the current character.
 		void create_blank_before(double width) {
 			if (_lastchar == '\0') {
 				_lce = _pos;
@@ -33,70 +62,72 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Returns the position of the left boundary of the current character.
 		double char_left() const {
 			return _pos;
 		}
+		/// Returns the position of the right boundary of the current character.
 		double char_right() const {
 			return _pos + _cw;
 		}
+		/// Returns the position of the right boundary of the previous character.
 		double prev_char_right() const {
 			return _lce;
 		}
+		/// Returns the current character.
 		char32_t current_char() const {
 			return _curchar;
 		}
+		/// Returns the os::font::entry for the current character.
 		const os::font::entry &current_char_entry() const {
 			return *_cet;
 		}
 
+		/// Returns the current font family in use.
+		const font_family &get_font_family() const {
+			return _ff;
+		}
+
+		/// Sets the width of the tab, in whitespaces.
 		void set_tab_width(double tw) {
-			_tabw = tw * _ff.maximum_width();
+			_tabw = tw * _ff.normal->get_char_entry(' ').advance;
 			if (_curchar == '\t') {
 				_cw = _get_target_tab_width();
 			}
 		}
 
+		/// Resets the struct to the initial state.
 		void reset() {
 			_laststyle = _curstyle = font_style::normal;
 			_lce = _cw = _pos = 0.0;
 			_lastchar = _curchar = '\0';
 			_cet = nullptr;
 		}
-
-		const font_family &get_font_family() const {
-			return _ff;
-		}
 	protected:
-		font_style _laststyle = font_style::normal, _curstyle = font_style::normal;
-		font_family _ff;
-		double _lce = 0.0, _cw = 0.0, _pos = 0.0, _tabw;
-		char32_t _lastchar = '\0', _curchar = '\0';
-		const os::font::entry *_cet = nullptr;
+		font_style
+			_laststyle = font_style::normal, ///< The font style of the last char.
+			_curstyle = font_style::normal; ///< The font style of the current char.
+		font_family _ff; ///< The font family used for all the calculations.
+		double
+			_lce = 0.0, ///< The position of the right boundary of the previous character.
+			_cw = 0.0, ///< The width of the current character.
+			_pos = 0.0, ///< The position of the left boundary of the current character.
+			_tabw = 0.0; ///< The width of a tab character, in pixels.
+		char32_t
+			_lastchar = '\0', ///< The last character.
+			_curchar = '\0'; ///< The current character.
+		const os::font::entry *_cet = nullptr; ///< The entry for the current character.
 
+		/// Returns the width of the tab character, in pixels, considering its position.
+		/// As a result, the tab may be shorter than the specified width.
 		double _get_target_tab_width() const {
 			return _tabw * (std::floor(_pos / _tabw) + 1.0) - _pos;
 		}
-		void _update_raw(char32_t c, font_style fs) {
-			_curchar = c;
-			_curstyle = fs;
-			const auto &stylefnt = _ff.get_by_style(_curstyle);
-			if (_lastchar != '\0') {
-				_pos = _lce;
-				if (_curstyle == _laststyle) {
-					_pos += stylefnt->get_kerning(_lastchar, _curchar).x;
-				}
-			}
-			_cet = &stylefnt->get_char_entry(_curchar);
-			_pos = static_cast<int>(_pos + 0.5);
-			if (_curchar == '\t') {
-				_cw = _get_target_tab_width();
-			} else {
-				_cw = _cet->advance;
-			}
-		}
 	};
 
+	/// Constains functions for rendering text.
 	namespace text_renderer {
+		/// Renders the given text, using the specified font, position, and color.
 		template <typename It> inline void render_plain_text(
 			It &&beg, It &&end, const std::shared_ptr<const os::font> &fnt, vec2d topleft, colord color
 		) {
@@ -122,12 +153,14 @@ namespace codepad::ui {
 				}
 			}
 		}
+		/// \overload
 		template <typename Cont> inline void render_plain_text(
 			Cont &&c, const std::shared_ptr<const os::font> &fnt, vec2d topleft, colord color
 		) {
 			render_plain_text(c.begin(), c.end(), fnt, topleft, color);
 		}
 
+		/// Measures the size of the bounding box of the text, using the given font.
 		template <typename It> inline vec2d measure_plain_text(
 			It &&beg, It &&end, const std::shared_ptr<const os::font> &fnt
 		) {
@@ -151,6 +184,7 @@ namespace codepad::ui {
 			}
 			return vec2d(std::max(maxw, curline + lastw), static_cast<double>(linen) * std::ceil(fnt->height()));
 		}
+		/// \overload
 		template <typename Cont> inline vec2d measure_plain_text(
 			Cont &&cont, const std::shared_ptr<const os::font> &fnt
 		) {
@@ -158,8 +192,10 @@ namespace codepad::ui {
 		}
 	}
 
+	/// Stores a batch of vertices for rendering to reduce the number of draw calls.
 	struct render_batch {
 	public:
+		/// Adds a triangle to the render batch, given the coordinates, uvs, and colors of its vertices.
 		void add_triangle(
 			vec2d v1, vec2d v2, vec2d v3, vec2d uv1, vec2d uv2, vec2d uv3,
 			colord c1, colord c2, colord c3
@@ -174,21 +210,44 @@ namespace codepad::ui {
 			_cs.push_back(c2);
 			_cs.push_back(c3);
 		}
+		/// Adds a rectangle to the render batch, given its coordinates, UV's, and color.
+		void add_quad(rectd r, rectd uv, colord c) {
+			add_quad(r, uv, c, c, c, c);
+		}
+		/// \overload
+		/// \param r The rectangle.
+		/// \param uv Rectangle of the texture.
+		/// \param ctl Color of the top left corner of the rectangle.
+		/// \param ctr Color of the top right corner of the rectangle.
+		/// \param cbl Color of the bottom left corner of the rectangle.
+		/// \param cbr Color of the bottom right corner of the rectangle.
+		void add_quad(rectd r, rectd uv, colord ctl, colord ctr, colord cbl, colord cbr) {
+			add_quad(r, uv.xmin_ymin(), uv.xmax_ymin(), uv.xmin_ymax(), uv.xmax_ymax(), ctl, ctr, cbl, cbr);
+		}
+		/// \overload
+		/// \param r The rectangle.
+		/// \param uvtl The UV of the top left corner of the rectangle.
+		/// \param uvtr The UV of the top right corner of the rectangle.
+		/// \param uvbl The UV of the bottom left corner of the rectangle.
+		/// \param uvbr The UV of the bottom right corner of the rectangle.
+		/// \param ctl Color of the top left corner of the rectangle.
+		/// \param ctr Color of the top right corner of the rectangle.
+		/// \param cbl Color of the bottom left corner of the rectangle.
+		/// \param cbr Color of the bottom right corner of the rectangle.
+		/// \remark This version allows the caller to set all four UV's of the rectangle,
+		///         but since the rectangle is rendered as two traingles, settings the UV's in a
+		///         non-rectangular fashion can cause improper stretching of the texture.
 		void add_quad(rectd r, vec2d uvtl, vec2d uvtr, vec2d uvbl, vec2d uvbr, colord ctl, colord ctr, colord cbl, colord cbr) {
 			add_triangle(r.xmin_ymin(), r.xmax_ymin(), r.xmin_ymax(), uvtl, uvtr, uvbl, ctl, ctr, cbl);
 			add_triangle(r.xmax_ymin(), r.xmax_ymax(), r.xmin_ymax(), uvtr, uvbr, uvbl, ctr, cbr, cbl);
 		}
-		void add_quad(rectd r, rectd uv, colord ctl, colord ctr, colord cbl, colord cbr) {
-			add_quad(r, uv.xmin_ymin(), uv.xmax_ymin(), uv.xmin_ymax(), uv.xmax_ymax(), ctl, ctr, cbl, cbr);
-		}
-		void add_quad(rectd r, rectd uv, colord c) {
-			add_quad(r, uv, c, c, c, c);
-		}
 
+		/// Renders all stored triangles using the given texture.
 		void draw(const os::texture &tex) {
 			os::renderer_base::get().draw_triangles(tex, _vs.data(), _uvs.data(), _cs.data(), _vs.size());
 		}
 
+		/// Enlarges the underlying data structures to reserve for a given number of triangles.
 		void reserve(size_t numtris) {
 			numtris *= 3;
 			_vs.reserve(numtris);
@@ -196,51 +255,9 @@ namespace codepad::ui {
 			_cs.reserve(numtris);
 		}
 	protected:
-		std::vector<vec2d> _vs, _uvs;
-		std::vector<colord> _cs;
-	};
-
-	class basic_brush {
-	public:
-		virtual ~basic_brush() {
-		}
-
-		virtual void fill_rect(rectd) const = 0;
-	};
-	class texture_brush : public basic_brush {
-	public:
-		texture_brush() = default;
-		texture_brush(colord cv) : color(cv) {
-		}
-		texture_brush(colord cv, os::texture &&tex) : color(cv), texture(std::move(tex)) {
-		}
-
-		void fill_rect(rectd r) const override {
-			os::renderer_base::get().draw_quad(texture, r, rectd(0.0, 1.0, 0.0, 1.0), color);
-		}
-
-		colord color;
-		os::texture texture;
-	};
-
-	class basic_pen {
-	public:
-		virtual ~basic_pen() {
-		}
-
-		virtual void draw_lines(const std::vector<vec2d>&) const = 0;
-	};
-	class pen : public basic_pen {
-	public:
-		pen() = default;
-		pen(colord c) : color(c) {
-		}
-
-		void draw_lines(const std::vector<vec2d> &poss) const override {
-			std::vector<colord> cs(poss.size(), color);
-			os::renderer_base::get().draw_lines(poss.data(), cs.data(), poss.size());
-		}
-
-		colord color;
+		std::vector<vec2d>
+			_vs, ///< Vertices.
+			_uvs; ///< UV's.
+		std::vector<colord> _cs; ///< Vertex colors.
 	};
 }

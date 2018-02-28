@@ -18,14 +18,14 @@ namespace codepad::os {
 		arrow_north_south,
 		arrow_northwest_southeast,
 		arrow_east_west,
-
 		invisible,
+
 		not_specified
 	};
 
 	namespace input {
 		enum class mouse_button {
-			left, middle, right
+			primary, tertiary, secondary
 		};
 		enum class key {
 			cancel,

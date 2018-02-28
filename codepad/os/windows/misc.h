@@ -35,7 +35,7 @@ namespace codepad {
 			namespace _details {
 				extern const int _key_id_mapping[total_num_keys];
 				inline bool is_key_down_id(int vk) {
-					return (GetAsyncKeyState(vk) & ~1) != 0;
+					return (GetAsyncKeyState(vk) & 0x8000) != 0;
 				}
 			}
 
@@ -43,17 +43,17 @@ namespace codepad {
 				return _details::is_key_down_id(_details::_key_id_mapping[static_cast<int>(k)]);
 			}
 			inline bool is_mouse_button_down(mouse_button mb) {
-				if (mb == mouse_button::left || mb == mouse_button::right) {
+				if (mb == mouse_button::primary || mb == mouse_button::secondary) {
 					if (GetSystemMetrics(SM_SWAPBUTTON) != 0) {
-						mb = (mb == mouse_button::left ? mouse_button::right : mouse_button::left);
+						mb = (mb == mouse_button::primary ? mouse_button::secondary : mouse_button::primary);
 					}
 				}
 				switch (mb) {
-				case mouse_button::left:
+				case mouse_button::primary:
 					return _details::is_key_down_id(VK_LBUTTON);
-				case mouse_button::right:
+				case mouse_button::secondary:
 					return _details::is_key_down_id(VK_RBUTTON);
-				case mouse_button::middle:
+				case mouse_button::tertiary:
 					return _details::is_key_down_id(VK_MBUTTON);
 				}
 				return false; // shouldn't happen
@@ -95,18 +95,25 @@ namespace codepad {
 				);
 #ifdef _MSC_VER
 				if (res == REGDB_E_CLASSNOTREG) { // workaround for missing component in win7
-					com_check(CoCreateInstance(
+					res = CoCreateInstance(
 						CLSID_WICImagingFactory1, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_factory)
-					));
-				} else {
-					com_check(res);
+					);
 				}
-#else
+#endif
 				com_check(res);
+#ifdef __GNUC__
+				// workaround for missing function in mingw libs
+				_handle = LoadLibrary(TEXT("WindowsCodecs.dll"));
+				_conv_func = reinterpret_cast<PWICConvertBitmapSource>(
+					GetProcAddress(_handle, "WICConvertBitmapSource")
+					);
 #endif
 			}
 			~wic_image_loader() {
 				_factory->Release();
+#ifdef __GNUC__
+				FreeLibrary(_handle);
+#endif
 			}
 			texture load_image(renderer_base &r, const std::filesystem::path &filename) {
 				IWICBitmapDecoder *decoder = nullptr;
@@ -117,7 +124,11 @@ namespace codepad {
 				IWICBitmapFrameDecode *frame = nullptr;
 				IWICBitmapSource *convertedframe = nullptr;
 				com_check(decoder->GetFrame(0, &frame));
+#ifdef __GNUC__
+				com_check(_conv_func(GUID_WICPixelFormat32bppRGBA, frame, &convertedframe));
+#else
 				com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppRGBA, frame, &convertedframe));
+#endif
 				frame->Release();
 				UINT w, h;
 				com_check(convertedframe->GetSize(&w, &h));
@@ -138,6 +149,12 @@ namespace codepad {
 		protected:
 			IWICImagingFactory * _factory = nullptr;
 			_details::com_usage _uses_com;
+#ifdef __GNUC__
+			using PWICConvertBitmapSource =
+				HRESULT(WINAPI*)(REFWICPixelFormatGUID, IWICBitmapSource*, IWICBitmapSource**);
+			PWICConvertBitmapSource _conv_func = nullptr;
+			HMODULE _handle = nullptr;
+#endif
 		};
 		inline texture load_image(renderer_base &r, const std::filesystem::path &filename) {
 			return wic_image_loader::get().load_image(r, filename);

@@ -72,13 +72,13 @@ namespace codepad {
 				inline bool get_mapped_button(unsigned int btn, mouse_button &res) {
 					switch (btn) {
 					case Button1:
-						res = mouse_button::left;
+						res = mouse_button::primary;
 						return true;
 					case Button2:
-						res = mouse_button::middle;
+						res = mouse_button::tertiary;
 						return true;
 					case Button3:
-						res = mouse_button::right;
+						res = mouse_button::secondary;
 						return true;
 					default:
 						return false;
@@ -86,21 +86,21 @@ namespace codepad {
 				}
 				inline unsigned int get_mapped_button(mouse_button mb) {
 					switch (mb) {
-					case mouse_button::left:
+					case mouse_button::primary:
 						return Button1;
-					case mouse_button::middle:
+					case mouse_button::tertiary:
 						return Button2;
-					case mouse_button::right:
+					case mouse_button::secondary:
 						return Button3;
 					}
 				}
 				inline unsigned int get_mapped_button_mask(mouse_button mb) {
 					switch (mb) {
-					case mouse_button::left:
+					case mouse_button::primary:
 						return Button1Mask;
-					case mouse_button::middle:
+					case mouse_button::tertiary:
 						return Button2Mask;
-					case mouse_button::right:
+					case mouse_button::secondary:
 						return Button3Mask;
 					}
 					return 0;

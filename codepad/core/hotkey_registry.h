@@ -104,24 +104,6 @@ namespace codepad {
 		friend bool operator>=(key_gesture lhs, key_gesture rhs) {
 			return !(lhs < rhs);
 		}
-
-		/// Obtains a key gesture from a primary key and currently pressed modifiers.
-		///
-		/// \param k The primary key.
-		inline static key_gesture get_current(os::input::key k) {
-			return key_gesture(k, detect_modifier_keys());
-		}
-		/// Detects which modifier keys are currently pressed, with os::input::is_key_down.
-		///
-		/// \return An enum representing pressed modifier keys.
-		/// \todo Super key is not detected.
-		inline static modifier_keys detect_modifier_keys() {
-			return static_cast<modifier_keys>(
-				static_cast<unsigned>(os::input::is_key_down(os::input::key::control) ? modifier_keys::control : modifier_keys::none) |
-				static_cast<unsigned>(os::input::is_key_down(os::input::key::alt) ? modifier_keys::alt : modifier_keys::none) |
-				static_cast<unsigned>(os::input::is_key_down(os::input::key::shift) ? modifier_keys::shift : modifier_keys::none)
-				);
-		}
 	};
 
 	/// A group of non-conflicting hotkeys. A hotkey contains one or more gestures.
@@ -284,7 +266,7 @@ namespace codepad {
 				kg.primary == os::input::key::control ||
 				kg.primary == os::input::key::alt ||
 				kg.primary == os::input::key::shift
-				) { // if the primary key is a modifier, they return s unmodified
+				) { // if the primary key is a modifier, then return s unmodified
 				return s;
 			}
 			const _gesture_rec_t *clvl = s._ptr ? s._ptr : &_reg;

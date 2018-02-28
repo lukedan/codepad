@@ -32,8 +32,9 @@ namespace codepad::editor::code {
 				lh = edt->get_line_height(),
 				ybeg = _get_box()->get_vertical_position(), yend = ybeg + edt->get_client_region().height();
 			size_t fline = static_cast<size_t>(ybeg / lh), eline = static_cast<size_t>(yend / lh) + 1;
+			rectd client = get_client_region();
 			double cury =
-				get_client_region().ymin - _get_box()->get_vertical_position() +
+				client.ymin - _get_box()->get_vertical_position() +
 				static_cast<double>(fline) * lh;
 			for (size_t curi = fline; curi < eline; ++curi, cury += lh) {
 				size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
@@ -46,7 +47,7 @@ namespace codepad::editor::code {
 					double w = ui::text_renderer::measure_plain_text(curlbl, editor::get_font().normal).x;
 					ui::text_renderer::render_plain_text(
 						curlbl, editor::get_font().normal,
-						vec2d(get_client_region().xmax - w, cury), colord()
+						vec2d(client.xmax - w, cury), colord()
 					);
 				}
 			}
@@ -128,7 +129,7 @@ namespace codepad::editor::code {
 				}
 
 				ui::font_family::baseline_info baselines{editor::get_font().get_baseline_info()};
-				double page_top, rounded_page_top, normal, bold, italic, bold_italic;
+				double page_top, rounded_page_top, normal = 0.0, bold = 0.0, italic = 0.0, bold_italic = 0.0;
 			};
 			// accepts folded line numbers
 			void render_page(size_t s, size_t pe) {
@@ -329,7 +330,7 @@ namespace codepad::editor::code {
 			rectd clnrgn = get_client_region();
 			return rectd::from_xywh(
 				clnrgn.xmin, clnrgn.ymin - _get_y_offset() + _get_box()->get_vertical_position() * get_scale(),
-				e->get_client_region().width() * get_scale(), get_client_region().height() * get_scale()
+				e->get_client_region().width() * get_scale(), clnrgn.height() * get_scale()
 			);
 		}
 		rectd _get_clamped_viewport_rect() const {
@@ -376,17 +377,18 @@ namespace codepad::editor::code {
 		}
 
 		void _on_mouse_down(ui::mouse_button_info &info) override {
-			if (info.button == os::input::mouse_button::left) {
+			if (info.button == os::input::mouse_button::primary) {
 				rectd rv = _get_viewport_rect();
 				if (rv.contains(info.position)) {
 					_dragoffset = rv.ymin - info.position.y;
 					get_window()->set_mouse_capture(*this);
 					_dragging = true;
 				} else {
-					double ch = get_client_region().height();
+					rectd client = get_client_region();
+					double ch = client.height();
 					const editor *edt = _get_editor();
 					_get_box()->set_vertical_position(std::min(
-						(info.position.y - get_client_region().ymin + _get_y_offset()) / get_scale() - 0.5 * ch,
+						(info.position.y - client.ymin + _get_y_offset()) / get_scale() - 0.5 * ch,
 						static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - ch
 					));
 				}
@@ -400,7 +402,7 @@ namespace codepad::editor::code {
 			}
 		}
 		void _on_mouse_up(ui::mouse_button_info &info) override {
-			if (info.button == os::input::mouse_button::left) {
+			if (info.button == os::input::mouse_button::primary) {
 				_on_mouse_lbutton_up();
 			}
 			component::_on_mouse_up(info);
@@ -408,12 +410,12 @@ namespace codepad::editor::code {
 		void _on_mouse_move(ui::mouse_move_info &info) override {
 			if (_dragging) {
 				const editor *edt = _get_editor();
+				rectd client = get_client_region();
 				double
-					yp = info.new_pos.y + _dragoffset - get_client_region().ymin,
+					yp = info.new_pos.y + _dragoffset - client.ymin,
 					toth =
-					static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() -
-					get_client_region().height(),
-					totch = std::min(get_client_region().height() * (1.0 - get_scale()), toth * get_scale());
+					static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - client.height(),
+					totch = std::min(client.height() * (1.0 - get_scale()), toth * get_scale());
 				_get_box()->set_vertical_position(toth * yp / totch);
 			}
 			component::_on_mouse_move(info);

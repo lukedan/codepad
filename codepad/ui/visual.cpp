@@ -1,7 +1,14 @@
 #include "visual.h"
+
+/// \file visual.cpp
+/// Implementation of certain methods related to the visuals of objects.
+
 #include "element_classes.h"
 #include "element.h"
 #include "draw.h"
+
+using namespace std;
+using namespace codepad::os;
 
 namespace codepad::ui {
 	rectd visual_layer::get_center_rect(const state &s, rectd client) const {
@@ -23,24 +30,23 @@ namespace codepad::ui {
 	}
 
 	void visual_layer::render(rectd layout, const state &s) const {
-		if (s.current_texture.current_frame == texture_animation.frames.end()) {
-			return;
+		texture empty;
+		reference_wrapper<texture> tex(empty); // using a pointer just doesn't seem right here
+		if (s.current_texture.current_frame != texture_animation.frames.end()) {
+			tex = *s.current_texture.current_frame->first;
 		}
 		switch (layer_type) {
 		case type::solid:
 			{
 				rectd cln = get_center_rect(s, layout);
-				os::renderer_base::get().draw_quad(
-					*s.current_texture.current_frame->first, cln,
-					rectd(0.0, 1.0, 0.0, 1.0), s.current_color.current_value
+				renderer_base::get().draw_quad(
+					tex.get(), cln, rectd(0.0, 1.0, 0.0, 1.0), s.current_color.current_value
 				);
 			}
 			break;
 		case type::grid:
 			{
-				size_t
-					w = s.current_texture.current_frame->first->get_width(),
-					h = s.current_texture.current_frame->first->get_height();
+				size_t w = tex.get().get_width(), h = tex.get().get_height();
 				rectd
 					outer = layout, inner = get_center_rect(s, outer),
 					texr(
@@ -88,46 +94,39 @@ namespace codepad::ui {
 					rectd(inner.xmax, outer.xmax, inner.ymax, outer.ymax),
 					rectd(texr.xmax, 1.0, texr.ymax, 1.0), curc
 				);
-				rb.draw(*s.current_texture.current_frame->first);
+				rb.draw(tex.get());
 			}
 			break;
 		}
 	}
 
 
-	visual_state::state visual_state::init_state() const {
-		state res;
-		res.timestamp = class_manager::get().visuals.timestamp;
-		for (auto i = _layers.begin(); i != _layers.end(); ++i) {
-			res.layer_states.push_back(i->init_state());
+	visual_state::state::state(const visual_state &st) {
+		layer_states.reserve(st.layers.size());
+		for (auto &i : st.layers) {
+			layer_states.emplace_back(i);
 		}
-		return res;
 	}
-
-	visual_state::state visual_state::init_state(const state &old) const {
-		state res;
-		res.timestamp = class_manager::get().visuals.timestamp;
-		auto i = _layers.begin();
+	visual_state::state::state(const visual_state &st, const state &old) {
+		layer_states.reserve(st.layers.size());
+		auto i = st.layers.begin();
 		for (
 			auto j = old.layer_states.begin();
-			i != _layers.end() && j != old.layer_states.end();
+			i != st.layers.end() && j != old.layer_states.end();
 			++i, ++j
 			) {
-			res.layer_states.push_back(i->init_state(*j));
+			layer_states.emplace_back(*i, *j);
 		}
-		for (; i != _layers.end(); ++i) {
-			res.layer_states.push_back(i->init_state());
+		for (; i != st.layers.end(); ++i) {
+			layer_states.emplace_back(*i);
 		}
-		return res;
 	}
 
+
 	void visual_state::update(state &s, double dt) const {
-		if (s.timestamp != class_manager::get().visuals.timestamp) {
-			s = init_state();
-		}
 		s.all_stationary = true;
 		auto j = s.layer_states.begin();
-		for (auto i = _layers.begin(); i != _layers.end(); ++i, ++j) {
+		for (auto i = layers.begin(); i != layers.end(); ++i, ++j) {
 			assert_true_usage(j != s.layer_states.end(), "invalid layer state data");
 			i->update(*j, dt);
 			if (!j->all_stationary) {
@@ -139,26 +138,26 @@ namespace codepad::ui {
 
 	void visual::render_state::set_class(str_t cls) {
 		_cls = std::move(cls);
-		_set_animst_and_last(
-			class_manager::get().visuals.get_state_or_create(_cls, _state).init_state()
+		_reset_state(
+			visual_state::state(class_manager::get().visuals.get_state_or_create(_cls, _state))
 		);
 	}
 
 	void visual::render_state::set_state(visual_state::id_t s) {
 		_state = s;
-		_set_animst_and_last(
-			class_manager::get().visuals.get_state_or_create(_cls, _state).init_state(_animst)
+		_reset_state(
+			visual_state::state(class_manager::get().visuals.get_state_or_create(_cls, _state), _animst)
 		);
 	}
 	bool visual::render_state::stationary() const {
-		return _animst.timestamp == class_manager::get().visuals.timestamp && _animst.all_stationary;
+		return _timestamp == class_manager::get().visuals.timestamp && _animst.all_stationary;
 	}
 
 	void visual::render_state::update() {
 		if (!stationary()) {
 			const visual_state &vps = class_manager::get().visuals.get_state_or_create(_cls, _state);
-			if (_animst.timestamp != class_manager::get().visuals.timestamp) {
-				_set_animst_and_last(vps.init_state());
+			if (_timestamp != class_manager::get().visuals.timestamp) {
+				_reset_state(visual_state::state(vps));
 			}
 			auto now = std::chrono::high_resolution_clock::now();
 			vps.update(_animst, std::chrono::duration<double>(now - _last).count());
@@ -168,9 +167,15 @@ namespace codepad::ui {
 
 	void visual::render_state::render(rectd rgn) {
 		const visual_state &ps = class_manager::get().visuals.get_state_or_create(_cls, _state);
-		if (_animst.timestamp != class_manager::get().visuals.timestamp) {
-			_set_animst_and_last(ps.init_state());
+		if (_timestamp != class_manager::get().visuals.timestamp) {
+			_reset_state(visual_state::state(ps));
 		}
 		ps.render(rgn, _animst);
+	}
+
+	void visual::render_state::_reset_state(visual_state::state s) {
+		_timestamp = class_manager::get().visuals.timestamp;
+		_animst = std::move(s);
+		_last = std::chrono::high_resolution_clock::now();
 	}
 }

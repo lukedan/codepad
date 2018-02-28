@@ -1,6 +1,6 @@
 /// \file globals.cpp
 /// Definition of certain global objects and functions,
-/// and utility structs to log their construction and destruction.
+/// and auxiliary structs to log their construction and destruction.
 
 #include <vector>
 #include <string>
@@ -10,7 +10,7 @@
 #include "../os/renderer.h"
 #include "../os/current.h"
 #include "../ui/commands.h"
-#include "../ui/commonelements.h"
+#include "../ui/common_elements.h"
 #include "../ui/manager.h"
 #include "../ui/element_classes.h"
 #include "../ui/font_family.h"
@@ -23,10 +23,6 @@
 using namespace std;
 
 namespace codepad {
-	unsigned char ui::content_host::_def_fnt_ts = 0;
-
-	constexpr ui::thickness editor::tab_button::content_padding;
-
 	double editor::code::editor::_lines_per_scroll = 3.0;
 
 	double editor::code::minimap::_target_height = 2.0;
@@ -167,9 +163,9 @@ namespace codepad {
 			static _global_wrapper<manager> _v;
 			return _v.object;
 		}
-		shared_ptr<const os::font> &content_host::_get_deffnt() {
+		content_host::_default_font &content_host::_default_font::get() {
 			static _global_wrapper<_default_font> _v;
-			return _v.object.font;
+			return _v.object;
 		}
 		visual::_registry &visual::_registry::get() {
 			static _global_wrapper<_registry> _v;

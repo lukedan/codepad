@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 if(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
 elseif(CMAKE_COMPILER_IS_GNUCXX)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -g")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion")
 endif()
 
 find_package(Freetype REQUIRED)
@@ -78,7 +78,8 @@ set(SOURCE_FILES
 		codepad/os/renderer.h
 		codepad/os/window.h
 		codepad/ui/commands.h
-		codepad/ui/commonelements.h
+		codepad/ui/common_elements.h
+		codepad/ui/common_elements.cpp
 		codepad/ui/draw.h
 		codepad/ui/element.cpp
 		codepad/ui/element.h
@@ -97,3 +98,6 @@ set(SOURCE_FILES
 add_definitions(-DUNICODE -D_UNICODE -DCP_LOG_STACKTRACE ${PLATFORM_DEFINITIONS})
 add_executable(codepad ${SOURCE_FILES})
 target_link_libraries(codepad ${OPENGL_gl_LIBRARY} ${FREETYPE_LIBRARIES} ${PLATFORM_LIBRARIES})
+if(CMAKE_COMPILER_IS_GNUCXX) # TODO rid of this after filesystem support is complete
+	target_link_libraries(codepad stdc++fs)
+endif()

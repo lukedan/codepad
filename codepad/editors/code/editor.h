@@ -342,11 +342,6 @@ namespace codepad::editor::code {
 			}
 		}
 
-		// for profiling
-		void recalc_linebreaks() {
-			_recalculate_wrapping_region(0, _ctx->num_chars());
-		}
-
 		event<void>
 			content_visual_changed, content_modified, carets_changed,
 			editing_visual_changed, folding_changed, wrapping_changed;
@@ -356,12 +351,6 @@ namespace codepad::editor::code {
 		}
 		inline static const ui::font_family &get_font() {
 			return _get_appearance().family;
-		}
-		inline static void set_selection_brush(std::shared_ptr<ui::basic_brush> b) {
-			_get_appearance().selection_brush = std::move(b);
-		}
-		inline static const std::shared_ptr<ui::basic_brush> &get_selection_brush() {
-			return _get_appearance().selection_brush;
 		}
 
 		inline static void set_folding_gizmo(gizmo gz) {
@@ -382,10 +371,13 @@ namespace codepad::editor::code {
 			return CP_STRLIT("editor");
 		}
 		inline static str_t get_insert_caret_class() {
-			return CP_STRLIT("caret_insert");
+			return CP_STRLIT("insert_caret");
 		}
 		inline static str_t get_overwrite_caret_class() {
-			return CP_STRLIT("caret_overwrite");
+			return CP_STRLIT("overwrite_caret");
+		}
+		inline static str_t get_editor_selection_class() {
+			return CP_STRLIT("editor_selection");
 		}
 	protected:
 		std::shared_ptr<text_context> _ctx;
@@ -405,12 +397,11 @@ namespace codepad::editor::code {
 		// gizmos
 		gizmo_registry _gizmos;
 		// rendering
-		ui::visual::render_state _caretst;
+		ui::visual::render_state _caretst, _selst;
 
 		struct _appearance_config {
 			gizmo folding_gizmo;
 			ui::font_family family;
-			std::shared_ptr<ui::basic_brush> selection_brush;
 		};
 		static double _lines_per_scroll;
 		static _appearance_config &_get_appearance();
@@ -536,9 +527,11 @@ namespace codepad::editor::code {
 
 		void _on_codebox_got_focus() {
 			_caretst.set_state_bit(ui::visual::get_predefined_states().focused, true);
+			_selst.set_state_bit(ui::visual::get_predefined_states().focused, true);
 		}
 		void _on_codebox_lost_focus() {
 			_caretst.set_state_bit(ui::visual::get_predefined_states().focused, false);
+			_selst.set_state_bit(ui::visual::get_predefined_states().focused, false);
 		}
 
 		void _begin_mouse_selection(size_t startpos) {
@@ -673,7 +666,7 @@ namespace codepad::editor::code {
 		}
 		void _on_mouse_down(ui::mouse_button_info &info) override {
 			_mouse_cache = _hit_test_for_caret_client(info.position - get_client_region().xmin_ymin());
-			if (info.button == os::input::mouse_button::left) {
+			if (info.button == os::input::mouse_button::primary) {
 				if (!_is_in_selection(_mouse_cache.first)) {
 					if (os::input::is_key_down(os::input::key::shift)) {
 						caret_set::container::iterator it = _cset.carets.end();
@@ -692,13 +685,13 @@ namespace codepad::editor::code {
 					_predrag = true;
 					get_window()->set_mouse_capture(*this);
 				}
-			} else if (info.button == os::input::mouse_button::middle) {
+			} else if (info.button == os::input::mouse_button::tertiary) {
 				// TODO block selection
 			}
 			element::_on_mouse_down(info);
 		}
 		void _on_mouse_up(ui::mouse_button_info &info) override {
-			if (info.button == os::input::mouse_button::left) {
+			if (info.button == os::input::mouse_button::primary) {
 				_on_mouse_lbutton_up();
 			}
 		}
@@ -740,25 +733,28 @@ namespace codepad::editor::code {
 			}
 		}
 
-		void _custom_render() override;
-		void _finish_layout() override {
+		/// Checks if line wrapping needs to be calculated. This will be called only in codebox::_finish_layout,
+		/// so it is not called again in overridden \ref _finish_layout.
+		void _check_wrapping_width() {
 			double cw = get_client_region().width();
 			if (std::abs(cw - _view_width) > 0.1) { // TODO magik!
-				_view_width = get_client_region().width();
+				_view_width = cw;
 				{
 					performance_monitor(CP_STRLIT("recalculate_wrapping"));
 					_fmt.set_softbreaks(_recalculate_wrapping_region(0, _ctx->num_chars()));
 				}
 				_on_wrapping_changed();
 			}
-			element::_finish_layout();
 		}
+
+		void _custom_render() override;
 
 		void _initialize() override {
 			element::_initialize();
 			set_padding(ui::thickness(2.0, 0.0, 0.0, 0.0));
 			_can_focus = false;
 			_reset_caret_animation();
+			_selst.set_class(get_editor_selection_class());
 		}
 		void _dispose() override {
 			if (_ctx) {

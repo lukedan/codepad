@@ -159,37 +159,37 @@ namespace codepad {
 				case WM_LBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						input::mouse_button::left, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::primary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_LBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						input::mouse_button::left, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::primary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_RBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						input::mouse_button::right, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::secondary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_RBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						input::mouse_button::right, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::secondary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_MBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						input::mouse_button::middle, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::tertiary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_MBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						input::mouse_button::middle, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::tertiary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 
@@ -240,12 +240,33 @@ namespace codepad {
 		}
 
 
+		inline bool _get_key_state(int key) {
+			return (GetKeyState(key) & 0x8000) != 0;
+		}
+		inline modifier_keys _get_modifiers() {
+			modifier_keys result = modifier_keys::none;
+			if (_get_key_state(VK_CONTROL)) {
+				set_bit(result, modifier_keys::control);
+			}
+			if (_get_key_state(VK_MENU)) {
+				set_bit(result, modifier_keys::alt);
+			}
+			if (_get_key_state(VK_SHIFT)) {
+				set_bit(result, modifier_keys::shift);
+			}
+			if (_get_key_state(VK_LWIN) || _get_key_state(VK_RWIN)) {
+				set_bit(result, modifier_keys::super);
+			}
+			return result;
+		}
 		bool window::_idle() {
 			MSG msg;
 			if (PeekMessage(&msg, _hwnd, 0, 0, PM_REMOVE)) {
 				if (!(
 					(msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) &&
-					hotkey_manager.on_key_down(input::_details::_key_id_backmapping.v[msg.wParam])
+					hotkey_manager.on_key_down(key_gesture(
+						input::_details::_key_id_backmapping.v[msg.wParam], _get_modifiers()
+					))
 					)) {
 					TranslateMessage(&msg);
 					DispatchMessage(&msg);

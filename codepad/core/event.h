@@ -20,6 +20,7 @@ namespace codepad {
 		using handler = std::function<void(Args...)>;
 
 		/// Returned by operator+=(), used to unregister a handler.
+		/// Used instead of raw iterators to prohibit direct access to the elements.
 		struct token {
 			friend struct event_base<Args...>;
 		public:
@@ -46,7 +47,8 @@ namespace codepad {
 		/// \return The corresponding token, which can be used to unregister \p h.
 		template <typename T> token operator+=(T &&h) {
 			_list.push_back(handler(std::forward<T>(h)));
-			return token(_list.begin());
+			auto it = _list.end();
+			return token(--it);
 		}
 		/// Unregisters a handler.
 		///

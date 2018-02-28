@@ -30,7 +30,8 @@ namespace codepad {
 
 			void editor::_custom_render() {
 				performance_monitor mon(CP_HERE);
-				if (get_client_region().height() < 0.0) {
+				rectd client = get_client_region();
+				if (client.height() < 0.0) {
 					return;
 				}
 				double lh = get_line_height(), layoutw = get_layout().width();
@@ -47,9 +48,9 @@ namespace codepad {
 				font_family::baseline_info bi = get_font().get_baseline_info();
 
 				renderer_base::get().push_matrix(matd3x3::translate(vec2d(
-					round(get_client_region().xmin),
+					round(client.xmin),
 					round(
-						get_client_region().ymin - _get_box()->get_vertical_position() +
+						client.ymin - _get_box()->get_vertical_position() +
 						static_cast<double>(_fmt.get_folding().unfolded_to_folded_line_number(be.first)) * lh
 					)
 				)));
@@ -85,10 +86,14 @@ namespace codepad {
 					}
 					batch.draw(*_get_appearance().folding_gizmo.texture);
 				}
+				_selst.update();
 				for (const auto &selrgn : it.get_addon<caret_renderer>().get_selection_rects()) {
 					for (const auto &rgn : selrgn) {
-						_get_appearance().selection_brush->fill_rect(rgn);
+						_selst.render(rgn);
 					}
+				}
+				if (!_selst.stationary()) {
+					invalidate_visual();
 				}
 				if (_caretst.update_and_render_multiple(it.get_addon<caret_renderer>().get_caret_rects())) {
 					invalidate_visual();

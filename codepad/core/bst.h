@@ -930,7 +930,7 @@ namespace codepad {
 			_refresh_synth(_synth, n);
 		}
 
-		/// Utility struct used when cloning a tree.
+		/// Auxiliary struct used when cloning a tree.
 		struct _clone_node {
 			/// Default constructor.
 			_clone_node() = default;

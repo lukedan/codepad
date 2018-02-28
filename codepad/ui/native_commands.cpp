@@ -1,4 +1,8 @@
 #include "native_commands.h"
+
+/// \file native_commands.cpp
+/// Definitions of natively supported commands.
+
 #include "commands.h"
 #include "../editors/docking.h"
 #include "../editors/code/codebox.h"
@@ -13,6 +17,8 @@ using namespace codepad::editor::code;
 namespace codepad::ui::native_commands {
 	void register_all() {
 		command_registry &reg = command_registry::get();
+
+
 		reg.register_command(
 			CP_STRLIT("editor.carets.move_left"), convert_type<codebox>([](codebox *e) {
 				e->get_editor()->move_all_carets_left(false);

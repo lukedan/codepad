@@ -3,7 +3,7 @@
 #include "../ui/element.h"
 #include "../ui/element_classes.h"
 #include "../ui/panel.h"
-#include "../ui/commonelements.h"
+#include "../ui/common_elements.h"
 #include "../ui/manager.h"
 #include "../os/misc.h"
 #include "../os/renderer.h"
@@ -107,7 +107,7 @@ namespace codepad::editor {
 		}
 
 		void _on_mouse_down(ui::mouse_button_info &p) override {
-			if (p.button == os::input::mouse_button::left) {
+			if (p.button == os::input::mouse_button::primary) {
 				start_drag.invoke();
 				_drag = true;
 				get_window()->set_mouse_capture(*this);
@@ -133,7 +133,7 @@ namespace codepad::editor {
 			_on_end_drag();
 		}
 		void _on_mouse_up(ui::mouse_button_info &p) override {
-			if (_drag && p.button == os::input::mouse_button::left) {
+			if (_drag && p.button == os::input::mouse_button::primary) {
 				_on_end_drag();
 			}
 		}
@@ -362,6 +362,9 @@ namespace codepad::editor {
 		inline static str_t get_default_class() {
 			return CP_STRLIT("tab_button");
 		}
+		inline static str_t get_tab_close_button_class() {
+			return CP_STRLIT("tab_close_button");
+		}
 	protected:
 		ui::content_host _content = *this;
 		ui::button *_btn;
@@ -369,21 +372,21 @@ namespace codepad::editor {
 		double _xoffset = 0.0;
 
 		void _on_mouse_down(ui::mouse_button_info &p) override {
-			panel_base::_on_mouse_down(p);
 			if (
-				p.button == os::input::mouse_button::left &&
-				!test_bit_all(_btn->get_state(), ui::button_base::state::mouse_over)
+				p.button == os::input::mouse_button::primary &&
+				!_btn->is_mouse_over()
 				) {
 				_mdpos = p.position;
 				ui::manager::get().schedule_update(*this);
 				click.invoke_noret(p);
-			} else if (p.button == os::input::mouse_button::middle) {
+			} else if (p.button == os::input::mouse_button::tertiary) {
 				request_close.invoke();
 			}
+			panel_base::_on_mouse_down(p);
 		}
 
 		void _on_update() override {
-			if (os::input::is_mouse_button_down(os::input::mouse_button::left)) {
+			if (os::input::is_mouse_button_down(os::input::mouse_button::primary)) {
 				vec2d diff = get_window()->screen_to_client(os::input::get_mouse_position()).convert<double>() - _mdpos;
 				if (diff.length_sqr() > drag_pivot * drag_pivot) {
 					start_drag.invoke_noret(get_layout().xmin_ymin() - _mdpos);
@@ -405,6 +408,7 @@ namespace codepad::editor {
 		void _initialize() override {
 			panel_base::_initialize();
 			_btn = ui::element::create<ui::button>();
+			_btn->set_class(get_tab_close_button_class());
 			_btn->set_anchor(ui::anchor::dock_right);
 			_btn->set_can_focus(false);
 			_btn->click += [this]() {
@@ -501,7 +505,7 @@ namespace codepad::editor {
 		tab_host *get_host() const {
 #ifdef CP_DETECT_LOGICAL_ERRORS
 			tab_host *hst = dynamic_cast<tab_host*>(parent());
-			assert_true_logical(hst, "parent is not a tab host when get_host() is called");
+			assert_true_logical((hst == nullptr) == (parent() == nullptr), "parent is not a tab host when get_host() is called");
 			return hst;
 #else
 			return static_cast<tab_host*>(parent());
@@ -739,7 +743,7 @@ namespace codepad::editor {
 		}
 
 		void start_drag_tab(tab &t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
-			return !os::input::is_mouse_button_down(os::input::mouse_button::left);
+			return !os::input::is_mouse_button_down(os::input::mouse_button::primary);
 			}) {
 			assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 			tab_host *hst = t.get_host();

@@ -7,7 +7,7 @@
 #include "os/current.h"
 #include "ui/font_family.h"
 #include "ui/draw.h"
-#include "ui/commonelements.h"
+#include "ui/common_elements.h"
 #include "ui/native_commands.h"
 #include "editors/docking.h"
 #include "editors/code/codebox.h"
@@ -31,8 +31,8 @@ int main() {
 	native_commands::register_all();
 
 	auto fnt = std::make_shared<default_font>(CP_STRLIT(""), 13.0, font_style::normal);
-	//font_family codefnt(CP_STRLIT("Fira Code"), 13.0);
-	font_family codefnt(CP_STRLIT(""), 13.0);
+	font_family codefnt(CP_STRLIT("Fira Code"), 11.0);
+	//font_family codefnt(CP_STRLIT(""), 13.0);
 	//font_family codefnt(CP_STRLIT("Segoe UI"), 13.0);
 
 	texture_table tbl;
@@ -70,7 +70,6 @@ int main() {
 
 	content_host::set_default_font(fnt);
 	code::editor::set_font(codefnt);
-	code::editor::set_selection_brush(std::make_shared<texture_brush>(colord(0.0, 0.6, 1.0, 0.2)));
 
 	label *lbl = element::create<label>();
 	lbl->content().set_text(CP_STRLIT("Ctrl+O to open a file"));

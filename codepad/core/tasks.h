@@ -26,8 +26,8 @@ namespace codepad {
 			_lock.lock();
 			if (!_cbs.empty()) {
 				// swap and then unlock so that execution can be done later without locking
-				std::vector<std::function<void()>> list = std::move(_cbs);
-				_cbs.clear();
+				std::vector<std::function<void()>> list;
+				std::swap(list, _cbs);
 				_lock.unlock();
 				// execute all callbacks
 				for (auto &&f : list) {
@@ -149,7 +149,9 @@ namespace codepad {
 				std::forward<T>(func), std::forward<Args>(args)..., std::placeholders::_1
 			)));
 			auto tk = --_lst.end();
-			std::thread t(std::bind(&async_task::_run, &*tk));
+			std::thread t([tsk = &*tk]() {
+				tsk->_run();
+			});
 			t.detach();
 			return tk;
 		}
@@ -181,7 +183,7 @@ namespace codepad {
 			}
 			return false;
 		}
-		/// \override
+		/// \overload
 		bool check_finish(token t) {
 			task_status dummy;
 			return check_finish(t, dummy);

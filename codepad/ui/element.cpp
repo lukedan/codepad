@@ -1,5 +1,9 @@
-#include "../os/window.h"
 #include "element.h"
+
+/// \file element.cpp
+/// Implementation of certain methods related to ui::element.
+
+#include "../os/window.h"
 #include "panel.h"
 #include "manager.h"
 
@@ -24,12 +28,14 @@ namespace codepad {
 		}
 
 		void element::_on_mouse_down(mouse_button_info &p) {
-			mouse_down(p);
-			if (_can_focus) {
-				p.mark_focus_set();
-				manager::get().set_focus(this);
+			if (p.button == input::mouse_button::primary) {
+				if (_can_focus && !p.focus_set()) {
+					p.mark_focus_set();
+					manager::get().set_focus(this);
+				}
+				_set_visual_style_bit(visual::get_predefined_states().mouse_down, true);
 			}
-			_set_visual_style_bit(visual::get_predefined_states().mouse_down, true);
+			mouse_down.invoke(p);
 		}
 
 		void element::_on_render() {
@@ -38,7 +44,6 @@ namespace codepad {
 				if (_rst.update_and_render(get_layout())) {
 					invalidate_visual();
 				}
-				_rst.render(get_layout());
 				_custom_render();
 				_on_postrender();
 			}
@@ -55,7 +60,6 @@ namespace codepad {
 				test_bit_all(_anchor, anchor::top), test_bit_all(_anchor, anchor::bottom),
 				_layout.ymin, _layout.ymax, _margin.top, _margin.bottom, sz.y
 			);
-			_clientrgn = get_padding().shrink(get_layout());
 		}
 
 		void element::_dispose() {

@@ -300,7 +300,7 @@
     <ClInclude Include="os\windows\misc.h" />
     <ClInclude Include="os\windows\renderer.h" />
     <ClInclude Include="os\windows\window.h" />
-    <ClInclude Include="ui\commonelements.h" />
+    <ClInclude Include="ui\common_elements.h" />
     <ClInclude Include="ui\draw.h" />
     <ClInclude Include="ui\visual.h" />
     <ClInclude Include="ui\manager.h" />
@@ -324,6 +324,7 @@
     <ClCompile Include="editors\docking.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="os\windows\windows.cpp" />
+    <ClCompile Include="ui\common_elements.cpp" />
     <ClCompile Include="ui\element.cpp" />
     <ClCompile Include="ui\manager.cpp" />
     <ClCompile Include="ui\native_commands.cpp" />
