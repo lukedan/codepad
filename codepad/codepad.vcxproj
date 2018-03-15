@@ -137,7 +137,7 @@
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -151,7 +151,7 @@
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -169,7 +169,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -189,7 +189,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -208,7 +208,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -228,7 +228,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -248,7 +248,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -267,7 +267,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype28.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -281,11 +281,12 @@
     <ClInclude Include="editors\code\view.h" />
     <ClInclude Include="editors\docking.h" />
     <ClInclude Include="editors\code\context.h" />
+    <ClInclude Include="os\opengl_renderer_base.h" />
+    <ClInclude Include="os\software_renderer_base.h" />
     <ClInclude Include="ui\element_classes.h" />
     <ClInclude Include="ui\native_commands.h" />
     <ClInclude Include="os\current.h" />
     <ClInclude Include="os\current\all.h" />
-    <ClInclude Include="os\current\filesystem.h" />
     <ClInclude Include="os\current\font.h" />
     <ClInclude Include="os\current\misc.h" />
     <ClInclude Include="os\current\renderer.h" />
@@ -295,7 +296,6 @@
     <ClInclude Include="os\filesystem.h" />
     <ClInclude Include="os\renderer.h" />
     <ClInclude Include="os\windows.h" />
-    <ClInclude Include="os\windows\filesystem.h" />
     <ClInclude Include="os\windows\font.h" />
     <ClInclude Include="os\windows\misc.h" />
     <ClInclude Include="os\windows\renderer.h" />
@@ -323,6 +323,9 @@
     <ClCompile Include="editors\code\editor.cpp" />
     <ClCompile Include="editors\docking.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="os\opengl_renderer_base.cpp" />
+    <ClCompile Include="os\software_renderer_base.cpp" />
+    <ClCompile Include="os\windows\filesystem.cpp" />
     <ClCompile Include="os\windows\windows.cpp" />
     <ClCompile Include="ui\common_elements.cpp" />
     <ClCompile Include="ui\element.cpp" />

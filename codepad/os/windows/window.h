@@ -95,13 +95,6 @@ namespace codepad {
 				return r.left <= v.x && r.right > v.x && r.top <= v.y && r.bottom > v.y;
 			}
 
-			cursor get_current_display_cursor() const override {
-				if (_capture) {
-					return _capture->get_current_display_cursor();
-				}
-				return window_base::get_current_display_cursor();
-			}
-
 			vec2i screen_to_client(vec2i v) const override {
 				POINT p;
 				p.x = v.x;
@@ -139,7 +132,7 @@ namespace codepad {
 			explicit window(const str_t &clsname, window *parent = nullptr) {
 				auto u16str = convert_to_utf16(clsname);
 				winapi_check(_hwnd = CreateWindowEx(
-					0, reinterpret_cast<LPCWSTR>(static_cast<size_t>(_class.atom)),
+					0, reinterpret_cast<LPCWSTR>(static_cast<size_t>(_wndclass::get().atom)),
 					reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
 					CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 					parent ? parent->_hwnd : nullptr, nullptr, GetModuleHandle(nullptr), nullptr
@@ -157,8 +150,9 @@ namespace codepad {
 				}
 
 				ATOM atom;
+
+				static _wndclass &get();
 			};
-			static _wndclass _class;
 
 			void _set_window_style_bit(bool v, LONG bit) {
 				LONG old = GetWindowLong(_hwnd, GWL_STYLE);
@@ -183,26 +177,12 @@ namespace codepad {
 				window_base::_on_mouse_enter();
 			}
 
-			void _on_resize() {
-				RECT cln;
-				winapi_check(GetClientRect(_hwnd, &cln));
-				_layout = rectd::from_xywh(0.0, 0.0, cln.right, cln.bottom);
-				size_changed_info p(vec2i(cln.right, cln.bottom));
-				if (p.new_size.x > 0 && p.new_size.y > 0) {
-					_on_size_changed(p);
-					ui::manager::get().update_layout_and_visual();
-				}
-			}
-
 			bool _idle();
 			void _on_update() override {
 				while (_idle()) {
 				}
 				_update_drag();
 				ui::manager::get().schedule_update(*this);
-			}
-			void _on_prerender() override {
-				window_base::_on_prerender();
 			}
 
 			void _initialize() override {

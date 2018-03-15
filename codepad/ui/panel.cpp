@@ -1,6 +1,6 @@
 #include "panel.h"
 
-/// \file panel.cpp
+/// \file
 /// Implementation of certain methods of codepad::ui::element_collection.
 
 #include "../os/window.h"

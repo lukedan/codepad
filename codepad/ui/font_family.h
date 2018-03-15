@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file font_family.h
+/// \file
 /// Manages different styles and weights of the same font.
 
 #include <string>

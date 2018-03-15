@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file common_elements.h
+/// \file
 /// Elements that are commonly used in the UI environment.
 
 #include "element.h"
@@ -483,7 +483,7 @@ namespace codepad::ui {
 				set_value(get_value() - get_visible_range());
 			};
 			_children.add(*_pgup);
-			
+
 			_pgdn = element::create<button>();
 			_pgdn->set_trigger_type(button_base::trigger_type::mouse_down);
 			_pgdn->set_can_focus(false);

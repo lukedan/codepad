@@ -1,6 +1,6 @@
 #include "context.h"
 #include "context_manager.h"
-#include "../../os/current/filesystem.h"
+#include "../../os/filesystem.h"
 
 using namespace std;
 using namespace codepad::os;

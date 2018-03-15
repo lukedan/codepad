@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file draw.h
+/// \file
 /// Auxiliary classes for rendering text, primitives, etc.
 
 #include "../core/encodings.h"

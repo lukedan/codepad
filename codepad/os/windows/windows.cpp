@@ -98,7 +98,17 @@ namespace codepad {
 					return 0;
 
 				case WM_SIZE:
-					form->_on_resize();
+					{
+						if (wparam != SIZE_MINIMIZED) {
+							size_t w = LOWORD(lparam), h = HIWORD(lparam);
+							form->_layout = rectd::from_xywh(0.0, 0.0, w, h);
+							size_changed_info p(vec2i(w, h));
+							if (p.new_size.x > 0 && p.new_size.y > 0) {
+								form->_on_size_changed(p);
+								ui::manager::get().update_layout_and_visual();
+							}
+						}
+					}
 					return 0;
 
 				case WM_SYSKEYDOWN:
@@ -200,6 +210,10 @@ namespace codepad {
 					form->_on_lost_window_focus();
 					return 0;
 
+				case WM_CANCELMODE:
+					form->_on_lost_window_capture();
+					return 0;
+
 				case WM_SETCURSOR:
 					{
 						if (!form->is_mouse_over()) {
@@ -226,7 +240,6 @@ namespace codepad {
 		}
 
 
-		window::_wndclass window::_class;
 		window::_wndclass::_wndclass() {
 			WNDCLASSEX wcex;
 			memset(&wcex, 0, sizeof(wcex));

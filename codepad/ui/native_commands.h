@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file native_commands.h
+/// \file
 /// Commands that are natively supported.
 
 #include "commands.h"

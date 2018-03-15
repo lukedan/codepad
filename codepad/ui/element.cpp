@@ -1,6 +1,6 @@
 #include "element.h"
 
-/// \file element.cpp
+/// \file
 /// Implementation of certain methods related to ui::element.
 
 #include "../os/window.h"

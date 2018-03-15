@@ -1,6 +1,6 @@
 #include "native_commands.h"
 
-/// \file native_commands.cpp
+/// \file
 /// Definitions of natively supported commands.
 
 #include "commands.h"

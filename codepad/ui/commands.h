@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file commands.h
+/// \file
 /// Manages commands used by hotkeys.
 
 #include <vector>

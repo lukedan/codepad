@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file event.h
+/// \file
 /// Contains structs used to pass information around components.
 
 #include <functional>

@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file encodings.h
+/// \file
 /// Encoding settings, and conversions between one another.
 /// Currently supported encodings: UTF-8, UTF-16, UTF-32
 
@@ -625,6 +625,12 @@ namespace codepad {
 		typename Char, typename SrcEncoding = auto_utf<Char>
 	> inline str_t convert_to_default_encoding(const std::basic_string<Char> &s) {
 		return convert_encoding<str_t, std::basic_string<Char>, SrcEncoding, default_encoding>(s);
+	}
+	/// \overload
+	template <
+		typename It, typename SrcEncoding = auto_utf<typename std::iterator_traits<It>::value_type>
+	> inline str_t convert_to_default_encoding(It beg, It end) {
+		return convert_encoding<str_t, It, SrcEncoding, default_encoding>(beg, end);
 	}
 
 	/// Calls \p std::to_string to convert the param into a string,

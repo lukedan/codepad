@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file bst.h
+/// \file
 /// Implementation of a generic binary tree.
 
 #include <vector>
@@ -263,7 +263,7 @@ namespace codepad {
 			const T &get_value() const {
 				return _n->value;
 			}
-			/// Returns a corresponding \ref node_value_modifier. 
+			/// Returns a corresponding \ref node_value_modifier.
 			///
 			/// \return A corresponding \ref node_value_modifier.
 			node_value_modifier get_modifier() const {
@@ -337,7 +337,7 @@ namespace codepad {
 			std::swap(_root, tree._root);
 			return *this;
 		}
-		/// Destructor. Calls delete_tree(binary_tree_node*) to dispose all nodes.
+		/// Destructor. Calls delete_tree(binary_tree_node*) to dispose of all nodes.
 		~binary_tree() {
 			delete_tree(_root);
 		}
@@ -534,7 +534,7 @@ namespace codepad {
 		void refresh_tree_synthesized_result() {
 			std::vector<std::pair<node*, _traverse_status>> stk;
 			if (_root) {
-				stk.push_back(std::make_pair(_root, _traverse_status::not_visited));
+				stk.emplace_back(_root, _traverse_status::not_visited);
 			}
 			while (!stk.empty()) { // nodes are visited in a DFS-like fashion
 				std::pair<node*, _traverse_status> &p = stk.back();
@@ -542,14 +542,14 @@ namespace codepad {
 				case _traverse_status::not_visited:
 					if (p.first->left) { // visit left subtree if there is one
 						p.second = _traverse_status::visited_left;
-						stk.push_back(std::make_pair(p.first->left, _traverse_status::not_visited));
+						stk.emplace_back(p.first->left, _traverse_status::not_visited);
 						break;
 					}
 					[[fallthrough]]; // if there is none
 				case _traverse_status::visited_left:
 					if (p.first->right) { // visit right subtree if there is one
 						p.second = _traverse_status::visited_right;
-						stk.push_back(std::make_pair(p.first->right, _traverse_status::not_visited));
+						stk.emplace_back(p.first->right, _traverse_status::not_visited);
 						break;
 					}
 					[[fallthrough]]; // if there is none

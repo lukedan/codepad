@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file panel.h
+/// \file
 /// Panels used to contain and organize elements.
 
 #include <chrono>

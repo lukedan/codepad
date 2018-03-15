@@ -251,11 +251,11 @@ namespace codepad {
 						break;
 					}
 					if (it.is_hard_line_break()) {
-						_caretrects.push_back(rectd::from_xywh(
+						_caretrects.emplace_back(rectd::from_xywh(
 							cx, cy, get_font().normal->get_char_entry(' ').advance, it.line_height()
 						));
 					} else {
-						_caretrects.push_back(rectd(cx, it.character_info().char_right(), cy, cy + it.line_height()));
+						_caretrects.emplace_back(cx, it.character_info().char_right(), cy, cy + it.line_height());
 					}
 					++_curcidx;
 				}
@@ -265,7 +265,7 @@ namespace codepad {
 				double cx = it.character_info().char_left(), cy = it.y_offset();
 				if (_insel) {
 					if (_minmax.second <= it.current_position()) {
-						_selrgns.back().push_back(rectd(_lastl, cx, cy, cy + it.line_height()));
+						_selrgns.back().emplace_back(_lastl, cx, cy, cy + it.line_height());
 						_insel = false;
 						++_cur;
 						if (_cur != _end) {

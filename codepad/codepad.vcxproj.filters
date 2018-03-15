@@ -84,16 +84,10 @@
     <ClInclude Include="os\filesystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="os\windows\filesystem.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="editors\code\view.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\current\font.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="os\current\filesystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\current\window.h">
@@ -144,6 +138,12 @@
     <ClInclude Include="ui\common_elements.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="os\software_renderer_base.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\opengl_renderer_base.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -183,6 +183,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ui\common_elements.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="os\windows\filesystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="os\opengl_renderer_base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="os\software_renderer_base.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

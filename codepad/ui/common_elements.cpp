@@ -1,6 +1,6 @@
 #include "common_elements.h"
 
-/// \file common_elements.cpp
+/// \file
 /// Implementation of certain methods of commonly used elements.
 
 namespace codepad::ui {

@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file element.h
+/// \file
 /// Implementation of elements, the basic component of the user interface.
 
 #include <list>

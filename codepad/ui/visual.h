@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file visual.h
+/// \file
 /// Classes for defining and rendering the visuals of elements.
 
 #include <map>

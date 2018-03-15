@@ -49,13 +49,19 @@ namespace codepad {
 				);
 				gdi_check(SelectObject(dc, original));
 				winapi_check(DeleteObject(font));
-				_ft_verify(FT_New_Memory_Face(_get_library().lib, static_cast<FT_Byte*>(_data), size, 0, &_face));
+				_ft_verify(FT_New_Memory_Face(_library::get().lib, static_cast<FT_Byte*>(_data), size, 0, &_face));
 				_ft_verify(FT_Set_Pixel_Sizes(_face, 0, static_cast<FT_UInt>(sz)));
 
 				_cache_kerning();
 			}
+			~freetype_font() override {
+				_ft_verify(FT_Done_Face(_face));
+				std::free(_data);
+			}
+		protected:
+			void *_data = nullptr;
 		};
 		using default_font = freetype_font;
-		//using default_font = backed_up_font<freetype_font, freetype_font>;
+		// using default_font = backed_up_font<freetype_font, freetype_font>;
 	}
 }

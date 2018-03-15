@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file hotkey_registry.h
+/// \file
 /// Implementation of a registry for hotkey gestures.
 
 #include <vector>

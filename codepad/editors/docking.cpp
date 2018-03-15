@@ -171,6 +171,8 @@ namespace codepad::editor {
 				}
 				_try_dispose_preview();
 				_try_detach_possel();
+				// the mouse button is not down anymore
+				_drag->_btn->_set_visual_style_bit(visual::get_predefined_states().mouse_down, false);
 				_drag = nullptr;
 				return;
 			}

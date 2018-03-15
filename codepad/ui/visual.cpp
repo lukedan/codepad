@@ -1,6 +1,6 @@
 #include "visual.h"
 
-/// \file visual.cpp
+/// \file
 /// Implementation of certain methods related to the visuals of objects.
 
 #include "element_classes.h"

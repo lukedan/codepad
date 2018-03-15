@@ -835,8 +835,8 @@ namespace codepad::editor {
 					f->set_child2(sp);
 				}
 			} else {
-				os::window_base *w = dynamic_cast<os::window_base*>(hst.parent());
-				assert_true_logical(w, "root element must be a window");
+				auto *w = dynamic_cast<os::window_base*>(hst.parent());
+				assert_true_logical(w != nullptr, "root element must be a window");
 				w->children().remove(hst);
 				w->children().add(*sp);
 			}

@@ -1,6 +1,6 @@
 #include "manager.h"
 
-/// \file manager.cpp
+/// \file
 /// Implementation of certain methods of codepad::ui::manager.
 
 #include "../os/window.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file tasks.h
+/// \file
 /// Classes for executing asynchronous tasks. Work in progress.
 
 #include <list>

@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file element_classes.h
+/// \file
 /// Classes that parse and handle different element classes.
 
 #include "../core/hotkey_registry.h"

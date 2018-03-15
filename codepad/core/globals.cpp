@@ -1,4 +1,4 @@
-/// \file globals.cpp
+/// \file
 /// Definition of certain global objects and functions,
 /// and auxiliary structs to log their construction and destruction.
 
@@ -26,19 +26,6 @@ namespace codepad {
 	double editor::code::editor::_lines_per_scroll = 3.0;
 
 	double editor::code::minimap::_target_height = 2.0;
-
-	GLenum os::opengl_renderer_base::_blend_func_mapping[10] = {
-		GL_ZERO,
-		GL_ONE,
-		GL_SRC_ALPHA,
-		GL_ONE_MINUS_SRC_ALPHA,
-		GL_DST_ALPHA,
-		GL_ONE_MINUS_DST_ALPHA,
-		GL_SRC_COLOR,
-		GL_ONE_MINUS_SRC_COLOR,
-		GL_DST_COLOR,
-		GL_ONE_MINUS_DST_COLOR
-	};
 
 
 	chrono::high_resolution_clock::time_point get_app_epoch() {
@@ -132,18 +119,31 @@ namespace codepad {
 			static _global_wrapper<wic_image_loader> _v;
 			return _v.object;
 		}
+		window::_wndclass &window::_wndclass::get() {
+			static _global_wrapper<_wndclass> _v;
+			return _v.object;
+		}
 #endif
 #ifdef CP_PLATFORM_UNIX
+#	ifdef CP_USE_GDK
+		namespace _details {
+			cursor_set &cursor_set::get() {
+				static _global_wrapper<cursor_set> _v;
+				return _v.object;
+			}
+		}
+#	else
 		_details::xlib_link &_details::xlib_link::get() {
 			static _global_wrapper<xlib_link> _v;
 			return _v.object;
 		}
-		freetype_font::_font_config &freetype_font::_get_config() {
+#endif
+		freetype_font::_font_config &freetype_font::_font_config::get() {
 			static _global_wrapper<_font_config> _v;
 			return _v.object;
 		}
 #endif
-		freetype_font_base::_library &freetype_font_base::_get_library() {
+		freetype_font_base::_library &freetype_font_base::_library::get() {
 			static _global_wrapper<_library> _v;
 			return _v.object;
 		}

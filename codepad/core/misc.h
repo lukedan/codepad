@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file core/misc.h
+/// \file
 /// Miscellaneous fundamental functionalities.
 
 #include <cmath>
@@ -16,14 +16,17 @@
 #include <cstdlib>
 
 #if __has_include(<filesystem>)
-#   include <filesystem>
+#	include <filesystem>
+#	if _MSC_VER <= 1913
+#		define CP_EXPERIMENTAL_FILESYSTEM
+#	endif
 #elif __has_include(<experimental/filesystem>)
-#   define CP_EXPERIMENTAL_FILESYSTEM
-#   include <experimental/filesystem>
+#	define CP_EXPERIMENTAL_FILESYSTEM
+#	include <experimental/filesystem>
 #endif
-#ifdef _MSC_VER
-#   define CP_EXPERIMENTAL_FILESYSTEM
-#endif
+
+#include "encodings.h"
+
 #ifdef CP_EXPERIMENTAL_FILESYSTEM
 namespace std {
 	namespace filesystem = experimental::filesystem;
@@ -38,8 +41,6 @@ namespace std {
 		}
 	};
 }
-
-#include "encodings.h"
 
 namespace codepad {
 	/// Information about a position in the code.
@@ -545,10 +546,12 @@ namespace codepad {
 	template <typename T> struct color {
 		static_assert(std::is_same_v<T, unsigned char> || std::is_floating_point_v<T>, "invalid color component type");
 
+		using value_type = T; ///< The type used to store all components.
+
 		/// Maximum value for a component. 1.0 for floating point types, and 255 for <tt>unsigned char</tt>.
 		constexpr static T max_value = std::is_floating_point_v<T> ? 1 : 255;
 
-		/// Default constructor that initializes the color to white.
+		/// Default constructor, initializes the color to white.
 		color() = default;
 		/// Initializes the color with given component values.
 		color(T rr, T gg, T bb, T aa) : r(rr), g(gg), b(bb), a(aa) {
@@ -571,7 +574,11 @@ namespace codepad {
 						static_cast<U>(0.5 + b * 255.0), static_cast<U>(0.5 + a * 255.0)
 						);
 				} else if constexpr (std::is_same_v<T, unsigned char>) {
-					return color<U>(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
+					return color<U>(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
+				} else {
+					return color<U>(
+						static_cast<U>(r), static_cast<U>(g), static_cast<U>(b), static_cast<U>(a)
+						);
 				}
 			} else {
 				return *this;

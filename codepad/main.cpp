@@ -31,7 +31,7 @@ int main() {
 	native_commands::register_all();
 
 	auto fnt = std::make_shared<default_font>(CP_STRLIT(""), 13.0, font_style::normal);
-	font_family codefnt(CP_STRLIT("Fira Code"), 11.0);
+	font_family codefnt(CP_STRLIT("Fira Code"), 12.0);
 	//font_family codefnt(CP_STRLIT(""), 13.0);
 	//font_family codefnt(CP_STRLIT("Segoe UI"), 13.0);
 
@@ -76,6 +76,9 @@ int main() {
 	lbl->set_anchor(anchor::none);
 	lbl->set_margin(thickness(1.0));
 	tab *tmptab = dock_manager::get().new_tab();
+	lbl->mouse_down += [tmptab](mouse_button_info&) { // debug
+		command_registry::get().find_command(CP_STRLIT("open_file_dialog"))(tmptab->parent());
+	};
 	tmptab->set_caption(CP_STRLIT("welcome"));
 	tmptab->children().add(*lbl);
 

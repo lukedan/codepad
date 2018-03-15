@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file manager.h
+/// \file
 /// Manager of all GUI elements.
 
 #include <map>
