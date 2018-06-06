@@ -93,7 +93,8 @@ namespace codepad::ui {
 
 	/// Base class for all elements that contains other elements.
 	///
-	/// \todo Update dependent layout properly.
+	/// \remark Before creating classes that derive from this class, read the documentation of
+	///         \ref _on_child_removed first.
 	class panel_base : public element {
 		friend class element;
 		friend class element_collection;
@@ -145,6 +146,11 @@ namespace codepad::ui {
 			invalidate_visual();
 		}
 		/// Called when an element is removed from the panel. Invalidates the visual of the panel.
+		///
+		/// \remark Classes that stores additional information about the children and allow users to add/remove
+		///         elements to/from the elements should override this function to handle the case where an element
+		///         is added and then disposed directly, and update stored information accordingly in the overriden
+		///         function.
 		virtual void _on_child_removed(element*) {
 			invalidate_visual();
 		}

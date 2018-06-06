@@ -26,7 +26,7 @@ if(WIN32)
 		codepad/os/windows/windows.cpp
 		codepad/os/windows.h)
 	set(PLATFORM_DEFINITIONS -DCP_PLATFORM_WINDOWS -DNOMINMAX -DOEMRESOURCE)
-	set(PLATFORM_LIBRARIES d2d1 dwrite gdi32 windowscodecs)
+	set(PLATFORM_LIBRARIES d2d1 dwrite gdi32 windowscodecs imm32)
 	if(CMAKE_COMPILER_IS_GNUCXX)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wa,-mbig-obj")
 	endif()
@@ -51,10 +51,10 @@ elseif(UNIX)
 		set(PLATFORM_DEFINITIONS ${PLATFORM_DEFINITIONS} -DCP_USE_GDK)
 		set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} ${GTK3_LIBRARIES})
 		set(PLATFORM_SOURCE ${PLATFORM_SOURCE}
-				codepad/os/linux/gtk/linux.cpp
-				codepad/os/linux/gtk/misc.h
-				codepad/os/linux/gtk/renderer.h
-				codepad/os/linux/gtk/window.h)
+			codepad/os/linux/gtk/linux.cpp
+			codepad/os/linux/gtk/misc.h
+			codepad/os/linux/gtk/renderer.h
+			codepad/os/linux/gtk/window.h)
 	else()
 		find_package(X11 REQUIRED)
 		include_directories(${X11_INCLUDE_DIR})
@@ -81,14 +81,15 @@ set(SOURCE_FILES
 	codepad/editors/code/codebox.cpp
 	codepad/editors/code/codebox.h
 	codepad/editors/code/components.h
-	codepad/editors/code/context.cpp
-	codepad/editors/code/context.h
-	codepad/editors/code/context_manager.h
+	codepad/editors/code/document.cpp
+	codepad/editors/code/document.h
+	codepad/editors/code/document_manager.h
 	codepad/editors/code/editor.cpp
 	codepad/editors/code/editor.h
+	codepad/editors/code/rendering.h
 	codepad/editors/code/view.h
-	codepad/editors/docking.cpp
-	codepad/editors/docking.h
+	codepad/editors/tabs.cpp
+	codepad/editors/tabs.h
 	codepad/os/current/all.h
 	codepad/os/current/font.h
 	codepad/os/current/misc.h
@@ -122,6 +123,17 @@ set(SOURCE_FILES
 	codepad/ui/visual.h
 	codepad/main.cpp
 	${PLATFORM_SOURCE})
+
+if(NOT DEFINED USE_SSE4)
+	set(USE_SSE4 Yes)
+endif()
+if(USE_SSE4)
+	add_definitions(-DCP_USE_SSE4)
+	if(CMAKE_COMPILER_IS_GNUCXX)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.1")
+	endif()
+endif()
+
 add_definitions(-DUNICODE -D_UNICODE -DCP_LOG_STACKTRACE ${PLATFORM_DEFINITIONS})
 add_executable(codepad ${SOURCE_FILES})
 target_link_libraries(codepad ${OPENGL_gl_LIBRARY} ${FREETYPE_LIBRARIES} ${PLATFORM_LIBRARIES})

@@ -34,6 +34,8 @@
 		{ "gestures": "ctrl+z", "command": "editor.undo" },
 		{ "gestures": "ctrl+y", "command": "editor.redo" },
 
+		{ "gestures": "ctrl+-", "command": "editor.folding.fold_selected" },
+
 		{ "gestures": "backspace", "command": "editor.delete_before_carets" },
 		{ "gestures": "delete", "command": "editor.delete_after_carets" },
 		{ "gestures": "insert", "command": "editor.toggle_insert" }
@@ -49,6 +51,7 @@
 		{ "gestures": "ctrl+w", "command": "tab.request_close" }
 	],
 	"tab_host": [
-		{ "gestures": "ctrl+o", "command": "open_file_dialog" }
+		{ "gestures": "ctrl+o", "command": "open_file_dialog" },
+		{ "gestures": "ctrl+n", "command": "new_file" }
 	]
 }

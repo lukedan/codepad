@@ -17,12 +17,14 @@
 
 #if __has_include(<filesystem>)
 #	include <filesystem>
-#	if _MSC_VER <= 1913
+#	if _MSC_VER <= 1913 // older versions of MSVC put experimental::filesystem in <filesystem>
 #		define CP_EXPERIMENTAL_FILESYSTEM
 #	endif
 #elif __has_include(<experimental/filesystem>)
 #	define CP_EXPERIMENTAL_FILESYSTEM
 #	include <experimental/filesystem>
+#else
+#	error std::filesystem not found.
 #endif
 
 #include "encodings.h"
@@ -43,7 +45,7 @@ namespace std {
 }
 
 namespace codepad {
-	/// Information about a position in the code.
+	/// Information about a position in the code of codepad.
 	struct code_position {
 		/// Constructs the \ref code_position with the corresponding information.
 		code_position(const char *fil, const char *func, int l) : file(fil), function(func), line(l) {
@@ -59,7 +61,7 @@ namespace codepad {
 			*function; ///< The function.
 		int line; ///< The line of the file.
 	};
-	/// A codepad::code_position representing where it appears.
+	/// A \ref codepad::code_position representing where it appears.
 #define CP_HERE ::codepad::code_position(__FILE__, __func__, __LINE__)
 
 	/// Returns the time point when the application was started.

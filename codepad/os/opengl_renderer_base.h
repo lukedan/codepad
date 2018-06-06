@@ -44,31 +44,54 @@ namespace codepad::os {
 		/// on a different page, then adds the character to the text buffer.
 		void draw_character_custom(const char_texture &id, rectd r, colord color) override {
 			const _text_atlas::char_data &cd = _atl.get_char_data(_get_id(id));
-			if (!_textbuf.valid()) {
-				_textbuf.initialize(*this);
-			}
 			if (_lstpg != cd.page) {
 				_flush_text_buffer();
 				_lstpg = cd.page;
 			}
-			_textbuf.append(r, cd.uv, color);
+			_textbuf.append(*this, r, cd.uv, color);
 		}
 		/// Flushes the text buffer, then calls \p glDrawArrays to drwa the given triangles.
 		void draw_triangles(const texture &t, const vec2d *ps, const vec2d *us, const colord *cs, size_t n) override {
-			_flush_text_buffer();
-			glVertexPointer(2, GL_DOUBLE, sizeof(vec2d), ps);
-			glTexCoordPointer(2, GL_DOUBLE, sizeof(vec2d), us);
-			glColorPointer(4, GL_DOUBLE, sizeof(colord), cs);
-			glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_get_id(t)));
-			glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(n));
+			if (n > 0) {
+				_flush_text_buffer();
+
+				_gl_buffer<GL_ARRAY_BUFFER> buf;
+				buf.initialize(*this);
+				buf.clear_resize_dynamic_draw(*this, sizeof(_vertex) * n);
+				auto ptr = static_cast<_vertex*>(buf.map(*this));
+				for (size_t i = 0; i < n; ++i) {
+					ptr[i] = _vertex(ps[i], us[i], cs[i]);
+				}
+				buf.unmap(*this);
+
+				_defaultprog.acivate(*this);
+				_gl.VertexAttribPointer(
+					0, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, pos))
+				);
+				_gl.EnableVertexAttribArray(0);
+				_gl.VertexAttribPointer(
+					1, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, uv))
+				);
+				_gl.EnableVertexAttribArray(1);
+				_gl.VertexAttribPointer(
+					2, 4, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, c))
+				);
+				_gl.EnableVertexAttribArray(2);
+				_gl.ActiveTexture(GL_TEXTURE0);
+				auto tex = static_cast<GLuint>(_get_id(t));
+				if (tex == 0) { // _blanktex for no texture
+					tex = _blanktex;
+				}
+				glBindTexture(GL_TEXTURE_2D, tex);
+				glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(n));
+
+				buf.dispose(*this);
+			}
 		}
 		/// Flushes the text buffer, then calls \p glDrawArrays to draw the given lines.
 		void draw_lines(const vec2d *ps, const colord *cs, size_t n) override {
 			_flush_text_buffer();
-			glVertexPointer(2, GL_DOUBLE, sizeof(vec2d), ps);
-			glColorPointer(4, GL_DOUBLE, sizeof(colord), cs);
-			glBindTexture(GL_TEXTURE_2D, 0);
-			glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(n));
+			// TODO
 		}
 		/// Flushes the text buffer, ends the current render target, removes corresponding contents from the
 		/// stacks, then continues the last render target if there is one.
@@ -77,8 +100,7 @@ namespace codepad::os {
 			_rtfstk.back().end();
 			assert_true_usage(_rtfstk.back().clip_stack.empty(), "pushclip/popclip mismatch");
 			_rtfstk.pop_back();
-			glMatrixMode(GL_MODELVIEW);
-			glPopMatrix();
+			_matstk.pop_back(); // pop default identity matrix
 			if (!_rtfstk.empty()) {
 				_continue_last_render_target();
 			}
@@ -171,33 +193,23 @@ namespace codepad::os {
 		/// a matrix onto the stack.
 		void push_matrix(const matd3x3 &m) override {
 			_flush_text_buffer();
-			glMatrixMode(GL_MODELVIEW);
-			glPushMatrix();
-			double d[16];
-			_set_gl_matrix(m, d);
-			glLoadMatrixd(d);
+			_matstk.push_back(m);
+			_apply_matrix();
 		}
 		/// Flushes the text buffer, then calls \p glPushMatrix and \p glMultMatrix to multiply
 		/// and push a matrix onto the stack.
 		void push_matrix_mult(const matd3x3 &m) override {
-			_flush_text_buffer();
-			glMatrixMode(GL_MODELVIEW);
-			glPushMatrix();
-			double d[16];
-			_set_gl_matrix(m, d);
-			glMultMatrixd(d);
+			push_matrix(_matstk.back() * m);
 		}
 		/// Calls \p glGetDoublev to obtain the matrix on the top of the stack.
 		matd3x3 top_matrix() const override {
-			double d[16];
-			glGetDoublev(GL_MODELVIEW_MATRIX, d);
-			return _get_gl_matrix(d);
+			return _matstk.back();
 		}
 		/// Flushes the text buffer, then calls \p glPopMatrix to pop a matrix from the stack.
 		void pop_matrix() override {
 			_flush_text_buffer();
-			glMatrixMode(GL_MODELVIEW);
-			glPopMatrix();
+			_matstk.pop_back();
+			_apply_matrix();
 		}
 
 		/// Flushes the text buffer, then calls _render_target_stackframe::push_blend_func to
@@ -227,21 +239,48 @@ namespace codepad::os {
 		/// obtain all these functions from the system (runtime library).
 		struct _gl_funcs {
 			PFNGLGENBUFFERSPROC GenBuffers = nullptr; ///< \p glGenBuffers.
-			PFNGLDELETEBUFFERSPROC DeleteBuffers = nullptr; ///< \p glDeleteBuffers.
 			PFNGLBINDBUFFERPROC BindBuffer = nullptr; ///< \p glBindBuffer.
 			PFNGLBUFFERDATAPROC BufferData = nullptr; ///< \p glBufferData.
+			PFNGLGETBUFFERPARAMETERIVPROC GetBufferParameteriv = nullptr; ///< \p glGetBufferParameteriv.
 			PFNGLMAPBUFFERPROC MapBuffer = nullptr; ///< \p glMapBuffer.
 			PFNGLUNMAPBUFFERPROC UnmapBuffer = nullptr; ///< \p glUnmapBuffer.
+			PFNGLDELETEBUFFERSPROC DeleteBuffers = nullptr; ///< \p glDeleteBuffers.
+
+			PFNGLGENVERTEXARRAYSPROC GenVertexArrays = nullptr; ///< \p glGenVertexArrays.
+			PFNGLBINDVERTEXARRAYPROC BindVertexArray = nullptr; ///< \p glBindVertexArray.
+			PFNGLVERTEXATTRIBPOINTERPROC VertexAttribPointer = nullptr; ///< \p glVertexAttribPointer.
+			PFNGLENABLEVERTEXATTRIBARRAYPROC EnableVertexAttribArray = nullptr; ///< \p glEnableVertexAttribArray.
+			PFNGLDELETEVERTEXARRAYSPROC DeleteVertexArrays = nullptr; ///< \p glDeleteVertexArrays.
+
 			PFNGLGENFRAMEBUFFERSPROC GenFramebuffers = nullptr; ///< \p glGenFramebuffers.
 			PFNGLBINDFRAMEBUFFERPROC BindFramebuffer = nullptr; ///< \p glBindFramebuffer.
 			PFNGLFRAMEBUFFERTEXTURE2DPROC FramebufferTexture2D = nullptr; ///< \p glFramebufferTexture2D.
 			PFNGLCHECKFRAMEBUFFERSTATUSPROC CheckFramebufferStatus = nullptr; ///< \p glCheckFramebufferStatus.
 			PFNGLDELETEFRAMEBUFFERSPROC DeleteFramebuffers = nullptr; ///< \p glDeleteFramebuffers.
+
+			PFNGLACTIVETEXTUREPROC ActiveTexture = nullptr; ///< \p glActiveTexture.
 			PFNGLGENERATEMIPMAPPROC GenerateMipmap = nullptr; ///< \p glGenerateMipmap.
+
+			PFNGLCREATESHADERPROC CreateShader = nullptr; /// \p glCreateShader.
+			PFNGLSHADERSOURCEPROC ShaderSource = nullptr; /// \p glShaderSource.
+			PFNGLCOMPILESHADERPROC CompileShader = nullptr; /// \p glCompileShader.
+			PFNGLGETSHADERIVPROC GetShaderiv = nullptr; /// \p glGetShaderiv.
+			PFNGLGETSHADERINFOLOGPROC GetShaderInfoLog = nullptr; /// \p glGetShaderInfoLog.
+			PFNGLDELETESHADERPROC DeleteShader = nullptr; /// \p glDeleteShader.
+
+			PFNGLGETUNIFORMLOCATIONPROC GetUniformLocation = nullptr; /// \p glGetUniformLocation.
+			PFNGLUNIFORM1IPROC Uniform1i = nullptr; /// \p glUniform1i.
+			PFNGLUNIFORM2FVPROC Uniform2fv = nullptr; /// \p glUniform2fv.
+			PFNGLUNIFORMMATRIX3FVPROC UniformMatrix3fv = nullptr; /// \p glUniformMatrix3fv.
+
+			PFNGLCREATEPROGRAMPROC CreateProgram = nullptr; /// \p glCreateProgram.
+			PFNGLATTACHSHADERPROC AttachShader = nullptr; /// \p glAttachShader.
+			PFNGLLINKPROGRAMPROC LinkProgram = nullptr; /// \p glLinkProgram.
+			PFNGLGETPROGRAMIVPROC GetProgramiv = nullptr; /// \p glGetProgramiv.
+			PFNGLUSEPROGRAMPROC UseProgram = nullptr; /// \p glUseProgram.
+			PFNGLDELETEPROGRAMPROC DeleteProgram = nullptr; /// \p glDeleteProgram.
 		};
 
-		/// Called in \ref _new_window to initializes a newly created window.
-		virtual void _init_new_window(window_base&) = 0;
 		/// Called to obtain a function that is called when the renderer starts or continues
 		/// to render to the window. Thus, the returned function should not clear the contents
 		/// of the window.
@@ -250,16 +289,6 @@ namespace codepad::os {
 		/// to the window, to present the rendered result on the window.
 		virtual std::function<void()> _get_end_window_func(const window_base&) = 0;
 
-		/// Calls \ref _init_new_window to initialize the window, and enable the features needed
-		/// by the renderer.
-		void _new_window(window_base &wnd) override {
-			_init_new_window(wnd);
-			glEnable(GL_BLEND);
-			glEnable(GL_TEXTURE_2D);
-			glEnableClientState(GL_VERTEX_ARRAY);
-			glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-			glEnableClientState(GL_COLOR_ARRAY);
-		}
 		/// Does nothing.
 		void _delete_window(window_base&) override {
 		}
@@ -271,225 +300,208 @@ namespace codepad::os {
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
-		/// Copies data from a \ref matd3x3 to an array of doubles that is to be passed to OpenGL.
-		inline static void _set_gl_matrix(const matd3x3 &m, double(&res)[16]) {
-			res[0] = m[0][0];
-			res[1] = m[1][0];
-			res[3] = m[2][0];
-			res[4] = m[0][1];
-			res[5] = m[1][1];
-			res[7] = m[2][1];
-			res[12] = m[0][2];
-			res[13] = m[1][2];
-			res[15] = m[2][2];
-			res[2] = res[6] = res[8] = res[9] = res[11] = res[14] = 0.0;
-			res[10] = 1.0;
-		}
-		/// Copies data from an array of doubles obtained from OpenGL to a \ref matd3x3.
-		inline static matd3x3 _get_gl_matrix(const double(&res)[16]) {
-			matd3x3 result;
-			result[0][0] = res[0];
-			result[1][0] = res[1];
-			result[2][0] = res[3];
-			result[0][1] = res[4];
-			result[1][1] = res[5];
-			result[2][1] = res[7];
-			result[0][2] = res[12];
-			result[1][2] = res[13];
-			result[2][2] = res[15];
-			return result;
-		}
 
-		/// Stores an OpenGL data buffer.
+		/// Holds an OpenGL program.
+		struct _gl_program {
+		public:
+			/// Initializes the program with the given renderer and code.
+			///
+			/// \todo Log shader link information.
+			void initialize(opengl_renderer_base &rend, const GLchar *vertex_code, const GLchar *frag_code) {
+				GLuint
+					vert = create_shader<GL_VERTEX_SHADER>(rend, vertex_code),
+					frag = create_shader<GL_FRAGMENT_SHADER>(rend, frag_code);
+				_id = rend._gl.CreateProgram();
+				rend._gl.AttachShader(_id, vert);
+				rend._gl.AttachShader(_id, frag);
+				rend._gl.LinkProgram(_id);
+				GLint status;
+				rend._gl.GetProgramiv(_id, GL_LINK_STATUS, &status);
+				if (status == GL_FALSE) {
+					assert_true_sys(false, "failed to link OpenGL program");
+				}
+				rend._gl.DeleteShader(vert);
+				rend._gl.DeleteShader(frag);
+			}
+			/// Deletes the OpenGL program.
+			void dispose(opengl_renderer_base &rend) {
+				rend._gl.DeleteProgram(_id);
+			}
+
+			/// Returns the ID of the program.
+			GLuint get_id() const {
+				return _id;
+			}
+
+			void acivate(opengl_renderer_base &rend) {
+				rend._gl.UseProgram(_id);
+			}
+
+			/// Sets a uniform variable of type \p GLint.
+			void set_int(opengl_renderer_base &rend, const GLchar *name, GLint value) {
+				rend._gl.Uniform1i(rend._gl.GetUniformLocation(_id, name), value);
+			}
+			/// Sets a uniform variable of type \ref vec2d.
+			void set_vec2(opengl_renderer_base &rend, const GLchar *name, vec2d value) {
+				GLfloat v[2]{static_cast<GLfloat>(value.x), static_cast<GLfloat>(value.y)};
+				rend._gl.Uniform2fv(rend._gl.GetUniformLocation(_id, name), 1, v);
+			}
+			/// Sets a uniform variable of type \ref matd3x3.
+			void set_mat3(opengl_renderer_base &rend, const GLchar *name, const matd3x3 &mat) {
+				GLfloat matdata[9];
+				_set_gl_matrix(mat, matdata);
+				rend._gl.UniformMatrix3fv(rend._gl.GetUniformLocation(_id, name), 1, false, matdata);
+			}
+
+			/// Creates a shader of the given type with the specified renderer and code.
+			///
+			/// \tparam Type The type of the shader.
+			/// \todo Check whether shader compilation was successful.
+			template <GLenum Type> inline static GLuint create_shader(
+				opengl_renderer_base &rend, const GLchar *code
+			) {
+				constexpr size_t _log_length = 500;
+				static GLchar _msg[_log_length];
+
+				GLuint shader = rend._gl.CreateShader(Type);
+				rend._gl.ShaderSource(shader, 1, &code, nullptr);
+				rend._gl.CompileShader(shader);
+				GLint result;
+				rend._gl.GetShaderiv(shader, GL_COMPILE_STATUS, &result);
+				if (result == GL_FALSE) {
+					rend._gl.GetShaderInfoLog(shader, _log_length, nullptr, _msg);
+					logger::get().log_error(CP_HERE, "shader compilation info: ", _msg);
+					assert_true_sys(false, "failed to compile shader");
+				}
+				return shader;
+			}
+		protected:
+			GLuint _id = 0; ///< The OpenGL program ID.
+
+			/// Copies data from a \ref matd3x3 to an array of floats that is to be passed to OpenGL.
+			inline static void _set_gl_matrix(const matd3x3 &m, GLfloat(&res)[9]) {
+				res[0] = static_cast<GLfloat>(m[0][0]);
+				res[1] = static_cast<GLfloat>(m[1][0]);
+				res[2] = static_cast<GLfloat>(m[2][0]);
+				res[3] = static_cast<GLfloat>(m[0][1]);
+				res[4] = static_cast<GLfloat>(m[1][1]);
+				res[5] = static_cast<GLfloat>(m[2][1]);
+				res[6] = static_cast<GLfloat>(m[0][2]);
+				res[7] = static_cast<GLfloat>(m[1][2]);
+				res[8] = static_cast<GLfloat>(m[2][2]);
+			}
+		};
+
+		/// A vertex.
+		struct _vertex {
+			/// Default constructor.
+			_vertex() = default;
+			/// Initializes the vertex with the given data.
+			_vertex(vec2d p, vec2d u, colord co) :
+				pos(p.convert<float>()), uv(u.convert<float>()), c(co.convert<float>()) {
+			}
+
+			vec2f
+				pos, ///< Vertex position.
+				uv; ///< Texture UV coordinates.
+			colorf c; ///< Color.
+		};
+		/// Stores an OpenGL buffer.
 		///
 		/// \tparam Target The desired usage of the underlying data.
-		template <GLenum Target> struct _gl_data_buffer {
+		template <GLenum Target> struct _gl_buffer {
 		public:
 			/// Initializes the buffer to empty.
-			_gl_data_buffer() = default;
+			_gl_buffer() = default;
 			/// Move constructor.
-			_gl_data_buffer(_gl_data_buffer &&r) : _rend(r._rend), _id(r._id) {
-				r._rend = nullptr;
+			_gl_buffer(_gl_buffer &&r) : _id(r._id) {
 				r._id = 0;
 			}
 			/// No copy construction.
-			_gl_data_buffer(const _gl_data_buffer&) = delete;
+			_gl_buffer(const _gl_buffer&) = delete;
 			/// Move assignment.
-			_gl_data_buffer &operator=(_gl_data_buffer &&r) {
-				std::swap(_rend, r._rend);
+			_gl_buffer &operator=(_gl_buffer &&r) {
 				std::swap(_id, r._id);
 				return *this;
 			}
 			/// No copy assignment.
-			_gl_data_buffer &operator=(const _gl_data_buffer&) = delete;
-			/// Calls dispose() to dispose the buffer.
-			~_gl_data_buffer() {
-				dispose();
+			_gl_buffer &operator=(const _gl_buffer&) = delete;
+			/// Destructor. Checks whether the buffer has been appropriately freed.
+			~_gl_buffer() {
+				assert_true_logical(!valid(), "unfreed OpenGL buffer");
 			}
 
-			/// Initializes the buffer to a new one, disposing the previous one if necessary.
-			///
-			/// \param rend The renderer used to initialize the buffer.
+			/// Initializes the buffer, disposing the previous one if necessary.
 			void initialize(opengl_renderer_base &rend) {
-				dispose();
-				_rend = &rend;
-				_rend->_gl.GenBuffers(1, &_id);
+				dispose(rend);
+				rend._gl.GenBuffers(1, &_id);
 			}
 			/// If the buffer is valid, unbinds the buffer, calls \p glDeleteBuffers to delete the buffer,
 			/// and resets the buffer to empty.
-			void dispose() {
+			void dispose(opengl_renderer_base &rend) {
 				if (valid()) {
-					unbind();
-					_rend->_gl.DeleteBuffers(1, &_id);
-					_rend = nullptr;
+					unbind(rend);
+					rend._gl.DeleteBuffers(1, &_id);
 					_id = 0;
 				}
 			}
 
 			/// Calls \p glBindBuffer to bind this buffer.
-			void bind() {
-				_rend->_gl.BindBuffer(Target, _id);
+			void bind(opengl_renderer_base &rend) {
+				rend._gl.BindBuffer(Target, _id);
 			}
 			/// Calls \p glBindBuffer to unbind any previously bound buffer.
-			void unbind() {
-				_rend->_gl.BindBuffer(Target, 0);
+			static void unbind(opengl_renderer_base &rend) {
+				rend._gl.BindBuffer(Target, 0);
 			}
 
-			/// Resizes the buffer with the given size and \p GL_DYNAMIC_DRAW usage by calling
-			/// \p glBufferData. This operation will erase any data it previously contained.
-			void resize_dynamic_draw(size_t size) {
-				bind();
-				_rend->_gl.BufferData(Target, size, nullptr, GL_DYNAMIC_DRAW);
+			/// Binds the buffer, then resizes the buffer with the given size and \p GL_DYNAMIC_DRAW usage by
+			/// calling \p glBufferData. This operation will erase any data it previously contained.
+			void clear_resize_dynamic_draw(opengl_renderer_base &rend, size_t size) {
+				bind(rend);
+				rend._gl.BufferData(Target, size, nullptr, GL_DYNAMIC_DRAW);
 			}
-			/// Calls \p glMapBuffer to map the buffer with \p GL_READ_WRITE access, then returns
+			/// Resizes the buffer with the given size and \p GL_DYNAMIC_DRAW usage while keeping the previously
+			/// stored data. This is achived by allocating a new buffer, copying the data, and discarding the old
+			/// buffer. The buffer must be in an unmapped state when this function is called. When the call returns,
+			/// and the new buffer will be mapped but won't be bound.
+			///
+			/// \return A pointer to the mapped memory of the new buffer.
+			void *copy_resize_dynamic_draw(opengl_renderer_base &rend, size_t size) {
+				GLuint newid;
+				rend._gl.GenBuffers(1, &newid);
+				rend._gl.BindBuffer(Target, newid);
+				rend._gl.BufferData(Target, size, nullptr, GL_DYNAMIC_DRAW);
+				void *newptr = rend._gl.MapBuffer(Target, GL_READ_WRITE);
+
+				rend._gl.BindBuffer(Target, _id);
+				GLint oldsize;
+				rend._gl.GetBufferParameteriv(Target, GL_BUFFER_SIZE, &oldsize);
+				void *ptr = rend._gl.MapBuffer(Target, GL_READ_ONLY);
+				std::memcpy(newptr, ptr, std::min(static_cast<size_t>(oldsize), size));
+				rend._gl.DeleteBuffers(1, &_id); // automatically unmaps and unbinds the buffer
+				_id = newid;
+				return newptr;
+			}
+			/// Binds the buffer, calls \p glMapBuffer to map the buffer with \p GL_READ_WRITE access, then returns
 			/// the resulting pointer.
-			void *map() {
-				bind();
-				return _rend->_gl.MapBuffer(Target, GL_READ_WRITE);
+			void *map(opengl_renderer_base &rend) {
+				bind(rend);
+				return rend._gl.MapBuffer(Target, GL_READ_WRITE);
 			}
-			/// Calls \p glUnmapBuffer to unmap this buffer. This is required before using the
+			/// Binds the buffer, calls \p glUnmapBuffer to unmap this buffer. This is required before using the
 			/// buffer data for rendering.
-			void unmap() {
-				bind();
-				_rend->_gl.UnmapBuffer(Target);
+			void unmap(opengl_renderer_base &rend) {
+				bind(rend);
+				rend._gl.UnmapBuffer(Target);
 			}
 
-			/// Returns the \ref opengl_renderer_base used to initialize this buffer.
-			opengl_renderer_base *get_context() const {
-				return _rend;
-			}
 			/// Returns whether this struct contains a valid OpenGL buffer, i.e., is not empty.
 			bool valid() const {
-				return _rend != nullptr && _id != 0;
+				return _id != 0;
 			}
 		protected:
-			opengl_renderer_base * _rend = nullptr; ///< Pointer to the renderer that created this buffer.
 			GLuint _id = 0; ///< The ID of the buffer.
-		};
-		/// OpenGL data buffer that automatically grows in size when necessary.
-		///
-		/// \tparam T The type of the elements. Must be POD.
-		/// \tparam Target The desired usage of this buffer.
-		template <typename T, GLenum Target> struct _automatic_gl_data_buffer {
-		public:
-			constexpr static size_t minimum_size = 20; ///< The initial capacity of the buffer.
-
-			/// Calls _gl_data_buffer::initialize to initialize the buffer, allocates the minimum capacity,
-			/// then maps the buffer.
-			void initialize(opengl_renderer_base &rend) {
-				_buf.initialize(rend);
-				_cap = minimum_size;
-				_buf.resize_dynamic_draw(sizeof(T) * minimum_size);
-				_ptr = static_cast<T*>(_buf.map());
-				_buf.unbind(); // keep glDrawArrays available
-			}
-			/// Returns whether \ref _buf is valid.
-			///
-			/// \sa _gl_data_buffer::valid()
-			bool valid() const {
-				return _buf.valid();
-			}
-			/// Disposes the underlying \ref _gl_data_buffer.
-			void dispose() {
-				_buf.dispose();
-			}
-
-			/// Pushes an element onto the back of the buffer, enlarging its capacity if necessary.
-			void push_back(const T &obj) {
-				if (_cnt == _cap) {
-					_set_capacity(_cap * 2);
-				}
-				_ptr[_cnt++] = obj;
-			}
-			/// Reserves enough space for the given number of elements.
-			void reserve(size_t cnt) {
-				if (cnt > _cap) {
-					_set_capacity(cnt);
-				}
-			}
-
-			/// Unmaps the buffer, then binds it. The data cannot be accessed until \ref unbind()
-			/// is called. This is required to make the data available for rendering.
-			void bind() {
-				_buf.unmap();
-				_buf.bind();
-			}
-			/// Maps then unbinds the buffer.
-			///
-			/// \remark \p glDrawArrays() will fail if a buffer is bound, so this should be called
-			///         as soon as the buffer data is not needed.
-			void unbind() {
-				_ptr = static_cast<T*>(_buf.map());
-				_buf.unbind();
-			}
-
-			/// Returns a pointer to the data of the buffer. The return value is not valid if
-			/// \ref bind() has been called but \ref unbind() hasn't.
-			T *data() {
-				return _ptr;
-			}
-			/// Const version of T *data().
-			const T *data() const {
-				return _ptr;
-			}
-
-			/// Returns the underlying \ref _gl_data_buffer.
-			const _gl_data_buffer &get_raw() const {
-				return _buf;
-			}
-
-			/// Returns the number of elements in the buffer.
-			size_t size() const {
-				return _cnt;
-			}
-			/// Returns the capacity (i.e., how many elements it can contain) of the buffer.
-			size_t capacity() const {
-				return _cap;
-			}
-			/// Clears the contents of the buffer.
-			void clear() {
-				_cnt = 0;
-			}
-		protected:
-			_gl_data_buffer<Target> _buf; ///< The underlying buffer.
-			T *_ptr = nullptr; ///< The mapped pointer.
-			size_t
-				_cnt = 0, ///< The number of elements in the buffer.
-				_cap = 0; ///< The capacity of the buffer.
-
-			/// Sets the capacity of the buffer, by allocating a new one with the desired size
-			/// and replacing the original one with it.
-			void _set_capacity(size_t cp) {
-				_cap = cp;
-				_gl_data_buffer<Target> newbuf;
-				newbuf.initialize(*_buf.get_context());
-				newbuf.resize_dynamic_draw(sizeof(T) * _cap);
-				T *nptr = static_cast<T*>(newbuf.map());
-				std::memcpy(nptr, _ptr, sizeof(T) * _cnt);
-				newbuf.unbind(); // keep glDrawArrays available
-				_ptr = nptr;
-				_buf = std::move(newbuf);
-			}
 		};
 
 		/// Stores character images in large `pages' of textures. This is mainly intended to reduce
@@ -533,7 +545,7 @@ namespace codepad::os {
 					}
 					_cx = l + w;
 					// copy image data
-					const unsigned char *src = static_cast<const unsigned char*>(data);
+					auto src = static_cast<const unsigned char*>(data);
 					for (size_t y = 0; y < h; ++y) {
 						unsigned char *cur = curp.get().data + ((y + t) * curp.get().width + l) * 4;
 						for (size_t x = 0; x < w; ++x, src += 4, cur += 4) {
@@ -639,7 +651,7 @@ namespace codepad::os {
 			/// Stores the information about a character in the atlas.
 			struct char_data {
 				rectd uv; ///< The UV coordinates of the character in the page.
-				size_t page; ///< The number of the page that the character is in.
+				size_t page = 0; ///< The number of the page that the character is on.
 			};
 
 			/// Returns the \ref char_data corresponding to the given ID.
@@ -707,35 +719,32 @@ namespace codepad::os {
 		};
 		/// Buffers the text to render, and draws them all at once when necessary.
 		struct _text_buffer {
-			/// Stores the position, UV, and color of a vertex.
-			struct vertex {
-				/// Default constructor.
-				vertex() = default;
-				/// Initializes the vertex with the given position, UV, and color.
-				vertex(vec2d p, vec2d u, colord color) : pos(p), uv(u), c(color) {
-				}
+			/// The minimum count of quads that the buffer can contain.
+			constexpr static size_t minimum_allocation_size = 10;
 
-				vec2d
-					pos, ///< The position.
-					uv; ///< The UV coordinates.
-				colord c; ///< The color.
-			};
 			/// The buffer that stores vertex data.
-			_automatic_gl_data_buffer<vertex, GL_ARRAY_BUFFER> vertex_buffer;
+			_gl_buffer<GL_ARRAY_BUFFER> vertex_buffer;
 			/// The buffer that stores vertex indices. Its contents is reused between batches.
-			_automatic_gl_data_buffer<unsigned int, GL_ELEMENT_ARRAY_BUFFER> id_buffer;
+			_gl_buffer<GL_ELEMENT_ARRAY_BUFFER> id_buffer;
 			size_t
-				/// The number of vertices indexed by \ref id_buffer. This can be larger than the number
-				/// of elements in \ref vertex_buffer.
-				indexed_vertex_count = 0,
-				/// The number of indices in \ref id_buffer that refer to valid indices in \ref vertex_buffer,
-				/// i.e., 6 times the number of buffered characters.
-				used_index_count = 0;
+				/// The number of quads indexed by \ref id_buffer. This can be larger than \ref quad_count
+				/// since the indices can be reused.
+				indexed_quad_count = 0,
+				allocated_quad_count = 0, ///< The number of quads that the buffer can contain.
+				quad_count = 0; ///< The number of quads added to the buffer.
+			void
+				*vertex_memory = nullptr, ///< Pointer to mapped \ref vertex_buffer.
+				*id_memory = nullptr; ///< Pointer to mapped \ref id_buffer.
 
-			/// Initializes \ref id_buffer and \ref vertex_buffer with the given renderer.
+			/// Initializes \ref id_buffer and \ref vertex_buffer, and allocates memory for them..
 			void initialize(opengl_renderer_base &rend) {
+				allocated_quad_count = minimum_allocation_size;
 				vertex_buffer.initialize(rend);
+				vertex_buffer.clear_resize_dynamic_draw(rend, sizeof(_vertex) * 4 * allocated_quad_count);
+				vertex_memory = vertex_buffer.map(rend);
 				id_buffer.initialize(rend);
+				id_buffer.clear_resize_dynamic_draw(rend, sizeof(GLuint) * 6 * allocated_quad_count);
+				id_memory = id_buffer.map(rend);
 			}
 			/// Returns whether the buffers are valid.
 			///
@@ -744,46 +753,79 @@ namespace codepad::os {
 				return vertex_buffer.valid();
 			}
 			/// Disposes \ref id_buffer and \ref vertex_buffer.
-			void dispose() {
-				vertex_buffer.dispose();
-				id_buffer.dispose();
+			void dispose(opengl_renderer_base &rend) {
+				vertex_buffer.dispose(rend);
+				id_buffer.dispose(rend);
 			}
 
 			/// Appends a character to the buffer.
-			void append(rectd layout, rectd uv, colord c) {
-				used_index_count += 6;
-				if (indexed_vertex_count == vertex_buffer.size()) {
+			void append(opengl_renderer_base &rend, rectd layout, rectd uv, colord c) {
+				if (quad_count == allocated_quad_count) {
+					_enlarge(rend);
+				}
+				size_t vertcount = quad_count * 4;
+				if (indexed_quad_count == quad_count) {
 					// add more indices
-					unsigned int id = static_cast<unsigned int>(vertex_buffer.size());
-					id_buffer.push_back(id);
-					id_buffer.push_back(id + 1);
-					id_buffer.push_back(id + 2);
-					id_buffer.push_back(id + 1);
-					id_buffer.push_back(id + 3);
-					id_buffer.push_back(id + 2);
-					indexed_vertex_count += 4;
+					size_t idcount = quad_count * 6;
+					_push_back(id_memory, static_cast<GLuint>(vertcount), idcount);
+					_push_back(id_memory, static_cast<GLuint>(vertcount + 1), idcount);
+					_push_back(id_memory, static_cast<GLuint>(vertcount + 2), idcount);
+					_push_back(id_memory, static_cast<GLuint>(vertcount + 1), idcount);
+					_push_back(id_memory, static_cast<GLuint>(vertcount + 3), idcount);
+					_push_back(id_memory, static_cast<GLuint>(vertcount + 2), idcount);
+					++indexed_quad_count;
 				}
 				// add vertices
-				vertex_buffer.push_back(vertex(layout.xmin_ymin(), uv.xmin_ymin(), c));
-				vertex_buffer.push_back(vertex(layout.xmax_ymin(), uv.xmax_ymin(), c));
-				vertex_buffer.push_back(vertex(layout.xmin_ymax(), uv.xmin_ymax(), c));
-				vertex_buffer.push_back(vertex(layout.xmax_ymax(), uv.xmax_ymax(), c));
+				_push_back(vertex_memory, _vertex(layout.xmin_ymin(), uv.xmin_ymin(), c), vertcount);
+				_push_back(vertex_memory, _vertex(layout.xmax_ymin(), uv.xmax_ymin(), c), vertcount);
+				_push_back(vertex_memory, _vertex(layout.xmin_ymax(), uv.xmin_ymax(), c), vertcount);
+				_push_back(vertex_memory, _vertex(layout.xmax_ymax(), uv.xmax_ymax(), c), vertcount);
+				++quad_count;
 			}
 			/// Draws all buffered characters with the given texture.
-			void flush(GLuint tex) {
-				if (used_index_count > 0) {
-					vertex_buffer.bind();
-					id_buffer.bind();
-					glVertexPointer(2, GL_DOUBLE, sizeof(vertex), reinterpret_cast<const GLvoid*>(offsetof(vertex, pos)));
-					glTexCoordPointer(2, GL_DOUBLE, sizeof(vertex), reinterpret_cast<const GLvoid*>(offsetof(vertex, uv)));
-					glColorPointer(4, GL_DOUBLE, sizeof(vertex), reinterpret_cast<const GLvoid*>(offsetof(vertex, c)));
+			///
+			/// \todo Matrix is not applied for some reason.
+			/// \todo Are these glVertexAttribPointer really necessary?
+			void flush(opengl_renderer_base &rend, GLuint tex) {
+				if (quad_count > 0) {
+					vertex_buffer.unmap(rend);
+					id_buffer.unmap(rend);
+
+					rend._defaultprog.acivate(rend);
+					rend._gl.VertexAttribPointer(
+						0, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, pos))
+					);
+					rend._gl.EnableVertexAttribArray(0);
+					rend._gl.VertexAttribPointer(
+						1, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, uv))
+					);
+					rend._gl.EnableVertexAttribArray(1);
+					rend._gl.VertexAttribPointer(
+						2, 4, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, c))
+					);
+					rend._gl.EnableVertexAttribArray(2);
+					rend._gl.ActiveTexture(GL_TEXTURE0);
 					glBindTexture(GL_TEXTURE_2D, tex);
-					glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(used_index_count), GL_UNSIGNED_INT, nullptr);
-					vertex_buffer.clear();
-					used_index_count = 0;
-					vertex_buffer.unbind();
-					id_buffer.unbind();
+					glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quad_count * 6), GL_UNSIGNED_INT, nullptr);
+					quad_count = 0;
+
+					vertex_memory = vertex_buffer.map(rend);
+					id_memory = id_buffer.map(rend);
 				}
+			}
+		protected:
+			/// Enlarges all buffers to twice their previous sizes.
+			void _enlarge(opengl_renderer_base &rend) {
+				allocated_quad_count *= 2;
+				id_buffer.unmap(rend);
+				vertex_buffer.unmap(rend);
+				id_memory = id_buffer.copy_resize_dynamic_draw(rend, sizeof(GLuint) * 6 * allocated_quad_count);
+				vertex_memory = vertex_buffer.copy_resize_dynamic_draw(rend, sizeof(_vertex) * 4 * allocated_quad_count);
+			}
+			/// Given an array of objects and the current position, puts the given object at the position and then
+			/// increments the position.
+			template <typename T> void _push_back(void *mem, T obj, size_t &pos) {
+				static_cast<T*>(mem)[pos++] = obj;
 			}
 		};
 
@@ -864,10 +906,130 @@ namespace codepad::os {
 			}
 		};
 
-		/// Disposes all OpenGL related resources, namely \ref _atl and \ref _textbuf.
+		/// Uses the given platform-specific function to obtain the required OpenGL function.
+		template <typename T> inline static void _get_func(
+			T &f, const GLchar *name, void *(*get_gl_func)(const GLchar*)
+		) {
+			f = reinterpret_cast<T>(get_gl_func(name));
+		}
+		/// Called by derived classes to initialize OpenGL.
+		///
+		/// \param get_gl_func The function used to obtain OpenGL function pointers. It is responsible
+		///        for error handling.
+		void _initialize_gl(void *(*get_gl_func)(const GLchar*)) {
+			// get all gl function pointers
+			_get_func(_gl.GenBuffers, "glGenBuffers", get_gl_func);
+			_get_func(_gl.BindBuffer, "glBindBuffer", get_gl_func);
+			_get_func(_gl.BufferData, "glBufferData", get_gl_func);
+			_get_func(_gl.GetBufferParameteriv, "glGetBufferParameteriv", get_gl_func);
+			_get_func(_gl.MapBuffer, "glMapBuffer", get_gl_func);
+			_get_func(_gl.UnmapBuffer, "glUnmapBuffer", get_gl_func);
+			_get_func(_gl.DeleteBuffers, "glDeleteBuffers", get_gl_func);
+
+			_get_func(_gl.GenVertexArrays, "glGenVertexArrays", get_gl_func);
+			_get_func(_gl.BindVertexArray, "glBindVertexArray", get_gl_func);
+			_get_func(_gl.VertexAttribPointer, "glVertexAttribPointer", get_gl_func);
+			_get_func(_gl.EnableVertexAttribArray, "glEnableVertexAttribArray", get_gl_func);
+			_get_func(_gl.DeleteVertexArrays, "glDeleteVertexArrays", get_gl_func);
+
+			_get_func(_gl.GenFramebuffers, "glGenFramebuffers", get_gl_func);
+			_get_func(_gl.BindFramebuffer, "glBindFramebuffer", get_gl_func);
+			_get_func(_gl.FramebufferTexture2D, "glFramebufferTexture2D", get_gl_func);
+			_get_func(_gl.CheckFramebufferStatus, "glCheckFramebufferStatus", get_gl_func);
+			_get_func(_gl.DeleteFramebuffers, "glDeleteFramebuffers", get_gl_func);
+
+			_get_func(_gl.ActiveTexture, "glActiveTexture", get_gl_func);
+			_get_func(_gl.GenerateMipmap, "glGenerateMipmap", get_gl_func);
+
+			_get_func(_gl.CreateShader, "glCreateShader", get_gl_func);
+			_get_func(_gl.ShaderSource, "glShaderSource", get_gl_func);
+			_get_func(_gl.CompileShader, "glCompileShader", get_gl_func);
+			_get_func(_gl.GetShaderiv, "glGetShaderiv", get_gl_func);
+			_get_func(_gl.GetShaderInfoLog, "glGetShaderInfoLog", get_gl_func);
+			_get_func(_gl.DeleteShader, "glDeleteShader", get_gl_func);
+
+			_get_func(_gl.GetUniformLocation, "glGetUniformLocation", get_gl_func);
+			_get_func(_gl.Uniform1i, "glUniform1i", get_gl_func);
+			_get_func(_gl.Uniform2fv, "glUniform2fv", get_gl_func);
+			_get_func(_gl.UniformMatrix3fv, "glUniformMatrix3fv", get_gl_func);
+
+			_get_func(_gl.CreateProgram, "glCreateProgram", get_gl_func);
+			_get_func(_gl.AttachShader, "glAttachShader", get_gl_func);
+			_get_func(_gl.LinkProgram, "glLinkProgram", get_gl_func);
+			_get_func(_gl.GetProgramiv, "glGetProgramiv", get_gl_func);
+			_get_func(_gl.UseProgram, "glUseProgram", get_gl_func);
+			_get_func(_gl.DeleteProgram, "glDeleteProgram", get_gl_func);
+
+
+			// scissor test is enabled and disabled on the fly
+			glEnable(GL_BLEND);
+			// uses hard-coded fixed-pipeline-like shaders
+			_defaultprog.initialize(*this,
+				R"shader(
+#version 330 core
+
+layout (location = 0) in vec2 inPosition;
+layout (location = 1) in vec2 inUV;
+layout (location = 2) in vec4 inColor;
+
+out vec2 UV;
+out vec4 Color;
+
+uniform mat3 Transform;
+uniform vec2 HalfScreenSize;
+
+void main() {
+	gl_Position = vec4(
+		((Transform * vec3(inPosition, 1.0f)).xy - abs(HalfScreenSize)) / HalfScreenSize,
+		0.0, 1.0
+	);
+	UV = inUV;
+	Color = inColor;
+}
+				)shader"
+				,
+				R"shader(
+#version 330 core
+
+in vec2 UV;
+in vec4 Color;
+
+out vec4 outFragColor;
+
+uniform sampler2D Texture;
+
+void main() {
+	outFragColor = Color * texture(Texture, UV);
+}
+				)shader"
+			);
+			_defaultprog.acivate(*this);
+			_defaultprog.set_int(*this, "Texture", 0);
+			_textbuf.initialize(*this);
+
+			// generate the default blank texture
+			glGenTextures(1, &_blanktex);
+			glBindTexture(GL_TEXTURE_2D, _blanktex);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			unsigned char c[4]{255, 255, 255, 255};
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, c);
+
+			// generate VAO
+			_gl.GenVertexArrays(1, &_vao);
+			_gl.BindVertexArray(_vao);
+
+			_gl_verify();
+		}
+		/// Called by derived classes to dispose all OpenGL related resources.
 		void _dispose_gl_rsrc() {
+			_gl.DeleteVertexArrays(1, &_vao);
+			glDeleteTextures(1, &_blanktex);
 			_atl.dispose();
-			_textbuf.dispose();
+			_textbuf.dispose(*this);
+			_defaultprog.dispose(*this);
 		}
 
 		/// Flushes the text buffer if necessary, then starts to render to the given target.
@@ -876,30 +1038,34 @@ namespace codepad::os {
 				_flush_text_buffer();
 			}
 			_rtfstk.push_back(std::move(rtf));
+			_matstk.emplace_back();
+			_matstk.back().set_identity();
 			_continue_last_render_target();
-			glMatrixMode(GL_MODELVIEW);
-			glPushMatrix();
-			glLoadIdentity();
+		}
+		/// Sets the matrix at the top of \ref _matstk as \p Transform in \ref _defaultprog.
+		void _apply_matrix() {
+			_defaultprog.set_mat3(*this, "Transform", _matstk.back());
 		}
 		/// Continues to render to the target at the top of \ref _rtfstk.
 		void _continue_last_render_target() {
 			_render_target_stackframe &rtf = _rtfstk.back();
 			rtf.begin();
+
 			rtf.apply_config();
 			glViewport(0, 0, static_cast<GLsizei>(rtf.width), static_cast<GLsizei>(rtf.height));
-			glMatrixMode(GL_PROJECTION);
-			glLoadIdentity();
+			vec2d halfsize(rtf.width * 0.5, rtf.height * 0.5);
 			if (rtf.invert_y) {
-				glOrtho(0.0, static_cast<GLdouble>(rtf.width), static_cast<GLdouble>(rtf.height), 0.0, 0.0, -1.0);
-			} else {
-				glOrtho(0.0, static_cast<GLdouble>(rtf.width), 0.0, static_cast<GLdouble>(rtf.height), 0.0, -1.0);
+				halfsize.y = -halfsize.y;
 			}
+			_defaultprog.set_vec2(*this, "HalfScreenSize", halfsize);
+			_apply_matrix();
+
 			_gl_verify();
 		}
 
 		/// Flushes the text buffer by calling _text_buffer::flush.
 		void _flush_text_buffer() {
-			_textbuf.flush(_atl.get_page(_gl, _lstpg).tex_id);
+			_textbuf.flush(*this, _atl.get_page(_gl, _lstpg).tex_id);
 		}
 		/// Checks for any OpenGL errors.
 		void _gl_verify() {
@@ -912,10 +1078,15 @@ namespace codepad::os {
 #endif
 		}
 
-		std::vector<_render_target_stackframe> _rtfstk; ///< The stack of render targets.
 		_gl_funcs _gl; ///< Additional OpenGL routines needed by the renderer.
+		std::vector<_render_target_stackframe> _rtfstk; ///< The stack of render targets.
 		_text_atlas _atl; ///< The text atlas.
 		_text_buffer _textbuf; ///< The text buffer.
+		std::vector<matd3x3> _matstk; ///< The stack of matrices.
 		size_t _lstpg = 0; ///< The page that all characters in \ref _textbuf is on.
+		_gl_program _defaultprog; ///< The default OpenGL program used for rendering.
+		/// A blank texture. This is used since sampling texture 0 in shaders return (0, 0, 0, 1) rather
+		/// than (1, 1, 1, 1) in the fixed pipeline (sort of).
+		GLuint _vao = 0, _blanktex = 0;
 	};
 }

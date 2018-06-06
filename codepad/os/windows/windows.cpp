@@ -7,6 +7,10 @@ using namespace std;
 
 namespace codepad {
 	namespace os {
+		void initialize(int, char**) {
+			// nothing to do
+		}
+
 		namespace input {
 			namespace _details {
 				const int _key_id_mapping[total_num_keys] = {
@@ -82,13 +86,44 @@ namespace codepad {
 			OCR_SIZEWE
 		};
 
+		string _wstring_to_utf8(LPCWSTR str, size_t length) {
+			string res;
+			int len = WideCharToMultiByte(CP_UTF8, 0, str, static_cast<int>(length), nullptr, 0, nullptr, nullptr);
+			assert_true_sys(len != 0, "failed to convert wide string to utf8");
+			res.resize(static_cast<size_t>(len));
+			assert_true_sys(
+				WideCharToMultiByte(CP_UTF8, 0, str, static_cast<int>(length), &res[0], len, nullptr, nullptr) == len,
+				"failed to convert wide string to utf8"
+			);
+			return res;
+		}
+
+		inline bool _get_key_state(int key) {
+			return (GetKeyState(key) & 0x8000) != 0;
+		}
+		inline modifier_keys _get_modifiers() {
+			modifier_keys result = modifier_keys::none;
+			if (_get_key_state(VK_CONTROL)) {
+				set_bit(result, modifier_keys::control);
+			}
+			if (_get_key_state(VK_MENU)) {
+				set_bit(result, modifier_keys::alt);
+			}
+			if (_get_key_state(VK_SHIFT)) {
+				set_bit(result, modifier_keys::shift);
+			}
+			if (_get_key_state(VK_LWIN) || _get_key_state(VK_RWIN)) {
+				set_bit(result, modifier_keys::super);
+			}
+			return result;
+		}
+
 		template <typename Inf, typename ...Args> inline void _form_onevent(
 			window &w, void (window::*handle)(Inf&), Args &&...args
 		) {
 			Inf inf(forward<Args>(args)...);
 			(w.*handle)(inf);
 		}
-
 		LRESULT CALLBACK _wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			window *form = reinterpret_cast<window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 			if (form) {
@@ -101,8 +136,8 @@ namespace codepad {
 					{
 						if (wparam != SIZE_MINIMIZED) {
 							size_t w = LOWORD(lparam), h = HIWORD(lparam);
-							form->_layout = rectd::from_xywh(0.0, 0.0, w, h);
-							size_changed_info p(vec2i(w, h));
+							form->_layout = rectd(0.0, static_cast<double>(w), 0.0, static_cast<double>(h));
+							size_changed_info p(vec2i(static_cast<int>(w), static_cast<int>(h)));
 							if (p.new_size.x > 0 && p.new_size.y > 0) {
 								form->_on_size_changed(p);
 								ui::manager::get().update_layout_and_visual();
@@ -117,28 +152,36 @@ namespace codepad {
 					_form_onevent<ui::key_info>(
 						*form, &window::_on_key_down, input::_details::_key_id_backmapping.v[wparam]
 						);
-					return 0;
+					break;
 				case WM_SYSKEYUP:
 					[[fallthrough]];
 				case WM_KEYUP:
 					_form_onevent<ui::key_info>(
 						*form, &window::_on_key_up, input::_details::_key_id_backmapping.v[wparam]
 						);
-					return 0;
+					break;
 
 				case WM_UNICHAR:
+					if (wparam == UNICODE_NOCHAR) {
+						return TRUE;
+					}
 					if (wparam != VK_BACK && wparam != VK_ESCAPE) {
 						_form_onevent<ui::text_info>(
 							*form, &window::_on_keyboard_text,
-							wparam == VK_RETURN ? CP_STRLIT("\n") : str_t({static_cast<char_t>(wparam)})
+							wparam == VK_RETURN ?
+							CP_STRLIT("\n") :
+							default_encoding::encode_codepoint(static_cast<char32_t>(wparam))
 							);
 					}
-					return (wparam == UNICODE_NOCHAR ? TRUE : FALSE);
+					return FALSE;
 				case WM_CHAR:
 					if (wparam != VK_BACK && wparam != VK_ESCAPE) {
+						uint16_t *ptr = reinterpret_cast<uint16_t*>(&wparam);
+						char32_t res;
+						utf16<uint16_t>::next_codepoint(ptr, ptr + 2, res);
 						_form_onevent<ui::text_info>(
 							*form, &window::_on_keyboard_text,
-							wparam == VK_RETURN ? CP_STRLIT("\n") : str_t({static_cast<char_t>(wparam)})
+							wparam == VK_RETURN ? CP_STRLIT("\n") : default_encoding::encode_codepoint(res)
 							);
 					}
 					return 0;
@@ -160,7 +203,9 @@ namespace codepad {
 					if (!form->is_mouse_over()) {
 						form->_on_mouse_enter();
 					}
-					_form_onevent<ui::mouse_move_info>(*form, &window::_on_mouse_move, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)));
+					_form_onevent<ui::mouse_move_info>(
+						*form, &window::_on_mouse_move, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						);
 					return 0;
 				case WM_MOUSELEAVE:
 					form->_on_mouse_leave();
@@ -169,37 +214,43 @@ namespace codepad {
 				case WM_LBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						input::mouse_button::primary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::primary, _get_modifiers(),
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_LBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						input::mouse_button::primary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::primary, _get_modifiers(),
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_RBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						input::mouse_button::secondary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::secondary, _get_modifiers(),
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_RBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						input::mouse_button::secondary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::secondary, _get_modifiers(),
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_MBUTTONDOWN:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_down,
-						input::mouse_button::tertiary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::tertiary, _get_modifiers(),
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 				case WM_MBUTTONUP:
 					_form_onevent<ui::mouse_button_info>(
 						*form, &window::_on_mouse_up,
-						input::mouse_button::tertiary, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+						input::mouse_button::tertiary, _get_modifiers(),
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 						);
 					return 0;
 
@@ -234,6 +285,44 @@ namespace codepad {
 						}
 						return TRUE;
 					}
+
+					// ime-related messages
+				case WM_IME_SETCONTEXT:
+					window::_ime::get().complete_composition(*form);
+					lparam &= ~ISC_SHOWUICOMPOSITIONWINDOW;
+					return DefWindowProc(hwnd, msg, wparam, lparam);
+				case WM_IME_STARTCOMPOSITION:
+					window::_ime::get().start_composition(*form);
+					return 0;
+				case WM_IME_COMPOSITION:
+					{
+						window::_ime::get().update_composition(*form);
+						wstring str;
+						if (window::_ime::get().get_composition_string(*form, lparam, str)) {
+							if (!str.empty()) {
+								_form_onevent<ui::composition_info>(
+									*form, &window::_on_composition,
+									convert_to_default_encoding(_wstring_to_utf8(str.c_str(), str.length()))
+									);
+							}
+						}
+						if (window::_ime::get().get_result(*form, lparam, str)) {
+							if (!str.empty()) {
+								_form_onevent<ui::text_info>(
+									*form, &window::_on_keyboard_text,
+									convert_to_default_encoding(_wstring_to_utf8(str.c_str(), str.length()))
+									);
+							}
+						}
+					}
+					return 0;
+				case WM_IME_ENDCOMPOSITION:
+					form->_on_composition_finished();
+					window::_ime::get().complete_composition(*form);
+					break;
+				case WM_INPUTLANGCHANGE:
+					window::_ime::get().on_input_language_changed();
+					break;
 				}
 			}
 			return DefWindowProc(hwnd, msg, wparam, lparam);
@@ -253,37 +342,21 @@ namespace codepad {
 		}
 
 
-		inline bool _get_key_state(int key) {
-			return (GetKeyState(key) & 0x8000) != 0;
-		}
-		inline modifier_keys _get_modifiers() {
-			modifier_keys result = modifier_keys::none;
-			if (_get_key_state(VK_CONTROL)) {
-				set_bit(result, modifier_keys::control);
-			}
-			if (_get_key_state(VK_MENU)) {
-				set_bit(result, modifier_keys::alt);
-			}
-			if (_get_key_state(VK_SHIFT)) {
-				set_bit(result, modifier_keys::shift);
-			}
-			if (_get_key_state(VK_LWIN) || _get_key_state(VK_RWIN)) {
-				set_bit(result, modifier_keys::super);
-			}
-			return result;
-		}
+		/// \todo What if some other window has GWLP_USERDATA?
 		bool window::_idle() {
 			MSG msg;
-			if (PeekMessage(&msg, _hwnd, 0, 0, PM_REMOVE)) {
-				if (!(
-					(msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) &&
-					hotkey_manager.on_key_down(key_gesture(
+			// using _hwnd here will cause IMs to malfunction
+			if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+				if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) {
+					window *form = reinterpret_cast<window*>(GetWindowLongPtr(msg.hwnd, GWLP_USERDATA));
+					if (form && form->hotkey_manager.on_key_down(key_gesture(
 						input::_details::_key_id_backmapping.v[msg.wParam], _get_modifiers()
-					))
-					)) {
-					TranslateMessage(&msg);
-					DispatchMessage(&msg);
+					))) {
+						return true;
+					}
 				}
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
 				return true;
 			}
 			return false;

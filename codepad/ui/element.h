@@ -23,7 +23,8 @@ namespace codepad::ui {
 		/// Constructor.
 		explicit mouse_move_info(vec2d p) : new_pos(p) {
 		}
-		const vec2d new_pos; ///< The position that the mouse has moved to.
+		/// The position that the mouse has moved to, relative to the top-left corner of the window's client area.
+		const vec2d new_pos;
 	};
 	/// Contains information about mouse scrolling.
 	struct mouse_scroll_info {
@@ -31,7 +32,9 @@ namespace codepad::ui {
 		mouse_scroll_info(double d, vec2d pos) : offset(d), position(pos) {
 		}
 		const double offset; ///< The offset of the mouse scroll.
-		const vec2d position; ///< The position of the mouse when the scroll took place.
+		/// The position of the mouse when the scroll took place, relative to the top-left corner of the window's
+		/// client area.
+		const vec2d position;
 		/// Returns \p true if the scroll has been handled by an element.
 		bool handled() const {
 			return _handled;
@@ -47,9 +50,11 @@ namespace codepad::ui {
 	/// Contains information about mouse clicks.
 	struct mouse_button_info {
 		/// Constructor.
-		mouse_button_info(os::input::mouse_button mb, vec2d pos) : button(mb), position(pos) {
+		mouse_button_info(os::input::mouse_button mb, modifier_keys mods, vec2d pos) :
+			button(mb), modifiers(mods), position(pos) {
 		}
 		const os::input::mouse_button button; ///< The mouse button that the user has pressed.
+		const modifier_keys modifiers; ///< The modifiers that are pressed.
 		const vec2d position; ///< The position of the mouse when the event took place.
 		/// Returns \p true if the click has caused the focused element to change.
 		bool focus_set() const {
@@ -76,6 +81,15 @@ namespace codepad::ui {
 		explicit text_info(str_t s) : content(std::move(s)) {
 		}
 		const str_t content; ///< The content that the user has entered.
+	};
+	/// Contains information about the ongoing composition.
+	///
+	/// \todo Add composition underline.
+	struct composition_info {
+		/// Constructor.
+		explicit composition_info(str_t s) : composition_string(std::move(s)) {
+		}
+		const str_t composition_string; ///< The current composition string.
 	};
 #ifdef CP_DETECT_LOGICAL_ERRORS
 	/// Keeps track of the number of elements created and disposed,
@@ -111,6 +125,7 @@ namespace codepad::ui {
 			max_zindex = std::numeric_limits<int>::max(), ///< The maximum possible z-index.
 			min_zindex = std::numeric_limits<int>::min(); ///< The minimum possible z-index.
 
+		/// Virtual destrucor.
 		virtual ~element() {
 #ifdef CP_DETECT_LOGICAL_ERRORS
 			++control_dispose_rec::get().disposed;
@@ -485,6 +500,13 @@ namespace codepad::ui {
 		virtual void _on_keyboard_text(text_info &p) {
 			keyboard_text.invoke(p);
 		}
+		/// Called when the state of the ongoing composition has changed. Derived classes can override this
+		/// function to display the composition string, for example.
+		virtual void _on_composition(composition_info&) {
+		}
+		/// Called when the ongoing composition has finished.
+		virtual void _on_composition_finished() {
+		}
 
 		/// Sets a certain bit of the visual style to the given value,
 		/// invoking \ref _on_visual_state_changed when necessary.
@@ -500,7 +522,8 @@ namespace codepad::ui {
 			invalidate_visual();
 		}
 
-		/// Called when the element has lost the capture it previously got.
+		/// Called when the element has lost the capture it previously got. Note that
+		/// \ref os::window::set_mouse_capture should not be called in this handler.
 		virtual void _on_capture_lost() {
 		}
 
@@ -562,14 +585,32 @@ namespace codepad::ui {
 	/// A decoration that is rendered above all elements.
 	/// The user cannot interact with the decoration in any way.
 	/// If the state of the decoration contains the bit visual::predefined_states::corpse,
-	/// then the decoration will be automatically disposed when inactive.
+	/// then the decoration will be automatically disposed when inactive if it's registered
+	/// to a window. All decorations should be created with <tt>new decoration()</tt>.
+	/// When deleted, the decoration will automatically be unregistered from the window
+	/// it's currently registered to.
 	class decoration {
 		friend class os::window_base;
 	public:
+		/// Default constructor.
+		decoration() = default;
+		/// No move construction.
 		decoration(decoration&&) = delete;
-		decoration(const decoration&) = delete;
+		/// Copy constructor. The decoration will have the same layout and render state of the original
+		/// decoration, but it won't be registered to any window.
+		decoration(const decoration &src) : _layout(src._layout), _st(src._st) {
+		}
+		/// No move assignment.
 		decoration &operator=(decoration&&) = delete;
-		decoration &operator=(const decoration&) = delete;
+		/// Copies the layout and render state of the given decoration,
+		/// but leaves the registration state unchanged.
+		decoration &operator=(const decoration &src) {
+			_layout = src._layout;
+			_st = src._st;
+			return *this;
+		}
+		/// Destructor. If \ref _wnd is not \p nullptr, notifies the window of its disposal.
+		~decoration();
 
 		/// Sets the layout of the decoration in the window.
 		void set_layout(rectd r) {
@@ -601,17 +642,14 @@ namespace codepad::ui {
 			return _st.get_state();
 		}
 
-		/// Returns the os::window_base that the decoration belongs to.
+		/// Returns the os::window_base that the decoration is currently registered to.
 		os::window_base *get_window() const {
 			return _wnd;
 		}
 	protected:
-		/// Default constructor. Only \ref os::window_base "windows" can create decorations.
-		decoration() = default;
-
 		rectd _layout; ///< The layout of the decoration.
 		visual::render_state _st; ///< Used to render the decoration.
-		os::window_base *_wnd = nullptr; ///< The window that the decoration belongs to.
+		os::window_base *_wnd = nullptr; ///< The window that the decoration is currently registered to.
 		/// A token used to accelerate the insertion and removal of decorations.
 		std::list<decoration*>::const_iterator _tok;
 

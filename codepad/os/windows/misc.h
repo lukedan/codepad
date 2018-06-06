@@ -39,9 +39,6 @@ namespace codepad {
 				}
 			}
 
-			inline bool is_key_down(key k) {
-				return _details::is_key_down_id(_details::_key_id_mapping[static_cast<int>(k)]);
-			}
 			inline bool is_mouse_button_down(mouse_button mb) {
 				if (mb == mouse_button::primary || mb == mouse_button::secondary) {
 					if (GetSystemMetrics(SM_SWAPBUTTON) != 0) {

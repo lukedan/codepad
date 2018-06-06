@@ -15,17 +15,17 @@
 #include "../ui/element_classes.h"
 #include "../ui/font_family.h"
 #include "../ui/visual.h"
-#include "../editors/docking.h"
+#include "../editors/tabs.h"
 #include "../editors/code/components.h"
 #include "../editors/code/editor.h"
-#include "../editors/code/context_manager.h"
+#include "../editors/code/document_manager.h"
 
 using namespace std;
 
 namespace codepad {
 	double editor::code::editor::_lines_per_scroll = 3.0;
 
-	double editor::code::minimap::_target_height = 2.0;
+	double editor::code::minimap::_target_height = 2.1;
 
 
 	chrono::high_resolution_clock::time_point get_app_epoch() {
@@ -123,6 +123,10 @@ namespace codepad {
 			static _global_wrapper<_wndclass> _v;
 			return _v.object;
 		}
+		window::_ime &window::_ime::get() {
+			static _global_wrapper<_ime> _v;
+			return _v.object;
+		}
 #endif
 #ifdef CP_PLATFORM_UNIX
 #	ifdef CP_USE_GDK
@@ -181,8 +185,8 @@ namespace codepad {
 		}
 	}
 	namespace editor {
-		dock_manager &dock_manager::get() {
-			static _global_wrapper<dock_manager> _v;
+		tab_manager &tab_manager::get() {
+			static _global_wrapper<tab_manager> _v;
 			return _v.object;
 		}
 		namespace code {
@@ -190,8 +194,8 @@ namespace codepad {
 				static _global_wrapper<_appearance_config> _v;
 				return _v.object;
 			}
-			context_manager &context_manager::get() {
-				static _global_wrapper<context_manager> _v;
+			document_manager &document_manager::get() {
+				static _global_wrapper<document_manager> _v;
 				return _v.object;
 			}
 		}

@@ -4,54 +4,164 @@
 /// Implementation of certain functions of codepad::os::software_renderer_base.
 
 namespace codepad::os {
-	/// Returns the color multiplied by the given \ref blend_factor.
-	///
-	/// \param src The `source' color.
-	/// \param dst The `destination' color.
-	/// \param target The color to be multiplied, usually either \p src or \p dst.
-	/// \param factor The blend factor to multiply \p target with.
-	template <typename Color> inline static Color _get_blend_diff(
-		Color src, Color dst, Color target, blend_factor factor
+#ifdef CP_USE_SSE2
+	void software_renderer_base::_ivec4f::set_all_aligned(const float *ptr) {
+		xyzw = _mm_load_ps(ptr);
+	}
+	void software_renderer_base::_ivec4f::set_all(const float *ptr) {
+		xyzw = _mm_loadu_ps(ptr);
+	}
+	void software_renderer_base::_ivec4f::set_all(float x, float y, float z, float w) {
+		xyzw = _mm_set_ps(w, z, y, x);
+	}
+	void software_renderer_base::_ivec4f::set_uniform(float v) {
+		xyzw = _mm_load1_ps(&v);
+	}
+	void software_renderer_base::_ivec4f::get_all_aligned(float *v) const {
+		_mm_store_ps(v, xyzw);
+	}
+	void software_renderer_base::_ivec4f::get_all(float *v) const {
+		_mm_storeu_ps(v, xyzw);
+	}
+	float software_renderer_base::_ivec4f::get_x() const {
+		float v;
+		_mm_store_ss(&v, xyzw);
+		return v;
+	}
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4f::add(_ivec4f lhs, _ivec4f rhs) {
+		return _ivec4f(_mm_add_ps(lhs.xyzw, rhs.xyzw));
+	}
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4f::subtract(_ivec4f lhs, _ivec4f rhs) {
+		return _ivec4f(_mm_sub_ps(lhs.xyzw, rhs.xyzw));
+	}
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4f::multiply_elem(_ivec4f lhs, _ivec4f rhs) {
+		return _ivec4f(_mm_mul_ps(lhs.xyzw, rhs.xyzw));
+	}
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4f::divide_elem(_ivec4f lhs, _ivec4f rhs) {
+		return _ivec4f(_mm_div_ps(lhs.xyzw, rhs.xyzw));
+	}
+	software_renderer_base::_ivec4i32 software_renderer_base::_ivec4f::convert_to_int_truncate() const {
+		return _ivec4i32(_mm_cvttps_epi32(xyzw));
+	}
+
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4i32::convert_to_float() const {
+		return _ivec4f(_mm_cvtepi32_ps(xyzw));
+	}
+	int software_renderer_base::_ivec4i32::pack() const {
+		return _mm_cvtsi128_si32(_mm_packus_epi16(_mm_packs_epi32(xyzw, __m128i()), __m128i()));
+	}
+	int software_renderer_base::_ivec4i32::get_x() const {
+		return _mm_cvtsi128_si32(xyzw);
+	}
+#else
+	void software_renderer_base::_ivec4f::set_all_aligned(const float *ptr) {
+		x = ptr[0];
+		y = ptr[1];
+		z = ptr[2];
+		w = ptr[3];
+	}
+	void software_renderer_base::_ivec4f::set_all(const float *ptr) {
+		x = ptr[0];
+		y = ptr[1];
+		z = ptr[2];
+		w = ptr[3];
+	}
+	void software_renderer_base::_ivec4f::set_all(float xv, float yv, float zv, float wv) {
+		x = xv;
+		y = yv;
+		z = zv;
+		w = wv;
+	}
+	void software_renderer_base::_ivec4f::set_uniform(float v) {
+		x = y = z = w = v;
+	}
+	void software_renderer_base::_ivec4f::get_all_aligned(float *v) const {
+		v[0] = x;
+		v[1] = y;
+		v[2] = z;
+		v[3] = w;
+	}
+	void software_renderer_base::_ivec4f::get_all(float *v) const {
+		v[0] = x;
+		v[1] = y;
+		v[2] = z;
+		v[3] = w;
+	}
+	float software_renderer_base::_ivec4f::get_x() const {
+		return x;
+	}
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4f::add(_ivec4f lhs, _ivec4f rhs) {
+		return _ivec4f(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z, lhs.w + rhs.w);
+	}
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4f::subtract(_ivec4f lhs, _ivec4f rhs) {
+		return _ivec4f(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w);
+	}
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4f::multiply_elem(_ivec4f lhs, _ivec4f rhs) {
+		return _ivec4f(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z, lhs.w * rhs.w);
+	}
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4f::divide_elem(_ivec4f lhs, _ivec4f rhs) {
+		return _ivec4f(lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z, lhs.w / rhs.w);
+	}
+	software_renderer_base::_ivec4i32 software_renderer_base::_ivec4f::convert_to_int_truncate() const {
+		return software_renderer_base::_ivec4i32(
+			static_cast<int>(x), static_cast<int>(y), static_cast<int>(z), static_cast<int>(w)
+		);
+	}
+
+	software_renderer_base::_ivec4f software_renderer_base::_ivec4i32::convert_to_float() const {
+		return _ivec4f(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z), static_cast<float>(w));
+	}
+	int software_renderer_base::_ivec4i32::pack() const {
+		return (x & 0xFF) | ((y & 0xFF) << 8) | ((z & 0xFF) << 16) | ((w & 0xFF) << 24);
+	}
+	int software_renderer_base::_ivec4i32::get_x() const {
+		return x;
+	}
+#endif
+
+
+	software_renderer_base::_ivec4f software_renderer_base::_get_blend_diff(
+		_ivec4f src, _ivec4f dst, _ivec4f target, blend_factor factor
 	) {
 		switch (factor) {
 		case blend_factor::one:
 			return target;
 		case blend_factor::zero:
-			return Color(0.0f, 0.0f, 0.0f, 0.0f);
+			{
+				_ivec4f v;
+				v.set_uniform(0.0f);
+				return v;
+			}
 		case blend_factor::source_alpha:
-			return target * src.a;
+			return target * src.get_x();
 		case blend_factor::one_minus_source_alpha:
-			return target * (1.0f - src.a);
+			return target * (1.0f - src.get_x());
 		case blend_factor::destination_alpha:
-			return target * dst.a;
+			return target * dst.get_x();
 		case blend_factor::one_minus_destination_alpha:
-			return target * (1.0f - dst.a);
+			return target * (1.0f - dst.get_x());
 		case blend_factor::source_color:
-			return Color(target.r * src.r, target.g * src.g, target.b * src.b, target.a * src.a);
+			return target * src;
 		case blend_factor::one_minus_source_color:
-			return Color(
-				target.r * (1.0f - src.r), target.g * (1.0f - src.g),
-				target.b * (1.0f - src.b), target.a * (1.0f - src.a)
-			);
+			{
+				_ivec4f v;
+				v.set_uniform(1.0f);
+				return target * (v - src);
+			}
 		case blend_factor::destination_color:
-			return Color(target.r * dst.r, target.g * dst.g, target.b * dst.b, target.a * dst.a);
+			return target * dst;
 		case blend_factor::one_minus_destination_color:
-			return Color(
-				target.r * (1.0f - dst.r), target.g * (1.0f - dst.g),
-				target.b * (1.0f - dst.b), target.a * (1.0f - dst.a)
-			);
+			{
+				_ivec4f v;
+				v.set_uniform(1.0f);
+				return target * (v - dst);
+			}
 		}
-		return Color(); // shouldn't happen
+		return _ivec4f(); // shouldn't happen
 	}
 
-	/// Blends the two colors together, and returns the result.
-	///
-	/// \param src The `source' color.
-	/// \param dst The `destination' color.
-	/// \param srcf The factor to blend \p src with.
-	/// \param dstf The factor to blend \p dst with.
-	software_renderer_base::_color_t software_renderer_base::_blend_colors(
-		_color_t src, _color_t dst, blend_factor srcf, blend_factor dstf
+	software_renderer_base::_ivec4f software_renderer_base::_blend_colors(
+		_ivec4f src, _ivec4f dst, blend_factor srcf, blend_factor dstf
 	) {
 		return _get_blend_diff(src, dst, src, srcf) + _get_blend_diff(src, dst, dst, dstf);
 	}

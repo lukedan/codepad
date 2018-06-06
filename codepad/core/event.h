@@ -46,7 +46,7 @@ namespace codepad {
 		/// \param h The handler.
 		/// \return The corresponding token, which can be used to unregister \p h.
 		template <typename T> token operator+=(T &&h) {
-			_list.push_back(handler(std::forward<T>(h)));
+			_list.emplace_back(std::forward<T>(h));
 			auto it = _list.end();
 			return token(--it);
 		}

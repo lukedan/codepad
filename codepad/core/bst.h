@@ -61,6 +61,7 @@ namespace codepad {
 	protected:
 		Comp _comp; ///< An instance of the comparison object.
 	};
+
 	/// Nodes of a \ref binary_tree.
 	///
 	/// \tparam T Type of \ref value.
@@ -102,8 +103,8 @@ namespace codepad {
 		}
 
 		T value; ///< Data held by the node.
-		AdditionalData synth_data; ///< Additional data that's synthesized based on \ref value
-								   ///< (and possibly the values of the node's children)
+		/// Additional data that's synthesized based on \ref value and (possibly) the values of the node's children.
+		AdditionalData synth_data;
 		binary_tree_node
 			*left = nullptr, ///< Pointer to the left subtree of the node.
 			*right = nullptr, ///< Pointer to the right subtree of the node.
@@ -113,16 +114,18 @@ namespace codepad {
 	///
 	/// \tparam T Type of the data held by the tree's nodes.
 	/// \tparam AdditionalData Type of additional data held by the nodes.
-	/// \tparam Synth Provides operator() to calculate binary_tree_node::synth_data.
+	/// \tparam Synth Provides operator() to calculate \ref binary_tree_node::synth_data.
+	/// \todo Maybe switch to red-black tree?
 	template <
 		typename T, typename AdditionalData = no_data, typename Synth = default_synthesizer<AdditionalData>
 	> struct binary_tree {
 	public:
-		using node = binary_tree_node<T, AdditionalData>;
+		using node = binary_tree_node<T, AdditionalData>; ///< The type of tree nodes.
 		template <bool> struct iterator_base;
-		/// Helper class to ensure that binary_tree_node::synth_data
+		/// Helper class to ensure that \ref binary_tree_node::synth_data
 		/// of nodes with modified values are updated properly,
-		/// by automatically calling refresh_synthesized_result(binary_tree_node*) in ~node_value_modifier().
+		/// by automatically calling \ref refresh_synthesized_result(binary_tree_node*) in
+		/// #~node_value_modifier().
 		struct node_value_modifier {
 			friend struct iterator_base<false>;
 			friend struct binary_tree;
@@ -132,18 +135,18 @@ namespace codepad {
 			/// Default copy constructor.
 			node_value_modifier(const node_value_modifier&) = default;
 			/// Swaps the contents of two \ref node_value_modifier "node_value_modifiers"
-			/// to eliminate one (redundant) call to refresh_synthesized_result(binary_tree_node*).
+			/// to eliminate one (redundant) call to \ref refresh_synthesized_result(binary_tree_node*).
 			node_value_modifier(node_value_modifier &&mod) : _n(mod._n), _cont(mod._cont) {
 				mod._n = nullptr;
 				mod._cont = nullptr;
 			}
-			/// Calls manual_refresh() before copying.
+			/// Calls \ref manual_refresh() before copying.
 			node_value_modifier &operator=(const node_value_modifier &mod) {
 				manual_refresh();
 				_n = mod._n;
 				_cont = mod._cont;
 			}
-			/// Calls manual_refresh() before moving the contents.
+			/// Calls \ref manual_refresh() before moving the contents.
 			node_value_modifier &operator=(node_value_modifier &&mod) {
 				manual_refresh();
 				_n = mod._n;
@@ -151,7 +154,7 @@ namespace codepad {
 				mod._n = nullptr;
 				mod._cont = nullptr;
 			}
-			/// Calls manual_refresh() to update the synthesized values in the tree.
+			/// Calls \ref manual_refresh() to update the synthesized values in the tree.
 			~node_value_modifier() {
 				manual_refresh();
 			}
@@ -169,7 +172,7 @@ namespace codepad {
 				return &operator*();
 			}
 
-			/// Calls refresh_synthesized_result(binary_tree_node*) to update the synthesized values if
+			/// Calls \ref refresh_synthesized_result(binary_tree_node*) to update the synthesized values if
 			/// this \ref node_value_modifier is valid.
 			void manual_refresh() {
 				if (_cont) {
@@ -179,7 +182,7 @@ namespace codepad {
 				}
 			}
 		protected:
-			/// Protected constructor that only \ref binary_tree and binary_tree::iterator_base can access.
+			/// Protected constructor that only \ref binary_tree and \ref binary_tree::iterator_base can access.
 			///
 			/// \param n The node that's to be modified. Should not be nullptr if \p c isn't.
 			/// \param c The container that \p n belongs to, or \p nullptr.
@@ -251,46 +254,34 @@ namespace codepad {
 			}
 
 			/// Used to bypass \ref node_value_modifier and modify the value of the node.
-			/// The caller is responsible of calling refresh_synthesized_result(binary_tree_node*) afterwards.
+			/// The caller is responsible of calling \ref refresh_synthesized_result(binary_tree_node*) afterwards.
 			///
-			/// \return A reference to binary_tree_node::value.
+			/// \return A reference to \ref binary_tree_node::value.
 			T &get_value_rawmod() const {
 				return _n->value;
 			}
 			/// Returns the readonly value of the node.
-			///
-			/// \return A const reference to binary_tree_node::value.
 			const T &get_value() const {
 				return _n->value;
 			}
 			/// Returns a corresponding \ref node_value_modifier.
-			///
-			/// \return A corresponding \ref node_value_modifier.
 			node_value_modifier get_modifier() const {
 				return _con->get_modifier(_n);
 			}
 			/// Returns the readonly value of the node.
-			///
-			/// \return A const reference to binary_tree_node::value.
 			const T &operator*() const {
 				return get_value();
 			}
 			/// Returns the readonly value of the node.
-			///
-			/// \return A const pointer to binary_tree_node::value.
 			const T *operator->() const {
 				return &get_value();
 			}
 
 			/// Returns the underlying node.
-			///
-			///\return The underlying node.
 			node *get_node() const {
 				return _n;
 			}
 			/// Returns the tree that this iterator belongs to.
-			///
-			/// \return The tree that the iterator belongs to.
 			container_type *get_container() const {
 				return _con;
 			}
@@ -576,21 +567,20 @@ namespace codepad {
 		/// \param n The root of the subtree before rotation. \p n->left will be in its place after.
 		void rotate_right(node *n) {
 			assert_true_logical(n->left != nullptr, "cannot perform rotation");
-			node *left = n->left;
+			if (n->parent) {
+				(n == n->parent->left ? n->parent->left : n->parent->right) = n->left;
+			} else {
+				assert_true_logical(_root == n, "corrupted tree structure");
+				_root = n->left;
+			}
+			n->left->parent = n->parent;
+			n->parent = n->left;
 			n->left = n->left->right;
-			left->right = n;
-			left->parent = n->parent;
-			n->parent = left;
+			n->parent->right = n;
 			if (n->left) {
 				n->left->parent = n;
 			}
-			if (left->parent) {
-				(n == left->parent->left ? left->parent->left : left->parent->right) = left;
-			} else {
-				assert_true_logical(_root == n, "invalid node");
-				_root = left;
-			}
-			left->synth_data = n->synth_data;
+			n->parent->synth_data = n->synth_data;
 			_refresh_synth(n);
 		}
 		/// Left rotation.
@@ -598,21 +588,20 @@ namespace codepad {
 		/// \param n The root of the subtree before rotation. \p n->right will be in its place after.
 		void rotate_left(node *n) {
 			assert_true_logical(n->right != nullptr, "cannot perform rotation");
-			node *right = n->right;
+			if (n->parent) {
+				(n == n->parent->left ? n->parent->left : n->parent->right) = n->right;
+			} else {
+				assert_true_logical(_root == n, "corrupted tree structure");
+				_root = n->right;
+			}
+			n->right->parent = n->parent;
+			n->parent = n->right;
 			n->right = n->right->left;
-			right->left = n;
-			right->parent = n->parent;
-			n->parent = right;
+			n->parent->left = n;
 			if (n->right) {
 				n->right->parent = n;
 			}
-			if (right->parent) {
-				(n == right->parent->left ? right->parent->left : right->parent->right) = right;
-			} else {
-				assert_true_logical(_root == n, "invalid node");
-				_root = right;
-			}
-			right->synth_data = n->synth_data;
+			n->parent->synth_data = n->synth_data;
 			_refresh_synth(n);
 		}
 		/// Splays the node until its parent is another designated node.
@@ -888,7 +877,7 @@ namespace codepad {
 		/// Implementation of the \ref find_custom function,
 		/// in order to support const and non-const iterators with the same code.
 		///
-		/// \tparam It Desired type of the iterator (const / non-const).
+		/// \tparam It Desired type of the iterator (const/non-const).
 		/// \param c The container (tree).
 		/// \param b The branch selector.
 		/// \param ref The reference value.
@@ -995,7 +984,7 @@ namespace codepad {
 
 	/// Helper structs to simplify the use of \ref binary_tree.
 	namespace synthesization_helper {
-		/// Indicates that the property is stored in a field of binary_tree_node::value.
+		/// Indicates that the property is stored in a field of \ref binary_tree_node::value.
 		///
 		/// \tparam Ptr Type of the member pointer.
 		/// \tparam Prop Member pointer to the field.
@@ -1025,7 +1014,7 @@ namespace codepad {
 
 	/// Synthesizer related structs that treat the data as block sizes,
 	/// i.e., each node represents an array of objects after the previous one.
-	/// The representation can be the actual objects and / or certain statistics of them.
+	/// The representation can be the actual objects and/or certain statistics of them.
 	namespace sum_synthesizer {
 		/// Represents a property of binary_tree_node::synth_data,
 		/// that records the statistics of a single node and the whole subtree.
@@ -1044,58 +1033,53 @@ namespace codepad {
 			template <typename Node> inline static auto get_node_value(Node &&n) {
 				return GetForNode::get(std::forward<Node>(n));
 			}
-			/// Returns the statistics of a single node obtained from binary_tree_node::synth_data.
+			/// Returns the statistics of a single node obtained from \ref binary_tree_node::synth_data.
 			///
-			/// \return The statistics of a single node obtained from binary_tree_node::synth_data.
+			/// \return The statistics of a single node obtained from \ref binary_tree_node::synth_data.
 			template <typename Node> inline static T get_node_synth_value(Node &&n) {
 				return n.synth_data.*NodeVal;
 			}
-			/// Sets the statistics of the node in binary_tree_node::synth_data.
+			/// Sets the statistics of the node in \ref binary_tree_node::synth_data.
 			template <typename Node> inline static void set_node_synth_value(Node &&n, T v) {
 				n.synth_data.*NodeVal = std::move(v);
 			}
-			/// Returns the statistics of a subtree obtained from binary_tree_node::synth_data.
+			/// Returns the statistics of a subtree obtained from \ref binary_tree_node::synth_data.
 			///
-			/// \return The statistics of a subtree obtained from binary_tree_node::synth_data.
+			/// \return The statistics of a subtree obtained from \ref binary_tree_node::synth_data.
 			template <typename Node> inline static T get_tree_synth_value(Node &&n) {
 				return n.synth_data.*TreeVal;
 			}
-			/// Sets the statistics of the subtree in binary_tree_node::synth_data.
+			/// Sets the statistics of the subtree in \ref binary_tree_node::synth_data.
 			template <typename Node> inline static void set_tree_synth_value(Node &&n, T v) {
 				n.synth_data.*TreeVal = std::move(v);
 			}
 		};
-		/// Represents a property of binary_tree_node::synth_data that only stores the statistics of a subtree.
+		/// Represents a property of \ref binary_tree_node::synth_data that only stores the statistics of a subtree.
 		///
 		/// \tparam T Type of the statistics.
-		/// \tparam Synth Type of binary_tree_node::synth_data.
-		/// \tparam GetForNode A property of binary_tree_node::value, similar to the ones in \ref synthesization_helper.
+		/// \tparam Synth Type of \ref binary_tree_node::synth_data.
+		/// \tparam GetForNode A property of binary_tree_node::value, similar to the ones in
+		///                    \ref synthesization_helper.
 		/// \tparam TreeVal Member pointer to the statistics for a subtree.
 		template <typename T, typename Synth, typename GetForNode, T Synth::*TreeVal> struct compact_property {
 			using value_type = T;
 
 			/// Returns the statistics obtained directly from the node.
-			///
-			/// \return The statistics obtained directly from the node.
 			template <typename Node> inline static T get_node_value(Node &&n) {
 				return GetForNode::get(std::forward<Node>(n));
 			}
-			/// Returns the statistics of a single node obtained from binary_tree_node::synth_data.
-			///
-			/// \return The statistics of a single node obtained from binary_tree_node::synth_data.
+			/// Returns the statistics of a single node obtained from \ref binary_tree_node::synth_data.
 			template <typename Node> inline static T get_node_synth_value(Node &&n) {
 				return get_node_value(std::forward<Node>(n));
 			}
 			/// Does nothing because there's no corresponding field.
 			template <typename Node> inline static void set_node_synth_value(Node&&, T) {
 			}
-			/// Returns the statistics of a subtree obtained from binary_tree_node::synth_data.
-			///
-			/// \return The statistics of a subtree obtained from binary_tree_node::synth_data.
+			/// Returns the statistics of a subtree obtained from \ref binary_tree_node::synth_data.
 			template <typename Node> inline static T get_tree_synth_value(Node &&n) {
 				return n.synth_data.*TreeVal;
 			}
-			/// Sets the statistics of the subtree in binary_tree_node::synth_data.
+			/// Sets the statistics of the subtree in \ref binary_tree_node::synth_data.
 			template <typename Node> inline static void set_tree_synth_value(Node &&n, T v) {
 				n.synth_data.*TreeVal = std::move(v);
 			}
@@ -1106,7 +1090,7 @@ namespace codepad {
 			/// End of recursion.
 			template <typename Node> inline void set_node_values(Node&&) {
 			}
-			/// Sets the node values and tree values of binary_tree_node::synth_data to the value
+			/// Sets the node values and tree values of \ref binary_tree_node::synth_data to the value
 			/// obtained from \p get_node_value, for all properties in the template argument list.
 			///
 			/// \tparam FirstProp The first property.
@@ -1123,7 +1107,7 @@ namespace codepad {
 				typename ParentNode, typename ChildNode
 			> inline void add_subtree_values(ParentNode&&, ChildNode&&) {
 			}
-			/// Adds the tree values of binary_tree_node::synth_data of \p sub to \p n for all properties.
+			/// Adds the tree values of \ref binary_tree_node::synth_data of \p sub to \p n for all properties.
 			///
 			/// \tparam FirstProp The first property.
 			/// \tparam OtherProps Other properties that follow.
@@ -1188,7 +1172,7 @@ namespace codepad {
 				_details::add_subtree_values<Props...>(std::forward<Node>(n), *n.right);
 			}
 		}
-		/// Finder that can be used with binary_tree::find_custom. Finds a node such that
+		/// Finder that can be used with \ref binary_tree::find_custom. Finds a node such that
 		/// a property of all nodes to its left accumulates to or below a certain value.
 		/// For instance, suppose that each node stores an array of objects,
 		/// and that these arrays may not have the same length, this finder can be used
@@ -1199,7 +1183,7 @@ namespace codepad {
 		/// \tparam Comp Comparison function used to decide which node to go to.
 		///              Typically \p std::less or \p std::less_equal.
 		template <typename Property, bool PreventOverflow = false, typename Comp = std::less<typename Property::value_type>> struct index_finder {
-			/// Interface for binary_tree::find_custom. This function can also collect additional data
+			/// Interface for \ref binary_tree::find_custom. This function can also collect additional data
 			/// when looking for the node, as specified by \p Props and \p avals.
 			///
 			/// \tparam Props Additional properties whose values will be accumulated in
@@ -1228,6 +1212,16 @@ namespace codepad {
 				// right branch
 				target -= nval;
 				_details::add_synth_node_values<Props...>(std::forward<Node>(n), std::forward<AddVals>(avals)...);
+				return 1;
+			}
+		};
+
+		/// Auxiliary property of nodes that always returns 1. Useful for obtaining tree sizes.
+		struct identity {
+			/// Returns 1.
+			///
+			/// \tparam The type of the node.
+			template <typename Node> inline static size_t get(const Node&) {
 				return 1;
 			}
 		};

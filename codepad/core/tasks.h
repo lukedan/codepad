@@ -64,7 +64,7 @@ namespace codepad {
 	enum class task_status {
 		not_initiated, ///< The task has not yet started.
 		running, ///< The task is running.
-		cancel_requested, ///< The task has been required to be cancelled, but is still running / pending.
+		cancel_requested, ///< The task has been required to be cancelled, but is still running/pending.
 		completed, ///< The task has completed normally.
 		cancelled ///< The task has been cancelled and has ended.
 	};

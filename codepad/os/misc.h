@@ -49,7 +49,7 @@ namespace codepad::os {
 			control, ///< The `control' key.
 			alt, ///< The `alt' key.
 			pause,
-			capital,
+			capital_lock, ///< The `caps lock' key.
 			escape, ///< The `escape' key.
 			convert,
 			nonconvert,
@@ -85,7 +85,7 @@ namespace codepad::os {
 			f5, f6, f7, f8,
 			f9, f10, f11, f12,
 			num_lock, ///< The `num lock' key.
-			scroll,
+			scroll_lock, ///< The `scroll lock' key.
 			left_shift, ///< The left `shift' key.
 			right_shift, ///< The right `shift' key.
 			left_control, ///< The left `control' key.
@@ -97,8 +97,6 @@ namespace codepad::os {
 		};
 		/// The total number of supported keys.
 		constexpr size_t total_num_keys = static_cast<size_t>(key::max_value);
-		/// Returns if a key is currently pressed.
-		bool is_key_down(key);
 		/// Returns if a mouse button is currently pressed.
 		bool is_mouse_button_down(mouse_button);
 
@@ -117,4 +115,7 @@ namespace codepad::os {
 	///
 	/// \return The list of files that the user selects, or empty if the user cancels the operation.
 	std::vector<std::filesystem::path> open_file_dialog(const window_base*, file_dialog_type);
+
+	/// Initializes the program with the given command line arguments.
+	void initialize(int, char**);
 }

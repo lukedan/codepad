@@ -52,6 +52,18 @@ namespace codepad::ui {
 		}
 	}
 
+	void manager::invalidate_layout(element &e) {
+		if (_layouting) { // add element directly to queue
+			if (e._parent != nullptr && e._parent->override_children_layout()) {
+				_q.emplace_back(e._parent, false);
+			} else {
+				_q.emplace_back(&e, true);
+			}
+		} else {
+			_targets[&e] = true;
+		}
+	}
+
 	void manager::update_invalid_layout() {
 		if (_targets.empty()) {
 			return;
@@ -136,6 +148,12 @@ namespace codepad::ui {
 		assert_true_logical(!_in, "recursive calls to set_focus");
 		_in = true;
 #endif
+		if (_focus != nullptr) {
+			os::window_base *wnd = _focus->get_window();
+			if (wnd != nullptr) {
+				wnd->interrupt_input_method();
+			}
+		}
 		os::window_base *neww = elem == nullptr ? nullptr : elem->get_window();
 		assert_true_logical((neww != nullptr) == (elem != nullptr), "corrupted element tree");
 		element *oldf = _focus;

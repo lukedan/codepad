@@ -3,12 +3,16 @@
 /// \file
 /// Definitions of natively supported commands.
 
+#include <algorithm>
+
 #include "commands.h"
-#include "../editors/docking.h"
+#include "../editors/tabs.h"
 #include "../editors/code/codebox.h"
 #include "../editors/code/editor.h"
 #include "../editors/code/components.h"
-#include "../editors/code/context_manager.h"
+#include "../editors/code/document_manager.h"
+
+using namespace std;
 
 using namespace codepad::os;
 using namespace codepad::editor;
@@ -91,6 +95,17 @@ namespace codepad::ui::native_commands {
 		);
 
 		reg.register_command(
+			CP_STRLIT("editor.folding.fold_selected"), convert_type<codebox>([](codebox *e) {
+				code::editor *edt = e->get_editor();
+				for (auto caret : edt->get_carets().carets) {
+					if (caret.first.first != caret.first.second) {
+						edt->add_folded_region(minmax(caret.first.first, caret.first.second));
+					}
+				}
+				})
+		);
+
+		reg.register_command(
 			CP_STRLIT("editor.delete_before_carets"), convert_type<codebox>([](codebox *e) {
 				e->get_editor()->delete_selection_or_char_before();
 				})
@@ -127,28 +142,28 @@ namespace codepad::ui::native_commands {
 
 		reg.register_command(
 			CP_STRLIT("tab.split_left"), convert_type<tab>([](tab *t) {
-				dock_manager::get().split_tab(*t, orientation::horizontal, true);
+				tab_manager::get().split_tab(*t, orientation::horizontal, true);
 				})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_right"), convert_type<tab>([](tab *t) {
-				dock_manager::get().split_tab(*t, orientation::horizontal, false);
+				tab_manager::get().split_tab(*t, orientation::horizontal, false);
 				})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_up"), convert_type<tab>([](tab *t) {
-				dock_manager::get().split_tab(*t, orientation::vertical, true);
+				tab_manager::get().split_tab(*t, orientation::vertical, true);
 				})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_down"), convert_type<tab>([](tab *t) {
-				dock_manager::get().split_tab(*t, orientation::vertical, false);
+				tab_manager::get().split_tab(*t, orientation::vertical, false);
 				})
 		);
 
 		reg.register_command(
 			CP_STRLIT("tab.move_to_new_window"), convert_type<tab>([](tab *t) {
-				dock_manager::get().move_tab_to_new_window(*t);
+				tab_manager::get().move_tab_to_new_window(*t);
 				})
 		);
 
@@ -158,13 +173,13 @@ namespace codepad::ui::native_commands {
 				auto files = open_file_dialog(th->get_window(), file_dialog_type::multiple_selection);
 				tab *last = nullptr;
 				for (const auto &path : files) {
-					auto ctx = context_manager::get().open_file(path);
-					tab *tb = dock_manager::get().new_tab_in(th);
+					auto ctx = document_manager::get().open_file<utf8<>>(path); // TODO change encoding
+					tab *tb = tab_manager::get().new_tab_in(th);
 					tb->set_caption(convert_to_default_encoding(path.filename().native()));
 					code::codebox *box = element::create<codebox>();
 					box->add_component_left(*element::create<line_number>());
 					box->add_component_right(*element::create<minimap>());
-					box->get_editor()->set_context(ctx);
+					box->get_editor()->set_document(ctx);
 					tb->children().add(*box);
 					last = tb;
 				}
@@ -176,13 +191,13 @@ namespace codepad::ui::native_commands {
 
 		reg.register_command(
 			CP_STRLIT("new_file"), convert_type<tab_host>([](tab_host *th) {
-				auto ctx = context_manager::get().new_file();
-				tab *tb = dock_manager::get().new_tab_in(th);
+				auto ctx = document_manager::get().new_file();
+				tab *tb = tab_manager::get().new_tab_in(th);
 				tb->set_caption(CP_STRLIT("new file"));
 				code::codebox *box = element::create<codebox>();
 				box->add_component_left(*element::create<line_number>());
 				box->add_component_right(*element::create<minimap>());
-				box->get_editor()->set_context(ctx);
+				box->get_editor()->set_document(ctx);
 				tb->children().add(*box);
 				th->activate_tab(*tb);
 				})

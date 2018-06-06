@@ -12,6 +12,8 @@
 
 namespace codepad::ui {
 	/// Manages the update, layout, and rendering all GUI elements.
+	///
+	/// \todo Get rid of global focus and use per-window focus and window focus instead.
 	class manager {
 	public:
 		constexpr static double
@@ -25,16 +27,10 @@ namespace codepad::ui {
 			dispose_marked_elements();
 		}
 
-		/// Invalidates the layout of an element. If layout is in progress,
-		/// this element is appended to the queue recording all elements whose layout are to be updated.
-		/// Otherwise it's marked for layout calculation, which will take place during the next frame.
-		void invalidate_layout(element &e) {
-			if (_layouting) {
-				_q.emplace_back(&e, true);
-			} else {
-				_targets[&e] = true;
-			}
-		}
+		/// Invalidates the layout of an element. If layout is in progress, this element is appended to the queue
+		/// recording all elements whose layout are to be updated. Otherwise it's marked for layout calculation,
+		/// which will take place during the next frame.
+		void invalidate_layout(element&);
 		/// Marks the element for layout validation, meaning that its layout is valid but element::_finish_layout
 		/// has not been called. Like \ref invalidate_layout, different operation will be performed depending on
 		/// whether layout is in progress.
@@ -113,7 +109,8 @@ namespace codepad::ui {
 		element *get_focused() const {
 			return _focus;
 		}
-		/// Sets the currently focused element. The element must either be \p nullptr or belong to a window.
+		/// Sets the currently focused element. When called, this function also interrupts any ongoing composition.
+		/// The element must either be \p nullptr or belong to a window.
 		/// This function should not be called recursively.
 		void set_focus(element*);
 

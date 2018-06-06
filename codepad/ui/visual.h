@@ -230,7 +230,10 @@ namespace codepad::ui {
 		/// \param s The state to be updated.
 		/// \param dt The time since the state was last updated.
 		void update(state &s, double dt) const {
-			if (s.stationary || s.current_frame == frames.end()) {
+			if (s.current_frame == frames.end()) {
+				s.stationary = true;
+			}
+			if (s.stationary) {
 				return;
 			}
 			s.current_frame_time += dt;

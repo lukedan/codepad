@@ -1,8 +1,12 @@
 #pragma once
 
-#include "../renderer.h"
 #include <cstring>
 
+#include <Windows.h>
+#include <windowsx.h>
+#include <imm.h>
+
+#include "../renderer.h"
 #include "../window.h"
 #include "misc.h"
 
@@ -119,6 +123,13 @@ namespace codepad {
 				winapi_check(ReleaseCapture());
 			}
 
+			void set_active_caret_position(rectd pos) {
+				_ime::get().set_caret_region(*this, pos.fit_grid_enlarge<int>());
+			}
+			void interrupt_input_method() {
+				_ime::get().cancel_composition(*this);
+			}
+
 			native_handle_t get_native_handle() const {
 				return _hwnd;
 			}
@@ -127,13 +138,117 @@ namespace codepad {
 				return CP_STRLIT("window");
 			}
 		protected:
+			/// Singleton struct for handling IME events. Largely based on the implementation of chromium.
+			struct _ime {
+			public:
+				void start_composition(window &wnd) {
+					_compositing = true;
+					_update_caret_position(wnd);
+				}
+				void update_composition(window &wnd) {
+					_update_caret_position(wnd);
+				}
+				bool get_composition_string(window &wnd, LPARAM lparam, std::wstring &str) {
+					if (lparam & GCS_COMPSTR) {
+						// TODO caret and underline
+						return _get_string(wnd, GCS_COMPSTR, str);
+					}
+					return false;
+				}
+				bool get_result(window &wnd, LPARAM lparam, std::wstring &str) {
+					if (lparam & GCS_RESULTSTR) {
+						return _get_string(wnd, GCS_RESULTSTR, str);
+					}
+					return false;
+				}
+				void cancel_composition(window &wnd) {
+					_end_composition(wnd, CPS_CANCEL);
+				}
+				void complete_composition(window &wnd) {
+					_end_composition(wnd, CPS_COMPLETE);
+				}
+
+				void on_input_language_changed() {
+					_lang = LOWORD(GetKeyboardLayout(0));
+				}
+
+				void set_caret_region(window &wnd, recti rgn) {
+					_caretrgn = rgn;
+					_update_caret_position(wnd);
+				}
+
+				static _ime &get();
+			protected:
+				recti _caretrgn;
+				LANGID _lang = LANG_USER_DEFAULT;
+				bool _compositing = false;
+
+				bool _get_string(window &wnd, DWORD type, std::wstring &res) {
+					HIMC context = ImmGetContext(wnd._hwnd);
+					if (context) {
+						LONG buffersz = ImmGetCompositionString(context, type, nullptr, 0);
+						assert_true_sys(buffersz != IMM_ERROR_GENERAL, "general IME error");
+						if (buffersz != IMM_ERROR_NODATA) {
+							res.resize(buffersz / sizeof(wchar_t));
+							assert_true_sys(
+								ImmGetCompositionString(context, type, &res[0], buffersz) == buffersz,
+								"failed to obtain string from IME"
+							);
+							return true;
+						}
+					}
+					return false;
+				}
+
+				void _update_caret_position(window &wnd) {
+					HIMC context = ImmGetContext(wnd._hwnd);
+					if (context) {
+						CANDIDATEFORM rgn{};
+						rgn.dwIndex = 0;
+						rgn.dwStyle = CFS_CANDIDATEPOS;
+						rgn.ptCurrentPos.x = _caretrgn.xmin;
+						rgn.ptCurrentPos.y = _caretrgn.ymax;
+						winapi_check(ImmSetCandidateWindow(context, &rgn));
+
+						rgn.dwStyle = CFS_EXCLUDE;
+						rgn.ptCurrentPos.x = _caretrgn.xmin;
+						rgn.ptCurrentPos.y = _caretrgn.ymin;
+						rgn.rcArea.left = _caretrgn.xmin;
+						rgn.rcArea.right = _caretrgn.xmax;
+						rgn.rcArea.top = _caretrgn.ymin;
+						rgn.rcArea.bottom = _caretrgn.ymax;
+						winapi_check(ImmSetCandidateWindow(context, &rgn));
+
+						winapi_check(ImmReleaseContext(wnd._hwnd, context));
+					}
+
+					if (_compositing) {
+						winapi_check(CreateCaret(wnd._hwnd, nullptr, _caretrgn.width(), _caretrgn.height()));
+						winapi_check(SetCaretPos(_caretrgn.xmin, _caretrgn.ymin));
+					}
+				}
+
+				void _end_composition(window &wnd, DWORD signal) {
+					if (_compositing) {
+						DestroyCaret();
+						HIMC context = ImmGetContext(wnd._hwnd);
+						if (context) {
+							winapi_check(ImmNotifyIME(context, NI_COMPOSITIONSTR, signal, 0));
+							winapi_check(ImmReleaseContext(wnd._hwnd, context));
+						}
+						_compositing = false;
+					}
+				}
+			};
+
 			explicit window(window *parent = nullptr) : window(CP_STRLIT("Codepad"), parent) {
 			}
 			explicit window(const str_t &clsname, window *parent = nullptr) {
 				auto u16str = convert_to_utf16(clsname);
+				_wndclass::get();
 				winapi_check(_hwnd = CreateWindowEx(
-					0, reinterpret_cast<LPCWSTR>(static_cast<size_t>(_wndclass::get().atom)),
-					reinterpret_cast<LPCWSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
+					WS_EX_ACCEPTFILES, reinterpret_cast<LPCTSTR>(static_cast<size_t>(_wndclass::get().atom)),
+					reinterpret_cast<LPCTSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
 					CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 					parent ? parent->_hwnd : nullptr, nullptr, GetModuleHandle(nullptr), nullptr
 				));
@@ -146,7 +261,7 @@ namespace codepad {
 			struct _wndclass {
 				_wndclass();
 				~_wndclass() {
-					UnregisterClass(reinterpret_cast<LPCTSTR>(atom), GetModuleHandle(nullptr));
+					winapi_check(UnregisterClass(reinterpret_cast<LPCTSTR>(atom), GetModuleHandle(nullptr)));
 				}
 
 				ATOM atom;
@@ -181,7 +296,6 @@ namespace codepad {
 			void _on_update() override {
 				while (_idle()) {
 				}
-				_update_drag();
 				ui::manager::get().schedule_update(*this);
 			}
 

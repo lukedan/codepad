@@ -30,17 +30,23 @@ namespace codepad {
 				FcPatternDestroy(pat);
 				assert_true_sys(font != nullptr, "cannot find matching font");
 				FcChar8 *file;
+				int index = 0;
 				assert_true_sys(
 					FcPatternGetString(font, FC_FILE, 0, &file) == FcResultMatch, "cannot get font file name"
 				);
-				_ft_verify(FT_New_Face(_library::get().lib, reinterpret_cast<const char*>(file), 0, &_face));
+				assert_true_sys(
+					FcPatternGetInteger(font, FC_INDEX, 0, &index) == FcResultMatch, "cannot get font index"
+				);
+				_ft_verify(FT_New_Face(_library::get().lib, reinterpret_cast<const char*>(file), index, &_face));
 				_ft_verify(FT_Set_Pixel_Sizes(_face, 0, static_cast<FT_UInt>(sz)));
+				logger::get().log_info(CP_HERE, "font loaded: ", reinterpret_cast<const char*>(file), ":", index);
 				FcPatternDestroy(font);
 
 				_cache_kerning();
 			}
 			/// Destructor. Calls \p FT_Done_Face on the loaded font.
 			~freetype_font() override {
+				logger::get().log_verbose(CP_HERE, "font disposed");
 				_ft_verify(FT_Done_Face(_face));
 			}
 		protected:
@@ -51,6 +57,8 @@ namespace codepad {
 					config = FcInitLoadConfigAndFonts();
 				}
 				/// Destructor. Destroys the loaded config and calls \p FcFini().
+				///
+				/// \todo `Assertion fcCacheChains[i] == NULL failed'.
 				~_font_config() {
 					FcConfigDestroy(config);
 					FcFini();

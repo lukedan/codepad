@@ -25,6 +25,7 @@ namespace codepad::os {
 	class window_base : public ui::panel {
 		friend class ui::manager;
 		friend class ui::element_collection;
+		friend class ui::decoration;
 	public:
 		/// Sets the caption of the window.
 		virtual void set_caption(const str_t&) = 0;
@@ -61,9 +62,15 @@ namespace codepad::os {
 		/// Obtains the corresponding position in screen coordinates.
 		virtual vec2i client_to_screen(vec2i) const = 0;
 
+		/// Called to set the position of the currently active caret. This position
+		/// is used by input methods to display components such as the candidate window.
+		virtual void set_active_caret_position(rectd) = 0;
+		/// Called when the input is interrupted by, e.g., a change of focus or caret position.
+		virtual void interrupt_input_method() = 0;
+
 		/// Captures the mouse to a given ui::element, so that wherever the mouse moves to, the ui::element
 		/// always receives notifications as if the mouse were over it, until \ref release_mouse_capture is
-		/// called. Derived classes should override this function to notify the system.
+		/// called. Derived classes should override this function to notify the desktop environment.
 		virtual void set_mouse_capture(ui::element &elem) {
 			logger::get().log_verbose(
 				CP_HERE, "set mouse capture 0x", &elem,
@@ -91,19 +98,21 @@ namespace codepad::os {
 			return panel::get_current_display_cursor();
 		}
 
-		/// Creates a ui::decoration bound to this window.
-		ui::decoration *create_decoration() {
-			ui::decoration *d = new ui::decoration();
-			d->_wnd = this;
-			_decos.push_back(d);
-			d->_tok = --_decos.end();
-			return d;
+		/// Registers a ui::decoration to this window. When the window is disposed, all decorations registered to
+		/// it will also automatically be disposed.
+		void register_decoration(ui::decoration &dec) {
+			assert_true_usage(dec._wnd == nullptr, "the decoration has already been registered to another window");
+			dec._wnd = this;
+			_decos.push_back(&dec);
+			dec._tok = --_decos.end();
+			invalidate_layout();
 		}
-		/// Disposes the given ui::decoration. The ui::decoration must have been created by this window.
-		void delete_decoration(ui::decoration *d) {
-			_decos.erase(d->_tok);
-			delete d;
-			invalidate_visual();
+		/// Unregisters a ui::decoration from this window.
+		void unregister_decoration(ui::decoration &dec) {
+			assert_true_usage(dec._wnd == this, "the decoration is not registered to this window");
+			_decos.erase(dec._tok);
+			dec._wnd = nullptr;
+			invalidate_layout();
 		}
 
 		event<void>
@@ -114,7 +123,10 @@ namespace codepad::os {
 
 		ui::window_hotkey_manager hotkey_manager; ///< Manages hotkeys of the window.
 	protected:
-		std::list<ui::decoration*> _decos; ///< The list of decorations associated with this window.
+		/// The list of decorations associated with this window. Since decorations are automatically
+		/// unregistered when disposed, special care must be taken when iterating through the list
+		/// while deleting its entries.
+		std::list<ui::decoration*> _decos;
 		ui::element
 			*_focus{this}, ///< The focused element within this window.
 			*_capture = nullptr; ///< The element that captures the mouse.
@@ -140,7 +152,7 @@ namespace codepad::os {
 			size_changed(p);
 		}
 
-		/// Sets the keyboard event to the focused element, or, if the window itself is focused,
+		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
 		void _on_key_down(ui::key_info &p) override {
 			if (_focus && _focus != this) {
@@ -149,7 +161,7 @@ namespace codepad::os {
 				panel::_on_key_down(p);
 			}
 		}
-		/// Sets the keyboard event to the focused element, or, if the window itself is focused,
+		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
 		void _on_key_up(ui::key_info &p) override {
 			if (_focus && _focus != this) {
@@ -158,13 +170,31 @@ namespace codepad::os {
 				panel::_on_key_up(p);
 			}
 		}
-		/// Sets the keyboard event to the focused element, or, if the window itself is focused,
+		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
 		void _on_keyboard_text(ui::text_info &p) override {
 			if (_focus && _focus != this) {
 				_focus->_on_keyboard_text(p);
 			} else {
 				panel::_on_keyboard_text(p);
+			}
+		}
+		/// Forwards the composition event to the focused element, or, if the window itself is focused,
+		/// falls back to the default behavior.
+		void _on_composition(ui::composition_info &p) override {
+			if (_focus && _focus != this) {
+				_focus->_on_composition(p);
+			} else {
+				panel::_on_composition(p);
+			}
+		}
+		/// Forwards the composition event to the focused element, or, if the window itself is focused,
+		/// falls back to the default behavior.
+		void _on_composition_finished() override {
+			if (_focus && _focus != this) {
+				_focus->_on_composition_finished();
+			} else {
+				panel::_on_composition_finished();
 			}
 		}
 
@@ -209,9 +239,8 @@ namespace codepad::os {
 		}
 		/// Called when the window loses the focus.
 		virtual void _on_lost_window_focus() {
-			if (ui::manager::get().get_focused() == _focus) { // in case the focus has already shifted
-				ui::manager::get().set_focus(nullptr);
-			}
+			// since only one unified message pump is used, setfocus shouldn't have been received yet
+			ui::manager::get().set_focus(nullptr);
 			lost_window_focus.invoke();
 		}
 		/// Called when mouse capture is broken by the user's actions.
@@ -233,10 +262,11 @@ namespace codepad::os {
 				} else {
 					if (test_bit_all(
 						(*i)->get_state(), ui::visual::get_predefined_states().corpse
-					)) {
-						// a dead corpse
-						delete *i;
-						i = _decos.erase(i);
+					)) { // a dead corpse
+						auto j = i;
+						++j;
+						delete *i; // the entry in _decos will be automatically removed here
+						i = j;
 						continue;
 					}
 				}
@@ -247,6 +277,13 @@ namespace codepad::os {
 			}
 		}
 
+		/// Called in ui::decoration::~decoration() to automatically unregister the decoration.
+		virtual void _on_decoration_destroyed(ui::decoration &d) {
+			assert_true_logical(d._wnd == this, "calling the wrong window");
+			_decos.erase(d._tok);
+			invalidate_layout();
+		}
+
 		/// Registers the window to \ref renderer_base.
 		void _initialize() override {
 			panel::_initialize();
@@ -254,8 +291,11 @@ namespace codepad::os {
 		}
 		/// Deletes all decorations, releases the focus, and unregisters the window from \ref renderer_base.
 		void _dispose() override {
-			for (ui::decoration *dec : _decos) {
-				delete dec;
+			// special care taken
+			auto i = _decos.begin(), j = i;
+			for (; i != _decos.end(); i = j) {
+				++j;
+				delete *i;
 			}
 			if (ui::manager::get().get_focused() == _focus) {
 				ui::manager::get().set_focus(nullptr);

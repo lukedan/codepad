@@ -1,5 +1,11 @@
-#include "context.h"
-#include "context_manager.h"
+#include "document.h"
+
+/// \file
+/// Implementation of certain methods related to \ref codepad::editor::code::document.
+
+#include "document_manager.h"
+#include "view.h"
+#include "editor.h"
 #include "../../os/filesystem.h"
 
 using namespace std;
@@ -32,6 +38,7 @@ namespace codepad::editor::code {
 		size_t mm, size_t ms, size_t sm, size_t ss, size_t &rm, size_t &rs
 	) {
 		auto p1mmv = minmax(mm, ms), p2mmv = minmax(sm, ss);
+		// carets without selections
 		if (mm == ms && mm >= p2mmv.first && mm <= p2mmv.second) {
 			rm = sm;
 			rs = ss;
@@ -42,7 +49,7 @@ namespace codepad::editor::code {
 			rs = ms;
 			return true;
 		}
-		if (p1mmv.second <= p2mmv.first || p1mmv.first >= p2mmv.second) {
+		if (p1mmv.second <= p2mmv.first || p1mmv.first >= p2mmv.second) { // no need to merge
 			return false;
 		}
 		size_t gmin = min(p1mmv.first, p2mmv.first), gmax = max(p1mmv.second, p2mmv.second);
@@ -58,50 +65,46 @@ namespace codepad::editor::code {
 	}
 
 
-	text_context::text_context(const filesystem::path &fn) : _fileid(in_place_type<filesystem::path>, fn) {
-		performance_monitor monitor(CP_STRLIT("load file"), 0.1);
-		file fil(fn, access_rights::read, open_mode::open);
-		if (fil.valid()) {
-			file_mapping mapping(fil, access_rights::read);
-			if (mapping.valid()) {
-				char *cs = static_cast<char*>(mapping.get_mapped_pointer());
-				insert_text(0, cs, cs + static_cast<int>(fil.get_size()));
-				set_default_line_ending(detect_most_used_line_ending());
-				return;
-			}
-		}
-		// TODO error handling
+	document::~document() {
+		document_manager::get()._on_deleting_document(_fileid);
 	}
 
-	text_context::~text_context() {
-		context_manager::get()._on_deleting_context(_fileid);
-	}
-
-	void text_context::save_new(const filesystem::path &path) {
+	void document::save_new(const filesystem::path &path) {
 		assert_true_usage(holds_alternative<size_t>(_fileid), "file already associated with a path");
-		context_manager::get()._on_saved_new_context(get<size_t>(_fileid), path);
-		_fileid.emplace<filesystem::path>(path);
 		save();
+		document_manager::get()._on_saved_new_document(get<size_t>(_fileid), path);
+		_fileid.emplace<filesystem::path>(path);
 	}
 
-	caret_set text_context::undo(editor *source) {
+	void document::undo(editor *source) {
 		assert_true_usage(can_undo(), "cannot undo");
 		const edit &ce = _edithist[--_curedit];
-		text_context_modifier mod(*this);
+		document_modifier mod(*this);
 		for (const modification &cm : ce) {
 			mod.undo_modification(cm);
 		}
-		return mod.finish_edit_nohistory(source);
+		mod.finish_edit_nohistory(source);
 	}
 
-	caret_set text_context::redo(editor *source) {
+	void document::redo(editor *source) {
 		assert_true_usage(can_redo(), "cannot redo");
 		const edit &ce = _edithist[_curedit];
 		++_curedit;
-		text_context_modifier mod(*this);
+		document_modifier mod(*this);
 		for (const modification &cm : ce) {
 			mod.redo_modification(cm);
 		}
-		return mod.finish_edit_nohistory(source);
+		mod.finish_edit_nohistory(source);
+	}
+
+	view_formatting document::create_view_formatting() {
+		return view_formatting(_lbr);
+	}
+
+
+	void document_modifier::finish_edit_nohistory(editor *source) {
+		source->set_carets(std::move(_newcarets));
+		_doc->modified.invoke_noret(source, std::move(_cfixup));
+		_doc = nullptr;
 	}
 }

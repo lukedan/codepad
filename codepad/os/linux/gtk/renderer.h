@@ -2,9 +2,11 @@
 
 #include <GL/glx.h>
 #include <GL/gl.h>
-#include <gdk-pixbuf/gdk-pixbuf.h>
+#include <gtk/gtk.h>
 
 #include "../../renderer.h"
+#include "../../software_renderer_base.h"
+#include "../../opengl_renderer_base.h"
 #include "window.h"
 
 namespace codepad::os {
@@ -15,227 +17,209 @@ namespace codepad::os {
 			auto *cwnd = static_cast<const window*>(&wnd);
 			_wnd_rec *crec = &_wnds.find(cwnd)->second;
 			_begin_render_target(_render_target_stackframe(
-				crec->width, crec->height, crec->buffer, [this, cwnd, crec]() {
-					if (crec->buf.buf) {
-						// copy buffer data to GdkPixbuf
-						int rowstride = gdk_pixbuf_get_rowstride(crec->buf.buf);
-						guchar *dst = gdk_pixbuf_get_pixels(crec->buf.buf);
-						_color_t *from = crec->buffer;
-						for (size_t y = 0; y < crec->height; ++y, dst += rowstride) {
-							guchar *cdst = dst;
-							for (size_t x = 0; x < crec->width; ++x, ++from, cdst += 4) {
-								colori ci = from->convert<unsigned char>();
-								cdst[0] = ci.r;
+				crec->texture.w, crec->texture.h, crec->texture.data, [this, cwnd, crec]() {
+					if (crec->buf.surface) {
+						// copy buffer data to cairo surface
+						cairo_surface_flush(crec->buf.surface);
+						int rowstride = cairo_image_surface_get_stride(crec->buf.surface);
+						unsigned char *dst = cairo_image_surface_get_data(crec->buf.surface);
+						_ivec4f *from = crec->texture.data;
+						for (size_t y = 0; y < crec->texture.h; ++y, dst += rowstride) {
+							unsigned char *cdst = dst;
+							for (size_t x = 0; x < crec->texture.w; ++x, ++from, cdst += 4) {
+								colori ci = _convert_to_colorf(*from).convert<unsigned char>();
+								cdst[0] = ci.b;
 								cdst[1] = ci.g;
-								cdst[2] = ci.b;
+								cdst[2] = ci.r;
 								cdst[3] = 255; // hack for now
 							}
 						}
-						// use cairo to draw the buffer
-						cairo_rectangle_int_t rgnrect{};
-						rgnrect.x = rgnrect.y = 0;
-						rgnrect.width = static_cast<int>(crec->width);
-						rgnrect.height = static_cast<int>(crec->height);
-						cairo_region_t *rgn = cairo_region_create_rectangle(&rgnrect);
-						GdkDrawingContext *ctx = gdk_window_begin_draw_frame(cwnd->_wnd, rgn);
-						cairo_t *cairoctx = gdk_drawing_context_get_cairo_context(ctx);
-						gdk_cairo_set_source_pixbuf(cairoctx, crec->buf.buf, 0.0, 0.0);
-						cairo_paint(cairoctx);
-						gdk_window_end_draw_frame(cwnd->_wnd, ctx);
-						cairo_region_destroy(rgn);
+						cairo_surface_mark_dirty(crec->buf.surface);
+						gtk_widget_queue_draw(cwnd->_wnd);
 					}
 				}
 			));
-			_clear_texture(crec->buffer, crec->width, crec->height);
+			_clear_texture(crec->texture.data, crec->texture.w, crec->texture.h);
 		}
 	protected:
+		struct _cairo_buf {
+			_cairo_buf() = default;
+			_cairo_buf(size_t w, size_t h) {
+				surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, static_cast<int>(w), static_cast<int>(h));
+			}
+			_cairo_buf(_cairo_buf &&src) : surface(src.surface) {
+				src.surface = nullptr;
+			}
+			_cairo_buf(const _cairo_buf&) = delete;
+			_cairo_buf &operator=(_cairo_buf &&src) {
+				std::swap(surface, src.surface);
+				return *this;
+			}
+			_cairo_buf &operator=(const _cairo_buf&) = delete;
+			~_cairo_buf() {
+				if (surface) {
+					cairo_surface_destroy(surface);
+				}
+			}
+
+			cairo_surface_t *surface = nullptr;
+		};
+		struct _wnd_rec {
+			void resize_buffer(size_t w, size_t h) {
+				texture.resize(w, h);
+				if (texture.w != 0 && texture.h != 0) {
+					buf = _cairo_buf(texture.w, texture.h);
+				}
+			}
+
+			_cairo_buf buf;
+			_tex_rec texture;
+		};
+
+		inline static gboolean _actual_render(GtkWidget*, cairo_t *cr, _wnd_rec *rend) {
+			cairo_set_source_surface(cr, rend->buf.surface, 0.0, 0.0);
+			cairo_paint(cr);
+			return true;
+		}
+
 		void _new_window(window_base &wnd) override {
 			auto *w = static_cast<window*>(&wnd);
 			_wnd_rec wr;
-			wr.resize_buffer(static_cast<size_t>(w->_width), static_cast<size_t>(w->_height));
 			auto it = _wnds.emplace(w, std::move(wr)).first;
-			w->size_changed += [it](size_changed_info &info) {
+			w->size_changed += [it, w](size_changed_info &info) {
 				it->second.resize_buffer(static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y));
+				ui::manager::get().update_invalid_layout();
+				ui::manager::get().update_visual_immediate(*w);
 			};
+			g_signal_connect(w->_wnd, "draw", reinterpret_cast<GCallback>(_actual_render), &it->second);
 		}
 		void _delete_window(window_base &wnd) override {
 			assert_true_logical(_wnds.erase(static_cast<window*>(&wnd)) == 1, "corrupted window registry");
 		}
 
-		struct _pixbuf {
-			_pixbuf() = default;
-			_pixbuf(size_t w, size_t h) {
-				buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, true, 8, static_cast<int>(w), static_cast<int>(h));
-				assert_true_sys(buf != nullptr, "cannot create pixbuf");
-			}
-			_pixbuf(_pixbuf &&src) : buf(src.buf) {
-				src.buf = nullptr;
-			}
-			_pixbuf(const _pixbuf&) = delete;
-			_pixbuf &operator=(_pixbuf &&src) {
-				std::swap(buf, src.buf);
-				return *this;
-			}
-			_pixbuf &operator=(const _pixbuf&) = delete;
-			~_pixbuf() {
-				if (buf) {
-					g_object_unref(buf);
-				}
-			}
-
-			GdkPixbuf *buf = nullptr;
-		};
-		struct _wnd_rec {
-			_wnd_rec() = default;
-			_wnd_rec(_wnd_rec &&src) :
-				buf(std::move(src.buf)), buffer(src.buffer), width(src.width), height(src.height) {
-				src.buffer = nullptr;
-			}
-			_wnd_rec(const _wnd_rec&) = delete;
-			_wnd_rec &operator=(_wnd_rec &&src) {
-				std::swap(src.buf, buf);
-				std::swap(buffer, src.buffer);
-				std::swap(width, src.width);
-				std::swap(height, src.height);
-				return *this;
-			}
-			_wnd_rec &operator=(const _wnd_rec&) = delete;
-			~_wnd_rec() {
-				if (buffer) {
-					delete[] buffer;
-				}
-			}
-
-			void resize_buffer(size_t w, size_t h) {
-				width = w;
-				height = h;
-				if (width != 0 && height != 0) {
-					buf = _pixbuf(width, height);
-				}
-				if (buffer) {
-					delete[] buffer;
-				}
-				buffer = new _color_t[width * height];
-			}
-
-			_pixbuf buf;
-			_color_t *buffer = nullptr;
-			size_t width = 0, height = 0;
-		};
-
-		std::unordered_map<const window*, _wnd_rec> _wnds;
+		std::map<const window*, _wnd_rec> _wnds;
 	};
 
-	/// \todo Crashes on startup.
+	/// \todo No display, crashes, etc.
 	class opengl_renderer : public opengl_renderer_base {
 	public:
 		opengl_renderer() = default;
 		~opengl_renderer() override {
 			_dispose_gl_rsrc();
-			// will crash if these aren't disabled before disposal
-			glDisable(GL_TEXTURE_2D);
-			glDisable(GL_BLEND);
-			glDisableClientState(GL_VERTEX_ARRAY);
-			glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-			glDisableClientState(GL_COLOR_ARRAY);
-			gdk_gl_context_clear_current();
-			// TODO GdkGLContext no need for disposal?
 		}
 	protected:
-		const _gl_funcs &_get_gl_funcs() override {
-			return _gl;
+		struct _wnd_rec {
+			_wnd_rec() = default;
+			explicit _wnd_rec(GtkWidget *w) : widget(w) {
+			}
+
+			GtkWidget *widget = nullptr;
+			framebuffer buffer;
+		};
+
+		inline static gboolean _on_glarea_render(GtkGLArea *area, GdkGLContext *ctx, window *wnd) {
+			logger::get().log_error(CP_HERE, "fuck no");
+			auto &rend = static_cast<opengl_renderer&>(renderer_base::get());
+			_wnd_rec &rec = rend._wndmapping[wnd];
+			_gl_buffer<GL_ARRAY_BUFFER> buf;
+			buf.initialize(rend);
+			buf.clear_resize_dynamic_draw(rend, sizeof(_vertex) * 6);
+			auto ptr = static_cast<_vertex*>(buf.map(rend));
+			vec2d sz = wnd->get_actual_size();
+			ptr[0] = _vertex(vec2d(0.0, 0.0), vec2d(0.0, 0.0), colord());
+			ptr[1] = _vertex(vec2d(sz.x, 0.0), vec2d(1.0, 0.0), colord());
+			ptr[2] = _vertex(vec2d(0.0, sz.y), vec2d(0.0, 1.0), colord());
+			ptr[3] = _vertex(vec2d(sz.x, 0.0), vec2d(1.0, 0.0), colord());
+			ptr[4] = _vertex(sz, vec2d(1.0, 1.0), colord());
+			ptr[5] = _vertex(vec2d(0.0, sz.y), vec2d(0.0, 1.0), colord());
+			buf.unmap(rend);
+
+			rend._defaultprog.acivate(rend);
+			rend._gl.VertexAttribPointer(
+				0, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, pos))
+			);
+			rend._gl.EnableVertexAttribArray(0);
+			rend._gl.VertexAttribPointer(
+				1, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, uv))
+			);
+			rend._gl.EnableVertexAttribArray(1);
+			rend._gl.VertexAttribPointer(
+				2, 4, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, c))
+			);
+			rend._gl.EnableVertexAttribArray(2);
+			rend._gl.ActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, static_cast<GLsizei>(_get_id(rec.buffer.get_texture())));
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+
+			buf.dispose(rend);
+			return true;
 		}
-		void _init_new_window(window_base &wnd) override {
+
+		void _new_window(window_base &wnd) override {
 #ifdef CP_DETECT_LOGICAL_ERRORS
-			window *w = dynamic_cast<window*>(&wnd);
+			auto w = dynamic_cast<window*>(&wnd);
 			assert_true_logical(w != nullptr, "invalid window passed to renderer");
 #else
 			window *w = static_cast<window*>(&wnd);
 #endif
-			if (_ctx == nullptr) { // create the context, which will always be the current context
-				GError *err = nullptr;
-				_ctx = gdk_window_create_gl_context(w->_wnd, &err);
-				if (err == nullptr) {
-					gdk_gl_context_set_required_version(_ctx, 4, 0);
-					assert_true_sys(gdk_gl_context_realize(_ctx, &err) == TRUE, "cannot realize OpenGL context");
-					int minor, major;
-					gdk_gl_context_get_version(_ctx, &major, &minor);
-					logger::get().log_verbose(CP_HERE, "OpenGL version: ", major, ".", minor);
-#ifdef CP_DETECT_LOGICAL_ERRORS
-					if (err == nullptr) {
-						gdk_gl_context_set_debug_enabled(_ctx, true);
-					}
-#endif
-				}
-				if (err) {
-					logger::get().log_error(CP_HERE, "GDK error: ", err->message);
-					assert_true_sys(false, "failed to create OpenGL context");
-				}
-				gdk_gl_context_make_current(_ctx);
-				_init_gl_funcs();
+			GtkWidget *glarea = gtk_gl_area_new();
+			gtk_gl_area_set_has_depth_buffer(GTK_GL_AREA(glarea), false);
+			gtk_gl_area_set_auto_render(GTK_GL_AREA(glarea), false);
+			gtk_gl_area_set_required_version(GTK_GL_AREA(glarea), 3, 3);
+			gtk_container_add(GTK_CONTAINER(w->_wnd), glarea);
+			g_signal_connect(glarea, "render", reinterpret_cast<GCallback>(_on_glarea_render), w);
+			gtk_widget_realize(glarea);
+			gtk_gl_area_make_current(GTK_GL_AREA(glarea));
+			GError *err = gtk_gl_area_get_error(GTK_GL_AREA(glarea));
+			if (err) {
+				logger::get().log_error(CP_HERE, "GTK GLarea error: ", err->message);
+				assert_true_sys(false, "GLarea error");
 			}
+			if (!_init) {
+				_init = true;
+				_initialize_gl(_get_gl_func);
+			}
+			auto it = _wndmapping.emplace(w, glarea);
+			w->size_changed += [this, it = it.first](size_changed_info &info) {
+				it->second.buffer = new_framebuffer(
+					static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y)
+				);
+			};
+		}
+		void _delete_window(window_base &wnd) override {
+#ifdef CP_DETECT_LOGICAL_ERRORS
+			auto w = dynamic_cast<window*>(&wnd);
+			assert_true_logical(w != nullptr, "invalid window passed to renderer");
+#else
+			window *w = static_cast<window*>(&wnd);
+#endif
+			_wndmapping.erase(w);
 		}
 		std::function<void()> _get_begin_window_func(const window_base &wnd) override {
-			const window *cw = static_cast<const window*>(&wnd);
-			framebuffer fb = new_framebuffer(
-				static_cast<size_t>(cw->_width), static_cast<size_t>(cw->_height)
-			);
-			GLuint id = static_cast<GLuint>(_get_id(fb));
-			_wnd_buffers.push_back(std::move(fb));
-			return [this, id]() {
-				_gl.BindFramebuffer(GL_FRAMEBUFFER, id);
+			auto *cw = static_cast<const window*>(&wnd);
+			auto it = _wndmapping.find(cw);
+			gtk_gl_area_make_current(GTK_GL_AREA(it->second.widget));
+			return [this, it]() {
+				_gl.BindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(_get_id(it->second.buffer)));
 			};
 		}
 		std::function<void()> _get_end_window_func(const window_base &wnd) override {
-			const window *cw = static_cast<const window*>(&wnd);
-			return [this, cw]() {
-				framebuffer fb = std::move(_wnd_buffers.back()); // retrieve the buffer
-				_wnd_buffers.pop_back();
-				_gl.BindFramebuffer(GL_FRAMEBUFFER, 0); // unbind the buffer
-				// use cairo to draw the buffer
-				cairo_rectangle_int_t rgnrect;
-				rgnrect.x = rgnrect.y = 0;
-				rgnrect.width = cw->_width;
-				rgnrect.height = cw->_height;
-				cairo_region_t *rgn = cairo_region_create_rectangle(&rgnrect);
-				GdkDrawingContext *ctx = gdk_window_begin_draw_frame(cw->_wnd, rgn);
-				cairo_t *cairoctx = gdk_drawing_context_get_cairo_context(ctx);
-				gdk_cairo_draw_from_gl(
-					cairoctx, cw->_wnd, static_cast<int>(_get_id(fb.get_texture())),
-					GL_TEXTURE, 1, 0, 0, cw->_width, cw->_height
-				);
-				gdk_window_end_draw_frame(cw->_wnd, ctx);
-				cairo_region_destroy(rgn);
+			auto *cw = static_cast<const window*>(&wnd);
+			auto it = _wndmapping.find(cw);
+			return [this, it]() {
+				_gl.BindFramebuffer(GL_FRAMEBUFFER, 0);
+				gtk_gl_area_queue_render(GTK_GL_AREA(it->second.widget));
 			};
 		}
 
-		/// Acquires the function pointer to the specified OpenGL function by calling \p glXGetProcAddress().
-		///
-		/// \param f A reference to the function pointer.
-		/// \param name The name of the OpenGL function.
-		template <typename T> inline static void _get_func(T &f, const char *name) {
-			assert_true_sys((f = reinterpret_cast<T>(
-				glXGetProcAddress(reinterpret_cast<const GLubyte*>(name))
-			)) != nullptr, "extension not found");
-		}
-		/// Acquires all functions needed by \ref opengl_renderer_base.
-		void _init_gl_funcs() {
-			_get_func(_gl.GenBuffers, "glGenBuffers");
-			_get_func(_gl.DeleteBuffers, "glDeleteBuffers");
-			_get_func(_gl.BindBuffer, "glBindBuffer");
-			_get_func(_gl.BufferData, "glBufferData");
-			_get_func(_gl.MapBuffer, "glMapBuffer");
-			_get_func(_gl.UnmapBuffer, "glUnmapBuffer");
-			_get_func(_gl.GenFramebuffers, "glGenFramebuffers");
-			_get_func(_gl.BindFramebuffer, "glBindFramebuffer");
-			_get_func(_gl.FramebufferTexture2D, "glFramebufferTexture2D");
-			_get_func(_gl.CheckFramebufferStatus, "glCheckFramebufferStatus");
-			_get_func(_gl.DeleteFramebuffers, "glDeleteFramebuffers");
-			_get_func(_gl.GenerateMipmap, "glGenerateMipmap");
+		/// Wrapper of \p glXGetProcAddress().
+		inline static void *_get_gl_func(const GLchar *name) {
+			auto res = reinterpret_cast<void*>(glXGetProcAddress(reinterpret_cast<const GLubyte*>(name)));
+			assert_true_sys(res != nullptr, "failed to acquire OpenGL functions");
+			return res;
 		}
 
-		std::vector<framebuffer> _wnd_buffers;
-		_gl_funcs _gl; ///< The list of OpenGL functions.
-		GdkGLContext *_ctx = nullptr;
+		std::map<const window*, _wnd_rec> _wndmapping;
+		bool _init = false;
 	};
 }

@@ -7,6 +7,7 @@
 #include <string>
 #include <codecvt>
 #include <locale>
+#include <iterator>
 
 #include <rapidjson/document.h>
 
@@ -43,11 +44,50 @@ namespace codepad {
 		return c < invalid_min || (c > invalid_max && c <= unicode_max);
 	}
 
+	/// Counts the number of codepoints between the two iterators. Encodings can use this to fall back to
+	/// default behavior, or implement their optimized versions.
+	///
+	/// \tparam Encoding The encoding used.
+	/// \param beg Iterator to the beginning of the range.
+	/// \param end Iterator past the ending of the range.
+	/// \return The number of codepoints in the range.
+	template <
+		typename It1, typename It2, template <typename> typename Encoding
+	> inline size_t count_codepoints(It1 beg, It2 end) {
+		using _encoding = Encoding<typename std::iterator_traits<It1>::value_type>;
+
+		size_t result = 0;
+		for (; beg != end; _encoding::next_codepoint(beg, end), ++result) {
+		}
+		return result;
+	}
+	/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
+	/// Encodings can use this to fall back to default behavior, or implement their optimized versions.
+	///
+	/// \tparam Encoding The encoding used.
+	/// \param beg The iterator pointing to the current position.
+	///        It will hold the resulting iterator after returned.
+	/// \param end Iterator past tne end of the string.
+	/// \param num Maximum number of codepoints to skip.
+	/// \return The actual number of codepoints skipped.
+	template <
+		typename It1, typename It2, template <typename> typename Encoding
+	> inline size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
+		using _encoding = Encoding<typename std::iterator_traits<It1>::value_type>;
+
+		size_t i = 0;
+		for (; i < num && beg != end; _encoding::next_codepoint(beg, end), ++i) {
+		}
+		return i;
+	}
+
 	/// UTF-8 encoding.
 	///
 	/// \tparam C Type of characters.
 	template <typename C = char> class utf8 {
 	public:
+		using char_type = C; ///< The character type.
+
 		/// Moves the iterator to the next codepoint, extracting the current codepoint,
 		/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
 		///
@@ -169,6 +209,17 @@ namespace codepad {
 			}
 			return result;
 		}
+
+		/// Counts the number of codepoints in the given range.
+		/// Uses codepad::count_codepoints to provide the default behavior.
+		template <typename It1, typename It2> inline static size_t count_codepoints(It1 beg, It2 end) {
+			return codepad::count_codepoints<It1, It2, codepad::utf8>(beg, end);
+		}
+		/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
+		/// Uses codepad::skip_codepoints to provide the default behavior.
+		template <typename It1, typename It2> inline static size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
+			return codepad::skip_codepoints<It1, It2, codepad::utf8>(beg, end, num);
+		}
 	};
 
 	/// UTF-16 encoding.
@@ -176,6 +227,8 @@ namespace codepad {
 	/// \tparam C Type of characters.
 	template <typename C = char16_t> class utf16 {
 	public:
+		using char_type = C; ///< The character type.
+
 		static_assert(sizeof(C) >= 2, "invalid character type for utf-16");
 		/// Moves the iterator to the next codepoint, extracting the current codepoint,
 		/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
@@ -247,6 +300,17 @@ namespace codepad {
 				return res;
 			}
 		}
+
+		/// Counts the number of codepoints in the given range.
+		/// Uses codepad::count_codepoints to provide the default behavior.
+		template <typename It1, typename It2> inline static size_t count_codepoints(It1 beg, It2 end) {
+			return codepad::count_codepoints<It1, It2, codepad::utf16>(beg, end);
+		}
+		/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
+		/// Uses codepad::skip_codepoints to provide the default behavior.
+		template <typename It1, typename It2> inline static size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
+			return codepad::skip_codepoints<It1, It2, codepad::utf16>(beg, end, num);
+		}
 	};
 
 	/// UTF-32 encoding.
@@ -254,6 +318,8 @@ namespace codepad {
 	/// \tparam C Type of characters.
 	template <typename C = char32_t> class utf32 {
 	public:
+		using char_type = C; ///< The character type.
+
 		static_assert(sizeof(C) >= 3, "invalid character type for utf-32");
 		/// Moves the iterator to the next codepoint, extracting the current codepoint,
 		/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
@@ -262,6 +328,7 @@ namespace codepad {
 		/// \param end The end of the string.
 		/// \param v The value will hold the value of the current codepoint if the function returns \p true.
 		template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, char32_t &v) {
+			static_cast<void>(end);
 			v = static_cast<char32_t>(*i);
 			++i;
 			return is_valid_codepoint(v);
@@ -295,6 +362,29 @@ namespace codepad {
 		/// Returns the UTF-32 representation of a Unicode codepoint.
 		inline static std::basic_string<C> encode_codepoint(char32_t c) {
 			return std::u32string(1, c);
+		}
+
+		/// Counts the number of codepoints in the given range.
+		/// Uses the distance between the two iterators if possible, otherwise falls back to the default behavior.
+		template <typename It1, typename It2> inline static size_t count_codepoints(It1 beg, It2 end) {
+			if constexpr (std::is_same_v<It1, It2>) {
+				return std::distance(beg, end);
+			} else {
+				return codepad::count_codepoints<It1, It2, codepad::utf32>(beg, end);
+			}
+		}
+		/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
+		/// Directly increments the iterator if possible, otherwise falls back to the default behavior.
+		template <typename It1, typename It2> inline static size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
+			if constexpr (std::is_same_v<It1, It2> && std::is_base_of_v<
+				std::random_access_iterator_tag, typename std::iterator_traits<It1>::iterator_category
+			>) {
+				auto dist = std::min(num, static_cast<size_t>(end - beg));
+				beg = beg + num;
+				return dist;
+			} else {
+				return codepad::skip_codepoints<It1, It2, codepad::utf32>(beg, end, num);
+			}
 		}
 	};
 
@@ -420,37 +510,6 @@ namespace codepad {
 			}
 			return def;
 		}
-	}
-
-	/// Counts the number of codepoints between the two iterators.
-	///
-	/// \tparam Encoding The encoding used.
-	/// \param beg Iterator to the beginning of the range.
-	/// \param end Iterator past the ending of the range.
-	/// \return The number of codepoints in the range.
-	template <
-		typename It1, typename It2, typename Encoding = auto_utf<typename std::iterator_traits<It1>::value_type>
-	> inline size_t count_codepoints(It1 beg, It2 end) {
-		size_t result = 0;
-		for (; beg != end; Encoding::next_codepoint(beg, end), ++result) {
-		}
-		return result;
-	}
-	/// Skip an iterator forward, until the end is reached or a number of codepoints is skipped.
-	///
-	/// \tparam Encoding The encoding used.
-	/// \param beg The iterator pointing to the current position.
-	///        It will hold the resulting iterator after returned.
-	/// \param end Iterator past tne end of the string.
-	/// \param num Maximum number of codepoints to skip.
-	/// \return The actual number of codepoints skipped.
-	template <
-		typename It1, typename It2, typename Encoding = auto_utf<typename std::iterator_traits<It1>::value_type>
-	> inline size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
-		size_t i = 0;
-		for (; i < num && beg != end; Encoding::next_codepoint(beg, end), ++i) {
-		}
-		return i;
 	}
 
 	/// Struct for iterating over a series of codepoints in a string.

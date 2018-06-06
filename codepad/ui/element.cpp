@@ -89,7 +89,15 @@ namespace codepad {
 
 
 		void decoration::_on_visual_changed() {
-			_wnd->invalidate_visual();
+			if (_wnd) {
+				_wnd->invalidate_visual();
+			}
+		}
+
+		decoration::~decoration() {
+			if (_wnd) {
+				_wnd->_on_decoration_destroyed(*this);
+			}
 		}
 	}
 }

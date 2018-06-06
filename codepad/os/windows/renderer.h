@@ -19,14 +19,16 @@ namespace codepad {
 				const window *cwnd = static_cast<const window*>(&wnd);
 				_wnd_rec *crec = &_wnds.find(cwnd)->second;
 				_begin_render_target(_render_target_stackframe(
-					crec->width, crec->height, crec->buffer, [this, cwnd, crec]() {
+					crec->texture.w, crec->texture.h, crec->texture.data, [this, cwnd, crec]() {
 						DWORD *to = crec->bmp.arr;
-						_color_t *from = crec->buffer;
-						for (size_t i = crec->width * crec->height; i > 0; --i, ++from, ++to) {
-							*to = _conv_to_dword(from->convert<unsigned char>());
+						_ivec4f *from = crec->texture.data;
+						for (size_t i = crec->texture.w * crec->texture.h; i > 0; --i, ++from, ++to) {
+							*to = static_cast<DWORD>(
+								(from->shuffle<3, 2, 1, 0>() * 255.0f).convert_to_int_truncate().pack()
+								);
 						}
 						winapi_check(BitBlt(
-							cwnd->_dc, 0, 0, static_cast<int>(crec->width), static_cast<int>(crec->height),
+							cwnd->_dc, 0, 0, static_cast<int>(crec->texture.w), static_cast<int>(crec->texture.h),
 							crec->dc, 0, 0, SRCCOPY
 						));
 					}
@@ -40,7 +42,7 @@ namespace codepad {
 				_wnd_rec wr;
 				vec2i sz = w->get_actual_size().convert<int>();
 				wr.create_buffer(w->_dc, sz.x, sz.y);
-				auto it = _wnds.insert(std::make_pair(w, wr)).first;
+				auto it = _wnds.insert(std::make_pair(w, std::move(wr))).first;
 				w->size_changed += [it](size_changed_info &info) {
 					it->second.resize_buffer(static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y));
 				};
@@ -83,20 +85,17 @@ namespace codepad {
 			};
 			struct _wnd_rec {
 				void create_buffer(HDC ndc, size_t w, size_t h) {
-					width = w;
-					height = h;
+					texture.resize(w, h);
 					winapi_check(dc = CreateCompatibleDC(ndc));
-					if (width != 0 && height != 0) {
-						old = bmp.create_and_select(dc, width, height);
+					if (texture.w != 0 && texture.h != 0) {
+						old = bmp.create_and_select(dc, texture.w, texture.h);
 					}
-					buffer = new _color_t[width * height];
 				}
 				void resize_buffer(size_t w, size_t h) {
-					width = w;
-					height = h;
-					if (width != 0 && height != 0) {
+					texture.resize(w, h);
+					if (texture.w != 0 && texture.h != 0) {
 						_dev_bitmap newbmp;
-						HGDIOBJ ov = newbmp.create_and_select(dc, width, height);
+						HGDIOBJ ov = newbmp.create_and_select(dc, texture.w, texture.h);
 						if (old == nullptr) {
 							old = ov;
 						} else {
@@ -104,31 +103,22 @@ namespace codepad {
 						}
 						bmp = newbmp;
 					}
-					delete[] buffer;
-					buffer = new _color_t[width * height];
 				}
 				void dispose_buffer() {
 					if (old != nullptr) {
 						bmp.unselect_and_dispose(dc, old);
 					}
 					winapi_check(DeleteDC(dc));
-					delete[] buffer;
+					texture.dispose();
 				}
 
+				_tex_rec texture;
+				_dev_bitmap bmp;
 				HGDIOBJ old = nullptr;
 				HDC dc;
-				_dev_bitmap bmp;
-				_color_t *buffer = nullptr;
-				size_t width, height;
 			};
 
 			std::unordered_map<const window*, _wnd_rec> _wnds;
-
-			inline static DWORD _conv_to_dword(colori cv) {
-				return
-					static_cast<DWORD>(cv.a) << 24 | static_cast<DWORD>(cv.r) << 16 |
-					static_cast<DWORD>(cv.g) << 8 | cv.b;
-			}
 		};
 
 		class opengl_renderer : public opengl_renderer_base {
@@ -149,7 +139,13 @@ namespace codepad {
 				winapi_check(wglDeleteContext(_rc));
 			}
 		protected:
-			void _init_new_window(window_base &wnd) override {
+			inline static void *_get_gl_func(const GLchar *name) {
+				void *p = reinterpret_cast<void*>(wglGetProcAddress(name));
+				winapi_check(p);
+				return p;
+			}
+
+			void _new_window(window_base &wnd) override {
 				window *cw = static_cast<window*>(&wnd);
 				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
 				bool initgl = false;
@@ -159,7 +155,7 @@ namespace codepad {
 				}
 				winapi_check(wglMakeCurrent(cw->_dc, _rc));
 				if (initgl) {
-					_init_gl();
+					_initialize_gl(_get_gl_func);
 				}
 			}
 			std::function<void()> _get_begin_window_func(const window_base &wnd) override {
@@ -173,24 +169,6 @@ namespace codepad {
 				return[dc = cw->_dc]() {
 					winapi_check(SwapBuffers(dc));
 				};
-			}
-
-			template <typename T> inline static void _get_func(T &f, LPCSTR name) {
-				winapi_check(f = reinterpret_cast<T>(wglGetProcAddress(name)));
-			}
-			void _init_gl() {
-				_get_func(_gl.GenBuffers, "glGenBuffers");
-				_get_func(_gl.DeleteBuffers, "glDeleteBuffers");
-				_get_func(_gl.BindBuffer, "glBindBuffer");
-				_get_func(_gl.BufferData, "glBufferData");
-				_get_func(_gl.MapBuffer, "glMapBuffer");
-				_get_func(_gl.UnmapBuffer, "glUnmapBuffer");
-				_get_func(_gl.GenFramebuffers, "glGenFramebuffers");
-				_get_func(_gl.BindFramebuffer, "glBindFramebuffer");
-				_get_func(_gl.FramebufferTexture2D, "glFramebufferTexture2D");
-				_get_func(_gl.CheckFramebufferStatus, "glCheckFramebufferStatus");
-				_get_func(_gl.DeleteFramebuffers, "glDeleteFramebuffers");
-				_get_func(_gl.GenerateMipmap, "glGenerateMipmap");
 			}
 
 			HGLRC _rc = nullptr;

@@ -170,7 +170,7 @@
 			}
 		}]
 	}],
-	"dock_preview": [{
+	"drag_preview": [{
 		"layers": [{
 			"margins": {
 				"from": 20,

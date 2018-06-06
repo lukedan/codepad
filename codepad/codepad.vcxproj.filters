@@ -36,13 +36,7 @@
     <ClInclude Include="editors\code\components.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editors\code\context.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="editors\code\editor.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="editors\docking.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="editors\code\codebox.h">
@@ -114,9 +108,6 @@
     <ClInclude Include="ui\commands.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editors\code\context_manager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="core\bst.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -144,6 +135,18 @@
     <ClInclude Include="os\opengl_renderer_base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="editors\code\document.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\document_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\rendering.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\tabs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -167,16 +170,10 @@
     <ClCompile Include="ui\panel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="editors\code\context.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ui\native_commands.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ui\visual.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="editors\docking.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="core\globals.cpp">
@@ -192,6 +189,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="os\software_renderer_base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editors\code\document.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editors\tabs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
