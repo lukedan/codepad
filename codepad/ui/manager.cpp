@@ -138,41 +138,21 @@ namespace codepad::ui {
 		}
 	}
 
-	void manager::set_focus(element *elem) {
-		if (elem == _focus) {
-			return;
-		}
+	void manager::set_focused_element(element &elem) {
 #ifdef CP_DETECT_LOGICAL_ERRORS
 		static bool _in = false;
 
 		assert_true_logical(!_in, "recursive calls to set_focus");
 		_in = true;
 #endif
-		if (_focus != nullptr) {
-			os::window_base *wnd = _focus->get_window();
-			if (wnd != nullptr) {
-				wnd->interrupt_input_method();
-			}
+		if (_focus_wnd != nullptr) {
+			_focus_wnd->interrupt_input_method();
 		}
-		os::window_base *neww = elem == nullptr ? nullptr : elem->get_window();
-		assert_true_logical((neww != nullptr) == (elem != nullptr), "corrupted element tree");
-		element *oldf = _focus;
-		_focus = elem;
-		if (neww != nullptr) {
-			neww->_set_window_focus_element(elem);
-			// set_focus may be called again here, but it's fine as long as it's called with the same element
-			neww->activate();
+		os::window_base *wnd = elem.get_window();
+		if (wnd != _focus_wnd) {
+			wnd->activate();
 		}
-		if (oldf != nullptr) {
-			oldf->_on_lost_focus();
-		}
-		if (_focus != nullptr) {
-			_focus->_on_got_focus();
-		}
-		logger::get().log_verbose(
-			CP_HERE, "focus changed to 0x", _focus,
-			" <", _focus ? demangle(typeid(*_focus).name()) : "nullptr", ">"
-		);
+		wnd->set_window_focused_element(elem);
 #ifdef CP_DETECT_LOGICAL_ERRORS
 		_in = false;
 #endif

@@ -43,7 +43,7 @@ namespace codepad::editor::code {
 
 			using length_property = sum_synthesizer::compact_property<
 				size_t, node_synth_data,
-				synthesization_helper::field_value_property<size_t node_data::*, &node_data::length>,
+				synthesization_helper::field_value_property<&node_data::length>,
 				&node_synth_data::total_length
 			>; ///< Property used to obtain the total number of characters in a subtree.
 			using softbreaks_property = sum_synthesizer::compact_property<
@@ -374,9 +374,7 @@ namespace codepad::editor::code {
 			>; ///< Property used to obtain the total number of characters in a subtree.
 			using folded_chars_property = sum_synthesizer::compact_property<
 				size_t, fold_region_synth_data,
-				synthesization_helper::field_value_property<
-				size_t fold_region_node_data::*, &fold_region_node_data::range
-				>,
+				synthesization_helper::field_value_property<&fold_region_node_data::range>,
 				&fold_region_synth_data::total_folded_chars
 			>; ///< Property used to obtain the total number of folded characters in a subtree.
 			using line_span_property = sum_synthesizer::compact_property<
@@ -385,9 +383,7 @@ namespace codepad::editor::code {
 			/// Property used to obtain the total number of folded linebreaks (both soft and hard ones) in a subtree.
 			using folded_lines_property = sum_synthesizer::compact_property<
 				size_t, fold_region_synth_data,
-				synthesization_helper::field_value_property<
-				size_t fold_region_node_data::*, &fold_region_node_data::folded_lines
-				>,
+				synthesization_helper::field_value_property<&fold_region_node_data::folded_lines>,
 				&fold_region_synth_data::total_folded_lines
 			>;
 			using tree_size_property = sum_synthesizer::compact_property<

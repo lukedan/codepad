@@ -7,7 +7,6 @@
 #include <unordered_map>
 
 #include "element.h"
-#include "manager.h"
 #include "../os/renderer.h"
 
 namespace codepad::ui {
@@ -18,15 +17,15 @@ namespace codepad::ui {
 	struct element_collection_change_info {
 		/// Specifies the type of the change.
 		enum class type {
-			add, ///< An element has been added to the collection.
-			remove, ///< An element has been removed from the collection.
-			set_zindex ///< The z-index of an element has changed.
+			add, ///< Addition of an element.
+			remove, ///< Removal of an element.
+			set_zindex ///< Change of an element's z-index.
 		};
 		/// Constructor.
-		element_collection_change_info(type t, element *c) : change_type(t), changed(c) {
+		element_collection_change_info(type t, element *c) : change_type(t), subject(c) {
 		}
 		const type change_type; ///< The type of the change.
-		element *const changed; ///< The element that has been changed.
+		element *const subject; ///< The \ref element that's involved.
 	};
 	/// Stores and manages a collection of elements.
 	class element_collection {
@@ -34,7 +33,7 @@ namespace codepad::ui {
 		/// Constructs the collection with the given parent.
 		explicit element_collection(panel_base &b) : _f(b) {
 		}
-		/// Destructor. Simply sets element::_parent to \p nullptr for all children.
+		/// Destructor. Checks to ensure that the collection has been cleared.
 		~element_collection();
 
 		/// Adds an element to the collection. The element is added using its original z-index.
@@ -42,6 +41,8 @@ namespace codepad::ui {
 		void add(element&);
 		/// Removes an element from the collection. The element must be a member of this collection.
 		void remove(element&);
+		/// Removes all elements from the collection.
+		void clear();
 		/// Sets the z-index of an element. The element must be a member of this collection.
 		void set_zindex(element&, int);
 
@@ -84,8 +85,13 @@ namespace codepad::ui {
 			return _cs.size();
 		}
 
-		/// Invoked when an element is added, removed, or when an element's z-index has been changed.
-		event<element_collection_change_info> changed;
+		event<element_collection_change_info>
+			/// Invoked before an \ref element's about to be added, removed, or before when an element's z-index has
+			/// been changed.
+			changing,
+			/// Invoked after an \ref element has been added, removed, or after when an element's z-index has been
+			/// changed.
+			changed;
 	protected:
 		panel_base & _f; ///< The panel that this collection belongs to.
 		std::list<element*> _cs; ///< The children, stored in descending order of their z-index.
@@ -124,33 +130,32 @@ namespace codepad::ui {
 			return _dispose_children;
 		}
 	protected:
-		/// Called by \ref element_collection whenever it has changed. Calls the method that
-		/// corresponds to the type of the change.
-		void _on_children_changed(element_collection_change_info &p) {
-			switch (p.change_type) {
-			case element_collection_change_info::type::add:
-				_on_child_added(p.changed);
-				break;
-			case element_collection_change_info::type::remove:
-				_on_child_removed(p.changed);
-				break;
-			case element_collection_change_info::type::set_zindex:
-				_on_child_zindex_changed(p.changed);
-				break;
-			}
+		/// Called when an element is about to be added to this panel. Derived classes can override this function to
+		/// introduce desired behavior.
+		virtual void _on_child_adding(element*) {
 		}
+		/// Called when an element is about to be removed from the panel. Classes that stores additional information
+		/// about their children and allow users to add/remove elements to/from the elements should override this
+		/// function to handle the case where an element is added and then disposed directly, and update stored
+		/// information accordingly in the overriden function. This is because elements are automatically detached
+		/// from their parents when disposed, and the user may be able to dispose them without notifying the parent.
+		virtual void _on_child_removing(element*) {
+		}
+		/// Called when the z-index of an element is about to be changed. Derived classes can override this function
+		/// to introduce desired behavior.
+		virtual void _on_child_zindex_changing(element*) {
+		}
+
 		/// Called when an element is added to this panel. Invalidates the layout of the newly added element,
 		/// and the visual of the panel itself.
 		virtual void _on_child_added(element *e) {
 			e->invalidate_layout();
 			invalidate_visual();
 		}
-		/// Called when an element is removed from the panel. Invalidates the visual of the panel.
+		/// Called when an element is removed from the panel. Invalidates the visual of the panel. See
+		/// \ref _on_child_removing for some important notes.
 		///
-		/// \remark Classes that stores additional information about the children and allow users to add/remove
-		///         elements to/from the elements should override this function to handle the case where an element
-		///         is added and then disposed directly, and update stored information accordingly in the overriden
-		///         function.
+		/// \sa _on_child_removing
 		virtual void _on_child_removed(element*) {
 			invalidate_visual();
 		}
@@ -186,26 +191,7 @@ namespace codepad::ui {
 
 		/// If the mouse is over an element, calls element::_on_mouse_down on that element.
 		/// Sets itself as focused if it can have the focus, and the focus has not been set by another element.
-		void _on_mouse_down(mouse_button_info &p) override {
-			bool childhit = false;
-			for (auto i : _children) {
-				if (_hit_test_child(i, p.position)) {
-					i->_on_mouse_down(p);
-					childhit = true;
-					break;
-				}
-			}
-			mouse_down.invoke(p);
-			if (p.button == os::input::mouse_button::primary) {
-				if (_can_focus && !p.focus_set()) {
-					p.mark_focus_set();
-					manager::get().set_focus(this);
-				}
-				if (!childhit) { // mouse is over a child
-					_set_visual_style_bit(visual::get_predefined_states().mouse_down, true);
-				}
-			}
-		}
+		void _on_mouse_down(mouse_button_info&) override;
 		/// Calls element::_on_mouse_leave for all children that still thinks the mouse is over it.
 		void _on_mouse_leave() override {
 			for (auto i : _children) {
@@ -259,15 +245,9 @@ namespace codepad::ui {
 			element::_on_mouse_up(p);
 		}
 
-		/// Marks all children for disposal if \ref _dispose_children is \p true.
-		void _dispose() override {
-			if (_dispose_children) {
-				for (auto i : _children) {
-					manager::get().mark_disposal(*i);
-				}
-			}
-			element::_dispose();
-		}
+		/// For each child, removes it from \ref _children, and marks it for disposal if \ref _dispose_children is
+		/// \p true.
+		void _dispose() override;
 
 		/// Tests if a given point is within an element, with regard to its visibility.
 		bool _hit_test_child(element *c, vec2d p) {
@@ -277,44 +257,50 @@ namespace codepad::ui {
 			return false;
 		}
 
-		/// Calls element::_recalc_layout on a given child.
-		void _child_recalc_layout_noreval(element *e, rectd r) const {
-			assert_true_usage(e->_parent == this, "_recalc_layout() can only be invoked on children");
+		/// Calls \ref element::_recalc_layout on a given child.
+		inline static void _child_recalc_layout_noreval(element *e, rectd r) {
 			e->_recalc_layout(r);
 		}
+		/// Calls \ref element::_recalc_horizontal_layout on a given child.
+		inline static void _child_recalc_horizontal_layout_noreval(element *e, double xmin, double xmax) {
+			e->_recalc_horizontal_layout(xmin, xmax);
+		}
+		/// Calls \ref element::_recalc_vertical_layout on a given child.
+		inline static void _child_recalc_vertical_layout_noreval(element *e, double ymin, double ymax) {
+			e->_recalc_vertical_layout(ymin, ymax);
+		}
 		/// Sets the layout of a given child.
-		void _child_set_layout_noreval(element *e, rectd r) const {
-			assert_true_usage(e->_parent == this, "layout can only be set for children");
+		inline static void _child_set_layout_noreval(element *e, rectd r) {
 			e->_layout = r;
 		}
-		/// Calls element::_recalc_layout and \ref revalidate_layout on a given child.
-		void _child_recalc_layout(element *e, rectd r) const {
+		/// Calls \ref element::_recalc_layout and \ref revalidate_layout on a given child.
+		inline static void _child_recalc_layout(element *e, rectd r) {
 			_child_recalc_layout_noreval(e, r);
 			e->revalidate_layout();
 		}
-		/// Sets the layout of a given child, and then calls \ref revalidate_layout.
-		void _child_set_layout(element *e, rectd r) const {
+		/// Sets the layout of a given child, then calls \ref revalidate_layout.
+		inline static void _child_set_layout(element *e, rectd r) {
 			_child_set_layout_noreval(e, r);
 			e->revalidate_layout();
 		}
 
-		/// Calls element::_on_render on a given child.
-		void _child_on_render(element *e) const {
-			assert_true_usage(e->_parent == this, "_on_render() can only be invoked on children");
+		/// Calls \ref element::_on_render on a given child.
+		inline static void _child_on_render(element *e) {
 			e->_on_render();
 		}
 
 		element_collection _children{*this}; ///< The collection of its children.
 		/// Caches the cursor of the child that the mouse is over.
 		os::cursor _children_cursor = os::cursor::not_specified;
-		bool _dispose_children = true; ///< Indicates whether the panel marks all children for disposal when disposed.
+		/// Indicates whether the panel marks all children for disposal when disposed.
+		bool _dispose_children = true;
 	};
 
 	/// A basic panel whose children can be freely accessed. Cannot have the focus by default.
 	class panel : public panel_base {
 	public:
 		/// Returns all of its children.
-		element_collection &children() {
+		element_collection & children() {
 			return _children;
 		}
 	protected:
@@ -323,5 +309,120 @@ namespace codepad::ui {
 			panel_base::_initialize();
 			_can_focus = false;
 		}
+	};
+
+	/// Arranges all children sequentially in a given \ref orientation.
+	class stack_panel_base : public panel_base {
+	public:
+		/// Overrides the layout of children.
+		bool override_children_layout() const override {
+			return true;
+		}
+
+		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel_base with the given
+		/// orientation and client area. All elements must be children of the given \ref panel_base.
+		template <orientation Orientation> inline static void layout_elements_in(
+			rectd client, const std::vector<element*> &elems
+		) {
+			if constexpr (Orientation == orientation::horizontal) {
+				_layout_elements_in_impl<
+					Orientation, &element::_recalc_vertical_layout,
+					&rectd::xmin, &rectd::xmax, &rectd::ymin, &rectd::ymax
+				>(client, elems);
+			} else {
+				_layout_elements_in_impl<
+					Orientation, &element::_recalc_horizontal_layout,
+					&rectd::ymin, &rectd::ymax, &rectd::xmin, &rectd::xmax
+				>(client, elems);
+			}
+		}
+		/// Calls the corresponding templated version of \ref layout_elements_in.
+		inline static void layout_elements_in(
+			rectd client, const std::vector<element*> &elems, orientation ori
+		) {
+			if (ori == orientation::horizontal) {
+				layout_elements_in<orientation::horizontal>(client, elems);
+			} else {
+				layout_elements_in<orientation::vertical>(client, elems);
+			}
+		}
+	protected:
+		/// Contains information (size, whether size is a proportion) used for layout calculation.
+		struct _elem_layout_info {
+			/// Default constructor.
+			_elem_layout_info() = default;
+
+			std::pair<double, bool>
+				margin_min, ///< The element's layout settings for its margin in the `negative' direction.
+				size, ///< The element's layout settings for its size.
+				margin_max; ///< The element's layout settings for the margin in the `positive' direction.
+
+			/// Extracts the information corresponding to the given \ref orientation from the given element.
+			template <orientation Orient> inline static _elem_layout_info extract(const element &e) {
+				_elem_layout_info res;
+				if constexpr (Orient == orientation::horizontal) {
+					res.margin_min = {e.get_margin().left, test_bit_any(e.get_anchor(), anchor::left)};
+					res.margin_max = {e.get_margin().right, test_bit_any(e.get_anchor(), anchor::right)};
+					res.size = e.get_layout_width();
+				} else {
+					res.margin_min = {e.get_margin().top, test_bit_any(e.get_anchor(), anchor::top)};
+					res.margin_max = {e.get_margin().bottom, test_bit_any(e.get_anchor(), anchor::bottom)};
+					res.size = e.get_layout_height();
+				}
+				return res;
+			}
+		};
+		/// Implementation of \ref layout_elements_in for a certain \ref orientation.
+		///
+		/// \tparam Orientation The orientation of the stack panel.
+		/// \tparam CalcDefaultDir Member pointer to the function used to calculate layout on the orientation
+		///                        that is irrelevant to the stack panel.
+		/// \tparam MainMin Pointer to the member that holds the minimum position of the client area of the
+		///                 concerned orientation.
+		/// \tparam MainMax Pointer to the member that holds the maximum position of the client area of the
+		///                 concerned orientation.
+		/// \tparam DefMin Pointer to the member that holds the minimum position of the client area of the
+		///                irrelevant orientation.
+		/// \tparam DefMax Pointer to the member that holds the maximum position of the client area of the
+		///                irrelevant orientation.
+		template <
+			orientation Orientation,
+			void (element::*CalcDefaultDir)(double, double),
+			double rectd::*MainMin, double rectd::*MainMax,
+			double rectd::*DefMin, double rectd::*DefMax
+		> inline static void _layout_elements_in_impl(rectd client, const std::vector<element*> &elems) {
+			std::vector<_elem_layout_info> layoutinfo;
+			double total_prop = 0.0, total_px = 0.0;
+			for (element *e : elems) {
+				(e->*CalcDefaultDir)(client.*DefMin, client.*DefMax);
+				_elem_layout_info info = _elem_layout_info::extract<Orientation>(*e);
+				(info.margin_min.second ? total_px : total_prop) += info.margin_min.first;
+				(info.size.second ? total_px : total_prop) += info.size.first;
+				(info.margin_max.second ? total_px : total_prop) += info.margin_max.first;
+				layoutinfo.emplace_back(info);
+			}
+			// distribute the remaining space
+			double prop_mult = (client.*MainMax - client.*MainMin - total_px) / total_prop, pos = client.*MainMin;
+			for (size_t i = 0; i < elems.size(); ++i) {
+				element *e = elems[i];
+				const _elem_layout_info &info = layoutinfo[i];
+				rectd nl = e->get_layout();
+				nl.*MainMin = pos +=
+					info.margin_min.second ?
+					info.margin_min.first :
+					info.margin_min.first * prop_mult;
+				nl.*MainMax = pos +=
+					info.size.second ?
+					info.size.first :
+					info.size.first * prop_mult;
+				pos +=
+					info.margin_max.second ?
+					info.margin_max.first :
+					info.margin_max.first * prop_mult;
+				_child_set_layout(e, nl);
+			}
+		}
+
+		orientation _ori = orientation::vertical; ///< The orientation in which children are placed.
 	};
 }

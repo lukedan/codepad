@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file
-/// Classes related to `window's.
+/// Classes related to ``window''s.
 
 #include <chrono>
 #include <functional>
@@ -23,7 +23,6 @@ namespace codepad::os {
 	};
 	/// Base class of all windows. Defines basic interfaces that all windows should implement.
 	class window_base : public ui::panel {
-		friend class ui::manager;
 		friend class ui::element_collection;
 		friend class ui::decoration;
 	public:
@@ -115,6 +114,30 @@ namespace codepad::os {
 			invalidate_layout();
 		}
 
+		/// Returns the \ref ui::element that's focused within this window. The focused element in a window is
+		/// preserved even if the window loses focus.
+		ui::element *get_window_focused_element() const {
+			return _focus;
+		}
+		/// Called to set the focused element within this window. This function invokes appropriate handlers and
+		/// refreshes the list of \ref ui::element_hotkey_group "element_hotkey_groups"
+		void set_window_focused_element(ui::element &e) {
+			assert_true_logical(e.get_window() == this, "corrupted element tree");
+			if (&e != _focus) {
+				ui::element *oldfocus = _focus;
+				_focus = &e;
+				std::vector<ui::element_hotkey_group_data> gps;
+				for (ui::element *cur = _focus; cur != nullptr; cur = cur->parent()) {
+					const ui::element_hotkey_group
+						*gp = ui::class_manager::get().hotkeys.find(cur->get_class());
+					gps.push_back(ui::element_hotkey_group_data(gp, cur));
+				}
+				hotkey_manager.reset_groups(gps);
+				oldfocus->_on_lost_focus();
+				e._on_got_focus();
+			}
+		}
+
 		event<void>
 			close_request, ///< Invoked when the user clicks the `close' button.
 			got_window_focus, ///< Invoked when the window gets keyboard focus.
@@ -155,7 +178,7 @@ namespace codepad::os {
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
 		void _on_key_down(ui::key_info &p) override {
-			if (_focus && _focus != this) {
+			if (_focus != this) {
 				_focus->_on_key_down(p);
 			} else {
 				panel::_on_key_down(p);
@@ -164,7 +187,7 @@ namespace codepad::os {
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
 		void _on_key_up(ui::key_info &p) override {
-			if (_focus && _focus != this) {
+			if (_focus != this) {
 				_focus->_on_key_up(p);
 			} else {
 				panel::_on_key_up(p);
@@ -173,7 +196,7 @@ namespace codepad::os {
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
 		void _on_keyboard_text(ui::text_info &p) override {
-			if (_focus && _focus != this) {
+			if (_focus != this) {
 				_focus->_on_keyboard_text(p);
 			} else {
 				panel::_on_keyboard_text(p);
@@ -182,7 +205,7 @@ namespace codepad::os {
 		/// Forwards the composition event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
 		void _on_composition(ui::composition_info &p) override {
-			if (_focus && _focus != this) {
+			if (_focus != this) {
 				_focus->_on_composition(p);
 			} else {
 				panel::_on_composition(p);
@@ -191,16 +214,18 @@ namespace codepad::os {
 		/// Forwards the composition event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
 		void _on_composition_finished() override {
-			if (_focus && _focus != this) {
+			if (_focus != this) {
 				_focus->_on_composition_finished();
 			} else {
 				panel::_on_composition_finished();
 			}
 		}
 
+
 		/// Does nothing. The layout is automatically updated when the window is resized.
 		void _recalc_layout(rectd) override {
 		}
+
 
 		/// Called when an element is being removed from this window. Resets the focus if the
 		/// removed element has it.
@@ -209,40 +234,16 @@ namespace codepad::os {
 			for (; ef != nullptr && e != ef; ef = ef->parent()) {
 			}
 			if (ef != nullptr) {
-				if (ui::manager::get().get_focused() == _focus) {
-					ui::manager::get().set_focus(this);
-				} else {
-					_set_window_focus_element(this);
-				}
+				set_window_focused_element(*this);
 			}
 		}
-		/// Called to set the focused element within this window. That element is automatically focused
-		/// when the window gets the focus.
-		virtual void _set_window_focus_element(ui::element *e) {
-			assert_true_logical(e && e->get_window() == this, "corrupted element tree");
-			if (e != _focus) {
-				_focus = e;
-				std::vector<ui::element_hotkey_group_data> gps;
-				for (ui::element *cur = _focus; cur != nullptr; cur = cur->parent()) {
-					const ui::element_hotkey_group
-						*gp = ui::class_manager::get().hotkeys.find(cur->get_class());
-					gps.push_back(ui::element_hotkey_group_data(gp, cur));
-				}
-				hotkey_manager.reset_groups(gps);
-			}
-		}
+		/// Called when the window gets the focus. Calls \ref ui::manager::_on_window_got_focus, and invokes
+		/// \ref ui::element::_on_got_focus on \ref _focus.
+		virtual void _on_got_window_focus();
+		/// Called when the window loses the focus. Calls \ref ui::manager::_on_window_lost_focus, and invokes
+		/// \ref ui::element::_on_lost_focus on \ref _focus.
+		virtual void _on_lost_window_focus();
 
-		/// Called when the window gets the focus.
-		virtual void _on_got_window_focus() {
-			ui::manager::get().set_focus(_focus);
-			got_window_focus.invoke();
-		}
-		/// Called when the window loses the focus.
-		virtual void _on_lost_window_focus() {
-			// since only one unified message pump is used, setfocus shouldn't have been received yet
-			ui::manager::get().set_focus(nullptr);
-			lost_window_focus.invoke();
-		}
 		/// Called when mouse capture is broken by the user's actions.
 		virtual void _on_lost_window_capture() {
 			if (_capture != nullptr) {
@@ -250,6 +251,7 @@ namespace codepad::os {
 				_capture = nullptr;
 			}
 		}
+
 
 		/// Renders all the window's children, then renders all decorations on top of the rendered result.
 		void _custom_render() override {
@@ -284,25 +286,14 @@ namespace codepad::os {
 			invalidate_layout();
 		}
 
+
 		/// Registers the window to \ref renderer_base.
 		void _initialize() override {
 			panel::_initialize();
 			renderer_base::get()._new_window(*this);
 		}
 		/// Deletes all decorations, releases the focus, and unregisters the window from \ref renderer_base.
-		void _dispose() override {
-			// special care taken
-			auto i = _decos.begin(), j = i;
-			for (; i != _decos.end(); i = j) {
-				++j;
-				delete *i;
-			}
-			if (ui::manager::get().get_focused() == _focus) {
-				ui::manager::get().set_focus(nullptr);
-			}
-			renderer_base::get()._delete_window(*this);
-			panel::_dispose();
-		}
+		void _dispose() override;
 
 		/// If the mouse is captured by an element, forwards the event to the element. Otherwise falls back
 		/// to the default behavior.

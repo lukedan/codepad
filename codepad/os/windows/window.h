@@ -6,6 +6,7 @@
 #include <windowsx.h>
 #include <imm.h>
 
+#include "../../ui/manager.h"
 #include "../renderer.h"
 #include "../window.h"
 #include "misc.h"

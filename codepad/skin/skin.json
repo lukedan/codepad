@@ -1,226 +1,308 @@
 {
-	"tab_button": [{
-		"layers": [{
-			"anchor": "ltrb",
-			"color": {
-				"from": ["hsl", 230, 1, 0.5, 0.0],
-				"has_from": false,
-				"to": ["hsl", 230, 1, 0.5, 0.0],
-				"duration": 0.1
-			},
-			"margins": {
-				"to": [0, 5, 0, 0],
-				"duration": 0.1,
-				"transition": "convex_quadratic"
-			}
-		}]
-	}, {
-		"states": ["mouse_over"],
-		"inherit_from": [],
-		"layers": [{
-			"color": {
-				"to": ["hsl", 230, 1, 0.5, 0.6]
-			},
-			"margins": {
-				"to": 0
-			}
-		}]
-	}, {
-		"states": ["mouse_over", "mouse_down"],
-		"inherit_from": ["mouse_over"],
-		"layers": [{
-			"margins": {
-				"to": 2
-			}
-		}]
-	}],
-	"insert_caret": [{
-		"states": ["focused"],
-		"layers": [{
-			"anchor": "ltb",
-			"margins": 0.0,
-			"color": {
-				"from": [1.0, 1.0, 1.0, 1.0],
-				"to": [1.0, 1.0, 1.0, 0.0],
-				"duration": 0.5,
-				"auto_reverse": true,
-				"repeat": true,
-				"transition": "concave_quadratic"
-			},
-			"size": [1.0, 0.0]
-		}]
-	}, {
-		"inherit_from": ["focused"],
-		"layers": [{
-			"color": {
-				"has_from": false,
-				"to": [1.0, 1.0, 1.0, 0.8],
-				"duration": 0.1,
-				"auto_reverse": false,
-				"repeat": false
-			}
-		}]
-	}],
-	"overwrite_caret": [{
-		"states": ["focused"],
-		"layers": [{
-			"anchor": "lrtb",
-			"margins": 0.0,
-			"color": {
-				"from": [1.0, 1.0, 1.0, 0.5],
-				"to": [1.0, 1.0, 1.0, 0.0],
-				"duration": 0.5,
-				"auto_reverse": true,
-				"repeat": true,
-				"transition": "concave_quadratic"
-			}
-		}]
-	}, {
-		"inherit_from": ["focused"],
-		"layers": [{
-			"color": {
-				"has_from": false,
-				"to": [1.0, 1.0, 1.0, 0.4],
-				"duration": 0.1,
-				"auto_reverse": false,
-				"repeat": false
-			}
-		}]
-	}],
-	"editor_selection": [{
-		"layers": [{
-			"anchor": "ltrb",
-			"margins": 0.0,
-			"color": {
-				"from": [0.3, 0.3, 0.3, 0.5],
-				"has_from": false,
-				"to": [0.3, 0.3, 0.3, 0.5],
-				"duration": 0.1
-			}
-		}]
-	}, {
-		"states": ["focused"],
-		"inherit_from": [],
-		"layers": [{
-			"color": {
-				"to": [0.3, 0.5, 1.0, 0.3]
-			}
-		}]
-	}],
-	"minimap_viewport": [{
-		"layers": [{
-			"texture": "round_corner_2px.png",
-			"type": "grid",
-			"margins": 2.0,
-			"color": {
-				"to": [1.0, 1.0, 1.0, 0.2],
-				"duration": 0.1
-			}
-		}]
-	}, {
-		"states": ["mouse_over"],
-		"inherit_from": [],
-		"layers": [{
-			"color": {
-				"to": [1.0, 1.0, 1.0, 0.3]
-			}
-		}]
-	}, {
-		"states": ["mouse_over", "mouse_down"],
-		"inherit_from": ["mouse_over"]
-	}],
-	"scroll_bar_page_up_button": [{
-		"layers": []
-	}],
-	"scroll_bar_page_down_button": [{
-		"layers": []
-	}],
-	"scroll_bar": [{
-		"layers": [{
-			"texture": "round_corner_2px.png",
-			"type": "grid",
-			"margins": 2.0,
-			"color": [0.4, 0.4, 0.4, 1.0]
-		}]
-	}],
-	"scroll_bar_drag_button": [{
-		"layers": [{
-			"texture": "round_corner_2px.png",
-			"type": "grid",
-			"margins": 2.0,
-			"color": {
-				"to": [0.8, 0.8, 0.8, 1.0],
-				"duration": 0.1
-			}
-		}]
-	}, {
-		"states": ["mouse_over"],
-		"inherit_from": [],
-		"layers": [{
-			"color": {
-				"to": [1.0, 1.0, 1.0, 1.0]
-			}
-		}]
-	}, {
-		"states": ["mouse_over", "mouse_down"],
-		"inherit_from": [],
-		"layers": [{
-			"color": {
-				"to": [0.2, 0.2, 0.2, 1.0]
-			}
-		}]
-	}],
-	"drag_preview": [{
-		"layers": [{
-			"margins": {
-				"from": 20,
-				"to": 0,
-				"transition": "convex_quadratic",
-				"duration": 0.1
-			},
-			"color": {
-				"from": [0.5, 0.5, 1.0, 0.0],
-				"to": [0.5, 0.5, 1.0, 0.6],
-				"duration": 0.1
-			}
-		}]
-	}, {
-		"states": ["corpse"],
-		"inherit_from": [],
-		"layers": [{
-			"margins": {
-				"has_from": false,
-				"to": 20,
-				"transition": "concave_quadratic"
-			},
-			"color": {
-				"has_from": false,
-				"to": [0.5, 0.5, 1.0, 0.0]
-			}
-		}]
-	}],
-	"tab_close_button": [{
-		"layers": [{
-			"color": {
-				"to": [0.4, 0.4, 0.4, 1.0],
-				"duration": 0.1
-			}
-		}]
-	}, {
-		"states": ["mouse_over"],
-		"inherit_from": [],
-		"layers": [{
-			"color": {
-				"to": [0.6, 0.6, 0.6, 1.0]
-			}
-		}]
-	}, {
-		"states": ["mouse_over", "mouse_down"],
-		"inherit_from": [],
-		"layers": [{
-			"color": {
-				"to": [0.2, 0.2, 0.2, 1.0]
-			}
-		}]
-	}]
+	"scroll_bar_drag_button": [
+		{
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 1.0,
+					"color": {
+						"from": [0.8, 0.8, 0.8, 1.0],
+						"has_from": false,
+						"to": [0.8, 0.8, 0.8, 1.0],
+						"duration": 0.1
+					}
+				}
+			]
+		}, {
+			"states": ["mouse_over"],
+			"inherit_from": [],
+			"layers": [
+				{
+					"color": {
+						"to": [1.0, 1.0, 1.0, 1.0]
+					}
+				}
+			]
+		}, {
+			"states": ["mouse_over", "mouse_down"],
+			"inherit_from": [],
+			"layers": [
+				{
+					"color": {
+						"to": [0.2, 0.2, 0.2, 1.0]
+					}
+				}
+			]
+		}
+	],
+
+
+	"tab_button": [
+		{
+			"layers": [
+				{
+					"anchor": "b",
+					"width_alloc": "*",
+					"height_alloc": "px",
+					"color": ["hsl", 230, 1, 0.5, 1.0],
+					"margin": {
+						"from": [1.0, 0.0, 1.0, 0.0],
+						"has_from": false,
+						"to": [1.0, 0.0, 1.0, 0.0],
+						"duration": 0.1,
+						"transition": "convex_quadratic"
+					},
+					"size": {
+						"from": [0.0, 2.0],
+						"has_from": false,
+						"to": [0.0, 1.0],
+						"duration": 0.1,
+						"transition": "convex_quadratic"
+					}
+				}, {
+					"anchor": "lrb",
+					"width_alloc": "*",
+					"height_alloc": "*",
+					"color": [1.0, 1.0, 1.0, 0.2],
+					"margin": {
+						"from": [0.0, 1.0, 0.0, 0.0],
+						"has_from": false,
+						"to": [0.0, 1.0, 0.0, 0.0],
+						"duration": 0.1,
+						"transition": "convex_quadratic"
+					},
+					"size": {
+						"from": [1.0, 0.0],
+						"has_from": false,
+						"to": [1.0, 0.0],
+						"duration": 0.1,
+						"transition": "convex_quadratic"
+					}
+				}
+			]
+		}, {
+			"states": ["mouse_over"],
+			"inherit_from": [],
+			"layers": [
+				{
+					"size": {
+						"to": [1.0, 2.0]
+					},
+					"margin": {
+						"to": 0.0
+					}
+				}, {}
+			]
+		}, {
+			"states": ["mouse_over", "mouse_down"],
+			"inherit_from": ["mouse_over"],
+			"layers": [
+				{}, {
+					"size": {
+						"to": [0.0, 1.0]
+					},
+					"margin": {
+						"to": 0.0
+					}
+				}
+			]
+		}
+	],
+	"drag_preview": [
+		{
+			"layers": [
+				{
+					"anchor": "",
+					"width_alloc": "*",
+					"height_alloc": "*",
+					"size": [1.0, 1.0],
+					"margin": {
+						"from": 0.05,
+						"to": 0,
+						"transition": "convex_quadratic",
+						"duration": 0.1
+					},
+					"color": {
+						"from": [0.5, 0.5, 1.0, 0.0],
+						"to": [0.5, 0.5, 1.0, 0.6],
+						"duration": 0.1
+					}
+				}
+			]
+		}, {
+			"states": ["corpse"],
+			"inherit_from": [],
+			"layers": [
+				{
+					"margin": {
+						"has_from": false,
+						"to": 0.05,
+						"transition": "concave_quadratic"
+					},
+					"color": {
+						"has_from": false,
+						"to": [0.5, 0.5, 1.0, 0.0]
+					}
+				}
+			]
+		}
+	],
+	"tab_close_button": [
+		{
+			"layers": [
+				{
+					"color": {
+						"from": [0.4, 0.4, 0.4, 1.0],
+						"has_from": false,
+						"to": [0.4, 0.4, 0.4, 1.0],
+						"duration": 0.1
+					}
+				}
+			]
+		}, {
+			"states": ["mouse_over"],
+			"inherit_from": [],
+			"layers": [
+				{
+					"color": {
+						"to": [0.6, 0.6, 0.6, 1.0]
+					}
+				}
+			]
+		}, {
+			"states": ["mouse_over", "mouse_down"],
+			"inherit_from": [],
+			"layers": [
+				{
+					"color": {
+						"to": [0.2, 0.2, 0.2, 1.0]
+					}
+				}
+			]
+		}
+	],
+
+
+	"insert_caret": [
+		{
+			"states": ["focused"],
+			"layers": [
+				{
+					"anchor": "ltb",
+					"width_alloc": "px",
+					"margin": 0.0,
+					"size": [1.0, 1.0],
+					"color": {
+						"from": [1.0, 1.0, 1.0, 1.0],
+						"to": [1.0, 1.0, 1.0, 0.0],
+						"duration": 0.5,
+						"auto_reverse": true,
+						"transition": "concave_quadratic",
+						"repeat": true
+					}
+				}
+			]
+		}, {
+			"inherit_from": ["focused"],
+			"layers": [
+				{
+					"color": {
+						"has_from": false,
+						"to": [1.0, 1.0, 1.0, 0.8],
+						"duration": 0.1,
+						"auto_reverse": false,
+						"repeat": false
+					}
+				}
+			]
+		}
+	],
+	"overwrite_caret": [
+		{
+			"states": ["focused"],
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": {
+						"from": [1.0, 1.0, 1.0, 0.5],
+						"to": [1.0, 1.0, 1.0, 0.0],
+						"duration": 0.5,
+						"auto_reverse": true,
+						"repeat": true,
+						"transition": "concave_quadratic"
+					}
+				}
+			]
+		}, {
+			"inherit_from": ["focused"],
+			"layers": [
+				{
+					"color": {
+						"has_from": false,
+						"to": [1.0, 1.0, 1.0, 0.4],
+						"duration": 0.1,
+						"auto_reverse": false,
+						"repeat": false
+					}
+				}
+			]
+		}
+	],
+	"editor_selection": [
+		{
+			"states": ["focused"],
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": {
+						"from": [0.3, 0.5, 1.0, 0.3],
+						"has_from": false,
+						"to": [0.3, 0.5, 1.0, 0.3],
+						"duration": 0.1
+					}
+				}
+			]
+		}, {
+			"inherit_from": ["focused"],
+			"layers": [
+				{
+					"color": {
+						"to": [0.3, 0.3, 0.3, 0.5]
+					}
+				}
+			]
+		}
+	],
+
+	"minimap_viewport": [
+		{
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": {
+						"from": [1.0, 1.0, 1.0, 0.2],
+						"has_from": false,
+						"to": [1.0, 1.0, 1.0, 0.2],
+						"duration": 0.1
+					}
+				}
+			]
+		}, {
+			"states": ["mouse_over"],
+			"inherit_from": [],
+			"layers": [
+				{
+					"color": {
+						"to": [1.0, 1.0, 1.0, 0.3]
+					}
+				}
+			]
+		}, {
+			"states": ["mouse_over", "mouse_down"],
+			"inherit_from": ["mouse_over"]
+		}
+	]
 }

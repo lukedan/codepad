@@ -37,33 +37,39 @@ namespace codepad::editor {
 	}
 
 	void tab_host::remove_tab(tab &t) {
-		if (t._text_tok == _active_tab) { // change active tab
-			if (_tabs.size() == 1) {
-				_active_tab = _tabs.end();
-			} else {
-				auto toact = _active_tab;
-				if (++toact == _tabs.end()) {
-					toact = _active_tab;
-					--toact;
-				}
-				bool is_focused = false;
-				for (element *e = manager::get().get_focused(); e; e = e->parent()) {
-					if (e == this) {
-						is_focused = true;
+		_children.remove(t);
+	}
+
+	void tab_host::_on_child_removing(element *elem) {
+		tab *t = dynamic_cast<tab*>(elem);
+		if (t != nullptr) {
+			if (t->_text_tok == _active_tab) { // change active tab
+				if (_tabs.size() == 1) {
+					_active_tab = _tabs.end();
+				} else {
+					auto toact = _active_tab;
+					if (++toact == _tabs.end()) {
+						toact = _active_tab;
+						--toact;
+					}
+					bool is_focused = false;
+					os::window_base *wnd = get_window();
+					for (element *e = wnd->get_window_focused_element(); e; e = e->parent()) {
+						if (e == this) {
+							is_focused = true;
+						}
+					}
+					switch_tab(**toact);
+					if (is_focused) {
+						wnd->set_window_focused_element(**toact);
 					}
 				}
-				if (is_focused) {
-					activate_tab(**toact);
-				} else {
-					switch_tab(**toact);
-				}
 			}
+			_children.remove(*t->_btn);
+			_tabs.erase(t->_text_tok);
+			tab_manager::get()._on_tab_detached(*this, *t);
+			invalidate_layout();
 		}
-		_children.remove(t);
-		_children.remove(*t._btn);
-		_tabs.erase(t._text_tok);
-		invalidate_layout();
-		tab_manager::get()._on_tab_detached(*this, t);
 	}
 
 	void tab_host::switch_tab(tab &t) {
@@ -79,7 +85,7 @@ namespace codepad::editor {
 	}
 	void tab_host::activate_tab(tab &t) {
 		switch_tab(t);
-		manager::get().set_focus(&t);
+		manager::get().set_focused_element(t);
 	}
 
 	size_t tab_host::get_tab_position(tab &tb) const {
@@ -114,11 +120,12 @@ namespace codepad::editor {
 		invalidate_layout();
 	}
 
+	/// \todo Use stack panel-like layout for tab buttons.
 	void tab_host::_finish_layout() {
 		rectd client = get_client_region();
 		double x = client.xmin, y = tab_button::get_tab_button_area_height();
 		for (auto i = _tabs.begin(); i != _tabs.end(); ++i) {
-			double w = (*i)->_btn->get_desired_size().x;
+			double w = (*i)->_btn->get_desired_width().first;
 			_child_set_layout((*i)->_btn, rectd::from_xywh(
 				x + (*i)->_btn->_xoffset, client.ymin, w, y
 			));
@@ -147,7 +154,7 @@ namespace codepad::editor {
 					_dtype = drag_destination_type::new_window;
 					_dest = nullptr;
 				} else { // update tab position
-					_update_drag_tab_position(mpos.x + rgn.xmin, rgn.width());
+					_update_drag_tab_position(mpos.x - rgn.xmin, rgn.width());
 				}
 			}
 			// these are used to find the tab_host with the nearest center point
@@ -171,7 +178,7 @@ namespace codepad::editor {
 								_dest->add_tab(*_drag);
 								_dest->activate_tab(*_drag);
 								// update position
-								_update_drag_tab_position(mpos.x + rgn.xmin, rgn.width());
+								_update_drag_tab_position(mpos.x - rgn.xmin, rgn.width());
 								wnd->activate();
 								// should no longer go on
 								goon = false;

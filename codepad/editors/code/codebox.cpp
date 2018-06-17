@@ -1,5 +1,14 @@
 #include "codebox.h"
+
+/// \file
+/// Implementation of certain functions of \ref codepad::editor::code::codebox.
+
+#include <vector>
+
 #include "editor.h"
+
+
+using namespace std;
 
 using namespace codepad::ui;
 
@@ -25,6 +34,7 @@ namespace codepad::editor::code {
 		panel_base::_initialize();
 
 		_vscroll = element::create<scroll_bar>();
+		_vscroll->set_orientation(orientation::vertical);
 		_vscroll->set_anchor(anchor::dock_right);
 		_vscroll->value_changed += [this](value_update_info<double> &info) {
 			_editor->_update_window_caret_position(); // update caret position
@@ -41,23 +51,6 @@ namespace codepad::editor::code {
 	}
 	void codebox::_dispose() {
 		_editor->editing_visual_changed -= _mod_tok;
-
-		// dispose components
-		while (_lcs.size() > 0) {
-			component &cmp = *_lcs.back();
-			_remove_component_from(cmp, _lcs);
-			if (_dispose_children) {
-				ui::manager::get().mark_disposal(cmp);
-			}
-		}
-		while (_rcs.size() > 0) {
-			component &cmp = *_rcs.back();
-			_remove_component_from(cmp, _rcs);
-			if (_dispose_children) {
-				ui::manager::get().mark_disposal(cmp);
-			}
-		}
-
 		panel_base::_dispose();
 	}
 
@@ -82,34 +75,25 @@ namespace codepad::editor::code {
 		_editor->_on_keyboard_text(p);
 	}
 
+	void codebox::_on_child_removing(ui::element *elem) {
+		component *comp = dynamic_cast<component*>(elem);
+		if (comp == nullptr) { // not a component
+			assert_true_logical(elem == _editor || elem == _vscroll, "corrupted element tree");
+			return;
+		}
+		comp->_on_removing();
+	}
+
 	void codebox::_finish_layout() {
 		rectd lo = get_client_region();
 		_child_recalc_layout(_vscroll, lo);
 
-		rectd r = get_components_region();
-		// components on the left
-		double lpos = r.xmin;
-		for (component *comp : _lcs) {
-			double cw = comp->get_desired_size().x;
-			thickness mg = comp->get_margin();
-			lpos += mg.left;
-			_child_set_layout(comp, rectd(lpos, lpos + cw, lo.ymin, lo.ymax));
-			lpos += cw + mg.right;
+		vector<element*> elems(_lcs.begin(), _lcs.end());
+		elems.emplace_back(_editor);
+		for (element *e : _rcs) {
+			elems.emplace_back(e);
 		}
-
-		// components on the right
-		double rpos = r.xmax;
-		for (auto i = _rcs.rbegin(); i != _rcs.rend(); ++i) {
-			double cw = (*i)->get_desired_size().x;
-			thickness mg = (*i)->get_margin();
-			rpos -= mg.right;
-			_child_set_layout(*i, rectd(rpos - cw, rpos, lo.ymin, lo.ymax));
-			rpos -= cw - mg.left;
-		}
-
-		// editor
-		thickness emg = _editor->get_margin();
-		_child_set_layout(_editor, rectd(lpos + emg.left, rpos - emg.right, lo.ymin, lo.ymax));
+		stack_panel_base::layout_elements_in<orientation::horizontal>(get_components_region(), elems);
 
 		panel_base::_finish_layout();
 	}

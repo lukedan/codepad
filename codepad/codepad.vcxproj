@@ -326,6 +326,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="os\opengl_renderer_base.cpp" />
     <ClCompile Include="os\software_renderer_base.cpp" />
+    <ClCompile Include="os\window.cpp" />
     <ClCompile Include="os\windows\filesystem.cpp" />
     <ClCompile Include="os\windows\windows.cpp" />
     <ClCompile Include="ui\common_elements.cpp" />

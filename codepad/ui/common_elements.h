@@ -12,12 +12,6 @@
 #include "../os/window.h"
 
 namespace codepad::ui {
-	/// Represents an orientation.
-	enum class orientation {
-		horizontal, ///< Horizontal.
-		vertical ///< Vertical.
-	};
-
 	/// Used to display text in \ref element "elements".
 	///
 	/// \todo Need a more elegent way to notify the parent of layout & visual changes.
@@ -136,7 +130,10 @@ namespace codepad::ui {
 		/// and to mark the parent for relayout if its size is `automatic'.
 		virtual void _on_text_size_changed() {
 			_szcache_id = _noszcache;
-			if (!_parent.has_width() || !_parent.has_height()) {
+			if (
+				_parent.get_width_allocation_type() == size_allocation_type::automatic ||
+				_parent.get_height_allocation_type() == size_allocation_type::automatic
+				) {
 				_parent.invalidate_layout();
 			}
 			_parent.invalidate_visual();
@@ -164,9 +161,13 @@ namespace codepad::ui {
 			return _content;
 		}
 
-		/// Returns the combined size of the text and the padding.
-		vec2d get_desired_size() const override {
-			return _content.get_text_size() + _padding.size();
+		/// Returns the combined width of the text and the padding in pixels.
+		std::pair<double, bool> get_desired_width() const override {
+			return {_content.get_text_size().x + _padding.width(), true};
+		}
+		/// Returns the combined height of the text and the padding in pixels.
+		std::pair<double, bool> get_desired_height() const override {
+			return {_content.get_text_size().y + _padding.height(), true};
 		}
 
 		/// Returns the default class of elements of this type.
@@ -363,11 +364,23 @@ namespace codepad::ui {
 			return _ori;
 		}
 
-		/// Returns the default desired size of the scroll bar.
+		/// Returns the default desired width of the scroll bar.
 		///
 		/// \todo Extract the constants.
-		vec2d get_desired_size() const override {
-			return vec2d(10.0, 10.0) + get_padding().size();
+		std::pair<double, bool> get_desired_width() const override {
+			if (get_orientation() == orientation::vertical) {
+				return {10.0, true};
+			}
+			return {1.0, false};
+		}
+		/// Returns the default desired height of the scroll bar.
+		///
+		/// \todo Extract the constants.
+		std::pair<double, bool> get_desired_height() const override {
+			if (get_orientation() == orientation::horizontal) {
+				return {10.0, true};
+			}
+			return {1.0, false};
 		}
 
 		/// Sets the current value of the scroll bar.

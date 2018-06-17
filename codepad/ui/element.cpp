@@ -24,14 +24,14 @@ namespace codepad {
 		}
 
 		bool element::has_focus() const {
-			return manager::get().get_focused() == this;
+			return manager::get().get_focused_element() == this;
 		}
 
 		void element::_on_mouse_down(mouse_button_info &p) {
 			if (p.button == input::mouse_button::primary) {
 				if (_can_focus && !p.focus_set()) {
 					p.mark_focus_set();
-					manager::get().set_focus(this);
+					get_window()->set_window_focused_element(*this);
 				}
 				_set_visual_style_bit(visual::get_predefined_states().mouse_down, true);
 			}
@@ -49,16 +49,23 @@ namespace codepad {
 			}
 		}
 
-		void element::_recalc_layout(rectd prgn) {
-			_layout = prgn;
-			vec2d sz = get_target_size();
+		void element::_recalc_horizontal_layout(double xmin, double xmax) {
+			auto wprop = get_layout_width();
+			_layout.xmin = xmin;
+			_layout.xmax = xmax;
 			layout_on_direction(
-				test_bit_all(_anchor, anchor::left), test_bit_all(_anchor, anchor::right),
-				_layout.xmin, _layout.xmax, _margin.left, _margin.right, sz.x
+				test_bit_all(_anchor, anchor::left), wprop.second, test_bit_all(_anchor, anchor::right),
+				_layout.xmin, _layout.xmax, _margin.left, wprop.first, _margin.right
 			);
+		}
+
+		void element::_recalc_vertical_layout(double ymin, double ymax) {
+			auto hprop = get_layout_height();
+			_layout.ymin = ymin;
+			_layout.ymax = ymax;
 			layout_on_direction(
-				test_bit_all(_anchor, anchor::top), test_bit_all(_anchor, anchor::bottom),
-				_layout.ymin, _layout.ymax, _margin.top, _margin.bottom, sz.y
+				test_bit_all(_anchor, anchor::top), hprop.second, test_bit_all(_anchor, anchor::bottom),
+				_layout.ymin, _layout.ymax, _margin.top, hprop.first, _margin.bottom
 			);
 		}
 

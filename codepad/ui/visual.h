@@ -52,7 +52,7 @@ namespace codepad::ui {
 	/// Used to specify to which sides an object is anchored.
 	/// If an object is anchored to a side, then the distance between the borders
 	/// of the object and its container is kept to be the specified value.
-	enum class anchor {
+	enum class anchor : unsigned char {
 		none = 0, ///< The object is not anchored to any side.
 
 		left = 1, ///< The object is anchored to the left side.
@@ -75,31 +75,58 @@ namespace codepad::ui {
 
 		all = left | top | right | bottom ///< The object is anchored to all four sides.
 	};
+	/// Determines how size is allocated to each \ref element.
+	enum class size_allocation_type : unsigned char {
+		automatic, ///< The size is determined by \ref element::get_desired_size.
+		fixed, ///< The user specifies the size in pixels.
+		proportion ///< The user specifies the size as a proportion.
+	};
 	/// Specifies the visibility of objects.
-	enum class visibility {
+	enum class visibility : unsigned char {
 		ignored = 0, ///< The object is invisible, and the user cannot interact with it.
 		render_only = 1, ///< The object is visible, but the user cannot interact with it.
 		interaction_only = 2, ///< The object is invisibile, but the user can interact with it.
 		visible = render_only | interaction_only ///< The object is visible and the user can interact with it.
 	};
+	/// Represents an orientation.
+	enum class orientation {
+		horizontal, ///< Horizontal.
+		vertical ///< Vertical.
+	};
 
-	/// The linear transition function.
-	inline double linear_transition_func(double v) {
-		return v;
+	/// Transition functions used in animations.
+	namespace transition_functions {
+		/// The linear transition function.
+		inline double linear(double v) {
+			return v;
+		}
+
+		/// The smoothstep transition function.
+		inline double smoothstep(double v) {
+			return v * v * (3.0 - 2.0 * v);
+		}
+
+		/// The concave quadratic transition function.
+		inline double concave_quadratic(double v) {
+			return v * v;
+		}
+		/// The convex quadratic transition function.
+		inline double convex_quadratic(double v) {
+			v = 1.0 - v;
+			return 1.0 - v * v;
+		}
+
+		/// The concave cubic transition function.
+		inline double concave_cubic(double v) {
+			return v * v * v;
+		}
+		/// The convex cubic transition function.
+		inline double convex_cubic(double v) {
+			v = 1.0 - v;
+			return 1.0 - v * v * v;
+		}
 	}
-	/// The concave quadratic transition function.
-	inline double concave_quadratic_transition_func(double v) {
-		return v * v;
-	}
-	/// The convex quadratic transition function.
-	inline double convex_quadratic_transition_func(double v) {
-		v = 1.0 - v;
-		return 1.0 - v * v;
-	}
-	/// The smoothstep transition function.
-	inline double smoothstep_transition_func(double v) {
-		return v * v * (3.0 - 2.0 * v);
-	}
+
 	class visual_json_parser;
 
 	/// A property of a \ref visual_layer that can be animated. This only stores the
@@ -150,7 +177,7 @@ namespace codepad::ui {
 		/// This function should accept a double in the range of [0, 1] and return a double in the same range.
 		/// The input indicates the current process of the animation, and the output is used to linearly
 		/// interpolate the current value between \ref from and \ref to.
-		std::function<double(double)> transition_func = linear_transition_func;
+		std::function<double(double)> transition_func = transition_functions::linear;
 
 		/// Updates the given state.
 		///
@@ -344,6 +371,11 @@ namespace codepad::ui {
 		animated_property<vec2d> size_animation; ///< The size used to calculate the center region.
 		animated_property<thickness> margin_animation; ///< The margin used to calculate the center region.
 		anchor rect_anchor = anchor::all; ///< The anchor of the center region.
+		size_allocation_type
+			/// The allocation type of the width of \ref size_animation.
+			width_alloc = size_allocation_type::automatic,
+			/// The allocation type of the height of \ref size_animation.
+			height_alloc = size_allocation_type::automatic;
 		type layer_type = type::solid; ///< Determines how the center region is handled.
 	};
 	/// Stores all layers of an object's visual in a certain state.
@@ -536,10 +568,16 @@ namespace codepad::ui {
 				predef_states.focused = get_or_register_state_id(CP_STRLIT("focused"));
 				predef_states.corpse = get_or_register_state_id(CP_STRLIT("corpse"));
 
-				transition_func_mapping.insert({CP_STRLIT("linear"), linear_transition_func});
-				transition_func_mapping.insert({CP_STRLIT("concave_quadratic"), concave_quadratic_transition_func});
-				transition_func_mapping.insert({CP_STRLIT("convex_quadratic"), convex_quadratic_transition_func});
-				transition_func_mapping.insert({CP_STRLIT("smoothstep"), smoothstep_transition_func});
+				transition_func_mapping.emplace(CP_STRLIT("linear"), transition_functions::linear);
+				transition_func_mapping.emplace(CP_STRLIT("smoothstep"), transition_functions::smoothstep);
+				transition_func_mapping.emplace(
+					CP_STRLIT("concave_quadratic"), transition_functions::concave_quadratic
+				);
+				transition_func_mapping.emplace(
+					CP_STRLIT("convex_quadratic"), transition_functions::convex_quadratic
+				);
+				transition_func_mapping.emplace(CP_STRLIT("concave_cubic"), transition_functions::concave_cubic);
+				transition_func_mapping.emplace(CP_STRLIT("convex_cubic"), transition_functions::convex_cubic);
 			}
 
 			/// Mapping from names to transition functions.

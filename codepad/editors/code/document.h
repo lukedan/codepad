@@ -3,6 +3,7 @@
 /// \file
 /// Definiton of file contexts and related classes.
 
+#include <cstddef>
 #include <variant>
 
 #include "../../core/event.h"
@@ -438,10 +439,10 @@ namespace codepad::editor::code {
 			if (fil.valid()) {
 				os::file_mapping mapping(fil, os::access_rights::read);
 				if (mapping.valid()) {
-					auto cs = static_cast<const char*>(mapping.get_mapped_pointer());
+					auto cs = static_cast<const std::byte*>(mapping.get_mapped_pointer());
 					insert_text<_iter_t, Encoding>(
 						0, reinterpret_cast<_iter_t>(cs),
-						reinterpret_cast<_iter_t>(cs + static_cast<int>(fil.get_size()))
+						reinterpret_cast<_iter_t>(cs + fil.get_size())
 						);
 					set_default_line_ending(detect_most_used_line_ending());
 					return;
@@ -1006,7 +1007,7 @@ namespace codepad::editor::code {
 			/// \ref total_length, respectively.
 			using length_property = sum_synthesizer::compact_property<
 				size_t, node_synth_data,
-				synthesization_helper::field_value_property<size_t node_data::*, &node_data::length>,
+				synthesization_helper::field_value_property<&node_data::length>,
 				&node_synth_data::total_length
 			>;
 

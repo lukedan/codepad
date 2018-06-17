@@ -443,12 +443,12 @@ namespace codepad::editor::code {
 
 			using length_property = sum_synthesizer::compact_property<
 				size_t, node_data,
-				synthesization_helper::func_value_property<size_t(string_type::*)() const, &string_type::length>,
+				synthesization_helper::func_value_property<&string_type::length>,
 				&node_data::total_length
 			>; ///< Property used to obtain the total number of units in a subtree.
 			using num_codepoints_property = sum_synthesizer::compact_property<
 				size_t, node_data,
-				synthesization_helper::func_value_property<size_t(string_type::*)() const, &string_type::num_codepoints>,
+				synthesization_helper::func_value_property<&string_type::num_codepoints>,
 				&node_data::total_codepoints
 			>; ///< Property used to obtain the total number of codepoints in a subtree.
 

@@ -154,67 +154,104 @@ namespace codepad::ui {
 			return _parent;
 		}
 
-		/// Sets the width of the element.
-		void set_width(double w) {
+		/// Sets the width of the element in pixels.
+		void set_width_pixels(double w) {
 			_width = w;
-			_has_width = true;
+			_wtype = size_allocation_type::fixed;
 			invalidate_layout();
 		}
-		/// Sets the height of the element.
-		void set_height(double h) {
+		/// Sets the height of the element in pixels.
+		void set_height_pixels(double h) {
 			_height = h;
-			_has_height = true;
+			_htype = size_allocation_type::fixed;
 			invalidate_layout();
 		}
-		/// Unsets the width of the element. The value obtained from get_desired_size() will be used.
-		void unset_width() {
-			_has_width = false;
-			invalidate_layout();
-		}
-		/// Unsets the height of the element. The value obtained from get_desired_size() will be used.
-		void unset_height() {
-			_has_height = false;
-			invalidate_layout();
-		}
-		/// Sets the size of the element.
-		void set_size(vec2d s) {
+		/// Sets the size of the element in pixels.
+		void set_size_pixels(vec2d s) {
 			_width = s.x;
 			_height = s.y;
-			_has_width = _has_height = true;
+			_wtype = _htype = size_allocation_type::fixed;
 			invalidate_layout();
 		}
-		/// Unsets the size of the element. The value obtained from get_desired_size() will be used.
+
+		/// Sets the width of the element as a proportion.
+		void set_width_proportion(double w) {
+			_width = w;
+			_wtype = size_allocation_type::proportion;
+			invalidate_layout();
+		}
+		/// Sets the height of the element as a proportion.
+		void set_height_proportion(double h) {
+			_height = h;
+			_htype = size_allocation_type::proportion;
+			invalidate_layout();
+		}
+		/// Sets the size of the element as a proportion.
+		void set_size_proportion(vec2d s) {
+			_width = s.x;
+			_height = s.y;
+			_wtype = _htype = size_allocation_type::proportion;
+			invalidate_layout();
+		}
+
+		/// Sets the \ref size_allocation_type of width to \ref size_allocation_type::automatic.
+		void unset_width() {
+			_wtype = size_allocation_type::automatic;
+			invalidate_layout();
+		}
+		/// Sets the \ref size_allocation_type of height to \ref size_allocation_type::automatic.
+		void unset_height() {
+			_htype = size_allocation_type::automatic;
+			invalidate_layout();
+		}
+		/// Sets the \ref size_allocation_type of both width and height to \ref size_allocation_type::automatic.
 		void unset_size() {
-			_has_width = _has_height = false;
+			_wtype = _htype = size_allocation_type::automatic;
 			invalidate_layout();
 		}
-		/// Returns \p true if this element has a user-defined width.
-		bool has_width() const {
-			return _has_width;
+
+		/// Returns the \ref size_allocation_type for width.
+		size_allocation_type get_width_allocation_type() const {
+			return _wtype;
 		}
-		/// Returns \p true if this element has a user-defined height.
-		bool has_height() const {
-			return _has_height;
+		/// Returns the \ref size_allocation_type for height.
+		size_allocation_type get_height_allocation_type() const {
+			return _htype;
 		}
-		/// Returns the desired size if no user-defined size is set.
-		/// Derived elements can override this to change the default behavior,
-		/// which simply returns the size of the padding.
-		virtual vec2d get_desired_size() const {
-			return _padding.size();
+
+		/// Returns the desired width of the element. Derived elements can override this to change the default
+		/// behavior, which simply makes the element fill all available space horizontally.
+		///
+		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
+		///         indicates whether the value is specified in pixels.
+		virtual std::pair<double, bool> get_desired_width() const {
+			return {1.0, false};
 		}
-		/// Returns the target size. If the user has set a value for a component, then that value is used;
-		/// otherwise the value returned by \ref get_desired_size is used.
-		vec2d get_target_size() const {
-			if (_has_width && _has_height) {
-				return vec2d(_width, _height);
+		/// Returns the desired height of the element. Derived elements can override this to change the default
+		/// behavior, which simply makes the element fill all available space vertically.
+		///
+		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
+		///         indicates whether the value is specified in pixels.
+		virtual std::pair<double, bool> get_desired_height() const {
+			return {1.0, false};
+		}
+		/// Returns the width value used for layout calculation. If \ref _wtype is
+		/// \ref size_allocation_type::automatic, the result will be that of \ref get_desired_width; otherwise the
+		/// user-defined width will be returned.
+		std::pair<double, bool> get_layout_width() const {
+			if (_wtype == size_allocation_type::automatic) {
+				return get_desired_width();
 			}
-			vec2d des = get_desired_size();
-			if (_has_width) {
-				des.x = _width;
-			} else if (_has_height) {
-				des.y = _height;
+			return {_width, _wtype == size_allocation_type::fixed};
+		}
+		/// Returns the height value used for layout calculation.
+		///
+		/// \sa get_layout_width
+		std::pair<double, bool> get_layout_height() const {
+			if (_htype == size_allocation_type::automatic) {
+				return get_desired_height();
 			}
-			return des;
+			return {_height, _htype == size_allocation_type::fixed};
 		}
 		/// Returns the actual size, calculated from the actual layout.
 		vec2d get_actual_size() const {
@@ -360,41 +397,59 @@ namespace codepad::ui {
 		}
 
 		/// Calculates the layout of an element on a direction (horizontal or vertical) with the given parameters.
+		/// If all of \p anchormin, \p pixelsize, and \p anchormax are \p true, all sizes are respected and the extra
+		/// space is distributed evenly between before and after the client region.
 		///
 		/// \param anchormin \p true if the element is anchored towards the `negative' (left or top) direction.
+		/// \param pixelsize \p true if the size of the element is specified in pixels.
 		/// \param anchormax \p true if the element is anchored towards the `positive' (right or bottom) direction.
 		/// \param clientmin Passes the minimum (left or top) boundary of the client region,
 		///        and will contain the minimum boundary of the element's layout as a return value.
 		/// \param clientmax Passes the maximum (right or bottom) boundary of the client region,
 		///        and will contain the maximum boundary of the element's layout as a return value.
 		/// \param marginmin The element's margin at the `negative' border.
-		/// \param marginmax The element's margin at the `positive' border.
 		/// \param size The size of the element in the direction.
+		/// \param marginmax The element's margin at the `positive' border.
 		inline static void layout_on_direction(
-			bool anchormin, bool anchormax, double &clientmin, double &clientmax,
-			double marginmin, double marginmax, double size
+			bool anchormin, bool pixelsize, bool anchormax, double &clientmin, double &clientmax,
+			double marginmin, double size, double marginmax
 		) {
+			double totalspace = clientmax - clientmin, totalprop = 0.0;
+			if (anchormax) {
+				totalspace -= marginmax;
+			} else {
+				totalprop += marginmax;
+			}
+			if (pixelsize) {
+				totalspace -= size;
+			} else {
+				totalprop += size;
+			}
+			if (anchormin) {
+				totalspace -= marginmin;
+			} else {
+				totalprop += marginmin;
+			}
+			double propmult = totalspace / totalprop;
+			// prioritize size in pixels
 			if (anchormin && anchormax) {
-				clientmin += marginmin;
-				clientmax -= marginmax;
+				if (pixelsize) {
+					double midpos = 0.5 * (clientmin + clientmax);
+					clientmin = midpos - 0.5 * size;
+					clientmax = midpos + 0.5 * size;
+				} else {
+					clientmin += marginmin;
+					clientmax -= marginmax;
+				}
 			} else if (anchormin) {
 				clientmin += marginmin;
-				clientmax = clientmin + size;
+				clientmax = clientmin + (pixelsize ? size : size * propmult);
 			} else if (anchormax) {
 				clientmax -= marginmax;
-				clientmin = clientmax - size;
+				clientmin = clientmax - (pixelsize ? size : size * propmult);
 			} else {
-				clientmin += (clientmax - clientmin - size) * marginmin / (marginmin + marginmax);
-				clientmax = clientmin + size;
-			}
-			if (clientmin > clientmax) { // invalid layout with negative area
-				// find a suitable spot
-				if (!anchormin && !anchormax) {
-					clientmin = clientmax =
-						(clientmin * marginmax + clientmax * marginmin) / (marginmin + marginmax);
-				} else {
-					clientmin = clientmax = 0.5 * (clientmin + clientmax);
-				}
+				clientmin += marginmin * propmult;
+				clientmax -= marginmax * propmult;
 			}
 		}
 
@@ -413,26 +468,26 @@ namespace codepad::ui {
 			key_up; ///< Triggered when a key is released when the element has the focus.
 		event<text_info> keyboard_text; ///< Triggered as the user types when the element has the focus.
 	protected:
+		visual::render_state _rst; ///< The render state that determines how this element is to be rendered.
+		rectd _layout; ///< The current layout of the element.
+		thickness
+			_margin, ///< The margin around the element.
+			_padding; ///< The padding inside the element.
 		panel_base * _parent = nullptr; ///< Pointer to the element's parent.
 		/// A token indicating the place of the element among its parent's children,
 		/// used to speed up children insertion and removal.
 		std::list<element*>::iterator _col_token;
-		rectd _layout; ///< The current layout of the element.
-		anchor _anchor = anchor::all; ///< The element's anchor.
-		bool
-			_has_width = false, ///< Marks if this element has a custom width.
-			_has_height = false; ///< Marks if this element has a custom height.
 		double
 			_width = 0.0, ///< The custom width, if it has one.
 			_height = 0.0; ///< The custom height, if it has one.
-		thickness
-			_margin, ///< The margin around the element.
-			_padding; ///< The padding inside the element.
-		visibility _vis = visibility::visible; ///< The \ref visibility of the element.
 		int _zindex = 0; ///< The z-index of the element.
-		bool _can_focus = true; ///< Indicates whether this element can have the focus.
 		os::cursor _crsr = os::cursor::not_specified; ///< The custom cursor of the element.
-		visual::render_state _rst; ///< The render state that determines how this element is to be rendered.
+		anchor _anchor = anchor::all; ///< The element's anchor.
+		visibility _vis = visibility::visible; ///< The \ref visibility of the element.
+		size_allocation_type
+			_wtype = size_allocation_type::automatic, ///< Determines how the element's width is computed.
+			_htype = size_allocation_type::automatic; ///< Determines how the element's height is computed.
+		bool _can_focus = true; ///< Indicates whether this element can have the focus.
 
 		/// Called when the mouse starts to be over the element.
 		/// Updates the visual style and invokes \ref mouse_enter.
@@ -554,9 +609,17 @@ namespace codepad::ui {
 		/// renders the background, calls \ref _custom_render, and finally calls \ref _on_postrender.
 		virtual void _on_render();
 
-		/// Called by the manager to recalculate the layout of the element,
-		/// given the area that supposedly contains the element (usually the client region of its parent).
-		virtual void _recalc_layout(rectd);
+		/// Called to calculate the horizontal layout of the element, given the area that contains the element.
+		virtual void _recalc_horizontal_layout(double, double);
+		/// Called to calculate the vertical layout of the element, given the area that contains the element.
+		virtual void _recalc_vertical_layout(double, double);
+		/// Called by the manager to recalculate the layout of the element, given the area that supposedly contains
+		/// the element (usually the client region of its parent). This function simply calls
+		/// \ref _recalc_horizontal_layout and \ref _recalc_vertical_layout.
+		virtual void _recalc_layout(rectd rgn) {
+			_recalc_horizontal_layout(rgn.xmin, rgn.xmax);
+			_recalc_vertical_layout(rgn.ymin, rgn.ymax);
+		}
 		/// Called by the manager when the new layout has been calculated. Calls \ref invalidate_visual.
 		/// Derived classes can override this to update what depends on its layout.
 		virtual void _finish_layout() {

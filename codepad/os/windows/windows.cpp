@@ -515,7 +515,9 @@ namespace codepad {
 			com_check(dialog->SetOptions(options));
 			com_check(dialog->SetFileTypes(1, &file_types));
 			com_check(dialog->SetFileTypeIndex(1));
-			HRESULT res = dialog->Show(wnd ? wnd->get_native_handle() : nullptr); // TODO bug here: program hangs
+			// TODO bug here: program hangs
+			// also no problem if parent is nullptr
+			HRESULT res = dialog->Show(wnd ? wnd->get_native_handle() : nullptr);
 			if (res == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
 				return {};
 			}

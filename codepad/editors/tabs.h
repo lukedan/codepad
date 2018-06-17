@@ -35,9 +35,9 @@ namespace codepad::editor {
 		new_panel_bottom
 	};
 
-	/// A separator in a \ref panel_base. Its layout is determined by its orientation and its position, which is in
-	/// the range of [0, 1] and can be further restricted by \ref set_range. The user can use the mouse to drag this
-	/// element and change its position within the allowed range.
+	/// A separator in a \ref ui::panel_base. Its layout is determined by its orientation and its position, which is
+	/// in the range of [0, 1] and can be further restricted by \ref set_range. The user can use the mouse to drag
+	/// this element and change its position within the allowed range.
 	///
 	/// \todo Make the size of \ref draggable_separator customizable.
 	class draggable_separator : public ui::element {
@@ -101,9 +101,19 @@ namespace codepad::editor {
 				os::cursor::arrow_north_south;
 		}
 
-		/// Sets the default width of the separator.
-		vec2d get_desired_size() const override {
-			return vec2d(default_thickness, default_thickness);
+		/// Returns the default width of the separator.
+		std::pair<double, bool> get_desired_width() const override {
+			if (get_orientation() == ui::orientation::horizontal) {
+				return {default_thickness, true};
+			}
+			return {1.0, false};
+		}
+		/// Returns the default height of the separator.
+		std::pair<double, bool> get_desired_height() const override {
+			if (get_orientation() == ui::orientation::vertical) {
+				return {default_thickness, true};
+			}
+			return {1.0, false};
 		}
 
 		/// Returns the boundaries of the left/top region separated by this element.
@@ -475,13 +485,15 @@ namespace codepad::editor {
 			return _content.get_text();
 		}
 
-		/// Returns the desired size.
+		/// Returns the height of the text.
+		std::pair<double, bool> get_desired_height() const override {
+			return {_content.get_text_size().y + get_padding().height(), true};
+		}
+		/// Returns the desired width.
 		///
 		/// \todo Current method is hacky.
-		vec2d get_desired_size() const override {
-			vec2d sz = _content.get_text_size() + _padding.size();
-			sz.x += sz.y;
-			return sz;
+		std::pair<double, bool> get_desired_width() const override {
+			return {_content.get_text_size().x + _content.get_text_size().y + get_padding().width(), true};
 		}
 
 		/// Returns the height of a \ref tab_button.
@@ -507,7 +519,7 @@ namespace codepad::editor {
 		}
 	protected:
 		ui::content_host _content{*this}; ///< Used to display text on the button.
-		ui::button *_btn; ///< The ``close'' button.
+		ui::button *_btn; ///< The `close' button.
 		vec2d _mdpos; ///< The positon where the user presses the primary mouse button.
 		/// The offset of the \ref tab_button in the ``tabs'' area.
 		///
@@ -552,7 +564,7 @@ namespace codepad::editor {
 		///
 		/// \todo Current method is hacky.
 		void _finish_layout() override {
-			_btn->set_width(get_layout().height() - get_padding().height());
+			_btn->set_width_pixels(get_layout().height() - get_padding().height());
 			panel_base::_finish_layout();
 		}
 
@@ -584,8 +596,6 @@ namespace codepad::editor {
 	/// An element for displaying multiple tabs. It contains a ``tabs'' region for displaying the
 	/// \ref tab_button "tab_buttons" of all available \ref tab "tabs" and a region that displays the currently
 	/// selected tab.
-	///
-	/// \todo Override \ref _on_child_removed to update tab list when a tab is disposed.
 	class tab_host : public ui::panel_base {
 		friend class tab;
 		friend class tab_manager;
@@ -598,10 +608,8 @@ namespace codepad::editor {
 		/// Adds a \ref tab to the end of the tab list. If there were no tabs in the tab list prior to this
 		/// operation, the newly added tab will be automatically activated.
 		void add_tab(tab&);
-		/// Removes the given \ref tab from this \ref tab_host. If the tab to remove is currently visible, the
-		/// visible tab is automatically changed.
-		///
-		/// \todo Select a better tab when the active tab is disposed.
+		/// Removes a \ref tab from this host by simply removing it from \ref _children. The rest are handled by
+		/// \ref _on_child_removing.
 		void remove_tab(tab&);
 
 		/// Switches the currently visible tab, but without changing the focus.
@@ -658,6 +666,12 @@ namespace codepad::editor {
 			}
 		}
 
+		/// If the child that's being removed is a \ref tab, removes the associated \ref tab_button and removes the
+		/// entry in \ref _tabs. The situation where the visible tab is removed is also handled.
+		///
+		/// \todo Select a better tab when the active tab is disposed.
+		void _on_child_removing(element*) override;
+
 		/// Calculates the layout of all \ref tab "tabs".
 		void _finish_layout() override;
 	};
@@ -710,18 +724,10 @@ namespace codepad::editor {
 		tab_button * _btn; ///< The \ref tab_button associated with tab.
 		std::list<tab*>::iterator _text_tok; ///< Iterator to this tab in the \ref tab_host's tab list.
 
-		/// Detaches the tab from the \ref tab_host, and marks the tab for disposal.
-		///
-		/// \todo Remove this function and use \ref ui::manager::mark_disposal directly instead; let
-		///       \ref tab_host handle the removal of this tab.
-		void _detach_and_dispose() {
-			get_host()->remove_tab(*this);
-			ui::manager::get().mark_disposal(*this);
-		}
-		/// Called when \ref request_close is called to handle the user's request of closing this tab. Calls
-		/// \ref _detach_and_dispose by default.
+		/// Called when \ref request_close is called to handle the user's request of closing this tab.
+		/// Marks this tab for disposal by default.
 		virtual void _on_close_requested() {
-			_detach_and_dispose();
+			ui::manager::get().mark_disposal(*this);
 		}
 
 		/// Initializes \ref _btn.
@@ -1012,9 +1018,10 @@ namespace codepad::editor {
 			/// \param t The tab that's about to be moved. If the currently focused element is a child of the tab,
 			///          \ref _focus is set accordingly; otherwise this struct does nothing.
 			explicit _keep_intab_focus(tab &t) {
-				for (ui::element *e = ui::manager::get().get_focused(); e != nullptr; e = e->parent()) {
+				ui::element *f = ui::manager::get().get_focused_element();
+				for (ui::element *e = f; e != nullptr; e = e->parent()) {
 					if (e == &t) {
-						_focus = ui::manager::get().get_focused();
+						_focus = f;
 						break;
 					}
 				}
@@ -1025,8 +1032,8 @@ namespace codepad::editor {
 			_keep_intab_focus &operator=(const _keep_intab_focus&) = delete;
 			/// Resets the focused element to \ref _focus (if it's not \p nullptr) when it's disposed.
 			~_keep_intab_focus() {
-				if (_focus) {
-					ui::manager::get().set_focus(_focus);
+				if (_focus != nullptr) {
+					_focus->get_window()->set_window_focused_element(*_focus);
 				}
 			}
 		protected:
@@ -1038,12 +1045,8 @@ namespace codepad::editor {
 			os::window_base *wnd = ui::element::create<os::window>();
 			_wndlist.emplace_back(wnd);
 			wnd->got_window_focus += [this, wnd]() {
-				auto it = _wndlist.begin();
-				for (; it != _wndlist.end(); ++it) { // there can't be too many windows... right?
-					if (*it == wnd) {
-						break;
-					}
-				}
+				// there can't be too many windows... right?
+				auto it = std::find(_wndlist.begin(), _wndlist.end(), wnd);
 				assert_true_logical(it != _wndlist.end(), "window has been silently removed");
 				_wndlist.erase(it);
 				_wndlist.insert(_wndlist.begin(), wnd);
@@ -1190,11 +1193,13 @@ namespace codepad::editor {
 		///            \ref tab_button "tab_buttons"
 		/// \param maxw The width of the area that contains all \ref tab_button "tab_buttons".
 		void _update_drag_tab_position(double pos, double maxw) const {
-			double halfw = 0.5 * _drag->_btn->get_desired_size().x, posx = pos + _dragdiff.x + halfw, cx = halfw;
+			double
+				halfw = 0.5 * _drag->_btn->get_layout().width(),
+				posx = pos + _dragdiff.x + halfw, cx = halfw;
 			tab *res = nullptr;
 			for (auto i = _dest->_tabs.begin(); i != _dest->_tabs.end(); ++i) {
 				if (*i != _drag) {
-					double thisw = (*i)->_btn->get_desired_size().x;
+					double thisw = (*i)->_btn->get_layout().width();
 					if (posx < cx + 0.5 * thisw) {
 						res = *i;
 						break;

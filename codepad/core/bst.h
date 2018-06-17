@@ -986,10 +986,8 @@ namespace codepad {
 	namespace synthesization_helper {
 		/// Indicates that the property is stored in a field of \ref binary_tree_node::value.
 		///
-		/// \tparam Ptr Type of the member pointer.
 		/// \tparam Prop Member pointer to the field.
-		/// \todo Change \p Ptr to \p auto when VS supports it
-		template <typename Ptr, Ptr Prop> struct field_value_property {
+		template <auto Prop> struct field_value_property {
 			/// Getter interface for propeties.
 			///
 			/// \return The retrieved value.
@@ -999,10 +997,8 @@ namespace codepad {
 		};
 		/// Indicates that the property can be retrieved by calling a method of binary_tree_node::value.
 		///
-		/// \tparam Func Type of the function.
 		/// \tparam Prop Member pointer to the function.
-		/// \todo Change \p Ptr to \p auto when VS supports it
-		template <typename Func, Func Prop> struct func_value_property {
+		template <auto Prop> struct func_value_property {
 			/// Getter interface for properties.
 			///
 			/// \return The return value of the function.
@@ -1019,13 +1015,13 @@ namespace codepad {
 		/// Represents a property of binary_tree_node::synth_data,
 		/// that records the statistics of a single node and the whole subtree.
 		///
-		/// \tparam T Type of the statistics.
+		/// \tparam T Data type of the statistics.
 		/// \tparam Synth Type of binary_tree_node::synth_data.
 		/// \tparam GetForNode A property of binary_tree_node::value, similar to the ones in \ref synthesization_helper.
 		/// \tparam NodeVal Member pointer to the statistics for a single node.
 		/// \tparam TreeVal Member pointer to the statistics for a subtree.
 		template <typename T, typename Synth, typename GetForNode, T Synth::*NodeVal, T Synth::*TreeVal> struct property {
-			using value_type = T;
+			using value_type = T; ///< The data type of the statistics.
 
 			/// Returns the statistics obtained directly from the node.
 			///
@@ -1056,13 +1052,13 @@ namespace codepad {
 		};
 		/// Represents a property of \ref binary_tree_node::synth_data that only stores the statistics of a subtree.
 		///
-		/// \tparam T Type of the statistics.
+		/// \tparam T Data type of the statistics.
 		/// \tparam Synth Type of \ref binary_tree_node::synth_data.
 		/// \tparam GetForNode A property of binary_tree_node::value, similar to the ones in
 		///                    \ref synthesization_helper.
 		/// \tparam TreeVal Member pointer to the statistics for a subtree.
 		template <typename T, typename Synth, typename GetForNode, T Synth::*TreeVal> struct compact_property {
-			using value_type = T;
+			using value_type = T; ///< The data type of the statistics.
 
 			/// Returns the statistics obtained directly from the node.
 			template <typename Node> inline static T get_node_value(Node &&n) {

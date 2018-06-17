@@ -104,6 +104,7 @@ set(SOURCE_FILES
 	codepad/os/renderer.h
 	codepad/os/software_renderer_base.cpp
 	codepad/os/software_renderer_base.h
+	codepad/os/window.cpp
 	codepad/os/window.h
 	codepad/ui/commands.h
 	codepad/ui/common_elements.h

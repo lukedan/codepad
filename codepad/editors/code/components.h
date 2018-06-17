@@ -13,13 +13,13 @@ namespace codepad::editor::code {
 	/// Displays a the line number for each line.
 	class line_number : public component {
 	public:
-		/// Returns the width of the longest line number, then returns the corresponding size.
-		vec2d get_desired_size() const override {
+		/// Returns the width of the longest line number.
+		std::pair<double, bool> get_desired_width() const override {
 			size_t ln = _get_editor()->get_document()->num_lines(), w = 0;
 			for (; ln > 0; ++w, ln /= 10) {
 			}
 			double maxw = editor::get_font().normal->get_max_width_charset(U"0123456789");
-			return vec2d(get_padding().width() + static_cast<double>(w) * maxw, 0.0);
+			return {get_padding().width() + static_cast<double>(w) * maxw, true};
 		}
 
 		/// Returns the default class of elements of type \ref line_number.
@@ -31,6 +31,7 @@ namespace codepad::editor::code {
 
 		/// Register for \ref editor::content_modified.
 		void _on_added() override {
+			component::_on_added();
 			_resizetk = (_get_box()->get_editor()->content_modified += [this]() {
 				invalidate_layout();
 				});
@@ -38,6 +39,7 @@ namespace codepad::editor::code {
 		/// Unregisters from \ref editor::content_modified.
 		void _on_removing() override {
 			_get_box()->get_editor()->content_modified -= _resizetk;
+			component::_on_removing();
 		}
 
 		/// Renders all visible line numbers.
@@ -78,22 +80,9 @@ namespace codepad::editor::code {
 			maximum_width = 150, /// Maximum width of the element, in pixels.
 			minimum_page_size = 500; /// Maximum height of a page, in pixels.
 
-		/// Calculates the desired size of the element, by subtracting all other components' width from the total
-		/// available width, then taking the desired portion of it. Note this may be inaccurate when there are
-		/// multiple components with widths proportional to that of the \ref editor.
-		///
-		/// \todo Find a more elegant way to obtain the correct width (maybe with width as proportions).
-		vec2d get_desired_size() const override {
-			codebox *cb = _get_box();
-			double totw = cb->get_client_region().width() - cb->get_editor()->get_margin().width();
-			for (auto i = cb->get_components_left().begin(); i != cb->get_components_left().end(); ++i) {
-				if (*i != this) {
-					totw -= (*i)->get_desired_size().x + (*i)->get_margin().width();
-				}
-			}
-			return vec2d(std::min<double>(
-				static_cast<double>(maximum_width), totw * get_scale() / (1.0 + get_scale())
-				), 0.0);
+		/// Returns the default width, which is proportional to that of the \ref editor.
+		std::pair<double, bool> get_desired_width() const override {
+			return {get_scale(), false};
 		}
 
 		/// Returns the scale of the text based on \ref _target_height.

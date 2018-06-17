@@ -14,17 +14,21 @@ namespace codepad::ui {
 	rectd visual_layer::get_center_rect(const state &s, rectd client) const {
 		element::layout_on_direction(
 			test_bit_all(rect_anchor, anchor::left),
+			width_alloc == size_allocation_type::fixed,
 			test_bit_all(rect_anchor, anchor::right),
 			client.xmin, client.xmax,
-			s.current_margin.current_value.left, s.current_margin.current_value.right,
-			s.current_size.current_value.x
+			s.current_margin.current_value.left,
+			width_alloc == size_allocation_type::automatic ? 1.0 : s.current_size.current_value.x,
+			s.current_margin.current_value.right
 		);
 		element::layout_on_direction(
 			test_bit_all(rect_anchor, anchor::top),
+			height_alloc == size_allocation_type::fixed,
 			test_bit_all(rect_anchor, anchor::bottom),
 			client.ymin, client.ymax,
-			s.current_margin.current_value.top, s.current_margin.current_value.bottom,
-			s.current_size.current_value.y
+			s.current_margin.current_value.top,
+			height_alloc == size_allocation_type::automatic ? 1.0 : s.current_size.current_value.y,
+			s.current_margin.current_value.bottom
 		);
 		return client;
 	}

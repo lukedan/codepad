@@ -35,7 +35,8 @@ namespace codepad::editor::code {
 		/// Called after the component has been added to a \ref codebox.
 		virtual void _on_added() {
 		}
-		/// Called before the component is removed from the \ref codebox.
+		/// Called before the component is removed from the \ref codebox. This is required to work correctly even if
+		/// \ref _dispose() has been invoked but have not yet returned.
 		virtual void _on_removing() {
 		}
 
@@ -49,7 +50,6 @@ namespace codepad::editor::code {
 	/// events to the \ref editor.
 	///
 	/// \todo Add horizontal view.
-	/// \todo Override \ref _on_child_removed to update component list when a component is disposed.
 	class codebox : public ui::panel_base {
 	public:
 		/// Sets the vertical position of the view.
@@ -81,19 +81,14 @@ namespace codepad::editor::code {
 		void add_component_left(component &e) {
 			_add_component_to(e, _lcs);
 		}
-		/// Removes the given \ref component from the left of the \ref editor.
-		void remove_component_left(component &e) {
-			_remove_component_from(e, _lcs);
-		}
-
 		/// Adds a \ref component to the right of the \ref editor. The added component will be place to the left of
 		/// all existing components.
 		void add_component_right(component &e) {
 			_add_component_to(e, _rcs);
 		}
-		/// Removes the given \ref component from the right of the \ref editor.
-		void remove_component_right(component &e) {
-			_remove_component_from(e, _rcs);
+		/// Removes the given \ref component from the \ref editor.
+		void remove_component(component &e) {
+			_children.remove(e);
 		}
 
 		/// Returns a list of all \ref component "components" to the left of the \ref editor.
@@ -139,16 +134,6 @@ namespace codepad::editor::code {
 			v.push_back(&e);
 			e._on_added();
 		}
-		/// Removes a \ref component from the given list and \ref _children, before calling
-		/// \ref component::_on_removing.
-		void _remove_component_from(component &e, std::vector<component*> &v) {
-			assert_true_usage(e.parent() == this, "the component is not a child of this codebox");
-			auto it = std::find(v.begin(), v.end(), &e);
-			assert_true_logical(it != v.end(), "component not found in expected list");
-			e._on_removing();
-			v.erase(it);
-			_children.remove(e);
-		}
 
 		/// Calculates and sets the parameters of \ref _vscroll.
 		void _reset_scrollbars();
@@ -167,12 +152,31 @@ namespace codepad::editor::code {
 		/// Calls \ref editor::_on_codebox_lost_focus.
 		void _on_lost_focus() override;
 
+		/// When a child is being removed, checks if it's a \ref component and if so, calls
+		/// \ref component::_on_removing.
+		void _on_child_removing(ui::element*) override;
+		/// Removes the child from \ref _lcs or \ref _rcs if it can be found. Checking has already been handled in
+		/// \ref _on_child_removing. These are separated primarily due to the mechanism that potentially will be
+		/// introduced in the future for elements to be notified when they're removed from their parents.
+		void _on_child_removed(ui::element *elem) {
+			// seek & erase
+			auto it = std::find(_lcs.begin(), _lcs.end(), elem);
+			if (it != _lcs.end()) {
+				_lcs.erase(it);
+			} else {
+				it = std::find(_rcs.begin(), _rcs.end(), elem);
+				if (it != _rcs.end()) {
+					_rcs.erase(it);
+				}
+			}
+		}
+
 		/// Recalculates the layout of all \ref component "components" and the \ref editor.
 		void _finish_layout() override;
 
 		/// Initializes \ref _vscroll and \ref _editor.
 		void _initialize() override;
-		/// Unregisters from the events, and removes (and disposes) all \ref component "components".
+		/// Unregisters from \ref editor::editing_visual_changed.
 		void _dispose() override;
 	};
 }

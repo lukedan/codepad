@@ -35,10 +35,6 @@ namespace codepad::editor::code {
 	void editor::_custom_render() {
 		performance_monitor mon(CP_HERE);
 
-		rectd client = get_client_region();
-		if (client.height() < 0.0) { // otherwise may dramatically decrease performance
-			return;
-		}
 		double lh = get_line_height(), layoutw = get_layout().width();
 		pair<size_t, size_t> be = get_visible_lines();
 		caret_set::container ncon;
@@ -52,6 +48,7 @@ namespace codepad::editor::code {
 		}
 		font_family::baseline_info bi = get_font().get_baseline_info();
 
+		rectd client = get_client_region();
 		renderer_base::get().push_matrix(matd3x3::translate(vec2d(
 			round(client.xmin),
 			round(

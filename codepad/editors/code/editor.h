@@ -321,7 +321,9 @@ namespace codepad::editor::code {
 			return std::make_pair(_fmt.get_folding().folded_to_unfolded_line_number(
 				static_cast<size_t>(std::max(0.0, top / lh))
 			), std::min(
-				_fmt.get_folding().folded_to_unfolded_line_number(static_cast<size_t>(bottom / lh) + 1),
+				_fmt.get_folding().folded_to_unfolded_line_number(
+					static_cast<size_t>(std::max(0.0, bottom / lh)) + 1
+				),
 				_fmt.get_linebreaks().num_visual_lines()
 			));
 		}

@@ -126,7 +126,7 @@ namespace codepad::editor::code {
 		event<switch_char_info> switching_char;
 	protected:
 		document::iterator _char_it; ///< Iterator to the current character in the \ref document.
-									 /// Iterator to the current entry in the \ref text_theme_data that determines the theme of the text.
+		/// Iterator to the current entry in the \ref text_theme_data that determines the theme of the text.
 		text_theme_data::char_iterator _theme_it;
 		ui::character_metrics_accumulator _char_met; ///< Used to calculate the positioning of characters.
 		const document *_doc = nullptr; ///< Pointer to the associated \ref document.
@@ -343,7 +343,7 @@ namespace codepad::editor::code {
 		), _curaddon(std::get<I>(std::forward<FCA>(f))...) {
 		}
 
-		/// For each addon, calls its ``check'' method if it has one, and returns \p true immediately if any
+		/// For each addon, calls its `check' method if it has one, and returns \p true immediately if any
 		/// invocation returns \p true. Finally, if none returns \p true, this function returns \p false.
 		bool _check_all() {
 			if (!_check(_cur_check_helper())) {

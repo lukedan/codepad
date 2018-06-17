@@ -9,12 +9,12 @@
 #include <chrono>
 
 #include "element.h"
+#include "../os/window.h"
 
 namespace codepad::ui {
 	/// Manages the update, layout, and rendering all GUI elements.
-	///
-	/// \todo Get rid of global focus and use per-window focus and window focus instead.
 	class manager {
+		friend class os::window_base;
 	public:
 		constexpr static double
 			/// Maximum expected time for all layout operations during a single frame.
@@ -40,7 +40,7 @@ namespace codepad::ui {
 			} else {
 				if (_targets.find(&e) == _targets.end()) {
 					// otherwise invalidate_layout may have been called on the element
-					_targets.insert({&e, false});
+					_targets.emplace(&e, false);
 				}
 			}
 		}
@@ -105,14 +105,20 @@ namespace codepad::ui {
 			_min_render_interval = dv;
 		}
 
-		/// Returns the element that has the focus.
-		element *get_focused() const {
-			return _focus;
+		/// Returns the \ref os::window_base that has the focus.
+		os::window_base *get_focused_window() const {
+			return _focus_wnd;
+		}
+		/// Returns the \ref element that has the focus, or \p nullptr.
+		element *get_focused_element() const {
+			if (_focus_wnd != nullptr) {
+				return _focus_wnd->get_window_focused_element();
+			}
+			return nullptr;
 		}
 		/// Sets the currently focused element. When called, this function also interrupts any ongoing composition.
-		/// The element must either be \p nullptr or belong to a window.
-		/// This function should not be called recursively.
-		void set_focus(element*);
+		/// The element must belong to a window. This function should not be called recursively.
+		void set_focused_element(element&);
 
 		/// Returns the global \ref manager object.
 		static manager &get();
@@ -130,6 +136,17 @@ namespace codepad::ui {
 		/// The time point when elements were last updated.
 		std::chrono::time_point<std::chrono::high_resolution_clock> _lastupdate;
 		double _upd_dt = 0.0; ///< The duration since elements were last updated.
-		element *_focus = nullptr; ///< Pointer to the currently focused element.
+		os::window_base *_focus_wnd = nullptr; ///< Pointer to the currently focused \ref os::window_base.
+
+		/// Called when a \ref os::window_base is focused. Sets \ref _focus_wnd accordingly.
+		void _on_window_got_focus(os::window_base &wnd) {
+			_focus_wnd = &wnd;
+		}
+		/// Called when a \ref os::window_base loses the focus. Clears \ref _focus_wnd if necessary.
+		void _on_window_lost_focus(os::window_base &wnd) {
+			if (_focus_wnd == &wnd) {
+				_focus_wnd = nullptr;
+			}
+		}
 	};
 }

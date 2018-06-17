@@ -89,9 +89,12 @@ namespace codepad::os {
 			}
 		}
 		/// Flushes the text buffer, then calls \p glDrawArrays to draw the given lines.
-		void draw_lines(const vec2d *ps, const colord *cs, size_t n) override {
-			_flush_text_buffer();
-			// TODO
+		///
+		/// \todo Implement draw_lines.
+		void draw_lines(const vec2d*, const colord*, size_t n) override {
+			if (n > 0) {
+				_flush_text_buffer();
+			}
 		}
 		/// Flushes the text buffer, ends the current render target, removes corresponding contents from the
 		/// stacks, then continues the last render target if there is one.
@@ -356,7 +359,6 @@ namespace codepad::os {
 			/// Creates a shader of the given type with the specified renderer and code.
 			///
 			/// \tparam Type The type of the shader.
-			/// \todo Check whether shader compilation was successful.
 			template <GLenum Type> inline static GLuint create_shader(
 				opengl_renderer_base &rend, const GLchar *code
 			) {
@@ -784,7 +786,6 @@ namespace codepad::os {
 			}
 			/// Draws all buffered characters with the given texture.
 			///
-			/// \todo Matrix is not applied for some reason.
 			/// \todo Are these glVertexAttribPointer really necessary?
 			void flush(opengl_renderer_base &rend, GLuint tex) {
 				if (quad_count > 0) {
@@ -966,41 +967,41 @@ namespace codepad::os {
 			// uses hard-coded fixed-pipeline-like shaders
 			_defaultprog.initialize(*this,
 				R"shader(
-#version 330 core
+					#version 330 core
 
-layout (location = 0) in vec2 inPosition;
-layout (location = 1) in vec2 inUV;
-layout (location = 2) in vec4 inColor;
+					layout (location = 0) in vec2 inPosition;
+					layout (location = 1) in vec2 inUV;
+					layout (location = 2) in vec4 inColor;
 
-out vec2 UV;
-out vec4 Color;
+					out vec2 UV;
+					out vec4 Color;
 
-uniform mat3 Transform;
-uniform vec2 HalfScreenSize;
+					uniform mat3 Transform;
+					uniform vec2 HalfScreenSize;
 
-void main() {
-	gl_Position = vec4(
-		((Transform * vec3(inPosition, 1.0f)).xy - abs(HalfScreenSize)) / HalfScreenSize,
-		0.0, 1.0
-	);
-	UV = inUV;
-	Color = inColor;
-}
+					void main() {
+						gl_Position = vec4(
+							((Transform * vec3(inPosition, 1.0f)).xy - abs(HalfScreenSize)) / HalfScreenSize,
+							0.0, 1.0
+						);
+						UV = inUV;
+						Color = inColor;
+					}
 				)shader"
 				,
 				R"shader(
-#version 330 core
+					#version 330 core
 
-in vec2 UV;
-in vec4 Color;
+					in vec2 UV;
+					in vec4 Color;
 
-out vec4 outFragColor;
+					out vec4 outFragColor;
 
-uniform sampler2D Texture;
+					uniform sampler2D Texture;
 
-void main() {
-	outFragColor = Color * texture(Texture, UV);
-}
+					void main() {
+						outFragColor = Color * texture(Texture, UV);
+					}
 				)shader"
 			);
 			_defaultprog.acivate(*this);
@@ -1053,7 +1054,7 @@ void main() {
 
 			rtf.apply_config();
 			glViewport(0, 0, static_cast<GLsizei>(rtf.width), static_cast<GLsizei>(rtf.height));
-			vec2d halfsize(rtf.width * 0.5, rtf.height * 0.5);
+			vec2d halfsize(static_cast<double>(rtf.width) * 0.5, static_cast<double>(rtf.height) * 0.5);
 			if (rtf.invert_y) {
 				halfsize.y = -halfsize.y;
 			}

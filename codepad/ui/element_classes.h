@@ -42,7 +42,7 @@ namespace codepad::ui {
 		/// Parses the given object.
 		static T parse(const json::value_t&);
 	};
-	/// Specialization for \ref colord.
+	/// Parser of \ref colord.
 	template <> struct json_object_parser<colord> {
 		/// Parses the given object. The object can take the following formats:
 		/// \code ["hsl", <h>, <s>, <l>(, <a>)] \endcode for HSL format colors, and
@@ -73,7 +73,7 @@ namespace codepad::ui {
 			return colord();
 		}
 	};
-	/// Specialization for \ref thickness.
+	/// Parser of \ref thickness.
 	template <> struct json_object_parser<thickness> {
 		/// Parses the given object. The object can take the following formats:
 		/// \code [<left>, <top>, <right>, <bottom>] \endcode or a single number
@@ -91,7 +91,7 @@ namespace codepad::ui {
 			return thickness();
 		}
 	};
-	/// Specialization for \ref vec2d.
+	/// Parser of \ref vec2d.
 	template <> struct json_object_parser<vec2d> {
 		/// Parses the given object. The object must be of the following format:
 		/// \code [<x>, <y>] \endcode
@@ -103,15 +103,50 @@ namespace codepad::ui {
 			return vec2d();
 		}
 	};
-	/// JSON parser for visual definitions.
-	class visual_json_parser {
-	public:
+	/// Parser of \ref anchor.
+	template <> struct json_object_parser<anchor> {
 		constexpr static char_t
 			anchor_top_char = 't', ///< The character that stands for anchor::top.
 			anchor_bottom_char = 'b', ///< The character that stands for anchor::bottom.
 			anchor_left_char = 'l', ///< The character that stands for anchor::left.
 			anchor_right_char = 'r'; ///< The character that stands for anchor::right.
 
+		/// Parses the given object. The object can be a string that contains any combination of
+		/// \ref anchor_top_char, \ref anchor_bottom_char, \ref anchor_left_char, and \ref anchor_right_char.
+		inline static anchor parse(const json::value_t &obj) {
+			if (obj.IsString()) {
+				return get_bitset_from_string<anchor>({
+					{CP_STRLIT('l'), anchor::left},
+					{CP_STRLIT('t'), anchor::top},
+					{CP_STRLIT('r'), anchor::right},
+					{CP_STRLIT('b'), anchor::bottom}
+					}, json::get_as_string(obj));
+			}
+			return anchor::none;
+		}
+	};
+	/// Parser of \ref size_allocation_type.
+	///
+	/// \todo Wait for reflection in C++20.
+	template <> struct json_object_parser<size_allocation_type> {
+		/// Checks if the given object (which must be a string) is one of the constants and returns the corresponding
+		/// value, or \ref size_allocation_type::automatically if none matches.
+		inline static size_allocation_type parse(const json::value_t &obj) {
+			if (obj.IsString()) {
+				str_t s = json::get_as_string(obj);
+				if (s == CP_STRLIT("fixed") || s == CP_STRLIT("pixels") || s == CP_STRLIT("px")) {
+					return size_allocation_type::fixed;
+				}
+				if (s == CP_STRLIT("proportion") || s == CP_STRLIT("prop") || s == CP_STRLIT("*")) {
+					return size_allocation_type::proportion;
+				}
+			}
+			return size_allocation_type::automatic;
+		}
+	};
+	/// JSON parser for visual definitions.
+	class visual_json_parser {
+	public:
 		/// Parses an \ref animated_property from a given JSON object. If the JSON object
 		/// is not an object but an array, number, or any other valid format, the
 		/// \ref animated_property will be reset to its default state, with only its
@@ -147,7 +182,7 @@ namespace codepad::ui {
 						const std::function<double(double)>
 							*fptr = visual::try_get_transition_func(json::get_as_string(mem->value));
 						if (fptr == nullptr) {
-							ani.transition_func = linear_transition_func;
+							ani.transition_func = transition_functions::linear;
 							logger::get().log_warning(
 								CP_HERE, "invalid transition function: ", json::get_as_string(mem->value)
 							);
@@ -213,7 +248,7 @@ namespace codepad::ui {
 			}
 		}
 		/// Parses a \ref visual_layer from the given JSON object, and registers all required textures to the
-		/// given \ref texture_table. Calls \ref _find_and_parse to parse the properties of the layer.
+		/// given \ref texture_table. Calls \ref _find_and_parse_ani to parse the properties of the layer.
 		/// If the layer contains only a single string, then it is treated as the file name of the texture,
 		/// and interpreted as an \ref animated_property<os::texture>.
 		inline static void parse_layer(visual_layer &layer, const json::value_t &val, texture_table &table) {
@@ -226,19 +261,13 @@ namespace codepad::ui {
 						layer.layer_type = visual_layer::type::grid;
 					}
 				}
-				_find_and_parse(val, CP_STRLIT("texture"), layer.texture_animation, table);
-				_find_and_parse(val, CP_STRLIT("color"), layer.color_animation);
-				_find_and_parse(val, CP_STRLIT("size"), layer.size_animation);
-				_find_and_parse(val, CP_STRLIT("margins"), layer.margin_animation);
-				str_t anc;
-				if (json::try_get(val, CP_STRLIT("anchor"), anc)) {
-					layer.rect_anchor = get_bitset_from_string<anchor>({
-						{CP_STRLIT('l'), anchor::left},
-						{CP_STRLIT('t'), anchor::top},
-						{CP_STRLIT('r'), anchor::right},
-						{CP_STRLIT('b'), anchor::bottom}
-						}, anc);
-				}
+				_find_and_parse_ani(val, CP_STRLIT("texture"), layer.texture_animation, table);
+				_find_and_parse_ani(val, CP_STRLIT("color"), layer.color_animation);
+				_find_and_parse_ani(val, CP_STRLIT("size"), layer.size_animation);
+				_find_and_parse_ani(val, CP_STRLIT("margin"), layer.margin_animation);
+				_try_find_and_parse(val, CP_STRLIT("anchor"), layer.rect_anchor);
+				_try_find_and_parse(val, CP_STRLIT("width_alloc"), layer.width_alloc);
+				_try_find_and_parse(val, CP_STRLIT("height_alloc"), layer.height_alloc);
 			} else if (val.IsString()) {
 				layer = visual_layer();
 				parse_animation(layer.texture_animation, val, table);
@@ -319,13 +348,34 @@ namespace codepad::ui {
 		}
 	protected:
 		/// Finds the animation with the given name within the given JSON object, and parses it if there is one.
-		template <typename T, typename ...Args> inline static void _find_and_parse(
+		template <typename T, typename ...Args> inline static void _find_and_parse_ani(
 			const json::value_t &val, const str_t &s, animated_property<T> &p, Args &&...args
 		) {
 			auto found = val.FindMember(s.c_str());
 			if (found != val.MemberEnd()) {
 				parse_animation(p, found->value, std::forward<Args>(args)...);
 			}
+		}
+		/// Finds the attribute with the given name within the given JSON object, and parses it with a corresponding
+		/// \ref json_object_parser.
+		///
+		/// \return Whether the attribute has been found.
+		template <typename T> inline static bool _try_find_and_parse(const json::value_t &val, const str_t &s, T &v) {
+			auto found = val.FindMember(s.c_str());
+			if (found != val.MemberEnd()) {
+				v = json_object_parser<T>::parse(found->value);
+				return true;
+			}
+			return false;
+		}
+		/// Finds the attribute with the given name within the given JSON object, and parses it with a corresponding
+		/// \ref json_object_parser. If no such attribute is found, the given default value is returned.
+		template <typename T> inline static T _find_and_parse(const json::value_t &val, const str_t &s, T dflt) {
+			T v = dflt;
+			if (!_try_find_and_parse(v)) {
+				return dflt;
+			}
+			return v;
 		}
 		/// Parses a visual state ID. The given JSON object must be an array of strings,
 		/// each string of which denotes a bit that is to be set.
