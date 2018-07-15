@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file
-/// Classes related to ``window''s.
+/// Classes related to `window's.
 
 #include <chrono>
 #include <functional>
@@ -121,22 +121,7 @@ namespace codepad::os {
 		}
 		/// Called to set the focused element within this window. This function invokes appropriate handlers and
 		/// refreshes the list of \ref ui::element_hotkey_group "element_hotkey_groups"
-		void set_window_focused_element(ui::element &e) {
-			assert_true_logical(e.get_window() == this, "corrupted element tree");
-			if (&e != _focus) {
-				ui::element *oldfocus = _focus;
-				_focus = &e;
-				std::vector<ui::element_hotkey_group_data> gps;
-				for (ui::element *cur = _focus; cur != nullptr; cur = cur->parent()) {
-					const ui::element_hotkey_group
-						*gp = ui::class_manager::get().hotkeys.find(cur->get_class());
-					gps.push_back(ui::element_hotkey_group_data(gp, cur));
-				}
-				hotkey_manager.reset_groups(gps);
-				oldfocus->_on_lost_focus();
-				e._on_got_focus();
-			}
-		}
+		void set_window_focused_element(ui::element&);
 
 		event<void>
 			close_request, ///< Invoked when the user clicks the `close' button.
@@ -253,31 +238,9 @@ namespace codepad::os {
 		}
 
 
-		/// Renders all the window's children, then renders all decorations on top of the rendered result.
-		void _custom_render() override {
-			panel::_custom_render();
-			// render decorations
-			bool has_active = false;
-			for (auto i = _decos.begin(); i != _decos.end(); ) {
-				if ((*i)->_st.update_and_render((*i)->_layout)) {
-					has_active = true;
-				} else {
-					if (test_bit_all(
-						(*i)->get_state(), ui::visual::get_predefined_states().corpse
-					)) { // a dead corpse
-						auto j = i;
-						++j;
-						delete *i; // the entry in _decos will be automatically removed here
-						i = j;
-						continue;
-					}
-				}
-				++i;
-			}
-			if (has_active) {
-				invalidate_visual();
-			}
-		}
+		/// Renders all the window's children, then renders all decorations on top of the rendered result. Also
+		/// removes all corpse decorations whose animations have finished.
+		void _custom_render() override;
 
 		/// Called in ui::decoration::~decoration() to automatically unregister the decoration.
 		virtual void _on_decoration_destroyed(ui::decoration &d) {

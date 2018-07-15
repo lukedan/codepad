@@ -147,6 +147,12 @@
     <ClInclude Include="editors\tabs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="editors\code\buffer_formatting.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\document_formatting_cache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -198,6 +204,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="os\window.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\element_classes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -274,11 +274,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="editors\code\buffer.h" />
+    <ClInclude Include="editors\code\buffer_formatting.h" />
     <ClInclude Include="editors\code\codebox.h" />
     <ClInclude Include="editors\code\document_manager.h" />
     <ClInclude Include="editors\code\editor.h" />
     <ClInclude Include="editors\code\components.h" />
     <ClInclude Include="editors\code\rendering.h" />
+    <ClInclude Include="editors\code\document_formatting_cache.h" />
     <ClInclude Include="editors\code\view.h" />
     <ClInclude Include="editors\tabs.h" />
     <ClInclude Include="editors\code\document.h" />
@@ -331,6 +333,7 @@
     <ClCompile Include="os\windows\windows.cpp" />
     <ClCompile Include="ui\common_elements.cpp" />
     <ClCompile Include="ui\element.cpp" />
+    <ClCompile Include="ui\element_classes.cpp" />
     <ClCompile Include="ui\manager.cpp" />
     <ClCompile Include="ui\native_commands.cpp" />
     <ClCompile Include="ui\panel.cpp" />

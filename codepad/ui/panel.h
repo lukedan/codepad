@@ -250,12 +250,7 @@ namespace codepad::ui {
 		void _dispose() override;
 
 		/// Tests if a given point is within an element, with regard to its visibility.
-		bool _hit_test_child(element *c, vec2d p) {
-			if (test_bit_any(c->get_visibility(), visibility::interaction_only)) {
-				return c->hit_test(p);
-			}
-			return false;
-		}
+		bool _hit_test_child(element*, vec2d);
 
 		/// Calls \ref element::_recalc_layout on a given child.
 		inline static void _child_recalc_layout_noreval(element *e, rectd r) {
@@ -317,6 +312,30 @@ namespace codepad::ui {
 		/// Overrides the layout of children.
 		bool override_children_layout() const override {
 			return true;
+		}
+
+		/// Returns the minimum width that can contain all elements in pixels. More specifically, the return value
+		/// is the sum of all horizontal sizes specified in pixels, ignoring those specified as proportions, if
+		/// \ref _ori is \ref orientation::horizontal; or the maximum horizontal size specified in pixels otherwise.
+		std::pair<double, bool> get_desired_width() const override {
+			double val = 0.0;
+			for (element *e : _children) {
+				double span = _get_horizontal_absolute_span(e);
+				val = _ori == orientation::vertical ? std::max(val, span) : val + span;
+			}
+			return {val, true};
+		}
+		/// Returns the minimum height that can contain all elements in pixels. All heights specified in
+		/// proportions are ignored.
+		///
+		/// \sa get_desired_width
+		std::pair<double, bool> get_desired_height() const override {
+			double val = 0.0;
+			for (element *e : _children) {
+				double span = _get_vertical_absolute_span(e);
+				val = _ori == orientation::horizontal ? std::max(val, span) : val + span;
+			}
+			return {val, true};
 		}
 
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel_base with the given
@@ -421,6 +440,43 @@ namespace codepad::ui {
 					info.margin_max.first * prop_mult;
 				_child_set_layout(e, nl);
 			}
+		}
+
+		/// Returns the total horizontal span of the specified element that is specified in pixels.
+		inline static double _get_horizontal_absolute_span(const element *e) {
+			double cur = 0.0;
+			if (test_bit_any(e->get_anchor(), anchor::left)) {
+				cur += e->get_margin().left;
+			}
+			auto sz = e->get_layout_width();
+			if (sz.second) {
+				cur += sz.first;
+			}
+			if (test_bit_any(e->get_anchor(), anchor::right)) {
+				cur += e->get_margin().right;
+			}
+			return cur;
+		}
+		/// Returns the total vertical span of the specified element that is specified in pixels.
+		inline static double _get_vertical_absolute_span(const element *e) {
+			double cur = 0.0;
+			if (test_bit_any(e->get_anchor(), anchor::top)) {
+				cur += e->get_margin().top;
+			}
+			auto sz = e->get_layout_height();
+			if (sz.second) {
+				cur += sz.first;
+			}
+			if (test_bit_any(e->get_anchor(), anchor::bottom)) {
+				cur += e->get_margin().bottom;
+			}
+			return cur;
+		}
+
+		/// Calls \ref layout_elements_in to calculate the layout of all children.
+		void _finish_layout() override {
+			layout_elements_in(get_client_region(), std::vector<element*>(_children.begin(), _children.end()), _ori);
+			panel_base::_finish_layout();
 		}
 
 		orientation _ori = orientation::vertical; ///< The orientation in which children are placed.

@@ -8,8 +8,11 @@
 #include "font_family.h"
 
 namespace codepad::ui {
-	/// Struct for measuring and layouting text. Note that it only does so for one line of text,
-	/// and all line breaks are treated as normal characters, i.e., doesn't start new lines.
+	/// Struct for measuring and layouting text. Note that it only does so for one line of text, and all line breaks
+	/// are treated as normal characters, i.e., they don't start new lines. Note that no additional processing (e.g.,
+	/// rounding) is performed.
+	///
+	/// \todo Implement subpixel character placement (not for this struct, but for all other struct (maybe in renderers)).
 	struct character_metrics_accumulator {
 	public:
 		/// Constructs the struct, given a \ref font_family and a tab size.
@@ -39,9 +42,6 @@ namespace codepad::ui {
 				}
 			}
 			_cet = &stylefnt->get_char_entry(_curchar);
-			// the position is rounded here
-			// std::round harms performance, and _pos is (assumingly) always positive
-			_pos = static_cast<int>(_pos + 0.5);
 			if (_curchar == '\t') {
 				_cw = _get_target_tab_width();
 			} else {
@@ -52,9 +52,9 @@ namespace codepad::ui {
 		void create_blank_before(double width) {
 			if (_lastchar == '\0') {
 				_lce = _pos;
-				_pos += std::ceil(width);
+				_pos += width;
 			} else {
-				_pos = _lce + std::ceil(width);
+				_pos = _lce + width;
 				_lastchar = '\0';
 			};
 			if (_curchar == '\t') {
@@ -119,7 +119,7 @@ namespace codepad::ui {
 		const os::font::entry *_cet = nullptr; ///< The entry for the current character.
 
 		/// Returns the width of the tab character, in pixels, considering its position.
-		/// As a result, the tab may be shorter than the specified width.
+		/// The tab may be shorter than the width specified by \ref _tabw.
 		double _get_target_tab_width() const {
 			return _tabw * (std::floor(_pos / _tabw) + 1.0) - _pos;
 		}
@@ -141,13 +141,10 @@ namespace codepad::ui {
 					cur.y += dy;
 					last = '\0';
 				} else {
-					const os::font::entry &et = fnt->get_char_entry(*i);
 					if (last != '\0') {
 						cur.x += static_cast<int>(std::round(lastw + fnt->get_kerning(last, *i).x));
 					}
-					os::renderer_base::get().draw_character(
-						et.texture, cur.convert<double>() + et.placement.xmin_ymin(), color
-					);
+					os::font::entry &et = fnt->draw_character(*i, cur.convert<double>(), color);
 					last = *i;
 					lastw = et.advance;
 				}

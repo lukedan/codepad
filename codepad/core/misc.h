@@ -45,6 +45,15 @@ namespace std {
 }
 
 namespace codepad {
+	/// Used to obtain certain attributes of member pointers.
+	template <typename> struct member_pointer_traits;
+	/// Specialization for member object pointers.
+	template <typename Owner, typename Val> struct member_pointer_traits<Val Owner::*> {
+		using value_type = Val; ///< The type of the pointed-to object.
+		using owner_type = Owner; ///< The type of the owner.
+	};
+
+
 	/// Information about a position in the code of codepad.
 	struct code_position {
 		/// Constructs the \ref code_position with the corresponding information.
@@ -730,15 +739,11 @@ namespace codepad {
 		return static_cast<T>(static_cast<Int>(v) & static_cast<Int>(~static_cast<Int>(bit)));
 	}
 	/// Sets the bits of \p v corresponding to those of \p bit to 1.
-	template <typename T, typename U, typename Int = std::conditional_t<
-		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>> inline void set_bit(T &v, U bit) {
+	template <typename T, typename U> inline void set_bit(T &v, U bit) {
 		v = with_bit_set(v, bit);
 	}
 	/// Sets the bits of \p v corresponding to those of \p bit to 0.
-	template <typename T, typename U, typename Int = std::conditional_t<
-		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>> inline void unset_bit(T &v, U bit) {
+	template <typename T, typename U> inline void unset_bit(T &v, U bit) {
 		v = with_bit_unset(v, bit);
 	}
 
@@ -1013,13 +1018,13 @@ namespace codepad {
 #endif
 
 #if CP_ERROR_LEVEL > 0
-#	define CP_DETECT_SYSTEM_ERRORS
+#	define CP_CHECK_SYSTEM_ERRORS
 #endif
 #if CP_ERROR_LEVEL > 1
-#	define CP_DETECT_USAGE_ERRORS
+#	define CP_CHECK_USAGE_ERRORS
 #endif
 #if CP_ERROR_LEVEL > 2
-#	define CP_DETECT_LOGICAL_ERRORS
+#	define CP_CHECK_LOGICAL_ERRORS
 #endif
 
 	/// Assertion, with a given error message. The main purpose of declaring this as a function is that
@@ -1032,7 +1037,7 @@ namespace codepad {
 		}
 	}
 
-#ifdef CP_DETECT_SYSTEM_ERRORS
+#ifdef CP_CHECK_SYSTEM_ERRORS
 	/// \ref assert_true specialization of error_level::system_error.
 	template <> inline void assert_true<error_level::system_error>(bool v, const char *msg) {
 		if (!v) {
@@ -1044,7 +1049,7 @@ namespace codepad {
 	template <> inline void assert_true<error_level::system_error>(bool, const char*) {
 	}
 #endif
-#ifdef CP_DETECT_USAGE_ERRORS
+#ifdef CP_CHECK_USAGE_ERRORS
 	/// \ref assert_true specialization of error_level::usage_error.
 	template <> inline void assert_true<error_level::usage_error>(bool v, const char *msg) {
 		if (!v) {
@@ -1056,7 +1061,7 @@ namespace codepad {
 	template <> inline void assert_true<error_level::usage_error>(bool, const char*) {
 	}
 #endif
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 	/// \ref assert_true specialization of error_level::logical_error.
 	template <> inline void assert_true<error_level::logical_error>(bool v, const char *msg) {
 		if (!v) {
@@ -1102,55 +1107,45 @@ namespace codepad {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
-}
 
-// memory leak detection
-#if defined(CP_PLATFORM_WINDOWS) && defined(_MSC_VER)
-#	ifdef CP_DETECT_USAGE_ERRORS
-#		define CP_CAN_DETECT_MEMORY_LEAKS
-#		define _CRTDBG_MAP_ALLOC
-#		include <crtdbg.h>
-namespace codepad {
-	/// Enables the detection of memory leaks. Only works on Windows with MSVC.
-	inline void enable_mem_checking() {
-		_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-	}
+	/// Initializes the program by calling \ref os::initialize first and then performing several other
+	/// initialization steps.
+	void initialize(int, char**);
 }
-#	endif
-#endif
 
 // demangle
-#ifdef _MSC_VER
-namespace codepad {
-	/// Demangles a given type name for more human-readable output.
-	/// Returns the name unmodified on MSVC.
-	inline std::string demangle(std::string s) {
-		return s;
-	}
-}
-#elif defined(__GNUC__)
+#ifdef __GNUC__
 #	include <cxxabi.h>
+#endif
 namespace codepad {
 	/// Demangles a given type name for more human-readable output.
-	inline std::string demangle(const std::string &s) {
+	inline std::string demangle(std::string s) {
+#ifdef _MSC_VER
+		return s;
+#elif defined(__GNUC__)
 		int st;
 		char *result = abi::__cxa_demangle(s.c_str(), nullptr, nullptr, &st);
 		assert_true_sys(st == 0, "demangling failed");
 		std::string res(result);
 		std::free(result);
 		return res;
+#endif
 	}
 }
-#endif
 
-// stacktrace
-#ifdef CP_LOG_STACKTRACE
-#	ifdef _MSC_VER
-// windows version in os/windows/windows.cpp
-#	elif defined(CP_PLATFORM_UNIX) && defined(__GNUC__)
-#		include <execinfo.h>
+#ifndef CP_LOG_STACKTRACE
 namespace codepad {
 	inline void logger::log_stacktrace() {
+		log_warning(CP_HERE, "stacktrace logging has been disabled");
+	}
+}
+#elif !defined(_MSC_VER) // windows version in os/windows/windows.cpp
+#	if defined(CP_PLATFORM_UNIX) && defined(__GNUC__)
+#		include <execinfo.h>
+#	endif
+namespace codepad {
+	inline void logger::log_stacktrace() {
+#	if defined(CP_PLATFORM_UNIX) && defined(__GNUC__)
 		constexpr static int max_frames = 1000;
 
 		void *frames[max_frames];
@@ -1163,19 +1158,9 @@ namespace codepad {
 		}
 		log_custom("STACKTRACE|END");
 		free(symbols);
-	}
-}
 #	else
-namespace codepad {
-	inline void logger::log_stacktrace() {
 		log_warning(CP_HERE, "stacktrace logging is not supported with this configuration");
-	}
-}
 #	endif
-#else
-namespace codepad {
-	inline void logger::log_stacktrace() {
-		log_warning(CP_HERE, "stacktrace logging has been disabled");
 	}
 }
 #endif

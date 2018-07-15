@@ -22,7 +22,7 @@ namespace codepad::os {
 	public:
 		/// Checks if the derived class has called _text_atlas::dispose().
 		~opengl_renderer_base() override {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 			assert_true_logical(_atl.disposed, "derived classes must manually dispose _atl");
 #endif
 		}
@@ -576,7 +576,7 @@ namespace codepad::os {
 			}
 			/// Frees all resources allocated by \ref _text_atlas.
 			void dispose() {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 				assert_true_logical(!disposed, "text atlas already disposed");
 				disposed = true;
 #endif
@@ -676,7 +676,7 @@ namespace codepad::os {
 				page_height = 300,
 				/// The margin between characters. Modifying this only affects characters added afterwards.
 				border = 1;
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 			bool disposed = false; ///< Records whether \ref dispose() has been called.
 #endif
 		protected:
@@ -987,8 +987,7 @@ namespace codepad::os {
 						UV = inUV;
 						Color = inColor;
 					}
-				)shader"
-				,
+				)shader",
 				R"shader(
 					#version 330 core
 
@@ -1070,7 +1069,7 @@ namespace codepad::os {
 		}
 		/// Checks for any OpenGL errors.
 		void _gl_verify() {
-#ifdef CP_DETECT_SYSTEM_ERRORS
+#ifdef CP_CHECK_SYSTEM_ERRORS
 			GLenum errorcode = glGetError();
 			if (errorcode != GL_NO_ERROR) {
 				logger::get().log_error(CP_HERE, "OpenGL error code ", errorcode);

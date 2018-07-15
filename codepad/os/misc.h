@@ -116,6 +116,6 @@ namespace codepad::os {
 	/// \return The list of files that the user selects, or empty if the user cancels the operation.
 	std::vector<std::filesystem::path> open_file_dialog(const window_base*, file_dialog_type);
 
-	/// Initializes the program with the given command line arguments.
+	/// Initializes platform-specific aspects of the program with the given command line arguments.
 	void initialize(int, char**);
 }

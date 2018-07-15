@@ -2,7 +2,7 @@
 /// Definition of certain global objects and functions,
 /// and auxiliary structs to log their construction and destruction.
 
-#include <vector>
+#include <stack>
 #include <string>
 
 #include "misc.h"
@@ -14,18 +14,27 @@
 #include "../ui/manager.h"
 #include "../ui/element_classes.h"
 #include "../ui/font_family.h"
+#include "../ui/native_commands.h"
 #include "../ui/visual.h"
 #include "../editors/tabs.h"
 #include "../editors/code/components.h"
 #include "../editors/code/editor.h"
+#include "../editors/code/document_formatting_cache.h"
 #include "../editors/code/document_manager.h"
 
 using namespace std;
 
-namespace codepad {
-	double editor::code::editor::_lines_per_scroll = 3.0;
+using namespace codepad::os;
+using namespace codepad::ui;
+using namespace codepad::editor;
+using namespace codepad::editor::code;
 
-	double editor::code::minimap::_target_height = 2.1;
+namespace codepad {
+	double code::editor::_lines_per_scroll = 3.0;
+
+	double minimap::_target_height = 2.0;
+
+	std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;
 
 
 	chrono::high_resolution_clock::time_point get_app_epoch() {
@@ -33,12 +42,32 @@ namespace codepad {
 		return _epoch;
 	}
 	chrono::duration<double> get_uptime() {
-		return chrono::duration<double>(chrono::high_resolution_clock().now() - get_app_epoch());
+		return chrono::duration<double>(chrono::high_resolution_clock::now() - get_app_epoch());
+	}
+
+
+	void initialize(int argc, char **argv) {
+		os::initialize(argc, argv);
+
+		get_app_epoch(); // initialize epoch
+
+		// initialize renderer
+#ifdef CP_PLATFORM_WINDOWS
+		renderer_base::create_default<opengl_renderer>();
+#elif defined(CP_PLATFORM_UNIX)
+		renderer_base::create_default<software_renderer>();
+#endif
+
+		native_commands::register_all(); // register commands
+
+		// initialization steps below need to be associated with settings some time
+
+		document_formatting_cache::enable();
 	}
 
 
 	/// Type names of initializing global objects are pushed onto this stack to make dependency clear.
-	vector<string> _global_init_stk;
+	stack<string> _global_init_stk;
 	string _cur_global_dispose; ///< Type name of the global object that's currently being destructed.
 
 	/// Wrapper struct for a global variable.
@@ -52,16 +81,16 @@ namespace codepad {
 		/// This function then logs the ending, and pops the type name from \ref _global_init_stk.
 		///
 		/// \param args Arguments that are forwarded to the construction of the underlying object.
-		template <typename ...Args> _global_wrapper(Args &&...args) : object(forward<Args>(args)...) {
+		template <typename ...Args> explicit _global_wrapper(Args &&...args) : object(forward<Args>(args)...) {
 			// logging is not performed for logger since it may lead to recursive initialization
 			if constexpr (!is_same_v<T, logger>) {
 				logger::get().log_info(
 					CP_HERE,
 					string((_global_init_stk.size() - 1) * 2, ' '), // indent
-					"finish init: ", _global_init_stk.back()
+					"finish init: ", _global_init_stk.top()
 				);
 			}
-			_global_init_stk.pop_back();
+			_global_init_stk.pop();
 		}
 		/// Desturctor. Logs the object's destruction.
 		~_global_wrapper() {
@@ -82,7 +111,7 @@ namespace codepad {
 						"begin init: ", tname
 					);
 				}
-				_global_init_stk.push_back(move(tname));
+				_global_init_stk.emplace(move(tname));
 			}
 			/// Destructor. Logs when the object has been destructed.
 			~_init_marker() {
@@ -157,9 +186,9 @@ namespace codepad {
 		}
 	}
 	namespace ui {
-#ifdef CP_DETECT_LOGICAL_ERRORS
-		control_dispose_rec &control_dispose_rec::get() {
-			static _global_wrapper<control_dispose_rec> _v;
+#ifdef CP_CHECK_LOGICAL_ERRORS
+		control_disposal_rec &control_disposal_rec::get() {
+			static _global_wrapper<control_disposal_rec> _v;
 			return _v.object;
 		}
 #endif
@@ -169,14 +198,6 @@ namespace codepad {
 		}
 		content_host::_default_font &content_host::_default_font::get() {
 			static _global_wrapper<_default_font> _v;
-			return _v.object;
-		}
-		visual::_registry &visual::_registry::get() {
-			static _global_wrapper<_registry> _v;
-			return _v.object;
-		}
-		class_manager &class_manager::get() {
-			static _global_wrapper<class_manager> _v;
 			return _v.object;
 		}
 		command_registry &command_registry::get() {

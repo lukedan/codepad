@@ -3,7 +3,7 @@
 /// \file
 /// Implementation of a generic binary tree.
 
-#include <vector>
+#include <stack>
 #include <functional>
 
 #include "misc.h"
@@ -26,6 +26,10 @@ namespace codepad {
 		template <typename Node> void operator()(Node &&node) const {
 			T::synthesize(std::forward<Node>(node));
 		}
+	};
+	/// A struct indicating that no default synthesizer is specified for a \ref binary_tree, and that all methods
+	/// that rely on a default synthesizer should fail to instantiate.
+	struct no_synthesizer {
 	};
 	/// Inserts or searches for a node in a tree as if it were a binary search tree.
 	///
@@ -66,10 +70,27 @@ namespace codepad {
 	///
 	/// \tparam T Type of \ref value.
 	/// \tparam AdditionalData Type of \ref synth_data.
+	/// \remark The design of \p AdditionalData has to ensure that for subtrees that consists of the same nodes
+	///         but not necessarily in the same order, the values of this struct must be the same.
 	template <typename T, typename AdditionalData = no_data> struct binary_tree_node {
+		using value_type = T; ///< The type of \ref value.
+		using synth_data_type = AdditionalData; ///< The type of \ref synth_data.
+
 		/// Constructs a binary tree node, forwarding all its arguments to the constructor of \ref value.
 		template <typename ...Args> explicit binary_tree_node(Args &&...args) : value(std::forward<Args>(args)...) {
 		}
+		/// No move construction.
+		///
+		/// \remark With all the pointers stuff, it's not logical to simply `move' or `copy' a node, and most of the
+		///         time doing so to \ref synth_data also seems wrong. On the other hand, it's perfectly logical to
+		///         create a new node with the same value.
+		binary_tree_node(binary_tree_node&&) = delete;
+		/// No copy construction.
+		binary_tree_node(const binary_tree_node&) = delete;
+		/// No move assignment.
+		binary_tree_node &operator=(binary_tree_node&&) = delete;
+		/// No copy assignment.
+		binary_tree_node &operator=(const binary_tree_node&) = delete;
 
 		/// Returns the successor of a node.
 		///
@@ -89,7 +110,7 @@ namespace codepad {
 		/// Returns the predecessor of a node.
 		///
 		/// \return The node's predecessor in the tree, or \p nullptr if there's none.
-		binary_tree_node * prev() const {
+		binary_tree_node *prev() const {
 			if (left) {
 				binary_tree_node *res = left;
 				for (; res->right; res = res->right) {
@@ -114,7 +135,10 @@ namespace codepad {
 	///
 	/// \tparam T Type of the data held by the tree's nodes.
 	/// \tparam AdditionalData Type of additional data held by the nodes.
-	/// \tparam Synth Provides operator() to calculate \ref binary_tree_node::synth_data.
+	/// \tparam Synth Provides operator() to calculate \ref binary_tree_node::synth_data. If this is
+	///               \ref no_synthesizer, then there will be no default synthesizer and all methods that make use of
+	///               it will be disabled.
+	/// \sa binary_tree_node
 	/// \todo Maybe switch to red-black tree?
 	template <
 		typename T, typename AdditionalData = no_data, typename Synth = default_synthesizer<AdditionalData>
@@ -122,37 +146,42 @@ namespace codepad {
 	public:
 		using node = binary_tree_node<T, AdditionalData>; ///< The type of tree nodes.
 		template <bool> struct iterator_base;
-		/// Helper class to ensure that \ref binary_tree_node::synth_data
-		/// of nodes with modified values are updated properly,
-		/// by automatically calling \ref refresh_synthesized_result(binary_tree_node*) in
-		/// #~node_value_modifier().
-		struct node_value_modifier {
-			friend struct iterator_base<false>;
-			friend struct binary_tree;
+		/// Helper class to ensure that \ref binary_tree_node::synth_data of nodes with modified values are updated
+		/// properly, by automatically calling \ref refresh_synthesized_result(binary_tree_node*) in the destructor.
+		///
+		/// \remark The lifetime of the synthesizer must be longer than that of this struct, and the synthesizer must
+		///         not be moved. To avoid this restriction, modify the value directly before calling
+		///         \ref refresh_synthesized_result.
+		template <typename MySynth> struct node_value_modifier {
 		public:
-			/// Default constructor.
+			/// Default constructor that initializes the struct to empty.
 			node_value_modifier() = default;
+			/// Initializes the struct to modify the given node with the given synthesizer.
+			node_value_modifier(node &n, MySynth &synth) : _n(&n), _synth(&synth) {
+			}
 			/// Default copy constructor.
 			node_value_modifier(const node_value_modifier&) = default;
 			/// Swaps the contents of two \ref node_value_modifier "node_value_modifiers"
 			/// to eliminate one (redundant) call to \ref refresh_synthesized_result(binary_tree_node*).
-			node_value_modifier(node_value_modifier &&mod) : _n(mod._n), _cont(mod._cont) {
+			node_value_modifier(node_value_modifier &&mod) noexcept : _n(mod._n), _synth(mod._synth) {
 				mod._n = nullptr;
-				mod._cont = nullptr;
+				mod._synth = nullptr;
 			}
 			/// Calls \ref manual_refresh() before copying.
 			node_value_modifier &operator=(const node_value_modifier &mod) {
 				manual_refresh();
 				_n = mod._n;
-				_cont = mod._cont;
+				_synth = mod._synth;
+				return *this;
 			}
 			/// Calls \ref manual_refresh() before moving the contents.
-			node_value_modifier &operator=(node_value_modifier &&mod) {
+			node_value_modifier &operator=(node_value_modifier &&mod) noexcept {
 				manual_refresh();
 				_n = mod._n;
-				_cont = mod._cont;
+				_synth = mod._synth;
 				mod._n = nullptr;
-				mod._cont = nullptr;
+				mod._synth = nullptr;
+				return *this;
 			}
 			/// Calls \ref manual_refresh() to update the synthesized values in the tree.
 			~node_value_modifier() {
@@ -160,37 +189,26 @@ namespace codepad {
 			}
 
 			/// Returns a reference to the node's value for modification.
-			///
-			/// \return A reference to the value of \ref _n.
 			T &operator*() const {
 				return _n->value;
 			}
 			/// Returns a pointer to the node's value for modification.
-			///
-			/// \return A pointer to the value of \ref _n.
 			T *operator->() const {
 				return &operator*();
 			}
 
-			/// Calls \ref refresh_synthesized_result(binary_tree_node*) to update the synthesized values if
-			/// this \ref node_value_modifier is valid.
+			/// Calls \ref refresh_synthesized_result to update the synthesized values if this
+			/// \ref node_value_modifier is valid.
 			void manual_refresh() {
-				if (_cont) {
-					// if _cont is nonempty, then _n should be nonempty too
+				if (_synth) {
+					// if _synth is nonempty, then _n should be nonempty too
 					assert_true_logical(_n != nullptr, "invalid modifier");
-					_cont->refresh_synthesized_result(_n);
+					refresh_synthesized_result(_n, *_synth);
 				}
 			}
 		protected:
-			/// Protected constructor that only \ref binary_tree and \ref binary_tree::iterator_base can access.
-			///
-			/// \param n The node that's to be modified. Should not be nullptr if \p c isn't.
-			/// \param c The container that \p n belongs to, or \p nullptr.
-			node_value_modifier(node *n, binary_tree *c) : _n(n), _cont(c) {
-			}
-
-			node *_n = nullptr; ///< Pointer to the \ref binary_tree_node that the user intends to modify.
-			binary_tree *_cont = nullptr; ///< Pointer to the tree that \ref _n belongs to.
+			node * _n = nullptr; ///< Pointer to the \ref binary_tree_node that the user intends to modify.
+			MySynth *_synth = nullptr; ///< Pointer to the synthesizer.
 		};
 		/// Template of const and non-const iterators.
 		///
@@ -211,7 +229,7 @@ namespace codepad {
 			/// Converting constructor from non-const iterator to const iterator.
 			///
 			/// \param it A non-const iterator.
-			iterator_base(const iterator_base<false> &it) :
+			iterator_base(const iterator_base<false> &it) noexcept :
 				_con(it._con), _n(it._n) {
 			}
 
@@ -231,7 +249,7 @@ namespace codepad {
 				return *this;
 			}
 			/// Post-increment.
-			iterator_base operator++(int) {
+			const iterator_base operator++(int) {
 				iterator_base ov = *this;
 				++*this;
 				return ov;
@@ -247,7 +265,7 @@ namespace codepad {
 				return *this;
 			}
 			/// Post-decrement.
-			iterator_base operator--(int) {
+			const iterator_base operator--(int) {
 				iterator_base ov = *this;
 				--*this;
 				return ov;
@@ -265,8 +283,8 @@ namespace codepad {
 				return _n->value;
 			}
 			/// Returns a corresponding \ref node_value_modifier.
-			node_value_modifier get_modifier() const {
-				return _con->get_modifier(_n);
+			node_value_modifier<Synth> get_modifier() const {
+				return _con->get_modifier_for(_n);
 			}
 			/// Returns the readonly value of the node.
 			const T &operator*() const {
@@ -301,137 +319,41 @@ namespace codepad {
 
 		/// Default constructor.
 		binary_tree() = default;
-		/// Initializes \ref _synth with \p args, then builds the tree with the contents of \p cont.
+		/// Initializes \ref _synth with \p args, then builds the tree with the given range of objects.
 		///
 		/// \tparam Cont Container type.
-		/// \param cont A container used to populate the tree.
+		/// \param beg Iterator to the first object.
+		/// \param end Iterator past the last object.
 		/// \param args Arguments for \ref _synth.
-		template <typename Cont, typename ...Args> explicit binary_tree(Cont &&cont, Args &&...args) :
-			_synth(std::forward<Args>(args)...) {
-			_root = build_tree(std::forward<Cont>(cont), _synth);
+		template <typename It, typename ...Args> explicit binary_tree(It &&beg, It &&end, Args &&...args) :
+			_root(std::forward<Args>(args)...) {
+			_root.ptr = build_tree_copy(std::forward<It>(beg), std::forward<It>(end), _root.synth);
 		}
 		/// Copy constructor. Clones the tree.
-		binary_tree(const binary_tree &tree) : _root(clone_tree(tree._root)) {
+		binary_tree(const binary_tree &tree) : _root(tree._root) {
+			_root.ptr = clone_tree(tree._root.ptr);
 		}
 		/// Move constructor. Moves the root pointer.
-		binary_tree(binary_tree &&tree) : _root(tree._root) {
-			tree._root = nullptr;
+		binary_tree(binary_tree &&tree) : _root(std::move(tree._root)) {
+			tree._root.ptr = nullptr;
 		}
 		/// Copy assignment. Clones the tree after deleting the old one.
 		binary_tree &operator=(const binary_tree &tree) {
-			delete_tree(_root);
-			_root = clone_tree(tree._root);
+			delete_tree(_root.ptr);
+			_root.synth = tree._root.synth;
+			_root.ptr = clone_tree(tree._root.ptr);
 			return *this;
 		}
-		/// Move assignment. Exchanges the root pointers.
+		/// Move assignment. Exchanges the \ref _root of two trees.
 		binary_tree &operator=(binary_tree &&tree) {
 			std::swap(_root, tree._root);
 			return *this;
 		}
 		/// Destructor. Calls delete_tree(binary_tree_node*) to dispose of all nodes.
 		~binary_tree() {
-			delete_tree(_root);
+			delete_tree(_root.ptr);
 		}
 
-		/// Inserts a node into the tree. Creates a \ref binary_tree_node using the provided arguments,
-		/// then travels from the root downwards, using a branch selector to determine where to go.
-		///
-		/// \param d The branch selector. See \ref bst_branch_selector for an example.
-		/// \param args Arguments used to initialize the new node.
-		template <typename BranchSelector, typename ...Args> iterator insert_custom(BranchSelector &&d, Args &&...args) {
-			node *n = new node(std::forward<Args>(args)...), *prev = nullptr, **pptr = &_root;
-			while (*pptr) {
-				prev = *pptr;
-				pptr = d.select_insert(*prev, *n) ? &prev->left : &prev->right;
-			}
-			*pptr = n;
-			n->parent = prev;
-			refresh_synthesized_result(n);
-			return iterator(this, n);
-		}
-		/// Inserts a node into the tree as if it were a binary search tree.
-		///
-		/// \tparam Comp Comparison function used when selecting branches.
-		/// \param args Arguments used to initialize the new node.
-		template <typename Comp, typename ...Args> iterator insert(Args &&...args) {
-			return insert_custom(bst_branch_selector<Comp>(), std::forward<Args>(args)...);
-		}
-
-		/// Inserts a node or a subtree before a node, that is, after the insertion,
-		/// the predecesor of \p before will be the rightmost element of the subtree.
-		/// If \p before is \p nullptr, \p n is inserted at the end of the tree.
-		///
-		/// \param before Indicates where the new subtree is to be inserted.
-		/// \param n The root of the subtree.
-		void insert_before_raw(node *before, node *n) {
-			if (n == nullptr) {
-				return; // no insertion needed
-			}
-			if (before == nullptr) {
-				if (_root) {
-					before = max();
-					before->right = n;
-				} else { // empty tree
-					_root = n;
-				}
-			} else if (before->left) {
-				for (before = before->left; before->right; before = before->right) {
-				}
-				// before is now the predecessor of the previous before
-				before->right = n;
-			} else {
-				before->left = n;
-			}
-			n->parent = before;
-			refresh_synthesized_result(before);
-		}
-		/// Builds a tree from an array of objects, then insert the tree before the designated node.
-		///
-		/// \param before Indicates where to insert the subtree.
-		/// \param objs A container of values.
-		template <typename Cont> void insert_tree_before(node *before, Cont &&objs) {
-			insert_before_raw(before, build_tree(std::forward<Cont>(objs), _synth));
-		}
-		/// \overload
-		template <typename Cont> void insert_tree_before(const_iterator it, Cont &&objs) {
-			insert_tree_before(it.get_node(), std::forward<Cont>(objs));
-		}
-		/// \overload
-		template <typename It> void insert_tree_before(node *before, It &&beg, It &&end) {
-			insert_before_raw(before, build_tree(std::forward<It>(beg), std::forward<It>(end)));
-		}
-		/// \overload
-		template <typename It> void insert_tree_before(const_iterator it, It &&beg, It &&end) {
-			insert_tree_before(it.get_node(), std::forward<It>(beg), std::forward<It>(end));
-		}
-		/// Inserts a node into the tree before the designated node.
-		///
-		/// \param before Indicates where to insert the node.
-		/// \param args Arguments used to initialize the new node.
-		template <typename ...Args> node *insert_node_before(node *before, Args &&...args) {
-			node *n = new node(std::forward<Args>(args)...);
-			_refresh_synth(n);
-			insert_before_raw(before, n);
-			return n;
-		}
-		/// \overload
-		template <typename ...Args> iterator insert_node_before(const_iterator it, Args &&...args) {
-			return get_iterator_for(insert_node_before(it.get_node(), std::forward<Args>(args)...));
-		}
-
-		/// Finds a node using a branch selector and a reference.
-		/// The reference may be non-const to provide additional feedback.
-		///
-		/// \param b A branch selector. See \ref bst_branch_selector for an example.
-		/// \param ref The reference for finding the target node.
-		/// \return The resulting iterator, or end() if none qualifies.
-		template <typename BranchSelector, typename Ref> iterator find_custom(BranchSelector &&b, Ref &&ref) {
-			return _find_custom_impl<iterator>(this, std::forward<BranchSelector>(b), std::forward<Ref>(ref));
-		}
-		/// Const version of find_custom(BranchSelector&&, Ref&&).
-		template <typename BranchSelector, typename Ref> const_iterator find_custom(BranchSelector &&b, Ref &&ref) const {
-			return _find_custom_impl<const_iterator>(this, std::forward<BranchSelector>(b), std::forward<Ref>(ref));
-		}
 
 		/// Returns an iterator for the given node.
 		///
@@ -505,14 +427,167 @@ namespace codepad {
 			return reverse_iterator(begin());
 		}
 
-		/// Update the synthesized values of all nodes on the path from \p n to the root.
+
+		/// Inserts a node into the tree with a custom synthesizer. Creates a \ref binary_tree_node using the
+		/// provided arguments, then travels from the root downwards, using a branch selector to determine where to
+		/// go.
 		///
-		/// \param n One end of the path.
-		void refresh_synthesized_result(node *n) {
+		/// \param d The branch selector. See \ref bst_branch_selector for an example.
+		/// \param synth The custom synthesizer.
+		/// \param args Arguments used to initialize the new node.
+		template <typename BranchSelector, typename MySynth, typename ...Args> iterator select_insert_custom_synth(
+			BranchSelector &&d, MySynth &&synth, Args &&...args
+		) {
+			node *n = new node(std::forward<Args>(args)...), *prev = nullptr, **pptr = &_root.ptr;
+			while (*pptr) {
+				prev = *pptr;
+				pptr = d.select_insert(*prev, *n) ? &prev->left : &prev->right;
+			}
+			*pptr = n;
+			n->parent = prev;
+			refresh_synthesized_result(n, std::forward<MySynth>(synth));
+			return iterator(this, n);
+		}
+
+		/// Inserts a node or a subtree before a node with a custom synthesizer. After the insertion, the predecesor
+		/// of \p before will be the rightmost element of the subtree. If \p before is \p nullptr, \p n is inserted
+		/// at the end of the tree. The node or subtree to insert is assumed to have valid synthesized values.
+		///
+		/// \param before Indicates where the new subtree is to be inserted.
+		/// \param n The root of the subtree.
+		/// \param synth The custom synthesizer.
+		/// \remark This method may be removed when red-black tree is used.
+		template <typename MySynth> void insert_before(node *before, node *n, MySynth &&synth) {
+			if (n == nullptr) {
+				return; // no insertion needed
+			}
+			if (before == nullptr) {
+				if (_root.ptr) {
+					before = max();
+					before->right = n;
+				} else { // empty tree
+					_root.ptr = n;
+				}
+			} else if (before->left) {
+				for (before = before->left; before->right; before = before->right) {
+				}
+				// before is now the predecessor of the previous before
+				before->right = n;
+			} else {
+				before->left = n;
+			}
+			n->parent = before;
+			refresh_synthesized_result(before, std::forward<MySynth>(synth));
+		}
+		/// \ref insert_before_raw(node*, node*, MySynth&&) with the default synthesizer.
+		/// \remark This method may be removed when red-black tree is used.
+		void insert_before(node *before, node *n) {
+			insert_before(before, n, _root.synth);
+		}
+
+
+		/// Inserts a range of nodes before the given node, with a custom synthesizer. The items are copied from the
+		/// given objects.
+		template <typename It, typename MySynth> void insert_range_before_copy(
+			node *before, It &&beg, It &&end, MySynth &&synth
+		) {
+			insert_before(before, build_tree_copy(
+				std::forward<It>(beg), std::forward<It>(end), std::forward<MySynth>(synth)
+			), std::forward<MySynth>(synth));
+		}
+		/// \ref insert_range_before_copy(node*, It&&, It&&, MySynth&&) with the default synthesizer.
+		template <typename It> void insert_range_before_copy(node *before, It &&beg, It &&end) {
+			insert_range_before_copy(before, std::forward<It>(beg), std::forward<It>(end), _root.synth);
+		}
+		/// \overload
+		template <typename ...Args> void insert_range_before_copy(const_iterator before, Args &&...args) {
+			insert_range_before_copy(before.get_node(), std::forward<Args>(args)...);
+		}
+		/// Inserts a range of nodes before the given node, with a custom synthesizer. The items are moved from the
+		/// given objects.
+		template <typename It, typename MySynth> void insert_range_before_move(
+			node *before, It &&beg, It &&end, MySynth &&synth
+		) {
+			insert_before(before, build_tree_move(
+				std::forward<It>(beg), std::forward<It>(end), std::forward<MySynth>(synth)
+			), std::forward<MySynth>(synth));
+		}
+		/// \ref insert_range_before_move(node*, It&&, It&&, MySynth&&) with the default synthesizer.
+		template <typename It> void insert_range_before_move(node *before, It &&beg, It &&end) {
+			insert_range_before_move(before, std::forward<It>(beg), std::forward<It>(end), _root.synth);
+		}
+		/// \overload
+		template <typename ...Args> void insert_range_before_move(const_iterator before, Args &&...args) {
+			insert_range_before_move(before.get_node(), std::forward<Args>(args)...);
+		}
+
+		/// Inserts a node before the given node, with a custom synthesizer. The value of the node (i.e.,
+		/// \ref binary_tree_node::value) is constructed in-place.
+		template <typename MySynth, typename ...Args> iterator emplace_before_custom_synth(
+			node *before, MySynth &&synth, Args &&...args
+		) {
+			node *n = new node(std::forward<Args>(args)...);
+			_refresh_synth(n, std::forward<MySynth>(synth));
+			insert_before(before, n, std::forward<MySynth>(synth));
+			return get_iterator_for(n);
+		}
+		/// \overload
+		template <typename ...Args> iterator emplace_before_custom_synth(const_iterator before, Args &&...args) {
+			return emplace_before_custom_synth(before.get_node(), std::forward<Args>(args)...);
+		}
+		/// \ref emplace_before_custom_synth(node*, MySynth&&, Args&&) with the default synthesizer.
+		template <typename ...Args> iterator emplace_before(node *before, Args &&...args) {
+			return emplace_before_custom_synth(before, _root.synth, std::forward<Args>(args)...);
+		}
+		/// \overload
+		template <typename ...Args> iterator emplace_before(const_iterator before, Args &&...args) {
+			return emplace_before(before.get_node(), std::forward<Args>(args)...);
+		}
+
+		/// Inserts a node before the given node, with a custom synthesizer.
+		template <typename MySynth> iterator insert_before(
+			node *before, typename node::value_type val, MySynth &&synth
+		) {
+			emplace_before_custom_synth(before, std::forward<MySynth>(synth), std::move(val));
+		}
+		/// \ref insert_before(node*, typename node::value_type, MySynth&&) with the default synthesizer.
+		iterator insert_before(node *before, typename node::value_type val) {
+			return insert_before(before, std::move(val), _root.synth);
+		}
+		/// \overload
+		template <typename ...Args> iterator insert_before(const_iterator before, Args &&...args) {
+			return insert_before(before.get_node(), std::forward<Args>(args)...);
+		}
+
+
+		/// Finds a node using a branch selector and a reference.
+		/// The reference may be non-const to provide additional feedback.
+		///
+		/// \param b A branch selector. See \ref bst_branch_selector for an example.
+		/// \param ref The reference for finding the target node.
+		/// \return The resulting iterator, or end() if none qualifies.
+		template <typename BranchSelector, typename Ref> iterator find_custom(BranchSelector &&b, Ref &&ref) {
+			return get_iterator_for(find_custom(_root.ptr, std::forward<BranchSelector>(b), std::forward<Ref>(ref)));
+		}
+		/// Const version of find_custom(BranchSelector&&, Ref&&).
+		template <typename BranchSelector, typename Ref> const_iterator find_custom(
+			BranchSelector &&b, Ref &&ref
+		) const {
+			return get_iterator_for(find_custom(_root.ptr, std::forward<BranchSelector>(b), std::forward<Ref>(ref)));
+		}
+
+
+		/// Update the synthesized values of all nodes on the path from \p n to the root with a custom synthesizer.
+		template <typename MySynth> inline static void refresh_synthesized_result(node *n, MySynth &&synth) {
 			for (; n; n = n->parent) {
-				_refresh_synth(n);
+				_refresh_synth(n, std::forward<MySynth>(synth));
 			}
 		}
+		/// \ref refresh_synthesized_result(node*, MySynth&&) that uses the default synthesizer.
+		void refresh_synthesized_result(node *n) {
+			refresh_synthesized_result(n, _root.synth);
+		}
+
 	protected:
 		/// Enumeration for recording node status when traversing the tree.
 		enum class _traverse_status {
@@ -521,40 +596,46 @@ namespace codepad {
 			visited_right ///< The node's right subtree has been visited.
 		};
 	public:
-		/// Update the synthesized values of all nodes in the tree.
-		void refresh_tree_synthesized_result() {
-			std::vector<std::pair<node*, _traverse_status>> stk;
-			if (_root) {
-				stk.emplace_back(_root, _traverse_status::not_visited);
+		/// Update the synthesized values of all nodes in the tree with a custom synthesizer.
+		template <typename MySynth> void refresh_tree_synthesized_result(MySynth &&synth) {
+			std::stack<std::pair<node*, _traverse_status>> stk;
+			if (_root.ptr) {
+				stk.emplace(_root.ptr, _traverse_status::not_visited);
 			}
 			while (!stk.empty()) { // nodes are visited in a DFS-like fashion
-				std::pair<node*, _traverse_status> &p = stk.back();
+				std::pair<node*, _traverse_status> &p = stk.top();
 				switch (p.second) {
 				case _traverse_status::not_visited:
-					if (p.first->left) { // visit left subtree if there is one
+					if (p.first->left) { // visit left subtree first if there is one
 						p.second = _traverse_status::visited_left;
-						stk.emplace_back(p.first->left, _traverse_status::not_visited);
+						stk.emplace(p.first->left, _traverse_status::not_visited);
 						break;
 					}
-					[[fallthrough]]; // if there is none
+					[[fallthrough]]; // otherwise
 				case _traverse_status::visited_left:
-					if (p.first->right) { // visit right subtree if there is one
+					if (p.first->right) { // visit right subtree first if there is one
 						p.second = _traverse_status::visited_right;
-						stk.emplace_back(p.first->right, _traverse_status::not_visited);
+						stk.emplace(p.first->right, _traverse_status::not_visited);
 						break;
 					}
-					[[fallthrough]]; // if there is none
+					[[fallthrough]]; // otherwise
 				case _traverse_status::visited_right:
-					_refresh_synth(p.first);
-					stk.pop_back();
+					_refresh_synth(p.first, std::forward<MySynth>(synth));
+					stk.pop();
 					break;
 				}
 			}
 		}
+		/// \ref refresh_tree_synthesized_result(MySynth&&) with the default synthesizer.
+		void refresh_tree_synthesized_result() {
+			refresh_tree_synthesized_result(_root.synth);
+		}
+
 		/// Synthesize certain values from a node to the root.
 		///
 		/// \param n The node to start with.
-		/// \param v An object whose %operator() is called at every node with the current node and its parent.
+		/// \param v An object whose %operator() is called at every node with the current node and its parent. Note
+		///          that this is different from normal synthesizers used in trees.
 		template <typename NewSynth> void synthesize_root_path(const node *n, NewSynth &&v) const {
 			if (n) {
 				for (node *p = n->parent; p; n = p, p = p->parent) {
@@ -562,16 +643,19 @@ namespace codepad {
 				}
 			}
 		}
-		/// Right rotation.
+
+		/// Right rotation, with the synthesized data updated by a custom synthesizer.
 		///
 		/// \param n The root of the subtree before rotation. \p n->left will be in its place after.
-		void rotate_right(node *n) {
+		/// \param synth The custom synthesizer.
+		/// \remark This method may be made protected when red-black tree is used.
+		template <typename MySynth> void rotate_right(node *n, MySynth &&synth) {
 			assert_true_logical(n->left != nullptr, "cannot perform rotation");
 			if (n->parent) {
 				(n == n->parent->left ? n->parent->left : n->parent->right) = n->left;
 			} else {
-				assert_true_logical(_root == n, "corrupted tree structure");
-				_root = n->left;
+				assert_true_logical(_root.ptr == n, "corrupted tree structure");
+				_root.ptr = n->left;
 			}
 			n->left->parent = n->parent;
 			n->parent = n->left;
@@ -581,18 +665,20 @@ namespace codepad {
 				n->left->parent = n;
 			}
 			n->parent->synth_data = n->synth_data;
-			_refresh_synth(n);
+			_refresh_synth(n, std::forward<MySynth>(synth));
 		}
-		/// Left rotation.
+		/// Left rotation, with the synthesized data updated by a custom synthesizer.
 		///
 		/// \param n The root of the subtree before rotation. \p n->right will be in its place after.
-		void rotate_left(node *n) {
+		/// \param synth The custom synthesizer.
+		/// \remark This method may be made protected when red-black tree is used.
+		template <typename MySynth> void rotate_left(node *n, MySynth &&synth) {
 			assert_true_logical(n->right != nullptr, "cannot perform rotation");
 			if (n->parent) {
 				(n == n->parent->left ? n->parent->left : n->parent->right) = n->right;
 			} else {
-				assert_true_logical(_root == n, "corrupted tree structure");
-				_root = n->right;
+				assert_true_logical(_root.ptr == n, "corrupted tree structure");
+				_root.ptr = n->right;
 			}
 			n->right->parent = n->parent;
 			n->parent = n->right;
@@ -602,94 +688,54 @@ namespace codepad {
 				n->right->parent = n;
 			}
 			n->parent->synth_data = n->synth_data;
-			_refresh_synth(n);
+			_refresh_synth(n, std::forward<MySynth>(synth));
 		}
-		/// Splays the node until its parent is another designated node.
+		/// Splays the node until its parent is another designated node, using a custom synthesizer.
 		///
 		/// \param n The node to bring up.
 		/// \param targetroot The opration stops when it is the parent of \p n.
-		void splay(node *n, node *targetroot = nullptr) {
+		/// \remark This method may be removed when red-black tree is used.
+		template <typename MySynth> void splay(node *n, node *targetroot, MySynth &&synth) {
 			while (n->parent != targetroot) {
 				if (
 					n->parent->parent != targetroot &&
 					(n == n->parent->left) == (n->parent == n->parent->parent->left)
 					) {
 					if (n == n->parent->left) {
-						rotate_right(n->parent->parent);
-						rotate_right(n->parent);
+						rotate_right(n->parent->parent, std::forward<MySynth>(synth));
+						rotate_right(n->parent, std::forward<MySynth>(synth));
 					} else {
-						rotate_left(n->parent->parent);
-						rotate_left(n->parent);
+						rotate_left(n->parent->parent, std::forward<MySynth>(synth));
+						rotate_left(n->parent, std::forward<MySynth>(synth));
 					}
 				} else {
 					if (n == n->parent->left) {
-						rotate_right(n->parent);
+						rotate_right(n->parent, std::forward<MySynth>(synth));
 					} else {
-						rotate_left(n->parent);
+						rotate_left(n->parent, std::forward<MySynth>(synth));
 					}
 				}
 			}
 		}
 
-		/// Returns the leftmost element of the tree, or \p nullptr if the tree's empty.
+		/// Removes the given node from the tree and deletes it, using a custom synthesizer.
 		///
-		/// \return The leftmost element of the tree, or \p nullptr if the tree's empty.
-		node *min() const {
-			return min(_root);
-		}
-		/// Returns the leftmost element of a tree whose root is \p n, or \p nullptr.
-		///
-		/// \return The leftmost element of a tree whose root is \p n, or \p nullptr.
-		inline static node *min(node *n) {
-			for (; n && n->left; n = n->left) {
-			}
-			return n;
-		}
-		/// Returns the rightmost element of the tree, or \p nullptr if the tree's empty.
-		///
-		/// \return The rightmost element of the tree, or \p nullptr if the tree's empty.
-		node *max() const {
-			return max(_root);
-		}
-		/// Returns the rightmost element of a tree whose root is \p n, or \p nullptr.
-		///
-		/// \return The rightmost element of a tree whose root is \p n, or \p nullptr.
-		inline static node *max(node *n) {
-			for (; n && n->right; n = n->right) {
-			}
-			return n;
-		}
-		/// Returns the root of the tree.
-		///
-		/// \return The root of the tree.
-		node *root() const {
-			return _root;
-		}
-		/// Checks if the tree is empty.
-		///
-		/// \return \p true if the tree has no nodes, \p false otherwise.
-		bool empty() const {
-			return _root == nullptr;
-		}
-
-		/// Removes a certain node from the tree and deletes it.
-		///
-		/// \param n The node to remove.
-		void erase(node *n) {
+		/// \return The node after the erased one.
+		template <typename MySynth> node *erase(node *n, MySynth &&synth) {
 			if (n == nullptr) {
-				return;
+				return nullptr;
 			}
-			node *oc;
+			node *oc, *next = n->next();
 			if (n->left && n->right) {
 				node *rmin = min(n->right);
-				splay(rmin, n);
-				rotate_left(n);
+				splay(rmin, n, std::forward<MySynth>(synth));
+				rotate_left(n, std::forward<MySynth>(synth));
 				oc = n->left;
 			} else {
 				oc = n->left ? n->left : n->right;
 			}
-			if (_root == n) {
-				_root = oc;
+			if (_root.ptr == n) {
+				_root.ptr = oc;
 			} else {
 				(n == n->parent->left ? n->parent->left : n->parent->right) = oc;
 			}
@@ -698,100 +744,129 @@ namespace codepad {
 				oc->parent = f;
 			}
 			delete n;
-			refresh_synthesized_result(f);
+			refresh_synthesized_result(f, std::forward<MySynth>(synth));
+			return next;
 		}
-		/// Removes a range of nodes from the tree and deletes them.
+		/// \ref erase(node*, MySynth&&) with the default synthesizer. \ref Synth must not be \ref no_synthesizer.
+		node *erase(node *n) {
+			return erase(n, _root.synth);
+		}
+		/// \overload
+		template <typename ...Args> iterator erase(const_iterator it, Args &&...synth) {
+			return get_iterator_for(erase(it.get_node(), std::forward<Args>(synth)...));
+		}
+
+		/// Removes a range of nodes from the tree, but doesn't delete the nodes. This function uses a custom
+		/// synthesizer.
 		///
 		/// \param beg The first node to remove.
 		/// \param end The node after the last node to remove. \p nullptr to indicate the last node.
-		void erase(node *beg, node *end) {
-			delete_tree(detach_tree(beg, end));
-		}
-		/// Removes a range of nodes from the tree.
-		///
-		/// \param beg The first node to remove.
-		/// \param end The node after the last node to remove. \p nullptr to indicate the last node.
+		/// \param synth The synthesizer.
 		/// \return The root of the removed subtree.
-		node *detach_tree(node *beg, node *end) {
+		/// \remark This method may be removed when red-black tree is used.
+		template <typename MySynth> node *detach_tree(node *beg, node *end, MySynth &&synth) {
 			if (beg == nullptr) {
 				return nullptr;
 			}
 			beg = beg->prev();
 			node *res = nullptr;
 			if (beg && end) {
-				splay(beg);
-				splay(end, beg);
+				splay(beg, nullptr, std::forward<MySynth>(synth));
+				splay(end, beg, std::forward<MySynth>(synth));
 				assert_true_logical(end == beg->right, "invalid range");
 				res = end->left;
 				end->left = nullptr;
-				_refresh_synth(end);
-				_refresh_synth(beg);
+				_refresh_synth(end, std::forward<MySynth>(synth));
+				_refresh_synth(beg, std::forward<MySynth>(synth));
 			} else if (beg) {
-				splay(beg);
+				splay(beg, nullptr, std::forward<MySynth>(synth));
 				res = beg->right;
 				beg->right = nullptr;
-				_refresh_synth(beg);
+				_refresh_synth(beg, std::forward<MySynth>(synth));
 			} else if (end) {
-				splay(end);
+				splay(end, nullptr, std::forward<MySynth>(synth));
 				res = end->left;
 				end->left = nullptr;
-				_refresh_synth(end);
+				_refresh_synth(end, std::forward<MySynth>(synth));
 			} else {
-				res = _root;
-				_root = nullptr;
+				res = _root.ptr;
+				_root.ptr = nullptr;
 			}
 			if (res) {
 				res->parent = nullptr;
 			}
 			return res;
 		}
-		/// \overload
-		void erase(const_iterator it) {
-			erase(it.get_node());
-		}
-		/// \overload
-		void erase(const_iterator beg, const_iterator end) {
-			erase(beg.get_node(), end.get_node());
-		}
 
-		/// Returns a \ref node_value_modifier of a given node.
+		/// Removes a range of nodes from the tree and deletes them, using a custom synthesizer.
 		///
-		/// \param n The node to get a \ref node_value_modifier for.
-		/// \return A \ref node_value_modifier of a given node.
-		node_value_modifier get_modifier(node *n) {
-			return node_value_modifier(n, this);
+		/// \param beg The first node to remove.
+		/// \param end The node after the last node to remove. \p nullptr to indicate the last node.
+		/// \param synth The custom synthesizer.
+		template <typename MySynth> void erase(node *beg, node *end, MySynth &&synth) {
+			delete_tree(detach_tree(beg, end, std::forward<MySynth>(synth)));
+		}
+		/// \ref erase(node*, node*, MySynth&&) with the default synthesizer.
+		void erase(node *beg, node *end) {
+			erase(beg, end, _root.synth);
+		}
+		/// \overload
+		template <typename ...Args> void erase(const_iterator beg, const_iterator end, Args &&...synth) {
+			erase(beg.get_node(), end.get_node(), std::forward<Args>(synth)...);
 		}
 
-		/// Deletes all nodes in the tree, and resets \ref _root to \p nullptr.
+		/// Returns a \ref node_value_modifier corresponding to the given node, with the default synthesizer.
+		node_value_modifier<Synth> get_modifier_for(node *n) {
+			return node_value_modifier<Synth>(*n, _root.synth);
+		}
+
+		/// Returns the root of the tree.
+		node *root() const {
+			return _root.ptr;
+		}
+		/// Returns the leftmost element of the tree, or \p nullptr if the tree's empty.
+		node *min() const {
+			return min(root());
+		}
+		/// Returns the rightmost element of the tree, or \p nullptr if the tree's empty.
+		node *max() const {
+			return max(root());
+		}
+		/// Returns whether the tree is empty.
+		bool empty() const {
+			return _root.ptr == nullptr;
+		}
+		/// Deletes all nodes in the tree, and resets \ref _root_t::ptr of \ref _root to \p nullptr.
 		void clear() {
-			delete_tree(_root);
-			_root = nullptr;
+			delete_tree(_root.ptr);
+			_root.ptr = nullptr;
 		}
 
-		/// Builds a tree from an array of objects.
-		/// Objects are moved or copied out of the container according to the type of the argument.
-		///
-		/// \param objs The objects to build a tree out of.
-		/// \return The root of the newly built tree.
-		template <typename Cont> node *build_tree(Cont &&objs) const {
-			return build_tree(std::forward<Cont>(objs), _synth);
-		}
-		/// \overload
-		template <typename It> node *build_tree(It &&beg, It &&end) const {
-			return build_tree(std::forward<It>(beg), std::forward<It>(end), _synth);
-		}
-
-		/// Replaces \ref _synth with the given synthesizer.
-		///
-		/// \param s The new synthesizer.
+		/// Replaces \ref _root_t::synth with the given synthesizer.
 		template <typename SynRef> void set_synthesizer(SynRef &&s) {
-			_synth = std::forward<SynRef>(s);
+			_root.synth = std::forward<SynRef>(s);
 		}
-		/// Returns a const reference to the current synthesizer.
-		///
-		/// \return A const reference to the current synthesizer.
+		/// Returns the current synthesizer.
+		Synth &get_synthesizer() {
+			return _root.synth;
+		}
+		/// Const version of \ref Synth &get_synthesizer().
 		const Synth &get_synthesizer() const {
-			return _synth;
+			return _root.synth;
+		}
+
+
+		/// Returns the leftmost element of a tree whose root is \p n, or \p nullptr.
+		inline static node *min(node *n) {
+			for (; n && n->left; n = n->left) {
+			}
+			return n;
+		}
+		/// Returns the rightmost element of a tree whose root is \p n, or \p nullptr.
+		inline static node *max(node *n) {
+			for (; n && n->right; n = n->right) {
+			}
+			return n;
 		}
 
 		/// Clones a tree.
@@ -802,20 +877,20 @@ namespace codepad {
 			if (n == nullptr) {
 				return nullptr;
 			}
-			std::vector<_clone_node> stk;
+			std::stack<_clone_node> stk;
 			node *res = nullptr;
-			stk.push_back(_clone_node(n, nullptr, &res));
+			stk.emplace(n, nullptr, &res);
 			do {
-				_clone_node curv = stk.back();
-				stk.pop_back();
-				node *cn = new node(*curv.src);
+				_clone_node curv = stk.top();
+				stk.pop();
+				auto *cn = new node(*curv.src);
 				cn->parent = curv.parent;
 				*curv.assign = cn;
 				if (curv.src->left) {
-					stk.push_back(_clone_node(curv.src->left, cn, &cn->left));
+					stk.emplace(curv.src->left, cn, &cn->left);
 				}
 				if (curv.src->right) {
-					stk.push_back(_clone_node(curv.src->right, cn, &cn->right));
+					stk.emplace(curv.src->right, cn, &cn->right);
 				}
 			} while (!stk.empty());
 			return res;
@@ -827,97 +902,100 @@ namespace codepad {
 			if (!n) {
 				return;
 			}
-			std::vector<node*> ns;
-			ns.push_back(n);
+			std::stack<node*> ns;
+			ns.emplace(n);
 			do {
-				node *c = ns.back();
-				ns.pop_back();
+				node *c = ns.top();
+				ns.pop();
 				if (c->left) {
-					ns.push_back(c->left);
+					ns.emplace(c->left);
 				}
 				if (c->right) {
-					ns.push_back(c->right);
+					ns.emplace(c->right);
 				}
 				delete c;
 			} while (!ns.empty());
 		}
-		/// Builds a tree from an array of objects.
-		/// Objects are copied from the container.
-		///
-		/// \param objs The objects to build a tree out of.
-		/// \param synth The synthesizer used.
-		/// \return The root of the newly built tree.
-		template <typename Cont, typename SynRef> inline static node *build_tree(const Cont &objs, SynRef &&synth) {
-			return _build_tree<_copy_value>(objs.begin(), objs.end(), std::forward<SynRef>(synth));
-		}
-		/// Builds a tree from an array of objects.
-		/// Objects are moved from the container.
-		///
-		/// \param objs The objects to build a tree out of.
-		/// \param synth The synthesizer used.
-		/// \return The root of the newly built tree.
-		template <typename Cont, typename SynRef> inline static std::enable_if_t<
-			!std::is_lvalue_reference_v<Cont>, node*
-		> build_tree(Cont &&objs, SynRef &&synth) {
-			return _build_tree<_move_value>(objs.begin(), objs.end(), std::forward<SynRef>(synth));
-		}
-		/// Builds a tree from an array of objects.
-		/// Objects are copied from the container.
+		/// Builds a tree from an array of objects. Objects are copied from the container.
 		///
 		/// \param beg Iterator to the first element.
 		/// \param end Iterator past the last element.
 		/// \param synth The synthesizer used.
 		/// \return The root of the newly built tree.
-		template <typename It, typename SynRef> inline static node *build_tree(It &&beg, It &&end, SynRef &&synth) {
+		template <typename It, typename SynRef> inline static node *build_tree_copy(It &&beg, It &&end, SynRef &&synth) {
 			return _build_tree<_copy_value>(
 				std::forward<It>(beg), std::forward<It>(end), std::forward<SynRef>(synth)
 				);
 		}
-	protected:
-		/// Implementation of the \ref find_custom function,
-		/// in order to support const and non-const iterators with the same code.
+		/// Builds a tree from an array of objects. Objects are moved out of the container.
 		///
-		/// \tparam It Desired type of the iterator (const/non-const).
-		/// \param c The container (tree).
+		/// \param beg Iterator to the first element.
+		/// \param end Iterator past the last element.
+		/// \param synth The synthesizer used.
+		/// \return The root of the newly built tree.
+		template <typename It, typename SynRef> inline static node *build_tree_move(It &&beg, It &&end, SynRef &&synth) {
+			return _build_tree<_move_value>(
+				std::forward<It>(beg), std::forward<It>(end), std::forward<SynRef>(synth)
+				);
+		}
+		/// Searches in a tree for a matching node using a branch selector.
+		///
+		/// \param root The root node of the tree.
 		/// \param b The branch selector.
 		/// \param ref The reference value.
-		/// \return The resulting iterator.
-		template <
-			typename It, typename Cont, typename B, typename Ref
-		> inline static It _find_custom_impl(Cont *c, B &&b, Ref &&ref) {
-			node *cur = c->_root;
+		/// \return The resulting node.
+		template <typename B, typename Ref> inline static node *find_custom(node *root, B &&b, Ref &&ref) {
+			node *cur = root;
 			while (cur) {
 				switch (b.select_find(*cur, std::forward<Ref>(ref))) {
 				case -1:
 					cur = cur->left;
 					break;
 				case 0:
-					return It(c, cur);
+					return cur;
 				case 1:
 					cur = cur->right;
 					break;
 				}
 			}
-			return It(c, cur);
+			return cur;
 		}
+	protected:
+		/// The struct that \ref _root_t inherits from, in which the synthesizer object is stored. In this way the
+		/// size it occupies can be optimized away.
+		struct _synth_storage {
+			/// Default initializer.
+			_synth_storage() = default;
+			/// Initializes \ref synth with the given arguments.
+			template <typename ...Args> explicit _synth_storage(Args &&...args) : synth(std::forward<Args>(args)...) {
+			}
 
-		node *_root = nullptr; ///< Pointer to the root node.
-		Synth _synth; ///< The synthesizer object used.
+			Synth synth; ///< The synthesizer object.
+		};
+		/// Stores the root pointer and the synthesizer object.
+		struct _root_t : public _synth_storage {
+			/// Default initializer.
+			_root_t() = default;
+			/// Initializes \ref _root_base_t with the given arguments.
+			template <typename ...Args> explicit _root_t(Args &&...args) :
+				_synth_storage(std::forward<Args>(args)...) {
+			}
+
+			node *ptr = nullptr; ///< The root pointer.
+		};
+
+		_root_t _root; ///< The root pointer and (optionally) the synthesizer.
+
 
 		/// Re-calculate the synthesized value of the given node, using the designated synthesizer,
 		/// by simply calling the %operator() of the synthesizer object.
 		///
-		/// \param sy The designated synthesizer object.
 		/// \param n The target node.
-		template <typename SynRef> inline static void _refresh_synth(SynRef &&sy, node *n) {
+		/// \param sy The designated synthesizer object.
+		template <typename SynRef> inline static void _refresh_synth(node *n, SynRef &&sy) {
 			sy(*n);
 		}
-		/// Re-calculate the synthesized value of the given node, using the current synthesizer of the tree.
-		///
-		/// \param n The target node.
-		void _refresh_synth(node *n) {
-			_refresh_synth(_synth, n);
-		}
+
 
 		/// Auxiliary struct used when cloning a tree.
 		struct _clone_node {
@@ -933,9 +1011,10 @@ namespace codepad {
 				**assign = nullptr; ///< \ref parent's pointer to the cloned node, or a pointer to the root pointer.
 		};
 
+
 		/// Struct that copies values from iterators to initialize nodes.
 		struct _copy_value {
-			/// Interface for \ref _build_tree.
+			/// Interface for \ref _build_tree. Allocates a new node from the given iterator.
 			///
 			/// \param it The iterator to copy value from.
 			/// \return A pointer to the newly created node.
@@ -977,7 +1056,7 @@ namespace codepad {
 			if (cur->right) {
 				cur->right->parent = cur;
 			}
-			_refresh_synth(std::forward<SynRef>(s), cur);
+			_refresh_synth(cur, std::forward<SynRef>(s));
 			return cur;
 		}
 	};
@@ -1006,6 +1085,16 @@ namespace codepad {
 				return (n.value.*Prop)();
 			}
 		};
+
+		/// Auxiliary property of nodes that always returns 1. Useful for obtaining tree sizes.
+		struct identity {
+			/// Returns 1.
+			///
+			/// \tparam The type of the node.
+			template <typename Node> inline static size_t get(const Node&) {
+				return 1;
+			}
+		};
 	}
 
 	/// Synthesizer related structs that treat the data as block sizes,
@@ -1015,68 +1104,74 @@ namespace codepad {
 		/// Represents a property of binary_tree_node::synth_data,
 		/// that records the statistics of a single node and the whole subtree.
 		///
-		/// \tparam T Data type of the statistics.
-		/// \tparam Synth Type of binary_tree_node::synth_data.
-		/// \tparam GetForNode A property of binary_tree_node::value, similar to the ones in \ref synthesization_helper.
+		/// \tparam GetForNode A property of binary_tree_node::value, similar to the ones in
+		///                    \ref synthesization_helper.
 		/// \tparam NodeVal Member pointer to the statistics for a single node.
 		/// \tparam TreeVal Member pointer to the statistics for a subtree.
-		template <typename T, typename Synth, typename GetForNode, T Synth::*NodeVal, T Synth::*TreeVal> struct property {
-			using value_type = T; ///< The data type of the statistics.
+		template <typename GetForNode, auto NodeVal, auto TreeVal> struct property {
+			static_assert(
+				std::is_same_v<
+				std::decay_t<typename member_pointer_traits<decltype(NodeVal)>::value_type>,
+				std::decay_t<typename member_pointer_traits<decltype(TreeVal)>::value_type>
+				>, "incoherent value types"
+				);
+
+			/// The data type of the statistics, deducted from the member pointers.
+			using value_type = std::decay_t<typename member_pointer_traits<decltype(NodeVal)>::value_type>;
 
 			/// Returns the statistics obtained directly from the node.
 			///
 			/// \return The statistics obtained directly from the node.
-			template <typename Node> inline static auto get_node_value(Node &&n) {
+			template <typename Node> inline static value_type get_node_value(Node &&n) {
 				return GetForNode::get(std::forward<Node>(n));
 			}
 			/// Returns the statistics of a single node obtained from \ref binary_tree_node::synth_data.
 			///
 			/// \return The statistics of a single node obtained from \ref binary_tree_node::synth_data.
-			template <typename Node> inline static T get_node_synth_value(Node &&n) {
+			template <typename Node> inline static value_type get_node_synth_value(Node &&n) {
 				return n.synth_data.*NodeVal;
 			}
 			/// Sets the statistics of the node in \ref binary_tree_node::synth_data.
-			template <typename Node> inline static void set_node_synth_value(Node &&n, T v) {
+			template <typename Node> inline static void set_node_synth_value(Node &&n, value_type v) {
 				n.synth_data.*NodeVal = std::move(v);
 			}
 			/// Returns the statistics of a subtree obtained from \ref binary_tree_node::synth_data.
 			///
 			/// \return The statistics of a subtree obtained from \ref binary_tree_node::synth_data.
-			template <typename Node> inline static T get_tree_synth_value(Node &&n) {
+			template <typename Node> inline static value_type get_tree_synth_value(Node &&n) {
 				return n.synth_data.*TreeVal;
 			}
 			/// Sets the statistics of the subtree in \ref binary_tree_node::synth_data.
-			template <typename Node> inline static void set_tree_synth_value(Node &&n, T v) {
+			template <typename Node> inline static void set_tree_synth_value(Node &&n, value_type v) {
 				n.synth_data.*TreeVal = std::move(v);
 			}
 		};
 		/// Represents a property of \ref binary_tree_node::synth_data that only stores the statistics of a subtree.
 		///
-		/// \tparam T Data type of the statistics.
-		/// \tparam Synth Type of \ref binary_tree_node::synth_data.
 		/// \tparam GetForNode A property of binary_tree_node::value, similar to the ones in
 		///                    \ref synthesization_helper.
 		/// \tparam TreeVal Member pointer to the statistics for a subtree.
-		template <typename T, typename Synth, typename GetForNode, T Synth::*TreeVal> struct compact_property {
-			using value_type = T; ///< The data type of the statistics.
+		template <typename GetForNode, auto TreeVal> struct compact_property {
+			/// The data type of the statistics, deducted from \p TreeVal.
+			using value_type = std::decay_t<typename member_pointer_traits<decltype(TreeVal)>::value_type>;
 
 			/// Returns the statistics obtained directly from the node.
-			template <typename Node> inline static T get_node_value(Node &&n) {
+			template <typename Node> inline static value_type get_node_value(Node &&n) {
 				return GetForNode::get(std::forward<Node>(n));
 			}
 			/// Returns the statistics of a single node obtained from \ref binary_tree_node::synth_data.
-			template <typename Node> inline static T get_node_synth_value(Node &&n) {
+			template <typename Node> inline static value_type get_node_synth_value(Node &&n) {
 				return get_node_value(std::forward<Node>(n));
 			}
 			/// Does nothing because there's no corresponding field.
-			template <typename Node> inline static void set_node_synth_value(Node&&, T) {
+			template <typename Node> inline static void set_node_synth_value(Node&&, value_type) {
 			}
 			/// Returns the statistics of a subtree obtained from \ref binary_tree_node::synth_data.
-			template <typename Node> inline static T get_tree_synth_value(Node &&n) {
+			template <typename Node> inline static value_type get_tree_synth_value(Node &&n) {
 				return n.synth_data.*TreeVal;
 			}
 			/// Sets the statistics of the subtree in \ref binary_tree_node::synth_data.
-			template <typename Node> inline static void set_tree_synth_value(Node &&n, T v) {
+			template <typename Node> inline static void set_tree_synth_value(Node &&n, value_type v) {
 				n.synth_data.*TreeVal = std::move(v);
 			}
 		};
@@ -1178,7 +1273,9 @@ namespace codepad {
 		/// \tparam PreventOverflow If \p true, the result won't exceed the last element.
 		/// \tparam Comp Comparison function used to decide which node to go to.
 		///              Typically \p std::less or \p std::less_equal.
-		template <typename Property, bool PreventOverflow = false, typename Comp = std::less<typename Property::value_type>> struct index_finder {
+		template <
+			typename Property, bool PreventOverflow = false, typename Comp = std::less<typename Property::value_type>
+		> struct index_finder {
 			/// Interface for \ref binary_tree::find_custom. This function can also collect additional data
 			/// when looking for the node, as specified by \p Props and \p avals.
 			///
@@ -1186,7 +1283,8 @@ namespace codepad {
 			///         corresponding entries in \p avals.
 			/// \param n The current node, provided by binary_tree::find_custom.
 			/// \param target The target value.
-			/// \param avals Variables to collect additional statistics.
+			/// \param avals Variables to collect additional statistics. The caller must initialize these values
+			///              properly.
 			template <
 				typename ...Props, typename ...AddVals, typename Node, typename V
 			> inline static int select_find(Node &&n, V &target, AddVals &&...avals) {
@@ -1212,14 +1310,35 @@ namespace codepad {
 			}
 		};
 
-		/// Auxiliary property of nodes that always returns 1. Useful for obtaining tree sizes.
-		struct identity {
-			/// Returns 1.
-			///
-			/// \tparam The type of the node.
-			template <typename Node> inline static size_t get(const Node&) {
-				return 1;
+		/// Obtains the sum of all nodes before, and not including, the given node for all given properties.
+		///
+		/// \param it Iterator to the node.
+		/// \param args Variables where the results are stored. The caller is responsible of initializing these
+		///             variables properly.
+		template <typename ...Props, typename Iter, typename ...Args> inline static void sum_before(
+			Iter &&it, Args &&...args
+		) {
+			static_assert(sizeof...(Props) == sizeof...(Args), "incorrect number of arguments");
+			if (it == it.get_container()->end()) {
+				if (it.get_container()->root() != nullptr) {
+					_details::add_synth_tree_values<Props...>(
+						*it.get_container()->root(), std::forward<Args>(args)...
+						);
+				}
+			} else {
+				auto *node = it.get_node();
+				if (node->left) {
+					_details::add_synth_tree_values<Props...>(*node->left, std::forward<Args>(args)...);
+				}
+				it.get_container()->synthesize_root_path(node, [&](const auto &parent, const auto &child) {
+					if (&child == parent.right) {
+						_details::add_synth_node_values<Props...>(parent, std::forward<Args>(args)...);
+						if (parent.left) { // left subtree
+							_details::add_synth_tree_values<Props...>(*parent.left, std::forward<Args>(args)...);
+						}
+					}
+					});
 			}
-		};
+		}
 	};
 }

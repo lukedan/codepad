@@ -94,9 +94,16 @@ namespace codepad::ui {
 				get_window()->set_window_focused_element(*this);
 			}
 			if (!childhit) { // mouse is over a child
-				_set_visual_style_bit(visual::get_predefined_states().mouse_down, true);
+				_set_state_bit(manager::get().get_predefined_states().mouse_down, true);
 			}
 		}
+	}
+
+	bool panel_base::_hit_test_child(element *c, vec2d p) {
+		if (!test_bit_any(c->get_state(), manager::get().get_predefined_states().ghost)) {
+			return c->hit_test(p);
+		}
+		return false;
 	}
 
 	void panel_base::_dispose() {

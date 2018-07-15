@@ -9,7 +9,7 @@
 namespace codepad {
 	namespace os {
 		template <typename T> inline void winapi_check(T v) {
-#ifdef CP_DETECT_SYSTEM_ERRORS
+#ifdef CP_CHECK_SYSTEM_ERRORS
 			if (!v) {
 				logger::get().log_error(CP_HERE, "WinAPI error code ", GetLastError());
 				assert_true_sys(false, "WinAPI error");
@@ -23,7 +23,7 @@ namespace codepad {
 			assert_true_sys(v != HGDI_ERROR, "GDI error");
 		}
 		inline void com_check(HRESULT v) {
-#ifdef CP_DETECT_SYSTEM_ERRORS
+#ifdef CP_CHECK_SYSTEM_ERRORS
 			if (v != S_OK) {
 				logger::get().log_error(CP_HERE, "COM error code ", v);
 				assert_true_sys(false, "COM error");

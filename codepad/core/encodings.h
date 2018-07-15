@@ -2,11 +2,11 @@
 
 /// \file
 /// Encoding settings, and conversions between one another.
-/// Currently supported encodings: UTF-8, UTF-16, UTF-32
+/// Currently supported encodings: UTF-8, UTF-16, UTF-32.
+///
+/// \todo Better handling of decoding errors.
 
 #include <string>
-#include <codecvt>
-#include <locale>
 #include <iterator>
 
 #include <rapidjson/document.h>
@@ -452,7 +452,8 @@ namespace codepad {
 		/// RapidJSON type that holds a JSON object, and can be used to parse JSON text.
 		using parser_value_t = rapidjson::GenericDocument<encoding>;
 
-		/// Returns a STL string for a JSON string object.
+		/// Returns a STL string for a JSON string object. The caller is responsible of checking if the object is
+		/// actually a string.
 		///
 		/// \param v A JSON object. The caller must guarantee that the object is a string.
 		/// \return A STL string whose content is the same as the JSON object.
@@ -482,15 +483,15 @@ namespace codepad {
 		/// \param ret If the function returns true, then \p ret holds the value of the member.
 		/// \return \p true if it has a member of type \p T.
 		template <typename T> bool try_get(const value_t &val, const str_t &name, T &ret);
-		template <> inline bool try_get<bool>(const value_t &v, const str_t &s, bool &ret) {
-			return _details::try_get<bool, value_t, &value_t::IsBool, &value_t::GetBool>(v, s, ret);
+		template <> inline bool try_get<bool>(const value_t &val, const str_t &name, bool &ret) {
+			return _details::try_get<bool, value_t, &value_t::IsBool, &value_t::GetBool>(val, name, ret);
 		}
-		template <> inline bool try_get<double>(const value_t &v, const str_t &s, double &ret) {
-			return _details::try_get<double, value_t, &value_t::IsNumber, &value_t::GetDouble>(v, s, ret);
+		template <> inline bool try_get<double>(const value_t &val, const str_t &name, double &ret) {
+			return _details::try_get<double, value_t, &value_t::IsNumber, &value_t::GetDouble>(val, name, ret);
 		}
-		template <> inline bool try_get<str_t>(const value_t &v, const str_t &s, str_t &ret) {
-			auto found = v.FindMember(s.c_str());
-			if (found != v.MemberEnd() && found->value.IsString()) {
+		template <> inline bool try_get<str_t>(const value_t &val, const str_t &name, str_t &ret) {
+			auto found = val.FindMember(name.c_str());
+			if (found != val.MemberEnd() && found->value.IsString()) {
 				ret = get_as_string(found->value);
 				return true;
 			}
@@ -560,7 +561,7 @@ namespace codepad {
 			return *this;
 		}
 		/// Post-increment.
-		codepoint_iterator_base operator++(int) {
+		const codepoint_iterator_base operator++(int) {
 			codepoint_iterator_base oldv = *this;
 			++*this;
 			return oldv;
@@ -638,7 +639,7 @@ namespace codepad {
 		It beg, It end
 	) {
 		To result;
-		char32_t c;
+		char32_t c = replacement_character;
 		while (beg != end) {
 			if (!SrcEncoding::next_codepoint(beg, end, c)) {
 				c = replacement_character;

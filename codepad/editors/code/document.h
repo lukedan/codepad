@@ -5,11 +5,13 @@
 
 #include <cstddef>
 #include <variant>
+#include <any>
 
 #include "../../core/event.h"
 #include "../../os/font.h"
 #include "../../os/filesystem.h"
 #include "buffer.h"
+#include "buffer_formatting.h"
 
 namespace codepad::editor::code {
 	class view_formatting;
@@ -396,19 +398,28 @@ namespace codepad::editor::code {
 	/// Contains information about the modification of a \ref document.
 	struct modification_info {
 		/// Initializes all fields of this struct.
-		modification_info(editor *e, caret_fixup_info fi) : source(e), caret_fixup(std::move(fi)) {
+		modification_info(
+			editor *e, caret_fixup_info fi, std::vector<linebreak_registry::text_clip_info> removed_clips
+		) : source(e), caret_fixup(std::move(fi)), removed_clips_info(std::move(removed_clips)) {
 		}
 		/// The \ref editor through which the user makes the modification,
 		/// or \p nullptr if the modification is made externally.
 		editor *const source;
 		/// Used to adjust the positions of carets.
 		const caret_fixup_info caret_fixup;
+		/// Structure of removed text clips.
+		const std::vector<linebreak_registry::text_clip_info> removed_clips_info;
 	};
 
 	/// Stores the contents and theme of a text buffer.
+	///
+	/// \todo Better encoding support. Also consider storing the file in its original encoding.
 	class document {
+		friend class document_manager;
 	public:
 		/// The platform-specific preferred line ending.
+		///
+		/// \todo Convert this into a setting.
 #ifdef CP_PLATFORM_WINDOWS
 		constexpr static line_ending platform_line_ending = line_ending::rn;
 #elif defined(CP_PLATFORM_UNIX)
@@ -450,7 +461,7 @@ namespace codepad::editor::code {
 			}
 			logger::get().log_warning(CP_HERE, "file loading failed: ", fn);
 		}
-		/// Notifies the \ref document_manager of the disposal of this context.
+		/// Notifies the \ref document_manager of the disposal of this context, and clears all entries of \ref _tags.
 		~document();
 
 		/// Used to iterate through the characters in the context.
@@ -493,7 +504,7 @@ namespace codepad::editor::code {
 				return *this;
 			}
 			/// Post-increment.
-			iterator operator++(int) {
+			const iterator operator++(int) {
 				iterator oldv = *this;
 				++*this;
 				return oldv;
@@ -614,29 +625,19 @@ namespace codepad::editor::code {
 			);
 		}
 
-		/// Stores information about the lines in a text clip.
-		struct clip_line_info {
-			/// Default constructor.
-			clip_line_info() = default;
-			/// Initializes all fields of this struct.
-			clip_line_info(size_t c, std::vector<linebreak_registry::line_info> ls) :
-				total_chars(c), lines(std::move(ls)) {
-			}
-			size_t total_chars = 0; ///< The total number of characters in the text clip.
-			std::vector<linebreak_registry::line_info> lines; ///< The information of all invidual lines.
-		};
-
 		/// Inserts a short clip of text at the given position. This function does not invoke \ref modified,
 		/// and it doesn't record this modification in \ref _edithist.
 		///
-		/// \return A \ref clip_line_info containing information about the text that has been inserted.
-		template <typename Iter, typename Encoding> clip_line_info insert_text(size_t cp, Iter beg, Iter end) {
+		/// \return A \ref linebreak_registry::text_clip_info containing information about the text that has been
+		///         inserted.
+		template <typename Iter, typename Encoding> linebreak_registry::text_clip_info insert_text(
+			size_t cp, Iter beg, Iter end
+		) {
 			codepoint_iterator_base<Iter, Encoding> it(beg, end);
 			auto pos = _lbr.get_line_and_column_and_codepoint_of_char(cp);
 			char32_t last = '\0'; // the last codepoint
-			std::vector<linebreak_registry::line_info> lines;
+			linebreak_registry::text_clip_info clip_stats;
 			linebreak_registry::line_info curl;
-			size_t totchars = 0;
 			_str.insert(_str.at_codepoint_iterator(pos.second), [&](char32_t &c) {
 				if (it.at_end()) { // no more chars
 					return false;
@@ -648,8 +649,7 @@ namespace codepad::editor::code {
 					} else { // \r, but at previous char
 						curl.ending = line_ending::r;
 					}
-					lines.push_back(curl);
-					totchars += curl.nonbreak_chars + 1;
+					clip_stats.append_line(curl);
 					curl = linebreak_registry::line_info();
 				}
 				if (c != '\r' && c != '\n') { // non-break character
@@ -661,17 +661,15 @@ namespace codepad::editor::code {
 				});
 			if (last == '\r') { // the last character is \r, which was not immediately handled
 				curl.ending = line_ending::r;
-				lines.push_back(curl);
-				totchars += curl.nonbreak_chars + 1;
+				clip_stats.append_line(curl);
 				curl = linebreak_registry::line_info();
 			}
-			totchars += curl.nonbreak_chars;
-			lines.push_back(curl);
-			_lbr.insert_chars(pos.first.line_iterator, pos.first.column, lines);
-			return clip_line_info(totchars, std::move(lines));
+			clip_stats.append_line(curl);
+			_lbr.insert_chars(pos.first.line_iterator, pos.first.column, clip_stats);
+			return clip_stats;
 		}
 		/// \overload
-		clip_line_info insert_text(size_t cp, const string_buffer::string_type &str) {
+		linebreak_registry::text_clip_info insert_text(size_t cp, const string_buffer::string_type &str) {
 			return insert_text<
 				string_buffer::string_type::const_iterator, string_buffer::encoding_data_t
 			>(cp, str.begin(), str.end());
@@ -679,7 +677,10 @@ namespace codepad::editor::code {
 
 		/// Erases a short clip of text at the given position. This function does not invoke \ref modified,
 		/// and it doesn't record this modification in \ref _edithist.
-		void delete_text(size_t p1, size_t p2) {
+		///
+		/// \return A \ref linebreak_registry::text_clip_info containing information about the text that has been
+		///         inserted.
+		linebreak_registry::text_clip_info delete_text(size_t p1, size_t p2) {
 			auto
 				p1i = _lbr.get_line_and_column_and_codepoint_of_char(p1),
 				p2i = _lbr.get_line_and_column_and_codepoint_of_char(p2);
@@ -687,7 +688,9 @@ namespace codepad::editor::code {
 				_str.at_codepoint_iterator(p1i.second),
 				_str.at_codepoint_iterator(p2i.second)
 			);
-			_lbr.erase_chars(p1i.first.line_iterator, p1i.first.column, p2i.first.line_iterator, p2i.first.column);
+			return _lbr.erase_chars(
+				p1i.first.line_iterator, p1i.first.column, p2i.first.line_iterator, p2i.first.column
+			);
 		}
 
 		/// Creates a \ref view_formatting associated with this text context and returns it.
@@ -756,6 +759,13 @@ namespace codepad::editor::code {
 			return _fileid;
 		}
 
+		/// Returns the tag associated with the given index.
+		///
+		/// \sa document_manager::allocate_tag
+		std::any &get_tag(size_t index) const {
+			return _tags.at(index);
+		}
+
 		/// Invoked when the visual of the text context has been changed without any modification to the text,
 		/// i.e., when tab size or text theme has been changed.
 		event<void> visual_changed;
@@ -767,11 +777,15 @@ namespace codepad::editor::code {
 		linebreak_registry _lbr; ///< Stores information about the lines of the text context.
 		text_theme_data _theme; ///< The theme of the text, shared among all open views.
 		std::vector<edit> _edithist; ///< The edit history.
-		size_t _curedit = 0; ///< The index past the last edit that has been made and hasn't been undone.
-		double _tab_w = 4.0; ///< Tab width.
-		line_ending _le = platform_line_ending; ///< The default line ending.
+
+		/// Additional data specific to each document used by other components, plugins, etc.
+		mutable std::vector<std::any> _tags;
 		/// Used to identify the file context. Also stores the path to the file associated with this context.
 		std::variant<size_t, std::filesystem::path> _fileid;
+
+		double _tab_w = 4.0; ///< Tab width.
+		size_t _curedit = 0; ///< The index past the last edit that has been made and hasn't been undone.
+		line_ending _le = platform_line_ending; ///< The default line ending.
 	};
 
 	/// Used to modify a \ref document at multiple different locations. The modifications must be made
@@ -794,7 +808,11 @@ namespace codepad::editor::code {
 				mod.removed_content = _doc->substring(
 					mod.position.position, mod.position.position + mod.position.removed_range
 				);
-				_doc->delete_text(mod.position.position, mod.position.position + mod.position.removed_range);
+				_removedclips.emplace_back(_doc->delete_text(
+					mod.position.position, mod.position.position + mod.position.removed_range
+				));
+			} else {
+				_removedclips.emplace_back();
 			}
 			if (mod.added_content.length() > 0) {
 				mod.position.added_range = _doc->insert_text(mod.position.position, mod.added_content).total_chars;
@@ -821,7 +839,9 @@ namespace codepad::editor::code {
 				addend = fixup_caret_position(mod.position.position + mod.position.added_range),
 				delend = fixup_caret_position(mod.position.position + mod.position.removed_range);
 			if (mod.added_content.length() > 0) {
-				_doc->delete_text(pos, addend);
+				_removedclips.emplace_back(_doc->delete_text(pos, addend));
+			} else {
+				_removedclips.emplace_back();
 			}
 			if (mod.removed_content.length() > 0) {
 				_doc->insert_text(pos, mod.removed_content);
@@ -833,7 +853,11 @@ namespace codepad::editor::code {
 		void redo_modification(const modification &mod) {
 			// the modification already stores adjusted positions
 			if (mod.removed_content.length() > 0) {
-				_doc->delete_text(mod.position.position, mod.position.position + mod.position.removed_range);
+				_removedclips.emplace_back(_doc->delete_text(
+					mod.position.position, mod.position.position + mod.position.removed_range
+				));
+			} else {
+				_removedclips.emplace_back();
 			}
 			if (mod.added_content.length() > 0) {
 				_doc->insert_text(mod.position.position, mod.added_content);
@@ -841,6 +865,7 @@ namespace codepad::editor::code {
 			_append_fixup_item(mod.position);
 			_append_caret(get_caret_selection_after(mod));
 		}
+
 
 		/// Returns the \ref caret_selection that should appear after the given modification has been made.
 		inline static caret_selection get_caret_selection_after(const modification &mod) {
@@ -878,6 +903,7 @@ namespace codepad::editor::code {
 			m.position.position = fixup_caret_position(m.position.position);
 			m.position.removed_range = rmend - m.position.position;
 		}
+
 
 		/// Performs the default modification that results from typing the given string at the given position
 		/// in `insert' mode.
@@ -949,6 +975,7 @@ namespace codepad::editor::code {
 			apply_modification_nofixup(std::move(mod));
 		}
 
+
 		/// Finishes modifying the text. Adds all recorded modification by calling \ref document::append_edit_data,
 		/// sets the carets of \p source accordingly, and invokes \ref document::modified.
 		void finish_edit(editor *source) {
@@ -966,6 +993,7 @@ namespace codepad::editor::code {
 		caret_fixup_info _cfixup;
 		caret_fixup_info::context _cfctx; ///< Used with \ref _cfixup to adjust caret positions.
 		caret_set _newcarets; ///< Stores the set of new carets, i.e., carets after the modifications.
+		std::vector<linebreak_registry::text_clip_info> _removedclips; ///< Structure of removed text clips.
 
 		/// Called after a modification has been made to add the corresponding information to \ref _cfixup and
 		/// \ref _cfctx, which are used to adjust carets of new modifications.
@@ -979,21 +1007,23 @@ namespace codepad::editor::code {
 		}
 	};
 
-	/// Stores an array of lengths and data related to each accumulated offset. Internally, the data is stored
-	/// in a \ref binary_tree.
+	/// Stores an array of offsets and data related to each accumulated offset. Internally, the data is stored in a
+	/// \ref binary_tree. This struct is designed so that insertion at a certain position, and querying given a
+	/// position is completed in sublinear time.
 	///
+	/// \tparam Len The type used to represent lengths and offsets.
 	/// \tparam Data The type of data associated to each offset.
-	template <typename Data> struct incremental_positional_registry {
+	template <typename Len, typename Data> struct incremental_positional_registry {
 	public:
 		/// The data of a node that stores a length and the corresponding user data.
 		struct node_data {
 			/// Default constructor.
 			node_data() = default;
 			/// Initializes all fields of the struct.
-			node_data(size_t len, Data obj) : length(len), object(std::move(obj)) {
+			node_data(Len len, Data obj) : length(len), object(std::move(obj)) {
 			}
 
-			size_t length = 0; ///< The length.
+			Len length = 0; ///< The length.
 			Data object; ///< Associated data.
 		};
 		/// Stores synthesized data associated with each node.
@@ -1001,12 +1031,11 @@ namespace codepad::editor::code {
 			/// The type of nodes.
 			using node_type = binary_tree_node<node_data, node_synth_data>;
 
-			size_t total_length = 0; ///< The total length of all nodes in the subtree.
+			Len total_length = 0; ///< The total length of all nodes in the subtree.
 
 			/// The length of a node or subtree, stored in \ref node_data::length and
 			/// \ref total_length, respectively.
 			using length_property = sum_synthesizer::compact_property<
-				size_t, node_synth_data,
 				synthesization_helper::field_value_property<&node_data::length>,
 				&node_synth_data::total_length
 			>;
@@ -1042,10 +1071,13 @@ namespace codepad::editor::code {
 			/// Constructs an iterator from a \ref raw_iterator_t.
 			explicit iterator_base(const raw_iterator_t &it) : _it(it) {
 			}
+			/// Converts a non-const iterator to a const one.
+			iterator_base(const iterator_base<false> &it) : iterator_base(it.get_raw()) {
+			}
 
 			/// Returns the \ref node_data::object that the iterator points to.
 			reference operator*() const {
-				return _it->object;
+				return _it.get_value_rawmod().object;
 			}
 			/// Accesses the fields of the \ref node_data::object that the iterator points to.
 			pointer operator->() const {
@@ -1067,7 +1099,7 @@ namespace codepad::editor::code {
 				return *this;
 			}
 			/// Post-increment.
-			iterator_base operator++(int) {
+			const iterator_base operator++(int) {
 				iterator_base oldv = *this;
 				++*this;
 				return oldv;
@@ -1079,7 +1111,7 @@ namespace codepad::editor::code {
 				return *this;
 			}
 			/// Post-decrement.
-			iterator_base operator--(int) {
+			const iterator_base operator--(int) {
 				iterator_base oldv = *this;
 				--*this;
 				return oldv;
@@ -1098,34 +1130,60 @@ namespace codepad::editor::code {
 		};
 		using iterator = iterator_base<false>; ///< Iterators.
 		using const_iterator = iterator_base<true>; ///< Const iterators.
+		/// Contains an iterator to an entry, and the node's position.
+		template <typename It> struct entry_info {
+			/// Default constructor.
+			entry_info() = default;
+			/// Initializes all fields of the struct.
+			entry_info(const It &it, Len pos) : iterator(it), node_position(pos) {
+			}
+
+			It iterator; ///< Iterator to the entry.
+			/// The position of the node. Use \ref entry_position to obtain the position of the entry.
+			Len node_position{};
+
+			/// Returns the actual position of the entry.
+			Len entry_position() const {
+				return node_position + iterator.get_raw()->length;
+			}
+
+			/// Movoes to the next entry, updating \ref position accordingly. The caller is responsible of checking
+			/// if \ref iterator is at the end of its container.
+			void next_nocheck() {
+				node_position += iterator.get_raw()->length;
+				++iterator;
+			}
+		};
 
 		/// Inserts the given object at the specified location. The positions of all other objects are kept unchanged.
 		///
 		/// \param pos Iterator to the object after which the new one will be inserted.
 		/// \param offset The new object's offset relative to the position \p pos points to.
 		/// \param object The object to insert at the position.
-		void insert_at(const const_iterator &pos, size_t offset, Data object) {
+		/// \return Iterator to the inserted object.
+		iterator insert_at(const const_iterator &pos, Len offset, Data object) {
 			if (pos.get_raw() != _t.end()) {
 				assert_true_usage(offset <= pos.data().length, "invalid position");
-				_t.get_modifier(pos.get_raw().get_node())->length -= offset;
+				_t.get_modifier_for(pos.get_raw().get_node())->length -= offset;
 			}
-			_t.insert_node_before(pos.get_raw(), offset, std::move(object));
+			return iterator(_t.emplace_before(pos.get_raw(), offset, std::move(object)));
 		}
 		/// \overload
-		void insert_at(size_t pos, Data d) {
+		iterator insert_at(Len pos, Data d) {
 			auto it = _t.find_custom(_finder_at_or_after(), pos);
-			insert_at(const_iterator(it), pos, std::move(d));
+			return insert_at(const_iterator(it), pos, std::move(d));
 		}
 
-		/// Erases the given object from the collection, while keeping the positions of all other objects unchanged.
-		void erase(const const_iterator &it) {
+		/// Erases the given object from the collection while keeping the positions of all other objects unchanged.
+		///
+		/// \return Iterator to the entry after the one that's been erased.
+		iterator erase(const const_iterator &it) {
 			assert_true_usage(it.get_raw() != _t.end(), "invalid position");
-			auto next = it;
-			++next;
-			if (next.get_raw() != _t.end()) {
-				_t.get_modifier(next.get_raw().get_node())->length += it.data().length;
+			auto next = _t.erase(it.get_raw());
+			if (next != _t.end()) {
+				_t.get_modifier_for(next.get_node())->length += it.data().length;
 			}
-			_t.erase(it.get_raw());
+			return iterator(next);
 		}
 
 		/// Returns an iterator to the first object in the registry.
@@ -1148,7 +1206,7 @@ namespace codepad::editor::code {
 		/// Adjusts the positions of all objects according to the \ref caret_fixup_info.
 		///
 		/// \todo Define better strategies for determining positions after adjusting them.
-		void fixup(const caret_fixup_info &fixup) {
+		void fixup(std::enable_if_t<std::is_same_v<Len, size_t>, const caret_fixup_info&> fixup) {
 			for (const modification_position &mpos : fixup.mods) {
 				size_t pos = mpos.position;
 				auto it = _t.find_custom(_finder_after(), pos); // pos becomes the offset in the node
@@ -1177,13 +1235,17 @@ namespace codepad::editor::code {
 			}
 		}
 
-		/// Finds the object at or immediately after the given position.
-		iterator find_at_or_after(size_t pos) {
-			return _t.find_custom(_finder_at_or_after(), pos);
+		/// Finds the first object at or after the given position.
+		entry_info<iterator> find_at_or_after(Len pos) {
+			_finder_at_or_after finder;
+			auto it = _t.find_custom(finder, pos);
+			return entry_info<iterator>(iterator(it), finder.position);
 		}
 		/// \overload
-		const_iterator find_at_or_after(size_t pos) const {
-			return _t.find_custom(_finder_at_or_after(), pos);
+		entry_info<const_iterator> find_at_or_after(Len pos) const {
+			_finder_at_or_after finder;
+			auto it = _t.find_custom(finder, pos);
+			return entry_info<const_iterator>(const_iterator(it), finder.position);
 		}
 
 		/// Clears the contents of the registry.
@@ -1195,9 +1257,18 @@ namespace codepad::editor::code {
 
 		/// Used to find the object immediately after a position.
 		using _finder_after = sum_synthesizer::index_finder<typename node_synth_data::length_property>;
-		/// Used to find the object at or immediately after a position.
-		using _finder_at_or_after = sum_synthesizer::index_finder<
-			typename node_synth_data::length_property, false, std::less_equal<size_t>
-		>;
+		/// Used to find the object at or immediately after a position. Also calculates the position of the found
+		/// node.
+		struct _finder_at_or_after {
+			using finder = sum_synthesizer::index_finder<
+				typename node_synth_data::length_property, false, std::less_equal<Len>
+			>; ///< The underlying \ref sum_synthesizer::index_finder.
+			/// Interface to \ref binary_tree::find_custom.
+			int select_find(const node_type &nn, Len &target) {
+				return finder::template select_find<typename node_synth_data::length_property>(nn, target, position);
+			}
+
+			Len position{}; ///< Stores the position of the node.
+		};
 	};
 }

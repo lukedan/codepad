@@ -77,12 +77,15 @@ set(SOURCE_FILES
 	codepad/core/hotkey_registry.h
 	codepad/core/misc.h
 	codepad/core/tasks.h
+
 	codepad/editors/code/buffer.h
+	codepad/editors/code/buffer_formatting.h
 	codepad/editors/code/codebox.cpp
 	codepad/editors/code/codebox.h
 	codepad/editors/code/components.h
 	codepad/editors/code/document.cpp
 	codepad/editors/code/document.h
+	codepad/editors/code/document_formatting_cache.h
 	codepad/editors/code/document_manager.h
 	codepad/editors/code/editor.cpp
 	codepad/editors/code/editor.h
@@ -90,6 +93,7 @@ set(SOURCE_FILES
 	codepad/editors/code/view.h
 	codepad/editors/tabs.cpp
 	codepad/editors/tabs.h
+
 	codepad/os/current/all.h
 	codepad/os/current/font.h
 	codepad/os/current/misc.h
@@ -106,6 +110,8 @@ set(SOURCE_FILES
 	codepad/os/software_renderer_base.h
 	codepad/os/window.cpp
 	codepad/os/window.h
+	${PLATFORM_SOURCE}
+
 	codepad/ui/commands.h
 	codepad/ui/common_elements.h
 	codepad/ui/common_elements.cpp
@@ -122,8 +128,8 @@ set(SOURCE_FILES
 	codepad/ui/panel.h
 	codepad/ui/visual.cpp
 	codepad/ui/visual.h
-	codepad/main.cpp
-	${PLATFORM_SOURCE})
+
+	codepad/main.cpp)
 
 if(NOT DEFINED USE_SSE4)
 	set(USE_SSE4 Yes)

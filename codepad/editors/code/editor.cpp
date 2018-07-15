@@ -66,18 +66,19 @@ namespace codepad::editor::code {
 				make_tuple(cref(*used), firstchar, flineinfo.second == linebreak_type::soft),
 				make_tuple(cref(*this), firstchar, plastchar)
 			);
+			const font_family &fnt = get_font();
 			for (it.begin(); !it.ended(); it.next()) {
 				const character_rendering_iterator &cri = it.char_iter();
 				if (!cri.is_hard_line_break()) {
 					const character_metrics_accumulator &lci = cri.character_info();
 					const text_theme_data::char_iterator &ti = cri.theme_info();
 					if (is_graphical_char(lci.current_char())) { // render character
-						vec2d xpos =
-							vec2d(lci.char_left(), round(cri.rounded_y_offset() + bi.get(ti.current_theme.style))) +
-							lci.current_char_entry().placement.xmin_ymin();
-						if (xpos.x < layoutw) { // only render characters that are visible
-							renderer_base::get().draw_character(
-								lci.current_char_entry().texture, xpos, ti.current_theme.color
+						if (lci.char_left() + lci.current_char_entry().placement.xmin < layoutw) {
+							// only render characters that are visible
+							fnt.get_by_style(ti.current_theme.style)->draw_character(
+								cri.character_info().current_char(),
+								vec2d(lci.char_left(), cri.y_offset() + bi.get(ti.current_theme.style)),
+								ti.current_theme.color
 							);
 						}
 					}
@@ -104,7 +105,7 @@ namespace codepad::editor::code {
 
 	/// \todo Also consider folded regions.
 	vector<size_t> editor::_recalculate_wrapping_region(size_t beg, size_t end) const {
-		rendering_iterator<fold_region_skipper> it(
+		/*rendering_iterator<fold_region_skipper> it(
 			make_tuple(cref(_fmt.get_folding()), beg),
 			make_tuple(cref(*this), beg, _doc->num_chars())
 		);
@@ -144,15 +145,16 @@ namespace codepad::editor::code {
 				lb = it.char_iter().is_hard_line_break();
 			}
 		}
-		return poss;
+		return poss;*/
+		return {};
 	}
 	double editor::_get_caret_pos_x_unfolded_linebeg(size_t line, size_t position) const {
 		size_t begc = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line).first;
 		rendering_iterator<fold_region_skipper> iter(
 			make_tuple(cref(_fmt.get_folding()), begc),
-			make_tuple(cref(*this), begc, _doc->num_chars())
+			make_tuple(cref(*this), begc, position)
 		);
-		for (iter.begin(); iter.char_iter().current_position() < position; iter.next()) {
+		for (iter.begin(); !iter.ended(); iter.next()) {
 		}
 		return iter.char_iter().character_info().prev_char_right();
 	}

@@ -5,6 +5,7 @@
 
 #include "element_classes.h"
 #include "element.h"
+#include "manager.h"
 #include "draw.h"
 
 using namespace std;
@@ -143,24 +144,24 @@ namespace codepad::ui {
 	void visual::render_state::set_class(str_t cls) {
 		_cls = std::move(cls);
 		_reset_state(
-			visual_state::state(class_manager::get().visuals.get_state_or_create(_cls, _state))
+			visual_state::state(manager::get().get_class_visuals().get_state_or_create(_cls, _state))
 		);
 	}
 
-	void visual::render_state::set_state(visual_state::id_t s) {
+	void visual::render_state::set_state(element_state_id s) {
 		_state = s;
 		_reset_state(
-			visual_state::state(class_manager::get().visuals.get_state_or_create(_cls, _state), _animst)
+			visual_state::state(manager::get().get_class_visuals().get_state_or_create(_cls, _state), _animst)
 		);
 	}
 	bool visual::render_state::stationary() const {
-		return _timestamp == class_manager::get().visuals.timestamp && _animst.all_stationary;
+		return _timestamp == manager::get().get_class_visuals().timestamp && _animst.all_stationary;
 	}
 
 	void visual::render_state::update() {
 		if (!stationary()) {
-			const visual_state &vps = class_manager::get().visuals.get_state_or_create(_cls, _state);
-			if (_timestamp != class_manager::get().visuals.timestamp) {
+			const visual_state &vps = manager::get().get_class_visuals().get_state_or_create(_cls, _state);
+			if (_timestamp != manager::get().get_class_visuals().timestamp) {
 				_reset_state(visual_state::state(vps));
 			}
 			auto now = std::chrono::high_resolution_clock::now();
@@ -170,15 +171,15 @@ namespace codepad::ui {
 	}
 
 	void visual::render_state::render(rectd rgn) {
-		const visual_state &ps = class_manager::get().visuals.get_state_or_create(_cls, _state);
-		if (_timestamp != class_manager::get().visuals.timestamp) {
+		const visual_state &ps = manager::get().get_class_visuals().get_state_or_create(_cls, _state);
+		if (_timestamp != manager::get().get_class_visuals().timestamp) {
 			_reset_state(visual_state::state(ps));
 		}
 		ps.render(rgn, _animst);
 	}
 
 	void visual::render_state::_reset_state(visual_state::state s) {
-		_timestamp = class_manager::get().visuals.timestamp;
+		_timestamp = manager::get().get_class_visuals().timestamp;
 		_animst = std::move(s);
 		_last = std::chrono::high_resolution_clock::now();
 	}

@@ -29,7 +29,9 @@ namespace codepad::editor {
 		t._text_tok = _tabs.insert(_tabs.end(), &t);
 		_children.add(t);
 		_children.add(*t._btn);
-		t.set_visibility(visibility::ignored);
+
+		t.set_visibility(false);
+		t.set_is_interactive(false);
 		if (_tabs.size() == 1) {
 			switch_tab(t);
 		}
@@ -75,11 +77,13 @@ namespace codepad::editor {
 	void tab_host::switch_tab(tab &t) {
 		assert_true_logical(t._parent == this, "corrupted element tree");
 		if (_active_tab != _tabs.end()) {
-			(*_active_tab)->set_visibility(visibility::ignored);
+			(*_active_tab)->set_visibility(false);
+			(*_active_tab)->set_is_interactive(false);
 			(*_active_tab)->_btn->set_zindex(0);
 		}
 		_active_tab = t._text_tok;
-		t.set_visibility(visibility::visible);
+		t.set_visibility(true);
+		t.set_is_interactive(true);
 		t._btn->set_zindex(1);
 		invalidate_layout();
 	}
@@ -274,9 +278,9 @@ namespace codepad::editor {
 				_try_dispose_preview();
 				_try_detach_possel();
 				// the mouse button is not down anymore
-				_drag->_btn->_set_visual_style_bit(visual::get_predefined_states().mouse_down, false);
+				_drag->_btn->_set_state_bit(manager::get().get_predefined_states().mouse_down, false);
 				// set mouse over bit accordingly, although it works (almost) fine without this
-				_drag->_btn->_set_visual_style_bit(visual::get_predefined_states().mouse_over, mouseover);
+				_drag->_btn->_set_state_bit(manager::get().get_predefined_states().mouse_over, mouseover);
 				_drag = nullptr;
 			}
 		}

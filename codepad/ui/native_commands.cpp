@@ -177,7 +177,7 @@ namespace codepad::ui::native_commands {
 					tab *tb = tab_manager::get().new_tab_in(th);
 					tb->set_caption(convert_to_default_encoding(path.filename().native()));
 					code::codebox *box = element::create<codebox>();
-					box->add_component_left(*element::create<line_number>());
+					box->add_component_left(*element::create<line_number_display>());
 					box->add_component_right(*element::create<minimap>());
 					box->get_editor()->set_document(ctx);
 					tb->children().add(*box);
@@ -195,7 +195,7 @@ namespace codepad::ui::native_commands {
 				tab *tb = tab_manager::get().new_tab_in(th);
 				tb->set_caption(CP_STRLIT("new file"));
 				code::codebox *box = element::create<codebox>();
-				box->add_component_left(*element::create<line_number>());
+				box->add_component_left(*element::create<line_number_display>());
 				box->add_component_right(*element::create<minimap>());
 				box->get_editor()->set_document(ctx);
 				tb->children().add(*box);

@@ -63,7 +63,7 @@ namespace codepad::os {
 		/// Initializes the \ref texture_base to empty.
 		texture_base() = default;
 		/// Move constructor.
-		texture_base(texture_base &&t) : _id(t._id), _rend(t._rend), _w(t._w), _h(t._h) {
+		texture_base(texture_base &&t) noexcept : _id(t._id), _rend(t._rend), _w(t._w), _h(t._h) {
 			t._id = 0;
 			t._rend = nullptr;
 			t._w = t._h = 0;
@@ -71,7 +71,7 @@ namespace codepad::os {
 		/// No copy construction.
 		texture_base(const texture_base&) = delete;
 		/// Move assignment.
-		texture_base &operator=(texture_base &&t) {
+		texture_base &operator=(texture_base &&t) noexcept {
 			std::swap(_id, t._id);
 			std::swap(_rend, t._rend);
 			std::swap(_w, t._w);
@@ -126,12 +126,12 @@ namespace codepad::os {
 		/// Initializes the \ref framebuffer to empty.
 		framebuffer() = default;
 		/// Move constructor.
-		framebuffer(framebuffer &&r) : _id(r._id), _tex(std::move(r._tex)) {
+		framebuffer(framebuffer &&r) noexcept : _id(r._id), _tex(std::move(r._tex)) {
 		}
 		/// No copy construction.
 		framebuffer(const framebuffer&) = delete;
 		/// Move assignment.
-		framebuffer &operator=(framebuffer &&r) {
+		framebuffer &operator=(framebuffer &&r) noexcept {
 			std::swap(_id, r._id);
 			_tex = std::move(r._tex);
 			return *this;
@@ -156,7 +156,7 @@ namespace codepad::os {
 		framebuffer(id_t rid, texture &&t) : _id(rid), _tex(std::move(t)) {
 		}
 
-		id_t _id; ///< The underlying ID of the frame buffer.
+		id_t _id = 0; ///< The underlying ID of the frame buffer.
 		texture _tex; ///< The underlying texture.
 	};
 
@@ -174,16 +174,11 @@ namespace codepad::os {
 		virtual void push_clip(recti) = 0;
 		/// Pops a clip from the stack.
 		virtual void pop_clip() = 0;
-		/// Draws a character to the given rectangle with the given color.
+
+		/// Draws a character in the given rectangle with the given color. \ref font::draw_character should be
+		/// preffered whenever possible.
 		virtual void draw_character_custom(const char_texture&, rectd, colord) = 0;
-		/// Draws a character at the given position with the given color. The top left corner of the
-		/// drawn character is placed at the given position, and the width and height of the drawn character
-		/// are the same as those of the texture.
-		virtual void draw_character(const char_texture &t, vec2d pos, colord c) {
-			draw_character_custom(t, rectd::from_xywh(
-				pos.x, pos.y, static_cast<double>(t.get_width()), static_cast<double>(t.get_height())
-			), c);
-		}
+
 		/// Draws an array of triangles. Every three elements of the arrays are drawn as one triangle.
 		///
 		/// \param tex The texture used to draw the triangles.

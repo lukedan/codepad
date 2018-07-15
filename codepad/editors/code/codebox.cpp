@@ -14,7 +14,7 @@ using namespace codepad::ui;
 
 namespace codepad::editor::code {
 	codebox *component::_get_box() const {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 		codebox *cb = dynamic_cast<codebox*>(_parent);
 		assert_true_logical(cb != nullptr, "the component is not a child of any codebox");
 		return cb;

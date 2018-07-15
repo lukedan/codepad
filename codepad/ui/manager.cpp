@@ -35,10 +35,10 @@ namespace codepad::ui {
 			// new batches may be produced during this process
 			for (auto i : batch) {
 				i->_dispose();
-#ifdef CP_DETECT_LOGICAL_ERRORS
-				++control_dispose_rec::get().reg_disposed;
+#ifdef CP_CHECK_LOGICAL_ERRORS
+				++control_disposal_rec::get().reg_disposed;
 #endif
-#ifdef CP_DETECT_USAGE_ERRORS
+#ifdef CP_CHECK_USAGE_ERRORS
 				assert_true_usage(!i->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
 				// also remove the current entry from all lists
@@ -55,9 +55,9 @@ namespace codepad::ui {
 	void manager::invalidate_layout(element &e) {
 		if (_layouting) { // add element directly to queue
 			if (e._parent != nullptr && e._parent->override_children_layout()) {
-				_q.emplace_back(e._parent, false);
+				_q.emplace(e._parent, false);
 			} else {
-				_q.emplace_back(&e, true);
+				_q.emplace(&e, true);
 			}
 		} else {
 			_targets[&e] = true;
@@ -88,11 +88,11 @@ namespace codepad::ui {
 		}
 		_targets.clear();
 		for (auto &i : ftg) { // push all gathered elements into a queue
-			_q.emplace_back(i);
+			_q.emplace(i);
 		}
 		while (!_q.empty()) {
 			auto li = _q.front();
-			_q.pop_front();
+			_q.pop();
 			if (li.second) { // re-calculate layout
 				rectd prgn;
 				if (li.first->_parent) {
@@ -139,7 +139,7 @@ namespace codepad::ui {
 	}
 
 	void manager::set_focused_element(element &elem) {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 		static bool _in = false;
 
 		assert_true_logical(!_in, "recursive calls to set_focus");
@@ -153,7 +153,7 @@ namespace codepad::ui {
 			wnd->activate();
 		}
 		wnd->set_window_focused_element(elem);
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 		_in = false;
 #endif
 	}

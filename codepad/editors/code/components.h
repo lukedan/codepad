@@ -3,15 +3,13 @@
 /// \file
 /// Additional components of a \ref codepad::editor::code::codebox.
 
-#include <deque>
-
 #include "editor.h"
 #include "rendering.h"
 #include "../../ui/draw.h"
 
 namespace codepad::editor::code {
 	/// Displays a the line number for each line.
-	class line_number : public component {
+	class line_number_display : public component {
 	public:
 		/// Returns the width of the longest line number.
 		std::pair<double, bool> get_desired_width() const override {
@@ -22,9 +20,9 @@ namespace codepad::editor::code {
 			return {get_padding().width() + static_cast<double>(w) * maxw, true};
 		}
 
-		/// Returns the default class of elements of type \ref line_number.
+		/// Returns the default class of elements of type \ref line_number_display.
 		inline static str_t get_default_class() {
-			return CP_STRLIT("line_number");
+			return CP_STRLIT("line_number_display");
 		}
 	protected:
 		event<void>::token _resizetk; ///< The token used to listen to \ref editor::content_modified.
@@ -290,7 +288,8 @@ namespace codepad::editor::code {
 							// if not large enough, make it as large as min_page_lines
 							size_t backline = std::min(editor->get_num_visual_lines(), page_end + min_page_lines);
 							// at least the last visible line is rendered
-							render_page(page_end, std::max(be.second, backline));
+							backline = std::max(be.second, backline);
+							render_page(page_end, backline);
 							page_end = backline; // set page_end
 						}
 					}
@@ -379,9 +378,9 @@ namespace codepad::editor::code {
 		}
 
 		/// Changes the visual state of the visible region indicator.
-		void _on_visual_state_changed() override {
+		void _on_state_changed(value_update_info<ui::element_state_id> &info) override {
 			_vrgnst.set_state(_rst.get_state());
-			component::_on_visual_state_changed();
+			component::_on_state_changed(info);
 		}
 
 		/// Registers event handlers to update the minimap and viewport indicator automatically.

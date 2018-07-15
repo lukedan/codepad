@@ -156,7 +156,7 @@ namespace codepad::os {
 		}
 
 		void _new_window(window_base &wnd) override {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 			auto w = dynamic_cast<window*>(&wnd);
 			assert_true_logical(w != nullptr, "invalid window passed to renderer");
 #else
@@ -187,7 +187,7 @@ namespace codepad::os {
 			};
 		}
 		void _delete_window(window_base &wnd) override {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 			auto w = dynamic_cast<window*>(&wnd);
 			assert_true_logical(w != nullptr, "invalid window passed to renderer");
 #else

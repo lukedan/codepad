@@ -3,6 +3,7 @@
 /// \file
 /// Implementation of certain functions of codepad::os::opengl_renderer_base.
 
+#include "../ui/manager.h"
 #include "window.h"
 
 namespace codepad::os {

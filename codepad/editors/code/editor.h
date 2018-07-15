@@ -791,13 +791,13 @@ namespace codepad::editor::code {
 
 		/// Called by the parent \ref codebox when it gets focus. Adjusts the states of caret animations.
 		void _on_codebox_got_focus() {
-			_caretst.set_state_bit(ui::visual::get_predefined_states().focused, true);
-			_selst.set_state_bit(ui::visual::get_predefined_states().focused, true);
+			_caretst.set_state_bit(ui::manager::get().get_predefined_states().focused, true);
+			_selst.set_state_bit(ui::manager::get().get_predefined_states().focused, true);
 		}
 		/// Called by the parent \ref codebox when it loses focus. Adjusts the states of caret animations.
 		void _on_codebox_lost_focus() {
-			_caretst.set_state_bit(ui::visual::get_predefined_states().focused, false);
-			_selst.set_state_bit(ui::visual::get_predefined_states().focused, false);
+			_caretst.set_state_bit(ui::manager::get().get_predefined_states().focused, false);
+			_selst.set_state_bit(ui::manager::get().get_predefined_states().focused, false);
 		}
 
 		/// Called when the user starts to make a selection using the mouse.

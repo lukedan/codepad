@@ -3,6 +3,7 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 
+#include "../../../ui/manager.h"
 #include "../../window.h"
 #include "misc.h"
 

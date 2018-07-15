@@ -148,7 +148,7 @@ namespace codepad::ui {
 	class visual_json_parser {
 	public:
 		/// Parses an \ref animated_property from a given JSON object. If the JSON object
-		/// is not an object but an array, number, or any other valid format, the
+		/// is not an object but an array, number, or any other invalid format, the
 		/// \ref animated_property will be reset to its default state, with only its
 		/// animated_property::to parsed from the given value. As a consequence, inheritance
 		/// will be ignored. Otherwise, It parses and sets all available properties. It is
@@ -180,7 +180,7 @@ namespace codepad::ui {
 				if (mem != obj.MemberEnd()) {
 					if (mem->value.IsString()) {
 						const std::function<double(double)>
-							*fptr = visual::try_get_transition_func(json::get_as_string(mem->value));
+							*fptr = manager::get().try_get_transition_func(json::get_as_string(mem->value));
 						if (fptr == nullptr) {
 							ani.transition_func = transition_functions::linear;
 							logger::get().log_warning(
@@ -299,7 +299,7 @@ namespace codepad::ui {
 			if (val.IsArray()) {
 				for (auto i = val.Begin(); i != val.End(); ++i) {
 					visual_state vps;
-					visual_state::id_t id = visual_state::normal_id;
+					element_state_id id = normal_element_state_id;
 					if (i->IsObject()) {
 						json::value_t::ConstMemberIterator fmem;
 						fmem = i->FindMember(CP_STRLIT("states"));
@@ -308,7 +308,7 @@ namespace codepad::ui {
 						}
 						fmem = i->FindMember(CP_STRLIT("inherit_from"));
 						if (fmem != i->MemberEnd()) {
-							visual_state::id_t pid = _parse_vid(fmem->value);
+							element_state_id pid = _parse_vid(fmem->value);
 							auto found = provider._states.find(pid);
 							if (found != provider._states.end()) {
 								vps = found->second;
@@ -377,18 +377,9 @@ namespace codepad::ui {
 			}
 			return v;
 		}
-		/// Parses a visual state ID. The given JSON object must be an array of strings,
-		/// each string of which denotes a bit that is to be set.
-		inline static visual_state::id_t _parse_vid(const json::value_t &val) {
-			if (!val.IsArray()) {
-				return visual_state::normal_id;
-			}
-			visual_state::id_t id = visual_state::normal_id;
-			for (auto j = val.Begin(); j != val.End(); ++j) {
-				id |= visual::get_or_register_state_id(json::get_as_string(*j));
-			}
-			return id;
-		}
+		/// Parses a visual state ID. The given JSON object can either be a single state name, or an array of state
+		/// names.
+		static element_state_id _parse_vid(const json::value_t&);
 	};
 
 	/// Registry of the visual of classes.
@@ -408,7 +399,7 @@ namespace codepad::ui {
 		}
 		/// Returns the visual state corresponding to the given class name and visual state ID.
 		/// Simply calls \ref get_visual_or_default and visual::get_state_or_default.
-		const visual_state &get_state_or_create(const str_t &cls, visual_state::id_t id) {
+		const visual_state &get_state_or_create(const str_t &cls, element_state_id id) {
 			return get_visual_or_default(cls).get_state_or_default(id);
 		}
 
@@ -421,6 +412,7 @@ namespace codepad::ui {
 			return texs;
 		}
 	};
+
 
 	/// Hotkey groups that are used with elements. Each hotkey corresponds to a command name.
 	using element_hotkey_group = hotkey_group<str_t>;
@@ -608,15 +600,5 @@ namespace codepad::ui {
 			mapping.clear();
 			hotkey_json_parser::parse_config(mapping, val);
 		}
-	};
-
-	/// Manages the visuals and hotkeys of classes.
-	class class_manager {
-	public:
-		class_visuals visuals; ///< All visuals.
-		class_hotkeys hotkeys; ///< All hotkeys.
-
-		/// Returns the global \ref class_manager.
-		static class_manager &get();
 	};
 }

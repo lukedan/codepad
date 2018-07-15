@@ -705,7 +705,7 @@ namespace codepad::editor {
 
 		/// Returns the \ref tab_host that this tab is currently in.
 		tab_host *get_host() const {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 			tab_host *hst = dynamic_cast<tab_host*>(parent());
 			assert_true_logical(
 				(hst == nullptr) == (parent() == nullptr), "parent is not a tab host when get_host() is called"
@@ -927,7 +927,7 @@ namespace codepad::editor {
 								ff->set_child2(other);
 							}
 						} else {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 							auto f = dynamic_cast<os::window_base*>(father->parent());
 							assert_true_logical(f != nullptr, "parent of parent must be a window or a split panel");
 #else
@@ -938,7 +938,7 @@ namespace codepad::editor {
 						}
 						ui::manager::get().mark_disposal(*father);
 					} else {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 						auto f = dynamic_cast<os::window_base*>((*i)->parent());
 						assert_true_logical(f != nullptr, "parent must be a window or a split panel");
 #else
@@ -1124,7 +1124,7 @@ namespace codepad::editor {
 		/// Disposes \ref _dragdec if it isn't \p nullptr.
 		void _try_dispose_preview() {
 			if (_dragdec) {
-				_dragdec->set_state(ui::visual::get_predefined_states().corpse);
+				_dragdec->set_state(ui::manager::get().get_predefined_states().corpse);
 				_dragdec = nullptr;
 			}
 		}

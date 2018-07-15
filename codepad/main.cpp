@@ -21,21 +21,12 @@ using namespace codepad::ui;
 using namespace codepad::editor;
 
 int main(int argc, char **argv) {
-	initialize(argc, argv);
-	get_app_epoch(); // initialize epoch
-
-#ifdef CP_CAN_DETECT_MEMORY_LEAKS
-	enable_mem_checking();
-#endif
-
-	renderer_base::create_default<opengl_renderer>();
-	//renderer_base::create_default<software_renderer>();
-	native_commands::register_all();
+	codepad::initialize(argc, argv);
 
 	auto fnt = std::make_shared<default_font>(CP_STRLIT(""), 13.0, font_style::normal);
 	//font_family codefnt(CP_STRLIT("Fira Code"), 12.0);
-	font_family codefnt(CP_STRLIT(""), 13.0);
-	//font_family codefnt(CP_STRLIT("Segoe UI"), 13.0);
+	//font_family codefnt(CP_STRLIT(""), 13.0);
+	font_family codefnt(CP_STRLIT("Segoe UI"), 13.0);
 
 	texture_table tbl;
 	{
@@ -51,7 +42,7 @@ int main(int argc, char **argv) {
 		json::parser_value_t v;
 		str_t ss = convert_to_default_encoding(us);
 		v.Parse(ss.c_str());
-		tbl = class_manager::get().visuals.load_json(v);
+		tbl = manager::get().get_class_visuals().load_json(v);
 	}
 
 	{
@@ -67,7 +58,7 @@ int main(int argc, char **argv) {
 		json::parser_value_t v;
 		str_t ss = convert_to_default_encoding(us);
 		v.Parse(ss.c_str());
-		class_manager::get().hotkeys.load_json(v);
+		manager::get().get_class_hotkeys().load_json(v);
 	}
 
 	content_host::set_default_font(fnt);

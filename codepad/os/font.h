@@ -35,7 +35,7 @@ namespace codepad {
 				/// The placement of the texture, with respect to the `pen', when the character is rendered.
 				rectd placement;
 				/// The distance that the `pen' should be moved forward to render the next character.
-				double advance;
+				double advance = 0.0;
 				/// The texture of the character.
 				os::char_texture texture;
 			};
@@ -61,11 +61,17 @@ namespace codepad {
 				return _get_modify_char_entry(c, dummy);
 			}
 
+			/// Renders a character with the default renderer with the given color. This function should be preferred
+			/// over \ref renderer_base::draw_character_custom since this can make use of additional information and
+			/// assumptions to yield better-looking results. However, implementations of this function generally use
+			/// \ref renderer_base::draw_character_custom as a backend.
+			virtual entry &draw_character(char32_t, vec2d, colord) const = 0;
+
 			/// Returns the width of the widest character of the given string.
 			double get_max_width_charset(const std::u32string &s) const {
 				double maxw = 0.0;
-				for (auto i = s.begin(); i != s.end(); ++i) {
-					maxw = std::max(maxw, get_char_entry(*i).advance);
+				for (char32_t c : s) {
+					maxw = std::max(maxw, get_char_entry(c).advance);
 				}
 				return maxw;
 			}
@@ -88,13 +94,35 @@ namespace codepad {
 
 		/// The base of freetype-based fonts for all platforms.
 		///
-		/// \remark Derived classes should call _cache_kerning() at the end of their constructors,
+		/// \remark Derived classes should call \ref _cache_kerning() at the end of their constructors,
 		///         and <tt>_ft_verify(FT_Done_Face(_face));</tt> in their destructors.
+		/// \todo Subpixel positioning using FT_Outline_Transform or such.
 		class freetype_font_base : public font {
 		public:
+			/// The number of additional variants with subpixel positioning that will be considered when a character
+			/// is being rendered.
+			constexpr static size_t subpixel_character_variants = 3;
+
 			/// Calls \p FT_Get_Char_Index and checks if there is a glyph corresponding to the given codepoint.
 			bool has_valid_char_entry(char32_t c) const override {
 				return FT_Get_Char_Index(_face, static_cast<FT_ULong>(c)) != 0;
+			}
+			/// Picks the appropriate variant of \ref _full_entry::variants or \ref font::entry::texture for
+			/// rendering the character.
+			entry &draw_character(char32_t c, vec2d pos, colord color) const override {
+				bool dummy;
+				_full_entry &et = _get_modify_full_char_entry(c, dummy);
+				pos.y = std::round(pos.y);
+				pos.x += 0.5 / (subpixel_character_variants + 1);
+				double rx = std::floor(pos.x);
+				size_t variant = std::min(
+					static_cast<size_t>((pos.x - rx) * (subpixel_character_variants + 1)),
+					subpixel_character_variants
+				);
+				const os::char_texture &ctex = variant == 0 ? et.original.texture : et.variants[variant - 1];
+				rectd place = variant == 0 ? et.original.placement : et.variant_placement[variant - 1];
+				os::renderer_base::get().draw_character_custom(ctex, place.translated(vec2d(rx, pos.y)), color);
+				return et.original;
 			}
 
 			/// Returns the height of a line.
@@ -178,6 +206,15 @@ namespace codepad {
 				std::unordered_map<std::pair<char32_t, char32_t>, vec2d, char_pair_hash> _kerncache;
 			};
 
+			/// Extends \ref font::entry to include additional variants with subpixel positioning.
+			struct _full_entry {
+				font::entry original; ///< The original entry.
+				/// Textures of all variants with subpixel positioning.
+				os::char_texture variants[subpixel_character_variants];
+				/// Placement of all variants of textures.
+				rectd variant_placement[subpixel_character_variants];
+			};
+
 			/// Stores all font entries. Entries whose codepoints are less than \ref fast_size are
 			/// stored in an array, while others are stored in a hash table.
 			struct _entry_table {
@@ -189,9 +226,9 @@ namespace codepad {
 				///
 				/// \param v The codepoint.
 				/// \param valid Returns whether an entry has been in the slot.
-				entry &get(char32_t v, bool &valid) {
+				_full_entry &get(char32_t v, bool &valid) {
 					if (v < fast_size) {
-						std::optional<entry> &er = array[v];
+						std::optional<_full_entry> &er = array[v];
 						valid = er.has_value();
 						if (!valid) {
 							er.emplace();
@@ -206,25 +243,50 @@ namespace codepad {
 					return found->second;
 				}
 
-				std::optional<entry> array[fast_size]; ///< Entries with codepoints smaller than \ref fast_size.
-				std::unordered_map<char32_t, entry> map; ///< Entries with codepoints larger than \ref fast_size.
+				/// Entries with codepoints smaller than \ref fast_size.
+				std::optional<_full_entry> array[fast_size];
+				/// Entries with codepoints larger than \ref fast_size.
+				std::unordered_map<char32_t, _full_entry> map;
 			};
 
-			/// Copies the image stored in the given \p FT_Bitmap into the given buffer.
-			/// Simply calls the template version with the pixel mode of the \p FT_Bitmap.
-			inline static void _copy_image(const FT_Bitmap &src, unsigned char *dst) {
-				size_t stride = static_cast<size_t>(std::abs(src.pitch));
+			/// Creates a \ref os::char_texture from the given \p FT_Bitmap.
+			///
+			/// \todo Better integrate subpixel antialiasing.
+			os::char_texture _create_texture(const FT_Bitmap &src) const {
+				std::vector<unsigned char> v(4 * src.width * src.rows);
+				size_t
+					stride = static_cast<size_t>(std::abs(src.pitch)),
+					width = static_cast<size_t>(src.width), height = static_cast<size_t>(src.rows);
 				switch (src.pixel_mode) {
 				case FT_PIXEL_MODE_MONO:
-					_copy_image<FT_PIXEL_MODE_MONO>(src.buffer, dst, src.width, src.rows, stride);
+					_copy_image<FT_PIXEL_MODE_MONO>(src.buffer, v.data(), width, height, stride);
 					break;
 				case FT_PIXEL_MODE_GRAY:
-					_copy_image<FT_PIXEL_MODE_GRAY>(src.buffer, dst, src.width, src.rows, stride);
+					_copy_image<FT_PIXEL_MODE_GRAY>(src.buffer, v.data(), width, height, stride);
+					break;
+				case FT_PIXEL_MODE_LCD:
+					width /= 3;
+					_copy_image<FT_PIXEL_MODE_LCD>(src.buffer, v.data(), width, height, stride);
+					break;
+				case FT_PIXEL_MODE_LCD_V: // TODO
+					_copy_image<FT_PIXEL_MODE_LCD_V>(src.buffer, v.data(), width, height, stride);
 					break;
 				case FT_PIXEL_MODE_BGRA:
-					_copy_image<FT_PIXEL_MODE_BGRA>(src.buffer, dst, src.width, src.rows, stride);
+					_copy_image<FT_PIXEL_MODE_BGRA>(src.buffer, v.data(), width, height, stride);
 					break;
 				}
+				if (src.pitch < 0) { // the image is upside down, flip it
+					for (size_t y = 0, invy = height - 1; y < invy; ++y, --invy) {
+						unsigned char *s1 = &v[y * width * 4], *s2 = &v[invy * width * 4];
+						for (size_t x = 0; x < width; ++x, s1 += 4, s2 += 4) {
+							std::swap(s1[0], s2[0]);
+							std::swap(s1[1], s2[1]);
+							std::swap(s1[2], s2[2]);
+							std::swap(s1[3], s2[3]);
+						}
+					}
+				}
+				return os::renderer_base::get().new_character_texture(width, height, v.data());
 			}
 			/// Copies the image of the given pixel format stored in the buffer into the other buffer.
 			///
@@ -247,6 +309,12 @@ namespace codepad {
 						} else if constexpr (Mode == FT_PIXEL_MODE_GRAY) {
 							dst[0] = dst[1] = dst[2] = 255;
 							dst[3] = src[x];
+						} else if constexpr (Mode == FT_PIXEL_MODE_LCD) {
+							const unsigned char *xptr = src + x * 3;
+							dst[0] = xptr[0];
+							dst[1] = xptr[1];
+							dst[2] = xptr[2];
+							dst[3] = 255;
 						} else if constexpr (Mode == FT_PIXEL_MODE_BGRA) {
 							// also rid of pre-multiplied alpha
 							const unsigned char *xptr = src + x * 4;
@@ -259,7 +327,8 @@ namespace codepad {
 				}
 			}
 
-			/// Obtains the kerning between the two characters directly from freetype, bypassing the cache.
+			/// Obtains the kerning between the two characters directly from freetype, bypassing the cache. This is
+			/// also used when initializing the cache.
 			vec2d _get_kerning_impl(char32_t l, char32_t r) const {
 				FT_Vector v;
 				_ft_verify(FT_Get_Kerning(
@@ -267,43 +336,6 @@ namespace codepad {
 				);
 				return vec2d(static_cast<double>(v.x), static_cast<double>(v.y)) * _ft_fixed_scale;
 			}
-			/// Returns the character entry, using freetype to render it if none exists in the registry.
-			entry &_get_modify_char_entry(char32_t c, bool &isnew) const override {
-				entry &et = _ents.get(c, isnew);
-				isnew = !isnew;
-				if (isnew) {
-					_ft_verify(FT_Load_Char(_face, c, FT_LOAD_DEFAULT | FT_LOAD_RENDER));
-					const FT_Bitmap &bmpdata = _face->glyph->bitmap;
-					{
-						auto *buf = static_cast<unsigned char*>(std::malloc(4 * bmpdata.width * bmpdata.rows));
-						_copy_image(bmpdata, buf);
-						if (bmpdata.pitch < 0) { // the image is upside down
-							for (size_t y = 0, invy = bmpdata.rows - 1; y < invy; ++y, --invy) {
-								unsigned char *s1 = buf + y * bmpdata.width * 4, *s2 = buf + invy * bmpdata.width * 4;
-								for (size_t x = 0; x < bmpdata.width; ++x, s1 += 4, s2 += 4) {
-									std::swap(s1[0], s2[0]);
-									std::swap(s1[1], s2[1]);
-									std::swap(s1[2], s2[2]);
-									std::swap(s1[3], s2[3]);
-								}
-							}
-						}
-						et.texture = os::renderer_base::get().new_character_texture(bmpdata.width, bmpdata.rows, buf);
-						std::free(buf);
-					}
-					et.advance = static_cast<double>(_face->glyph->metrics.horiAdvance) * _ft_fixed_scale;
-					et.placement = rectd::from_xywh(
-						static_cast<double>(_face->glyph->metrics.horiBearingX) * _ft_fixed_scale,
-						static_cast<double>(
-							_face->size->metrics.ascender - _face->glyph->metrics.horiBearingY
-						) * _ft_fixed_scale,
-						bmpdata.width,
-						bmpdata.rows
-					);
-				}
-				return et;
-			}
-
 			/// Fills the small table of the kerning cache. Should be called by
 			/// all derived classes after they've finished their initialization.
 			void _cache_kerning() {
@@ -313,6 +345,46 @@ namespace codepad {
 					}
 				}
 			}
+			/// Returns the \ref _full_entry, generating a new one if none exists.
+			_full_entry &_get_modify_full_char_entry(char32_t c, bool &isnew) const {
+				_full_entry &et = _ents.get(c, isnew);
+				isnew = !isnew;
+				if (isnew) {
+					FT_Set_Transform(_face, nullptr, nullptr);
+					FT_Int32 loadflags = FT_LOAD_DEFAULT | FT_LOAD_RENDER/* | FT_LOAD_TARGET_LCD*/;
+					_ft_verify(FT_Load_Char(_face, c, loadflags));
+					et.original.advance = static_cast<double>(_face->glyph->metrics.horiAdvance) * _ft_fixed_scale;
+					double baseline = std::round(
+						static_cast<double>(_face->size->metrics.ascender) * _ft_fixed_scale
+					);
+					et.original.texture = _create_texture(_face->glyph->bitmap);
+					et.original.placement = rectd::from_xywh(
+						static_cast<double>(_face->glyph->bitmap_left),
+						baseline - static_cast<double>(_face->glyph->bitmap_top),
+						static_cast<double>(et.original.texture.get_width()),
+						static_cast<double>(et.original.texture.get_height())
+					);
+					for (size_t i = 0; i < subpixel_character_variants; ++i) {
+						FT_Vector v;
+						v.x = static_cast<FT_Pos>((i + 1) / (_ft_fixed_scale * (subpixel_character_variants + 1)));
+						v.y = 0;
+						FT_Set_Transform(_face, nullptr, &v);
+						_ft_verify(FT_Load_Char(_face, c, loadflags));
+						et.variants[i] = _create_texture(_face->glyph->bitmap);
+						et.variant_placement[i] = rectd::from_xywh(
+							static_cast<double>(_face->glyph->bitmap_left),
+							baseline - static_cast<double>(_face->glyph->bitmap_top),
+							static_cast<double>(et.variants[i].get_width()),
+							static_cast<double>(et.variants[i].get_height())
+						);
+					}
+				}
+				return et;
+			}
+			/// Returns \ref _full_entry::original of the entry returned by \ref _get_modify_full_char_entry.
+			entry &_get_modify_char_entry(char32_t c, bool &isnew) const override {
+				return _get_modify_full_char_entry(c, isnew).original;
+			}
 
 			mutable _kerning_pair_cache _kerncache; ///< The kerning cache.
 			mutable _entry_table _ents; ///< The registry of character entries.
@@ -320,7 +392,7 @@ namespace codepad {
 
 			/// Checks the return code of freetype functions.
 			inline static void _ft_verify(FT_Error code) {
-#ifdef CP_DETECT_SYSTEM_ERRORS
+#ifdef CP_CHECK_SYSTEM_ERRORS
 				if (code != 0) {
 					logger::get().log_error(CP_HERE, "FreeType error code ", code);
 					assert_true_sys(false, "FreeType error");
@@ -363,26 +435,26 @@ namespace codepad {
 			}
 
 			/// Checks if there is an entry corresponding to the given codepoint in either font.
-			virtual bool has_valid_char_entry(char32_t c) const override {
+			bool has_valid_char_entry(char32_t c) const override {
 				return _prim.has_valid_char_entry(c) || _bkup.has_valid_char_entry(c);
 			}
 
 			/// The height of the font, which is the maximum height of the two fonts.
-			virtual double height() const override {
+			double height() const override {
 				return std::max(_prim.height(), _bkup.height());
 			}
 			/// The maximum width of all characters of all two fonts.
-			virtual double max_width() const override {
+			double max_width() const override {
 				return std::max(_prim.max_width(), _bkup.max_width());
 			}
 			/// The baseline, whcih is the lower baseline (larger in value) of the two fonts.
-			virtual double baseline() const override {
+			double baseline() const override {
 				return std::max(_prim.baseline(), _bkup.baseline());
 			}
 			/// Returns the kerning between the two chars. If the corresponding entries of the two
 			/// chars are of the same font, the corresponding kerning of that font is retrieved.
 			/// Otherwise, the kerning is zero.
-			virtual vec2d get_kerning(char32_t left, char32_t right) const override {
+			vec2d get_kerning(char32_t left, char32_t right) const override {
 				bool pl = _prim.has_valid_char_entry(left), pr = _prim.has_valid_char_entry(right);
 				if (pl && pr) {
 					return _prim.get_kerning(left, right);

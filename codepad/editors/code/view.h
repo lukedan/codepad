@@ -42,12 +42,11 @@ namespace codepad::editor::code {
 				total_softbreaks = 0; ///< The total number of soft linebreaks in the subtree.
 
 			using length_property = sum_synthesizer::compact_property<
-				size_t, node_synth_data,
 				synthesization_helper::field_value_property<&node_data::length>,
 				&node_synth_data::total_length
 			>; ///< Property used to obtain the total number of characters in a subtree.
 			using softbreaks_property = sum_synthesizer::compact_property<
-				size_t, node_synth_data, sum_synthesizer::identity, &node_synth_data::total_softbreaks
+				synthesization_helper::identity, &node_synth_data::total_softbreaks
 			>; ///< Property used to obtain the total number of soft linebreaks in a subtree.
 
 			/// Calls \ref sum_synthesizer::synthesize to update the recorded values.
@@ -194,7 +193,7 @@ namespace codepad::editor::code {
 				vs.emplace_back(cp - last);
 				last = cp;
 			}
-			_t = tree_type(vs);
+			_t = tree_type(vs.begin(), vs.end());
 		}
 
 		/// Returns the total number of soft linebreaks.
@@ -370,24 +369,22 @@ namespace codepad::editor::code {
 				tree_size = 0; ///< The number of nodes in this subtree.
 
 			using span_property = sum_synthesizer::compact_property<
-				size_t, fold_region_synth_data, get_node_span, &fold_region_synth_data::total_length
+				get_node_span, &fold_region_synth_data::total_length
 			>; ///< Property used to obtain the total number of characters in a subtree.
 			using folded_chars_property = sum_synthesizer::compact_property<
-				size_t, fold_region_synth_data,
 				synthesization_helper::field_value_property<&fold_region_node_data::range>,
 				&fold_region_synth_data::total_folded_chars
 			>; ///< Property used to obtain the total number of folded characters in a subtree.
 			using line_span_property = sum_synthesizer::compact_property<
-				size_t, fold_region_synth_data, get_node_line_span, &fold_region_synth_data::total_lines
+				get_node_line_span, &fold_region_synth_data::total_lines
 			>; ///< Property used to obtain the total number of linebreaks (both soft and hard ones) in a subtree.
 			/// Property used to obtain the total number of folded linebreaks (both soft and hard ones) in a subtree.
 			using folded_lines_property = sum_synthesizer::compact_property<
-				size_t, fold_region_synth_data,
 				synthesization_helper::field_value_property<&fold_region_node_data::folded_lines>,
 				&fold_region_synth_data::total_folded_lines
 			>;
 			using tree_size_property = sum_synthesizer::compact_property<
-				size_t, fold_region_synth_data, sum_synthesizer::identity, &fold_region_synth_data::tree_size
+				synthesization_helper::identity, &fold_region_synth_data::tree_size
 			>; ///< Property used to obtain the total number of nodes in a subtree.
 
 			/// Base struct of properties that obtains data only of unfolded text. This is useful since
@@ -605,13 +602,13 @@ namespace codepad::editor::code {
 				endit = _t.begin();
 			}
 			if (endit != _t.end()) {
-				auto mod = _t.get_modifier(endit.get_node());
+				auto mod = _t.get_modifier_for(endit.get_node());
 				// can overflow, but as expected
 				mod->gap += end.prev_chars - fr.end;
 				mod->gap_lines += end.prev_lines - fr.end_line;
 			}
 			_t.erase(beg.entry, endit); // if you're gonna save the regions, save 'em here
-			return _t.insert_node_before(
+			return _t.emplace_before(
 				endit,
 				fr.begin - beg.prev_chars, fr.end - fr.begin,
 				fr.begin_line - beg.prev_lines, fr.end_line - fr.begin_line
@@ -620,12 +617,10 @@ namespace codepad::editor::code {
 		/// Removes the designated folded region.
 		void remove_folded_region(iterator it) {
 			assert_true_logical(it != _t.end(), "invalid iterator");
-			iterator next = it;
-			++next;
 			size_t dp = it->gap + it->range, dl = it->gap_lines + it->folded_lines;
-			_t.erase(it);
+			iterator next = _t.erase(it);
 			if (next != _t.end()) {
-				auto mod = _t.get_modifier(next.get_node());
+				auto mod = _t.get_modifier_for(next.get_node());
 				mod->gap += dp;
 				mod->gap_lines += dl;
 			}
@@ -657,9 +652,9 @@ namespace codepad::editor::code {
 							ffend = ffbeg + pfirst.entry->range;
 						if (pfirst.entry == plast.entry && endp < ffend) {
 							if (mod.position >= ffbeg) {
-								_t.get_modifier(pfirst.entry.get_node())->range -= mod.removed_range;
+								_t.get_modifier_for(pfirst.entry.get_node())->range -= mod.removed_range;
 							} else {
-								auto modder = _t.get_modifier(pfirst.entry.get_node());
+								auto modder = _t.get_modifier_for(pfirst.entry.get_node());
 								modder->range = ffend - endp;
 								modder->gap = mod.position - pfirst.prev_chars;
 							}
@@ -669,21 +664,21 @@ namespace codepad::editor::code {
 								lfend = lfbeg + plast.entry->range,
 								addlen = 0;
 							if (endp < lfend) {
-								_t.get_modifier(plast.entry.get_node())->range -= endp - lfbeg;
+								_t.get_modifier_for(plast.entry.get_node())->range -= endp - lfbeg;
 							} else {
 								plast.move_next();
 								addlen -= endp - plast.prev_chars;
 							}
 							// the stats in plast becomes invalid since here
 							if (mod.position > ffbeg) {
-								_t.get_modifier(pfirst.entry.get_node())->range -= ffend - mod.position;
+								_t.get_modifier_for(pfirst.entry.get_node())->range -= ffend - mod.position;
 								pfirst.move_next();
 							} else {
 								addlen += mod.position - pfirst.prev_chars;
 							}
 							_t.erase(pfirst.entry, plast.entry);
 							if (plast.entry != _t.end()) {
-								_t.get_modifier(plast.entry.get_node())->gap += addlen;
+								_t.get_modifier_for(plast.entry.get_node())->gap += addlen;
 							}
 						}
 					} else {
@@ -692,9 +687,9 @@ namespace codepad::editor::code {
 				}
 				if (mod.added_range > 0) {
 					if (mod.position <= pfirst.prev_chars + pfirst.entry->gap) {
-						_t.get_modifier(pfirst.entry.get_node())->gap += mod.added_range;
+						_t.get_modifier_for(pfirst.entry.get_node())->gap += mod.added_range;
 					} else {
-						_t.get_modifier(pfirst.entry.get_node())->range += mod.added_range;
+						_t.get_modifier_for(pfirst.entry.get_node())->range += mod.added_range;
 					}
 				}
 			}

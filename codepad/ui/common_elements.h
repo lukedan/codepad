@@ -5,6 +5,7 @@
 
 #include "element.h"
 #include "panel.h"
+#include "manager.h"
 #include "draw.h"
 #include "font_family.h"
 #include "../core/misc.h"
@@ -253,9 +254,9 @@ namespace codepad::ui {
 		void _on_update_mouse_pos(vec2d pos) {
 			if (_allow_cancel) {
 				if (hit_test(pos)) {
-					_set_visual_style_bit(visual::get_predefined_states().mouse_over, true);
+					_set_state_bit(manager::get().get_predefined_states().mouse_over, true);
 				} else {
-					_set_visual_style_bit(visual::get_predefined_states().mouse_over, false);
+					_set_state_bit(manager::get().get_predefined_states().mouse_over, false);
 				}
 			}
 		}

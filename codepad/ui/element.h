@@ -91,12 +91,12 @@ namespace codepad::ui {
 		}
 		const str_t composition_string; ///< The current composition string.
 	};
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 	/// Keeps track of the number of elements created and disposed,
 	/// to verify that all created elements are properly disposed.
-	struct control_dispose_rec {
+	struct control_disposal_rec {
 		/// Destructor. Verifies that all elements are properly disposed.
-		~control_dispose_rec() {
+		~control_disposal_rec() {
 			assert_true_logical(
 				reg_created == disposed && reg_disposed == disposed,
 				"undisposed controls remaining"
@@ -108,7 +108,7 @@ namespace codepad::ui {
 			reg_disposed = 0; ///< The number of elements that has been properly registered as disposed.
 
 		/// Returns the global instance.
-		static control_dispose_rec &get();
+		static control_disposal_rec &get();
 	};
 #endif
 
@@ -127,8 +127,8 @@ namespace codepad::ui {
 
 		/// Virtual destrucor.
 		virtual ~element() {
-#ifdef CP_DETECT_LOGICAL_ERRORS
-			++control_dispose_rec::get().disposed;
+#ifdef CP_CHECK_LOGICAL_ERRORS
+			++control_disposal_rec::get().disposed;
 #endif
 		}
 
@@ -140,13 +140,6 @@ namespace codepad::ui {
 		/// the layout with padding subtracted from it, of the element.
 		rectd get_client_region() const {
 			return _padding.shrink(_layout);
-		}
-		/// Tests the visual::render_state for the visual::predefined_states::mouse_over bit and returns the result.
-		/// Note that this function may not be accurate when, e.g., the mouse is captured.
-		///
-		/// \sa hit_test
-		bool is_mouse_over() const {
-			return _rst.test_state_bits(visual::get_predefined_states().mouse_over);
 		}
 
 		/// Returns the parent element.
@@ -289,18 +282,6 @@ namespace codepad::ui {
 			return static_cast<anchor>(_anchor);
 		}
 
-		/// Sets the visibility of the element.
-		void set_visibility(visibility v) {
-			if (test_bit_all(static_cast<unsigned>(v) ^ static_cast<unsigned>(_vis), visibility::render_only)) {
-				invalidate_visual();
-			}
-			_vis = v;
-		}
-		/// Returns the visibility of the element.
-		visibility get_visibility() const {
-			return static_cast<visibility>(_vis);
-		}
-
 		/// Used to test if a given point lies in the element.
 		/// Derived classes can override this function to create elements with more complex shapes.
 		virtual bool hit_test(vec2d p) const {
@@ -339,8 +320,6 @@ namespace codepad::ui {
 		bool get_can_focus() const {
 			return _can_focus;
 		}
-		/// Returns \p true if this element is currently focused.
-		bool has_focus() const;
 
 		/// Returns the window that contains the element, and \p nullptr otherwise.
 		os::window_base *get_window();
@@ -362,6 +341,10 @@ namespace codepad::ui {
 		const str_t &get_class() const {
 			return _rst.get_class();
 		}
+		/// Returns the state of this element.
+		element_state_id get_state() const {
+			return _rst.get_state();
+		}
 
 		/// Invalidates the visual of the element so that it'll be re-rendered next frame.
 		///
@@ -382,19 +365,38 @@ namespace codepad::ui {
 		/// Allocates and creates an element of the given type with the given arguments.
 		///
 		/// \tparam T The type of the element to create.
-		template <typename T, typename ...Args> inline static T *create(Args &&...args) {
+		template <typename T> inline static T *create() {
 			static_assert(std::is_base_of_v<element, T>, "cannot create non-elements");
-			element *elem = new T(std::forward<Args>(args)...);
-#ifdef CP_DETECT_LOGICAL_ERRORS
-			++control_dispose_rec::get().reg_created; // register its creation
+			element *elem = new T();
+#ifdef CP_CHECK_LOGICAL_ERRORS
+			++control_disposal_rec::get().reg_created; // register its creation
 #endif
 			elem->_initialize();
-#ifdef CP_DETECT_USAGE_ERRORS
+#ifdef CP_CHECK_USAGE_ERRORS
 			assert_true_usage(elem->_initialized, "element::_initialize() must be called by derived classes");
 #endif
 			elem->set_class(T::get_default_class()); // set the class to its default
 			return static_cast<T*>(elem);
 		}
+
+		/// Shorthand for testing if the \ref predefined_states::mouse_over bit is set in the element's states. Note
+		/// that this function may not be accurate when, e.g., the mouse is captured.
+		///
+		/// \sa hit_test
+		bool is_mouse_over() const;
+		/// Shorthand for testing if the \ref predefined_states::invisible bit is \em not set in the element's
+		/// states.
+		bool is_visible() const;
+		/// Shorthand for setting or unsetting the \ref predefined_states::invisible state.
+		void set_visibility(bool);
+		/// Shorthand for testing if the \ref predefined_states::ghost bit is \em not set in the element's states.
+		bool is_interactive() const;
+		/// Shorthand for setting or unsetting the \ref predefined_states::ghost state.
+		void set_is_interactive(bool);
+		/// Shorthand for testing if the \ref predefined_states::focused bit is \em not set in the element's states.
+		/// The result may differ from that from testing if \p this is equal to \ref manager::get_focused_element on
+		/// certain occasions, more specifically when the focused element is changing.
+		bool is_focused() const;
 
 		/// Calculates the layout of an element on a direction (horizontal or vertical) with the given parameters.
 		/// If all of \p anchormin, \p pixelsize, and \p anchormax are \p true, all sizes are respected and the extra
@@ -483,7 +485,6 @@ namespace codepad::ui {
 		int _zindex = 0; ///< The z-index of the element.
 		os::cursor _crsr = os::cursor::not_specified; ///< The custom cursor of the element.
 		anchor _anchor = anchor::all; ///< The element's anchor.
-		visibility _vis = visibility::visible; ///< The \ref visibility of the element.
 		size_allocation_type
 			_wtype = size_allocation_type::automatic, ///< Determines how the element's width is computed.
 			_htype = size_allocation_type::automatic; ///< Determines how the element's height is computed.
@@ -492,31 +493,19 @@ namespace codepad::ui {
 		/// Called when the mouse starts to be over the element.
 		/// Updates the visual style and invokes \ref mouse_enter.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_enter() {
-			_set_visual_style_bit(visual::get_predefined_states().mouse_over, true);
-			mouse_enter.invoke();
-		}
+		virtual void _on_mouse_enter();
 		/// Called when the mouse ceases to be over the element.
 		/// Updates the visual style and invokes \ref mouse_leave.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_leave() {
-			_set_visual_style_bit(visual::get_predefined_states().mouse_over, false);
-			mouse_leave.invoke();
-		}
+		virtual void _on_mouse_leave();
 		/// Called when the element gets the focus.
 		/// Updates the visual style and invokes \ref got_focus.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_got_focus() {
-			_set_visual_style_bit(visual::get_predefined_states().focused, true);
-			got_focus.invoke();
-		}
+		virtual void _on_got_focus();
 		/// Called when the element loses the focus.
 		/// Updates the visual style and invokes \ref lost_focus.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_lost_focus() {
-			_set_visual_style_bit(visual::get_predefined_states().focused, false);
-			lost_focus.invoke();
-		}
+		virtual void _on_lost_focus();
 		/// Called when the mouse moves over the element. Invokes \ref mouse_move.
 		/// Derived classes should override this function instead of registering for the event.
 		virtual void _on_mouse_move(mouse_move_info &p) {
@@ -529,12 +518,7 @@ namespace codepad::ui {
 		/// Called when a mouse button is released when the mouse is over this element.
 		/// Updates the visual style and invokes \ref mouse_up.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_up(mouse_button_info &p) {
-			if (p.button == os::input::mouse_button::primary) {
-				_set_visual_style_bit(visual::get_predefined_states().mouse_down, false);
-			}
-			mouse_up.invoke(p);
-		}
+		virtual void _on_mouse_up(mouse_button_info&);
 		/// Called when the user scrolls the mouse over the element. Invokes \ref mouse_scroll.
 		/// Derived classes should override this function instead of registering for the event.
 		virtual void _on_mouse_scroll(mouse_scroll_info &p) {
@@ -564,10 +548,12 @@ namespace codepad::ui {
 		}
 
 		/// Sets a certain bit of the visual style to the given value,
-		/// invoking \ref _on_visual_state_changed when necessary.
-		void _set_visual_style_bit(visual_state::id_t id, bool v) {
+		/// invoking \ref _on_state_changed when necessary.
+		void _set_state_bit(element_state_id id, bool v) {
+			element_state_id oldv = _rst.get_state();
 			if (_rst.set_state_bit(id, v)) {
-				_on_visual_state_changed();
+				value_update_info<element_state_id> info(oldv);
+				_on_state_changed(info);
 			}
 		}
 
@@ -587,7 +573,7 @@ namespace codepad::ui {
 		}
 
 		/// Called when the state of \ref _rst has changed. Calls \ref invalidate_visual.
-		virtual void _on_visual_state_changed() {
+		virtual void _on_state_changed(value_update_info<element_state_id>&) {
 			invalidate_visual();
 		}
 
@@ -631,7 +617,7 @@ namespace codepad::ui {
 		/// <em>before</em> performing any other initialization.
 		/// It is primarily intended to avoid pitfalls associated with virtual functions to have this function.
 		virtual void _initialize() {
-#ifdef CP_DETECT_USAGE_ERRORS
+#ifdef CP_CHECK_USAGE_ERRORS
 			_initialized = true;
 #endif
 		}
@@ -639,7 +625,7 @@ namespace codepad::ui {
 		/// All derived classes should call \p base::_dispose <em>after</em> disposing of their own components.
 		/// It is primarily intended to avoid pitfalls associated with virtual functions to have this function.
 		virtual void _dispose();
-#ifdef CP_DETECT_USAGE_ERRORS
+#ifdef CP_CHECK_USAGE_ERRORS
 	private:
 		bool _initialized = false; ///< Indicates wheter the element has been properly initialized and disposed.
 #endif
@@ -696,12 +682,12 @@ namespace codepad::ui {
 		}
 
 		/// Sets the state used to render the decoration.
-		void set_state(visual_state::id_t id) {
+		void set_state(element_state_id id) {
 			_st.set_state(id);
 			_on_visual_changed();
 		}
 		/// Returns the state used to render the decoration.
-		visual_state::id_t get_state() const {
+		element_state_id get_state() const {
 			return _st.get_state();
 		}
 

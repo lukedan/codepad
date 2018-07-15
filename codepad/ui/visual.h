@@ -12,6 +12,8 @@
 #include "../core/misc.h"
 
 namespace codepad::ui {
+	using element_state_id = std::uint_least32_t; ///< Bitsets that represents states of an \ref element.
+	constexpr static element_state_id normal_element_state_id = 0; ///< Represents the default (normal) state.
 	/// Represents a margin, a padding, etc.
 	struct thickness {
 		/// Constructs the struct with the same value for all four sides.
@@ -80,13 +82,6 @@ namespace codepad::ui {
 		automatic, ///< The size is determined by \ref element::get_desired_size.
 		fixed, ///< The user specifies the size in pixels.
 		proportion ///< The user specifies the size as a proportion.
-	};
-	/// Specifies the visibility of objects.
-	enum class visibility : unsigned char {
-		ignored = 0, ///< The object is invisible, and the user cannot interact with it.
-		render_only = 1, ///< The object is visible, but the user cannot interact with it.
-		interaction_only = 2, ///< The object is invisibile, but the user can interact with it.
-		visible = render_only | interaction_only ///< The object is visible and the user can interact with it.
 	};
 	/// Represents an orientation.
 	enum class orientation {
@@ -381,10 +376,6 @@ namespace codepad::ui {
 	/// Stores all layers of an object's visual in a certain state.
 	class visual_state {
 	public:
-		using id_t = std::uint32_t; ///< Bitsets that represents states of an object.
-
-		constexpr static id_t normal_id = 0; ///< Represents the default (normal) state.
-
 		/// The state of the visual of an object. Stores the states of all layers, and
 		/// additional information to determine if any layer needs to be updated.
 		struct state {
@@ -425,16 +416,6 @@ namespace codepad::ui {
 	class visual {
 		friend class visual_json_parser;
 	public:
-		/// Universal states that are defined natively.
-		struct predefined_states {
-			visual_state::id_t
-				mouse_over, ///< Indicates that the cursor is positioned over the element.
-				/// Indicates that the primary mouse button has been pressed, and the cursor
-				/// is positioned over the element and not over any of its children.
-				mouse_down,
-				focused, ///< Indicates that the element has the focus.
-				corpse; ///< Typically used by decoration to render the fading animation of an element.
-		};
 		/// Contains information about the visual state of an object.
 		struct render_state {
 		public:
@@ -450,7 +431,7 @@ namespace codepad::ui {
 			/// different states, and it can have animations to transition between them.
 			/// The state of the object is represented by a set of bits, each of which
 			/// represents one particular state.
-			void set_state(visual_state::id_t);
+			void set_state(element_state_id);
 			/// Sets the status of a certain bit of the object's state. Calls \ref set_state
 			/// if the current state is different from the state with the desired change(s).
 			///
@@ -458,8 +439,8 @@ namespace codepad::ui {
 			/// \param set Indicates whether the bits should be turned on or off.
 			/// \return Whether \ref set_state has been called because the new state with
 			///         the bits turned on or off is different from the previous one.
-			bool set_state_bit(visual_state::id_t bit, bool set) {
-				visual_state::id_t ns = _state;
+			bool set_state_bit(element_state_id bit, bool set) {
+				element_state_id ns = _state;
 				if (set) {
 					ns |= bit;
 				} else {
@@ -471,15 +452,13 @@ namespace codepad::ui {
 				}
 				return false;
 			}
-			/// Returns the state of the object.
-			visual_state::id_t get_state() const {
-				return _state;
+			/// Tests if the current state has all specified state bits.
+			bool test_state_bits(element_state_id bits) const {
+				return test_bit_all(_state, bits);
 			}
-			/// Tests if all bits of \p s are turned on in the state of the object.
-			///
-			/// \param s A set of one or more bits, representing a set of states.
-			bool test_state_bits(visual_state::id_t s) const {
-				return test_bit_all(_state, s);
+			/// Returns the state of the object.
+			element_state_id get_state() const {
+				return _state;
 			}
 
 			/// Returns whether all animations have finished.
@@ -511,7 +490,7 @@ namespace codepad::ui {
 			visual_state::state _animst; ///< The state of the objects' looks.
 			/// The time when this render state was last updated.
 			std::chrono::high_resolution_clock::time_point _last;
-			visual_state::id_t _state = visual_state::normal_id; ///< The state ID of the visual.
+			element_state_id _state = normal_element_state_id; ///< The state ID of the visual.
 			/// Indicates the `version' of the visual config that this state is created with.
 			unsigned _timestamp = 0;
 
@@ -519,99 +498,23 @@ namespace codepad::ui {
 			void _reset_state(visual_state::state);
 		};
 
-		/// Returns the \ref visual_state corresponding to the given visual state id.
-		/// If none is registered for the id, the one corresponding to visual_state::normal_id
-		/// is created if it doesn't exist and then returned.
-		const visual_state &get_state_or_default(visual_state::id_t s) {
+		/// Returns the \ref visual_state corresponding to the given \ref element_state_id. If none is registered for
+		/// the id, one corresponding to visual_state::normal_id is created (if one doesn't exist) and returned.
+		const visual_state &get_state_or_default(element_state_id s) {
 			auto found = _states.find(s);
 			if (found != _states.end()) {
 				return found->second;
 			}
-			return _states[visual_state::normal_id];
+			return _states[normal_element_state_id];
 		}
 		/// Returns the \ref visual_state corresponding to the given visual state id.
 		/// If none is registered for the id, an empty one is created.
-		visual_state &get_state_or_create(visual_state::id_t s) {
+		visual_state &get_state_or_create(element_state_id s) {
 			return _states[s];
 		}
-
-		/// Returns the visual_state::id_t corresponding to the given name. If none exists,
-		/// a new one is registered, and its ID is returned.
-		inline static visual_state::id_t get_or_register_state_id(const str_t &name) {
-			return _registry::get().get_or_register_state_id(name);
-		}
-		/// Returns all predefined states.
-		///
-		/// \sa predefined_states
-		inline static const predefined_states &get_predefined_states() {
-			return _registry::get().predef_states;
-		}
-		/// Finds and returns the transition function corresponding to the given name.
-		/// If none is found, \p nullptr is returned.
-		///
-		/// \todo Implement ways to register transition functions.
-		inline static const std::function<double(double)> *try_get_transition_func(const str_t &name) {
-			auto &mapping = _registry::get().transition_func_mapping;
-			auto it = mapping.find(name);
-			if (it != mapping.end()) {
-				return &it->second;
-			}
-			return nullptr;
-		}
 	protected:
-		/// The registry of state IDs and transition functions.
-		struct _registry {
-			/// Constructor. Registers all predefined states and transition functions.
-			_registry() {
-				predef_states.mouse_over = get_or_register_state_id(CP_STRLIT("mouse_over"));
-				predef_states.mouse_down = get_or_register_state_id(CP_STRLIT("mouse_down"));
-				predef_states.focused = get_or_register_state_id(CP_STRLIT("focused"));
-				predef_states.corpse = get_or_register_state_id(CP_STRLIT("corpse"));
-
-				transition_func_mapping.emplace(CP_STRLIT("linear"), transition_functions::linear);
-				transition_func_mapping.emplace(CP_STRLIT("smoothstep"), transition_functions::smoothstep);
-				transition_func_mapping.emplace(
-					CP_STRLIT("concave_quadratic"), transition_functions::concave_quadratic
-				);
-				transition_func_mapping.emplace(
-					CP_STRLIT("convex_quadratic"), transition_functions::convex_quadratic
-				);
-				transition_func_mapping.emplace(CP_STRLIT("concave_cubic"), transition_functions::concave_cubic);
-				transition_func_mapping.emplace(CP_STRLIT("convex_cubic"), transition_functions::convex_cubic);
-			}
-
-			/// Mapping from names to transition functions.
-			std::map<str_t, std::function<double(double)>> transition_func_mapping;
-			/// Mapping from state names to state IDs.
-			std::map<str_t, visual_state::id_t> state_id_mapping;
-			/// Mapping from state IDs to state names.
-			///
-			/// \todo Not sure if this is useful.
-			std::map<visual_state::id_t, str_t> state_name_mapping;
-			predefined_states predef_states; ///< Predefined states.
-			int id_allocation = 0; ///< Records how many states have been registered.
-
-			/// Returns the state ID corresponding to the given name. If none is found,
-			/// it is registered as a new state and the allocated ID is returned.
-			visual_state::id_t get_or_register_state_id(const str_t &name) {
-				auto found = state_id_mapping.find(name);
-				if (found == state_id_mapping.end()) {
-					logger::get().log_info(CP_HERE, "registering state: ", convert_to_utf8(name));
-					visual_state::id_t res = 1 << id_allocation;
-					++id_allocation;
-					state_id_mapping[name] = res;
-					state_name_mapping[res] = name;
-					return res;
-				}
-				return found->second;
-			}
-
-			/// Returns the global registry object.
-			static _registry &get();
-		};
-
 		/// The mapping from all state IDs to their corresponding \ref visual_state "visual_states".
-		std::map<visual_state::id_t, visual_state> _states;
+		std::map<element_state_id, visual_state> _states;
 	};
 }
 

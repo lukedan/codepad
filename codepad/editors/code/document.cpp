@@ -66,7 +66,8 @@ namespace codepad::editor::code {
 
 
 	document::~document() {
-		document_manager::get()._on_deleting_document(_fileid);
+		document_manager::get()._on_deleting_document(*this);
+		_tags.clear();
 	}
 
 	void document::save_new(const filesystem::path &path) {
@@ -103,8 +104,9 @@ namespace codepad::editor::code {
 
 
 	void document_modifier::finish_edit_nohistory(editor *source) {
+		assert_true_logical(_cfixup.mods.size() == _removedclips.size(), "forgot to add item to _removedclips");
 		source->set_carets(std::move(_newcarets));
-		_doc->modified.invoke_noret(source, std::move(_cfixup));
+		_doc->modified.invoke_noret(source, std::move(_cfixup), std::move(_removedclips));
 		_doc = nullptr;
 	}
 }

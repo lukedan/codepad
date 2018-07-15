@@ -38,7 +38,7 @@ namespace codepad::editor::code {
 		}
 		/// Returns whether the iterator has reached the end of the range of characters.
 		bool ended() const {
-			return _cur_pos > _tg_pos || _char_it.is_end();
+			return _cur_pos >= _tg_pos || _char_it.is_end();
 		}
 		/// Starts to iterate through the range of characters, by calculating the positioning of the first character
 		/// (if it is not a hard linebreak).
@@ -108,10 +108,6 @@ namespace codepad::editor::code {
 		double y_offset() const {
 			return _cury;
 		}
-		/// Returns the rounded vertical offset of the current character.
-		int rounded_y_offset() const {
-			return _rcy;
-		}
 		/// Returns the height a line occupies.
 		double line_height() const {
 			return _line_h;
@@ -136,14 +132,12 @@ namespace codepad::editor::code {
 		double
 			_cury = 0.0, ///< Current vertical position relative to the top of the first rendered line.
 			_line_h = 0.0; ///< The height of a line.
-		int _rcy = 0; ///< Rounded vertical position.
 
-					  /// Invokes \ref switching_line with the given \ref line_ending, then increments y position and
-					  /// calls \ref ui::character_metrics_accumulator::reset "reset()" of \ref _char_met.
+		/// Invokes \ref switching_line with the given \ref line_ending, then increments y position and
+		/// calls \ref ui::character_metrics_accumulator::reset "reset()" of \ref _char_met.
 		void _on_linebreak(line_ending end) {
 			switching_line.invoke_noret(end);
 			_cury += _line_h;
-			_rcy = static_cast<int>(std::round(_cury));
 			_char_met.reset();
 		}
 	};
@@ -217,7 +211,7 @@ namespace codepad::editor::code {
 
 		character_rendering_iterator _citer; ///< The underlying \ref character_rendering_iterator.
 
-											 /// Calls \ref character_rendering_iterator::begin().
+		/// Calls \ref character_rendering_iterator::begin().
 		void _begin() {
 			_citer.begin();
 		}
@@ -390,7 +384,7 @@ namespace codepad::editor::code {
 				_chars += _nextfr->gap + _nextfr->range;
 				it.jump_to(_chars);
 				it.create_blank(30.0); // TODO magic number
-				_region_positions.emplace_back(it.character_info().char_left(), it.rounded_y_offset());
+				_region_positions.emplace_back(it.character_info().char_left(), it.y_offset());
 				++_nextfr;
 				return true;
 			}

@@ -5,7 +5,7 @@
 
 namespace codepad::ui {
 	scroll_bar *scroll_bar_drag_button::_get_bar() const {
-#ifdef CP_DETECT_LOGICAL_ERRORS
+#ifdef CP_CHECK_LOGICAL_ERRORS
 		auto res = dynamic_cast<scroll_bar*>(_parent);
 		assert_true_logical(res != nullptr, "the button is not a child of a scroll bar");
 		return res;
