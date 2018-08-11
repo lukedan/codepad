@@ -11,8 +11,8 @@ namespace codepad::os {
 	/// Transforms the given \ref access_rights into flags used by \p CreateFile().
 	inline DWORD _interpret_access_rights(access_rights acc) {
 		return
-			(test_bit_any(acc, access_rights::read) ? FILE_GENERIC_READ : 0) |
-			(test_bit_any(acc, access_rights::write) ? FILE_GENERIC_WRITE : 0);
+			(test_bits_any(acc, access_rights::read) ? FILE_GENERIC_READ : 0) |
+			(test_bits_any(acc, access_rights::write) ? FILE_GENERIC_WRITE : 0);
 	}
 	/// Transforms the given \ref open_mode into flags used by \p CreateFile().
 	inline DWORD _interpret_open_mode(open_mode mode) {

@@ -20,34 +20,8 @@ namespace codepad::editor::code {
 	class codebox;
 	class editor;
 
-	/// A component in a \ref codebox. Components are placed horizontally next to one another and fills the vertical
-	/// space. Their contents usually scroll alongside the document, but the element itself is not moved, so derived
-	/// classes should handle the change of vertical position themselves.
-	class component : public ui::element {
-		friend class codebox;
-	public:
-	protected:
-		/// Returns the \ref codebox that it's a child of.
-		codebox * _get_box() const;
-		/// Returns the \ref editor component in the same \ref codebox.
-		editor *_get_editor() const;
-
-		/// Called after the component has been added to a \ref codebox.
-		virtual void _on_added() {
-		}
-		/// Called before the component is removed from the \ref codebox. This is required to work correctly even if
-		/// \ref _dispose() has been invoked but have not yet returned.
-		virtual void _on_removing() {
-		}
-
-		/// Sets the component to non-focusable.
-		void _initialize() override {
-			element::_initialize();
-			_can_focus = false;
-		}
-	};
-	/// An element that contains an \ref editor and other \ref component "components", and forwards all keyboard
-	/// events to the \ref editor.
+	/// An element that contains an \ref editor and other components, and forwards all keyboard events to the
+	/// \ref editor.
 	///
 	/// \todo Add horizontal view.
 	class codebox : public ui::panel_base {
@@ -66,38 +40,20 @@ namespace codepad::editor::code {
 			_vscroll->make_point_visible(v.y);
 		}
 
-		/// This element manages the layout of its children, or more specifically, the \ref component "components".
-		bool override_children_layout() const override {
-			return true;
-		}
-
 		/// Returns a pointer the \ref editor associated with this \ref codebox.
-		editor *get_editor() const {
-			return _editor;
+		editor &get_editor() const {
+			return *_editor;
 		}
 
-		/// Adds a \ref component to the left of the \ref editor. The added component will be place to the right of
-		/// all existing components.
-		void add_component_left(component &e) {
-			_add_component_to(e, _lcs);
+		/// Adds a component before the given element. For example, if \p before is \ref get_editor(), then the
+		/// component will be inserted before the editor.
+		void insert_component_before(ui::element *before, ui::element &comp) {
+			_child_set_logical_parent(comp, this);
+			_components->children().insert_before(before, comp);
 		}
-		/// Adds a \ref component to the right of the \ref editor. The added component will be place to the left of
-		/// all existing components.
-		void add_component_right(component &e) {
-			_add_component_to(e, _rcs);
-		}
-		/// Removes the given \ref component from the \ref editor.
-		void remove_component(component &e) {
-			_children.remove(e);
-		}
-
-		/// Returns a list of all \ref component "components" to the left of the \ref editor.
-		const std::vector<component*> &get_components_left() const {
-			return _lcs;
-		}
-		/// Returns a list of all \ref component "components" to the right of the \ref editor.
-		const std::vector<component*> &get_components_right() const {
-			return _rcs;
+		/// Removes the given component.
+		void remove_component(ui::element &e) {
+			_components->children().remove(e);
 		}
 
 		/// Returns the region in which layout calculation for all components is performed.
@@ -114,26 +70,31 @@ namespace codepad::editor::code {
 		inline static str_t get_default_class() {
 			return CP_STRLIT("codebox");
 		}
+
+		/// Returns the role identifier of the vertical scrollbar.
+		inline static str_t get_vertical_scrollbar_role() {
+			return CP_STRLIT("vertical_scrollbar");
+		}
+		/// Returns the role identifier of the horizontal scrollbar.
+		inline static str_t get_horizontal_scrollbar_role() {
+			return CP_STRLIT("horizontal_scrollbar");
+		}
+		/// Returns the role identifier of the editor.
+		inline static str_t get_editor_role() {
+			return CP_STRLIT("editor");
+		}
+		/// Returns the role identifier of the `components' panel.
+		inline static str_t get_components_panel_role() {
+			return CP_STRLIT("components_panel");
+		}
 	protected:
-		std::vector<component*>
-			/// A list of all components on the left of \ref _editor. The components are placed next to one another
-			/// from left to right.
-			_lcs,
-			/// A list of all components on the right of \ref _editor. The components are placed next to one another
-			/// from right to left.
-			_rcs;
 		/// Token used to listen to \ref editor::editing_visual_changed, to adjust the parameters of \ref _vscroll
 		/// when the height of the document has changed.
 		event<void>::token _mod_tok;
-		ui::scroll_bar *_vscroll = nullptr; ///< The vertical \ref ui::scroll_bar.
-		editor *_editor = nullptr; ///< The \ref editor.
 
-		/// Adds a \ref component to the given list and \ref _children, then calls \ref component::_on_added.
-		void _add_component_to(component &e, std::vector<component*> &v) {
-			_children.add(e);
-			v.push_back(&e);
-			e._on_added();
-		}
+		ui::scrollbar *_vscroll = nullptr; ///< The vertical \ref ui::scrollbar.
+		ui::panel *_components = nullptr; ///< The panel that contains all components and the \ref editor.
+		editor *_editor = nullptr; ///< The \ref editor.
 
 		/// Calculates and sets the parameters of \ref _vscroll.
 		void _reset_scrollbars();
@@ -152,31 +113,23 @@ namespace codepad::editor::code {
 		/// Calls \ref editor::_on_codebox_lost_focus.
 		void _on_lost_focus() override;
 
-		/// When a child is being removed, checks if it's a \ref component and if so, calls
-		/// \ref component::_on_removing.
-		void _on_child_removing(ui::element*) override;
-		/// Removes the child from \ref _lcs or \ref _rcs if it can be found. Checking has already been handled in
-		/// \ref _on_child_removing. These are separated primarily due to the mechanism that potentially will be
-		/// introduced in the future for elements to be notified when they're removed from their parents.
-		void _on_child_removed(ui::element *elem) {
-			// seek & erase
-			auto it = std::find(_lcs.begin(), _lcs.end(), elem);
-			if (it != _lcs.end()) {
-				_lcs.erase(it);
-			} else {
-				it = std::find(_rcs.begin(), _rcs.end(), elem);
-				if (it != _rcs.end()) {
-					_rcs.erase(it);
-				}
-			}
-		}
-
-		/// Recalculates the layout of all \ref component "components" and the \ref editor.
-		void _finish_layout() override;
-
 		/// Initializes \ref _vscroll and \ref _editor.
-		void _initialize() override;
-		/// Unregisters from \ref editor::editing_visual_changed.
+		void _initialize(const str_t&, const ui::element_metrics&) override;
+		/// Removes (and disposes) all components, and unregisters from \ref editor::editing_visual_changed.
+		/// Components are removed in advance in order to avoid problems that may occur when
+		/// \ref ui::element::_on_removing_from_parent is called.
 		void _dispose() override;
 	};
+
+	/// Utility functions for elements designed to work as components of \ref codebox.
+	namespace component_helper {
+		/// Returns the \ref codebox that the given \ref ui::element is in.
+		inline codebox &get_box(const ui::element &elem) {
+			codebox *cb = dynamic_cast<codebox*>(elem.logical_parent());
+			assert_true_logical(cb != nullptr, "component_helper function called with non-component");
+			return *cb;
+		}
+		/// Returns the \ref editor that's in the same \ref codebox as the given component.
+		editor &get_editor(const ui::element&);
+	}
 }

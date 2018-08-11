@@ -24,8 +24,8 @@ namespace codepad {
 				std::u16string utf16string = convert_to_utf16(str);
 				HFONT font = CreateFont(
 					0, 0, 0, 0,
-					test_bit_all(style, font_style::bold) ? FW_BOLD : FW_NORMAL,
-					test_bit_all(style, font_style::italic), false, false,
+					test_bits_all(style, font_style::bold) ? FW_BOLD : FW_NORMAL,
+					test_bits_all(style, font_style::italic), false, false,
 					DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FF_DONTCARE,
 					reinterpret_cast<const TCHAR*>(utf16string.c_str())
 				);

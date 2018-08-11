@@ -117,16 +117,16 @@ namespace codepad::os {
 	inline modifier_keys _get_modifiers() {
 		modifier_keys result = modifier_keys::none;
 		if (_get_key_state(VK_CONTROL)) {
-			set_bit(result, modifier_keys::control);
+			set_bits(result, modifier_keys::control);
 		}
 		if (_get_key_state(VK_MENU)) {
-			set_bit(result, modifier_keys::alt);
+			set_bits(result, modifier_keys::alt);
 		}
 		if (_get_key_state(VK_SHIFT)) {
-			set_bit(result, modifier_keys::shift);
+			set_bits(result, modifier_keys::shift);
 		}
 		if (_get_key_state(VK_LWIN) || _get_key_state(VK_RWIN)) {
-			set_bit(result, modifier_keys::super);
+			set_bits(result, modifier_keys::super);
 		}
 		return result;
 	}

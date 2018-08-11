@@ -186,12 +186,6 @@ namespace codepad {
 		}
 	}
 	namespace ui {
-#ifdef CP_CHECK_LOGICAL_ERRORS
-		control_disposal_rec &control_disposal_rec::get() {
-			static _global_wrapper<control_disposal_rec> _v;
-			return _v.object;
-		}
-#endif
 		manager &manager::get() {
 			static _global_wrapper<manager> _v;
 			return _v.object;

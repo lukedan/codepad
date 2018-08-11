@@ -87,17 +87,13 @@ namespace codepad::editor::code {
 			// render carets
 			caret_renderer &caretrend = it.get_addon<caret_renderer>();
 			caretrend.finish(it.char_iter());
-			_selst.update();
 			for (const auto &selrgn : caretrend.get_selection_rects()) {
 				for (const auto &rgn : selrgn) {
-					_selst.render(rgn);
+					_sel_cfg.render(rgn);
 				}
 			}
-			if (!_selst.stationary()) {
-				invalidate_visual();
-			}
-			if (_caretst.update_and_render_multiple(it.get_addon<caret_renderer>().get_caret_rects())) {
-				invalidate_visual();
+			for (const rectd &rgn : it.get_addon<caret_renderer>().get_caret_rects()) {
+				_caret_cfg.render(rgn);
 			}
 		}
 		renderer_base::get().pop_matrix();

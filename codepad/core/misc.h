@@ -715,36 +715,44 @@ namespace codepad {
 	}
 
 	/// Used to test if all bits of \p bit are set to 1 in \p v.
-	template <typename T, typename U, typename Int = std::conditional_t<
+	template <
+		typename T, typename U, typename Int = std::conditional_t<
 		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>> inline bool test_bit_all(T v, U bit) {
+		>
+	> inline bool test_bits_all(T v, U bit) {
 		return (static_cast<Int>(v) & static_cast<Int>(bit)) == static_cast<Int>(bit);
 	}
 	/// Used to test if any bit of \p bit are set to 1 in \p v.
-	template <typename T, typename U, typename Int = std::conditional_t<
+	template <
+		typename T, typename U, typename Int = std::conditional_t<
 		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>> inline bool test_bit_any(T v, U bit) {
+		>
+	> inline bool test_bits_any(T v, U bit) {
 		return (static_cast<Int>(v) & static_cast<Int>(bit)) != 0;
 	}
 	/// Returns the given value with the bits corresponding to those of \p bit set to 1.
-	template <typename T, typename U, typename Int = std::conditional_t<
+	template <
+		typename T, typename U, typename Int = std::conditional_t<
 		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>> inline T with_bit_set(T v, U bit) {
+		>
+	> inline T with_bits_set(T v, U bit) {
 		return static_cast<T>(static_cast<Int>(v) | static_cast<Int>(bit));
 	}
 	/// Returns the given value with the bits corresponding to those of \p bit set to 0.
-	template <typename T, typename U, typename Int = std::conditional_t<
+	template <
+		typename T, typename U, typename Int = std::conditional_t<
 		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>> inline T with_bit_unset(T v, U bit) {
+		>
+	> inline T with_bits_unset(T v, U bit) {
 		return static_cast<T>(static_cast<Int>(v) & static_cast<Int>(~static_cast<Int>(bit)));
 	}
 	/// Sets the bits of \p v corresponding to those of \p bit to 1.
-	template <typename T, typename U> inline void set_bit(T &v, U bit) {
-		v = with_bit_set(v, bit);
+	template <typename T, typename U> inline void set_bits(T &v, U bit) {
+		v = with_bits_set(v, bit);
 	}
 	/// Sets the bits of \p v corresponding to those of \p bit to 0.
-	template <typename T, typename U> inline void unset_bit(T &v, U bit) {
-		v = with_bit_unset(v, bit);
+	template <typename T, typename U> inline void unset_bits(T &v, U bit) {
+		v = with_bits_unset(v, bit);
 	}
 
 	/// Gathers bits from a string and returns the result. Each bit is represented by a character.
@@ -759,7 +767,7 @@ namespace codepad {
 		for (; !it.at_end(); it.next()) {
 			for (auto j = list.begin(); j != list.end(); ++j) {
 				if (*it == static_cast<char32_t>(j->first)) {
-					set_bit(result, j->second);
+					set_bits(result, j->second);
 					break;
 				}
 			}
@@ -1111,9 +1119,9 @@ namespace codepad {
 	/// Initializes the program by calling \ref os::initialize first and then performing several other
 	/// initialization steps.
 	void initialize(int, char**);
-}
+		}
 
-// demangle
+		// demangle
 #ifdef __GNUC__
 #	include <cxxabi.h>
 #endif
@@ -1161,6 +1169,6 @@ namespace codepad {
 #	else
 		log_warning(CP_HERE, "stacktrace logging is not supported with this configuration");
 #	endif
-	}
 }
+	}
 #endif

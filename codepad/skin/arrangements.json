@@ -1,0 +1,300 @@
+{
+	"element_fill_container": {
+		"metrics": {
+			"value": {
+				"size": [1.0, 1.0],
+				"width_alloc": "*",
+				"height_alloc": "*",
+				"margin": 0.0,
+				"anchor": "ltrb"
+			}
+		}
+	},
+
+
+	"scrollbar": {
+		"metrics": [
+			{
+				"states_mask": "vertical",
+				"value": {
+					"size": [1.0, 10.0],
+					"width_alloc": "*",
+					"height_alloc": "px",
+					"margin": 0.0,
+					"anchor": "lrb"
+				}
+			}, {
+				"states": "vertical",
+				"states_mask": "vertical",
+				"value": {
+					"size": [10.0, 1.0],
+					"width_alloc": "px",
+					"height_alloc": "*",
+					"margin": 0.0,
+					"anchor": "trb"
+				}
+			}
+		],
+		"children": [
+			{
+				"type": "button",
+				"role": "page_up_button",
+				"inherit_metrics_from": "element_fill_container"
+			}, {
+				"type": "scrollbar_drag_button",
+				"role": "drag_button",
+				"inherit_metrics_from": "element_fill_container"
+			}, {
+				"type": "button",
+				"role": "page_down_button",
+				"inherit_metrics_from": "element_fill_container"
+			}
+		]
+	},
+
+
+	"": {
+		"metrics": {
+			"value": {
+			}
+		}
+	},
+
+
+	"drag_destination_indicator_block": {
+		"metrics": {
+			"value": {
+				"size": [30.0, 30.0],
+				"width_alloc": "px",
+				"height_alloc": "px",
+				"anchor": 0.0
+			}
+		}
+	},
+	"drag_destination_selector": {
+		"metrics": {
+			"value": {
+				"size": [90.0, 90.0],
+				"width_alloc": "px",
+				"height_alloc": "px",
+				"margin": 1.0,
+				"anchor": ""
+			}
+		},
+		"children": [
+			{
+				"type": "element",
+				"class": "drag_destination_selector.split_left_indicator",
+				"role": "split_left_indicator",
+				"inherit_metrics_from": "drag_destination_indicator_block",
+				"metrics": {
+					"value": {
+						"anchor": "ltb"
+					}
+				}
+			}, {
+				"type": "element",
+				"class": "drag_destination_selector.split_right_indicator",
+				"role": "split_right_indicator",
+				"inherit_metrics_from": "drag_destination_indicator_block",
+				"metrics": {
+					"value": {
+						"anchor": "trb"
+					}
+				}
+			}, {
+				"type": "element",
+				"class": "drag_destination_selector.split_up_indicator",
+				"role": "split_up_indicator",
+				"inherit_metrics_from": "drag_destination_indicator_block",
+				"metrics": {
+					"value": {
+						"anchor": "ltr"
+					}
+				}
+			}, {
+				"type": "element",
+				"class": "drag_destination_selector.split_down_indicator",
+				"role": "split_down_indicator",
+				"inherit_metrics_from": "drag_destination_indicator_block",
+				"metrics": {
+					"value": {
+						"anchor": "lrb"
+					}
+				}
+			}, {
+				"type": "element",
+				"class": "drag_destination_selector.combine_indicator",
+				"role": "combine_indicator",
+				"inherit_metrics_from": "drag_destination_indicator_block",
+				"metrics": {
+					"value": {
+						"margin": 1.0,
+						"anchor": ""
+					}
+				}
+			}
+		]
+	},
+
+	"tab_host": {
+		"inherit_metrics_from": "element_fill_container",
+		"children": [
+			{
+				"type": "stack_panel",
+				"inherit_metrics_from": "element_fill_container",
+				"set_states": "vertical",
+				"children": [
+					{
+						"type": "stack_panel",
+						"role": "tab_buttons_region",
+						"metrics": {
+							"value": {
+								"size": [1.0, 0.0],
+								"width_alloc": "*",
+								"margin": 0.0,
+								"anchor": "lr"
+							}
+						}
+					}, {
+						"type": "panel",
+						"role": "tab_contents_region",
+						"inherit_metrics_from": "element_fill_container"
+					}
+				]
+			}
+		]
+	},
+	"tab_button": {
+		"metrics": {
+			"value": {
+			}
+		},
+		"children": [
+			{
+				"type": "stack_panel",
+				"class": "tab_button_background",
+				"metrics": {
+					"value": {
+						"padding": 5.0
+					}
+				},
+				"children": [
+					{
+						"type": "label",
+						"role": "label",
+						"set_states": "ghost",
+						"metrics": {
+							"value": {
+								"margin": [0.0, 1.0, 0.0, 1.0],
+								"anchor": "lr"
+							}
+						}
+					}, {
+						"type": "button",
+						"class": "tab_button.close_button",
+						"role": "close_button",
+						"metrics": {
+							"value": {
+								"size": [15.0, 15.0],
+								"width_alloc": "px",
+								"height_alloc": "px",
+								"margin": [5.0, 1.0, 0.0, 1.0],
+								"anchor": "lr"
+							}
+						}
+					}
+				]
+			}
+		]
+	},
+	"tab": {
+		"inherit_metrics_from": "element_fill_container"
+	},
+
+	"separator": {
+		"metrics": [
+			{
+				"states": "vertical",
+				"states_mask": "vertical",
+				"value": {
+					"size": [1.0, 5.0],
+					"width_alloc": "*",
+					"height_alloc": "px",
+					"margin": [0.0, 1.0, 0.0, 1.0],
+					"anchor": "lr"
+				}
+			}, {
+				"states_mask": "vertical",
+				"value": {
+					"size": [5.0, 1.0],
+					"width_alloc": "px",
+					"height_alloc": "*",
+					"margin": [1.0, 0.0, 1.0, 0.0],
+					"anchor": "tb"
+				}
+			}
+		]
+	},
+	"split_panel": {
+		"inherit_metrics_from": "element_fill_container",
+		"children": [
+			{
+				"type": "element",
+				"role": "separator",
+				"inherit_metrics_from": "separator"
+			}
+		]
+	},
+
+
+	"codebox": {
+		"inherit_metrics_from": "element_fill_container",
+		"children": [
+			{
+				"type": "scrollbar",
+				"role": "vertical_scrollbar",
+				"inherit_metrics_from": "scrollbar",
+				"set_states": "vertical",
+				"metrics": {
+					"states": "vertical",
+					"states_mask": "vertical",
+					"value": {
+						"margin": [0.0, 0.0, 0.0, 10.0]
+					}
+				}
+			}, {
+				"type": "scrollbar",
+				"role": "horizontal_scrollbar",
+				"inherit_metrics_from": "scrollbar",
+				"metrics": {
+					"states_mask": "vertical",
+					"value": {
+						"margin": [0.0, 0.0, 10.0, 0.0]
+					}
+				}
+			}, {
+				"type": "stack_panel",
+				"role": "components_panel",
+				"inherit_metrics_from": "element_fill_container",
+				"metrics": {
+					"value": {
+						"margin": [0.0, 0.0, 10.0, 10.0]
+					}
+				},
+				"children": [
+					{
+						"type": "editor",
+						"role": "editor",
+						"inherit_metrics_from": "element_fill_container",
+						"metrics": {
+							"value": {
+								"padding": [2.0, 0.0, 0.0, 0.0]
+							}
+						}
+					}
+				]
+			}
+		]
+	}
+}

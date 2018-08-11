@@ -7,10 +7,12 @@ using namespace codepad::ui;
 using namespace codepad::os;
 
 namespace codepad::editor {
-	void tab::_initialize() {
-		panel::_initialize();
+	void tab::_initialize(const str_t &cls, const element_metrics &metrics) {
+		panel::_initialize(cls, metrics);
+
 		_can_focus = true;
-		_btn = element::create<tab_button>();
+
+		_btn = manager::get().create_element<tab_button>();
 		_btn->click += [this](tab_button_click_info &info) {
 			get_host()->activate_tab(*this);
 			info.click_info.mark_focus_set();
@@ -27,55 +29,55 @@ namespace codepad::editor {
 
 	void tab_host::add_tab(tab &t) {
 		t._text_tok = _tabs.insert(_tabs.end(), &t);
-		_children.add(t);
-		_children.add(*t._btn);
+		_child_set_logical_parent(t, this);
+		_child_set_logical_parent(*t._btn, this);
+		_tab_contents_region->children().add(t);
+		_tab_buttons_region->children().add(*t._btn);
 
 		t.set_visibility(false);
 		t.set_is_interactive(false);
 		if (_tabs.size() == 1) {
 			switch_tab(t);
 		}
-		invalidate_layout();
 	}
 
 	void tab_host::remove_tab(tab &t) {
-		_children.remove(t);
+		_tab_contents_region->children().remove(t);
 	}
 
-	void tab_host::_on_child_removing(element *elem) {
-		tab *t = dynamic_cast<tab*>(elem);
-		if (t != nullptr) {
-			if (t->_text_tok == _active_tab) { // change active tab
-				if (_tabs.size() == 1) {
-					_active_tab = _tabs.end();
-				} else {
-					auto toact = _active_tab;
-					if (++toact == _tabs.end()) {
-						toact = _active_tab;
-						--toact;
-					}
-					bool is_focused = false;
-					os::window_base *wnd = get_window();
-					for (element *e = wnd->get_window_focused_element(); e; e = e->parent()) {
-						if (e == this) {
-							is_focused = true;
-						}
-					}
-					switch_tab(**toact);
-					if (is_focused) {
-						wnd->set_window_focused_element(**toact);
+	void tab_host::_on_tab_removing(tab &t) {
+		if (t._text_tok == _active_tab) { // change active tab
+			if (_tabs.size() == 1) {
+				_active_tab = _tabs.end();
+			} else {
+				auto toact = _active_tab;
+				if (++toact == _tabs.end()) {
+					toact = _active_tab;
+					--toact;
+				}
+				bool is_focused = false;
+				os::window_base *wnd = get_window();
+				for (element *e = wnd->get_window_focused_element(); e; e = e->parent()) {
+					if (e == this) {
+						is_focused = true;
 					}
 				}
+				switch_tab(**toact);
+				if (is_focused) {
+					wnd->set_window_focused_element(**toact);
+				}
 			}
-			_children.remove(*t->_btn);
-			_tabs.erase(t->_text_tok);
-			tab_manager::get()._on_tab_detached(*this, *t);
-			invalidate_layout();
 		}
 	}
 
+	void tab_host::_on_tab_removed(tab &t) {
+		_tab_buttons_region->children().remove(*t._btn);
+		_tabs.erase(t._text_tok);
+		tab_manager::get()._on_tab_detached(*this, t);
+	}
+
 	void tab_host::switch_tab(tab &t) {
-		assert_true_logical(t._parent == this, "corrupted element tree");
+		assert_true_logical(t.logical_parent() == this, "the tab doesn't belong to this tab_host");
 		if (_active_tab != _tabs.end()) {
 			(*_active_tab)->set_visibility(false);
 			(*_active_tab)->set_is_interactive(false);
@@ -87,13 +89,14 @@ namespace codepad::editor {
 		t._btn->set_zindex(1);
 		invalidate_layout();
 	}
+
 	void tab_host::activate_tab(tab &t) {
 		switch_tab(t);
 		manager::get().set_focused_element(t);
 	}
 
 	size_t tab_host::get_tab_position(tab &tb) const {
-		assert_true_logical(tb.parent() == this, "corrupted element tree");
+		assert_true_logical(tb.logical_parent() == this, "the tab doesn't belong to this tab_host");
 		size_t d = 0;
 		for (auto i = _tabs.begin(); i != _tabs.end(); ++i, ++d) {
 			if (*i == &tb) {
@@ -121,36 +124,40 @@ namespace codepad::editor {
 		if (setactive) {
 			_active_tab = target._text_tok;
 		}
+		_tab_buttons_region->children().move_before(*target._btn, before == nullptr ? nullptr : before->_btn);
 		invalidate_layout();
 	}
 
-	/// \todo Use stack panel-like layout for tab buttons.
-	void tab_host::_finish_layout() {
-		rectd client = get_client_region();
-		double x = client.xmin, y = tab_button::get_tab_button_area_height();
-		for (auto i = _tabs.begin(); i != _tabs.end(); ++i) {
-			double w = (*i)->_btn->get_desired_width().first;
-			_child_set_layout((*i)->_btn, rectd::from_xywh(
-				x + (*i)->_btn->_xoffset, client.ymin, w, y
-			));
-			x += w;
-		}
-		if (_active_tab != _tabs.end()) { // make active tab visible
-			_child_set_layout(*_active_tab, rectd(client.xmin, client.xmax, client.ymin + y, client.ymax));
-		}
-		if (_dsel) {
-			_child_set_layout(_dsel, get_layout());
-		}
-		panel_base::_finish_layout();
+	void tab_host::_initialize(const str_t &cls, const element_metrics &metrics) {
+		panel_base::_initialize(cls, metrics);
+
+		ui::manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+			{get_tab_buttons_region_role(), _role_cast(_tab_buttons_region)},
+			{get_tab_contents_region_role(), _role_cast(_tab_contents_region)}
+			});
+
+		_tab_contents_region->children().changing += [this](ui::element_collection_change_info &p) {
+			if (p.change_type == ui::element_collection_change_info::type::remove) {
+				tab *t = dynamic_cast<tab*>(&p.subject);
+				assert_true_logical(t != nullptr, "corrupted element tree");
+				_on_tab_removing(*t);
+			}
+		};
+		_tab_contents_region->children().changed += [this](ui::element_collection_change_info &p) {
+			if (p.change_type == ui::element_collection_change_info::type::remove) {
+				tab *t = dynamic_cast<tab*>(&p.subject);
+				assert_true_logical(t != nullptr, "corrupted element tree");
+				_on_tab_removed(*t);
+			}
+		};
 	}
 
 
-	/// \todo Add proper literal for drag destination previews.
 	void tab_manager::update_drag() {
 		if (_drag != nullptr) {
 			vec2i mouse = input::get_mouse_position();
 			if (_dtype == drag_destination_type::combine_in_tab) { // dragging tab_button in a tab list
-				rectd rgn = _dest->get_tab_button_region();
+				rectd rgn = _dest->get_tab_buttons_region();
 				vec2d mpos = _dest->get_window()->screen_to_client(mouse).convert<double>();
 				if (!rgn.contains(mpos)) { // moved out of the region
 					_drag->_btn->_xoffset = 0.0f;
@@ -172,7 +179,7 @@ namespace codepad::editor {
 					vec2d mpos = wnd->screen_to_client(mouse).convert<double>();
 					if (wnd->hit_test_full_client(mouse)) {
 						_enumerate_hosts(wnd, [&](tab_host &hst) {
-							rectd rgn = hst.get_tab_button_region();
+							rectd rgn = hst.get_tab_buttons_region();
 							if (rgn.contains(mpos)) { // switch to combine_in_tab
 								_dtype = drag_destination_type::combine_in_tab;
 								_try_dispose_preview();
@@ -265,10 +272,9 @@ namespace codepad::editor {
 				default: // split tab
 					assert_true_logical(_dest != nullptr, "invalid split target");
 					_split_tab(
-						*_dest, *_drag, (
-							_dtype == drag_destination_type::new_panel_left ||
-							_dtype == drag_destination_type::new_panel_right
-							) ? ui::orientation::horizontal : ui::orientation::vertical,
+						*_dest, *_drag,
+						_dtype == drag_destination_type::new_panel_top ||
+						_dtype == drag_destination_type::new_panel_bottom,
 						_dtype == drag_destination_type::new_panel_left ||
 						_dtype == drag_destination_type::new_panel_top
 					);
@@ -278,9 +284,9 @@ namespace codepad::editor {
 				_try_dispose_preview();
 				_try_detach_possel();
 				// the mouse button is not down anymore
-				_drag->_btn->_set_state_bit(manager::get().get_predefined_states().mouse_down, false);
+				_drag->_btn->set_state_bits(manager::get().get_predefined_states().mouse_down, false);
 				// set mouse over bit accordingly, although it works (almost) fine without this
-				_drag->_btn->_set_state_bit(manager::get().get_predefined_states().mouse_over, mouseover);
+				_drag->_btn->set_state_bits(manager::get().get_predefined_states().mouse_over, mouseover);
 				_drag = nullptr;
 			}
 		}

@@ -7,30 +7,63 @@
 #include <set>
 #include <queue>
 #include <chrono>
+#include <functional>
 
 #include "element.h"
 #include "../os/window.h"
 
 namespace codepad::ui {
+	/// The type of a element state.
+	enum class element_state_type {
+		/// The state is mostly caused directly by user input, is usually not configurable, and usually have no
+		/// impact on the element's layout (metrics).
+		passive,
+		/// The state is configurable, is usually not directly caused by user input, and usually influences the
+		/// element's layout (metrics).
+		configuration
+	};
+	/// Information about an element state.
+	struct element_state_info {
+		/// Default constructor.
+		element_state_info() = default;
+		/// Initializes all fields of the struct.
+		element_state_info(element_state_id stateid, element_state_type t) : id(stateid), type(t) {
+		}
+
+		element_state_id id = normal_element_state_id; ///< The state's ID.
+		element_state_type type = element_state_type::passive; ///< The state's type.
+	};
+
 	/// Manages the update, layout, and rendering of all GUI elements, and the registration and retrieval of
 	/// \ref element_state_id "element_state_ids" and transition functions.
 	class manager {
 		friend class os::window_base;
 	public:
+		/// Wrapper of an \ref element's constructor. The element's constructor takes a string that indicates the
+		/// element's class.
+		using element_constructor = std::function<element*()>;
+
 		/// Universal element states that are defined natively.
 		struct predefined_states {
 			element_state_id
-				/// Indicates that the element is not visible, but the user may still be able to interact with it.
-				invisible,
-				ghost, ///< Indicates that user cannot interact with the element, whether it is visible or not.
-				mouse_over, ///< Indicates that the cursor is positioned over the element.
+				/// Indicates that the cursor is positioned over the element.
+				mouse_over,
 				/// Indicates that the primary mouse button has been pressed, and the cursor
 				/// is positioned over the element and not over any of its children.
 				mouse_down,
-				focused, ///< Indicates that the element has the focus.
+				/// Indicates that the element has the focus.
+				focused,
 				/// Typically used by \ref decoration "decorations" to render the fading animation of a disposed
 				/// element.
-				corpse;
+				corpse,
+
+				/// Indicates that the element is not visible, but the user may still be able to interact with it.
+				invisible,
+				/// Indicates that user cannot interact with the element, whether it is visible or not.
+				ghost,
+				/// Indicates that the element is in a vertical position, or that its children are laid out
+				/// vertically.
+				vertical;
 		};
 
 		constexpr static double
@@ -40,31 +73,8 @@ namespace codepad::ui {
 			render_time_redline = 0.04;
 
 
-		/// Constructor, registers predefined element states and transition functions.
-		manager() {
-#ifdef CP_CHECK_LOGICAL_ERRORS
-			// initialize control_disposal_rec first because it needs to be disposed later than manager
-			control_disposal_rec::get();
-#endif
-
-			_predef_states.invisible = get_or_register_state_id(CP_STRLIT("invisible"));
-			_predef_states.ghost = get_or_register_state_id(CP_STRLIT("ghost"));
-			_predef_states.mouse_over = get_or_register_state_id(CP_STRLIT("mouse_over"));
-			_predef_states.mouse_down = get_or_register_state_id(CP_STRLIT("mouse_down"));
-			_predef_states.focused = get_or_register_state_id(CP_STRLIT("focused"));
-			_predef_states.corpse = get_or_register_state_id(CP_STRLIT("corpse"));
-
-			_transfunc_map.emplace(CP_STRLIT("linear"), transition_functions::linear);
-			_transfunc_map.emplace(CP_STRLIT("smoothstep"), transition_functions::smoothstep);
-			_transfunc_map.emplace(
-				CP_STRLIT("concave_quadratic"), transition_functions::concave_quadratic
-			);
-			_transfunc_map.emplace(
-				CP_STRLIT("convex_quadratic"), transition_functions::convex_quadratic
-			);
-			_transfunc_map.emplace(CP_STRLIT("concave_cubic"), transition_functions::concave_cubic);
-			_transfunc_map.emplace(CP_STRLIT("convex_cubic"), transition_functions::convex_cubic);
-		}
+		/// Constructor, registers predefined element states, transition functions, and element types.
+		manager();
 		/// Destructor. Calls \ref dispose_marked_elements.
 		~manager() {
 			dispose_marked_elements();
@@ -115,6 +125,47 @@ namespace codepad::ui {
 			return _upd_dt;
 		}
 
+		/// Similar to \ref register_element_type(const str_t&, element_constructor) but for built-in classes.
+		template <typename Elem> void register_element_type() {
+			register_element_type(Elem::get_default_class(), []() {
+				return new Elem();
+				});
+		}
+		/// Registers a new element type for creation.
+		void register_element_type(const str_t &type, element_constructor constructor) {
+			_ctor_map.emplace(type, std::move(constructor));
+		}
+		/// Constructs and returns an element of the specified type, class, and \ref element_metrics. If no such type
+		/// exists, \p nullptr is returned.
+		element *create_element_custom(const str_t &type, const str_t &cls, const element_metrics &metrics) const {
+			auto it = _ctor_map.find(type);
+			if (it == _ctor_map.end()) {
+				return nullptr;
+			}
+			element *elem = it->second();
+			elem->_initialize(cls, metrics);
+#ifdef CP_CHECK_USAGE_ERRORS
+			assert_true_usage(elem->_initialized, "element::_initialize() must be called by derived classes");
+#endif
+			return elem;
+		}
+		/// Calls \ref create_element_custom to create an \ref element of the specified type and class, but with
+		/// the default metrics of that class.
+		element *create_element(const str_t &type, const str_t &cls) {
+			return create_element_custom(
+				type, cls, get_class_arrangements().get_arrangements_or_default(cls).metrics
+			);
+		}
+		/// Creates an element of the given type. The type name and class are both obtained from
+		/// \p Elem::get_default_class().
+		///
+		/// \todo Wait for when reflection is in C++ to replace get_default_class().
+		template <typename Elem> Elem *create_element() {
+			element *elem = create_element(Elem::get_default_class(), Elem::get_default_class());
+			Elem *res = dynamic_cast<Elem*>(elem);
+			assert_true_logical(res, "incorrect get_default_class() method");
+			return res;
+		}
 		/// Marks the given element for disposal. The element is only disposed when \ref dispose_marked_elements
 		/// is called. It is safe to call this multiple times before the element's actually disposed.
 		void mark_disposal(element &e) {
@@ -163,19 +214,23 @@ namespace codepad::ui {
 		/// The element must belong to a window. This function should not be called recursively.
 		void set_focused_element(element&);
 
-
-		/// Returns the state ID corresponding to the given name. If none is found,
-		/// it is registered as a new state and the allocated ID is returned.
-		element_state_id get_or_register_state_id(const str_t &name) {
-			auto found = _stateid_map.find(name);
-			if (found == _stateid_map.end()) {
-				logger::get().log_info(CP_HERE, "registering state: ", convert_to_utf8(name));
-				element_state_id res = 1 << _stateid_alloc;
+		/// Registers an element state with the given name and type.
+		///
+		/// \return ID of the state, or \ref normal_element_state_id if a state with the same name already exists.
+		element_state_id register_state_id(const str_t &name, element_state_type type) {
+			element_state_id res = 1 << _stateid_alloc;
+			if (_stateid_map.emplace(name, element_state_info(res, type)).second) {
 				++_stateid_alloc;
-				_stateid_map[name] = res;
 				_statename_map[res] = name;
 				return res;
 			}
+			return normal_element_state_id;
+		}
+		/// Returns the \ref element_state_info corresponding to the given name. The state must have been previously
+		/// registered.
+		element_state_info get_state_info(const str_t &name) const {
+			auto found = _stateid_map.find(name);
+			assert_true_usage(found != _stateid_map.end(), "element state not found");
 			return found->second;
 		}
 		/// Returns all predefined states.
@@ -196,12 +251,28 @@ namespace codepad::ui {
 			return nullptr;
 		}
 
-		/// Returns the registry of \ref visual "visuals" corresponding to all element classes.
-		class_visuals &get_class_visuals() {
+		/// Returns the registry of \ref class_visual "class_visuals" corresponding to all element classes.
+		class_visuals_registry &get_class_visuals() {
 			return _cvis;
 		}
-		/// Returns the registry of \ref element_hotkey_group "element_hotkey_groups" corresponding to all element classes.
-		class_hotkeys &get_class_hotkeys() {
+		/// Const version of \ref get_class_visuals().
+		const class_visuals_registry &get_class_visuals() const {
+			return _cvis;
+		}
+		/// Returns the registry of \ref class_arrangements "class_arrangementss" corresponding to all element classes.
+		class_arrangements_registry &get_class_arrangements() {
+			return _carngs;
+		}
+		/// Const version of \ref get_class_arrangements().
+		const class_arrangements_registry &get_class_arrangements() const {
+			return _carngs;
+		}
+		/// Returns the registry of \ref class_hotkey_group "element_hotkey_groups" corresponding to all element classes.
+		class_hotkeys_registry &get_class_hotkeys() {
+			return _chks;
+		}
+		/// Const version of \ref get_class_hotkeys().
+		const class_hotkeys_registry &get_class_hotkeys() const {
 			return _chks;
 		}
 
@@ -212,30 +283,31 @@ namespace codepad::ui {
 		std::map<element*, bool> _targets; ///< Stores the elements whose layout need updating.
 		/// Stores the elements whose layout need updating during the calculation of layout.
 		std::queue<std::pair<element*, bool>> _q;
-		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
-		/// The time point when elements were last rendered.
-		std::chrono::time_point<std::chrono::high_resolution_clock> _lastrender;
-		double _min_render_interval = 0.0; ///< The minimum interval between consecutive re-renders.
 		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
 		std::set<element*> _upd; ///< Stores all elements that are to be updated.
+		/// The time point when elements were last rendered.
+		std::chrono::time_point<std::chrono::high_resolution_clock> _lastrender;
 		/// The time point when elements were last updated.
 		std::chrono::time_point<std::chrono::high_resolution_clock> _lastupdate;
+		double _min_render_interval = 0.0; ///< The minimum interval between consecutive re-renders.
 		double _upd_dt = 0.0; ///< The duration since elements were last updated.
 		os::window_base *_focus_wnd = nullptr; ///< Pointer to the currently focused \ref os::window_base.
+		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 
+		class_visuals_registry _cvis; ///< All visuals.
+		class_arrangements_registry _carngs; ///< All arrangements.
+		class_hotkeys_registry _chks; ///< All hotkeys.
+		/// Registry of constructors of all element types.
+		std::map<str_t, element_constructor> _ctor_map;
 		/// Mapping from names to transition functions.
 		std::map<str_t, std::function<double(double)>> _transfunc_map;
 		/// Mapping from state names to state IDs.
-		std::map<str_t, element_state_id> _stateid_map;
+		std::map<str_t, element_state_info> _stateid_map;
 		/// Mapping from state IDs to state names.
-		///
-		/// \todo Not sure if this is useful.
 		std::map<element_state_id, str_t> _statename_map;
 		predefined_states _predef_states; ///< Predefined states.
-		int _stateid_alloc = 0; ///< Records how many states have been registered.
-		class_visuals _cvis; ///< All visuals.
-		class_hotkeys _chks; ///< All hotkeys.
+		size_t _stateid_alloc = 0; ///< Records how many states have been registered.
 
 
 		/// Called when a \ref os::window_base is focused. Sets \ref _focus_wnd accordingly.

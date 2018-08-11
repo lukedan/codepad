@@ -6,12 +6,59 @@
 #include "../os/window.h"
 #include "element.h"
 #include "panel.h"
+#include "../editors/tabs.h"
+#include "../editors/code/editor.h"
+#include "../editors/code/components.h"
 
 using namespace std;
 using namespace std::chrono;
 using namespace codepad::os;
 
 namespace codepad::ui {
+	manager::manager() {
+		_predef_states.mouse_over = register_state_id(CP_STRLIT("mouse_over"), element_state_type::passive);
+		_predef_states.mouse_down = register_state_id(CP_STRLIT("mouse_down"), element_state_type::passive);
+		_predef_states.focused = register_state_id(CP_STRLIT("focused"), element_state_type::passive);
+		_predef_states.corpse = register_state_id(CP_STRLIT("corpse"), element_state_type::passive);
+
+		_predef_states.invisible = register_state_id(CP_STRLIT("invisible"), element_state_type::configuration);
+		_predef_states.ghost = register_state_id(CP_STRLIT("ghost"), element_state_type::configuration);
+		_predef_states.vertical = register_state_id(CP_STRLIT("vertical"), element_state_type::configuration);
+
+
+		_transfunc_map.emplace(CP_STRLIT("linear"), transition_functions::linear);
+		_transfunc_map.emplace(CP_STRLIT("smoothstep"), transition_functions::smoothstep);
+		_transfunc_map.emplace(
+			CP_STRLIT("concave_quadratic"), transition_functions::concave_quadratic
+		);
+		_transfunc_map.emplace(
+			CP_STRLIT("convex_quadratic"), transition_functions::convex_quadratic
+		);
+		_transfunc_map.emplace(CP_STRLIT("concave_cubic"), transition_functions::concave_cubic);
+		_transfunc_map.emplace(CP_STRLIT("convex_cubic"), transition_functions::convex_cubic);
+
+
+		// TODO use reflection instead
+		register_element_type<element>();
+		register_element_type<panel>();
+		register_element_type<stack_panel>();
+		register_element_type<label>();
+		register_element_type<button>();
+		register_element_type<scrollbar>();
+		register_element_type<scrollbar_drag_button>();
+		register_element_type<window>();
+
+		register_element_type<editor::split_panel>();
+		register_element_type<editor::tab_button>();
+		register_element_type<editor::tab>();
+		register_element_type<editor::drag_destination_selector>();
+		register_element_type<editor::tab_host>();
+		register_element_type<editor::code::codebox>();
+		register_element_type<editor::code::editor>();
+		register_element_type<editor::code::line_number_display>();
+		register_element_type<editor::code::minimap>();
+	}
+
 	void manager::update_scheduled_elements() {
 		performance_monitor mon(CP_HERE);
 		auto nnow = high_resolution_clock::now();
@@ -35,9 +82,6 @@ namespace codepad::ui {
 			// new batches may be produced during this process
 			for (auto i : batch) {
 				i->_dispose();
-#ifdef CP_CHECK_LOGICAL_ERRORS
-				++control_disposal_rec::get().reg_disposed;
-#endif
 #ifdef CP_CHECK_USAGE_ERRORS
 				assert_true_usage(!i->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
@@ -93,6 +137,9 @@ namespace codepad::ui {
 		while (!_q.empty()) {
 			auto li = _q.front();
 			_q.pop();
+			if (li.first->get_window() == nullptr) {
+				continue;
+			}
 			if (li.second) { // re-calculate layout
 				rectd prgn;
 				if (li.first->_parent) {

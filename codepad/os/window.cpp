@@ -19,9 +19,7 @@ namespace codepad::os {
 			_focus = &e;
 			vector<element_hotkey_group_data> gps;
 			for (element *cur = _focus; cur != nullptr; cur = cur->parent()) {
-				const element_hotkey_group
-					*gp = manager::get().get_class_hotkeys().find(cur->get_class());
-				gps.push_back(element_hotkey_group_data(gp, cur));
+				gps.push_back(element_hotkey_group_data(cur->_config.hotkey_config, cur));
 			}
 			hotkey_manager.reset_groups(gps);
 			oldfocus->_on_lost_focus();
@@ -56,28 +54,37 @@ namespace codepad::os {
 		panel::_dispose();
 	}
 
-	void window_base::_custom_render() {
-		panel::_custom_render();
-		// render decorations
-		bool has_active = false;
+	void window_base::_on_update() {
+		panel::_on_update();
+		bool needupdate = false, newvisual = false;
 		for (auto i = _decos.begin(); i != _decos.end(); ) {
-			if ((*i)->_st.update_and_render((*i)->_layout)) {
-				has_active = true;
-			} else {
-				if (test_bit_all(
-					(*i)->get_state(), manager::get().get_predefined_states().corpse
-				)) { // a dead corpse
-					auto j = i;
-					++j;
-					delete *i; // the entry in _decos will be automatically removed here
-					i = j;
-					continue;
+			if (!(*i)->_vis_config.get_state().all_stationary) {
+				newvisual = true;
+				if ((*i)->_vis_config.update(manager::get().update_delta_time())) {
+					if (test_bits_all((*i)->get_state(), manager::get().get_predefined_states().corpse)) {
+						auto j = i;
+						++i;
+						delete *j;
+						continue;
+					}
+				} else {
+					needupdate = true;
 				}
 			}
 			++i;
 		}
-		if (has_active) {
+		if (newvisual) { // otherwise nothing's been updated
 			invalidate_visual();
+			if (needupdate) {
+				ui::manager::get().schedule_update(*this);
+			}
+		}
+	}
+
+	void window_base::_custom_render() {
+		panel::_custom_render();
+		for (decoration *dec : _decos) {
+			dec->_vis_config.render(dec->_layout);
 		}
 	}
 }

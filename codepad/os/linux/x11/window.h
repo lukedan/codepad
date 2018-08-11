@@ -223,13 +223,13 @@ namespace codepad::os {
 						// TODO find better way to handle this
 						key_gesture gest(k);
 						if (input::is_key_down(input::key::shift)) {
-							set_bit(gest.mod_keys, modifier_keys::shift);
+							set_bits(gest.mod_keys, modifier_keys::shift);
 						}
 						if (input::is_key_down(input::key::control)) {
-							set_bit(gest.mod_keys, modifier_keys::control);
+							set_bits(gest.mod_keys, modifier_keys::control);
 						}
 						if (input::is_key_down(input::key::alt)) {
-							set_bit(gest.mod_keys, modifier_keys::alt);
+							set_bits(gest.mod_keys, modifier_keys::alt);
 						}
 						if (!hotkey_manager.on_key_down(gest)) {
 							// TODO key_down event maybe incorrect

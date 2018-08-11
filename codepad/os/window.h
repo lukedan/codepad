@@ -120,7 +120,7 @@ namespace codepad::os {
 			return _focus;
 		}
 		/// Called to set the focused element within this window. This function invokes appropriate handlers and
-		/// refreshes the list of \ref ui::element_hotkey_group "element_hotkey_groups"
+		/// refreshes the list of \ref ui::class_hotkey_group "element_hotkey_groups"
 		void set_window_focused_element(ui::element&);
 
 		event<void>
@@ -237,6 +237,8 @@ namespace codepad::os {
 			}
 		}
 
+		/// Updates the \ref ui::visual_configuration of all \ref ui::decoration "decorations".
+		void _on_update() override;
 
 		/// Renders all the window's children, then renders all decorations on top of the rendered result. Also
 		/// removes all corpse decorations whose animations have finished.
@@ -251,8 +253,8 @@ namespace codepad::os {
 
 
 		/// Registers the window to \ref renderer_base.
-		void _initialize() override {
-			panel::_initialize();
+		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+			panel::_initialize(cls, metrics);
 			renderer_base::get()._new_window(*this);
 		}
 		/// Deletes all decorations, releases the focus, and unregisters the window from \ref renderer_base.

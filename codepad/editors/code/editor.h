@@ -589,11 +589,11 @@ namespace codepad::editor::code {
 		event<modification_info>::token _ctx_mod_tok; ///< Token used when handling \ref document::modified.
 
 		caret_set _cset; ///< The set of carets.
+		vec2d _predrag_pos; ///< The position where the user presses the left mouse button.
 		/// Records the offset of the mouse when the user drags the selection to scroll the viewport.
 		double _scrolldiff = 0.0;
 		/// Records the caret end's position of the selection, which the user is dragging with the mouse.
 		size_t _sel_end;
-		vec2d _predrag_pos; ///< The position where the user presses the left mouse button.
 		bool
 			_insert = true, ///< Indicates whether the editor is in `insert' mode.
 			/// Indicates whether the user, after pressing the left mouse button, can proceed to drag fragments of
@@ -603,12 +603,13 @@ namespace codepad::editor::code {
 
 		caret_position _mouse_cache; ///< The position that the mouse is currently hovering above.
 
+		ui::visual_configuration
+			_caret_cfg, ///< Used to render all carets.
+			_sel_cfg;  ///< Used to render rectangular parts of selected regions.
+		ui::element_state_id _editrgn_state; ///< State that's applied to regions (carets, selections, etc.).
+
 		view_formatting _fmt; ///< The \ref view_formatting associated with this editor.
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
-
-		ui::visual::render_state
-			_caretst, ///< Used to render all carets.
-			_selst; ///< Used to render rectangular parts of selected regions.
 
 		/// Contains additional configuration of editors' appearance.
 		struct _appearance_config {
@@ -620,7 +621,7 @@ namespace codepad::editor::code {
 
 		/// Returns the \ref codebox that this editor is currently a child of.
 		codebox *_get_box() const {
-			return dynamic_cast<codebox*>(_parent);
+			return dynamic_cast<codebox*>(logical_parent());
 		}
 
 		/// Used to make modifications to the associated \ref document. This struct automatically starts the
@@ -731,9 +732,13 @@ namespace codepad::editor::code {
 			np.y -= fh;
 			cb->make_point_visible(np);
 		}
-		/// Sets the correct class of \ref _caretst and tesets the animation of carets.
+		/// Sets the correct class of \ref _caret_cfg, resets the animation of carets, and schedules this element for
+		/// updating.
 		void _reset_caret_animation() {
-			_caretst.set_class(_insert ? get_insert_caret_class() : get_overwrite_caret_class());
+			_caret_cfg = ui::visual_configuration(ui::manager::get().get_class_visuals().get_visual_or_default(
+				_insert ? get_insert_caret_class() : get_overwrite_caret_class()
+			), _editrgn_state);
+			ui::manager::get().schedule_update(*this);
 		}
 		/// Shorthand for \ref hit_test_for_caret when the coordinates are relative to the client region.
 		///
@@ -789,15 +794,22 @@ namespace codepad::editor::code {
 		/// \todo Currently not of too much use except for calculating word wrapping for the whole document.
 		std::vector<size_t> _recalculate_wrapping_region(size_t, size_t) const;
 
+		/// Called to change \ref _editrgn_state.
+		void _set_editrgn_state(ui::element_state_id st) {
+			if (_editrgn_state != st) {
+				_editrgn_state = st;
+				_caret_cfg.on_state_changed(_editrgn_state);
+				_sel_cfg.on_state_changed(_editrgn_state);
+				ui::manager::get().schedule_update(*this);
+			}
+		}
 		/// Called by the parent \ref codebox when it gets focus. Adjusts the states of caret animations.
 		void _on_codebox_got_focus() {
-			_caretst.set_state_bit(ui::manager::get().get_predefined_states().focused, true);
-			_selst.set_state_bit(ui::manager::get().get_predefined_states().focused, true);
+			_set_editrgn_state(with_bits_set(_editrgn_state, ui::manager::get().get_predefined_states().focused));
 		}
 		/// Called by the parent \ref codebox when it loses focus. Adjusts the states of caret animations.
 		void _on_codebox_lost_focus() {
-			_caretst.set_state_bit(ui::manager::get().get_predefined_states().focused, false);
-			_selst.set_state_bit(ui::manager::get().get_predefined_states().focused, false);
+			_set_editrgn_state(with_bits_unset(_editrgn_state, ui::manager::get().get_predefined_states().focused));
 		}
 
 		/// Called when the user starts to make a selection using the mouse.
@@ -937,9 +949,9 @@ namespace codepad::editor::code {
 		///
 		/// \todo Implement drag & drop.
 		void _on_mouse_move(ui::mouse_move_info &info) override {
-			_update_mouse_selection(info.new_pos);
+			_update_mouse_selection(info.new_position);
 			if (_predrag) {
-				if ((info.new_pos - _predrag_pos).length_sqr() > dragdrop_distance * dragdrop_distance) {
+				if ((info.new_position - _predrag_pos).length_sqr() > dragdrop_distance * dragdrop_distance) {
 					_predrag = false;
 					logger::get().log_info(CP_HERE, "starting drag & drop of text");
 					get_window()->release_mouse_capture();
@@ -958,14 +970,14 @@ namespace codepad::editor::code {
 			_mouse_cache = _hit_test_for_caret_client(info.position - get_client_region().xmin_ymin());
 			if (info.button == os::input::mouse_button::primary) {
 				if (!_is_in_selection(_mouse_cache.position)) {
-					if (test_bit_any(info.modifiers, modifier_keys::shift)) {
+					if (test_bits_any(info.modifiers, modifier_keys::shift)) {
 						auto it = _cset.carets.end();
 						--it;
 						caret_selection cs = it->first;
 						_cset.carets.erase(it);
 						_begin_mouse_selection(cs.second);
 					} else {
-						if (!test_bit_any(info.modifiers, modifier_keys::control)) {
+						if (!test_bits_any(info.modifiers, modifier_keys::control)) {
 							_cset.carets.clear();
 						}
 						_begin_mouse_selection(_mouse_cache.position);
@@ -989,6 +1001,7 @@ namespace codepad::editor::code {
 		/// Calls \ref _on_mouse_lbutton_up.
 		void _on_capture_lost() override {
 			_on_mouse_lbutton_up();
+			element::_on_capture_lost();
 		}
 		/// Inserts the input text at each caret.
 		void _on_keyboard_text(ui::text_info &info) override {
@@ -1015,6 +1028,7 @@ namespace codepad::editor::code {
 		}
 		/// Updates mouse selection.
 		void _on_update() override {
+			element::_on_update();
 			if (_selecting) {
 				codebox *editor = _get_box();
 				editor->set_vertical_position(
@@ -1024,6 +1038,15 @@ namespace codepad::editor::code {
 				_update_mouse_selection(get_window()->screen_to_client(
 					os::input::get_mouse_position()).convert<double>()
 				);
+			}
+			if (!(_caret_cfg.get_state().all_stationary && _sel_cfg.get_state().all_stationary)) {
+				invalidate_visual();
+				bool
+					b1 = _caret_cfg.update(ui::manager::get().update_delta_time()),
+					b2 = _sel_cfg.update(ui::manager::get().update_delta_time());
+				if (!(b1 && b2)) {
+					ui::manager::get().schedule_update(*this);
+				}
 			}
 		}
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.
@@ -1051,12 +1074,13 @@ namespace codepad::editor::code {
 
 		/// Sets the default padding, sets the element to non-focusable, and resets the class labels of carets and
 		/// selected regions.
-		void _initialize() override {
-			element::_initialize();
-			set_padding(ui::thickness(2.0, 100.0, 0.0, 100.0)); // TODO test
+		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+			element::_initialize(cls, metrics);
 			_can_focus = false;
 			_reset_caret_animation();
-			_selst.set_class(get_editor_selection_class());
+			_sel_cfg = ui::visual_configuration(
+				ui::manager::get().get_class_visuals().get_visual_or_default(get_editor_selection_class())
+			);
 		}
 		/// Unbinds the current document.
 		void _dispose() override {

@@ -153,6 +153,12 @@
     <ClInclude Include="editors\code\document_formatting_cache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ui\misc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\arrangements.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -207,6 +213,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ui\element_classes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\arrangements.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -784,35 +784,34 @@ namespace codepad::os {
 				_push_back(vertex_memory, _vertex(layout.xmax_ymax(), uv.xmax_ymax(), c), vertcount);
 				++quad_count;
 			}
-			/// Draws all buffered characters with the given texture.
+			/// Draws all buffered characters with the given texture. The caller is responsible of checking if there
+			/// is actually any characters to render.
 			///
 			/// \todo Are these glVertexAttribPointer really necessary?
 			void flush(opengl_renderer_base &rend, GLuint tex) {
-				if (quad_count > 0) {
-					vertex_buffer.unmap(rend);
-					id_buffer.unmap(rend);
+				vertex_buffer.unmap(rend);
+				id_buffer.unmap(rend);
 
-					rend._defaultprog.acivate(rend);
-					rend._gl.VertexAttribPointer(
-						0, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, pos))
-					);
-					rend._gl.EnableVertexAttribArray(0);
-					rend._gl.VertexAttribPointer(
-						1, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, uv))
-					);
-					rend._gl.EnableVertexAttribArray(1);
-					rend._gl.VertexAttribPointer(
-						2, 4, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, c))
-					);
-					rend._gl.EnableVertexAttribArray(2);
-					rend._gl.ActiveTexture(GL_TEXTURE0);
-					glBindTexture(GL_TEXTURE_2D, tex);
-					glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quad_count * 6), GL_UNSIGNED_INT, nullptr);
-					quad_count = 0;
+				rend._defaultprog.acivate(rend);
+				rend._gl.VertexAttribPointer(
+					0, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, pos))
+				);
+				rend._gl.EnableVertexAttribArray(0);
+				rend._gl.VertexAttribPointer(
+					1, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, uv))
+				);
+				rend._gl.EnableVertexAttribArray(1);
+				rend._gl.VertexAttribPointer(
+					2, 4, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, c))
+				);
+				rend._gl.EnableVertexAttribArray(2);
+				rend._gl.ActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, tex);
+				glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quad_count * 6), GL_UNSIGNED_INT, nullptr);
+				quad_count = 0;
 
-					vertex_memory = vertex_buffer.map(rend);
-					id_memory = id_buffer.map(rend);
-				}
+				vertex_memory = vertex_buffer.map(rend);
+				id_memory = id_buffer.map(rend);
 			}
 		protected:
 			/// Enlarges all buffers to twice their previous sizes.
@@ -1065,7 +1064,9 @@ namespace codepad::os {
 
 		/// Flushes the text buffer by calling _text_buffer::flush.
 		void _flush_text_buffer() {
-			_textbuf.flush(*this, _atl.get_page(_gl, _lstpg).tex_id);
+			if (_textbuf.quad_count > 0) {
+				_textbuf.flush(*this, _atl.get_page(_gl, _lstpg).tex_id);
+			}
 		}
 		/// Checks for any OpenGL errors.
 		void _gl_verify() {

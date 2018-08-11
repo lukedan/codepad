@@ -1147,8 +1147,8 @@ namespace codepad::editor::code {
 				return node_position + iterator.get_raw()->length;
 			}
 
-			/// Movoes to the next entry, updating \ref position accordingly. The caller is responsible of checking
-			/// if \ref iterator is at the end of its container.
+			/// Movoes to the next entry, updating \ref node_position accordingly. The caller is responsible of
+			/// checking if \ref iterator is at the end of its container.
 			void next_nocheck() {
 				node_position += iterator.get_raw()->length;
 				++iterator;

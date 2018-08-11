@@ -39,25 +39,25 @@ namespace codepad {
 	template <> inline str_t to_str<modifier_keys>(modifier_keys mk) {
 		str_t ss;
 		bool first = true;
-		if (test_bit_all(mk, modifier_keys::control)) {
+		if (test_bits_all(mk, modifier_keys::control)) {
 			ss.append(CP_STRLIT("Control"));
 			first = false;
 		}
-		if (test_bit_all(mk, modifier_keys::shift)) {
+		if (test_bits_all(mk, modifier_keys::shift)) {
 			if (first) {
 				ss.append(CP_STRLIT("+"));
 				first = false;
 			}
 			ss.append(CP_STRLIT("Shift"));
 		}
-		if (test_bit_all(mk, modifier_keys::alt)) {
+		if (test_bits_all(mk, modifier_keys::alt)) {
 			if (first) {
 				ss.append(CP_STRLIT("+"));
 				first = false;
 			}
 			ss.append(CP_STRLIT("Alt"));
 		}
-		if (test_bit_all(mk, modifier_keys::super)) {
+		if (test_bits_all(mk, modifier_keys::super)) {
 			if (first) {
 				ss.append(CP_STRLIT("+"));
 			}

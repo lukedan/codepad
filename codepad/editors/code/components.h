@@ -9,11 +9,11 @@
 
 namespace codepad::editor::code {
 	/// Displays a the line number for each line.
-	class line_number_display : public component {
+	class line_number_display : public ui::element {
 	public:
 		/// Returns the width of the longest line number.
 		std::pair<double, bool> get_desired_width() const override {
-			size_t ln = _get_editor()->get_document()->num_lines(), w = 0;
+			size_t ln = component_helper::get_editor(*this).get_document()->num_lines(), w = 0;
 			for (; ln > 0; ++w, ln /= 10) {
 			}
 			double maxw = editor::get_font().normal->get_max_width_charset(U"0123456789");
@@ -27,34 +27,34 @@ namespace codepad::editor::code {
 	protected:
 		event<void>::token _resizetk; ///< The token used to listen to \ref editor::content_modified.
 
-		/// Register for \ref editor::content_modified.
-		void _on_added() override {
-			component::_on_added();
-			_resizetk = (_get_box()->get_editor()->content_modified += [this]() {
+		/// Registers for \ref editor::content_modified.
+		void _on_added_to_parent() override {
+			element::_on_added_to_parent();
+			_resizetk = (component_helper::get_editor(*this).content_modified += [this]() {
 				invalidate_layout();
 				});
 		}
 		/// Unregisters from \ref editor::content_modified.
-		void _on_removing() override {
-			_get_box()->get_editor()->content_modified -= _resizetk;
-			component::_on_removing();
+		void _on_removing_from_parent() override {
+			component_helper::get_editor(*this).content_modified -= _resizetk;
+			element::_on_removing_from_parent();
 		}
 
 		/// Renders all visible line numbers.
 		void _custom_render() override {
-			editor *edt = _get_editor();
-			const view_formatting &fmt = edt->get_formatting();
+			editor &edt = component_helper::get_editor(*this);
+			const view_formatting &fmt = edt.get_formatting();
 			double
-				lh = edt->get_line_height(),
-				ybeg = _get_box()->get_vertical_position() - edt->get_padding().top,
-				yend = ybeg + edt->get_layout().height();
+				lh = edt.get_line_height(),
+				ybeg = component_helper::get_box(*this).get_vertical_position() - edt.get_padding().top,
+				yend = ybeg + edt.get_layout().height();
 			size_t fline = static_cast<size_t>(std::max(ybeg / lh, 0.0)), eline = static_cast<size_t>(yend / lh) + 1;
 			rectd client = get_client_region();
 			double cury = client.ymin - ybeg + static_cast<double>(fline) * lh;
 			for (size_t curi = fline; curi < eline; ++curi, cury += lh) {
 				size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
 				auto lineinfo = fmt.get_linebreaks().get_line_info(line);
-				if (lineinfo.first.entry == edt->get_document()->get_linebreak_registry().end()) {
+				if (lineinfo.first.entry == edt.get_document()->get_linebreak_registry().end()) {
 					break; // when after the end of the document
 				}
 				if (lineinfo.first.first_char >= lineinfo.second.prev_chars) { // ignore soft linebreaks
@@ -70,7 +70,7 @@ namespace codepad::editor::code {
 	};
 
 	/// Displays a minimap of the code, similar to that of sublime text.
-	class minimap : public component {
+	class minimap : public ui::element {
 	public:
 		/// The maximum amount of time allowed for rendering a page (i.e., an entry of \ref _page_cache).
 		constexpr static double page_rendering_time_redline = 0.03;
@@ -176,8 +176,8 @@ namespace codepad::editor::code {
 			void render_page(size_t s, size_t pe) {
 				performance_monitor mon(CP_HERE, page_rendering_time_redline);
 
-				const editor *ce = parent->_get_editor();
-				double lh = ce->get_line_height(), scale = get_scale();
+				const editor &ce = component_helper::get_editor(*parent);
+				double lh = ce.get_line_height(), scale = get_scale();
 				line_top_cache lct(static_cast<double>(s) * lh * scale);
 				bool needrefresh = true; // indicates whether lct needs to be refreshed
 
@@ -187,7 +187,7 @@ namespace codepad::editor::code {
 					// actually, adding 1 is necessary because the start position was floored instead of rounded
 				);
 				os::renderer_base::get().begin_framebuffer(buf);
-				const view_formatting &fmt = ce->get_formatting();
+				const view_formatting &fmt = ce.get_formatting();
 				size_t
 					firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
 						fmt.get_folding().folded_to_unfolded_line_number(s)
@@ -197,7 +197,7 @@ namespace codepad::editor::code {
 					).first;
 				rendering_iterator<view_formatter> it(
 					std::make_tuple(std::cref(fmt), firstchar),
-					std::make_tuple(std::cref(*ce), firstchar, plastchar)
+					std::make_tuple(std::cref(ce), firstchar, plastchar)
 				);
 				// records the position of the right boundary of the last character that has just been rendered
 				double lastx = 0.0;
@@ -236,11 +236,11 @@ namespace codepad::editor::code {
 			/// Clears all cached pages, and re-renders the currently visible page.
 			void restart() {
 				pages.clear();
-				editor *editor = parent->_get_editor();
+				editor &editor = component_helper::get_editor(*parent);
 				std::pair<size_t, size_t> be = parent->_get_visible_lines_folded();
-				double slh = editor->get_line_height() * get_scale();
+				double slh = editor.get_line_height() * get_scale();
 				size_t
-					numlines = editor->get_num_visual_lines(),
+					numlines = editor.get_num_visual_lines(),
 					pgsize = std::max(be.second - be.first, static_cast<size_t>(minimum_page_size / slh) + 1),
 					page_beg = 0;
 				page_end = numlines;
@@ -262,15 +262,14 @@ namespace codepad::editor::code {
 				if (pages.empty()) {
 					restart();
 				} else {
-					codebox *box = parent->_get_box();
-					editor *editor = box->get_editor();
+					editor &editor = component_helper::get_editor(*parent);
 					std::pair<size_t, size_t> be = parent->_get_visible_lines_folded();
 					size_t page_beg = pages.begin()->first;
 					if (be.first >= page_beg && be.second <= page_end) { // all are visible
 						return;
 					}
 					size_t min_page_lines = static_cast<size_t>(
-						minimum_page_size / (editor->get_line_height() * get_scale())
+						minimum_page_size / (editor.get_line_height() * get_scale())
 						) + 1,
 						// the number of lines in the page about to be rendered
 						page_lines = std::max(be.second - be.first, min_page_lines);
@@ -286,7 +285,7 @@ namespace codepad::editor::code {
 						}
 						if (be.second > page_end) { // render one page after the last one
 							// if not large enough, make it as large as min_page_lines
-							size_t backline = std::min(editor->get_num_visual_lines(), page_end + min_page_lines);
+							size_t backline = std::min(editor.get_num_visual_lines(), page_end + min_page_lines);
 							// at least the last visible line is rendered
 							backline = std::max(be.second, backline);
 							render_page(page_end, backline);
@@ -297,18 +296,29 @@ namespace codepad::editor::code {
 			}
 		};
 
+		/// Calls \ref invalidate_visual() if necessary, and then updates \ref _viewport_cfg.
+		void _on_update() override {
+			element::_on_update();
+			if (!_viewport_cfg.get_state().all_stationary) {
+				invalidate_visual();
+				if (!_viewport_cfg.update(ui::manager::get().update_delta_time())) {
+					ui::manager::get().schedule_update(*this);
+				}
+			}
+		}
+
 		/// Checks and validates \ref _pgcache by calling \ref _page_cache::make_valid.
 		void _on_prerender() override {
+			element::_on_prerender();
 			if (!_cachevalid) {
 				_pgcache.make_valid();
 				_cachevalid = true;
 			}
-			component::_on_prerender();
 		}
 		/// Renders all visible pages.
 		void _custom_render() override {
 			std::pair<size_t, size_t> vlines = _get_visible_lines_folded();
-			double slh = _get_editor()->get_line_height() * get_scale();
+			double slh = component_helper::get_editor(*this).get_line_height() * get_scale();
 			rectd clnrgn = get_client_region();
 			clnrgn.xmax = clnrgn.xmin + maximum_width;
 			clnrgn.ymin = std::round(clnrgn.ymin - _get_y_offset());
@@ -328,34 +338,32 @@ namespace codepad::editor::code {
 			}
 			os::renderer_base::get().pop_blend_function();
 			// render visible region indicator
-			if (_vrgnst.update_and_render(_get_clamped_viewport_rect())) {
-				invalidate_visual();
-			}
+			_viewport_cfg.render(_get_clamped_viewport_rect());
 		}
 
 		/// Calculates and returns the vertical offset of all pages according to \ref codebox::get_vertical_position.
 		double _get_y_offset() const {
-			const codebox *cb = _get_box();
-			const editor *editor = cb->get_editor();
-			size_t nlines = editor->get_num_visual_lines();
+			const codebox &cb = component_helper::get_box(*this);
+			const editor &editor = cb.get_editor();
+			size_t nlines = editor.get_num_visual_lines();
 			double
-				lh = editor->get_line_height(),
+				lh = editor.get_line_height(),
 				vh = get_client_region().height(),
 				maxh = static_cast<double>(nlines) * lh - vh,
 				maxvh = static_cast<double>(nlines) * lh * get_scale() - vh,
-				perc = (cb->get_vertical_position() - editor->get_padding().top) / maxh;
+				perc = (cb.get_vertical_position() - editor.get_padding().top) / maxh;
 			perc = std::clamp(perc, 0.0, 1.0);
 			return std::max(0.0, perc * maxvh);
 		}
 		/// Returns the rectangle marking the \ref editor's visible region.
 		rectd _get_viewport_rect() const {
-			const editor *e = _get_editor();
+			const editor &e = component_helper::get_editor(*this);
 			rectd clnrgn = get_client_region();
 			return rectd::from_xywh(
-				clnrgn.xmin - e->get_padding().left * get_scale(),
+				clnrgn.xmin - e.get_padding().left * get_scale(),
 				clnrgn.ymin - _get_y_offset() +
-				(_get_box()->get_vertical_position() - e->get_padding().top) * get_scale(),
-				e->get_layout().width() * get_scale(), clnrgn.height() * get_scale()
+				(component_helper::get_box(*this).get_vertical_position() - e.get_padding().top) * get_scale(),
+				e.get_layout().width() * get_scale(), clnrgn.height() * get_scale()
 			);
 		}
 		/// Clamps the result of \ref _get_viewport_rect. The region is clamped so that its right border won't
@@ -368,36 +376,38 @@ namespace codepad::editor::code {
 		}
 		/// Returns the range of lines that are visible in the \ref minimap, with word wrapping and folding enabled.
 		std::pair<size_t, size_t> _get_visible_lines_folded() const {
-			const editor *editor = _get_editor();
-			double lh = editor->get_line_height() * get_scale(), ys = _get_y_offset();
+			const editor &editor = component_helper::get_editor(*this);
+			double lh = editor.get_line_height() * get_scale(), ys = _get_y_offset();
 			return {
 				static_cast<size_t>(ys / lh), std::min(static_cast<size_t>(
 					std::max(ys + get_client_region().height(), 0.0) / lh
-					) + 1, editor->get_num_visual_lines())
+					) + 1, editor.get_num_visual_lines())
 			};
 		}
 
 		/// Changes the visual state of the visible region indicator.
 		void _on_state_changed(value_update_info<ui::element_state_id> &info) override {
-			_vrgnst.set_state(_rst.get_state());
-			component::_on_state_changed(info);
+			element::_on_state_changed(info);
+			_viewport_cfg.on_state_changed(get_state());
 		}
 
 		/// Registers event handlers to update the minimap and viewport indicator automatically.
-		void _on_added() override {
-			component::_on_added();
-			_vis_tok = (_get_editor()->editing_visual_changed += [this]() {
+		void _on_added_to_parent() override {
+			element::_on_added_to_parent();
+			_vis_tok = (component_helper::get_editor(*this).editing_visual_changed += [this]() {
 				_on_editor_visual_changed();
 				});
-			_vpos_tok = (_get_box()->vertical_viewport_changed += [this](value_update_info<double>&) {
-				_on_viewport_changed();
-				});
+			_vpos_tok = (
+				component_helper::get_box(*this).vertical_viewport_changed += [this](value_update_info<double>&) {
+					_on_viewport_changed();
+				}
+			);
 		}
 		/// Unregisters all previously registered event handlers.
-		void _on_removing() override {
-			_get_editor()->editing_visual_changed -= _vis_tok;
-			_get_box()->vertical_viewport_changed -= _vpos_tok;
-			component::_on_removing();
+		void _on_removing_from_parent() override {
+			component_helper::get_editor(*this).editing_visual_changed -= _vis_tok;
+			component_helper::get_box(*this).vertical_viewport_changed -= _vpos_tok;
+			element::_on_removing_from_parent();
 		}
 
 		/// Marks \ref _pgcache for update when the viewport has changed, to determine if more pages need to
@@ -414,6 +424,7 @@ namespace codepad::editor::code {
 		/// If the user presses ahd holds the primary mouse button on the viewport, starts dragging it; otherwise,
 		/// if the user presses the left mouse button, jumps to the corresponding position.
 		void _on_mouse_down(ui::mouse_button_info &info) override {
+			element::_on_mouse_down(info);
 			if (info.button == os::input::mouse_button::primary) {
 				rectd rv = _get_viewport_rect();
 				if (rv.contains(info.position)) {
@@ -423,63 +434,58 @@ namespace codepad::editor::code {
 				} else {
 					rectd client = get_client_region();
 					double ch = client.height();
-					const editor *edt = _get_editor();
-					_get_box()->set_vertical_position(std::min(
+					const editor &edt = component_helper::get_editor(*this);
+					component_helper::get_box(*this).set_vertical_position(std::min(
 						(info.position.y - client.ymin + _get_y_offset()) / get_scale() - 0.5 * ch,
-						static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - ch
-					) + edt->get_padding().top);
+						static_cast<double>(edt.get_num_visual_lines()) * edt.get_line_height() - ch
+					) + edt.get_padding().top);
 				}
 			}
-			component::_on_mouse_down(info);
 		}
-		/// Called to stop dragging the viewport.
-		void _stop_dragging() {
-			if (_dragging) {
+		/// Stops dragging.
+		void _on_mouse_up(ui::mouse_button_info &info) override {
+			element::_on_mouse_up(info);
+			if (_dragging && info.button == os::input::mouse_button::primary) {
 				_dragging = false;
 				get_window()->release_mouse_capture();
 			}
-		}
-		/// Calls \ref _stop_dragging if necessary.
-		void _on_mouse_up(ui::mouse_button_info &info) override {
-			if (info.button == os::input::mouse_button::primary) {
-				_stop_dragging();
-			}
-			component::_on_mouse_up(info);
 		}
 		/// If dragging, updates the position of the viewport.
 		///
 		/// \todo Small glitch when starting to drag the region when it's partially out of the minimap area.
 		void _on_mouse_move(ui::mouse_move_info &info) override {
+			element::_on_mouse_move(info);
 			if (_dragging) {
-				const editor *edt = _get_editor();
+				const editor &edt = component_helper::get_editor(*this);
 				rectd client = get_client_region();
 				double
 					scale = get_scale(),
-					yp = info.new_pos.y + _dragoffset - client.ymin,
+					yp = info.new_position.y + _dragoffset - client.ymin,
 					toth =
-					static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - client.height(),
+					static_cast<double>(edt.get_num_visual_lines()) * edt.get_line_height() - client.height(),
 					totch = std::min(client.height() * (1.0 - scale), toth * scale);
-				_get_box()->set_vertical_position(toth * yp / totch + edt->get_padding().top);
+				component_helper::get_box(*this).set_vertical_position(toth * yp / totch + edt.get_padding().top);
 			}
-			component::_on_mouse_move(info);
 		}
-		/// Calls \ref _stop_dragging.
+		/// Stops dragging.
 		void _on_capture_lost() override {
-			_stop_dragging();
-			component::_on_capture_lost();
+			element::_on_capture_lost();
+			_dragging = false;
 		}
 
-		/// Sets the class of \ref _vrgnst.
-		void _initialize() override {
-			component::_initialize();
-			_vrgnst.set_class(get_viewport_class());
+		/// Sets the class of \ref _viewport_cfg.
+		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+			element::_initialize(cls, metrics);
+			_viewport_cfg = ui::visual_configuration(
+				ui::manager::get().get_class_visuals().get_visual_or_default(get_viewport_class())
+			);
 		}
 
 		_page_cache _pgcache{*this}; ///< Caches rendered pages.
 		event<void>::token _vis_tok; ///< Used to listen to \ref editor::editing_visual_changed.
 		/// Used to listen to \ref codebox::vertical_viewport_changed.
 		event<value_update_info<double>>::token _vpos_tok;
-		ui::visual::render_state _vrgnst; ///< Used to render the visible region indicator.
+		ui::visual_configuration _viewport_cfg; ///< Used to render the visible region indicator.
 		/// The offset of the mouse relative to the top border of the visible region indicator.
 		double _dragoffset = 0.0;
 		bool

@@ -14,18 +14,18 @@ using namespace codepad::os;
 namespace codepad::ui {
 	rectd visual_layer::get_center_rect(const state &s, rectd client) const {
 		element::layout_on_direction(
-			test_bit_all(rect_anchor, anchor::left),
+			test_bits_all(rect_anchor, anchor::left),
 			width_alloc == size_allocation_type::fixed,
-			test_bit_all(rect_anchor, anchor::right),
+			test_bits_all(rect_anchor, anchor::right),
 			client.xmin, client.xmax,
 			s.current_margin.current_value.left,
 			width_alloc == size_allocation_type::automatic ? 1.0 : s.current_size.current_value.x,
 			s.current_margin.current_value.right
 		);
 		element::layout_on_direction(
-			test_bit_all(rect_anchor, anchor::top),
+			test_bits_all(rect_anchor, anchor::top),
 			height_alloc == size_allocation_type::fixed,
-			test_bit_all(rect_anchor, anchor::bottom),
+			test_bits_all(rect_anchor, anchor::bottom),
 			client.ymin, client.ymax,
 			s.current_margin.current_value.top,
 			height_alloc == size_allocation_type::automatic ? 1.0 : s.current_size.current_value.y,
@@ -138,49 +138,5 @@ namespace codepad::ui {
 				s.all_stationary = false;
 			}
 		}
-	}
-
-
-	void visual::render_state::set_class(str_t cls) {
-		_cls = std::move(cls);
-		_reset_state(
-			visual_state::state(manager::get().get_class_visuals().get_state_or_create(_cls, _state))
-		);
-	}
-
-	void visual::render_state::set_state(element_state_id s) {
-		_state = s;
-		_reset_state(
-			visual_state::state(manager::get().get_class_visuals().get_state_or_create(_cls, _state), _animst)
-		);
-	}
-	bool visual::render_state::stationary() const {
-		return _timestamp == manager::get().get_class_visuals().timestamp && _animst.all_stationary;
-	}
-
-	void visual::render_state::update() {
-		if (!stationary()) {
-			const visual_state &vps = manager::get().get_class_visuals().get_state_or_create(_cls, _state);
-			if (_timestamp != manager::get().get_class_visuals().timestamp) {
-				_reset_state(visual_state::state(vps));
-			}
-			auto now = std::chrono::high_resolution_clock::now();
-			vps.update(_animst, std::chrono::duration<double>(now - _last).count());
-			_last = now;
-		}
-	}
-
-	void visual::render_state::render(rectd rgn) {
-		const visual_state &ps = manager::get().get_class_visuals().get_state_or_create(_cls, _state);
-		if (_timestamp != manager::get().get_class_visuals().timestamp) {
-			_reset_state(visual_state::state(ps));
-		}
-		ps.render(rgn, _animst);
-	}
-
-	void visual::render_state::_reset_state(visual_state::state s) {
-		_timestamp = manager::get().get_class_visuals().timestamp;
-		_animst = std::move(s);
-		_last = std::chrono::high_resolution_clock::now();
 	}
 }

@@ -27,6 +27,20 @@ namespace codepad {
 		public:
 			using native_handle_t = HWND;
 
+			explicit window(window *parent = nullptr) : window(CP_STRLIT("Codepad"), parent) {
+			}
+			explicit window(const str_t &clsname, window *parent = nullptr) : window_base() {
+				auto u16str = convert_to_utf16(clsname);
+				_wndclass::get();
+				winapi_check(_hwnd = CreateWindowEx(
+					WS_EX_ACCEPTFILES, reinterpret_cast<LPCTSTR>(static_cast<size_t>(_wndclass::get().atom)),
+					reinterpret_cast<LPCTSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
+					CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+					parent ? parent->_hwnd : nullptr, nullptr, GetModuleHandle(nullptr), nullptr
+				));
+				winapi_check(_dc = GetDC(_hwnd));
+			}
+
 			void set_caption(const str_t &cap) override {
 				auto u16str = convert_to_utf16(cap);
 				winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
@@ -242,20 +256,6 @@ namespace codepad {
 				}
 			};
 
-			explicit window(window *parent = nullptr) : window(CP_STRLIT("Codepad"), parent) {
-			}
-			explicit window(const str_t &clsname, window *parent = nullptr) {
-				auto u16str = convert_to_utf16(clsname);
-				_wndclass::get();
-				winapi_check(_hwnd = CreateWindowEx(
-					WS_EX_ACCEPTFILES, reinterpret_cast<LPCTSTR>(static_cast<size_t>(_wndclass::get().atom)),
-					reinterpret_cast<LPCTSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
-					CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-					parent ? parent->_hwnd : nullptr, nullptr, GetModuleHandle(nullptr), nullptr
-				));
-				winapi_check(_dc = GetDC(_hwnd));
-			}
-
 			HWND _hwnd;
 			HDC _dc;
 
@@ -295,13 +295,14 @@ namespace codepad {
 
 			bool _idle();
 			void _on_update() override {
+				window_base::_on_update();
 				while (_idle()) {
 				}
 				ui::manager::get().schedule_update(*this);
 			}
 
-			void _initialize() override {
-				window_base::_initialize();
+			void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+				window_base::_initialize(cls, metrics);
 				SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 				ShowWindow(_hwnd, SW_SHOW);
 				ui::manager::get().schedule_update(*this);

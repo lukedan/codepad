@@ -44,16 +44,16 @@ namespace codepad::ui {
 		std::unordered_map<str_t, std::function<void(element*)>> _cmds;
 	};
 
-	/// Holds the information of an element and its corresponding \ref element_hotkey_group.
+	/// Holds the information of an element and its corresponding \ref class_hotkey_group.
 	/// Used with \ref window_hotkey_manager.
 	struct element_hotkey_group_data {
 		/// Default constructor.
 		element_hotkey_group_data() = default;
 		/// Constructs the struct with the given parameters.
-		element_hotkey_group_data(const element_hotkey_group *hr, element *p) : reg(hr), param(p) {
+		element_hotkey_group_data(const class_hotkey_group *hr, element *p) : reg(hr), param(p) {
 		}
 
-		const element_hotkey_group *reg = nullptr; ///< The element's corresponding hotkey group.
+		const class_hotkey_group *reg = nullptr; ///< The element's corresponding hotkey group.
 		element *param = nullptr; ///< An element.
 	};
 	/// Contains information about the user pressing a hotkey.
@@ -70,8 +70,8 @@ namespace codepad::ui {
 	/// The elements include the currently focused element and all its parents.
 	class window_hotkey_manager {
 	public:
-		/// Called when the focus has shifted to reset the set of
-		/// active \ref element_hotkey_group "element_hotkey_groups".
+		/// Called when the focus has shifted to reset the set of active
+		/// \ref class_hotkey_group "element_hotkey_groups".
 		///
 		/// \param gp The new set of active hotkey groups.
 		void reset_groups(const std::vector<element_hotkey_group_data> &gp) {
@@ -108,12 +108,12 @@ namespace codepad::ui {
 				intercept = i->on_keypress(k, first) || intercept;
 				if (i->state.is_trigger()) { // reached leaf node, trigger
 					window_hotkey_info hk(i->state.get_data(), i->group.param);
-					i->state = element_hotkey_group::state(); // reset state
+					i->state = class_hotkey_group::state(); // reset state
 					for (auto j = _groups.begin(); j != _groups.end(); ++j) {
 						// all state should be empty, otherwise there are conflicts
 						if (!j->state.is_empty()) {
 							logger::get().log_warning(CP_HERE, "found conflicting hotkey chains");
-							j->state = element_hotkey_group::state(); // clear them
+							j->state = class_hotkey_group::state(); // clear them
 						}
 					}
 					triggered.invoke(hk); // invoke the event
@@ -157,7 +157,7 @@ namespace codepad::ui {
 			}
 
 			element_hotkey_group_data group; ///< The group to which the state belongs.
-			element_hotkey_group::state state; ///< The state of the group.
+			class_hotkey_group::state state; ///< The state of the group.
 
 			/// Invoked when the user enters a key gesture to update the state.
 			///
@@ -169,7 +169,7 @@ namespace codepad::ui {
 					// already out of matching gestures
 					return false;
 				}
-				element_hotkey_group::state ns = group.reg->update_state(k, state);
+				class_hotkey_group::state ns = group.reg->update_state(k, state);
 				if (ns == state) { // no update
 					return false;
 				}

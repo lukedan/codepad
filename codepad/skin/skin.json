@@ -1,5 +1,12 @@
 {
-	"scroll_bar_drag_button": [
+	"": [
+		{
+			"layers": [
+			]
+		}
+	],
+
+	"scrollbar_drag_button": [
 		{
 			"layers": [
 				{
@@ -37,7 +44,7 @@
 	],
 
 
-	"tab_button": [
+	"tab_button_background": [
 		{
 			"layers": [
 				{
@@ -147,7 +154,7 @@
 			]
 		}
 	],
-	"tab_close_button": [
+	"tab_button.close_button": [
 		{
 			"layers": [
 				{
@@ -303,6 +310,51 @@
 		}, {
 			"states": ["mouse_over", "mouse_down"],
 			"inherit_from": ["mouse_over"]
+		}
+	],
+
+	"drag_destination_selector.split_left_indicator": [
+		{
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": [1.0, 1.0, 1.0, 0.5]
+				}
+			]
+		}
+	],
+	"drag_destination_selector.split_right_indicator": [
+		{
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": [1.0, 1.0, 1.0, 0.5]
+				}
+			]
+		}
+	],
+	"drag_destination_selector.split_up_indicator": [
+		{
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": [1.0, 1.0, 1.0, 0.5]
+				}
+			]
+		}
+	],
+	"drag_destination_selector.split_down_indicator": [
+		{
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": [1.0, 1.0, 1.0, 0.5]
+				}
+			]
 		}
 	]
 }

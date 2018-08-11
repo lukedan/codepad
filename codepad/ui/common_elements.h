@@ -25,7 +25,7 @@ namespace codepad::ui {
 		/// Sets the text to display.
 		void set_text(str_t s) {
 			_text = std::move(s);
-			_on_text_size_changed();
+			text_size_changed.invoke();
 		}
 		/// Gets the text that's displayed.
 		const str_t &get_text() const {
@@ -35,10 +35,10 @@ namespace codepad::ui {
 		/// Sets the font used to display text.
 		void set_font(std::shared_ptr<const os::font> fnt) {
 			_fnt = std::move(fnt);
-			_on_text_size_changed();
+			text_size_changed.invoke();
 		}
-		/// Returns the font currently used. Note this returns \p nullptr if no font is set,
-		/// but the default font may actually be used for display.
+		/// Returns the custom font set by the user. Note that \p nullptr is returned if no font is set, while the
+		/// default font is used to display text.
 		std::shared_ptr<const os::font> get_font() const {
 			return _fnt;
 		}
@@ -114,6 +114,8 @@ namespace codepad::ui {
 				text_renderer::render_plain_text(_text, f, get_text_position(), _clr);
 			}
 		}
+
+		event<void> text_size_changed; ///< Invoked when the size of the text has changed.
 	protected:
 		constexpr static unsigned char
 			_noszcache = 0, ///< Indicates that no size cache is currently available.
@@ -126,19 +128,6 @@ namespace codepad::ui {
 		colord _clr; ///< The color used to display the text.
 		vec2d _offset; ///< The offset of the text.
 		element &_parent; ///< The \ref element that this belongs to.
-
-		/// Called when the size of the text has changed, to mark that the size cache is invalid,
-		/// and to mark the parent for relayout if its size is `automatic'.
-		virtual void _on_text_size_changed() {
-			_szcache_id = _noszcache;
-			if (
-				_parent.get_width_allocation_type() == size_allocation_type::automatic ||
-				_parent.get_height_allocation_type() == size_allocation_type::automatic
-				) {
-				_parent.invalidate_layout();
-			}
-			_parent.invalidate_visual();
-		}
 
 		/// The struct that holds the default font and the timestamp.
 		struct _default_font {
@@ -164,11 +153,11 @@ namespace codepad::ui {
 
 		/// Returns the combined width of the text and the padding in pixels.
 		std::pair<double, bool> get_desired_width() const override {
-			return {_content.get_text_size().x + _padding.width(), true};
+			return {_content.get_text_size().x + get_padding().width(), true};
 		}
 		/// Returns the combined height of the text and the padding in pixels.
 		std::pair<double, bool> get_desired_height() const override {
-			return {_content.get_text_size().y + _padding.height(), true};
+			return {_content.get_text_size().y + get_padding().height(), true};
 		}
 
 		/// Returns the default class of elements of this type.
@@ -182,9 +171,18 @@ namespace codepad::ui {
 		}
 
 		/// Initializes the element.
-		void _initialize() override {
-			element::_initialize();
+		void _initialize(const str_t &cls, const element_metrics &metrics) override {
+			element::_initialize(cls, metrics);
 			_can_focus = false;
+
+			_content.text_size_changed += [this]() {
+				if (
+					get_width_allocation() == size_allocation_type::automatic ||
+					get_height_allocation() == size_allocation_type::automatic
+					) {
+					invalidate_layout();
+				}
+			};
 		}
 
 		content_host _content{*this}; ///< Manages the contents to display.
@@ -226,24 +224,18 @@ namespace codepad::ui {
 			}
 			element::_on_mouse_down(p);
 		}
-		/// Called when the user releases the trigger button, or when the capture is lost.
-		void _on_trigger_button_up() {
-			if (_trigbtn_down) {
-				get_window()->release_mouse_capture();
-				_trigbtn_down = false;
-			}
-		}
 		/// Calls _on_trigger_button_up().
 		void _on_capture_lost() override {
-			_on_trigger_button_up();
+			_trigbtn_down = false;
+			element::_on_capture_lost();
 		}
 		/// Checks if this is a valid click.
 		void _on_mouse_up(mouse_button_info &p) override {
 			_on_update_mouse_pos(p.position);
-			if (p.button == _trigbtn) {
-				bool valid = is_mouse_over() && _trigbtn_down;
-				_on_trigger_button_up();
-				if (valid && _trigtype == trigger_type::mouse_up) {
+			if (_trigbtn_down && p.button == _trigbtn) {
+				_trigbtn_down = false;
+				get_window()->release_mouse_capture();
+				if (is_mouse_over() && _trigtype == trigger_type::mouse_up) {
 					_on_click();
 				}
 			}
@@ -254,15 +246,15 @@ namespace codepad::ui {
 		void _on_update_mouse_pos(vec2d pos) {
 			if (_allow_cancel) {
 				if (hit_test(pos)) {
-					_set_state_bit(manager::get().get_predefined_states().mouse_over, true);
+					set_state_bits(manager::get().get_predefined_states().mouse_over, true);
 				} else {
-					_set_state_bit(manager::get().get_predefined_states().mouse_over, false);
+					set_state_bits(manager::get().get_predefined_states().mouse_over, false);
 				}
 			}
 		}
 		/// Updates the mouse position.
 		void _on_mouse_move(mouse_move_info &p) override {
-			_on_update_mouse_pos(p.new_pos);
+			_on_update_mouse_pos(p.new_position);
 			element::_on_mouse_move(p);
 		}
 
@@ -319,23 +311,23 @@ namespace codepad::ui {
 		}
 	};
 
-	class scroll_bar;
-	/// The draggable button of a scroll bar.
-	class scroll_bar_drag_button : public button_base {
+	class scrollbar;
+	/// The draggable button of a \ref scrollbar.
+	class scrollbar_drag_button : public button_base {
 	public:
 		/// Returns the default class of elements of this type.
 		inline static str_t get_default_class() {
-			return CP_STRLIT("scroll_bar_drag_button");
+			return CP_STRLIT("scrollbar_drag_button");
 		}
 	protected:
 		double _doffset = 0.0; ///< The offset of the mouse when the button is being dragged.
 
-		/// Returns the \ref scroll_bar that this button belongs to.
-		scroll_bar *_get_bar() const;
+		/// Returns the \ref scrollbar that this button belongs to.
+		scrollbar &_get_bar() const;
 
 		/// Initializes the element.
-		void _initialize() override {
-			button_base::_initialize();
+		void _initialize(const str_t &cls, const element_metrics &metrics) override {
+			button_base::_initialize(cls, metrics);
 			_trigtype = trigger_type::mouse_down;
 			_allow_cancel = false;
 			set_can_focus(false);
@@ -347,39 +339,26 @@ namespace codepad::ui {
 
 		/// Sets \ref _doffset accordingly if dragging starts.
 		void _on_mouse_down(mouse_button_info&) override;
-		/// Updates the value of the parent \ref scroll_bar when dragging.
+		/// Updates the value of the parent \ref scrollbar when dragging.
 		void _on_mouse_move(mouse_move_info&) override;
 	};
 	/// A scroll bar.
-	class scroll_bar : public panel_base {
+	class scrollbar : public panel_base {
 	public:
-		/// Sets the orientation of the scroll bar.
-		void set_orientation(orientation o) {
-			if (_ori != o) {
-				_ori = o;
-				invalidate_layout();
-			}
-		}
-		/// Returns the current orientation of the scroll bar.
-		orientation get_orientation() const {
-			return _ori;
-		}
+		/// The default thickness of scrollbars.
+		constexpr static double default_thickness = 10.0;
 
 		/// Returns the default desired width of the scroll bar.
-		///
-		/// \todo Extract the constants.
 		std::pair<double, bool> get_desired_width() const override {
-			if (get_orientation() == orientation::vertical) {
-				return {10.0, true};
+			if (is_vertical()) {
+				return {default_thickness, true};
 			}
 			return {1.0, false};
 		}
 		/// Returns the default desired height of the scroll bar.
-		///
-		/// \todo Extract the constants.
 		std::pair<double, bool> get_desired_height() const override {
-			if (get_orientation() == orientation::horizontal) {
-				return {10.0, true};
+			if (!is_vertical()) {
+				return {default_thickness, true};
 			}
 			return {1.0, false};
 		}
@@ -437,23 +416,27 @@ namespace codepad::ui {
 
 		/// Returns the default class of elements of this type.
 		inline static str_t get_default_class() {
-			return CP_STRLIT("scroll_bar");
+			return CP_STRLIT("scrollbar");
 		}
-		/// Returns the default class of the `page up' button.
-		inline static str_t get_page_up_button_class() {
-			return CP_STRLIT("scroll_bar_page_up_button");
+
+		/// Returns the role identifier of the `page up' button.
+		inline static str_t get_page_up_button_role() {
+			return CP_STRLIT("page_up_button");
 		}
-		/// Returns the default class of the `page down' button.
-		inline static str_t get_page_down_button_class() {
-			return CP_STRLIT("scroll_bar_page_down_button");
+		/// Returns the role identifier of the `page down' button.
+		inline static str_t get_page_down_button_role() {
+			return CP_STRLIT("page_down_button");
+		}
+		/// Returns the role identifier of the drag button.
+		inline static str_t get_drag_button_role() {
+			return CP_STRLIT("drag_button");
 		}
 	protected:
-		orientation _ori = orientation::vertical; ///< The orientation.
 		double
 			_totrng = 1.0, ///< The length of the whole range.
 			_curv = 0.0, ///< The minimum visible position.
 			_range = 0.1; ///< The length of the visible range.
-		scroll_bar_drag_button *_drag = nullptr; ///< The drag button.
+		scrollbar_drag_button *_drag = nullptr; ///< The drag button.
 		button
 			*_pgup = nullptr, ///< The `page up' button.
 			*_pgdn = nullptr; ///< The `page down' button.
@@ -461,51 +444,63 @@ namespace codepad::ui {
 		/// Calculates the layout of the three buttons.
 		void _finish_layout() override {
 			rectd cln = get_client_region();
-			if (_ori == orientation::vertical) {
+			if (is_vertical()) {
 				double
 					tszratio = cln.height() / _totrng,
 					mid1 = cln.ymin + tszratio * _curv,
 					mid2 = mid1 + tszratio * _range;
-				_child_set_layout(_drag, rectd(cln.xmin, cln.xmax, mid1, mid2));
-				_child_set_layout(_pgup, rectd(cln.xmin, cln.xmax, cln.ymin, mid1));
-				_child_set_layout(_pgdn, rectd(cln.xmin, cln.xmax, mid2, cln.ymax));
+				_child_recalc_horizontal_layout_noreval(*_drag, cln.xmin, cln.xmax);
+				_child_recalc_horizontal_layout_noreval(*_pgup, cln.xmin, cln.xmax);
+				_child_recalc_horizontal_layout_noreval(*_pgdn, cln.xmin, cln.xmax);
+				_child_set_vertical_layout_noreval(*_drag, mid1, mid2);
+				_child_set_vertical_layout_noreval(*_pgup, cln.ymin, mid1);
+				_child_set_vertical_layout_noreval(*_pgdn, mid2, cln.ymax);
 			} else {
 				double
 					tszratio = cln.width() / _totrng,
 					mid1 = cln.xmin + tszratio * _curv,
 					mid2 = mid1 + tszratio * _range;
-				_child_set_layout(_drag, rectd(mid1, mid2, cln.ymin, cln.ymax));
-				_child_set_layout(_pgup, rectd(cln.xmin, mid1, cln.ymin, cln.ymax));
-				_child_set_layout(_pgdn, rectd(mid2, cln.xmax, cln.ymin, cln.ymax));
+				_child_recalc_vertical_layout_noreval(*_drag, cln.ymin, cln.ymax);
+				_child_recalc_vertical_layout_noreval(*_pgup, cln.ymin, cln.ymax);
+				_child_recalc_vertical_layout_noreval(*_pgdn, cln.ymin, cln.ymax);
+				_child_set_horizontal_layout_noreval(*_drag, mid1, mid2);
+				_child_set_horizontal_layout_noreval(*_pgup, cln.xmin, mid1);
+				_child_set_horizontal_layout_noreval(*_pgdn, mid2, cln.xmax);
 			}
 			element::_finish_layout();
 		}
 
 		/// Initializes the three buttons and adds them as children.
-		void _initialize() override {
-			panel_base::_initialize();
+		void _initialize(const str_t &cls, const element_metrics &metrics) override {
+			panel_base::_initialize(cls, metrics);
 			_can_focus = false;
 
-			_drag = element::create<scroll_bar_drag_button>();
-			_children.add(*_drag);
+			manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(
+				*this, {
+					{get_drag_button_role(), _role_cast(_drag)},
+				{get_page_up_button_role(), _role_cast(_pgup)},
+				{get_page_down_button_role(), _role_cast(_pgdn)}
+				});
 
-			_pgup = element::create<button>();
 			_pgup->set_trigger_type(button_base::trigger_type::mouse_down);
 			_pgup->set_can_focus(false);
-			_pgup->set_class(get_page_up_button_class());
 			_pgup->click += [this]() {
 				set_value(get_value() - get_visible_range());
 			};
-			_children.add(*_pgup);
 
-			_pgdn = element::create<button>();
 			_pgdn->set_trigger_type(button_base::trigger_type::mouse_down);
 			_pgdn->set_can_focus(false);
-			_pgdn->set_class(get_page_down_button_class());
 			_pgdn->click += [this]() {
 				set_value(get_value() + get_visible_range());
 			};
-			_children.add(*_pgdn);
+		}
+
+		/// Calls \ref invalidate_layout() if the element's orientation has been changed.
+		void _on_state_changed(value_update_info<element_state_id> &p) override {
+			panel_base::_on_state_changed(p);
+			if (_has_any_state_bit_changed(manager::get().get_predefined_states().vertical, p)) {
+				invalidate_layout();
+			}
 		}
 	};
 }

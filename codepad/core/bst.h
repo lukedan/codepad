@@ -319,12 +319,13 @@ namespace codepad {
 
 		/// Default constructor.
 		binary_tree() = default;
-		/// Initializes \ref _synth with \p args, then builds the tree with the given range of objects.
+		/// Initializes \ref _synth_storage::synth with \p args, then builds the tree with the given range of
+		/// objects.
 		///
 		/// \tparam Cont Container type.
 		/// \param beg Iterator to the first object.
 		/// \param end Iterator past the last object.
-		/// \param args Arguments for \ref _synth.
+		/// \param args Arguments used to construct \ref _root (and thus \ref _synth_storage::synth).
 		template <typename It, typename ...Args> explicit binary_tree(It &&beg, It &&end, Args &&...args) :
 			_root(std::forward<Args>(args)...) {
 			_root.ptr = build_tree_copy(std::forward<It>(beg), std::forward<It>(end), _root.synth);
@@ -456,7 +457,6 @@ namespace codepad {
 		/// \param before Indicates where the new subtree is to be inserted.
 		/// \param n The root of the subtree.
 		/// \param synth The custom synthesizer.
-		/// \remark This method may be removed when red-black tree is used.
 		template <typename MySynth> void insert_before(node *before, node *n, MySynth &&synth) {
 			if (n == nullptr) {
 				return; // no insertion needed
@@ -479,8 +479,7 @@ namespace codepad {
 			n->parent = before;
 			refresh_synthesized_result(before, std::forward<MySynth>(synth));
 		}
-		/// \ref insert_before_raw(node*, node*, MySynth&&) with the default synthesizer.
-		/// \remark This method may be removed when red-black tree is used.
+		/// \ref insert_before(node*, node*, MySynth&&) with the default synthesizer.
 		void insert_before(node *before, node *n) {
 			insert_before(before, n, _root.synth);
 		}
@@ -535,7 +534,7 @@ namespace codepad {
 		template <typename ...Args> iterator emplace_before_custom_synth(const_iterator before, Args &&...args) {
 			return emplace_before_custom_synth(before.get_node(), std::forward<Args>(args)...);
 		}
-		/// \ref emplace_before_custom_synth(node*, MySynth&&, Args&&) with the default synthesizer.
+		/// \ref emplace_before_custom_synth(node*, MySynth&&, Args&&...) with the default synthesizer.
 		template <typename ...Args> iterator emplace_before(node *before, Args &&...args) {
 			return emplace_before_custom_synth(before, _root.synth, std::forward<Args>(args)...);
 		}
@@ -694,6 +693,7 @@ namespace codepad {
 		///
 		/// \param n The node to bring up.
 		/// \param targetroot The opration stops when it is the parent of \p n.
+		/// \param synth The synthesizer used.
 		/// \remark This method may be removed when red-black tree is used.
 		template <typename MySynth> void splay(node *n, node *targetroot, MySynth &&synth) {
 			while (n->parent != targetroot) {
@@ -747,7 +747,8 @@ namespace codepad {
 			refresh_synthesized_result(f, std::forward<MySynth>(synth));
 			return next;
 		}
-		/// \ref erase(node*, MySynth&&) with the default synthesizer. \ref Synth must not be \ref no_synthesizer.
+		/// \ref erase(node*, MySynth&&) with the default synthesizer. Template parameter \p Synth must not be
+		/// \ref no_synthesizer.
 		node *erase(node *n) {
 			return erase(n, _root.synth);
 		}
@@ -850,7 +851,7 @@ namespace codepad {
 		Synth &get_synthesizer() {
 			return _root.synth;
 		}
-		/// Const version of \ref Synth &get_synthesizer().
+		/// Const version of \ref get_synthesizer().
 		const Synth &get_synthesizer() const {
 			return _root.synth;
 		}
@@ -976,7 +977,7 @@ namespace codepad {
 		struct _root_t : public _synth_storage {
 			/// Default initializer.
 			_root_t() = default;
-			/// Initializes \ref _root_base_t with the given arguments.
+			/// Initializes \ref _synth_storage with the given arguments.
 			template <typename ...Args> explicit _root_t(Args &&...args) :
 				_synth_storage(std::forward<Args>(args)...) {
 			}

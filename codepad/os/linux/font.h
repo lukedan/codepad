@@ -17,10 +17,10 @@ namespace codepad {
 			freetype_font(const str_t &str, double sz, font_style style) : freetype_font_base() {
 				FcConfig *config = _font_config::get().refresh_and_get();
 				FcPattern *pat = FcNameParse(reinterpret_cast<const FcChar8*>(convert_to_utf8(str).c_str()));
-				FcPatternAddInteger(pat, FC_SLANT, test_bit_any(
+				FcPatternAddInteger(pat, FC_SLANT, test_bits_any(
 					style, font_style::italic
 				) ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
-				FcPatternAddInteger(pat, FC_WEIGHT, test_bit_any(
+				FcPatternAddInteger(pat, FC_WEIGHT, test_bits_any(
 					style, font_style::bold
 				) ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL);
 				assert_true_sys(FcConfigSubstitute(config, pat, FcMatchPattern) != FcFalse, "cannot set pattern");

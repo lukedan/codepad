@@ -46,6 +46,22 @@ int main(int argc, char **argv) {
 	}
 
 	{
+		// load arrangements
+		std::ifstream fin("skin/arrangements.json", std::ios::binary);
+		fin.seekg(0, std::ios::end);
+		std::streampos sz = fin.tellg();
+		auto c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
+		fin.seekg(0);
+		fin.read(c, static_cast<std::streamsize>(sz));
+		std::string us(c, static_cast<size_t>(sz));
+		std::free(c);
+		json::parser_value_t v;
+		str_t ss = convert_to_default_encoding(us);
+		v.Parse(ss.c_str());
+		manager::get().get_class_arrangements().load_json(v);
+	}
+
+	{
 		// load hotkeys
 		std::ifstream fin("keys.json", std::ios::binary);
 		fin.seekg(0, std::ios::end);
@@ -64,15 +80,13 @@ int main(int argc, char **argv) {
 	content_host::set_default_font(fnt);
 	code::editor::set_font(codefnt);
 
-	auto *lbl = element::create<label>();
+	auto *lbl = manager::get().create_element<label>();
 	lbl->content().set_text(CP_STRLIT("Ctrl+O to open a file"));
-	lbl->set_anchor(anchor::none);
-	lbl->set_margin(thickness(1.0));
 	lbl->mouse_down += [lbl](ui::mouse_button_info&) {
 		command_registry::get().find_command(CP_STRLIT("open_file_dialog"))(lbl->parent()->parent());
 	};
 	tab *tmptab = tab_manager::get().new_tab();
-	tmptab->set_caption(CP_STRLIT("welcome"));
+	tmptab->set_label(CP_STRLIT("welcome"));
 	tmptab->children().add(*lbl);
 
 	tbl.load_all("skin/");

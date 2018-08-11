@@ -35,206 +35,68 @@ namespace codepad::editor {
 		new_panel_bottom
 	};
 
-	/// A separator in a \ref ui::panel_base. Its layout is determined by its orientation and its position, which is
-	/// in the range of [0, 1] and can be further restricted by \ref set_range. The user can use the mouse to drag
-	/// this element and change its position within the allowed range.
-	///
-	/// \todo Make the size of \ref draggable_separator customizable.
-	class draggable_separator : public ui::element {
-		friend class ui::element;
-	public:
-		/// The default size of a \ref draggable_separator.
-		constexpr static double default_thickness = 5.0;
-
-		/// Sets its position. The position is automatically clamped into the range of [\ref _minv, \ref _maxv], the
-		/// layout is updated, and \ref value_changed is then invoked.
-		void set_position(double v) {
-			double ov = _posv;
-			_posv = std::clamp(v, _minv, _maxv);
-			if (_orient == ui::orientation::horizontal) {
-				set_margin(ui::thickness(_posv, 0.0, 1.0 - _posv, 0.0));
-			} else {
-				set_margin(ui::thickness(0.0, _posv, 0.0, 1.0 - _posv));
-			}
-			value_changed.invoke_noret(ov);
-		}
-		/// Returns the current position of the separator.
-		double get_position() const {
-			return _posv;
-		}
-
-		/// Returns the minimum allowed position.
-		double get_range_min() const {
-			return _minv;
-		}
-		/// Returns the maximum allowed position.
-		double get_range_max() const {
-			return _maxv;
-		}
-		/// Sets the range that position is allowed to be in. If the current position is not in this range,
-		/// \ref set_position is called to make sure.
-		void set_range(double rmin, double rmax) {
-			_minv = rmin;
-			_maxv = rmax;
-			if (_posv < _minv || _posv > _maxv) {
-				set_position(_posv);
-			}
-		}
-
-		/// Sets the orientation of this separator. If it's \ref ui::orientation::horizontal, its parent will be
-		/// split into the left part and the right part; otherwise, if it's \ref ui::orientation::vertical, the
-		/// the parent will be split into the top part and the bottom part.
-		void set_orientation(ui::orientation ori) {
-			_orient = ori;
-			_on_orient_changed();
-		}
-		/// Returns the current orientation of this separator.
-		ui::orientation get_orientation() const {
-			return _orient;
-		}
-
-		/// Shows the appropriate cursor that indicates the user can change its position by dragging.
-		os::cursor get_default_cursor() const override {
-			return
-				_orient == ui::orientation::horizontal ?
-				os::cursor::arrow_east_west :
-				os::cursor::arrow_north_south;
-		}
-
-		/// Returns the default width of the separator.
-		std::pair<double, bool> get_desired_width() const override {
-			if (get_orientation() == ui::orientation::horizontal) {
-				return {default_thickness, true};
-			}
-			return {1.0, false};
-		}
-		/// Returns the default height of the separator.
-		std::pair<double, bool> get_desired_height() const override {
-			if (get_orientation() == ui::orientation::vertical) {
-				return {default_thickness, true};
-			}
-			return {1.0, false};
-		}
-
-		/// Returns the boundaries of the left/top region separated by this element.
-		rectd get_region1() const {
-			rectd plo = _parent->get_client_region();
-			return
-				_orient == ui::orientation::horizontal ?
-				rectd(plo.xmin, _layout.xmin, plo.ymin, plo.ymax) :
-				rectd(plo.xmin, plo.xmax, plo.ymin, _layout.ymin);
-		}
-		/// Returns the boundaries of the right/bottom region separated by this element.
-		rectd get_region2() const {
-			rectd plo = _parent->get_client_region();
-			return
-				_orient == ui::orientation::horizontal ?
-				rectd(_layout.xmax, plo.xmax, plo.ymin, plo.ymax) :
-				rectd(plo.xmin, plo.xmax, _layout.ymax, plo.ymax);
-		}
-
-		event<value_update_info<double>> value_changed; ///< Invoked when the position of the separator has changed.
-		event<void>
-			start_drag, ///< Invoked when the user starts dragging the separator.
-			stop_drag; ///< Invoked when the user stops dragging the separator.
-
-		/// Returns the default class of all elements of type \ref draggable_separator.
-		inline static str_t get_default_class() {
-			return CP_STRLIT("draggable_separator");
-		}
-	protected:
-		ui::orientation _orient = ui::orientation::horizontal; ///< The orientation of the separator.
-		double
-			_posv = 0.5, ///< The position of the separator, in the range of [\ref _minv, \ref _maxv].
-			_minv = 0.0, ///< The minimum allowed position of the separator.
-			_maxv = 1.0; ///< The maxnimum allowed position of the separator.
-		bool _drag = false; ///< Indicates whether the user is dragging the separator.
-
-		/// Updates the element's anchor and margin according to \ref _orient.
-		void _on_orient_changed() {
-			if (_orient == ui::orientation::horizontal) {
-				set_anchor(ui::anchor::stretch_vertically);
-				set_margin(ui::thickness(_posv, 0.0, 1.0 - _posv, 0.0));
-			} else {
-				set_anchor(ui::anchor::stretch_horizontally);
-				set_margin(ui::thickness(0.0, _posv, 0.0, 1.0 - _posv));
-			}
-		}
-
-		/// Starts dragging the separator if the primary mouse button is pressed.
-		void _on_mouse_down(ui::mouse_button_info &p) override {
-			if (p.button == os::input::mouse_button::primary) {
-				start_drag.invoke();
-				_drag = true;
-				get_window()->set_mouse_capture(*this);
-			}
-			element::_on_mouse_down(p);
-		}
-		/// Moves the separator if it's being dragged.
-		void _on_mouse_move(ui::mouse_move_info &p) override {
-			if (_drag) {
-				rectd clnrgn = parent()->get_client_region();
-				vec2d sz = get_actual_size();
-				set_position(
-					_orient == ui::orientation::horizontal ?
-					(p.new_pos.x - clnrgn.xmin - 0.5 * sz.x) / (clnrgn.width() - sz.x) :
-					(p.new_pos.y - clnrgn.ymin - 0.5 * sz.y) / (clnrgn.height() - sz.y)
-				);
-			}
-		}
-		/// Called when the user stops dragging the separator.
-		void _on_end_drag() {
-			_drag = false;
-			get_window()->release_mouse_capture();
-		}
-		/// Calls \ref _on_end_drag to stop dragging.
-		void _on_capture_lost() override {
-			_on_end_drag();
-		}
-		/// Calls \ref _on_end_drag to stop dragging if the primary mouse is released when dragging.
-		void _on_mouse_up(ui::mouse_button_info &p) override {
-			if (_drag && p.button == os::input::mouse_button::primary) {
-				_on_end_drag();
-			}
-		}
-
-		/// Sets \ref _can_focus to \p false and calls \ref _on_orient_changed to initialize this element's
-		/// margin and anchor.
-		void _initialize() override {
-			ui::element::_initialize();
-			_can_focus = false;
-			_on_orient_changed();
-		}
-	};
-	/// A panel with two regions separated by a \ref draggable_separator.
+	/// A panel with two regions separated by a draggable separator.
 	class split_panel : public ui::panel_base {
 	public:
 		constexpr static double minimum_panel_size = 30.0; ///< The minimum size that a region can have.
 
-		/// Sets the child that will be placed in the region obtained from \ref draggable_separator::get_region1.
+		/// Sets the child that will be placed above or to the left of the separator.
 		void set_child1(ui::element *elem) {
 			_change_child(_c1, elem);
 		}
-		/// Returns the child that's currently in the region obtained from \ref draggable_separator::get_region1.
+		/// Returns the child that's currently above or to the left of the separator.
 		ui::element *get_child1() const {
 			return _c1;
 		}
-		/// Sets the child that will be placed in the region obtained from \ref draggable_separator::get_region2.
+		/// Sets the child that will be placed below or to the right of the separator.
 		void set_child2(ui::element *elem) {
 			_change_child(_c2, elem);
 		}
-		/// Returns the child that's currently in the region obtained from \ref draggable_separator::get_region2.
+		/// Returns the child that's currently below or to the right of the separator.
 		ui::element *get_child2() const {
 			return _c2;
 		}
 
-		/// Sets the orientation of the \ref draggable_separator.
-		void set_orientation(ui::orientation ori) {
-			_sep->set_orientation(ori);
+		/// Returns the boundaries of the left/top region.
+		rectd get_region1() const {
+			rectd cln = get_client_region();
+			return
+				is_vertical() ?
+				rectd(cln.xmin, cln.xmax, cln.ymin, _sep->get_layout().ymin) :
+				rectd(cln.xmin, _sep->get_layout().xmin, cln.ymin, cln.ymax);
 		}
-		/// Returns the orientation of the \ref draggable_separator.
-		ui::orientation get_orientation() const {
-			return _sep->get_orientation();
+		/// Returns the boundaries of the bottom/right region.
+		rectd get_region2() const {
+			rectd cln = get_client_region();
+			return
+				is_vertical() ?
+				rectd(cln.xmin, cln.xmax, _sep->get_layout().ymax, cln.ymax) :
+				rectd(_sep->get_layout().xmax, cln.xmax, cln.ymin, cln.ymax);
+		}
+
+		/// Returns the position of the separator, a number in the range of [0, 1].
+		double get_separator_position() const {
+			return _sep_position;
+		}
+		/// Sets the position of the separator.
+		void set_separator_position(double pos) {
+			double oldpos = _sep_position;
+			_sep_position = std::clamp(pos, 0.0, 1.0);
+			if (!_maintainpos) {
+				double totw =
+					is_vertical() ?
+					get_client_region().height() - _sep->get_actual_size().y :
+					get_client_region().width() - _sep->get_actual_size().x;
+				split_panel *sp = dynamic_cast<split_panel*>(_c1);
+				if (sp && sp->is_vertical() == is_vertical()) {
+					sp->_maintain_separator_position<false>(totw, oldpos, get_separator_position());
+				}
+				sp = dynamic_cast<split_panel*>(_c2);
+				if (sp && sp->is_vertical() == is_vertical()) {
+					sp->_maintain_separator_position<true>(totw, oldpos, get_separator_position());
+				}
+			}
+			revalidate_layout();
 		}
 
 		/// Overrides the layout of the two children.
@@ -246,20 +108,34 @@ namespace codepad::editor {
 		inline static str_t get_default_class() {
 			return CP_STRLIT("split_panel");
 		}
+
+		/// Returns the role identifier of the separator.
+		inline static str_t get_separator_role() {
+			return CP_STRLIT("separator");
+		}
 	protected:
 		ui::element
-			/// The first child, displayed in the region obtained from \ref draggable_separator::get_region1.
+			/// The first child, displayed above or to the left of the separator.
 			*_c1 = nullptr,
-			/// The second child, displayed in the region obtained from \ref draggable_separator::get_region2.
-			*_c2 = nullptr;
-		draggable_separator *_sep = nullptr; ///< The separator.
-		/// Indicates when the position of \ref _sep is being set in \ref _maintain_separator_position to avoid
-		/// infinite recursion.
-		bool _maintainpos = false;
+			/// The second child, displayed below or to the right of the separator.
+			*_c2 = nullptr,
+			/// The draggable separator.
+			*_sep = nullptr;
+		double
+			/// The position of \ref _sep in this panel. This value should be between 0 and 1.
+			_sep_position = 0.5,
+			/// The offset to the mouse when the user drags the separator.
+			_sep_offset = 0.0;
+		bool
+			/// Indicates when the position of \ref _sep is being set in \ref _maintain_separator_position to avoid
+			/// infinite recursion.
+			_maintainpos = false,
+			/// Whether the user's dragging the separator.
+			_sep_dragging = false;
 
 		/// When this element is itself a child of a \ref split_panel with the same orientation, and the separator's
 		/// position of the parent has changed, this function is called to make the element behave as if it is
-		/// independent of its parent, i.e., to keep the global position of the \ref draggable_separator uncahnged.
+		/// independent of its parent, i.e., to keep the global position of the draggable separator uncahnged.
 		///
 		/// \tparam MinChanged \p true if the position of the left/top boundary has changed, and \p false if that of
 		///                    the right/bottom boundary has changed.
@@ -271,11 +147,8 @@ namespace codepad::editor {
 			vec2d sepsz = _sep->get_actual_size();
 			double
 				newpos,
-				oldpos = _sep->get_position(),
-				padding =
-				_sep->get_orientation() == ui::orientation::horizontal ?
-				sepsz.x + get_padding().width() :
-				sepsz.y + get_padding().height();
+				oldpos = get_separator_position(),
+				padding = is_vertical() ? sepsz.y + get_padding().height() : sepsz.x + get_padding().width();
 			double
 				// the total width of the two regions, before and after the change
 				omytotw, nmytotw,
@@ -297,7 +170,7 @@ namespace codepad::editor {
 			}
 			// the possibly affected child
 			split_panel *sp = dynamic_cast<split_panel*>(MinChanged ? _c1 : _c2);
-			if (sp && sp->get_orientation() == _sep->get_orientation()) {
+			if (sp && sp->is_vertical() == is_vertical()) {
 				// must also be a split_panel with the same orientation
 				// here we transform the positions so that it's as if this split_panel doesn't exist
 				// for example, if MinChanged is true, we transform the positions from
@@ -328,124 +201,125 @@ namespace codepad::editor {
 			}
 			// update position
 			_maintainpos = true;
-			_sep->set_position(newpos);
+			set_separator_position(newpos);
 			_maintainpos = false;
-		}
-		/// Recalculates the range that the \ref draggable_separator can be in.
-		///
-		/// \todo Still inaccurate. Needs mechanics such as ``min_size''.
-		void _reset_separator_range() {
-			element *c1 = _c1, *c2 = _c2;
-			for (
-				split_panel *next = dynamic_cast<split_panel*>(c1);
-				next;
-				c1 = next->get_child2(), next = dynamic_cast<split_panel*>(c1)
-				) {
-			}
-			for (
-				split_panel *next = dynamic_cast<split_panel*>(c2);
-				next;
-				c2 = next->get_child1(), next = dynamic_cast<split_panel*>(c2)
-				) {
-			}
-			double minv, maxv, lmin, lw;
-			if (_sep->get_orientation() == ui::orientation::horizontal) {
-				minv = c1->get_layout().xmin;
-				maxv = c2->get_layout().xmax;
-				lmin = get_layout().xmin;
-				lw = get_layout().width();
-			} else {
-				minv = c1->get_layout().ymin;
-				maxv = c2->get_layout().ymax;
-				lmin = get_layout().ymin;
-				lw = get_layout().height();
-			}
-			minv += minimum_panel_size;
-			maxv -= minimum_panel_size;
-			if (minv > maxv) {
-				minv = maxv = 0.5 * (minv + maxv);
-			}
-			_sep->set_range((minv - lmin) / lw, (maxv - lmin) / lw);
 		}
 
 		/// Changes the given child to the specified value.
 		void _change_child(ui::element *&e, ui::element *newv) {
 			if (e) {
-				_children.remove(*e);
+				ui::element *old = e; // because e may be changed in _on_child_removed
+				_children.remove(*old);
 			}
 			e = newv;
 			if (e) {
+				_child_set_logical_parent(*e, this);
 				_children.add(*e);
 			}
 		}
 		/// Sets the corresponding pointer to \p nullptr.
-		void _on_child_removed(element *e) override {
-			if (e == _c1) {
-				_c1 = nullptr;
-			} else if (e == _c2) {
-				_c2 = nullptr;
+		void _on_child_removed(element &e) override {
+			if (&e == _c1 || &e == _c2) {
+				if (&e == _c1) {
+					_c1 = nullptr;
+				} else {
+					_c2 = nullptr;
+				}
+			}
+			panel_base::_on_child_removed(e);
+		}
+
+		/// Calls \ref invalidate_layout if the element's orientation has been changed, and updates the `vertical'
+		/// state bit of \ref _sep accordingly.
+		void _on_state_changed(value_update_info<ui::element_state_id> &p) override {
+			panel_base::_on_state_changed(p);
+			if (_has_any_state_bit_changed(ui::manager::get().get_predefined_states().vertical, p)) {
+				_sep->set_is_vertical(is_vertical());
+				invalidate_layout();
 			}
 		}
 
 		/// Renders all children with additional clip regions.
 		void _custom_render() override {
-			_child_on_render(_sep);
+			_child_on_render(*_sep);
 			if (_c1) {
-				os::renderer_base::get().push_clip(_sep->get_region1().fit_grid_enlarge<int>());
-				_child_on_render(_c1);
+				os::renderer_base::get().push_clip(get_region1().fit_grid_enlarge<int>());
+				_child_on_render(*_c1);
 				os::renderer_base::get().pop_clip();
 			}
 			if (_c2) {
-				os::renderer_base::get().push_clip(_sep->get_region2().fit_grid_enlarge<int>());
-				_child_on_render(_c2);
+				os::renderer_base::get().push_clip(get_region2().fit_grid_enlarge<int>());
+				_child_on_render(*_c2);
 				os::renderer_base::get().pop_clip();
 			}
 		}
 
 		/// Updates the layout of all children.
 		void _finish_layout() override {
-			_child_recalc_layout(_sep, get_client_region());
+			rectd client = get_client_region();
+			if (is_vertical()) {
+				_child_recalc_horizontal_layout_noreval(*_sep, client.xmin, client.xmax);
+				auto metrics = _sep->get_layout_height();
+				double top = (client.height() - metrics.first) * _sep_position + client.ymin;
+				_child_set_vertical_layout_noreval(*_sep, top, top + metrics.first);
+			} else {
+				_child_recalc_vertical_layout_noreval(*_sep, client.ymin, client.ymax);
+				auto metrics = _sep->get_layout_width();
+				double left = (client.width() - metrics.first) * _sep_position + client.xmin;
+				_child_set_horizontal_layout_noreval(*_sep, left, left + metrics.first);
+			}
 			if (_c1) {
-				_child_recalc_layout(_c1, _sep->get_region1());
+				_child_recalc_layout(*_c1, get_region1());
 			}
 			if (_c2) {
-				_child_recalc_layout(_c2, _sep->get_region2());
+				_child_recalc_layout(*_c2, get_region2());
 			}
 			ui::panel_base::_finish_layout();
 		}
 
 		/// Initializes \ref _sep and adds handlers for certain events.
-		///
-		/// \todo Figure out why is the handler for stop_drag written like that.
-		void _initialize() override {
-			ui::panel_base::_initialize();
-			_sep = ui::element::create<draggable_separator>();
-			_sep->value_changed += [this](value_update_info<double> &p) {
-				if (!_maintainpos) {
-					double totw =
-						_sep->get_orientation() == ui::orientation::horizontal ?
-						get_client_region().width() - _sep->get_actual_size().x :
-						get_client_region().height() - _sep->get_actual_size().y;
-					split_panel *sp = dynamic_cast<split_panel*>(_c1);
-					if (sp && sp->get_orientation() == _sep->get_orientation()) {
-						sp->_maintain_separator_position<false>(totw, p.old_value, _sep->get_position());
-					}
-					sp = dynamic_cast<split_panel*>(_c2);
-					if (sp && sp->get_orientation() == _sep->get_orientation()) {
-						sp->_maintain_separator_position<true>(totw, p.old_value, _sep->get_position());
-					}
+		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+			ui::panel_base::_initialize(cls, metrics);
+
+			ui::manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+				{get_separator_role(), _role_cast(_sep)}
+				});
+
+			_sep->set_can_focus(false);
+			_sep->mouse_down += [this](ui::mouse_button_info &p) {
+				if (p.button == os::input::mouse_button::primary) {
+					_sep_dragging = true;
+					_sep_offset =
+						is_vertical() ?
+						p.position.y - _sep->get_layout().ymin :
+						p.position.x - _sep->get_layout().xmin;
+					get_window()->set_mouse_capture(*_sep);
 				}
-				invalidate_layout();
 			};
-			_sep->start_drag += [this]() {
-				_reset_separator_range();
+			_sep->lost_capture += [this]() {
+				_sep_dragging = false;
 			};
-			_sep->stop_drag += [this]() {
-				_sep->set_range(0.0, 1.0);
+			_sep->mouse_up += [this](ui::mouse_button_info &p) {
+				if (_sep_dragging && p.button == os::input::mouse_button::primary) {
+					_sep_dragging = false;
+					get_window()->release_mouse_capture();
+				}
 			};
-			_children.add(*_sep);
+			_sep->mouse_move += [this](ui::mouse_move_info &p) {
+				if (_sep_dragging) {
+					rectd client = get_client_region();
+					double position =
+						is_vertical() ?
+						(p.new_position.y - _sep_offset - client.ymin) /
+						(client.height() - _sep->get_actual_size().y) :
+						(p.new_position.x - _sep_offset - client.xmin) /
+						(client.width() - _sep->get_actual_size().x);
+					set_separator_position(position);
+				}
+			};
 		}
 	};
+
 
 	/// Contains information about the user dragging a \ref tab_button.
 	struct tab_drag_info {
@@ -476,31 +350,13 @@ namespace codepad::editor {
 		/// \todo Make this customizable.
 		constexpr static ui::thickness content_padding = ui::thickness(5.0);
 
-		/// Sets the text displayed on the button.
-		void set_text(str_t str) {
-			_content.set_text(std::move(str));
+		/// Sets the label displayed on the button.
+		void set_label(str_t str) {
+			_label->content().set_text(std::move(str));
 		}
-		/// Returns the text curretly displayed on the button.
-		const str_t &get_text() const {
-			return _content.get_text();
-		}
-
-		/// Returns the height of the text.
-		std::pair<double, bool> get_desired_height() const override {
-			return {_content.get_text_size().y + get_padding().height(), true};
-		}
-		/// Returns the desired width.
-		///
-		/// \todo Current method is hacky.
-		std::pair<double, bool> get_desired_width() const override {
-			return {_content.get_text_size().x + _content.get_text_size().y + get_padding().width(), true};
-		}
-
-		/// Returns the height of a \ref tab_button.
-		///
-		/// \todo Remove this.
-		inline static double get_tab_button_area_height() {
-			return ui::content_host::get_default_font()->height() + tab_button::content_padding.height();
+		/// Returns the label curretly displayed on the button.
+		const str_t &get_label() const {
+			return _label->content().get_text();
 		}
 
 		/// Invoked when the ``close'' button is clicked, or when the user presses the tertiary mouse button on the
@@ -513,18 +369,26 @@ namespace codepad::editor {
 		inline static str_t get_default_class() {
 			return CP_STRLIT("tab_button");
 		}
-		/// Returns the default class of the ``close'' button of a \ref tab_button.
-		inline static str_t get_tab_close_button_class() {
-			return CP_STRLIT("tab_close_button");
+
+		/// Returns the role identifier of the label.
+		inline static str_t get_label_role() {
+			return CP_STRLIT("label");
+		}
+		/// Returns the role identifier of the `close' button.
+		inline static str_t get_close_button_role() {
+			return CP_STRLIT("close_button");
 		}
 	protected:
-		ui::content_host _content{*this}; ///< Used to display text on the button.
-		ui::button *_btn; ///< The `close' button.
+		ui::label *_label; ///< Used to display the tab's label.
+		ui::button *_close_btn; ///< The `close' button.
 		vec2d _mdpos; ///< The positon where the user presses the primary mouse button.
 		/// The offset of the \ref tab_button in the ``tabs'' area.
 		///
 		/// \todo Use a more universal method to apply the offset.
 		double _xoffset = 0.0;
+		/// Indicates whether the user has pressed the primary mouse button when hovering over this element and may
+		/// or may not start dragging.
+		bool _predrag = false;
 
 		/// Handles mouse button interactions.
 		///
@@ -532,9 +396,10 @@ namespace codepad::editor {
 		void _on_mouse_down(ui::mouse_button_info &p) override {
 			if (
 				p.button == os::input::mouse_button::primary &&
-				!_btn->is_mouse_over()
+				!_close_btn->is_mouse_over()
 				) {
 				_mdpos = p.position;
+				_predrag = true;
 				ui::manager::get().schedule_update(*this);
 				click.invoke_noret(p);
 			} else if (p.button == os::input::mouse_button::tertiary) {
@@ -545,51 +410,121 @@ namespace codepad::editor {
 
 		/// Checks and starts dragging.
 		void _on_update() override {
-			if (os::input::is_mouse_button_down(os::input::mouse_button::primary)) {
-				vec2d diff = get_window()->screen_to_client(os::input::get_mouse_position()).convert<double>() - _mdpos;
-				if (diff.length_sqr() > drag_pivot * drag_pivot) {
-					start_drag.invoke_noret(get_layout().xmin_ymin() - _mdpos);
+			panel_base::_on_update();
+			if (_predrag) {
+				if (os::input::is_mouse_button_down(os::input::mouse_button::primary)) {
+					vec2d diff =
+						get_window()->screen_to_client(os::input::get_mouse_position()).convert<double>() - _mdpos;
+					if (diff.length_sqr() > drag_pivot * drag_pivot) {
+						_predrag = false;
+						start_drag.invoke_noret(get_layout().xmin_ymin() - _mdpos);
+					} else {
+						ui::manager::get().schedule_update(*this);
+					}
 				} else {
-					ui::manager::get().schedule_update(*this);
+					_predrag = false;
 				}
 			}
 		}
-		/// Renders \ref _content.
-		void _custom_render() override {
-			_content.render();
-			panel_base::_custom_render();
-		}
 
-		/// Sets the width of \ref _btn.
-		///
-		/// \todo Current method is hacky.
-		void _finish_layout() override {
-			_btn->set_width_pixels(get_layout().height() - get_padding().height());
-			panel_base::_finish_layout();
-		}
+		/// Initializes \ref _close_btn.
+		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+			panel_base::_initialize(cls, metrics);
 
-		/// Initializes \ref _btn.
-		void _initialize() override {
-			panel_base::_initialize();
-			_btn = ui::element::create<ui::button>();
-			_btn->set_class(get_tab_close_button_class());
-			_btn->set_anchor(ui::anchor::dock_right);
-			_btn->set_can_focus(false);
-			_btn->click += [this]() {
+			_can_focus = false;
+
+			ui::manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+				{get_label_role(), _role_cast(_label)},
+				{get_close_button_role(), _role_cast(_close_btn)}
+				});
+
+			_close_btn->set_can_focus(false);
+			_close_btn->click += [this]() {
 				request_close.invoke();
 			};
-			_children.add(*_btn);
-			_padding = content_padding;
-			_can_focus = false;
 		}
 	};
 
-	/// Base class of elements used to select the destimation of a \ref tab that's being dragged.
-	class drag_destination_selector : public ui::element {
+	/// Used to select the destimation of a \ref tab that's being dragged.
+	class drag_destination_selector : public ui::panel_base {
 	public:
-		/// Returns the corresponding \ref drag_destination_type given the mouse's position. This function must not
-		/// return \ref drag_destination_type::combine_in_tab.
-		virtual drag_destination_type get_drag_destination(vec2d) const = 0;
+		/// Returns the current \ref drag_destination_type.
+		drag_destination_type get_drag_destination(vec2d) const {
+			return _dest;
+		}
+
+		/// Returns the default class of elements of this type.
+		inline static str_t get_default_class() {
+			return CP_STRLIT("drag_destination_selector");
+		}
+
+		/// Returns the role identifier of the `split left' indicator.
+		inline static str_t get_split_left_indicator_role() {
+			return CP_STRLIT("split_left_indicator");
+		}
+		/// Returns the role identifier of the `split right' indicator.
+		inline static str_t get_split_right_indicator_role() {
+			return CP_STRLIT("split_right_indicator");
+		}
+		/// Returns the role identifier of the `split up' indicator.
+		inline static str_t get_split_up_indicator_role() {
+			return CP_STRLIT("split_up_indicator");
+		}
+		/// Returns the role identifier of the `split down' indicator.
+		inline static str_t get_split_down_indicator_role() {
+			return CP_STRLIT("split_down_indicator");
+		}
+		/// Returns the role identifier of the `combine' indicator.
+		inline static str_t get_combine_indicator_role() {
+			return CP_STRLIT("combine_indicator");
+		}
+	protected:
+		element
+			/// Element indicating that the result should be \ref drag_destination_type::new_panel_left.
+			* _split_left = nullptr,
+			/// Element indicating that the result should be \ref drag_destination_type::new_panel_right.
+			*_split_right = nullptr,
+			/// Element indicating that the result should be \ref drag_destination_type::new_panel_top.
+			*_split_up = nullptr,
+			/// Element indicating that the result should be \ref drag_destination_type::new_panel_bottom.
+			*_split_down = nullptr,
+			/// Element indicating that the result should be \ref drag_destination_type::combine.
+			*_combine = nullptr;
+		/// The current drag destination.
+		drag_destination_type _dest = drag_destination_type::new_window;
+
+		/// Initializes all destination indicators.
+		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+			panel_base::_initialize(cls, metrics);
+
+			ui::manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+				{get_split_left_indicator_role(), _role_cast(_split_left)},
+				{get_split_right_indicator_role(), _role_cast(_split_right)},
+				{get_split_up_indicator_role(), _role_cast(_split_up)},
+				{get_split_down_indicator_role(), _role_cast(_split_down)},
+				{get_combine_indicator_role(), _role_cast(_combine)},
+				});
+
+			set_can_focus(false);
+			set_zindex(ui::zindex::overlay);
+
+			_setup_indicator(*_split_left, drag_destination_type::new_panel_left);
+			_setup_indicator(*_split_right, drag_destination_type::new_panel_right);
+			_setup_indicator(*_split_up, drag_destination_type::new_panel_top);
+			_setup_indicator(*_split_down, drag_destination_type::new_panel_bottom);
+			_setup_indicator(*_combine, drag_destination_type::combine);
+		}
+
+		/// Initializes the given destination indicator.
+		void _setup_indicator(element &elem, drag_destination_type type) {
+			elem.set_can_focus(false);
+			elem.mouse_enter += [this, type]() {
+				_dest = type;
+			};
+			elem.mouse_leave += [this]() {
+				_dest = drag_destination_type::new_window;
+			};
+		}
 	};
 
 	class tab;
@@ -600,11 +535,6 @@ namespace codepad::editor {
 		friend class tab;
 		friend class tab_manager;
 	public:
-		/// This element overrides the layout of its children.
-		bool override_children_layout() const override {
-			return true;
-		}
-
 		/// Adds a \ref tab to the end of the tab list. If there were no tabs in the tab list prior to this
 		/// operation, the newly added tab will be automatically activated.
 		void add_tab(tab&);
@@ -628,12 +558,9 @@ namespace codepad::editor {
 		/// \todo Make the tab regain focus if necessary.
 		void move_tab_before(tab&, tab*);
 
-		/// Returns the region in which \ref tab_button "tab_buttons" are displayed.
-		rectd get_tab_button_region() const {
-			return rectd(
-				_layout.xmin, _layout.xmax, _layout.ymin,
-				_layout.ymin + ui::content_host::get_default_font()->height() + tab_button::content_padding.height()
-			);
+		/// Returns the region that all tab buttons are in.
+		rectd get_tab_buttons_region() const {
+			return _tab_buttons_region->get_layout();
 		}
 
 		/// Returns the total number of tabs in the \ref tab_host.
@@ -645,11 +572,24 @@ namespace codepad::editor {
 		inline static str_t get_default_class() {
 			return CP_STRLIT("tab_host");
 		}
+
+		/// Returns the role identifier of the region that contains all tab buttons.
+		inline static str_t get_tab_buttons_region_role() {
+			return CP_STRLIT("tab_buttons_region");
+		}
+		/// Returns the role identifier of the region that contains tab contents.
+		inline static str_t get_tab_contents_region_role() {
+			return CP_STRLIT("tab_contents_region");
+		}
 	protected:
+		ui::panel
+			*_tab_buttons_region = nullptr, ///< The panel that contains all tab buttons.
+			*_tab_contents_region = nullptr; ///< The panel that contains the contents of all tabs.
+
 		std::list<tab*> _tabs; ///< The list of tabs.
 		/// Iterator to the active tab. This can only be \p end() when there's no tab in \ref _tabs.
 		std::list<tab*>::iterator _active_tab = _tabs.end();
-		/// The \ref drag_destination_selector associated with this \ref tab_host.
+		/// The \ref drag_destination_selector currently attached to this \ref tab_host.
 		drag_destination_selector *_dsel = nullptr;
 
 		/// Sets the associated \ref drag_destination_selector.
@@ -666,14 +606,17 @@ namespace codepad::editor {
 			}
 		}
 
-		/// If the child that's being removed is a \ref tab, removes the associated \ref tab_button and removes the
-		/// entry in \ref _tabs. The situation where the visible tab is removed is also handled.
+		/// Called when a \ref tab's being removed from \ref _tab_contents_region to change the currently active tab
+		/// if necessary.
 		///
 		/// \todo Select a better tab when the active tab is disposed.
-		void _on_child_removing(element*) override;
+		void _on_tab_removing(tab&);
+		/// Called when a \ref tab has been removed from \ref _tab_contents_region, to remove the associated
+		/// \ref tab_button and the corresponding entry in \ref _tabs.
+		void _on_tab_removed(tab&);
 
-		/// Calculates the layout of all \ref tab "tabs".
-		void _finish_layout() override;
+		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.
+		void _initialize(const str_t&, const ui::element_metrics&) override;
 	};
 	/// A tab that contains other elements.
 	class tab : public ui::panel {
@@ -681,12 +624,12 @@ namespace codepad::editor {
 		friend class tab_manager;
 	public:
 		/// Sets the text displayed on the \ref tab_button.
-		void set_caption(str_t s) {
-			_btn->set_text(std::move(s));
+		void set_label(str_t s) {
+			_btn->set_label(std::move(s));
 		}
 		/// Returns the currently displayed text on the \ref tab_button.
-		const str_t &get_caption() const {
-			return _btn->get_text();
+		const str_t &get_label() const {
+			return _btn->get_label();
 		}
 
 		/// Calls \ref tab_host::switch_tab to switch to this tab.
@@ -705,15 +648,7 @@ namespace codepad::editor {
 
 		/// Returns the \ref tab_host that this tab is currently in.
 		tab_host *get_host() const {
-#ifdef CP_CHECK_LOGICAL_ERRORS
-			tab_host *hst = dynamic_cast<tab_host*>(parent());
-			assert_true_logical(
-				(hst == nullptr) == (parent() == nullptr), "parent is not a tab host when get_host() is called"
-			);
-			return hst;
-#else
-			return static_cast<tab_host*>(parent());
-#endif
+			return dynamic_cast<tab_host*>(logical_parent());
 		}
 
 		/// Returns the default class of elements of type \ref tab.
@@ -731,7 +666,7 @@ namespace codepad::editor {
 		}
 
 		/// Initializes \ref _btn.
-		void _initialize() override;
+		void _initialize(const str_t&, const ui::element_metrics&) override;
 		/// Marks \ref _btn for disposal.
 		void _dispose() override {
 			ui::manager::get().mark_disposal(*_btn);
@@ -739,86 +674,6 @@ namespace codepad::editor {
 		}
 	};
 
-	/// A \ref drag_destination_selector similar to that of Visual Studio.
-	///
-	/// \todo Add customizable appearance.
-	/// \todo Document this class when it's finished.
-	class grid_drag_destination_selector : public drag_destination_selector {
-	public:
-		struct region_metrics {
-			double
-				width_left = 30.0, width_center = 30.0, width_right = 30.0,
-				height_top = 30.0, height_center = 30.0, height_bottom = 30.0;
-		};
-		const region_metrics &get_region_metrics() const {
-			return _met;
-		}
-		void set_region_metrics(const region_metrics &rm) {
-			_met = rm;
-			invalidate_visual();
-		}
-
-		drag_destination_type get_drag_destination(vec2d mouse) const override {
-			bool
-				xin = mouse.x > _inner.xmin && mouse.x < _inner.xmax,
-				yin = mouse.y > _inner.ymin && mouse.y < _inner.ymax;
-			if (xin && yin) {
-				return drag_destination_type::combine;
-			}
-			if (yin) {
-				if (mouse.x < _inner.centerx()) {
-					if (mouse.x > _outer.xmin) {
-						return drag_destination_type::new_panel_left;
-					}
-				} else {
-					if (mouse.x < _outer.xmax) {
-						return drag_destination_type::new_panel_right;
-					}
-				}
-			} else if (xin) {
-				if (mouse.y < _inner.centery()) {
-					if (mouse.y > _outer.ymin) {
-						return drag_destination_type::new_panel_top;
-					}
-				} else {
-					if (mouse.y < _outer.ymax) {
-						return drag_destination_type::new_panel_bottom;
-					}
-				}
-			}
-			return drag_destination_type::new_window;
-		}
-
-		inline static str_t get_default_class() {
-			return CP_STRLIT("grid_drag_destination_selector");
-		}
-	protected:
-		region_metrics _met;
-		rectd _inner, _outer;
-
-		void _finish_layout() override {
-			drag_destination_selector::_finish_layout();
-			rectd r = get_layout();
-			_outer = _inner = rectd::from_xywh(
-				r.centerx() - _met.width_center * 0.5, r.centery() - _met.height_center * 0.5,
-				_met.width_center, _met.height_center
-			);
-			_outer.xmin -= _met.width_left;
-			_outer.ymin -= _met.height_top;
-			_outer.xmax += _met.width_right;
-			_outer.ymax += _met.height_bottom;
-		}
-
-		void _custom_render() override {
-			ui::render_batch batch;
-			batch.add_quad(_inner, rectd(), colord(1.0, 1.0, 0.0, 0.5));
-			batch.add_quad(rectd(_outer.xmin, _inner.xmin, _inner.ymin, _inner.ymax), rectd(), colord(0.0, 1.0, 0.0, 0.5));
-			batch.add_quad(rectd(_inner.xmax, _outer.xmax, _inner.ymin, _inner.ymax), rectd(), colord(0.0, 1.0, 0.0, 0.5));
-			batch.add_quad(rectd(_inner.xmin, _inner.xmax, _outer.ymin, _inner.ymin), rectd(), colord(0.0, 1.0, 0.0, 0.5));
-			batch.add_quad(rectd(_inner.xmin, _inner.xmax, _inner.ymax, _outer.ymax), rectd(), colord(0.0, 1.0, 0.0, 0.5));
-			batch.draw(os::texture());
-		}
-	};
 	/// Manages all \ref tab "tabs" and \ref tab_host "tab_hosts".
 	class tab_manager {
 		friend class tab;
@@ -826,7 +681,7 @@ namespace codepad::editor {
 	public:
 		/// Constructor. Initializes \ref _possel.
 		tab_manager() {
-			_possel = ui::element::create<grid_drag_destination_selector>();
+			_possel = ui::manager::get().create_element<drag_destination_selector>();
 		}
 		/// Disposes \ref _possel.
 		~tab_manager() {
@@ -850,10 +705,10 @@ namespace codepad::editor {
 		/// created.
 		tab *new_tab_in(tab_host *host = nullptr) {
 			if (!host) {
-				host = ui::element::create<tab_host>();
+				host = ui::manager::get().create_element<tab_host>();
 				_new_window()->children().add(*host);
 			}
-			tab *t = ui::element::create<tab>();
+			tab *t = ui::manager::get().create_element<tab>();
 			host->add_tab(*t);
 			return t;
 		}
@@ -874,9 +729,6 @@ namespace codepad::editor {
 				ui::manager::get().mark_disposal(*_possel);
 			}
 			_possel = sel;
-			if (_possel) {
-				_possel->set_zindex(ui::element::max_zindex);
-			}
 		}
 		/// Returns the current \ref drag_destination_selector used among all \ref tab_host "tab_hosts".
 		drag_destination_selector *get_drag_destination_selector() const {
@@ -887,13 +739,14 @@ namespace codepad::editor {
 		/// \ref split_panel, and moves the given tab into the other \ref tab_host.
 		///
 		/// \param t The \ref tab.
-		/// \param orient The orientation of the new \ref split_panel.
+		/// \param vertical If \p true, the new tab will be placed above or below old ones. Otherwise they'll be
+		///                 placed side by side.
 		/// \param newfirst If \p true, \p t will be placed in the top/left \ref tab_host while other remaining
 		///                 tabs will be put in the bottom/right \ref tab_host.
-		void split_tab(tab &t, ui::orientation orient, bool newfirst) {
+		void split_tab(tab &t, bool vertical, bool newfirst) {
 			tab_host *host = t.get_host();
 			assert_true_usage(host != nullptr, "cannot split tab without host");
-			_split_tab(*host, t, orient, newfirst);
+			_split_tab(*host, t, vertical, newfirst);
 		}
 		/// Creates a new \ref os::window and a \ref tab_host and moves the given tab into the newly created
 		/// \ref tab_host. The size of the tab will be kept unchanged.
@@ -948,16 +801,16 @@ namespace codepad::editor {
 							if (*it == f) {
 								_wndlist.erase(it);
 								break;
-							}
-						}
-						ui::manager::get().mark_disposal(*f);
 					}
-					ui::manager::get().mark_disposal(**i);
 				}
+						ui::manager::get().mark_disposal(*f);
 			}
-			_changed.clear();
+					ui::manager::get().mark_disposal(**i);
 		}
-		/// Updates the tab that's currently being dragged.
+	}
+			_changed.clear();
+}
+/// Updates the tab that's currently being dragged.
 		void update_drag();
 		/// Calls \ref update_changed_hosts and \ref update_drag to perform necessary updating.
 		void update() {
@@ -1042,7 +895,7 @@ namespace codepad::editor {
 
 		/// Creates a new window and registers necessary event handlers.
 		os::window_base *_new_window() {
-			os::window_base *wnd = ui::element::create<os::window>();
+			os::window_base *wnd = ui::manager::get().create_element<os::window>();
 			_wndlist.emplace_back(wnd);
 			wnd->got_window_focus += [this, wnd]() {
 				// there can't be too many windows... right?
@@ -1067,7 +920,7 @@ namespace codepad::editor {
 		/// Splits the given \ref tab_host into halves, and returns the resulting \ref split_panel. The original
 		/// \ref tab_host will be removed from its parent.
 		split_panel *_replace_with_split_panel(tab_host &hst) {
-			split_panel *sp = ui::element::create<split_panel>(), *f = dynamic_cast<split_panel*>(hst.parent());
+			split_panel *sp = ui::manager::get().create_element<split_panel>(), *f = dynamic_cast<split_panel*>(hst.parent());
 			if (f) {
 				if (f->get_child1() == &hst) {
 					f->set_child1(sp);
@@ -1088,13 +941,13 @@ namespace codepad::editor {
 		/// other half.
 		///
 		/// \sa split_tab
-		void _split_tab(tab_host &host, tab &t, ui::orientation orient, bool newfirst) {
+		void _split_tab(tab_host &host, tab &t, bool vertical, bool newfirst) {
 			_keep_intab_focus keep_focus(t);
 			if (t.get_host() == &host) {
 				host.remove_tab(t);
 			}
 			split_panel *sp = _replace_with_split_panel(host);
-			tab_host *th = ui::element::create<tab_host>();
+			tab_host *th = ui::manager::get().create_element<tab_host>();
 			if (newfirst) {
 				sp->set_child1(th);
 				sp->set_child2(&host);
@@ -1103,7 +956,7 @@ namespace codepad::editor {
 				sp->set_child2(th);
 			}
 			th->add_tab(t);
-			sp->set_orientation(orient);
+			sp->set_is_vertical(vertical);
 		}
 
 		/// Moves the given \ref tab to a new window with the given layout, detaching it from its original parent.
@@ -1114,7 +967,7 @@ namespace codepad::editor {
 				host->remove_tab(t);
 			}
 			os::window_base *wnd = _new_window();
-			tab_host *nhst = ui::element::create<tab_host>();
+			tab_host *nhst = ui::manager::get().create_element<tab_host>();
 			wnd->children().add(*nhst);
 			nhst->add_tab(t);
 			wnd->set_client_size(layout.size().convert<int>());
@@ -1165,7 +1018,7 @@ namespace codepad::editor {
 		template <typename T> inline static void _enumerate_hosts(os::window_base *base, T &&cb) {
 			assert_true_logical(base->children().size() == 1, "window must have only one child");
 			std::vector<ui::element*> hsts;
-			hsts.push_back(*base->children().begin());
+			hsts.push_back(*base->children().items().begin());
 			while (!hsts.empty()) {
 				ui::element *ce = hsts.back();
 				hsts.pop_back();
@@ -1192,6 +1045,8 @@ namespace codepad::editor {
 		/// \param pos The position of the mouse cursor, relative to the area that contains all
 		///            \ref tab_button "tab_buttons"
 		/// \param maxw The width of the area that contains all \ref tab_button "tab_buttons".
+		/// \todo Add tab button transform.
+		/// \todo Support both horizontal and vertical tab lists.
 		void _update_drag_tab_position(double pos, double maxw) const {
 			double
 				halfw = 0.5 * _drag->_btn->get_layout().width(),
