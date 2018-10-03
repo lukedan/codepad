@@ -82,6 +82,36 @@ namespace codepad {
 					CoUninitialize();
 				}
 			};
+
+			/// Converts the given null-terminated UTF-16 string to UTF-8 with the \p WideCharToMultiByte function.
+			inline std::string wstring_to_utf8(LPCWSTR str) {
+				int len = WideCharToMultiByte(CP_UTF8, 0, str, -1, nullptr, 0, nullptr, nullptr);
+				assert_true_sys(len != 0, "failed to convert utf16 string to utf8");
+				std::string res;
+				res.resize(static_cast<size_t>(len));
+				assert_true_sys(
+					WideCharToMultiByte(CP_UTF8, 0, str, -1, res.data(), len, nullptr, nullptr) == len,
+					"failed to convert utf16 string to utf8"
+				);
+				return res;
+			}
+			/// Converts the given null-terminated UTF-8 string to UTF-16 with the \p MultiByteToWideChar function.
+			inline std::basic_string<WCHAR> utf8_to_wstring(const char *str) {
+				int chars = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
+				assert_true_sys(chars != 0, "failed to convert utf8 string to utf16");
+				std::basic_string<WCHAR> res;
+				res.resize(static_cast<size_t>(chars) * 2); // 2 words per char max
+				assert_true_sys(
+					MultiByteToWideChar(CP_UTF8, 0, str, -1, res.data(), chars) == chars,
+					"failed to convert utf16 string to utf8"
+				);
+				// find the ending of the string
+				auto it = res.begin() + chars;
+				for (; it != res.end() && *it != 0; ++it) {
+				}
+				res.erase(it, res.end());
+				return res;
+			}
 		}
 
 		struct wic_image_loader {

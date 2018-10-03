@@ -17,10 +17,10 @@
 #include "../ui/native_commands.h"
 #include "../ui/visual.h"
 #include "../editors/tabs.h"
+#include "../editors/buffer_manager.h"
 #include "../editors/code/components.h"
 #include "../editors/code/editor.h"
 #include "../editors/code/document_formatting_cache.h"
-#include "../editors/code/document_manager.h"
 
 using namespace std;
 
@@ -34,7 +34,7 @@ namespace codepad {
 
 	double minimap::_target_height = 2.0;
 
-	std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;
+	/*std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;*/
 
 
 	chrono::high_resolution_clock::time_point get_app_epoch() {
@@ -62,7 +62,7 @@ namespace codepad {
 
 		// initialization steps below need to be associated with settings some time
 
-		document_formatting_cache::enable();
+		/*document_formatting_cache::enable();*/
 	}
 
 
@@ -204,13 +204,17 @@ namespace codepad {
 			static _global_wrapper<tab_manager> _v;
 			return _v.object;
 		}
+		buffer_manager &buffer_manager::get() {
+			static _global_wrapper<buffer_manager> _v;
+			return _v.object;
+		}
 		namespace code {
 			editor::_appearance_config &editor::_get_appearance() {
 				static _global_wrapper<_appearance_config> _v;
 				return _v.object;
 			}
-			document_manager &document_manager::get() {
-				static _global_wrapper<document_manager> _v;
+			encoding_manager &encoding_manager::get() {
+				static _global_wrapper<encoding_manager> _v;
 				return _v.object;
 			}
 		}

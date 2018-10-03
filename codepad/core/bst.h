@@ -29,7 +29,15 @@ namespace codepad {
 	};
 	/// A struct indicating that no default synthesizer is specified for a \ref binary_tree, and that all methods
 	/// that rely on a default synthesizer should fail to instantiate.
+	struct lacks_synthesizer {
+	};
+	/// A struct indicating that no synthesization should be performed during all \ref binary_tree operations. This
+	/// differs from \ref lacks_synthesizer in that \ref lacks_synthesizer will force the user to specify another
+	/// synthesizer.
 	struct no_synthesizer {
+		/// Empty. This function provides the interface necessary for \ref binary_tree.
+		template <typename Node> void operator()(Node&&) const {
+		}
 	};
 	/// Inserts or searches for a node in a tree as if it were a binary search tree.
 	///
@@ -136,8 +144,8 @@ namespace codepad {
 	/// \tparam T Type of the data held by the tree's nodes.
 	/// \tparam AdditionalData Type of additional data held by the nodes.
 	/// \tparam Synth Provides operator() to calculate \ref binary_tree_node::synth_data. If this is
-	///               \ref no_synthesizer, then there will be no default synthesizer and all methods that make use of
-	///               it will be disabled.
+	///               \ref lacks_synthesizer, then there will be no default synthesizer and all methods that make use
+	///               of it will be disabled.
 	/// \sa binary_tree_node
 	/// \todo Maybe switch to red-black tree?
 	template <
@@ -214,7 +222,7 @@ namespace codepad {
 		///
 		/// \tparam Const \p true for \ref const_iterator, \p false for \ref iterator.
 		template <bool Const> struct iterator_base {
-			friend struct binary_tree<T, AdditionalData, Synth>;
+			friend binary_tree<T, AdditionalData, Synth>;
 		public:
 			using value_type = decltype(node::value);
 			using reference = std::conditional_t<Const, const value_type&, value_type&>;
@@ -747,8 +755,7 @@ namespace codepad {
 			refresh_synthesized_result(f, std::forward<MySynth>(synth));
 			return next;
 		}
-		/// \ref erase(node*, MySynth&&) with the default synthesizer. Template parameter \p Synth must not be
-		/// \ref no_synthesizer.
+		/// \ref erase(node*, MySynth&&) with the default synthesizer.
 		node *erase(node *n) {
 			return erase(n, _root.synth);
 		}
@@ -1311,7 +1318,7 @@ namespace codepad {
 			}
 		};
 
-		/// Obtains the sum of all nodes before, and not including, the given node for all given properties.
+		/// Obtains the sum of all nodes before (not including) the given node for all given properties.
 		///
 		/// \param it Iterator to the node.
 		/// \param args Variables where the results are stored. The caller is responsible of initializing these

@@ -23,8 +23,8 @@ namespace codepad::os {
 	};
 	/// Base class of all windows. Defines basic interfaces that all windows should implement.
 	class window_base : public ui::panel {
-		friend class ui::element_collection;
-		friend class ui::decoration;
+		friend ui::element_collection;
+		friend ui::decoration;
 	public:
 		/// Sets the caption of the window.
 		virtual void set_caption(const str_t&) = 0;

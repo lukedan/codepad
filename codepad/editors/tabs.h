@@ -532,7 +532,7 @@ namespace codepad::editor {
 	/// \ref tab_button "tab_buttons" of all available \ref tab "tabs" and a region that displays the currently
 	/// selected tab.
 	class tab_host : public ui::panel_base {
-		friend class tab;
+		friend tab;
 		friend class tab_manager;
 	public:
 		/// Adds a \ref tab to the end of the tab list. If there were no tabs in the tab list prior to this
@@ -620,7 +620,7 @@ namespace codepad::editor {
 	};
 	/// A tab that contains other elements.
 	class tab : public ui::panel {
-		friend class tab_host;
+		friend tab_host;
 		friend class tab_manager;
 	public:
 		/// Sets the text displayed on the \ref tab_button.
@@ -676,8 +676,8 @@ namespace codepad::editor {
 
 	/// Manages all \ref tab "tabs" and \ref tab_host "tab_hosts".
 	class tab_manager {
-		friend class tab;
-		friend class tab_host;
+		friend tab;
+		friend tab_host;
 	public:
 		/// Constructor. Initializes \ref _possel.
 		tab_manager() {

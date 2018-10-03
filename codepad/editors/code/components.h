@@ -54,11 +54,11 @@ namespace codepad::editor::code {
 			for (size_t curi = fline; curi < eline; ++curi, cury += lh) {
 				size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
 				auto lineinfo = fmt.get_linebreaks().get_line_info(line);
-				if (lineinfo.first.entry == edt.get_document()->get_linebreak_registry().end()) {
+				if (lineinfo.first.entry == edt.get_document()->get_linebreaks().end()) {
 					break; // when after the end of the document
 				}
 				if (lineinfo.first.first_char >= lineinfo.second.prev_chars) { // ignore soft linebreaks
-					str_t curlbl = to_str(1 + line - lineinfo.second.prev_softbreaks);
+					str_t curlbl = std::to_string(1 + line - lineinfo.second.prev_softbreaks);
 					double w = ui::text_renderer::measure_plain_text(curlbl, editor::get_font().normal).x;
 					ui::text_renderer::render_plain_text(
 						curlbl, editor::get_font().normal,

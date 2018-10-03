@@ -243,10 +243,10 @@ namespace codepad::ui {
 		/// is returned.
 		///
 		/// \todo Implement ways to register transition functions.
-		const std::function<double(double)> *try_get_transition_func(const str_t &name) const {
+		transition_function try_get_transition_func(const str_t &name) const {
 			auto it = _transfunc_map.find(name);
 			if (it != _transfunc_map.end()) {
-				return &it->second;
+				return it->second;
 			}
 			return nullptr;
 		}
@@ -301,7 +301,7 @@ namespace codepad::ui {
 		/// Registry of constructors of all element types.
 		std::map<str_t, element_constructor> _ctor_map;
 		/// Mapping from names to transition functions.
-		std::map<str_t, std::function<double(double)>> _transfunc_map;
+		std::map<str_t, transition_function> _transfunc_map;
 		/// Mapping from state names to state IDs.
 		std::map<str_t, element_state_info> _stateid_map;
 		/// Mapping from state IDs to state names.

@@ -99,18 +99,6 @@ namespace codepad::os {
 		OCR_SIZEWE
 	};
 
-	string _wstring_to_utf8(LPCWSTR str, size_t length) {
-		string res;
-		int len = WideCharToMultiByte(CP_UTF8, 0, str, static_cast<int>(length), nullptr, 0, nullptr, nullptr);
-		assert_true_sys(len != 0, "failed to convert wide string to utf8");
-		res.resize(static_cast<size_t>(len));
-		assert_true_sys(
-			WideCharToMultiByte(CP_UTF8, 0, str, static_cast<int>(length), &res[0], len, nullptr, nullptr) == len,
-			"failed to convert wide string to utf8"
-		);
-		return res;
-	}
-
 	inline bool _get_key_state(int key) {
 		return (GetKeyState(key) & 0x8000) != 0;
 	}
@@ -179,23 +167,34 @@ namespace codepad::os {
 					return TRUE;
 				}
 				if (wparam != VK_BACK && wparam != VK_ESCAPE) {
-					_form_onevent<ui::text_info>(
-						*form, &window::_on_keyboard_text,
-						wparam == VK_RETURN ?
-						CP_STRLIT("\n") :
-						default_encoding::encode_codepoint(static_cast<char32_t>(wparam))
-						);
+					str_t content;
+					if (wparam == VK_RETURN) {
+						content = CP_STRLIT("\n");
+					} else {
+						content = reinterpret_cast<const char*>(
+							encodings::utf8::encode_codepoint(static_cast<codepoint>(wparam)).c_str()
+							);
+					}
+					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, content);
 				}
 				return FALSE;
 			case WM_CHAR:
 				if (wparam != VK_BACK && wparam != VK_ESCAPE) {
-					uint16_t *ptr = reinterpret_cast<uint16_t*>(&wparam);
-					char32_t res;
-					utf16<uint16_t>::next_codepoint(ptr, ptr + 2, res);
-					_form_onevent<ui::text_info>(
-						*form, &window::_on_keyboard_text,
-						wparam == VK_RETURN ? CP_STRLIT("\n") : default_encoding::encode_codepoint(res)
-						);
+					str_t content;
+					if (wparam == VK_RETURN) {
+						content = CP_STRLIT("\n");
+					} else {
+						const std::byte *ptr = reinterpret_cast<const std::byte*>(&wparam);
+						codepoint res;
+						if (!encodings::utf16<>::next_codepoint(ptr, ptr + 4, res)) {
+							logger::get().log_warning( // TODO check if this will ever be triggered
+								CP_HERE, "invalid UTF-16 codepoint, possible faulty windows message handling"
+							);
+							return 0;
+						}
+						content = reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(res).c_str());
+					}
+					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, content);
 				}
 				return 0;
 
@@ -315,7 +314,7 @@ namespace codepad::os {
 						if (!str.empty()) {
 							_form_onevent<ui::composition_info>(
 								*form, &window::_on_composition,
-								convert_to_default_encoding(_wstring_to_utf8(str.c_str(), str.length()))
+								_details::wstring_to_utf8(str.c_str())
 								);
 						}
 					}
@@ -323,7 +322,7 @@ namespace codepad::os {
 						if (!str.empty()) {
 							_form_onevent<ui::text_info>(
 								*form, &window::_on_keyboard_text,
-								convert_to_default_encoding(_wstring_to_utf8(str.c_str(), str.length()))
+								_details::wstring_to_utf8(str.c_str())
 								);
 						}
 					}
@@ -364,7 +363,7 @@ namespace codepad::os {
 				window *form = reinterpret_cast<window*>(GetWindowLongPtr(msg.hwnd, GWLP_USERDATA));
 				if (form && form->hotkey_manager.on_key_down(key_gesture(
 					input::_details::_key_id_backmapping.v[msg.wParam], _get_modifiers()
-				))) {
+					))) {
 					return true;
 				}
 			}
@@ -588,12 +587,10 @@ namespace codepad {
 			DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
 			string func = "??", file = func, line = func;
 			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
-				const char16_t *funcstr = reinterpret_cast<const char16_t*>(syminfo->Name);
-				func = convert_encoding<string>(funcstr, funcstr + get_unit_count(funcstr));
+				func = os::_details::wstring_to_utf8(syminfo->Name);
 			}
 			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
-				const char16_t *fnstr = reinterpret_cast<const char16_t*>(lineinfo.FileName);
-				file = convert_encoding<string>(fnstr, fnstr + get_unit_count(fnstr));
+				file = os::_details::wstring_to_utf8(lineinfo.FileName);
 				line = to_string(lineinfo.LineNumber);
 			}
 			log_custom("    ", func, "(0x", frames[i], ") @", file, ":", line);

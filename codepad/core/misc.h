@@ -757,16 +757,15 @@ namespace codepad {
 
 	/// Gathers bits from a string and returns the result. Each bit is represented by a character.
 	///
-	/// \param list A list of char-bit relationship.
+	/// \param list A list of character-bit relationships.
 	/// \param str The string to gather bits from.
 	template <typename T, typename C> inline T get_bitset_from_string(
 		std::initializer_list<std::pair<C, T>> list, const std::basic_string<C> &str
 	) {
 		T result{};
-		codepoint_iterator_base<typename std::basic_string<C>::const_iterator> it(str.begin(), str.end());
-		for (; !it.at_end(); it.next()) {
+		for (C c : str) {
 			for (auto j = list.begin(); j != list.end(); ++j) {
-				if (*it == static_cast<char32_t>(j->first)) {
+				if (c == j->first) {
 					set_bits(result, j->second);
 					break;
 				}

@@ -10,95 +10,6 @@ using namespace codepad::ui;
 using namespace codepad::os;
 
 namespace codepad::editor::code {
-	void editor::set_document(shared_ptr<document> nctx) {
-		if (_doc) {
-			_doc->modified -= _ctx_mod_tok;
-			_doc->visual_changed -= _ctx_vis_change_tok;
-		}
-		_doc = move(nctx);
-		_cset.reset();
-		if (_doc) {
-			_ctx_mod_tok = (_doc->modified += [this](modification_info &info) {
-				_on_content_modified(info);
-				});
-			_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
-				_on_content_visual_changed();
-				});
-			_fmt = _doc->create_view_formatting();
-		} else { // empty document, only used when the editor's being disposed
-			_fmt = view_formatting();
-		}
-		_on_context_switch();
-	}
-
-	/// \todo Cannot deal with very long lines.
-	void editor::_custom_render() {
-		performance_monitor mon(CP_HERE);
-
-		double lh = get_line_height(), layoutw = get_layout().width();
-		pair<size_t, size_t> be = get_visible_lines();
-		caret_set::container ncon;
-		const caret_set::container *used = &_cset.carets;
-		if (_selecting) { // when selecting, use temporarily merged caret set for rendering
-			ncon = *used;
-			used = &ncon;
-			caret_set::add_caret(
-				ncon, {{_mouse_cache.position, _sel_end}, caret_data(0.0, _mouse_cache.at_back)}
-			);
-		}
-		font_family::baseline_info bi = get_font().get_baseline_info();
-
-		rectd client = get_client_region();
-		renderer_base::get().push_matrix(matd3x3::translate(vec2d(
-			round(client.xmin),
-			round(
-				client.ymin - _get_box()->get_vertical_position() +
-				static_cast<double>(_fmt.get_folding().unfolded_to_folded_line_number(be.first)) * lh
-			)
-		)));
-		{ // matrix pushed
-			auto flineinfo = _fmt.get_linebreaks().get_beginning_char_of_visual_line(be.first);
-			size_t
-				firstchar = flineinfo.first,
-				plastchar = _fmt.get_linebreaks().get_beginning_char_of_visual_line(be.second).first;
-			rendering_iterator<view_formatter, caret_renderer> it(
-				make_tuple(cref(_fmt), firstchar),
-				make_tuple(cref(*used), firstchar, flineinfo.second == linebreak_type::soft),
-				make_tuple(cref(*this), firstchar, plastchar)
-			);
-			const font_family &fnt = get_font();
-			for (it.begin(); !it.ended(); it.next()) {
-				const character_rendering_iterator &cri = it.char_iter();
-				if (!cri.is_hard_line_break()) {
-					const character_metrics_accumulator &lci = cri.character_info();
-					const text_theme_data::char_iterator &ti = cri.theme_info();
-					if (is_graphical_char(lci.current_char())) { // render character
-						if (lci.char_left() + lci.current_char_entry().placement.xmin < layoutw) {
-							// only render characters that are visible
-							fnt.get_by_style(ti.current_theme.style)->draw_character(
-								cri.character_info().current_char(),
-								vec2d(lci.char_left(), cri.y_offset() + bi.get(ti.current_theme.style)),
-								ti.current_theme.color
-							);
-						}
-					}
-				}
-			}
-			// render carets
-			caret_renderer &caretrend = it.get_addon<caret_renderer>();
-			caretrend.finish(it.char_iter());
-			for (const auto &selrgn : caretrend.get_selection_rects()) {
-				for (const auto &rgn : selrgn) {
-					_sel_cfg.render(rgn);
-				}
-			}
-			for (const rectd &rgn : it.get_addon<caret_renderer>().get_caret_rects()) {
-				_caret_cfg.render(rgn);
-			}
-		}
-		renderer_base::get().pop_matrix();
-	}
-
 	/// \todo Also consider folded regions.
 	vector<size_t> editor::_recalculate_wrapping_region(size_t beg, size_t end) const {
 		/*rendering_iterator<fold_region_skipper> it(
@@ -144,6 +55,7 @@ namespace codepad::editor::code {
 		return poss;*/
 		return {};
 	}
+
 	double editor::_get_caret_pos_x_unfolded_linebeg(size_t line, size_t position) const {
 		size_t begc = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line).first;
 		rendering_iterator<fold_region_skipper> iter(
@@ -159,7 +71,7 @@ namespace codepad::editor::code {
 		size_t begc = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line).first;
 		rendering_iterator<view_formatter> iter(
 			make_tuple(cref(_fmt), begc),
-			make_tuple(cref(*this), begc, _doc->num_chars())
+			make_tuple(cref(*this), begc, _doc->get_linebreaks().num_chars())
 		);
 		bool stop = false;
 		caret_position result;
@@ -194,35 +106,84 @@ namespace codepad::editor::code {
 		return stop ? result : caret_position(iter.char_iter().current_position(), true);
 	}
 
-	void editor::_on_content_modified(modification_info &mi) {
+	void editor::_on_end_edit(buffer::end_edit_info &info) {
 		// fixup view
+		_fmt.fixup_after_edit(info, *_doc);
 		// TODO improve performance
-		_fmt.fixup_folding_positions(mi.caret_fixup);
-		_fmt.set_softbreaks(_recalculate_wrapping_region(0, _doc->num_chars()));
+		_fmt.set_softbreaks(_recalculate_wrapping_region(0, _doc->get_linebreaks().num_chars()));
 
-		if (mi.source != this) { // fixup carets
-			caret_fixup_info::context cctx(mi.caret_fixup);
-			caret_set nset;
-			for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
-				bool cfront = i->first.first < i->first.second;
-				caret_selection cs(i->first.first, i->first.second);
-				if (!cfront) {
-					swap(cs.first, cs.second);
-				}
-				cs.first = mi.caret_fixup.fixup_position_max(cs.first, cctx);
-				cs.second = mi.caret_fixup.fixup_position_min(cs.second, cctx);
-				if (cs.first > cs.second) {
-					cs.second = cs.first;
-				}
-				if (!cfront) {
-					swap(cs.first, cs.second);
-				}
-				nset.add(caret_set::entry(cs, caret_data(0.0, i->second.softbreak_next_line)));
-			}
-			set_carets(std::move(nset));
+		if (info.source_element != this) { // fixup carets
+			_adjust_recalculate_caret_char_positions(info);
 		}
 
 		content_modified.invoke();
 		_on_content_visual_changed();
+	}
+
+	void editor::_custom_render() {
+		performance_monitor mon(CP_HERE);
+
+		double lh = get_line_height(), layoutw = get_layout().width();
+		pair<size_t, size_t> be = get_visible_lines();
+		caret_set::container ncon;
+		const caret_set::container *used = &_cset.carets;
+		if (_selecting) { // when selecting, use temporarily merged caret set for rendering
+			ncon = *used;
+			used = &ncon;
+			caret_set::add_caret(
+				ncon, {{_mouse_cache.position, _sel_end}, caret_data(0.0, _mouse_cache.at_back)}
+			);
+		}
+		font_family::baseline_info bi = get_font().get_baseline_info();
+
+		rectd client = get_client_region();
+		renderer_base::get().push_matrix(matd3x3::translate(vec2d(
+			round(client.xmin),
+			round(
+			client.ymin - _get_box()->get_vertical_position() +
+			static_cast<double>(_fmt.get_folding().unfolded_to_folded_line_number(be.first)) * lh
+		)
+		)));
+		{ // matrix pushed
+			auto flineinfo = _fmt.get_linebreaks().get_beginning_char_of_visual_line(be.first);
+			size_t
+				firstchar = flineinfo.first,
+				plastchar = _fmt.get_linebreaks().get_beginning_char_of_visual_line(be.second).first;
+			rendering_iterator<view_formatter, caret_renderer> it(
+				make_tuple(cref(_fmt), firstchar),
+				make_tuple(cref(*used), firstchar, flineinfo.second == linebreak_type::soft),
+				make_tuple(cref(*this), firstchar, plastchar)
+			);
+			const font_family &fnt = get_font();
+			for (it.begin(); !it.ended(); it.next()) {
+				const character_rendering_iterator &cri = it.char_iter();
+				if (!cri.is_hard_line_break()) {
+					const character_metrics_accumulator &lci = cri.character_info();
+					const text_theme_data::char_iterator &ti = cri.theme_info();
+					if (is_graphical_char(lci.current_char())) { // render character
+						if (lci.char_left() + lci.current_char_entry().placement.xmin < layoutw) {
+							// only render characters that are visible
+							fnt.get_by_style(ti.current_theme.style)->draw_character(
+								cri.character_info().current_char(),
+								vec2d(lci.char_left(), cri.y_offset() + bi.get(ti.current_theme.style)),
+								ti.current_theme.color
+							);
+						}
+					}
+				}
+			}
+			// render carets
+			caret_renderer &caretrend = it.get_addon<caret_renderer>();
+			caretrend.finish(it.char_iter());
+			for (const auto &selrgn : caretrend.get_selection_rects()) {
+				for (const auto &rgn : selrgn) {
+					_sel_cfg.render(rgn);
+				}
+			}
+			for (const rectd &rgn : it.get_addon<caret_renderer>().get_caret_rects()) {
+				_caret_cfg.render(rgn);
+			}
+		}
+		renderer_base::get().pop_matrix();
 	}
 }

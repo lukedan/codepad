@@ -35,36 +35,6 @@ namespace codepad {
 
 		control_shift_alt_super = control | shift | alt | super ///< Control + Shift + Alt + Super.
 	};
-	/// Obtains the text representation of a \ref modifier_keys enumeration.
-	template <> inline str_t to_str<modifier_keys>(modifier_keys mk) {
-		str_t ss;
-		bool first = true;
-		if (test_bits_all(mk, modifier_keys::control)) {
-			ss.append(CP_STRLIT("Control"));
-			first = false;
-		}
-		if (test_bits_all(mk, modifier_keys::shift)) {
-			if (first) {
-				ss.append(CP_STRLIT("+"));
-				first = false;
-			}
-			ss.append(CP_STRLIT("Shift"));
-		}
-		if (test_bits_all(mk, modifier_keys::alt)) {
-			if (first) {
-				ss.append(CP_STRLIT("+"));
-				first = false;
-			}
-			ss.append(CP_STRLIT("Alt"));
-		}
-		if (test_bits_all(mk, modifier_keys::super)) {
-			if (first) {
-				ss.append(CP_STRLIT("+"));
-			}
-			ss.append(CP_STRLIT("Super"));
-		}
-		return ss;
-	}
 	/// A key gesture, corresponds to one key stroke with or without modifier keys.
 	struct key_gesture {
 		/// Default contructor.
@@ -216,7 +186,7 @@ namespace codepad {
 	public:
 		/// Struct used to keep track of user input and find corresponding hotkeys.
 		struct state {
-			friend class hotkey_group;
+			friend hotkey_group;
 		public:
 			/// Default constructor.
 			state() = default;

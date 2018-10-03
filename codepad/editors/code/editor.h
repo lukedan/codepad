@@ -6,7 +6,7 @@
 #include <memory>
 
 #include "../../core/bst.h"
-#include "document.h"
+#include "caret_set.h"
 #include "view.h"
 #include "codebox.h"
 
@@ -102,10 +102,33 @@ namespace codepad::editor::code {
 			/// \todo Use system default.
 			dragdrop_distance = 5.0;
 
-		/// Sets the \ref document displayed by the editor.
-		void set_document(std::shared_ptr<document>);
-		/// Returns the \ref document currently bound to this editor.
-		const std::shared_ptr<document> &get_document() const {
+		/// Sets the \ref interpretation displayed by the editor.
+		void set_document(std::shared_ptr<interpretation> newdoc) {
+			if (_doc) {
+				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
+				_doc->end_edit_interpret -= _end_edit_tok;
+				/*_doc->visual_changed -= _ctx_vis_change_tok;*/
+			}
+			_doc = move(newdoc);
+			_cset.reset();
+			if (_doc) {
+				_begin_edit_tok = (_doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
+					_on_begin_edit(info);
+					});
+				_end_edit_tok = (_doc->end_edit_interpret += [this](buffer::end_edit_info &info) {
+					_on_end_edit(info);
+					});
+				/*_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
+					_on_content_visual_changed();
+					});
+				_fmt = _doc->create_view_formatting();*/
+			} else { // empty document, only used when the editor's being disposed
+				_fmt = view_formatting();
+			}
+			_on_switch_document();
+		}
+		/// Returns the \ref interpretation currently bound to this editor.
+		const std::shared_ptr<interpretation> &get_document() const {
 			return _doc;
 		}
 
@@ -261,32 +284,30 @@ namespace codepad::editor::code {
 			set_insert_mode(!_insert);
 		}
 
-		/// Reverts the last editing action. The actions are shared among all views. The caller must check to
-		/// guarantee that such actions are available.
-		void undo() {
-			_doc->undo(this);
+		/// Calls \ref interpretation::on_backspace() with the current set of carets.
+		void on_backspace() {
+			_doc->on_backspace(_cset, this);
 		}
-		/// Recovers the last reverted action. The actions are shared among all views. The caller must check to
-		/// guarantee that such actions are available.
-		void redo() {
-			_doc->redo(this);
+		/// Calls \ref interpretation::on_delete() with the current set of carets.
+		void on_delete() {
+			_doc->on_delete(_cset, this);
 		}
-		/// Checks if there are editing actions available for undo'ing, and calls \ref undo if there is.
+		/// Checks if there are editing actions available for undo-ing, and calls \ref undo if there is.
 		///
 		/// \return \p true if an action has been reverted.
 		bool try_undo() {
-			if (_doc->can_undo()) {
-				undo();
+			if (_doc->get_buffer()->can_undo()) {
+				_doc->get_buffer()->undo(this);
 				return true;
 			}
 			return false;
 		}
-		/// Checks if there are editing actions available for redo'ing, and calls \ref redo if there is.
+		/// Checks if there are editing actions available for redo-ing, and calls \ref redo if there is.
 		///
 		/// \return \p true if an action has been restored.
 		bool try_redo() {
-			if (_doc->can_redo()) {
-				redo();
+			if (_doc->get_buffer()->can_redo()) {
+				_doc->get_buffer()->redo(this);
 				return true;
 			}
 			return false;
@@ -322,8 +343,8 @@ namespace codepad::editor::code {
 				static_cast<size_t>(std::max(0.0, top / lh))
 			), std::min(
 				_fmt.get_folding().folded_to_unfolded_line_number(
-					static_cast<size_t>(std::max(0.0, bottom / lh)) + 1
-				),
+				static_cast<size_t>(std::max(0.0, bottom / lh)) + 1
+			),
 				_fmt.get_linebreaks().num_visual_lines()
 			));
 		}
@@ -435,10 +456,10 @@ namespace codepad::editor::code {
 			move_carets([this](const caret_set::entry &et) {
 				return std::make_pair(
 					_fmt.get_linebreaks().get_beginning_char_of_visual_line(
-						_fmt.get_folding().get_beginning_line_of_folded_lines(
-							_get_line_of_caret(caret_position(et))
-						)
-					).first, true
+					_fmt.get_folding().get_beginning_line_of_folded_lines(
+					_get_line_of_caret(caret_position(et))
+				)
+				).first, true
 				);
 				}, continueselection);
 		}
@@ -459,11 +480,11 @@ namespace codepad::editor::code {
 						std::numeric_limits<size_t>::max() :
 						linfo.second.prev_chars + linfo.second.entry->length;
 					for (
-						auto cit = _doc->at_char(begp);
+						auto cit = _doc->at_character(begp);
 						!cit.is_linebreak() && (
-							cit.current_character() == ' ' || cit.current_character() == '\t'
-							) && exbegp < nextsb;
-						++cit, ++exbegp
+						cit.codepoint().get_codepoint() == ' ' || cit.codepoint().get_codepoint() == '\t'
+						) && exbegp < nextsb;
+						cit.next(), ++exbegp
 						) {
 					}
 					auto finfo = _fmt.get_folding().find_region_containing_open(exbegp);
@@ -484,10 +505,10 @@ namespace codepad::editor::code {
 			move_carets([this](caret_set::entry cp) {
 				return std::make_pair(
 					_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
-						_fmt.get_folding().get_past_ending_line_of_folded_lines(
-							_get_line_of_caret(caret_position(cp))
-						) - 1
-					).first, caret_data(std::numeric_limits<double>::max(), false)
+					_fmt.get_folding().get_past_ending_line_of_folded_lines(
+					_get_line_of_caret(caret_position(cp))
+				) - 1
+				).first, caret_data(std::numeric_limits<double>::max(), false)
 				);
 				}, continueselection);
 		}
@@ -500,35 +521,6 @@ namespace codepad::editor::code {
 				);
 			}
 			set_carets_keepdata(std::move(ns));
-		}
-
-		/// For each caret, if there is a selection, the contents of the selection is removed; otherwise, the
-		/// character before the caret is removed.
-		void delete_selection_or_char_before() {
-			if (
-				_cset.carets.size() > 1 ||
-				_cset.carets.begin()->first.first != _cset.carets.begin()->first.second ||
-				_cset.carets.begin()->first.first != 0
-				) { // check in advance so that no empty edits are recorded
-				_context_modifier_rsrc it(*this);
-				for (const auto &caret : _cset.carets) {
-					it->on_backspace(caret.first);
-				}
-			}
-		}
-		/// For each caret, if there is a selection, the contents of the selection is removed; otherwise, the
-		/// character after the caret is removed.
-		void delete_selection_or_char_after() {
-			if (
-				_cset.carets.size() > 1 ||
-				_cset.carets.begin()->first.first != _cset.carets.begin()->first.second ||
-				_cset.carets.begin()->first.first != _doc->num_chars()
-				) { // check in advance so that no empty edits are recorded
-				_context_modifier_rsrc it(*this);
-				for (const auto &caret : _cset.carets) {
-					it->on_delete(caret.first);
-				}
-			}
 		}
 
 		event<void>
@@ -584,9 +576,10 @@ namespace codepad::editor::code {
 			return CP_STRLIT("editor_selection");
 		}
 	protected:
-		std::shared_ptr<document> _doc; ///< The \ref document bound to this editor.
+		std::shared_ptr<interpretation> _doc; ///< The \ref interpretation bound to this editor.
 		event<void>::token _ctx_vis_change_tok; ///< Token used when handling \ref document::visual_changed.
-		event<modification_info>::token _ctx_mod_tok; ///< Token used when handling \ref document::modified.
+		event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
+		event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
 
 		caret_set _cset; ///< The set of carets.
 		vec2d _predrag_pos; ///< The position where the user presses the left mouse button.
@@ -612,6 +605,8 @@ namespace codepad::editor::code {
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
 
 		/// Contains additional configuration of editors' appearance.
+		///
+		/// \todo Make this into a setting?
 		struct _appearance_config {
 			ui::font_family family; ///< The \ref ui::font_family used to display text.
 		};
@@ -623,40 +618,6 @@ namespace codepad::editor::code {
 		codebox *_get_box() const {
 			return dynamic_cast<codebox*>(logical_parent());
 		}
-
-		/// Used to make modifications to the associated \ref document. This struct automatically starts the
-		/// edit when constructed, and registers and disposes it when disposed.
-		struct _context_modifier_rsrc {
-		public:
-			/// Starts editing the \ref document associated with the given \ref editor. If the user is currently
-			/// making selections using the mouse, the process is interrupted using \ref _end_mouse_selection.
-			explicit _context_modifier_rsrc(editor &cb) : _rsrc(*cb.get_document()), _editor(&cb) {
-				if (cb._selecting) {
-					cb._end_mouse_selection();
-				}
-			}
-			/// Calls \ref document_modifier::finish_edit to record the edit, and updates the carets of
-			/// \ref _editor.
-			~_context_modifier_rsrc() {
-				_rsrc.finish_edit(_editor);
-			}
-
-			/// Used to access the underlying \ref document_modifier.
-			document_modifier *operator->() {
-				return &_rsrc;
-			}
-			/// Returns the underlying \ref document_modifier.
-			document_modifier &get() {
-				return _rsrc;
-			}
-			/// Used to access the underlying \ref document_modifier.
-			document_modifier &operator*() {
-				return get();
-			}
-		protected:
-			document_modifier _rsrc; ///< The underlying \ref document_modifier.
-			editor *_editor = nullptr; ///< The associated editor.
-		};
 
 		/// Returns the line that the given caret is on, with wrapping considered. Folding is not taken into account,
 		/// so callers may need to consult with <tt>_fmt.get_folding()</tt>.
@@ -747,12 +708,18 @@ namespace codepad::editor::code {
 			return hit_test_for_caret(vec2d(pos.x, pos.y + _get_box()->get_vertical_position()));
 		}
 
-		/// Called when \ref document::modified of \ref _doc is triggered. Performs necessary adjustments to
-		/// the view, invokes \ref content_modified, then calls \ref _on_content_visual_changed.
-		void _on_content_modified(modification_info&);
+		/// Called when \ref buffer::begin_edit is triggered. Prepares \ref _cset for adjustments by calculating
+		/// byte positions of each caret.
+		void _on_begin_edit(buffer::begin_edit_info&) {
+			_cset.calculate_byte_positions(*_doc);
+			_fmt.prepare_for_edit(*_doc);
+		}
+		/// Called when \ref buffer::end_edit is triggered. Performs necessary adjustments to the view, invokes
+		/// \ref content_modified, then calls \ref _on_content_visual_changed.
+		void _on_end_edit(buffer::end_edit_info&);
 		/// Called when the associated \ref document has been changed to another. Invokes \ref content_modified
 		/// and calls \ref _on_content_visual_changed.
-		void _on_context_switch() {
+		void _on_switch_document() {
 			content_modified.invoke();
 			_on_content_visual_changed();
 		}
@@ -793,6 +760,50 @@ namespace codepad::editor::code {
 		///
 		/// \todo Currently not of too much use except for calculating word wrapping for the whole document.
 		std::vector<size_t> _recalculate_wrapping_region(size_t, size_t) const;
+		/// Adjusts and recalculates caret positions from \ref caret_data::bytepos_first and
+		/// \ref caret_data::bytepos_second, after an edit has been made.
+		///
+		/// \todo Carets after undo-ing and redo-ing.
+		void _adjust_recalculate_caret_char_positions(buffer::end_edit_info &info) {
+			caret_set newcarets;
+			interpretation::character_position_converter cvt(*_doc);
+			// all byte positions calculated below may not be the exact first byte of the corresponding character,
+			// and thus cannot be used as bytepos_first and bytepos_second
+			// also, carets may merge into one another
+			if (info.source_element == this && info.type == edit_type::normal) {
+				for (const buffer::modification_position &pos : info.positions) {
+					size_t bp = pos.position + pos.added_range, cp = cvt.byte_to_character(bp);
+					caret_set::entry et({cp, cp}, _get_caret_data(caret_position(cp, false)));
+					newcarets.add(et);
+				}
+			} else {
+				buffer::position_patcher patcher(info.positions);
+				for (auto &pair : _cset.carets) {
+					size_t bp1 = pair.second.bytepos_first, bp2 = pair.second.bytepos_second, cp1, cp2;
+					if (bp1 == bp2) {
+						bp1 = bp2 = patcher.patch<buffer::position_patcher::strategy::back>(bp1);
+						cp1 = cp2 = cvt.byte_to_character(bp1);
+					} else {
+						if (bp1 < bp2) {
+							bp1 = patcher.patch<buffer::position_patcher::strategy::back>(bp1);
+							cp1 = cvt.byte_to_character(bp1);
+							bp2 = patcher.patch<buffer::position_patcher::strategy::back>(bp2);
+							cp2 = cvt.byte_to_character(bp2);
+						} else {
+							bp2 = patcher.patch<buffer::position_patcher::strategy::back>(bp2);
+							cp2 = cvt.byte_to_character(bp2);
+							bp1 = patcher.patch<buffer::position_patcher::strategy::back>(bp1);
+							cp1 = cvt.byte_to_character(bp1);
+						}
+					}
+					caret_set::entry et(
+						{cp1, cp2}, _get_caret_data(caret_position(cp1, pair.second.softbreak_next_line))
+					);
+					newcarets.add(et);
+				}
+			}
+			set_carets_keepdata(std::move(newcarets));
+		}
 
 		/// Called to change \ref _editrgn_state.
 		void _set_editrgn_state(ui::element_state_id st) {
@@ -854,6 +865,20 @@ namespace codepad::editor::code {
 				++cur;
 			}
 			return false;
+		}
+		/// Checks if line wrapping needs to be calculated.
+		///
+		/// \todo Recalculate the alignment of cursors.
+		void _check_wrapping_width() {
+			double cw = get_client_region().width();
+			if (std::abs(cw - _view_width) > 0.1) { // TODO magik!
+				_view_width = cw;
+				{
+					performance_monitor mon(CP_STRLIT("recalculate_wrapping"));
+					_fmt.set_softbreaks(_recalculate_wrapping_region(0, _doc->get_linebreaks().num_chars()));
+				}
+				_on_editing_visual_changed();
+			}
 		}
 		/// Calculates the horizontal position of a caret, and returns the result as a \ref caret_data.
 		caret_data _get_caret_data(caret_position caret) const {
@@ -925,7 +950,7 @@ namespace codepad::editor::code {
 					return ep;
 				}
 			}
-			size_t nchars = _doc->num_chars();
+			size_t nchars = _doc->get_linebreaks().num_chars();
 			return cp < nchars ? cp + 1 : nchars;
 		}
 		/// Moves the caret vertically according to the given information.
@@ -944,6 +969,25 @@ namespace codepad::editor::code {
 			return _hit_test_unfolded_linebeg(line, align);
 		}
 
+		/// Inserts the input text at each caret.
+		///
+		/// \todo Handle linebreaks.
+		void _on_keyboard_text(ui::text_info &info) override {
+			// encode added content
+			byte_string str;
+			const std::byte
+				*it = reinterpret_cast<const std::byte*>(info.content.c_str()),
+				*end = it + info.content.size();
+			while (it != end) {
+				codepoint cp;
+				if (encodings::utf8::next_codepoint(it, end, cp)) {
+					str.append(_doc->get_encoding()->encode_codepoint(cp));
+				} else {
+					logger::get().log_warning(CP_HERE, "skipped invalid byte sequence in input");
+				}
+			}
+			_doc->on_insert(_cset, str, this);
+		}
 		/// Calls \ref _update_mouse_selection to update the current selection and mouse position, then
 		/// starts drag-dropping if the mouse has moved far enough from where it's pressed.
 		///
@@ -1003,29 +1047,6 @@ namespace codepad::editor::code {
 			_on_mouse_lbutton_up();
 			element::_on_capture_lost();
 		}
-		/// Inserts the input text at each caret.
-		void _on_keyboard_text(ui::text_info &info) override {
-			_context_modifier_rsrc it(*this);
-			for (auto i = _cset.carets.begin(); i != _cset.carets.end(); ++i) {
-				string_buffer::string_type st;
-				st.reserve(info.content.length());
-				for (
-					string_codepoint_iterator cc(info.content.begin(), info.content.end());
-					!cc.at_end();
-					cc.next()
-					) {
-					if (*cc != '\n') {
-						st.append_as_codepoint(string_buffer::encoding_data_t::encode_codepoint(*cc));
-					} else {
-						const char *cs = line_ending_to_static_u8_string(_doc->get_default_line_ending());
-						st.append_as_codepoint(
-							cs, cs + get_linebreak_length(_doc->get_default_line_ending())
-						);
-					}
-				}
-				it->on_text(i->first, std::move(st), _insert);
-			}
-		}
 		/// Updates mouse selection.
 		void _on_update() override {
 			element::_on_update();
@@ -1049,27 +1070,14 @@ namespace codepad::editor::code {
 				}
 			}
 		}
+
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.
 		void _finish_layout() override {
 			_check_wrapping_width();
 		}
-
-		/// Checks if line wrapping needs to be calculated.
-		///
-		/// \todo Recalculate the alignment of cursors.
-		void _check_wrapping_width() {
-			double cw = get_client_region().width();
-			if (std::abs(cw - _view_width) > 0.1) { // TODO magik!
-				_view_width = cw;
-				{
-					performance_monitor mon(CP_STRLIT("recalculate_wrapping"));
-					_fmt.set_softbreaks(_recalculate_wrapping_region(0, _doc->num_chars()));
-				}
-				_on_editing_visual_changed();
-			}
-		}
-
 		/// Renders all visible text.
+		///
+		/// \todo Cannot deal with very long lines.
 		void _custom_render() override;
 
 		/// Sets the default padding, sets the element to non-focusable, and resets the class labels of carets and

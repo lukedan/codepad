@@ -11,7 +11,6 @@
 
 namespace codepad::ui {
 	class panel_base;
-	class element;
 
 	/// Contains information about changes in an \ref element_collection.
 	struct element_collection_change_info {
@@ -90,8 +89,8 @@ namespace codepad::ui {
 	/// \remark Before creating classes that derive from this class, read the documentation of
 	///         \ref _on_child_removed first.
 	class panel_base : public element {
-		friend class element;
-		friend class element_collection;
+		friend element;
+		friend element_collection;
 		friend class class_arrangements;
 	public:
 		/// Returns whether the panel overrides the layout of its children.

@@ -13,7 +13,7 @@
 #include "editors/code/codebox.h"
 #include "editors/code/components.h"
 #include "editors/code/editor.h"
-#include "editors/code/buffer.h"
+#include "editors/buffer.h"
 
 using namespace codepad;
 using namespace codepad::os;
@@ -33,15 +33,14 @@ int main(int argc, char **argv) {
 		// load skin
 		std::ifstream fin("skin/skin.json", std::ios::binary);
 		fin.seekg(0, std::ios::end);
-		std::streampos sz = fin.tellg();
-		auto c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
+		size_t sz = static_cast<size_t>(fin.tellg());
+		auto *c = static_cast<char*>(std::malloc(sz + 1));
 		fin.seekg(0);
 		fin.read(c, static_cast<std::streamsize>(sz));
-		std::string us(c, static_cast<size_t>(sz));
-		std::free(c);
+		c[sz] = 0;
 		json::parser_value_t v;
-		str_t ss = convert_to_default_encoding(us);
-		v.Parse(ss.c_str());
+		v.Parse(c, sz);
+		std::free(c);
 		tbl = manager::get().get_class_visuals().load_json(v);
 	}
 
@@ -49,15 +48,14 @@ int main(int argc, char **argv) {
 		// load arrangements
 		std::ifstream fin("skin/arrangements.json", std::ios::binary);
 		fin.seekg(0, std::ios::end);
-		std::streampos sz = fin.tellg();
-		auto c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
+		size_t sz = static_cast<size_t>(fin.tellg());
+		auto *c = static_cast<char*>(std::malloc(sz + 1));
 		fin.seekg(0);
 		fin.read(c, static_cast<std::streamsize>(sz));
-		std::string us(c, static_cast<size_t>(sz));
-		std::free(c);
+		c[sz] = 0;
 		json::parser_value_t v;
-		str_t ss = convert_to_default_encoding(us);
-		v.Parse(ss.c_str());
+		v.Parse(c, sz);
+		std::free(c);
 		manager::get().get_class_arrangements().load_json(v);
 	}
 
@@ -65,15 +63,14 @@ int main(int argc, char **argv) {
 		// load hotkeys
 		std::ifstream fin("keys.json", std::ios::binary);
 		fin.seekg(0, std::ios::end);
-		std::streampos sz = fin.tellg();
-		auto c = static_cast<char*>(std::malloc(static_cast<size_t>(sz)));
+		size_t sz = static_cast<size_t>(fin.tellg());
+		auto *c = static_cast<char*>(std::malloc(sz + 1));
 		fin.seekg(0);
 		fin.read(c, static_cast<std::streamsize>(sz));
-		std::string us(c, static_cast<size_t>(sz));
-		std::free(c);
+		c[sz] = 0;
 		json::parser_value_t v;
-		str_t ss = convert_to_default_encoding(us);
-		v.Parse(ss.c_str());
+		v.Parse(c, sz);
+		std::free(c);
 		manager::get().get_class_hotkeys().load_json(v);
 	}
 

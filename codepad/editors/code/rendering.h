@@ -3,33 +3,35 @@
 /// \file
 /// Structs used to render the contents of a \ref codepad::editor::code::editor.
 
-#include "buffer.h"
-#include "document.h"
+#include "../buffer.h"
+#include "interpretation.h"
 #include "view.h"
 #include "editor.h"
 
 namespace codepad::editor::code {
-	/// Iterator used to iterate through characters of part of a \ref document, calculating theme and position
-	/// information along the way. This struct is only aware of the \ref document and does not take into
+	/// Iterator used to iterate through characters of part of a \ref interpretation, calculating theme and position
+	/// information along the way. This struct is only aware of the \ref interpretation and does not take into
 	/// consideration word wrapping and folding. Under the hood, this struct uses a
 	/// \ref ui::character_metrics_accumulator to calculate the positions of characters.
 	struct character_rendering_iterator {
 	public:
 		/// Constructor.
 		///
-		/// \param doc The \ref document to iterate through.
+		/// \param doc The \ref interpretation to iterate through.
 		/// \param lh The height of a line.
+		/// \param tab The maximum with of a `tab' character.
 		/// \param sp Position of the first character of the range of characters to iterate through.
 		/// \param pep Position past the last character of the range of characters to iterate through.
-		character_rendering_iterator(const document &doc, double lh, size_t sp, size_t pep) :
-			_char_it(doc.at_char(sp)), _theme_it(doc.get_text_theme().get_iter_at(sp)),
-			_char_met(editor::get_font(), doc.get_tab_width()),
+		character_rendering_iterator(const interpretation &doc, double lh, double tab, size_t sp, size_t pep) :
+			_char_it(doc.at_character(sp)), _theme_it(doc.get_text_theme().get_iter_at(sp)),
+			_char_met(editor::get_font(), tab),
 			_doc(&doc), _cur_pos(sp), _tg_pos(pep), _line_h(lh) {
 		}
 		/// Constructs this iterator with corresponding parameters of the given \ref editor, and the given range
 		/// of characters.
-		character_rendering_iterator(const editor &ce, size_t sp, size_t pep) :
-			character_rendering_iterator(*ce.get_document(), ce.get_line_height(), sp, pep) {
+		character_rendering_iterator(const editor &ce, size_t sp, size_t pep) : character_rendering_iterator(
+			*ce.get_document(), ce.get_line_height(), ce.get_formatting().get_tab_width(), sp, pep
+		) {
 		}
 
 		/// Returns whether the current character that \ref _char_it points to is a hard linebreak.
@@ -38,13 +40,13 @@ namespace codepad::editor::code {
 		}
 		/// Returns whether the iterator has reached the end of the range of characters.
 		bool ended() const {
-			return _cur_pos >= _tg_pos || _char_it.is_end();
+			return _cur_pos >= _tg_pos || _char_it.codepoint().ended();
 		}
 		/// Starts to iterate through the range of characters, by calculating the positioning of the first character
 		/// (if it is not a hard linebreak).
 		void begin() {
 			if (!is_hard_line_break()) {
-				_char_met.next(_char_it.current_character(), _theme_it.current_theme.style);
+				_char_met.next(_char_it.codepoint().get_codepoint(), _theme_it.current_theme.style);
 			}
 		}
 		/// Moves to the next character. This function invokes the \ref event corresponding to the current character
@@ -52,17 +54,17 @@ namespace codepad::editor::code {
 		void next_char() {
 			assert_true_usage(!ended(), "incrementing an invalid rendering iterator");
 			if (is_hard_line_break()) {
-				_on_linebreak(_char_it.current_linebreak());
+				_on_linebreak(_char_it.get_linebreak());
 			} else {
 				switching_char.invoke_noret(false, _cur_pos + 1);
 			}
 			// increment iterators
 			++_cur_pos;
-			++_char_it;
+			_char_it.next();
 			_doc->get_text_theme().incr_iter(_theme_it, _cur_pos);
 			// update positioning
 			_char_met.next(
-				is_hard_line_break() ? ' ' : _char_it.current_character(), _theme_it.current_theme.style
+				is_hard_line_break() ? ' ' : _char_it.codepoint().get_codepoint(), _theme_it.current_theme.style
 			);
 		}
 
@@ -78,16 +80,16 @@ namespace codepad::editor::code {
 		void jump_to(size_t cp) {
 			switching_char.invoke_noret(true, cp);
 			_cur_pos = cp;
-			_char_it = _doc->at_char(_cur_pos);
+			_char_it = _doc->at_character(_cur_pos);
 			_theme_it = _doc->get_text_theme().get_iter_at(_cur_pos);
 			_char_met.replace_current(
-				is_hard_line_break() ? ' ' : _char_it.current_character(), _theme_it.current_theme.style
+				is_hard_line_break() ? ' ' : _char_it.codepoint().get_codepoint(), _theme_it.current_theme.style
 			);
 		}
 		/// Inserts a soft linebreak before the current character.
 		void insert_soft_linebreak() {
 			_on_linebreak(line_ending::none);
-			_char_met.next(_char_it.current_character(), _theme_it.current_theme.style);
+			_char_met.next(_char_it.codepoint().get_codepoint(), _theme_it.current_theme.style);
 		}
 
 		/// Returns the underlying \ref ui::character_metrics_accumulator.
@@ -113,7 +115,7 @@ namespace codepad::editor::code {
 			return _line_h;
 		}
 
-		/// Invoked before a new line, either one in the original \ref document or a soft linebreak inserted by
+		/// Invoked before a new line, either one in the original \ref interpretation or a soft linebreak inserted by
 		/// \ref insert_soft_linebreak, is encountered.
 		event<switch_line_info> switching_line;
 		/// Invoked when the current position is about to be changed, either by \ref next_char() or
@@ -121,11 +123,12 @@ namespace codepad::editor::code {
 		/// \ref jump_to(size_t) can be called consecutively.
 		event<switch_char_info> switching_char;
 	protected:
-		document::iterator _char_it; ///< Iterator to the current character in the \ref document.
+		/// Iterator to the current character in the \ref interpretation.
+		interpretation::character_iterator _char_it;
 		/// Iterator to the current entry in the \ref text_theme_data that determines the theme of the text.
 		text_theme_data::char_iterator _theme_it;
 		ui::character_metrics_accumulator _char_met; ///< Used to calculate the positioning of characters.
-		const document *_doc = nullptr; ///< Pointer to the associated \ref document.
+		const interpretation *_doc = nullptr; ///< Pointer to the associated \ref interpretation.
 		size_t
 			_cur_pos = 0, ///< Position of the current character.
 			_tg_pos = 0; ///< Records the end of the range of characters.
@@ -159,7 +162,7 @@ namespace codepad::editor::code {
 		/// Shorthand for \ref is_checker<T>::value.
 		template <typename T> constexpr static bool is_checker_v = is_checker<T>::value;
 	}
-	/// Used to iterate through a part of a \ref document using a \ref character_rendering_iterator, with additional
+	/// Used to iterate through a part of a \ref interpretation using a \ref character_rendering_iterator, with additional
 	/// addons that modify the behavior, specified in the template argument list. Each addon provides either:
 	///     1. A `check' member that returns a \p bool indicating whether the addon has made changes to the
 	///        \ref character_rendering_iterator such that the `check' members need to be invoked from the beginning

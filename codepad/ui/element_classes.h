@@ -241,15 +241,15 @@ namespace codepad::ui {
 				mem = obj.FindMember(CP_STRLIT("transition"));
 				if (mem != obj.MemberEnd()) {
 					if (mem->value.IsString()) {
-						const std::function<double(double)>
-							*fptr = manager::get().try_get_transition_func(json::get_as_string(mem->value));
+						transition_function
+							fptr = manager::get().try_get_transition_func(json::get_as_string(mem->value));
 						if (fptr == nullptr) {
 							ani.transition_func = transition_functions::linear;
 							logger::get().log_warning(
 								CP_HERE, "invalid transition function: ", json::get_as_string(mem->value)
 							);
 						} else {
-							ani.transition_func = *fptr;
+							ani.transition_func = fptr;
 						}
 					} else {
 						logger::get().log_warning(CP_HERE, "invalid transition function");
@@ -312,24 +312,7 @@ namespace codepad::ui {
 		/// Parses a \ref visual_layer from the given JSON object, and registers all required textures to the given
 		/// \ref texture_table. If the layer contains only a single string, then it is treated as the file name of
 		/// the texture, and interpreted as an \ref animated_property<os::texture>.
-		inline static void parse_layer(visual_layer &layer, const json::value_t &val, texture_table &table) {
-			if (val.IsObject()) {
-				_find_and_parse_ani(val, CP_STRLIT("texture"), layer.texture_animation, table);
-				_find_and_parse_ani(val, CP_STRLIT("color"), layer.color_animation);
-				_find_and_parse_ani(val, CP_STRLIT("size"), layer.size_animation);
-				_find_and_parse_ani(val, CP_STRLIT("margin"), layer.margin_animation);
-				_try_find_and_parse(val, CP_STRLIT("type"), layer.layer_type);
-				_try_find_and_parse(val, CP_STRLIT("anchor"), layer.rect_anchor);
-				_try_find_and_parse(val, CP_STRLIT("width_alloc"), layer.width_alloc);
-				_try_find_and_parse(val, CP_STRLIT("height_alloc"), layer.height_alloc);
-			} else if (val.IsString()) {
-				layer = visual_layer();
-				parse_animation(layer.texture_animation, val, table);
-				return;
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid layer info");
-			}
-		}
+		static void parse_layer(visual_layer &layer, const json::value_t &val, texture_table &table);
 		/// Parses a \ref visual_state from the given JSON object, and registers all required textures to the
 		/// given \ref texture_table. The JSON object must be an array, whose elements will be parsed by
 		/// \ref parse_layer.
@@ -402,44 +385,7 @@ namespace codepad::ui {
 
 		/// Parses a \ref metrics_state from the given JSON object, and adds it to \p value. If one for the specified
 		/// state already exists in \p value, it is kept if the inheritance is not overriden with \p inherit_from.
-		inline static void parse_metrics_state(const json::value_t &val, element_metrics &value) {
-			if (val.IsObject()) {
-				metrics_state mst, *dest = &mst;
-				state_pattern pattern = _parse_state_pattern(val);
-				json::value_t::ConstMemberIterator fmem;
-				fmem = val.FindMember(CP_STRLIT("inherit_from"));
-				if (fmem != val.MemberEnd()) {
-					state_pattern frompat = _parse_state_pattern(fmem->value);
-					metrics_state *st = value.try_get_state(frompat);
-					if (st != nullptr) {
-						mst = *st;
-					} else {
-						logger::get().log_warning(CP_HERE, "invalid inheritance");
-					}
-				} else {
-					metrics_state *present = value.try_get_state(pattern);
-					if (present != nullptr) {
-						dest = present;
-					}
-				}
-				fmem = val.FindMember(CP_STRLIT("value"));
-				if (fmem != val.MemberEnd() && fmem->value.IsObject()) {
-					_find_and_parse_ani(fmem->value, CP_STRLIT("size"), dest->size_animation);
-					_find_and_parse_ani(fmem->value, CP_STRLIT("margin"), dest->margin_animation);
-					_find_and_parse_ani(fmem->value, CP_STRLIT("padding"), dest->padding_animation);
-					_try_find_and_parse(fmem->value, CP_STRLIT("anchor"), dest->elem_anchor);
-					_try_find_and_parse(fmem->value, CP_STRLIT("width_alloc"), dest->width_alloc);
-					_try_find_and_parse(fmem->value, CP_STRLIT("height_alloc"), dest->height_alloc);
-				} else {
-					logger::get().log_warning(CP_HERE, "cannot find metrics value");
-				}
-				if (dest == &mst) {
-					value.register_state(pattern, std::move(mst));
-				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid metrics state format");
-			}
-		}
+		static void parse_metrics_state(const json::value_t &val, element_metrics &value);
 		/// Parses a \ref element_metrics from the given JSON object. Inheritance is implemented in a way similar to
 		/// that of \ref parse_visual(). Note that inheritance of \ref metrics_state will override that of
 		/// \ref element_metrics.
@@ -601,7 +547,7 @@ namespace codepad::ui {
 	/// Parses hotkeys from JSON objects.
 	class hotkey_json_parser {
 	public:
-		constexpr static char_t key_delim = '+'; ///< The delimiter for keys.
+		constexpr static char key_delim = '+'; ///< The delimiter for keys.
 
 												 /// Parses a modifier key from a given string.
 		inline static modifier_keys parse_modifier(const str_t &str) {
@@ -683,7 +629,7 @@ namespace codepad::ui {
 				logger::get().log_warning(CP_HERE, "invalid key gesture");
 				return false;
 			}
-			const char_t *last = obj.GetString(), *cur = last;
+			const char *last = obj.GetString(), *cur = last;
 			gest.mod_keys = modifier_keys::none;
 			for (size_t i = 0; i < obj.GetStringLength(); ++i, ++cur) {
 				if (*cur == key_delim && cur != last) {

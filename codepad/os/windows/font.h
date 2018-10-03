@@ -21,7 +21,7 @@ namespace codepad {
 				constexpr size_t maximum_font_name_length = 100;
 				constexpr DWORD ttcf = 0x66637474;
 
-				std::u16string utf16string = convert_to_utf16(str);
+				std::wstring utf16string = _details::utf8_to_wstring(str.c_str());
 				HFONT font = CreateFont(
 					0, 0, 0, 0,
 					test_bits_all(style, font_style::bold) ? FW_BOLD : FW_NORMAL,
@@ -43,10 +43,8 @@ namespace codepad {
 				_data = std::malloc(size);
 				assert_true_sys(GetFontData(dc, table, 0, _data, size) == size, "error getting font data");
 				TCHAR buf[maximum_font_name_length];
-				int len = GetTextFace(dc, maximum_font_name_length, buf);
-				logger::get().log_info(CP_HERE,
-					"font loaded: ", convert_encoding<std::string>(buf, buf + len)
-				);
+				GetTextFace(dc, maximum_font_name_length, buf);
+				logger::get().log_info(CP_HERE, "font loaded: ", _details::wstring_to_utf8(buf));
 				gdi_check(SelectObject(dc, original));
 				winapi_check(DeleteObject(font));
 				_ft_verify(FT_New_Memory_Face(_library::get().lib, static_cast<FT_Byte*>(_data), size, 0, &_face));

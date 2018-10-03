@@ -11,17 +11,30 @@
 
 #include <rapidjson/document.h>
 
-#define CP_USE_UTF8
-//#define CP_USE_UTF32
-
 namespace codepad {
-	constexpr char32_t
+	/// Specifies the byte order of words.
+	enum class endianness : unsigned char {
+		little_endian, ///< Little endian.
+		big_endian ///< Big endian.
+	};
+	/// The endianness of the current system.
+	constexpr endianness system_endianness = endianness::little_endian;
+
+	/// Default definition for string literals.
+#define CP_STRLIT(X) u8 ## X
+	/// STL string with default character type.
+	using str_t = std::basic_string<char>;
+	/// Type used to store codepoints. \p char32_t is not used because its range is 0~0x10FFFF which may not be able
+	/// to correctly represent invalid codepoints.
+	using codepoint = std::uint32_t;
+
+	constexpr codepoint
 		replacement_character = 0xFFFD, ///< Unicode replacement character.
 		invalid_min = 0xD800, ///< Minimum code point value reserved by UTF-16.
 		invalid_max = 0xDFFF, ///< Maximum code point value (inclusive) reserved by UTF-16.
 		unicode_max = 0x10FFFF; ///< Maximum code point value (inclusive) of Unicode.
 
-	/// A template version of std::strlen().
+	/// A template version of \p std::strlen().
 	template <typename Char> inline size_t get_unit_count(const Char *cs) {
 		size_t i = 0;
 		for (; *cs; ++i, ++cs) {
@@ -30,422 +43,370 @@ namespace codepad {
 	}
 
 	/// Determines if a codepoint is a `new line' character.
-	inline bool is_newline(char32_t c) {
+	inline bool is_newline(codepoint c) {
 		return c == '\n' || c == '\r';
 	}
 	/// Determines if a codepoint is a graphical char, i.e., is not blank.
 	///
 	/// \todo May not be complete.
-	inline bool is_graphical_char(char32_t c) {
+	inline bool is_graphical_char(codepoint c) {
 		return c != '\n' && c != '\r' && c != '\t' && c != ' ';
 	}
 	/// Determines if a codepoint lies in the valid range of Unicode points.
-	inline bool is_valid_codepoint(char32_t c) {
+	inline bool is_valid_codepoint(codepoint c) {
 		return c < invalid_min || (c > invalid_max && c <= unicode_max);
 	}
 
-	/// Counts the number of codepoints between the two iterators. Encodings can use this to fall back to
-	/// default behavior, or implement their optimized versions.
-	///
-	/// \tparam Encoding The encoding used.
-	/// \param beg Iterator to the beginning of the range.
-	/// \param end Iterator past the ending of the range.
-	/// \return The number of codepoints in the range.
-	template <
-		typename It1, typename It2, template <typename> typename Encoding
-	> inline size_t count_codepoints(It1 beg, It2 end) {
-		using _encoding = Encoding<typename std::iterator_traits<It1>::value_type>;
-
-		size_t result = 0;
-		for (; beg != end; _encoding::next_codepoint(beg, end), ++result) {
-		}
-		return result;
-	}
-	/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
-	/// Encodings can use this to fall back to default behavior, or implement their optimized versions.
-	///
-	/// \tparam Encoding The encoding used.
-	/// \param beg The iterator pointing to the current position.
-	///        It will hold the resulting iterator after returned.
-	/// \param end Iterator past tne end of the string.
-	/// \param num Maximum number of codepoints to skip.
-	/// \return The actual number of codepoints skipped.
-	template <
-		typename It1, typename It2, template <typename> typename Encoding
-	> inline size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
-		using _encoding = Encoding<typename std::iterator_traits<It1>::value_type>;
-
-		size_t i = 0;
-		for (; i < num && beg != end; _encoding::next_codepoint(beg, end), ++i) {
-		}
-		return i;
-	}
-
-	/// UTF-8 encoding.
-	///
-	/// \tparam C Type of characters.
-	template <typename C = char> class utf8 {
-	public:
-		using char_type = C; ///< The character type.
-
-		/// Moves the iterator to the next codepoint, extracting the current codepoint,
-		/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
+	/// Implementation of various encodings. All implementations accept only byte sequences as input.
+	namespace encodings {
+		/// UTF-8 encoding.
 		///
-		/// \param i The `current' iterator.
-		/// \param end The end of the string.
-		/// \param v The value will hold the value of the current codepoint if the function returns \p true.
-		template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, char32_t &v) {
-			C fc = *i;
-			if ((fc & 0x80) == 0) {
-				v = static_cast<char32_t>(fc);
-			} else if ((fc & 0xE0) == 0xC0) {
-				v = static_cast<char32_t>(fc & 0x1F) << 6;
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				v |= *i & 0x3F;
-			} else if ((fc & 0xF0) == 0xE0) {
-				v = static_cast<char32_t>(fc & 0x0F) << 12;
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				v |= static_cast<char32_t>(*i & 0x3F) << 6;
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				v |= *i & 0x3F;
-			} else if ((fc & 0xF8) == 0xF0) {
-				v = static_cast<char32_t>(fc & 0x07) << 18;
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				v |= static_cast<char32_t>(*i & 0x3F) << 12;
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				v |= static_cast<char32_t>(*i & 0x3F) << 6;
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				v |= *i & 0x3F;
-			} else {
-				++i;
-				return false;
-			}
-			++i;
-			return true;
-		}
-		/// Moves the iterator to the next codepoint and returns whether it is valid.
-		/// The caller is responsible of determining if <tt>i == end</tt>.
-		///
-		/// \param i The `current' iterator.
-		/// \param end The end of the string.
-		template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
-			char fc = *i;
-			if ((fc & 0xE0) == 0xC0) {
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-			} else if ((fc & 0xF0) == 0xE0) {
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-			} else if ((fc & 0xF8) == 0xF0) {
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-				if (++i == end || (*i & 0xC0) != 0x80) {
-					return false;
-				}
-			} else if ((fc & 0x80) != 0) {
-				++i;
-				return false;
-			}
-			++i;
-			return true;
-		}
-		/// next_codepoint(It1, It2) without error checking.
-		/// Also, the caller doesn't need to check if <tt>i == end</tt>.
-		template <typename It1, typename It2> inline static void next_codepoint_rough(It1 &i, It2 end) {
-			for (; i != end && (*i & 0xC0) == 0x80; ++i) {
-			}
-		}
-		/// Go back to the previous codepoint. Note that the result is only an estimate.
-		///
-		/// \param i The `current' iterator.
-		/// \param beg The beginning of the string.
-		template <typename It1, typename It2> inline static void previous_codepoint_rough(It1 &i, It2 beg) {
-			for (; i != beg && (*i & 0xC0) == 0x80; --i) {
-			}
-		}
-		/// Returns the UTF-8 representation of a Unicode codepoint.
-		///
-		/// \remark Since char may be either signed or unsigned,
-		///         narrowing conversion is implementation-defined.
-		///         There doesn't seem to be other ways to do this,
-		///         and this is likely to work, so I'm leaving it this way.
-		inline static std::basic_string<C> encode_codepoint(char32_t c) {
-			std::basic_string<C> result;
-			if (c < 0x80) {
-				result.append(1, static_cast<C>(c));
-			} else if (c < 0x800) {
-				result.append(1, static_cast<C>(0xC0 | (c >> 6)));
-				result.append(1, static_cast<C>(0x80 | (c & 0x3F)));
-			} else if (c < 0x10000) {
-				result.append(1, static_cast<C>(0xE0 | (c >> 12)));
-				result.append(1, static_cast<C>(0x80 | ((c >> 6) & 0x3F)));
-				result.append(1, static_cast<C>(0x80 | (c & 0x3F)));
-			} else {
-				result.append(1, static_cast<C>(0xF0 | (c >> 18)));
-				result.append(1, static_cast<C>(0x80 | ((c >> 12) & 0x3F)));
-				result.append(1, static_cast<C>(0x80 | ((c >> 6) & 0x3F)));
-				result.append(1, static_cast<C>(0x80 | (c & 0x3F)));
-			}
-			return result;
-		}
+		/// \sa https://en.wikipedia.org/wiki/UTF-8.
+		class utf8 {
+		public:
+			constexpr static std::byte
+				mask_1{0x80}, ///< Mask for detecting single-byte codepoints.
+				sig_1{0x00}, ///< Expected masked value of single-byte codepoints.
+				mask_2{0xE0}, ///< Mask for detecting bytes leading double-byte codepoints.
+				sig_2{0xC0}, ///< Expected masked value of bytes leading double-byte codepoints.
+				mask_3{0xF0}, ///< Mask for detecting triple-byte codepoints.
+				sig_3{0xE0}, ///< Expected masked value of bytes leading triple-byte codepoints.
+				mask_4{0xF8}, ///< Mask for detecting quadruple-byte codepoints.
+				sig_4{0xF0}, ///< Expected masked value of bytes leading quadruple-byte codepoints.
+				mask_cont{0xC0}, ///< Mask for detecting continuation bytes.
+				sig_cont{0x80}; ///< Expected masked value of continuation bytes.
 
-		/// Counts the number of codepoints in the given range.
-		/// Uses codepad::count_codepoints to provide the default behavior.
-		template <typename It1, typename It2> inline static size_t count_codepoints(It1 beg, It2 end) {
-			return codepad::count_codepoints<It1, It2, codepad::utf8>(beg, end);
-		}
-		/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
-		/// Uses codepad::skip_codepoints to provide the default behavior.
-		template <typename It1, typename It2> inline static size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
-			return codepad::skip_codepoints<It1, It2, codepad::utf8>(beg, end, num);
-		}
-	};
+			/// Returns `UTF-8'.
+			inline static str_t get_name() {
+				return CP_STRLIT("UTF-8");
+			}
 
-	/// UTF-16 encoding.
-	///
-	/// \tparam C Type of characters.
-	template <typename C = char16_t> class utf16 {
-	public:
-		using char_type = C; ///< The character type.
-
-		static_assert(sizeof(C) >= 2, "invalid character type for utf-16");
-		/// Moves the iterator to the next codepoint, extracting the current codepoint,
-		/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
-		///
-		/// \param i The `current' iterator.
-		/// \param end The end of the string.
-		/// \param v The value will hold the value of the current codepoint if the function returns \p true.
-		template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, char32_t &v) {
-			C fc = *i;
-			if ((fc & 0xDC00) == 0xD800) {
-				v = static_cast<char32_t>(fc & 0x03FF) << 10;
-				if (++i == end || (*i & 0xDC00) != 0xDC00) {
-					return false;
-				}
-				v |= *i & 0x03FF;
-			} else {
-				v = static_cast<char32_t>(fc);
-				if ((fc & 0xDC00) == 0xDC00) {
+			/// Moves the iterator to the next codepoint, extracting the current codepoint to \p v, and returns whether
+			/// it is valid. The caller is responsible of determining if <tt>i == end</tt>. If the codepoint is not
+			/// valid, \p v will contain the byte that \p i initially points to, and \p i will be moved to point to the
+			/// next byte.
+			template <typename It1, typename It2> inline static bool next_codepoint(
+				It1 &i, const It2 &end, codepoint &v
+			) {
+				std::byte fb = *i;
+				if ((fb & mask_1) == sig_1) {
+					v = static_cast<codepoint>(fb & ~mask_1);
+				} else if ((fb & mask_2) == sig_2) {
+					if (++i == end || (*i & mask_cont) != sig_cont) {
+						v = static_cast<codepoint>(fb);
+						return false;
+					}
+					v = static_cast<codepoint>(fb & ~mask_2) << 6;
+					v |= static_cast<codepoint>(*i & ~mask_cont);
+				} else if ((fb & mask_3) == sig_3) {
+					if (++i == end || (*i & mask_cont) != sig_cont) {
+						v = static_cast<codepoint>(fb);
+						return false;
+					}
+					v = static_cast<codepoint>(fb & ~mask_3) << 12;
+					v |= static_cast<codepoint>(*i & ~mask_cont) << 6;
+					if (++i == end || (*i & mask_cont) != sig_cont) {
+						--i;
+						v = static_cast<codepoint>(fb);
+						return false;
+					}
+					v |= static_cast<codepoint>(*i & ~mask_cont);
+				} else if ((fb & mask_4) == sig_4) {
+					if (++i == end || (*i & mask_cont) != sig_cont) {
+						v = static_cast<codepoint>(fb);
+						return false;
+					}
+					v = static_cast<codepoint>(fb & ~mask_4) << 18;
+					v |= static_cast<codepoint>(*i & ~mask_cont) << 12;
+					if (++i == end || (*i & mask_cont) != sig_cont) {
+						--i;
+						v = static_cast<codepoint>(fb);
+						return false;
+					}
+					v |= static_cast<codepoint>(*i & mask_cont) << 6;
+					if (++i == end || (*i & mask_cont) != sig_cont) {
+						--i;
+						--i;
+						v = static_cast<codepoint>(fb);
+						return false;
+					}
+					v |= static_cast<codepoint>(*i & ~mask_cont);
+				} else {
 					++i;
 					return false;
 				}
+				++i;
+				return true;
 			}
-			++i;
-			return true;
-		}
-		/// Moves the iterator to the next codepoint and returns whether it is valid.
-		/// The caller is responsible of determining if <tt>i == end</tt>.
-		///
-		/// \param i The `current' iterator.
-		/// \param end The end of the string.
-		template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
-			C fc = *i;
-			if ((fc & 0xDC00) == 0xD800) {
-				if (++i == end || (*i & 0xDC00) != 0xDC00) {
+			/// Moves the iterator to the next codepoint and returns whether it is valid. The caller is responsible
+			/// of determining if <tt>i == end</tt>. If the codepoint is not valid, \p v will contain the byte that
+			/// \p i initially points to, and \p i will be moved to point to the next byte.
+			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
+				std::byte fb = *i;
+				if ((fb & mask_1) != sig_1) {
+					if ((fb & mask_2) == sig_2) {
+						if (++i == end || (*i & mask_cont) != sig_cont) {
+							return false;
+						}
+					} else if ((fb & mask_3) == sig_3) {
+						if (++i == end || (*i & mask_cont) != sig_cont) {
+							return false;
+						}
+						if (++i == end || (*i & mask_cont) != sig_cont) {
+							--i;
+							return false;
+						}
+					} else if ((fb & mask_4) == sig_4) {
+						if (++i == end || (*i & mask_cont) != sig_cont) {
+							return false;
+						}
+						if (++i == end || (*i & mask_cont) != sig_cont) {
+							--i;
+							return false;
+						}
+						if (++i == end || (*i & mask_cont) != sig_cont) {
+							--i;
+							--i;
+							return false;
+						}
+					} else {
+						++i;
+						return false;
+					}
+				}
+				++i;
+				return true;
+			}
+			/// Returns the UTF-8 representation of a Unicode codepoint.
+			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
+				if (c < 0x80) {
+					return {static_cast<std::byte>(c) & ~mask_1};
+				} else if (c < 0x800) {
+					return {
+						(static_cast<std::byte>(c >> 6) & ~mask_2) | sig_2,
+						(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
+					};
+				} else if (c < 0x10000) {
+					return {
+						(static_cast<std::byte>(c >> 12) & ~mask_3) | sig_3,
+						(static_cast<std::byte>(c >> 6) & ~mask_cont) | sig_cont,
+						(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
+					};
+				} else {
+					return {
+						(static_cast<std::byte>(c >> 18) & ~mask_4) | sig_4,
+						(static_cast<std::byte>(c >> 12) & ~mask_cont) | sig_cont,
+						(static_cast<std::byte>(c >> 6) & ~mask_cont) | sig_cont,
+						(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
+					};
+				}
+			}
+		};
+
+		/// UTF-16 encoding.
+		template <endianness Endianness = system_endianness> class utf16 {
+		public:
+			/// Returns either `UTF-16 LE' or `UTF-16 BE', depending on the Endianness.
+			inline static str_t get_name() {
+				if constexpr (Endianness == endianness::little_endian) {
+					return CP_STRLIT("UTF-16 LE");
+				} else {
+					return CP_STRLIT("UTF-16 BE");
+				}
+			}
+
+			/// Moves the iterator to the next codepoint, extracting the current codepoint,
+			/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
+			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint &v) {
+				std::uint16_t word;
+				if (!_extract_word(i, end, word)) {
+					v = word;
 					return false;
 				}
-			} else {
-				if ((fc & 0xDC00) == 0xDC00) {
-					++i;
+				if ((word & 0xDC00) == 0xD800) {
+					if (i == end) {
+						v = word;
+						return false;
+					}
+					std::uint16_t w2;
+					if (!_extract_word(i, end, w2)) {
+						--i;
+						v = word;
+						return false;
+					}
+					if ((w2 & 0xDC00) != 0xDC00) {
+						--i;
+						--i;
+						v = word;
+						return false;
+					}
+					v = (static_cast<codepoint>(word & 0x03FF) << 10) | (w2 & 0x03FF);
+				} else {
+					v = word;
+					if ((word & 0xDC00) == 0xDC00) {
+						return false;
+					}
+				}
+				return true;
+			}
+			/// Moves the iterator to the next codepoint and returns whether it is valid.
+			/// The caller is responsible of determining if <tt>i == end</tt>.
+			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
+				std::uint16_t word;
+				if (!_extract_word(i, end, word)) {
 					return false;
 				}
+				if ((word & 0xDC00) == 0xD800) {
+					if (i == end) {
+						return false;
+					}
+					std::uint16_t w2;
+					if (!_extract_word(i, end, w2)) {
+						--i;
+						return false;
+					}
+					if ((w2 & 0xDC00) != 0xDC00) {
+						--i;
+						--i;
+						return false;
+					}
+				} else {
+					if ((word & 0xDC00) == 0xDC00) {
+						return false;
+					}
+				}
+				return true;
 			}
-			++i;
-			return true;
-		}
-		/// next_codepoint(It1, It2) without error checking.
-		/// Also, the caller doesn't need to check if <tt>i == end</tt>.
-		template <typename It1, typename It2> inline static void next_codepoint_rough(It1 &i, It2 end) {
-			for (; i != end && (*i & 0xDC00) == 0xDC00; ++i) {
+			/// Returns the UTF-16 representation of a Unicode codepoint.
+			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
+				if (c < 0x10000) {
+					return _encode_word(static_cast<std::uint16_t>(c));
+				} else {
+					codepoint mined = c - 0x10000;
+					return
+						_encode_word(static_cast<std::uint16_t>((mined >> 10) | 0xD800)) +
+						_encode_word(static_cast<std::uint16_t>((mined & 0x03FF) | 0xDC00));
+				}
 			}
-		}
-		/// Go back to the previous codepoint. Note that the result is only an estimate.
+		protected:
+			/// Extracts a two-byte word from the given range of bytes, with the specified endianness.
+			///
+			/// \return A boolean indicating whether it was successfully extracted. This operation fails only if
+			///         there are not enough bytes.
+			template <typename It1, typename It2> inline static bool _extract_word(
+				It1 &i, It2 end, std::uint16_t &word
+			) {
+				std::byte b1 = static_cast<std::byte>(*i);
+				if (++i == end) {
+					word = static_cast<std::uint16_t>(b1);
+					return false;
+				}
+				std::byte b2 = static_cast<std::byte>(*i);
+				++i;
+				if constexpr (Endianness == endianness::little_endian) {
+					word = static_cast<std::uint16_t>(b1) | (static_cast<std::uint16_t>(b2) << 8);
+				} else {
+					word = static_cast<std::uint16_t>(b2) | (static_cast<std::uint16_t>(b1) << 8);
+				}
+				return true;
+			}
+			/// Rearranges the two bytes of the given word according to the current endianness.
+			inline static std::basic_string<std::byte> _encode_word(std::uint16_t word) {
+				if constexpr (Endianness == endianness::little_endian) {
+					return {
+						static_cast<std::byte>(word & 0xFF),
+						static_cast<std::byte>(word >> 8)
+					};
+				} else {
+					return {
+						static_cast<std::byte>(word >> 8),
+						static_cast<std::byte>(word & 0xFF)
+					};
+				}
+			}
+		};
+
+		/// UTF-32 encoding.
 		///
-		/// \param i The `current' iterator.
-		/// \param beg The beginning of the string.
-		template <typename It1, typename It2> inline static void previous_codepoint_rough(It1 &i, It2 beg) {
-			for (; i != beg && (*i & 0xDC00) == 0xDC00; --i) {
+		/// \tparam C Type of characters.
+		template <typename C = codepoint> class utf32 {
+		public:
+			using char_type = C; ///< The character type.
+
+			static_assert(sizeof(C) >= 3, "invalid character type for utf-32");
+			/// Moves the iterator to the next codepoint, extracting the current codepoint,
+			/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
+			///
+			/// \param i The `current' iterator.
+			/// \param end The end of the string.
+			/// \param v The value will hold the value of the current codepoint if the function returns \p true.
+			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint &v) {
+				static_cast<void>(end);
+				v = static_cast<codepoint>(*i);
+				++i;
+				return is_valid_codepoint(v);
 			}
-		}
-		/// Returns the UTF-16 representation of a Unicode codepoint.
-		inline static std::basic_string<C> encode_codepoint(char32_t c) {
-			if (c < 0x10000) {
-				return std::basic_string<C>(1, static_cast<C>(c));
-			} else {
-				char32_t mined = c - 0x10000;
-				std::basic_string<C> res;
-				res.append(1, static_cast<C>((mined >> 10) | 0xD800));
-				res.append(1, static_cast<C>((mined & 0x03FF) | 0xDC00));
+			/// Moves the iterator to the next codepoint and returns whether it is valid.
+			/// The caller is responsible of determining if <tt>i == end</tt>.
+			///
+			/// \param i The `current' iterator.
+			/// \param end The end of the string.
+			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
+				bool res = is_valid_codepoint(*i);
+				++i;
 				return res;
 			}
-		}
-
-		/// Counts the number of codepoints in the given range.
-		/// Uses codepad::count_codepoints to provide the default behavior.
-		template <typename It1, typename It2> inline static size_t count_codepoints(It1 beg, It2 end) {
-			return codepad::count_codepoints<It1, It2, codepad::utf16>(beg, end);
-		}
-		/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
-		/// Uses codepad::skip_codepoints to provide the default behavior.
-		template <typename It1, typename It2> inline static size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
-			return codepad::skip_codepoints<It1, It2, codepad::utf16>(beg, end, num);
-		}
-	};
-
-	/// UTF-32 encoding.
-	///
-	/// \tparam C Type of characters.
-	template <typename C = char32_t> class utf32 {
-	public:
-		using char_type = C; ///< The character type.
-
-		static_assert(sizeof(C) >= 3, "invalid character type for utf-32");
-		/// Moves the iterator to the next codepoint, extracting the current codepoint,
-		/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
-		///
-		/// \param i The `current' iterator.
-		/// \param end The end of the string.
-		/// \param v The value will hold the value of the current codepoint if the function returns \p true.
-		template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, char32_t &v) {
-			static_cast<void>(end);
-			v = static_cast<char32_t>(*i);
-			++i;
-			return is_valid_codepoint(v);
-		}
-		/// Moves the iterator to the next codepoint and returns whether it is valid.
-		/// The caller is responsible of determining if <tt>i == end</tt>.
-		///
-		/// \param i The `current' iterator.
-		/// \param end The end of the string.
-		template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
-			bool res = is_valid_codepoint(*i);
-			++i;
-			return res;
-		}
-		/// next_codepoint(It1, It2) without error checking.
-		/// Also, the caller doesn't need to check if <tt>i == end</tt>.
-		template <typename It1, typename It2> inline static void next_codepoint_rough(It1 &i, It2 end) {
-			if (i != end) {
-				++i;
+			/// next_codepoint(It1, It2) without error checking.
+			/// Also, the caller doesn't need to check if <tt>i == end</tt>.
+			template <typename It1, typename It2> inline static void next_codepoint_rough(It1 &i, It2 end) {
+				if (i != end) {
+					++i;
+				}
 			}
-		}
-		/// Go back to the previous codepoint. Note that the result is only an estimate.
-		///
-		/// \param i The `current' iterator.
-		/// \param beg The beginning of the string.
-		template <typename It1, typename It2> inline static void previous_codepoint_rough(It1 &i, It2 beg) {
-			if (i != beg) {
-				--i;
+			/// Go back to the previous codepoint. Note that the result is only an estimate.
+			///
+			/// \param i The `current' iterator.
+			/// \param beg The beginning of the string.
+			template <typename It1, typename It2> inline static void previous_codepoint_rough(It1 &i, It2 beg) {
+				if (i != beg) {
+					--i;
+				}
 			}
-		}
-		/// Returns the UTF-32 representation of a Unicode codepoint.
-		inline static std::basic_string<C> encode_codepoint(char32_t c) {
-			return std::u32string(1, c);
-		}
-
-		/// Counts the number of codepoints in the given range.
-		/// Uses the distance between the two iterators if possible, otherwise falls back to the default behavior.
-		template <typename It1, typename It2> inline static size_t count_codepoints(It1 beg, It2 end) {
-			if constexpr (std::is_same_v<It1, It2>) {
-				return std::distance(beg, end);
-			} else {
-				return codepad::count_codepoints<It1, It2, codepad::utf32>(beg, end);
+			/// Returns the UTF-32 representation of a Unicode codepoint.
+			inline static std::basic_string<C> encode_codepoint(codepoint c) {
+				return std::u32string(1, c);
 			}
-		}
-		/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
-		/// Directly increments the iterator if possible, otherwise falls back to the default behavior.
-		template <typename It1, typename It2> inline static size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
-			if constexpr (std::is_same_v<It1, It2> && std::is_base_of_v<
-				std::random_access_iterator_tag, typename std::iterator_traits<It1>::iterator_category
-			>) {
-				auto dist = std::min(num, static_cast<size_t>(end - beg));
-				beg = beg + num;
-				return dist;
-			} else {
-				return codepad::skip_codepoints<It1, It2, codepad::utf32>(beg, end, num);
+
+			/// Counts the number of codepoints in the given range.
+			/// Uses the distance between the two iterators if possible, otherwise falls back to the default behavior.
+			template <typename It1, typename It2> inline static size_t count_codepoints(It1 beg, It2 end) {
+				if constexpr (std::is_same_v<It1, It2>) {
+					return std::distance(beg, end);
+				} else {
+					return codepad::count_codepoints<It1, It2, codepad::utf32>(beg, end);
+				}
 			}
-		}
-	};
-
-	/// Automaticly chooses a UTF encoding given the character type.
-	template <typename C> class auto_utf;
-	/// UTF-8 for \p char.
-	template <> class auto_utf<char> : public utf8<char> {
-	};
-	/// UTF-8 for <tt>unsigned char</tt>.
-	template <> class auto_utf<unsigned char> : public utf8<unsigned char> {
-	};
-	/// UTF-16 for \p char16_t.
-	template <> class auto_utf<char16_t> : public utf16<char16_t> {
-	};
-	/// UTF-32 for \p char32_t.
-	template <> class auto_utf<char32_t> : public utf32<char32_t> {
-	};
-#ifdef CP_PLATFORM_WINDOWS
-	/// UTF-16 for \p wchar_t on windows.
-	template <> class auto_utf<wchar_t> : public utf16<wchar_t> {
-	};
-#else
-	/// UTF-32 for \p wchar_t on other platforms.
-	template <> class auto_utf<wchar_t> : public utf32<wchar_t> {
-	};
-#endif
-
-	/// Macro for defining UTF-8 string literals.
-#define CP_STRLIT_U8(X) u8##X
-/// Macro for defining UTF-32 string literals.
-#define CP_STRLIT_U32(X) U##X
-
-// encoding settings
-#ifdef CP_USE_UTF8
-/// Default character type and encoding.
-	using char_t = char;
-	/// Default definition for string literals.
-#	define CP_STRLIT(X) CP_STRLIT_U8(X)
-	/// The default encoding.
-	using default_encoding = utf8<char_t>;
-#elif defined(CP_USE_UTF32)
-/// Default character type and encoding.
-	using char_t = char32_t;
-	/// Default definition for string literals.
-#	define CP_STRLIT(X) CP_STRLIT_U32(X)
-	/// The default encoding.
-	using default_encoding = utf8<char_t>;
-#endif
-	/// STL string with default character type.
-	using str_t = std::basic_string<char_t>;
+			/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
+			/// Directly increments the iterator if possible, otherwise falls back to the default behavior.
+			template <typename It1, typename It2> inline static size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
+				if constexpr (std::is_same_v<It1, It2> && std::is_base_of_v<
+					std::random_access_iterator_tag, typename std::iterator_traits<It1>::iterator_category
+				>) {
+					auto dist = std::min(num, static_cast<size_t>(end - beg));
+					beg = beg + num;
+					return dist;
+				} else {
+					return codepad::skip_codepoints<It1, It2, codepad::utf32>(beg, end, num);
+				}
+			}
+		};
+	}
 
 	/// Settings and utilities of RapidJSON library.
 	namespace json {
 		// encoding settings
-#ifdef CP_USE_UTF8
 		/// Default encoding used by RapidJSON.
-		using encoding = rapidjson::UTF8<char_t>;
-#elif defined(CP_USE_UTF32)
-		/// Default encoding used by RapidJSON.
-		using encoding = rapidjson::UTF32<char_t>;
-#endif
+		using encoding = rapidjson::UTF8<char>;
 
 		/// RapidJSON type that holds a JSON object.
 		using value_t = rapidjson::GenericValue<encoding>;
@@ -511,199 +472,5 @@ namespace codepad {
 			}
 			return def;
 		}
-	}
-
-	/// Struct for iterating over a series of codepoints in a string.
-	///
-	/// \tparam T The type of iterator.
-	/// \tparam Encoding The encoding used.
-	template <
-		typename T, typename Encoding = auto_utf<typename std::iterator_traits<T>::value_type>
-	> struct codepoint_iterator_base {
-		template <typename U, typename Enc> friend struct codepoint_iterator_base;
-	public:
-		/// Default constructor.
-		codepoint_iterator_base() = default;
-		/// Constructs the iterator with a range of units.
-		///
-		/// \param beg First unit of the string.
-		/// \param end Past the last unit of the string.
-		/// \param cp Used when creating an iterator from part of a string which still needs to be
-		///           treated as a whole, to indicate the number of codepoints before \p beg.
-		codepoint_iterator_base(T beg, T end, size_t cp = 0) : _ptr(beg), _next(beg), _end(end), _cps(cp) {
-			if (_next != _end) { // get the first codepoint
-				_good = Encoding::next_codepoint(_next, _end, _cv);
-			}
-		}
-		/// Constructs the iterator from another iterator with
-		/// compatible underlying iterator types and the same encoding.
-		template <typename U> codepoint_iterator_base(const codepoint_iterator_base<U, Encoding> &it) :
-			_ptr(it._ptr), _next(it._next), _end(it._end), _cps(it._cps), _cv(it._cv), _good(it._good) {
-		}
-
-		/// Returns the current codepoint.
-		char32_t operator*() const {
-			return _cv;
-		}
-
-		/// Moves to the next codepoint.
-		void next() {
-			_ptr = _next;
-			++_cps;
-			if (_next != _end) {
-				_good = Encoding::next_codepoint(_next, _end, _cv);
-			}
-		}
-
-		/// Pre-increment.
-		codepoint_iterator_base &operator++() {
-			next();
-			return *this;
-		}
-		/// Post-increment.
-		const codepoint_iterator_base operator++(int) {
-			codepoint_iterator_base oldv = *this;
-			++*this;
-			return oldv;
-		}
-
-		/// Checks if the iterator is past the end of the string.
-		bool at_end() const {
-			return _ptr == _end;
-		}
-		/// Checks if the iterator will move past the end of the string after the next call to next().
-		bool next_end() const {
-			return _next == _end;
-		}
-		/// Checks if the representation of the current codepoint is valid.
-		bool current_good() const {
-			return _good;
-		}
-		/// Returns the current codepoint.
-		char32_t current_codepoint() const {
-			return _cv;
-		}
-		/// Returns the current codepoint position, i.e.,
-		/// how many codepoints there are before the current position.
-		size_t codepoint_position() const {
-			return _cps;
-		}
-		/// Sets the current codepoint position.
-		///
-		/// \sa codepoint_position()
-		void set_current_codepoint_position(size_t v) {
-			_cps = v;
-		}
-		/// Returns how many units there are before the current position given a starting position.
-		///
-		/// \param beg The starting position.
-		size_t unit_position(const T &beg) const {
-			return _ptr - beg;
-		}
-		/// Returns the underlying iterator to the beginning of the current codepoint.
-		const T &get_raw_iterator() const {
-			return _ptr;
-		}
-		/// Returns the underlying iterator to the beginning of the next codepoint.
-		const T &get_raw_next_iterator() const {
-			return _next;
-		}
-	protected:
-		T
-			_ptr{}, ///< Iterator to the current position, i.e., beginning of the current codepoint.
-			_next{}, ///< Iterator to the beginning of the next codepoint.
-			_end{}; ///< Iterator past the end of the string.
-		size_t _cps = 0; ///< Number of codepoints before \ref _ptr.
-		char32_t _cv{}; ///< Value of the current codepoint.
-		bool _good = false; ///< Indicates whether the underlying representation of the current codepoint is valid.
-	};
-	/// \ref codepoint_iterator_base specialiaztion of default string type.
-	using string_codepoint_iterator = codepoint_iterator_base<str_t::const_iterator>;
-	/// \ref codepoint_iterator_base specialization of default raw string type.
-	using raw_codepoint_iterator = codepoint_iterator_base<const char_t*>;
-
-	/// Convert a range of units from one encoding to another.
-	/// The source encoding is determined by the type of its units.
-	///
-	/// \tparam To A string type such as \p std::basic_string.
-	/// \tparam SrcEncoding The source encoding.
-	/// \tparam DstEncoding The destination encoding.
-	/// \param beg Iterator to the beginning of the string.
-	/// \param end Iterator past the ending of the string.
-	/// \remark This function automatically replaces invalid codepoints with the \ref replacement_character.
-	template <
-		typename To, typename It,
-		typename SrcEncoding = auto_utf<typename std::iterator_traits<It>::value_type>,
-		typename DstEncoding = auto_utf<typename To::value_type>
-	> inline To convert_encoding(
-		It beg, It end
-	) {
-		To result;
-		char32_t c = replacement_character;
-		while (beg != end) {
-			if (!SrcEncoding::next_codepoint(beg, end, c)) {
-				c = replacement_character;
-			}
-			result.append(DstEncoding::encode_codepoint(c));
-		}
-		return result;
-	}
-	/// \overload
-	template <
-		typename To, typename From,
-		typename SrcEncoding = auto_utf<typename From::value_type>,
-		typename DstEncoding = auto_utf<typename To::value_type>
-	> inline To convert_encoding(
-		const From &str
-	) {
-		if constexpr (std::is_same_v<SrcEncoding, DstEncoding>) {
-			return To(str);
-		} else {
-			return convert_encoding<
-				To, typename From::const_iterator, SrcEncoding, DstEncoding
-			>(str.begin(), str.end());
-		}
-	}
-
-	/// Converts a string to UTF-8 encoding.
-	template <typename From> inline std::string convert_to_utf8(From &&f) {
-		return convert_encoding<std::string>(std::forward<From>(f));
-	}
-	/// Converts a string to UTF-16 encoding.
-	template <typename From> inline std::u16string convert_to_utf16(From &&f) {
-		return convert_encoding<std::u16string>(std::forward<From>(f));
-	}
-	/// Converts a string to UTF-32 encoding.
-	template <typename From> inline std::u32string convert_to_utf32(From &&f) {
-		return convert_encoding<std::u32string>(std::forward<From>(f));
-	}
-
-	/// Converts a string to \ref default_encoding.
-	///
-	/// \tparam SrcEncoding The source encoding.
-	template <
-		typename Char, typename SrcEncoding = auto_utf<Char>
-	> inline str_t convert_to_default_encoding(const std::basic_string<Char> &s) {
-		return convert_encoding<str_t, std::basic_string<Char>, SrcEncoding, default_encoding>(s);
-	}
-	/// \overload
-	template <
-		typename It, typename SrcEncoding = auto_utf<typename std::iterator_traits<It>::value_type>
-	> inline str_t convert_to_default_encoding(It beg, It end) {
-		return convert_encoding<str_t, It, SrcEncoding, default_encoding>(beg, end);
-	}
-
-	/// Calls \p std::to_string to convert the param into a string,
-	/// then converts the string to the current encoding.
-	///
-	/// \param t An object. Must be one of the type that \p std::to_string accepts.
-	template <typename T> inline str_t to_str(T t) {
-		std::string res = std::to_string(t);
-		str_t result;
-		result.reserve(res.length());
-		for (auto i = res.begin(); i != res.end(); ++i) {
-			result.append({static_cast<char_t>(*i)});
-		}
-		return result;
 	}
 }

@@ -12,7 +12,6 @@
 namespace codepad::os {
 	class window_base;
 	class renderer_base;
-	class opengl_renderer_base;
 
 	/// The factor that a color (source or destination) is blended with.
 	enum class blend_factor {
@@ -52,7 +51,7 @@ namespace codepad::os {
 	///
 	/// \tparam IsNormal \p false if the texture is a character texture, or \p true if it is a normal one.
 	template <bool IsNormal> struct texture_base {
-		friend class renderer_base;
+		friend renderer_base;
 	public:
 		/// Indicates whether the texture is a normal texture.
 		constexpr static bool is_normal_texture = IsNormal;

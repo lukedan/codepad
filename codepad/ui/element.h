@@ -109,9 +109,7 @@ namespace codepad::ui {
 		friend class element_collection;
 		friend class panel_base;
 		friend class os::window_base;
-		friend class visual_state;
-		friend class visual;
-		friend class class_arrangements;
+		friend class_arrangements;
 	public:
 		/// Default virtual destrucor.
 		virtual ~element() = default;

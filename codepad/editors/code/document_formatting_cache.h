@@ -6,11 +6,12 @@
 
 #include <queue>
 
-#include "document.h"
-#include "document_manager.h"
+#include "../buffer_manager.h"
+#include "interpretation.h"
 #include "rendering.h"
 
 namespace codepad::editor::code {
+	/*
 	/// For long lines, the text is split into small chunks and the length of each chunk is calculated and stored
 	/// separately to accelerate certain operations.
 	class line_length_data {
@@ -55,7 +56,7 @@ namespace codepad::editor::code {
 		/// The type of a node in the tree.
 		using node_type = binary_tree_node<chunk_info, chunk_synth_data>;
 		/// The type of a tree.
-		using tree_type = binary_tree<chunk_info, chunk_synth_data, no_synthesizer>;
+		using tree_type = binary_tree<chunk_info, chunk_synth_data, lacks_synthesizer>;
 		/// The custom synthesizer.
 		struct synthesizer {
 			/// Calls \ref chunk_synth_data::synthesize and adds the given node to \ref invalid_nodes to update
@@ -81,7 +82,7 @@ namespace codepad::editor::code {
 		/// \param n The node.
 		/// \param pos The position of the first character of this line in the document.
 		/// \param doc The document.
-		void recalc_size_of(node_type *n, size_t pos, document &doc) {
+		void recalc_size_of(node_type *n, size_t pos, interpretation &doc) {
 			n->synth_data.total_size = n->value.text_size;
 			if (n->left || n->right) {
 				size_t posinline = _first_char_of_node(n);
@@ -99,7 +100,7 @@ namespace codepad::editor::code {
 		}
 
 		/// Resets this struct with the given text.
-		void set(document &doc, size_t beg, size_t len) {
+		void set(interpretation &doc, size_t beg, size_t len) {
 			_t.clear();
 			size_t nchunks = (len + maximum_chunk_size - 1) / maximum_chunk_size;
 			std::vector<chunk_info> chunks;
@@ -139,7 +140,7 @@ namespace codepad::editor::code {
 				return 0.0;
 			}
 			auto cit = doc.at_char(pos);
-			char32_t c = cit.current_character();
+			codepoint c = cit.current_character();
 			++cit;
 			return editor::get_font().get_by_style(tit->second)->get_kerning(c, cit.current_character()).x;
 		}
@@ -194,13 +195,13 @@ namespace codepad::editor::code {
 		/// Enables caching for all documents.
 		inline static void enable() {
 			assert_true_logical(!in_effect(), "invalid enable() call");
-			size_t id = document_manager::get().allocate_tag();
-			document_manager::get().for_each_open_document([id](const std::shared_ptr<document> &doc) {
+			size_t id = buffer_manager::get().allocate_tag();
+			buffer_manager::get().for_each_buffer([id](const std::shared_ptr<document> &doc) {
 				doc->get_tag(id).emplace<document_formatting_cache>(*doc);
 				});
 			_in_effect_params &params = _eff.emplace();
 			params.tag_id = id;
-			params.event_token = (document_manager::get().document_created += [id](document_info &info) {
+			params.event_token = (buffer_manager::get().buffer_created += [id](buffer_info &info) {
 				info.doc.get_tag(id).emplace<document_formatting_cache>(info.doc);
 				});
 		}
@@ -211,8 +212,8 @@ namespace codepad::editor::code {
 		/// Disables caching for all documents.
 		inline static void disable() {
 			assert_true_logical(in_effect(), "invalid disable() call");
-			document_manager::get().deallocate_tag(_eff->tag_id);
-			document_manager::get().document_created -= _eff->event_token;
+			buffer_manager::get().deallocate_tag(_eff->tag_id);
+			buffer_manager::get().buffer_created -= _eff->event_token;
 			_eff.reset();
 		}
 	protected:
@@ -225,11 +226,11 @@ namespace codepad::editor::code {
 		/// Stores information used when this class is in effect.
 		struct _in_effect_params {
 			size_t tag_id; ///< The index of the tag.
-			/// The token for listening to \ref document_manager::document_created.
-			event<document_info>::token event_token;
+			/// The token for listening to \ref buffer_manager::buffer_created.
+			event<buffer_info>::token event_token;
 		};
 
-		/// Information about \ref document_manager when this class is in effect.
+		/// Information about \ref buffer_manager when this class is in effect.
 		static std::optional<_in_effect_params> _eff;
 
 		/// Clears \ref _lines and recalculates all lengths.
@@ -317,4 +318,5 @@ namespace codepad::editor::code {
 			}
 		}
 	};
+	*/
 }

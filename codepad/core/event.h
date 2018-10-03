@@ -22,7 +22,7 @@ namespace codepad {
 		/// Returned by operator+=(), used to unregister a handler.
 		/// Used instead of raw iterators to prohibit direct access to the elements.
 		struct token {
-			friend struct event_base<Args...>;
+			friend event_base<Args...>;
 		public:
 			/// Default construtor.
 			token() = default;

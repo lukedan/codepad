@@ -164,7 +164,7 @@ namespace codepad::os {
 		struct _ivec4i32;
 		/// 4-d vector of floats, accelerated using SSE intrinsics if enabled.
 		struct alignas(16) _ivec4f {
-			friend struct _ivec4i32;
+			friend _ivec4i32;
 
 			/// Default constructor.
 			_ivec4f() = default;
@@ -296,7 +296,7 @@ namespace codepad::os {
 		};
 		/// 4-d vector of ints, accelerated using SSE intrinsics if enabled.
 		struct alignas(16) _ivec4i32 {
-			friend struct _ivec4f;
+			friend _ivec4f;
 
 			/// Returns the X component of the vector.
 			int get_x() const;

@@ -24,14 +24,14 @@ namespace codepad::ui {
 		}
 
 		/// Appends a character to the end of the line, with the given \ref font_style.
-		void next(char32_t c, font_style fs) {
+		void next(codepoint c, font_style fs) {
 			_lastchar = _curchar;
 			_laststyle = _curstyle;
 			_lce = _pos + _cw;
 			replace_current(c, fs);
 		}
 		/// Replaces the current character with a given character with a specified font style.
-		void replace_current(char32_t c, font_style fs) {
+		void replace_current(codepoint c, font_style fs) {
 			_curchar = c;
 			_curstyle = fs;
 			const auto &stylefnt = _ff.get_by_style(_curstyle);
@@ -75,7 +75,7 @@ namespace codepad::ui {
 			return _lce;
 		}
 		/// Returns the current character.
-		char32_t current_char() const {
+		codepoint current_char() const {
 			return _curchar;
 		}
 		/// Returns the os::font::entry for the current character.
@@ -113,7 +113,7 @@ namespace codepad::ui {
 			_cw = 0.0, ///< The width of the current character.
 			_pos = 0.0, ///< The position of the left boundary of the current character.
 			_tabw = 0.0; ///< The width of a tab character, in pixels.
-		char32_t
+		codepoint
 			_lastchar = '\0', ///< The last character.
 			_curchar = '\0'; ///< The current character.
 		const os::font::entry *_cet = nullptr; ///< The entry for the current character.
@@ -129,23 +129,24 @@ namespace codepad::ui {
 	namespace text_renderer {
 		/// Renders the given text, using the specified font, position, and color.
 		template <typename It> inline void render_plain_text(
-			It &&beg, It &&end, const std::shared_ptr<const os::font> &fnt, vec2d topleft, colord color
+			It beg, It end, const std::shared_ptr<const os::font> &fnt, vec2d topleft, colord color
 		) {
 			int sx = static_cast<int>(std::round(topleft.x)), dy = static_cast<int>(std::ceil(fnt->height()));
 			vec2i cur = vec2i(sx, static_cast<int>(std::round(topleft.y)));
-			char32_t last = '\0';
+			codepoint last = 0;
 			double lastw = 0.0;
-			for (codepoint_iterator_base<std::decay_t<It>> i(beg, end); !i.at_end(); i.next()) {
-				if (is_newline(*i)) {
+			for (; beg != end; ++beg) {
+				codepoint cp = *beg;
+				if (is_newline(cp)) {
 					cur.x = sx;
 					cur.y += dy;
 					last = '\0';
 				} else {
 					if (last != '\0') {
-						cur.x += static_cast<int>(std::round(lastw + fnt->get_kerning(last, *i).x));
+						cur.x += static_cast<int>(std::round(lastw + fnt->get_kerning(last, cp).x));
 					}
-					os::font::entry &et = fnt->draw_character(*i, cur.convert<double>(), color);
-					last = *i;
+					os::font::entry &et = fnt->draw_character(cp, cur.convert<double>(), color);
+					last = cp;
 					lastw = et.advance;
 				}
 			}
@@ -159,23 +160,24 @@ namespace codepad::ui {
 
 		/// Measures the size of the bounding box of the text, using the given font.
 		template <typename It> inline vec2d measure_plain_text(
-			It &&beg, It &&end, const std::shared_ptr<const os::font> &fnt
+			It beg, It end, const std::shared_ptr<const os::font> &fnt
 		) {
-			char32_t last = '\0';
+			codepoint last = '\0';
 			double lastw = 0.0, curline = 0.0, maxw = 0.0;
 			size_t linen = 1;
-			for (codepoint_iterator_base<std::decay_t<It>> i(beg, end); !i.at_end(); i.next()) {
-				const os::font::entry &et = fnt->get_char_entry(*i);
+			for (; beg != end; ++beg) {
+				codepoint cp = *beg;
+				const os::font::entry &et = fnt->get_char_entry(cp);
 				if (last != '\0') {
-					curline += static_cast<int>(std::round(lastw + fnt->get_kerning(last, *i).x));
+					curline += static_cast<int>(std::round(lastw + fnt->get_kerning(last, cp).x));
 				}
-				if (is_newline(*i)) {
+				if (is_newline(cp)) {
 					++linen;
 					last = '\0';
 					maxw = std::max(maxw, curline + et.advance);
 					lastw = curline = 0.0;
 				} else {
-					last = *i;
+					last = cp;
 					lastw = et.advance;
 				}
 			}

@@ -3,7 +3,7 @@
 /// \file
 /// Contains classes used to format a view of a \ref codepad::editor::code::document.
 
-#include "document.h"
+#include "interpretation.h"
 
 namespace codepad::editor::code {
 	/// The type of a linebreak.
@@ -336,7 +336,9 @@ namespace codepad::editor::code {
 				/// The number of linebreaks (including both hard and soft ones) that \ref gap covers.
 				gap_lines = 0,
 				/// The number of linebreaks (including both hard and soft ones) that \ref range covers.
-				folded_lines = 0;
+				folded_lines = 0,
+				bytepos_first = 0, ///< Position of the first byte of this folded region.
+				bytepos_second = 0; ///< Position past the last byte of this folded region.
 		};
 		/// Contains additional synthesized data of a subtree.
 		///
@@ -590,6 +592,7 @@ namespace codepad::editor::code {
 		/// \return An iterator to the newly added region.
 		/// \todo Save the removed overlapping regions so that they'll be recovered when the added region's unfolded.
 		iterator add_fold_region(const fold_region_data &fr) {
+			_bytepos_valid = false;
 			fold_region_info
 				beg = find_region_containing_or_first_after_open(fr.begin),
 				end = find_region_containing_or_first_before_open(fr.end);
@@ -624,75 +627,46 @@ namespace codepad::editor::code {
 				mod->gap += dp;
 				mod->gap_lines += dl;
 			}
+			// _bytepos_valid stays true
 		}
 		/// Removes all folded regions from the registry.
 		void clear_folded_regions() {
 			_t.clear();
+			_bytepos_valid = true;
 		}
 
-		/// Adjusts the positions of the folded regions after a modification so that their positions are as close to
+		/// Prepares this registry for editing by calling \ref _calculate_byte_positions() to calculate byte
+		/// positions for each folded region.
+		void prepare_for_edit(const interpretation &interp) {
+			_calculate_byte_positions(interp);
+		}
+		/// Adjusts the positions of the folded regions after an edit so that their positions are as close to
 		/// those before the modification as possible.
-		///
-		/// \todo Currently only adjusts the caracter positions, and is therefore not used.
-		void fixup_positions(const caret_fixup_info &edt) {
+		void fixup_after_edit(buffer::end_edit_info &edt, const interpretation &interp) {
 			if (_t.empty()) {
 				return;
 			}
-			for (const modification_position &mod : edt.mods) {
-				fold_region_info pfirst = find_region_containing_or_first_after_open(mod.position);
-				if (pfirst.entry == _t.end()) {
-					break;
-				}
-				if (mod.removed_range > 0) {
-					size_t endp = mod.position + mod.removed_range;
-					fold_region_info plast = find_region_containing_or_first_before_open(endp);
-					if (plast.entry != _t.end()) {
-						size_t
-							ffbeg = pfirst.prev_chars + pfirst.entry->gap,
-							ffend = ffbeg + pfirst.entry->range;
-						if (pfirst.entry == plast.entry && endp < ffend) {
-							if (mod.position >= ffbeg) {
-								_t.get_modifier_for(pfirst.entry.get_node())->range -= mod.removed_range;
-							} else {
-								auto modder = _t.get_modifier_for(pfirst.entry.get_node());
-								modder->range = ffend - endp;
-								modder->gap = mod.position - pfirst.prev_chars;
-							}
-						} else {
-							size_t
-								lfbeg = plast.prev_chars + plast.entry->gap,
-								lfend = lfbeg + plast.entry->range,
-								addlen = 0;
-							if (endp < lfend) {
-								_t.get_modifier_for(plast.entry.get_node())->range -= endp - lfbeg;
-							} else {
-								plast.move_next();
-								addlen -= endp - plast.prev_chars;
-							}
-							// the stats in plast becomes invalid since here
-							if (mod.position > ffbeg) {
-								_t.get_modifier_for(pfirst.entry.get_node())->range -= ffend - mod.position;
-								pfirst.move_next();
-							} else {
-								addlen += mod.position - pfirst.prev_chars;
-							}
-							_t.erase(pfirst.entry, plast.entry);
-							if (plast.entry != _t.end()) {
-								_t.get_modifier_for(plast.entry.get_node())->gap += addlen;
-							}
-						}
-					} else {
-						_t.begin().get_modifier()->gap -= mod.removed_range;
+			interpretation::character_position_converter cvt(interp);
+			buffer::position_patcher patcher(edt.positions);
+			size_t lastpos = 0;
+			for (auto it = _t.begin(); it != _t.end(); ) {
+				size_t
+					begbyte = patcher.patch<buffer::position_patcher::strategy::back>(it->bytepos_first),
+					endbyte = patcher.patch<buffer::position_patcher::strategy::front>(it->bytepos_second);
+				if (begbyte < endbyte) {
+					size_t begchar = cvt.byte_to_character(begbyte), endchar = cvt.byte_to_character(endbyte);
+					if (begchar < endchar) {
+						it.get_value_rawmod().gap = begchar - lastpos;
+						it.get_value_rawmod().range = endchar - begchar;
+						lastpos = endchar;
+						++it;
+						continue;
 					}
 				}
-				if (mod.added_range > 0) {
-					if (mod.position <= pfirst.prev_chars + pfirst.entry->gap) {
-						_t.get_modifier_for(pfirst.entry.get_node())->gap += mod.added_range;
-					} else {
-						_t.get_modifier_for(pfirst.entry.get_node())->range += mod.added_range;
-					}
-				}
+				it = _t.erase(it, no_synthesizer());
 			}
+			_t.refresh_tree_synthesized_result();
+			_bytepos_valid = false;
 		}
 
 		/// Returns an iterator to the beginning of the registry.
@@ -785,7 +759,25 @@ namespace codepad::editor::code {
 		/// the next fold region will be the result.
 		using _find_region_open = _find_region<std::less<>>;
 
+		/// Calculates \ref fold_region_node_data::bytepos_first and \ref fold_region_node_data::bytepos_second if
+		/// necessary.
+		void _calculate_byte_positions(const interpretation &interp) {
+			if (_bytepos_valid) {
+				return;
+			}
+			interpretation::character_position_converter cvt(interp);
+			size_t pos = 0;
+			for (auto it = _t.begin(); it != _t.end(); ++it) {
+				pos += it->gap;
+				it.get_value_rawmod().bytepos_first = cvt.character_to_byte(pos);
+				pos += it->range;
+				it.get_value_rawmod().bytepos_second = cvt.character_to_byte(pos);
+			}
+			_bytepos_valid = true;
+		}
+
 		tree_type _t; ///< The underlying \ref binary_tree.
+		bool _bytepos_valid = false; ///< Whether the underlying byte positions are valid.
 	};
 
 	/// Controls the formatting of a single view of a document. This is different for each view of the same
@@ -830,9 +822,14 @@ namespace codepad::editor::code {
 			_fr.clear_folded_regions();
 		}
 
-		/// Calls \ref folding_registry::fixup_positions.
-		void fixup_folding_positions(const caret_fixup_info &info) {
-			_fr.fixup_positions(info);
+		/// Prepares this \ref view_formatting for modifications by calling \ref folding_registry::prepare_for_edit.
+		void prepare_for_edit(const interpretation &interp) {
+			_fr.prepare_for_edit(interp);
+		}
+		/// Fixup this \ref view_formatting after the underlying \ref buffer has been modified by calling
+		/// \ref folding_registry::fixup_positions.
+		void fixup_after_edit(buffer::end_edit_info &info, const interpretation &interp) {
+			_fr.fixup_after_edit(info, interp);
 		}
 		/// Recalculates all line information of \ref _fr.
 		///
@@ -851,6 +848,11 @@ namespace codepad::editor::code {
 			_fr._t.refresh_tree_synthesized_result();
 		}
 
+		/// Sets the maximum width of a `tab' character in blank spaces.
+		void set_tab_width(double v) {
+			_tab = v;
+		}
+
 		/// Returns the \ref soft_linebreak_registry \ref _lbr.
 		const soft_linebreak_registry &get_linebreaks() const {
 			return _lbr;
@@ -859,8 +861,13 @@ namespace codepad::editor::code {
 		const folding_registry &get_folding() const {
 			return _fr;
 		}
+		/// Returns the maximum width of a `tab' character, relative to the width of a blank space.
+		double get_tab_width() const {
+			return _tab;
+		}
 	protected:
 		soft_linebreak_registry _lbr; ///< Registry of all soft linebreaks.
 		folding_registry _fr; ///< Registry of all folded regions.
+		double _tab = 4.0f; ///< The maximum width of a `tab' character relative to the width of a blank space.
 	};
 }

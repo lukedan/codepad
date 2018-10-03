@@ -48,9 +48,9 @@ namespace codepad::ui {
 			return vec2d(width(), height());
 		}
 	};
-	/// Used to specify to which sides an object is anchored.
-	/// If an object is anchored to a side, then the distance between the borders
-	/// of the object and its container is kept to be the specified value.
+	/// Used to specify to which sides an object is anchored. If an object is anchored to a side, then the distance
+	/// between the borders of the object and its container is kept to be the value specified in the element's
+	/// margin. Otherwise, the margin value is treated as a proportion.
 	enum class anchor : unsigned char {
 		none = 0, ///< The object is not anchored to any side.
 
@@ -115,6 +115,11 @@ namespace codepad::ui {
 		}
 	}
 
+	/// Type of the transition function used to control the process of a \ref animated_property. This function
+	/// accepts a double in the range of [0, 1] and return a double in the same range. The input indicates the
+	/// current process of the animation, and the output is used to linearly interpolate the current value between
+	/// \ref animated_property::from and \ref animated_property::to.
+	using transition_function = std::function<double(double)>;
 	/// A property of a \ref visual_layer that can be animated. This only stores the
 	/// parameters of the animation; the actual animating process is done on \ref state.
 	/// After the animation is over, the value stays at \ref to.
@@ -160,11 +165,8 @@ namespace codepad::ui {
 			duration = 0.0,
 			/// The proportion that the duration is scaled by when the animation is played backwards.
 			reverse_duration_scale = 1.0;
-		/// The transition function used to control the process of the animation.
-		/// This function should accept a double in the range of [0, 1] and return a double in the same range.
-		/// The input indicates the current process of the animation, and the output is used to linearly
-		/// interpolate the current value between \ref from and \ref to.
-		std::function<double(double)> transition_func = transition_functions::linear;
+		/// The transition function.
+		transition_function transition_func = transition_functions::linear;
 
 		/// Updates the given state.
 		///

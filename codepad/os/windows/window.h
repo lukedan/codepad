@@ -30,7 +30,7 @@ namespace codepad {
 			explicit window(window *parent = nullptr) : window(CP_STRLIT("Codepad"), parent) {
 			}
 			explicit window(const str_t &clsname, window *parent = nullptr) : window_base() {
-				auto u16str = convert_to_utf16(clsname);
+				auto u16str = _details::utf8_to_wstring(clsname.c_str());
 				_wndclass::get();
 				winapi_check(_hwnd = CreateWindowEx(
 					WS_EX_ACCEPTFILES, reinterpret_cast<LPCTSTR>(static_cast<size_t>(_wndclass::get().atom)),
@@ -42,7 +42,7 @@ namespace codepad {
 			}
 
 			void set_caption(const str_t &cap) override {
-				auto u16str = convert_to_utf16(cap);
+				auto u16str = _details::utf8_to_wstring(cap.c_str());
 				winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
 			}
 			vec2i get_position() const override {
@@ -206,7 +206,7 @@ namespace codepad {
 						if (buffersz != IMM_ERROR_NODATA) {
 							res.resize(buffersz / sizeof(wchar_t));
 							assert_true_sys(
-								ImmGetCompositionString(context, type, &res[0], buffersz) == buffersz,
+								ImmGetCompositionString(context, type, res.data(), buffersz) == buffersz,
 								"failed to obtain string from IME"
 							);
 							return true;
