@@ -214,6 +214,7 @@ namespace codepad::editor {
 					size_t ndiff = _next->added_range - _next->removed_range;
 					pos += ndiff;
 					_diff += ndiff;
+					++_next;
 				}
 				if (_next != _pos.end() && pos > _next->position) {
 					if constexpr (Strat == strategy::front) {
@@ -390,7 +391,7 @@ namespace codepad::editor {
 				if (mp.valid()) {
 					const std::byte
 						*ptr = static_cast<const std::byte*>(mp.get_mapped_pointer()),
-						*end = ptr + mp.get_mapped_size();
+						*end = ptr + f.get_size();
 					std::vector<chunk_data> chunks;
 					for (
 						const std::byte *next = ptr + maximum_bytes_per_chunk;
@@ -538,7 +539,7 @@ namespace codepad::editor {
 		using _byte_index_finder = sum_synthesizer::index_finder<node_data::length_property>;
 
 		/// Erases a subsequence from the buffer.
-		void _erase(const const_iterator &beg, const const_iterator &end) {
+		void _erase(const_iterator beg, const_iterator end) {
 			if (beg._it == _t.end()) {
 				return;
 			}
@@ -547,19 +548,25 @@ namespace codepad::editor {
 				_try_merge_small_nodes(beg._it);
 				return;
 			}
-			_t.erase(beg._it.get_node()->next(), end._it.get_node()); // erase full chunks
-			// erase the part in the first chunk
-			_t.get_modifier_for(beg._it.get_node())->erase(beg._s, beg._it->end());
+			// erase full chunks
+			if (beg._s == beg._it->begin()) { // the first chunk is fully deleted
+				_t.erase(beg._it, end._it);
+			} else {
+				_t.erase(beg._it.get_node()->next(), end._it.get_node());
+				// erase the part in the first chunk
+				_t.get_modifier_for(beg._it.get_node())->erase(beg._s, beg._it->end());
+			}
 			if (end._it != _t.end()) {
 				// erase the part in the last chunk
-				_t.get_modifier_for(end._it.get_node())->erase(end._s, end._it->end());
+				_t.get_modifier_for(end._it.get_node())->erase(end._it->begin(), end._s);
 				_try_merge_small_nodes(end._it);
+			} else if (!_t.empty()) {
+				_try_merge_small_nodes(--_t.end());
 			}
-			_try_merge_small_nodes(beg._it);
 		}
 		/// Inserts an array of bytes at the given position.
 		template <typename It1, typename It2> void _insert(
-			const const_iterator &pos, const It1 &beg, const It2 &end
+			const_iterator pos, const It1 &beg, const It2 &end
 		) {
 			if (beg == end) {
 				return;
@@ -567,22 +574,22 @@ namespace codepad::editor {
 			tree_type::const_iterator insit = pos._it, updit = insit;
 			chunk_data afterstr, *curstr;
 			std::vector<chunk_data> strs; // the buffer for (not all) inserted bytes
-			if (pos._it != _t.end() && pos._s != pos._it->begin()) { // insert at the middle of a chunk
+			if (pos._it == _t.end()) { // insert at the very end
+				--updit;
+				curstr = &updit.get_value_rawmod();
+			} else if (pos._s != pos._it->begin()) { // insert at the middle of a chunk
 				// save the second part & truncate the chunk
 				afterstr = chunk_data(pos._s, pos._it->end());
 				pos._it.get_value_rawmod().erase(pos._s, pos._it->end());
 				++insit;
 				curstr = &updit.get_value_rawmod();
-			} else if (_t.begin() == _t.end() || pos._s == pos._it->begin()) {
+			} else {
 				// insert at the beginning of a chunk, no need to split or update
 				updit = _t.end();
 				chunk_data st;
 				st.reserve(maximum_bytes_per_chunk);
 				strs.push_back(std::move(st));
 				curstr = &strs.back();
-			} else { // insert at the very end
-				--updit;
-				curstr = &updit.get_value_rawmod();
 			}
 			for (auto it = beg; it != end; ++it) { // insert codepoints
 				if (curstr->size() == maximum_bytes_per_chunk) { // curstr would be too long, add a new chunk
@@ -602,16 +609,13 @@ namespace codepad::editor {
 			_t.refresh_synthesized_result(updit.get_node());
 			_t.insert_range_before_move(insit, strs.begin(), strs.end()); // insert the strings
 			// try to merge small nodes
-			_try_merge_small_nodes(--insit);
-			if (insit != _t.begin()) {
-				_try_merge_small_nodes(--insit);
-			}
+			_try_merge_small_nodes(insit);
 		}
 
-		/// Merges a node with one or more of its neighboring nodes if their total length are
-		/// smaller than the maximum value.
+		/// Merges a node with one or more of its neighboring nodes if their total length are smaller than the
+		/// maximum value. Note that this function does not ensure the validity of any iterator after this operation.
 		///
-		/// \todo Find better merging strategy.
+		/// \todo Find a better merging strategy.
 		void _try_merge_small_nodes(const tree_type::const_iterator &it) {
 			if (it == _t.end()) {
 				return;
@@ -620,12 +624,14 @@ namespace codepad::editor {
 			if (nvl * 2 > maximum_bytes_per_chunk) {
 				return;
 			}
-			tree_type::const_iterator prev = it;
-			--prev;
-			if (prev != _t.end() && prev->size() + nvl < maximum_bytes_per_chunk) {
-				_t.get_modifier_for(prev.get_node())->insert(prev->end(), it->begin(), it->end());
-				_t.erase(it);
-				return;
+			if (it != _t.begin()) {
+				tree_type::const_iterator prev = it;
+				--prev;
+				if (prev->size() + nvl < maximum_bytes_per_chunk) {
+					_t.get_modifier_for(prev.get_node())->insert(prev->end(), it->begin(), it->end());
+					_t.erase(it);
+					return;
+				}
 			}
 			tree_type::const_iterator next = it;
 			++next;

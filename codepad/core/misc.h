@@ -914,14 +914,14 @@ namespace codepad {
 		/// \param cp The position indicating where the log was produced.
 		/// \param args The log information.
 		template <typename ...Args> void log_warning(const code_position &cp, Args &&...args) {
-			_log_fmt("WARNING", cp, std::forward<Args>(args)...);
+			_log_fmt("\033[33mWARNING\033[0m", cp, std::forward<Args>(args)...);
 		}
 		/// Logs the given information with the `error' log level, and flushes the streams.
 		///
 		/// \param cp The position indicating where the log was produced.
 		/// \param args The log information.
 		template <typename ...Args> void log_error(const code_position &cp, Args &&...args) {
-			_log_fmt(" ERROR ", cp, std::forward<Args>(args)...);
+			_log_fmt("\033[31m ERROR \033[0m", cp, std::forward<Args>(args)...);
 			_fout.flush();
 		}
 		/// Logs the given information and stacktrace with the `error' log level, and flushes the streams.
@@ -943,7 +943,7 @@ namespace codepad {
 		/// Logs a custom message, without any formatting (uptime or newline).
 		template <typename ...Args> void log_raw(Args &&...args) {
 			print_to(_fout, std::forward<Args>(args)...);
-			print_to(std::cout, std::forward<Args>(args)...);
+			print_to(std::cerr, std::forward<Args>(args)...);
 		}
 
 		/// Logs the current stacktrace.
@@ -960,7 +960,7 @@ namespace codepad {
 		std::ofstream _fout; ///< File output.
 
 		/// Logs an entry with the given 7-char header.
-		template <typename ...Args> void _log_fmt(const char(&header)[8], const code_position &cp, Args &&...args) {
+		template <typename ...Args> void _log_fmt(const char *header, const code_position &cp, Args &&...args) {
 			log_custom(header, "|", cp, "|", std::forward<Args>(args)...);
 		}
 	};

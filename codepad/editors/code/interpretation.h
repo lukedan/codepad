@@ -305,6 +305,7 @@ namespace codepad::editor::code {
 			/// Returns the position of the codepoint that contains the given byte. This should not be used mixedly
 			/// with \ref codepoint_to_byte().
 			size_t byte_to_codepoint(size_t pos) {
+				size_t globalpos = pos;
 				if (_firstbyte + _cpchk->num_bytes > pos) {
 					pos -= _firstbyte;
 				} else {
@@ -316,10 +317,10 @@ namespace codepad::editor::code {
 					_firstcp = finder.total_codepoints;
 					_byteit = _interp.get_buffer()->at(_firstbyte);
 				}
-				for (; _byteit.get_position() <= pos; ++_chkcp) {
+				for (; _byteit.get_position() < globalpos; ++_chkcp) {
 					_interp.get_encoding()->next_codepoint(_byteit, _interp.get_buffer()->end());
 				}
-				return _firstcp + _chkcp - 1;
+				return _firstcp + _chkcp - (_byteit.get_position() == globalpos ? 0 : 1);
 			}
 		protected:
 			tree_type::const_iterator _cpchk; ///< Iterator to the current chunk in which the codepoint lies.
@@ -424,7 +425,7 @@ namespace codepad::editor::code {
 		/// Returns a \ref character_iterator pointing at the specified character.
 		character_iterator at_character(size_t pos) const {
 			auto[colinfo, cp] = _lbs.get_line_and_column_and_codepoint_of_char(pos);
-			return character_iterator(at_codepoint(cp), colinfo.line_iterator, colinfo.column);
+			return character_iterator(at_codepoint(cp), colinfo.line_iterator, colinfo.position_in_line);
 		}
 
 		/// Returns the total number of codepoints in this \ref interpretation.
@@ -494,6 +495,92 @@ namespace codepad::editor::code {
 			for (const _precomp_mod_positions &modpos : pos) {
 				mod.modify(modpos.begin, modpos.length, contents);
 			}
+		}
+
+
+		/// Checks the integrity of this \ref interpretation by re-interpreting the underlying \ref buffer. This
+		/// function is mainly intended to be used for debugging.
+		///
+		/// \return Indicates whether the data in \ref _lbs and \ref _chks are valid and correct.
+		bool check_integrity() const {
+			logger::get().log_info(CP_HERE, "starting integrity check");
+			bool error = false;
+			buffer::const_iterator it = _buf->begin();
+			auto chk = _chks.begin();
+			size_t cpbefore = 0;
+			linebreak_analyzer linebreaks;
+			while (it != _buf->end() && chk != _chks.end()) {
+				codepoint cp;
+				if (!_encoding->next_codepoint(it, _buf->end(), cp)) {
+					cp = 0;
+				}
+				linebreaks.put(cp);
+				while (chk != _chks.end()) {
+					size_t chkend = chk->num_codepoints + cpbefore;
+					if (it.get_position() < chkend) {
+						break;
+					}
+					if (it.get_position() > chkend) {
+						error = true;
+						logger::get().log_error(
+							CP_HERE, "codepoint boundary mismatch at byte ", chkend,
+							": expected ", it.get_position());
+					}
+					cpbefore = chkend;
+					++chk;
+				}
+			}
+			if (it != _buf->end() || chk != _chks.end()) {
+				error = true;
+				if (it != _buf->end()) {
+					logger::get().log_error(
+						CP_HERE, "document length mismatch: chunks ended abruptly at byte ", it.get_position(),
+						", expected ", _buf->length()
+					);
+				} else {
+					logger::get().log_error(
+						CP_HERE, "document length mismatch: got ", cpbefore, " codepoints with ",
+						_chks.empty() ? 0 : _chks.root()->synth_data.total_bytes, " bytes, expected ",
+						_buf->length(), " bytes"
+					);
+				}
+			}
+			linebreaks.finish();
+			auto explineit = linebreaks.result().begin();
+			auto gotlineit = _lbs.begin();
+			size_t line = 0;
+			while (explineit != linebreaks.result().end() && gotlineit != _lbs.end()) {
+				if (gotlineit->nonbreak_chars != explineit->nonbreak_chars) {
+					error = true;
+					logger::get().log_error(
+						CP_HERE, "line length mismatch at line ", line, ": expected ",
+						explineit->nonbreak_chars, ", got ", gotlineit->nonbreak_chars
+					);
+				}
+				if (gotlineit->ending != explineit->ending) {
+					error = true;
+					logger::get().log_error(
+						CP_HERE, "linebreak type mismatch at line ", line, ": expected ",
+						static_cast<int>(explineit->ending), ", got ", static_cast<int>(gotlineit->ending)
+					);
+				}
+				++explineit;
+				++gotlineit;
+				++line;
+			}
+			if (_lbs.num_linebreaks() + 1 != linebreaks.result().size()) {
+				error = true;
+				logger::get().log_error(
+					CP_HERE, "number of lines mismatch: got ", _lbs.num_linebreaks() + 1,
+					", expected ", linebreaks.result().size()
+				);
+			}
+			if (error) {
+				logger::get().log_info(CP_HERE, "integrity check finished, errors found in the interpretation");
+			} else {
+				logger::get().log_info(CP_HERE, "integrity check finished with no errors");
+			}
+			return error;
 		}
 
 
@@ -612,23 +699,21 @@ namespace codepad::editor::code {
 			size_t
 				lastbyte = 0, // index past the last byte of the last refreshed chunk
 				lastcp = 0; // index of first codepoint past the last refreshed chunk
-			tree_type::const_iterator lastchk = _chks.end();
+			tree_type::const_iterator lastchk = _chks.begin();
 			for (const buffer::modification_position &mod : info.positions) {
 				size_t modend = mod.position + mod.added_range;
 				if (modend < lastbyte) { // no need to re-decode
 					continue;
 				}
-				buffer::const_iterator bit;
 				size_t cppos = lastcp;
-				if (mod.position > lastbyte) { // start decoding from this chunk
+				if (mod.position > lastbyte + lastchk->num_bytes) { // start decoding from this chunk
 					size_t chkpos = mod.position;
-					lastchk = _chks.find_custom(_byte_finder(), chkpos);
-					size_t chkbegcp = 0;
-					sum_synthesizer::sum_before<node_data::num_codepoints_property>(lastchk, chkbegcp);
-					lastcp = cppos = chkbegcp;
+					_byte_pos_converter finder;
+					lastchk = _chks.find_custom(finder, chkpos);
+					lastcp = cppos = finder.total_codepoints;
 					lastbyte = mod.position - chkpos;
 				} // otherwise start decoding from last position (start of chunk)
-				bit = _buf->at(lastbyte);
+				buffer::const_iterator bit = _buf->at(lastbyte);
 
 				codepoint cp = 0;
 				// find first modified codepoint
@@ -637,11 +722,17 @@ namespace codepad::editor::code {
 						cp = 0;
 					}
 				}
-				size_t
-					firstmodcp = cppos - 1, // index of the first modified codepoint
-					splitcp = lastcp + maximum_codepoints_per_chunk;
 				std::vector<chunk_data> chks;
 				linebreak_analyzer lines;
+				size_t
+					firstmodcp = cppos, // index of the first modified codepoint
+					splitcp = lastcp + maximum_codepoints_per_chunk;
+				if (bit.get_position() > mod.position) { // at the first modified codepoint, not the end
+					--firstmodcp;
+					lines.put(cp);
+				} else {
+					assert_true_logical(bit == _buf->end(), "corrupted buffer");
+				}
 				for (; bit != _buf->end() && bit.get_position() < modend; ++cppos) { // decode new content
 					if (cppos >= splitcp) { // break chunk
 						size_t bytepos = bit.get_position();
@@ -650,21 +741,24 @@ namespace codepad::editor::code {
 						lastcp = cppos;
 						splitcp = lastcp + maximum_codepoints_per_chunk;
 					}
-					lines.put(cp);
 					if (!_encoding->next_codepoint(bit, _buf->end(), cp)) {
 						cp = 0;
 					}
+					lines.put(cp);
 				}
 
 				// find the next old codepoint boundary
 				size_t
 					tgpos = mod.position + mod.removed_range, // position of the next old codepoint boundary
 					tgckpos = tgpos;
-				tree_type::const_iterator chkit = _chks.find_custom(_byte_finder(), tgckpos);
+				_byte_pos_converter posfinder;
+				tree_type::const_iterator chkit = _chks.find_custom(posfinder, tgckpos);
+				size_t endcp = posfinder.total_codepoints; // past the last codepoint to remove from old _lbs
 				tgpos += mod.added_range - mod.removed_range - tgckpos; // adjust position to that after the edit
-				if (tgckpos > 0) {
+				if (tgckpos > 0) { // advance if the removed region does not end before the first byte
 					assert_true_logical(chkit != _chks.end(), "invalid modification position");
 					tgpos += chkit->num_bytes;
+					endcp += chkit->num_codepoints;
 					++chkit;
 				}
 				while (true) {
@@ -677,20 +771,21 @@ namespace codepad::editor::code {
 							lastcp = cppos;
 							splitcp = lastcp + maximum_codepoints_per_chunk;
 						}
-						lines.put(cp);
 						if (!_encoding->next_codepoint(bit, _buf->end(), cp)) {
 							cp = 0;
 						}
+						lines.put(cp);
 					}
 					if (bit.get_position() == tgpos) { // boundary found, stop
 						break;
 					}
 					assert_true_logical(chkit != _chks.end(), "faulty decoder");
 					tgpos += chkit->num_bytes;
+					endcp += chkit->num_codepoints;
 					++chkit;
 				}
 				// handle last chunk
-				lines.finish_with(cp);
+				lines.finish();
 				size_t bytepos = bit.get_position();
 				chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
 				lastbyte = bytepos;
@@ -702,9 +797,10 @@ namespace codepad::editor::code {
 				_chks.insert_range_before_move(chkit, chks.begin(), chks.end());
 				lastchk = chkit;
 				// lines
-				_lbs.erase_codepoints(firstmodcp, lastcp);
+				_lbs.erase_codepoints(firstmodcp, endcp);
 				_lbs.insert_codepoints(firstmodcp, lines.result());
 			}
+			check_integrity();
 			end_edit_interpret.invoke(info);
 		}
 	};

@@ -3,8 +3,6 @@
 /// \file
 /// Encoding settings, and conversions between one another.
 /// Currently supported encodings: UTF-8, UTF-16, UTF-32.
-///
-/// \todo Better handling of decoding errors.
 
 #include <string>
 #include <iterator>

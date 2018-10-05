@@ -112,9 +112,8 @@ namespace codepad::editor::code {
 		// TODO improve performance
 		_fmt.set_softbreaks(_recalculate_wrapping_region(0, _doc->get_linebreaks().num_chars()));
 
-		if (info.source_element != this) { // fixup carets
-			_adjust_recalculate_caret_char_positions(info);
-		}
+		// fixup carets
+		_adjust_recalculate_caret_char_positions(info);
 
 		content_modified.invoke();
 		_on_content_visual_changed();

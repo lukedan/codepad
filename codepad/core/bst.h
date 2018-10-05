@@ -1254,7 +1254,7 @@ namespace codepad {
 				typename FirstProp, typename ...OtherProps, typename FirstVal, typename ...OtherVals, typename Node
 			> inline void add_synth_tree_values(Node &&n, FirstVal &&fv, OtherVals &&...otvals) {
 				fv += FirstProp::get_tree_synth_value(std::forward<Node>(n));
-				add_synth_node_values<OtherProps...>(std::forward<Node>(n), std::forward<OtherVals>(otvals)...);
+				add_synth_tree_values<OtherProps...>(std::forward<Node>(n), std::forward<OtherVals>(otvals)...);
 			}
 		}
 

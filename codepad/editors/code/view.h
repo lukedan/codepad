@@ -151,7 +151,7 @@ namespace codepad::editor::code {
 			auto hard = _reg->get_line_and_column_of_char(c);
 			_get_softbreaks_before selector;
 			_t.find_custom(selector, c);
-			return {hard.line + selector.num_softbreaks, std::min(c, hard.column)};
+			return {hard.line + selector.num_softbreaks, std::min(c, hard.position_in_line)};
 		}
 		/// Returns the combined result of \ref get_visual_line_and_column_of_char and
 		/// \ref get_softbreak_before_or_at_char.
@@ -163,7 +163,7 @@ namespace codepad::editor::code {
 			auto it = _t.find_custom(selector, nc);
 			return {
 				hard.line + selector.num_softbreaks,
-				std::min(nc, hard.column),
+				std::min(nc, hard.position_in_line),
 				softbreak_info(it, c - nc, selector.num_softbreaks)
 			};
 		}
@@ -790,6 +790,9 @@ namespace codepad::editor::code {
 		view_formatting() = default;
 		/// Initializes \ref _lbr with the given \ref linebreak_registry.
 		explicit view_formatting(const linebreak_registry &reg) : _lbr(reg) {
+		}
+		/// Initializes this class with the corresponding \ref interpretation.
+		explicit view_formatting(const interpretation &interp) : view_formatting(interp.get_linebreaks()) {
 		}
 
 		/// Sets the soft linebreaks of this view.

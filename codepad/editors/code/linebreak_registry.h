@@ -131,8 +131,8 @@ namespace codepad::editor::code {
 				}
 				auto line = _lines.get_line_and_column_and_codepoint_of_char(pos);
 				_lineit = line.first.line_iterator;
-				_firstchar = pos - line.first.column;
-				_firstcp = line.second - line.first.column;
+				_firstchar = pos - line.first.position_in_line;
+				_firstcp = line.second - line.first.position_in_line;
 				return line.second;
 			}
 			/// Returns the position of the character that contains the codepoint at the given position.
@@ -142,8 +142,8 @@ namespace codepad::editor::code {
 				}
 				auto line = _lines.get_line_and_column_and_char_of_codepoint(pos);
 				_lineit = line.first.line_iterator;
-				_firstcp = pos - line.first.column;
-				_firstchar = line.second - line.first.column;
+				_firstcp = pos - line.first.position_in_line;
+				_firstchar = line.second - line.first.position_in_line;
 				return line.second;
 			}
 		protected:
@@ -154,18 +154,19 @@ namespace codepad::editor::code {
 				_firstchar = 0; ///< The number of characters before \ref _lineit.
 		};
 
-		/// Stores the line and column of a certain character.
+		/// Stores the line and column of a certain character or codepoint.
 		struct line_column_info {
 			/// Default constructor.
 			line_column_info() = default;
 			/// Constructor that initializes the struct with the given values.
-			line_column_info(iterator lit, size_t l, size_t c) : line_iterator(lit), line(l), column(c) {
+			line_column_info(iterator lit, size_t l, size_t c) : line_iterator(lit), line(l), position_in_line(c) {
 			}
 
 			iterator line_iterator; ///< An iterator to the line corresponding to \ref line.
 			size_t
-				line = 0, ///< The line that the character is on.
-				column = 0; ///< The column that the character is on.
+				line = 0, ///< The line that the character or codepoint is on.
+				/// The position of the character or codepoint relative to the beginning of this line.
+				position_in_line = 0;
 		};
 		/// Stores information of a text clip, including the number of characters, and the lengths and line endings
 		/// of each line in the text clip.
@@ -244,12 +245,11 @@ namespace codepad::editor::code {
 		}
 
 		/// Returns a \ref line_column_info containing information about the codepoint at the given index. If the
-		/// codepoint is at the end of the buffer (i.e., EOF), the returned iterator will still be end() - 1. The
-		/// \ref line_column_info::column field contains the column of the character that this codepoint belongs to.
+		/// codepoint is at the end of the buffer (i.e., EOF), the returned iterator will still be end() - 1.
 		line_column_info get_line_and_column_of_codepoint(size_t cp) const {
 			_get_line<line_synth_data::num_codepoints_property> selector;
 			iterator it = _t.find_custom(selector, cp);
-			return line_column_info(it, selector.total_lines, std::min(cp, it->nonbreak_chars));
+			return line_column_info(it, selector.total_lines, cp);
 		}
 		/// Returns a \ref line_column_info containing information about the character at the given index. If the
 		/// character is at the end of the buffer (i.e., EOF), the returned iterator will still be end() - 1.
@@ -274,8 +274,10 @@ namespace codepad::editor::code {
 		std::pair<line_column_info, size_t> get_line_and_column_and_char_of_codepoint(size_t cp) const {
 			_pos_cp_to_char selector;
 			iterator it = _t.find_custom(selector, cp);
-			size_t col = std::min(cp, it->nonbreak_chars);
-			return {line_column_info(it, selector.total_lines, col), selector.total_chars + col};
+			return {
+				line_column_info(it, selector.total_lines, cp),
+				selector.total_chars + std::min(cp, it->nonbreak_chars)
+			};
 		}
 
 		/// Returns the index of the line to which the given iterator points.
@@ -293,39 +295,30 @@ namespace codepad::editor::code {
 
 
 		/// Called when a text clip has been inserted to the buffer. \p at will remain valid after this operation and
-		/// will point to the last inserted line.
+		/// will point to the last line with newly inserted contents.
 		///
 		/// \param at The line at which the text is to be inserted.
 		/// \param offset The position in the line at whith the text is to be inserted.
 		/// \param lines Lines of the text clip.
-		/// \return Iterator pointing to the first inserted line.
-		iterator insert_chars(iterator at, size_t offset, const std::vector<line_info> &lines) {
+		void insert_chars(iterator at, size_t offset, const std::vector<line_info> &lines) {
 			assert_true_logical(!(at == _t.end() && offset != 0), "invalid insert position");
 			assert_true_logical(!lines.empty() && lines.back().ending == line_ending::none, "invalid text");
-			if (at == _t.end()) { // insert at end
+			if (at == _t.end()) {
 				assert_true_logical(!_t.empty(), "corrupted line_ending_registry");
-				iterator last = at;
-				--last;
-				{
-					auto mod = _t.get_modifier_for(last.get_node());
-					mod->ending = lines[0].ending;
-					mod->nonbreak_chars += lines[0].nonbreak_chars;
-				}
-				_t.insert_range_before_copy(at, lines.begin() + 1, lines.end());
-				return last;
+				--at;
+				offset = at->nonbreak_chars;
+			}
+			if (lines.size() == 1) {
+				_t.get_modifier_for(at.get_node())->nonbreak_chars += lines[0].nonbreak_chars;
 			} else {
-				if (lines.size() == 1) {
-					assert_true_logical(lines[0].ending == line_ending::none, "invalid text clip info");
-					_t.get_modifier_for(at.get_node())->nonbreak_chars += lines[0].nonbreak_chars;
-					return at;
-				} else {
-					// the last line
-					_t.get_modifier_for(at.get_node())->nonbreak_chars += lines.back().nonbreak_chars - offset;
-					// the first line
-					auto it = _t.emplace_before(at, offset + lines[0].nonbreak_chars, lines[0].ending);
-					_t.insert_range_before_copy(at, lines.begin() + 1, lines.end() - 1); // all other lines
-					return it;
-				}
+				// the last line
+				_t.get_modifier_for(at.get_node())->nonbreak_chars += lines.back().nonbreak_chars - offset;
+				// the first line
+				auto it = _t.emplace_before(at, offset + lines[0].nonbreak_chars, lines[0].ending);
+				_t.insert_range_before_copy(at, lines.begin() + 1, lines.end() - 1); // all other lines
+				_try_merge_rn_linebreak(it);
+				_try_merge_rn_linebreak(++it);
+				_try_merge_rn_linebreak(at);
 			}
 		}
 		/// \overload
@@ -346,9 +339,7 @@ namespace codepad::editor::code {
 				_t.emplace_before(at, n, line_ending::r);
 				offset = 0;
 			}
-			auto beg = insert_chars(at, offset, lines);
-			_try_merge_rn_linebreak(beg);
-			_try_merge_rn_linebreak(at);
+			insert_chars(at, offset, lines);
 		}
 		/// \overload
 		///
@@ -356,7 +347,7 @@ namespace codepad::editor::code {
 		/// \param lines The structure of inserted text.
 		void insert_codepoints(size_t pos, const std::vector<line_info> &lines) {
 			line_column_info posinfo = get_line_and_column_of_codepoint(pos);
-			insert_codepoints(posinfo.line_iterator, posinfo.column, lines);
+			insert_codepoints(posinfo.line_iterator, posinfo.position_in_line, lines);
 		}
 
 		/// Called when a text clip has been erased from the buffer. \p end will remain valid after this operation.
@@ -385,6 +376,7 @@ namespace codepad::editor::code {
 				_t.erase(beg, end);
 			}
 			_t.get_modifier_for(end.get_node())->nonbreak_chars += begoff - endoff;
+			_try_merge_rn_linebreak(end);
 			return stats;
 		}
 		/// \overload
@@ -395,7 +387,7 @@ namespace codepad::editor::code {
 			line_column_info
 				begp = get_line_and_column_of_char(beg),
 				endp = get_line_and_column_of_char(end);
-			return erase_chars(begp.line_iterator, begp.column, endp.line_iterator, endp.column);
+			return erase_chars(begp.line_iterator, begp.position_in_line, endp.line_iterator, endp.position_in_line);
 		}
 
 		/// Called when the given range of codepoints has been erased from the buffer. This operation may break or
@@ -414,12 +406,11 @@ namespace codepad::editor::code {
 				assert_true_logical(end->ending == line_ending::rn, "invalid end offset");
 				{
 					auto mod = _t.get_modifier_for(end.get_node());
-					mod->nonbreak_chars = beg == end ? begcpoff : 0;
+					endcpoff = mod->nonbreak_chars = (beg == end ? begcpoff : 0);
 					mod->ending = line_ending::n;
 				}
 			}
 			erase_chars(beg, begcpoff, end, endcpoff);
-			_try_merge_rn_linebreak(end);
 		}
 		/// \overload
 		///
@@ -430,7 +421,7 @@ namespace codepad::editor::code {
 			line_column_info
 				begp = get_line_and_column_of_codepoint(beg),
 				endp = get_line_and_column_of_codepoint(end);
-			return erase_codepoints(begp.line_iterator, begp.column, endp.line_iterator, endp.column);
+			return erase_codepoints(begp.line_iterator, begp.position_in_line, endp.line_iterator, endp.position_in_line);
 		}
 
 
@@ -568,6 +559,7 @@ namespace codepad::editor::code {
 			} else { // normal character, or \r (handled later)
 				++_ncps;
 			}
+			_last = c;
 		}
 		/// Finish analysis. Must be called before using the return value of \ref result() or \ref get_result().
 		void finish() {

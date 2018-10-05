@@ -114,14 +114,14 @@ namespace codepad::editor::code {
 			if (_doc) {
 				_begin_edit_tok = (_doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
 					_on_begin_edit(info);
-					});
+				});
 				_end_edit_tok = (_doc->end_edit_interpret += [this](buffer::end_edit_info &info) {
 					_on_end_edit(info);
-					});
-				/*_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
-					_on_content_visual_changed();
-					});
-				_fmt = _doc->create_view_formatting();*/
+				});
+			/*_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
+				_on_content_visual_changed();
+				});*/
+				_fmt = view_formatting(*_doc);
 			} else { // empty document, only used when the editor's being disposed
 				_fmt = view_formatting();
 			}
@@ -249,7 +249,7 @@ namespace codepad::editor::code {
 			if (continueselection) {
 				move_carets_raw([this, &gp](const caret_set::entry &et) {
 					return _complete_caret_entry(gp(et), et.first.second);
-					});
+				});
 			} else {
 				move_carets_raw([this, &gp, &sp](const caret_set::entry &et) {
 					if (et.first.first == et.first.second) {
@@ -259,7 +259,7 @@ namespace codepad::editor::code {
 						auto x = sp(et);
 						return _complete_caret_entry(x, x.first);
 					}
-					});
+				});
 			}
 		}
 		/// Moves all carets to specified positions, treating selections and non-selections the same. This function
@@ -286,10 +286,16 @@ namespace codepad::editor::code {
 
 		/// Calls \ref interpretation::on_backspace() with the current set of carets.
 		void on_backspace() {
+			if (_selecting) {
+				_end_mouse_selection();
+			}
 			_doc->on_backspace(_cset, this);
 		}
 		/// Calls \ref interpretation::on_delete() with the current set of carets.
 		void on_delete() {
+			if (_selecting) {
+				_end_mouse_selection();
+			}
 			_doc->on_delete(_cset, this);
 		}
 		/// Checks if there are editing actions available for undo-ing, and calls \ref undo if there is.
@@ -343,8 +349,8 @@ namespace codepad::editor::code {
 				static_cast<size_t>(std::max(0.0, top / lh))
 			), std::min(
 				_fmt.get_folding().folded_to_unfolded_line_number(
-				static_cast<size_t>(std::max(0.0, bottom / lh)) + 1
-			),
+					static_cast<size_t>(std::max(0.0, bottom / lh)) + 1
+				),
 				_fmt.get_linebreaks().num_visual_lines()
 			));
 		}
@@ -384,13 +390,13 @@ namespace codepad::editor::code {
 		void move_all_carets_left(bool continueselection) {
 			move_carets([this](const caret_set::entry &et) {
 				return std::make_pair(_move_caret_left(et.first.first), true);
-				}, [](const caret_set::entry &et) -> std::pair<size_t, bool> {
-					if (et.first.first < et.first.second) {
-						return {et.first.first, et.second.softbreak_next_line};
-					} else {
-						return {et.first.second, true};
-					}
-				}, continueselection);
+			}, [](const caret_set::entry &et) -> std::pair<size_t, bool> {
+				if (et.first.first < et.first.second) {
+					return {et.first.first, et.second.softbreak_next_line};
+				} else {
+					return {et.first.second, true};
+				}
+			}, continueselection);
 		}
 		/// Moves all carets one character to the right. If \p continueselection is \p false, then all carets that have
 		/// selected regions will be placed at the back of the selection.
@@ -399,13 +405,13 @@ namespace codepad::editor::code {
 		void move_all_carets_right(bool continueselection) {
 			move_carets([this](const caret_set::entry &et) {
 				return std::make_pair(_move_caret_right(et.first.first), false);
-				}, [](const caret_set::entry &et) -> std::pair<size_t, bool> {
-					if (et.first.first > et.first.second) {
-						return {et.first.first, et.second.softbreak_next_line};
-					} else {
-						return {et.first.second, false};
-					}
-				}, continueselection);
+			}, [](const caret_set::entry &et) -> std::pair<size_t, bool> {
+				if (et.first.first > et.first.second) {
+					return {et.first.first, et.second.softbreak_next_line};
+				} else {
+					return {et.first.second, false};
+				}
+			}, continueselection);
 		}
 		/// Moves all carets one line up. If \p continueselection is \p false, then all carets that have selected
 		/// regions will be placed at the front of the selection, before being moved up. If a caret is at the topmost
@@ -418,16 +424,16 @@ namespace codepad::editor::code {
 					_get_line_of_caret(caret_position(et)), -1, et.second.alignment
 				);
 				return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
-				}, [this](const caret_set::entry &et) {
-					size_t ml = _get_line_of_caret(caret_position(et));
-					double bl = et.second.alignment;
-					if (et.first.second < et.first.first) {
-						ml = _get_line_of_caret(caret_position(et.first.second));
-						bl = get_horizontal_caret_position(caret_position(et.first.second));
-					}
-					auto res = _move_caret_vertically(ml, -1, bl);
-					return std::make_pair(res.position, caret_data(bl, res.at_back));
-				}, continueselection);
+			}, [this](const caret_set::entry &et) {
+				size_t ml = _get_line_of_caret(caret_position(et));
+				double bl = et.second.alignment;
+				if (et.first.second < et.first.first) {
+					ml = _get_line_of_caret(caret_position(et.first.second));
+					bl = get_horizontal_caret_position(caret_position(et.first.second));
+				}
+				auto res = _move_caret_vertically(ml, -1, bl);
+				return std::make_pair(res.position, caret_data(bl, res.at_back));
+			}, continueselection);
 		}
 		/// Moves all carets one line down. If \p continueselection is \p false, then all carets that have selected
 		/// regions will be placed at the back of the selection, before being moved down. If a caret is already at the
@@ -438,16 +444,16 @@ namespace codepad::editor::code {
 			move_carets([this](const caret_set::entry &et) {
 				auto res = _move_caret_vertically(_get_line_of_caret(caret_position(et)), 1, et.second.alignment);
 				return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
-				}, [this](const caret_set::entry &et) {
-					size_t ml = _get_line_of_caret(caret_position(et));
-					double bl = et.second.alignment;
-					if (et.first.second > et.first.first) {
-						ml = _get_line_of_caret(caret_position(et.first.second));
-						bl = get_horizontal_caret_position(caret_position(et.first.second));
-					}
-					auto res = _move_caret_vertically(ml, 1, bl);
-					return std::make_pair(res.position, caret_data(bl, res.at_back));
-				}, continueselection);
+			}, [this](const caret_set::entry &et) {
+				size_t ml = _get_line_of_caret(caret_position(et));
+				double bl = et.second.alignment;
+				if (et.first.second > et.first.first) {
+					ml = _get_line_of_caret(caret_position(et.first.second));
+					bl = get_horizontal_caret_position(caret_position(et.first.second));
+				}
+				auto res = _move_caret_vertically(ml, 1, bl);
+				return std::make_pair(res.position, caret_data(bl, res.at_back));
+			}, continueselection);
 		}
 		/// Moves all carets to the beginning of the lines they're at, with folding and word wrapping enabled.
 		///
@@ -456,12 +462,12 @@ namespace codepad::editor::code {
 			move_carets([this](const caret_set::entry &et) {
 				return std::make_pair(
 					_fmt.get_linebreaks().get_beginning_char_of_visual_line(
-					_fmt.get_folding().get_beginning_line_of_folded_lines(
-					_get_line_of_caret(caret_position(et))
-				)
-				).first, true
+						_fmt.get_folding().get_beginning_line_of_folded_lines(
+							_get_line_of_caret(caret_position(et))
+						)
+					).first, true
 				);
-				}, continueselection);
+			}, continueselection);
 		}
 		/// Moves all carets to the beginning of the lines they're at, with folding and word wrapping enabled,
 		/// skipping all spaces in the front of the line.
@@ -482,8 +488,8 @@ namespace codepad::editor::code {
 					for (
 						auto cit = _doc->at_character(begp);
 						!cit.is_linebreak() && (
-						cit.codepoint().get_codepoint() == ' ' || cit.codepoint().get_codepoint() == '\t'
-						) && exbegp < nextsb;
+							cit.codepoint().get_codepoint() == ' ' || cit.codepoint().get_codepoint() == '\t'
+							) && exbegp < nextsb;
 						cit.next(), ++exbegp
 						) {
 					}
@@ -496,7 +502,7 @@ namespace codepad::editor::code {
 					}
 				}
 				return std::make_pair(et.first.first == exbegp ? begp : exbegp, true);
-				}, continueselection);
+			}, continueselection);
 		}
 		/// Moves all carets to the end of the lines they're at, with folding and word wrapping enabled.
 		///
@@ -505,12 +511,12 @@ namespace codepad::editor::code {
 			move_carets([this](caret_set::entry cp) {
 				return std::make_pair(
 					_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
-					_fmt.get_folding().get_past_ending_line_of_folded_lines(
-					_get_line_of_caret(caret_position(cp))
-				) - 1
-				).first, caret_data(std::numeric_limits<double>::max(), false)
+						_fmt.get_folding().get_past_ending_line_of_folded_lines(
+							_get_line_of_caret(caret_position(cp))
+						) - 1
+					).first, caret_data(std::numeric_limits<double>::max(), false)
 				);
-				}, continueselection);
+			}, continueselection);
 		}
 		/// Cancels all selected regions.
 		void cancel_all_selections() {
@@ -892,6 +898,7 @@ namespace codepad::editor::code {
 			vec2d
 				rtextpos = pos - get_client_region().xmin_ymin(), clampedpos = rtextpos,
 				relempos = pos - get_layout().xmin_ymin();
+			_scrolldiff = 0.0f;
 			if (relempos.y < 0.0) {
 				clampedpos.y -= relempos.y;
 				_scrolldiff = relempos.y;
@@ -973,6 +980,9 @@ namespace codepad::editor::code {
 		///
 		/// \todo Handle linebreaks.
 		void _on_keyboard_text(ui::text_info &info) override {
+			if (_selecting) {
+				_end_mouse_selection();
+			}
 			// encode added content
 			byte_string str;
 			const std::byte

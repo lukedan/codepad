@@ -158,7 +158,7 @@ namespace codepad::os {
 			}
 		}
 
-		/// Returns the mapped size of the file.
+		/// Returns the mapped size of the file. This could be larger than the file's actual size.
 		///
 		/// \todo Return rounded size.
 		size_t get_mapped_size() const;

@@ -22,6 +22,13 @@ namespace codepad::os {
 #if defined(CP_CHECK_USAGE_ERRORS) && defined(CP_CAN_DETECT_MEMORY_LEAKS)
 		_enable_mem_leak_detection();
 #endif
+
+		// enable console output coloring
+		HANDLE hstderr = GetStdHandle(STD_ERROR_HANDLE);
+		winapi_check(hstderr != INVALID_HANDLE_VALUE);
+		DWORD mode;
+		winapi_check(GetConsoleMode(hstderr, &mode));
+		winapi_check(SetConsoleMode(hstderr, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING));
 	}
 
 	namespace input {
@@ -363,7 +370,7 @@ namespace codepad::os {
 				window *form = reinterpret_cast<window*>(GetWindowLongPtr(msg.hwnd, GWLP_USERDATA));
 				if (form && form->hotkey_manager.on_key_down(key_gesture(
 					input::_details::_key_id_backmapping.v[msg.wParam], _get_modifiers()
-					))) {
+				))) {
 					return true;
 				}
 			}
