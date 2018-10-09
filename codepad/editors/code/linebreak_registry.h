@@ -317,7 +317,6 @@ namespace codepad::editor::code {
 				auto it = _t.emplace_before(at, offset + lines[0].nonbreak_chars, lines[0].ending);
 				_t.insert_range_before_copy(at, lines.begin() + 1, lines.end() - 1); // all other lines
 				_try_merge_rn_linebreak(it);
-				_try_merge_rn_linebreak(++it);
 				_try_merge_rn_linebreak(at);
 			}
 		}

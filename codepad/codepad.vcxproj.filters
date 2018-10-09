@@ -224,5 +224,8 @@
     <ClCompile Include="editors\code\caret_set.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="editors\buffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

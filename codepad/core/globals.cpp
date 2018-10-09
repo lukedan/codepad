@@ -51,16 +51,15 @@ namespace codepad {
 
 		get_app_epoch(); // initialize epoch
 
+		native_commands::register_all(); // register commands
+
+		// initialization steps below need to be associated with settings some time
 		// initialize renderer
 #ifdef CP_PLATFORM_WINDOWS
 		renderer_base::create_default<opengl_renderer>();
 #elif defined(CP_PLATFORM_UNIX)
 		renderer_base::create_default<software_renderer>();
 #endif
-
-		native_commands::register_all(); // register commands
-
-		// initialization steps below need to be associated with settings some time
 
 		/*document_formatting_cache::enable();*/
 	}

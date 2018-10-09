@@ -1019,7 +1019,7 @@ namespace codepad {
 	};
 
 #ifdef NDEBUG
-#	define CP_ERROR_LEVEL 2
+#	define CP_ERROR_LEVEL 3
 #else
 #	define CP_ERROR_LEVEL 3
 #endif

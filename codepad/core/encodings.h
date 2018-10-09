@@ -78,6 +78,10 @@ namespace codepad {
 			inline static str_t get_name() {
 				return CP_STRLIT("UTF-8");
 			}
+			/// Maximum 4 bytes for any codepoint encoded in UTF-8.
+			inline static size_t get_maximum_codepoint_length() {
+				return 4;
+			}
 
 			/// Moves the iterator to the next codepoint, extracting the current codepoint to \p v, and returns whether
 			/// it is valid. The caller is responsible of determining if <tt>i == end</tt>. If the codepoint is not
@@ -211,6 +215,10 @@ namespace codepad {
 				} else {
 					return CP_STRLIT("UTF-16 BE");
 				}
+			}
+			/// Maximum 4 bytes for any codepoint encoded in UTF-16.
+			inline static size_t get_maximum_codepoint_length() {
+				return 4;
 			}
 
 			/// Moves the iterator to the next codepoint, extracting the current codepoint,

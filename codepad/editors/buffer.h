@@ -407,6 +407,7 @@ namespace codepad::editor {
 			}
 			// TODO failed to open file
 		}
+		~buffer();
 
 		/// Returns an iterator to the first byte of the buffer.
 		iterator begin() {
@@ -574,22 +575,22 @@ namespace codepad::editor {
 			tree_type::const_iterator insit = pos._it, updit = insit;
 			chunk_data afterstr, *curstr;
 			std::vector<chunk_data> strs; // the buffer for (not all) inserted bytes
-			if (pos._it == _t.end()) { // insert at the very end
-				--updit;
-				curstr = &updit.get_value_rawmod();
-			} else if (pos._s != pos._it->begin()) { // insert at the middle of a chunk
-				// save the second part & truncate the chunk
-				afterstr = chunk_data(pos._s, pos._it->end());
-				pos._it.get_value_rawmod().erase(pos._s, pos._it->end());
-				++insit;
-				curstr = &updit.get_value_rawmod();
-			} else {
-				// insert at the beginning of a chunk, no need to split or update
+			if (pos == begin()) { // insert at the very beginning, no need to split or update
 				updit = _t.end();
 				chunk_data st;
 				st.reserve(maximum_bytes_per_chunk);
 				strs.push_back(std::move(st));
 				curstr = &strs.back();
+			} else if (pos._it == _t.end() || pos._s == pos._it->begin()) {
+				// insert at the beginning of a chunk, which is not the first chunk
+				--updit;
+				curstr = &updit.get_value_rawmod();
+			} else { // insert at the middle of a chunk
+				// save the second part & truncate the chunk
+				afterstr = chunk_data(pos._s, pos._it->end());
+				pos._it.get_value_rawmod().erase(pos._s, pos._it->end());
+				++insit;
+				curstr = &updit.get_value_rawmod();
 			}
 			for (auto it = beg; it != end; ++it) { // insert codepoints
 				if (curstr->size() == maximum_bytes_per_chunk) { // curstr would be too long, add a new chunk
@@ -606,7 +607,7 @@ namespace codepad::editor {
 					strs.push_back(std::move(afterstr)); // curstr is not changed
 				}
 			}
-			_t.refresh_synthesized_result(updit.get_node());
+			_t.refresh_synthesized_result(updit.get_node()); // this function checks if updit is end
 			_t.insert_range_before_move(insit, strs.begin(), strs.end()); // insert the strings
 			// try to merge small nodes
 			_try_merge_small_nodes(insit);
