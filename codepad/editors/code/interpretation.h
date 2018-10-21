@@ -761,14 +761,18 @@ namespace codepad::editor::code {
 			}
 			return false;
 		}
-		/// Set to \p true to log detailed information while performing post-edit fixup.
-		constexpr static bool _debug_log_post_edit_fixup_enabled = false;
+#define CP_DEBUG_LOG_POST_EDIT_FIXUP 0
+#if CP_DEBUG_LOG_POST_EDIT_FIXUP
 		/// Logs the given message if \ref _debug_log_post_edit_fixup_enabled is \p true.
 		template <typename ...Args> inline static void _debug_log_post_edit_fixup(Args &&...args) {
-			if constexpr (_debug_log_post_edit_fixup_enabled) {
-				logger::get().log_verbose(CP_HERE, std::forward<Args>(args)...);
-			}
+			logger::get().log_verbose(CP_HERE, std::forward<Args>(args)...);
 		}
+#else
+		/// Logging is disabled. Does nothing.
+		template <typename ...Args> inline static void _debug_log_post_edit_fixup(Args&&...) {
+		}
+#endif
+#undef CP_DEBUG_LOG_POST_EDIT_FIXUP
 		/// Adjusts \ref _chks and \ref _lbs after an edit has been made.
 		void _post_edit_fixup(buffer::end_edit_info &info) {
 			_debug_log_post_edit_fixup("starting post-edit fixup");

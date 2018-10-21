@@ -366,7 +366,10 @@ namespace codepad {
 					);
 					for (size_t i = 0; i < subpixel_character_variants; ++i) {
 						FT_Vector v;
-						v.x = static_cast<FT_Pos>((i + 1) / (_ft_fixed_scale * (subpixel_character_variants + 1)));
+						v.x = static_cast<FT_Pos>(
+							static_cast<double>(i + 1) /
+							(_ft_fixed_scale * static_cast<double>(subpixel_character_variants + 1))
+							);
 						v.y = 0;
 						FT_Set_Transform(_face, nullptr, &v);
 						_ft_verify(FT_Load_Char(_face, c, loadflags));

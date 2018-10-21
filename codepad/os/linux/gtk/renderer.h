@@ -42,16 +42,24 @@ namespace codepad::os {
 			_clear_texture(crec->texture.data, crec->texture.w, crec->texture.h);
 		}
 	protected:
+		/// Checks for any errors in a \p cairo_t.
+		inline static void _cairo_check(cairo_t *cr) {
+			assert_true_sys(cairo_status(cr) == CAIRO_STATUS_SUCCESS, "cairo error");
+		}
+
 		struct _cairo_buf {
 			_cairo_buf() = default;
 			_cairo_buf(size_t w, size_t h) {
 				surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, static_cast<int>(w), static_cast<int>(h));
+				assert_true_sys(
+					cairo_surface_status(surface) == CAIRO_STATUS_SUCCESS, "failed to create Cairo surface"
+					);
 			}
-			_cairo_buf(_cairo_buf &&src) : surface(src.surface) {
+			_cairo_buf(_cairo_buf &&src) noexcept : surface(src.surface) {
 				src.surface = nullptr;
 			}
 			_cairo_buf(const _cairo_buf&) = delete;
-			_cairo_buf &operator=(_cairo_buf &&src) {
+			_cairo_buf &operator=(_cairo_buf &&src) noexcept {
 				std::swap(surface, src.surface);
 				return *this;
 			}
@@ -79,6 +87,7 @@ namespace codepad::os {
 		inline static gboolean _actual_render(GtkWidget*, cairo_t *cr, _wnd_rec *rend) {
 			cairo_set_source_surface(cr, rend->buf.surface, 0.0, 0.0);
 			cairo_paint(cr);
+			_cairo_check(cr);
 			return true;
 		}
 

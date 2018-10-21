@@ -17,7 +17,7 @@
 
 #if __has_include(<filesystem>)
 #	include <filesystem>
-#	if _MSC_VER <= 1913 // older versions of MSVC put experimental::filesystem in <filesystem>
+#	if defined(_MSC_VER) && _MSC_VER <= 1913 // older versions of MSVC put experimental::filesystem in <filesystem>
 #		define CP_EXPERIMENTAL_FILESYSTEM
 #	endif
 #elif __has_include(<experimental/filesystem>)
@@ -710,7 +710,7 @@ namespace codepad {
 	/// \param from Returned if \p perc = 0.
 	/// \param to Returned if \p perc = 1.
 	/// \param perc Determines how close the return value is to \p to.
-	template <typename T> inline T lerp(T from, T to, double perc) {
+	template <typename T> inline constexpr T lerp(T from, T to, double perc) {
 		return from + (to - from) * perc;
 	}
 
@@ -719,7 +719,7 @@ namespace codepad {
 		typename T, typename U, typename Int = std::conditional_t<
 		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
 		>
-	> inline bool test_bits_all(T v, U bit) {
+	> inline constexpr bool test_bits_all(T v, U bit) {
 		return (static_cast<Int>(v) & static_cast<Int>(bit)) == static_cast<Int>(bit);
 	}
 	/// Used to test if any bit of \p bit are set to 1 in \p v.
@@ -727,7 +727,7 @@ namespace codepad {
 		typename T, typename U, typename Int = std::conditional_t<
 		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
 		>
-	> inline bool test_bits_any(T v, U bit) {
+	> inline constexpr bool test_bits_any(T v, U bit) {
 		return (static_cast<Int>(v) & static_cast<Int>(bit)) != 0;
 	}
 	/// Returns the given value with the bits corresponding to those of \p bit set to 1.
@@ -735,7 +735,7 @@ namespace codepad {
 		typename T, typename U, typename Int = std::conditional_t<
 		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
 		>
-	> inline T with_bits_set(T v, U bit) {
+	> inline constexpr T with_bits_set(T v, U bit) {
 		return static_cast<T>(static_cast<Int>(v) | static_cast<Int>(bit));
 	}
 	/// Returns the given value with the bits corresponding to those of \p bit set to 0.
@@ -743,7 +743,7 @@ namespace codepad {
 		typename T, typename U, typename Int = std::conditional_t<
 		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
 		>
-	> inline T with_bits_unset(T v, U bit) {
+	> inline constexpr T with_bits_unset(T v, U bit) {
 		return static_cast<T>(static_cast<Int>(v) & static_cast<Int>(~static_cast<Int>(bit)));
 	}
 	/// Sets the bits of \p v corresponding to those of \p bit to 1.

@@ -78,19 +78,22 @@ set(SOURCE_FILES
 	codepad/core/misc.h
 	codepad/core/tasks.h
 
-	codepad/editors/code/buffer.h
-	codepad/editors/code/buffer_formatting.h
+	codepad/editors/code/caret_set.cpp
+	codepad/editors/code/caret_set.h
 	codepad/editors/code/codebox.cpp
 	codepad/editors/code/codebox.h
 	codepad/editors/code/components.h
-	codepad/editors/code/document.cpp
-	codepad/editors/code/document.h
 	codepad/editors/code/document_formatting_cache.h
-	codepad/editors/code/document_manager.h
 	codepad/editors/code/editor.cpp
 	codepad/editors/code/editor.h
+	codepad/editors/code/interpretation.h
+	codepad/editors/code/linebreak_registry.h
 	codepad/editors/code/rendering.h
+	codepad/editors/code/theme.h
 	codepad/editors/code/view.h
+	codepad/editors/buffer.cpp
+	codepad/editors/buffer.h
+	codepad/editors/buffer_manager.h
 	codepad/editors/tabs.cpp
 	codepad/editors/tabs.h
 
@@ -112,16 +115,20 @@ set(SOURCE_FILES
 	codepad/os/window.h
 	${PLATFORM_SOURCE}
 
+	codepad/ui/arrangements.cpp
+	codepad/ui/arrangements.h
 	codepad/ui/commands.h
-	codepad/ui/common_elements.h
 	codepad/ui/common_elements.cpp
+	codepad/ui/common_elements.h
 	codepad/ui/draw.h
 	codepad/ui/element.cpp
 	codepad/ui/element.h
+	codepad/ui/element_classes.cpp
 	codepad/ui/element_classes.h
 	codepad/ui/font_family.h
 	codepad/ui/manager.cpp
 	codepad/ui/manager.h
+	codepad/ui/misc.h
 	codepad/ui/native_commands.cpp
 	codepad/ui/native_commands.h
 	codepad/ui/panel.cpp

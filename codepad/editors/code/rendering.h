@@ -9,647 +9,570 @@
 #include "editor.h"
 
 namespace codepad::editor::code {
-	/// Iterator used to iterate through characters of part of a \ref interpretation, calculating theme and position
-	/// information along the way. This struct is only aware of the \ref interpretation and does not take into
-	/// consideration word wrapping and folding. Under the hood, this struct uses a
-	/// \ref ui::character_metrics_accumulator to calculate the positions of characters.
-	struct character_rendering_iterator {
+	/// Indicates that no token is produced by the current component.
+	struct no_token {
+	};
+	/// Indicates that the next token to be rendered is a character.
+	struct character_token {
+		/// Default constructor.
+		character_token() = default;
+		/// Initializes all fields of this struct.
+		character_token(codepoint cp, font_style s, colord c, bool v) : value(cp), style(s), color(c), valid(v) {
+		}
+
+		codepoint value = 0; ///< The character.
+		font_style style = font_style::normal; ///< The style of the character.
+		colord color; ///< Color of the character.
+		bool valid = false; ///< Whether the character is a valid codepoint.
+	};
+	/// Indicates that the next token to be rendered is a linebreak.
+	struct linebreak_token {
+		/// Default constructor.
+		linebreak_token() = default;
+		/// Initializes all fields of this struct.
+		explicit linebreak_token(line_ending le) : type(le) {
+		}
+
+		line_ending type = line_ending::none; ///< The type of this linebreak.
+	};
+	/// Indicates that the next token to be rendered is an image.
+	struct image_gizmo_token {
+		// TODO
+	};
+	/// Indicates that the next token to be rendered is a short clip of text.
+	struct text_gizmo_token {
+		/// Default constructor.
+		text_gizmo_token() = default;
+		/// Constructs a text gizmo with the given contents and color, and the default font.
+		text_gizmo_token(str_t str, colord c) : contents(std::move(str)), color(c) {
+		}
+		/// Constructs a text gizmo with the given contents, color, and font.
+		text_gizmo_token(str_t str, colord c, const std::shared_ptr<const os::font> &fnt) :
+			contents(std::move(str)), color(c), font(fnt) {
+		}
+
+		str_t contents; ///< The contents of this token.
+		colord color; ///< Color used to render this token.
+		/// The font used for the text. If this is empty, the normal font of the editor is used.
+		std::shared_ptr<const os::font> font;
+	};
+	/// Contains information about a token to be rendered.
+	using token = std::variant<no_token, character_token, linebreak_token, image_gizmo_token, text_gizmo_token>;
+	/// Holds the result of a step of token generation.
+	struct token_generation_result {
+		/// Constructs this struct to indicate that no token is generated.
+		token_generation_result() = default;
+		/// Initializes all fields of this struct.
+		template <typename T> token_generation_result(T tok, size_t diff) : result(tok), steps(diff) {
+		}
+
+		token result; ///< The generated token.
+		size_t steps = 0; ///< The number of characters to move forward.
+	};
+
+
+	/// Iterates through a range of text in a \ref interpretation and gathers tokens to be rendered. The template
+	/// parameters are extra components used in this process.
+	template <typename ...Args> struct rendering_token_iterator;
+	/// The most basic specialization of \ref rendering_token_iterator.
+	template <> struct rendering_token_iterator<> {
 	public:
-		/// Constructor.
-		///
-		/// \param doc The \ref interpretation to iterate through.
-		/// \param lh The height of a line.
-		/// \param tab The maximum with of a `tab' character.
-		/// \param sp Position of the first character of the range of characters to iterate through.
-		/// \param pep Position past the last character of the range of characters to iterate through.
-		character_rendering_iterator(const interpretation &doc, double lh, double tab, size_t sp, size_t pep) :
-			_char_it(doc.at_character(sp)), _theme_it(doc.get_text_theme().get_iter_at(sp)),
-			_char_met(editor::get_font(), tab),
-			_doc(&doc), _cur_pos(sp), _tg_pos(pep), _line_h(lh) {
+		/// Constructs this \ref rendering_token_iterator with the given \ref interpretation and starting position.
+		rendering_token_iterator(const interpretation &interp, size_t begpos) : _pos(begpos), _interp(interp) {
+			_char_it = _interp.at_character(_pos);
+			_theme_it = _interp.get_text_theme().get_iter_at(_pos);
 		}
-		/// Constructs this iterator with corresponding parameters of the given \ref editor, and the given range
-		/// of characters.
-		character_rendering_iterator(const editor &ce, size_t sp, size_t pep) : character_rendering_iterator(
-			*ce.get_document(), ce.get_line_height(), ce.get_formatting().get_tab_width(), sp, pep
-		) {
+		/// Forwards the arguments in the tuple to other constructors.
+		template <typename ...Args> rendering_token_iterator(std::tuple<Args...> args) :
+			rendering_token_iterator(std::make_index_sequence<sizeof...(Args)>(), args) {
 		}
+		/// Virtual destructor.
+		virtual ~rendering_token_iterator() = default;
 
-		/// Returns whether the current character that \ref _char_it points to is a hard linebreak.
-		bool is_hard_line_break() const {
-			return _char_it.is_linebreak();
-		}
-		/// Returns whether the iterator has reached the end of the range of characters.
-		bool ended() const {
-			return _cur_pos >= _tg_pos || _char_it.codepoint().ended();
-		}
-		/// Starts to iterate through the range of characters, by calculating the positioning of the first character
-		/// (if it is not a hard linebreak).
-		void begin() {
-			if (!is_hard_line_break()) {
-				_char_met.next(_char_it.codepoint().get_codepoint(), _theme_it.current_theme.style);
-			}
-		}
-		/// Moves to the next character. This function invokes the \ref event corresponding to the current character
-		/// before updating all information.
-		void next_char() {
-			assert_true_usage(!ended(), "incrementing an invalid rendering iterator");
-			if (is_hard_line_break()) {
-				_on_linebreak(_char_it.get_linebreak());
+		/// Returns the token for the character or linebreak, and advances to the next character.
+		token_generation_result generate() {
+			if (_char_it.is_linebreak()) {
+				return token_generation_result(linebreak_token(_char_it.get_linebreak()), 1);
 			} else {
-				switching_char.invoke_noret(false, _cur_pos + 1);
+				const auto &cpit = _char_it.codepoint();
+				return token_generation_result(character_token(
+					cpit.get_codepoint(), _theme_it.current_theme.style,
+					_theme_it.current_theme.color, cpit.is_codepoint_valid()
+				), 1);
 			}
-			// increment iterators
-			++_cur_pos;
-			_char_it.next();
-			_doc->get_text_theme().incr_iter(_theme_it, _cur_pos);
-			// update positioning
-			_char_met.next(
-				is_hard_line_break() ? ' ' : _char_it.codepoint().get_codepoint(), _theme_it.current_theme.style
-			);
+		}
+		/// Adjusts the position of \ref _char_it and \ref _theme_it.
+		void update(size_t steps) {
+			_pos += steps;
+			if (steps == 1) {
+				_char_it.next();
+				_interp.get_text_theme().incr_iter(_theme_it, _pos);
+			} else if (steps > 1) {
+				_char_it = _interp.at_character(_pos);
+				_theme_it = _interp.get_text_theme().get_iter_at(_pos);
+			}
 		}
 
-		/// Creates a blank region of the given width before the current character.
-		///
-		/// \return The bounds of the blank region.
-		rectd create_blank(double w) {
-			_char_met.create_blank_before(w);
-			return rectd(_char_met.prev_char_right(), _char_met.char_left(), _cury, _cury + _line_h);
+		/// Returns the base \ref rendering_token_iterator with no components.
+		rendering_token_iterator<> &get_base() {
+			return *this;
 		}
-		/// Jumps to the given position. \ref switching_char is invoked first, then the current character is replaced
-		/// with the character at that position.
-		void jump_to(size_t cp) {
-			switching_char.invoke_noret(true, cp);
-			_cur_pos = cp;
-			_char_it = _doc->at_character(_cur_pos);
-			_theme_it = _doc->get_text_theme().get_iter_at(_cur_pos);
-			_char_met.replace_current(
-				is_hard_line_break() ? ' ' : _char_it.codepoint().get_codepoint(), _theme_it.current_theme.style
-			);
+		/// Returns the current postiion of this iterator. If this called inside the \p update() method of a
+		/// component, then the returned position is that before updating.
+		size_t get_position() const {
+			return _pos;
 		}
-		/// Inserts a soft linebreak before the current character.
-		void insert_soft_linebreak() {
-			_on_linebreak(line_ending::none);
-			_char_met.next(_char_it.codepoint().get_codepoint(), _theme_it.current_theme.style);
-		}
-
-		/// Returns the underlying \ref ui::character_metrics_accumulator.
-		const ui::character_metrics_accumulator &character_info() const {
-			return _char_met;
-		}
-		/// Returns a \ref text_theme_data::char_iterator that contains information about the theme of the current
-		/// character.
-		const text_theme_data::char_iterator &theme_info() const {
-			return _theme_it;
-		}
-		/// Returns the position of the current character in the document.
-		size_t current_position() const {
-			return _cur_pos;
-		}
-
-		/// Returns the vertical offset of the current character.
-		double y_offset() const {
-			return _cury;
-		}
-		/// Returns the height a line occupies.
-		double line_height() const {
-			return _line_h;
-		}
-
-		/// Invoked before a new line, either one in the original \ref interpretation or a soft linebreak inserted by
-		/// \ref insert_soft_linebreak, is encountered.
-		event<switch_line_info> switching_line;
-		/// Invoked when the current position is about to be changed, either by \ref next_char() or
-		/// \ref jump_to(size_t). Note that this should not be used as a criterion for rendering characters as
-		/// \ref jump_to(size_t) can be called consecutively.
-		event<switch_char_info> switching_char;
 	protected:
+		/// Forwards the arguments in the given tuple to other constructors.
+		template <size_t ...Indices, typename MyArgs> rendering_token_iterator(
+			std::index_sequence<Indices...>, MyArgs &&tuple
+		) : rendering_token_iterator(std::get<Indices>(std::forward<MyArgs>(tuple))...) {
+		}
+
 		/// Iterator to the current character in the \ref interpretation.
 		interpretation::character_iterator _char_it;
 		/// Iterator to the current entry in the \ref text_theme_data that determines the theme of the text.
 		text_theme_data::char_iterator _theme_it;
-		ui::character_metrics_accumulator _char_met; ///< Used to calculate the positioning of characters.
-		const interpretation *_doc = nullptr; ///< Pointer to the associated \ref interpretation.
-		size_t
-			_cur_pos = 0, ///< Position of the current character.
-			_tg_pos = 0; ///< Records the end of the range of characters.
-		double
-			_cury = 0.0, ///< Current vertical position relative to the top of the first rendered line.
-			_line_h = 0.0; ///< The height of a line.
-
-		/// Invokes \ref switching_line with the given \ref line_ending, then increments y position and
-		/// calls \ref ui::character_metrics_accumulator::reset "reset()" of \ref _char_met.
-		void _on_linebreak(line_ending end) {
-			switching_line.invoke_noret(end);
-			_cury += _line_h;
-			_char_met.reset();
-		}
+		size_t _pos = 0; ///< The position of character \ref _char_it points to.
+		const interpretation &_interp; ///< The associated \ref interpretation.
 	};
-
-	namespace _details {
-		/// Used to test if a class has member `check'.
-		template <typename T> class is_checker {
-		protected:
-			using _yes = std::int8_t; ///< Type that indicates a positive result.
-			using _no = std::int64_t; ///< Type that indicates a negative result.
-									  /// If \p C has a member named `check', this function will match.
-			template <typename C> inline static _yes _test(decltype(&C::check));
-			/// If \p C doesn't have a member named `check', this function will match.
-			template <typename C> inline static _no _test(...);
-		public:
-			/// The result, \p true if \p T has a member named `check'.
-			constexpr static bool value = sizeof(_test<T>(0)) == sizeof(_yes);
-		};
-		/// Shorthand for \ref is_checker<T>::value.
-		template <typename T> constexpr static bool is_checker_v = is_checker<T>::value;
-	}
-	/// Used to iterate through a part of a \ref interpretation using a \ref character_rendering_iterator, with additional
-	/// addons that modify the behavior, specified in the template argument list. Each addon provides either:
-	///     1. A `check' member that returns a \p bool indicating whether the addon has made changes to the
-	///        \ref character_rendering_iterator such that the `check' members need to be invoked from the beginning
-	///        again immediately. These memebers will be invoked repeatedly before
-	///        <tt>rendering_iterator<F, Others...>::begin()</tt> or
-	///        <tt>rendering_iterator<F, Others...>::next()</tt> returns, in the order that the addons are specified
-	///        in the template argument list, until all invocations return \p false. If one invocation returns
-	///        \p true, all addons after it are ignored and the `check' members are invoked in order from the start
-	///        once again.
-	///     2. A `switching_char' member and a `switching_line' member. These two members are called whenever the
-	///        corresponding events of \ref character_rendering_iterator (i.e.,
-	///        \ref character_rendering_iterator::switching_line and
-	///        \ref character_rendering_iterator::switching_line) are invoked, in the order that the addons are
-	///        specifed in the template argument list.
-	template <typename ...AddOns> struct rendering_iterator;
-	/// Specialization of \ref rendering_iterator with no addons. This struct contains the
-	/// \ref character_rendering_iterator.
-	template <> struct rendering_iterator<> {
+	/// The specialization of \ref rendering_token_iterator that holds a component.
+	template <typename FirstComp, typename ...OtherComps> struct rendering_token_iterator<FirstComp, OtherComps...> :
+		protected rendering_token_iterator<OtherComps...> {
 	public:
-		/// Initializes the underlying \ref character_rendering_iterator with the contents of the given \p tuple.
-		rendering_iterator(const std::tuple<const editor&, size_t, size_t> &p) :
-			rendering_iterator(std::get<0>(p), std::get<1>(p), std::get<2>(p)) {
-		}
-		/// Initializes the underlying \ref character_rendering_iterator with the given arguments.
-		rendering_iterator(const editor &ce, size_t sp, size_t pep) : _citer(ce, sp, pep) {
-		}
-		/// Virtual destructor.
-		virtual ~rendering_iterator() = default;
-
-		/// Indicates whether the iterator has reached the end of the given range of characters.
-		///
-		/// \sa character_rendering_iterator::ended() const
-		bool ended() const {
-			return _citer.ended();
-		}
-
-		/// Returns the underlying \ref character_rendering_iterator.
-		character_rendering_iterator &char_iter() {
-			return _citer;
-		}
-	protected:
-		/// This constructor is called when a \ref rendering_iterator with addons is constructed. The argument \p arg is
-		/// a \p std::tuple containing parameters used to initialize \ref _citer, and the \p std::index_sequence is
-		/// ignored.
-		template <size_t ...I, typename T> rendering_iterator(
-			std::index_sequence<I...>, T &&arg
-		) : rendering_iterator(std::forward<T>(arg)) {
-		}
-
-		character_rendering_iterator _citer; ///< The underlying \ref character_rendering_iterator.
-
-		/// Calls \ref character_rendering_iterator::begin().
-		void _begin() {
-			_citer.begin();
-		}
-		/// Calls \ref character_rendering_iterator::next_char().
-		void _next() {
-			_citer.next_char();
-		}
-
-		/// \sa rendering_iterator<F, Others...>::_check(_check_helper<false>)
-		bool _check_all() {
-			return false;
-		}
-		/// \sa rendering_iterator<F, Others...>::_switching_char(switch_char_info&, _check_helper<true>)
-		void _switching_char_all(switch_char_info&) {
-		}
-		/// \sa rendering_iterator<F, Others...>::_switching_line(switch_line_info&, _check_helper<true>)
-		void _switching_line_all(switch_line_info&) {
-		}
-	};
-	/// The specialization of \ref rendering_iterator that contains an addon of type \p F. This struct inherits from
-	/// \ref rendering_iterator<Others...> to include all other addons.
-	template <
-		typename F, typename ...Others
-	> struct rendering_iterator<F, Others...> :
-		protected rendering_iterator<Others...> {
-	public:
-		/// Initializes all addons and the underlying \ref character_rendering_iterator. Each argument is a
-		/// <tt>std::tuple</tt> that contains the arguments for the corresponding addon, or the
-		/// \ref character_rendering_iterator if it's the last argument. The contents of the <tt>tuple</tt>s are
-		/// unpacked and passed to the corresponding object's constructor. Note that the addons are constructed
-		/// in reverse order in which they appear in the template argument list.
-		template <typename FCA, typename ...OCA> rendering_iterator(FCA &&f, OCA &&...ot) : rendering_iterator(
-			std::make_index_sequence<std::tuple_size_v<std::decay_t<FCA>>>(),
-			std::forward<FCA>(f), std::forward<OCA>(ot)...
+		/// Constructs the iterator using a series of tuples, each containing the arguments for one component.
+		template <typename MyArgs, typename ...OtherArgs> rendering_token_iterator(
+			MyArgs &&myargs, OtherArgs &&...others
+		) : rendering_token_iterator(
+			std::make_index_sequence<std::tuple_size_v<std::decay_t<MyArgs>>>(),
+			std::forward<MyArgs>(myargs), std::forward<OtherArgs>(others)...
 		) {
-			_root_base::char_iter().switching_char += [this](switch_char_info &pi) {
-				_switching_char_all(pi);
-			};
-			_root_base::char_iter().switching_line += [this](switch_line_info &pi) {
-				_switching_line_all(pi);
-			};
 		}
 
-		/// Starts to iterate through the characters.
-		void begin() {
-			_root_base::_begin();
-			while (_check_all()) {
+		/// Returns the \ref token returned by the \p next() method of the current component if it's valid, or the
+		/// first valid one returned by following components.
+		token_generation_result generate() {
+			token_generation_result tok = _mycomp.generate(*this);
+			if (!std::holds_alternative<no_token>(tok.result)) {
+				return tok;
 			}
+			return _base::generate();
 		}
-		/// Moves to the next character.
-		void next() {
-			_root_base::_next();
-			while (_check_all()) {
-			}
+		/// Updates all components.
+		void update(size_t steps) {
+			_mycomp.update(*this, steps);
+			_base::update(steps);
 		}
 
-		/// Returns the addon of the given type.
+		/// Generates the next token, then updates using the returned number of steps.
 		///
-		/// \tparam T The type of the requested addon.
-		template <typename T> T &get_addon() {
-			return _get_addon_impl(_get_helper<T>());
+		/// \return The generated token.
+		token generate_and_update() {
+			token_generation_result res = generate();
+			update(res.steps);
+			return res.result;
 		}
 
-		using rendering_iterator<>::ended;
-		using rendering_iterator<>::char_iter;
-	private:
-		/// The base class that contains all addons but the first one.
-		using _direct_base = rendering_iterator<Others...>;
-		/// The final base class that contains the \ref character_rendering_iterator.
-		using _root_base = rendering_iterator<>;
-
-		/// Helper struct for getting addons.
-		template <typename T> struct _get_helper {
-		};
-		/// Invoked by \ref get_addon when the addon of the requested type is not held by this struct. Passes the
-		/// call to the base class.
-		template <typename T> T &_get_addon_impl(_get_helper<T>) {
-			return _direct_base::template get_addon<T>();
-		}
-		/// Invoked by \ref get_addon when the addon of the requested type is held by this struct.
-		F &_get_addon_impl(_get_helper<F>) {
-			return _curaddon;
-		}
-
-		/// Helper struct used to determine if a class is a checker (i.e., has a `check' member).
-		template <bool V> struct _check_helper {
-		};
-		/// The specialization of \ref _check_helper for the addon held by this struct.
-		using _cur_check_helper = _check_helper<_details::is_checker_v<F>>;
-		/// Called when the current addon is a checker. Invokes \p F::check.
-		bool _check(_check_helper<true>) {
-			return _curaddon.check(_root_base::_citer);
-		}
-		/// Called when the current addon is not a checker. Invokes \p F::switching_char.
-		void _switching_char(switch_char_info &info, _check_helper<false>) {
-			_curaddon.switching_char(_root_base::char_iter(), info);
-		}
-		/// Called when the current addon is not a checker. Invokes \p F::switching_line.
-		void _switching_line(switch_line_info &info, _check_helper<false>) {
-			_curaddon.switching_line(_root_base::char_iter(), info);
-		}
-		// disabled funcs
-		/// Called when the current addon is not a checker. Simply returns \p false.
-		bool _check(_check_helper<false>) {
-			return false;
-		}
-		/// Called when the current addon is a checker. Does nothing.
-		void _switching_char(switch_char_info&, _check_helper<true>) {
-		}
-		/// Called when the current addon is a checker. Does nothing.
-		void _switching_line(switch_line_info&, _check_helper<true>) {
-		}
-
-		F _curaddon; ///< The current addon.
+		using rendering_token_iterator<OtherComps...>::get_base;
+		using rendering_token_iterator<OtherComps...>::get_position;
 	protected:
-		/// Constructer that initializes the current addon. The \p std::index_sequence is used to help unpack
-		/// the \p std::tuple.
-		template <size_t ...I, typename FCA, typename SCA, typename ...OCA> rendering_iterator(
-			std::index_sequence<I...>, FCA &&f, SCA &&s, OCA &&...ot
-		) : _direct_base(
-			std::make_index_sequence<std::tuple_size_v<std::decay_t<SCA>>>(),
-			std::forward<SCA>(s), std::forward<OCA>(ot)...
-		), _curaddon(std::get<I>(std::forward<FCA>(f))...) {
+		/// The base class that contains all components following this one.
+		using _base = rendering_token_iterator<OtherComps...>;
+
+		/// Constructer that initializes the current component. The \p std::index_sequence is used to unpack the
+		/// \p std::tuple.
+		template <
+			size_t ...Indices, typename MyArgs, typename FirstOtherArgs, typename ...OtherArgs
+		> rendering_token_iterator(
+			std::index_sequence<Indices...>, MyArgs &&mytuple, FirstOtherArgs &&other_tuple, OtherArgs &&...others
+		) :
+			_base(
+				std::make_index_sequence<std::tuple_size_v<std::decay_t<FirstOtherArgs>>>(),
+				std::forward<FirstOtherArgs>(other_tuple), std::forward<OtherArgs>(others)...
+			),
+			_mycomp(std::get<Indices>(std::forward<MyArgs>(mytuple))...) {
 		}
 
-		/// For each addon, calls its `check' method if it has one, and returns \p true immediately if any
-		/// invocation returns \p true. Finally, if none returns \p true, this function returns \p false.
-		bool _check_all() {
-			if (!_check(_cur_check_helper())) {
-				return _direct_base::_check_all();
-			}
-			return true;
-		}
-		/// Calls \p switching_char() for all addons that are not checkers, in the order in which they are specified
-		/// in the template argument list.
-		void _switching_char_all(switch_char_info &info) {
-			_switching_char(info, _cur_check_helper());
-			_direct_base::_switching_char_all(info);
-		}
-		/// Calls \p switching_line() for all addons that are not checkers, in the order in which they are specified
-		/// in the template argument list.
-		void _switching_line_all(switch_line_info &info) {
-			_switching_line(info, _cur_check_helper());
-			_direct_base::_switching_line_all(info);
-		}
+		FirstComp _mycomp; ///< The current component.
 	};
 
 
-	/// Addon to \ref rendering_iterator that skips folded regions.
-	struct fold_region_skipper {
-	public:
-		/// Initializer.
-		///
-		/// \param fold The \ref folding_registry.
-		/// \param sp The starting position. The end position is not required.
-		fold_region_skipper(const folding_registry &fold, size_t sp) {
-			auto fr = fold.find_region_containing_or_first_after_open(sp);
-			_nextfr = fr.entry;
-			_chars = fr.prev_chars;
-		}
-
-		/// Checks if the current position is at the beginning of the folded region \ref _nextfr points to, and if
-		/// so, calls \ref character_rendering_iterator::jump_to to jump the end of the folded region and return
-		/// \p true to interrupt checking by all following addons and start over. Otherwise, returns \p false.
-		///
-		/// \todo Add gizmos (or text) for folded regions.
-		bool check(character_rendering_iterator &it) {
-			size_t npos = it.current_position();
-			if (_nextfr != _nextfr.get_container()->end() && _chars + _nextfr->gap == npos) {
-				_chars += _nextfr->gap + _nextfr->range;
-				it.jump_to(_chars);
-				it.create_blank(30.0); // TODO magic number
-				_region_positions.emplace_back(it.character_info().char_left(), it.y_offset());
-				++_nextfr;
-				return true;
-			}
-			return false;
-		}
-
-		/// Returns the positions of all folded regions.
-		const std::vector<vec2d> &get_folded_region_positions() const {
-			return _region_positions;
-		}
-	protected:
-		/// The positions of all folded regions, relative to the top left corner of the first rendered line.
-		std::vector<vec2d> _region_positions;
-		folding_registry::iterator _nextfr; ///< Iterator to the next folded region.
-		/// The number of characters before \ref _nextfr, not including
-		/// \ref folding_registry::fold_region_node_data::gap.
-		size_t _chars = 0;
-	};
-	/// Inserts soft linebreaks into the document according to a given \ref soft_linebreak_registry. When used with
-	/// a \ref fold_region_skipper, this should be put in front of it so that soft linebreaks are checked first.
+	/// A component that inserts soft linebreaks into the document.
 	struct soft_linebreak_inserter {
 	public:
-		/// Initializer.
-		///
-		/// \param reg The given \ref soft_linebreak_registry.
-		/// \param sp The starting position. The end position is not required.
-		soft_linebreak_inserter(const soft_linebreak_registry &reg, size_t sp) {
-			auto pos = reg.get_softbreak_before_or_at_char(sp);
-			_next = pos.entry;
-			_ncs = pos.prev_chars;
+		/// Initializes this struct with the given \ref soft_linebreak_registry at the given position.
+		soft_linebreak_inserter(const soft_linebreak_registry &reg, size_t pos) : _reg(reg) {
+			_reset_position(pos);
 		}
 
-		/// Checks if the a soft linebreak is at the current position and if so, inserts one into the rendered text.
-		/// This function always returns \p false as there can only be one soft linebreak at a position.
-		bool check(character_rendering_iterator &it) {
-			if (_next != _next.get_container()->end() && it.current_position() >= _next->length + _ncs) {
-				it.insert_soft_linebreak();
-				_ncs += _next->length;
-				++_next;
-				return true;
+		/// Checks and generates a soft linebreak if necessary. \ref _cur_softbreak and \ref _prev_chars are updated
+		/// here instead of in \ref update() because this component don't really advance the current position and
+		/// will otherwise cause conflicts.
+		token_generation_result generate(rendering_token_iterator<> &it) {
+			if (_cur_softbreak != _reg.end() && it.get_position() == _prev_chars + _cur_softbreak->length) {
+				_prev_chars += _cur_softbreak->length;
+				++_cur_softbreak;
+				return token_generation_result(linebreak_token(line_ending::none), 0);
+			}
+			return token_generation_result();
+		}
+		/// Updates \ref _cur_softbreak according to the given offset.
+		void update(rendering_token_iterator<> &it, size_t steps) {
+			if (steps > 0 && _cur_softbreak != _reg.end()) { // no update needed if not moved
+				size_t targetpos = it.get_position() + steps;
+				if (targetpos > _prev_chars + _cur_softbreak->length) {
+					// reset once iterator to the next soft linebreak is invalid
+					_reset_position(targetpos);
+				}
+			}
+		}
+	protected:
+		soft_linebreak_registry::iterator _cur_softbreak; ///< Iterator to the next soft linebreak.
+		const soft_linebreak_registry &_reg; ///< The registry for soft linebreaks.
+		size_t _prev_chars = 0; ///< The number of characters before \ref _cur_softbreak.
+
+		/// Resets \ref _cur_softbreak and \ref _prev_char to the given position.
+		void _reset_position(size_t pos) {
+			auto softbreak = _reg.get_softbreak_before_or_at_char(pos);
+			_prev_chars = softbreak.prev_chars;
+			_cur_softbreak = softbreak.entry;
+		}
+	};
+	/// A component that jumps to the ends of folded regions and generates corresponding gizmos.
+	struct folded_region_skipper {
+	public:
+		/// Initializes this struct with the given \ref folding_registry at the given position.
+		folded_region_skipper(const folding_registry &reg, size_t pos) : _reg(reg) {
+			_reset_position(pos);
+		}
+
+		/// Checks and skips the folded region if necessary.
+		token_generation_result generate(rendering_token_iterator<> &it) {
+			if (_cur_region != _reg.end() && it.get_position() >= _region_start) { // jump
+				// TODO gizmo should be customizable
+				return token_generation_result(
+					text_gizmo_token("...", colord(0.8, 0.8, 0.8, 1.0)),
+					_cur_region->range - (it.get_position() - _region_start)
+				);
+			}
+			return token_generation_result();
+		}
+		/// Updates \ref _cur_region according to the given offset.
+		void update(rendering_token_iterator<> &it, size_t steps) {
+			if (_cur_region != _reg.end()) {
+				size_t targetpos = it.get_position() + steps, regionend = _region_start + _cur_region->range;
+				if (targetpos >= regionend) { // advance to the next region and check again
+					++_cur_region;
+					if (_cur_region != _reg.end()) {
+						_region_start = regionend + _cur_region->gap;
+						if (_region_start + _cur_region->range <= targetpos) { // nope, still ahead
+							_reset_position(targetpos);
+						}
+					}
+				}
+			}
+		}
+	protected:
+		folding_registry::iterator _cur_region; ///< Iterator to the next folded region.
+		const folding_registry &_reg; ///< The registry for folded regions.
+		size_t _region_start = 0; ///< Position of the beginning of the next folded region.
+
+		/// Resets \ref _cur_region and \ref _region_start to the given position.
+		void _reset_position(size_t pos) {
+			auto region = _reg.find_region_containing_or_first_after_open(pos);
+			_cur_region = region.entry;
+			if (_cur_region != _reg.end()) {
+				_region_start = region.prev_chars + _cur_region->gap;
+			}
+		}
+	};
+
+
+	/// Specifies how tokens are measured.
+	enum class token_measurement_flags {
+		normal = 0, ///< Tokens are measured normally.
+		defer_text_gizmo_measurement = 1 ///< Gizmos are not measured. Use \ref get_character() to add them manually.
+	};
+	/// Computes the metrics of each character in a clip of text.
+	struct text_metrics_accumulator {
+	public:
+		/// Initializes this struct with the given font, line height, and tab size.
+		text_metrics_accumulator(const ui::font_family &fnt, double line_height, double tab_size) :
+			_char(fnt, tab_size), _line_height(line_height) {
+		}
+
+		/// Computes the metrics for the next token.
+		template <token_measurement_flags Flags = token_measurement_flags::normal> void next(const token &tok) {
+			if (std::holds_alternative<linebreak_token>(tok)) {
+				_y += _line_height;
+				_last_length = _char.char_right();
+			}
+			measure_token<Flags>(_char, tok);
+		}
+		/// Adds the given \ref token to the \ref ui::character_metrics_accumulator.
+		template <token_measurement_flags Flags = token_measurement_flags::normal> inline static void measure_token(
+			ui::character_metrics_accumulator &metrics, const token &tok
+		) {
+			if (std::holds_alternative<character_token>(tok)) {
+				auto &chartok = std::get<character_token>(tok);
+				if (chartok.valid) {
+					metrics.next_char(chartok.value, chartok.style);
+				} else {
+					if constexpr (!test_bits_any(Flags, token_measurement_flags::defer_text_gizmo_measurement)) {
+						str_t textgizmo = editor::format_invalid_codepoint(chartok.value);
+						metrics.next_gizmo(ui::text_renderer::measure_plain_text(textgizmo, editor::get_font().normal).x);
+					}
+				}
+			} else if (std::holds_alternative<image_gizmo_token>(tok)) { // TODO
+
+			} else if (std::holds_alternative<text_gizmo_token>(tok)) {
+				if constexpr (!test_bits_any(Flags, token_measurement_flags::defer_text_gizmo_measurement)) {
+					auto &texttok = std::get<text_gizmo_token>(tok);
+					metrics.next_gizmo(ui::text_renderer::measure_plain_text(
+						texttok.contents, texttok.font ? texttok.font : metrics.get_font_family().normal
+					).x);
+				}
+			} else if (std::holds_alternative<linebreak_token>(tok)) {
+				metrics.reset();
+			}
+		}
+
+		/// Returns the height of a line.
+		double get_line_height() const {
+			return _line_height;
+		}
+		/// Returns the length of the previous line.
+		double get_last_line_length() const {
+			return _last_length;
+		}
+		/// Returns the current vertical position.
+		double get_y() const {
+			return _y;
+		}
+		/// Returns the associated \ref ui::character_metrics_accumulator for modification. This is usually used with
+		/// measurement flags such as \ref token_measurement_flags::defer_text_gizmo_measurement.
+		ui::character_metrics_accumulator &get_modify_character() {
+			return _char;
+		}
+		/// Returns the associated \ref ui::character_metrics_accumulator.
+		const ui::character_metrics_accumulator &get_character() const {
+			return _char;
+		}
+	protected:
+		ui::character_metrics_accumulator _char; ///< Computes metrics of characters in the current line.
+		double
+			_y = 0.0, ///< The current vertical position.
+			_last_length = 0.0, ///< The length of the previous line.
+			_line_height = 0.0; ///< The height of a line.
+	};
+
+	/// A standalone component that gathers information about carets to be rendered later.
+	struct caret_renderer {
+	public:
+		/// Constructs this struct with the given \ref caret_set, position, and a boolean indicating whether the last
+		/// linebreak was a soft linebreak.
+		caret_renderer(const caret_set::container &set, size_t pos, bool soft) : _carets(set) {
+			// find the current caret
+			_cur_caret = _carets.lower_bound(std::make_pair(pos, 0));
+			if (_cur_caret != _carets.begin()) {
+				auto prev = _cur_caret;
+				--prev;
+				if (prev->first.second > pos) {
+					_cur_caret = prev;
+				}
+			}
+			_next_caret = _cur_caret;
+			if (_cur_caret != _carets.end()) {
+				++_next_caret;
+				_range = std::minmax(_cur_caret->first.first, _cur_caret->first.second);
+				if (pos >= _range.first) { // midway in the selected region
+					_sel_regions.emplace_back();
+					_region_begin = 0.0;
+					_in_selection = true;
+				}
+			}
+			_last_soft_linebreak = soft;
+		}
+
+		/// Called after a token is generated and the corresponding metrics has been updated.
+		void on_update(
+			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics,
+			const token_generation_result &tok
+		) {
+			if (tok.steps > 0) { // about to move forward; this is the only chance
+				_check_generate_carets_all<false>(iter, metrics, tok.result);
+				_update_selection(iter, metrics, tok.result);
+				_last_soft_linebreak = false;
+			} else {
+				if (std::holds_alternative<linebreak_token>(tok.result)) { // soft linebreak
+					assert_true_logical(
+						std::get<linebreak_token>(tok.result).type == line_ending::none,
+						"hard linebreak with zero length"
+					);
+					_check_generate_carets_all<true>(iter, metrics, tok.result);
+					_last_soft_linebreak = true;
+				} else { // other stuff like (pure) gizmos
+					// TODO
+					_last_soft_linebreak = false;
+				}
+			}
+			if (_in_selection && std::holds_alternative<linebreak_token>(tok.result)) {
+				_update_selection_linebreak(metrics, std::get<linebreak_token>(tok.result));
+			}
+		}
+		/// Called after all visible text has been laid out. This function exists to ensure that carets are rendered
+		/// properly at the very end of the document.
+		void finish(const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics) {
+			if (_in_selection) { // close selected region
+				_sel_regions.back().emplace_back(
+					_region_begin, metrics.get_character().char_right(),
+					metrics.get_y(), metrics.get_y() + metrics.get_line_height()
+				);
+			}
+			if (_cur_caret != _carets.end() && _cur_caret->first.first == iter.get_position()) {
+				// render the last caret
+				_caret_rects.emplace_back(rectd::from_xywh(
+					metrics.get_character().char_right(), metrics.get_y(),
+					metrics.get_character().get_font_family().normal->get_char_entry(' ').advance,
+					metrics.get_line_height()
+				));
+			}
+		}
+
+		/// Returns the bounding boxes of all carets.
+		std::vector<rectd> &get_caret_rects() {
+			return _caret_rects;
+		}
+		/// Returns the layout of all selected regions.
+		std::vector<std::vector<rectd>> &get_selection_rects() {
+			return _sel_regions;
+		}
+	protected:
+		std::vector<rectd> _caret_rects; ///< The positions of all carets.
+		std::vector<std::vector<rectd>> _sel_regions; ///< The positions of selected regions.
+		caret_set::const_iterator
+			_cur_caret, ///< Iterator to the current caret.
+			_next_caret; ///< Iterator to the next caret.
+		std::pair<size_t, size_t> _range; ///< The range of \ref _cur_caret.
+		double _region_begin = 0.0; ///< Position of the leftmost border of the current selected region on this line.
+		const caret_set::container &_carets; ///< The set of carets.
+		bool
+			_in_selection = false, ///< Indicates whether the current position is selected.
+			_last_soft_linebreak = false; ///< Indicates whether the last token was a soft linebreak.
+
+		/// Generates a caret at the current location.
+		void _generate_caret(const text_metrics_accumulator &metrics, bool linebreak) {
+			if (linebreak) {
+				_caret_rects.push_back(rectd::from_xywh(
+					metrics.get_last_line_length(),
+					metrics.get_y() - metrics.get_line_height(), // y has already been updated
+					metrics.get_character().get_font_family().normal->get_char_entry(' ').advance,
+					metrics.get_line_height()
+				));
+			} else {
+				_caret_rects.push_back(rectd::from_xywh(
+					metrics.get_character().char_left(), metrics.get_y(),
+					metrics.get_character().char_width(), metrics.get_line_height()
+				));
+			}
+		}
+		/// Checks and generates a caret if necessary, given an iterator to a caret. The iterator must not point
+		/// past at the end of the container.
+		template <bool AtSoftbreak> void _check_generate_caret_single(
+			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics,
+			[[maybe_unused]] const token &tok, const caret_set::const_iterator &it
+		) {
+			if (it->first.first == iter.get_position()) {
+				if constexpr (AtSoftbreak) {
+					if (!it->second.softbreak_next_line) {
+						_generate_caret(metrics, true);
+					}
+				} else {
+					if (!_last_soft_linebreak || it->second.softbreak_next_line) {
+						_generate_caret(metrics, std::holds_alternative<linebreak_token>(tok));
+					}
+				}
+			}
+		}
+		/// Checks and generates carets for \ref _cur_caret and \ref _next_caret if necessary.
+		template <bool AtSoftbreak> void _check_generate_carets_all(
+			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics, const token &tok
+		) {
+			if (_cur_caret != _carets.end()) {
+				_check_generate_caret_single<AtSoftbreak>(iter, metrics, tok, _cur_caret);
+				if (_next_caret != _carets.end()) {
+					_check_generate_caret_single<AtSoftbreak>(iter, metrics, tok, _next_caret);
+				}
+			}
+		}
+
+		/// Updates selected regions, but \ref _in_selection is changed at most once. Thus this function should be
+		/// called twice to obtain the correct result. \ref _cur_caret must not be past the end of the set of carets.
+		///
+		/// \return Indicates whether the state has been changed.
+		bool _update_selection_state(
+			const rendering_token_iterator<> &it, const text_metrics_accumulator &metrics, const token &tok
+		) {
+			if (_in_selection) {
+				if (it.get_position() >= _range.second) {
+					// finish this region
+					if (std::holds_alternative<linebreak_token>(tok)) {
+						_sel_regions.back().emplace_back(
+							_region_begin, metrics.get_last_line_length(),
+							metrics.get_y() - metrics.get_line_height(), metrics.get_y()
+						);
+					} else {
+						_sel_regions.back().emplace_back(
+							_region_begin, metrics.get_character().prev_char_right(),
+							metrics.get_y(), metrics.get_y() + metrics.get_line_height()
+						);
+					}
+					// move on to the next caret
+					_cur_caret = _next_caret;
+					if (_cur_caret != _carets.end()) {
+						++_next_caret;
+						_range = std::minmax(_cur_caret->first.first, _cur_caret->first.second);
+					}
+					_in_selection = false;
+					return true;
+				}
+			} else {
+				if (it.get_position() >= _range.first) {
+					// start this region
+					_sel_regions.emplace_back();
+					_region_begin =
+						std::holds_alternative<linebreak_token>(tok) ?
+						metrics.get_last_line_length() :
+						metrics.get_character().char_left();
+					_in_selection = true;
+					return true;
+				}
 			}
 			return false;
 		}
-
-		/// Checks if a soft linebreak is at the current position. This is not guaranteed to be correct during a call
-		/// to \p rendering_iterator::begin or \p rendering_iterator::next.
-		bool is_soft_linebreak(character_rendering_iterator &it) const {
-			return it.current_position() != 0 && it.current_position() == _ncs;
-		}
-		/// Checks whether there's a linebreak at the current position.
-		bool is_linebreak(character_rendering_iterator &it) const {
-			return it.is_hard_line_break() || is_soft_linebreak(it);
-		}
-	protected:
-		soft_linebreak_registry::iterator _next; ///< Iterator to the next soft linebreak.
-		/// The number of characters before \ref _next, not including
-		/// \ref soft_linebreak_registry::node_data::length.
-		size_t _ncs;
-	};
-	/// Integrates both a \ref soft_linebreak_inserter and a \ref fold_region_skipper.
-	struct view_formatter {
-	public:
-		/// Initializer.
-		///
-		/// \param fmt A \ref view_formatting, of which the \ref soft_linebreak_registry is used to initialize the
-		///            \ref soft_linebreak_inserter, and the \ref folding_registry is used to initialize the
-		///            \ref fold_region_skipper.
-		/// \param sp The starting position.
-		view_formatter(const view_formatting &fmt, size_t sp) :
-			_lb(fmt.get_linebreaks(), sp), _fold(fmt.get_folding(), sp) {
-		}
-
-		/// Calls \ref soft_linebreak_inserter::check, then returns the result of \ref fold_region_skipper::check.
-		bool check(character_rendering_iterator &it) {
-			_lb.check(it);
-			return _fold.check(it);
-		}
-
-		/// Returns the underlying \ref fold_region_skipper.
-		const fold_region_skipper &get_fold_region_skipper() const {
-			return _fold;
-		}
-		/// Returns the underlying \ref soft_linebreak_inserter.
-		const soft_linebreak_inserter &get_soft_linebreak_inserter() const {
-			return _lb;
-		}
-	protected:
-		soft_linebreak_inserter _lb; ///< The underlying \ref soft_linebreak_inserter.
-		fold_region_skipper _fold; ///< The underlying \ref fold_region_skipper.
-	};
-
-	/// An addon to \ref rendering_iterator for rendering carets and selected regions. Note that to obtain correct
-	/// results one has to call \ref finish after iterating over the characters and before using the results of
-	/// \ref get_caret_rects or \ref get_selection_rects.
-	struct caret_renderer {
-	public:
-		/// Constructor.
-		///
-		/// \param c The set of carets.
-		/// \param sp The starting position.
-		/// \param slb Indicates whether the first line starts with a softbreak, i.e., whether a soft linebreak
-		///            is at the same position as \p sp.
-		caret_renderer(const caret_set::container &c, size_t sp, bool slb) : _end(c.end()), _last_softlb(slb) {
-			// find first caret region
-			_cur = c.lower_bound(std::make_pair(sp, 0));
-			if (_cur != c.begin()) {
-				auto prev = _cur;
-				--prev;
-				if (prev->first.second > sp) {
-					_cur = prev;
-				}
-			}
-			// initialize other fields
-			_next = _cur;
-			if (_cur != _end) {
-				++_next;
-				_range = std::minmax(_cur->first.first, _cur->first.second);
-				if (_range.first < sp) {
-					_insel = true;
-				}
-			}
-		}
-
-		/// Calls \ref _on_switching_char to process the change of position.
-		void switching_char(const character_rendering_iterator &it, switch_char_info&) {
-			_on_switching_char(it);
-		}
-		/// If caused by a soft linebreak, checks and inserts carets; otherwise, calls \ref _on_switching_char.
-		/// This function also splits selected regions.
-		void switching_line(const character_rendering_iterator &it, switch_line_info &info) {
-			if (info.type == line_ending::none) { // soft linebreak, the actual position is not changed
-				if (_cur != _end) {
-					if (_cur->first.first == it.current_position() && !_cur->second.softbreak_next_line) {
-						_add_caret(it, true);
+		/// Updates selected regions. This function calls \ref _update_selection_state() twice.
+		void _update_selection(
+			const rendering_token_iterator<> &it, const text_metrics_accumulator &metrics, const token &tok
+		) {
+			if (_cur_caret != _carets.end()) {
+				if (_update_selection_state(it, metrics, tok)) {
+					if (_cur_caret != _carets.end()) {
+						_update_selection_state(it, metrics, tok);
 					}
 				}
-				if (_next != _end) {
-					if (_next->first.first == it.current_position() && !_next->second.softbreak_next_line) {
-						_add_caret(it, true);
-					}
-				}
-				_last_softlb = true;
-			} else {
-				_on_switching_char(it);
-			}
-			if (_insel) { // split selected regions
-				double x = it.character_info().char_left();
-				if (info.type != line_ending::none) { // add width for hard linebreak
-					x += editor::get_font().get_by_style(
-						it.theme_info().current_theme.style
-					)->get_char_entry(U' ').advance;
-				}
-				_curselrects.emplace_back(_line_selection_start, x, it.y_offset(), it.y_offset() + it.line_height());
-				_line_selection_start = 0.0;
 			}
 		}
-
-		/// Called after having finished iterating over all characters to cut off the selected regions and append
-		/// carets.
-		void finish(const character_rendering_iterator &it) {
-			_on_switching_char(it); // in case a caret is at the end of the document
-			if (_insel) {
-				_end_selected_region(it);
+		/// Breaks the current selected region when a linebreak is encountered. \ref _in_selection must be \p true
+		/// when this function is called.
+		void _update_selection_linebreak(const text_metrics_accumulator &metrics, const linebreak_token &tok) {
+			double xmax = metrics.get_last_line_length();
+			if (tok.type != line_ending::none) { // hard linebreak, append a space
+				xmax += metrics.get_character().get_font_family().normal->get_char_entry(' ').advance;
 			}
-		}
-
-		/// Returns the boundaries of the character that each caret is at.
-		const std::vector<rectd> &get_caret_rects() const {
-			return _caretrects;
-		}
-		/// Returns the boundaries of selected regions. Since a selected region can be made up of multiple
-		/// rectangles, rectangles for each selected region is put in a separate list.
-		const std::vector<std::vector<rectd>> &get_selection_rects() const {
-			return _selrects;
-		}
-	protected:
-		std::vector<std::vector<rectd>> _selrects; ///< The boundaries of selected regions.
-		std::vector<rectd>
-			_caretrects, ///< The boundaries of the character that each caret is at.
-			_curselrects; ///< Boundaries of the current selected region.
-		caret_set::const_iterator
-			_cur, ///< Iterator to the (about-to-be) current \ref caret_set::entry.
-			/// Iterator to the next \ref caret_set::entry. This is used to render carets correctly at soft
-			/// linebreaks.
-			_next,
-			_end; ///< Iterator past the last \ref caret_set::entry.
-		/// The selected range of the current caret. Unlike \ref caret_selection, \p first is the start of the range, while
-		/// \p second is the end of the range.
-		std::pair<size_t, size_t> _range;
-		double _line_selection_start = 0.0; ///< The starting position of the selected region for this line.
-		bool
-			_last_softlb = false, ///< Indicates whether the last operations was a soft linebreak.
-			_insel = false; ///< Indicates whether the current position is in a selected region.
-
-		/// Adds a caret to \ref _caretrects.
-		///
-		/// \param it The iterator.
-		/// \param softbreak Indicates whether the caret is at the position of a soft linebreak but not on the next line.
-		void _add_caret(const character_rendering_iterator &it, bool softbreak) {
-			if (softbreak || it.is_hard_line_break()) { // end of the line, use the width of the space (' ') character
-				_caretrects.emplace_back(rectd::from_xywh(
-					it.character_info().char_left(), it.y_offset(),
-					editor::get_font().normal->get_char_entry(' ').advance, it.line_height()
-				));
-			} else {
-				_caretrects.emplace_back(
-					it.character_info().char_left(), it.character_info().char_right(),
-					it.y_offset(), it.y_offset() + it.line_height()
-				);
-			}
-		}
-		/// Ends the current selected region and moves on to the next one without any checking.
-		void _end_selected_region(const character_rendering_iterator &it) {
-			if (_cur->first.first == it.current_position()) { // check & add caret at end
-				if (!_last_softlb || _cur->second.softbreak_next_line) {
-					_add_caret(it, false);
-				}
-			}
-			// add selection rect
-			_curselrects.emplace_back(
-				_line_selection_start, it.character_info().char_left(),
-				it.y_offset(), it.y_offset() + it.line_height()
+			_sel_regions.back().emplace_back(
+				_region_begin, xmax, metrics.get_y() - metrics.get_line_height(), metrics.get_y()
 			);
-			_selrects.emplace_back(std::move(_curselrects));
-			_curselrects = std::vector<rectd>();
-			// move to the next region
-			_cur = _next;
-			if (_next != _end) {
-				++_next;
-				_range = std::minmax(_cur->first.first, _cur->first.second);
-			}
-			_insel = false;
-		}
-		/// Called when the position that the iterator is at is changing. Checks for the beginning and ending of selected
-		/// regions.
-		void _on_switching_char(const character_rendering_iterator &it) {
-			while (true) {
-				if (_insel) {
-					if (it.current_position() >= _range.second) { // end current region
-						_end_selected_region(it);
-					} else {
-						break;
-					}
-				} else {
-					if (_cur != _end && it.current_position() >= _range.first) { // start region
-						if (it.current_position() == _cur->first.first) { // check & add caret
-							// this check is to ensure that duplicate carets are not added for carets without
-							// selected regions, since _end_selected_region will be called immediately after
-							if (_range.first != _range.second) {
-								if (!_last_softlb || _cur->second.softbreak_next_line) {
-									_add_caret(it, false);
-								}
-							}
-						}
-						_line_selection_start = it.character_info().char_left();
-						_insel = true;
-					} else {
-						break;
-					}
-				}
-			}
-			_last_softlb = false;
+			_region_begin = 0.0;
 		}
 	};
 }

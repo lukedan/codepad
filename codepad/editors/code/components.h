@@ -32,7 +32,7 @@ namespace codepad::editor::code {
 			element::_on_added_to_parent();
 			_resizetk = (component_helper::get_editor(*this).content_modified += [this]() {
 				invalidate_layout();
-				});
+			});
 		}
 		/// Unregisters from \ref editor::content_modified.
 		void _on_removing_from_parent() override {
@@ -179,12 +179,10 @@ namespace codepad::editor::code {
 				const editor &ce = component_helper::get_editor(*parent);
 				double lh = ce.get_line_height(), scale = get_scale();
 				line_top_cache lct(static_cast<double>(s) * lh * scale);
-				bool needrefresh = true; // indicates whether lct needs to be refreshed
 
 				os::framebuffer buf = os::renderer_base::get().new_framebuffer(
-					// add one for good luck
+					// add 1 because the start position was floored instead of rounded
 					maximum_width, static_cast<size_t>(std::ceil(lh * scale * static_cast<double>(pe - s))) + 1
-					// actually, adding 1 is necessary because the start position was floored instead of rounded
 				);
 				os::renderer_base::get().begin_framebuffer(buf);
 				const view_formatting &fmt = ce.get_formatting();
@@ -195,40 +193,47 @@ namespace codepad::editor::code {
 					plastchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
 						fmt.get_folding().folded_to_unfolded_line_number(pe)
 					).first;
-				rendering_iterator<view_formatter> it(
-					std::make_tuple(std::cref(fmt), firstchar),
-					std::make_tuple(std::cref(ce), firstchar, plastchar)
+				rendering_token_iterator<soft_linebreak_inserter, folded_region_skipper> it(
+					std::make_tuple(std::cref(fmt.get_linebreaks()), firstchar),
+					std::make_tuple(std::cref(fmt.get_folding()), firstchar),
+					std::make_tuple(std::cref(*ce.get_document()), firstchar)
 				);
+				text_metrics_accumulator metrics(editor::get_font(), lh, ce.get_formatting().get_tab_width());
 				// records the position of the right boundary of the last character that has just been rendered
 				double lastx = 0.0;
-				for (it.begin(); !it.ended(); it.next()) { // iterate over the range of chars
-					if (it.get_addon<view_formatter>().get_soft_linebreak_inserter().is_linebreak(it.char_iter())) {
-						needrefresh = true;
-						lastx = 0.0;
-					}
-					if (!it.char_iter().is_hard_line_break()) {
-						if (needrefresh) {
-							// only refresh lct at a character, so that the y position is always the latest one
-							lct.refresh(it.char_iter().y_offset());
-							needrefresh = false;
-						}
-						const ui::character_metrics_accumulator &ci = it.char_iter().character_info();
-						const text_theme_data::char_iterator &ti = it.char_iter().theme_info();
-						if (is_graphical_char(ci.current_char())) {
-							rectd crec = ci.current_char_entry().placement.translated(
-								vec2d(ci.char_left(), lct.get(ti.current_theme.style))
-							).coordinates_scaled(scale).fit_grid_enlarge<double>(); // snap to pixel borders
-							crec.xmin = std::max(crec.xmin, lastx); // do not overlap with last character
-							lastx = crec.xmax;
-							if (crec.xmin < maximum_width) { // draw only visible characters
-								os::renderer_base::get().draw_character_custom(
-									ci.current_char_entry().texture,
-									crec,
-									ti.current_theme.color
-								);
+				while (it.get_position() < plastchar) {
+					token_generation_result tok = it.generate();
+					metrics.next(tok.result);
+					if (std::holds_alternative<character_token>(tok.result)) {
+						auto &chartok = std::get<character_token>(tok.result);
+						if (chartok.valid) {
+							if (is_graphical_char(chartok.value)) { // render one character
+								rectd rec = metrics.get_character().current_char_entry().placement.translated(
+									vec2d(metrics.get_character().char_left(), metrics.get_y())
+								).coordinates_scaled(scale).fit_grid_enlarge<double>();
+								rec.xmin = std::max(rec.xmin, lastx);
+								if (rec.xmin < maximum_width) { // render only visible characters
+									os::renderer_base::get().draw_character_custom(
+										metrics.get_character().current_char_entry().texture,
+										rec, chartok.color
+									);
+								} else {
+									// TODO skip to next line
+								}
+								lastx = rec.xmax;
 							}
+						} else {
+							// TODO draw text gizmo
 						}
+					} else if (std::holds_alternative<linebreak_token>(tok.result)) {
+						lct.refresh(metrics.get_y());
+						lastx = 0.0;
+					} else if (std::holds_alternative<text_gizmo_token>(tok.result)) {
+						// TODO draw text gizmo
+					} else if (std::holds_alternative<image_gizmo_token>(tok.result)) {
+						// TODO
 					}
+					it.update(tok.steps);
 				}
 				os::renderer_base::get().end();
 				pages.insert(std::make_pair(s, std::move(buf)));
@@ -396,11 +401,11 @@ namespace codepad::editor::code {
 			element::_on_added_to_parent();
 			_vis_tok = (component_helper::get_editor(*this).editing_visual_changed += [this]() {
 				_on_editor_visual_changed();
-				});
+			});
 			_vpos_tok = (
 				component_helper::get_box(*this).vertical_viewport_changed += [this](value_update_info<double>&) {
-					_on_viewport_changed();
-				}
+				_on_viewport_changed();
+			}
 			);
 		}
 		/// Unregisters all previously registered event handlers.

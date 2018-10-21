@@ -321,4 +321,51 @@ namespace codepad::ui {
 			}
 		}
 	};
+
+
+	template <typename T> inline void ui_config_parser::parse_animation(
+		animated_property<T> &ani, const json::value_t &obj
+	) {
+		if (obj.IsObject()) {
+			json::value_t::ConstMemberIterator mem;
+			mem = obj.FindMember(CP_STRLIT("to"));
+			if (mem != obj.MemberEnd()) {
+				ani.to = json_object_parsers::parse<T>(mem->value);
+			} else {
+				logger::get().log_warning(CP_HERE, "no \"to\" property found in animation");
+			}
+			mem = obj.FindMember(CP_STRLIT("from"));
+			if (mem != obj.MemberEnd()) {
+				ani.has_from = true;
+				ani.from = json_object_parsers::parse<T>(mem->value);
+			} else {
+				ani.has_from = false;
+			}
+			json::try_get(obj, CP_STRLIT("has_from"), ani.has_from);
+			json::try_get(obj, CP_STRLIT("auto_reverse"), ani.auto_reverse);
+			json::try_get(obj, CP_STRLIT("repeat"), ani.repeat);
+			json::try_get(obj, CP_STRLIT("duration"), ani.duration);
+			json::try_get(obj, CP_STRLIT("reverse_duration_scale"), ani.reverse_duration_scale);
+			mem = obj.FindMember(CP_STRLIT("transition"));
+			if (mem != obj.MemberEnd()) {
+				if (mem->value.IsString()) {
+					transition_function
+						fptr = manager::get().try_get_transition_func(json::get_as_string(mem->value));
+					if (fptr == nullptr) {
+						ani.transition_func = transition_functions::linear;
+						logger::get().log_warning(
+							CP_HERE, "invalid transition function: ", json::get_as_string(mem->value)
+						);
+					} else {
+						ani.transition_func = fptr;
+					}
+				} else {
+					logger::get().log_warning(CP_HERE, "invalid transition function");
+				}
+			}
+		} else {
+			ani = animated_property<T>();
+			ani.to = json_object_parsers::parse<T>(obj);
+		}
+	}
 }

@@ -15,18 +15,18 @@ namespace codepad {
 			/// Constructor. Finds the font matching the description using fontconfig,
 			/// then loads the font by passing its file name to freetype.
 			freetype_font(const str_t &str, double sz, font_style style) : freetype_font_base() {
-				FcConfig *config = _font_config::get().refresh_and_get();
-				FcPattern *pat = FcNameParse(reinterpret_cast<const FcChar8*>(convert_to_utf8(str).c_str()));
+				_font_config::get().refresh();
+				FcPattern *pat = FcNameParse(reinterpret_cast<const FcChar8*>(str.c_str()));
 				FcPatternAddInteger(pat, FC_SLANT, test_bits_any(
 					style, font_style::italic
 				) ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
 				FcPatternAddInteger(pat, FC_WEIGHT, test_bits_any(
 					style, font_style::bold
 				) ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL);
-				assert_true_sys(FcConfigSubstitute(config, pat, FcMatchPattern) != FcFalse, "cannot set pattern");
+				assert_true_sys(FcConfigSubstitute(nullptr, pat, FcMatchPattern) != FcFalse, "cannot set pattern");
 				FcDefaultSubstitute(pat);
 				FcResult res;
-				FcPattern *font = FcFontMatch(config, pat, &res);
+				FcPattern *font = FcFontMatch(nullptr, pat, &res);
 				FcPatternDestroy(pat);
 				assert_true_sys(font != nullptr, "cannot find matching font");
 				FcChar8 *file;
@@ -54,21 +54,18 @@ namespace codepad {
 			struct _font_config {
 				/// Constructor. Calls \p FcInitLoadConfigAndFonts() to initialize fontconfig.
 				_font_config() {
-					config = FcInitLoadConfigAndFonts();
+					assert_true_sys(FcInit() == FcTrue, "failed to initialize fontconfig");
 				}
 				/// Destructor. Destroys the loaded config and calls \p FcFini().
 				///
 				/// \todo `Assertion fcCacheChains[i] == NULL failed'.
 				~_font_config() {
-					FcConfigDestroy(config);
-					FcFini();
+					FcFini(); // TODO right here
 				}
 
-				FcConfig *config = nullptr; ///< The pointer to the fontconfig object.
-				/// Refreshes the config and returns the config.
-				FcConfig *refresh_and_get() {
+				/// Refreshes the configuration.
+				void refresh() {
 					assert_true_sys(FcInitBringUptoDate() == FcTrue, "cannot refresh font library");
-					return config;
 				}
 
 				/// Returns the global \ref _font_config object.

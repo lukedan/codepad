@@ -8,180 +8,182 @@
 #include "font_family.h"
 
 namespace codepad::ui {
-	/// Struct for measuring and layouting text. Note that it only does so for one line of text, and all line breaks
-	/// are treated as normal characters, i.e., they don't start new lines. Note that no additional processing (e.g.,
-	/// rounding) is performed.
-	///
-	/// \todo Implement subpixel character placement (not for this struct, but for all other struct (maybe in renderers)).
+	/// Struct for measuring and calculating text layout for a single line. For gizmos, the character code is set to
+	/// zero, and no kerning is taken into consideration.
 	struct character_metrics_accumulator {
 	public:
 		/// Constructs the struct, given a \ref font_family and a tab size.
 		///
 		/// \param ff The \ref font_family used for all the calculations.
 		/// \param tabsize Specifies how many whitespaces the width of a tab is.
-		character_metrics_accumulator(ui::font_family ff, double tabsize) :
-			_ff(std::move(ff)), _tabw(tabsize * _ff.normal->get_char_entry(' ').advance) {
+		character_metrics_accumulator(ui::font_family ff, double tabsize) : _font(std::move(ff)) {
+			set_tab_width(tabsize);
 		}
 
 		/// Appends a character to the end of the line, with the given \ref font_style.
-		void next(codepoint c, font_style fs) {
-			_lastchar = _curchar;
-			_laststyle = _curstyle;
-			_lce = _pos + _cw;
-			replace_current(c, fs);
+		void next_char(codepoint c, font_style fs) {
+			const os::font &fnt = *_font.get_by_style(fs);
+			double kerning = 0.0;
+			if (_last_char != 0 && _last_style == fs) {
+				kerning = fnt.get_kerning(_last_char, c).x;
+			}
+			auto *entry = &fnt.get_char_entry(c);
+			_next_impl(c, fs, kerning, entry->advance, entry);
 		}
-		/// Replaces the current character with a given character with a specified font style.
-		void replace_current(codepoint c, font_style fs) {
-			_curchar = c;
-			_curstyle = fs;
-			const auto &stylefnt = _ff.get_by_style(_curstyle);
-			if (_lastchar != '\0') {
-				_pos = _lce;
-				if (_curstyle == _laststyle) {
-					_pos += stylefnt->get_kerning(_lastchar, _curchar).x;
-				}
-			}
-			_cet = &stylefnt->get_char_entry(_curchar);
-			if (_curchar == '\t') {
-				_cw = _get_target_tab_width();
-			} else {
-				_cw = _cet->advance;
-			}
-		}
-		/// Creates a blank of the specified width (in pixels) before the current character.
-		void create_blank_before(double width) {
-			if (_lastchar == '\0') {
-				_lce = _pos;
-				_pos += width;
-			} else {
-				_pos = _lce + width;
-				_lastchar = '\0';
-			};
-			if (_curchar == '\t') {
-				_cw = _get_target_tab_width();
-			}
+		/// Appends a gizmo to the end of the line.
+		void next_gizmo(double width) {
+			_next_impl(0, font_style::normal, 0.0, width, nullptr);
 		}
 
-		/// Returns the position of the left boundary of the current character.
+		/// Returns the position of the left boundary of the current character or gizmo.
 		double char_left() const {
-			return _pos;
+			return _cur_left;
 		}
-		/// Returns the position of the right boundary of the current character.
+		/// Returns the position of the right boundary of the current character or gizmo.
 		double char_right() const {
-			return _pos + _cw;
+			return _cur_left + _cur_width;
 		}
-		/// Returns the position of the right boundary of the previous character.
+		/// Returns the width of the current character or gizmo.
+		double char_width() const {
+			return _cur_width;
+		}
+		/// Returns the position of the right boundary of the previous character or gizmo.
 		double prev_char_right() const {
-			return _lce;
+			return _last_right;
 		}
-		/// Returns the current character.
+		/// Returns the current character. The return value is 0 if the current token is a gizmo.
 		codepoint current_char() const {
-			return _curchar;
+			return _cur_char;
 		}
-		/// Returns the os::font::entry for the current character.
+		/// Returns the os::font::entry for the current character. This is valid only if \ref current_char() returns
+		/// a non-zero value.
 		const os::font::entry &current_char_entry() const {
-			return *_cet;
+			assert_true_logical(_cur_entry != nullptr, "the current token is a gizmo");
+			return *_cur_entry;
 		}
 
 		/// Returns the current font family in use.
 		const font_family &get_font_family() const {
-			return _ff;
+			return _font;
 		}
 
 		/// Sets the width of the tab, in whitespaces.
 		void set_tab_width(double tw) {
-			_tabw = tw * _ff.normal->get_char_entry(' ').advance;
-			if (_curchar == '\t') {
-				_cw = _get_target_tab_width();
-			}
+			_tab_width = tw * _font.normal->get_char_entry(' ').advance;
 		}
 
 		/// Resets the struct to the initial state.
 		void reset() {
-			_laststyle = _curstyle = font_style::normal;
-			_lce = _cw = _pos = 0.0;
-			_lastchar = _curchar = '\0';
-			_cet = nullptr;
+			_last_style = _cur_style = font_style::normal;
+			_last_right = _cur_width = _cur_left = 0.0;
+			_last_char = _cur_char = 0;
+			_cur_entry = nullptr;
 		}
 	protected:
 		font_style
-			_laststyle = font_style::normal, ///< The font style of the last char.
-			_curstyle = font_style::normal; ///< The font style of the current char.
-		font_family _ff; ///< The font family used for all the calculations.
+			_last_style = font_style::normal, ///< The font style of the last char.
+			_cur_style = font_style::normal; ///< The font style of the current char.
+		font_family _font; ///< The font family used for all the calculations.
 		double
-			_lce = 0.0, ///< The position of the right boundary of the previous character.
-			_cw = 0.0, ///< The width of the current character.
-			_pos = 0.0, ///< The position of the left boundary of the current character.
-			_tabw = 0.0; ///< The width of a tab character, in pixels.
+			_last_right = 0.0, ///< The position of the right boundary of the previous character.
+			_cur_width = 0.0, ///< The width of the current character.
+			_cur_left = 0.0, ///< The position of the left boundary of the current character.
+			_tab_width = 0.0; ///< The width of a tab character, in pixels.
 		codepoint
-			_lastchar = '\0', ///< The last character.
-			_curchar = '\0'; ///< The current character.
-		const os::font::entry *_cet = nullptr; ///< The entry for the current character.
+			_last_char = 0, ///< The last character.
+			_cur_char = 0; ///< The current character.
+		const os::font::entry *_cur_entry = nullptr; ///< The entry for the current character.
+
+		/// Adds the given metrics to the end of the line. This function supports both normal characters and gizmos.
+		void _next_impl(codepoint cp, font_style style, double kerning, double width, const os::font::entry *entry) {
+			_last_style = _cur_style;
+			_last_char = _cur_char;
+			_cur_style = style;
+			_cur_char = cp;
+			_cur_entry = entry;
+
+			_last_right = _cur_left + _cur_width;
+			_cur_left = _last_right + kerning;
+			_cur_width = width;
+		}
 
 		/// Returns the width of the tab character, in pixels, considering its position.
-		/// The tab may be shorter than the width specified by \ref _tabw.
 		double _get_target_tab_width() const {
-			return _tabw * (std::floor(_pos / _tabw) + 1.0) - _pos;
+			return _tab_width * (std::floor(_cur_left / _tab_width) + 1.0) - _cur_left;
 		}
 	};
 
 	/// Constains functions for rendering text.
 	namespace text_renderer {
 		/// Renders the given text, using the specified font, position, and color.
-		template <typename It> inline void render_plain_text(
+		///
+		/// \return The size of the rendered text.
+		template <typename It> inline vec2d render_plain_text(
 			It beg, It end, const std::shared_ptr<const os::font> &fnt, vec2d topleft, colord color
 		) {
-			int sx = static_cast<int>(std::round(topleft.x)), dy = static_cast<int>(std::ceil(fnt->height()));
-			vec2i cur = vec2i(sx, static_cast<int>(std::round(topleft.y)));
+			double dy = std::ceil(fnt->height());
+			vec2d cur(topleft.x, static_cast<int>(std::round(topleft.y)));
 			codepoint last = 0;
-			double lastw = 0.0;
-			for (; beg != end; ++beg) {
-				codepoint cp = *beg;
+			vec2d size(0.0, dy);
+			while (beg != end) {
+				codepoint cp;
+				if (!encodings::utf8::next_codepoint(beg, end, cp)) {
+					cp = encodings::replacement_character;
+				}
 				if (is_newline(cp)) {
-					cur.x = sx;
+					size.x = std::max(size.x, cur.x - topleft.x);
+					size.y += dy;
+					cur.x = topleft.x;
 					cur.y += dy;
-					last = '\0';
+					last = 0;
 				} else {
-					if (last != '\0') {
-						cur.x += static_cast<int>(std::round(lastw + fnt->get_kerning(last, cp).x));
+					if (last != 0) {
+						cur.x += fnt->get_kerning(last, cp).x;
 					}
-					os::font::entry &et = fnt->draw_character(cp, cur.convert<double>(), color);
+					os::font::entry &et = fnt->draw_character(cp, cur, color);
+					cur.x += et.advance;
 					last = cp;
-					lastw = et.advance;
 				}
 			}
+			size.x = std::max(size.x, cur.x - topleft.x);
+			return size;
 		}
 		/// \overload
-		template <typename Cont> inline void render_plain_text(
+		template <typename Cont> inline vec2d render_plain_text(
 			Cont &&c, const std::shared_ptr<const os::font> &fnt, vec2d topleft, colord color
 		) {
-			render_plain_text(c.begin(), c.end(), fnt, topleft, color);
+			return render_plain_text(c.begin(), c.end(), fnt, topleft, color);
 		}
 
 		/// Measures the size of the bounding box of the text, using the given font.
 		template <typename It> inline vec2d measure_plain_text(
 			It beg, It end, const std::shared_ptr<const os::font> &fnt
 		) {
-			codepoint last = '\0';
-			double lastw = 0.0, curline = 0.0, maxw = 0.0;
+			codepoint last = 0;
+			double curline = 0.0, maxw = 0.0;
 			size_t linen = 1;
-			for (; beg != end; ++beg) {
-				codepoint cp = *beg;
-				const os::font::entry &et = fnt->get_char_entry(cp);
-				if (last != '\0') {
-					curline += static_cast<int>(std::round(lastw + fnt->get_kerning(last, cp).x));
+			while (beg != end) {
+				codepoint cp;
+				if (!encodings::utf8::next_codepoint(beg, end, cp)) {
+					cp = encodings::replacement_character;
 				}
 				if (is_newline(cp)) {
 					++linen;
-					last = '\0';
-					maxw = std::max(maxw, curline + et.advance);
-					lastw = curline = 0.0;
+					last = 0;
+					// TODO should the size of a whitespace be appended?
+					maxw = std::max(maxw, curline);
+					curline = 0.0;
 				} else {
+					const os::font::entry &et = fnt->get_char_entry(cp);
+					if (last != 0) {
+						curline += fnt->get_kerning(last, cp).x;
+					}
+					curline += et.advance;
 					last = cp;
-					lastw = et.advance;
 				}
 			}
-			return vec2d(std::max(maxw, curline + lastw), static_cast<double>(linen) * std::ceil(fnt->height()));
+			maxw = std::max(maxw, curline);
+			return vec2d(maxw, static_cast<double>(linen) * std::ceil(fnt->height()));
 		}
 		/// \overload
 		template <typename Cont> inline vec2d measure_plain_text(

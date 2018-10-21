@@ -13,10 +13,39 @@ namespace codepad::os {
 		friend class software_renderer;
 		friend class ui::element;
 	public:
-		using native_handle_t = GtkWidget *;
+		using native_handle_t = GtkWidget*;
+
+		explicit window(window *parent = nullptr) {
+			_wnd = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+			// connect signals
+			_connect_signal(_wnd, "delete_event", _on_delete_event);
+			_connect_signal(_wnd, "leave-notify-event", _on_leave_notify_event);
+			_connect_signal(_wnd, "motion-notify-event", _on_motion_notify_event);
+			_connect_signal(_wnd, "size-allocate", _on_size_allocate);
+			_connect_signal(_wnd, "button-press-event", _on_button_press_event);
+			_connect_signal(_wnd, "button-release-event", _on_button_release_event);
+			_connect_signal(_wnd, "focus-in-event", _on_focus_in_event);
+			_connect_signal(_wnd, "focus-out-event", _on_focus_out_event);
+			_connect_signal(_wnd, "key-press-event", _on_key_press_event);
+			_connect_signal(_wnd, "key-release-event", _on_key_release_event);
+			_connect_signal(_wnd, "scroll-event", _on_scroll_event);
+			// set gravity to static so that coordinates are relative to the client region
+			gtk_window_set_gravity(GTK_WINDOW(_wnd), GDK_GRAVITY_STATIC);
+			gtk_window_set_focus_on_map(GTK_WINDOW(_wnd), true);
+			gtk_widget_set_app_paintable(_wnd, true); // not sure if this is useful
+			gtk_widget_add_events(
+				_wnd,
+				GDK_POINTER_MOTION_MASK |
+					GDK_LEAVE_NOTIFY_MASK |
+					GDK_BUTTON_PRESS_MASK |
+					GDK_BUTTON_RELEASE_MASK |
+					GDK_SCROLL_MASK |
+					GDK_FOCUS_CHANGE_MASK
+			);
+		}
 
 		void set_caption(const str_t &cap) override {
-			gtk_window_set_title(GTK_WINDOW(_wnd), convert_to_utf8(cap).c_str());
+			gtk_window_set_title(GTK_WINDOW(_wnd), cap.c_str());
 		}
 		vec2i get_position() const override {
 			gint x, y;
@@ -154,7 +183,7 @@ namespace codepad::os {
 		static gboolean _on_key_press_event(GtkWidget*, GdkEvent*, window*);
 		static gboolean _on_key_release_event(GtkWidget*, GdkEvent*, window*);
 		/// \todo Horizontal scrolling is ignored.
-		inline static gboolean _on_scroll_event(GtkWidget *widget, GdkEvent *event, window *wnd) {
+		inline static gboolean _on_scroll_event(GtkWidget*, GdkEvent *event, window *wnd) {
 			_form_onevent<ui::mouse_scroll_info>(
 				*wnd, &window::_on_mouse_scroll, -event->scroll.delta_y, vec2d(event->scroll.x, event->scroll.y)
 			);
@@ -162,7 +191,7 @@ namespace codepad::os {
 		}
 
 		inline static void _on_im_commit(GtkIMContext*, gchar *str, window *wnd) {
-			ui::text_info inf(convert_to_default_encoding(str, str + get_unit_count(str)));
+			ui::text_info inf(str);
 			wnd->_on_keyboard_text(inf);
 		}
 		/// \todo Also notify of attributes and cursor position.
@@ -183,7 +212,7 @@ namespace codepad::os {
 				pango_attr_iterator_destroy(iter);
 			}
 			_form_onevent<ui::composition_info>(
-				*wnd, &window::_on_composition, convert_to_default_encoding(str, str + get_unit_count(str))
+				*wnd, &window::_on_composition, str
 			);
 			g_free(str);
 			pango_attr_list_unref(attrs);
@@ -194,34 +223,6 @@ namespace codepad::os {
 
 		template<typename Obj, typename Func> void _connect_signal(Obj obj, const gchar *name, Func callback) {
 			g_signal_connect(obj, name, reinterpret_cast<GCallback>(callback), this);
-		}
-		explicit window(window *parent = nullptr) {
-			_wnd = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-			// connect signals
-			_connect_signal(_wnd, "delete_event", _on_delete_event);
-			_connect_signal(_wnd, "leave-notify-event", _on_leave_notify_event);
-			_connect_signal(_wnd, "motion-notify-event", _on_motion_notify_event);
-			_connect_signal(_wnd, "size-allocate", _on_size_allocate);
-			_connect_signal(_wnd, "button-press-event", _on_button_press_event);
-			_connect_signal(_wnd, "button-release-event", _on_button_release_event);
-			_connect_signal(_wnd, "focus-in-event", _on_focus_in_event);
-			_connect_signal(_wnd, "focus-out-event", _on_focus_out_event);
-			_connect_signal(_wnd, "key-press-event", _on_key_press_event);
-			_connect_signal(_wnd, "key-release-event", _on_key_release_event);
-			_connect_signal(_wnd, "scroll-event", _on_scroll_event);
-			// set gravity to static so that coordinates are relative to the client region
-			gtk_window_set_gravity(GTK_WINDOW(_wnd), GDK_GRAVITY_STATIC);
-			gtk_window_set_focus_on_map(GTK_WINDOW(_wnd), true);
-			gtk_widget_set_app_paintable(_wnd, true); // not sure if this is useful
-			gtk_widget_add_events(
-				_wnd,
-				GDK_POINTER_MOTION_MASK |
-					GDK_LEAVE_NOTIFY_MASK |
-					GDK_BUTTON_PRESS_MASK |
-					GDK_BUTTON_RELEASE_MASK |
-					GDK_SCROLL_MASK |
-					GDK_FOCUS_CHANGE_MASK
-			);
 		}
 
 		void _on_update() override {
@@ -240,8 +241,8 @@ namespace codepad::os {
 			window_base::_on_lost_window_focus();
 		}
 
-		void _initialize() override {
-			window_base::_initialize();
+		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+			window_base::_initialize(cls, metrics);
 			ui::manager::get().schedule_update(*this);
 			gtk_window_present(GTK_WINDOW(_wnd));
 			// setup IM context

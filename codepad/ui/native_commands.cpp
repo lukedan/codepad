@@ -174,7 +174,7 @@ namespace codepad::ui::native_commands {
 				auto files = open_file_dialog(th->get_window(), file_dialog_type::multiple_selection);
 				tab *last = nullptr;
 				for (const auto &path : files) {
-					auto ctx = buffer_manager::get().open_file(path); // TODO change encoding
+					auto ctx = buffer_manager::get().open_file(path);
 					auto interp = buffer_manager::get().open_interpretation(
 						ctx, encoding_manager::get().get_default()
 					);

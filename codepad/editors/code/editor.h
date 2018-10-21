@@ -545,6 +545,24 @@ namespace codepad::editor::code {
 			/// \todo Invoke this when folded regions are changed due to edits made from other views.
 			folding_changed;
 
+		/// Returns the string representation of an invalid codepoint.
+		///
+		/// \todo This should be customizable.
+		inline static str_t format_invalid_codepoint(codepoint value) {
+			constexpr static size_t _buffer_size = 20;
+			static char _buf[_buffer_size];
+
+			std::snprintf(_buf, _buffer_size, "[0x%lX]", static_cast<unsigned long>(value));
+			return _buf;
+		}
+
+		/// Returns the color of invalid codepoints.
+		///
+		/// \todo This should be customizable.
+		inline static colord get_invalid_codepoint_color() {
+			return colord(1.0, 0.2, 0.2, 1.0);
+		}
+
 		/// Sets the \ref ui::font_family used by all editor instances. The caller must make sure in advance that
 		/// global variables relating to fonts have been properly initialized.
 		inline static void set_font(const ui::font_family &ff) {

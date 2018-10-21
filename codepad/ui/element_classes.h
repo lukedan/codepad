@@ -217,49 +217,7 @@ namespace codepad::ui {
 		/// sometimes useful to set a value for animated_property::from and also set
 		/// animated_property::has_from to \p false, in order to have a custom start value
 		/// when there are no previously set values, to avoid `popping' animations.
-		template <typename T> inline static void parse_animation(animated_property<T> &ani, const json::value_t &obj) {
-			if (obj.IsObject()) {
-				json::value_t::ConstMemberIterator mem;
-				mem = obj.FindMember(CP_STRLIT("to"));
-				if (mem != obj.MemberEnd()) {
-					ani.to = json_object_parsers::parse<T>(mem->value);
-				} else {
-					logger::get().log_warning(CP_HERE, "no \"to\" property found in animation");
-				}
-				mem = obj.FindMember(CP_STRLIT("from"));
-				if (mem != obj.MemberEnd()) {
-					ani.has_from = true;
-					ani.from = json_object_parsers::parse<T>(mem->value);
-				} else {
-					ani.has_from = false;
-				}
-				json::try_get(obj, CP_STRLIT("has_from"), ani.has_from);
-				json::try_get(obj, CP_STRLIT("auto_reverse"), ani.auto_reverse);
-				json::try_get(obj, CP_STRLIT("repeat"), ani.repeat);
-				json::try_get(obj, CP_STRLIT("duration"), ani.duration);
-				json::try_get(obj, CP_STRLIT("reverse_duration_scale"), ani.reverse_duration_scale);
-				mem = obj.FindMember(CP_STRLIT("transition"));
-				if (mem != obj.MemberEnd()) {
-					if (mem->value.IsString()) {
-						transition_function
-							fptr = manager::get().try_get_transition_func(json::get_as_string(mem->value));
-						if (fptr == nullptr) {
-							ani.transition_func = transition_functions::linear;
-							logger::get().log_warning(
-								CP_HERE, "invalid transition function: ", json::get_as_string(mem->value)
-							);
-						} else {
-							ani.transition_func = fptr;
-						}
-					} else {
-						logger::get().log_warning(CP_HERE, "invalid transition function");
-					}
-				}
-			} else {
-				ani = animated_property<T>();
-				ani.to = json_object_parsers::parse<T>(obj);
-			}
-		}
+		template <typename T> static void parse_animation(animated_property<T>&, const json::value_t&);
 		/// Parses an \ref animated_property<os::texture> from a given JSON object, and registers all used
 		/// textures to the given \ref texture_table. If JSON object is a string, inheritance is ignored and
 		/// the specified texture is used. Otherwise, it parses all properties accordingly. The `frames' property
@@ -312,7 +270,24 @@ namespace codepad::ui {
 		/// Parses a \ref visual_layer from the given JSON object, and registers all required textures to the given
 		/// \ref texture_table. If the layer contains only a single string, then it is treated as the file name of
 		/// the texture, and interpreted as an \ref animated_property<os::texture>.
-		static void parse_layer(visual_layer &layer, const json::value_t &val, texture_table &table);
+		static void parse_layer(visual_layer &layer, const json::value_t &val, texture_table &table) {
+			if (val.IsObject()) {
+				_find_and_parse_ani(val, CP_STRLIT("texture"), layer.texture_animation, table);
+				_find_and_parse_ani(val, CP_STRLIT("color"), layer.color_animation);
+				_find_and_parse_ani(val, CP_STRLIT("size"), layer.size_animation);
+				_find_and_parse_ani(val, CP_STRLIT("margin"), layer.margin_animation);
+				_try_find_and_parse(val, CP_STRLIT("type"), layer.layer_type);
+				_try_find_and_parse(val, CP_STRLIT("anchor"), layer.rect_anchor);
+				_try_find_and_parse(val, CP_STRLIT("width_alloc"), layer.width_alloc);
+				_try_find_and_parse(val, CP_STRLIT("height_alloc"), layer.height_alloc);
+			} else if (val.IsString()) {
+				layer = visual_layer();
+				parse_animation(layer.texture_animation, val, table);
+				return;
+			} else {
+				logger::get().log_warning(CP_HERE, "invalid layer info");
+			}
+		}
 		/// Parses a \ref visual_state from the given JSON object, and registers all required textures to the
 		/// given \ref texture_table. The JSON object must be an array, whose elements will be parsed by
 		/// \ref parse_layer.
@@ -385,7 +360,44 @@ namespace codepad::ui {
 
 		/// Parses a \ref metrics_state from the given JSON object, and adds it to \p value. If one for the specified
 		/// state already exists in \p value, it is kept if the inheritance is not overriden with \p inherit_from.
-		static void parse_metrics_state(const json::value_t &val, element_metrics &value);
+		static void parse_metrics_state(const json::value_t &val, element_metrics &value) {
+			if (val.IsObject()) {
+				metrics_state mst, *dest = &mst;
+				state_pattern pattern = _parse_state_pattern(val);
+				json::value_t::ConstMemberIterator fmem;
+				fmem = val.FindMember(CP_STRLIT("inherit_from"));
+				if (fmem != val.MemberEnd()) {
+					state_pattern frompat = _parse_state_pattern(fmem->value);
+					metrics_state *st = value.try_get_state(frompat);
+					if (st != nullptr) {
+						mst = *st;
+					} else {
+						logger::get().log_warning(CP_HERE, "invalid inheritance");
+					}
+				} else {
+					metrics_state *present = value.try_get_state(pattern);
+					if (present != nullptr) {
+						dest = present;
+					}
+				}
+				fmem = val.FindMember(CP_STRLIT("value"));
+				if (fmem != val.MemberEnd() && fmem->value.IsObject()) {
+					_find_and_parse_ani(fmem->value, CP_STRLIT("size"), dest->size_animation);
+					_find_and_parse_ani(fmem->value, CP_STRLIT("margin"), dest->margin_animation);
+					_find_and_parse_ani(fmem->value, CP_STRLIT("padding"), dest->padding_animation);
+					_try_find_and_parse(fmem->value, CP_STRLIT("anchor"), dest->elem_anchor);
+					_try_find_and_parse(fmem->value, CP_STRLIT("width_alloc"), dest->width_alloc);
+					_try_find_and_parse(fmem->value, CP_STRLIT("height_alloc"), dest->height_alloc);
+				} else {
+					logger::get().log_warning(CP_HERE, "cannot find metrics value");
+				}
+				if (dest == &mst) {
+					value.register_state(pattern, std::move(mst));
+				}
+			} else {
+				logger::get().log_warning(CP_HERE, "invalid metrics state format");
+			}
+		}
 		/// Parses a \ref element_metrics from the given JSON object. Inheritance is implemented in a way similar to
 		/// that of \ref parse_visual(). Note that inheritance of \ref metrics_state will override that of
 		/// \ref element_metrics.
@@ -508,9 +520,7 @@ namespace codepad::ui {
 		/// parser. If no such attribute is found, the given default value is returned.
 		template <typename T> inline static T _find_and_parse(const json::value_t &val, const str_t &s, T dflt) {
 			T v = dflt;
-			if (!_try_find_and_parse(v)) {
-				return dflt;
-			}
+			_try_find_and_parse(val, s, v);
 			return v;
 		}
 

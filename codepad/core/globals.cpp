@@ -58,6 +58,7 @@ namespace codepad {
 #ifdef CP_PLATFORM_WINDOWS
 		renderer_base::create_default<opengl_renderer>();
 #elif defined(CP_PLATFORM_UNIX)
+		/*renderer_base::create_default<opengl_renderer>();*/
 		renderer_base::create_default<software_renderer>();
 #endif
 

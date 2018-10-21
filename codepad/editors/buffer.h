@@ -6,6 +6,7 @@
 #include <map>
 #include <vector>
 #include <string>
+#include <algorithm>
 
 #include "../core/bst.h"
 #include "../ui/element.h"
@@ -207,16 +208,17 @@ namespace codepad::editor {
 				_diff = 0;
 			}
 
-			/// Returns the patched position.
+			/// Returns the patched position. Modifications with no removed content receive special treatment: a
+			/// position is patched if it lies exactly at the position.
 			template <strategy Strat> size_t patch(size_t pos) {
 				pos += _diff;
-				while (_next != _pos.end() && pos >= _next->position + _next->removed_range) {
+				while (_next != _pos.end() && pos >= _next->position + std::max<size_t>(_next->removed_range, 1)) {
 					size_t ndiff = _next->added_range - _next->removed_range;
 					pos += ndiff;
 					_diff += ndiff;
 					++_next;
 				}
-				if (_next != _pos.end() && pos > _next->position) {
+				if (_next != _pos.end() && pos >= _next->position + std::min<size_t>(_next->removed_range, 1)) {
 					if constexpr (Strat == strategy::front) {
 						pos = _next->position;
 					} else if constexpr (Strat == strategy::back) {
