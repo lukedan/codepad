@@ -181,7 +181,7 @@ namespace codepad::ui::native_commands {
 
 					tab *tb = tab_manager::get().new_tab_in(th);
 					tb->set_label(path.filename().u8string());
-					code::codebox *box = manager::get().create_element<codebox>();
+					auto *box = manager::get().create_element<codebox>();
 					box->insert_component_before(
 						&box->get_editor(), *manager::get().create_element<line_number_display>()
 					);
@@ -204,7 +204,7 @@ namespace codepad::ui::native_commands {
 
 				tab *tb = tab_manager::get().new_tab_in(th);
 				tb->set_label(CP_STRLIT("New file"));
-				code::codebox *box = manager::get().create_element<codebox>();
+				auto *box = manager::get().create_element<codebox>();
 				box->insert_component_before(
 					&box->get_editor(), *manager::get().create_element<line_number_display>()
 				);

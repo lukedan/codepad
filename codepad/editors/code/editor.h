@@ -255,10 +255,9 @@ namespace codepad::editor::code {
 					if (et.first.first == et.first.second) {
 						auto x = gp(et);
 						return _complete_caret_entry(x, x.first);
-					} else {
-						auto x = sp(et);
-						return _complete_caret_entry(x, x.first);
 					}
+					auto x = sp(et);
+					return _complete_caret_entry(x, x.first);
 				});
 			}
 		}
@@ -277,7 +276,6 @@ namespace codepad::editor::code {
 		void set_insert_mode(bool v) {
 			_insert = v;
 			_reset_caret_animation();
-			invalidate_layout();
 		}
 		/// Toggles insert mode.
 		void toggle_insert_mode() {
@@ -393,9 +391,8 @@ namespace codepad::editor::code {
 			}, [](const caret_set::entry &et) -> std::pair<size_t, bool> {
 				if (et.first.first < et.first.second) {
 					return {et.first.first, et.second.softbreak_next_line};
-				} else {
-					return {et.first.second, true};
 				}
+				return {et.first.second, true};
 			}, continueselection);
 		}
 		/// Moves all carets one character to the right. If \p continueselection is \p false, then all carets that have
@@ -408,9 +405,8 @@ namespace codepad::editor::code {
 			}, [](const caret_set::entry &et) -> std::pair<size_t, bool> {
 				if (et.first.first > et.first.second) {
 					return {et.first.first, et.second.softbreak_next_line};
-				} else {
-					return {et.first.second, false};
 				}
+				return {et.first.second, false};
 			}, continueselection);
 		}
 		/// Moves all carets one line up. If \p continueselection is \p false, then all carets that have selected
@@ -724,6 +720,7 @@ namespace codepad::editor::code {
 				_insert ? get_insert_caret_class() : get_overwrite_caret_class()
 			), _editrgn_state);
 			ui::manager::get().schedule_update(*this);
+			invalidate_visual();
 		}
 		/// Shorthand for \ref hit_test_for_caret when the coordinates are relative to the client region.
 		///
@@ -1100,8 +1097,9 @@ namespace codepad::editor::code {
 		}
 
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.
-		void _finish_layout() override {
+		void _on_layout_changed() override {
 			_check_wrapping_width();
+			ui::element::_on_layout_changed();
 		}
 		/// Renders all visible text.
 		///

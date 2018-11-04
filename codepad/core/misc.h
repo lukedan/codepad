@@ -17,9 +17,6 @@
 
 #if __has_include(<filesystem>)
 #	include <filesystem>
-#	if defined(_MSC_VER) && _MSC_VER <= 1913 // older versions of MSVC put experimental::filesystem in <filesystem>
-#		define CP_EXPERIMENTAL_FILESYSTEM
-#	endif
 #elif __has_include(<experimental/filesystem>)
 #	define CP_EXPERIMENTAL_FILESYSTEM
 #	include <experimental/filesystem>
@@ -686,13 +683,17 @@ namespace codepad {
 				x = c * (1 - std::abs(std::fmod(h, 2) - 1));
 			if (h < 1) {
 				return color(c, x, 0, alpha);
-			} else if (h < 2) {
+			}
+			if (h < 2) {
 				return color(x, c, 0, alpha);
-			} else if (h < 3) {
+			}
+			if (h < 3) {
 				return color(0, c, x, alpha);
-			} else if (h < 4) {
+			}
+			if (h < 4) {
 				return color(0, x, c, alpha);
-			} else if (h < 5) {
+			}
+			if (h < 5) {
 				return color(x, 0, c, alpha);
 			}
 			return color(c, 0, x, alpha);

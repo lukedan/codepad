@@ -29,7 +29,7 @@ namespace codepad {
 
 			explicit window(window *parent = nullptr) : window(CP_STRLIT("Codepad"), parent) {
 			}
-			explicit window(const str_t &clsname, window *parent = nullptr) : window_base() {
+			explicit window(const str_t &clsname, window *parent = nullptr) {
 				auto u16str = _details::utf8_to_wstring(clsname.c_str());
 				_wndclass::get();
 				winapi_check(_hwnd = CreateWindowEx(
@@ -133,15 +133,15 @@ namespace codepad {
 				window_base::set_mouse_capture(elem);
 				SetCapture(_hwnd);
 			}
-			void release_mouse_capture() {
+			void release_mouse_capture() override {
 				window_base::release_mouse_capture();
 				winapi_check(ReleaseCapture());
 			}
 
-			void set_active_caret_position(rectd pos) {
+			void set_active_caret_position(rectd pos) override {
 				_ime::get().set_caret_region(*this, pos.fit_grid_enlarge<int>());
 			}
-			void interrupt_input_method() {
+			void interrupt_input_method() override {
 				_ime::get().cancel_composition(*this);
 			}
 

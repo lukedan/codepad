@@ -22,21 +22,21 @@ namespace codepad::ui {
 			state() = default;
 			/// Initializes all property states with the properties of the given layer.
 			explicit state(const visual_layer &layer) :
-				current_texture(layer.texture_animation), current_margin(layer.margin_animation),
-				current_color(layer.color_animation), current_size(layer.size_animation) {
+				texture(layer.texture_animation), margin(layer.margin_animation),
+				color(layer.color_animation), size(layer.size_animation) {
 			}
 			/// Initializes all property states with the properties of the layer and the previous state.
 			state(const visual_layer &layer, const state &old) :
-				current_texture(layer.texture_animation),
-				current_margin(layer.margin_animation, old.current_margin.current_value),
-				current_color(layer.color_animation, old.current_color.current_value),
-				current_size(layer.size_animation, old.current_size.current_value) {
+				texture(layer.texture_animation),
+				margin(layer.margin_animation, old.margin.current_value),
+				color(layer.color_animation, old.color.current_value),
+				size(layer.size_animation, old.size.current_value) {
 			}
 
-			animated_property<os::texture>::state current_texture; ///< The state of \ref texture_animation.
-			animated_property<thickness>::state current_margin; ///< The state of \ref margin_animation.
-			animated_property<colord>::state current_color; ///< The state of \ref color_animation.
-			animated_property<vec2d>::state current_size; ///< The state of \ref size_animation.
+			animated_property<os::texture>::state texture; ///< The state of \ref texture_animation.
+			animated_property<thickness>::state margin; ///< The state of \ref margin_animation.
+			animated_property<colord>::state color; ///< The state of \ref color_animation.
+			animated_property<vec2d>::state size; ///< The state of \ref size_animation.
 			bool all_stationary = false; ///< Marks if all animations have finished.
 		};
 		/// The type of a layer.
@@ -62,13 +62,13 @@ namespace codepad::ui {
 		/// \param dt The time since the state was last updated.
 		void update(state &s, double dt) const {
 			if (!s.all_stationary) {
-				texture_animation.update(s.current_texture, dt);
-				margin_animation.update(s.current_margin, dt);
-				color_animation.update(s.current_color, dt);
-				size_animation.update(s.current_size, dt);
+				texture_animation.update(s.texture, dt);
+				margin_animation.update(s.margin, dt);
+				color_animation.update(s.color, dt);
+				size_animation.update(s.size, dt);
 				s.all_stationary =
-					s.current_texture.stationary && s.current_color.stationary &&
-					s.current_size.stationary && s.current_margin.stationary;
+					s.texture.stationary && s.color.stationary &&
+					s.size.stationary && s.margin.stationary;
 			}
 		}
 		/// Renders an object with the given layout and state.

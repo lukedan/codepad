@@ -16,10 +16,10 @@ namespace codepad {
 		class software_renderer : public software_renderer_base {
 		public:
 			void begin(const window_base &wnd) override {
-				const window *cwnd = static_cast<const window*>(&wnd);
+				const auto *cwnd = static_cast<const window*>(&wnd);
 				_wnd_rec *crec = &_wnds.find(cwnd)->second;
 				_begin_render_target(_render_target_stackframe(
-					crec->texture.w, crec->texture.h, crec->texture.data, [this, cwnd, crec]() {
+					crec->texture.w, crec->texture.h, crec->texture.data, [cwnd, crec]() {
 						DWORD *to = crec->bmp.arr;
 						_ivec4f *from = crec->texture.data;
 						for (size_t i = crec->texture.w * crec->texture.h; i > 0; --i, ++from, ++to) {
@@ -38,9 +38,9 @@ namespace codepad {
 			}
 		protected:
 			void _new_window(window_base &wnd) override {
-				window *w = static_cast<window*>(&wnd);
+				auto *w = static_cast<window*>(&wnd);
 				_wnd_rec wr;
-				vec2i sz = w->get_actual_size().convert<int>();
+				vec2i sz = w->get_layout().size().convert<int>();
 				wr.create_buffer(w->_dc, sz.x, sz.y);
 				auto it = _wnds.insert(std::make_pair(w, std::move(wr))).first;
 				w->size_changed += [it](size_changed_info &info) {
@@ -123,7 +123,7 @@ namespace codepad {
 
 		class opengl_renderer : public opengl_renderer_base {
 		public:
-			opengl_renderer() : opengl_renderer_base() {
+			opengl_renderer() {
 				std::memset(&_pfd, 0, sizeof(_pfd));
 				_pfd.nSize = sizeof(_pfd);
 				_pfd.nVersion = 1;
@@ -146,7 +146,7 @@ namespace codepad {
 			}
 
 			void _new_window(window_base &wnd) override {
-				window *cw = static_cast<window*>(&wnd);
+				auto *cw = static_cast<window*>(&wnd);
 				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
 				bool initgl = false;
 				if (!_rc) {
@@ -159,13 +159,13 @@ namespace codepad {
 				}
 			}
 			std::function<void()> _get_begin_window_func(const window_base &wnd) override {
-				const window *cw = static_cast<const window*>(&wnd);
+				const auto *cw = static_cast<const window*>(&wnd);
 				return[this, dc = cw->_dc]() {
 					winapi_check(wglMakeCurrent(dc, _rc));
 				};
 			}
 			std::function<void()> _get_end_window_func(const window_base &wnd) override {
-				const window *cw = static_cast<const window*>(&wnd);
+				const auto *cw = static_cast<const window*>(&wnd);
 				return[dc = cw->_dc]() {
 					winapi_check(SwapBuffers(dc));
 				};

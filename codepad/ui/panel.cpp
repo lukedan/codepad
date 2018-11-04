@@ -13,23 +13,23 @@ namespace codepad::ui {
 		assert_true_logical(_children.empty(), "clear() not called in panel_base::_dispose()");
 	}
 
-	void element_collection::insert_before(element *before, element &elem) {
-		assert_true_usage(elem._parent == nullptr, "the element is already a child of another panel");
-		_f._on_child_adding(elem);
-		changing.invoke_noret(element_collection_change_info::type::add, elem);
+	void element_collection::insert_before(element *before, element &target) {
+		assert_true_usage(target._parent == nullptr, "the element is already a child of another panel");
+		_f._on_child_adding(target);
+		changing.invoke_noret(element_collection_change_info::type::add, target);
 
-		elem._parent = &_f;
+		target._parent = &_f;
 		// find the first item whose z-index is less or equal
 		auto zbefore = _zorder.rbegin();
 		for (; zbefore != _zorder.rend(); ++zbefore) {
-			if ((*zbefore)->get_zindex() >= elem.get_zindex()) {
+			if ((*zbefore)->get_zindex() >= target.get_zindex()) {
 				break;
 			}
 		}
 		auto posbefore = _children.begin();
 		if (before == nullptr) {
 			// find first element with different z-index
-			for (; zbefore != _zorder.rend() && (*zbefore)->get_zindex() <= elem.get_zindex(); ++zbefore) {
+			for (; zbefore != _zorder.rend() && (*zbefore)->get_zindex() <= target.get_zindex(); ++zbefore) {
 			}
 			posbefore = _children.end();
 		} else {
@@ -41,12 +41,12 @@ namespace codepad::ui {
 			}
 			assert_true_logical(posbefore != _children.end(), "`before' is not a member of this collection");
 		}
-		_zorder.insert(zbefore.base(), &elem);
-		_children.insert(posbefore, &elem);
+		_zorder.insert(zbefore.base(), &target);
+		_children.insert(posbefore, &target);
 
-		_f._on_child_added(elem);
-		changed.invoke_noret(element_collection_change_info::type::add, elem);
-		elem._on_added_to_parent();
+		_f._on_child_added(target);
+		changed.invoke_noret(element_collection_change_info::type::add, target);
+		target._on_added_to_parent();
 	}
 
 	void element_collection::set_zindex(element &elem, int newz) {
@@ -142,6 +142,10 @@ namespace codepad::ui {
 	}
 
 
+	void panel_base::_invalidate_children_layout() {
+		manager::get().invalidate_children_layout(*this);
+	}
+
 	void panel_base::_on_mouse_down(mouse_button_info &p) {
 		element *mouseover = _hit_test_for_child(p.position);
 		if (mouseover != nullptr) {
@@ -161,7 +165,7 @@ namespace codepad::ui {
 
 	element *panel_base::_hit_test_for_child(vec2d p) {
 		for (element *elem : _children.z_ordered()) {
-			if (elem->is_interactive() && elem->hit_test(p)) {
+			if (elem->is_hittest_visible() && elem->hit_test(p)) {
 				return elem;
 			}
 		}
@@ -182,7 +186,8 @@ namespace codepad::ui {
 	void stack_panel::_on_state_changed(value_update_info<element_state_id> &p) {
 		panel::_on_state_changed(p);
 		if (_has_any_state_bit_changed(manager::get().get_predefined_states().vertical, p)) {
-			invalidate_layout();
+			_on_desired_size_changed(true, true);
+			_invalidate_children_layout();
 		}
 	}
 }

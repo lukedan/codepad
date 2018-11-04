@@ -14,12 +14,19 @@ namespace codepad::ui {
 		manager::get().invalidate_layout(*this);
 	}
 
-	void element::revalidate_layout() {
-		manager::get().revalidate_layout(*this);
-	}
-
 	void element::invalidate_visual() {
 		manager::get().invalidate_visual(*this);
+	}
+
+	void element::_on_desired_size_changed(bool width, bool height) {
+		if (
+			(width && get_width_allocation() == size_allocation_type::automatic) ||
+			(height && get_height_allocation() == size_allocation_type::automatic)
+			) { // the change may actually affect its layout
+			if (_parent != nullptr) {
+				_parent->_on_child_desired_size_changed(*this, width, height);
+			}
+		}
 	}
 
 	void element::_on_mouse_down(mouse_button_info &p) {
@@ -75,7 +82,7 @@ namespace codepad::ui {
 	}
 
 	void element::_on_render() {
-		if (is_visible()) {
+		if (is_render_visible()) {
 			_on_prerender();
 			_config.visual_config.render(get_layout());
 			_custom_render();
@@ -85,30 +92,6 @@ namespace codepad::ui {
 
 	void element::_on_state_changed(value_update_info<element_state_id>&) {
 		manager::get().schedule_update(*this);
-	}
-
-	void element::_recalc_horizontal_layout(double xmin, double xmax) {
-		anchor anc = get_anchor();
-		thickness margin = get_margin();
-		auto wprop = get_layout_width();
-		_layout.xmin = xmin;
-		_layout.xmax = xmax;
-		layout_on_direction(
-			test_bits_all(anc, anchor::left), wprop.second, test_bits_all(anc, anchor::right),
-			_layout.xmin, _layout.xmax, margin.left, wprop.first, margin.right
-		);
-	}
-
-	void element::_recalc_vertical_layout(double ymin, double ymax) {
-		anchor anc = get_anchor();
-		thickness margin = get_margin();
-		auto hprop = get_layout_height();
-		_layout.ymin = ymin;
-		_layout.ymax = ymax;
-		layout_on_direction(
-			test_bits_all(anc, anchor::top), hprop.second, test_bits_all(anc, anchor::bottom),
-			_layout.ymin, _layout.ymax, margin.top, hprop.first, margin.bottom
-		);
 	}
 
 	void element::_initialize(const str_t &cls, const element_metrics &metrics) {
@@ -151,20 +134,28 @@ namespace codepad::ui {
 		return test_bits_all(_state, manager::get().get_predefined_states().mouse_over);
 	}
 
-	bool element::is_visible() const {
-		return !test_bits_all(_state, manager::get().get_predefined_states().invisible);
+	bool element::is_render_visible() const {
+		return !test_bits_all(_state, manager::get().get_predefined_states().render_invisible);
 	}
 
-	void element::set_visibility(bool val) {
-		set_state_bits(manager::get().get_predefined_states().invisible, !val);
+	void element::set_render_visibility(bool val) {
+		set_state_bits(manager::get().get_predefined_states().render_invisible, !val);
 	}
 
-	bool element::is_interactive() const {
-		return !test_bits_all(_state, manager::get().get_predefined_states().ghost);
+	bool element::is_hittest_visible() const {
+		return !test_bits_all(_state, manager::get().get_predefined_states().hittest_invisible);
 	}
 
-	void element::set_is_interactive(bool val) {
-		set_state_bits(manager::get().get_predefined_states().ghost, !val);
+	void element::set_hittest_visibility(bool val) {
+		set_state_bits(manager::get().get_predefined_states().hittest_invisible, !val);
+	}
+
+	bool element::is_layout_visible() const {
+		return !test_bits_all(_state, manager::get().get_predefined_states().layout_invisible);
+	}
+
+	void element::set_layout_visibility(bool val) {
+		set_state_bits(manager::get().get_predefined_states().layout_invisible, !val);
 	}
 
 	bool element::is_focused() const {

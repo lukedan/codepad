@@ -10,6 +10,7 @@
 #include "../os/renderer.h"
 
 namespace codepad::ui {
+	class manager;
 	class panel_base;
 
 	/// Contains information about changes in an \ref element_collection.
@@ -91,15 +92,9 @@ namespace codepad::ui {
 	class panel_base : public element {
 		friend element;
 		friend element_collection;
+		friend manager;
 		friend class class_arrangements;
 	public:
-		/// Returns whether the panel overrides the layout of its children.
-		/// If so, it should calculate and assign their layout in \ref _finish_layout
-		/// by overriding the method.
-		virtual bool override_children_layout() const {
-			return false;
-		}
-
 		/// If the mouse is over any of its children, then returns the cursor of the children.
 		/// Otherwise just returns element::get_current_display_cursor().
 		os::cursor get_current_display_cursor() const override {
@@ -113,7 +108,9 @@ namespace codepad::ui {
 		std::pair<double, bool> get_desired_width() const override {
 			double maxw = 0.0;
 			for (const element *e : _children.items()) {
-				maxw = std::max(maxw, _get_horizontal_absolute_span(*e));
+				if (e->is_layout_visible()) {
+					maxw = std::max(maxw, _get_horizontal_absolute_span(*e));
+				}
 			}
 			return {maxw + get_padding().width(), true};
 		}
@@ -121,7 +118,9 @@ namespace codepad::ui {
 		std::pair<double, bool> get_desired_height() const override {
 			double maxh = 0.0;
 			for (const element *e : _children.items()) {
-				maxh = std::max(maxh, _get_vertical_absolute_span(*e));
+				if (e->is_layout_visible()) {
+					maxh = std::max(maxh, _get_vertical_absolute_span(*e));
+				}
 			}
 			return {maxh + get_padding().height(), true};
 		}
@@ -134,7 +133,99 @@ namespace codepad::ui {
 		bool get_dispose_children() const {
 			return _dispose_children;
 		}
+
+
+		/// Calculates the layout of an \ref element on a direction (horizontal or vertical) in a \ref panel_base
+		/// with the given parameters. If all of \p anchormin, \p pixelsize, and \p anchormax are \p true, all sizes
+		/// are taken into account and the extra space is distributed evenly before and after the element.
+		///
+		/// \param anchormin \p true if the element is anchored towards the `negative' (left or top) direction.
+		/// \param pixelsize \p true if the size of the element is specified in pixels.
+		/// \param anchormax \p true if the element is anchored towards the `positive' (right or bottom) direction.
+		/// \param clientmin Passes the minimum (left or top) boundary of the client region, and will contain the
+		///                  minimum boundary of the element's layout as a return value.
+		/// \param clientmax Passes the maximum (right or bottom) boundary of the client region, and will contain the
+		///                  maximum boundary of the element's layout as a return value.
+		/// \param marginmin The element's margin at the `negative' border.
+		/// \param size The size of the element in the direction.
+		/// \param marginmax The element's margin at the `positive' border.
+		inline static void layout_on_direction(
+			bool anchormin, bool pixelsize, bool anchormax, double &clientmin, double &clientmax,
+			double marginmin, double size, double marginmax
+		) {
+			double totalspace = clientmax - clientmin, totalprop = 0.0;
+			if (anchormax) {
+				totalspace -= marginmax;
+			} else {
+				totalprop += marginmax;
+			}
+			if (pixelsize) {
+				totalspace -= size;
+			} else {
+				totalprop += size;
+			}
+			if (anchormin) {
+				totalspace -= marginmin;
+			} else {
+				totalprop += marginmin;
+			}
+			double propmult = totalspace / totalprop;
+			// size in pixels are prioritized so that zero-size proportion parts are ignored when possible
+			if (anchormin && anchormax) {
+				if (pixelsize) {
+					double midpos = 0.5 * (clientmin + clientmax);
+					clientmin = midpos - 0.5 * size;
+					clientmax = midpos + 0.5 * size;
+				} else {
+					clientmin += marginmin;
+					clientmax -= marginmax;
+				}
+			} else if (anchormin) {
+				clientmin += marginmin;
+				clientmax = clientmin + (pixelsize ? size : size * propmult);
+			} else if (anchormax) {
+				clientmax -= marginmax;
+				clientmin = clientmax - (pixelsize ? size : size * propmult);
+			} else {
+				clientmin += marginmin * propmult;
+				clientmax -= marginmax * propmult;
+			}
+		}
+		/// Calculates the horizontal layout of the given \ref element, given the client area that contains it.
+		inline static void layout_child_horizontal(element &child, double xmin, double xmax) {
+			anchor anc = child.get_anchor();
+			thickness margin = child.get_margin();
+			auto wprop = child.get_layout_width();
+			child._layout.xmin = xmin;
+			child._layout.xmax = xmax;
+			layout_on_direction(
+				test_bits_all(anc, anchor::left), wprop.second, test_bits_all(anc, anchor::right),
+				child._layout.xmin, child._layout.xmax, margin.left, wprop.first, margin.right
+			);
+		}
+		/// Calculates the vertical layout of the given \ref element, given the client area that contains it.
+		inline static void layout_child_vertical(element &child, double ymin, double ymax) {
+			anchor anc = child.get_anchor();
+			thickness margin = child.get_margin();
+			auto hprop = child.get_layout_height();
+			child._layout.ymin = ymin;
+			child._layout.ymax = ymax;
+			layout_on_direction(
+				test_bits_all(anc, anchor::top), hprop.second, test_bits_all(anc, anchor::bottom),
+				child._layout.ymin, child._layout.ymax, margin.top, hprop.first, margin.bottom
+			);
+		}
+		/// Calculates the layout of the given \ref element, given the area that supposedly contains it (usually the
+		/// client region of its parent). This function simply calls \ref layout_child_horizontal() and
+		/// \ref layout_child_vertical().
+		inline static void layout_child(element &child, rectd client) {
+			layout_child_horizontal(child, client.xmin, client.xmax);
+			layout_child_vertical(child, client.ymin, client.ymax);
+		}
 	protected:
+		/// Calls \ref manager::invalidate_children_layout() to mark the layout of all children for update.
+		void _invalidate_children_layout();
+
 		/// Called when an element is about to be added to this panel. Derived classes can override this function to
 		/// introduce desired behavior.
 		virtual void _on_child_adding(element&) {
@@ -158,6 +249,7 @@ namespace codepad::ui {
 		/// Called when an element has been added to this panel. Invalidates the layout of the newly added element,
 		/// and the visual of the panel itself.
 		virtual void _on_child_added(element &e) {
+			_on_desired_size_changed(true, true);
 			e.invalidate_layout();
 			invalidate_visual();
 		}
@@ -166,6 +258,7 @@ namespace codepad::ui {
 		///
 		/// \sa _on_child_removing
 		virtual void _on_child_removed(element&) {
+			_on_desired_size_changed(true, true);
 			invalidate_visual();
 		}
 		/// Called when the z-index of an element has been changed. Invalidates the visual of the panel.
@@ -180,9 +273,7 @@ namespace codepad::ui {
 
 		/// Invalidates the layout of all children when padding is changed.
 		void _on_padding_changed() override {
-			for (auto i : _children.items()) {
-				i->invalidate_layout();
-			}
+			_invalidate_children_layout();
 			element::_on_padding_changed();
 		}
 
@@ -193,14 +284,44 @@ namespace codepad::ui {
 			}
 		}
 
-		/// If this panel doesn't override the children's layout, then invalidate all children's layout.
-		void _finish_layout() override {
-			if (!override_children_layout()) {
-				for (auto i : _children.items()) {
-					i->invalidate_layout();
-				}
+		/// Called to update the layout of all children. This is called automatically in \ref _on_layout_changed(),
+		/// or it can also be explicitly scheduled by using \ref element::notify_layout_change().
+		virtual void _on_update_children_layout() {
+			rectd client = get_client_region();
+			for (auto *elem : _children.items()) {
+				layout_child(*elem, client);
 			}
-			element::_finish_layout();
+		}
+		/// Called by \ref _on_child_desired_size_changed() to determine if the change of a child's desired size may
+		/// affect the layout of this panel.
+		///
+		/// \sa _on_child_desired_size_changed()
+		virtual bool _is_child_desired_size_relevant(element&, bool width, bool height) const {
+			return
+				(width && get_width_allocation() == size_allocation_type::automatic) ||
+				(height && get_height_allocation() == size_allocation_type::automatic);
+		}
+		/// Called by a child whose desired size has just changed in a way that may affect its layout. This function
+		/// calls \ref _on_child_desired_size_changed() to determine if the change may affect the layout of this
+		/// panel, the it calls either \ref _on_child_desired_size_changed() on the parent if the result is yes, or
+		/// \ref invalidate_layout() on the child otherwise.
+		///
+		/// \sa element::_on_desired_size_changed()
+		void _on_child_desired_size_changed(element &child, bool width, bool height) {
+			if (_is_child_desired_size_relevant(child, width, height)) { // actually affects something
+				if (_parent != nullptr) {
+					_parent->_on_child_desired_size_changed(*this, width, height);
+				} else {
+					invalidate_layout();
+				}
+			} else {
+				child.invalidate_layout();
+			}
+		}
+		/// If this panel doesn't override the children's layout, then invalidate all children's layout.
+		void _on_layout_changed() override {
+			_on_update_children_layout();
+			element::_on_layout_changed();
 		}
 
 		/// If the mouse is over an element, calls element::_on_mouse_down on that element.
@@ -258,41 +379,19 @@ namespace codepad::ui {
 		/// Finds the element with the largest Z-index that is interactive and contains the given point.
 		element *_hit_test_for_child(vec2d);
 
-		/// Calls \ref element::_recalc_layout on a given child.
-		inline static void _child_recalc_layout_noreval(element &e, rectd r) {
-			e._recalc_layout(r);
-		}
-		/// Calls \ref element::_recalc_horizontal_layout on a given child.
-		inline static void _child_recalc_horizontal_layout_noreval(element &e, double xmin, double xmax) {
-			e._recalc_horizontal_layout(xmin, xmax);
-		}
 		/// Sets the horizontal layout of a given child.
-		inline static void _child_set_horizontal_layout_noreval(element &e, double xmin, double xmax) {
+		inline static void _child_set_horizontal_layout(element &e, double xmin, double xmax) {
 			e._layout.xmin = xmin;
 			e._layout.xmax = xmax;
 		}
-		/// Calls \ref element::_recalc_vertical_layout on a given child.
-		inline static void _child_recalc_vertical_layout_noreval(element &e, double ymin, double ymax) {
-			e._recalc_vertical_layout(ymin, ymax);
-		}
 		/// Sets the vertical layout of a given child.
-		inline static void _child_set_vertical_layout_noreval(element &e, double ymin, double ymax) {
+		inline static void _child_set_vertical_layout(element &e, double ymin, double ymax) {
 			e._layout.ymin = ymin;
 			e._layout.ymax = ymax;
 		}
 		/// Sets the layout of a given child.
-		inline static void _child_set_layout_noreval(element &e, rectd r) {
-			e._layout = r;
-		}
-		/// Calls \ref element::_recalc_layout and \ref revalidate_layout on a given child.
-		inline static void _child_recalc_layout(element &e, rectd r) {
-			_child_recalc_layout_noreval(e, r);
-			e.revalidate_layout();
-		}
-		/// Sets the layout of a given child, then calls \ref revalidate_layout.
 		inline static void _child_set_layout(element &e, rectd r) {
-			_child_set_layout_noreval(e, r);
-			e.revalidate_layout();
+			e._layout = r;
 		}
 		/// Sets the logical parent of a child.
 		inline static void _child_set_logical_parent(element &e, panel_base *logparent) {
@@ -382,11 +481,6 @@ namespace codepad::ui {
 	/// Arranges all children sequentially in a given orientation.
 	class stack_panel : public panel {
 	public:
-		/// Overrides the layout of children.
-		bool override_children_layout() const override {
-			return true;
-		}
-
 		/// Returns the minimum width that can contain all elements in pixels, plus padding. More specifically, the
 		/// return value is the padding plus the sum of all horizontal sizes specified in pixels, ignoring those
 		/// specified as proportions, if the panel is in a horizontal state; or the padding plus the maximum
@@ -394,8 +488,10 @@ namespace codepad::ui {
 		std::pair<double, bool> get_desired_width() const override {
 			double val = 0.0;
 			for (element *e : _children.items()) {
-				double span = _get_horizontal_absolute_span(*e);
-				val = is_vertical() ? std::max(val, span) : val + span;
+				if (e->is_layout_visible()) {
+					double span = _get_horizontal_absolute_span(*e);
+					val = is_vertical() ? std::max(val, span) : val + span;
+				}
 			}
 			return {val + get_padding().width(), true};
 		}
@@ -406,25 +502,28 @@ namespace codepad::ui {
 		std::pair<double, bool> get_desired_height() const override {
 			double val = 0.0;
 			for (element *e : _children.items()) {
-				double span = _get_vertical_absolute_span(*e);
-				val = is_vertical() ? val + span : std::max(val, span);
+				if (e->is_layout_visible()) {
+					double span = _get_vertical_absolute_span(*e);
+					val = is_vertical() ? val + span : std::max(val, span);
+				}
 			}
 			return {val + get_padding().height(), true};
 		}
 
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel with the given
 		/// orientation and client area. All elements must be children of the given \ref panel_base.
+		/// \ref element::notify_layout_change() is called automatically.
 		template <bool Vertical> inline static void layout_elements_in(
 			rectd client, const std::vector<element*> &elems
 		) {
 			if constexpr (Vertical) {
 				_layout_elements_in_impl<
-					true, &element::_recalc_horizontal_layout,
+					true, &panel_base::layout_child_horizontal,
 					&rectd::ymin, &rectd::ymax, &rectd::xmin, &rectd::xmax
 				>(client, elems);
 			} else {
 				_layout_elements_in_impl<
-					false, &element::_recalc_vertical_layout,
+					false, &panel_base::layout_child_vertical,
 					&rectd::xmin, &rectd::xmax, &rectd::ymin, &rectd::ymax
 				>(client, elems);
 			}
@@ -487,56 +586,74 @@ namespace codepad::ui {
 		///                irrelevant orientation.
 		template <
 			bool Vertical,
-			void (element::*CalcDefaultDir)(double, double),
+			void(*CalcDefaultDir)(element&, double, double),
 			double rectd::*MainMin, double rectd::*MainMax,
 			double rectd::*DefMin, double rectd::*DefMax
 		> inline static void _layout_elements_in_impl(rectd client, const std::vector<element*> &elems) {
 			std::vector<_elem_layout_info> layoutinfo;
 			double total_prop = 0.0, total_px = 0.0;
 			for (element *e : elems) {
-				(e->*CalcDefaultDir)(client.*DefMin, client.*DefMax);
-				_elem_layout_info info = _elem_layout_info::extract<Vertical>(*e);
-				(info.margin_min.second ? total_px : total_prop) += info.margin_min.first;
-				(info.size.second ? total_px : total_prop) += info.size.first;
-				(info.margin_max.second ? total_px : total_prop) += info.margin_max.first;
-				layoutinfo.emplace_back(info);
+				if (e->is_layout_visible()) {
+					CalcDefaultDir(*e, client.*DefMin, client.*DefMax);
+					_elem_layout_info info = _elem_layout_info::extract<Vertical>(*e);
+					(info.margin_min.second ? total_px : total_prop) += info.margin_min.first;
+					(info.size.second ? total_px : total_prop) += info.size.first;
+					(info.margin_max.second ? total_px : total_prop) += info.margin_max.first;
+					layoutinfo.emplace_back(info);
+				} else { // not accounted for; behave as panel_base
+					panel_base::layout_child(*e, client);
+				}
 			}
 			// distribute the remaining space
 			double prop_mult = (client.*MainMax - client.*MainMin - total_px) / total_prop, pos = client.*MainMin;
 			auto it = layoutinfo.begin();
 			for (element *e : elems) {
-				const _elem_layout_info &info = *it;
-				rectd nl = e->get_layout();
-				nl.*MainMin = pos +=
-					info.margin_min.second ?
-					info.margin_min.first :
-					info.margin_min.first * prop_mult;
-				nl.*MainMax = pos +=
-					info.size.second ?
-					info.size.first :
-					info.size.first * prop_mult;
-				pos +=
-					info.margin_max.second ?
-					info.margin_max.first :
-					info.margin_max.first * prop_mult;
-				_child_set_layout(*e, nl);
-				++it;
+				if (e->is_layout_visible()) {
+					const _elem_layout_info &info = *it;
+					rectd nl = e->get_layout();
+					nl.*MainMin = pos +=
+						info.margin_min.second ?
+						info.margin_min.first :
+						info.margin_min.first * prop_mult;
+					nl.*MainMax = pos +=
+						info.size.second ?
+						info.size.first :
+						info.size.first * prop_mult;
+					pos +=
+						info.margin_max.second ?
+						info.margin_max.first :
+						info.margin_max.first * prop_mult;
+					_child_set_layout(*e, nl);
+					++it;
+				}
 			}
 		}
 
 		/// Calls \ref layout_elements_in to calculate the layout of all children.
-		void _finish_layout() override {
+		void _on_update_children_layout() override {
 			layout_elements_in(
 				get_client_region(),
 				std::vector<element*>(_children.items().begin(), _children.items().end()),
 				is_vertical()
 			);
-			panel::_finish_layout();
 		}
 
+		/// Invalidates the children's layout as well.
+		void _on_child_added(element &elem) override {
+			_invalidate_children_layout();
+			panel::_on_child_added(elem);
+		}
+		/// Invalidates the children's layout as well.
+		void _on_child_removed(element &elem) override {
+			_invalidate_children_layout();
+			panel::_on_child_removed(elem);
+		}
 		/// Invalidates the children's layout since it is determined by their ordering.
-		void _on_child_order_changed(element&) override {
-			revalidate_layout();
+		void _on_child_order_changed(element &elem) override {
+			bool vertical = is_vertical();
+			_on_desired_size_changed(!vertical, vertical);
+			_invalidate_children_layout();
+			panel::_on_child_order_changed(elem);
 		}
 
 		/// Sets \ref _can_focus to \p false by default.

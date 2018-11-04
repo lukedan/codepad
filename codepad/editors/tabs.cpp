@@ -34,8 +34,8 @@ namespace codepad::editor {
 		_tab_contents_region->children().add(t);
 		_tab_buttons_region->children().add(*t._btn);
 
-		t.set_visibility(false);
-		t.set_is_interactive(false);
+		t.set_render_visibility(false);
+		t.set_hittest_visibility(false);
 		if (_tabs.size() == 1) {
 			switch_tab(t);
 		}
@@ -79,15 +79,14 @@ namespace codepad::editor {
 	void tab_host::switch_tab(tab &t) {
 		assert_true_logical(t.logical_parent() == this, "the tab doesn't belong to this tab_host");
 		if (_active_tab != _tabs.end()) {
-			(*_active_tab)->set_visibility(false);
-			(*_active_tab)->set_is_interactive(false);
+			(*_active_tab)->set_render_visibility(false);
+			(*_active_tab)->set_hittest_visibility(false);
 			(*_active_tab)->_btn->set_zindex(0);
 		}
 		_active_tab = t._text_tok;
-		t.set_visibility(true);
-		t.set_is_interactive(true);
+		t.set_render_visibility(true);
+		t.set_hittest_visibility(true);
 		t._btn->set_zindex(1);
-		invalidate_layout();
 	}
 
 	void tab_host::activate_tab(tab &t) {
@@ -125,7 +124,6 @@ namespace codepad::editor {
 			_active_tab = target._text_tok;
 		}
 		_tab_buttons_region->children().move_before(*target._btn, before == nullptr ? nullptr : before->_btn);
-		invalidate_layout();
 	}
 
 	void tab_host::_initialize(const str_t &cls, const element_metrics &metrics) {
@@ -261,7 +259,7 @@ namespace codepad::editor {
 					break;
 				case drag_destination_type::combine_in_tab:
 					_drag->_btn->_xoffset = 0.0; // reset offset
-					_drag->_btn->invalidate_layout();
+					/*_drag->_btn->invalidate_layout();*/
 					mouseover = true;
 					// the tab is already added to _dest
 					break;

@@ -379,8 +379,8 @@ namespace codepad::editor::code {
 		};
 
 		/// Constructor.
-		interpretation(const std::shared_ptr<buffer> &buf, const buffer_encoding &encoding) :
-			_buf(buf), _encoding(&encoding) {
+		interpretation(std::shared_ptr<buffer> buf, const buffer_encoding &encoding) :
+			_buf(std::move(buf)), _encoding(&encoding) {
 			_begin_edit_tok = _buf->begin_edit += [this](buffer::begin_edit_info &info) {
 				_on_begin_edit(info);
 			};
@@ -521,8 +521,8 @@ namespace codepad::editor::code {
 		bool check_integrity() const {
 			bool error = false;
 
-			for (auto chkit = _chks.begin(); chkit != _chks.end(); ++chkit) {
-				if (chkit->num_codepoints == 0 || chkit->num_bytes == 0) {
+			for (const chunk_data &chk : _chks) {
+				if (chk.num_codepoints == 0 || chk.num_bytes == 0) {
 					error = true;
 					logger::get().log_error(CP_HERE, "empty chunk encountered");
 				}

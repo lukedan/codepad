@@ -20,32 +20,32 @@ namespace codepad::ui {
 			state() = default;
 			/// Initializes this struct to be the initial state of the given \ref metrics_state.
 			explicit state(const metrics_state &metrics) :
-				current_margin(metrics.margin_animation), current_padding(metrics.padding_animation),
-				current_size(metrics.size_animation) {
+				margin(metrics.margin_animation), padding(metrics.padding_animation),
+				size(metrics.size_animation) {
 			}
 			/// Initializes this struct to be the initial state of the given \ref metrics_state, with given initial
 			/// values that are taken if the corresponding animation doesn't have one.
 			state(const metrics_state &metrics, const state &s) :
-				current_margin(metrics.margin_animation, s.current_margin.current_value),
-				current_padding(metrics.padding_animation, s.current_padding.current_value),
-				current_size(metrics.size_animation, s.current_size.current_value) {
+				margin(metrics.margin_animation, s.margin.current_value),
+				padding(metrics.padding_animation, s.padding.current_value),
+				size(metrics.size_animation, s.size.current_value) {
 			}
 
 			animated_property<thickness>::state
-				current_margin, ///< The state of \ref margin_animation.
-				current_padding; ///< The state of \ref padding_animation.
-			animated_property<vec2d>::state current_size; ///< The state of \ref size_animation.
+				margin, ///< The state of \ref margin_animation.
+				padding; ///< The state of \ref padding_animation.
+			animated_property<vec2d>::state size; ///< The state of \ref size_animation.
 			bool all_stationary = false; ///< Marks if all animations have finished.
 		};
 
 		/// Updates the given \ref state with the given time delta.
 		void update(state &s, double dt) const {
 			if (!s.all_stationary) {
-				margin_animation.update(s.current_margin, dt);
-				padding_animation.update(s.current_padding, dt);
-				size_animation.update(s.current_size, dt);
+				margin_animation.update(s.margin, dt);
+				padding_animation.update(s.padding, dt);
+				size_animation.update(s.size, dt);
 				s.all_stationary =
-					s.current_margin.stationary && s.current_padding.stationary && s.current_size.stationary;
+					s.margin.stationary && s.padding.stationary && s.size.stationary;
 			}
 		}
 

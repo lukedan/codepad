@@ -249,8 +249,6 @@ namespace codepad::editor {
 		};
 		/// Information about an edit to a \ref buffer.
 		struct end_edit_info {
-			/// Default constructor.
-			end_edit_info() = default;
 			/// Initializes all fields of this struct.
 			end_edit_info(edit_type t, ui::element *source, const edit &edt, edit_positions pos) :
 				positions(std::move(pos)), type(t), source_element(source), contents(edt) {
@@ -305,7 +303,7 @@ namespace codepad::editor {
 					mod.removed_content = _buf->get_clip(posit, endit);
 					_buf->_erase(posit, endit);
 				}
-				if (insert.size() > 0) {
+				if (!insert.empty()) {
 					_buf->_insert(_buf->at(pos), insert.begin(), insert.end());
 					mod.added_content = std::move(insert);
 				}
@@ -324,10 +322,10 @@ namespace codepad::editor {
 			/// solely throughout the duration of an edit.
 			void undo(const modification &mod) {
 				size_t pos = mod.position + _diff;
-				if (mod.added_content.size() > 0) {
+				if (!mod.added_content.empty()) {
 					_buf->_erase(_buf->at(pos), _buf->at(pos + mod.added_content.size()));
 				}
-				if (mod.removed_content.size() > 0) {
+				if (!mod.removed_content.empty()) {
 					_buf->_insert(_buf->at(pos), mod.removed_content.begin(), mod.removed_content.end());
 				}
 				_diff += mod.removed_content.size() - mod.added_content.size();
@@ -337,10 +335,10 @@ namespace codepad::editor {
 			/// used solely throughout the duration of an edit.
 			void redo(const modification &mod) {
 				// the modification already stores adjusted positions
-				if (mod.removed_content.size() > 0) {
+				if (!mod.removed_content.empty()) {
 					_buf->_erase(_buf->at(mod.position), _buf->at(mod.position + mod.removed_content.size()));
 				}
-				if (mod.added_content.size() > 0) {
+				if (!mod.added_content.empty()) {
 					_buf->_insert(_buf->at(mod.position), mod.added_content.begin(), mod.added_content.end());
 				}
 				_diff += mod.added_content.size() - mod.removed_content.size();
@@ -602,7 +600,7 @@ namespace codepad::editor {
 				}
 				curstr->emplace_back(*it); // append byte to curstr
 			}
-			if (afterstr.size() > 0) { // at the middle of a chunk, add the second part to the strings
+			if (!afterstr.empty()) { // at the middle of a chunk, add the second part to the strings
 				if (curstr->size() + afterstr.size() <= maximum_bytes_per_chunk) {
 					curstr->insert(curstr->end(), afterstr.begin(), afterstr.end());
 				} else {

@@ -21,8 +21,9 @@ namespace codepad::ui {
 		_predef_states.focused = register_state_id(CP_STRLIT("focused"), element_state_type::passive);
 		_predef_states.corpse = register_state_id(CP_STRLIT("corpse"), element_state_type::passive);
 
-		_predef_states.invisible = register_state_id(CP_STRLIT("invisible"), element_state_type::configuration);
-		_predef_states.ghost = register_state_id(CP_STRLIT("ghost"), element_state_type::configuration);
+		_predef_states.render_invisible = register_state_id(CP_STRLIT("render_invisible"), element_state_type::configuration);
+		_predef_states.hittest_invisible = register_state_id(CP_STRLIT("hittest_invisible"), element_state_type::configuration);
+		_predef_states.layout_invisible = register_state_id(CP_STRLIT("layout_invisible"), element_state_type::configuration);
 		_predef_states.vertical = register_state_id(CP_STRLIT("vertical"), element_state_type::configuration);
 
 
@@ -80,13 +81,16 @@ namespace codepad::ui {
 			swap(batch, _del);
 			// dispose the current batch
 			// new batches may be produced during this process
-			for (auto i : batch) {
+			for (auto *i : batch) {
 				i->_dispose();
 #ifdef CP_CHECK_USAGE_ERRORS
 				assert_true_usage(!i->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
 				// also remove the current entry from all lists
-				_targets.erase(i);
+				auto *pnl = dynamic_cast<panel_base*>(i);
+				if (pnl) {
+					_children_layout_scheduled.erase(pnl);
+				}
 				_dirty.erase(i);
 				_upd.erase(i);
 				_del.erase(i);
@@ -97,57 +101,42 @@ namespace codepad::ui {
 	}
 
 	void manager::invalidate_layout(element &e) {
-		if (_layouting) { // add element directly to queue
-			if (e._parent != nullptr && e._parent->override_children_layout()) {
-				_q.emplace(e._parent, false);
-			} else {
-				_q.emplace(&e, true);
-			}
-		} else {
-			_targets[&e] = true;
+		// TODO maybe optimize for panels
+		if (e.parent() != nullptr) {
+			invalidate_children_layout(*e.parent());
 		}
 	}
 
+	void manager::invalidate_children_layout(panel_base &e) {
+		_children_layout_scheduled.emplace(&e);
+	}
+
 	void manager::update_invalid_layout() {
-		if (_targets.empty()) {
+		if (_children_layout_scheduled.empty() && _layout_notify.empty()) {
 			return;
 		}
 		performance_monitor mon(CP_HERE, relayout_time_redline);
 		assert_true_logical(!_layouting, "update_invalid_layout() cannot be called recursively");
 		_layouting = true;
 		// gather the list of elements with invalidated layout
-		unordered_map<element*, bool> ftg;
-		for (auto i : _targets) {
-			element *cur = i.first;
-			bool invalid = i.second;
-			if (invalid) { // the current layout is not valid
-				if (cur->_parent && cur->_parent->override_children_layout()) {
-					// if its parent overrides its layout then just re-validate the parent's layout
-					cur = cur->_parent;
-					invalid = false;
+		set<panel_base*> childrenupdate;
+		swap(childrenupdate, _children_layout_scheduled);
+		for (panel_base *pnl : childrenupdate) {
+			pnl->_on_update_children_layout();
+			for (element *elem : pnl->_children.items()) {
+				_layout_notify.emplace(elem);
+			}
+		}
+		while (!_layout_notify.empty()) {
+			element *li = _layout_notify.front();
+			_layout_notify.pop();
+			li->_on_layout_changed();
+			auto *pnl = dynamic_cast<panel_base*>(li);
+			if (pnl != nullptr) {
+				for (element *elem : pnl->_children.items()) {
+					_layout_notify.emplace(elem);
 				}
 			}
-			bool &v = ftg[cur];
-			v = v || invalid; // there may be duplicate elements
-		}
-		_targets.clear();
-		for (auto &i : ftg) { // push all gathered elements into a queue
-			_q.emplace(i);
-		}
-		while (!_q.empty()) {
-			auto li = _q.front();
-			_q.pop();
-			if (li.first->get_window() == nullptr) {
-				continue;
-			}
-			if (li.second) { // re-calculate layout
-				rectd prgn;
-				if (li.first->_parent) {
-					prgn = li.first->_parent->get_client_region();
-				}
-				li.first->_recalc_layout(prgn);
-			}
-			li.first->_finish_layout();
 		}
 		_layouting = false;
 	}

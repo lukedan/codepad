@@ -59,7 +59,7 @@ namespace codepad::editor::code {
 		/// \param merged Indicates whether any merging has taken place.
 		/// \return An iterator to the added entry.
 		iterator add(entry p, bool &merged) {
-			iterator it = add_caret(carets, p, merged);
+			auto it = add_caret(carets, p, merged);
 			bytepos_valid = false;
 			return it;
 		}

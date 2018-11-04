@@ -127,10 +127,6 @@ namespace codepad::ui {
 		rectd get_layout() const {
 			return _layout;
 		}
-		/// Returns the actual size, calculated from the actual layout.
-		vec2d get_actual_size() const {
-			return _layout.size();
-		}
 		/// Calculates and returns the current client region, i.e.,
 		/// the layout with padding subtracted from it, of the element.
 		rectd get_client_region() const {
@@ -159,18 +155,18 @@ namespace codepad::ui {
 
 		/// Returns the margin metric of this element.
 		thickness get_margin() const {
-			return _config.metrics_config.get_state().current_margin.current_value;
+			return _config.metrics_config.get_state().margin.current_value;
 		}
 		/// Returns the padding metric of this element.
 		thickness get_padding() const {
-			return _config.metrics_config.get_state().current_padding.current_value;
+			return _config.metrics_config.get_state().padding.current_value;
 		}
 		/// Returns the size metric of this element. Note that this is not the element's actual size, and this value
 		/// may or may not be used in layout calculation.
 		///
 		/// \sa get_actual_size()
 		vec2d get_size() const {
-			return _config.metrics_config.get_state().current_size.current_value;
+			return _config.metrics_config.get_state().size.current_value;
 		}
 		/// Returns the anchor metric of this element.
 		anchor get_anchor() const {
@@ -275,19 +271,13 @@ namespace codepad::ui {
 
 		/// Invalidates the visual of the element so that it'll be re-rendered next frame.
 		///
-		/// \sa manager::invalidate_visual
+		/// \sa manager::invalidate_visual()
 		void invalidate_visual();
-		/// Invalidates the layout of the element so that its layout will be re-calculated next frame.
-		/// This will cause \ref _recalc_layout and \ref _finish_layout to be called.
+		/// Invalidates the layout of the element so that its parent will be notified and will recalculate its
+		/// layout.
 		///
-		/// \sa manager::invalid_layout
+		/// \sa manager::invalid_layout()
 		void invalidate_layout();
-		/// Used by parent elements when calculating layout, to indicate that the parent overrides
-		/// the layout of this element and has finished calculating it. This will only cause \ref _finish_layout
-		/// to be called.
-		///
-		/// \sa manager::revalidate_layout
-		void revalidate_layout();
 
 
 		/// Shorthand for testing if the \ref manager::predefined_states::mouse_over bit is set in the element's
@@ -295,16 +285,23 @@ namespace codepad::ui {
 		///
 		/// \sa hit_test
 		bool is_mouse_over() const;
-		/// Shorthand for testing if the \ref manager::predefined_states::invisible bit is \em not set in the
+
+		/// Shorthand for testing if the \ref manager::predefined_states::render_invisible bit is \em not set in the
 		/// element's states.
-		bool is_visible() const;
-		/// Shorthand for setting or unsetting the \ref manager::predefined_states::invisible state.
-		void set_visibility(bool);
-		/// Shorthand for testing if the \ref manager::predefined_states::ghost bit is \em not set in the element's
-		/// states.
-		bool is_interactive() const;
-		/// Shorthand for setting or unsetting the \ref manager::predefined_states::ghost state.
-		void set_is_interactive(bool);
+		bool is_render_visible() const;
+		/// Shorthand for setting or unsetting the \ref manager::predefined_states::render_invisible state.
+		void set_render_visibility(bool);
+		/// Shorthand for testing if the \ref manager::predefined_states::hittest_invisible bit is \em not set in the
+		/// element's states.
+		bool is_hittest_visible() const;
+		/// Shorthand for setting or unsetting the \ref manager::predefined_states::hittest_invisible state.
+		void set_hittest_visibility(bool);
+		/// Shorthand for testing if the \ref manager::predefined_states::layout_invisible bit is \em not set in the
+		/// element's states.
+		bool is_layout_visible() const;
+		/// Shorthand for setting or unsetting the \ref manager::predefined_states::layout_invisible state.
+		void set_layout_visibility(bool);
+
 		/// Shorthand for testing if the \ref manager::predefined_states::focused bit is \em not set in the element's
 		/// states. The result may differ from that from testing if \p this is equal to
 		/// \ref manager::get_focused_element on certain occasions, more specifically when the focused element is
@@ -315,64 +312,6 @@ namespace codepad::ui {
 		bool is_vertical() const;
 		/// Shorthand for setting or unsetting the \ref manager::predefined_states::vertical state.
 		void set_is_vertical(bool);
-
-
-		/// Calculates the layout of an element on a direction (horizontal or vertical) with the given parameters.
-		/// If all of \p anchormin, \p pixelsize, and \p anchormax are \p true, all sizes are respected and the extra
-		/// space is distributed evenly between before and after the client region.
-		///
-		/// \param anchormin \p true if the element is anchored towards the `negative' (left or top) direction.
-		/// \param pixelsize \p true if the size of the element is specified in pixels.
-		/// \param anchormax \p true if the element is anchored towards the `positive' (right or bottom) direction.
-		/// \param clientmin Passes the minimum (left or top) boundary of the client region,
-		///        and will contain the minimum boundary of the element's layout as a return value.
-		/// \param clientmax Passes the maximum (right or bottom) boundary of the client region,
-		///        and will contain the maximum boundary of the element's layout as a return value.
-		/// \param marginmin The element's margin at the `negative' border.
-		/// \param size The size of the element in the direction.
-		/// \param marginmax The element's margin at the `positive' border.
-		inline static void layout_on_direction(
-			bool anchormin, bool pixelsize, bool anchormax, double &clientmin, double &clientmax,
-			double marginmin, double size, double marginmax
-		) {
-			double totalspace = clientmax - clientmin, totalprop = 0.0;
-			if (anchormax) {
-				totalspace -= marginmax;
-			} else {
-				totalprop += marginmax;
-			}
-			if (pixelsize) {
-				totalspace -= size;
-			} else {
-				totalprop += size;
-			}
-			if (anchormin) {
-				totalspace -= marginmin;
-			} else {
-				totalprop += marginmin;
-			}
-			double propmult = totalspace / totalprop;
-			// prioritize size in pixels
-			if (anchormin && anchormax) {
-				if (pixelsize) {
-					double midpos = 0.5 * (clientmin + clientmax);
-					clientmin = midpos - 0.5 * size;
-					clientmax = midpos + 0.5 * size;
-				} else {
-					clientmin += marginmin;
-					clientmax -= marginmax;
-				}
-			} else if (anchormin) {
-				clientmin += marginmin;
-				clientmax = clientmin + (pixelsize ? size : size * propmult);
-			} else if (anchormax) {
-				clientmax -= marginmax;
-				clientmin = clientmax - (pixelsize ? size : size * propmult);
-			} else {
-				clientmin += marginmin * propmult;
-				clientmax -= marginmax * propmult;
-			}
-		}
 
 		event<void>
 			mouse_enter, ///< Triggered when the mouse starts to be over the element.
@@ -396,14 +335,14 @@ namespace codepad::ui {
 		}
 	protected:
 		element_configuration _config; ///< The configuration of this element.
-		rectd _layout; ///< The current layout of the element.
+		rectd _layout; ///< The absolute layout of the element in the window.
 		panel_base
 			*_parent = nullptr, ///< Pointer to the element's parent.
 			/// The element's logical parent. In composite elements this points to the top level composite element.
 			/// Composite elements that allow users to dynamically add children may also use this to indicate the
 			/// actual element that handles their logic.
 			*_logical_parent = nullptr;
-		element_state_id _state; ///< The element's current state.
+		element_state_id _state = normal_element_state_id; ///< The element's current state.
 		int _zindex = zindex::normal; ///< The z-index of the element.
 		os::cursor _crsr = os::cursor::not_specified; ///< The custom cursor of the element.
 		bool _can_focus = true; ///< Indicates whether this element can have the focus.
@@ -510,25 +449,20 @@ namespace codepad::ui {
 		virtual void _on_postrender() {
 			os::renderer_base::get().pop_clip();
 		}
-		/// Renders the element if the element does not have \ref manager::predefined_states::invisible state. This
-		/// function first calls \ref _on_prerender, then updates \ref _state and renders the background, calls
+		/// Renders the element if the element does not have \ref manager::predefined_states::render_invisible state.
+		/// This function first calls \ref _on_prerender, then updates \ref _state and renders the background, calls
 		/// \ref _custom_render, and finally calls \ref _on_postrender.
 		virtual void _on_render();
 
-		/// Called to calculate the horizontal layout of the element, given the area that contains the element.
-		virtual void _recalc_horizontal_layout(double, double);
-		/// Called to calculate the vertical layout of the element, given the area that contains the element.
-		virtual void _recalc_vertical_layout(double, double);
-		/// Called by the manager to recalculate the layout of the element, given the area that supposedly contains
-		/// the element (usually the client region of its parent). This function simply calls
-		/// \ref _recalc_horizontal_layout and \ref _recalc_vertical_layout.
-		virtual void _recalc_layout(rectd rgn) {
-			_recalc_horizontal_layout(rgn.xmin, rgn.xmax);
-			_recalc_vertical_layout(rgn.ymin, rgn.ymax);
-		}
-		/// Called by the manager when the new layout has been calculated. Calls \ref invalidate_visual.
-		/// Derived classes can override this to update what depends on its layout.
-		virtual void _finish_layout() {
+		/// Called by the element itself when its desired size has changed. It should be left for the parent to
+		/// decide whether it should invalidate its own layout or call \ref invalidate_layout() on this child.
+		///
+		/// \param width Whether the width of the desired size has changed.
+		/// \param height Whether the height of the desired size has changed.
+		void _on_desired_size_changed(bool width, bool height);
+		/// Called by \ref manager when the layout has changed. Calls \ref invalidate_visual. Derived classes can
+		/// override this to update layout-dependent properties. For panels, it's often better to override \ref panel_base::
+		virtual void _on_layout_changed() {
 			if (
 				std::isnan(get_layout().xmin) || std::isnan(get_layout().xmax) ||
 				std::isnan(get_layout().ymin) || std::isnan(get_layout().ymax)

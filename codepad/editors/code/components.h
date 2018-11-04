@@ -31,7 +31,10 @@ namespace codepad::editor::code {
 		void _on_added_to_parent() override {
 			element::_on_added_to_parent();
 			_resizetk = (component_helper::get_editor(*this).content_modified += [this]() {
-				invalidate_layout();
+				// when the content is modified, it is possible that the number of digits is changed,
+				// so we recalculate layout here
+				// TODO maybe only recalculate layout when necessary?
+				_on_desired_size_changed(true, false);
 			});
 		}
 		/// Unregisters from \ref editor::content_modified.
@@ -206,24 +209,20 @@ namespace codepad::editor::code {
 					metrics.next(tok.result);
 					if (std::holds_alternative<character_token>(tok.result)) {
 						auto &chartok = std::get<character_token>(tok.result);
-						if (chartok.valid) {
-							if (is_graphical_char(chartok.value)) { // render one character
-								rectd rec = metrics.get_character().current_char_entry().placement.translated(
-									vec2d(metrics.get_character().char_left(), metrics.get_y())
-								).coordinates_scaled(scale).fit_grid_enlarge<double>();
-								rec.xmin = std::max(rec.xmin, lastx);
-								if (rec.xmin < maximum_width) { // render only visible characters
-									os::renderer_base::get().draw_character_custom(
-										metrics.get_character().current_char_entry().texture,
-										rec, chartok.color
-									);
-								} else {
-									// TODO skip to next line
-								}
-								lastx = rec.xmax;
+						if (is_graphical_char(chartok.value)) { // render one character
+							rectd rec = metrics.get_character().current_char_entry().placement.translated(
+								vec2d(metrics.get_character().char_left(), metrics.get_y())
+							).coordinates_scaled(scale).fit_grid_enlarge<double>();
+							rec.xmin = std::max(rec.xmin, lastx);
+							if (rec.xmin < maximum_width) { // render only visible characters
+								os::renderer_base::get().draw_character_custom(
+									metrics.get_character().current_char_entry().texture,
+									rec, chartok.color
+								);
+							} else {
+								// TODO skip to next line
 							}
-						} else {
-							// TODO draw text gizmo
+							lastx = rec.xmax;
 						}
 					} else if (std::holds_alternative<linebreak_token>(tok.result)) {
 						lct.refresh(metrics.get_y());

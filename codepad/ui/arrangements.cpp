@@ -12,7 +12,7 @@ namespace codepad::ui {
 		e->_logical_parent = logparent;
 		e->set_state_bits(set_states, true);
 		if (!children.empty()) {
-			panel *pnl = dynamic_cast<panel*>(e);
+			auto *pnl = dynamic_cast<panel*>(e);
 			if (pnl == nullptr) {
 				logger::get().log_warning(CP_HERE, "invalid children for non-panel type: ", type);
 			} else {
@@ -37,12 +37,12 @@ namespace codepad::ui {
 	}
 
 
-	void class_arrangements::construct_children(panel_base &pnl, notify_mapping &roles) const {
+	void class_arrangements::construct_children(panel_base &logparent, notify_mapping &roles) const {
 		for (const child &c : children) {
-			c.construct(pnl._children, &pnl, roles);
+			c.construct(logparent._children, &logparent, roles);
 		}
-		if (!pnl._config.all_stationary()) {
-			manager::get().schedule_update(pnl);
+		if (!logparent._config.all_stationary()) {
+			manager::get().schedule_update(logparent);
 		}
 		if (!roles.empty()) {
 			logger::get().log_warning(CP_HERE, "there are unmatched roles");

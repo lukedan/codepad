@@ -134,7 +134,7 @@ namespace codepad::os {
 		}
 		/// Deletes and erases the given \ref texture.
 		void delete_texture(texture &tex) override {
-			GLuint t = static_cast<GLuint>(_get_id(tex));
+			auto t = static_cast<GLuint>(_get_id(tex));
 			glDeleteTextures(1, &t);
 			_erase_texture(tex);
 		}
@@ -163,7 +163,7 @@ namespace codepad::os {
 		}
 		/// Deletes and erases the given \ref framebuffer.
 		void delete_framebuffer(framebuffer &fb) override {
-			GLuint id = static_cast<GLuint>(_get_id(fb)), tid = static_cast<GLuint>(_get_id(fb.get_texture()));
+			auto id = static_cast<GLuint>(_get_id(fb)), tid = static_cast<GLuint>(_get_id(fb.get_texture()));
 			_gl.DeleteFramebuffers(1, &id);
 			glDeleteTextures(1, &tid);
 			_erase_framebuffer(fb);

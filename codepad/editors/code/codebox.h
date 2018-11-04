@@ -125,7 +125,7 @@ namespace codepad::editor::code {
 	namespace component_helper {
 		/// Returns the \ref codebox that the given \ref ui::element is in.
 		inline codebox &get_box(const ui::element &elem) {
-			codebox *cb = dynamic_cast<codebox*>(elem.logical_parent());
+			auto *cb = dynamic_cast<codebox*>(elem.logical_parent());
 			assert_true_logical(cb != nullptr, "component_helper function called with non-component");
 			return *cb;
 		}

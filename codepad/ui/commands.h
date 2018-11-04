@@ -77,9 +77,9 @@ namespace codepad::ui {
 		void reset_groups(const std::vector<element_hotkey_group_data> &gp) {
 			std::vector<_hotkey_group_state> hs;
 			// filter out all empty entries
-			for (auto i = gp.begin(); i != gp.end(); ++i) {
-				if (i->reg) {
-					hs.push_back(_hotkey_group_state(*i));
+			for (const element_hotkey_group_data &data : gp) {
+				if (data.reg) {
+					hs.emplace_back(data);
 				}
 			}
 			_reset_groups(std::move(hs));
@@ -98,22 +98,22 @@ namespace codepad::ui {
 		/// \return \p true if the gesture is processed here and should not be processed as a key stroke.
 		bool on_key_down(key_gesture k) {
 			bool
-				first = _gests.size() == 0,
+				first = _gests.empty(),
 				all_emp = true, // true if all updated states are empty, i.e., end of hotkey chain
 				intercept = false;
-			for (auto i = _groups.begin(); i != _groups.end(); ++i) {
+			for (_hotkey_group_state &st : _groups) {
 				// updates the hotkey and checks whether it is intercepted
 				// note that it can be intercepted even if the gesture's invalid
 				// in which case the state will be reset
-				intercept = i->on_keypress(k, first) || intercept;
-				if (i->state.is_trigger()) { // reached leaf node, trigger
-					window_hotkey_info hk(i->state.get_data(), i->group.param);
-					i->state = class_hotkey_group::state(); // reset state
-					for (auto j = _groups.begin(); j != _groups.end(); ++j) {
+				intercept = st.on_keypress(k, first) || intercept;
+				if (st.state.is_trigger()) { // reached leaf node, trigger
+					window_hotkey_info hk(st.state.get_data(), st.group.param);
+					st.state = class_hotkey_group::state(); // reset state
+					for (_hotkey_group_state &j : _groups) {
 						// all state should be empty, otherwise there are conflicts
-						if (!j->state.is_empty()) {
+						if (!j.state.is_empty()) {
 							logger::get().log_warning(CP_HERE, "found conflicting hotkey chains");
-							j->state = class_hotkey_group::state(); // clear them
+							j.state = class_hotkey_group::state(); // clear them
 						}
 					}
 					triggered.invoke(hk); // invoke the event
@@ -128,7 +128,8 @@ namespace codepad::ui {
 					}
 					_gests.clear();
 					return true;
-				} else if (!i->state.is_empty()) { // check if there's ongoing hotkeys
+				}
+				if (!st.state.is_empty()) { // check if there's ongoing hotkeys
 					all_emp = false;
 				}
 			}
@@ -184,7 +185,7 @@ namespace codepad::ui {
 		/// Resets the active groups. Breaks the current hotkey if necessary.
 		void _reset_groups(std::vector<_hotkey_group_state> v) {
 			_groups = std::move(v);
-			if (_gests.size() > 0) {
+			if (!_gests.empty()) {
 				// the focus has shifted when the user is midway through a hotkey
 				chain_interrupted.invoke();
 				_gests.clear(); // start anew

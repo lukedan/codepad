@@ -85,9 +85,9 @@ namespace codepad::editor {
 			if (!_maintainpos) {
 				double totw =
 					is_vertical() ?
-					get_client_region().height() - _sep->get_actual_size().y :
-					get_client_region().width() - _sep->get_actual_size().x;
-				split_panel *sp = dynamic_cast<split_panel*>(_c1);
+					get_client_region().height() - _sep->get_layout().height() :
+					get_client_region().width() - _sep->get_layout().width();
+				auto *sp = dynamic_cast<split_panel*>(_c1);
 				if (sp && sp->is_vertical() == is_vertical()) {
 					sp->_maintain_separator_position<false>(totw, oldpos, get_separator_position());
 				}
@@ -96,12 +96,7 @@ namespace codepad::editor {
 					sp->_maintain_separator_position<true>(totw, oldpos, get_separator_position());
 				}
 			}
-			revalidate_layout();
-		}
-
-		/// Overrides the layout of the two children.
-		bool override_children_layout() const override {
-			return true;
+			_invalidate_children_layout();
 		}
 
 		/// Returns the default class of all elements of type \ref split_panel.
@@ -144,7 +139,7 @@ namespace codepad::editor {
 		/// \param poldv The original position of the parent's separator.
 		/// \param pnewv The updated position of the parent's separator.
 		template <bool MinChanged> void _maintain_separator_position(double ptotw, double poldv, double pnewv) {
-			vec2d sepsz = _sep->get_actual_size();
+			vec2d sepsz = _sep->get_layout().size();
 			double
 				newpos,
 				oldpos = get_separator_position(),
@@ -169,7 +164,7 @@ namespace codepad::editor {
 				newpos = myfixw / nmytotw;
 			}
 			// the possibly affected child
-			split_panel *sp = dynamic_cast<split_panel*>(MinChanged ? _c1 : _c2);
+			auto *sp = dynamic_cast<split_panel*>(MinChanged ? _c1 : _c2);
 			if (sp && sp->is_vertical() == is_vertical()) {
 				// must also be a split_panel with the same orientation
 				// here we transform the positions so that it's as if this split_panel doesn't exist
@@ -235,7 +230,7 @@ namespace codepad::editor {
 			panel_base::_on_state_changed(p);
 			if (_has_any_state_bit_changed(ui::manager::get().get_predefined_states().vertical, p)) {
 				_sep->set_is_vertical(is_vertical());
-				invalidate_layout();
+				_invalidate_children_layout();
 			}
 		}
 
@@ -255,26 +250,25 @@ namespace codepad::editor {
 		}
 
 		/// Updates the layout of all children.
-		void _finish_layout() override {
+		void _on_update_children_layout() override {
 			rectd client = get_client_region();
 			if (is_vertical()) {
-				_child_recalc_horizontal_layout_noreval(*_sep, client.xmin, client.xmax);
+				panel_base::layout_child_horizontal(*_sep, client.xmin, client.xmax);
 				auto metrics = _sep->get_layout_height();
 				double top = (client.height() - metrics.first) * _sep_position + client.ymin;
-				_child_set_vertical_layout_noreval(*_sep, top, top + metrics.first);
+				_child_set_vertical_layout(*_sep, top, top + metrics.first);
 			} else {
-				_child_recalc_vertical_layout_noreval(*_sep, client.ymin, client.ymax);
+				panel_base::layout_child_vertical(*_sep, client.ymin, client.ymax);
 				auto metrics = _sep->get_layout_width();
 				double left = (client.width() - metrics.first) * _sep_position + client.xmin;
-				_child_set_horizontal_layout_noreval(*_sep, left, left + metrics.first);
+				_child_set_horizontal_layout(*_sep, left, left + metrics.first);
 			}
 			if (_c1) {
-				_child_recalc_layout(*_c1, get_region1());
+				panel_base::layout_child(*_c1, get_region1());
 			}
 			if (_c2) {
-				_child_recalc_layout(*_c2, get_region2());
+				panel_base::layout_child(*_c2, get_region2());
 			}
-			ui::panel_base::_finish_layout();
 		}
 
 		/// Initializes \ref _sep and adds handlers for certain events.
@@ -311,9 +305,9 @@ namespace codepad::editor {
 					double position =
 						is_vertical() ?
 						(p.new_position.y - _sep_offset - client.ymin) /
-						(client.height() - _sep->get_actual_size().y) :
+						(client.height() - _sep->get_layout().height()) :
 						(p.new_position.x - _sep_offset - client.xmin) /
-						(client.width() - _sep->get_actual_size().x);
+						(client.width() - _sep->get_layout().width());
 					set_separator_position(position);
 				}
 			};
@@ -692,11 +686,11 @@ namespace codepad::editor {
 		/// windows, a new one is created.
 		tab *new_tab() {
 			tab_host *host = nullptr;
-			if (_wndlist.size() > 0) {
+			if (!_wndlist.empty()) {
 				_enumerate_hosts(*_wndlist.begin(), [&host](tab_host &h) {
 					host = &h;
 					return false;
-					});
+				});
 			}
 			return new_tab_in(host);
 		}
@@ -763,14 +757,18 @@ namespace codepad::editor {
 		/// Updates all \ref tab_host "tab_hosts" whose tabs have been changed. All empty tab hosts will be removed,
 		/// and empty windows will be closed.
 		void update_changed_hosts() {
-			for (auto i = _changed.begin(); i != _changed.end(); ++i) {
-				if ((*i)->tab_count() == 0) {
-					_on_tab_host_disposed(**i);
-					auto father = dynamic_cast<split_panel*>((*i)->parent());
-					if (father) {
-						ui::element *other = (*i) == father->get_child1() ? father->get_child2() : father->get_child1();
+			for (tab_host *host : _changed) {
+				if (host->tab_count() == 0) {
+					_on_tab_host_disposed(*host);
+					auto father = dynamic_cast<split_panel*>(host->parent());
+					if (father) { // there are other hosts in the same window
+						ui::element *other =
+							host == father->get_child1() ?
+							father->get_child2() :
+							father->get_child1();
 						father->set_child1(nullptr);
 						father->set_child2(nullptr);
+						// use the other child to replace the split_panel
 						auto ff = dynamic_cast<split_panel*>(father->parent());
 						if (ff) {
 							if (father == ff->get_child1()) {
@@ -790,9 +788,9 @@ namespace codepad::editor {
 							f->children().add(*other);
 						}
 						ui::manager::get().mark_disposal(*father);
-					} else {
+					} else { // the only host in the window, destroy the window
 #ifdef CP_CHECK_LOGICAL_ERRORS
-						auto f = dynamic_cast<os::window_base*>((*i)->parent());
+						auto f = dynamic_cast<os::window_base*>(host->parent());
 						assert_true_logical(f != nullptr, "parent must be a window or a split panel");
 #else
 						auto f = static_cast<os::window_base*>((*i)->parent());
@@ -801,16 +799,16 @@ namespace codepad::editor {
 							if (*it == f) {
 								_wndlist.erase(it);
 								break;
-					}
-				}
+							}
+						}
 						ui::manager::get().mark_disposal(*f);
+					}
+					ui::manager::get().mark_disposal(*host);
+				}
 			}
-					ui::manager::get().mark_disposal(**i);
-		}
-	}
 			_changed.clear();
-}
-/// Updates the tab that's currently being dragged.
+		}
+		/// Updates the tab that's currently being dragged.
 		void update_drag();
 		/// Calls \ref update_changed_hosts and \ref update_drag to perform necessary updating.
 		void update() {
@@ -831,7 +829,7 @@ namespace codepad::editor {
 		/// \param stop A callable object that returns \p true when the tab should be released.
 		void start_drag_tab(tab &t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
 			return !os::input::is_mouse_button_down(os::input::mouse_button::primary);
-			}) {
+		}) {
 			assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 			tab_host *hst = t.get_host();
 			if (hst) {
@@ -906,14 +904,11 @@ namespace codepad::editor {
 			};
 			wnd->close_request += [wnd]() { // when requested to be closed, send request to all tabs
 				_enumerate_hosts(wnd, [](tab_host &hst) {
-					std::vector<tab*> ts;
-					for (auto i = hst._tabs.begin(); i != hst._tabs.end(); ++i) {
-						ts.push_back(*i);
+					std::vector<tab*> ts(hst._tabs.begin(), hst._tabs.end());
+					for (tab *t : ts) {
+						t->_on_close_requested();
 					}
-					for (auto i = ts.begin(); i != ts.end(); ++i) {
-						(*i)->_on_close_requested();
-					}
-					});
+				});
 			};
 			return wnd;
 		}
@@ -947,7 +942,7 @@ namespace codepad::editor {
 				host.remove_tab(t);
 			}
 			split_panel *sp = _replace_with_split_panel(host);
-			tab_host *th = ui::manager::get().create_element<tab_host>();
+			auto *th = ui::manager::get().create_element<tab_host>();
 			if (newfirst) {
 				sp->set_child1(th);
 				sp->set_child2(&host);
@@ -967,7 +962,7 @@ namespace codepad::editor {
 				host->remove_tab(t);
 			}
 			os::window_base *wnd = _new_window();
-			tab_host *nhst = ui::manager::get().create_element<tab_host>();
+			auto *nhst = ui::manager::get().create_element<tab_host>();
 			wnd->children().add(*nhst);
 			nhst->add_tab(t);
 			wnd->set_client_size(layout.size().convert<int>());
@@ -1022,7 +1017,7 @@ namespace codepad::editor {
 			while (!hsts.empty()) {
 				ui::element *ce = hsts.back();
 				hsts.pop_back();
-				tab_host *hst = dynamic_cast<tab_host*>(ce);
+				auto *hst = dynamic_cast<tab_host*>(ce);
 				if (hst) {
 					if constexpr (std::is_same_v<decltype(cb(*static_cast<tab_host*>(nullptr))), bool>) {
 						if (!cb(*hst)) {
@@ -1032,7 +1027,7 @@ namespace codepad::editor {
 						cb(*hst);
 					}
 				} else {
-					split_panel *sp = dynamic_cast<split_panel*>(ce);
+					auto *sp = dynamic_cast<split_panel*>(ce);
 					assert_true_logical(sp, "corrupted element tree");
 					hsts.push_back(sp->get_child1());
 					hsts.push_back(sp->get_child2());
@@ -1052,11 +1047,11 @@ namespace codepad::editor {
 				halfw = 0.5 * _drag->_btn->get_layout().width(),
 				posx = pos + _dragdiff.x + halfw, cx = halfw;
 			tab *res = nullptr;
-			for (auto i = _dest->_tabs.begin(); i != _dest->_tabs.end(); ++i) {
-				if (*i != _drag) {
-					double thisw = (*i)->_btn->get_layout().width();
+			for (tab *t : _dest->_tabs) {
+				if (t != _drag) {
+					double thisw = t->_btn->get_layout().width();
 					if (posx < cx + 0.5 * thisw) {
-						res = *i;
+						res = t;
 						break;
 					}
 					cx += thisw;

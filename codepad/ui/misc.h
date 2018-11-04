@@ -131,12 +131,12 @@ namespace codepad::ui {
 			/// Default constructor.
 			state() = default;
 			/// Constructs the initial state of a given animated property, with a given initial value that's taken
-			/// if animated_property::has_from is \p false.
-			state(const animated_property &prop, const T &curv) :
-				from(prop.has_from ? prop.from : curv), current_value(from) {
+			/// if animated_property::has_from is \p false. This is called when transitioning between element states.
+			state(const animated_property &prop, const T &curv) : from(prop.has_from ? prop.from : curv) {
 				prop.update(*this, 0.0); // update to obtain the correct initial value
 			}
-			/// Constructs the initial state of a given animated property with no initial value.
+			/// Constructs the initial state of a given animated property with no initial value. This is called when
+			/// a \ref state is newly created without any previous states.
 			explicit state(const animated_property &prop) : state(prop, prop.from) {
 			}
 
@@ -236,8 +236,8 @@ namespace codepad::ui {
 		/// Returns the sum of all frame times.
 		double duration() const {
 			double res = 0.0;
-			for (auto i = frames.begin(); i != frames.end(); ++i) {
-				res += i->second;
+			for (const texture_keyframe &frame : frames) {
+				res += frame.second;
 			}
 			return res;
 		}
@@ -357,7 +357,7 @@ namespace codepad::ui {
 			/// Default constructor.
 			_entry() = default;
 			/// Constructor that initializes all fields of the struct.
-			_entry(state_pattern pat, T val) : value(val), pattern(pat) {
+			_entry(state_pattern pat, T val) : value(std::move(val)), pattern(pat) {
 			}
 
 			T value; ///< The value.

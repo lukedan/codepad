@@ -19,7 +19,7 @@ namespace codepad::os {
 			_focus = &e;
 			vector<element_hotkey_group_data> gps;
 			for (element *cur = _focus; cur != nullptr; cur = cur->parent()) {
-				gps.push_back(element_hotkey_group_data(cur->_config.hotkey_config, cur));
+				gps.emplace_back(cur->_config.hotkey_config, cur);
 			}
 			hotkey_manager.reset_groups(gps);
 			oldfocus->_on_lost_focus();
@@ -52,6 +52,11 @@ namespace codepad::os {
 		}
 		renderer_base::get()._delete_window(*this);
 		panel::_dispose();
+	}
+
+	void window_base::_on_size_changed(size_changed_info &p) {
+		ui::manager::get().notify_layout_change(*this);
+		size_changed(p);
 	}
 
 	void window_base::_on_update() {

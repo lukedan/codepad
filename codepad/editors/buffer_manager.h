@@ -12,8 +12,6 @@
 namespace codepad::editor {
 	/// Used to identify a \ref buffer in certain events.
 	struct buffer_info {
-		/// Default constructor.
-		buffer_info() = default;
 		/// Assigns the specified \ref buffer to \ref buf.
 		explicit buffer_info(buffer &b) : buf(b) {
 		}
@@ -159,7 +157,7 @@ namespace codepad::editor {
 			/// Default constructor.
 			_buffer_data() = default;
 			/// Initializes this struct with the given \ref buffer.
-			explicit _buffer_data(std::weak_ptr<buffer> b) : buf(b) {
+			explicit _buffer_data(std::weak_ptr<buffer> b) : buf(std::move(b)) {
 			}
 			/// No copy construction.
 			_buffer_data(const _buffer_data&) = delete;
@@ -195,11 +193,10 @@ namespace codepad::editor {
 		_buffer_data &_get_data_of(const std::shared_ptr<buffer> &buf) {
 			if (std::holds_alternative<size_t>(buf->_fileid)) {
 				return _noname_map[std::get<size_t>(buf->_fileid)];
-			} else {
-				auto found = _file_map.find(std::get<std::filesystem::path>(buf->_fileid));
-				assert_true_logical(found != _file_map.end(), "getting data of invalid buffer");
-				return found->second;
 			}
+			auto found = _file_map.find(std::get<std::filesystem::path>(buf->_fileid));
+			assert_true_logical(found != _file_map.end(), "getting data of invalid buffer");
+			return found->second;
 		}
 
 		/// Called when a buffer is being disposed, to remove the corresponding entry in \ref _file_map or add its

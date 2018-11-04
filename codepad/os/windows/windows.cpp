@@ -133,7 +133,7 @@ namespace codepad::os {
 		(w.*handle)(inf);
 	}
 	LRESULT CALLBACK _wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-		window *form = reinterpret_cast<window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+		auto *form = reinterpret_cast<window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 		if (form) {
 			switch (msg) {
 			case WM_CLOSE:
@@ -191,7 +191,7 @@ namespace codepad::os {
 					if (wparam == VK_RETURN) {
 						content = CP_STRLIT("\n");
 					} else {
-						const std::byte *ptr = reinterpret_cast<const std::byte*>(&wparam);
+						auto *ptr = reinterpret_cast<const std::byte*>(&wparam);
 						codepoint res;
 						if (!encodings::utf16<>::next_codepoint(ptr, ptr + 4, res)) {
 							logger::get().log_warning( // TODO check if this will ever be triggered
@@ -292,7 +292,8 @@ namespace codepad::os {
 					cursor c = form->get_current_display_cursor();
 					if (c == cursor::not_specified) {
 						return DefWindowProc(hwnd, msg, wparam, lparam);
-					} else if (c == cursor::invisible) {
+					}
+					if (c == cursor::invisible) {
 						SetCursor(nullptr);
 					} else {
 						HANDLE img = LoadImage(
@@ -367,7 +368,7 @@ namespace codepad::os {
 		// using _hwnd here will cause IMs to malfunction
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) {
-				window *form = reinterpret_cast<window*>(GetWindowLongPtr(msg.hwnd, GWLP_USERDATA));
+				auto *form = reinterpret_cast<window*>(GetWindowLongPtr(msg.hwnd, GWLP_USERDATA));
 				if (form && form->hotkey_manager.on_key_down(key_gesture(
 					input::_details::_key_id_backmapping.v[msg.wParam], _get_modifiers()
 				))) {
@@ -389,7 +390,7 @@ namespace codepad::os {
 		const size_t file_buffer_size = 1000;
 
 #	ifdef CP_CHECK_LOGICAL_ERRORS
-		const window *wnd = dynamic_cast<const window*>(parent);
+		auto *wnd = dynamic_cast<const window*>(parent);
 		assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
 #	else
 		const window *wnd = static_cast<const window*>(parent);
@@ -419,17 +420,16 @@ namespace codepad::os {
 				type == file_dialog_type::single_selection
 				) {
 				return {filesystem::path(ofn.lpstrFile)};
-			} else {
-				filesystem::path wd = filesystem::path(ofn.lpstrFile);
-				vector<filesystem::path> paths;
-				const TCHAR *cur = ofn.lpstrFile + ofn.nFileOffset;
-				for (; *cur != 0; ++cur) {
-					paths.push_back(wd / cur);
-					for (; *cur != 0; ++cur) {
-					}
-				}
-				return paths;
 			}
+			filesystem::path wd = filesystem::path(ofn.lpstrFile);
+			vector<filesystem::path> paths;
+			const TCHAR *cur = ofn.lpstrFile + ofn.nFileOffset;
+			for (; *cur != 0; ++cur) {
+				paths.push_back(wd / cur);
+				for (; *cur != 0; ++cur) {
+				}
+			}
+			return paths;
 		}
 		return {};
 	}
@@ -579,7 +579,7 @@ namespace codepad {
 		void *frames[max_frames];
 		HANDLE proc = GetCurrentProcess();
 		unsigned char symmem[sizeof(SYMBOL_INFO) + max_symbol_length * sizeof(TCHAR)];
-		PSYMBOL_INFO syminfo = reinterpret_cast<PSYMBOL_INFO>(symmem);
+		auto syminfo = reinterpret_cast<PSYMBOL_INFO>(symmem);
 		syminfo->MaxNameLen = max_symbol_length;
 		syminfo->SizeOfStruct = sizeof(SYMBOL_INFO);
 		IMAGEHLP_LINE64 lineinfo;
@@ -591,7 +591,7 @@ namespace codepad {
 		);
 		WORD numframes = CaptureStackBackTrace(0, max_frames, frames, nullptr);
 		for (WORD i = 0; i < numframes; ++i) {
-			DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
+			auto addr = reinterpret_cast<DWORD64>(frames[i]);
 			string func = "??", file = func, line = func;
 			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
 				func = os::_details::wstring_to_utf8(syminfo->Name);

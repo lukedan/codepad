@@ -22,7 +22,7 @@ namespace codepad::os {
 		const vec2i new_size; ///< The new size of the window.
 	};
 	/// Base class of all windows. Defines basic interfaces that all windows should implement.
-	class window_base : public ui::panel {
+	class window_base : public ui::panel { // TODO Improve _on_update() so that decorations can be handled gracefully.
 		friend ui::element_collection;
 		friend ui::decoration;
 	public:
@@ -104,14 +104,14 @@ namespace codepad::os {
 			dec._wnd = this;
 			_decos.push_back(&dec);
 			dec._tok = --_decos.end();
-			invalidate_layout();
+			invalidate_visual();
 		}
 		/// Unregisters a ui::decoration from this window.
 		void unregister_decoration(ui::decoration &dec) {
 			assert_true_usage(dec._wnd == this, "the decoration is not registered to this window");
 			_decos.erase(dec._tok);
 			dec._wnd = nullptr;
-			invalidate_layout();
+			invalidate_visual();
 		}
 
 		/// Returns the \ref ui::element that's focused within this window. The focused element in a window is
@@ -155,10 +155,7 @@ namespace codepad::os {
 			close_request();
 		}
 		/// Called when the window's size has changed.
-		virtual void _on_size_changed(size_changed_info &p) {
-			invalidate_layout();
-			size_changed(p);
-		}
+		virtual void _on_size_changed(size_changed_info&);
 
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
@@ -207,11 +204,6 @@ namespace codepad::os {
 		}
 
 
-		/// Does nothing. The layout is automatically updated when the window is resized.
-		void _recalc_layout(rectd) override {
-		}
-
-
 		/// Called when an element is being removed from this window. Resets the focus if the
 		/// removed element has it.
 		virtual void _on_removing_window_element(ui::element *e) {
@@ -248,7 +240,7 @@ namespace codepad::os {
 		virtual void _on_decoration_destroyed(ui::decoration &d) {
 			assert_true_logical(d._wnd == this, "calling the wrong window");
 			_decos.erase(d._tok);
-			invalidate_layout();
+			invalidate_visual();
 		}
 
 

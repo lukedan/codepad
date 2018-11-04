@@ -19,7 +19,7 @@ namespace codepad::os {
 	class software_renderer_base : public renderer_base {
 	public:
 		/// Adds the default texture into the texture registry.
-		software_renderer_base() : renderer_base() {
+		software_renderer_base() {
 			_txs.emplace_back();
 		}
 

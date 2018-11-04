@@ -183,7 +183,7 @@
 					{
 						"type": "label",
 						"role": "label",
-						"set_states": "ghost",
+						"set_states": "hittest_invisible",
 						"metrics": {
 							"value": {
 								"margin": [0.0, 1.0, 0.0, 1.0],

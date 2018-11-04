@@ -98,7 +98,8 @@ namespace codepad {
 				auto nl = children.find(*i);
 				if (nl == children.end()) {
 					break; // need to create new nodes
-				} else if (nl->second.is_leaf()) {
+				}
+				if (nl->second.is_leaf()) {
 					return false; // conflict - a prefix of sks
 				}
 				c = &nl->second;

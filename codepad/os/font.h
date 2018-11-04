@@ -254,7 +254,7 @@ namespace codepad {
 			/// \todo Better integrate subpixel antialiasing.
 			os::char_texture _create_texture(const FT_Bitmap &src) const {
 				std::vector<unsigned char> v(4 * src.width * src.rows);
-				size_t
+				auto
 					stride = static_cast<size_t>(std::abs(src.pitch)),
 					width = static_cast<size_t>(src.width), height = static_cast<size_t>(src.rows);
 				switch (src.pixel_mode) {

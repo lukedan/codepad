@@ -185,25 +185,26 @@ namespace codepad {
 			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
 				if (c < 0x80) {
 					return {static_cast<std::byte>(c) & ~mask_1};
-				} else if (c < 0x800) {
+				}
+				if (c < 0x800) {
 					return {
 						(static_cast<std::byte>(c >> 6) & ~mask_2) | sig_2,
 						(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
 					};
-				} else if (c < 0x10000) {
+				}
+				if (c < 0x10000) {
 					return {
 						(static_cast<std::byte>(c >> 12) & ~mask_3) | sig_3,
 						(static_cast<std::byte>(c >> 6) & ~mask_cont) | sig_cont,
 						(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
 					};
-				} else {
-					return {
-						(static_cast<std::byte>(c >> 18) & ~mask_4) | sig_4,
-						(static_cast<std::byte>(c >> 12) & ~mask_cont) | sig_cont,
-						(static_cast<std::byte>(c >> 6) & ~mask_cont) | sig_cont,
-						(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
-					};
 				}
+				return {
+					(static_cast<std::byte>(c >> 18) & ~mask_4) | sig_4,
+					(static_cast<std::byte>(c >> 12) & ~mask_cont) | sig_cont,
+					(static_cast<std::byte>(c >> 6) & ~mask_cont) | sig_cont,
+					(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
+				};
 			}
 		protected:
 			/// Extracts an element (char, unsigned char, etc.) from the given iterator, and converts it into a
@@ -295,12 +296,11 @@ namespace codepad {
 			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
 				if (c < 0x10000) {
 					return _encode_word(static_cast<std::uint16_t>(c));
-				} else {
-					codepoint mined = c - 0x10000;
-					return
-						_encode_word(static_cast<std::uint16_t>((mined >> 10) | 0xD800)) +
-						_encode_word(static_cast<std::uint16_t>((mined & 0x03FF) | 0xDC00));
 				}
+				codepoint mined = c - 0x10000;
+				return
+					_encode_word(static_cast<std::uint16_t>((mined >> 10) | 0xD800)) +
+					_encode_word(static_cast<std::uint16_t>((mined & 0x03FF) | 0xDC00));
 			}
 		protected:
 			/// Extracts a two-byte word from the given range of bytes, with the specified endianness.
@@ -320,11 +320,11 @@ namespace codepad {
 				if constexpr (Endianness == endianness::little_endian) {
 					word = static_cast<std::uint16_t>(
 						static_cast<std::uint16_t>(b1) | (static_cast<std::uint16_t>(b2) << 8)
-					);
+						);
 				} else {
 					word = static_cast<std::uint16_t>(
 						static_cast<std::uint16_t>(b2) | (static_cast<std::uint16_t>(b1) << 8)
-					);
+						);
 				}
 				return true;
 			}

@@ -57,10 +57,14 @@ namespace codepad::ui {
 				/// element.
 				corpse,
 
-				/// Indicates that the element is not visible, but the user may still be able to interact with it.
-				invisible,
-				/// Indicates that user cannot interact with the element, whether it is visible or not.
-				ghost,
+				// visibility-related states
+				/// Indicates that the element is not rendered, but the user may still be able to interact with it.
+				render_invisible,
+				/// Indicates that the element is not visible when performing hit tests.
+				hittest_invisible,
+				/// Indicates that the element is not accounted for while calculating layout.
+				layout_invisible,
+
 				/// Indicates that the element is in a vertical position, or that its children are laid out
 				/// vertically.
 				vertical;
@@ -80,22 +84,16 @@ namespace codepad::ui {
 			dispose_marked_elements();
 		}
 
-		/// Invalidates the layout of an element. If layout is in progress, this element is appended to the queue
-		/// recording all elements whose layout are to be updated. Otherwise it's marked for layout calculation,
-		/// which will take place during the next frame.
+		/// Invalidates the layout of an element. Its parent will be notified to recalculate its layout.
 		void invalidate_layout(element&);
-		/// Marks the element for layout validation, meaning that its layout is valid but element::_finish_layout
-		/// has not been called. Like \ref invalidate_layout, different operation will be performed depending on
-		/// whether layout is in progress.
-		void revalidate_layout(element &e) {
-			if (_layouting) {
-				_q.emplace(&e, false);
-			} else {
-				if (_targets.find(&e) == _targets.end()) {
-					// otherwise invalidate_layout may have been called on the element
-					_targets.emplace(&e, false);
-				}
-			}
+		/// Invalidates the layout of all children of a \ref panel_base.
+		void invalidate_children_layout(panel_base&);
+		/// Marks the element for layout validation, meaning that its layout is valid but
+		/// \ref element::_on_layout_changed() has not been called. Like \ref invalidate_layout, different operation
+		/// will be performed depending on whether layout is in progress.
+		void notify_layout_change(element &e) {
+			assert_true_logical(!_layouting, "layout notifications are handled automatically");
+			_layout_notify.emplace(&e);
 		}
 		/// Calculates the layout of all elements with invalidated layout.
 		/// The calculation is recursive; that is, after a parent's layout has been changed,
@@ -129,7 +127,7 @@ namespace codepad::ui {
 		template <typename Elem> void register_element_type() {
 			register_element_type(Elem::get_default_class(), []() {
 				return new Elem();
-				});
+			});
 		}
 		/// Registers a new element type for creation.
 		void register_element_type(const str_t &type, element_constructor constructor) {
@@ -280,9 +278,10 @@ namespace codepad::ui {
 		/// Returns the global \ref manager object.
 		static manager &get();
 	protected:
-		std::map<element*, bool> _targets; ///< Stores the elements whose layout need updating.
-		/// Stores the elements whose layout need updating during the calculation of layout.
-		std::queue<std::pair<element*, bool>> _q;
+		/// Stores the elements whose \ref element::_on_layout_changed() need to be called.
+		std::queue<element*> _layout_notify;
+		/// Stores the panels whose children's layout need computing.
+		std::set<panel_base*> _children_layout_scheduled;
 		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
 		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
 		std::set<element*> _upd; ///< Stores all elements that are to be updated.

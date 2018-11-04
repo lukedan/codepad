@@ -17,7 +17,7 @@ namespace codepad {
 		//   directwrite (IDWriteTextLayout::GetPairKerning)
 		class freetype_font : public freetype_font_base {
 		public:
-			freetype_font(const str_t &str, double sz, font_style style) : freetype_font_base() {
+			freetype_font(const str_t &str, double sz, font_style style) {
 				constexpr size_t maximum_font_name_length = 100;
 				constexpr DWORD ttcf = 0x66637474;
 

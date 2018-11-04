@@ -26,8 +26,8 @@ namespace codepad::ui {
 
 		/// Loads all textures from the specified folder.
 		void load_all(const std::filesystem::path &folder) {
-			for (auto i = _tbl.begin(); i != _tbl.end(); ++i) {
-				*i->second = os::load_image(folder / i->first);
+			for (auto &pair : _tbl) {
+				*pair.second = os::load_image(folder / pair.first);
 			}
 		}
 	protected:
@@ -128,7 +128,8 @@ namespace codepad::ui {
 						obj[0].GetDouble(), obj[1].GetDouble(),
 						obj[2].GetDouble(), obj[3].GetDouble()
 					);
-				} else if (obj.Size() == 3) {
+				}
+				if (obj.Size() == 3) {
 					return colord(
 						obj[0].GetDouble(), obj[1].GetDouble(), obj[2].GetDouble(), 1.0
 					);
@@ -146,7 +147,8 @@ namespace codepad::ui {
 					obj[0].GetDouble(), obj[1].GetDouble(),
 					obj[2].GetDouble(), obj[3].GetDouble()
 				);
-			} else if (obj.IsNumber()) {
+			}
+			if (obj.IsNumber()) {
 				return thickness(obj.GetDouble());
 			}
 			logger::get().log_warning(CP_HERE, "invalid thickness representation");
@@ -198,7 +200,8 @@ namespace codepad::ui {
 				str_t s = json::get_as_string(obj);
 				if (s == CP_STRLIT("grid")) {
 					return visual_layer::type::grid;
-				} else if (s == CP_STRLIT("solid")) {
+				}
+				if (s == CP_STRLIT("solid")) {
 					return visual_layer::type::solid;
 				}
 			}
@@ -783,9 +786,9 @@ namespace codepad::ui {
 
 	/// Configuration of an element's state, layout, and visuals.
 	struct element_configuration {
-		visual_configuration visual_config; ///< Visual configuration.
-		metrics_configuration metrics_config; ///< Layout configuration.
-		const class_hotkey_group *hotkey_config = nullptr; ///< Hotkey configuration.
+		visual_configuration visual_config; ///< Visual configurations.
+		metrics_configuration metrics_config; ///< Layout configurations.
+		const class_hotkey_group *hotkey_config = nullptr; ///< Hotkey configurations.
 
 		/// Changes the state of the both configurations.
 		void on_state_changed(element_state_id st) {

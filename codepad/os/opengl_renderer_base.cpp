@@ -21,7 +21,7 @@ namespace codepad::os {
 	};
 
 	void opengl_renderer_base::begin(const window_base &wnd) {
-		vec2i sz = wnd.get_actual_size().convert<int>();
+		vec2i sz = wnd.get_layout().size().convert<int>();
 		_begin_render_target(_render_target_stackframe(
 			true, static_cast<size_t>(sz.x), static_cast<size_t>(sz.y),
 			_get_begin_window_func(wnd), _get_end_window_func(wnd)

@@ -12,40 +12,40 @@ using namespace std;
 using namespace codepad::os;
 
 namespace codepad::ui {
-	rectd visual_layer::get_center_rect(const state &s, rectd client) const {
-		element::layout_on_direction(
+	rectd visual_layer::get_center_rect(const state &s, rectd rgn) const {
+		panel_base::layout_on_direction(
 			test_bits_all(rect_anchor, anchor::left),
 			width_alloc == size_allocation_type::fixed,
 			test_bits_all(rect_anchor, anchor::right),
-			client.xmin, client.xmax,
-			s.current_margin.current_value.left,
-			width_alloc == size_allocation_type::automatic ? 1.0 : s.current_size.current_value.x,
-			s.current_margin.current_value.right
+			rgn.xmin, rgn.xmax,
+			s.margin.current_value.left,
+			width_alloc == size_allocation_type::automatic ? 1.0 : s.size.current_value.x,
+			s.margin.current_value.right
 		);
-		element::layout_on_direction(
+		panel_base::layout_on_direction(
 			test_bits_all(rect_anchor, anchor::top),
 			height_alloc == size_allocation_type::fixed,
 			test_bits_all(rect_anchor, anchor::bottom),
-			client.ymin, client.ymax,
-			s.current_margin.current_value.top,
-			height_alloc == size_allocation_type::automatic ? 1.0 : s.current_size.current_value.y,
-			s.current_margin.current_value.bottom
+			rgn.ymin, rgn.ymax,
+			s.margin.current_value.top,
+			height_alloc == size_allocation_type::automatic ? 1.0 : s.size.current_value.y,
+			s.margin.current_value.bottom
 		);
-		return client;
+		return rgn;
 	}
 
-	void visual_layer::render(rectd layout, const state &s) const {
+	void visual_layer::render(rectd rgn, const state &s) const {
 		texture empty;
 		reference_wrapper<texture> tex(empty); // using a pointer just doesn't seem right here
-		if (s.current_texture.current_frame != texture_animation.frames.end()) {
-			tex = *s.current_texture.current_frame->first;
+		if (s.texture.current_frame != texture_animation.frames.end()) {
+			tex = *s.texture.current_frame->first;
 		}
 		switch (layer_type) {
 		case type::solid:
 			{
-				rectd cln = get_center_rect(s, layout);
+				rectd cln = get_center_rect(s, rgn);
 				renderer_base::get().draw_quad(
-					tex.get(), cln, rectd(0.0, 1.0, 0.0, 1.0), s.current_color.current_value
+					tex.get(), cln, rectd(0.0, 1.0, 0.0, 1.0), s.color.current_value
 				);
 			}
 			break;
@@ -53,14 +53,14 @@ namespace codepad::ui {
 			{
 				size_t w = tex.get().get_width(), h = tex.get().get_height();
 				rectd
-					outer = layout, inner = get_center_rect(s, outer),
+					outer = rgn, inner = get_center_rect(s, outer),
 					texr(
-						s.current_margin.current_value.left / static_cast<double>(w),
-						1.0 - s.current_margin.current_value.right / static_cast<double>(w),
-						s.current_margin.current_value.top / static_cast<double>(h),
-						1.0 - s.current_margin.current_value.bottom / static_cast<double>(h)
+						s.margin.current_value.left / static_cast<double>(w),
+						1.0 - s.margin.current_value.right / static_cast<double>(w),
+						s.margin.current_value.top / static_cast<double>(h),
+						1.0 - s.margin.current_value.bottom / static_cast<double>(h)
 					);
-				colord curc = s.current_color.current_value;
+				colord curc = s.color.current_value;
 				render_batch rb;
 				rb.reserve(18);
 				rb.add_quad(

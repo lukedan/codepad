@@ -149,22 +149,12 @@ namespace codepad::editor::code {
 				metrics.next<token_measurement_flags::defer_text_gizmo_measurement>(tok.result);
 				if (holds_alternative<character_token>(tok.result)) {
 					auto &chartok = get<character_token>(tok.result);
-					if (chartok.valid) {
-						if (is_graphical_char(chartok.value) && metrics.get_character().char_left() < layoutw) {
-							fnt.get_by_style(chartok.style)->draw_character(
-								chartok.value,
-								vec2d(metrics.get_character().char_left(), metrics.get_y()),
-								chartok.color
-							);
-						}
-					} else {
-						// text gizmo
-						str_t str = format_invalid_codepoint(chartok.value);
-						vec2d sz = text_renderer::render_plain_text(
-							str, fnt.normal, vec2d(metrics.get_character().char_right(), metrics.get_y()),
-							get_invalid_codepoint_color()
+					if (is_graphical_char(chartok.value) && metrics.get_character().char_left() < layoutw) {
+						fnt.get_by_style(chartok.style)->draw_character(
+							chartok.value,
+							vec2d(metrics.get_character().char_left(), metrics.get_y() + bi.get(chartok.style)),
+							chartok.color
 						);
-						metrics.get_modify_character().next_gizmo(sz.x);
 					}
 				} else if (holds_alternative<text_gizmo_token>(tok.result)) {
 					// text gizmo

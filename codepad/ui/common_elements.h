@@ -176,12 +176,7 @@ namespace codepad::ui {
 			_can_focus = false;
 
 			_content.text_size_changed += [this]() {
-				if (
-					get_width_allocation() == size_allocation_type::automatic ||
-					get_height_allocation() == size_allocation_type::automatic
-					) {
-					invalidate_layout();
-				}
+				_on_desired_size_changed(true, true);
 			};
 		}
 
@@ -367,7 +362,7 @@ namespace codepad::ui {
 		void set_value(double v) {
 			double ov = _curv;
 			_curv = std::clamp(v, 0.0, _totrng - _range);
-			revalidate_layout();
+			_invalidate_children_layout();
 			value_changed.invoke_noret(ov);
 		}
 		/// Returns the current value of the scroll bar.
@@ -406,11 +401,6 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Overrides the layout of the three buttons.
-		bool override_children_layout() const override {
-			return true;
-		}
-
 		/// Invoked when the value of the scrollbar is changed.
 		event<value_update_info<double>> value_changed;
 
@@ -442,32 +432,31 @@ namespace codepad::ui {
 			*_pgdn = nullptr; ///< The `page down' button.
 
 		/// Calculates the layout of the three buttons.
-		void _finish_layout() override {
+		void _on_update_children_layout() override {
 			rectd cln = get_client_region();
 			if (is_vertical()) {
 				double
 					tszratio = cln.height() / _totrng,
 					mid1 = cln.ymin + tszratio * _curv,
 					mid2 = mid1 + tszratio * _range;
-				_child_recalc_horizontal_layout_noreval(*_drag, cln.xmin, cln.xmax);
-				_child_recalc_horizontal_layout_noreval(*_pgup, cln.xmin, cln.xmax);
-				_child_recalc_horizontal_layout_noreval(*_pgdn, cln.xmin, cln.xmax);
-				_child_set_vertical_layout_noreval(*_drag, mid1, mid2);
-				_child_set_vertical_layout_noreval(*_pgup, cln.ymin, mid1);
-				_child_set_vertical_layout_noreval(*_pgdn, mid2, cln.ymax);
+				panel_base::layout_child_horizontal(*_drag, cln.xmin, cln.xmax);
+				panel_base::layout_child_horizontal(*_pgup, cln.xmin, cln.xmax);
+				panel_base::layout_child_horizontal(*_pgdn, cln.xmin, cln.xmax);
+				_child_set_vertical_layout(*_drag, mid1, mid2);
+				_child_set_vertical_layout(*_pgup, cln.ymin, mid1);
+				_child_set_vertical_layout(*_pgdn, mid2, cln.ymax);
 			} else {
 				double
 					tszratio = cln.width() / _totrng,
 					mid1 = cln.xmin + tszratio * _curv,
 					mid2 = mid1 + tszratio * _range;
-				_child_recalc_vertical_layout_noreval(*_drag, cln.ymin, cln.ymax);
-				_child_recalc_vertical_layout_noreval(*_pgup, cln.ymin, cln.ymax);
-				_child_recalc_vertical_layout_noreval(*_pgdn, cln.ymin, cln.ymax);
-				_child_set_horizontal_layout_noreval(*_drag, mid1, mid2);
-				_child_set_horizontal_layout_noreval(*_pgup, cln.xmin, mid1);
-				_child_set_horizontal_layout_noreval(*_pgdn, mid2, cln.xmax);
+				panel_base::layout_child_vertical(*_drag, cln.ymin, cln.ymax);
+				panel_base::layout_child_vertical(*_pgup, cln.ymin, cln.ymax);
+				panel_base::layout_child_vertical(*_pgdn, cln.ymin, cln.ymax);
+				_child_set_horizontal_layout(*_drag, mid1, mid2);
+				_child_set_horizontal_layout(*_pgup, cln.xmin, mid1);
+				_child_set_horizontal_layout(*_pgdn, mid2, cln.xmax);
 			}
-			element::_finish_layout();
 		}
 
 		/// Initializes the three buttons and adds them as children.
@@ -499,7 +488,8 @@ namespace codepad::ui {
 		void _on_state_changed(value_update_info<element_state_id> &p) override {
 			panel_base::_on_state_changed(p);
 			if (_has_any_state_bit_changed(manager::get().get_predefined_states().vertical, p)) {
-				invalidate_layout();
+				_on_desired_size_changed(true, true);
+				_invalidate_children_layout();
 			}
 		}
 	};

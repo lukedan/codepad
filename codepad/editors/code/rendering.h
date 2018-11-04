@@ -17,13 +17,12 @@ namespace codepad::editor::code {
 		/// Default constructor.
 		character_token() = default;
 		/// Initializes all fields of this struct.
-		character_token(codepoint cp, font_style s, colord c, bool v) : value(cp), style(s), color(c), valid(v) {
+		character_token(codepoint cp, font_style s, colord c) : value(cp), style(s), color(c) {
 		}
 
 		codepoint value = 0; ///< The character.
 		font_style style = font_style::normal; ///< The style of the character.
 		colord color; ///< Color of the character.
-		bool valid = false; ///< Whether the character is a valid codepoint.
 	};
 	/// Indicates that the next token to be rendered is a linebreak.
 	struct linebreak_token {
@@ -47,8 +46,8 @@ namespace codepad::editor::code {
 		text_gizmo_token(str_t str, colord c) : contents(std::move(str)), color(c) {
 		}
 		/// Constructs a text gizmo with the given contents, color, and font.
-		text_gizmo_token(str_t str, colord c, const std::shared_ptr<const os::font> &fnt) :
-			contents(std::move(str)), color(c), font(fnt) {
+		text_gizmo_token(str_t str, colord c, std::shared_ptr<const os::font> fnt) :
+			contents(std::move(str)), color(c), font(std::move(fnt)) {
 		}
 
 		str_t contents; ///< The contents of this token.
@@ -93,13 +92,17 @@ namespace codepad::editor::code {
 		token_generation_result generate() {
 			if (_char_it.is_linebreak()) {
 				return token_generation_result(linebreak_token(_char_it.get_linebreak()), 1);
-			} else {
-				const auto &cpit = _char_it.codepoint();
+			}
+			const auto &cpit = _char_it.codepoint();
+			if (cpit.is_codepoint_valid()) {
 				return token_generation_result(character_token(
-					cpit.get_codepoint(), _theme_it.current_theme.style,
-					_theme_it.current_theme.color, cpit.is_codepoint_valid()
+					cpit.get_codepoint(), _theme_it.current_theme.style, _theme_it.current_theme.color
 				), 1);
 			}
+			return token_generation_result(text_gizmo_token(
+				editor::format_invalid_codepoint(cpit.get_codepoint()),
+				editor::get_invalid_codepoint_color()
+			), 1);
 		}
 		/// Adjusts the position of \ref _char_it and \ref _theme_it.
 		void update(size_t steps) {
@@ -315,14 +318,7 @@ namespace codepad::editor::code {
 		) {
 			if (std::holds_alternative<character_token>(tok)) {
 				auto &chartok = std::get<character_token>(tok);
-				if (chartok.valid) {
-					metrics.next_char(chartok.value, chartok.style);
-				} else {
-					if constexpr (!test_bits_any(Flags, token_measurement_flags::defer_text_gizmo_measurement)) {
-						str_t textgizmo = editor::format_invalid_codepoint(chartok.value);
-						metrics.next_gizmo(ui::text_renderer::measure_plain_text(textgizmo, editor::get_font().normal).x);
-					}
-				}
+				metrics.next_char(chartok.value, chartok.style);
 			} else if (std::holds_alternative<image_gizmo_token>(tok)) { // TODO
 
 			} else if (std::holds_alternative<text_gizmo_token>(tok)) {
