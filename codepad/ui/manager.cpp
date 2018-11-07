@@ -3,6 +3,8 @@
 /// \file
 /// Implementation of certain methods of codepad::ui::manager.
 
+#include <deque>
+
 #include "../os/window.h"
 #include "element.h"
 #include "panel.h"
@@ -65,6 +67,32 @@ namespace codepad::ui {
 		auto nnow = high_resolution_clock::now();
 		_upd_dt = duration<double>(nnow - _lastupdate).count();
 		_lastupdate = nnow;
+
+		// from schedule_visual_config_update()
+		if (!_visualcfg_update.empty()) {
+			set<element*> oldset;
+			swap(oldset, _visualcfg_update);
+			for (element *e : oldset) {
+				e->invalidate_visual();
+				if (!e->_on_update_visual_configurations(_upd_dt)) {
+					schedule_visual_config_update(*e);
+				}
+			}
+		}
+
+		// from schedule_metrics_config_update()
+		if (!_metricscfg_update.empty()) {
+			set<element*> oldset;
+			swap(oldset, _metricscfg_update);
+			for (element *e : oldset) {
+				e->invalidate_layout();
+				if (!e->_config.metrics_config.update(_upd_dt)) {
+					schedule_metrics_config_update(*e);
+				}
+			}
+		}
+
+		// from schedule_update()
 		if (!_upd.empty()) {
 			set<element*> list; // the new list
 			swap(list, _upd);
@@ -81,21 +109,24 @@ namespace codepad::ui {
 			swap(batch, _del);
 			// dispose the current batch
 			// new batches may be produced during this process
-			for (auto *i : batch) {
-				i->_dispose();
+			for (element *elem : batch) {
+				elem->_dispose();
 #ifdef CP_CHECK_USAGE_ERRORS
-				assert_true_usage(!i->_initialized, "element::_dispose() must be invoked by children classses");
+				assert_true_usage(!elem->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
 				// also remove the current entry from all lists
-				auto *pnl = dynamic_cast<panel_base*>(i);
+				auto *pnl = dynamic_cast<panel_base*>(elem);
 				if (pnl) {
 					_children_layout_scheduled.erase(pnl);
 				}
-				_dirty.erase(i);
-				_upd.erase(i);
-				_del.erase(i);
+				_layout_notify.erase(elem);
+				_visualcfg_update.erase(elem);
+				_metricscfg_update.erase(elem);
+				_dirty.erase(elem);
+				_del.erase(elem);
+				_upd.erase(elem);
 				// delete it
-				delete i;
+				delete elem;
 			}
 		}
 	}
@@ -118,23 +149,25 @@ namespace codepad::ui {
 		performance_monitor mon(CP_HERE, relayout_time_redline);
 		assert_true_logical(!_layouting, "update_invalid_layout() cannot be called recursively");
 		_layouting = true;
+		deque<element*> notify(_layout_notify.begin(), _layout_notify.end()); // list of elements to be notified
+		_layout_notify.clear();
 		// gather the list of elements with invalidated layout
 		set<panel_base*> childrenupdate;
 		swap(childrenupdate, _children_layout_scheduled);
 		for (panel_base *pnl : childrenupdate) {
 			pnl->_on_update_children_layout();
 			for (element *elem : pnl->_children.items()) {
-				_layout_notify.emplace(elem);
+				notify.emplace_back(elem);
 			}
 		}
-		while (!_layout_notify.empty()) {
-			element *li = _layout_notify.front();
-			_layout_notify.pop();
+		while (!notify.empty()) {
+			element *li = notify.front();
+			notify.pop_front();
 			li->_on_layout_changed();
 			auto *pnl = dynamic_cast<panel_base*>(li);
 			if (pnl != nullptr) {
 				for (element *elem : pnl->_children.items()) {
-					_layout_notify.emplace(elem);
+					notify.emplace_back(elem);
 				}
 			}
 		}

@@ -148,14 +148,35 @@
 					{
 						"type": "stack_panel",
 						"role": "tab_buttons_region",
-						"metrics": {
-							"value": {
-								"size": [1.0, 0.0],
-								"width_alloc": "*",
-								"margin": 0.0,
-								"anchor": "lr"
+						"metrics": [
+							{
+								"states_mask": "mouse_over",
+								"value": {
+									"size": {
+										"from": [1.0, 30.0],
+										"has_from": false,
+										"to": [1.0, 30.0],
+										"duration": 0.1,
+										"transition_func": "convex_quadratic"
+									},
+									"width_alloc": "*",
+									"height_alloc": "px",
+									"margin": 0.0,
+									"anchor": "lr"
+								}
+							}, {
+								"states": "mouse_over",
+								"states_mask": "mouse_over",
+								"inherit_from": {
+									"states_mask": "mouse_over"
+								},
+								"value": {
+									"size": {
+										"to": [1.0, 40.0]
+									}
+								}
 							}
-						}
+						]
 					}, {
 						"type": "panel",
 						"role": "tab_contents_region",
@@ -168,6 +189,8 @@
 	"tab_button": {
 		"metrics": {
 			"value": {
+				"size": [0.0, 1.0],
+				"height_alloc": "*"
 			}
 		},
 		"children": [
@@ -176,6 +199,8 @@
 				"class": "tab_button_background",
 				"metrics": {
 					"value": {
+						"size": [0.0, 1.0],
+						"height_alloc": "*",
 						"padding": 5.0
 					}
 				},

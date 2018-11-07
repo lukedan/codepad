@@ -10,9 +10,11 @@ using namespace std;
 #	define _CRTDBG_MAP_ALLOC
 #	include <crtdbg.h>
 namespace codepad::os {
-	/// Enables the detection of memory leaks under Windows when compiled with MSVC.
-	void _enable_mem_leak_detection() {
-		_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	namespace _details {
+		/// Enables the detection of memory leaks under Windows when compiled with MSVC.
+		void _enable_mem_leak_detection() {
+			_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+		}
 	}
 }
 #endif
@@ -20,15 +22,16 @@ namespace codepad::os {
 namespace codepad::os {
 	void initialize(int, char**) {
 #if defined(CP_CHECK_USAGE_ERRORS) && defined(CP_CAN_DETECT_MEMORY_LEAKS)
-		_enable_mem_leak_detection();
+		_details::_enable_mem_leak_detection();
 #endif
 
-		// enable console output coloring
+#ifdef ENABLE_VIRTUAL_TERMINAL_PROCESSING // enable console output coloring
 		HANDLE hstderr = GetStdHandle(STD_ERROR_HANDLE);
 		winapi_check(hstderr != INVALID_HANDLE_VALUE);
 		DWORD mode;
 		winapi_check(GetConsoleMode(hstderr, &mode));
 		winapi_check(SetConsoleMode(hstderr, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING));
+#endif
 	}
 
 	namespace input {
@@ -605,5 +608,5 @@ namespace codepad {
 		assert_true_sys(SymCleanup(GetCurrentProcess()), "failed to clean up symbols");
 		log_custom("STACKTRACE|END");
 	}
-#endif
 }
+#endif

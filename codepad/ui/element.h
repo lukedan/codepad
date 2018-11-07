@@ -427,7 +427,16 @@ namespace codepad::ui {
 		/// Called when the \ref manager updates all elements that have been registered. Updates can be scheduled for
 		/// various reasons, so derived classes should check for additional conditions when performing updates.
 		/// \ref _config is updated here by default, and \ref invalidate_visual is called when necessary.
-		virtual void _on_update();
+		virtual void _on_update() {
+		}
+
+		/// Called to update \ref visual_configuration associated with this element. Layout configuration of elements
+		/// are instead managed by \ref manager since extra ones are rarely useful.
+		///
+		/// \param time The time since last frame.
+		/// \return Indicates whether all associated configurations have become stationary. If \p false, this
+		///         function together with \ref invalidate_visual() will be called next frame.
+		virtual bool _on_update_visual_configurations(double time);
 
 		/// Checks if any bit in \p bits have changed, given the element's old states.
 		bool _has_any_state_bit_changed(element_state_id bits, const value_update_info<element_state_id> &p) const {
@@ -523,10 +532,7 @@ namespace codepad::ui {
 		~decoration();
 
 		/// Sets the layout of the decoration in the window.
-		void set_layout(rectd r) {
-			_layout = r;
-			_on_visual_changed();
-		}
+		void set_layout(rectd);
 		/// Returns the layout of the decoration.
 		rectd get_layout() const {
 			return _layout;
@@ -543,7 +549,7 @@ namespace codepad::ui {
 		void set_state(element_state_id id) {
 			if (_state != id) {
 				_vis_config.on_state_changed(id);
-				_on_visual_changed();
+				_on_state_invalidated();
 			}
 		}
 		/// Returns the state used to render the decoration.
@@ -564,8 +570,7 @@ namespace codepad::ui {
 		os::window_base *_wnd = nullptr; ///< The window that the decoration is currently registered to.
 		element_state_id _state; ///< The decoration's state.
 
-		/// Called when the visual of the decoration should be updated. Calls
-		/// \ref os::window_base::invalidate_visual().
-		void _on_visual_changed();
+		/// Called when the \ref _vis_config should be updated. Calls \ref manager::schedule_visual_config_update().
+		void _on_state_invalidated();
 	};
 }

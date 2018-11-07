@@ -300,15 +300,10 @@ namespace codepad::editor::code {
 			}
 		};
 
-		/// Calls \ref invalidate_visual() if necessary, and then updates \ref _viewport_cfg.
-		void _on_update() override {
-			element::_on_update();
-			if (!_viewport_cfg.get_state().all_stationary) {
-				invalidate_visual();
-				if (!_viewport_cfg.update(ui::manager::get().update_delta_time())) {
-					ui::manager::get().schedule_update(*this);
-				}
-			}
+		/// Updates \ref _viewport_cfg.
+		bool _on_update_visual_configurations(double time) override {
+			_viewport_cfg.update(time);
+			return element::_on_update_visual_configurations(time) && _viewport_cfg.get_state().all_stationary;
 		}
 
 		/// Checks and validates \ref _pgcache by calling \ref _page_cache::make_valid.
@@ -389,10 +384,10 @@ namespace codepad::editor::code {
 			};
 		}
 
-		/// Changes the visual state of the visible region indicator.
+		/// Changes the state of the visible region indicator.
 		void _on_state_changed(value_update_info<ui::element_state_id> &info) override {
-			element::_on_state_changed(info);
 			_viewport_cfg.on_state_changed(get_state());
+			element::_on_state_changed(info);
 		}
 
 		/// Registers event handlers to update the minimap and viewport indicator automatically.
@@ -480,6 +475,7 @@ namespace codepad::editor::code {
 		/// Sets the class of \ref _viewport_cfg.
 		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
 			element::_initialize(cls, metrics);
+			_can_focus = false;
 			_viewport_cfg = ui::visual_configuration(
 				ui::manager::get().get_class_visuals().get_visual_or_default(get_viewport_class())
 			);

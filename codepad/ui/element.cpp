@@ -67,18 +67,8 @@ namespace codepad::ui {
 		mouse_up.invoke(p);
 	}
 
-	void element::_on_update() {
-		if (!_config.all_stationary()) {
-			if (!_config.visual_config.get_state().all_stationary) {
-				invalidate_visual();
-			}
-			if (!_config.metrics_config.get_state().all_stationary) {
-				invalidate_layout();
-			}
-			if (!_config.update(manager::get().update_delta_time())) {
-				manager::get().schedule_update(*this);
-			}
-		}
+	bool element::_on_update_visual_configurations(double dt) {
+		return _config.visual_config.update(dt);
 	}
 
 	void element::_on_render() {
@@ -91,7 +81,8 @@ namespace codepad::ui {
 	}
 
 	void element::_on_state_changed(value_update_info<element_state_id>&) {
-		manager::get().schedule_update(*this);
+		manager::get().schedule_visual_config_update(*this);
+		manager::get().schedule_metrics_config_update(*this);
 	}
 
 	void element::_initialize(const str_t &cls, const element_metrics &metrics) {
@@ -171,9 +162,16 @@ namespace codepad::ui {
 	}
 
 
-	void decoration::_on_visual_changed() {
+	void decoration::set_layout(rectd r) {
+		_layout = r;
 		if (_wnd) {
 			_wnd->invalidate_visual();
+		}
+	}
+
+	void decoration::_on_state_invalidated() {
+		if (_wnd) {
+			manager::get().schedule_visual_config_update(*_wnd);
 		}
 	}
 
@@ -186,6 +184,6 @@ namespace codepad::ui {
 	void decoration::set_class(const str_t &cls) {
 		_class = cls;
 		_vis_config = visual_configuration(manager::get().get_class_visuals().get_visual_or_default(_class), _state);
-		_on_visual_changed();
+		_on_state_invalidated();
 	}
 }

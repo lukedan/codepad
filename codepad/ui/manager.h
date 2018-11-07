@@ -5,7 +5,6 @@
 
 #include <map>
 #include <set>
-#include <queue>
 #include <chrono>
 #include <functional>
 
@@ -111,11 +110,24 @@ namespace codepad::ui {
 		/// Immediately re-render the window containing the given element.
 		void update_visual_immediate(element&);
 
+		/// Schedules the given element's visual configurations to be updated.
+		void schedule_visual_config_update(element &elem) {
+			_visualcfg_update.emplace(&elem);
+		}
+		/// Schedules the given element's \ref metrics_configuration to be updated.
+		void schedule_metrics_config_update(element &elem) {
+			if (!elem._config.metrics_config.get_state().all_stationary) {
+				_metricscfg_update.emplace(&elem);
+			}
+		}
 		/// Schedules the given element to be updated next frame.
+		///
+		/// \todo Remove this.
 		void schedule_update(element &e) {
 			_upd.insert(&e);
 		}
-		/// Calls element::_on_update on all elements that have been scheduled to be updated.
+		/// Updates all elements that are scheduled to be updated by \ref schedule_visual_config_update(),
+		/// \ref schedule_metrics_config_update(), and \ref schedule_update().
 		void update_scheduled_elements();
 		/// Returns the amount of time that has passed since the last
 		/// time \ref update_scheduled_elements has been called, in seconds.
@@ -257,7 +269,8 @@ namespace codepad::ui {
 		const class_visuals_registry &get_class_visuals() const {
 			return _cvis;
 		}
-		/// Returns the registry of \ref class_arrangements "class_arrangementss" corresponding to all element classes.
+		/// Returns the registry of \ref class_arrangements "class_arrangementss" corresponding to all element
+		/// classes.
 		class_arrangements_registry &get_class_arrangements() {
 			return _carngs;
 		}
@@ -265,7 +278,8 @@ namespace codepad::ui {
 		const class_arrangements_registry &get_class_arrangements() const {
 			return _carngs;
 		}
-		/// Returns the registry of \ref class_hotkey_group "element_hotkey_groups" corresponding to all element classes.
+		/// Returns the registry of \ref class_hotkey_group "element_hotkey_groups" corresponding to all element
+		/// classes.
 		class_hotkeys_registry &get_class_hotkeys() {
 			return _chks;
 		}
@@ -279,9 +293,15 @@ namespace codepad::ui {
 		static manager &get();
 	protected:
 		/// Stores the elements whose \ref element::_on_layout_changed() need to be called.
-		std::queue<element*> _layout_notify;
+		std::set<element*> _layout_notify;
 		/// Stores the panels whose children's layout need computing.
 		std::set<panel_base*> _children_layout_scheduled;
+
+		/// Stores the set of elements whose \ref element::_on_update_visual_configurations() are to be called.
+		std::set<element*> _visualcfg_update;
+		/// Stores the set of elements whose \ref metrics_configuration need updating.
+		std::set<element*> _metricscfg_update;
+
 		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
 		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
 		std::set<element*> _upd; ///< Stores all elements that are to be updated.

@@ -719,8 +719,7 @@ namespace codepad::editor::code {
 			_caret_cfg = ui::visual_configuration(ui::manager::get().get_class_visuals().get_visual_or_default(
 				_insert ? get_insert_caret_class() : get_overwrite_caret_class()
 			), _editrgn_state);
-			ui::manager::get().schedule_update(*this);
-			invalidate_visual();
+			ui::manager::get().schedule_visual_config_update(*this);
 		}
 		/// Shorthand for \ref hit_test_for_caret when the coordinates are relative to the client region.
 		///
@@ -832,7 +831,7 @@ namespace codepad::editor::code {
 				_editrgn_state = st;
 				_caret_cfg.on_state_changed(_editrgn_state);
 				_sel_cfg.on_state_changed(_editrgn_state);
-				ui::manager::get().schedule_update(*this);
+				ui::manager::get().schedule_visual_config_update(*this);
 			}
 		}
 		/// Called by the parent \ref codebox when it gets focus. Adjusts the states of caret animations.
@@ -1085,15 +1084,14 @@ namespace codepad::editor::code {
 					os::input::get_mouse_position()).convert<double>()
 				);
 			}
-			if (!(_caret_cfg.get_state().all_stationary && _sel_cfg.get_state().all_stationary)) {
-				invalidate_visual();
-				bool
-					b1 = _caret_cfg.update(ui::manager::get().update_delta_time()),
-					b2 = _sel_cfg.update(ui::manager::get().update_delta_time());
-				if (!(b1 && b2)) {
-					ui::manager::get().schedule_update(*this);
-				}
-			}
+		}
+
+		bool _on_update_visual_configurations(double time) override {
+			_caret_cfg.update(time);
+			_sel_cfg.update(time);
+			return
+				element::_on_update_visual_configurations(time) &&
+				_caret_cfg.get_state().all_stationary && _sel_cfg.get_state().all_stationary;
 		}
 
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.

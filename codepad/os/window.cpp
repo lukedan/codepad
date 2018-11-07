@@ -27,6 +27,14 @@ namespace codepad::os {
 		}
 	}
 
+	void window_base::register_decoration(decoration &dec) {
+		assert_true_usage(dec._wnd == nullptr, "the decoration has already been registered to another window");
+		dec._wnd = this;
+		_decos.push_back(&dec);
+		dec._tok = --_decos.end();
+		manager::get().schedule_visual_config_update(*this);
+	}
+
 	void window_base::_on_got_window_focus() {
 		manager::get()._on_window_got_focus(*this);
 		_focus->_on_got_focus();
@@ -55,35 +63,26 @@ namespace codepad::os {
 	}
 
 	void window_base::_on_size_changed(size_changed_info &p) {
-		ui::manager::get().notify_layout_change(*this);
+		manager::get().notify_layout_change(*this);
 		size_changed(p);
 	}
 
-	void window_base::_on_update() {
-		panel::_on_update();
-		bool needupdate = false, newvisual = false;
+	bool window_base::_on_update_visual_configurations(double time) {
+		bool stationary = true;
 		for (auto i = _decos.begin(); i != _decos.end(); ) {
-			if (!(*i)->_vis_config.get_state().all_stationary) {
-				newvisual = true;
-				if ((*i)->_vis_config.update(manager::get().update_delta_time())) {
-					if (test_bits_all((*i)->get_state(), manager::get().get_predefined_states().corpse)) {
-						auto j = i;
-						++i;
-						delete *j;
-						continue;
-					}
-				} else {
-					needupdate = true;
+			if ((*i)->_vis_config.update(manager::get().update_delta_time())) {
+				if (test_bits_all((*i)->get_state(), manager::get().get_predefined_states().corpse)) {
+					auto j = i;
+					++i;
+					delete *j; // the decoration will remove itself from _decos in its destructor
+					continue;
 				}
+			} else {
+				stationary = false;
 			}
 			++i;
 		}
-		if (newvisual) { // otherwise nothing's been updated
-			invalidate_visual();
-			if (needupdate) {
-				ui::manager::get().schedule_update(*this);
-			}
-		}
+		return panel::_on_update_visual_configurations(time) && stationary;
 	}
 
 	void window_base::_custom_render() {

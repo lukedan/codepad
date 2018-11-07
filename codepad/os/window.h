@@ -99,13 +99,7 @@ namespace codepad::os {
 
 		/// Registers a ui::decoration to this window. When the window is disposed, all decorations registered to
 		/// it will also automatically be disposed.
-		void register_decoration(ui::decoration &dec) {
-			assert_true_usage(dec._wnd == nullptr, "the decoration has already been registered to another window");
-			dec._wnd = this;
-			_decos.push_back(&dec);
-			dec._tok = --_decos.end();
-			invalidate_visual();
-		}
+		void register_decoration(ui::decoration&);
 		/// Unregisters a ui::decoration from this window.
 		void unregister_decoration(ui::decoration &dec) {
 			assert_true_usage(dec._wnd == this, "the decoration is not registered to this window");
@@ -230,7 +224,7 @@ namespace codepad::os {
 		}
 
 		/// Updates the \ref ui::visual_configuration of all \ref ui::decoration "decorations".
-		void _on_update() override;
+		bool _on_update_visual_configurations(double time) override;
 
 		/// Renders all the window's children, then renders all decorations on top of the rendered result. Also
 		/// removes all corpse decorations whose animations have finished.

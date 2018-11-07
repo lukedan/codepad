@@ -3,11 +3,15 @@
 /// \file
 /// Classes that parse and handle different element classes.
 
+#include <map>
+
 #include "../core/hotkey_registry.h"
 #include "visual.h"
 #include "arrangements.h"
 
 namespace codepad::ui {
+	class element;
+
 	/// A table of textures that is to be loaded later.
 	///
 	/// \remark Using absolute paths with this class should be avoided. The table may cause actually

@@ -31,9 +31,8 @@ namespace codepad::ui {
 				roles.erase(it);
 			}
 		}
-		if (!e->_config.all_stationary()) {
-			manager::get().schedule_update(*e);
-		}
+		manager::get().schedule_visual_config_update(*e);
+		manager::get().schedule_metrics_config_update(*e);
 	}
 
 
@@ -41,9 +40,8 @@ namespace codepad::ui {
 		for (const child &c : children) {
 			c.construct(logparent._children, &logparent, roles);
 		}
-		if (!logparent._config.all_stationary()) {
-			manager::get().schedule_update(logparent);
-		}
+		manager::get().schedule_visual_config_update(logparent);
+		manager::get().schedule_metrics_config_update(logparent);
 		if (!roles.empty()) {
 			logger::get().log_warning(CP_HERE, "there are unmatched roles");
 		}
