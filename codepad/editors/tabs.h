@@ -1,3 +1,6 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 #pragma once
 
 /// \file
@@ -6,7 +9,7 @@
 #include "../os/misc.h"
 #include "../os/renderer.h"
 #include "../os/window.h"
-#include "../os/current.h"
+#include "../os/current/all.h"
 #include "../ui/element.h"
 #include "../ui/element_classes.h"
 #include "../ui/panel.h"

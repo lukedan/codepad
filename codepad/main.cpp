@@ -1,10 +1,13 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 #include <thread>
 #include <fstream>
 
 #include "core/event.h"
 #include "core/tasks.h"
 #include "core/bst.h"
-#include "os/current.h"
+#include "os/current/all.h"
 #include "ui/font_family.h"
 #include "ui/draw.h"
 #include "ui/common_elements.h"

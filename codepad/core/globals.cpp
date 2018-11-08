@@ -1,3 +1,6 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 /// \file
 /// Definition of certain global objects and functions,
 /// and auxiliary structs to log their construction and destruction.
@@ -7,8 +10,8 @@
 
 #include "misc.h"
 #include "tasks.h"
+#include "../os/current/all.h"
 #include "../os/renderer.h"
-#include "../os/current.h"
 #include "../ui/commands.h"
 #include "../ui/common_elements.h"
 #include "../ui/manager.h"

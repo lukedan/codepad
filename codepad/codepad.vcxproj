@@ -345,7 +345,6 @@
     <ClInclude Include="ui\arrangements.h" />
     <ClInclude Include="ui\misc.h" />
     <ClInclude Include="ui\native_commands.h" />
-    <ClInclude Include="os\current.h" />
     <ClInclude Include="os\current\all.h" />
     <ClInclude Include="os\current\font.h" />
     <ClInclude Include="os\current\misc.h" />

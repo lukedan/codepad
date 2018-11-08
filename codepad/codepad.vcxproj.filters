@@ -27,9 +27,6 @@
     <ClInclude Include="ui\panel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="os\current.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="os\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
