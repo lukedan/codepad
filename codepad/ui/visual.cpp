@@ -17,18 +17,18 @@ using namespace codepad::os;
 namespace codepad::ui {
 	rectd visual_layer::get_center_rect(const state &s, rectd rgn) const {
 		panel_base::layout_on_direction(
-			test_bits_all(rect_anchor, anchor::left),
+			(rect_anchor & anchor::left) != anchor::none,
 			width_alloc == size_allocation_type::fixed,
-			test_bits_all(rect_anchor, anchor::right),
+			(rect_anchor & anchor::right) != anchor::none,
 			rgn.xmin, rgn.xmax,
 			s.margin.current_value.left,
 			width_alloc == size_allocation_type::automatic ? 1.0 : s.size.current_value.x,
 			s.margin.current_value.right
 		);
 		panel_base::layout_on_direction(
-			test_bits_all(rect_anchor, anchor::top),
+			(rect_anchor & anchor::top) != anchor::none,
 			height_alloc == size_allocation_type::fixed,
-			test_bits_all(rect_anchor, anchor::bottom),
+			(rect_anchor & anchor::bottom) != anchor::none,
 			rgn.ymin, rgn.ymax,
 			s.margin.current_value.top,
 			height_alloc == size_allocation_type::automatic ? 1.0 : s.size.current_value.y,

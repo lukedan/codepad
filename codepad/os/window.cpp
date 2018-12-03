@@ -74,7 +74,7 @@ namespace codepad::os {
 		bool stationary = true;
 		for (auto i = _decos.begin(); i != _decos.end(); ) {
 			if ((*i)->_vis_config.update(manager::get().update_delta_time())) {
-				if (test_bits_all((*i)->get_state(), manager::get().get_predefined_states().corpse)) {
+				if (((*i)->get_state() & manager::get().get_predefined_states().corpse) != 0) {
 					auto j = i;
 					++i;
 					delete *j; // the decoration will remove itself from _decos in its destructor

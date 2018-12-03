@@ -8,6 +8,8 @@
 
 #include <list>
 
+#include "../apigen_definitions.h"
+
 #include "../core/hotkey_registry.h"
 #include "../core/encodings.h"
 #include "../core/event.h"
@@ -107,7 +109,7 @@ namespace codepad::ui {
 	}
 
 	/// The base class of elements of the user interface.
-	class element {
+	class APIGEN_EXPORT_RECURSIVE APIGEN_EXPORT_BASE element {
 		friend class manager;
 		friend class element_collection;
 		friend class panel_base;
@@ -269,7 +271,7 @@ namespace codepad::ui {
 		}
 		/// Sets certain bits of the visual style to the given value by calling \ref set_state.
 		void set_state_bits(element_state_id bits, bool v) {
-			set_state(v ? with_bits_set(_state, bits) : with_bits_unset(_state, bits));
+			set_state(v ? _state | bits : _state & ~bits);
 		}
 
 		/// Invalidates the visual of the element so that it'll be re-rendered next frame.
@@ -443,7 +445,7 @@ namespace codepad::ui {
 
 		/// Checks if any bit in \p bits have changed, given the element's old states.
 		bool _has_any_state_bit_changed(element_state_id bits, const value_update_info<element_state_id> &p) const {
-			return test_bits_any(_state ^ p.old_value, bits);
+			return ((_state ^ p.old_value) & bits) != 0;
 		}
 		/// Called when the state of \ref _state has changed. Schedules update for \ref _config.
 		virtual void _on_state_changed(value_update_info<element_state_id>&);
@@ -551,6 +553,7 @@ namespace codepad::ui {
 		/// Sets the state used to render the decoration.
 		void set_state(element_state_id id) {
 			if (_state != id) {
+				_state = id;
 				_vis_config.on_state_changed(id);
 				_on_state_invalidated();
 			}

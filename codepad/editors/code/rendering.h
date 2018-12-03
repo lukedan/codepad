@@ -65,7 +65,7 @@ namespace codepad::editor::code {
 		/// Constructs this struct to indicate that no token is generated.
 		token_generation_result() = default;
 		/// Initializes all fields of this struct.
-		template <typename T> token_generation_result(T tok, size_t diff) : result(tok), steps(diff) {
+		template<typename T> token_generation_result(T tok, size_t diff) : result(tok), steps(diff) {
 		}
 
 		token result; ///< The generated token.
@@ -75,9 +75,9 @@ namespace codepad::editor::code {
 
 	/// Iterates through a range of text in a \ref interpretation and gathers tokens to be rendered. The template
 	/// parameters are extra components used in this process.
-	template <typename ...Args> struct rendering_token_iterator;
+	template<typename ...Args> struct rendering_token_iterator;
 	/// The most basic specialization of \ref rendering_token_iterator.
-	template <> struct rendering_token_iterator<> {
+	template<> struct rendering_token_iterator<> {
 	public:
 		/// Constructs this \ref rendering_token_iterator with the given \ref interpretation and starting position.
 		rendering_token_iterator(const interpretation &interp, size_t begpos) : _pos(begpos), _interp(interp) {
@@ -85,7 +85,7 @@ namespace codepad::editor::code {
 			_theme_it = _interp.get_text_theme().get_iter_at(_pos);
 		}
 		/// Forwards the arguments in the tuple to other constructors.
-		template <typename ...Args> rendering_token_iterator(std::tuple<Args...> args) :
+		template<typename ...Args> rendering_token_iterator(std::tuple<Args...> args) :
 			rendering_token_iterator(std::make_index_sequence<sizeof...(Args)>(), args) {
 		}
 		/// Virtual destructor.
@@ -98,14 +98,18 @@ namespace codepad::editor::code {
 			}
 			const auto &cpit = _char_it.codepoint();
 			if (cpit.is_codepoint_valid()) {
-				return token_generation_result(character_token(
-					cpit.get_codepoint(), _theme_it.current_theme.style, _theme_it.current_theme.color
-				), 1);
+				return token_generation_result(
+					character_token(
+						cpit.get_codepoint(), _theme_it.current_theme.style, _theme_it.current_theme.color
+					), 1
+				);
 			}
-			return token_generation_result(text_gizmo_token(
-				editor::format_invalid_codepoint(cpit.get_codepoint()),
-				editor::get_invalid_codepoint_color()
-			), 1);
+			return token_generation_result(
+				text_gizmo_token(
+					editor::format_invalid_codepoint(cpit.get_codepoint()),
+					editor::get_invalid_codepoint_color()
+				), 1
+			);
 		}
 		/// Adjusts the position of \ref _char_it and \ref _theme_it.
 		void update(size_t steps) {
@@ -130,7 +134,7 @@ namespace codepad::editor::code {
 		}
 	protected:
 		/// Forwards the arguments in the given tuple to other constructors.
-		template <size_t ...Indices, typename MyArgs> rendering_token_iterator(
+		template<size_t ...Indices, typename MyArgs> rendering_token_iterator(
 			std::index_sequence<Indices...>, MyArgs &&tuple
 		) : rendering_token_iterator(std::get<Indices>(std::forward<MyArgs>(tuple))...) {
 		}
@@ -143,11 +147,11 @@ namespace codepad::editor::code {
 		const interpretation &_interp; ///< The associated \ref interpretation.
 	};
 	/// The specialization of \ref rendering_token_iterator that holds a component.
-	template <typename FirstComp, typename ...OtherComps> struct rendering_token_iterator<FirstComp, OtherComps...> :
+	template<typename FirstComp, typename ...OtherComps> struct rendering_token_iterator<FirstComp, OtherComps...> :
 		protected rendering_token_iterator<OtherComps...> {
 	public:
 		/// Constructs the iterator using a series of tuples, each containing the arguments for one component.
-		template <typename MyArgs, typename ...OtherArgs> rendering_token_iterator(
+		template<typename MyArgs, typename ...OtherArgs> rendering_token_iterator(
 			MyArgs &&myargs, OtherArgs &&...others
 		) : rendering_token_iterator(
 			std::make_index_sequence<std::tuple_size_v<std::decay_t<MyArgs>>>(),
@@ -187,7 +191,7 @@ namespace codepad::editor::code {
 
 		/// Constructer that initializes the current component. The \p std::index_sequence is used to unpack the
 		/// \p std::tuple.
-		template <
+		template<
 			size_t ...Indices, typename MyArgs, typename FirstOtherArgs, typename ...OtherArgs
 		> rendering_token_iterator(
 			std::index_sequence<Indices...>, MyArgs &&mytuple, FirstOtherArgs &&other_tuple, OtherArgs &&...others
@@ -299,6 +303,15 @@ namespace codepad::editor::code {
 		normal = 0, ///< Tokens are measured normally.
 		defer_text_gizmo_measurement = 1 ///< Gizmos are not measured. Use \ref get_character() to add them manually.
 	};
+}
+
+namespace codepad {
+	/// Enables bitwise operators for \ref editor::code::token_measurement_flags.
+	template <> struct enable_enum_bitwise_operators<editor::code::token_measurement_flags> : std::true_type {
+	};
+}
+
+namespace codepad::editor::code {
 	/// Computes the metrics of each character in a clip of text.
 	struct text_metrics_accumulator {
 	public:
@@ -325,7 +338,10 @@ namespace codepad::editor::code {
 			} else if (std::holds_alternative<image_gizmo_token>(tok)) { // TODO
 
 			} else if (std::holds_alternative<text_gizmo_token>(tok)) {
-				if constexpr (!test_bits_any(Flags, token_measurement_flags::defer_text_gizmo_measurement)) {
+				if constexpr (
+					(Flags & token_measurement_flags::defer_text_gizmo_measurement) ==
+					token_measurement_flags::normal
+				) {
 					auto &texttok = std::get<text_gizmo_token>(tok);
 					metrics.next_gizmo(ui::text_renderer::measure_plain_text(
 						texttok.contents, texttok.font ? texttok.font : metrics.get_font_family().normal

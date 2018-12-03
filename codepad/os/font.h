@@ -25,6 +25,9 @@ namespace codepad {
 		italic = 2, ///< Italic.
 		bold_italic = bold | italic ///< Bold and italic.
 	};
+	/// Enables bitwise operators for \ref font_style.
+	template <> struct enable_enum_bitwise_operators<font_style> : std::true_type {
+	};
 	namespace os {
 		template <typename Prim, typename Bkup> class backed_up_font;
 		/// The base class for all font classes that declares all basic functionalities a font should provide.

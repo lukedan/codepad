@@ -35,8 +35,8 @@ namespace codepad::os {
 	/// Transforms the given \ref open_mode into flags used by \p open().
 	inline int _interpret_open_mode(open_mode mode) {
 		int openflags =
-			(test_bits_any(mode, open_mode::create) ? O_CREAT : 0) |
-			(test_bits_any(mode, open_mode::open_and_truncate) ? O_TRUNC : 0);
+			((mode & open_mode::create) != open_mode::zero ? O_CREAT : 0) |
+			((mode & open_mode::open_and_truncate) != open_mode::zero ? O_TRUNC : 0);
 		if (mode == open_mode::create) {
 			openflags |= O_EXCL;
 		}
@@ -82,8 +82,8 @@ namespace codepad::os {
 		_len = static_cast<size_t>(f.get_size());
 		_ptr = mmap(
 			nullptr, _len,
-			(test_bits_any(acc, access_rights::read) ? PROT_READ : 0) |
-			(test_bits_any(acc, access_rights::write) ? PROT_WRITE : 0),
+			((acc & access_rights::read) != access_rights::zero ? PROT_READ : 0) |
+			((acc & access_rights::write) != access_rights::zero ? PROT_WRITE : 0),
 			MAP_SHARED, f.get_native_handle(), 0
 		);
 		if (_ptr == MAP_FAILED) {

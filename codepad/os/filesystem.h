@@ -17,12 +17,14 @@
 namespace codepad::os {
 	/// Specifies what operations are to be performed on a file.
 	enum class access_rights {
+		zero = 0, ///< Zero value for comparisons.
 		read = 1, ///< The file is to be read from only.
 		write = 2, ///< The file is to be written to only.
 		read_write = read | write ///< The file is to be read from and written to.
 	};
 	/// Specifies how a file is to be opened.
 	enum class open_mode {
+		zero = 0, ///< Zero value for comparisons.
 		open = 1, ///< The file must exist.
 		create = 2, ///< The file must not exist, and will be created.
 		open_and_truncate = 4, ///< The file must exist, and will be truncated after it's opened.
@@ -31,7 +33,18 @@ namespace codepad::os {
 		/// The file is created if it doesn't exist, or truncated if it does.
 		create_or_truncate = create | open_and_truncate
 	};
+}
 
+namespace codepad {
+	/// Enables bitwise operators for \ref os::access_rights.
+	template <> struct enable_enum_bitwise_operators<os::access_rights> : std::true_type {
+	};
+	/// Enables bitwise operators for \ref os::open_mode.
+	template <> struct enable_enum_bitwise_operators<os::open_mode> : std::true_type {
+	};
+}
+
+namespace codepad::os {
 	/// Represents an opened file.
 	struct file {
 	public:

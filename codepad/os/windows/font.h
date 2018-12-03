@@ -27,8 +27,8 @@ namespace codepad {
 				std::wstring utf16string = _details::utf8_to_wstring(str.c_str());
 				HFONT font = CreateFont(
 					0, 0, 0, 0,
-					test_bits_all(style, font_style::bold) ? FW_BOLD : FW_NORMAL,
-					test_bits_all(style, font_style::italic), false, false,
+					(style & font_style::bold) != font_style::normal ? FW_BOLD : FW_NORMAL,
+					(style & font_style::italic) != font_style::normal, false, false,
 					DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FF_DONTCARE,
 					reinterpret_cast<const TCHAR*>(utf16string.c_str())
 				);

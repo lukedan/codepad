@@ -180,16 +180,16 @@ namespace codepad::os {
 	template <typename Ev> inline modifier_keys _get_modifiers(const Ev &event) {
 		modifier_keys result = modifier_keys::none;
 		if (event.state & GDK_CONTROL_MASK) {
-			set_bits(result, modifier_keys::control);
+			result |= modifier_keys::control;
 		}
 		if (event.state & GDK_SHIFT_MASK) {
-			set_bits(result, modifier_keys::shift);
+			result |= modifier_keys::shift;
 		}
 		if (event.state & GDK_MOD1_MASK) { // normally alt
-			set_bits(result, modifier_keys::alt);
+			result |= modifier_keys::alt;
 		}
 		if (event.state & GDK_HYPER_MASK) { // whatever
-			set_bits(result, modifier_keys::super);
+			result |= modifier_keys::super;
 		}
 		return result;
 	}

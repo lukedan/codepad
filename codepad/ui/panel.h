@@ -202,7 +202,7 @@ namespace codepad::ui {
 			child._layout.xmin = xmin;
 			child._layout.xmax = xmax;
 			layout_on_direction(
-				test_bits_all(anc, anchor::left), wprop.second, test_bits_all(anc, anchor::right),
+				(anc & anchor::left) != anchor::none, wprop.second, (anc & anchor::right) != anchor::none,
 				child._layout.xmin, child._layout.xmax, margin.left, wprop.first, margin.right
 			);
 		}
@@ -214,7 +214,7 @@ namespace codepad::ui {
 			child._layout.ymin = ymin;
 			child._layout.ymax = ymax;
 			layout_on_direction(
-				test_bits_all(anc, anchor::top), hprop.second, test_bits_all(anc, anchor::bottom),
+				(anc & anchor::top) != anchor::none, hprop.second, (anc & anchor::bottom) != anchor::none,
 				child._layout.ymin, child._layout.ymax, margin.top, hprop.first, margin.bottom
 			);
 		}
@@ -411,14 +411,14 @@ namespace codepad::ui {
 			double cur = 0.0;
 			thickness margin = e.get_margin();
 			anchor anc = e.get_anchor();
-			if (test_bits_any(anc, anchor::left)) {
+			if ((anc & anchor::left) != anchor::none) {
 				cur += margin.left;
 			}
 			auto sz = e.get_layout_width();
 			if (sz.second) {
 				cur += sz.first;
 			}
-			if (test_bits_any(anc, anchor::right)) {
+			if ((anc & anchor::right) != anchor::none) {
 				cur += margin.right;
 			}
 			return cur;
@@ -428,14 +428,14 @@ namespace codepad::ui {
 			double cur = 0.0;
 			thickness margin = e.get_margin();
 			anchor anc = e.get_anchor();
-			if (test_bits_any(anc, anchor::top)) {
+			if ((anc & anchor::top) != anchor::none) {
 				cur += margin.top;
 			}
 			auto sz = e.get_layout_height();
 			if (sz.second) {
 				cur += sz.first;
 			}
-			if (test_bits_any(anc, anchor::bottom)) {
+			if ((anc & anchor::bottom) != anchor::none) {
 				cur += margin.bottom;
 			}
 			return cur;
@@ -563,12 +563,12 @@ namespace codepad::ui {
 				thickness margin = e.get_margin();
 				anchor anc = e.get_anchor();
 				if constexpr (Vertical) {
-					res.margin_min = {margin.top, test_bits_any(anc, anchor::top)};
-					res.margin_max = {margin.bottom, test_bits_any(anc, anchor::bottom)};
+					res.margin_min = {margin.top, (anc & anchor::top) != anchor::none};
+					res.margin_max = {margin.bottom, (anc & anchor::bottom) != anchor::none};
 					res.size = e.get_layout_height();
 				} else {
-					res.margin_min = {margin.left, test_bits_any(anc, anchor::left)};
-					res.margin_max = {margin.right, test_bits_any(anc, anchor::right)};
+					res.margin_min = {margin.left, (anc & anchor::left) != anchor::none};
+					res.margin_max = {margin.right, (anc & anchor::right) != anchor::none};
 					res.size = e.get_layout_width();
 				}
 				return res;

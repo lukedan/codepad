@@ -6,6 +6,7 @@
 /// \file
 /// Implementation of a registry for hotkey gestures.
 
+#include <type_traits>
 #include <vector>
 #include <map>
 #include <functional>
@@ -37,6 +38,9 @@ namespace codepad {
 		shift_alt_super = shift | alt | super, ///< Shift + Alt + Super.
 
 		control_shift_alt_super = control | shift | alt | super ///< Control + Shift + Alt + Super.
+	};
+	/// Enables bitwise operators for \ref modifier_keys.
+	template <> struct enable_enum_bitwise_operators<modifier_keys> : std::true_type {
 	};
 	/// A key gesture, corresponds to one key stroke with or without modifier keys.
 	struct key_gesture {

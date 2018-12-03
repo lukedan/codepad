@@ -161,7 +161,7 @@ namespace codepad {
 		}
 #endif
 #ifdef CP_PLATFORM_UNIX
-#	ifdef CP_USE_GDK
+#	ifdef CP_USE_GTK
 		namespace _details {
 			cursor_set &cursor_set::get() {
 				static _global_wrapper<cursor_set> _v;

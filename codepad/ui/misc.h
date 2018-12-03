@@ -51,6 +51,21 @@ namespace codepad::ui {
 			return vec2d(width(), height());
 		}
 	};
+}
+
+namespace codepad {
+	/// Specialization for ui::thickness since it doesn't support arithmetic operators.
+	template <> inline ui::thickness lerp<ui::thickness>(ui::thickness from, ui::thickness to, double perc) {
+		return ui::thickness(
+			lerp(from.left, to.left, perc),
+			lerp(from.top, to.top, perc),
+			lerp(from.right, to.right, perc),
+			lerp(from.bottom, to.bottom, perc)
+		);
+	}
+}
+
+namespace codepad::ui {
 	/// Used to specify to which sides an object is anchored. If an object is anchored to a side, then the distance
 	/// between the borders of the object and its container is kept to be the value specified in the element's
 	/// margin. Otherwise, the margin value is treated as a proportion.
@@ -77,6 +92,15 @@ namespace codepad::ui {
 
 		all = left | top | right | bottom ///< The object is anchored to all four sides.
 	};
+}
+
+namespace codepad {
+	/// Enables bitwise operators for \ref ui::anchor.
+	template<> struct enable_enum_bitwise_operators<ui::anchor> : std::true_type {
+	};
+}
+
+namespace codepad::ui {
 	/// Determines how size is allocated to an \ref codepad::ui::element.
 	enum class size_allocation_type : unsigned char {
 		/// The size is determined by \ref element::get_desired_width() and \ref element::get_desired_height().
@@ -383,16 +407,4 @@ namespace codepad::ui {
 			return it;
 		}
 	};
-}
-
-namespace codepad {
-	/// Specialization for ui::thickness since it doesn't support arithmetic operators.
-	template <> inline ui::thickness lerp<ui::thickness>(ui::thickness from, ui::thickness to, double perc) {
-		return ui::thickness(
-			lerp(from.left, to.left, perc),
-			lerp(from.top, to.top, perc),
-			lerp(from.right, to.right, perc),
-			lerp(from.bottom, to.bottom, perc)
-		);
-	}
 }

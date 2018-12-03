@@ -3,7 +3,7 @@
 
 #pragma once
 
-#ifdef CP_USE_GDK
+#ifdef CP_USE_GTK
 #	include "gtk/misc.h"
 #else
 #	include "x11/misc.h"

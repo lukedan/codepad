@@ -137,7 +137,7 @@ namespace codepad::os {
 			buf.initialize(rend);
 			buf.clear_resize_dynamic_draw(rend, sizeof(_vertex) * 6);
 			auto ptr = static_cast<_vertex*>(buf.map(rend));
-			vec2d sz = wnd->get_actual_size();
+			vec2d sz = wnd->get_client_size().convert<double>();
 			ptr[0] = _vertex(vec2d(0.0, 0.0), vec2d(0.0, 0.0), colord());
 			ptr[1] = _vertex(vec2d(sz.x, 0.0), vec2d(1.0, 0.0), colord());
 			ptr[2] = _vertex(vec2d(0.0, sz.y), vec2d(0.0, 1.0), colord());

@@ -45,6 +45,64 @@ namespace std {
 }
 
 namespace codepad {
+	/// Indicates if all following bitwise operators are enabled for a type. Enum classes can create specializations
+	/// to enable them.
+	template <typename> struct enable_enum_bitwise_operators : std::false_type {
+	};
+	/// Indicates if all following bitwise operators are enabled for a type.
+	///
+	/// \sa enable_enum_bitwise_operators
+	template <typename T> constexpr static bool enable_enum_bitwise_operators_v =
+		enable_enum_bitwise_operators<T>::value;
+
+	/// Bitwise and for enum classes.
+	template <typename Enum> inline constexpr std::enable_if_t<
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
+	> operator&(Enum lhs, Enum rhs) {
+		using _base = std::underlying_type_t<Enum>;
+		return static_cast<Enum>(static_cast<_base>(lhs) & static_cast<_base>(rhs));
+	}
+	/// Bitwise or for enum classes.
+	template <typename Enum> inline constexpr std::enable_if_t<
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
+	> operator|(Enum lhs, Enum rhs) {
+		using _base = std::underlying_type_t<Enum>;
+		return static_cast<Enum>(static_cast<_base>(lhs) | static_cast<_base>(rhs));
+	}
+	/// Bitwise xor for enum classes.
+	template <typename Enum> inline constexpr std::enable_if_t<
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
+	> operator^(Enum lhs, Enum rhs) {
+		using _base = std::underlying_type_t<Enum>;
+		return static_cast<Enum>(static_cast<_base>(lhs) ^ static_cast<_base>(rhs));
+	}
+	/// Bitwise not for enum classes.
+	template <typename Enum> inline constexpr std::enable_if_t<
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
+	> operator~(Enum v) {
+		using _base = std::underlying_type_t<Enum>;
+		return static_cast<Enum>(~static_cast<_base>(v));
+	}
+
+	/// Bitwise and for enum classes.
+	template <typename Enum> inline constexpr std::enable_if_t<
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
+	> operator&=(Enum &lhs, Enum rhs) {
+		return lhs = lhs & rhs;
+	}
+	/// Bitwise or for enum classes.
+	template <typename Enum> inline constexpr std::enable_if_t<
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
+	> operator|=(Enum &lhs, Enum rhs) {
+		return lhs = lhs | rhs;
+	}
+	/// Bitwise xor for enum classes.
+	template <typename Enum> inline constexpr std::enable_if_t<
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
+	> operator^=(Enum &lhs, Enum rhs) {
+		return lhs = lhs ^ rhs;
+	}
+
 	/// Used to obtain certain attributes of member pointers.
 	template <typename> struct member_pointer_traits;
 	/// Specialization for member object pointers.
@@ -718,47 +776,6 @@ namespace codepad {
 		return from + (to - from) * perc;
 	}
 
-	/// Used to test if all bits of \p bit are set to 1 in \p v.
-	template <
-		typename T, typename U, typename Int = std::conditional_t<
-		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>
-	> inline constexpr bool test_bits_all(T v, U bit) {
-		return (static_cast<Int>(v) & static_cast<Int>(bit)) == static_cast<Int>(bit);
-	}
-	/// Used to test if any bit of \p bit are set to 1 in \p v.
-	template <
-		typename T, typename U, typename Int = std::conditional_t<
-		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>
-	> inline constexpr bool test_bits_any(T v, U bit) {
-		return (static_cast<Int>(v) & static_cast<Int>(bit)) != 0;
-	}
-	/// Returns the given value with the bits corresponding to those of \p bit set to 1.
-	template <
-		typename T, typename U, typename Int = std::conditional_t<
-		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>
-	> inline constexpr T with_bits_set(T v, U bit) {
-		return static_cast<T>(static_cast<Int>(v) | static_cast<Int>(bit));
-	}
-	/// Returns the given value with the bits corresponding to those of \p bit set to 0.
-	template <
-		typename T, typename U, typename Int = std::conditional_t<
-		std::is_integral_v<T>, T, std::conditional_t<std::is_integral_v<U>, U, std::uint_fast64_t>
-		>
-	> inline constexpr T with_bits_unset(T v, U bit) {
-		return static_cast<T>(static_cast<Int>(v) & static_cast<Int>(~static_cast<Int>(bit)));
-	}
-	/// Sets the bits of \p v corresponding to those of \p bit to 1.
-	template <typename T, typename U> inline void set_bits(T &v, U bit) {
-		v = with_bits_set(v, bit);
-	}
-	/// Sets the bits of \p v corresponding to those of \p bit to 0.
-	template <typename T, typename U> inline void unset_bits(T &v, U bit) {
-		v = with_bits_unset(v, bit);
-	}
-
 	/// Gathers bits from a string and returns the result. Each bit is represented by a character.
 	///
 	/// \param list A list of character-bit relationships.
@@ -770,7 +787,7 @@ namespace codepad {
 		for (C c : str) {
 			for (auto j = list.begin(); j != list.end(); ++j) {
 				if (c == j->first) {
-					set_bits(result, j->second);
+					result |= j->second;
 					break;
 				}
 			}

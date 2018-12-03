@@ -20,12 +20,14 @@ namespace codepad {
 			freetype_font(const str_t &str, double sz, font_style style) : freetype_font_base() {
 				_font_config::get().refresh();
 				FcPattern *pat = FcNameParse(reinterpret_cast<const FcChar8*>(str.c_str()));
-				FcPatternAddInteger(pat, FC_SLANT, test_bits_any(
-					style, font_style::italic
-				) ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
-				FcPatternAddInteger(pat, FC_WEIGHT, test_bits_any(
-					style, font_style::bold
-				) ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL);
+				FcPatternAddInteger(
+					pat, FC_SLANT,
+					(style & font_style::italic) != font_style::normal ? FC_SLANT_ITALIC : FC_SLANT_ROMAN
+				);
+				FcPatternAddInteger(
+					pat, FC_WEIGHT,
+					(style & font_style::bold) != font_style::normal ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL
+				);
 				assert_true_sys(FcConfigSubstitute(nullptr, pat, FcMatchPattern) != FcFalse, "cannot set pattern");
 				FcDefaultSubstitute(pat);
 				FcResult res;

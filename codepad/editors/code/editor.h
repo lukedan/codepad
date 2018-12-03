@@ -95,7 +95,7 @@ namespace codepad::editor::code {
 	///
 	/// \todo Proper syntax highlighting, drag & drop, code folding, etc.
 	class editor : public ui::element {
-		friend class codebox;
+		friend codebox;
 	public:
 		constexpr static double
 			/// The scrolling speed coefficient when the user drags the selection out of the element.
@@ -112,7 +112,7 @@ namespace codepad::editor::code {
 				_doc->end_edit_interpret -= _end_edit_tok;
 				/*_doc->visual_changed -= _ctx_vis_change_tok;*/
 			}
-			_doc = move(newdoc);
+			_doc = std::move(newdoc);
 			_cset.reset();
 			if (_doc) {
 				_begin_edit_tok = (_doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
@@ -839,11 +839,11 @@ namespace codepad::editor::code {
 		}
 		/// Called by the parent \ref codebox when it gets focus. Adjusts the states of caret animations.
 		void _on_codebox_got_focus() {
-			_set_editrgn_state(with_bits_set(_editrgn_state, ui::manager::get().get_predefined_states().focused));
+			_set_editrgn_state(_editrgn_state | ui::manager::get().get_predefined_states().focused);
 		}
 		/// Called by the parent \ref codebox when it loses focus. Adjusts the states of caret animations.
 		void _on_codebox_lost_focus() {
-			_set_editrgn_state(with_bits_unset(_editrgn_state, ui::manager::get().get_predefined_states().focused));
+			_set_editrgn_state(_editrgn_state & ~ui::manager::get().get_predefined_states().focused);
 		}
 
 		/// Called when the user starts to make a selection using the mouse.
@@ -1041,14 +1041,14 @@ namespace codepad::editor::code {
 			_mouse_cache = _hit_test_for_caret_client(info.position - get_client_region().xmin_ymin());
 			if (info.button == os::input::mouse_button::primary) {
 				if (!_is_in_selection(_mouse_cache.position)) {
-					if (test_bits_any(info.modifiers, modifier_keys::shift)) {
+					if ((info.modifiers & modifier_keys::shift) != modifier_keys::none) {
 						auto it = _cset.carets.end();
 						--it;
 						caret_selection cs = it->first;
 						_cset.carets.erase(it);
 						_begin_mouse_selection(cs.second);
 					} else {
-						if (!test_bits_any(info.modifiers, modifier_keys::control)) {
+						if ((info.modifiers & modifier_keys::control) == modifier_keys::none) {
 							_cset.carets.clear();
 						}
 						_begin_mouse_selection(_mouse_cache.position);

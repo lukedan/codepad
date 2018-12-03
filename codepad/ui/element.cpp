@@ -125,11 +125,11 @@ namespace codepad::ui {
 	}
 
 	bool element::is_mouse_over() const {
-		return test_bits_all(_state, manager::get().get_predefined_states().mouse_over);
+		return (_state & manager::get().get_predefined_states().mouse_over) != 0;
 	}
 
 	bool element::is_render_visible() const {
-		return !test_bits_all(_state, manager::get().get_predefined_states().render_invisible);
+		return (_state & manager::get().get_predefined_states().render_invisible) == 0;
 	}
 
 	void element::set_render_visibility(bool val) {
@@ -137,7 +137,7 @@ namespace codepad::ui {
 	}
 
 	bool element::is_hittest_visible() const {
-		return !test_bits_all(_state, manager::get().get_predefined_states().hittest_invisible);
+		return (_state & manager::get().get_predefined_states().hittest_invisible) == 0;
 	}
 
 	void element::set_hittest_visibility(bool val) {
@@ -145,7 +145,7 @@ namespace codepad::ui {
 	}
 
 	bool element::is_layout_visible() const {
-		return !test_bits_all(_state, manager::get().get_predefined_states().layout_invisible);
+		return (_state & manager::get().get_predefined_states().layout_invisible) == 0;
 	}
 
 	void element::set_layout_visibility(bool val) {
@@ -153,11 +153,11 @@ namespace codepad::ui {
 	}
 
 	bool element::is_focused() const {
-		return test_bits_all(_state, manager::get().get_predefined_states().focused);
+		return (_state & manager::get().get_predefined_states().focused) != 0;
 	}
 
 	bool element::is_vertical() const {
-		return test_bits_all(_state, manager::get().get_predefined_states().vertical);
+		return (_state & manager::get().get_predefined_states().vertical) != 0;
 	}
 
 	void element::set_is_vertical(bool v) {

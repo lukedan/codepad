@@ -653,7 +653,7 @@ namespace codepad::ui {
 			gest.mod_keys = modifier_keys::none;
 			for (size_t i = 0; i < obj.GetStringLength(); ++i, ++cur) {
 				if (*cur == key_delim && cur != last) {
-					set_bits(gest.mod_keys, parse_modifier(str_t(last, cur - last)));
+					gest.mod_keys |= parse_modifier(str_t(last, cur - last));
 					last = cur + 1;
 				}
 			}
