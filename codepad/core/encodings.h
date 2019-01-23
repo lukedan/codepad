@@ -11,8 +11,6 @@
 #include <string>
 #include <iterator>
 
-#include <rapidjson/document.h>
-
 namespace codepad {
 	/// Specifies the byte order of words.
 	enum class endianness : unsigned char {
@@ -25,7 +23,13 @@ namespace codepad {
 	/// Default definition for string literals.
 #define CP_STRLIT(X) u8 ## X
 	/// STL string with default character type.
+	///
+	/// \todo Use std::u8string when C++20 drops.
 	using str_t = std::basic_string<char>;
+	/// STL string_view with default character type.
+	///
+	/// \todo Use std::u8string_view in C++20.
+	using str_view_t = std::basic_string_view<char>;
 	/// Type used to store codepoints. \p char32_t is not used because its range is 0~0x10FFFF which may not be able
 	/// to correctly represent invalid codepoints.
 	using codepoint = std::uint32_t;
@@ -421,77 +425,5 @@ namespace codepad {
 				}
 			}
 		};*/
-	}
-
-	/// Settings and utilities of RapidJSON library.
-	namespace json {
-		// encoding settings
-		/// Default encoding used by RapidJSON.
-		using encoding = rapidjson::UTF8<char>;
-
-		/// RapidJSON type that holds a JSON object.
-		using value_t = rapidjson::GenericValue<encoding>;
-		/// RapidJSON type that holds a JSON object, and can be used to parse JSON text.
-		using parser_value_t = rapidjson::GenericDocument<encoding>;
-
-		/// Returns a STL string for a JSON string object. The caller is responsible of checking if the object is
-		/// actually a string.
-		///
-		/// \param v A JSON object. The caller must guarantee that the object is a string.
-		/// \return A STL string whose content is the same as the JSON object.
-		/// \remark This is the preferred way to get a string object's contents
-		///         since it may contain null characters.
-		inline str_t get_as_string(const value_t &v) {
-			return str_t(v.GetString(), v.GetStringLength());
-		}
-
-		namespace _details {
-			template <typename Res, typename Obj, bool(Obj::*TypeVerify)() const, Res(Obj::*Getter)() const> inline bool try_get(
-				const Obj &v, const str_t &s, Res &ret
-			) {
-				auto found = v.FindMember(s.c_str());
-				if (found != v.MemberEnd() && (found->value.*TypeVerify)()) {
-					ret = (found->value.*Getter)();
-					return true;
-				}
-				return false;
-			}
-		}
-		/// Checks if the object has a member with a certain name which is of type \p T,
-		/// then returns the value of the member if there is.
-		///
-		/// \param val A JSON object.
-		/// \param name The desired name of the member.
-		/// \param ret If the function returns true, then \p ret holds the value of the member.
-		/// \return \p true if it has a member of type \p T.
-		template <typename T> bool try_get(const value_t &val, const str_t &name, T &ret);
-		template <> inline bool try_get<bool>(const value_t &val, const str_t &name, bool &ret) {
-			return _details::try_get<bool, value_t, &value_t::IsBool, &value_t::GetBool>(val, name, ret);
-		}
-		template <> inline bool try_get<double>(const value_t &val, const str_t &name, double &ret) {
-			return _details::try_get<double, value_t, &value_t::IsNumber, &value_t::GetDouble>(val, name, ret);
-		}
-		template <> inline bool try_get<str_t>(const value_t &val, const str_t &name, str_t &ret) {
-			auto found = val.FindMember(name.c_str());
-			if (found != val.MemberEnd() && found->value.IsString()) {
-				ret = get_as_string(found->value);
-				return true;
-			}
-			return false;
-		}
-
-		/// \ref try_get with a default value.
-		///
-		/// \param v A JSON object.
-		/// \param s The desired name of the member.
-		/// \param def The default value if no such member is found.
-		/// \return The value if one exists, or the default otherwise.
-		template <typename T> inline T get_or_default(const value_t &v, const str_t &s, const T &def) {
-			T res;
-			if (try_get(v, s, res)) {
-				return res;
-			}
-			return def;
-		}
 	}
 }

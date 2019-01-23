@@ -21,7 +21,7 @@ namespace codepad::editor::code {
 	void codebox::_initialize(const str_t &cls, const element_metrics &metrics) {
 		panel_base::_initialize(cls, metrics);
 
-		manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+		get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 			{get_vertical_scrollbar_role(), _role_cast(_vscroll)},
 			/*{get_horizontal_scrollbar_role(), ...},*/ // TODO
 			{get_components_panel_role(), _role_cast(_components)},
@@ -43,14 +43,14 @@ namespace codepad::editor::code {
 			element *e = _components->children().items().front();
 			_components->children().remove(*e);
 			if (get_dispose_children()) {
-				manager::get().mark_disposal(*e);
+				get_manager().mark_disposal(*e);
 			}
 		}
 		while (_components->children().items().back() != _editor) {
 			element *e = _components->children().items().back();
 			_components->children().remove(*e);
 			if (get_dispose_children()) {
-				manager::get().mark_disposal(*e);
+				get_manager().mark_disposal(*e);
 			}
 		}
 		_editor->editing_visual_changed -= _mod_tok;

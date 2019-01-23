@@ -6,6 +6,8 @@
 /// \file
 /// Implementation of certain functions of codepad::os::software_renderer_base.
 
+using namespace codepad::ui;
+
 namespace codepad::os {
 #ifdef CP_USE_SSE2
 	void software_renderer_base::_ivec4f::set_all_aligned(const float *ptr) {

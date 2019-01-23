@@ -8,7 +8,7 @@
 
 namespace codepad::ui {
 	scrollbar &scrollbar_drag_button::_get_bar() const {
-		return *dynamic_cast<scrollbar*>(_logical_parent);
+		return *dynamic_cast<scrollbar*>(logical_parent());
 	}
 	void scrollbar_drag_button::_on_mouse_down(mouse_button_info &p) {
 		if (p.button == _trigbtn) {

@@ -37,7 +37,7 @@ namespace codepad::ui {
 		return rgn;
 	}
 
-	void visual_layer::render(rectd rgn, const state &s) const {
+	void visual_layer::render(renderer_base &r, rectd rgn, const state &s) const {
 		texture empty;
 		reference_wrapper<texture> tex(empty); // using a pointer just doesn't seem right here
 		if (s.texture.current_frame != texture_animation.frames.end()) {
@@ -47,9 +47,7 @@ namespace codepad::ui {
 		case type::solid:
 			{
 				rectd cln = get_center_rect(s, rgn);
-				renderer_base::get().draw_quad(
-					tex.get(), cln, rectd(0.0, 1.0, 0.0, 1.0), s.color.current_value
-				);
+				r.draw_quad(tex.get(), cln, rectd(0.0, 1.0, 0.0, 1.0), s.color.current_value);
 			}
 			break;
 		case type::grid:
@@ -102,7 +100,7 @@ namespace codepad::ui {
 					rectd(inner.xmax, outer.xmax, inner.ymax, outer.ymax),
 					rectd(texr.xmax, 1.0, texr.ymax, 1.0), curc
 				);
-				rb.draw(tex.get());
+				rb.draw(r, tex.get());
 			}
 			break;
 		}

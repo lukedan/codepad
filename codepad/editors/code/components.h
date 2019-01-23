@@ -15,12 +15,12 @@ namespace codepad::editor::code {
 	class line_number_display : public ui::element {
 	public:
 		/// Returns the width of the longest line number.
-		std::pair<double, bool> get_desired_width() const override {
+		ui::size_allocation get_desired_width() const override {
 			size_t ln = component_helper::get_editor(*this).get_document()->num_lines(), w = 0;
 			for (; ln > 0; ++w, ln /= 10) {
 			}
 			double maxw = editor::get_font().normal->get_max_width_charset(U"0123456789");
-			return {get_padding().width() + static_cast<double>(w) * maxw, true};
+			return ui::size_allocation(get_padding().width() + static_cast<double>(w) * maxw, true);
 		}
 
 		/// Returns the default class of elements of type \ref line_number_display.
@@ -67,7 +67,7 @@ namespace codepad::editor::code {
 					str_t curlbl = std::to_string(1 + line - lineinfo.second.prev_softbreaks);
 					double w = ui::text_renderer::measure_plain_text(curlbl, editor::get_font().normal).x;
 					ui::text_renderer::render_plain_text(
-						curlbl, editor::get_font().normal,
+						curlbl, *editor::get_font().normal,
 						vec2d(client.xmax - w, cury), colord() // TODO customizable color
 					);
 				}
@@ -80,13 +80,11 @@ namespace codepad::editor::code {
 	public:
 		/// The maximum amount of time allowed for rendering a page (i.e., an entry of \ref _page_cache).
 		constexpr static double page_rendering_time_redline = 0.03;
-		constexpr static size_t
-			maximum_width = 150, /// Maximum width of the element, in pixels.
-			minimum_page_size = 500; /// Maximum height of a page, in pixels.
+		constexpr static size_t minimum_page_size = 500; /// Maximum height of a page, in pixels.
 
 		/// Returns the default width, which is proportional to that of the \ref editor.
-		std::pair<double, bool> get_desired_width() const override {
-			return {get_scale(), false};
+		ui::size_allocation get_desired_width() const override {
+			return ui::size_allocation(get_scale(), false);
 		}
 
 		/// Returns the scale of the text based on \ref _target_height.
@@ -114,16 +112,17 @@ namespace codepad::editor::code {
 	protected:
 		/// Caches rendered pages so it won't be necessary to render large pages of text frequently.
 		struct _page_cache {
-			/// Constructor. Sets the associated \ref minimap of this cache.
-			explicit _page_cache(const minimap &p) : parent(&p) {
-			}
+			constexpr static size_t minimum_width = 50; ///< The minimum width of a page.
+			constexpr static double
+				/// Factor used to enlarge the width of pages when the actual width exceeds the page width.
+				enlarge_factor = 1.5,
+				/// If the actual width is less than this times page width, then page width is shrunk to fit the
+				/// actual width.
+				shirnk_threshold = 0.5;
 
-			/// The index past the end of the range of lines that has been rendered and stored in \ref pages.
-			size_t page_end = 0;
-			/// The cached pages. The keys are the indices of each page's first line, and the values are
-			/// corresponding \ref os::framebuffer "framebuffers".
-			std::map<size_t, os::framebuffer> pages;
-			const minimap *parent; ///< The associated \ref minimap.
+			/// Constructor. Sets the associated \ref minimap of this cache.
+			explicit _page_cache(const minimap &p) : _parent(&p) {
+			}
 
 			/// Caches the vertical offsets corresponding to all four \ref font_style "font styles" for a specific
 			/// line. The offsets are calculated in a way so that the result are consistent wherever the pages are
@@ -143,21 +142,21 @@ namespace codepad::editor::code {
 				/// Calls \ref get_render_line_top to recalculate the positions for all
 				/// \ref font_style "font styles".
 				void refresh(double y) {
-					normal = get_render_line_top(y, baselines.get(font_style::normal));
-					bold = get_render_line_top(y, baselines.get(font_style::bold));
-					italic = get_render_line_top(y, baselines.get(font_style::italic));
-					bold_italic = get_render_line_top(y, baselines.get(font_style::bold_italic));
+					normal = get_render_line_top(y, baselines.get(ui::font_style::normal));
+					bold = get_render_line_top(y, baselines.get(ui::font_style::bold));
+					italic = get_render_line_top(y, baselines.get(ui::font_style::italic));
+					bold_italic = get_render_line_top(y, baselines.get(ui::font_style::bold_italic));
 				}
 				/// Returns the position corresponding to the given \ref font_style.
-				double get(font_style fs) {
+				double get(ui::font_style fs) {
 					switch (fs) {
-					case font_style::normal:
+					case ui::font_style::normal:
 						return normal;
-					case font_style::bold:
+					case ui::font_style::bold:
 						return bold;
-					case font_style::italic:
+					case ui::font_style::italic:
 						return italic;
-					case font_style::bold_italic:
+					case ui::font_style::bold_italic:
 						return bold_italic;
 					}
 					assert_true_logical(false, "invalid font style");
@@ -174,23 +173,122 @@ namespace codepad::editor::code {
 					italic = 0.0, ///< The position corresponding to \ref font_style::italic.
 					bold_italic = 0.0; ///< The position corresponding to \ref font_style::bold_italic.
 			};
+			/// Clears all cached pages, and re-renders the currently visible page.
+			void restart() {
+				pages.clear();
+				editor &editor = component_helper::get_editor(*_parent);
+				std::pair<size_t, size_t> be = _parent->_get_visible_lines_folded();
+				double slh = editor.get_line_height() * get_scale();
+				size_t
+					numlines = editor.get_num_visual_lines(),
+					pgsize = std::max(be.second - be.first, static_cast<size_t>(minimum_page_size / slh) + 1),
+					page_beg = 0;
+				_page_end = numlines;
+				if (pgsize < numlines) { // the viewport is smaller than one page
+					if (be.first + be.second < pgsize) { // at the top
+						_page_end = pgsize;
+					} else if (be.first + be.second + pgsize > numlines * 2) { // at the bottom
+						page_beg = numlines - pgsize;
+					} else { // middle
+						page_beg = (be.first + be.second - pgsize) / 2;
+						_page_end = page_beg + pgsize;
+					}
+				}
+				_render_page(page_beg, _page_end); // render the visible page
+			}
+			/// Ensures that all visible pages have been rendered. If \ref pages is empty, calls \ref restart;
+			/// otherwise checks if new pages need to be rendered.
+			void prepare() {
+				if (_ready) {
+					return;
+				}
+				if (pages.empty()) {
+					restart();
+				} else {
+					editor &editor = component_helper::get_editor(*_parent);
+					std::pair<size_t, size_t> be = _parent->_get_visible_lines_folded();
+					size_t page_beg = pages.begin()->first;
+					if (be.first >= page_beg && be.second <= _page_end) { // all are visible
+						return;
+					}
+					size_t min_page_lines = static_cast<size_t>(
+						minimum_page_size / (editor.get_line_height() * get_scale())
+						) + 1,
+						// the number of lines in the page about to be rendered
+						page_lines = std::max(be.second - be.first, min_page_lines);
+					if (be.first + page_lines < page_beg || _page_end + page_lines < be.second) {
+						// too far away from already rendered region, reset cache
+						restart();
+					} else {
+						if (be.first < page_beg) { // render one page before the first one
+							// if the page before is not large enough, make it as large as min_page_lines
+							size_t frontline = std::max(page_beg, min_page_lines) - min_page_lines;
+							// at least the first visible line is rendered
+							_render_page(std::min(be.first, frontline), page_beg);
+						}
+						if (be.second > _page_end) { // render one page after the last one
+							// if not large enough, make it as large as min_page_lines
+							size_t backline = std::min(editor.get_num_visual_lines(), _page_end + min_page_lines);
+							// at least the last visible line is rendered
+							backline = std::max(be.second, backline);
+							_render_page(_page_end, backline);
+							_page_end = backline; // set _page_end
+						}
+					}
+				}
+				_ready = true;
+			}
+			/// Marks this cache as not ready so that it'll be updated next time \ref prepare() is called.
+			void invalidate() {
+				_ready = false;
+			}
+
+			/// Called when the width of the \ref minimap has changed to update \ref _width.
+			void on_width_changed(double w) {
+				w += 1.0; // add 1 to avoid rounding issues
+				if (w > _width) {
+					do {
+						_width = static_cast<size_t>(_width * enlarge_factor);
+					} while (w > _width);
+					logger::get().log_verbose(CP_HERE, "minimap width extended to ", _width);
+					pages.clear();
+					invalidate();
+				} else if (_width > minimum_width && w < shirnk_threshold * _width) {
+					_width = std::max(minimum_width, static_cast<size_t>(std::ceil(w)));
+					logger::get().log_verbose(CP_HERE, "minimap width shrunk to ", _width);
+				}
+			}
+
+			/// The cached pages. The keys are the indices of each page's first line, and the values are
+			/// corresponding \ref os::framebuffer "framebuffers".
+			std::map<size_t, ui::framebuffer> pages;
+		protected:
+			/// The index past the end of the range of lines that has been rendered and stored in \ref pages.
+			size_t
+				_page_end = 0,
+				_width = minimum_width; ///< The width of all pages, in pixels.
+			const minimap *_parent = nullptr; ///< The associated \ref minimap.
+			/// Marks whether this cache is ready for rendering the currently visible portion of the document.
+			bool _ready = false;
+
 			/// Renders the page specified by the range of lines, and inserts the result into \ref pages. Note that
-			/// this function does not automatically set \ref page_end.
+			/// this function does not automatically set \ref _page_end.
 			///
 			/// \param s Index of the first line of the page, with word wrapping and folding enabled.
 			/// \param pe Index past the last line of the page, with word wrapping and folding enabled.
-			void render_page(size_t s, size_t pe) {
+			void _render_page(size_t s, size_t pe) {
 				performance_monitor mon(CP_HERE, page_rendering_time_redline);
 
-				const editor &ce = component_helper::get_editor(*parent);
+				const editor &ce = component_helper::get_editor(*_parent);
 				double lh = ce.get_line_height(), scale = get_scale();
 				line_top_cache lct(static_cast<double>(s) * lh * scale);
 
-				os::framebuffer buf = os::renderer_base::get().new_framebuffer(
+				ui::renderer_base &r = _parent->get_manager().get_renderer();
+				ui::framebuffer buf = r.new_framebuffer(
 					// add 1 because the start position was floored instead of rounded
-					maximum_width, static_cast<size_t>(std::ceil(lh * scale * static_cast<double>(pe - s))) + 1
+					_width, static_cast<size_t>(std::ceil(lh * scale * static_cast<double>(pe - s))) + 1
 				);
-				os::renderer_base::get().begin_framebuffer(buf);
+				r.begin_framebuffer(buf);
 				const view_formatting &fmt = ce.get_formatting();
 				size_t
 					firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
@@ -217,11 +315,11 @@ namespace codepad::editor::code {
 								vec2d(metrics.get_character().char_left(), metrics.get_y())
 							).coordinates_scaled(scale).fit_grid_enlarge<double>();
 							rec.xmin = std::max(rec.xmin, lastx);
-							if (rec.xmin < maximum_width) { // render only visible characters
-								os::renderer_base::get().draw_character_custom(
+							if (rec.xmin < _width) { // render only visible characters
+								/*r.draw_character_custom(
 									metrics.get_character().current_char_entry().texture,
 									rec, chartok.color
-								);
+								);*/ // TODO
 							} else {
 								// TODO skip to next line
 							}
@@ -237,69 +335,8 @@ namespace codepad::editor::code {
 					}
 					it.update(tok.steps);
 				}
-				os::renderer_base::get().end();
+				r.end();
 				pages.insert(std::make_pair(s, std::move(buf)));
-			}
-			/// Clears all cached pages, and re-renders the currently visible page.
-			void restart() {
-				pages.clear();
-				editor &editor = component_helper::get_editor(*parent);
-				std::pair<size_t, size_t> be = parent->_get_visible_lines_folded();
-				double slh = editor.get_line_height() * get_scale();
-				size_t
-					numlines = editor.get_num_visual_lines(),
-					pgsize = std::max(be.second - be.first, static_cast<size_t>(minimum_page_size / slh) + 1),
-					page_beg = 0;
-				page_end = numlines;
-				if (pgsize < numlines) { // the viewport is smaller than one page
-					if (be.first + be.second < pgsize) { // at the top
-						page_end = pgsize;
-					} else if (be.first + be.second + pgsize > numlines * 2) { // at the bottom
-						page_beg = numlines - pgsize;
-					} else { // middle
-						page_beg = (be.first + be.second - pgsize) / 2;
-						page_end = page_beg + pgsize;
-					}
-				}
-				render_page(page_beg, page_end); // render the visible page
-			}
-			/// Ensures that all visible pages have been rendered. If \ref pages is empty, calls \ref restart;
-			/// otherwise checks if new pages needs to be rendered.
-			void make_valid() {
-				if (pages.empty()) {
-					restart();
-				} else {
-					editor &editor = component_helper::get_editor(*parent);
-					std::pair<size_t, size_t> be = parent->_get_visible_lines_folded();
-					size_t page_beg = pages.begin()->first;
-					if (be.first >= page_beg && be.second <= page_end) { // all are visible
-						return;
-					}
-					size_t min_page_lines = static_cast<size_t>(
-						minimum_page_size / (editor.get_line_height() * get_scale())
-						) + 1,
-						// the number of lines in the page about to be rendered
-						page_lines = std::max(be.second - be.first, min_page_lines);
-					if (be.first + page_lines < page_beg || page_end + page_lines < be.second) {
-						// too far away from already rendered region, reset cache
-						restart();
-					} else {
-						if (be.first < page_beg) { // render one page before the first one
-							// if the page before is not large enough, make it as large as min_page_lines
-							size_t frontline = std::max(page_beg, min_page_lines) - min_page_lines;
-							// at least the first visible line is rendered
-							render_page(std::min(be.first, frontline), page_beg);
-						}
-						if (be.second > page_end) { // render one page after the last one
-							// if not large enough, make it as large as min_page_lines
-							size_t backline = std::min(editor.get_num_visual_lines(), page_end + min_page_lines);
-							// at least the last visible line is rendered
-							backline = std::max(be.second, backline);
-							render_page(page_end, backline);
-							page_end = backline; // set page_end
-						}
-					}
-				}
 			}
 		};
 
@@ -309,38 +346,36 @@ namespace codepad::editor::code {
 			return element::_on_update_visual_configurations(time) && _viewport_cfg.get_state().all_stationary;
 		}
 
-		/// Checks and validates \ref _pgcache by calling \ref _page_cache::make_valid.
+		/// Checks and validates \ref _pgcache by calling \ref _page_cache::prepare.
 		void _on_prerender() override {
 			element::_on_prerender();
-			if (!_cachevalid) {
-				_pgcache.make_valid();
-				_cachevalid = true;
-			}
+			_pgcache.prepare();
 		}
 		/// Renders all visible pages.
 		void _custom_render() override {
 			std::pair<size_t, size_t> vlines = _get_visible_lines_folded();
 			double slh = component_helper::get_editor(*this).get_line_height() * get_scale();
-			rectd clnrgn = get_client_region();
-			clnrgn.xmax = clnrgn.xmin + maximum_width;
-			clnrgn.ymin = std::round(clnrgn.ymin - _get_y_offset());
+			rectd pagergn = get_client_region();
+			pagergn.ymin = std::round(pagergn.ymin - _get_y_offset());
 			auto
 				ibeg = --_pgcache.pages.upper_bound(vlines.first),
 				iend = _pgcache.pages.lower_bound(vlines.second);
-			os::renderer_base::get().push_blend_function(os::blend_function(
-				os::blend_factor::one, os::blend_factor::one_minus_source_alpha
+			ui::renderer_base &r = get_manager().get_renderer();
+			r.push_blend_function(ui::blend_function(
+				ui::blend_factor::one, ui::blend_factor::one_minus_source_alpha
 			));
 			for (auto i = ibeg; i != iend; ++i) {
-				rectd crgn = clnrgn;
+				rectd crgn = pagergn;
+				crgn.xmax = crgn.xmin + i->second.get_texture().get_width();
 				crgn.ymin = std::floor(crgn.ymin + slh * static_cast<double>(i->first));
 				crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_texture().get_height());
-				os::renderer_base::get().draw_quad(
+				r.draw_quad(
 					i->second.get_texture(), crgn, rectd(0.0, 1.0, 0.0, 1.0), colord()
 				);
 			}
-			os::renderer_base::get().pop_blend_function();
+			r.pop_blend_function();
 			// render visible region indicator
-			_viewport_cfg.render(_get_clamped_viewport_rect());
+			_viewport_cfg.render(r, _get_clamped_viewport_rect());
 		}
 
 		/// Calculates and returns the vertical offset of all pages according to \ref codebox::get_vertical_position.
@@ -393,6 +428,11 @@ namespace codepad::editor::code {
 			element::_on_state_changed(info);
 		}
 
+		void _on_layout_changed() override {
+			_pgcache.on_width_changed(get_layout().width());
+			element::_on_layout_changed();
+		}
+
 		/// Registers event handlers to update the minimap and viewport indicator automatically.
 		void _on_added_to_parent() override {
 			element::_on_added_to_parent();
@@ -415,19 +455,19 @@ namespace codepad::editor::code {
 		/// Marks \ref _pgcache for update when the viewport has changed, to determine if more pages need to
 		/// be rendered when \ref _on_prerender is called.
 		void _on_viewport_changed() {
-			_cachevalid = false;
+			_pgcache.invalidate();
 		}
 		/// Clears \ref _pgcache.
 		void _on_editor_visual_changed() {
 			_pgcache.pages.clear();
-			_cachevalid = false;
+			_pgcache.invalidate();
 		}
 
 		/// If the user presses ahd holds the primary mouse button on the viewport, starts dragging it; otherwise,
 		/// if the user presses the left mouse button, jumps to the corresponding position.
 		void _on_mouse_down(ui::mouse_button_info &info) override {
 			element::_on_mouse_down(info);
-			if (info.button == os::input::mouse_button::primary) {
+			if (info.button == ui::mouse_button::primary) {
 				rectd rv = _get_viewport_rect();
 				if (rv.contains(info.position)) {
 					_dragoffset = rv.ymin - info.position.y;
@@ -447,7 +487,7 @@ namespace codepad::editor::code {
 		/// Stops dragging.
 		void _on_mouse_up(ui::mouse_button_info &info) override {
 			element::_on_mouse_up(info);
-			if (_dragging && info.button == os::input::mouse_button::primary) {
+			if (_dragging && info.button == ui::mouse_button::primary) {
 				_dragging = false;
 				get_window()->release_mouse_capture();
 			}
@@ -480,7 +520,7 @@ namespace codepad::editor::code {
 			element::_initialize(cls, metrics);
 			_can_focus = false;
 			_viewport_cfg = ui::visual_configuration(
-				ui::manager::get().get_class_visuals().get_visual_or_default(get_viewport_class())
+				get_manager().get_class_visuals().get_or_default(get_viewport_class())
 			);
 		}
 
@@ -491,9 +531,7 @@ namespace codepad::editor::code {
 		ui::visual_configuration _viewport_cfg; ///< Used to render the visible region indicator.
 		/// The offset of the mouse relative to the top border of the visible region indicator.
 		double _dragoffset = 0.0;
-		bool
-			_dragging = false, ///< Indicates whether the visible region indicator is being dragged.
-			_cachevalid = true; ///< Indicates whether \ref _page_cache::make_valid needs to be called.
+		bool _dragging = false; ///< Indicates whether the visible region indicator is being dragged.
 
 		static double _target_height; ///< The desired font height of minimaps.
 	};

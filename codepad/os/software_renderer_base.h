@@ -14,34 +14,21 @@
 #   include <emmintrin.h> // SSE2
 #endif
 
-#include "renderer.h"
+#include "../ui/renderer.h"
 
 namespace codepad::os {
 	/// Base class of software renderers. This class implements basic routines for software rendering,
 	/// and derived classes should implement platform-specific routines for displaying the rendering result.
-	class software_renderer_base : public renderer_base {
+	class software_renderer_base : public ui::renderer_base {
 	public:
 		/// Adds the default texture into the texture registry.
 		software_renderer_base() {
 			_txs.emplace_back();
 		}
 
-		/// Simply renderers the character as a quad.
-		void draw_character_custom(const char_texture &tex, rectd r, colord c) override {
-			rectd t(0.0, 1.0, 0.0, 1.0);
-			vec2d vs[6]{
-				r.xmin_ymin(), r.xmax_ymin(), r.xmin_ymax(),
-				r.xmax_ymin(), r.xmax_ymax(), r.xmin_ymax()
-			}, uvs[6]{
-				t.xmin_ymin(), t.xmax_ymin(), t.xmin_ymax(),
-				t.xmax_ymin(), t.xmax_ymax(), t.xmin_ymax()
-			};
-			colord cs[6] = {c, c, c, c, c, c};
-			_draw_triangles_impl(_get_id(tex), vs, uvs, cs, 6);
-		}
 		/// Calls \ref _draw_triangles_impl to render a series of triangles.
 		void draw_triangles(
-			const texture &tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
+			const ui::texture &tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
 		) override {
 			_draw_triangles_impl(_get_id(tid), poss, uvs, cs, sz);
 		}
@@ -75,28 +62,17 @@ namespace codepad::os {
 
 		/// Allocates space for the new texture, copies the data,
 		/// and returns a \ref texture with the allocated ID.
-		texture new_texture(size_t w, size_t h, const void *rgba) override {
-			texture::id_t nid = _alloc_id();
+		ui::texture new_texture(size_t w, size_t h, const std::uint8_t *rgba) override {
+			ui::texture::id_t nid = _alloc_id();
 			_txs[nid].set_rgba(w, h, static_cast<const unsigned char*>(rgba));
 			return _make_texture(nid, w, h);
 		}
-		/// Calls \ref _delete_texture_impl to delete the given texture.
-		void delete_texture(texture &id) override {
-			_delete_texture_impl(id);
+		/// Deletes and erases the given texture.
+		void delete_texture(ui::texture &tex) override {
+			_delete_texture_by_id(_get_id(tex));
+			_erase_texture(tex);
 		}
 
-		/// Allocates space for the new character texture, copies the data,
-		/// and returns a \ref char_texture with the allocated ID.
-		/// This is the same as for normal textures.
-		char_texture new_character_texture(size_t w, size_t h, const void *gs) override {
-			char_texture::id_t nid = _alloc_id();
-			_txs[nid].set_rgba(w, h, static_cast<const unsigned char*>(gs));
-			return _make_texture<false>(nid, w, h);
-		}
-		/// Calls \ref _delete_texture_impl to delete the given character texture.
-		void delete_character_texture(char_texture &id) override {
-			_delete_texture_impl(id);
-		}
 		/// Pushes a clip onto _render_target_stackframe::clip_stack.
 		void push_clip(recti r) override {
 			r = recti::common_part(r, _clipstk.back());
@@ -109,23 +85,23 @@ namespace codepad::os {
 		}
 
 		/// Allocates a texture of the given size, and returns the corresponding \ref framebuffer.
-		framebuffer new_framebuffer(size_t w, size_t h) override {
-			texture::id_t nid = _alloc_id();
+		ui::framebuffer new_framebuffer(size_t w, size_t h) override {
+			ui::texture::id_t nid = _alloc_id();
 			_txs[nid].resize(w, h);
 			return _make_framebuffer(nid, _make_texture(nid, w, h));
 		}
 		/// Deletes the texture corresponding to the frame buffer, and erases the frame buffer.
-		void delete_framebuffer(framebuffer &fb) override {
+		void delete_framebuffer(ui::framebuffer &fb) override {
 			_delete_texture_by_id(_get_id(fb.get_texture()));
 			_erase_framebuffer(fb);
 		}
 		/// Calls \ref continue_framebuffer and then clears the current buffer.
-		void begin_framebuffer(const framebuffer &fb) override {
+		void begin_framebuffer(const ui::framebuffer &fb) override {
 			continue_framebuffer(fb);
 			_clear_texture(_rtfstk.back().buffer, _rtfstk.back().width, _rtfstk.back().height);
 		}
 		/// Calls \ref _begin_render_target to start rendering to the frame buffer.
-		void continue_framebuffer(const framebuffer &fb) override {
+		void continue_framebuffer(const ui::framebuffer &fb) override {
 			_tex_rec &tr = _txs[_get_id(fb.get_texture())];
 			_begin_render_target(_render_target_stackframe(tr.w, tr.h, tr.data));
 		}
@@ -148,7 +124,7 @@ namespace codepad::os {
 		}
 
 		/// Pushes a \ref blend_function onto \ref _blendstk.
-		void push_blend_function(blend_function f) override {
+		void push_blend_function(ui::blend_function f) override {
 			_blendstk.push_back(f);
 		}
 		/// Pops a \ref blend_function from \ref _blendstk.
@@ -156,7 +132,7 @@ namespace codepad::os {
 			_blendstk.pop_back();
 		}
 		/// Obtains the \ref blend_function on the top of \ref _blendstk.
-		blend_function top_blend_function() const override {
+		ui::blend_function top_blend_function() const override {
 			return _blendstk.back();
 		}
 	protected:
@@ -393,16 +369,18 @@ namespace codepad::os {
 			/// \param hh The height of the texture.
 			/// \param rgba The pixel data, in 8-bit RGBA format.
 			/// \todo Optimization.
-			void set_rgba(size_t ww, size_t hh, const unsigned char *rgba) {
+			void set_rgba(size_t ww, size_t hh, const std::uint8_t *rgba) {
 				resize(ww, hh);
-				_ivec4f *target = data;
-				float fv[4];
-				for (size_t i = w * h; i > 0; --i, ++target, rgba += 4) {
-					fv[1] = rgba[0] / 255.0f;
-					fv[2] = rgba[1] / 255.0f;
-					fv[3] = rgba[2] / 255.0f;
-					fv[0] = rgba[3] / 255.0f;
-					target->set_all(fv);
+				if (rgba) {
+					_ivec4f *target = data;
+					float fv[4];
+					for (size_t i = w * h; i > 0; --i, ++target, rgba += 4) {
+						fv[1] = rgba[0] / 255.0f;
+						fv[2] = rgba[1] / 255.0f;
+						fv[3] = rgba[2] / 255.0f;
+						fv[0] = rgba[3] / 255.0f;
+						target->set_all(fv);
+					}
 				}
 			}
 			/// Frees the allocated pixel data and resets the texture to empty. Must not be called on
@@ -479,10 +457,10 @@ namespace codepad::os {
 		};
 
 		std::vector<_tex_rec> _txs; ///< The list of textures.
-		std::vector<texture::id_t> _id_realloc; ///< Stores the indices of deallocated textures.
+		std::vector<ui::texture::id_t> _id_realloc; ///< Stores the indices of deallocated textures.
 		std::vector<_render_target_stackframe> _rtfstk; ///< The stack of render target stackframes.
 		std::vector<matd3x3> _matstk; ///< The stack of matrices shared by all render targets.
-		std::vector<blend_function> _blendstk; ///< The stack of blend functions shared by all render targets.
+		std::vector<ui::blend_function> _blendstk; ///< The stack of blend functions shared by all render targets.
 		std::vector<recti> _clipstk; ///< The stack of clip regions shared by all render targets.
 
 		/// Pushes the given \ref _render_target_stackframe onto \ref _rtfstk and starts rendering to it.
@@ -495,8 +473,8 @@ namespace codepad::os {
 		}
 
 		/// Allocates and returns an ID for a new texture.
-		texture::id_t _alloc_id() {
-			texture::id_t nid;
+		ui::texture::id_t _alloc_id() {
+			ui::texture::id_t nid;
 			if (_id_realloc.empty()) {
 				nid = _txs.size();
 				_txs.emplace_back();
@@ -507,23 +485,18 @@ namespace codepad::os {
 			return nid;
 		}
 		/// Disposes the texture with the given ID, and pushes the ID onto \ref _id_realloc.
-		void _delete_texture_by_id(texture::id_t id) {
+		void _delete_texture_by_id(ui::texture::id_t id) {
 			_txs[id].dispose();
 			_id_realloc.push_back(id);
 		}
-		/// Calls _delete_texture_by_id() to dispose of the texture, and then erases the \ref texture_base.
-		template <bool V> void _delete_texture_impl(texture_base<V> &tex) {
-			_delete_texture_by_id(_get_id(tex));
-			_erase_texture(tex);
-		}
 		/// Draws a batch of triangles with the given texture and vertices.
 		void _draw_triangles_impl(
-			texture::id_t tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
+			ui::texture::id_t tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
 		) {
 			const vec2d *cp = poss, *cuv = uvs;
 			const colord *cc = cs;
 			vec2d tmp[3];
-			const blend_function &bfun = _blendstk.back();
+			const ui::blend_function &bfun = _blendstk.back();
 			for (; sz > 2; sz -= 3, cp += 3, cuv += 3, cc += 3) {
 				tmp[0] = _matstk.back().transform(cp[0]);
 				tmp[1] = _matstk.back().transform(cp[1]);
@@ -538,16 +511,16 @@ namespace codepad::os {
 		/// \param dst The `destination' color.
 		/// \param target The color to be multiplied, usually either \p src or \p dst.
 		/// \param factor The blend factor to multiply \p target with.
-		static _ivec4f _get_blend_diff(_ivec4f src, _ivec4f dst, _ivec4f target, blend_factor factor);
+		static _ivec4f _get_blend_diff(_ivec4f src, _ivec4f dst, _ivec4f target, ui::blend_factor factor);
 		/// Blends the two colors together, and returns the result.
 		///
 		/// \param src The `source' color.
 		/// \param dst The `destination' color.
 		/// \param srcf The factor to blend \p src with.
 		/// \param dstf The factor to blend \p dst with.
-		static _ivec4f _blend_colors(_ivec4f src, _ivec4f dst, blend_factor srcf, blend_factor dstf);
+		static _ivec4f _blend_colors(_ivec4f src, _ivec4f dst, ui::blend_factor srcf, ui::blend_factor dstf);
 		/// Blends \p src with \p pix with the given blend factors.
-		inline static void _draw_pixel_with_blend(_ivec4f &pix, _ivec4f src, blend_factor srcf, blend_factor dstf) {
+		inline static void _draw_pixel_with_blend(_ivec4f &pix, _ivec4f src, ui::blend_factor srcf, ui::blend_factor dstf) {
 			pix = _blend_colors(src, pix, srcf, dstf);
 		}
 
@@ -592,8 +565,8 @@ namespace codepad::os {
 		/// \param srcf The factor to blend the colors to be drawn with.
 		/// \param dstf The factor to blend the colors already on the canvas with.
 		void _draw_triangle(
-			const vec2d *ps, const vec2d *uvs, const colord *cs, texture::id_t tex,
-			blend_factor srcf, blend_factor dstf
+			const vec2d *ps, const vec2d *uvs, const colord *cs, ui::texture::id_t tex,
+			ui::blend_factor srcf, ui::blend_factor dstf
 		) {
 			_vec2_t rps[3]{ps[0].convert<_real_t>(), ps[1].convert<_real_t>(), ps[2].convert<_real_t>()};
 			_vec2_t ruvs[3]{uvs[0].convert<_real_t>(), uvs[1].convert<_real_t>(), uvs[2].convert<_real_t>()};
@@ -647,7 +620,7 @@ namespace codepad::os {
 		void _draw_triangle_half(
 			_real_t sx, _real_t sy, _real_t invk1, _real_t invk2, _real_t ymin, _real_t ymax,
 			const _tex_rec &tex, _pq_params params, _vec2_t uv1, _vec2_t uv2, _vec2_t uv3,
-			_ivec4f c1, _ivec4f c2, _ivec4f c3, blend_factor srcf, blend_factor dstf
+			_ivec4f c1, _ivec4f c2, _ivec4f c3, ui::blend_factor srcf, ui::blend_factor dstf
 		) {
 			sx += 0.5f;
 			sy -= 0.5f;
@@ -697,7 +670,7 @@ namespace codepad::os {
 			tx -= fx;
 			fx -= 0.5f;
 			_ivec4f colorv = _convert_from_color(c.convert<float>());
-			blend_function fun = _blendstk.back();
+			ui::blend_function fun = _blendstk.back();
 			for (size_t cx = static_cast<size_t>(std::max<_real_t>(fx + 0.5f, 0.0f)); cx < t; ++cx) {
 				auto y = static_cast<size_t>(fy + k * (static_cast<_real_t>(cx) - fx));
 				_ivec4f *pixel = _rtfstk.back().buffer + (y * _rtfstk.back().width + cx);
@@ -713,7 +686,7 @@ namespace codepad::os {
 			ty -= by;
 			by -= 0.5f;
 			_ivec4f colorv = _convert_from_color(c.convert<float>());
-			blend_function fun = _blendstk.back();
+			ui::blend_function fun = _blendstk.back();
 			for (size_t cy = static_cast<size_t>(std::max<_real_t>(by + 0.5f, 0.0f)); cy < t; ++cy) {
 				auto x = static_cast<size_t>(bx + invk * (static_cast<_real_t>(cy) - by));
 				_ivec4f *pixel = _rtfstk.back().buffer + (cy * _rtfstk.back().width + x);

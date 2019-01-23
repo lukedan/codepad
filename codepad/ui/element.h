@@ -10,18 +10,19 @@
 
 #include "../apigen_definitions.h"
 
-#include "../core/hotkey_registry.h"
 #include "../core/encodings.h"
 #include "../core/event.h"
 #include "../core/misc.h"
-#include "../os/renderer.h"
 #include "../os/misc.h"
+#include "hotkey_registry.h"
 #include "element_classes.h"
 #include "visual.h"
+#include "renderer.h"
 #include "draw.h"
 
 namespace codepad::ui {
 	class panel_base;
+	class manager;
 
 	/// Contains information about mouse movement.
 	struct mouse_move_info {
@@ -55,10 +56,10 @@ namespace codepad::ui {
 	/// Contains information about mouse clicks.
 	struct mouse_button_info {
 		/// Constructor.
-		mouse_button_info(os::input::mouse_button mb, modifier_keys mods, vec2d pos) :
+		mouse_button_info(mouse_button mb, modifier_keys mods, vec2d pos) :
 			button(mb), modifiers(mods), position(pos) {
 		}
-		const os::input::mouse_button button; ///< The mouse button that the user has pressed.
+		const mouse_button button; ///< The mouse button that the user has pressed.
 		const modifier_keys modifiers; ///< The modifiers that are pressed.
 		const vec2d position; ///< The position of the mouse when the event took place.
 		/// Returns \p true if the click has caused the focused element to change.
@@ -76,9 +77,9 @@ namespace codepad::ui {
 	/// Contains information about key presses.
 	struct key_info {
 		/// Constructor.
-		explicit key_info(os::input::key k) : key(k) {
+		explicit key_info(key k) : key(k) {
 		}
-		const os::input::key key; ///< The key that has been pressed.
+		const key key; ///< The key that has been pressed.
 	};
 	/// Contains information about text input.
 	struct text_info {
@@ -110,10 +111,11 @@ namespace codepad::ui {
 
 	/// The base class of elements of the user interface.
 	class APIGEN_EXPORT_RECURSIVE APIGEN_EXPORT_BASE element {
-		friend class manager;
+		APIGEN_ENABLE_PRIVATE_EXPORT;
 		friend class element_collection;
-		friend class panel_base;
-		friend class os::window_base;
+		friend class window_base;
+		friend manager;
+		friend panel_base;
 		friend class_arrangements;
 	public:
 		/// Default virtual destrucor.
@@ -140,22 +142,22 @@ namespace codepad::ui {
 		/// Returns the width value used for layout calculation. If the current width allocation type is
 		/// \ref size_allocation_type::automatic, the result will be that of \ref get_desired_width; otherwise the
 		/// user-defined width will be returned.
-		std::pair<double, bool> get_layout_width() const {
+		size_allocation get_layout_width() const {
 			size_allocation_type type = get_width_allocation();
 			if (type == size_allocation_type::automatic) {
 				return get_desired_width();
 			}
-			return {get_size().x, type == size_allocation_type::fixed};
+			return size_allocation(get_size().x, type == size_allocation_type::fixed);
 		}
 		/// Returns the height value used for layout calculation.
 		///
 		/// \sa get_layout_width
-		std::pair<double, bool> get_layout_height() const {
+		size_allocation get_layout_height() const {
 			size_allocation_type type = get_height_allocation();
 			if (type == size_allocation_type::automatic) {
 				return get_desired_height();
 			}
-			return {get_size().y, type == size_allocation_type::fixed};
+			return size_allocation(get_size().y, type == size_allocation_type::fixed);
 		}
 
 		/// Returns the margin metric of this element.
@@ -191,16 +193,16 @@ namespace codepad::ui {
 		///
 		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
 		///         indicates whether the value is specified in pixels.
-		virtual std::pair<double, bool> get_desired_width() const {
-			return {1.0, false};
+		virtual size_allocation get_desired_width() const {
+			return size_allocation(1.0, false);
 		}
 		/// Returns the desired height of the element. Derived elements can override this to change the default
 		/// behavior, which simply makes the element fill all available space vertically.
 		///
 		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
 		///         indicates whether the value is specified in pixels.
-		virtual std::pair<double, bool> get_desired_height() const {
-			return {1.0, false};
+		virtual size_allocation get_desired_height() const {
+			return size_allocation(1.0, false);
 		}
 
 		/// Used to test if a given point lies in the element.
@@ -212,26 +214,26 @@ namespace codepad::ui {
 
 		/// Returns the default cursor of the element. Derived classes can override this function to change
 		/// the default behavior.
-		virtual os::cursor get_default_cursor() const {
-			return os::cursor::normal;
+		virtual cursor get_default_cursor() const {
+			return cursor::normal;
 		}
 		/// Sets the custom cursor displayed when the mouse is over this element.
-		/// If the given cursor is os::cursor::not_specified, then the element will have no custom cursor.
-		void set_overriden_cursor(os::cursor c) {
-			_crsr = c;
+		/// If the given cursor is \ref cursor::not_specified, then the element will have no custom cursor.
+		void set_overriden_cursor(cursor c) {
+			_cursor = c;
 		}
 		/// Returns the custom cursor displayed when the mouse is over this element.
-		os::cursor get_overriden_cursor() const {
-			return _crsr;
+		cursor get_overriden_cursor() const {
+			return _cursor;
 		}
 		/// Returns the cursor displayed when the mouse is over this element.
 		/// This function returns the cusrom cursor if there is one,
 		/// or the result returned by \ref get_default_cursor.
-		virtual os::cursor get_current_display_cursor() const {
-			if (_crsr == os::cursor::not_specified) {
+		virtual cursor get_current_display_cursor() const {
+			if (_cursor == cursor::not_specified) {
 				return get_default_cursor();
 			}
-			return _crsr;
+			return _cursor;
 		}
 
 		/// Sets if this element can have the focus.
@@ -246,7 +248,11 @@ namespace codepad::ui {
 
 		/// Returns the window that contains the element, or \p nullptr if the element's not currently attached to
 		/// one.
-		os::window_base *get_window();
+		window_base *get_window();
+		/// Returns the \ref manager of this element. Use this instead of directly accessing \ref _manager.
+		manager &get_manager() const {
+			return *_manager;
+		}
 
 		/// Sets the z-index of the element.
 		void set_zindex(int);
@@ -338,9 +344,8 @@ namespace codepad::ui {
 		inline static str_t get_default_class() {
 			return CP_STRLIT("element");
 		}
-	protected:
+	private:
 		element_configuration _config; ///< The configuration of this element.
-		rectd _layout; ///< The absolute layout of the element in the window.
 		panel_base
 			*_parent = nullptr, ///< Pointer to the element's parent.
 			/// The element's logical parent. In composite elements this points to the top level composite element.
@@ -349,8 +354,10 @@ namespace codepad::ui {
 			*_logical_parent = nullptr;
 		element_state_id _state = normal_element_state_id; ///< The element's current state.
 		int _zindex = zindex::normal; ///< The z-index of the element.
-		os::cursor _crsr = os::cursor::not_specified; ///< The custom cursor of the element.
+		cursor _cursor = cursor::not_specified; ///< The custom cursor of the element.
+	protected:
 		bool _can_focus = true; ///< Indicates whether this element can have the focus.
+		rectd _layout; ///< The absolute layout of the element in the window.
 
 		/// Called when the mouse starts to be over the element.
 		/// Updates the visual style and invokes \ref mouse_enter.
@@ -452,17 +459,13 @@ namespace codepad::ui {
 
 		/// Called when the element is about to be rendered.
 		/// Pushes a clip that prevents anything to be drawn outside of its layout.
-		virtual void _on_prerender() {
-			os::renderer_base::get().push_clip(_layout.fit_grid_enlarge<int>());
-		}
+		virtual void _on_prerender();
 		/// Called when the element is rendered.
 		/// Derived classes should override this function to perform custom rendering.
 		virtual void _custom_render() {
 		}
 		/// Called after the element has been rendered. Pops the clip pushed in \ref _on_prerender.
-		virtual void _on_postrender() {
-			os::renderer_base::get().pop_clip();
-		}
+		virtual void _on_postrender();
 		/// Renders the element if the element does not have \ref manager::predefined_states::render_invisible state.
 		/// This function first calls \ref _on_prerender, then updates \ref _state and renders the background, calls
 		/// \ref _custom_render, and finally calls \ref _on_postrender.
@@ -475,7 +478,8 @@ namespace codepad::ui {
 		/// \param height Whether the height of the desired size has changed.
 		void _on_desired_size_changed(bool width, bool height);
 		/// Called by \ref manager when the layout has changed. Calls \ref invalidate_visual. Derived classes can
-		/// override this to update layout-dependent properties. For panels, it's often better to override \ref panel_base::
+		/// override this to update layout-dependent properties. For panels, override
+		/// \ref panel_base::_on_update_children_layout() instead when re-calculating the layout of its children.
 		virtual void _on_layout_changed() {
 			if (
 				std::isnan(get_layout().xmin) || std::isnan(get_layout().xmax) ||
@@ -499,8 +503,9 @@ namespace codepad::ui {
 		/// It is primarily intended to avoid pitfalls associated with virtual function calls in destructors to have
 		/// this function.
 		virtual void _dispose();
-#ifdef CP_CHECK_USAGE_ERRORS
 	private:
+		manager *_manager = nullptr; ///< The \ref manager of this element.
+#ifdef CP_CHECK_USAGE_ERRORS
 		bool _initialized = false; ///< Indicates wheter the element has been properly initialized and disposed.
 #endif
 	};
@@ -511,27 +516,18 @@ namespace codepad::ui {
 	/// <tt>new decoration()</tt>. When deleted, the decoration will automatically be unregistered from the window
 	/// it's currently registered to.'
 	class decoration {
-		friend class os::window_base;
+		friend class window_base;
 	public:
-		/// Default constructor.
-		decoration() = default;
+		/// Initializes this decoration with the corresponding \ref manager.
+		explicit decoration(manager &man) : _manager(man) {
+		}
 		/// No move construction.
 		decoration(decoration&&) = delete;
-		/// Copy constructor. The decoration will have the same class, state, etc. of the original decoration, only
-		/// that it won't be registered to any window.
+		/// Copy constructor. The decoration will have the same class, state, manager, etc. of the original
+		/// decoration, only that it won't be registered to any window.
 		decoration(const decoration &src) :
-			_vis_config(src._vis_config), _class(src._class), _layout(src._layout), _state(src._state) {
-		}
-		/// No move assignment.
-		decoration &operator=(decoration&&) = delete;
-		/// Copies the layout, class, state, and visual configuration of the given decoration, but leaves the registration
-		/// state unchanged.
-		decoration &operator=(const decoration &src) {
-			_vis_config = src._vis_config;
-			_class = src._class;
-			_layout = src._layout;
-			_state = src._state;
-			return *this;
+			_vis_config(src._vis_config), _class(src._class), _layout(src._layout), _state(src._state),
+			_manager(src._manager) {
 		}
 		/// Destructor. If \ref _wnd is not \p nullptr, notifies the window of its disposal.
 		~decoration();
@@ -564,7 +560,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the os::window_base that the decoration is currently registered to.
-		os::window_base *get_window() const {
+		window_base *get_window() const {
 			return _wnd;
 		}
 	protected:
@@ -573,8 +569,9 @@ namespace codepad::ui {
 		rectd _layout; ///< The layout of the decoration.
 		/// A token used to accelerate the insertion and removal of decorations.
 		std::list<decoration*>::const_iterator _tok;
-		os::window_base *_wnd = nullptr; ///< The window that the decoration is currently registered to.
-		element_state_id _state; ///< The decoration's state.
+		window_base *_wnd = nullptr; ///< The window that the decoration is currently registered to.
+		element_state_id _state = normal_element_state_id; ///< The decoration's state.
+		manager &_manager; ///< The \ref manager of this decoration.
 
 		/// Called when the \ref _vis_config should be updated. Calls \ref manager::schedule_visual_config_update().
 		void _on_state_invalidated();

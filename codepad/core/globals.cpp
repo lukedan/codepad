@@ -11,9 +11,9 @@
 #include "misc.h"
 #include "tasks.h"
 #include "../os/current/all.h"
-#include "../os/renderer.h"
 #include "../ui/commands.h"
 #include "../ui/common_elements.h"
+#include "../ui/renderer.h"
 #include "../ui/manager.h"
 #include "../ui/element_classes.h"
 #include "../ui/font_family.h"
@@ -55,15 +55,6 @@ namespace codepad {
 		get_app_epoch(); // initialize epoch
 
 		native_commands::register_all(); // register commands
-
-		// initialization steps below need to be associated with settings some time
-		// initialize renderer
-#ifdef CP_PLATFORM_WINDOWS
-		renderer_base::create_default<opengl_renderer>();
-#elif defined(CP_PLATFORM_UNIX)
-		/*renderer_base::create_default<opengl_renderer>();*/
-		renderer_base::create_default<software_renderer>();
-#endif
 
 		/*document_formatting_cache::enable();*/
 	}
@@ -183,16 +174,8 @@ namespace codepad {
 			static _global_wrapper<_library> _v;
 			return _v.object;
 		}
-		renderer_base::_default_renderer &renderer_base::_get_rend() {
-			static _global_wrapper<_default_renderer> _v;
-			return _v.object;
-		}
 	}
 	namespace ui {
-		manager &manager::get() {
-			static _global_wrapper<manager> _v;
-			return _v.object;
-		}
 		content_host::_default_font &content_host::_default_font::get() {
 			static _global_wrapper<_default_font> _v;
 			return _v.object;
@@ -203,10 +186,6 @@ namespace codepad {
 		}
 	}
 	namespace editor {
-		tab_manager &tab_manager::get() {
-			static _global_wrapper<tab_manager> _v;
-			return _v.object;
-		}
 		buffer_manager &buffer_manager::get() {
 			static _global_wrapper<buffer_manager> _v;
 			return _v.object;

@@ -12,6 +12,8 @@
 #include "ui/draw.h"
 #include "ui/common_elements.h"
 #include "ui/native_commands.h"
+#include "ui/config_parsers.h"
+#include "ui/text_rendering.h"
 #include "editors/tabs.h"
 #include "editors/code/codebox.h"
 #include "editors/code/components.h"
@@ -26,82 +28,47 @@ using namespace codepad::editor;
 int main(int argc, char **argv) {
 	codepad::initialize(argc, argv);
 
-	auto fnt = std::make_shared<default_font>(CP_STRLIT(""), 13.0, font_style::normal);
-	//font_family codefnt(CP_STRLIT("Fira Code"), 12.0);
-	//font_family codefnt(CP_STRLIT(""), 13.0);
-	font_family codefnt(CP_STRLIT("Segoe UI"), 13.0);
-
-	texture_table tbl;
-	{
-		// load skin
-		std::ifstream fin("skin/skin.json", std::ios::binary);
-		fin.seekg(0, std::ios::end);
-		size_t sz = static_cast<size_t>(fin.tellg());
-		auto *c = static_cast<char*>(std::malloc(sz + 1));
-		fin.seekg(0);
-		fin.read(c, static_cast<std::streamsize>(sz));
-		c[sz] = 0;
-		json::parser_value_t v;
-		v.Parse(c, sz);
-		std::free(c);
-		tbl = manager::get().get_class_visuals().load_json(v);
-	}
+	manager man;
+	man.set_renderer(std::make_unique<opengl_renderer>());
+	man.set_font_manager(std::make_unique<font_manager>(man));
 
 	{
-		// load arrangements
-		std::ifstream fin("skin/arrangements.json", std::ios::binary);
-		fin.seekg(0, std::ios::end);
-		size_t sz = static_cast<size_t>(fin.tellg());
-		auto *c = static_cast<char*>(std::malloc(sz + 1));
-		fin.seekg(0);
-		fin.read(c, static_cast<std::streamsize>(sz));
-		c[sz] = 0;
-		json::parser_value_t v;
-		v.Parse(c, sz);
-		std::free(c);
-		manager::get().get_class_arrangements().load_json(v);
+		ui_config_json_parser parser(man);
+		parser.parse_visual_config(json::parse_file("skin/skin.json"));
+		parser.parse_arrangements_config(json::parse_file("skin/arrangements.json"));
+		parser.get_texture_table().load_all(man.get_renderer(), "skin/");
 	}
 
-	{
-		// load hotkeys
-		std::ifstream fin("keys.json", std::ios::binary);
-		fin.seekg(0, std::ios::end);
-		size_t sz = static_cast<size_t>(fin.tellg());
-		auto *c = static_cast<char*>(std::malloc(sz + 1));
-		fin.seekg(0);
-		fin.read(c, static_cast<std::streamsize>(sz));
-		c[sz] = 0;
-		json::parser_value_t v;
-		v.Parse(c, sz);
-		std::free(c);
-		manager::get().get_class_hotkeys().load_json(v);
-	}
+	hotkey_json_parser::parse_config(man.get_class_hotkeys().hotkeys, json::parse_file("keys.json"));
+
+	tab_manager tabman(man);
+
+	auto fnt = create_font(man.get_font_manager(), CP_STRLIT(""), 13.0, font_style::normal);
+	font_family codefnt(man.get_font_manager(), CP_STRLIT("Fira Code"), 12.0);
 
 	content_host::set_default_font(fnt);
 	code::editor::set_font(codefnt);
 
-	auto *lbl = manager::get().create_element<label>();
+	auto *lbl = man.create_element<label>();
 	lbl->content().set_text(CP_STRLIT("Ctrl+O to open a file"));
 	lbl->mouse_down += [lbl](ui::mouse_button_info&) {
 		command_registry::get().find_command(CP_STRLIT("open_file_dialog"))(lbl->parent()->parent());
 	};
-	tab *tmptab = tab_manager::get().new_tab();
+	tab *tmptab = tabman.new_tab();
 	tmptab->set_label(CP_STRLIT("welcome"));
 	tmptab->children().add(*lbl);
 
-	tbl.load_all("skin/");
-
-	while (!tab_manager::get().empty()) {
+	while (!tabman.empty()) {
 		{
 			performance_monitor mon(CP_STRLIT("frame"), 0.05);
-			manager::get().update();
-			tab_manager::get().update();
+			man.update();
+			tabman.update();
 			callback_buffer::get().flush();
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 	async_task_pool::get().shutdown();
-	manager::get().dispose_marked_elements();
+	man.dispose_marked_elements();
 
 	return 0;
 }

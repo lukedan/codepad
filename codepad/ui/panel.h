@@ -10,7 +10,7 @@
 #include <unordered_map>
 
 #include "element.h"
-#include "../os/renderer.h"
+#include "renderer.h"
 
 namespace codepad::ui {
 	class manager;
@@ -100,32 +100,32 @@ namespace codepad::ui {
 	public:
 		/// If the mouse is over any of its children, then returns the cursor of the children.
 		/// Otherwise just returns element::get_current_display_cursor().
-		os::cursor get_current_display_cursor() const override {
-			if (_children_cursor != os::cursor::not_specified) {
+		cursor get_current_display_cursor() const override {
+			if (_children_cursor != cursor::not_specified) {
 				return _children_cursor;
 			}
 			return element::get_current_display_cursor();
 		}
 
 		/// Returns the maximum width of its children, plus padding.
-		std::pair<double, bool> get_desired_width() const override {
+		size_allocation get_desired_width() const override {
 			double maxw = 0.0;
 			for (const element *e : _children.items()) {
 				if (e->is_layout_visible()) {
 					maxw = std::max(maxw, _get_horizontal_absolute_span(*e));
 				}
 			}
-			return {maxw + get_padding().width(), true};
+			return size_allocation(maxw + get_padding().width(), true);
 		}
 		/// Returns the maximum height of its children, plus padding.
-		std::pair<double, bool> get_desired_height() const override {
+		size_allocation get_desired_height() const override {
 			double maxh = 0.0;
 			for (const element *e : _children.items()) {
 				if (e->is_layout_visible()) {
 					maxh = std::max(maxh, _get_vertical_absolute_span(*e));
 				}
 			}
-			return {maxh + get_padding().height(), true};
+			return size_allocation(maxh + get_padding().height(), true);
 		}
 
 		/// Sets whether it should mark all its children for disposal when it's being disposed.
@@ -202,8 +202,8 @@ namespace codepad::ui {
 			child._layout.xmin = xmin;
 			child._layout.xmax = xmax;
 			layout_on_direction(
-				(anc & anchor::left) != anchor::none, wprop.second, (anc & anchor::right) != anchor::none,
-				child._layout.xmin, child._layout.xmax, margin.left, wprop.first, margin.right
+				(anc & anchor::left) != anchor::none, wprop.is_pixels, (anc & anchor::right) != anchor::none,
+				child._layout.xmin, child._layout.xmax, margin.left, wprop.value, margin.right
 			);
 		}
 		/// Calculates the vertical layout of the given \ref element, given the client area that contains it.
@@ -214,8 +214,8 @@ namespace codepad::ui {
 			child._layout.ymin = ymin;
 			child._layout.ymax = ymax;
 			layout_on_direction(
-				(anc & anchor::top) != anchor::none, hprop.second, (anc & anchor::bottom) != anchor::none,
-				child._layout.ymin, child._layout.ymax, margin.top, hprop.first, margin.bottom
+				(anc & anchor::top) != anchor::none, hprop.is_pixels, (anc & anchor::bottom) != anchor::none,
+				child._layout.ymin, child._layout.ymax, margin.top, hprop.value, margin.bottom
 			);
 		}
 		/// Calculates the layout of the given \ref element, given the area that supposedly contains it (usually the
@@ -321,7 +321,7 @@ namespace codepad::ui {
 				child.invalidate_layout();
 			}
 		}
-		/// If this panel doesn't override the children's layout, then invalidate all children's layout.
+		/// Invalidate all children's layout.
 		void _on_layout_changed() override {
 			_on_update_children_layout();
 			element::_on_layout_changed();
@@ -342,7 +342,7 @@ namespace codepad::ui {
 		/// Tests for the element that the mouse is over, and calls \ref element::_on_mouse_move(). It also calls
 		/// \ref element::_on_mouse_enter() and \ref element::_on_mouse_leave() automatically when necessary.
 		void _on_mouse_move(mouse_move_info &p) override {
-			_children_cursor = os::cursor::not_specified; // reset cursor
+			_children_cursor = cursor::not_specified; // reset cursor
 			element *mouseover = _hit_test_for_child(p.new_position);
 			for (element *j : _children.z_ordered()) { // the mouse cannot be over any other element
 				if (mouseover != j && j->is_mouse_over()) {
@@ -415,8 +415,8 @@ namespace codepad::ui {
 				cur += margin.left;
 			}
 			auto sz = e.get_layout_width();
-			if (sz.second) {
-				cur += sz.first;
+			if (sz.is_pixels) {
+				cur += sz.value;
 			}
 			if ((anc & anchor::right) != anchor::none) {
 				cur += margin.right;
@@ -432,8 +432,8 @@ namespace codepad::ui {
 				cur += margin.top;
 			}
 			auto sz = e.get_layout_height();
-			if (sz.second) {
-				cur += sz.first;
+			if (sz.is_pixels) {
+				cur += sz.value;
 			}
 			if ((anc & anchor::bottom) != anchor::none) {
 				cur += margin.bottom;
@@ -456,7 +456,7 @@ namespace codepad::ui {
 
 		element_collection _children{*this}; ///< The collection of its children.
 		/// Caches the cursor of the child that the mouse is over.
-		os::cursor _children_cursor = os::cursor::not_specified;
+		cursor _children_cursor = cursor::not_specified;
 		/// Indicates whether the panel marks all children for disposal when disposed.
 		bool _dispose_children = true;
 	};
@@ -488,7 +488,7 @@ namespace codepad::ui {
 		/// return value is the padding plus the sum of all horizontal sizes specified in pixels, ignoring those
 		/// specified as proportions, if the panel is in a horizontal state; or the padding plus the maximum
 		/// horizontal size specified in pixels otherwise.
-		std::pair<double, bool> get_desired_width() const override {
+		size_allocation get_desired_width() const override {
 			double val = 0.0;
 			for (element *e : _children.items()) {
 				if (e->is_layout_visible()) {
@@ -496,13 +496,13 @@ namespace codepad::ui {
 					val = is_vertical() ? std::max(val, span) : val + span;
 				}
 			}
-			return {val + get_padding().width(), true};
+			return size_allocation(val + get_padding().width(), true);
 		}
 		/// Returns the minimum height that can contain all elements in pixels, plus padding. All heights specified
 		/// in proportions are ignored.
 		///
 		/// \sa get_desired_width
-		std::pair<double, bool> get_desired_height() const override {
+		size_allocation get_desired_height() const override {
 			double val = 0.0;
 			for (element *e : _children.items()) {
 				if (e->is_layout_visible()) {
@@ -510,7 +510,7 @@ namespace codepad::ui {
 					val = is_vertical() ? val + span : std::max(val, span);
 				}
 			}
-			return {val + get_padding().height(), true};
+			return size_allocation(val + get_padding().height(), true);
 		}
 
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel with the given
@@ -552,7 +552,7 @@ namespace codepad::ui {
 			/// Default constructor.
 			_elem_layout_info() = default;
 
-			std::pair<double, bool>
+			size_allocation
 				margin_min, ///< The element's layout settings for its margin in the `negative' direction.
 				size, ///< The element's layout settings for its size.
 				margin_max; ///< The element's layout settings for the margin in the `positive' direction.
@@ -563,12 +563,12 @@ namespace codepad::ui {
 				thickness margin = e.get_margin();
 				anchor anc = e.get_anchor();
 				if constexpr (Vertical) {
-					res.margin_min = {margin.top, (anc & anchor::top) != anchor::none};
-					res.margin_max = {margin.bottom, (anc & anchor::bottom) != anchor::none};
+					res.margin_min = size_allocation(margin.top, (anc & anchor::top) != anchor::none);
+					res.margin_max = size_allocation(margin.bottom, (anc & anchor::bottom) != anchor::none);
 					res.size = e.get_layout_height();
 				} else {
-					res.margin_min = {margin.left, (anc & anchor::left) != anchor::none};
-					res.margin_max = {margin.right, (anc & anchor::right) != anchor::none};
+					res.margin_min = size_allocation(margin.left, (anc & anchor::left) != anchor::none);
+					res.margin_max = size_allocation(margin.right, (anc & anchor::right) != anchor::none);
 					res.size = e.get_layout_width();
 				}
 				return res;
@@ -599,9 +599,9 @@ namespace codepad::ui {
 				if (e->is_layout_visible()) {
 					CalcDefaultDir(*e, client.*DefMin, client.*DefMax);
 					_elem_layout_info info = _elem_layout_info::extract<Vertical>(*e);
-					(info.margin_min.second ? total_px : total_prop) += info.margin_min.first;
-					(info.size.second ? total_px : total_prop) += info.size.first;
-					(info.margin_max.second ? total_px : total_prop) += info.margin_max.first;
+					(info.margin_min.is_pixels ? total_px : total_prop) += info.margin_min.value;
+					(info.size.is_pixels ? total_px : total_prop) += info.size.value;
+					(info.margin_max.is_pixels ? total_px : total_prop) += info.margin_max.value;
 					layoutinfo.emplace_back(info);
 				} else { // not accounted for; behave as panel_base
 					panel_base::layout_child(*e, client);
@@ -615,17 +615,17 @@ namespace codepad::ui {
 					const _elem_layout_info &info = *it;
 					rectd nl = e->get_layout();
 					nl.*MainMin = pos +=
-						info.margin_min.second ?
-						info.margin_min.first :
-						info.margin_min.first * prop_mult;
+						info.margin_min.is_pixels ?
+						info.margin_min.value :
+						info.margin_min.value * prop_mult;
 					nl.*MainMax = pos +=
-						info.size.second ?
-						info.size.first :
-						info.size.first * prop_mult;
+						info.size.is_pixels ?
+						info.size.value :
+						info.size.value * prop_mult;
 					pos +=
-						info.margin_max.second ?
-						info.margin_max.first :
-						info.margin_max.first * prop_mult;
+						info.margin_max.is_pixels ?
+						info.margin_max.value :
+						info.margin_max.value * prop_mult;
 					_child_set_layout(*e, nl);
 					++it;
 				}

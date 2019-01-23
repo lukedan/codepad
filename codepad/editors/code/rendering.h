@@ -20,11 +20,11 @@ namespace codepad::editor::code {
 		/// Default constructor.
 		character_token() = default;
 		/// Initializes all fields of this struct.
-		character_token(codepoint cp, font_style s, colord c) : value(cp), style(s), color(c) {
+		character_token(codepoint cp, ui::font_style s, colord c) : value(cp), style(s), color(c) {
 		}
 
 		codepoint value = 0; ///< The character.
-		font_style style = font_style::normal; ///< The style of the character.
+		ui::font_style style = ui::font_style::normal; ///< The style of the character.
 		colord color; ///< Color of the character.
 	};
 	/// Indicates that the next token to be rendered is a linebreak.
@@ -49,14 +49,14 @@ namespace codepad::editor::code {
 		text_gizmo_token(str_t str, colord c) : contents(std::move(str)), color(c) {
 		}
 		/// Constructs a text gizmo with the given contents, color, and font.
-		text_gizmo_token(str_t str, colord c, std::shared_ptr<const os::font> fnt) :
+		text_gizmo_token(str_t str, colord c, std::shared_ptr<const ui::font> fnt) :
 			contents(std::move(str)), color(c), font(std::move(fnt)) {
 		}
 
 		str_t contents; ///< The contents of this token.
 		colord color; ///< Color used to render this token.
 		/// The font used for the text. If this is empty, the normal font of the editor is used.
-		std::shared_ptr<const os::font> font;
+		std::shared_ptr<const ui::font> font;
 	};
 	/// Contains information about a token to be rendered.
 	using token = std::variant<no_token, character_token, linebreak_token, image_gizmo_token, text_gizmo_token>;
@@ -415,7 +415,7 @@ namespace codepad::editor::code {
 			const token_generation_result &tok
 		) {
 			if (tok.steps > 0) { // about to move forward; this is the only chance
-				_check_generate_carets_all<false>(iter, metrics, tok.result);
+				_checked_generate_carets_all<false>(iter, metrics, tok.result);
 				_update_selection(iter, metrics, tok.result);
 				_last_soft_linebreak = false;
 			} else {
@@ -424,7 +424,7 @@ namespace codepad::editor::code {
 						std::get<linebreak_token>(tok.result).type == line_ending::none,
 						"hard linebreak with zero length"
 					);
-					_check_generate_carets_all<true>(iter, metrics, tok.result);
+					_checked_generate_carets_all<true>(iter, metrics, tok.result);
 					_last_soft_linebreak = true;
 				} else { // other stuff like (pure) gizmos
 					// TODO
@@ -493,7 +493,7 @@ namespace codepad::editor::code {
 		}
 		/// Checks and generates a caret if necessary, given an iterator to a caret. The iterator must not point
 		/// past at the end of the container.
-		template <bool AtSoftbreak> void _check_generate_caret_single(
+		template <bool AtSoftbreak> void _checked_generate_caret_single(
 			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics,
 			[[maybe_unused]] const token &tok, const caret_set::const_iterator &it
 		) {
@@ -510,13 +510,13 @@ namespace codepad::editor::code {
 			}
 		}
 		/// Checks and generates carets for \ref _cur_caret and \ref _next_caret if necessary.
-		template <bool AtSoftbreak> void _check_generate_carets_all(
+		template <bool AtSoftbreak> void _checked_generate_carets_all(
 			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics, const token &tok
 		) {
 			if (_cur_caret != _carets.end()) {
-				_check_generate_caret_single<AtSoftbreak>(iter, metrics, tok, _cur_caret);
+				_checked_generate_caret_single<AtSoftbreak>(iter, metrics, tok, _cur_caret);
 				if (_next_caret != _carets.end()) {
-					_check_generate_caret_single<AtSoftbreak>(iter, metrics, tok, _next_caret);
+					_checked_generate_caret_single<AtSoftbreak>(iter, metrics, tok, _next_caret);
 				}
 			}
 		}

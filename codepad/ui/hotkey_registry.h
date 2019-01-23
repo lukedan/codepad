@@ -12,10 +12,10 @@
 #include <functional>
 #include <variant>
 
+#include "../core/misc.h"
 #include "../os/misc.h"
-#include "encodings.h"
 
-namespace codepad {
+namespace codepad::ui {
 	/// Modifier keys of a key gesture.
 	enum class modifier_keys {
 		none = 0, ///< No modifier keys.
@@ -39,9 +39,14 @@ namespace codepad {
 
 		control_shift_alt_super = control | shift | alt | super ///< Control + Shift + Alt + Super.
 	};
+}
+namespace codepad {
 	/// Enables bitwise operators for \ref modifier_keys.
-	template <> struct enable_enum_bitwise_operators<modifier_keys> : std::true_type {
+	template <> struct enable_enum_bitwise_operators<ui::modifier_keys> : std::true_type {
 	};
+}
+
+namespace codepad::ui {
 	/// A key gesture, corresponds to one key stroke with or without modifier keys.
 	struct key_gesture {
 		/// Default contructor.
@@ -50,11 +55,11 @@ namespace codepad {
 		///
 		/// \param prim The primary key.
 		/// \param mod The modifiers.
-		explicit key_gesture(os::input::key prim, modifier_keys mod = modifier_keys::none) :
+		explicit key_gesture(key prim, modifier_keys mod = modifier_keys::none) :
 			primary(prim), mod_keys(mod) {
 		}
 
-		os::input::key primary = os::input::key::escape; ///< The primary key.
+		key primary = key::escape; ///< The primary key.
 		modifier_keys mod_keys = modifier_keys::none; ///< The modifiers.
 
 		/// Equality of two key gestures.
@@ -241,9 +246,9 @@ namespace codepad {
 		/// \return The updated state.
 		state update_state(key_gesture kg, const state &s) const {
 			if (
-				kg.primary == os::input::key::control ||
-				kg.primary == os::input::key::alt ||
-				kg.primary == os::input::key::shift
+				kg.primary == key::control ||
+				kg.primary == key::alt ||
+				kg.primary == key::shift
 				) { // if the primary key is a modifier, then return s unmodified
 				return s;
 			}

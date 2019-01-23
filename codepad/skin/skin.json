@@ -204,7 +204,6 @@
 						"to": [1.0, 1.0, 1.0, 0.0],
 						"duration": 0.5,
 						"auto_reverse": true,
-						"transition": "concave_quadratic",
 						"repeat": true
 					}
 				}
@@ -236,8 +235,7 @@
 						"to": [1.0, 1.0, 1.0, 0.0],
 						"duration": 0.5,
 						"auto_reverse": true,
-						"repeat": true,
-						"transition": "concave_quadratic"
+						"repeat": true
 					}
 				}
 			]

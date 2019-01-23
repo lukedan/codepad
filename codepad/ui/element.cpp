@@ -6,7 +6,8 @@
 /// \file
 /// Implementation of certain methods related to ui::element.
 
-#include "../os/window.h"
+#include "../os/misc.h"
+#include "window.h"
 #include "panel.h"
 #include "manager.h"
 
@@ -14,11 +15,11 @@ using namespace codepad::os;
 
 namespace codepad::ui {
 	void element::invalidate_layout() {
-		manager::get().invalidate_layout(*this);
+		get_manager().invalidate_layout(*this);
 	}
 
 	void element::invalidate_visual() {
-		manager::get().invalidate_visual(*this);
+		get_manager().invalidate_visual(*this);
 	}
 
 	void element::_on_desired_size_changed(bool width, bool height) {
@@ -33,39 +34,39 @@ namespace codepad::ui {
 	}
 
 	void element::_on_mouse_down(mouse_button_info &p) {
-		if (p.button == input::mouse_button::primary) {
+		if (p.button == mouse_button::primary) {
 			if (_can_focus && !p.focus_set()) {
 				p.mark_focus_set();
 				get_window()->set_window_focused_element(*this);
 			}
-			set_state_bits(manager::get().get_predefined_states().mouse_down, true);
+			set_state_bits(get_manager().get_predefined_states().mouse_down, true);
 		}
 		mouse_down.invoke(p);
 	}
 
 	void element::_on_mouse_enter() {
-		set_state_bits(manager::get().get_predefined_states().mouse_over, true);
+		set_state_bits(get_manager().get_predefined_states().mouse_over, true);
 		mouse_enter.invoke();
 	}
 
 	void element::_on_mouse_leave() {
-		set_state_bits(manager::get().get_predefined_states().mouse_over, false);
+		set_state_bits(get_manager().get_predefined_states().mouse_over, false);
 		mouse_leave.invoke();
 	}
 
 	void element::_on_got_focus() {
-		set_state_bits(manager::get().get_predefined_states().focused, true);
+		set_state_bits(get_manager().get_predefined_states().focused, true);
 		got_focus.invoke();
 	}
 
 	void element::_on_lost_focus() {
-		set_state_bits(manager::get().get_predefined_states().focused, false);
+		set_state_bits(get_manager().get_predefined_states().focused, false);
 		lost_focus.invoke();
 	}
 
 	void element::_on_mouse_up(mouse_button_info &p) {
-		if (p.button == os::input::mouse_button::primary) {
-			set_state_bits(manager::get().get_predefined_states().mouse_down, false);
+		if (p.button == mouse_button::primary) {
+			set_state_bits(get_manager().get_predefined_states().mouse_down, false);
 		}
 		mouse_up.invoke(p);
 	}
@@ -74,18 +75,26 @@ namespace codepad::ui {
 		return _config.visual_config.update(dt);
 	}
 
+	void element::_on_prerender() {
+		get_manager().get_renderer().push_clip(_layout.fit_grid_enlarge<int>());
+	}
+
 	void element::_on_render() {
 		if (is_render_visible()) {
 			_on_prerender();
-			_config.visual_config.render(get_layout());
+			_config.visual_config.render(get_manager().get_renderer(), get_layout());
 			_custom_render();
 			_on_postrender();
 		}
 	}
 
+	void element::_on_postrender() {
+		get_manager().get_renderer().pop_clip();
+	}
+
 	void element::_on_state_changed(value_update_info<element_state_id>&) {
-		manager::get().schedule_visual_config_update(*this);
-		manager::get().schedule_metrics_config_update(*this);
+		get_manager().schedule_visual_config_update(*this);
+		get_manager().schedule_metrics_config_update(*this);
 	}
 
 	void element::_initialize(const str_t &cls, const element_metrics &metrics) {
@@ -93,10 +102,10 @@ namespace codepad::ui {
 		_initialized = true;
 #endif
 		_config.visual_config = visual_configuration(
-			manager::get().get_class_visuals().get_visual_or_default(cls), _state
+			get_manager().get_class_visuals().get_or_default(cls), _state
 		);
 		_config.metrics_config = metrics_configuration(metrics, _state);
-		_config.hotkey_config = manager::get().get_class_hotkeys().try_get(cls);
+		_config.hotkey_config = get_manager().get_class_hotkeys().try_get(cls);
 	}
 
 	void element::_dispose() {
@@ -125,43 +134,43 @@ namespace codepad::ui {
 	}
 
 	bool element::is_mouse_over() const {
-		return (_state & manager::get().get_predefined_states().mouse_over) != 0;
+		return (_state & get_manager().get_predefined_states().mouse_over) != 0;
 	}
 
 	bool element::is_render_visible() const {
-		return (_state & manager::get().get_predefined_states().render_invisible) == 0;
+		return (_state & get_manager().get_predefined_states().render_invisible) == 0;
 	}
 
 	void element::set_render_visibility(bool val) {
-		set_state_bits(manager::get().get_predefined_states().render_invisible, !val);
+		set_state_bits(get_manager().get_predefined_states().render_invisible, !val);
 	}
 
 	bool element::is_hittest_visible() const {
-		return (_state & manager::get().get_predefined_states().hittest_invisible) == 0;
+		return (_state & get_manager().get_predefined_states().hittest_invisible) == 0;
 	}
 
 	void element::set_hittest_visibility(bool val) {
-		set_state_bits(manager::get().get_predefined_states().hittest_invisible, !val);
+		set_state_bits(get_manager().get_predefined_states().hittest_invisible, !val);
 	}
 
 	bool element::is_layout_visible() const {
-		return (_state & manager::get().get_predefined_states().layout_invisible) == 0;
+		return (_state & get_manager().get_predefined_states().layout_invisible) == 0;
 	}
 
 	void element::set_layout_visibility(bool val) {
-		set_state_bits(manager::get().get_predefined_states().layout_invisible, !val);
+		set_state_bits(get_manager().get_predefined_states().layout_invisible, !val);
 	}
 
 	bool element::is_focused() const {
-		return (_state & manager::get().get_predefined_states().focused) != 0;
+		return (_state & get_manager().get_predefined_states().focused) != 0;
 	}
 
 	bool element::is_vertical() const {
-		return (_state & manager::get().get_predefined_states().vertical) != 0;
+		return (_state & get_manager().get_predefined_states().vertical) != 0;
 	}
 
 	void element::set_is_vertical(bool v) {
-		set_state_bits(manager::get().get_predefined_states().vertical, v);
+		set_state_bits(get_manager().get_predefined_states().vertical, v);
 	}
 
 
@@ -174,7 +183,7 @@ namespace codepad::ui {
 
 	void decoration::_on_state_invalidated() {
 		if (_wnd) {
-			manager::get().schedule_visual_config_update(*_wnd);
+			_manager.schedule_visual_config_update(*_wnd);
 		}
 	}
 
@@ -186,7 +195,7 @@ namespace codepad::ui {
 
 	void decoration::set_class(const str_t &cls) {
 		_class = cls;
-		_vis_config = visual_configuration(manager::get().get_class_visuals().get_visual_or_default(_class), _state);
+		_vis_config = visual_configuration(_manager.get_class_visuals().get_or_default(_class), _state);
 		_on_state_invalidated();
 	}
 }

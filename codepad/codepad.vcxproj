@@ -161,7 +161,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -189,7 +189,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -219,7 +219,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -238,7 +238,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -257,7 +257,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -277,7 +277,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -296,7 +296,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -315,7 +315,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -326,6 +326,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="apigen_definitions.h" />
+    <ClInclude Include="api_exports.h" />
+    <ClInclude Include="core\json.h" />
+    <ClInclude Include="core\settings.h" />
     <ClInclude Include="editors\buffer.h" />
     <ClInclude Include="editors\buffer_manager.h" />
     <ClInclude Include="editors\code\caret_set.h" />
@@ -339,8 +343,11 @@
     <ClInclude Include="editors\code\theme.h" />
     <ClInclude Include="editors\code\view.h" />
     <ClInclude Include="editors\tabs.h" />
+    <ClInclude Include="os\freetype_font_base.h" />
     <ClInclude Include="os\opengl_renderer_base.h" />
     <ClInclude Include="os\software_renderer_base.h" />
+    <ClInclude Include="ui\atlas.h" />
+    <ClInclude Include="ui\config_parsers.h" />
     <ClInclude Include="ui\element_classes.h" />
     <ClInclude Include="ui\arrangements.h" />
     <ClInclude Include="ui\misc.h" />
@@ -350,10 +357,10 @@
     <ClInclude Include="os\current\misc.h" />
     <ClInclude Include="os\current\renderer.h" />
     <ClInclude Include="os\current\window.h" />
-    <ClInclude Include="os\font.h" />
+    <ClInclude Include="ui\font.h" />
     <ClInclude Include="os\misc.h" />
     <ClInclude Include="os\filesystem.h" />
-    <ClInclude Include="os\renderer.h" />
+    <ClInclude Include="ui\renderer.h" />
     <ClInclude Include="os\windows.h" />
     <ClInclude Include="os\windows\font.h" />
     <ClInclude Include="os\windows\misc.h" />
@@ -361,6 +368,7 @@
     <ClInclude Include="os\windows\window.h" />
     <ClInclude Include="ui\common_elements.h" />
     <ClInclude Include="ui\draw.h" />
+    <ClInclude Include="ui\text_rendering.h" />
     <ClInclude Include="ui\visual.h" />
     <ClInclude Include="ui\manager.h" />
     <ClInclude Include="ui\panel.h" />
@@ -368,10 +376,10 @@
     <ClInclude Include="ui\font_family.h" />
     <ClInclude Include="ui\commands.h" />
     <ClInclude Include="core\bst.h" />
-    <ClInclude Include="core\hotkey_registry.h" />
+    <ClInclude Include="ui\hotkey_registry.h" />
     <ClInclude Include="core\tasks.h" />
     <ClInclude Include="core\encodings.h" />
-    <ClInclude Include="os\window.h" />
+    <ClInclude Include="ui\window.h" />
     <ClInclude Include="ui\element.h" />
     <ClInclude Include="core\event.h" />
     <ClInclude Include="core\misc.h" />
@@ -385,12 +393,12 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="os\opengl_renderer_base.cpp" />
     <ClCompile Include="os\software_renderer_base.cpp" />
-    <ClCompile Include="os\window.cpp" />
+    <ClCompile Include="ui\text_rendering.cpp" />
+    <ClCompile Include="ui\window.cpp" />
     <ClCompile Include="os\windows\filesystem.cpp" />
     <ClCompile Include="os\windows\windows.cpp" />
     <ClCompile Include="ui\common_elements.cpp" />
     <ClCompile Include="ui\element.cpp" />
-    <ClCompile Include="ui\element_classes.cpp" />
     <ClCompile Include="ui\manager.cpp" />
     <ClCompile Include="ui\native_commands.cpp" />
     <ClCompile Include="ui\panel.cpp" />

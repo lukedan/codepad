@@ -27,9 +27,6 @@
     <ClInclude Include="ui\panel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="os\renderer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="editors\code\components.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -42,13 +39,7 @@
     <ClInclude Include="ui\draw.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="os\font.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\font_family.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="os\window.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\windows\font.h">
@@ -111,9 +102,6 @@
     <ClInclude Include="core\event.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\hotkey_registry.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="core\misc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -160,6 +148,42 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="editors\code\caret_set.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\settings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\json.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="api_exports.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="apigen_definitions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\hotkey_registry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\config_parsers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\text_rendering.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os\freetype_font_base.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\font.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\renderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\window.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\atlas.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -209,12 +233,6 @@
     <ClCompile Include="editors\tabs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="os\window.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\element_classes.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ui\arrangements.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -222,6 +240,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="editors\buffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\window.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\text_rendering.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

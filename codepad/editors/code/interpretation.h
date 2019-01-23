@@ -613,6 +613,7 @@ namespace codepad::editor::code {
 		/// Invoked when an edit has been made to the underlying \ref buffer, after this \ref interpretation has
 		/// finished updating.
 		event<buffer::end_edit_info> end_edit_interpret;
+		// TODO visual_changed event
 	protected:
 		tree_type _chks; ///< Chunks used to speed up navigation.
 		text_theme_data _theme; ///< Theme of the text.

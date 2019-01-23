@@ -15,7 +15,7 @@ namespace codepad::editor {
 
 		_can_focus = true;
 
-		_btn = manager::get().create_element<tab_button>();
+		_btn = get_manager().create_element<tab_button>();
 		_btn->click += [this](tab_button_click_info &info) {
 			get_host()->activate_tab(*this);
 			info.click_info.mark_focus_set();
@@ -25,7 +25,7 @@ namespace codepad::editor {
 		};
 		_btn->start_drag += [this](tab_drag_info &p) {
 			vec2d diff = p.drag_diff - vec2d(get_layout().xmin, _btn->get_layout().ymin);
-			tab_manager::get().start_drag_tab(*this, p.drag_diff, get_layout().translated(diff));
+			get_tab_manager().start_drag_tab(*this, p.drag_diff, get_layout().translated(diff));
 		};
 	}
 
@@ -59,7 +59,7 @@ namespace codepad::editor {
 					--toact;
 				}
 				bool is_focused = false;
-				os::window_base *wnd = get_window();
+				window_base *wnd = get_window();
 				for (element *e = wnd->get_window_focused_element(); e; e = e->parent()) {
 					if (e == this) {
 						is_focused = true;
@@ -76,7 +76,7 @@ namespace codepad::editor {
 	void tab_host::_on_tab_removed(tab &t) {
 		_tab_buttons_region->children().remove(*t._btn);
 		_tabs.erase(t._text_tok);
-		tab_manager::get()._on_tab_detached(*this, t);
+		get_tab_manager()._on_tab_detached(*this, t);
 	}
 
 	void tab_host::switch_tab(tab &t) {
@@ -94,7 +94,7 @@ namespace codepad::editor {
 
 	void tab_host::activate_tab(tab &t) {
 		switch_tab(t);
-		manager::get().set_focused_element(t);
+		get_manager().set_focused_element(t);
 	}
 
 	size_t tab_host::get_tab_position(tab &tb) const {
@@ -132,7 +132,7 @@ namespace codepad::editor {
 	void tab_host::_initialize(const str_t &cls, const element_metrics &metrics) {
 		panel_base::_initialize(cls, metrics);
 
-		ui::manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+		get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 			{get_tab_buttons_region_role(), _role_cast(_tab_buttons_region)},
 			{get_tab_contents_region_role(), _role_cast(_tab_contents_region)}
 			});
@@ -156,7 +156,7 @@ namespace codepad::editor {
 
 	void tab_manager::update_drag() {
 		if (_drag != nullptr) {
-			vec2i mouse = input::get_mouse_position();
+			vec2i mouse = get_mouse_position();
 			if (_dtype == drag_destination_type::combine_in_tab) { // dragging tab_button in a tab list
 				rectd rgn = _dest->get_tab_buttons_region();
 				vec2d mpos = _dest->get_window()->screen_to_client(mouse).convert<double>();
@@ -233,7 +233,7 @@ namespace codepad::editor {
 						_dtype = newdtype;
 						_dest = mindp;
 						if (_dtype != drag_destination_type::new_window) { // insert new preview
-							_dragdec = new decoration();
+							_dragdec = new decoration(_manager);
 							_dragdec->set_class(CP_STRLIT("drag_preview"));
 							_dragdec->set_layout(_get_preview_layout(*_dest, _dtype));
 							_dest->get_window()->register_decoration(*_dragdec);
@@ -256,7 +256,7 @@ namespace codepad::editor {
 						rectd r = _dragrect;
 						r.ymin = _dragdiff.y;
 						_move_tab_to_new_window(
-							*_drag, r.translated(input::get_mouse_position().convert<double>())
+							*_drag, r.translated(get_mouse_position().convert<double>())
 						);
 					}
 					break;
@@ -285,9 +285,9 @@ namespace codepad::editor {
 				_try_dispose_preview();
 				_try_detach_possel();
 				// the mouse button is not down anymore
-				_drag->_btn->set_state_bits(manager::get().get_predefined_states().mouse_down, false);
+				_drag->_btn->set_state_bits(_manager.get_predefined_states().mouse_down, false);
 				// set mouse over bit accordingly, although it works (almost) fine without this
-				_drag->_btn->set_state_bits(manager::get().get_predefined_states().mouse_over, mouseover);
+				_drag->_btn->set_state_bits(_manager.get_predefined_states().mouse_over, mouseover);
 				_drag = nullptr;
 			}
 		}

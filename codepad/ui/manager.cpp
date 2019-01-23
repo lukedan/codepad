@@ -8,7 +8,7 @@
 
 #include <deque>
 
-#include "../os/window.h"
+#include "window.h"
 #include "element.h"
 #include "panel.h"
 #include "../editors/tabs.h"
@@ -192,7 +192,7 @@ namespace codepad::ui {
 		// gather the list of windows to render
 		set<element*> ss;
 		for (auto i : _dirty) {
-			os::window_base *wnd = i->get_window();
+			window_base *wnd = i->get_window();
 			if (wnd) {
 				ss.insert(wnd);
 			}
@@ -214,13 +214,13 @@ namespace codepad::ui {
 #ifdef CP_CHECK_LOGICAL_ERRORS
 		static bool _in = false;
 
-		assert_true_logical(!_in, "recursive calls to set_focus");
+		assert_true_logical(!_in, "recursive calls to set_focused_element");
 		_in = true;
 #endif
 		if (_focus_wnd != nullptr) {
 			_focus_wnd->interrupt_input_method();
 		}
-		os::window_base *wnd = elem.get_window();
+		window_base *wnd = elem.get_window();
 		if (wnd != _focus_wnd) {
 			wnd->activate();
 		}

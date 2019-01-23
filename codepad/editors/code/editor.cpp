@@ -126,7 +126,7 @@ namespace codepad::editor::code {
 		font_family::baseline_info bi = get_font().get_baseline_info();
 
 		rectd client = get_client_region();
-		renderer_base::get().push_matrix(matd3x3::translate(vec2d(
+		get_manager().get_renderer().push_matrix(matd3x3::translate(vec2d(
 			round(client.xmin),
 			round(
 				client.ymin - _get_box()->get_vertical_position() +
@@ -164,7 +164,7 @@ namespace codepad::editor::code {
 					auto &tgtok = get<text_gizmo_token>(tok.result);
 					vec2d sz = text_renderer::render_plain_text(
 						tgtok.contents,
-						tgtok.font ? tgtok.font : fnt.normal,
+						*(tgtok.font ? tgtok.font : fnt.normal),
 						vec2d(metrics.get_character().char_right(), metrics.get_y()),
 						tgtok.color
 					);
@@ -179,14 +179,14 @@ namespace codepad::editor::code {
 			// render carets
 			caretrend.finish(it.get_base(), metrics);
 			for (const rectd &rgn : caretrend.get_caret_rects()) {
-				_caret_cfg.render(rgn);
+				_caret_cfg.render(get_manager().get_renderer(), rgn);
 			}
 			for (const auto &selrgn : caretrend.get_selection_rects()) {
 				for (const auto &rgn : selrgn) {
-					_sel_cfg.render(rgn);
+					_sel_cfg.render(get_manager().get_renderer(), rgn);
 				}
 			}
 		}
-		renderer_base::get().pop_matrix();
+		get_manager().get_renderer().pop_matrix();
 	}
 }

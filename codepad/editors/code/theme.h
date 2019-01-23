@@ -6,12 +6,12 @@
 /// \file
 /// Classes used to record and manage font color, style, etc. in a \ref codepad::editor::code::interpretation.
 
-#include "../../os/font.h"
+#include "../../ui/font.h"
 
 namespace codepad::editor::code {
 	/// The type of a parameter of the text's theme.
 	enum class text_theme_parameter {
-		style, ///< The `style' parameter, corresponding to \ref font_style.
+		style, ///< The `style' parameter, corresponding to \ref ui::font_style.
 		color ///< The `color' parameter.
 	};
 	/// Specifies the theme of the text.
@@ -19,9 +19,9 @@ namespace codepad::editor::code {
 		/// Default constructor.
 		text_theme_specification() = default;
 		/// Initializes the struct with the given parameters.
-		text_theme_specification(font_style fs, colord c) : style(fs), color(c) {
+		text_theme_specification(ui::font_style fs, colord c) : style(fs), color(c) {
 		}
-		font_style style = font_style::normal; ///< The style of the font.
+		ui::font_style style = ui::font_style::normal; ///< The style of the font.
 		colord color; ///< The color of the text.
 	};
 	/// Records a parameter of the theme of the entire buffer. Internally, it keeps a list of
@@ -98,14 +98,14 @@ namespace codepad::editor::code {
 	};
 	/// Records the text's theme across the entire buffer.
 	struct text_theme_data {
-		text_theme_parameter_info<font_style> style; ///< Redords the text's style across the ehtire buffer.
+		text_theme_parameter_info<ui::font_style> style; ///< Redords the text's style across the ehtire buffer.
 		text_theme_parameter_info<colord> color; ///< Redords the text's color across the ehtire buffer.
 
 		/// An iterator used to obtain the theme of the text at a certain position.
 		struct char_iterator {
 			text_theme_specification current_theme; ///< The current theme of the text.
 			/// The iterator to the next position-style pair.
-			text_theme_parameter_info<font_style>::const_iterator next_style_iterator;
+			text_theme_parameter_info<ui::font_style>::const_iterator next_style_iterator;
 			/// The iterator to the next position-color pair.
 			text_theme_parameter_info<colord>::const_iterator next_color_iterator;
 		};

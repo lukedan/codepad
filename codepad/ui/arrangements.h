@@ -79,7 +79,7 @@ namespace codepad::ui {
 			/// necessary.
 			///
 			/// \sa class_arrangements::construct_children
-			void construct(element_collection&, panel_base*, notify_mapping&) const;
+			void construct(element_collection&, panel_base&, notify_mapping&) const;
 
 			element_metrics metrics; ///< The child's metrics.
 			std::vector<child> children; ///< The child's children, if it's a \ref panel.

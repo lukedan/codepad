@@ -2,9 +2,8 @@
 	"element_fill_container": {
 		"metrics": {
 			"value": {
-				"size": [1.0, 1.0],
-				"width_alloc": "*",
-				"height_alloc": "*",
+				"width": "100%",
+				"height": "100%",
 				"margin": 0.0,
 				"anchor": "ltrb"
 			}
@@ -17,19 +16,18 @@
 			{
 				"states_mask": "vertical",
 				"value": {
-					"size": [1.0, 10.0],
-					"width_alloc": "*",
-					"height_alloc": "px",
+					"width": "100%",
+					"height": "10px",
 					"margin": 0.0,
 					"anchor": "lrb"
 				}
-			}, {
+			},
+			{
 				"states": "vertical",
 				"states_mask": "vertical",
 				"value": {
-					"size": [10.0, 1.0],
-					"width_alloc": "px",
-					"height_alloc": "*",
+					"width": "10px",
+					"height": "100%",
 					"margin": 0.0,
 					"anchor": "trb"
 				}
@@ -40,11 +38,13 @@
 				"type": "button",
 				"role": "page_up_button",
 				"inherit_metrics_from": "element_fill_container"
-			}, {
+			},
+			{
 				"type": "scrollbar_drag_button",
 				"role": "drag_button",
 				"inherit_metrics_from": "element_fill_container"
-			}, {
+			},
+			{
 				"type": "button",
 				"role": "page_down_button",
 				"inherit_metrics_from": "element_fill_container"
@@ -64,9 +64,8 @@
 	"drag_destination_indicator_block": {
 		"metrics": {
 			"value": {
-				"size": [30.0, 30.0],
-				"width_alloc": "px",
-				"height_alloc": "px",
+				"width": "30px",
+				"height": "30px",
 				"anchor": 0.0
 			}
 		}
@@ -74,9 +73,8 @@
 	"drag_destination_selector": {
 		"metrics": {
 			"value": {
-				"size": [90.0, 90.0],
-				"width_alloc": "px",
-				"height_alloc": "px",
+				"width": "90px",
+				"height": "90px",
 				"margin": 1.0,
 				"anchor": ""
 			}
@@ -92,7 +90,8 @@
 						"anchor": "ltb"
 					}
 				}
-			}, {
+			},
+			{
 				"type": "element",
 				"class": "drag_destination_selector.split_right_indicator",
 				"role": "split_right_indicator",
@@ -102,7 +101,8 @@
 						"anchor": "trb"
 					}
 				}
-			}, {
+			},
+			{
 				"type": "element",
 				"class": "drag_destination_selector.split_up_indicator",
 				"role": "split_up_indicator",
@@ -112,7 +112,8 @@
 						"anchor": "ltr"
 					}
 				}
-			}, {
+			},
+			{
 				"type": "element",
 				"class": "drag_destination_selector.split_down_indicator",
 				"role": "split_down_indicator",
@@ -122,7 +123,8 @@
 						"anchor": "lrb"
 					}
 				}
-			}, {
+			},
+			{
 				"type": "element",
 				"class": "drag_destination_selector.combine_indicator",
 				"role": "combine_indicator",
@@ -148,36 +150,16 @@
 					{
 						"type": "stack_panel",
 						"role": "tab_buttons_region",
-						"metrics": [
-							{
-								"states_mask": "mouse_over",
-								"value": {
-									"size": {
-										"from": [1.0, 30.0],
-										"has_from": false,
-										"to": [1.0, 30.0],
-										"duration": 0.1,
-										"transition_func": "convex_quadratic"
-									},
-									"width_alloc": "*",
-									"height_alloc": "px",
-									"margin": 0.0,
-									"anchor": "lr"
-								}
-							}, {
-								"states": "mouse_over",
-								"states_mask": "mouse_over",
-								"inherit_from": {
-									"states_mask": "mouse_over"
-								},
-								"value": {
-									"size": {
-										"to": [1.0, 40.0]
-									}
-								}
+						"metrics": {
+							"value": {
+								"width": "100%",
+								"height": "30px",
+								"margin": 0.0,
+								"anchor": "lr"
 							}
-						]
-					}, {
+						}
+					},
+					{
 						"type": "panel",
 						"role": "tab_contents_region",
 						"inherit_metrics_from": "element_fill_container"
@@ -189,7 +171,7 @@
 	"tab_button": {
 		"metrics": {
 			"value": {
-				"size": [0.0, 1.0],
+				"size": [ 0.0, 1.0 ],
 				"height_alloc": "*"
 			}
 		},
@@ -199,8 +181,7 @@
 				"class": "tab_button_background",
 				"metrics": {
 					"value": {
-						"size": [0.0, 1.0],
-						"height_alloc": "*",
+						"height": "100%",
 						"padding": 5.0
 					}
 				},
@@ -211,20 +192,20 @@
 						"set_states": "hittest_invisible",
 						"metrics": {
 							"value": {
-								"margin": [0.0, 1.0, 0.0, 1.0],
+								"margin": [ 0.0, 1.0, 0.0, 1.0 ],
 								"anchor": "lr"
 							}
 						}
-					}, {
+					},
+					{
 						"type": "button",
 						"class": "tab_button.close_button",
 						"role": "close_button",
 						"metrics": {
 							"value": {
-								"size": [15.0, 15.0],
-								"width_alloc": "px",
-								"height_alloc": "px",
-								"margin": [5.0, 1.0, 0.0, 1.0],
+								"width": "15px",
+								"height": "15px",
+								"margin": [ 5.0, 1.0, 0.0, 1.0 ],
 								"anchor": "lr"
 							}
 						}
@@ -243,19 +224,18 @@
 				"states": "vertical",
 				"states_mask": "vertical",
 				"value": {
-					"size": [1.0, 5.0],
-					"width_alloc": "*",
-					"height_alloc": "px",
-					"margin": [0.0, 1.0, 0.0, 1.0],
+					"width": "100%",
+					"height": "5px",
+					"margin": [ 0.0, 1.0, 0.0, 1.0 ],
 					"anchor": "lr"
 				}
-			}, {
+			},
+			{
 				"states_mask": "vertical",
 				"value": {
-					"size": [5.0, 1.0],
-					"width_alloc": "px",
-					"height_alloc": "*",
-					"margin": [1.0, 0.0, 1.0, 0.0],
+					"width": "5px",
+					"height": "100%",
+					"margin": [ 1.0, 0.0, 1.0, 0.0 ],
 					"anchor": "tb"
 				}
 			}
@@ -285,26 +265,28 @@
 					"states": "vertical",
 					"states_mask": "vertical",
 					"value": {
-						"margin": [0.0, 0.0, 0.0, 10.0]
+						"margin": [ 0.0, 0.0, 0.0, 10.0 ]
 					}
 				}
-			}, {
+			},
+			{
 				"type": "scrollbar",
 				"role": "horizontal_scrollbar",
 				"inherit_metrics_from": "scrollbar",
 				"metrics": {
 					"states_mask": "vertical",
 					"value": {
-						"margin": [0.0, 0.0, 10.0, 0.0]
+						"margin": [ 0.0, 0.0, 10.0, 0.0 ]
 					}
 				}
-			}, {
+			},
+			{
 				"type": "stack_panel",
 				"role": "components_panel",
 				"inherit_metrics_from": "element_fill_container",
 				"metrics": {
 					"value": {
-						"margin": [0.0, 0.0, 10.0, 10.0]
+						"margin": [ 0.0, 0.0, 10.0, 10.0 ]
 					}
 				},
 				"children": [
@@ -314,7 +296,7 @@
 						"inherit_metrics_from": "element_fill_container",
 						"metrics": {
 							"value": {
-								"padding": [2.0, 0.0, 0.0, 0.0]
+								"padding": [ 2.0, 0.0, 0.0, 0.0 ]
 							}
 						}
 					}

@@ -7,16 +7,19 @@
 /// Structs for implementing the tab-based interface.
 
 #include "../os/misc.h"
-#include "../os/renderer.h"
-#include "../os/window.h"
 #include "../os/current/all.h"
 #include "../ui/element.h"
 #include "../ui/element_classes.h"
 #include "../ui/panel.h"
 #include "../ui/common_elements.h"
 #include "../ui/manager.h"
+#include "../ui/renderer.h"
+#include "../ui/window.h"
 
 namespace codepad::editor {
+	class tab;
+	class tab_manager;
+
 	/// Specifies the type of a tab's destination when being dragged.
 	enum class drag_destination_type {
 		new_window, ///< The tab will be moved to a new window.
@@ -231,7 +234,7 @@ namespace codepad::editor {
 		/// state bit of \ref _sep accordingly.
 		void _on_state_changed(value_update_info<ui::element_state_id> &p) override {
 			panel_base::_on_state_changed(p);
-			if (_has_any_state_bit_changed(ui::manager::get().get_predefined_states().vertical, p)) {
+			if (_has_any_state_bit_changed(get_manager().get_predefined_states().vertical, p)) {
 				_sep->set_is_vertical(is_vertical());
 				_invalidate_children_layout();
 			}
@@ -240,15 +243,16 @@ namespace codepad::editor {
 		/// Renders all children with additional clip regions.
 		void _custom_render() override {
 			_child_on_render(*_sep);
+			ui::renderer_base &r = get_manager().get_renderer();
 			if (_c1) {
-				os::renderer_base::get().push_clip(get_region1().fit_grid_enlarge<int>());
+				r.push_clip(get_region1().fit_grid_enlarge<int>());
 				_child_on_render(*_c1);
-				os::renderer_base::get().pop_clip();
+				r.pop_clip();
 			}
 			if (_c2) {
-				os::renderer_base::get().push_clip(get_region2().fit_grid_enlarge<int>());
+				r.push_clip(get_region2().fit_grid_enlarge<int>());
 				_child_on_render(*_c2);
-				os::renderer_base::get().pop_clip();
+				r.pop_clip();
 			}
 		}
 
@@ -258,13 +262,13 @@ namespace codepad::editor {
 			if (is_vertical()) {
 				panel_base::layout_child_horizontal(*_sep, client.xmin, client.xmax);
 				auto metrics = _sep->get_layout_height();
-				double top = (client.height() - metrics.first) * _sep_position + client.ymin;
-				_child_set_vertical_layout(*_sep, top, top + metrics.first);
+				double top = (client.height() - metrics.value) * _sep_position + client.ymin;
+				_child_set_vertical_layout(*_sep, top, top + metrics.value);
 			} else {
 				panel_base::layout_child_vertical(*_sep, client.ymin, client.ymax);
 				auto metrics = _sep->get_layout_width();
-				double left = (client.width() - metrics.first) * _sep_position + client.xmin;
-				_child_set_horizontal_layout(*_sep, left, left + metrics.first);
+				double left = (client.width() - metrics.value) * _sep_position + client.xmin;
+				_child_set_horizontal_layout(*_sep, left, left + metrics.value);
 			}
 			if (_c1) {
 				panel_base::layout_child(*_c1, get_region1());
@@ -278,13 +282,13 @@ namespace codepad::editor {
 		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
 			ui::panel_base::_initialize(cls, metrics);
 
-			ui::manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_separator_role(), _role_cast(_sep)}
 				});
 
 			_sep->set_can_focus(false);
 			_sep->mouse_down += [this](ui::mouse_button_info &p) {
-				if (p.button == os::input::mouse_button::primary) {
+				if (p.button == ui::mouse_button::primary) {
 					_sep_dragging = true;
 					_sep_offset =
 						is_vertical() ?
@@ -297,7 +301,7 @@ namespace codepad::editor {
 				_sep_dragging = false;
 			};
 			_sep->mouse_up += [this](ui::mouse_button_info &p) {
-				if (_sep_dragging && p.button == os::input::mouse_button::primary) {
+				if (_sep_dragging && p.button == ui::mouse_button::primary) {
 					_sep_dragging = false;
 					get_window()->release_mouse_capture();
 				}
@@ -392,14 +396,14 @@ namespace codepad::editor {
 		/// \todo Make actions customizable.
 		void _on_mouse_down(ui::mouse_button_info &p) override {
 			if (
-				p.button == os::input::mouse_button::primary &&
+				p.button == ui::mouse_button::primary &&
 				!_close_btn->is_mouse_over()
 				) {
 				_mdpos = p.position;
 				_predrag = true;
-				ui::manager::get().schedule_update(*this);
+				get_manager().schedule_update(*this);
 				click.invoke_noret(p);
-			} else if (p.button == os::input::mouse_button::tertiary) {
+			} else if (p.button == ui::mouse_button::tertiary) {
 				request_close.invoke();
 			}
 			panel_base::_on_mouse_down(p);
@@ -409,14 +413,14 @@ namespace codepad::editor {
 		void _on_update() override {
 			panel_base::_on_update();
 			if (_predrag) {
-				if (os::input::is_mouse_button_down(os::input::mouse_button::primary)) {
+				if (os::is_mouse_button_down(ui::mouse_button::primary)) {
 					vec2d diff =
-						get_window()->screen_to_client(os::input::get_mouse_position()).convert<double>() - _mdpos;
+						get_window()->screen_to_client(os::get_mouse_position()).convert<double>() - _mdpos;
 					if (diff.length_sqr() > drag_pivot * drag_pivot) {
 						_predrag = false;
 						start_drag.invoke_noret(get_layout().xmin_ymin() - _mdpos);
 					} else {
-						ui::manager::get().schedule_update(*this);
+						get_manager().schedule_update(*this);
 					}
 				} else {
 					_predrag = false;
@@ -430,7 +434,7 @@ namespace codepad::editor {
 
 			_can_focus = false;
 
-			ui::manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_label_role(), _role_cast(_label)},
 				{get_close_button_role(), _role_cast(_close_btn)}
 				});
@@ -494,7 +498,7 @@ namespace codepad::editor {
 		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
 			panel_base::_initialize(cls, metrics);
 
-			ui::manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(*this, {
+			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_split_left_indicator_role(), _role_cast(_split_left)},
 				{get_split_right_indicator_role(), _role_cast(_split_right)},
 				{get_split_up_indicator_role(), _role_cast(_split_up)},
@@ -524,13 +528,12 @@ namespace codepad::editor {
 		}
 	};
 
-	class tab;
 	/// An element for displaying multiple tabs. It contains a ``tabs'' region for displaying the
 	/// \ref tab_button "tab_buttons" of all available \ref tab "tabs" and a region that displays the currently
 	/// selected tab.
-	class tab_host : public ui::panel_base {
+	class tab_host final : public ui::panel_base {
 		friend tab;
-		friend class tab_manager;
+		friend tab_manager;
 	public:
 		/// Adds a \ref tab to the end of the tab list. If there were no tabs in the tab list prior to this
 		/// operation, the newly added tab will be automatically activated.
@@ -563,6 +566,11 @@ namespace codepad::editor {
 		/// Returns the total number of tabs in the \ref tab_host.
 		size_t tab_count() const {
 			return _tabs.size();
+		}
+
+		/// Returns the manager of this tab.
+		tab_manager &get_tab_manager() const {
+			return *_tab_manager;
 		}
 
 		/// Returns the default class of elements of type \ref tab_host.
@@ -614,11 +622,13 @@ namespace codepad::editor {
 
 		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.
 		void _initialize(const str_t&, const ui::element_metrics&) override;
+	private:
+		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.
 	};
 	/// A tab that contains other elements.
 	class tab : public ui::panel {
 		friend tab_host;
-		friend class tab_manager;
+		friend tab_manager;
 	public:
 		/// Sets the text displayed on the \ref tab_button.
 		void set_label(str_t s) {
@@ -647,6 +657,10 @@ namespace codepad::editor {
 		tab_host *get_host() const {
 			return dynamic_cast<tab_host*>(logical_parent());
 		}
+		/// Returns the manager of this tab.
+		tab_manager &get_tab_manager() const {
+			return *_tab_manager;
+		}
 
 		/// Returns the default class of elements of type \ref tab.
 		inline static str_t get_default_class() {
@@ -659,16 +673,18 @@ namespace codepad::editor {
 		/// Called when \ref request_close is called to handle the user's request of closing this tab.
 		/// Marks this tab for disposal by default.
 		virtual void _on_close_requested() {
-			ui::manager::get().mark_disposal(*this);
+			get_manager().mark_disposal(*this);
 		}
 
 		/// Initializes \ref _btn.
 		void _initialize(const str_t&, const ui::element_metrics&) override;
 		/// Marks \ref _btn for disposal.
 		void _dispose() override {
-			ui::manager::get().mark_disposal(*_btn);
+			get_manager().mark_disposal(*_btn);
 			ui::panel::_dispose();
 		}
+	private:
+		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.
 	};
 
 	/// Manages all \ref tab "tabs" and \ref tab_host "tab_hosts".
@@ -677,12 +693,12 @@ namespace codepad::editor {
 		friend tab_host;
 	public:
 		/// Constructor. Initializes \ref _possel.
-		tab_manager() {
-			_possel = ui::manager::get().create_element<drag_destination_selector>();
+		tab_manager(ui::manager &man) : _manager(man) {
+			_possel = _manager.create_element<drag_destination_selector>();
 		}
 		/// Disposes \ref _possel.
 		~tab_manager() {
-			ui::manager::get().mark_disposal(*_possel);
+			_manager.mark_disposal(*_possel);
 		}
 
 		/// Creates a new \ref tab in a \ref tab_host in the last focused \ref os::window_base. If there are no
@@ -702,10 +718,10 @@ namespace codepad::editor {
 		/// created.
 		tab *new_tab_in(tab_host *host = nullptr) {
 			if (!host) {
-				host = ui::manager::get().create_element<tab_host>();
+				host = _new_tab_host();
 				_new_window()->children().add(*host);
 			}
-			tab *t = ui::manager::get().create_element<tab>();
+			tab *t = _new_detached_tab();
 			host->add_tab(*t);
 			return t;
 		}
@@ -723,7 +739,7 @@ namespace codepad::editor {
 		/// Sets the current \ref drag_destination_selector used among all \ref tab_host "tab_hosts".
 		void set_drag_destination_selector(drag_destination_selector *sel) {
 			if (_possel) {
-				ui::manager::get().mark_disposal(*_possel);
+				_manager.mark_disposal(*_possel);
 			}
 			_possel = sel;
 		}
@@ -750,7 +766,7 @@ namespace codepad::editor {
 		void move_tab_to_new_window(tab &t) {
 			rectd tglayout = t.get_layout();
 			tab_host *hst = t.get_host();
-			os::window_base *wnd = t.get_window();
+			ui::window_base *wnd = t.get_window();
 			if (hst != nullptr && wnd != nullptr) {
 				tglayout = hst->get_layout().translated(wnd->get_position().convert<double>());
 			}
@@ -782,7 +798,7 @@ namespace codepad::editor {
 							}
 						} else {
 #ifdef CP_CHECK_LOGICAL_ERRORS
-							auto f = dynamic_cast<os::window_base*>(father->parent());
+							auto f = dynamic_cast<ui::window_base*>(father->parent());
 							assert_true_logical(f != nullptr, "parent of parent must be a window or a split panel");
 #else
 							auto f = static_cast<os::window_base*>(father->parent());
@@ -790,10 +806,10 @@ namespace codepad::editor {
 							f->children().remove(*father);
 							f->children().add(*other);
 						}
-						ui::manager::get().mark_disposal(*father);
+						_manager.mark_disposal(*father);
 					} else { // the only host in the window, destroy the window
 #ifdef CP_CHECK_LOGICAL_ERRORS
-						auto f = dynamic_cast<os::window_base*>(host->parent());
+						auto f = dynamic_cast<ui::window_base*>(host->parent());
 						assert_true_logical(f != nullptr, "parent must be a window or a split panel");
 #else
 						auto f = static_cast<os::window_base*>((*i)->parent());
@@ -804,9 +820,9 @@ namespace codepad::editor {
 								break;
 							}
 						}
-						ui::manager::get().mark_disposal(*f);
+						_manager.mark_disposal(*f);
 					}
-					ui::manager::get().mark_disposal(*host);
+					_manager.mark_disposal(*host);
 				}
 			}
 			_changed.clear();
@@ -831,7 +847,7 @@ namespace codepad::editor {
 		/// \param layout The layout of the \ref tab's main region.
 		/// \param stop A callable object that returns \p true when the tab should be released.
 		void start_drag_tab(tab &t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
-			return !os::input::is_mouse_button_down(os::input::mouse_button::primary);
+			return !os::is_mouse_button_down(ui::mouse_button::primary);
 		}) {
 			assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 			tab_host *hst = t.get_host();
@@ -847,12 +863,9 @@ namespace codepad::editor {
 			_dragrect = layout;
 			_stopdrag = std::move(stop);
 		}
-
-		/// Returns the global \ref tab_manager.
-		static tab_manager &get();
 	protected:
 		std::set<tab_host*> _changed; ///< The set of \ref tab_host "tab_hosts" whose children have changed.
-		std::list<os::window_base*> _wndlist; ///< The list of windows, ordered according to their z-indices.
+		std::list<ui::window_base*> _wndlist; ///< The list of windows, ordered according to their z-indices.
 
 		tab *_drag = nullptr; ///< The \ref tab that's currently being dragged.
 		tab_host *_dest = nullptr; ///< The destination \ref tab_host of the \ref tab that's currently being dragged.
@@ -863,6 +876,7 @@ namespace codepad::editor {
 		/// The decoration for indicating where the tab will be if the user releases the primary mouse button.
 		ui::decoration *_dragdec = nullptr;
 		drag_destination_selector *_possel = nullptr; ///< The \ref drag_destination_selector.
+		ui::manager &_manager; ///< The \ref ui::manager that manages all tabs.
 
 		/// Used to maintain the focused element when tabs are detached and re-attached.
 		struct _keep_intab_focus {
@@ -872,7 +886,7 @@ namespace codepad::editor {
 			/// \param t The tab that's about to be moved. If the currently focused element is a child of the tab,
 			///          \ref _focus is set accordingly; otherwise this struct does nothing.
 			explicit _keep_intab_focus(tab &t) {
-				ui::element *f = ui::manager::get().get_focused_element();
+				ui::element *f = t.get_manager().get_focused_element();
 				for (ui::element *e = f; e != nullptr; e = e->parent()) {
 					if (e == &t) {
 						_focus = f;
@@ -895,8 +909,8 @@ namespace codepad::editor {
 		};
 
 		/// Creates a new window and registers necessary event handlers.
-		os::window_base *_new_window() {
-			os::window_base *wnd = ui::manager::get().create_element<os::window>();
+		ui::window_base *_new_window() {
+			ui::window_base *wnd = _manager.create_element<os::window>();
 			_wndlist.emplace_back(wnd);
 			wnd->got_window_focus += [this, wnd]() {
 				// there can't be too many windows... right?
@@ -915,10 +929,24 @@ namespace codepad::editor {
 			};
 			return wnd;
 		}
+		/// Creates a new \ref tab instance not attached to any \ref tab_host. Call this instead of
+		/// \ref ui::manager::create_element<tab>() so that the \ref tab is correctly registered to this manager.
+		tab *_new_detached_tab() {
+			tab *t = _manager.create_element<tab>();
+			t->_tab_manager = this;
+			return t;
+		}
+		/// Creates a new \ref tab_host instance. Call this instead of \ref ui::manager::create_element<tab_host>()
+		/// so that the \ref tab_host is correctly registered to this manager.
+		tab_host *_new_tab_host() {
+			tab_host *h = _manager.create_element<tab_host>();
+			h->_tab_manager = this;
+			return h;
+		}
 		/// Splits the given \ref tab_host into halves, and returns the resulting \ref split_panel. The original
 		/// \ref tab_host will be removed from its parent.
 		split_panel *_replace_with_split_panel(tab_host &hst) {
-			split_panel *sp = ui::manager::get().create_element<split_panel>(), *f = dynamic_cast<split_panel*>(hst.parent());
+			split_panel *sp = _manager.create_element<split_panel>(), *f = dynamic_cast<split_panel*>(hst.parent());
 			if (f) {
 				if (f->get_child1() == &hst) {
 					f->set_child1(sp);
@@ -927,7 +955,7 @@ namespace codepad::editor {
 					f->set_child2(sp);
 				}
 			} else {
-				auto *w = dynamic_cast<os::window_base*>(hst.parent());
+				auto *w = dynamic_cast<ui::window_base*>(hst.parent());
 				assert_true_logical(w != nullptr, "root element must be a window");
 				w->children().remove(hst);
 				w->children().add(*sp);
@@ -945,7 +973,7 @@ namespace codepad::editor {
 				host.remove_tab(t);
 			}
 			split_panel *sp = _replace_with_split_panel(host);
-			auto *th = ui::manager::get().create_element<tab_host>();
+			tab_host *th = _new_tab_host();
 			if (newfirst) {
 				sp->set_child1(th);
 				sp->set_child2(&host);
@@ -964,8 +992,8 @@ namespace codepad::editor {
 			if (host != nullptr) {
 				host->remove_tab(t);
 			}
-			os::window_base *wnd = _new_window();
-			auto *nhst = ui::manager::get().create_element<tab_host>();
+			ui::window_base *wnd = _new_window();
+			tab_host *nhst = _new_tab_host();
 			wnd->children().add(*nhst);
 			nhst->add_tab(t);
 			wnd->set_client_size(layout.size().convert<int>());
@@ -975,7 +1003,7 @@ namespace codepad::editor {
 		/// Disposes \ref _dragdec if it isn't \p nullptr.
 		void _try_dispose_preview() {
 			if (_dragdec) {
-				_dragdec->set_state(ui::manager::get().get_predefined_states().corpse);
+				_dragdec->set_state(_manager.get_predefined_states().corpse);
 				_dragdec = nullptr;
 			}
 		}
@@ -1013,7 +1041,7 @@ namespace codepad::editor {
 		///
 		/// \param base The window.
 		/// \param cb A callable object. It can either return \p void, or a \p bool indicating whether to continue.
-		template <typename T> inline static void _enumerate_hosts(os::window_base *base, T &&cb) {
+		template <typename T> inline static void _enumerate_hosts(ui::window_base *base, T &&cb) {
 			assert_true_logical(base->children().size() == 1, "window must have only one child");
 			std::vector<ui::element*> hsts;
 			hsts.push_back(*base->children().items().begin());

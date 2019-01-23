@@ -7,7 +7,7 @@
 /// Implementation of certain methods of codepad::ui::element_collection.
 
 #include "manager.h"
-#include "../os/window.h"
+#include "window.h"
 
 using namespace codepad::os;
 
@@ -146,7 +146,7 @@ namespace codepad::ui {
 
 
 	void panel_base::_invalidate_children_layout() {
-		manager::get().invalidate_children_layout(*this);
+		get_manager().invalidate_children_layout(*this);
 	}
 
 	void panel_base::_on_mouse_down(mouse_button_info &p) {
@@ -155,13 +155,13 @@ namespace codepad::ui {
 			mouseover->_on_mouse_down(p);
 		}
 		mouse_down.invoke(p);
-		if (p.button == os::input::mouse_button::primary) {
+		if (p.button == mouse_button::primary) {
 			if (_can_focus && !p.focus_set()) {
 				p.mark_focus_set();
 				get_window()->set_window_focused_element(*this);
 			}
 			if (mouseover == nullptr) {
-				set_state_bits(manager::get().get_predefined_states().mouse_down, true);
+				set_state_bits(get_manager().get_predefined_states().mouse_down, true);
 			}
 		}
 	}
@@ -178,7 +178,7 @@ namespace codepad::ui {
 	void panel_base::_dispose() {
 		if (_dispose_children) {
 			for (auto i : _children.items()) {
-				manager::get().mark_disposal(*i);
+				get_manager().mark_disposal(*i);
 			}
 		}
 		_children.clear();
@@ -188,7 +188,7 @@ namespace codepad::ui {
 
 	void stack_panel::_on_state_changed(value_update_info<element_state_id> &p) {
 		panel::_on_state_changed(p);
-		if (_has_any_state_bit_changed(manager::get().get_predefined_states().vertical, p)) {
+		if (_has_any_state_bit_changed(get_manager().get_predefined_states().vertical, p)) {
 			_on_desired_size_changed(true, true);
 			_invalidate_children_layout();
 		}

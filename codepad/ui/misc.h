@@ -7,11 +7,142 @@
 /// Fundamental types and variables of the user interface.
 
 #include <cstdint>
+#include <charconv>
 
 #include "../core/misc.h"
-#include "../os/renderer.h"
+#include "../core/json.h"
+#include "renderer.h"
 
 namespace codepad::ui {
+	/// Contains a collection of specializations of \ref parse() that parse objects from JSON objects.
+	namespace json_object_parsers {
+		/// The standard parser interface.
+		template <typename T> T parse(const json::node_t&);
+
+		/// Parses \ref vec2d. The object must be of the following format: <tt>[x, y]</tt>
+		template <> inline vec2d parse<vec2d>(const json::node_t &obj) {
+			if (obj.IsArray() && obj.Size() > 1) {
+				return vec2d(obj[0].GetDouble(), obj[1].GetDouble());
+			}
+			logger::get().log_warning(CP_HERE, "invalid vec2 representation");
+			return vec2d();
+		}
+		/// Parses \ref colord. The object can take the following formats: <tt>["hsl", h, s, l(, a)]</tt> for
+		/// HSL format colors, and <tt>[r, g, b(, a)]</tt> for RGB format colors.
+		template <> inline colord parse<colord>(const json::node_t &obj) {
+			if (obj.IsArray()) { // must be an array
+				if (obj.Size() > 3 && obj[0].IsString() && json::get_as_string(obj[0]) == CP_STRLIT("hsl")) {
+					colord c = colord::from_hsl(obj[1].GetDouble(), obj[2].GetDouble(), obj[3].GetDouble());
+					if (obj.Size() > 4) {
+						c.a = obj[4].GetDouble();
+					}
+					return c;
+				}
+				if (obj.Size() > 3) {
+					return colord(
+						obj[0].GetDouble(), obj[1].GetDouble(),
+						obj[2].GetDouble(), obj[3].GetDouble()
+					);
+				}
+				if (obj.Size() == 3) {
+					return colord(
+						obj[0].GetDouble(), obj[1].GetDouble(), obj[2].GetDouble(), 1.0
+					);
+				}
+			}
+			logger::get().log_warning(CP_HERE, "invalid color representation");
+			return colord();
+		}
+	}
+
+	/// The style of the cursor.
+	enum class cursor {
+		normal, ///< The normal cursor.
+		busy, ///< The `busy' cursor.
+		crosshair, ///< The `crosshair' cursor.
+		hand, ///< The `hand' cursor, usually used to indicate a link.
+		help, ///< The `help' cursor.
+		text_beam, ///< The `I-beam' cursor, usually used to indicate an input field.
+		denied, ///< The `denied' cursor.
+		arrow_all, ///< A cursor with arrows to all four directions.
+		arrow_northeast_southwest, ///< A cursor with arrows to the top-right and bottom-left directions.
+		arrow_north_south, ///< A cursor with arrows to the top and bottom directions.
+		arrow_northwest_southeast, ///< A cursor with arrows to the top-left and bottom-right directions.
+		arrow_east_west, ///< A cursor with arrows to the left and right directions.
+		invisible, ///< An invisible cursor.
+
+		not_specified ///< An unspecified cursor.
+	};
+
+	/// Represents a button of the mouse.
+	enum class mouse_button {
+		primary, ///< The primary button. For the right-handed layout, this is the left button.
+		tertiary, ///< The middle button.
+		secondary ///< The secondary button. For the right-handed layout, this is the right button.
+	};
+	/// Represents a key on the keyboard.
+	///
+	/// \todo Document all keys, add support for more keys (generic super key, symbols, etc.).
+	enum class key {
+		cancel,
+		xbutton_1, xbutton_2,
+		backspace, ///< The `backspace' key.
+		tab, ///< The `tab' key.
+		clear,
+		enter, ///< The `enter' key.
+		shift, ///< The `shift' key.
+		control, ///< The `control' key.
+		alt, ///< The `alt' key.
+		pause,
+		capital_lock, ///< The `caps lock' key.
+		escape, ///< The `escape' key.
+		convert,
+		nonconvert,
+		space, ///< The `space' key.
+		page_up, ///< The `page up' key.
+		page_down, ///< The `page down' key.
+		end, ///< The `end' key.
+		home, ///< The `home' key.
+		left, ///< The left arrow key.
+		up, ///< The up arrow key.
+		right, ///< The right arrow key.
+		down, ///< The down arrow key.
+		select,
+		print,
+		execute,
+		snapshot,
+		insert, ///< The `insert' key.
+		del, ///< The `delete' key.
+		help,
+		a, b, c, d, e, f, g, h, i, j, k, l, m,
+		n, o, p, q, r, s, t, u, v, w, x, y, z,
+		left_super, ///< The left `super' (win) key.
+		right_super, ///< The right `super' (win) key.
+		apps,
+		sleep,
+		multiply, ///< The `multiply' key.
+		add, ///< The `add' key.
+		separator, ///< The `separator' key.
+		subtract, ///< The `subtract' key.
+		decimal, ///< The `decimal' key.
+		divide, ///< The `divide' key.
+		f1, f2, f3, f4,
+		f5, f6, f7, f8,
+		f9, f10, f11, f12,
+		num_lock, ///< The `num lock' key.
+		scroll_lock, ///< The `scroll lock' key.
+		left_shift, ///< The left `shift' key.
+		right_shift, ///< The right `shift' key.
+		left_control, ///< The left `control' key.
+		right_control, ///< The right `control' key.
+		left_alt, ///< The left `alt' key.
+		right_alt, ///< The right `alt' key.
+
+		max_value ///< The total number of supported keys.
+	};
+	/// The total number of supported keys.
+	constexpr size_t total_num_keys = static_cast<size_t>(key::max_value);
+
 	using element_state_id = std::uint_fast32_t; ///< Bitsets that represents states of an \ref element.
 	constexpr static element_state_id normal_element_state_id = 0; ///< Represents the default (normal) state.
 	/// Represents a margin, a padding, etc.
@@ -51,6 +182,24 @@ namespace codepad::ui {
 			return vec2d(width(), height());
 		}
 	};
+	namespace json_object_parsers {
+		/// Parses \ref thickness. The object can take the following formats:
+		/// <tt>[left, top, right, bottom]</tt> or a single number specifying the value for all four
+		/// directions.
+		template <> inline thickness parse<thickness>(const json::node_t &obj) {
+			if (obj.IsArray() && obj.Size() > 3) {
+				return thickness(
+					obj[0].GetDouble(), obj[1].GetDouble(),
+					obj[2].GetDouble(), obj[3].GetDouble()
+				);
+			}
+			if (obj.IsNumber()) {
+				return thickness(obj.GetDouble());
+			}
+			logger::get().log_warning(CP_HERE, "invalid thickness representation");
+			return thickness();
+		}
+	}
 }
 
 namespace codepad {
@@ -66,6 +215,66 @@ namespace codepad {
 }
 
 namespace codepad::ui {
+	/// Contains information about how size should be allocated on a certain orientation for an \ref element.
+	struct size_allocation {
+		/// Default constructor.
+		size_allocation() = default;
+		/// Initializes all fields of this struct.
+		size_allocation(double v, bool px) : value(v), is_pixels(px) {
+		}
+
+		double value = 0.0; ///< The value.
+		bool is_pixels = false; ///< Indicates whether \ref value is in pixels instead of a proportion.
+	};
+	namespace json_object_parsers {
+		/// ends_with.
+		///
+		/// \todo Use STL implementation after C++20.
+		namespace _details {
+			/// Determines if \p full ends with \p patt.
+			inline bool ends_with(str_view_t full, str_view_t patt) {
+				if (patt.size() > full.size()) {
+					return false;
+				}
+				for (auto i = patt.rbegin(), j = full.rbegin(); i != patt.rend(); ++i, ++j) {
+					if (*i != *j) {
+						return false;
+					}
+				}
+				return true;
+			}
+		}
+		/// Parses a \ref size_allocation. The object can either be a full representation of the struct with two
+		/// fields, a single number in pixels, or a string that optionally ends with `*', `%', or `px', the former
+		/// two of which indicates that the value is a proportion. If the string ends with `%', the value is
+		/// additionally divided by 100, thus using `%' and `*' mixedly is not recommended.
+		template <> inline size_allocation parse<size_allocation>(const json::node_t &obj) {
+			if (obj.IsObject()) { // full object representation
+				size_allocation alloc;
+				json::try_get(obj, "value", alloc.value);
+				json::try_get(obj, "is_pixels", alloc.is_pixels);
+				return alloc;
+			}
+			if (obj.IsNumber()) { // number in pixels
+				return size_allocation(obj.GetDouble(), true);
+			}
+			if (obj.IsString()) {
+				auto view = json::get_as_string_view(obj);
+				size_allocation alloc(0.0, true); // in pixels if no suffix is present
+				bool percentage = _details::ends_with(view, "%"); // the value is additionally divided by 100
+				if (percentage || _details::ends_with(view, "*")) { // proportion
+					alloc.is_pixels = false;
+				}
+				std::from_chars(view.data(), view.data() + view.size(), alloc.value); // result ignored, 0 by default
+				if (percentage) {
+					alloc.value *= 0.01;
+				}
+				return alloc;
+			}
+			return size_allocation();
+		}
+	}
+
 	/// Used to specify to which sides an object is anchored. If an object is anchored to a side, then the distance
 	/// between the borders of the object and its container is kept to be the value specified in the element's
 	/// margin. Otherwise, the margin value is treated as a proportion.
@@ -92,8 +301,23 @@ namespace codepad::ui {
 
 		all = left | top | right | bottom ///< The object is anchored to all four sides.
 	};
+	namespace json_object_parsers {
+		/// Parses \ref anchor. The object can be a string that contains any combination of characters `l', `t',
+		/// `r', and `b', standing for \ref anchor::left, \ref anchor::top, \ref anchor::right, and
+		/// \ref anchor::bottom, respectively
+		template <> inline anchor parse<anchor>(const json::node_t &obj) {
+			if (obj.IsString()) {
+				return get_bitset_from_string<anchor>({
+					{CP_STRLIT('l'), anchor::left},
+					{CP_STRLIT('t'), anchor::top},
+					{CP_STRLIT('r'), anchor::right},
+					{CP_STRLIT('b'), anchor::bottom}
+					}, json::get_as_string(obj));
+			}
+			return anchor::none;
+		}
+	}
 }
-
 namespace codepad {
 	/// Enables bitwise operators for \ref ui::anchor.
 	template<> struct enable_enum_bitwise_operators<ui::anchor> : std::true_type {
@@ -108,6 +332,26 @@ namespace codepad::ui {
 		fixed, ///< The user specifies the size in pixels.
 		proportion ///< The user specifies the size as a proportion.
 	};
+	namespace json_object_parsers {
+		/// Parses \ref size_allocation_type. Checks if the given object (which must be a string) is one of the
+		/// constants and returns the corresponding value. If none matches, \ref size_allocation_type::automatic is
+		/// returned.
+		template <> inline size_allocation_type parse<size_allocation_type>(const json::node_t &obj) {
+			if (obj.IsString()) {
+				str_t s = json::get_as_string(obj);
+				if (s == CP_STRLIT("fixed") || s == CP_STRLIT("pixels") || s == CP_STRLIT("px")) {
+					return size_allocation_type::fixed;
+				}
+				if (s == CP_STRLIT("proportion") || s == CP_STRLIT("prop") || s == CP_STRLIT("*")) {
+					return size_allocation_type::proportion;
+				}
+				if (s == CP_STRLIT("automatic") || s == CP_STRLIT("auto")) {
+					return size_allocation_type::automatic;
+				}
+			}
+			return size_allocation_type::automatic;
+		}
+	}
 
 	/// Transition functions used in animations.
 	namespace transition_functions {
@@ -228,12 +472,12 @@ namespace codepad::ui {
 	/// Specialization of \ref animated_property for \ref os::texture "textures".
 	/// The multiple supplied textures are displayed in order, each for its specified duration.
 	/// After the animation is over, the current image is kept to be the last image displayed.
-	template <> struct animated_property<os::texture> {
+	template <> struct animated_property<texture> {
 		/// The default time an image is displayed if no duration is specified.
 		constexpr static double default_frametime = 1.0 / 30.0;
 
 		/// A frame. Contains an image and the duration it's displayed.
-		using texture_keyframe = std::pair<std::shared_ptr<os::texture>, double>;
+		using texture_keyframe = std::pair<std::shared_ptr<texture>, double>;
 		/// Represents a state of the animated property.
 		struct state {
 			/// Default constructor.

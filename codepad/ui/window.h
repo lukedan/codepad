@@ -9,14 +9,14 @@
 #include <chrono>
 #include <functional>
 
-#include "renderer.h"
-#include "../ui/panel.h"
-#include "../ui/commands.h"
-#include "../ui/element_classes.h"
-#include "../core/event.h"
 #include "../core/encodings.h"
+#include "../core/event.h"
+#include "renderer.h"
+#include "panel.h"
+#include "commands.h"
+#include "element_classes.h"
 
-namespace codepad::os {
+namespace codepad::ui {
 	/// Contains information about the resizing of windows.
 	struct size_changed_info {
 		/// Initializes the struct with the given new size.
@@ -25,9 +25,9 @@ namespace codepad::os {
 		const vec2i new_size; ///< The new size of the window.
 	};
 	/// Base class of all windows. Defines basic interfaces that all windows should implement.
-	class window_base : public ui::panel { // TODO Improve _on_update() so that decorations can be handled gracefully.
-		friend ui::element_collection;
-		friend ui::decoration;
+	class window_base : public panel { // TODO Improve _on_update() so that decorations can be handled gracefully.
+		friend element_collection;
+		friend decoration;
 	public:
 		/// Sets the caption of the window.
 		virtual void set_caption(const str_t&) = 0;
@@ -70,10 +70,10 @@ namespace codepad::os {
 		/// Called when the input is interrupted by, e.g., a change of focus or caret position.
 		virtual void interrupt_input_method() = 0;
 
-		/// Captures the mouse to a given ui::element, so that wherever the mouse moves to, the ui::element
+		/// Captures the mouse to a given element, so that wherever the mouse moves to, the element
 		/// always receives notifications as if the mouse were over it, until \ref release_mouse_capture is
 		/// called. Derived classes should override this function to notify the desktop environment.
-		virtual void set_mouse_capture(ui::element &elem) {
+		virtual void set_mouse_capture(element &elem) {
 			logger::get().log_verbose(
 				CP_HERE, "set mouse capture 0x", &elem,
 				" <", demangle(typeid(elem).name()), ">"
@@ -81,8 +81,8 @@ namespace codepad::os {
 			assert_true_usage(_capture == nullptr, "mouse already captured");
 			_capture = &elem;
 		}
-		/// Returns the ui::element that currently captures the mouse, or \p nullptr.
-		virtual ui::element *get_mouse_capture() const {
+		/// Returns the element that currently captures the mouse, or \p nullptr.
+		virtual element *get_mouse_capture() const {
 			return _capture;
 		}
 		/// Releases the mouse capture. Derived classes should override this function to notify the system.
@@ -100,25 +100,25 @@ namespace codepad::os {
 			return panel::get_current_display_cursor();
 		}
 
-		/// Registers a ui::decoration to this window. When the window is disposed, all decorations registered to
+		/// Registers a decoration to this window. When the window is disposed, all decorations registered to
 		/// it will also automatically be disposed.
-		void register_decoration(ui::decoration&);
-		/// Unregisters a ui::decoration from this window.
-		void unregister_decoration(ui::decoration &dec) {
+		void register_decoration(decoration&);
+		/// Unregisters a decoration from this window.
+		void unregister_decoration(decoration &dec) {
 			assert_true_usage(dec._wnd == this, "the decoration is not registered to this window");
 			_decos.erase(dec._tok);
 			dec._wnd = nullptr;
 			invalidate_visual();
 		}
 
-		/// Returns the \ref ui::element that's focused within this window. The focused element in a window is
+		/// Returns the \ref element that's focused within this window. The focused element in a window is
 		/// preserved even if the window loses focus.
-		ui::element *get_window_focused_element() const {
+		element *get_window_focused_element() const {
 			return _focus;
 		}
 		/// Called to set the focused element within this window. This function invokes appropriate handlers and
-		/// refreshes the list of \ref ui::class_hotkey_group "element_hotkey_groups"
-		void set_window_focused_element(ui::element&);
+		/// refreshes the list of \ref class_hotkey_group "element_hotkey_groups"
+		void set_window_focused_element(element&);
 
 		event<void>
 			close_request, ///< Invoked when the user clicks the `close' button.
@@ -126,26 +126,23 @@ namespace codepad::os {
 			lost_window_focus; ///< Invoked when the window loses keyboard focus.
 		event<size_changed_info> size_changed; ///< Invoked when the window's size has changed.
 
-		ui::window_hotkey_manager hotkey_manager; ///< Manages hotkeys of the window.
+		window_hotkey_manager hotkey_manager; ///< Manages hotkeys of the window.
 	protected:
 		/// The list of decorations associated with this window. Since decorations are automatically
 		/// unregistered when disposed, special care must be taken when iterating through the list
 		/// while deleting its entries.
-		std::list<ui::decoration*> _decos;
-		ui::element
+		std::list<decoration*> _decos;
+		element
 			*_focus{this}, ///< The focused element within this window.
 			*_capture = nullptr; ///< The element that captures the mouse.
 
 		/// Calls renderer_base::begin to start rendering to this window.
-		void _on_prerender() override {
-			os::renderer_base::get().begin(*this);
-			panel::_on_prerender();
-		}
+		void _on_prerender() override;
+		/// Renders all the window's children, then renders all decorations on top of the rendered result. Also
+		/// removes all corpse decorations whose animations have finished.
+		void _custom_render() override;
 		/// Calls renderer_base::end to finish rendering to this window.
-		void _on_postrender() override {
-			panel::_on_postrender();
-			os::renderer_base::get().end();
-		}
+		void _on_postrender() override;
 
 		/// Called when the user clicks the `close' button.
 		virtual void _on_close_request() {
@@ -156,7 +153,7 @@ namespace codepad::os {
 
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_key_down(ui::key_info &p) override {
+		void _on_key_down(key_info &p) override {
 			if (_focus != this) {
 				_focus->_on_key_down(p);
 			} else {
@@ -165,7 +162,7 @@ namespace codepad::os {
 		}
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_key_up(ui::key_info &p) override {
+		void _on_key_up(key_info &p) override {
 			if (_focus != this) {
 				_focus->_on_key_up(p);
 			} else {
@@ -174,7 +171,7 @@ namespace codepad::os {
 		}
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_keyboard_text(ui::text_info &p) override {
+		void _on_keyboard_text(text_info &p) override {
 			if (_focus != this) {
 				_focus->_on_keyboard_text(p);
 			} else {
@@ -183,7 +180,7 @@ namespace codepad::os {
 		}
 		/// Forwards the composition event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_composition(ui::composition_info &p) override {
+		void _on_composition(composition_info &p) override {
 			if (_focus != this) {
 				_focus->_on_composition(p);
 			} else {
@@ -203,19 +200,19 @@ namespace codepad::os {
 
 		/// Called when an element is being removed from this window. Resets the focus if the
 		/// removed element has it.
-		virtual void _on_removing_window_element(ui::element *e) {
-			ui::element *ef = _focus;
+		virtual void _on_removing_window_element(element *e) {
+			element *ef = _focus;
 			for (; ef != nullptr && e != ef; ef = ef->parent()) {
 			}
 			if (ef != nullptr) {
 				set_window_focused_element(*this);
 			}
 		}
-		/// Called when the window gets the focus. Calls \ref ui::manager::_on_window_got_focus, and invokes
-		/// \ref ui::element::_on_got_focus on \ref _focus.
+		/// Called when the window gets the focus. Calls \ref manager::_on_window_got_focus, and invokes
+		/// \ref element::_on_got_focus on \ref _focus.
 		virtual void _on_got_window_focus();
-		/// Called when the window loses the focus. Calls \ref ui::manager::_on_window_lost_focus, and invokes
-		/// \ref ui::element::_on_lost_focus on \ref _focus.
+		/// Called when the window loses the focus. Calls \ref manager::_on_window_lost_focus, and invokes
+		/// \ref element::_on_lost_focus on \ref _focus.
 		virtual void _on_lost_window_focus();
 
 		/// Called when mouse capture is broken by the user's actions.
@@ -226,15 +223,11 @@ namespace codepad::os {
 			}
 		}
 
-		/// Updates the \ref ui::visual_configuration of all \ref ui::decoration "decorations".
+		/// Updates the \ref visual_configuration of all \ref decoration "decorations".
 		bool _on_update_visual_configurations(double time) override;
 
-		/// Renders all the window's children, then renders all decorations on top of the rendered result. Also
-		/// removes all corpse decorations whose animations have finished.
-		void _custom_render() override;
-
-		/// Called in ui::decoration::~decoration() to automatically unregister the decoration.
-		virtual void _on_decoration_destroyed(ui::decoration &d) {
+		/// Called in decoration::~decoration() to automatically unregister the decoration.
+		virtual void _on_decoration_destroyed(decoration &d) {
 			assert_true_logical(d._wnd == this, "calling the wrong window");
 			_decos.erase(d._tok);
 			invalidate_visual();
@@ -242,10 +235,7 @@ namespace codepad::os {
 
 
 		/// Registers the window to \ref renderer_base.
-		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
-			panel::_initialize(cls, metrics);
-			renderer_base::get()._new_window(*this);
-		}
+		void _initialize(const str_t&, const element_metrics&) override;
 		/// Deletes all decorations, releases the focus, and unregisters the window from \ref renderer_base.
 		void _dispose() override;
 
@@ -254,7 +244,7 @@ namespace codepad::os {
 		void _on_mouse_enter() override {
 			if (_capture != nullptr) {
 				_capture->_on_mouse_enter();
-				ui::element::_on_mouse_enter();
+				element::_on_mouse_enter();
 			} else {
 				panel::_on_mouse_enter();
 			}
@@ -264,27 +254,27 @@ namespace codepad::os {
 		void _on_mouse_leave() override {
 			if (_capture != nullptr) {
 				_capture->_on_mouse_leave();
-				ui::element::_on_mouse_leave();
+				element::_on_mouse_leave();
 			} else {
 				panel::_on_mouse_leave();
 			}
 		}
 		/// If the mouse is captured by an element, forwards the event to the element. Otherwise falls back
 		/// to the default behavior.
-		void _on_mouse_move(ui::mouse_move_info &p) override {
+		void _on_mouse_move(mouse_move_info &p) override {
 			if (_capture != nullptr) {
 				if (!_capture->is_mouse_over()) {
 					_capture->_on_mouse_enter();
 				}
 				_capture->_on_mouse_move(p);
-				ui::element::_on_mouse_move(p);
+				element::_on_mouse_move(p);
 			} else {
 				panel::_on_mouse_move(p);
 			}
 		}
 		/// If the mouse is captured by an element, forwards the event to the element. Otherwise falls back
 		/// to the default behavior.
-		void _on_mouse_down(ui::mouse_button_info &p) override {
+		void _on_mouse_down(mouse_button_info &p) override {
 			if (_capture != nullptr) {
 				_capture->_on_mouse_down(p);
 				mouse_down(p);
@@ -294,23 +284,23 @@ namespace codepad::os {
 		}
 		/// If the mouse is captured by an element, forwards the event to the element. Otherwise falls back
 		/// to the default behavior.
-		void _on_mouse_up(ui::mouse_button_info &p) override {
+		void _on_mouse_up(mouse_button_info &p) override {
 			if (_capture != nullptr) {
 				_capture->_on_mouse_up(p);
-				ui::element::_on_mouse_up(p);
+				element::_on_mouse_up(p);
 			} else {
 				panel::_on_mouse_up(p);
 			}
 		}
 		/// If the mouse is captured by an element, forwards the event to the element. Otherwise falls back
 		/// to the default behavior.
-		void _on_mouse_scroll(ui::mouse_scroll_info &p) override {
+		void _on_mouse_scroll(mouse_scroll_info &p) override {
 			if (_capture != nullptr) {
 				for (element *e = _capture; !p.handled() && e != this; e = e->parent()) {
 					assert_true_logical(e, "corrupted element tree");
 					e->_on_mouse_scroll(p);
 				}
-				ui::element::_on_mouse_scroll(p);
+				element::_on_mouse_scroll(p);
 			} else {
 				panel::_on_mouse_scroll(p);
 			}

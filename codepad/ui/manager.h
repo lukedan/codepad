@@ -12,7 +12,9 @@
 #include <functional>
 
 #include "element.h"
-#include "../os/window.h"
+#include "window.h"
+#include "renderer.h"
+#include "text_rendering.h"
 
 namespace codepad::ui {
 	/// The type of a element state.
@@ -39,7 +41,7 @@ namespace codepad::ui {
 	/// Manages the update, layout, and rendering of all GUI elements, and the registration and retrieval of
 	/// \ref element_state_id "element_state_ids" and transition functions.
 	class manager {
-		friend class os::window_base;
+		friend class window_base;
 	public:
 		/// Wrapper of an \ref element's constructor. The element's constructor takes a string that indicates the
 		/// element's class.
@@ -150,23 +152,24 @@ namespace codepad::ui {
 		}
 		/// Constructs and returns an element of the specified type, class, and \ref element_metrics. If no such type
 		/// exists, \p nullptr is returned.
-		element *create_element_custom(const str_t &type, const str_t &cls, const element_metrics &metrics) const {
+		element *create_element_custom(const str_t &type, const str_t &cls, const element_metrics &metrics) {
 			auto it = _ctor_map.find(type);
 			if (it == _ctor_map.end()) {
 				return nullptr;
 			}
-			element *elem = it->second();
+			element *elem = it->second(); // the constructor must not use element::_manager
+			elem->_manager = this;
 			elem->_initialize(cls, metrics);
 #ifdef CP_CHECK_USAGE_ERRORS
 			assert_true_usage(elem->_initialized, "element::_initialize() must be called by derived classes");
 #endif
 			return elem;
 		}
-		/// Calls \ref create_element_custom to create an \ref element of the specified type and class, but with
-		/// the default metrics of that class.
+		/// Calls \ref create_element_custom to create an \ref element of the specified type and class, and with
+		/// the default \ref element_metrics of that class.
 		element *create_element(const str_t &type, const str_t &cls) {
 			return create_element_custom(
-				type, cls, get_class_arrangements().get_arrangements_or_default(cls).metrics
+				type, cls, get_class_arrangements().get_or_default(cls).metrics
 			);
 		}
 		/// Creates an element of the given type. The type name and class are both obtained from
@@ -213,7 +216,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the \ref os::window_base that has the focus.
-		os::window_base *get_focused_window() const {
+		window_base *get_focused_window() const {
 			return _focus_wnd;
 		}
 		/// Returns the \ref element that has the focus, or \p nullptr.
@@ -264,6 +267,25 @@ namespace codepad::ui {
 			return nullptr;
 		}
 
+		/// Sets the renderer used for all managed elements. Normally this only needs to be called once during
+		/// program startup.
+		void set_renderer(std::unique_ptr<renderer_base> r) {
+			_renderer = std::move(r);
+		}
+		/// Returns the current renderer. \ref _renderer must have been set with \ref set_renderer().
+		renderer_base &get_renderer() {
+			return *_renderer;
+		}
+
+		/// Sets the \ref font_manager used by this manager.
+		void set_font_manager(std::unique_ptr<font_manager> man) {
+			_font_manager = std::move(man);
+		}
+		/// Returns the font manager.
+		font_manager &get_font_manager() {
+			return *_font_manager;
+		}
+
 		/// Returns the registry of \ref class_visual "class_visuals" corresponding to all element classes.
 		class_visuals_registry &get_class_visuals() {
 			return _cvis;
@@ -290,10 +312,6 @@ namespace codepad::ui {
 		const class_hotkeys_registry &get_class_hotkeys() const {
 			return _chks;
 		}
-
-
-		/// Returns the global \ref manager object.
-		static manager &get();
 	protected:
 		/// Stores the elements whose \ref element::_on_layout_changed() need to be called.
 		std::set<element*> _layout_notify;
@@ -308,13 +326,16 @@ namespace codepad::ui {
 		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
 		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
 		std::set<element*> _upd; ///< Stores all elements that are to be updated.
+
+		std::unique_ptr<renderer_base> _renderer; ///< The renderer.
+		std::unique_ptr<font_manager> _font_manager; ///< The font manager.
 		/// The time point when elements were last rendered.
 		std::chrono::time_point<std::chrono::high_resolution_clock> _lastrender;
 		/// The time point when elements were last updated.
 		std::chrono::time_point<std::chrono::high_resolution_clock> _lastupdate;
 		double _min_render_interval = 0.0; ///< The minimum interval between consecutive re-renders.
 		double _upd_dt = 0.0; ///< The duration since elements were last updated.
-		os::window_base *_focus_wnd = nullptr; ///< Pointer to the currently focused \ref os::window_base.
+		window_base *_focus_wnd = nullptr; ///< Pointer to the currently focused \ref os::window_base.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 
 		class_visuals_registry _cvis; ///< All visuals.
@@ -333,61 +354,14 @@ namespace codepad::ui {
 
 
 		/// Called when a \ref os::window_base is focused. Sets \ref _focus_wnd accordingly.
-		void _on_window_got_focus(os::window_base &wnd) {
+		void _on_window_got_focus(window_base &wnd) {
 			_focus_wnd = &wnd;
 		}
 		/// Called when a \ref os::window_base loses the focus. Clears \ref _focus_wnd if necessary.
-		void _on_window_lost_focus(os::window_base &wnd) {
+		void _on_window_lost_focus(window_base &wnd) {
 			if (_focus_wnd == &wnd) {
 				_focus_wnd = nullptr;
 			}
 		}
 	};
-
-
-	template <typename T> inline void ui_config_parser::parse_animation(
-		animated_property<T> &ani, const json::value_t &obj
-	) {
-		if (obj.IsObject()) {
-			json::value_t::ConstMemberIterator mem;
-			mem = obj.FindMember(CP_STRLIT("to"));
-			if (mem != obj.MemberEnd()) {
-				ani.to = json_object_parsers::parse<T>(mem->value);
-			} else {
-				logger::get().log_warning(CP_HERE, "no \"to\" property found in animation");
-			}
-			mem = obj.FindMember(CP_STRLIT("from"));
-			if (mem != obj.MemberEnd()) {
-				ani.has_from = true;
-				ani.from = json_object_parsers::parse<T>(mem->value);
-			} else {
-				ani.has_from = false;
-			}
-			json::try_get(obj, CP_STRLIT("has_from"), ani.has_from);
-			json::try_get(obj, CP_STRLIT("auto_reverse"), ani.auto_reverse);
-			json::try_get(obj, CP_STRLIT("repeat"), ani.repeat);
-			json::try_get(obj, CP_STRLIT("duration"), ani.duration);
-			json::try_get(obj, CP_STRLIT("reverse_duration_scale"), ani.reverse_duration_scale);
-			mem = obj.FindMember(CP_STRLIT("transition"));
-			if (mem != obj.MemberEnd()) {
-				if (mem->value.IsString()) {
-					transition_function
-						fptr = manager::get().try_get_transition_func(json::get_as_string(mem->value));
-					if (fptr == nullptr) {
-						ani.transition_func = transition_functions::linear;
-						logger::get().log_warning(
-							CP_HERE, "invalid transition function: ", json::get_as_string(mem->value)
-						);
-					} else {
-						ani.transition_func = fptr;
-					}
-				} else {
-					logger::get().log_warning(CP_HERE, "invalid transition function");
-				}
-			}
-		} else {
-			ani = animated_property<T>();
-			ani.to = json_object_parsers::parse<T>(obj);
-		}
-	}
 }

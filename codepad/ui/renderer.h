@@ -12,7 +12,7 @@
 
 #include "../core/misc.h"
 
-namespace codepad::os {
+namespace codepad::ui {
 	class window_base;
 	class renderer_base;
 
@@ -50,30 +50,25 @@ namespace codepad::os {
 			destination_factor = blend_factor::one_minus_source_alpha;
 	};
 
-	/// Base struct of all textures.
-	///
-	/// \tparam IsNormal \p false if the texture is a character texture, or \p true if it is a normal one.
-	template <bool IsNormal> struct texture_base {
+	/// A texture. The texture's automatically removed from the renderer when this object is disposed.
+	struct texture {
 		friend renderer_base;
 	public:
-		/// Indicates whether the texture is a normal texture.
-		constexpr static bool is_normal_texture = IsNormal;
-
 		/// The type of the underlying ID of the texture.
 		using id_t = size_t;
 
 		/// Initializes the \ref texture_base to empty.
-		texture_base() = default;
+		texture() = default;
 		/// Move constructor.
-		texture_base(texture_base &&t) noexcept : _id(t._id), _rend(t._rend), _w(t._w), _h(t._h) {
+		texture(texture &&t) noexcept : _id(t._id), _rend(t._rend), _w(t._w), _h(t._h) {
 			t._id = 0;
 			t._rend = nullptr;
 			t._w = t._h = 0;
 		}
 		/// No copy construction.
-		texture_base(const texture_base&) = delete;
+		texture(const texture&) = delete;
 		/// Move assignment.
-		texture_base &operator=(texture_base &&t) noexcept {
+		texture &operator=(texture &&t) noexcept {
 			std::swap(_id, t._id);
 			std::swap(_rend, t._rend);
 			std::swap(_w, t._w);
@@ -81,9 +76,9 @@ namespace codepad::os {
 			return *this;
 		}
 		/// No copy assignment.
-		texture_base &operator=(const texture_base&) = delete;
+		texture &operator=(const texture&) = delete;
 		/// Automatically calls renderer_base::delete_texture to dispose of the underlying texture if it's not empty.
-		~texture_base();
+		~texture();
 
 		/// Returns the renderer that created this \ref texture_base.
 		renderer_base *get_renderer() const {
@@ -104,7 +99,7 @@ namespace codepad::os {
 		}
 	protected:
 		/// Protected constructor that \ref renderer_base uses to initialize the texture.
-		texture_base(id_t id, renderer_base *r, size_t w, size_t h) : _id(id), _rend(r), _w(w), _h(h) {
+		texture(id_t id, renderer_base *r, size_t w, size_t h) : _id(id), _rend(r), _w(w), _h(h) {
 		}
 
 		id_t _id = 0; ///< The underlying ID of the texture used by the renderer.
@@ -113,10 +108,6 @@ namespace codepad::os {
 			_w = 0, ///< The width of the texture.
 			_h = 0; ///< The height of the texture.
 	};
-	/// Normal textures.
-	using texture = texture_base<true>;
-	/// Character textures.
-	using char_texture = texture_base<false>;
 
 	/// A buffer that can be drawn onto, and can be then used as a texture.
 	struct framebuffer {
@@ -177,10 +168,6 @@ namespace codepad::os {
 		/// Pops a clip from the stack.
 		virtual void pop_clip() = 0;
 
-		/// Draws a character in the given rectangle with the given color. \ref font::draw_character should be
-		/// preffered whenever possible.
-		virtual void draw_character_custom(const char_texture&, rectd, colord) = 0;
-
 		/// Draws an array of triangles. Every three elements of the arrays are drawn as one triangle.
 		///
 		/// \param tex The texture used to draw the triangles.
@@ -217,32 +204,20 @@ namespace codepad::os {
 		/// Ends the current render target, which can either be a window or a \ref framebuffer.
 		virtual void end() = 0;
 
-		/// Creaes a character texture from the given data.
-		///
-		/// \param w The width of the texture.
-		/// \param h The height of the texture.
-		/// \param pixels The pixel data, in 8-bit RGBA format.
-		virtual char_texture new_character_texture(size_t w, size_t h, const void *pixels) = 0;
-		/// Deletes the specified charcter texture. The texture will become empty.
-		/// Users normally don't have to manually call this.
-		///
-		/// \see texture_base::~texture_base()
-		virtual void delete_character_texture(char_texture&) = 0;
 		/// Creaes a texture from the given data.
 		///
 		/// \param w The width of the texture.
 		/// \param h The height of the texture.
-		/// \param pixels The pixel data, in 8-bit RGBA format.
-		virtual texture new_texture(size_t w, size_t h, const void *pixels) = 0;
-		/// Deletes the specified texture. The texture will become empty.
-		/// Users normally don't have to manually call this.
+		/// \param pixels The pixel data, in 8-bit RGBA format. If this \p nullptr, the texture should still be
+		///               allocated but the user should not use it until \ref update_texture() has been called.
+		virtual texture new_texture(size_t w, size_t h, const std::uint8_t *pixels = nullptr) = 0;
+		/// Updates the contents of the texture.
+		virtual void update_texture(texture&, const std::uint8_t*) = 0;
+		/// Deletes the specified texture. The texture will become empty. Users normally don't have to call this
+		/// manually.
 		///
-		/// \see texture_base::~texture_base()
+		/// \see texture::~texture()
 		virtual void delete_texture(texture&) = 0;
-		/// \overload
-		void delete_texture(char_texture &tex) {
-			delete_character_texture(tex);
-		}
 
 		/// Creates a new \ref framebuffer of the given size.
 		///
@@ -276,27 +251,14 @@ namespace codepad::os {
 		virtual void pop_blend_function() = 0;
 		/// Obtains the current blend function used for render operations.
 		virtual blend_function top_blend_function() const = 0;
-
-		/// Obtains the default renderer.
-		inline static renderer_base &get() {
-			assert_true_usage(_get_rend().rend != nullptr, "renderer not yet created");
-			return *_get_rend().rend;
-		}
-		/// Creates the default renderer.
-		///
-		/// \tparam T The type of the renderer. Must be derived from \ref renderer_base.
-		template <typename T, typename ...Args> inline static void create_default(Args &&...args) {
-			static_assert(std::is_base_of_v<renderer_base, T>, "renderers must be derived from renderer_base");
-			_get_rend().assign(std::make_unique<T>(std::forward<Args>(args)...));
-		}
 	protected:
 		/// Called when a new window is created.
 		virtual void _new_window(window_base&) = 0;
 		/// Called when a window is deleted.
 		virtual void _delete_window(window_base&) = 0;
 
-		/// Returns the underlying ID of the \ref texture_base.
-		template <bool V> inline static typename texture_base<V>::id_t _get_id(const texture_base<V> &t) {
+		/// Returns the underlying ID of the \ref texture.
+		inline static typename texture::id_t _get_id(const texture &t) {
 			return t._id;
 		}
 		/// Return the underlying ID of the \ref framebuffer.
@@ -304,15 +266,15 @@ namespace codepad::os {
 			return f._id;
 		}
 		/// Creates a \ref texture_base from the given data.
-		template <bool Normal = true> texture_base<Normal> _make_texture(typename texture_base<Normal>::id_t id, size_t w, size_t h) {
-			return texture_base<Normal>(id, this, w, h);
+		texture _make_texture(texture::id_t id, size_t w, size_t h) {
+			return texture(id, this, w, h);
 		}
 		/// Creates a \ref framebuffer from the given data.
 		framebuffer _make_framebuffer(framebuffer::id_t id, texture &&tex) {
 			return framebuffer(id, std::move(tex));
 		}
 		/// Erases the contents of a \ref texture_base.
-		template <bool Normal> inline static void _erase_texture(texture_base<Normal> &t) {
+		inline static void _erase_texture(texture &t) {
 			t._id = 0;
 			t._w = t._h = 0;
 			t._rend = nullptr;
@@ -322,30 +284,13 @@ namespace codepad::os {
 			fb._id = 0;
 			_erase_texture(fb._tex);
 		}
-
-		/// Holds the curent renderer
-		struct _default_renderer {
-			/// Sets the given renderer as the default. This should only be called once and only once.
-			void assign(std::unique_ptr<renderer_base> &&r) {
-				assert_true_usage(!rend, "renderer already created");
-				rend = std::move(r);
-			}
-			std::unique_ptr<renderer_base> rend; ///< Pointer to the current renderer.
-		};
-		/// Returns the global default renderer.
-		static _default_renderer &_get_rend();
 	};
 
 	/// Loads an image from the given file name, and returns the corresponding texture created
 	/// with the given renderer. This function is implemented in a platform-specific manner.
 	texture load_image(renderer_base&, const std::filesystem::path&);
-	/// Shorthand for \ref load_image(renderer_base&, const std::filesystem::path&) "load_image"
-	/// with the default renderer.
-	inline texture load_image(const std::filesystem::path &filename) {
-		return load_image(renderer_base::get(), filename);
-	}
 
-	template <bool Normal> inline texture_base<Normal>::~texture_base() {
+	inline texture::~texture() {
 		if (has_content()) {
 			_rend->delete_texture(*this);
 		}

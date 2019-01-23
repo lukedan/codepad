@@ -8,7 +8,7 @@
 
 #include <vector>
 
-#include "../core/hotkey_registry.h"
+#include "hotkey_registry.h"
 #include "element.h"
 
 namespace codepad::ui {

@@ -10,10 +10,10 @@
 #include <unordered_map>
 #include <memory>
 
-#include "../os/filesystem.h"
-#include "../os/renderer.h"
 #include "../core/misc.h"
+#include "../os/filesystem.h"
 #include "misc.h"
+#include "renderer.h"
 
 namespace codepad::ui {
 	/// A layer in the rendering of objects.
@@ -36,7 +36,7 @@ namespace codepad::ui {
 				size(layer.size_animation, old.size.current_value) {
 			}
 
-			animated_property<os::texture>::state texture; ///< The state of \ref texture_animation.
+			animated_property<texture>::state texture; ///< The state of \ref texture_animation.
 			animated_property<thickness>::state margin; ///< The state of \ref margin_animation.
 			animated_property<colord>::state color; ///< The state of \ref color_animation.
 			animated_property<vec2d>::state size; ///< The state of \ref size_animation.
@@ -76,11 +76,12 @@ namespace codepad::ui {
 		}
 		/// Renders an object with the given layout and state.
 		///
+		/// \param r The renderer.
 		/// \param rgn The layout of the object.
 		/// \param s The current state of the layer.
-		void render(rectd rgn, const state &s) const;
+		void render(renderer_base &r, rectd rgn, const state &s) const;
 
-		animated_property<os::texture> texture_animation; ///< Textures(s) used to render the layer.
+		animated_property<texture> texture_animation; ///< Textures(s) used to render the layer.
 		animated_property<thickness> margin_animation; ///< The margin used to calculate the center region.
 		animated_property<colord> color_animation; ///< The color of the layer.
 		animated_property<vec2d> size_animation; ///< The size used to calculate the center region.
@@ -92,6 +93,22 @@ namespace codepad::ui {
 			height_alloc = size_allocation_type::automatic;
 		type layer_type = type::solid; ///< Determines how the center region is handled.
 	};
+	namespace json_object_parsers {
+		/// Parses \ref visual_layer::type. The value can either be \p "grid" or \p "solid".
+		template <> inline visual_layer::type parse<visual_layer::type>(const json::node_t &obj) {
+			if (obj.IsString()) {
+				str_t s = json::get_as_string(obj);
+				if (s == CP_STRLIT("grid")) {
+					return visual_layer::type::grid;
+				}
+				if (s == CP_STRLIT("solid")) {
+					return visual_layer::type::solid;
+				}
+			}
+			return visual_layer::type::solid;
+		}
+	}
+
 	/// Stores all layers of an object's visual in a certain state.
 	class visual_state {
 	public:
@@ -120,11 +137,12 @@ namespace codepad::ui {
 		/// \param s The state to be updated.
 		/// \param dt The time since the state was last updated.
 		void update(state &s, double dt) const;
-		void render(rectd rgn, const state &s) const {
+		/// Renders in the given region with the given state.
+		void render(renderer_base &r, rectd rgn, const state &s) const {
 			auto j = s.layer_states.begin();
 			for (auto i = layers.begin(); i != layers.end(); ++i, ++j) {
 				assert_true_usage(j != s.layer_states.end(), "invalid layer state data");
-				i->render(rgn, *j);
+				i->render(r, rgn, *j);
 			}
 		}
 

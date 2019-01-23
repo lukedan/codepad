@@ -18,7 +18,7 @@ namespace codepad {
 	namespace os {
 		class software_renderer : public software_renderer_base {
 		public:
-			void begin(const window_base &wnd) override {
+			void begin(const ui::window_base &wnd) override {
 				const auto *cwnd = static_cast<const window*>(&wnd);
 				_wnd_rec *crec = &_wnds.find(cwnd)->second;
 				_begin_render_target(_render_target_stackframe(
@@ -40,17 +40,17 @@ namespace codepad {
 				_clear_texture(frame.buffer, frame.width, frame.height);
 			}
 		protected:
-			void _new_window(window_base &wnd) override {
+			void _new_window(ui::window_base &wnd) override {
 				auto *w = static_cast<window*>(&wnd);
 				_wnd_rec wr;
 				vec2i sz = w->get_layout().size().convert<int>();
 				wr.create_buffer(w->_dc, sz.x, sz.y);
 				auto it = _wnds.insert(std::make_pair(w, std::move(wr))).first;
-				w->size_changed += [it](size_changed_info &info) {
+				w->size_changed += [it](ui::size_changed_info &info) {
 					it->second.resize_buffer(static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y));
 				};
 			}
-			void _delete_window(window_base &wnd) override {
+			void _delete_window(ui::window_base &wnd) override {
 				auto it = _wnds.find(static_cast<window*>(&wnd));
 				assert_true_logical(it != _wnds.end(), "corrupted window registry");
 				it->second.dispose_buffer();
@@ -148,7 +148,7 @@ namespace codepad {
 				return p;
 			}
 
-			void _new_window(window_base &wnd) override {
+			void _new_window(ui::window_base &wnd) override {
 				auto *cw = static_cast<window*>(&wnd);
 				winapi_check(SetPixelFormat(cw->_dc, _pformat, &_pfd));
 				bool initgl = false;
@@ -161,13 +161,13 @@ namespace codepad {
 					_initialize_gl(_get_gl_func);
 				}
 			}
-			std::function<void()> _get_begin_window_func(const window_base &wnd) override {
+			std::function<void()> _get_begin_window_func(const ui::window_base &wnd) override {
 				const auto *cw = static_cast<const window*>(&wnd);
 				return[this, dc = cw->_dc]() {
 					winapi_check(wglMakeCurrent(dc, _rc));
 				};
 			}
-			std::function<void()> _get_end_window_func(const window_base &wnd) override {
+			std::function<void()> _get_end_window_func(const ui::window_base &wnd) override {
 				const auto *cw = static_cast<const window*>(&wnd);
 				return[dc = cw->_dc]() {
 					winapi_check(SwapBuffers(dc));

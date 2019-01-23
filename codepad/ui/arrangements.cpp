@@ -9,10 +9,10 @@
 
 namespace codepad::ui {
 	void class_arrangements::child::construct(
-		element_collection &col, panel_base *logparent, notify_mapping &roles
+		element_collection &col, panel_base &logparent, notify_mapping &roles
 	) const {
-		element *e = manager::get().create_element_custom(type, element_class, metrics);
-		e->_logical_parent = logparent;
+		element *e = logparent.get_manager().create_element_custom(type, element_class, metrics);
+		e->_logical_parent = &logparent;
 		e->set_state_bits(set_states, true);
 		if (!children.empty()) {
 			auto *pnl = dynamic_cast<panel*>(e);
@@ -34,17 +34,17 @@ namespace codepad::ui {
 				roles.erase(it);
 			}
 		}
-		manager::get().schedule_visual_config_update(*e);
-		manager::get().schedule_metrics_config_update(*e);
+		logparent.get_manager().schedule_visual_config_update(*e);
+		logparent.get_manager().schedule_metrics_config_update(*e);
 	}
 
 
 	void class_arrangements::construct_children(panel_base &logparent, notify_mapping &roles) const {
 		for (const child &c : children) {
-			c.construct(logparent._children, &logparent, roles);
+			c.construct(logparent._children, logparent, roles);
 		}
-		manager::get().schedule_visual_config_update(logparent);
-		manager::get().schedule_metrics_config_update(logparent);
+		logparent.get_manager().schedule_visual_config_update(logparent);
+		logparent.get_manager().schedule_metrics_config_update(logparent);
 		if (!roles.empty()) {
 			logger::get().log_warning(CP_HERE, "there are unmatched roles");
 		}

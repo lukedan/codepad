@@ -11,7 +11,7 @@
 
 #include "../core/encodings.h"
 #include "../core/misc.h"
-#include "../os/current/font.h"
+#include "font.h"
 
 namespace codepad::ui {
 	/// Contains four styles of the same font: normal, bold, italic, bold-italic.
@@ -50,23 +50,23 @@ namespace codepad::ui {
 
 		/// Default constructor.
 		font_family() = default;
-		/// Constructs the font family by loading the four fonts with different
-		/// styles that correspond to the given font name and size.
-		font_family(const str_t &family, double size) :
-			normal(std::make_shared<os::default_font>(family, size, font_style::normal)),
-			bold(std::make_shared<os::default_font>(family, size, font_style::bold)),
-			italic(std::make_shared<os::default_font>(family, size, font_style::italic)),
-			bold_italic(std::make_shared<os::default_font>(family, size, font_style::bold_italic)) {
+		/// Constructs the font family by loading the four fonts with different styles that correspond to the given
+		/// font name and size.
+		font_family(font_manager &man, const str_t &family, double size) :
+			normal(create_font(man, family, size, font_style::normal)),
+			bold(create_font(man, family, size, font_style::bold)),
+			italic(create_font(man, family, size, font_style::italic)),
+			bold_italic(create_font(man, family, size, font_style::bold_italic)) {
 		}
 		/// Constructs the font family with four <tt>std::shared_ptr</tt>s
 		/// that either are empty or point to existing fonts.
 		font_family(
-			std::shared_ptr<const os::font> n, std::shared_ptr<const os::font> b,
-			std::shared_ptr<const os::font> i, std::shared_ptr<const os::font> bi
+			std::shared_ptr<const font> n, std::shared_ptr<const font> b,
+			std::shared_ptr<const font> i, std::shared_ptr<const font> bi
 		) : normal(std::move(n)), bold(std::move(b)), italic(std::move(i)), bold_italic(std::move(bi)) {
 		}
 
-		std::shared_ptr<const os::font>
+		std::shared_ptr<const font>
 			normal, ///< Pointer to the font that corresponds to font_style::normal.
 			bold, ///< Pointer to the font that corresponds to font_style::bold.
 			italic, ///< Pointer to the font that corresponds to font_style::italic.
@@ -96,7 +96,7 @@ namespace codepad::ui {
 			);
 		}
 		/// Returns the pointer to the font corresponding to the given \ref font_style.
-		const std::shared_ptr<const os::font> &get_by_style(font_style fs) const {
+		const std::shared_ptr<const font> &get_by_style(font_style fs) const {
 			switch (fs) {
 			case font_style::normal:
 				return normal;

@@ -17,47 +17,26 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 
-#include "renderer.h"
+#include "../ui/renderer.h"
 
 namespace codepad::os {
 	/// Base class of OpenGL renderers that implements most platform-independent functionalities.
-	class opengl_renderer_base : public renderer_base {
+	class opengl_renderer_base : public ui::renderer_base {
 	public:
-		/// Checks if the derived class has called _text_atlas::dispose().
-		~opengl_renderer_base() override {
-#ifdef CP_CHECK_LOGICAL_ERRORS
-			assert_true_logical(_atl.disposed, "derived classes must manually dispose _atl");
-#endif
-		}
-
 		/// Calls \ref _begin_render_target with \ref _get_begin_window_func and
 		/// \ref _get_end_window_func to start rendering to the given window.
-		void begin(const window_base&) override;
+		void begin(const ui::window_base&) override;
 		/// Flushes the text buffer, then calls _render_target_stackframe::push_clip.
 		void push_clip(recti r) override {
-			_flush_text_buffer();
 			_rtfstk.back().push_clip(r);
 		}
 		/// Flushes the text buffer, then calls _render_target_stackframe::pop_clip.
 		void pop_clip() override {
-			_flush_text_buffer();
 			_rtfstk.back().pop_clip();
 		}
-		/// Initializes \ref _textbuf if necessary, flushes the text buffer if the given character is
-		/// on a different page, then adds the character to the text buffer.
-		void draw_character_custom(const char_texture &id, rectd r, colord color) override {
-			const _text_atlas::char_data &cd = _atl.get_char_data(_get_id(id));
-			if (_lstpg != cd.page) {
-				_flush_text_buffer();
-				_lstpg = cd.page;
-			}
-			_textbuf.append(*this, r, cd.uv, color);
-		}
 		/// Flushes the text buffer, then calls \p glDrawArrays to drwa the given triangles.
-		void draw_triangles(const texture &t, const vec2d *ps, const vec2d *us, const colord *cs, size_t n) override {
+		void draw_triangles(const ui::texture &t, const vec2d *ps, const vec2d *us, const colord *cs, size_t n) override {
 			if (n > 0) {
-				_flush_text_buffer();
-
 				_gl_buffer<GL_ARRAY_BUFFER> buf;
 				buf.initialize(*this);
 				buf.clear_resize_dynamic_draw(*this, sizeof(_vertex) * n);
@@ -94,15 +73,11 @@ namespace codepad::os {
 		/// Flushes the text buffer, then calls \p glDrawArrays to draw the given lines.
 		///
 		/// \todo Implement draw_lines.
-		void draw_lines(const vec2d*, const colord*, size_t n) override {
-			if (n > 0) {
-				_flush_text_buffer();
-			}
+		void draw_lines(const vec2d*, const colord*, size_t) override {
 		}
 		/// Flushes the text buffer, ends the current render target, removes corresponding contents from the
 		/// stacks, then continues the last render target if there is one.
 		void end() override {
-			_flush_text_buffer();
 			_rtfstk.back().end();
 			assert_true_usage(_rtfstk.back().clip_stack.empty(), "pushclip/popclip mismatch");
 			_rtfstk.pop_back();
@@ -113,16 +88,8 @@ namespace codepad::os {
 			_gl_verify();
 		}
 
-		/// Calls _text_atlas::new_char to create a new character texture.
-		char_texture new_character_texture(size_t w, size_t h, const void *data) override {
-			return _atl.new_char(*this, w, h, data);
-		}
-		/// Calls _text_atlas::delete_char to dispose of the given \ref char_texture.
-		void delete_character_texture(char_texture &id) override {
-			_atl.delete_char(id);
-		}
 		/// Creates a texture using the given size and pixel data.
-		texture new_texture(size_t w, size_t h, const void *data) override {
+		ui::texture new_texture(size_t w, size_t h, const std::uint8_t *data) override {
 			GLuint texid;
 			glGenTextures(1, &texid);
 			glBindTexture(GL_TEXTURE_2D, texid);
@@ -132,18 +99,31 @@ namespace codepad::os {
 				static_cast<GLsizei>(w), static_cast<GLsizei>(h),
 				0, GL_RGBA, GL_UNSIGNED_BYTE, data
 			);
+			if (data) {
+				_gl.GenerateMipmap(GL_TEXTURE_2D);
+			}
+			return _make_texture(static_cast<ui::texture::id_t>(texid), w, h);
+		}
+		/// Calls \p glTexImage2D to update the contents of the texture.
+		void update_texture(ui::texture &tex, const std::uint8_t *data) override {
+			ui::texture::id_t id = _get_id(tex);
+			glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(id));
+			glTexImage2D(
+				GL_TEXTURE_2D, 0, GL_RGBA8,
+				static_cast<GLsizei>(tex.get_width()), static_cast<GLsizei>(tex.get_height()),
+				0, GL_RGBA, GL_UNSIGNED_BYTE, data
+			);
 			_gl.GenerateMipmap(GL_TEXTURE_2D);
-			return _make_texture(static_cast<texture::id_t>(texid), w, h);
 		}
 		/// Deletes and erases the given \ref texture.
-		void delete_texture(texture &tex) override {
+		void delete_texture(ui::texture &tex) override {
 			auto t = static_cast<GLuint>(_get_id(tex));
 			glDeleteTextures(1, &t);
 			_erase_texture(tex);
 		}
 
 		/// Creates a \ref framebuffer of the given size.
-		framebuffer new_framebuffer(size_t w, size_t h) override {
+		ui::framebuffer new_framebuffer(size_t w, size_t h) override {
 			GLuint fbid, tid;
 			_gl.GenFramebuffers(1, &fbid);
 			glGenTextures(1, &tid);
@@ -162,10 +142,10 @@ namespace codepad::os {
 				logger::get().log_error(CP_HERE, "glCheckFramebufferStatus returned ", res);
 				assert_true_sys(false, "OpenGL error: unable to create framebuffer: ");
 			}
-			return _make_framebuffer(fbid, _make_texture(static_cast<texture::id_t>(tid), w, h));
+			return _make_framebuffer(fbid, _make_texture(static_cast<ui::texture::id_t>(tid), w, h));
 		}
 		/// Deletes and erases the given \ref framebuffer.
-		void delete_framebuffer(framebuffer &fb) override {
+		void delete_framebuffer(ui::framebuffer &fb) override {
 			auto id = static_cast<GLuint>(_get_id(fb)), tid = static_cast<GLuint>(_get_id(fb.get_texture()));
 			_gl.DeleteFramebuffers(1, &id);
 			glDeleteTextures(1, &tid);
@@ -173,13 +153,13 @@ namespace codepad::os {
 		}
 		/// Calls \ref continue_framebuffer to start rendering to the \ref framebuffer,
 		/// then clears its contents.
-		void begin_framebuffer(const framebuffer &fb) override {
+		void begin_framebuffer(const ui::framebuffer &fb) override {
 			continue_framebuffer(fb);
 			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 			glClear(GL_COLOR_BUFFER_BIT);
 		}
 		/// Calls \ref _begin_render_target to continue rendering to the given \ref framebuffer.
-		void continue_framebuffer(const framebuffer &fb) override {
+		void continue_framebuffer(const ui::framebuffer &fb) override {
 			assert_true_usage(fb.has_content(), "cannot draw to an empty frame buffer");
 			_begin_render_target(_render_target_stackframe(
 				false, fb.get_texture().get_width(), fb.get_texture().get_height(),
@@ -198,7 +178,6 @@ namespace codepad::os {
 		/// Flushes the text buffer, then calls \p glPushMatrix and \p glLoadMatrix to push
 		/// a matrix onto the stack.
 		void push_matrix(const matd3x3 &m) override {
-			_flush_text_buffer();
 			_matstk.push_back(m);
 			_apply_matrix();
 		}
@@ -213,27 +192,24 @@ namespace codepad::os {
 		}
 		/// Flushes the text buffer, then calls \p glPopMatrix to pop a matrix from the stack.
 		void pop_matrix() override {
-			_flush_text_buffer();
 			_matstk.pop_back();
 			_apply_matrix();
 		}
 
 		/// Flushes the text buffer, then calls _render_target_stackframe::push_blend_func to
 		/// push a \ref blend_function onto the stack.
-		void push_blend_function(blend_function f) override {
-			_flush_text_buffer();
+		void push_blend_function(ui::blend_function f) override {
 			_rtfstk.back().push_blend_func(f);
 		}
 		/// Flushes the text buffer, then calls _render_target_stackframe::pop_blend_func to
 		/// pop a \ref blend_function from the stack.
 		void pop_blend_function() override {
-			_flush_text_buffer();
 			_rtfstk.back().pop_blend_func();
 		}
 		/// Returns the \ref blend_function on the top of _render_target_stackframe::blend_function_stack.
-		blend_function top_blend_function() const override {
+		ui::blend_function top_blend_function() const override {
 			if (_rtfstk.back().blend_func_stack.empty()) {
-				return blend_function();
+				return ui::blend_function();
 			}
 			return _rtfstk.back().blend_func_stack.back();
 		}
@@ -290,13 +266,13 @@ namespace codepad::os {
 		/// Called to obtain a function that is called when the renderer starts or continues
 		/// to render to the window. Thus, the returned function should not clear the contents
 		/// of the window.
-		virtual std::function<void()> _get_begin_window_func(const window_base&) = 0;
+		virtual std::function<void()> _get_begin_window_func(const ui::window_base&) = 0;
 		/// Called to obtain a function that is called when the renderer has finished drawing
 		/// to the window, to present the rendered result on the window.
-		virtual std::function<void()> _get_end_window_func(const window_base&) = 0;
+		virtual std::function<void()> _get_end_window_func(const ui::window_base&) = 0;
 
 		/// Does nothing.
-		void _delete_window(window_base&) override {
+		void _delete_window(ui::window_base&) override {
 		}
 
 		/// Sets the default parameters for the currently bound texture.
@@ -509,219 +485,6 @@ namespace codepad::os {
 			GLuint _id = 0; ///< The ID of the buffer.
 		};
 
-		/// Stores character images in large `pages' of textures. This is mainly intended to reduce
-		/// the number of draw calls to draw large numbers of characters.
-		struct _text_atlas {
-		public:
-			/// Inserts a new character image into the last page. If the page doesn't have enough space,
-			/// a new page will be created.
-			char_texture new_char(opengl_renderer_base &r, size_t w, size_t h, const void *data) {
-				if (_pages.empty()) {
-					_new_page();
-				}
-				texture::id_t id = _alloc_id();
-				char_data &cd = _cd_slots[id];
-				if (w == 0 || h == 0) { // the character is blank
-					cd.uv = rectd(0.0, 0.0, 0.0, 0.0);
-					cd.page = _pages.size() - 1;
-				} else {
-					std::reference_wrapper<page> curp = _pages.back();
-					if (_cx + w + 2 * border > curp.get().width) {
-						// the current row doesn't have enough space; move to next row
-						_cx = 0;
-						_cy += _my;
-						_my = 0;
-					}
-					size_t t, l; // coords of the the new character's top left corner
-					if (_cy + h + 2 * border > curp.get().height) {
-						// the current page doesn't have enough space; create new page
-						if (_lpdirty) {
-							curp.get().flush(r._gl);
-						}
-						curp.get().freeze();
-						curp = _new_page();
-						_cy = 0;
-						l = t = border;
-						_my = h + 2 * border;
-					} else {
-						l = _cx + border;
-						t = _cy + border;
-						_my = std::max(_my, h + 2 * border);
-					}
-					_cx = l + w;
-					// copy image data
-					auto src = static_cast<const unsigned char*>(data);
-					for (size_t y = 0; y < h; ++y) {
-						unsigned char *cur = curp.get().data + ((y + t) * curp.get().width + l) * 4;
-						for (size_t x = 0; x < w; ++x, src += 4, cur += 4) {
-							cur[0] = src[0];
-							cur[1] = src[1];
-							cur[2] = src[2];
-							cur[3] = src[3];
-						}
-					}
-					// calculate UV coordinates
-					cd.uv = rectd(
-						static_cast<double>(l) / static_cast<double>(curp.get().width),
-						static_cast<double>(l + w) / static_cast<double>(curp.get().width),
-						static_cast<double>(t) / static_cast<double>(curp.get().height),
-						static_cast<double>(t + h) / static_cast<double>(curp.get().height)
-					);
-					cd.page = _pages.size() - 1;
-					_lpdirty = true; // mark the last page as dirty
-				}
-				return r._make_texture<false>(id, w, h);
-			}
-			/// Adds the ID of the deleted texture to \ref _cd_alloc, and erases the texture.
-			void delete_char(char_texture &id) {
-				_cd_alloc.push_back(_get_id(id));
-				_erase_texture(id);
-			}
-			/// Frees all resources allocated by \ref _text_atlas.
-			void dispose() {
-#ifdef CP_CHECK_LOGICAL_ERRORS
-				assert_true_logical(!disposed, "text atlas already disposed");
-				disposed = true;
-#endif
-				_pages.clear();
-			}
-
-			/// Stores a page.
-			struct page {
-				/// Initializes the page to empty.
-				page() = default;
-				/// Allocates a texture and pixel data of the given size.
-				page(size_t w, size_t h) : width(w), height(h) {
-					size_t sz = width * height * 4;
-					data = static_cast<unsigned char*>(std::malloc(sz));
-					std::memset(data, 0, sz);
-					glGenTextures(1, &tex_id);
-					glBindTexture(GL_TEXTURE_2D, tex_id);
-					_set_default_texture_params();
-				}
-				/// Move constructor.
-				page(page &&src) : width(src.width), height(src.height), data(src.data), tex_id(src.tex_id) {
-					src.width = src.height = 0;
-					src.data = nullptr;
-					src.tex_id = 0;
-				}
-				/// No copy construction.
-				page(const page&) = delete;
-				/// Move assignment.
-				page &operator=(page &&src) {
-					std::swap(width, src.width);
-					std::swap(height, src.height);
-					std::swap(data, src.data);
-					std::swap(tex_id, src.tex_id);
-					return *this;
-				}
-				/// No copy assignment.
-				page &operator=(const page&) = delete;
-				/// Frees the allocated resources.
-				~page() {
-					if (tex_id != 0) { // valid
-						glDeleteTextures(1, &tex_id);
-						if (data != nullptr) { // not frozen
-							std::free(data);
-						}
-					}
-				}
-
-				/// Copies the pixel data from \ref data to OpenGL.
-				void flush(const _gl_funcs &gl) {
-					glBindTexture(GL_TEXTURE_2D, tex_id);
-					glTexImage2D(
-						GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height),
-						0, GL_RGBA, GL_UNSIGNED_BYTE, data
-					);
-					gl.GenerateMipmap(GL_TEXTURE_2D);
-				}
-				/// Frees \ref data to reduce memory usage when the page is full (and thus won't change anymore).
-				void freeze() {
-					std::free(data);
-					data = nullptr;
-				}
-
-				/// Returns whether the page contains a valid OpenGL texture.
-				bool valid() const {
-					return tex_id != 0;
-				}
-
-				size_t
-					width = 0, ///< The width of the page.
-					height = 0; ///< The height of the page.
-				unsigned char *data = nullptr; ///< The pixel data.
-				GLuint tex_id = 0; ///< The OpenGL texture ID.
-			};
-			/// Stores the information about a character in the atlas.
-			struct char_data {
-				rectd uv; ///< The UV coordinates of the character in the page.
-				size_t page = 0; ///< The number of the page that the character is on.
-			};
-
-			/// Returns the \ref char_data corresponding to the given ID.
-			const char_data &get_char_data(size_t id) const {
-				return _cd_slots[id];
-			}
-			/// Retrieves a \ref page for rendering. Calls page::flush to flush it if necessary.
-			const page &get_page(const _gl_funcs &gl, size_t page) {
-				if (_lpdirty && page + 1 == _pages.size()) {
-					_pages.back().flush(gl);
-					_lpdirty = false;
-				}
-				return _pages[page];
-			}
-
-			size_t
-				/// The width of a page. Modifying this only affects pages created afterwards.
-				page_width = 600,
-				/// The height of a page. Modifying this only affects pages created afterwards.
-				page_height = 300,
-				/// The margin between characters. Modifying this only affects characters added afterwards.
-				border = 1;
-#ifdef CP_CHECK_LOGICAL_ERRORS
-			bool disposed = false; ///< Records whether \ref dispose() has been called.
-#endif
-		protected:
-			size_t
-				_cx = 0, ///< The X coordinate of the next character, including its border.
-				_cy = 0, ///< The Y coordinate of the next character, including its border.
-				_my = 0; ///< The height of the tallest character of this row, including both of its borders.
-			std::vector<page> _pages; ///< The pages.
-			std::vector<char_data> _cd_slots; ///< Stores all \ref char_data "char_datas".
-			std::vector<char_texture::id_t> _cd_alloc; ///< Stores all freed character IDs.
-			bool _lpdirty = false; ///< Marks whether the last page is dirty.
-
-			/// Creates a new page and initializes all its pixels to transparent white.
-			///
-			/// \return An reference to the new page.
-			page &_new_page() {
-				page np(page_width, page_height);
-				for (size_t y = 0; y < np.height; ++y) {
-					unsigned char *cur = np.data + y * np.width * 4;
-					for (size_t x = 0; x < np.width; ++x) {
-						*(cur++) = 255;
-						*(cur++) = 255;
-						*(cur++) = 255;
-						*(cur++) = 0;
-					}
-				}
-				_pages.push_back(std::move(np));
-				return _pages.back();
-			}
-			/// Allocates an ID for a character texture.
-			char_texture::id_t _alloc_id() {
-				texture::id_t res;
-				if (!_cd_alloc.empty()) { // use deleted id
-					res = _cd_alloc.back();
-					_cd_alloc.pop_back();
-				} else { // allocate new id
-					res = _cd_slots.size();
-					_cd_slots.emplace_back(); // add new slot
-				}
-				return res;
-			}
-		};
 		/// Buffers the text to render, and draws them all at once when necessary.
 		struct _text_buffer {
 			/// The minimum count of quads that the buffer can contain.
@@ -848,7 +611,7 @@ namespace codepad::os {
 				end; ///< The function to be called when the rendering has finished.
 			std::vector<recti> clip_stack; ///< The stack of clip regions for this rendering target.
 			/// The stack of \ref blend_function "blend_functions" for this rendering target.
-			std::vector<blend_function> blend_func_stack;
+			std::vector<ui::blend_function> blend_func_stack;
 
 			/// Pushes a clip onto \ref clip_stack.
 			void push_clip(recti r) {
@@ -881,7 +644,7 @@ namespace codepad::os {
 			}
 
 			/// Pushes a \ref blend_function onto \ref blend_func_stack.
-			void push_blend_func(blend_function bf) {
+			void push_blend_func(ui::blend_function bf) {
 				blend_func_stack.push_back(bf);
 				apply_blend_func();
 			}
@@ -1007,7 +770,6 @@ namespace codepad::os {
 			);
 			_defaultprog.acivate(*this);
 			_defaultprog.set_int(*this, "Texture", 0);
-			_textbuf.initialize(*this);
 
 			// generate the default blank texture
 			glGenTextures(1, &_blanktex);
@@ -1029,16 +791,11 @@ namespace codepad::os {
 		void _dispose_gl_rsrc() {
 			_gl.DeleteVertexArrays(1, &_vao);
 			glDeleteTextures(1, &_blanktex);
-			_atl.dispose();
-			_textbuf.dispose(*this);
 			_defaultprog.dispose(*this);
 		}
 
 		/// Flushes the text buffer if necessary, then starts to render to the given target.
 		void _begin_render_target(_render_target_stackframe rtf) {
-			if (!_rtfstk.empty()) {
-				_flush_text_buffer();
-			}
 			_rtfstk.push_back(std::move(rtf));
 			_matstk.emplace_back();
 			_matstk.back().set_identity();
@@ -1065,12 +822,6 @@ namespace codepad::os {
 			_gl_verify();
 		}
 
-		/// Flushes the text buffer by calling _text_buffer::flush.
-		void _flush_text_buffer() {
-			if (_textbuf.quad_count > 0) {
-				_textbuf.flush(*this, _atl.get_page(_gl, _lstpg).tex_id);
-			}
-		}
 		/// Checks for any OpenGL errors.
 		void _gl_verify() {
 #ifdef CP_CHECK_SYSTEM_ERRORS
@@ -1084,10 +835,7 @@ namespace codepad::os {
 
 		_gl_funcs _gl; ///< Additional OpenGL routines needed by the renderer.
 		std::vector<_render_target_stackframe> _rtfstk; ///< The stack of render targets.
-		_text_atlas _atl; ///< The text atlas.
-		_text_buffer _textbuf; ///< The text buffer.
 		std::vector<matd3x3> _matstk; ///< The stack of matrices.
-		size_t _lstpg = 0; ///< The page that all characters in \ref _textbuf is on.
 		_gl_program _defaultprog; ///< The default OpenGL program used for rendering.
 		/// A blank texture. This is used since sampling texture 0 in shaders return (0, 0, 0, 1) rather
 		/// than (1, 1, 1, 1) in the fixed pipeline (sort of).

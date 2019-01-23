@@ -155,11 +155,11 @@ namespace codepad::editor::code {
 		}
 
 		/// If the mouse is over a selection, displays the normal cursor; otherwise displays the `I-beam' cursor.
-		os::cursor get_current_display_cursor() const override {
+		ui::cursor get_current_display_cursor() const override {
 			if (!_selecting && _is_in_selection(_mouse_cache.position)) {
-				return os::cursor::normal;
+				return ui::cursor::normal;
 			}
-			return os::cursor::text_beam;
+			return ui::cursor::text_beam;
 		}
 
 		/// Returns the current set of carets.
@@ -687,7 +687,7 @@ namespace codepad::editor::code {
 		///
 		/// \todo Maybe also take into account the width of the character.
 		void _update_window_caret_position() {
-			os::window_base *wnd = get_window();
+			ui::window_base *wnd = get_window();
 			// when selecting with a mouse, it's possible that there are no carets in _cset at all
 			if (!_cset.carets.empty() && wnd != nullptr) {
 				auto entry = _cset.carets.begin();
@@ -719,10 +719,10 @@ namespace codepad::editor::code {
 		/// Sets the correct class of \ref _caret_cfg, resets the animation of carets, and schedules this element for
 		/// updating.
 		void _reset_caret_animation() {
-			_caret_cfg = ui::visual_configuration(ui::manager::get().get_class_visuals().get_visual_or_default(
+			_caret_cfg = ui::visual_configuration(get_manager().get_class_visuals().get_or_default(
 				_insert ? get_insert_caret_class() : get_overwrite_caret_class()
 			), _editrgn_state);
-			ui::manager::get().schedule_visual_config_update(*this);
+			get_manager().schedule_visual_config_update(*this);
 		}
 		/// Shorthand for \ref hit_test_for_caret when the coordinates are relative to the client region.
 		///
@@ -834,16 +834,16 @@ namespace codepad::editor::code {
 				_editrgn_state = st;
 				_caret_cfg.on_state_changed(_editrgn_state);
 				_sel_cfg.on_state_changed(_editrgn_state);
-				ui::manager::get().schedule_visual_config_update(*this);
+				get_manager().schedule_visual_config_update(*this);
 			}
 		}
 		/// Called by the parent \ref codebox when it gets focus. Adjusts the states of caret animations.
 		void _on_codebox_got_focus() {
-			_set_editrgn_state(_editrgn_state | ui::manager::get().get_predefined_states().focused);
+			_set_editrgn_state(_editrgn_state | get_manager().get_predefined_states().focused);
 		}
 		/// Called by the parent \ref codebox when it loses focus. Adjusts the states of caret animations.
 		void _on_codebox_lost_focus() {
-			_set_editrgn_state(_editrgn_state & ~ui::manager::get().get_predefined_states().focused);
+			_set_editrgn_state(_editrgn_state & ~get_manager().get_predefined_states().focused);
 		}
 
 		/// Called when the user starts to make a selection using the mouse.
@@ -919,13 +919,13 @@ namespace codepad::editor::code {
 			if (relempos.y < 0.0) {
 				clampedpos.y -= relempos.y;
 				_scrolldiff = relempos.y;
-				ui::manager::get().schedule_update(*this);
+				get_manager().schedule_update(*this);
 			} else {
 				double h = get_layout().height();
 				if (relempos.y > h) {
 					clampedpos.y += h - relempos.y;
 					_scrolldiff = relempos.y - get_layout().height();
-					ui::manager::get().schedule_update(*this);
+					get_manager().schedule_update(*this);
 				}
 			}
 			auto newmouse = _hit_test_for_caret_client(clampedpos);
@@ -1039,16 +1039,16 @@ namespace codepad::editor::code {
 		/// \todo Use customizable modifiers.
 		void _on_mouse_down(ui::mouse_button_info &info) override {
 			_mouse_cache = _hit_test_for_caret_client(info.position - get_client_region().xmin_ymin());
-			if (info.button == os::input::mouse_button::primary) {
+			if (info.button == ui::mouse_button::primary) {
 				if (!_is_in_selection(_mouse_cache.position)) {
-					if ((info.modifiers & modifier_keys::shift) != modifier_keys::none) {
+					if ((info.modifiers & ui::modifier_keys::shift) != ui::modifier_keys::none) {
 						auto it = _cset.carets.end();
 						--it;
 						caret_selection cs = it->first;
 						_cset.carets.erase(it);
 						_begin_mouse_selection(cs.second);
 					} else {
-						if ((info.modifiers & modifier_keys::control) == modifier_keys::none) {
+						if ((info.modifiers & ui::modifier_keys::control) == ui::modifier_keys::none) {
 							_cset.carets.clear();
 						}
 						_begin_mouse_selection(_mouse_cache.position);
@@ -1058,14 +1058,14 @@ namespace codepad::editor::code {
 					_predrag = true;
 					get_window()->set_mouse_capture(*this);
 				}
-			} else if (info.button == os::input::mouse_button::tertiary) {
+			} else if (info.button == ui::mouse_button::tertiary) {
 				// TODO block selection
 			}
 			element::_on_mouse_down(info);
 		}
 		/// Calls \ref _on_mouse_lbutton_up if the primary mouse button is released.
 		void _on_mouse_up(ui::mouse_button_info &info) override {
-			if (info.button == os::input::mouse_button::primary) {
+			if (info.button == ui::mouse_button::primary) {
 				_on_mouse_lbutton_up();
 			}
 		}
@@ -1081,14 +1081,15 @@ namespace codepad::editor::code {
 				codebox *editor = _get_box();
 				editor->set_vertical_position(
 					editor->get_vertical_position() +
-					move_speed_scale * _scrolldiff * ui::manager::get().update_delta_time()
+					move_speed_scale * _scrolldiff * get_manager().update_delta_time()
 				);
 				_update_mouse_selection(get_window()->screen_to_client(
-					os::input::get_mouse_position()).convert<double>()
+					os::get_mouse_position()).convert<double>()
 				);
 			}
 		}
 
+		/// Updates caret and selection visuals.
 		bool _on_update_visual_configurations(double time) override {
 			_caret_cfg.update(time);
 			_sel_cfg.update(time);
@@ -1114,7 +1115,7 @@ namespace codepad::editor::code {
 			_can_focus = false;
 			_reset_caret_animation();
 			_sel_cfg = ui::visual_configuration(
-				ui::manager::get().get_class_visuals().get_visual_or_default(get_editor_selection_class())
+				get_manager().get_class_visuals().get_or_default(get_editor_selection_class())
 			);
 		}
 		/// Unbinds the current document.

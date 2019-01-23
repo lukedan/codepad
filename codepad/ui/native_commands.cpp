@@ -145,28 +145,28 @@ namespace codepad::ui::native_commands {
 
 		reg.register_command(
 			CP_STRLIT("tab.split_left"), convert_type<tab>([](tab *t) {
-				tab_manager::get().split_tab(*t, false, true);
+				t->get_tab_manager().split_tab(*t, false, true);
 			})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_right"), convert_type<tab>([](tab *t) {
-				tab_manager::get().split_tab(*t, false, false);
+				t->get_tab_manager().split_tab(*t, false, false);
 			})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_up"), convert_type<tab>([](tab *t) {
-				tab_manager::get().split_tab(*t, true, true);
+				t->get_tab_manager().split_tab(*t, true, true);
 			})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_down"), convert_type<tab>([](tab *t) {
-				tab_manager::get().split_tab(*t, true, false);
+				t->get_tab_manager().split_tab(*t, true, false);
 			})
 		);
 
 		reg.register_command(
 			CP_STRLIT("tab.move_to_new_window"), convert_type<tab>([](tab *t) {
-				tab_manager::get().move_tab_to_new_window(*t);
+				t->get_tab_manager().move_tab_to_new_window(*t);
 			})
 		);
 
@@ -182,13 +182,14 @@ namespace codepad::ui::native_commands {
 						ctx, encoding_manager::get().get_default()
 					);
 
-					tab *tb = tab_manager::get().new_tab_in(th);
+					tab *tb = th->get_tab_manager().new_tab_in(th);
 					tb->set_label(path.filename().u8string());
-					auto *box = manager::get().create_element<codebox>();
+					manager &man = th->get_manager();
+					auto *box = man.create_element<codebox>();
 					box->insert_component_before(
-						&box->get_editor(), *manager::get().create_element<line_number_display>()
+						&box->get_editor(), *man.create_element<line_number_display>()
 					);
-					box->insert_component_before(nullptr, *manager::get().create_element<minimap>());
+					box->insert_component_before(nullptr, *man.create_element<minimap>());
 					box->get_editor().set_document(interp);
 					tb->children().add(*box);
 					last = tb;
@@ -205,13 +206,13 @@ namespace codepad::ui::native_commands {
 				auto buf = buffer_manager::get().new_file();
 				auto interp = buffer_manager::get().open_interpretation(buf, encoding_manager::get().get_default());
 
-				tab *tb = tab_manager::get().new_tab_in(th);
+				tab *tb = th->get_tab_manager().new_tab_in(th);
 				tb->set_label(CP_STRLIT("New file"));
-				auto *box = manager::get().create_element<codebox>();
+				auto *box = th->get_manager().create_element<codebox>();
 				box->insert_component_before(
-					&box->get_editor(), *manager::get().create_element<line_number_display>()
+					&box->get_editor(), *th->get_manager().create_element<line_number_display>()
 				);
-				box->insert_component_before(nullptr, *manager::get().create_element<minimap>());
+				box->insert_component_before(nullptr, *th->get_manager().create_element<minimap>());
 				box->get_editor().set_document(interp);
 				tb->children().add(*box);
 				th->activate_tab(*tb);

@@ -10,10 +10,11 @@
 #include "panel.h"
 #include "manager.h"
 #include "draw.h"
+#include "text_rendering.h"
 #include "font_family.h"
+#include "window.h"
 #include "../core/misc.h"
 #include "../core/encodings.h"
-#include "../os/window.h"
 
 namespace codepad::ui {
 	/// Used to display text in \ref element "elements".
@@ -36,13 +37,13 @@ namespace codepad::ui {
 		}
 
 		/// Sets the font used to display text.
-		void set_font(std::shared_ptr<const os::font> fnt) {
+		void set_font(std::shared_ptr<const font> fnt) {
 			_fnt = std::move(fnt);
 			text_size_changed.invoke();
 		}
 		/// Returns the custom font set by the user. Note that \p nullptr is returned if no font is set, while the
 		/// default font is used to display text.
-		std::shared_ptr<const os::font> get_font() const {
+		const std::shared_ptr<const font> &get_font() const {
 			return _fnt;
 		}
 
@@ -57,13 +58,13 @@ namespace codepad::ui {
 		}
 
 		/// Sets the default font used when no font is specified for a \ref content_host.
-		inline static void set_default_font(std::shared_ptr<const os::font> fnt) {
+		inline static void set_default_font(std::shared_ptr<const font> fnt) {
 			auto &deffnt = _default_font::get();
 			deffnt.font = std::move(fnt);
 			++deffnt.timestamp;
 		}
 		/// Retruns the default font.
-		inline static const std::shared_ptr<const os::font> &get_default_font() {
+		inline static const std::shared_ptr<const font> &get_default_font() {
 			return _default_font::get().font;
 		}
 
@@ -114,7 +115,7 @@ namespace codepad::ui {
 		void render() const {
 			auto &&f = _fnt ? _fnt : _default_font::get().font;
 			if (f) {
-				text_renderer::render_plain_text(_text, f, get_text_position(), _clr);
+				text_renderer::render_plain_text(_text, *f, get_text_position(), _clr);
 			}
 		}
 
@@ -127,14 +128,14 @@ namespace codepad::ui {
 		mutable unsigned char _szcache_id = _noszcache; ///< Used to mark whether the current cache is valid.
 		mutable vec2d _szcache; ///< Measured size of the current text, using the current font.
 		str_t _text; ///< The text to display.
-		std::shared_ptr<const os::font> _fnt; ///< The custom font.
+		std::shared_ptr<const font> _fnt; ///< The custom font.
 		colord _clr; ///< The color used to display the text.
 		vec2d _offset; ///< The offset of the text.
 		element &_parent; ///< The \ref element that this belongs to.
 
 		/// The struct that holds the default font and the timestamp.
 		struct _default_font {
-			std::shared_ptr<const os::font> font; ///< The default font.
+			std::shared_ptr<const font> font; ///< The default font.
 			unsigned char timestamp = 0; ///< The timestamp. Incremented each time \ref font is changed.
 
 			/// Gets the global \ref _default_font instance.
@@ -146,7 +147,7 @@ namespace codepad::ui {
 	class label : public element {
 	public:
 		/// Returns the underlying \ref content_host.
-		content_host & content() {
+		content_host &content() {
 			return _content;
 		}
 		/// Const version of content().
@@ -155,12 +156,12 @@ namespace codepad::ui {
 		}
 
 		/// Returns the combined width of the text and the padding in pixels.
-		std::pair<double, bool> get_desired_width() const override {
-			return {_content.get_text_size().x + get_padding().width(), true};
+		size_allocation get_desired_width() const override {
+			return size_allocation(_content.get_text_size().x + get_padding().width(), true);
 		}
 		/// Returns the combined height of the text and the padding in pixels.
-		std::pair<double, bool> get_desired_height() const override {
-			return {_content.get_text_size().y + get_padding().height(), true};
+		size_allocation get_desired_height() const override {
+			return size_allocation(_content.get_text_size().y + get_padding().height(), true);
 		}
 
 		/// Returns the default class of elements of this type.
@@ -208,7 +209,7 @@ namespace codepad::ui {
 			_allow_cancel = true;
 		trigger_type _trigtype = trigger_type::mouse_up; ///< The trigger type of this button.
 		/// The mouse button that triggers the button.
-		os::input::mouse_button _trigbtn = os::input::mouse_button::primary;
+		mouse_button _trigbtn = mouse_button::primary;
 
 		/// Checks for clicks.
 		void _on_mouse_down(mouse_button_info &p) override {
@@ -244,9 +245,9 @@ namespace codepad::ui {
 		void _on_update_mouse_pos(vec2d pos) {
 			if (_allow_cancel) {
 				if (hit_test(pos)) {
-					set_state_bits(manager::get().get_predefined_states().mouse_over, true);
+					set_state_bits(get_manager().get_predefined_states().mouse_over, true);
 				} else {
-					set_state_bits(manager::get().get_predefined_states().mouse_over, false);
+					set_state_bits(get_manager().get_predefined_states().mouse_over, false);
 				}
 			}
 		}
@@ -268,11 +269,11 @@ namespace codepad::ui {
 		}
 
 		/// Sets the mouse button used to press the button, the `trigger button'.
-		void set_trigger_button(os::input::mouse_button btn) {
+		void set_trigger_button(mouse_button btn) {
 			_trigbtn = btn;
 		}
 		/// Returns the current trigger button.
-		os::input::mouse_button get_trigger_button() const {
+		mouse_button get_trigger_button() const {
 			return _trigbtn;
 		}
 
@@ -347,18 +348,18 @@ namespace codepad::ui {
 		constexpr static double default_thickness = 10.0;
 
 		/// Returns the default desired width of the scroll bar.
-		std::pair<double, bool> get_desired_width() const override {
+		size_allocation get_desired_width() const override {
 			if (is_vertical()) {
-				return {default_thickness, true};
+				return size_allocation(default_thickness, true);
 			}
-			return {1.0, false};
+			return size_allocation(1.0, false);
 		}
 		/// Returns the default desired height of the scroll bar.
-		std::pair<double, bool> get_desired_height() const override {
+		size_allocation get_desired_height() const override {
 			if (!is_vertical()) {
-				return {default_thickness, true};
+				return size_allocation(default_thickness, true);
 			}
-			return {1.0, false};
+			return size_allocation(1.0, false);
 		}
 
 		/// Sets the current value of the scroll bar.
@@ -467,7 +468,7 @@ namespace codepad::ui {
 			panel_base::_initialize(cls, metrics);
 			_can_focus = false;
 
-			manager::get().get_class_arrangements().get_arrangements_or_default(cls).construct_children(
+			get_manager().get_class_arrangements().get_or_default(cls).construct_children(
 				*this, {
 					{get_drag_button_role(), _role_cast(_drag)},
 				{get_page_up_button_role(), _role_cast(_pgup)},
@@ -490,7 +491,7 @@ namespace codepad::ui {
 		/// Calls \ref invalidate_layout() if the element's orientation has been changed.
 		void _on_state_changed(value_update_info<element_state_id> &p) override {
 			panel_base::_on_state_changed(p);
-			if (_has_any_state_bit_changed(manager::get().get_predefined_states().vertical, p)) {
+			if (_has_any_state_bit_changed(get_manager().get_predefined_states().vertical, p)) {
 				_on_desired_size_changed(true, true);
 				_invalidate_children_layout();
 			}

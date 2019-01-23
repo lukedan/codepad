@@ -7,7 +7,9 @@
 /// Implementation of certain functions of codepad::os::opengl_renderer_base.
 
 #include "../ui/manager.h"
-#include "window.h"
+#include "../ui/window.h"
+
+using namespace codepad::ui;
 
 namespace codepad::os {
 	GLenum opengl_renderer_base::_blend_func_mapping[10] = {
