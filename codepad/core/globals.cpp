@@ -164,7 +164,7 @@ namespace codepad {
 			static _global_wrapper<xlib_link> _v;
 			return _v.object;
 		}
-#endif
+#	endif
 		freetype_font::_font_config &freetype_font::_font_config::get() {
 			static _global_wrapper<_font_config> _v;
 			return _v.object;

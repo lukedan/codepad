@@ -145,6 +145,7 @@ namespace codepad::editor::code {
 			);
 			const font_family &fnt = get_font();
 			text_metrics_accumulator metrics(fnt, get_line_height(), _fmt.get_tab_width());
+			atlas::batch_renderer brend(fnt.normal->get_manager().get_atlas());
 			caret_renderer caretrend(*used, firstchar, flineinfo.second == linebreak_type::soft);
 			while (it.get_position() < plastchar) {
 				token_generation_result tok = it.generate();
@@ -153,11 +154,11 @@ namespace codepad::editor::code {
 				if (holds_alternative<character_token>(tok.result)) {
 					auto &chartok = get<character_token>(tok.result);
 					if (is_graphical_char(chartok.value) && metrics.get_character().char_left() < layoutw) {
-						fnt.get_by_style(chartok.style)->draw_character(
+						font::character_rendering_info info = fnt.get_by_style(chartok.style)->draw_character(
 							chartok.value,
-							vec2d(metrics.get_character().char_left(), metrics.get_y() + bi.get(chartok.style)),
-							chartok.color
+							vec2d(metrics.get_character().char_left(), metrics.get_y() + bi.get(chartok.style))
 						);
+						brend.add_sprite(info.texture, info.placement, chartok.color);
 					}
 				} else if (holds_alternative<text_gizmo_token>(tok.result)) {
 					// text gizmo

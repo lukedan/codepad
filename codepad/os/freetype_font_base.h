@@ -28,9 +28,9 @@ namespace codepad::os {
 		bool has_valid_char_entry(codepoint c) const override {
 			return FT_Get_Char_Index(_face, static_cast<FT_ULong>(c)) != 0;
 		}
-		/// Picks the appropriate variant of \ref _full_entry::variants or \ref font::entry::texture for
-		/// rendering the character.
-		entry &draw_character(codepoint c, vec2d pos, colord color) const override {
+		/// Picks the appropriate variant of \ref _full_entry::variants or \ref font::entry::texture for rendering
+		/// the character.
+		character_rendering_info draw_character(codepoint c, vec2d pos) const override {
 			bool dummy;
 			_full_entry &et = _get_modify_full_char_entry(c, dummy);
 			pos.y = std::round(pos.y);
@@ -42,8 +42,7 @@ namespace codepad::os {
 			);
 			ui::atlas::id_t ctex = variant == 0 ? et.original.texture : et.variants[variant - 1];
 			rectd place = variant == 0 ? et.original.placement : et.variant_placement[variant - 1];
-			/*get_manager().get_manager().get_renderer().draw_character_custom(ctex, place.translated(vec2d(rx, pos.y)), color);*/ // TODO
-			return et.original;
+			return character_rendering_info(place.translated(vec2d(rx, pos.y)), ctex, et.original);
 		}
 
 		/// Returns the height of a line.

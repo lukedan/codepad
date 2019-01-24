@@ -34,9 +34,7 @@ namespace codepad::ui {
 	class font_manager;
 
 	template <typename Prim, typename Bkup> class backed_up_font;
-	/// The base class for all font classes that declares all basic functionalities a font should provide.
-	/// Aside from these functions, all fonts should provide a constructor that accepts a \ref str_t,
-	/// a \p double, and a \ref font_style, representing the font's name, size, and style, respectively.
+	/// The base class that declares the basic interface of a font.
 	class font {
 		template <typename Prim, typename Bkup> friend class backed_up_font;
 	public:
@@ -48,6 +46,16 @@ namespace codepad::ui {
 			double advance = 0.0;
 			/// The texture of the character.
 			atlas::id_t texture;
+		};
+		/// Information about how a character should be rendered.
+		struct character_rendering_info {
+			/// Initializes all fields of this struct.
+			character_rendering_info(rectd p, atlas::id_t tex, entry &ent) : placement(p), texture(tex), entry(ent) {
+			}
+
+			rectd placement; ///< The placement of the texture.
+			atlas::id_t texture; ///< The texture of this character, which may be different from the default texture.
+			entry &entry; ///< Contains information about the metrics of the character.
 		};
 
 		/// Initializes this font with the corresponding \ref font_manager.
@@ -72,11 +80,8 @@ namespace codepad::ui {
 			return _get_modify_char_entry(c, dummy);
 		}
 
-		/// Renders a character with the default renderer with the given color. This function should be preferred
-		/// over \ref renderer_base::draw_character_custom since this can make use of additional information and
-		/// assumptions to yield better-looking results. However, implementations of this function generally use
-		/// \ref renderer_base::draw_character_custom as a backend.
-		virtual entry &draw_character(codepoint, vec2d, colord) const = 0;
+		/// Returns information used to render a character.
+		virtual character_rendering_info draw_character(codepoint, vec2d) const = 0;
 
 		/// Returns the width of the widest character of the given string.
 		double get_max_width_charset(const std::u32string &s) const {

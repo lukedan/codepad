@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "renderer.h"
+#include "draw.h"
 
 namespace codepad::ui {
 	/// Merges lots of small textures that are usually used together to reduce the number of draw calls.
@@ -13,6 +14,42 @@ namespace codepad::ui {
 	public:
 		/// The type of IDs that uniquely identify each texture.
 		using id_t = size_t;
+		/// Batches sprites for rendering.
+		class batch_renderer {
+		public:
+			/// Initializes this renderer with the associated \ref atlas.
+			explicit batch_renderer(atlas &atl) : _atlas(atl) {
+			}
+			/// Calls \ref flush().
+			~batch_renderer() {
+				flush();
+			}
+
+			/// Renders a sprite in the given position with the given color. The texture will be stretched to fill
+			/// the given rectangle. This function calls \ref flush() if necessary.
+			void add_sprite(atlas::id_t ch, rectd pos, colord color) {
+				const atlas::texture_data &data = _atlas.get_data(ch);
+				if (data.page != _current_page) {
+					flush();
+					_current_page = data.page;
+				}
+				_batch.add_quad(pos, data.uv, color);
+			}
+
+			/// Renders all batched sprites.
+			void flush() {
+				if (!_batch.empty()) {
+					const texture &tex = _atlas.get_page(_current_page);
+					_batch.draw(*tex.get_renderer(), tex);
+					_batch.clear();
+				}
+			}
+		protected:
+			render_batch _batch; ///< The batch of characters.
+			/// The current page. Batched characters are flushed if characters on another page are rendered.
+			size_t _current_page = 0;
+			atlas &_atlas; ///< The associated \ref atlas.
+		};
 
 		/// Initializes this \ref atlas with the corresponding \ref renderer_base.
 		atlas(renderer_base &r) : _r(r) {
@@ -30,8 +67,8 @@ namespace codepad::ui {
 				_new_page();
 			}
 			// allocate slot & id
-			id_t id = _cd_slots.size();
-			char_data &cd = _cd_slots.emplace_back();
+			id_t id = _data_slots.size();
+			texture_data &cd = _data_slots.emplace_back();
 			if (w == 0 || h == 0) { // the character is blank
 				cd.uv = rectd(0.0, 0.0, 0.0, 0.0);
 				cd.page = _pages.size() - 1;
@@ -82,14 +119,14 @@ namespace codepad::ui {
 		}
 
 		/// Stores the information about a character in the atlas.
-		struct char_data {
+		struct texture_data {
 			rectd uv; ///< The UV coordinates of the character in the page.
 			size_t page = 0; ///< The number of the page that the character is on.
 		};
 
-		/// Returns the \ref char_data corresponding to the given ID.
-		const char_data &get_data(size_t id) const {
-			return _cd_slots[id];
+		/// Returns the \ref texture_data corresponding to the given ID.
+		const texture_data &get_data(size_t id) const {
+			return _data_slots[id];
 		}
 		/// Retrieves a \ref page for rendering. If the requested page is the last page and is dirty, then its
 		/// contents will be flushed.
@@ -128,7 +165,7 @@ namespace codepad::ui {
 		}
 	protected:
 		std::vector<texture> _pages; ///< The pages.
-		std::vector<char_data> _cd_slots; ///< Stores all \ref char_data "char_datas".
+		std::vector<texture_data> _data_slots; ///< Stores the \ref texture_data of all textures.
 		size_t
 			_cur_x = 0, ///< The X coordinate of the next character, including its border.
 			_cur_y = 0, ///< The Y coordinate of the next character, including its border.

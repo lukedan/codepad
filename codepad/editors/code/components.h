@@ -289,51 +289,53 @@ namespace codepad::editor::code {
 					_width, static_cast<size_t>(std::ceil(lh * scale * static_cast<double>(pe - s))) + 1
 				);
 				r.begin_framebuffer(buf);
-				const view_formatting &fmt = ce.get_formatting();
-				size_t
-					firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
-						fmt.get_folding().folded_to_unfolded_line_number(s)
-					).first,
-					plastchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
-						fmt.get_folding().folded_to_unfolded_line_number(pe)
-					).first;
-				rendering_token_iterator<soft_linebreak_inserter, folded_region_skipper> it(
-					std::make_tuple(std::cref(fmt.get_linebreaks()), firstchar),
-					std::make_tuple(std::cref(fmt.get_folding()), firstchar),
-					std::make_tuple(std::cref(*ce.get_document()), firstchar)
-				);
-				text_metrics_accumulator metrics(editor::get_font(), lh, ce.get_formatting().get_tab_width());
-				// records the position of the right boundary of the last character that has just been rendered
-				double lastx = 0.0;
-				while (it.get_position() < plastchar) {
-					token_generation_result tok = it.generate();
-					metrics.next(tok.result);
-					if (std::holds_alternative<character_token>(tok.result)) {
-						auto &chartok = std::get<character_token>(tok.result);
-						if (is_graphical_char(chartok.value)) { // render one character
-							rectd rec = metrics.get_character().current_char_entry().placement.translated(
-								vec2d(metrics.get_character().char_left(), metrics.get_y())
-							).coordinates_scaled(scale).fit_grid_enlarge<double>();
-							rec.xmin = std::max(rec.xmin, lastx);
-							if (rec.xmin < _width) { // render only visible characters
-								/*r.draw_character_custom(
-									metrics.get_character().current_char_entry().texture,
-									rec, chartok.color
-								);*/ // TODO
-							} else {
-								// TODO skip to next line
+				{ // this scope ensures that batch_renderer::flush() is called
+					const view_formatting &fmt = ce.get_formatting();
+					size_t
+						firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
+							fmt.get_folding().folded_to_unfolded_line_number(s)
+						).first,
+						plastchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
+							fmt.get_folding().folded_to_unfolded_line_number(pe)
+						).first;
+					rendering_token_iterator<soft_linebreak_inserter, folded_region_skipper> it(
+						std::make_tuple(std::cref(fmt.get_linebreaks()), firstchar),
+						std::make_tuple(std::cref(fmt.get_folding()), firstchar),
+						std::make_tuple(std::cref(*ce.get_document()), firstchar)
+					);
+					text_metrics_accumulator metrics(editor::get_font(), lh, ce.get_formatting().get_tab_width());
+					ui::atlas::batch_renderer brend(editor::get_font().normal->get_manager().get_atlas());
+					// records the position of the right boundary of the last character that has just been rendered
+					double lastx = 0.0;
+					while (it.get_position() < plastchar) {
+						token_generation_result tok = it.generate();
+						metrics.next(tok.result);
+						if (std::holds_alternative<character_token>(tok.result)) {
+							auto &chartok = std::get<character_token>(tok.result);
+							if (is_graphical_char(chartok.value)) { // render one character
+								rectd rec = metrics.get_character().current_char_entry().placement.translated(
+									vec2d(metrics.get_character().char_left(), metrics.get_y())
+								).coordinates_scaled(scale).fit_grid_enlarge<double>();
+								rec.xmin = std::max(rec.xmin, lastx);
+								if (rec.xmin < _width) { // render only visible characters
+									brend.add_sprite(
+										metrics.get_character().current_char_entry().texture, rec, chartok.color
+									);
+								} else {
+									// TODO skip to next line
+								}
+								lastx = rec.xmax;
 							}
-							lastx = rec.xmax;
+						} else if (std::holds_alternative<linebreak_token>(tok.result)) {
+							lct.refresh(metrics.get_y());
+							lastx = 0.0;
+						} else if (std::holds_alternative<text_gizmo_token>(tok.result)) {
+							// TODO draw text gizmo
+						} else if (std::holds_alternative<image_gizmo_token>(tok.result)) {
+							// TODO
 						}
-					} else if (std::holds_alternative<linebreak_token>(tok.result)) {
-						lct.refresh(metrics.get_y());
-						lastx = 0.0;
-					} else if (std::holds_alternative<text_gizmo_token>(tok.result)) {
-						// TODO draw text gizmo
-					} else if (std::holds_alternative<image_gizmo_token>(tok.result)) {
-						// TODO
+						it.update(tok.steps);
 					}
-					it.update(tok.steps);
 				}
 				r.end();
 				pages.insert(std::make_pair(s, std::move(buf)));

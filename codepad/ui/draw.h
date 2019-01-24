@@ -8,7 +8,6 @@
 
 #include "../core/encodings.h"
 #include "renderer.h"
-#include "font_family.h"
 
 namespace codepad::ui {
 	/// Stores a batch of vertices for rendering to reduce the number of draw calls.
@@ -80,6 +79,16 @@ namespace codepad::ui {
 			_vs.reserve(numtris);
 			_uvs.reserve(numtris);
 			_cs.reserve(numtris);
+		}
+		/// Clears the sprites to be rendered.
+		void clear() {
+			_vs.clear();
+			_uvs.clear();
+			_cs.clear();
+		}
+		/// Returns whether this batch is empty.
+		bool empty() const {
+			return _vs.empty();
 		}
 	protected:
 		std::vector<vec2d>

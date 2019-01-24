@@ -5,6 +5,7 @@
 
 #include "font.h"
 #include "font_family.h"
+#include "draw.h"
 
 namespace codepad::ui {
 	class manager;
@@ -13,7 +14,7 @@ namespace codepad::ui {
 	class font_manager {
 	public:
 		/// Initializes the class with the corresponding \ref manager, and the \ref atlas with its \ref renderer_base.
-		font_manager(manager&);
+		explicit font_manager(manager&);
 		
 		/// Returns the atlas.
 		atlas &get_atlas() {
@@ -151,6 +152,7 @@ namespace codepad::ui {
 			vec2d cur(topleft.x, static_cast<int>(std::round(topleft.y)));
 			codepoint last = 0;
 			vec2d size(0.0, dy);
+			atlas::batch_renderer rend(fnt.get_manager().get_atlas());
 			while (beg != end) {
 				codepoint cp;
 				if (!encodings::utf8::next_codepoint(beg, end, cp)) {
@@ -166,8 +168,9 @@ namespace codepad::ui {
 					if (last != 0) {
 						cur.x += fnt.get_kerning(last, cp).x;
 					}
-					font::entry &et = fnt.draw_character(cp, cur, color);
-					cur.x += et.advance;
+					font::character_rendering_info info = fnt.draw_character(cp, cur);
+					rend.add_sprite(info.texture, info.placement, color);
+					cur.x += info.entry.advance;
 					last = cp;
 				}
 			}
