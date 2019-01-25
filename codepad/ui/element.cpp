@@ -14,12 +14,12 @@
 using namespace codepad::os;
 
 namespace codepad::ui {
-	void element::invalidate_layout() {
-		get_manager().invalidate_layout(*this);
-	}
-
 	void element::invalidate_visual() {
-		get_manager().invalidate_visual(*this);
+		get_manager().get_scheduler().invalidate_visual(*this);
+	}
+	
+	void element::invalidate_layout() {
+		get_manager().get_scheduler().invalidate_layout(*this);
 	}
 
 	void element::_on_desired_size_changed(bool width, bool height) {
@@ -93,8 +93,8 @@ namespace codepad::ui {
 	}
 
 	void element::_on_state_changed(value_update_info<element_state_id>&) {
-		get_manager().schedule_visual_config_update(*this);
-		get_manager().schedule_metrics_config_update(*this);
+		get_manager().get_scheduler().schedule_visual_config_update(*this);
+		get_manager().get_scheduler().schedule_metrics_config_update(*this);
 	}
 
 	void element::_initialize(const str_t &cls, const element_metrics &metrics) {
@@ -183,7 +183,7 @@ namespace codepad::ui {
 
 	void decoration::_on_state_invalidated() {
 		if (_wnd) {
-			_manager.schedule_visual_config_update(*_wnd);
+			_manager.get_scheduler().schedule_visual_config_update(*_wnd);
 		}
 	}
 

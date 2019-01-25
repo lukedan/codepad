@@ -33,7 +33,7 @@ namespace codepad::ui {
 		dec._wnd = this;
 		_decos.push_back(&dec);
 		dec._tok = --_decos.end();
-		get_manager().schedule_visual_config_update(*this);
+		get_manager().get_scheduler().schedule_visual_config_update(*this);
 	}
 
 	void window_base::_on_prerender() {
@@ -47,13 +47,13 @@ namespace codepad::ui {
 	}
 
 	void window_base::_on_got_window_focus() {
-		get_manager()._on_window_got_focus(*this);
+		get_manager().get_scheduler()._on_window_got_focus(*this);
 		_focus->_on_got_focus();
 		got_window_focus.invoke();
 	}
 
 	void window_base::_on_lost_window_focus() {
-		get_manager()._on_window_lost_focus(*this);
+		get_manager().get_scheduler()._on_window_lost_focus(*this);
 		_focus->_on_lost_focus();
 		lost_window_focus.invoke();
 	}
@@ -70,23 +70,23 @@ namespace codepad::ui {
 			++j;
 			delete *i;
 		}
-		if (get_manager().get_focused_window() == this) {
+		if (get_manager().get_scheduler().get_focused_window() == this) {
 			// TODO should it be _on_lost_window_focus() here?
-			get_manager()._on_window_lost_focus(*this);
+			get_manager().get_scheduler()._on_window_lost_focus(*this);
 		}
 		get_manager().get_renderer()._delete_window(*this);
 		panel::_dispose();
 	}
 
 	void window_base::_on_size_changed(size_changed_info &p) {
-		get_manager().notify_layout_change(*this);
+		get_manager().get_scheduler().notify_layout_change(*this);
 		size_changed(p);
 	}
 
 	bool window_base::_on_update_visual_configurations(double time) {
 		bool stationary = true;
 		for (auto i = _decos.begin(); i != _decos.end(); ) {
-			if ((*i)->_vis_config.update(get_manager().update_delta_time())) {
+			if ((*i)->_vis_config.update(get_manager().get_scheduler().update_delta_time())) {
 				if (((*i)->get_state() & get_manager().get_predefined_states().corpse) != 0) {
 					auto j = i;
 					++i;

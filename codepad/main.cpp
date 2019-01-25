@@ -5,7 +5,6 @@
 #include <fstream>
 
 #include "core/event.h"
-#include "core/tasks.h"
 #include "core/bst.h"
 #include "os/current/all.h"
 #include "ui/font_family.h"
@@ -61,14 +60,11 @@ int main(int argc, char **argv) {
 	while (!tabman.empty()) {
 		{
 			performance_monitor mon(CP_STRLIT("frame"), 0.05);
-			man.update();
+			man.get_scheduler().update();
 			tabman.update();
-			callback_buffer::get().flush();
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
-	async_task_pool::get().shutdown();
-	man.dispose_marked_elements();
 
 	return 0;
 }

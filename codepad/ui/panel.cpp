@@ -146,7 +146,7 @@ namespace codepad::ui {
 
 
 	void panel_base::_invalidate_children_layout() {
-		get_manager().invalidate_children_layout(*this);
+		get_manager().get_scheduler().invalidate_children_layout(*this);
 	}
 
 	void panel_base::_on_mouse_down(mouse_button_info &p) {
@@ -178,7 +178,7 @@ namespace codepad::ui {
 	void panel_base::_dispose() {
 		if (_dispose_children) {
 			for (auto i : _children.items()) {
-				get_manager().mark_disposal(*i);
+				get_manager().get_scheduler().mark_for_disposal(*i);
 			}
 		}
 		_children.clear();

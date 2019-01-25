@@ -14,6 +14,7 @@
 #include "element.h"
 #include "window.h"
 #include "renderer.h"
+#include "scheduler.h"
 #include "text_rendering.h"
 
 namespace codepad::ui {
@@ -74,70 +75,12 @@ namespace codepad::ui {
 				vertical;
 		};
 
-		constexpr static double
-			/// Maximum expected time for all layout operations during a single frame.
-			relayout_time_redline = 0.01,
-			/// Maximum expected time for all rendering operations during a single frame.
-			render_time_redline = 0.04;
-
 
 		/// Constructor, registers predefined element states, transition functions, and element types.
 		manager();
-		/// Destructor. Calls \ref dispose_marked_elements.
+		/// Destructor. Calls \ref scheduler::dispose_marked_elements().
 		~manager() {
-			dispose_marked_elements();
-		}
-
-		/// Invalidates the layout of an element. Its parent will be notified to recalculate its layout.
-		void invalidate_layout(element&);
-		/// Invalidates the layout of all children of a \ref panel_base.
-		void invalidate_children_layout(panel_base&);
-		/// Marks the element for layout validation, meaning that its layout is valid but
-		/// \ref element::_on_layout_changed() has not been called. Like \ref invalidate_layout, different operation
-		/// will be performed depending on whether layout is in progress.
-		void notify_layout_change(element &e) {
-			assert_true_logical(!_layouting, "layout notifications are handled automatically");
-			_layout_notify.emplace(&e);
-		}
-		/// Calculates the layout of all elements with invalidated layout.
-		/// The calculation is recursive; that is, after a parent's layout has been changed,
-		/// all its children are automatically marked for layout calculation.
-		void update_invalid_layout();
-
-		/// Marks the given element for re-rendering. This will re-render the whole window,
-		/// but even if the visual of multiple elements in the window is invalidated,
-		/// the window is still rendered once.
-		void invalidate_visual(element &e) {
-			_dirty.insert(&e);
-		}
-		/// Re-renders the windows that contain elements whose visuals are invalidated.
-		void update_invalid_visuals();
-		/// Immediately re-render the window containing the given element.
-		void update_visual_immediate(element&);
-
-		/// Schedules the given element's visual configurations to be updated.
-		void schedule_visual_config_update(element &elem) {
-			_visualcfg_update.emplace(&elem);
-		}
-		/// Schedules the given element's \ref metrics_configuration to be updated.
-		void schedule_metrics_config_update(element &elem) {
-			if (!elem._config.metrics_config.get_state().all_stationary) {
-				_metricscfg_update.emplace(&elem);
-			}
-		}
-		/// Schedules the given element to be updated next frame.
-		///
-		/// \todo Remove this.
-		void schedule_update(element &e) {
-			_upd.insert(&e);
-		}
-		/// Updates all elements that are scheduled to be updated by \ref schedule_visual_config_update(),
-		/// \ref schedule_metrics_config_update(), and \ref schedule_update().
-		void update_scheduled_elements();
-		/// Returns the amount of time that has passed since the last
-		/// time \ref update_scheduled_elements has been called, in seconds.
-		double update_delta_time() const {
-			return _upd_dt;
+			_scheduler.dispose_marked_elements();
 		}
 
 		/// Similar to \ref register_element_type(const str_t&, element_constructor) but for built-in classes.
@@ -151,7 +94,7 @@ namespace codepad::ui {
 			_ctor_map.emplace(type, std::move(constructor));
 		}
 		/// Constructs and returns an element of the specified type, class, and \ref element_metrics. If no such type
-		/// exists, \p nullptr is returned.
+		/// exists, \p nullptr is returned. To properly dispose of the element, use \ref scheduler::mark_for_disposal().
 		element *create_element_custom(const str_t &type, const str_t &cls, const element_metrics &metrics) {
 			auto it = _ctor_map.find(type);
 			if (it == _ctor_map.end()) {
@@ -165,8 +108,10 @@ namespace codepad::ui {
 #endif
 			return elem;
 		}
-		/// Calls \ref create_element_custom to create an \ref element of the specified type and class, and with
+		/// Calls \ref create_element_custom() to create an \ref element of the specified type and class, and with
 		/// the default \ref element_metrics of that class.
+		///
+		/// \sa create_element_custom()
 		element *create_element(const str_t &type, const str_t &cls) {
 			return create_element_custom(
 				type, cls, get_class_arrangements().get_or_default(cls).metrics
@@ -175,6 +120,7 @@ namespace codepad::ui {
 		/// Creates an element of the given type. The type name and class are both obtained from
 		/// \p Elem::get_default_class().
 		///
+		/// \sa create_element_custom()
 		/// \todo Wait for when reflection is in C++ to replace get_default_class().
 		template <typename Elem> Elem *create_element() {
 			element *elem = create_element(Elem::get_default_class(), Elem::get_default_class());
@@ -182,53 +128,6 @@ namespace codepad::ui {
 			assert_true_logical(res, "incorrect get_default_class() method");
 			return res;
 		}
-		/// Marks the given element for disposal. The element is only disposed when \ref dispose_marked_elements
-		/// is called. It is safe to call this multiple times before the element's actually disposed.
-		void mark_disposal(element &e) {
-			_del.insert(&e);
-		}
-		/// Disposes all elements that has been marked for disposal. Other elements that are not marked
-		/// previously but are marked for disposal during the process are also disposed.
-		void dispose_marked_elements();
-
-		/// Simply calls \ref update_invalid_layout and \ref update_invalid_visuals.
-		void update_layout_and_visual() {
-			update_invalid_layout();
-			update_invalid_visuals();
-		}
-		/// Simply calls \ref dispose_marked_elements, \ref update_scheduled_elements,
-		/// and \ref update_layout_and_visual.
-		void update() {
-			performance_monitor mon(CP_STRLIT("Update UI"));
-			dispose_marked_elements();
-			update_scheduled_elements();
-			update_layout_and_visual();
-		}
-
-		/// Returns the current minimum rendering interval that indicates how long it must be
-		/// between two consecutive re-renders.
-		double get_minimum_rendering_interval() const {
-			return _min_render_interval;
-		}
-		/// Sets the minimum rendering interval.
-		void set_minimum_rendering_interval(double dv) {
-			_min_render_interval = dv;
-		}
-
-		/// Returns the \ref os::window_base that has the focus.
-		window_base *get_focused_window() const {
-			return _focus_wnd;
-		}
-		/// Returns the \ref element that has the focus, or \p nullptr.
-		element *get_focused_element() const {
-			if (_focus_wnd != nullptr) {
-				return _focus_wnd->get_window_focused_element();
-			}
-			return nullptr;
-		}
-		/// Sets the currently focused element. When called, this function also interrupts any ongoing composition.
-		/// The element must belong to a window. This function should not be called recursively.
-		void set_focused_element(element&);
 
 		/// Registers an element state with the given name and type.
 		///
@@ -312,32 +211,16 @@ namespace codepad::ui {
 		const class_hotkeys_registry &get_class_hotkeys() const {
 			return _chks;
 		}
+
+		/// Returns the \ref scheduler.
+		scheduler &get_scheduler() {
+			return _scheduler;
+		}
+		/// \overload
+		const scheduler &get_scheduler() const {
+			return _scheduler;
+		}
 	protected:
-		/// Stores the elements whose \ref element::_on_layout_changed() need to be called.
-		std::set<element*> _layout_notify;
-		/// Stores the panels whose children's layout need computing.
-		std::set<panel_base*> _children_layout_scheduled;
-
-		/// Stores the set of elements whose \ref element::_on_update_visual_configurations() are to be called.
-		std::set<element*> _visualcfg_update;
-		/// Stores the set of elements whose \ref metrics_configuration need updating.
-		std::set<element*> _metricscfg_update;
-
-		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
-		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
-		std::set<element*> _upd; ///< Stores all elements that are to be updated.
-
-		std::unique_ptr<renderer_base> _renderer; ///< The renderer.
-		std::unique_ptr<font_manager> _font_manager; ///< The font manager.
-		/// The time point when elements were last rendered.
-		std::chrono::time_point<std::chrono::high_resolution_clock> _lastrender;
-		/// The time point when elements were last updated.
-		std::chrono::time_point<std::chrono::high_resolution_clock> _lastupdate;
-		double _min_render_interval = 0.0; ///< The minimum interval between consecutive re-renders.
-		double _upd_dt = 0.0; ///< The duration since elements were last updated.
-		window_base *_focus_wnd = nullptr; ///< Pointer to the currently focused \ref os::window_base.
-		bool _layouting = false; ///< Specifies whether layout calculation is underway.
-
 		class_visuals_registry _cvis; ///< All visuals.
 		class_arrangements_registry _carngs; ///< All arrangements.
 		class_hotkeys_registry _chks; ///< All hotkeys.
@@ -350,18 +233,9 @@ namespace codepad::ui {
 		/// Mapping from state IDs to state names.
 		std::map<element_state_id, str_t> _statename_map;
 		predefined_states _predef_states; ///< Predefined states.
+		scheduler _scheduler; ///< The \ref scheduler.
+		std::unique_ptr<renderer_base> _renderer; ///< The renderer.
+		std::unique_ptr<font_manager> _font_manager; ///< The font manager.
 		size_t _stateid_alloc = 0; ///< Records how many states have been registered.
-
-
-		/// Called when a \ref os::window_base is focused. Sets \ref _focus_wnd accordingly.
-		void _on_window_got_focus(window_base &wnd) {
-			_focus_wnd = &wnd;
-		}
-		/// Called when a \ref os::window_base loses the focus. Clears \ref _focus_wnd if necessary.
-		void _on_window_lost_focus(window_base &wnd) {
-			if (_focus_wnd == &wnd) {
-				_focus_wnd = nullptr;
-			}
-		}
 	};
 }

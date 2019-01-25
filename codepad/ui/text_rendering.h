@@ -43,7 +43,7 @@ namespace codepad::ui {
 		///
 		/// \param ff The \ref font_family used for all the calculations.
 		/// \param tabsize Specifies how many whitespaces the width of a tab is.
-		character_metrics_accumulator(ui::font_family ff, double tabsize) : _font(std::move(ff)) {
+		character_metrics_accumulator(font_family ff, double tabsize) : _font(std::move(ff)) {
 			set_tab_width(tabsize);
 		}
 
@@ -55,7 +55,7 @@ namespace codepad::ui {
 				kerning = fnt.get_kerning(_last_char, c).x;
 			}
 			auto *entry = &fnt.get_char_entry(c);
-			_next_impl(c, fs, kerning, entry->advance, entry);
+			_next_impl(c, fs, kerning, c == U'\t' ? _get_target_tab_width(kerning) : entry->advance, entry);
 		}
 		/// Appends a gizmo to the end of the line.
 		void next_gizmo(double width) {
@@ -134,9 +134,13 @@ namespace codepad::ui {
 			_cur_width = width;
 		}
 
-		/// Returns the width of the tab character, in pixels, considering its position.
-		double _get_target_tab_width() const {
-			return _tab_width * (std::floor(_cur_left / _tab_width) + 1.0) - _cur_left;
+		/// Returns the width of the tab character, in pixels, considering its position. This function behaves as if
+		/// the current character is the one before the tab character.
+		///
+		/// \param kerning The kerning between the last character and this tab character, if there is any.
+		double _get_target_tab_width(double kerning) const {
+			double cl = _cur_left + _cur_width + kerning;
+			return _tab_width * (std::floor(cl / _tab_width) + 1.0) - cl;
 		}
 	};
 

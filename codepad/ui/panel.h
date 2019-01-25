@@ -96,7 +96,8 @@ namespace codepad::ui {
 		friend element;
 		friend element_collection;
 		friend manager;
-		friend class class_arrangements;
+		friend scheduler;
+		friend class_arrangements;
 	public:
 		/// If the mouse is over any of its children, then returns the cursor of the children.
 		/// Otherwise just returns element::get_current_display_cursor().

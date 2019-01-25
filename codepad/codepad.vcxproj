@@ -165,6 +165,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugLib|Win32'">
@@ -193,6 +194,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugLib|x64'">
@@ -368,6 +370,7 @@
     <ClInclude Include="os\windows\window.h" />
     <ClInclude Include="ui\common_elements.h" />
     <ClInclude Include="ui\draw.h" />
+    <ClInclude Include="ui\scheduler.h" />
     <ClInclude Include="ui\text_rendering.h" />
     <ClInclude Include="ui\visual.h" />
     <ClInclude Include="ui\manager.h" />
@@ -377,7 +380,6 @@
     <ClInclude Include="ui\commands.h" />
     <ClInclude Include="core\bst.h" />
     <ClInclude Include="ui\hotkey_registry.h" />
-    <ClInclude Include="core\tasks.h" />
     <ClInclude Include="core\encodings.h" />
     <ClInclude Include="ui\window.h" />
     <ClInclude Include="ui\element.h" />

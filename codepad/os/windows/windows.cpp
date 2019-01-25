@@ -156,7 +156,7 @@ namespace codepad::os {
 					size_changed_info p(vec2i(static_cast<int>(w), static_cast<int>(h)));
 					if (p.new_size.x > 0 && p.new_size.y > 0) {
 						form->_on_size_changed(p);
-						form->get_manager().update_layout_and_visual();
+						form->get_manager().get_scheduler().update_layout_and_visual();
 					}
 				}
 			}

@@ -75,7 +75,7 @@ namespace codepad::ui {
 		/// Returns whether this font has a valid character entry for the given codepoint.
 		virtual bool has_valid_char_entry(codepoint) const = 0;
 		/// Returns the font entry corresponding to the given codepoint.
-		virtual const entry &get_char_entry(codepoint c) const {
+ 		virtual const entry &get_char_entry(codepoint c) const {
 			bool dummy;
 			return _get_modify_char_entry(c, dummy);
 		}

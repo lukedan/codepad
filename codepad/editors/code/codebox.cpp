@@ -43,14 +43,14 @@ namespace codepad::editor::code {
 			element *e = _components->children().items().front();
 			_components->children().remove(*e);
 			if (get_dispose_children()) {
-				get_manager().mark_disposal(*e);
+				get_manager().get_scheduler().mark_for_disposal(*e);
 			}
 		}
 		while (_components->children().items().back() != _editor) {
 			element *e = _components->children().items().back();
 			_components->children().remove(*e);
 			if (get_dispose_children()) {
-				get_manager().mark_disposal(*e);
+				get_manager().get_scheduler().mark_for_disposal(*e);
 			}
 		}
 		_editor->editing_visual_changed -= _mod_tok;

@@ -401,7 +401,7 @@ namespace codepad::editor {
 				) {
 				_mdpos = p.position;
 				_predrag = true;
-				get_manager().schedule_update(*this);
+				get_manager().get_scheduler().schedule_update(*this);
 				click.invoke_noret(p);
 			} else if (p.button == ui::mouse_button::tertiary) {
 				request_close.invoke();
@@ -420,7 +420,7 @@ namespace codepad::editor {
 						_predrag = false;
 						start_drag.invoke_noret(get_layout().xmin_ymin() - _mdpos);
 					} else {
-						get_manager().schedule_update(*this);
+						get_manager().get_scheduler().schedule_update(*this);
 					}
 				} else {
 					_predrag = false;
@@ -673,14 +673,14 @@ namespace codepad::editor {
 		/// Called when \ref request_close is called to handle the user's request of closing this tab.
 		/// Marks this tab for disposal by default.
 		virtual void _on_close_requested() {
-			get_manager().mark_disposal(*this);
+			get_manager().get_scheduler().mark_for_disposal(*this);
 		}
 
 		/// Initializes \ref _btn.
 		void _initialize(const str_t&, const ui::element_metrics&) override;
 		/// Marks \ref _btn for disposal.
 		void _dispose() override {
-			get_manager().mark_disposal(*_btn);
+			get_manager().get_scheduler().mark_for_disposal(*_btn);
 			ui::panel::_dispose();
 		}
 	private:
@@ -698,7 +698,7 @@ namespace codepad::editor {
 		}
 		/// Disposes \ref _possel.
 		~tab_manager() {
-			_manager.mark_disposal(*_possel);
+			_manager.get_scheduler().mark_for_disposal(*_possel);
 		}
 
 		/// Creates a new \ref tab in a \ref tab_host in the last focused \ref os::window_base. If there are no
@@ -739,7 +739,7 @@ namespace codepad::editor {
 		/// Sets the current \ref drag_destination_selector used among all \ref tab_host "tab_hosts".
 		void set_drag_destination_selector(drag_destination_selector *sel) {
 			if (_possel) {
-				_manager.mark_disposal(*_possel);
+				_manager.get_scheduler().mark_for_disposal(*_possel);
 			}
 			_possel = sel;
 		}
@@ -806,7 +806,7 @@ namespace codepad::editor {
 							f->children().remove(*father);
 							f->children().add(*other);
 						}
-						_manager.mark_disposal(*father);
+						_manager.get_scheduler().mark_for_disposal(*father);
 					} else { // the only host in the window, destroy the window
 #ifdef CP_CHECK_LOGICAL_ERRORS
 						auto f = dynamic_cast<ui::window_base*>(host->parent());
@@ -820,9 +820,9 @@ namespace codepad::editor {
 								break;
 							}
 						}
-						_manager.mark_disposal(*f);
+						_manager.get_scheduler().mark_for_disposal(*f);
 					}
-					_manager.mark_disposal(*host);
+					_manager.get_scheduler().mark_for_disposal(*host);
 				}
 			}
 			_changed.clear();
@@ -886,7 +886,7 @@ namespace codepad::editor {
 			/// \param t The tab that's about to be moved. If the currently focused element is a child of the tab,
 			///          \ref _focus is set accordingly; otherwise this struct does nothing.
 			explicit _keep_intab_focus(tab &t) {
-				ui::element *f = t.get_manager().get_focused_element();
+				ui::element *f = t.get_manager().get_scheduler().get_focused_element();
 				for (ui::element *e = f; e != nullptr; e = e->parent()) {
 					if (e == &t) {
 						_focus = f;

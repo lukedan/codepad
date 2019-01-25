@@ -722,7 +722,7 @@ namespace codepad::editor::code {
 			_caret_cfg = ui::visual_configuration(get_manager().get_class_visuals().get_or_default(
 				_insert ? get_insert_caret_class() : get_overwrite_caret_class()
 			), _editrgn_state);
-			get_manager().schedule_visual_config_update(*this);
+			get_manager().get_scheduler().schedule_visual_config_update(*this);
 		}
 		/// Shorthand for \ref hit_test_for_caret when the coordinates are relative to the client region.
 		///
@@ -834,7 +834,7 @@ namespace codepad::editor::code {
 				_editrgn_state = st;
 				_caret_cfg.on_state_changed(_editrgn_state);
 				_sel_cfg.on_state_changed(_editrgn_state);
-				get_manager().schedule_visual_config_update(*this);
+				get_manager().get_scheduler().schedule_visual_config_update(*this);
 			}
 		}
 		/// Called by the parent \ref codebox when it gets focus. Adjusts the states of caret animations.
@@ -919,13 +919,13 @@ namespace codepad::editor::code {
 			if (relempos.y < 0.0) {
 				clampedpos.y -= relempos.y;
 				_scrolldiff = relempos.y;
-				get_manager().schedule_update(*this);
+				get_manager().get_scheduler().schedule_update(*this);
 			} else {
 				double h = get_layout().height();
 				if (relempos.y > h) {
 					clampedpos.y += h - relempos.y;
 					_scrolldiff = relempos.y - get_layout().height();
-					get_manager().schedule_update(*this);
+					get_manager().get_scheduler().schedule_update(*this);
 				}
 			}
 			auto newmouse = _hit_test_for_caret_client(clampedpos);
@@ -1081,7 +1081,7 @@ namespace codepad::editor::code {
 				codebox *editor = _get_box();
 				editor->set_vertical_position(
 					editor->get_vertical_position() +
-					move_speed_scale * _scrolldiff * get_manager().update_delta_time()
+					move_speed_scale * _scrolldiff * get_manager().get_scheduler().update_delta_time()
 				);
 				_update_mouse_selection(get_window()->screen_to_client(
 					os::get_mouse_position()).convert<double>()

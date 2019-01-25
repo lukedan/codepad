@@ -308,14 +308,14 @@ namespace codepad::os {
 			window_base::_on_update();
 			while (_idle()) {
 			}
-			get_manager().schedule_update(*this);
+			get_manager().get_scheduler().schedule_update(*this);
 		}
 
 		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
 			window_base::_initialize(cls, metrics);
 			SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 			ShowWindow(_hwnd, SW_SHOW);
-			get_manager().schedule_update(*this);
+			get_manager().get_scheduler().schedule_update(*this);
 		}
 		void _dispose() override {
 			winapi_check(DestroyWindow(_hwnd));

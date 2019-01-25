@@ -94,7 +94,7 @@ namespace codepad::editor {
 
 	void tab_host::activate_tab(tab &t) {
 		switch_tab(t);
-		get_manager().set_focused_element(t);
+		get_manager().get_scheduler().set_focused_element(t);
 	}
 
 	size_t tab_host::get_tab_position(tab &tb) const {

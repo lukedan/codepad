@@ -23,6 +23,7 @@
 namespace codepad::ui {
 	class panel_base;
 	class manager;
+	class scheduler;
 
 	/// Contains information about mouse movement.
 	struct mouse_move_info {
@@ -115,6 +116,7 @@ namespace codepad::ui {
 		friend class element_collection;
 		friend class window_base;
 		friend manager;
+		friend scheduler;
 		friend panel_base;
 		friend class_arrangements;
 	public:

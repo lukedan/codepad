@@ -9,7 +9,6 @@
 #include <string>
 
 #include "misc.h"
-#include "tasks.h"
 #include "../os/current/all.h"
 #include "../ui/commands.h"
 #include "../ui/common_elements.h"
@@ -126,14 +125,6 @@ namespace codepad {
 	// all singleton getters
 	logger &logger::get() {
 		static _global_wrapper<logger> _v;
-		return _v.object;
-	}
-	callback_buffer &callback_buffer::get() {
-		static _global_wrapper<callback_buffer> _v;
-		return _v.object;
-	}
-	async_task_pool &async_task_pool::get() {
-		static _global_wrapper<async_task_pool> _v;
 		return _v.object;
 	}
 	namespace os {
