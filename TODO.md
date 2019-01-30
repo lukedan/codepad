@@ -13,10 +13,10 @@ This list consists of some unfinished tasks as well as known issues. Note that t
 	- The main loop is currently implemented using a busy loop, which may cause high CPU usage.
 - Editors
 	- A hex editor is absent. The implementation should be fairly easy, but the design is tricky since it needs to support modification to individual bytes, insertion, and multiple carets.
-	- Underlying data structures should be switched to red-blacks trees instead of normal binary trees to guarantee worst-case performance.
+	- Underlying data structures should be switched to red-black trees instead of normal binary trees to guarantee worst-case performance.
 	- Support for more encodings.
 	- Ligature support.
 	- IME support is currently only partial.
 	- Optimize the editor for long lines and large files.
 - A 'settings' system is currently absent.
-- A plugin system is currently absent. The system needs to allow plugins to create classes derived from built-in classes of Codepad. Preferably it should also expose as many as possible functions to plugins as-is.
+- A plugin system is currently absent. The system needs to allow plugins to create classes derived from built-in classes of Codepad. Preferably it should also expose as many as possible functions to plugins as-is. See also <https://github.com/lukedan/apigen>.

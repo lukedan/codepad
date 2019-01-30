@@ -12,9 +12,11 @@
 #include "window.h"
 
 namespace codepad::ui {
-	/// Schedules the updating and rendering of all elements.
+	/// Schedules the updating and rendering of all elements. There can only be one active object of this type per
+	/// thread.
 	class scheduler {
 		friend window_base;
+		friend element_collection;
 	public:
 		constexpr static double
 			/// Maximum expected time for all layout operations during a single frame.
@@ -107,8 +109,6 @@ namespace codepad::ui {
 				i->_on_render();
 			}
 		}
-		/// Immediately re-render the window containing the given element.
-		/*void update_visual_immediate(element&);*/ // TODO necessary?
 
 		/// Schedules the given element's visual configurations to be updated.
 		void schedule_visual_config_update(element &elem) {
@@ -184,37 +184,68 @@ namespace codepad::ui {
 			_min_render_interval = dv;
 		}
 
-		/// Returns the \ref os::window_base that has the focus.
-		window_base *get_focused_window() const {
-			return _focus_wnd;
-		}
-		/// Returns the \ref element that has the focus, or \p nullptr.
-		element *get_focused_element() const {
-			if (_focus_wnd != nullptr) {
-				return _focus_wnd->get_window_focused_element();
-			}
-			return nullptr;
-		}
 		/// Sets the currently focused element. When called, this function also interrupts any ongoing composition.
 		/// The element must belong to a window. This function should not be called recursively.
-		void set_focused_element(element &elem) {
+		void set_focused_element(element *elem) {
 #ifdef CP_CHECK_LOGICAL_ERRORS
 			static bool _in = false;
 
 			assert_true_logical(!_in, "recursive calls to set_focused_element");
 			_in = true;
 #endif
-			if (_focus_wnd != nullptr) {
-				_focus_wnd->interrupt_input_method();
+
+			element *newfocus = elem;
+			while (true) { // handle nested focus scopes
+				if (auto scope = dynamic_cast<panel_base*>(newfocus); scope && scope->is_focus_scope()) {
+					element *in_scope = scope->get_focused_element_in_scope();
+					if (in_scope && in_scope != newfocus) {
+						newfocus = in_scope;
+						continue;
+					}
+				}
+				break;
 			}
-			window_base *wnd = elem.get_window();
-			if (wnd != _focus_wnd) {
-				wnd->activate();
+			if (newfocus != _focus) { // actually set focused element
+				std::vector<element_hotkey_group_data> gps;
+				if (newfocus) {
+					// update hotkey groups
+					for (element *cur = newfocus; cur; cur = cur->parent()) {
+						gps.emplace_back(cur->_config.hotkey_config, cur);
+					}
+					// update scope focus on root path
+					element *scope_focus = newfocus;
+					for (panel_base *scp = newfocus->parent(); scp; scp = scp->parent()) {
+						if (scp->is_focus_scope()) {
+							scp->_scope_focus = scope_focus;
+							scope_focus = scp;
+						}
+					}
+				}
+				_hotkeys.reset_groups(gps);
+				// cache & change focus
+				element *oldfocus = _focus;
+				_focus = newfocus;
+				// invoke events
+				if (oldfocus) {
+					oldfocus->_on_lost_focus();
+				}
+				if (newfocus) {
+					newfocus->_on_got_focus();
+				}
+				logger::get().log_verbose(
+					CP_HERE, "focus changed from ",
+					oldfocus, " <", oldfocus ? demangle(typeid(*oldfocus).name()) : "empty", "> to ",
+					_focus, " <", _focus ? demangle(typeid(*_focus).name()) : "empty", ">"
+				);
 			}
-			wnd->set_window_focused_element(elem);
+
 #ifdef CP_CHECK_LOGICAL_ERRORS
 			_in = false;
 #endif
+		}
+		/// Returns the focused element.
+		element *get_focused_element() const {
+			return _focus;
 		}
 
 		/// Marks the given element for disposal. The element is only disposed when \ref dispose_marked_elements()
@@ -266,7 +297,18 @@ namespace codepad::ui {
 			update_scheduled_elements();
 			update_layout_and_visual();
 		}
+
+		/// Returns the \ref hotkey_listener.
+		hotkey_listener &get_hotkey_listener() {
+			return _hotkeys;
+		}
+		/// \overload
+		const hotkey_listener &get_hotkey_listener() const {
+			return _hotkeys;
+		}
 	protected:
+		hotkey_listener _hotkeys; ///< Handles hotkeys.
+
 		/// Stores the elements whose \ref element::_on_layout_changed() need to be called.
 		std::set<element*> _layout_notify;
 		/// Stores the panels whose children's layout need computing.
@@ -287,17 +329,48 @@ namespace codepad::ui {
 		std::chrono::time_point<std::chrono::high_resolution_clock> _lastupdate;
 		double _min_render_interval = 0.0; ///< The minimum interval between consecutive re-renders.
 		double _upd_dt = 0.0; ///< The duration since elements were last updated.
-		window_base *_focus_wnd = nullptr; ///< Pointer to the currently focused \ref os::window_base.
+		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 
-		/// Called when a \ref os::window_base is focused. Sets \ref _focus_wnd accordingly.
-		void _on_window_got_focus(window_base &wnd) {
-			_focus_wnd = &wnd;
+		/// Finds the focus scope that the given \ref element is in. The element itself is not taken into account.
+		/// Returns \p nullptr if the element is not in any scope (which should only happen for windows).
+		panel_base *_find_focus_scope(element &e) const {
+			panel_base *scope = e.parent(); // innermost focus scope
+			for (; scope && !scope->is_focus_scope(); scope = scope->parent()) {
+			}
+			return scope;
 		}
-		/// Called when a \ref os::window_base loses the focus. Clears \ref _focus_wnd if necessary.
-		void _on_window_lost_focus(window_base &wnd) {
-			if (_focus_wnd == &wnd) {
-				_focus_wnd = nullptr;
+		/// Called by \ref element_collection when an element is about to be removed from it. This function updates
+		/// the innermost focus scopes as well as the global focus.
+		void _on_removing_element(element &e) {
+			panel_base *scope = _find_focus_scope(e);
+			if (scope) {
+				if (element *sfocus = scope->get_focused_element_in_scope()) {
+					for (element *f = sfocus; f && f != scope; f = f->parent()) {
+						if (f == &e) { // focus is removed from the scope
+							scope->_scope_focus = nullptr;
+							break;
+						}
+					}
+				}
+			}
+			// the _scope_focus field is read in set_focus_element() only to find the innermost focused element,
+			// which should mean that setting it to nullptr in advance as above is ok
+
+			for (element *gfocus = _focus; gfocus; gfocus = gfocus->parent()) { // check if global focus is removed
+				if (gfocus == &e) { // yes it is
+					panel_base *newfocus = e.parent();
+					for (
+						;
+						newfocus && !newfocus->get_can_focus() && !newfocus->is_focus_scope();
+						newfocus = newfocus->parent()
+						) {
+					}
+					set_focused_element(newfocus); // may be nullptr, which is ok
+					break;
+				}
+				// otherwise, only the focus in that scope (which is not in effect) has changed, and nothing needs
+				// to be done
 			}
 		}
 	};

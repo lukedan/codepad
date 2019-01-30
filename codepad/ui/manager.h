@@ -53,11 +53,16 @@ namespace codepad::ui {
 			element_state_id
 				/// Indicates that the cursor is positioned over the element.
 				mouse_over,
-				/// Indicates that the primary mouse button has been pressed, and the cursor
-				/// is positioned over the element and not over any of its children.
+				/// Indicates that the primary mouse button has been pressed, and the cursor is positioned over the
+				/// element and not over any of its children.
 				mouse_down,
 				/// Indicates that the element has the focus.
 				focused,
+				/// Indicates either this element or a child of this element has the focus. The child is not
+				/// necessarily a direct child.
+				child_focused,
+				/// Indicates that this element is selected.
+				selected,
 				/// Typically used by \ref decoration "decorations" to render the fading animation of a disposed
 				/// element.
 				corpse,
@@ -154,11 +159,17 @@ namespace codepad::ui {
 		const predefined_states &get_predefined_states() const {
 			return _predef_states;
 		}
+
+		/// Registers the given transition function.
+		void register_transition_function(str_view_t name, transition_function func) {
+			auto[it, inserted] = _transfunc_map.emplace(name, std::move(func));
+			if (!inserted) {
+				logger::get().log_warning(CP_HERE, "duplicate transition function name: ", name);
+			}
+		}
 		/// Finds and returns the transition function corresponding to the given name. If none is found, \p nullptr
 		/// is returned.
-		///
-		/// \todo Implement ways to register transition functions.
-		transition_function try_get_transition_func(const str_t &name) const {
+		transition_function try_get_transition_func(str_view_t name) const {
 			auto it = _transfunc_map.find(name);
 			if (it != _transfunc_map.end()) {
 				return it->second;
@@ -227,7 +238,7 @@ namespace codepad::ui {
 		/// Registry of constructors of all element types.
 		std::map<str_t, element_constructor> _ctor_map;
 		/// Mapping from names to transition functions.
-		std::map<str_t, transition_function> _transfunc_map;
+		std::map<str_t, transition_function, std::less<void>> _transfunc_map;
 		/// Mapping from state names to state IDs.
 		std::map<str_t, element_state_info> _stateid_map;
 		/// Mapping from state IDs to state names.

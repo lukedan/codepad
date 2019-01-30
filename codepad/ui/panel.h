@@ -139,6 +139,17 @@ namespace codepad::ui {
 		}
 
 
+		/// Returns whether this \ref panel_base is a focus scope.
+		bool is_focus_scope() const {
+			return _is_focus_scope;
+		}
+		/// Returns the focused element in this focus scope. If this panel gets the focus, this element will get the
+		/// focus instead.
+		element *get_focused_element_in_scope() const {
+			return _scope_focus;
+		}
+
+
 		/// Calculates the layout of an \ref element on a direction (horizontal or vertical) in a \ref panel_base
 		/// with the given parameters. If all of \p anchormin, \p pixelsize, and \p anchormax are \p true, all sizes
 		/// are taken into account and the extra space is distributed evenly before and after the element.
@@ -234,11 +245,14 @@ namespace codepad::ui {
 		/// introduce desired behavior.
 		virtual void _on_child_adding(element&) {
 		}
-		/// Called when an element is about to be removed from the panel. Classes that stores additional information
-		/// about their children and allow users to add/remove elements to/from the elements should override this
-		/// function to handle the case where an element is added and then disposed directly, and update stored
-		/// information accordingly in the overriden function. This is because elements are automatically detached
-		/// from their parents when disposed, and the user may be able to dispose them without notifying the parent.
+		/// Called when an element is about to be removed from the panel. Derived classes can override this function
+		/// to introduce desired behavior.
+		///
+		/// \note Classes that store additional information about their children and allow users to add/remove
+		///       elements to/from the elements should override this function to handle the case where an element is
+		///       added and then disposed directly, and update stored information accordingly in the overriden
+		///       function. This is because elements are automatically detached from their parents when disposed, and
+		///       the user may be able to dispose them without notifying the parent.
 		virtual void _on_child_removing(element&) {
 		}
 		/// Called when the z-index of an element is about to be changed. Derived classes can override this function
@@ -458,8 +472,12 @@ namespace codepad::ui {
 		element_collection _children{*this}; ///< The collection of its children.
 		/// Caches the cursor of the child that the mouse is over.
 		cursor _children_cursor = cursor::not_specified;
-		/// Indicates whether the panel marks all children for disposal when disposed.
-		bool _dispose_children = true;
+		/// The child that's focused in this focus scope, if \ref _is_focus_scope is \p true.
+		element *_scope_focus = nullptr;
+		bool
+			/// Indicates whether the panel should mark all children for disposal when disposed.
+			_dispose_children = true,
+			_is_focus_scope = false; ///< Indicates if this panel is a focus scope (borrowed from WPF).
 	};
 
 	/// A basic panel whose children can be freely accessed. Cannot have the focus by default.

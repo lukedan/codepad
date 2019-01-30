@@ -25,7 +25,7 @@ namespace codepad::ui {
 		const vec2i new_size; ///< The new size of the window.
 	};
 	/// Base class of all windows. Defines basic interfaces that all windows should implement.
-	class window_base : public panel { // TODO Improve _on_update() so that decorations can be handled gracefully.
+	class window_base : public panel {
 		friend element_collection;
 		friend decoration;
 	public:
@@ -111,30 +111,17 @@ namespace codepad::ui {
 			invalidate_visual();
 		}
 
-		/// Returns the \ref element that's focused within this window. The focused element in a window is
-		/// preserved even if the window loses focus.
-		element *get_window_focused_element() const {
-			return _focus;
-		}
-		/// Called to set the focused element within this window. This function invokes appropriate handlers and
-		/// refreshes the list of \ref class_hotkey_group "element_hotkey_groups"
-		void set_window_focused_element(element&);
-
 		event<void>
 			close_request, ///< Invoked when the user clicks the `close' button.
 			got_window_focus, ///< Invoked when the window gets keyboard focus.
 			lost_window_focus; ///< Invoked when the window loses keyboard focus.
 		event<size_changed_info> size_changed; ///< Invoked when the window's size has changed.
-
-		window_hotkey_manager hotkey_manager; ///< Manages hotkeys of the window.
 	protected:
 		/// The list of decorations associated with this window. Since decorations are automatically
 		/// unregistered when disposed, special care must be taken when iterating through the list
 		/// while deleting its entries.
 		std::list<decoration*> _decos;
-		element
-			*_focus{this}, ///< The focused element within this window.
-			*_capture = nullptr; ///< The element that captures the mouse.
+		element *_capture = nullptr; ///< The element that captures the mouse.
 
 		/// Calls renderer_base::begin to start rendering to this window.
 		void _on_prerender() override;
@@ -153,67 +140,20 @@ namespace codepad::ui {
 
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_key_down(key_info &p) override {
-			if (_focus != this) {
-				_focus->_on_key_down(p);
-			} else {
-				panel::_on_key_down(p);
-			}
-		}
+		void _on_key_down(key_info&) override;
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_key_up(key_info &p) override {
-			if (_focus != this) {
-				_focus->_on_key_up(p);
-			} else {
-				panel::_on_key_up(p);
-			}
-		}
+		void _on_key_up(key_info&) override;
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_keyboard_text(text_info &p) override {
-			if (_focus != this) {
-				_focus->_on_keyboard_text(p);
-			} else {
-				panel::_on_keyboard_text(p);
-			}
-		}
+		void _on_keyboard_text(text_info&) override;
 		/// Forwards the composition event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_composition(composition_info &p) override {
-			if (_focus != this) {
-				_focus->_on_composition(p);
-			} else {
-				panel::_on_composition(p);
-			}
-		}
+		void _on_composition(composition_info&) override;
 		/// Forwards the composition event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
-		void _on_composition_finished() override {
-			if (_focus != this) {
-				_focus->_on_composition_finished();
-			} else {
-				panel::_on_composition_finished();
-			}
-		}
+		void _on_composition_finished() override;
 
-
-		/// Called when an element is being removed from this window. Resets the focus if the
-		/// removed element has it.
-		virtual void _on_removing_window_element(element *e) {
-			element *ef = _focus;
-			for (; ef != nullptr && e != ef; ef = ef->parent()) {
-			}
-			if (ef != nullptr) {
-				set_window_focused_element(*this);
-			}
-		}
-		/// Called when the window gets the focus. Calls \ref manager::_on_window_got_focus, and invokes
-		/// \ref element::_on_got_focus on \ref _focus.
-		virtual void _on_got_window_focus();
-		/// Called when the window loses the focus. Calls \ref manager::_on_window_lost_focus, and invokes
-		/// \ref element::_on_lost_focus on \ref _focus.
-		virtual void _on_lost_window_focus();
 
 		/// Called when mouse capture is broken by the user's actions.
 		virtual void _on_lost_window_capture() {

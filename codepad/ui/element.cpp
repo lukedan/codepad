@@ -37,7 +37,7 @@ namespace codepad::ui {
 		if (p.button == mouse_button::primary) {
 			if (_can_focus && !p.focus_set()) {
 				p.mark_focus_set();
-				get_window()->set_window_focused_element(*this);
+				get_manager().get_scheduler().set_focused_element(this);
 			}
 			set_state_bits(get_manager().get_predefined_states().mouse_down, true);
 		}
@@ -56,11 +56,17 @@ namespace codepad::ui {
 
 	void element::_on_got_focus() {
 		set_state_bits(get_manager().get_predefined_states().focused, true);
+		for (element *e = this; e; e = e->parent()) {
+			e->set_state_bits(get_manager().get_predefined_states().child_focused, true);
+		}
 		got_focus.invoke();
 	}
 
 	void element::_on_lost_focus() {
 		set_state_bits(get_manager().get_predefined_states().focused, false);
+		for (element *e = this; e; e = e->parent()) {
+			e->set_state_bits(get_manager().get_predefined_states().child_focused, false);
+		}
 		lost_focus.invoke();
 	}
 

@@ -14,6 +14,7 @@ namespace codepad::editor {
 		panel::_initialize(cls, metrics);
 
 		_can_focus = true;
+		_is_focus_scope = true;
 
 		_btn = get_manager().create_element<tab_button>();
 		_btn->click += [this](tab_button_click_info &info) {
@@ -58,17 +59,7 @@ namespace codepad::editor {
 					toact = _active_tab;
 					--toact;
 				}
-				bool is_focused = false;
-				window_base *wnd = get_window();
-				for (element *e = wnd->get_window_focused_element(); e; e = e->parent()) {
-					if (e == this) {
-						is_focused = true;
-					}
-				}
 				switch_tab(**toact);
-				if (is_focused) {
-					wnd->set_window_focused_element(**toact);
-				}
 			}
 		}
 	}
@@ -84,17 +75,19 @@ namespace codepad::editor {
 		if (_active_tab != _tabs.end()) {
 			(*_active_tab)->set_render_visibility(false);
 			(*_active_tab)->set_hittest_visibility(false);
+			(*_active_tab)->set_state_bits(get_manager().get_predefined_states().selected, false);
 			(*_active_tab)->_btn->set_zindex(0);
 		}
 		_active_tab = t._text_tok;
 		t.set_render_visibility(true);
 		t.set_hittest_visibility(true);
+		t.set_state_bits(get_manager().get_predefined_states().selected, true);
 		t._btn->set_zindex(1);
 	}
 
 	void tab_host::activate_tab(tab &t) {
 		switch_tab(t);
-		get_manager().get_scheduler().set_focused_element(t);
+		get_manager().get_scheduler().set_focused_element(&t);
 	}
 
 	size_t tab_host::get_tab_position(tab &tb) const {
@@ -131,6 +124,8 @@ namespace codepad::editor {
 
 	void tab_host::_initialize(const str_t &cls, const element_metrics &metrics) {
 		panel_base::_initialize(cls, metrics);
+
+		_can_focus = false;
 
 		get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 			{get_tab_buttons_region_role(), _role_cast(_tab_buttons_region)},

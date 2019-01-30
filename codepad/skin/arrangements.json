@@ -150,6 +150,7 @@
 					{
 						"type": "stack_panel",
 						"role": "tab_buttons_region",
+						"class": "tab_host.tab_buttons_region",
 						"metrics": {
 							"value": {
 								"width": "100%",
@@ -247,6 +248,7 @@
 			{
 				"type": "element",
 				"role": "separator",
+				"class": "split_panel.separator",
 				"inherit_metrics_from": "separator"
 			}
 		]

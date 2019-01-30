@@ -6,6 +6,8 @@
 /// \file
 /// Structs for implementing the tab-based interface.
 
+#include <deque>
+
 #include "../os/misc.h"
 #include "../os/current/all.h"
 #include "../ui/element.h"
@@ -667,13 +669,24 @@ namespace codepad::editor {
 			return CP_STRLIT("tab");
 		}
 	protected:
-		tab_button * _btn; ///< The \ref tab_button associated with tab.
+		tab_button *_btn; ///< The \ref tab_button associated with tab.
 		std::list<tab*>::iterator _text_tok; ///< Iterator to this tab in the \ref tab_host's tab list.
 
-		/// Called when \ref request_close is called to handle the user's request of closing this tab.
-		/// Marks this tab for disposal by default.
+		/// Called when \ref request_close is called to handle the user's request of closing this tab. By default,
+		/// this function removes this tab from the host, then marks this for disposal.
 		virtual void _on_close_requested() {
+			// also works without removing first, but this allows the window to check immediately if all tabs are
+			// willing to close, and thus should always be performed with the next action.
+			get_host()->remove_tab(*this);
 			get_manager().get_scheduler().mark_for_disposal(*this);
+		}
+
+		/// Updates the state of \ref _btn.
+		void _on_state_changed(value_update_info<ui::element_state_id> &info) override {
+			panel::_on_state_changed(info);
+			const auto &states = get_manager().get_predefined_states();
+			ui::element_state_id concerned_states = states.focused | states.child_focused | states.selected;
+			_btn->set_state((_btn->get_state() & ~concerned_states) | (get_state() & concerned_states));
 		}
 
 		/// Initializes \ref _btn.
@@ -773,59 +786,54 @@ namespace codepad::editor {
 			_move_tab_to_new_window(t, tglayout);
 		}
 
-		/// Updates all \ref tab_host "tab_hosts" whose tabs have been changed. All empty tab hosts will be removed,
-		/// and empty windows will be closed.
+		/// Updates all \ref tab_host "tab_hosts" whose tabs have been closed or moved. This is mainly intended to
+		/// automatically merge empty tab hosts when they are emptied.
 		void update_changed_hosts() {
-			for (tab_host *host : _changed) {
-				if (host->tab_count() == 0) {
-					_on_tab_host_disposed(*host);
-					auto father = dynamic_cast<split_panel*>(host->parent());
-					if (father) { // there are other hosts in the same window
-						ui::element *other =
-							host == father->get_child1() ?
-							father->get_child2() :
-							father->get_child1();
-						father->set_child1(nullptr);
-						father->set_child2(nullptr);
-						// use the other child to replace the split_panel
-						auto ff = dynamic_cast<split_panel*>(father->parent());
-						if (ff) {
-							if (father == ff->get_child1()) {
-								ff->set_child1(other);
-							} else {
-								assert_true_logical(father == ff->get_child2(), "corrupted element graph");
-								ff->set_child2(other);
-							}
-						} else {
+			std::set<tab_host*> tmp_changes;
+			std::swap(_changed, tmp_changes);
+			while (!tmp_changes.empty()) {
+				for (tab_host *host : tmp_changes) {
+					if (host->tab_count() == 0) {
+						if (auto father = dynamic_cast<split_panel*>(host->parent()); father) {
+							// only merge when two empty hosts are side by side
+							auto *other = dynamic_cast<tab_host*>(
+								host == father->get_child1() ?
+								father->get_child2() :
+								father->get_child1()
+								);
+							if (other && other->tab_count() == 0) { // merge
+								father->set_child1(nullptr);
+								father->set_child2(nullptr);
+								// use the other child to replace the split_panel
+								auto ff = dynamic_cast<split_panel*>(father->parent());
+								if (ff) {
+									if (father == ff->get_child1()) {
+										ff->set_child1(other);
+									} else {
+										assert_true_logical(father == ff->get_child2(), "corrupted element graph");
+										ff->set_child2(other);
+									}
+								} else {
 #ifdef CP_CHECK_LOGICAL_ERRORS
-							auto f = dynamic_cast<ui::window_base*>(father->parent());
-							assert_true_logical(f != nullptr, "parent of parent must be a window or a split panel");
+									auto f = dynamic_cast<ui::window_base*>(father->parent());
+									assert_true_logical(f != nullptr, "parent of parent must be a window or a split panel");
 #else
-							auto f = static_cast<os::window_base*>(father->parent());
+									auto f = static_cast<os::window_base*>(father->parent());
 #endif
-							f->children().remove(*father);
-							f->children().add(*other);
-						}
-						_manager.get_scheduler().mark_for_disposal(*father);
-					} else { // the only host in the window, destroy the window
-#ifdef CP_CHECK_LOGICAL_ERRORS
-						auto f = dynamic_cast<ui::window_base*>(host->parent());
-						assert_true_logical(f != nullptr, "parent must be a window or a split panel");
-#else
-						auto f = static_cast<os::window_base*>((*i)->parent());
-#endif
-						for (auto it = _wndlist.begin(); it != _wndlist.end(); ++it) {
-							if (*it == f) {
-								_wndlist.erase(it);
-								break;
+									f->children().remove(*father);
+									f->children().add(*other);
+								}
+								_manager.get_scheduler().mark_for_disposal(*father);
+								_changed.erase(host);
+								_changed.emplace(other);
+								_delete_tab_host(*host);
 							}
 						}
-						_manager.get_scheduler().mark_for_disposal(*f);
 					}
-					_manager.get_scheduler().mark_for_disposal(*host);
 				}
+				tmp_changes.clear();
+				std::swap(_changed, tmp_changes);
 			}
-			_changed.clear();
 		}
 		/// Updates the tab that's currently being dragged.
 		void update_drag();
@@ -878,36 +886,6 @@ namespace codepad::editor {
 		drag_destination_selector *_possel = nullptr; ///< The \ref drag_destination_selector.
 		ui::manager &_manager; ///< The \ref ui::manager that manages all tabs.
 
-		/// Used to maintain the focused element when tabs are detached and re-attached.
-		struct _keep_intab_focus {
-		public:
-			/// Constructor.
-			///
-			/// \param t The tab that's about to be moved. If the currently focused element is a child of the tab,
-			///          \ref _focus is set accordingly; otherwise this struct does nothing.
-			explicit _keep_intab_focus(tab &t) {
-				ui::element *f = t.get_manager().get_scheduler().get_focused_element();
-				for (ui::element *e = f; e != nullptr; e = e->parent()) {
-					if (e == &t) {
-						_focus = f;
-						break;
-					}
-				}
-			}
-			/// No copy construction.
-			_keep_intab_focus(const _keep_intab_focus&) = delete;
-			/// No copy assignment.
-			_keep_intab_focus &operator=(const _keep_intab_focus&) = delete;
-			/// Resets the focused element to \ref _focus (if it's not \p nullptr) when it's disposed.
-			~_keep_intab_focus() {
-				if (_focus != nullptr) {
-					_focus->get_window()->set_window_focused_element(*_focus);
-				}
-			}
-		protected:
-			ui::element *_focus = nullptr; ///< The focused element before the \ref tab is moved.
-		};
-
 		/// Creates a new window and registers necessary event handlers.
 		ui::window_base *_new_window() {
 			ui::window_base *wnd = _manager.create_element<os::window>();
@@ -919,29 +897,61 @@ namespace codepad::editor {
 				_wndlist.erase(it);
 				_wndlist.insert(_wndlist.begin(), wnd);
 			};
-			wnd->close_request += [wnd]() { // when requested to be closed, send request to all tabs
+			wnd->close_request += [this, wnd]() { // when requested to be closed, send request to all tabs
 				_enumerate_hosts(wnd, [](tab_host &hst) {
 					std::vector<tab*> ts(hst._tabs.begin(), hst._tabs.end());
 					for (tab *t : ts) {
 						t->_on_close_requested();
 					}
 				});
+				update_changed_hosts(); // to ensure that empty hosts are merged
+				if (wnd->children().items().size() == 1) {
+					auto *host = dynamic_cast<tab_host*>(*wnd->children().items().begin());
+					if (host && host->tab_count() == 0) {
+						_delete_tab_host(*host); // just in case
+						_delete_window(*wnd);
+					}
+				}
 			};
 			return wnd;
 		}
-		/// Creates a new \ref tab instance not attached to any \ref tab_host. Call this instead of
+		/// Deletes the given window managed by this \ref tab_manager. Use this instead of directly calling
+		/// \ref scheduler::mark_for_disposal().
+		void _delete_window(ui::window_base &wnd) {
+			for (auto it = _wndlist.begin(); it != _wndlist.end(); ++it) {
+				if (*it == &wnd) {
+					_wndlist.erase(it);
+					break;
+				}
+			}
+			_manager.get_scheduler().mark_for_disposal(wnd);
+		}
+		/// Creates a new \ref tab instance not attached to any \ref tab_host. Use this instead of
 		/// \ref ui::manager::create_element<tab>() so that the \ref tab is correctly registered to this manager.
 		tab *_new_detached_tab() {
 			tab *t = _manager.create_element<tab>();
 			t->_tab_manager = this;
 			return t;
 		}
-		/// Creates a new \ref tab_host instance. Call this instead of \ref ui::manager::create_element<tab_host>()
+		/// Creates a new \ref tab_host instance. Use this instead of \ref ui::manager::create_element<tab_host>()
 		/// so that the \ref tab_host is correctly registered to this manager.
 		tab_host *_new_tab_host() {
 			tab_host *h = _manager.create_element<tab_host>();
 			h->_tab_manager = this;
 			return h;
+		}
+		/// Prepares and marks a \ref tab_host for disposal. Use this instead of directly calling
+		/// \ref scheduler::mark_for_disposal().
+		void _delete_tab_host(tab_host &hst) {
+			logger::get().log_info(CP_HERE, "tab host 0x", &hst, " disposed");
+			if (_drag && _dest == &hst) {
+				logger::get().log_info(CP_HERE, "resetting drag destination");
+				_try_dispose_preview();
+				_try_detach_possel();
+				_dest = nullptr;
+				_dtype = drag_destination_type::new_window;
+			}
+			_manager.get_scheduler().mark_for_disposal(hst);
 		}
 		/// Splits the given \ref tab_host into halves, and returns the resulting \ref split_panel. The original
 		/// \ref tab_host will be removed from its parent.
@@ -968,7 +978,6 @@ namespace codepad::editor {
 		///
 		/// \sa split_tab
 		void _split_tab(tab_host &host, tab &t, bool vertical, bool newfirst) {
-			_keep_intab_focus keep_focus(t);
 			if (t.get_host() == &host) {
 				host.remove_tab(t);
 			}
@@ -987,7 +996,6 @@ namespace codepad::editor {
 
 		/// Moves the given \ref tab to a new window with the given layout, detaching it from its original parent.
 		void _move_tab_to_new_window(tab &t, rectd layout) {
-			_keep_intab_focus keep_focus(t);
 			tab_host *host = t.get_host();
 			if (host != nullptr) {
 				host->remove_tab(t);
@@ -1096,18 +1104,6 @@ namespace codepad::editor {
 		/// update it afterwards.
 		void _on_tab_detached(tab_host &host, tab&) {
 			_changed.insert(&host);
-		}
-		/// Called when a \ref tab_host is about to be disposed in \ref update_changed_hosts. Handles drag related
-		/// property changes.
-		void _on_tab_host_disposed(tab_host &hst) {
-			logger::get().log_info(CP_HERE, "tab host 0x", &hst, " disposed");
-			if (_drag && _dest == &hst) {
-				logger::get().log_info(CP_HERE, "resetting drag destination");
-				_try_dispose_preview();
-				_try_detach_possel();
-				_dest = nullptr;
-				_dtype = drag_destination_type::new_window;
-			}
 		}
 	};
 }

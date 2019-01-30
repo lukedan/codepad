@@ -282,10 +282,10 @@ namespace codepad::os {
 				return 0;
 
 			case WM_SETFOCUS:
-				form->_on_got_window_focus();
+				form->get_manager().get_scheduler().set_focused_element(form);
 				return 0;
 			case WM_KILLFOCUS:
-				form->_on_lost_window_focus();
+				form->get_manager().get_scheduler().set_focused_element(nullptr);
 				return 0;
 
 			case WM_CANCELMODE:
@@ -370,14 +370,13 @@ namespace codepad::os {
 	}
 
 
-	/// \todo What if some other window has GWLP_USERDATA?
 	bool window::_idle() {
 		MSG msg;
 		// using _hwnd here will cause IMs to malfunction
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) {
 				auto *form = _get_associated_window(msg.hwnd);
-				if (form && form->hotkey_manager.on_key_down(key_gesture(
+				if (form && form->get_manager().get_scheduler().get_hotkey_listener().on_key_down(key_gesture(
 					_details::_key_id_backmapping.v[msg.wParam], _get_modifiers()
 				))) {
 					return true;

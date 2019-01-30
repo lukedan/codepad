@@ -13,21 +13,6 @@
 using namespace std;
 
 namespace codepad::ui {
-	void window_base::set_window_focused_element(element &e) {
-		assert_true_logical(e.get_window() == this, "corrupted element tree");
-		if (&e != _focus) {
-			element *oldfocus = _focus;
-			_focus = &e;
-			vector<element_hotkey_group_data> gps;
-			for (element *cur = _focus; cur != nullptr; cur = cur->parent()) {
-				gps.emplace_back(cur->_config.hotkey_config, cur);
-			}
-			hotkey_manager.reset_groups(gps);
-			oldfocus->_on_lost_focus();
-			e._on_got_focus();
-		}
-	}
-
 	void window_base::register_decoration(decoration &dec) {
 		assert_true_usage(dec._wnd == nullptr, "the decoration has already been registered to another window");
 		dec._wnd = this;
@@ -46,33 +31,20 @@ namespace codepad::ui {
 		get_manager().get_renderer().end();
 	}
 
-	void window_base::_on_got_window_focus() {
-		get_manager().get_scheduler()._on_window_got_focus(*this);
-		_focus->_on_got_focus();
-		got_window_focus.invoke();
-	}
-
-	void window_base::_on_lost_window_focus() {
-		get_manager().get_scheduler()._on_window_lost_focus(*this);
-		_focus->_on_lost_focus();
-		lost_window_focus.invoke();
-	}
-
 	void window_base::_initialize(const str_t &cls, const ui::element_metrics &metrics) {
 		panel::_initialize(cls, metrics);
+		_is_focus_scope = true;
 		get_manager().get_renderer()._new_window(*this);
 	}
 
 	void window_base::_dispose() {
+		// not removed from parent, but still technically removed
+		get_manager().get_scheduler()._on_removing_element(*this);
 		// special care taken
 		auto i = _decos.begin(), j = i;
 		for (; i != _decos.end(); i = j) {
 			++j;
 			delete *i;
-		}
-		if (get_manager().get_scheduler().get_focused_window() == this) {
-			// TODO should it be _on_lost_window_focus() here?
-			get_manager().get_scheduler()._on_window_lost_focus(*this);
 		}
 		get_manager().get_renderer()._delete_window(*this);
 		panel::_dispose();
@@ -81,6 +53,51 @@ namespace codepad::ui {
 	void window_base::_on_size_changed(size_changed_info &p) {
 		get_manager().get_scheduler().notify_layout_change(*this);
 		size_changed(p);
+	}
+
+	void window_base::_on_key_down(key_info &p) {
+		element *focus = get_manager().get_scheduler().get_focused_element();
+		if (focus && focus != this) {
+			focus->_on_key_down(p);
+		} else {
+			panel::_on_key_down(p);
+		}
+	}
+
+	void window_base::_on_key_up(key_info &p) {
+		element *focus = get_manager().get_scheduler().get_focused_element();
+		if (focus && focus != this) {
+			focus->_on_key_up(p);
+		} else {
+			panel::_on_key_up(p);
+		}
+	}
+
+	void window_base::_on_keyboard_text(text_info &p) {
+		element *focus = get_manager().get_scheduler().get_focused_element();
+		if (focus && focus != this) {
+			focus->_on_keyboard_text(p);
+		} else {
+			panel::_on_keyboard_text(p);
+		}
+	}
+
+	void window_base::_on_composition(composition_info &p) {
+		element *focus = get_manager().get_scheduler().get_focused_element();
+		if (focus && focus != this) {
+			focus->_on_composition(p);
+		} else {
+			panel::_on_composition(p);
+		}
+	}
+
+	void window_base::_on_composition_finished() {
+		element *focus = get_manager().get_scheduler().get_focused_element();
+		if (focus && focus != this) {
+			focus->_on_composition_finished();
+		} else {
+			panel::_on_composition_finished();
+		}
 	}
 
 	bool window_base::_on_update_visual_configurations(double time) {

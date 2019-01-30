@@ -60,18 +60,18 @@ namespace codepad::ui {
 		element *param = nullptr; ///< An element.
 	};
 	/// Contains information about the user pressing a hotkey.
-	struct window_hotkey_info {
+	struct hotkey_info {
 		/// Constructs the info with corresponding data.
-		window_hotkey_info(str_t cmd, element *p) : command(std::move(cmd)), parameter(p) {
+		hotkey_info(str_t cmd, element *p) : command(std::move(cmd)), parameter(p) {
 		}
 		const str_t command; ///< The command corresponding to the hotkey.
 		element *const parameter = nullptr; ///< The element on which the hotkey is registered.
 		bool cancelled = false; ///< Event handlers can set this to \p true to cancel the hotkey.
 	};
 
-	/// Manages the hotkeys. At any time only the hotkeys registered to the classes of certain elements are active.
-	/// The elements include the currently focused element and all its parents.
-	class window_hotkey_manager {
+	/// Manages and monitors hotkeys. At any time only the hotkeys registered to the classes of certain elements are
+	/// active. The elements include the currently focused element and all its parents.
+	class hotkey_listener {
 	public:
 		/// Called when the focus has shifted to reset the set of active
 		/// \ref class_hotkey_group "element_hotkey_groups".
@@ -110,7 +110,7 @@ namespace codepad::ui {
 				// in which case the state will be reset
 				intercept = st.on_keypress(k, first) || intercept;
 				if (st.state.is_trigger()) { // reached leaf node, trigger
-					window_hotkey_info hk(st.state.get_data(), st.group.param);
+					hotkey_info hk(st.state.get_data(), st.group.param);
 					st.state = class_hotkey_group::state(); // reset state
 					for (_hotkey_group_state &j : _groups) {
 						// all state should be empty, otherwise there are conflicts
@@ -148,7 +148,7 @@ namespace codepad::ui {
 			return intercept;
 		}
 
-		event<window_hotkey_info> triggered; ///< An event invoked whenever the user enters a hotkey.
+		event<hotkey_info> triggered; ///< An event invoked whenever the user enters a hotkey.
 		/// An event invoked when the user enters an invalid gesture and breaks the chain.
 		event<void> chain_interrupted;
 	protected:

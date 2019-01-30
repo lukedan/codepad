@@ -7,6 +7,7 @@
 /// Implementation of certain methods of codepad::ui::element_collection.
 
 #include "manager.h"
+#include "scheduler.h"
 #include "window.h"
 
 using namespace codepad::os;
@@ -123,13 +124,10 @@ namespace codepad::ui {
 
 	void element_collection::remove(element &elem) {
 		assert_true_logical(elem._parent == &_f, "corrupted element tree");
+		_f.get_manager().get_scheduler()._on_removing_element(elem);
 		elem._on_removing_from_parent();
 		_f._on_child_removing(elem);
 		changing.invoke_noret(element_collection_change_info::type::remove, elem);
-		window_base *wnd = _f.get_window();
-		if (wnd != nullptr) {
-			wnd->_on_removing_window_element(&elem);
-		}
 		elem._logical_parent = nullptr;
 		elem._parent = nullptr;
 		_children.erase(find(_children.begin(), _children.end(), &elem));
@@ -158,7 +156,7 @@ namespace codepad::ui {
 		if (p.button == mouse_button::primary) {
 			if (_can_focus && !p.focus_set()) {
 				p.mark_focus_set();
-				get_window()->set_window_focused_element(*this);
+				get_manager().get_scheduler().set_focused_element(this);
 			}
 			if (mouseover == nullptr) {
 				set_state_bits(get_manager().get_predefined_states().mouse_down, true);
