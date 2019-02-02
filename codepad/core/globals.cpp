@@ -53,8 +53,6 @@ namespace codepad {
 
 		get_app_epoch(); // initialize epoch
 
-		native_commands::register_all(); // register commands
-
 		/*document_formatting_cache::enable();*/
 	}
 
@@ -169,10 +167,6 @@ namespace codepad {
 	namespace ui {
 		content_host::_default_font &content_host::_default_font::get() {
 			static _global_wrapper<_default_font> _v;
-			return _v.object;
-		}
-		command_registry &command_registry::get() {
-			static _global_wrapper<command_registry> _v;
 			return _v.object;
 		}
 	}

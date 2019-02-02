@@ -39,9 +39,6 @@ namespace codepad::ui {
 			auto it = _cmds.find(name);
 			return it == _cmds.end() ? nullptr : &it->second;
 		}
-
-		/// Gets the global \ref command_registry.
-		static command_registry &get();
 	protected:
 		/// The map that stores all registered commands.
 		std::unordered_map<str_t, std::function<void(element*)>> _cmds;
@@ -66,7 +63,6 @@ namespace codepad::ui {
 		}
 		const str_t command; ///< The command corresponding to the hotkey.
 		element *const parameter = nullptr; ///< The element on which the hotkey is registered.
-		bool cancelled = false; ///< Event handlers can set this to \p true to cancel the hotkey.
 	};
 
 	/// Manages and monitors hotkeys. At any time only the hotkeys registered to the classes of certain elements are
@@ -120,15 +116,6 @@ namespace codepad::ui {
 						}
 					}
 					triggered.invoke(hk); // invoke the event
-					if (!hk.cancelled) {
-						auto *pcmd = command_registry::get().try_find_command(hk.command);
-						if (pcmd) {
-							// invoke the command. i may be invalidated
-							(*pcmd)(hk.parameter);
-						} else {
-							logger::get().log_warning(CP_HERE, "invalid command name");
-						}
-					}
 					_gests.clear();
 					return true;
 				}

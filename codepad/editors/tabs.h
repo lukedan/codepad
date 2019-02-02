@@ -403,7 +403,7 @@ namespace codepad::editor {
 				) {
 				_mdpos = p.position;
 				_predrag = true;
-				get_manager().get_scheduler().schedule_update(*this);
+				get_manager().get_scheduler().schedule_element_update(*this);
 				click.invoke_noret(p);
 			} else if (p.button == ui::mouse_button::tertiary) {
 				request_close.invoke();
@@ -422,7 +422,7 @@ namespace codepad::editor {
 						_predrag = false;
 						start_drag.invoke_noret(get_layout().xmin_ymin() - _mdpos);
 					} else {
-						get_manager().get_scheduler().schedule_update(*this);
+						get_manager().get_scheduler().schedule_element_update(*this);
 					}
 				} else {
 					_predrag = false;
@@ -705,13 +705,23 @@ namespace codepad::editor {
 		friend tab;
 		friend tab_host;
 	public:
-		/// Constructor. Initializes \ref _possel.
+		/// Constructor. Initializes \ref _possel and update tasks.
 		tab_manager(ui::manager &man) : _manager(man) {
+			_update_hosts_token = _manager.get_scheduler().register_update_task([this]() {
+				update_changed_hosts();
+			});
+			_update_drag_token = _manager.get_scheduler().register_update_task([this]() {
+				update_drag();
+			});
+
 			_possel = _manager.create_element<drag_destination_selector>();
 		}
-		/// Disposes \ref _possel.
+		/// Disposes \ref _possel, and unregisters update tasks.
 		~tab_manager() {
 			_manager.get_scheduler().mark_for_disposal(*_possel);
+
+			_manager.get_scheduler().unregister_update_task(_update_drag_token);
+			_manager.get_scheduler().unregister_update_task(_update_hosts_token);
 		}
 
 		/// Creates a new \ref tab in a \ref tab_host in the last focused \ref os::window_base. If there are no
@@ -837,11 +847,6 @@ namespace codepad::editor {
 		}
 		/// Updates the tab that's currently being dragged.
 		void update_drag();
-		/// Calls \ref update_changed_hosts and \ref update_drag to perform necessary updating.
-		void update() {
-			update_changed_hosts();
-			update_drag();
-		}
 
 		/// Returns \p true if the user's currently dragging a \ref tab.
 		bool is_dragging_tab() const {
@@ -870,6 +875,7 @@ namespace codepad::editor {
 			_dragdiff = diff;
 			_dragrect = layout;
 			_stopdrag = std::move(stop);
+			_manager.get_scheduler().schedule_update_task(_update_drag_token);
 		}
 	protected:
 		std::set<tab_host*> _changed; ///< The set of \ref tab_host "tab_hosts" whose children have changed.
@@ -881,6 +887,9 @@ namespace codepad::editor {
 		vec2d _dragdiff; ///< The offset from the top left corner of the \ref tab_button to the mouse cursor.
 		rectd _dragrect; ///< The boundaries of the main panel of \ref _drag, relative to the mouse cursor.
 		std::function<bool()> _stopdrag; ///< The function used to determine when to stop dragging.
+		ui::scheduler::update_task::token
+			_update_hosts_token, ///< Token of the task that updates changed tab hosts.
+			_update_drag_token; ///< Token of the task that updates the tab that's being dragged.
 		/// The decoration for indicating where the tab will be if the user releases the primary mouse button.
 		ui::decoration *_dragdec = nullptr;
 		drag_destination_selector *_possel = nullptr; ///< The \ref drag_destination_selector.
@@ -957,6 +966,7 @@ namespace codepad::editor {
 		/// \ref tab_host will be removed from its parent.
 		split_panel *_replace_with_split_panel(tab_host &hst) {
 			split_panel *sp = _manager.create_element<split_panel>(), *f = dynamic_cast<split_panel*>(hst.parent());
+			sp->set_can_focus(false);
 			if (f) {
 				if (f->get_child1() == &hst) {
 					f->set_child1(sp);
@@ -1101,9 +1111,10 @@ namespace codepad::editor {
 		}
 
 		/// Called when a \ref tab is removed from a \ref tab_host. Inserts the \ref tab_host to \ref _changed to
-		/// update it afterwards.
+		/// update it afterwards, and schedules \ref update_changed_hosts() to be called.
 		void _on_tab_detached(tab_host &host, tab&) {
 			_changed.insert(&host);
+			_manager.get_scheduler().schedule_update_task(_update_hosts_token);
 		}
 	};
 }

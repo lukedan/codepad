@@ -919,13 +919,13 @@ namespace codepad::editor::code {
 			if (relempos.y < 0.0) {
 				clampedpos.y -= relempos.y;
 				_scrolldiff = relempos.y;
-				get_manager().get_scheduler().schedule_update(*this);
+				get_manager().get_scheduler().schedule_element_update(*this);
 			} else {
 				double h = get_layout().height();
 				if (relempos.y > h) {
 					clampedpos.y += h - relempos.y;
 					_scrolldiff = relempos.y - get_layout().height();
-					get_manager().get_scheduler().schedule_update(*this);
+					get_manager().get_scheduler().schedule_element_update(*this);
 				}
 			}
 			auto newmouse = _hit_test_for_caret_client(clampedpos);

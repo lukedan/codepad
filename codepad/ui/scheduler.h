@@ -4,16 +4,18 @@
 /// Classes used to schedule the updating and rendering of elements.
 
 #include <set>
+#include <list>
 #include <deque>
 #include <chrono>
+#include <functional>
 
 #include "element.h"
 #include "panel.h"
 #include "window.h"
 
 namespace codepad::ui {
-	/// Schedules the updating and rendering of all elements. There can only be one active object of this type per
-	/// thread.
+	/// Schedules the updating and rendering of all elements. There should at most be one active object of this type
+	/// per thread.
 	class scheduler {
 		friend window_base;
 		friend element_collection;
@@ -23,6 +25,39 @@ namespace codepad::ui {
 			relayout_time_redline = 0.01,
 			/// Maximum expected time for all rendering operations during a single frame.
 			render_time_redline = 0.04;
+
+		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
+		enum class wait_type {
+			blocking,
+			non_blocking
+		};
+
+		/// Stores a task that can be executed every update.
+		struct update_task {
+			/// A token that through whcih the associated \ref update_task can be scheduled.
+			struct token {
+				friend scheduler;
+			public:
+				/// Default constructor.
+				token() = default;
+			protected:
+				using _iterator_t = std::list<update_task>::iterator; ///< Type of the iterator.
+
+				/// Constructs this token with the corresponding iterator.
+				explicit token(_iterator_t it) : _it(it) {
+				}
+				_iterator_t _it; ///< Iterator to the task node.
+			};
+
+			/// Default constructor.
+			update_task() = default;
+			/// Initializes this task with the corresponding function.
+			explicit update_task(std::function<void()> t) : task(std::move(t)) {
+			}
+
+			std::function<void()> task; ///< The function to be executed.
+			bool needs_update = false; ///< Marks if \ref task needs to be executed next update.
+		};
 
 		/// Invalidates the layout of an element. Its parent will be notified to recalculate its layout.
 		void invalidate_layout(element &e) {
@@ -36,8 +71,7 @@ namespace codepad::ui {
 			_children_layout_scheduled.emplace(&p);
 		}
 		/// Marks the element for layout validation, meaning that its layout is valid but
-		/// \ref element::_on_layout_changed() has not been called. Like \ref invalidate_layout, different operation
-		/// will be performed depending on whether layout is in progress.
+		/// \ref element::_on_layout_changed() has not been called.
 		void notify_layout_change(element &e) {
 			assert_true_logical(!_layouting, "layout notifications are handled automatically");
 			_layout_notify.emplace(&e);
@@ -121,13 +155,65 @@ namespace codepad::ui {
 			}
 		}
 		/// Schedules the given element to be updated next frame.
-		///
-		/// \todo Remove this.
-		void schedule_update(element &e) {
+		void schedule_element_update(element &e) {
 			_upd.insert(&e);
 		}
+		/// Registers a task to be executed periodically and on demand.
+		update_task::token register_update_task(std::function<void()> f) {
+			_regular_tasks.emplace_back(std::move(f));
+			return update_task::token(--_regular_tasks.end());
+		}
+		/// Unregisters a \ref update_task. This function should *not* be called during the execution of an
+		/// \ref update_task. Instead, add a temporary update task to do it, and it'll immediately be executed.
+		void unregister_update_task(update_task::token tok) {
+			if (tok._it->needs_update) {
+				--_active_update_tasks;
+			}
+			_regular_tasks.erase(tok._it);
+		}
+		/// Schedules the \ref update_task represented by the given token to be executed once next update. The task
+		/// is executed once per update even if this function is called multiple times between two updates.
+		void schedule_update_task(update_task::token tok) {
+			if (!tok._it->needs_update) {
+				tok._it->needs_update = true;
+				++_active_update_tasks;
+			}
+		}
+		/// Schedules the given \p std::function to be executed once next update. These are executed immediately
+		/// after regular update tasks.
+		void schedule_temporary_update_task(std::function<void()> f) {
+			_temp_tasks.emplace_back(std::move(f));
+		}
+		/// Executes temporary and non-temporary update tasks.
+		void update_tasks() {
+			// non-temporary
+			if (_active_update_tasks > 0) {
+				std::vector<std::function<void()>*> execs;
+				execs.reserve(_active_update_tasks); // should be just right
+				for (auto &task : _regular_tasks) {
+					if (task.needs_update) {
+						execs.emplace_back(&task.task);
+						task.needs_update = false;
+					}
+				}
+				assert_true_logical(execs.size() == _active_update_tasks, "wrong number of update tasks");
+				_active_update_tasks = 0;
+				// clean slate now
+				// TODO maybe add indicator and check in unregister_update_task?
+				for (auto *f : execs) {
+					(*f)();
+				}
+			}
+
+			// temporary
+			std::vector<std::function<void()>> lst;
+			std::swap(lst, _temp_tasks);
+			for (auto &func : lst) {
+				func();
+			}
+		}
 		/// Updates all elements that are scheduled to be updated by \ref schedule_visual_config_update(),
-		/// \ref schedule_metrics_config_update(), and \ref schedule_update().
+		/// \ref schedule_metrics_config_update(), and \ref schedule_element_update().
 		void update_scheduled_elements() {
 			performance_monitor mon(CP_HERE);
 			auto nnow = std::chrono::high_resolution_clock::now();
@@ -158,7 +244,7 @@ namespace codepad::ui {
 				}
 			}
 
-			// from schedule_update()
+			// from schedule_element_update()
 			// TODO remove this?
 			if (!_upd.empty()) {
 				std::set<element*> list; // the new list
@@ -289,13 +375,38 @@ namespace codepad::ui {
 			update_invalid_layout();
 			update_invalid_visuals();
 		}
-		/// Simply calls \ref dispose_marked_elements, \ref update_scheduled_elements,
+		/// Calls \ref update_tasks(), \ref dispose_marked_elements, \ref update_scheduled_elements,
 		/// and \ref update_layout_and_visual.
 		void update() {
 			performance_monitor mon(CP_STRLIT("Update UI"));
+			update_tasks();
 			dispose_marked_elements();
 			update_scheduled_elements();
 			update_layout_and_visual();
+		}
+
+		/// Returns whether \ref update() needs to be called right now.
+		bool needs_update() const {
+			return
+				_active_update_tasks > 0 || !_temp_tasks.empty() || // tasks
+				!_del.empty() || // element disposal
+				!_visualcfg_update.empty() || !_metricscfg_update.empty() || !_upd.empty() || // element update
+				!_children_layout_scheduled.empty() || !_layout_notify.empty() || // layout
+				!_dirty.empty(); // visual
+		}
+
+		/// If any internal update is necessary, calls \ref update(), then calls \ref _idle_system() with
+		/// \ref wait_type::non_blocking until no more messages can be processed. Otherwise, waits and handles a
+		/// single message from the system by calling \ref _idle_system() with \ref wait_type::blocking.
+		void idle_loop_body() {
+			if (needs_update()) {
+				update();
+				while (_idle_system(wait_type::non_blocking)) {
+				}
+			} else {
+				_idle_system(wait_type::blocking);
+				_lastupdate = std::chrono::high_resolution_clock::now();
+			}
 		}
 
 		/// Returns the \ref hotkey_listener.
@@ -323,6 +434,9 @@ namespace codepad::ui {
 		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
 		std::set<element*> _upd; ///< Stores all elements that are to be updated.
 
+		std::list<update_task> _regular_tasks; ///< The list of registered update tasks.
+		std::vector<std::function<void()>> _temp_tasks; ///< The list of temporary tasks.
+
 		/// The time point when elements were last rendered.
 		std::chrono::time_point<std::chrono::high_resolution_clock> _lastrender;
 		/// The time point when elements were last updated.
@@ -330,6 +444,7 @@ namespace codepad::ui {
 		double _min_render_interval = 0.0; ///< The minimum interval between consecutive re-renders.
 		double _upd_dt = 0.0; ///< The duration since elements were last updated.
 		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
+		size_t _active_update_tasks = 0; ///< The number of active update tasks.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 
 		/// Finds the focus scope that the given \ref element is in. The element itself is not taken into account.
@@ -373,5 +488,10 @@ namespace codepad::ui {
 				// to be done
 			}
 		}
+
+		/// Handles one message from the system message queue. This function is platform-dependent.
+		///
+		/// \return Whether a message has been handled.
+		bool _idle_system(wait_type);
 	};
 }

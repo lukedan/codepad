@@ -153,9 +153,6 @@
     <ClInclude Include="core\json.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="api_exports.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="apigen_definitions.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -11,6 +11,7 @@
 #include "window.h"
 #include "element.h"
 #include "panel.h"
+#include "native_commands.h"
 #include "../editors/tabs.h"
 #include "../editors/code/editor.h"
 #include "../editors/code/components.h"
@@ -61,5 +62,17 @@ namespace codepad::ui {
 		register_element_type<editor::code::editor>();
 		register_element_type<editor::code::line_number_display>();
 		register_element_type<editor::code::minimap>();
+
+
+		
+		native_commands::register_all(_commands);
+		_scheduler.get_hotkey_listener().triggered += [this](hotkey_info &info) {
+			const auto *cmd = _commands.try_find_command(info.command);
+			if (cmd) {
+				(*cmd)(info.parameter);
+			} else {
+				logger::get().log_warning(CP_HERE, "invalid command: ", info.command);
+			}
+		};
 	}
 }

@@ -18,15 +18,15 @@ namespace codepad::ui {
 			vec2d v1, vec2d v2, vec2d v3, vec2d uv1, vec2d uv2, vec2d uv3,
 			colord c1, colord c2, colord c3
 		) {
-			_vs.push_back(v1);
-			_vs.push_back(v2);
-			_vs.push_back(v3);
-			_uvs.push_back(uv1);
-			_uvs.push_back(uv2);
-			_uvs.push_back(uv3);
-			_cs.push_back(c1);
-			_cs.push_back(c2);
-			_cs.push_back(c3);
+			_vs.emplace_back(v1);
+			_vs.emplace_back(v2);
+			_vs.emplace_back(v3);
+			_uvs.emplace_back(uv1);
+			_uvs.emplace_back(uv2);
+			_uvs.emplace_back(uv3);
+			_cs.emplace_back(c1);
+			_cs.emplace_back(c2);
+			_cs.emplace_back(c3);
 		}
 		/// Adds a rectangle to the render batch, given its coordinates, UV's, and color.
 		void add_quad(rectd r, rectd uv, colord c) {

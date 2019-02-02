@@ -173,7 +173,8 @@ namespace codepad::editor::code {
 					italic = 0.0, ///< The position corresponding to \ref font_style::italic.
 					bold_italic = 0.0; ///< The position corresponding to \ref font_style::bold_italic.
 			};
-			/// Clears all cached pages, and re-renders the currently visible page.
+			/// Clears all cached pages, and re-renders the currently visible page immediately. To render this page
+			/// on demand, simply clear \ref pages and call \ref invalidate().
 			void restart() {
 				pages.clear();
 				editor &editor = component_helper::get_editor(*_parent);
@@ -360,8 +361,13 @@ namespace codepad::editor::code {
 			rectd pagergn = get_client_region();
 			pagergn.ymin = std::round(pagergn.ymin - _get_y_offset());
 			auto
-				ibeg = --_pgcache.pages.upper_bound(vlines.first),
+				ibeg = _pgcache.pages.upper_bound(vlines.first),
 				iend = _pgcache.pages.lower_bound(vlines.second);
+			if (ibeg != _pgcache.pages.begin()) {
+				--ibeg;
+			} else {
+				logger::get().log_error(CP_HERE, "agnomaly in page range selection");
+			}
 			ui::renderer_base &r = get_manager().get_renderer();
 			r.push_blend_function(ui::blend_function(
 				ui::blend_factor::one, ui::blend_factor::one_minus_source_alpha
@@ -432,6 +438,7 @@ namespace codepad::editor::code {
 
 		void _on_layout_changed() override {
 			_pgcache.on_width_changed(get_layout().width());
+			_pgcache.invalidate(); // invalidate no matter what since the height may have also changed
 			element::_on_layout_changed();
 		}
 

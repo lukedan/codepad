@@ -125,8 +125,6 @@ namespace codepad::editor {
 	void tab_host::_initialize(const str_t &cls, const element_metrics &metrics) {
 		panel_base::_initialize(cls, metrics);
 
-		_can_focus = false;
-
 		get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 			{get_tab_buttons_region_role(), _role_cast(_tab_buttons_region)},
 			{get_tab_contents_region_role(), _role_cast(_tab_contents_region)}
@@ -149,8 +147,9 @@ namespace codepad::editor {
 	}
 
 
+	/// \todo Updating so frequently is unnecessary (or is it?).
 	void tab_manager::update_drag() {
-		if (_drag != nullptr) {
+		if (_drag) {
 			vec2i mouse = get_mouse_position();
 			if (_dtype == drag_destination_type::combine_in_tab) { // dragging tab_button in a tab list
 				rectd rgn = _dest->get_tab_buttons_region();
@@ -284,6 +283,8 @@ namespace codepad::editor {
 				// set mouse over bit accordingly, although it works (almost) fine without this
 				_drag->_btn->set_state_bits(_manager.get_predefined_states().mouse_over, mouseover);
 				_drag = nullptr;
+			} else { // keep updating
+				_manager.get_scheduler().schedule_update_task(_update_drag_token);
 			}
 		}
 	}

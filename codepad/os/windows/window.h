@@ -23,6 +23,7 @@ namespace codepad::os {
 		friend class software_renderer;
 		friend class opengl_renderer;
 		friend ui::element;
+		friend ui::scheduler;
 	public:
 		using native_handle_t = HWND;
 
@@ -258,12 +259,14 @@ namespace codepad::os {
 		/// Checks if the given window is managed by codepad and if so, retrieves a pointer to the corresponding
 		/// \ref window. If it's not, returns \p nullptr.
 		inline static window *_get_associated_window(HWND hwnd) {
-			DWORD atom;
-			winapi_check(atom = GetClassLong(hwnd, GCW_ATOM));
-			if (atom != _wndclass::get().atom) { // not the same class
-				return nullptr;
+			if (hwnd) {
+				DWORD atom;
+				winapi_check(atom = GetClassLong(hwnd, GCW_ATOM));
+				if (atom == _wndclass::get().atom) { // the correct class
+					return reinterpret_cast<window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+				}
 			}
-			return reinterpret_cast<window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+			return nullptr;
 		}
 
 		HWND _hwnd;
@@ -303,19 +306,10 @@ namespace codepad::os {
 			window_base::_on_mouse_enter();
 		}
 
-		bool _idle();
-		void _on_update() override {
-			window_base::_on_update();
-			while (_idle()) {
-			}
-			get_manager().get_scheduler().schedule_update(*this);
-		}
-
 		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
 			window_base::_initialize(cls, metrics);
 			SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 			ShowWindow(_hwnd, SW_SHOW);
-			get_manager().get_scheduler().schedule_update(*this);
 		}
 		void _dispose() override {
 			winapi_check(DestroyWindow(_hwnd));

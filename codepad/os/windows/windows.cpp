@@ -370,26 +370,6 @@ namespace codepad::os {
 	}
 
 
-	bool window::_idle() {
-		MSG msg;
-		// using _hwnd here will cause IMs to malfunction
-		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) {
-				auto *form = _get_associated_window(msg.hwnd);
-				if (form && form->get_manager().get_scheduler().get_hotkey_listener().on_key_down(key_gesture(
-					_details::_key_id_backmapping.v[msg.wParam], _get_modifiers()
-				))) {
-					return true;
-				}
-			}
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-			return true;
-		}
-		return false;
-	}
-
-
 #define CP_USE_LEGACY_OPEN_FILE_DIALOG // new open file dialog doesn't work right now
 
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
@@ -622,5 +602,30 @@ namespace codepad::ui {
 
 	shared_ptr<font> create_font(font_manager &man, str_view_t view, double sz, font_style style) {
 		return make_shared<freetype_font>(man, view, sz, style);
+	}
+
+	bool scheduler::_idle_system(wait_type ty) {
+		MSG msg;
+		BOOL res;
+		if (ty == wait_type::blocking) {
+			res = GetMessage(&msg, nullptr, 0, 0);
+			assert_true_sys(res != -1, "GetMessage error");
+		} else {
+			res = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
+		}
+		if (res != 0) {
+			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) { // handle hotkeys
+				auto *form = os::window::_get_associated_window(msg.hwnd);
+				if (form && _hotkeys.on_key_down(key_gesture(
+					_details::_key_id_backmapping.v[msg.wParam], _get_modifiers()
+				))) {
+					return true;
+				}
+			}
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+			return true;
+		}
+		return false;
 	}
 }

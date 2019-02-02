@@ -329,7 +329,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="apigen_definitions.h" />
-    <ClInclude Include="api_exports.h" />
     <ClInclude Include="core\json.h" />
     <ClInclude Include="core\settings.h" />
     <ClInclude Include="editors\buffer.h" />

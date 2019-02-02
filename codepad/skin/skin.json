@@ -374,6 +374,18 @@
 			"inherit_from": [ "mouse_over" ]
 		}
 	],
+	"line_number_display": [
+		{
+			"layers": [
+				{
+					"width": "1px",
+					"anchor": "trb",
+					"margin": 0,
+					"color": [ 0.2, 0.2, 0.2, 1.0 ]
+				}
+			]
+		}
+	],
 
 	"drag_destination_selector.split_left_indicator": [
 		{

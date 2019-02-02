@@ -172,8 +172,8 @@
 	"tab_button": {
 		"metrics": {
 			"value": {
-				"size": [ 0.0, 1.0 ],
-				"height_alloc": "*"
+				"width": "auto",
+				"height": "100%"
 			}
 		},
 		"children": [
@@ -295,14 +295,24 @@
 					{
 						"type": "editor",
 						"role": "editor",
-						"inherit_metrics_from": "element_fill_container",
 						"metrics": {
 							"value": {
+								"width": "1*",
+								"height": "100%",
 								"padding": [ 2.0, 0.0, 0.0, 0.0 ]
 							}
 						}
 					}
 				]
+			}
+		]
+	},
+	"line_number_display": {
+		"metrics": [
+			{
+				"value": {
+					"padding": [ 10, 0, 5, 0 ]
+				}
 			}
 		]
 	}

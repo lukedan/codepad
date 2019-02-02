@@ -26,5 +26,5 @@ namespace codepad::ui::native_commands {
 	}
 
 	/// Registers all native commands.
-	void register_all();
+	void register_all(command_registry&);
 }

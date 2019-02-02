@@ -15,6 +15,7 @@
 #include "window.h"
 #include "renderer.h"
 #include "scheduler.h"
+#include "commands.h"
 #include "text_rendering.h"
 
 namespace codepad::ui {
@@ -81,7 +82,8 @@ namespace codepad::ui {
 		};
 
 
-		/// Constructor, registers predefined element states, transition functions, and element types.
+		/// Constructor, registers predefined element states, transition functions, element types, and commands. Also
+		/// bridges the \ref hotkey_listener and \ref command_registry.
 		manager();
 		/// Destructor. Calls \ref scheduler::dispose_marked_elements().
 		~manager() {
@@ -231,10 +233,20 @@ namespace codepad::ui {
 		const scheduler &get_scheduler() const {
 			return _scheduler;
 		}
+
+		/// Returns the registry of all commands used with hotkeys.
+		command_registry &get_command_registry() {
+			return _commands;
+		}
+		/// \overload
+		const command_registry &get_command_registry() const {
+			return _commands;
+		}
 	protected:
 		class_visuals_registry _cvis; ///< All visuals.
 		class_arrangements_registry _carngs; ///< All arrangements.
 		class_hotkeys_registry _chks; ///< All hotkeys.
+		command_registry _commands; ///< All commands.
 		/// Registry of constructors of all element types.
 		std::map<str_t, element_constructor> _ctor_map;
 		/// Mapping from names to transition functions.
