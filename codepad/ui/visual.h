@@ -24,19 +24,17 @@ namespace codepad::ui {
 			/// Default constructor.
 			state() = default;
 			/// Initializes all property states with the properties of the given layer.
-			explicit state(const visual_layer &layer) :
-				texture(layer.texture_animation), margin(layer.margin_animation),
-				color(layer.color_animation), size(layer.size_animation) {
+			explicit state(const visual_layer &layer, animation_time_point_t now) :
+				texture(layer.texture_animation, now), margin(layer.margin_animation, now),
+				color(layer.color_animation, now), size(layer.size_animation, now) {
 			}
 			/// Initializes all property states with the properties of the layer and the previous state.
-			state(const visual_layer &layer, const state &old) :
-				texture(layer.texture_animation),
-				margin(layer.margin_animation, old.margin.current_value),
-				color(layer.color_animation, old.color.current_value),
-				size(layer.size_animation, old.size.current_value) {
+			state(const state &old, animation_time_point_t now) :
+				texture(old.texture.current_value, now), margin(old.margin.current_value, now),
+				color(old.color.current_value, now), size(old.size.current_value, now) {
 			}
 
-			animated_property<texture>::state texture; ///< The state of \ref texture_animation.
+			animated_property<std::shared_ptr<texture>, no_lerp>::state texture; ///< The state of \ref texture_animation.
 			animated_property<thickness>::state margin; ///< The state of \ref margin_animation.
 			animated_property<colord>::state color; ///< The state of \ref color_animation.
 			animated_property<vec2d>::state size; ///< The state of \ref size_animation.
@@ -63,16 +61,18 @@ namespace codepad::ui {
 		///
 		/// \param s The state to be updated.
 		/// \param dt The time since the state was last updated.
-		void update(state &s, double dt) const {
+		animation_duration_t update(state &s, animation_time_point_t now) const {
+			auto res = animation_duration_t::max();
 			if (!s.all_stationary) {
-				texture_animation.update(s.texture, dt);
-				margin_animation.update(s.margin, dt);
-				color_animation.update(s.color, dt);
-				size_animation.update(s.size, dt);
+				res = std::min(res, texture_animation.update(s.texture, now));
+				res = std::min(res, margin_animation.update(s.margin, now));
+				res = std::min(res, color_animation.update(s.color, now));
+				res = std::min(res, size_animation.update(s.size, now));
 				s.all_stationary =
 					s.texture.stationary && s.color.stationary &&
 					s.size.stationary && s.margin.stationary;
 			}
+			return res;
 		}
 		/// Renders an object with the given layout and state.
 		///
@@ -81,7 +81,7 @@ namespace codepad::ui {
 		/// \param s The current state of the layer.
 		void render(renderer_base &r, rectd rgn, const state &s) const;
 
-		animated_property<texture> texture_animation; ///< Textures(s) used to render the layer.
+		animated_property<std::shared_ptr<texture>, no_lerp> texture_animation; ///< Textures(s) used to render the layer.
 		animated_property<thickness> margin_animation; ///< The margin used to calculate the center region.
 		animated_property<colord> color_animation; ///< The color of the layer.
 		animated_property<vec2d> size_animation; ///< The size used to calculate the center region.
@@ -119,24 +119,17 @@ namespace codepad::ui {
 			state() = default;
 			/// Initializes the state with the given visual state. All layer states will be initialized
 			/// with corresponding layers of the visual state.
-			state(const visual_state&);
+			state(const visual_state&, animation_time_point_t);
 			/// Initializes the state with the visual state and the previous state. All layer states will
-			/// be initialized with corresponding layers of the visual state and layer states in the
-			/// previous state. The number of resulting layer states will always be equal to the number of
-			/// layers in the visual state. If the previous state has less layers then remaining layer
-			/// states will be initialized without a layer state, and if the previous state has more layers
-			/// the redundant layers in the end will be ignored.
-			state(const visual_state&, const state&);
+			/// be initialized with corresponding layer states in the previous state.
+			state(const state&, animation_time_point_t);
 
 			std::vector<visual_layer::state> layer_states; ///< The states of all layers.
 			bool all_stationary = false; ///< Indicates whether all animations have finished.
 		};
 
 		/// Updates the given state.
-		///
-		/// \param s The state to be updated.
-		/// \param dt The time since the state was last updated.
-		void update(state &s, double dt) const;
+		animation_duration_t update(state&, animation_time_point_t) const;
 		/// Renders in the given region with the given state.
 		void render(renderer_base &r, rectd rgn, const state &s) const {
 			auto j = s.layer_states.begin();

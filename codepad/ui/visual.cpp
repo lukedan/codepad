@@ -38,21 +38,20 @@ namespace codepad::ui {
 	}
 
 	void visual_layer::render(renderer_base &r, rectd rgn, const state &s) const {
-		texture empty;
-		reference_wrapper<texture> tex(empty); // using a pointer just doesn't seem right here
-		if (s.texture.current_frame != texture_animation.frames.end()) {
-			tex = *s.texture.current_frame->first;
+		texture empty, *tex = &empty;
+		if (s.texture.current_value) {
+			tex = s.texture.current_value.get();
 		}
 		switch (layer_type) {
 		case type::solid:
 			{
 				rectd cln = get_center_rect(s, rgn);
-				r.draw_quad(tex.get(), cln, rectd(0.0, 1.0, 0.0, 1.0), s.color.current_value);
+				r.draw_quad(*tex, cln, rectd(0.0, 1.0, 0.0, 1.0), s.color.current_value);
 			}
 			break;
 		case type::grid:
 			{
-				size_t w = tex.get().get_width(), h = tex.get().get_height();
+				size_t w = tex->get_width(), h = tex->get_height();
 				rectd
 					outer = rgn, inner = get_center_rect(s, outer),
 					texr(
@@ -100,44 +99,38 @@ namespace codepad::ui {
 					rectd(inner.xmax, outer.xmax, inner.ymax, outer.ymax),
 					rectd(texr.xmax, 1.0, texr.ymax, 1.0), curc
 				);
-				rb.draw(r, tex.get());
+				rb.draw(r, *tex);
 			}
 			break;
 		}
 	}
 
 
-	visual_state::state::state(const visual_state &st) {
+	visual_state::state::state(const visual_state &st, animation_time_point_t now) {
 		layer_states.reserve(st.layers.size());
 		for (auto &i : st.layers) {
-			layer_states.emplace_back(i);
+			layer_states.emplace_back(i, now);
 		}
 	}
-	visual_state::state::state(const visual_state &st, const state &old) {
-		layer_states.reserve(st.layers.size());
-		auto i = st.layers.begin();
-		for (
-			auto j = old.layer_states.begin();
-			i != st.layers.end() && j != old.layer_states.end();
-			++i, ++j
-			) {
-			layer_states.emplace_back(*i, *j);
-		}
-		for (; i != st.layers.end(); ++i) {
-			layer_states.emplace_back(*i);
+	visual_state::state::state(const state &old, animation_time_point_t now) {
+		layer_states.reserve(old.layer_states.size());
+		for (auto j = old.layer_states.begin(); j != old.layer_states.end(); ++j) {
+			layer_states.emplace_back(*j, now);
 		}
 	}
 
 
-	void visual_state::update(state &s, double dt) const {
+	animation_duration_t visual_state::update(state &s, animation_time_point_t now) const {
 		s.all_stationary = true;
+		auto res = animation_duration_t::max();
 		auto j = s.layer_states.begin();
 		for (auto i = layers.begin(); i != layers.end(); ++i, ++j) {
 			assert_true_usage(j != s.layer_states.end(), "invalid layer state data");
-			i->update(*j, dt);
+			res = std::min(res, i->update(*j, now));
 			if (!j->all_stationary) {
 				s.all_stationary = false;
 			}
 		}
+		return res;
 	}
 }

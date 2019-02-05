@@ -22,16 +22,15 @@ namespace codepad::ui {
 			/// Default constructor.
 			state() = default;
 			/// Initializes this struct to be the initial state of the given \ref metrics_state.
-			explicit state(const metrics_state &metrics) :
-				margin(metrics.margin_animation), padding(metrics.padding_animation),
-				size(metrics.size_animation) {
+			explicit state(const metrics_state &metrics, animation_time_point_t now) :
+				margin(metrics.margin_animation, now), padding(metrics.padding_animation, now),
+				size(metrics.size_animation, now) {
 			}
 			/// Initializes this struct to be the initial state of the given \ref metrics_state, with given initial
 			/// values that are taken if the corresponding animation doesn't have one.
-			state(const metrics_state &metrics, const state &s) :
-				margin(metrics.margin_animation, s.margin.current_value),
-				padding(metrics.padding_animation, s.padding.current_value),
-				size(metrics.size_animation, s.size.current_value) {
+			state(const state &s, animation_time_point_t now) :
+				margin(s.margin.current_value, now), padding(s.padding.current_value, now),
+				size(s.size.current_value, now) {
 			}
 
 			animated_property<thickness>::state
@@ -42,14 +41,16 @@ namespace codepad::ui {
 		};
 
 		/// Updates the given \ref state with the given time delta.
-		void update(state &s, double dt) const {
+		animation_duration_t update(state &s, animation_time_point_t now) const {
+			auto res = animation_duration_t::max();
 			if (!s.all_stationary) {
-				margin_animation.update(s.margin, dt);
-				padding_animation.update(s.padding, dt);
-				size_animation.update(s.size, dt);
+				res = std::min(res, margin_animation.update(s.margin, now));
+				res = std::min(res, padding_animation.update(s.padding, now));
+				res = std::min(res, size_animation.update(s.size, now));
 				s.all_stationary =
 					s.margin.stationary && s.padding.stationary && s.size.stationary;
 			}
+			return res;
 		}
 
 		animated_property<thickness>

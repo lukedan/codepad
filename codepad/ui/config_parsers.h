@@ -42,121 +42,20 @@ namespace codepad::ui {
 		ui_config_json_parser(manager &man) : _manager(man) {
 		}
 
-		/// Parses an \ref animated_property from a given JSON object. If the JSON object
-		/// is not an object but an array, number, or any other invalid format, the
-		/// \ref animated_property will be reset to its default state, with only its
-		/// animated_property::to parsed from the given value. As a consequence, inheritance
-		/// will be ignored. Otherwise, It parses and sets all available properties. It is
-		/// sometimes useful to set a value for animated_property::from and also set
-		/// animated_property::has_from to \p false, in order to have a custom start value
-		/// when there are no previously set values, to avoid `popping' animations.
-		template <typename T> void parse_animation(
-			const json::node_t &obj, animated_property<T> &ani
-		) {
-			if (obj.IsObject()) {
-				json::node_t::ConstMemberIterator mem;
-				mem = obj.FindMember(CP_STRLIT("to"));
-				if (mem != obj.MemberEnd()) {
-					ani.to = json_object_parsers::parse<T>(mem->value);
-				} else {
-					logger::get().log_warning(CP_HERE, "no \"to\" property found in animation");
-				}
-				mem = obj.FindMember(CP_STRLIT("from"));
-				if (mem != obj.MemberEnd()) {
-					ani.has_from = true;
-					ani.from = json_object_parsers::parse<T>(mem->value);
-				} else {
-					ani.has_from = false;
-				}
-				json::try_get(obj, CP_STRLIT("has_from"), ani.has_from);
-				json::try_get(obj, CP_STRLIT("auto_reverse"), ani.auto_reverse);
-				json::try_get(obj, CP_STRLIT("repeat"), ani.repeat);
-				json::try_get(obj, CP_STRLIT("duration"), ani.duration);
-				json::try_get(obj, CP_STRLIT("reverse_duration_scale"), ani.reverse_duration_scale);
-				mem = obj.FindMember(CP_STRLIT("transition"));
-				if (mem != obj.MemberEnd()) {
-					if (mem->value.IsString()) {
-						transition_function
-							fptr = _manager.try_get_transition_func(json::get_as_string(mem->value));
-						if (fptr == nullptr) {
-							ani.transition_func = transition_functions::linear;
-							logger::get().log_warning(
-								CP_HERE, "invalid transition function: ", json::get_as_string(mem->value)
-							);
-						} else {
-							ani.transition_func = fptr;
-						}
-					} else {
-						logger::get().log_warning(CP_HERE, "invalid transition function");
-					}
-				}
-			} else {
-				ani = animated_property<T>();
-				ani.to = json_object_parsers::parse<T>(obj);
-			}
-		}
-		/// Parses an \ref animated_property<texture> from a given JSON object, and registers all used
-		/// textures to the given \ref texture_table. If JSON object is a string, inheritance is ignored and
-		/// the specified texture is used. Otherwise, it parses all properties accordingly. The `frames' property
-		/// contains a series of texture file names and durations, which will be displayed in the order specified.
-		void parse_animation(const json::node_t &obj, animated_property<texture> &ani) {
-			using ani_t = animated_property<texture>;
-
-			bool good = true;
-			if (obj.IsString()) {
-				ani = animated_property<texture>();
-				ani.frames.emplace_back(_textures.get(json::get_as_string(obj)), 0.0);
-			} else if (obj.IsObject()) {
-				auto fs = obj.FindMember(CP_STRLIT("frames"));
-				if (fs != obj.MemberEnd()) {
-					if (fs->value.IsArray()) {
-						ani.frames.clear();
-						double lastframetime = ani_t::default_frametime;
-						auto beg = fs->value.Begin(), end = fs->value.End();
-						for (auto i = beg; i != end; ++i) {
-							if (i->IsArray()) {
-								if ((*i).Size() >= 2 && (*i)[0].IsString() && (*i)[1].IsNumber()) {
-									double frametime = (*i)[1].GetDouble();
-									ani.frames.emplace_back(_textures.get(json::get_as_string((*i)[0])), frametime);
-									lastframetime = frametime;
-								} else {
-									good = false;
-								}
-							} else if (i->IsString()) {
-								ani.frames.emplace_back(_textures.get(json::get_as_string(*i)), lastframetime);
-							} else {
-								good = false;
-							}
-						}
-					} else {
-						good = false;
-					}
-				}
-				json::try_get(obj, CP_STRLIT("auto_reverse"), ani.auto_reverse);
-				json::try_get(obj, CP_STRLIT("repeat"), ani.repeat);
-				json::try_get(obj, CP_STRLIT("reverse_duration_scale"), ani.reverse_duration_scale);
-			} else {
-				good = false;
-			}
-			if (!good) {
-				logger::get().log_warning(CP_HERE, "invalid texture animation format");
-			}
-		}
-
 		/// Parses a \ref visual_layer from the given JSON object, and registers all required textures to the given
 		/// \ref texture_table. If the layer contains only a single string, then it is treated as the file name of
 		/// the texture, and interpreted as an \ref animated_property<texture>.
 		void parse_layer(const json::node_t &val, visual_layer &layer) {
 			if (val.IsObject()) {
-				_find_and_parse_ani(val, CP_STRLIT("texture"), layer.texture_animation);
-				_find_and_parse_ani(val, CP_STRLIT("color"), layer.color_animation);
+				_find_and_parse_animation(val, CP_STRLIT("texture"), layer.texture_animation);
+				_find_and_parse_animation(val, CP_STRLIT("color"), layer.color_animation);
 				_try_find_and_parse(val, CP_STRLIT("type"), layer.layer_type);
-				_find_and_parse_ani(val, CP_STRLIT("margin"), layer.margin_animation);
+				_find_and_parse_animation(val, CP_STRLIT("margin"), layer.margin_animation);
 				_try_find_and_parse(val, CP_STRLIT("anchor"), layer.rect_anchor);
 				_parse_size(val, layer.size_animation, layer.width_alloc, layer.height_alloc);
 			} else if (val.IsString()) {
 				layer = visual_layer();
-				parse_animation(val, layer.texture_animation);
+				_parse_animation(val, layer.texture_animation);
 				return;
 			} else {
 				logger::get().log_warning(CP_HERE, "invalid layer info");
@@ -255,8 +154,8 @@ namespace codepad::ui {
 				}
 				fmem = val.FindMember(CP_STRLIT("value"));
 				if (fmem != val.MemberEnd() && fmem->value.IsObject()) {
-					_find_and_parse_ani(fmem->value, CP_STRLIT("padding"), dest->padding_animation);
-					_find_and_parse_ani(fmem->value, CP_STRLIT("margin"), dest->margin_animation);
+					_find_and_parse_animation(fmem->value, CP_STRLIT("padding"), dest->padding_animation);
+					_find_and_parse_animation(fmem->value, CP_STRLIT("margin"), dest->margin_animation);
 					_try_find_and_parse(fmem->value, CP_STRLIT("anchor"), dest->elem_anchor);
 					_parse_size(fmem->value, dest->size_animation, dest->width_alloc, dest->height_alloc);
 				} else {
@@ -372,33 +271,50 @@ namespace codepad::ui {
 		texture_table _textures; ///< Stores the list of textures to be loaded.
 		manager &_manager; ///< The \ref manager associated with this parser.
 
-		/// Finds the animation with the given name within the given JSON object, and parses it if there is one.
-		template <typename T> void _find_and_parse_ani(
-			const json::node_t &val, const str_t &s, animated_property<T> &p
-		) {
-			auto found = val.FindMember(s.c_str());
-			if (found != val.MemberEnd()) {
-				parse_animation(found->value, p);
+		/// Calls \ref json_object_parsers::parse() to parse an object from the given JSON object, only that this
+		/// function handles the special case where a texture is required. Use this instead of directly calling
+		/// \ref json_object_parsers::parse() when the type of object is unknown.
+		template <typename T> T _parse_object(const json::node_t &obj) {
+			if constexpr (std::is_same_v<T, std::shared_ptr<texture>>) {
+				if (obj.IsString()) {
+					return _textures.get(json::get_as_string_view(obj));
+				}
+				logger::get().log_warning(CP_HERE, "failed to parse texture");
+				return nullptr;
+			} else {
+				return json_object_parsers::parse<T>(obj);
 			}
 		}
+
 		/// Finds the attribute with the given name within the given JSON object, and parses it with a corresponding
 		/// parser.
 		///
 		/// \return Whether the attribute has been found.
-		template <typename T> inline static bool _try_find_and_parse(const json::node_t &val, const str_t &s, T &v) {
+		template <typename T> bool _try_find_and_parse(const json::node_t &val, const str_t &s, T &v) {
 			auto found = val.FindMember(s.c_str());
 			if (found != val.MemberEnd()) {
-				v = json_object_parsers::parse<T>(found->value);
+				v = _parse_object<T>(found->value);
 				return true;
 			}
 			return false;
 		}
 		/// Finds the attribute with the given name within the given JSON object, and parses it with a corresponding
 		/// parser. If no such attribute is found, the given default value is returned.
-		template <typename T> inline static T _find_and_parse(const json::node_t &val, const str_t &s, T dflt) {
+		template <typename T> T _find_and_parse(const json::node_t &val, const str_t &s, T dflt) {
 			T v = dflt;
 			_try_find_and_parse(val, s, v);
 			return v;
+		}
+
+		// below are utility functions for parsing parts of the configuration
+		/// Finds the animation with the given name within the given JSON object, and parses it if there is one.
+		template <typename T, typename Lerp> void _find_and_parse_animation(
+			const json::node_t &val, const str_t &s, animated_property<T, Lerp> &p
+		) {
+			auto found = val.FindMember(s.c_str());
+			if (found != val.MemberEnd()) {
+				_parse_animation(found->value, p);
+			}
 		}
 
 		/// Parses the `width' or `height' field that specifies the size of an object in one direction.
@@ -436,9 +352,10 @@ namespace codepad::ui {
 					_parse_size_component(h->value, sz.y, htype);
 				}
 				size = animated_property<vec2d>();
-				size.to = sz;
+				size.default_from_value = sz;
+				size.key_frames.emplace_back(sz);
 			} else { // parse size
-				_find_and_parse_ani(val, CP_STRLIT("size"), size);
+				_find_and_parse_animation(val, CP_STRLIT("size"), size);
 			}
 		}
 
@@ -488,6 +405,79 @@ namespace codepad::ui {
 				logger::get().log_warning(CP_HERE, "invalid state ID format");
 			}
 			return id;
+		}
+
+		/// Parses a \ref animated_property::key_frame.
+		template <typename T, typename Lerp> void _parse_key_frame(
+			const json::node_t &obj, typename animated_property<T, Lerp>::key_frame &frame
+		) {
+			_try_find_and_parse(obj, CP_STRLIT("duration"), frame.duration);
+			_try_find_and_parse(obj, CP_STRLIT("target"), frame.target);
+			// transition function
+			auto fmem = obj.FindMember(CP_STRLIT("transition"));
+			if (fmem != obj.MemberEnd()) {
+				if (fmem->value.IsString()) {
+					transition_function f = _manager.try_get_transition_func(json::get_as_string_view(fmem->value));
+					if (f) {
+						frame.transition_func = f;
+					} else {
+						logger::get().log_warning(
+							CP_HERE, "unknown transition function: ", json::get_as_string_view(fmem->value)
+						);
+					}
+				} else if (!fmem->value.IsNull()) {
+					logger::get().log_warning(CP_HERE, "cannot parse transition function, must be a string");
+				}
+			}
+		}
+		/// Parses an \ref animated_property from a given JSON object. If the JSON object is not an object but an
+		/// array, number, or any other invalid format, the \ref animated_property will be reset to its default
+		/// state, with only one key frame whose \ref animated_property::key_frame::target set to the given value
+		/// (i.e., inheritance will be ignored). Otherwise, It parses and writes over existing key frames.
+		template <typename T, typename Lerp> void _parse_animation(
+			const json::node_t &obj, animated_property<T, Lerp> &ani
+		) {
+			if (obj.IsObject()) {
+				json::node_t::ConstMemberIterator mem;
+				mem = obj.FindMember(CP_STRLIT("frames"));
+				if (mem != obj.MemberEnd()) {
+					if (mem->value.IsArray()) { // list of frames
+						for (size_t i = 0; i < mem->value.Size(); ++i) {
+							if (ani.key_frames.size() <= i) {
+								ani.key_frames.emplace_back();
+							}
+							_parse_key_frame<T, Lerp>(
+								mem->value[static_cast<rapidjson::SizeType>(i)], ani.key_frames[i]
+								);
+						}
+					} else {
+						logger::get().log_warning(CP_HERE, "the list of key frames must be a list");
+					}
+				} else { // parse directly, only one key frame
+					if (ani.key_frames.empty()) {
+						ani.key_frames.emplace_back();
+					}
+					_parse_key_frame<T, Lerp>(obj, ani.key_frames[0]);
+				}
+				_try_find_and_parse(obj, CP_STRLIT("default"), ani.default_from_value);
+				mem = obj.FindMember(CP_STRLIT("repeat"));
+				if (mem != obj.MemberEnd()) {
+					if (mem->value.IsUint64()) {
+						ani.repeat_times = static_cast<size_t>(mem->value.GetUint64());
+					} else if (mem->value.IsBool()) { // repeat forever?
+						ani.repeat_times = mem->value.IsTrue() ? 0 : 1;
+					} else {
+						logger::get().log_warning(
+							CP_HERE, "repeat must be either a non-negative integer or a boolean"
+						);
+					}
+				}
+			} else {
+				ani = animated_property<T, Lerp>();
+				T val = _parse_object<T>(obj);
+				ani.default_from_value = val;
+				ani.key_frames.emplace_back(val);
+			}
 		}
 	};
 

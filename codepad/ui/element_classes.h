@@ -25,10 +25,11 @@ namespace codepad::ui {
 		/// Initializes the configuration with the given \ref state_mapping and \ref element_state_id. If the
 		/// \ref element_state_id is not given, the state is set to \ref normal_element_state_id.
 		explicit configuration(
-			const state_mapping<StateValue> &reg, element_state_id state = normal_element_state_id
+			const state_mapping<StateValue> &reg, element_state_id state = normal_element_state_id,
+			animation_time_point_t now = animation_clock_t::now()
 		) : _registry(&reg) {
 			_ctrl = &_registry->match_state_or_first(state);
-			_state = typename StateValue::state(*_ctrl);
+			_state = typename StateValue::state(*_ctrl, now);
 		}
 
 		/// Returns the element's \p StateValue::state, i.e., its current state regarding to the value. Note that
@@ -54,19 +55,15 @@ namespace codepad::ui {
 		/// Updates \ref _state with \ref _registry if \ref _state is not stationary.
 		///
 		/// \return Whether \ref _state, after having been updated, is stationary.
-		bool update(double dt) {
-			if (_state.all_stationary) {
-				return true;
-			}
-			_ctrl->update(_state, dt);
-			return _state.all_stationary;
+		animation_duration_t update(animation_time_point_t now) {
+			return _ctrl->update(_state, now);
 		}
 
 		/// Called when the state has been changed to update \ref _state and \ref _ctrl properly.
-		void on_state_changed(element_state_id s) {
+		void on_state_changed(element_state_id s, animation_time_point_t now = animation_clock_t::now()) {
 			if (_registry) {
 				_ctrl = &_registry->match_state_or_first(s);
-				_state = typename StateValue::state(*_ctrl, _state);
+				_state = typename StateValue::state(_state, now);
 			}
 		}
 	protected:
@@ -128,20 +125,17 @@ namespace codepad::ui {
 		const class_hotkey_group *hotkey_config = nullptr; ///< Hotkey configurations.
 
 		/// Changes the state of the both configurations.
-		void on_state_changed(element_state_id st) {
-			visual_config.on_state_changed(st);
-			metrics_config.on_state_changed(st);
+		void on_state_changed(element_state_id st, animation_time_point_t now = animation_clock_t::now()) {
+			visual_config.on_state_changed(st, now);
+			metrics_config.on_state_changed(st, now);
 		}
 		/// Checks if all animations have finished.
 		bool all_stationary() const {
 			return visual_config.get_state().all_stationary && metrics_config.get_state().all_stationary;
 		}
 		/// Updates \ref visual_config and \ref metrics_config.
-		///
-		/// \return Whether \ref visual_config and \ref metrics_config are both stationary.
-		bool update(double dt) {
-			bool visstat = visual_config.update(dt), metstat = metrics_config.update(dt);
-			return visstat && metstat;
+		animation_duration_t update(animation_time_point_t now) {
+			return std::min(visual_config.update(now), metrics_config.update(now));
 		}
 	};
 }

@@ -344,9 +344,9 @@ namespace codepad::editor::code {
 		};
 
 		/// Updates \ref _viewport_cfg.
-		bool _on_update_visual_configurations(double time) override {
-			_viewport_cfg.update(time);
-			return element::_on_update_visual_configurations(time) && _viewport_cfg.get_state().all_stationary;
+		void _on_update_visual_configurations(ui::animation_update_info &info) override {
+			element::_on_update_visual_configurations(info);
+			info.update_configuration(_viewport_cfg);
 		}
 
 		/// Checks and validates \ref _pgcache by calling \ref _page_cache::prepare.

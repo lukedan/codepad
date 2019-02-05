@@ -28,10 +28,9 @@ namespace codepad::ui {
 
 		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
 		enum class wait_type {
-			blocking,
-			non_blocking
+			blocking, ///< This operation is synchronous.
+			non_blocking ///< This operation is asynchronous.
 		};
-
 		/// Stores a task that can be executed every update.
 		struct update_task {
 			/// A token that through whcih the associated \ref update_task can be scheduled.
@@ -123,13 +122,6 @@ namespace codepad::ui {
 				return;
 			}
 			performance_monitor mon(CP_HERE, render_time_redline);
-			auto now = std::chrono::high_resolution_clock::now();
-			double diff = std::chrono::duration<double>(now - _lastrender).count();
-			if (diff < _min_render_interval) {
-				// don't render too often
-				return;
-			}
-			_lastrender = now;
 			// gather the list of windows to render
 			std::set<element*> ss;
 			for (auto i : _dirty) {
@@ -147,11 +139,13 @@ namespace codepad::ui {
 		/// Schedules the given element's visual configurations to be updated.
 		void schedule_visual_config_update(element &elem) {
 			_visualcfg_update.emplace(&elem);
+			_reset_update_estimate();
 		}
 		/// Schedules the given element's \ref metrics_configuration to be updated.
 		void schedule_metrics_config_update(element &elem) {
 			if (!elem._config.metrics_config.get_state().all_stationary) {
 				_metricscfg_update.emplace(&elem);
+				_reset_update_estimate();
 			}
 		}
 		/// Schedules the given element to be updated next frame.
@@ -216,33 +210,50 @@ namespace codepad::ui {
 		/// \ref schedule_metrics_config_update(), and \ref schedule_element_update().
 		void update_scheduled_elements() {
 			performance_monitor mon(CP_HERE);
+
+			auto aninow = animation_clock_t::now();
+
+			if (aninow >= _next_update) { // only update when necessary
+				animation_duration_t wait_time = animation_duration_t::max();
+
+				// from schedule_visual_config_update()
+				if (!_visualcfg_update.empty()) {
+					std::set<element*> oldset;
+					swap(oldset, _visualcfg_update);
+					for (element *e : oldset) {
+						animation_update_info info(aninow);
+						e->invalidate_visual();
+						e->_on_update_visual_configurations(info);
+						if (!info.is_stationary()) {
+							wait_time = std::min(wait_time, info.get_wait_time());
+							schedule_visual_config_update(*e);
+						}
+					}
+				}
+
+				// from schedule_metrics_config_update()
+				if (!_metricscfg_update.empty()) {
+					std::set<element*> oldset;
+					swap(oldset, _metricscfg_update);
+					for (element *e : oldset) {
+						e->invalidate_layout();
+						wait_time = std::min(wait_time, e->_config.metrics_config.update(aninow));
+						if (!e->_config.metrics_config.get_state().all_stationary) {
+							schedule_metrics_config_update(*e);
+						}
+					}
+				}
+
+				_next_update = aninow + wait_time;
+				if (wait_time > _update_wait_threshold) { // set timer
+					// the update may have taken some time
+					_set_timer(_next_update - std::chrono::high_resolution_clock::now());
+				}
+			}
+
 			auto nnow = std::chrono::high_resolution_clock::now();
-			_upd_dt = std::chrono::duration<double>(nnow - _lastupdate).count();
-			_lastupdate = nnow;
-
-			// from schedule_visual_config_update()
-			if (!_visualcfg_update.empty()) {
-				std::set<element*> oldset;
-				swap(oldset, _visualcfg_update);
-				for (element *e : oldset) {
-					e->invalidate_visual();
-					if (!e->_on_update_visual_configurations(_upd_dt)) {
-						schedule_visual_config_update(*e);
-					}
-				}
-			}
-
-			// from schedule_metrics_config_update()
-			if (!_metricscfg_update.empty()) {
-				std::set<element*> oldset;
-				swap(oldset, _metricscfg_update);
-				for (element *e : oldset) {
-					e->invalidate_layout();
-					if (!e->_config.metrics_config.update(_upd_dt)) {
-						schedule_metrics_config_update(*e);
-					}
-				}
-			}
+			_upd_dt = std::chrono::duration<double>(nnow - _last_update).count();
+			_last_update = nnow;
 
 			// from schedule_element_update()
 			// TODO remove this?
@@ -258,16 +269,6 @@ namespace codepad::ui {
 		/// time \ref update_scheduled_elements has been called, in seconds.
 		double update_delta_time() const {
 			return _upd_dt;
-		}
-
-		/// Returns the current minimum rendering interval that indicates how long it must be
-		/// between two consecutive re-renders.
-		double get_minimum_rendering_interval() const {
-			return _min_render_interval;
-		}
-		/// Sets the minimum rendering interval.
-		void set_minimum_rendering_interval(double dv) {
-			_min_render_interval = dv;
 		}
 
 		/// Sets the currently focused element. When called, this function also interrupts any ongoing composition.
@@ -370,6 +371,15 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Returns \ref _update_wait_threshold.
+		std::chrono::high_resolution_clock::duration get_update_waiting_threshold() const {
+			return _update_wait_threshold;
+		}
+		/// Sets the minimum time to wait instead of 
+		void set_update_waiting_threshold(std::chrono::high_resolution_clock::duration d) {
+			_update_wait_threshold = d;
+		}
+
 		/// Simply calls \ref update_invalid_layout and \ref update_invalid_visuals.
 		void update_layout_and_visual() {
 			update_invalid_layout();
@@ -390,7 +400,11 @@ namespace codepad::ui {
 			return
 				_active_update_tasks > 0 || !_temp_tasks.empty() || // tasks
 				!_del.empty() || // element disposal
-				!_visualcfg_update.empty() || !_metricscfg_update.empty() || !_upd.empty() || // element update
+				( // element config update
+					!(_visualcfg_update.empty() && _metricscfg_update.empty()) &&
+					_next_update <= std::chrono::high_resolution_clock::now() + _update_wait_threshold
+					) ||
+				!_upd.empty() || // element update
 				!_children_layout_scheduled.empty() || !_layout_notify.empty() || // layout
 				!_dirty.empty(); // visual
 		}
@@ -405,7 +419,7 @@ namespace codepad::ui {
 				}
 			} else {
 				_idle_system(wait_type::blocking);
-				_lastupdate = std::chrono::high_resolution_clock::now();
+				_last_update = std::chrono::high_resolution_clock::now();
 			}
 		}
 
@@ -437,11 +451,15 @@ namespace codepad::ui {
 		std::list<update_task> _regular_tasks; ///< The list of registered update tasks.
 		std::vector<std::function<void()>> _temp_tasks; ///< The list of temporary tasks.
 
-		/// The time point when elements were last rendered.
-		std::chrono::time_point<std::chrono::high_resolution_clock> _lastrender;
-		/// The time point when elements were last updated.
-		std::chrono::time_point<std::chrono::high_resolution_clock> _lastupdate;
-		double _min_render_interval = 0.0; ///< The minimum interval between consecutive re-renders.
+		std::chrono::high_resolution_clock::time_point
+			/// The time point when elements were last updated.
+			_last_update,
+			/// The time point of the next time when updating will be necessary.
+			_next_update;
+		/// If the next update is more than this amount of time away, then set the timer and yield control to reduce
+		/// resource consumption.
+		std::chrono::high_resolution_clock::duration _update_wait_threshold{0};
+
 		double _upd_dt = 0.0; ///< The duration since elements were last updated.
 		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
 		size_t _active_update_tasks = 0; ///< The number of active update tasks.
@@ -489,9 +507,19 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Forces all configurations to update right now.
+		void _reset_update_estimate() {
+			_next_update = std::chrono::high_resolution_clock::now();
+		}
+
+		// platform-dependent functions
 		/// Handles one message from the system message queue. This function is platform-dependent.
 		///
 		/// \return Whether a message has been handled.
 		bool _idle_system(wait_type);
+		/// Sets a timer that will be activated after the given amount of time. When the timer is expired, this
+		/// program will regain control and thus can update stuff. If this is called when a timer has previously
+		/// been set, it may or may not be cancelled. This function is platform-dependent.
+		void _set_timer(std::chrono::high_resolution_clock::duration);
 	};
 }

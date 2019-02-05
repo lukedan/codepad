@@ -600,9 +600,11 @@ namespace codepad::ui {
 		return wic_image_loader::get().load_image(r, filename);
 	}
 
+
 	shared_ptr<font> create_font(font_manager &man, str_view_t view, double sz, font_style style) {
 		return make_shared<freetype_font>(man, view, sz, style);
 	}
+
 
 	bool scheduler::_idle_system(wait_type ty) {
 		MSG msg;
@@ -627,5 +629,13 @@ namespace codepad::ui {
 			return true;
 		}
 		return false;
+	}
+
+	void scheduler::_set_timer(std::chrono::high_resolution_clock::duration duration) {
+		thread_local static UINT_PTR _timer_handle = 0;
+
+		UINT timeout = std::chrono::duration_cast<std::chrono::duration<UINT, std::milli>>(duration).count();
+		_timer_handle = SetTimer(nullptr, _timer_handle, timeout, nullptr);
+		assert_true_sys(_timer_handle != 0, "failed to register timer");
 	}
 }

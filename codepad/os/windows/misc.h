@@ -96,15 +96,14 @@ namespace codepad::os {
 			return res;
 		}
 		/// Converts the given null-terminated UTF-8 string to UTF-16 with the \p MultiByteToWideChar function.
-		inline std::basic_string<WCHAR> utf8_to_wstring(const char *str) {
-			int chars = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
+		inline std::basic_string<WCHAR> utf8_to_wstring(std::string_view str) { // TODO use u8string_view
+			int chars = MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.length()), nullptr, 0);
 			assert_true_sys(chars != 0, "failed to convert utf8 string to utf16");
 			std::basic_string<WCHAR> res;
 			res.resize(static_cast<size_t>(chars) * 2); // 2 words per char max
-			assert_true_sys(
-				MultiByteToWideChar(CP_UTF8, 0, str, -1, res.data(), chars) == chars,
-				"failed to convert utf16 string to utf8"
-			);
+			assert_true_sys(MultiByteToWideChar(
+				CP_UTF8, 0, str.data(), static_cast<int>(str.length()), res.data(), chars
+			) == chars, "failed to convert utf16 string to utf8");
 			// find the ending of the string
 			auto it = res.begin() + chars;
 			for (; it != res.end() && *it != 0; ++it) {

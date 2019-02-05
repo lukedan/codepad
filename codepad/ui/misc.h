@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <charconv>
+#include <chrono>
 
 #include "../core/misc.h"
 #include "../core/json.h"
@@ -52,6 +53,21 @@ namespace codepad::ui {
 			}
 			logger::get().log_warning(CP_HERE, "invalid color representation");
 			return colord();
+		}
+		/// Parses a duration from a number. The unit is seconds. Note that this function has a different name, so
+		/// each duration type has to implement their own \p parse() function.
+		///
+		/// \todo Also accept string representations.
+		template <typename Rep, typename Period> inline std::chrono::duration<Rep, Period> parse_duration(
+			const json::node_t &val
+		) {
+			using _res_t = std::chrono::duration<Rep, Period>;
+
+			if (val.IsNumber()) {
+				return std::chrono::duration_cast<_res_t>(std::chrono::duration<double>(val.GetDouble()));
+			}
+			logger::get().log_warning(CP_HERE, "invalid duration representation");
+			return _res_t();
 		}
 	}
 
@@ -391,6 +407,129 @@ namespace codepad::ui {
 	/// current process of the animation, and the output is used to linearly interpolate the current value between
 	/// \ref animated_property::from and \ref animated_property::to.
 	using transition_function = std::function<double(double)>;
+
+	/// Used to interpolate between values using \ref lerp().
+	template <typename T> struct default_lerp {
+		/// Calls \ref lerp().
+		T operator()(T from, T to, double perc) const {
+			return lerp(from, to, perc);
+		}
+	};
+	/// Returns the target value without interpolating.
+	struct no_lerp {
+		/// Returns \p to.
+		template <typename T> T operator()(T, T to, double) const {
+			return to;
+		}
+	};
+	using animation_clock_t = std::chrono::high_resolution_clock; ///< Type of the clock used for animation updating.
+	using animation_time_point_t = animation_clock_t::time_point; ///< Represents a time point in an animation.
+	using animation_duration_t = animation_clock_t::duration; ///< Represents a duration in an animation.
+	namespace json_object_parsers {
+		/// Parses a \ref animation_duration_t by calling \ref parse_duration().
+		template <> inline animation_duration_t parse<animation_duration_t>(const json::node_t &obj) {
+			return parse_duration<animation_duration_t::rep, animation_duration_t::period>(obj);
+		}
+	}
+	/// A property that can be animated. Each property consists of multiple key frames with corresponding
+	/// target values, durations, and transition functions.
+	template <typename T, typename Lerp = default_lerp<T>> struct animated_property {
+	public:
+		/// The maximum number of key frames to advance per update. This is to prevent repeating key frames with zero
+		/// duration from locking up the program.
+		constexpr static size_t maximum_frames_per_update = 1000;
+
+		/// A key frame.
+		struct key_frame {
+			/// Default constructor.
+			key_frame() = default;
+			/// Initializes all fields of this struct.
+			explicit key_frame(
+				T tar, animation_duration_t dur = animation_duration_t::zero(), transition_function func = nullptr
+			) : target(tar), duration(dur), transition_func(func) {
+			}
+
+			T target{}; ///< The target value.
+			/// The duration of this key frame, i.e., the time after the last key frame and before this key frame.
+			animation_duration_t duration;
+			/// The transition function. If this is \p nullptr, then the animation will immediately reach \ref target
+			/// value at this \ref key_frame.
+			transition_function transition_func;
+		};
+		/// Tracks an ongoing animation.
+		struct state {
+			/// Default constructor.
+			state() = default;
+			/// Initializes this state using a custom starting value.
+			state(const T &start, animation_time_point_t now) :
+				from(start), current_value(start), key_frame_start(now) {
+			}
+			/// Initializes this state using \ref default_from_value as the starting value.
+			state(const animated_property &prop, animation_time_point_t now) : state(prop.default_from_value, now) {
+			}
+
+			T
+				from, ///< The value of the last key frame, or the original value.
+				current_value; ///< The current value of the animation.
+			animation_time_point_t key_frame_start; ///< Time when the last \ref key_frame was reached.
+			size_t
+				current_frame = 0, ///< The index of the current \ref key_frame.
+				repeated = 0; ///< The number of times that this animation has been repeated.
+			bool stationary = false; ///< Indicates whether this animation has finished.
+		};
+
+		std::vector<key_frame> key_frames; ///< The list of key frames.
+		T default_from_value; ///< The default starting value of this animation if no value is previously present.
+		/// The number of times to repeat the whole animation. If this is 0, then the animation will be repeated
+		/// indefinitely.
+		size_t repeat_times = 1;
+
+		/// Updates a given \ref state.
+		///
+		/// \param s The \ref state.
+		/// \param now The time of now.
+		/// \return The time, in seconds, before this \ref state needs to be updated again.
+		animation_duration_t update(state &s, animation_time_point_t now) const {
+			if (!s.stationary) {
+				for (size_t i = 0; i < maximum_frames_per_update; ++i) { // go through the frames
+					if (s.current_frame >= key_frames.size()) { // animation has finished
+						s.stationary = true;
+						s.current_value = key_frames.empty() ? default_from_value : key_frames.back().target;
+						return animation_duration_t::max();
+					}
+					const key_frame &f = key_frames[s.current_frame];
+					animation_time_point_t key_frame_end = s.key_frame_start + f.duration;
+					if (key_frame_end > now) { // at the correct frame
+						if (f.transition_func) {
+							s.current_value = Lerp()(s.from, f.target, f.transition_func(
+								std::chrono::duration<double>(now - s.key_frame_start) / f.duration
+							));
+							return animation_duration_t(0); // update immediately
+						} else { // wait until this key frame is over
+							s.current_value = f.target;
+							return key_frame_end - now;
+						}
+					}
+					// advance frame
+					s.key_frame_start += f.duration;
+					s.from = f.target; // next frame starts at the target value of this frame
+					if (++s.current_frame == key_frames.size()) { // at the end, check if should repeat
+						++s.repeated;
+						if (repeat_times == 0 || s.repeated < repeat_times) { // yes
+							s.current_frame = 0;
+						} else { // this animation has finished
+							s.stationary = true;
+							s.current_value = f.target;
+							return animation_duration_t::max();
+						}
+					}
+				}
+				logger::get().log_warning(CP_HERE, "potential infinite loop in animation");
+			}
+			return animation_duration_t::max(); // don't update
+		}
+	};
+	/*
 	/// A property of a \ref visual_layer that can be animated. This only stores the
 	/// parameters of the animation; the actual animating process is done on \ref state.
 	/// After the animation is over, the value stays at \ref to.
@@ -562,6 +701,7 @@ namespace codepad::ui {
 			}
 		}
 	};
+	*/
 
 	/// Patterns used to match states.
 	struct state_pattern {

@@ -17,7 +17,7 @@ namespace codepad::ui {
 	void element::invalidate_visual() {
 		get_manager().get_scheduler().invalidate_visual(*this);
 	}
-	
+
 	void element::invalidate_layout() {
 		get_manager().get_scheduler().invalidate_layout(*this);
 	}
@@ -77,8 +77,8 @@ namespace codepad::ui {
 		mouse_up.invoke(p);
 	}
 
-	bool element::_on_update_visual_configurations(double dt) {
-		return _config.visual_config.update(dt);
+	void element::_on_update_visual_configurations(animation_update_info &info) {
+		info.update_configuration(_config.visual_config);
 	}
 
 	void element::_on_prerender() {
@@ -201,7 +201,9 @@ namespace codepad::ui {
 
 	void decoration::set_class(const str_t &cls) {
 		_class = cls;
-		_vis_config = visual_configuration(_manager.get_class_visuals().get_or_default(_class), _state);
+		_vis_config = visual_configuration(
+			_manager.get_class_visuals().get_or_default(_class), _state
+		);
 		_on_state_invalidated();
 	}
 }

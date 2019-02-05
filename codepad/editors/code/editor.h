@@ -1090,12 +1090,10 @@ namespace codepad::editor::code {
 		}
 
 		/// Updates caret and selection visuals.
-		bool _on_update_visual_configurations(double time) override {
-			_caret_cfg.update(time);
-			_sel_cfg.update(time);
-			return
-				element::_on_update_visual_configurations(time) &&
-				_caret_cfg.get_state().all_stationary && _sel_cfg.get_state().all_stationary;
+		void _on_update_visual_configurations(ui::animation_update_info &info) override {
+			element::_on_update_visual_configurations(info);
+			info.update_configuration(_caret_cfg);
+			info.update_configuration(_sel_cfg);
 		}
 
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.

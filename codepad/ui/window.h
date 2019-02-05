@@ -164,7 +164,7 @@ namespace codepad::ui {
 		}
 
 		/// Updates the \ref visual_configuration of all \ref decoration "decorations".
-		bool _on_update_visual_configurations(double time) override;
+		void _on_update_visual_configurations(animation_update_info&) override;
 
 		/// Called in decoration::~decoration() to automatically unregister the decoration.
 		virtual void _on_decoration_destroyed(decoration &d) {

@@ -27,6 +27,7 @@ namespace codepad::ui {
 
 	/// Contains information about mouse movement.
 	struct mouse_move_info {
+	public:
 		/// Constructor.
 		explicit mouse_move_info(vec2d p) : new_position(p) {
 		}
@@ -35,6 +36,7 @@ namespace codepad::ui {
 	};
 	/// Contains information about mouse scrolling.
 	struct mouse_scroll_info {
+	public:
 		/// Constructor.
 		mouse_scroll_info(double d, vec2d pos) : offset(d), position(pos) {
 		}
@@ -56,6 +58,7 @@ namespace codepad::ui {
 	};
 	/// Contains information about mouse clicks.
 	struct mouse_button_info {
+	public:
 		/// Constructor.
 		mouse_button_info(mouse_button mb, modifier_keys mods, vec2d pos) :
 			button(mb), modifiers(mods), position(pos) {
@@ -74,6 +77,41 @@ namespace codepad::ui {
 		}
 	protected:
 		bool _focus_set = false; ///< Marks if the click has caused the focused element to change.
+	};
+	/// Contains information as well as feedback for updating animations.
+	struct animation_update_info {
+	public:
+		/// Initializes \ref now to \ref animation_clock_t::now().
+		animation_update_info() : animation_update_info(animation_clock_t::now()) {
+		}
+		/// Initializes \ref now.
+		explicit animation_update_info(animation_time_point_t t) : now(t) {
+		}
+
+		const animation_time_point_t now; ///< The time.
+
+		/// Updates the given configuration and updates \ref _wait and \ref _stationary accordingly. Use this instead
+		/// of \ref configuration::update, or related statistics (\ref _wait and \ref _stationary) won't be properly
+		/// updated.
+		template <typename T> void update_configuration(configuration<T> &cfg) {
+			_wait = std::min(_wait, cfg.update(now));
+			if (!cfg.get_state().all_stationary) {
+				_stationary = false;
+			}
+		}
+
+		/// Returns \ref _wait.
+		animation_duration_t get_wait_time() const {
+			return _wait;
+		}
+		/// Returns \ref _stationary.
+		bool is_stationary() const {
+			return _stationary;
+		}
+	protected:
+		/// The amount of time to wait before updating again.
+		animation_duration_t _wait = animation_duration_t::max();
+		bool _stationary = true; ///< Marks if all animations have finished playing.
 	};
 	/// Contains information about key presses.
 	struct key_info {
@@ -446,11 +484,7 @@ namespace codepad::ui {
 
 		/// Called to update \ref visual_configuration associated with this element. Layout configuration of elements
 		/// are instead managed by \ref manager since extra ones are rarely useful.
-		///
-		/// \param time The time since last frame.
-		/// \return Indicates whether all associated configurations have become stationary. If \p false, this
-		///         function together with \ref invalidate_visual() will be called next frame.
-		virtual bool _on_update_visual_configurations(double time);
+		virtual void _on_update_visual_configurations(animation_update_info&);
 
 		/// Checks if any bit in \p bits have changed, given the element's old states.
 		bool _has_any_state_bit_changed(element_state_id bits, const value_update_info<element_state_id> &p) const {

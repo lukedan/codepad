@@ -26,7 +26,7 @@ namespace codepad::os {
 			constexpr size_t maximum_font_name_length = 100;
 			constexpr DWORD ttcf = 0x66637474;
 
-			std::wstring utf16string = _details::utf8_to_wstring(str.data());
+			std::wstring utf16string = _details::utf8_to_wstring(str);
 			HFONT font = CreateFont(
 				0, 0, 0, 0,
 				(style & ui::font_style::bold) != ui::font_style::normal ? FW_BOLD : FW_NORMAL,

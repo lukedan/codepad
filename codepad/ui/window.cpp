@@ -100,22 +100,21 @@ namespace codepad::ui {
 		}
 	}
 
-	bool window_base::_on_update_visual_configurations(double time) {
-		bool stationary = true;
+	void window_base::_on_update_visual_configurations(animation_update_info &info) {
+		panel::_on_update_visual_configurations(info);
 		for (auto i = _decos.begin(); i != _decos.end(); ) {
-			if ((*i)->_vis_config.update(get_manager().get_scheduler().update_delta_time())) {
-				if (((*i)->get_state() & get_manager().get_predefined_states().corpse) != 0) {
-					auto j = i;
-					++i;
-					delete *j; // the decoration will remove itself from _decos in its destructor
-					continue;
-				}
-			} else {
-				stationary = false;
+			info.update_configuration((*i)->_vis_config);
+			if (
+				(*i)->_vis_config.get_state().all_stationary &&
+				((*i)->get_state() & get_manager().get_predefined_states().corpse) != 0
+			) {
+				auto j = i;
+				++i;
+				delete *j; // the decoration will remove itself from _decos in its destructor
+				continue;
 			}
 			++i;
 		}
-		return panel::_on_update_visual_configurations(time) && stationary;
 	}
 
 	void window_base::_custom_render() {
