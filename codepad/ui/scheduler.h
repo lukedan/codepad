@@ -1,3 +1,6 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 #pragma once
 
 /// \file
@@ -20,11 +23,11 @@ namespace codepad::ui {
 		friend window_base;
 		friend element_collection;
 	public:
-		constexpr static double
+		constexpr static std::chrono::duration<double>
 			/// Maximum expected time for all layout operations during a single frame.
-			relayout_time_redline = 0.01,
+			relayout_time_redline{0.01},
 			/// Maximum expected time for all rendering operations during a single frame.
-			render_time_redline = 0.04;
+			render_time_redline{0.04};
 
 		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
 		enum class wait_type {
@@ -82,7 +85,7 @@ namespace codepad::ui {
 			if (_children_layout_scheduled.empty() && _layout_notify.empty()) {
 				return;
 			}
-			performance_monitor mon(CP_HERE, relayout_time_redline);
+			performance_monitor mon(CP_STRLIT("layout"), relayout_time_redline);
 			assert_true_logical(!_layouting, "update_invalid_layout() cannot be called recursively");
 			_layouting = true;
 			std::deque<element*> notify(_layout_notify.begin(), _layout_notify.end()); // list of elements to be notified
@@ -121,7 +124,7 @@ namespace codepad::ui {
 			if (_dirty.empty()) {
 				return;
 			}
-			performance_monitor mon(CP_HERE, render_time_redline);
+			performance_monitor mon("render", render_time_redline);
 			// gather the list of windows to render
 			std::set<element*> ss;
 			for (auto i : _dirty) {
@@ -209,7 +212,7 @@ namespace codepad::ui {
 		/// Updates all elements that are scheduled to be updated by \ref schedule_visual_config_update(),
 		/// \ref schedule_metrics_config_update(), and \ref schedule_element_update().
 		void update_scheduled_elements() {
-			performance_monitor mon(CP_HERE);
+			performance_monitor mon("update_misc");
 
 			auto aninow = animation_clock_t::now();
 
@@ -343,7 +346,7 @@ namespace codepad::ui {
 		/// Disposes all elements that has been marked for disposal. Other elements that are not marked
 		/// previously but are marked for disposal during the process are also disposed.
 		void dispose_marked_elements() {
-			performance_monitor mon(CP_HERE);
+			performance_monitor mon("dispose_elements");
 			while (!_del.empty()) { // as long as there are new batches to dispose of
 				std::set<element*> batch;
 				std::swap(batch, _del);

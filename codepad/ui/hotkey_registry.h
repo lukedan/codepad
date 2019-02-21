@@ -23,21 +23,7 @@ namespace codepad::ui {
 		control = 1, ///< The `control' key.
 		shift = 2, ///< The `shift' key.
 		alt = 4, ///< The `alt' key.
-		super = 8, ///< The `super' key, corresponds to either the `win' key or the `command' key.
-
-		control_shift = control | shift, ///< Contrl + Shift.
-		control_alt = control | alt, ///< Control + Alt.
-		shift_alt = shift | alt, ///< Shift + Alt.
-		control_super = control | super, ///< Control + Super.
-		shift_super = shift | super, ///< Shift + Super.
-		alt_super = alt | super, ///< Alt + Super.
-
-		control_shift_alt = control | shift | alt, ///< Control + Shift + Alt.
-		control_shift_super = control | shift | super, ///< Control + Shift + Super.
-		control_alt_super = control | alt | super, ///< Control + Alt + Super.
-		shift_alt_super = shift | alt | super, ///< Shift + Alt + Super.
-
-		control_shift_alt_super = control | shift | alt | super ///< Control + Shift + Alt + Super.
+		super = 8 ///< The `super' key, corresponds to either the `win' key or the `command' key.
 	};
 }
 namespace codepad {

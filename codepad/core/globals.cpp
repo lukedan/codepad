@@ -21,19 +21,17 @@
 #include "../editors/tabs.h"
 #include "../editors/buffer_manager.h"
 #include "../editors/code/components.h"
-#include "../editors/code/editor.h"
+#include "../editors/code/contents_region.h"
 #include "../editors/code/document_formatting_cache.h"
 
 using namespace std;
 
 using namespace codepad::os;
 using namespace codepad::ui;
-using namespace codepad::editor;
-using namespace codepad::editor::code;
+using namespace codepad::editors;
+using namespace codepad::editors::code;
 
 namespace codepad {
-	double code::editor::_lines_per_scroll = 3.0;
-
 	double minimap::_target_height = 2.0;
 
 	/*std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;*/
@@ -164,19 +162,13 @@ namespace codepad {
 			return _v.object;
 		}
 	}
-	namespace ui {
-		content_host::_default_font &content_host::_default_font::get() {
-			static _global_wrapper<_default_font> _v;
-			return _v.object;
-		}
-	}
-	namespace editor {
+	namespace editors {
 		buffer_manager &buffer_manager::get() {
 			static _global_wrapper<buffer_manager> _v;
 			return _v.object;
 		}
 		namespace code {
-			editor::_appearance_config &editor::_get_appearance() {
+			contents_region::_appearance_config &contents_region::_get_appearance() {
 				static _global_wrapper<_appearance_config> _v;
 				return _v.object;
 			}

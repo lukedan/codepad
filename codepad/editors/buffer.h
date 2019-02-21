@@ -10,11 +10,12 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <fstream>
 
 #include "../core/bst.h"
 #include "../ui/element.h"
 
-namespace codepad::editor {
+namespace codepad::editors {
 	class buffer_manager;
 
 	/// A \p std::basic_string whose elements are of type \p std::byte. This differs from \ref byte_array in that
@@ -37,7 +38,7 @@ namespace codepad::editor {
 		friend buffer_manager;
 	public:
 		/// The maximum number of bytes there can be in a single chunk.
-		constexpr static size_t maximum_bytes_per_chunk = 1000;
+		constexpr static size_t maximum_bytes_per_chunk = 4096;
 
 		/// Stores the contents of a chunk.
 		using chunk_data = byte_array;
@@ -88,7 +89,7 @@ namespace codepad::editor {
 				if (++_s == _it->end()) {
 					_chunkpos += _it->size();
 					++_it;
-					_s = _it != _it.get_container()->end() ? _it->begin() : SIt();
+					_s = (_it != _it.get_container()->end() ? _it.get_value_rawmod().begin() : SIt());
 				}
 				return *this;
 			}
@@ -103,7 +104,7 @@ namespace codepad::editor {
 				if (_it == _it.get_container()->end() || _s == _it->begin()) {
 					--_it;
 					_chunkpos -= _it->size();
-					_s = _it->end();
+					_s = _it.get_value_rawmod().end();
 				}
 				--_s;
 				return *this;
@@ -388,6 +389,51 @@ namespace codepad::editor {
 		/// Constructs this \ref buffer with the given file name, and loads that file's contents.
 		explicit buffer(const std::filesystem::path &filename) :
 			_fileid(std::in_place_type<std::filesystem::path>, filename) {
+
+			performance_monitor mon(CP_STRLIT("load file"), performance_monitor::log_condition::always);
+
+			// read version
+			os::file f(filename, os::access_rights::read, os::open_mode::open);
+			if (f.valid()) {
+				std::vector<chunk_data> chunks;
+				while (true) {
+					auto &chk = chunks.emplace_back();
+					chk.resize(maximum_bytes_per_chunk);
+					os::file::pos_type res = f.read(maximum_bytes_per_chunk, chk.data());
+					if (res < maximum_bytes_per_chunk) {
+						if (res > 0) {
+							chk.resize(res);
+						} else {
+							chunks.pop_back();
+						}
+						break;
+					}
+				}
+				_t.insert_range_before_move(_t.end(), chunks.begin(), chunks.end());
+			} // TODO failed to open file
+
+			// STL version
+			std::ifstream fin(filename, std::ios::binary);
+			if (fin) {
+				std::vector<chunk_data> chunks;
+				while (!fin.eof()) {
+					auto &chk = chunks.emplace_back();
+					chk.resize(maximum_bytes_per_chunk);
+					fin.read(reinterpret_cast<char*>(chk.data()), maximum_bytes_per_chunk);
+				}
+				if (auto tail = static_cast<size_t>(fin.gcount()); tail > 0) {
+					chunks.back().resize(tail);
+				} else {
+					chunks.pop_back();
+				}
+				if (!fin.bad()) {
+					_t.insert_range_before_move(_t.end(), chunks.begin(), chunks.end());
+				} // TODO failed to read file
+			} // TODO failed to open file
+
+			/*
+			// memory-mapped version
+			// about 30% faster than STL version
 			os::file f(filename, os::access_rights::read, os::open_mode::open);
 			if (f.valid()) {
 				os::file_mapping mp(f, os::access_rights::read);
@@ -409,6 +455,7 @@ namespace codepad::editor {
 				// TODO failed to map file
 			}
 			// TODO failed to open file
+			*/
 		}
 		~buffer();
 
@@ -536,8 +583,8 @@ namespace codepad::editor {
 			_t.clear();
 		}
 
-		event<begin_edit_info> begin_edit; ///< Invoked when this \ref buffer is about to be modified.
-		event<end_edit_info> end_edit; ///< Invoked when this \ref buffer has been modified.
+		info_event<begin_edit_info> begin_edit; ///< Invoked when this \ref buffer is about to be modified.
+		info_event<end_edit_info> end_edit; ///< Invoked when this \ref buffer has been modified.
 	protected:
 		/// Used to find the chunk in which the byte at the given index lies.
 		using _byte_index_finder = sum_synthesizer::index_finder<node_data::length_property>;

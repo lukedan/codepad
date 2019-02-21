@@ -8,7 +8,7 @@
 
 #include <fontconfig/fontconfig.h>
 
-#include "../font.h"
+#include "../freetype_font_base.h"
 
 namespace codepad {
 	namespace os {
@@ -17,16 +17,18 @@ namespace codepad {
 		public:
 			/// Constructor. Finds the font matching the description using fontconfig,
 			/// then loads the font by passing its file name to freetype.
-			freetype_font(const str_t &str, double sz, font_style style) : freetype_font_base() {
+			freetype_font(ui::font_manager &man, const str_t &str, double sz, ui::font_style style) :
+				freetype_font_base(man) {
+
 				_font_config::get().refresh();
 				FcPattern *pat = FcNameParse(reinterpret_cast<const FcChar8*>(str.c_str()));
 				FcPatternAddInteger(
 					pat, FC_SLANT,
-					(style & font_style::italic) != font_style::normal ? FC_SLANT_ITALIC : FC_SLANT_ROMAN
+					(style & ui::font_style::italic) != ui::font_style::normal ? FC_SLANT_ITALIC : FC_SLANT_ROMAN
 				);
 				FcPatternAddInteger(
 					pat, FC_WEIGHT,
-					(style & font_style::bold) != font_style::normal ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL
+					(style & ui::font_style::bold) != ui::font_style::normal ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL
 				);
 				assert_true_sys(FcConfigSubstitute(nullptr, pat, FcMatchPattern) != FcFalse, "cannot set pattern");
 				FcDefaultSubstitute(pat);

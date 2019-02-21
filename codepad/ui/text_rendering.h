@@ -1,40 +1,16 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 #pragma once
 
 /// \file
-/// Classes that manages fonts, creates text atlases, and measures and renders text.
+/// Classes that measure and render text.
 
 #include "font.h"
 #include "font_family.h"
 #include "draw.h"
 
 namespace codepad::ui {
-	class manager;
-
-	/// Manages a list of font names and fonts, and creates a texture atlas for all characters.
-	class font_manager {
-	public:
-		/// Initializes the class with the corresponding \ref manager, and the \ref atlas with its \ref renderer_base.
-		explicit font_manager(manager&);
-		
-		/// Returns the atlas.
-		atlas &get_atlas() {
-			return _atlas;
-		}
-		/// \overload
-		const atlas &get_atlas() const {
-			return _atlas;
-		}
-		/// Returns the corresponding \ref manager.
-		manager &get_manager() const {
-			return _manager;
-		}
-	protected:
-		manager &_manager; ///< The manager.
-		std::map<std::string, std::shared_ptr<font>> _font_mapping; ///< The mapping between font names and fonts.
-		atlas _atlas; ///< The texture atlas.
-	};
-
-
 	/// Struct for measuring and calculating text layout for a single line. For gizmos, the character code is set to
 	/// zero, and no kerning is taken into consideration.
 	struct character_metrics_accumulator {
@@ -146,17 +122,17 @@ namespace codepad::ui {
 
 	/// Constains functions for rendering text.
 	namespace text_renderer {
-		/// Renders the given text, using the specified font, position, and color.
+		/// Renders the given text, using the specified font, position, and color, using the given
+		/// \ref atlas::batch_renderer.
 		///
 		/// \return The size of the rendered text.
 		template <typename It> inline vec2d render_plain_text(
-			It beg, It end, const font &fnt, vec2d topleft, colord color
+			It beg, It end, const font &fnt, vec2d topleft, colord color, atlas::batch_renderer &rend
 		) {
 			double dy = std::ceil(fnt.height());
 			vec2d cur(topleft.x, static_cast<int>(std::round(topleft.y)));
 			codepoint last = 0;
 			vec2d size(0.0, dy);
-			atlas::batch_renderer rend(fnt.get_manager().get_atlas());
 			while (beg != end) {
 				codepoint cp;
 				if (!encodings::utf8::next_codepoint(beg, end, cp)) {
@@ -174,12 +150,25 @@ namespace codepad::ui {
 					}
 					font::character_rendering_info info = fnt.draw_character(cp, cur);
 					rend.add_sprite(info.texture, info.placement, color);
-					cur.x += info.entry.advance;
+					cur.x += info.char_entry.advance;
 					last = cp;
 				}
 			}
 			size.x = std::max(size.x, cur.x - topleft.x);
 			return size;
+		}
+		/// \overload
+		template <typename Cont> inline vec2d render_plain_text(
+			Cont &&c, const font &fnt, vec2d topleft, colord color, atlas::batch_renderer &rend
+		) {
+			return render_plain_text(c.begin(), c.end(), fnt, topleft, color, rend);
+		}
+		/// \overload
+		template <typename It> inline vec2d render_plain_text(
+			It beg, It end, const font &fnt, vec2d topleft, colord color
+		) {
+			atlas::batch_renderer rend(fnt.get_manager().get_atlas());
+			return render_plain_text(beg, end, fnt, topleft, color, rend);
 		}
 		/// \overload
 		template <typename Cont> inline vec2d render_plain_text(

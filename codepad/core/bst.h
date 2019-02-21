@@ -227,10 +227,7 @@ namespace codepad {
 		template <bool Const> struct iterator_base {
 			friend binary_tree<T, AdditionalData, Synth>;
 		public:
-			using value_type = decltype(node::value);
-			using reference = std::conditional_t<Const, const value_type&, value_type&>;
-			using pointer = std::conditional_t<Const, const value_type*, value_type*>;
-			using iterator_category = std::bidirectional_iterator_tag;
+			using value_type = T;
 
 			using tree_type = binary_tree<T, AdditionalData, Synth>;
 			using container_type = std::conditional_t<Const, const tree_type, tree_type>;
@@ -1348,7 +1345,7 @@ namespace codepad {
 							_details::add_synth_tree_values<Props...>(*parent.left, std::forward<Args>(args)...);
 						}
 					}
-					});
+				});
 			}
 		}
 	};

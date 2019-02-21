@@ -29,7 +29,7 @@ namespace codepad::ui {
 		/// Sets the text to display.
 		void set_text(str_t s) {
 			_text = std::move(s);
-			text_size_changed.invoke();
+			_on_text_size_changed();
 		}
 		/// Gets the text that's displayed.
 		const str_t &get_text() const {
@@ -39,7 +39,7 @@ namespace codepad::ui {
 		/// Sets the font used to display text.
 		void set_font(std::shared_ptr<const font> fnt) {
 			_fnt = std::move(fnt);
-			text_size_changed.invoke();
+			_on_text_size_changed();
 		}
 		/// Returns the custom font set by the user. Note that \p nullptr is returned if no font is set, while the
 		/// default font is used to display text.
@@ -55,17 +55,6 @@ namespace codepad::ui {
 		/// Gets the current color used to display text.
 		colord get_color() const {
 			return _clr;
-		}
-
-		/// Sets the default font used when no font is specified for a \ref content_host.
-		inline static void set_default_font(std::shared_ptr<const font> fnt) {
-			auto &deffnt = _default_font::get();
-			deffnt.font = std::move(fnt);
-			++deffnt.timestamp;
-		}
-		/// Retruns the default font.
-		inline static const std::shared_ptr<const font> &get_default_font() {
-			return _default_font::get().font;
 		}
 
 		/// Sets the offset of the text. The offset is relative to the size of the parent control,
@@ -85,23 +74,11 @@ namespace codepad::ui {
 
 		/// Returns the size of the text, measuring it if necessary.
 		virtual vec2d get_text_size() const {
-			if (_fnt) { // there's a custom font
-				if (_szcache_id == _noszcache) { // not cached
-					_szcache_id = _hasszcache;
-					_szcache = text_renderer::measure_plain_text(_text, _fnt);
-				}
-			} else { // use the default font
-				auto &fnt = _default_font::get();
-				if (fnt.font) {
-					if (_szcache_id != fnt.timestamp) { // not cached
-						_szcache_id = fnt.timestamp;
-						return _szcache = text_renderer::measure_plain_text(_text, fnt.font);
-					}
-				} else { // no default font; set size to 0
-					_szcache = vec2d();
-				}
+			if (!_size_cache.has_value()) {
+				auto &&f = _fnt ? _fnt : _parent.get_manager().get_default_ui_font();
+				_size_cache = text_renderer::measure_plain_text(_text, f);
 			}
-			return _szcache;
+			return _size_cache.value();
 		}
 		/// Returns the position of the top-left corner of the displayed text,
 		/// relative to the window's client area.
@@ -113,34 +90,27 @@ namespace codepad::ui {
 
 		/// Renders the text.
 		void render() const {
-			auto &&f = _fnt ? _fnt : _default_font::get().font;
+			auto &&f = _fnt ? _fnt : _parent.get_manager().get_default_ui_font();
 			if (f) {
 				text_renderer::render_plain_text(_text, *f, get_text_position(), _clr);
 			}
 		}
 
-		event<void> text_size_changed; ///< Invoked when the size of the text has changed.
+		info_event<> text_size_changed; ///< Invoked when the size of the text has changed.
 	protected:
-		constexpr static unsigned char
-			_noszcache = 0, ///< Indicates that no size cache is currently available.
-			_hasszcache = 1; ///< Indicates that the size cache for the custom font is available.
-
-		mutable unsigned char _szcache_id = _noszcache; ///< Used to mark whether the current cache is valid.
-		mutable vec2d _szcache; ///< Measured size of the current text, using the current font.
+		mutable std::optional<vec2d> _size_cache; ///< Measured size of the current text, using the current font.
 		str_t _text; ///< The text to display.
 		std::shared_ptr<const font> _fnt; ///< The custom font.
 		colord _clr; ///< The color used to display the text.
 		vec2d _offset; ///< The offset of the text.
 		element &_parent; ///< The \ref element that this belongs to.
 
-		/// The struct that holds the default font and the timestamp.
-		struct _default_font {
-			std::shared_ptr<const font> font; ///< The default font.
-			unsigned char timestamp = 0; ///< The timestamp. Incremented each time \ref font is changed.
-
-			/// Gets the global \ref _default_font instance.
-			static _default_font &get();
-		};
+		/// Called when the size of the text has potentially changed. Resets \ref _size_cache and invokes
+		/// \ref text_size_changed.
+		void _on_text_size_changed() {
+			_size_cache.reset();
+			text_size_changed.invoke();
+		}
 	};
 
 	/// A label that displays plain text. Non-focusable by default.
@@ -165,7 +135,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("label");
 		}
 	protected:
@@ -175,7 +145,7 @@ namespace codepad::ui {
 		}
 
 		/// Initializes the element.
-		void _initialize(const str_t &cls, const element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const element_metrics &metrics) override {
 			element::_initialize(cls, metrics);
 			_can_focus = false;
 
@@ -197,7 +167,7 @@ namespace codepad::ui {
 		};
 
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("button_base");
 		}
 	protected:
@@ -297,10 +267,10 @@ namespace codepad::ui {
 			return _allow_cancel;
 		}
 
-		event<void> click; ///< Triggered when the button is clicked.
+		info_event<> click; ///< Triggered when the button is clicked.
 
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("button");
 		}
 	protected:
@@ -314,22 +284,36 @@ namespace codepad::ui {
 	/// The draggable button of a \ref scrollbar.
 	class scrollbar_drag_button : public button_base {
 	public:
+		/// Returns the minimum length of this button.
+		double get_minimum_length() const {
+			return _min_length;
+		}
+		/// Sets the minimum length of this button.
+		void set_minimum_length(double len) {
+			_min_length = len;
+			invalidate_layout();
+		}
+
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("scrollbar_drag_button");
 		}
 	protected:
-		double _doffset = 0.0; ///< The offset of the mouse when the button is being dragged.
+		double
+			_doffset = 0.0, ///< The offset of the mouse when the button is being dragged.
+			_min_length = 15.0; ///< The minimum length of this butten.
 
 		/// Returns the \ref scrollbar that this button belongs to.
 		scrollbar &_get_bar() const;
 
 		/// Initializes the element.
-		void _initialize(const str_t &cls, const element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const element_metrics &metrics) override {
 			button_base::_initialize(cls, metrics);
+
+			set_can_focus(false);
+
 			_trigtype = trigger_type::mouse_down;
 			_allow_cancel = false;
-			set_can_focus(false);
 		}
 
 		/// Overridden so that instances this element can be created.
@@ -343,6 +327,7 @@ namespace codepad::ui {
 	};
 	/// A scroll bar.
 	class scrollbar : public panel_base {
+		friend scrollbar_drag_button;
 	public:
 		/// The default thickness of scrollbars.
 		constexpr static double default_thickness = 10.0;
@@ -363,15 +348,15 @@ namespace codepad::ui {
 		}
 
 		/// Sets the current value of the scroll bar.
-		void set_value(double v) {
-			double ov = _curv;
-			_curv = std::clamp(v, 0.0, _totrng - _range);
+		virtual void set_value(double v) {
+			double ov = _value;
+			_value = std::clamp(v, 0.0, _total_range - _visible_range);
 			_invalidate_children_layout();
 			value_changed.invoke_noret(ov);
 		}
 		/// Returns the current value of the scroll bar.
 		double get_value() const {
-			return _curv;
+			return _value;
 		}
 		/// Sets the parameters of the scroll bar.
 		///
@@ -379,92 +364,132 @@ namespace codepad::ui {
 		/// \param vis The visible length of the region.
 		void set_params(double tot, double vis) {
 			assert_true_usage(vis <= tot, "scrollbar visible range too large");
-			_totrng = tot;
-			_range = vis;
-			set_value(_curv);
+			_total_range = tot;
+			_visible_range = vis;
+			set_value(_value);
 		}
 		/// Returns the total length of the region.
 		double get_total_range() const {
-			return _totrng;
+			return _total_range;
 		}
 		/// Returns the visible length of the region.
 		double get_visible_range() const {
-			return _range;
+			return _visible_range;
 		}
 
 		/// Scrolls the scroll bar so that a certain point is in the visible region.
 		/// Note that the point appears at the very edge of the region if it's not visible before.
 		void make_point_visible(double v) {
-			if (_curv > v) {
+			if (_value > v) {
 				set_value(v);
 			} else {
-				v -= _range;
-				if (_curv < v) {
+				v -= _visible_range;
+				if (_value < v) {
 					set_value(v);
 				}
 			}
 		}
 
 		/// Invoked when the value of the scrollbar is changed.
-		event<value_update_info<double>> value_changed;
+		info_event<value_update_info<double>> value_changed;
 
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("scrollbar");
 		}
 
 		/// Returns the role identifier of the `page up' button.
-		inline static str_t get_page_up_button_role() {
+		inline static str_view_t get_page_up_button_role() {
 			return CP_STRLIT("page_up_button");
 		}
 		/// Returns the role identifier of the `page down' button.
-		inline static str_t get_page_down_button_role() {
+		inline static str_view_t get_page_down_button_role() {
 			return CP_STRLIT("page_down_button");
 		}
 		/// Returns the role identifier of the drag button.
-		inline static str_t get_drag_button_role() {
+		inline static str_view_t get_drag_button_role() {
 			return CP_STRLIT("drag_button");
 		}
 	protected:
 		double
-			_totrng = 1.0, ///< The length of the whole range.
-			_curv = 0.0, ///< The minimum visible position.
-			_range = 0.1; ///< The length of the visible range.
+			_total_range = 1.0, ///< The length of the whole range.
+			_value = 0.0, ///< The minimum visible position.
+			_visible_range = 0.1; ///< The length of the visible range.
 		scrollbar_drag_button *_drag = nullptr; ///< The drag button.
 		button
 			*_pgup = nullptr, ///< The `page up' button.
 			*_pgdn = nullptr; ///< The `page down' button.
+		/// Marks if the length of \ref _drag is currently extended so that it's easier to interact with.
+		bool _drag_button_extended = false;
 
 		/// Calculates the layout of the three buttons.
 		void _on_update_children_layout() override {
 			rectd cln = get_client_region();
+			double min, max, mid1, mid2;
 			if (is_vertical()) {
-				double
-					tszratio = cln.height() / _totrng,
-					mid1 = cln.ymin + tszratio * _curv,
-					mid2 = mid1 + tszratio * _range;
+				min = cln.ymin;
+				max = cln.ymax;
+			} else {
+				min = cln.xmin;
+				max = cln.xmax;
+			}
+			double
+				totsize = max - min,
+				btnlen = totsize * _visible_range / _total_range;
+			_drag_button_extended = btnlen < _drag->get_minimum_length();
+			if (_drag_button_extended) {
+				btnlen = _drag->get_minimum_length();
+				double percentage = _value / (_total_range - _visible_range);
+				mid1 = min + (totsize - btnlen) * percentage;
+				mid2 = mid1 + btnlen;
+			} else {
+				double ratio = totsize / _total_range;
+				mid1 = min + ratio * _value;
+				mid2 = mid1 + ratio * _visible_range;
+			}
+			if (is_vertical()) {
 				panel_base::layout_child_horizontal(*_drag, cln.xmin, cln.xmax);
 				panel_base::layout_child_horizontal(*_pgup, cln.xmin, cln.xmax);
 				panel_base::layout_child_horizontal(*_pgdn, cln.xmin, cln.xmax);
 				_child_set_vertical_layout(*_drag, mid1, mid2);
-				_child_set_vertical_layout(*_pgup, cln.ymin, mid1);
-				_child_set_vertical_layout(*_pgdn, mid2, cln.ymax);
+				_child_set_vertical_layout(*_pgup, min, mid1);
+				_child_set_vertical_layout(*_pgdn, mid2, max);
 			} else {
-				double
-					tszratio = cln.width() / _totrng,
-					mid1 = cln.xmin + tszratio * _curv,
-					mid2 = mid1 + tszratio * _range;
 				panel_base::layout_child_vertical(*_drag, cln.ymin, cln.ymax);
 				panel_base::layout_child_vertical(*_pgup, cln.ymin, cln.ymax);
 				panel_base::layout_child_vertical(*_pgdn, cln.ymin, cln.ymax);
 				_child_set_horizontal_layout(*_drag, mid1, mid2);
-				_child_set_horizontal_layout(*_pgup, cln.xmin, mid1);
-				_child_set_horizontal_layout(*_pgdn, mid2, cln.xmax);
+				_child_set_horizontal_layout(*_pgup, min, mid1);
+				_child_set_horizontal_layout(*_pgdn, mid2, max);
+			}
+		}
+		/// Called when \ref _drag is being dragged by the user. Calculate the new value of this \ref scrollbar.
+		///
+		/// \param newmin The new top or left boundary of \ref _drag.
+		virtual void _on_drag_button_moved(double newmin) {
+			double min, range, draglen;
+			rectd client = get_client_region();
+			if (is_vertical()) {
+				min = client.ymin;
+				range = client.height();
+				draglen = _drag->get_layout().height();
+			} else {
+				min = client.xmin;
+				range = client.width();
+				draglen = _drag->get_layout().width();
+			}
+			double
+				diff = newmin - min,
+				totsz = range;
+			if (_drag_button_extended) {
+				set_value((get_total_range() - get_visible_range()) * diff / (totsz - draglen));
+			} else {
+				set_value(get_total_range() * diff / totsz);
 			}
 		}
 
 		/// Initializes the three buttons and adds them as children.
-		void _initialize(const str_t &cls, const element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const element_metrics &metrics) override {
 			panel_base::_initialize(cls, metrics);
 			_can_focus = false;
 

@@ -17,7 +17,7 @@
 				"states_mask": "vertical",
 				"value": {
 					"width": "100%",
-					"height": "10px",
+					"height": "8px",
 					"margin": 0.0,
 					"anchor": "lrb"
 				}
@@ -26,7 +26,7 @@
 				"states": "vertical",
 				"states_mask": "vertical",
 				"value": {
-					"width": "10px",
+					"width": "8px",
 					"height": "100%",
 					"margin": 0.0,
 					"anchor": "trb"
@@ -254,8 +254,16 @@
 		]
 	},
 
-
-	"codebox": {
+	"line_number_display": {
+		"metrics": [
+			{
+				"value": {
+					"padding": [ 10, 0, 5, 0 ]
+				}
+			}
+		]
+	},
+	"code_editor": {
 		"inherit_metrics_from": "element_fill_container",
 		"children": [
 			{
@@ -267,7 +275,7 @@
 					"states": "vertical",
 					"states_mask": "vertical",
 					"value": {
-						"margin": [ 0.0, 0.0, 0.0, 10.0 ]
+						"margin": [ 0.0, 0.0, 0.0, 8.0 ]
 					}
 				}
 			},
@@ -278,7 +286,7 @@
 				"metrics": {
 					"states_mask": "vertical",
 					"value": {
-						"margin": [ 0.0, 0.0, 10.0, 0.0 ]
+						"margin": [ 0.0, 0.0, 8.0, 0.0 ]
 					}
 				}
 			},
@@ -288,13 +296,76 @@
 				"inherit_metrics_from": "element_fill_container",
 				"metrics": {
 					"value": {
-						"margin": [ 0.0, 0.0, 10.0, 10.0 ]
+						"margin": [ 0.0, 0.0, 8.0, 8.0 ]
 					}
 				},
 				"children": [
 					{
-						"type": "editor",
-						"role": "editor",
+						"type": "line_number_display",
+						"inherit_metrics_from": "line_number_display"
+					},
+					{
+						"type": "code_contents_region",
+						"role": "contents_region",
+						"metrics": {
+							"value": {
+								"width": "1*",
+								"height": "100%",
+								"padding": [ 2.0, 0.0, 0.0, 0.0 ]
+							}
+						}
+					},
+					{
+						"type": "minimap",
+						"metrics": {
+							"value": {
+							}
+						}
+					}
+				]
+			}
+		]
+	},
+	"binary_editor": {
+		"inherit_metrics_from": "element_fill_container",
+		"children": [
+			{
+				"type": "scrollbar",
+				"role": "vertical_scrollbar",
+				"inherit_metrics_from": "scrollbar",
+				"set_states": "vertical",
+				"metrics": {
+					"states": "vertical",
+					"states_mask": "vertical",
+					"value": {
+						"margin": [ 0.0, 0.0, 0.0, 8.0 ]
+					}
+				}
+			},
+			{
+				"type": "scrollbar",
+				"role": "horizontal_scrollbar",
+				"inherit_metrics_from": "scrollbar",
+				"metrics": {
+					"states_mask": "vertical",
+					"value": {
+						"margin": [ 0.0, 0.0, 8.0, 0.0 ]
+					}
+				}
+			},
+			{
+				"type": "stack_panel",
+				"role": "components_panel",
+				"inherit_metrics_from": "element_fill_container",
+				"metrics": {
+					"value": {
+						"margin": [ 0.0, 0.0, 8.0, 8.0 ]
+					}
+				},
+				"children": [
+					{
+						"type": "binary_contents_region",
+						"role": "contents_region",
 						"metrics": {
 							"value": {
 								"width": "1*",
@@ -304,15 +375,6 @@
 						}
 					}
 				]
-			}
-		]
-	},
-	"line_number_display": {
-		"metrics": [
-			{
-				"value": {
-					"padding": [ 10, 0, 5, 0 ]
-				}
 			}
 		]
 	}

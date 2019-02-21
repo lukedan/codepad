@@ -8,8 +8,8 @@
 using namespace std;
 
 using namespace codepad;
-using namespace codepad::editor;
-using namespace codepad::editor::code;
+using namespace codepad::editors;
+using namespace codepad::editors::code;
 
 template <typename Rnd> byte_string generate_random_utf8_string(size_t length, Rnd &random) {
 	uniform_int_distribution<codepoint> dist(0, 0x10FFFF - 0x800);

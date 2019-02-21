@@ -13,7 +13,7 @@
 #include "interpretation.h"
 #include "rendering.h"
 
-namespace codepad::editor::code {
+namespace codepad::editors::code {
 	/*
 	/// For long lines, the text is split into small chunks and the length of each chunk is calculated and stored
 	/// separately to accelerate certain operations.
@@ -145,7 +145,7 @@ namespace codepad::editor::code {
 			auto cit = doc.at_char(pos);
 			codepoint c = cit.current_character();
 			++cit;
-			return editor::get_font().get_by_style(tit->second)->get_kerning(c, cit.current_character()).x;
+			return contents_region::get_font().get_by_style(tit->second)->get_kerning(c, cit.current_character()).x;
 		}
 		/// Returns the position of the first character of the given node in the line.
 		size_t _first_char_of_node(node_type *n) const {
@@ -168,7 +168,7 @@ namespace codepad::editor::code {
 			_vis_tok = (_doc->visual_changed += [this]() {
 				_on_document_visual_changed();
 				});
-			_mod_tok = (_doc->modified += [this](modification_info &info) {
+			_vis_changed_tok = (_doc->modified += [this](modification_info &info) {
 				_on_document_modified(info);
 				});
 			_recalculate_cache();
@@ -182,7 +182,7 @@ namespace codepad::editor::code {
 		/// Move constructor. Sets \ref _doc of the moved-from object to \p nullptr.
 		document_formatting_cache(document_formatting_cache &&cache) :
 			_lines(std::move(cache._lines)), _doc(cache._doc),
-			_vis_tok(std::move(cache._vis_tok)), _mod_tok(std::move(cache._mod_tok)) {
+			_vis_tok(std::move(cache._vis_tok)), _vis_changed_tok(std::move(cache._vis_changed_tok)) {
 			cache._doc = nullptr;
 		}
 		/// No copy assignment.
@@ -191,7 +191,7 @@ namespace codepad::editor::code {
 		~document_formatting_cache() {
 			if (_doc) {
 				_doc->visual_changed -= _vis_tok;
-				_doc->modified -= _mod_tok;
+				_doc->modified -= _vis_changed_tok;
 			}
 		}
 
@@ -223,14 +223,14 @@ namespace codepad::editor::code {
 		/// Stores lengths of text fragments for certain lines.
 		incremental_positional_registry<size_t, line_length_data> _lines;
 		document *_doc; ///< The associated \ref document.
-		event<void>::token _vis_tok; ///< Event token for \ref document::visual_changed.
-		event<modification_info>::token _mod_tok; ///< Event token for \ref document::modified.
+		info_event<>::token _vis_tok; ///< Event token for \ref document::visual_changed.
+		info_event<modification_info>::token _vis_changed_tok; ///< Event token for \ref document::modified.
 
 		/// Stores information used when this class is in effect.
 		struct _in_effect_params {
 			size_t tag_id; ///< The index of the tag.
 			/// The token for listening to \ref buffer_manager::buffer_created.
-			event<buffer_info>::token event_token;
+			info_event<buffer_info>::token event_token;
 		};
 
 		/// Information about \ref buffer_manager when this class is in effect.

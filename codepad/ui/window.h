@@ -111,11 +111,11 @@ namespace codepad::ui {
 			invalidate_visual();
 		}
 
-		event<void>
+		info_event<>
 			close_request, ///< Invoked when the user clicks the `close' button.
 			got_window_focus, ///< Invoked when the window gets keyboard focus.
 			lost_window_focus; ///< Invoked when the window loses keyboard focus.
-		event<size_changed_info> size_changed; ///< Invoked when the window's size has changed.
+		info_event<size_changed_info> size_changed; ///< Invoked when the window's size has changed.
 	protected:
 		/// The list of decorations associated with this window. Since decorations are automatically
 		/// unregistered when disposed, special care must be taken when iterating through the list
@@ -175,7 +175,7 @@ namespace codepad::ui {
 
 
 		/// Registers the window to \ref renderer_base.
-		void _initialize(const str_t&, const element_metrics&) override;
+		void _initialize(str_view_t, const element_metrics&) override;
 		/// Deletes all decorations, releases the focus, and unregisters the window from \ref renderer_base.
 		void _dispose() override;
 

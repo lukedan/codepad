@@ -16,7 +16,7 @@
 #include "renderer.h"
 #include "scheduler.h"
 #include "commands.h"
-#include "text_rendering.h"
+#include "font.h"
 
 namespace codepad::ui {
 	/// The type of a element state.
@@ -92,17 +92,17 @@ namespace codepad::ui {
 
 		/// Similar to \ref register_element_type(const str_t&, element_constructor) but for built-in classes.
 		template <typename Elem> void register_element_type() {
-			register_element_type(Elem::get_default_class(), []() {
+			register_element_type(str_t(Elem::get_default_class()), []() {
 				return new Elem();
 			});
 		}
 		/// Registers a new element type for creation.
-		void register_element_type(const str_t &type, element_constructor constructor) {
-			_ctor_map.emplace(type, std::move(constructor));
+		void register_element_type(str_t type, element_constructor constructor) {
+			_ctor_map.emplace(std::move(type), std::move(constructor));
 		}
 		/// Constructs and returns an element of the specified type, class, and \ref element_metrics. If no such type
 		/// exists, \p nullptr is returned. To properly dispose of the element, use \ref scheduler::mark_for_disposal().
-		element *create_element_custom(const str_t &type, const str_t &cls, const element_metrics &metrics) {
+		element *create_element_custom(str_view_t type, str_view_t cls, const element_metrics &metrics) {
 			auto it = _ctor_map.find(type);
 			if (it == _ctor_map.end()) {
 				return nullptr;
@@ -119,7 +119,7 @@ namespace codepad::ui {
 		/// the default \ref element_metrics of that class.
 		///
 		/// \sa create_element_custom()
-		element *create_element(const str_t &type, const str_t &cls) {
+		element *create_element(str_view_t type, str_view_t cls) {
 			return create_element_custom(
 				type, cls, get_class_arrangements().get_or_default(cls).metrics
 			);
@@ -163,8 +163,8 @@ namespace codepad::ui {
 		}
 
 		/// Registers the given transition function.
-		void register_transition_function(str_view_t name, transition_function func) {
-			auto[it, inserted] = _transfunc_map.emplace(name, std::move(func));
+		void register_transition_function(str_t name, transition_function func) {
+			auto[it, inserted] = _transfunc_map.emplace(std::move(name), std::move(func));
 			if (!inserted) {
 				logger::get().log_warning(CP_HERE, "duplicate transition function name: ", name);
 			}
@@ -192,6 +192,7 @@ namespace codepad::ui {
 		/// Sets the \ref font_manager used by this manager.
 		void set_font_manager(std::unique_ptr<font_manager> man) {
 			_font_manager = std::move(man);
+			_default_ui_font = _font_manager->get_font(font_manager::get_default_ui_font_parameters());
 		}
 		/// Returns the font manager.
 		font_manager &get_font_manager() {
@@ -242,15 +243,20 @@ namespace codepad::ui {
 		const command_registry &get_command_registry() const {
 			return _commands;
 		}
+
+		/// Returns the default UI \ref font.
+		const std::shared_ptr<const font> &get_default_ui_font() const {
+			return _default_ui_font;
+		}
 	protected:
 		class_visuals_registry _cvis; ///< All visuals.
 		class_arrangements_registry _carngs; ///< All arrangements.
 		class_hotkeys_registry _chks; ///< All hotkeys.
 		command_registry _commands; ///< All commands.
 		/// Registry of constructors of all element types.
-		std::map<str_t, element_constructor> _ctor_map;
+		std::map<str_t, element_constructor, std::less<>> _ctor_map;
 		/// Mapping from names to transition functions.
-		std::map<str_t, transition_function, std::less<void>> _transfunc_map;
+		std::map<str_t, transition_function, std::less<>> _transfunc_map;
 		/// Mapping from state names to state IDs.
 		std::map<str_t, element_state_info> _stateid_map;
 		/// Mapping from state IDs to state names.
@@ -259,6 +265,7 @@ namespace codepad::ui {
 		scheduler _scheduler; ///< The \ref scheduler.
 		std::unique_ptr<renderer_base> _renderer; ///< The renderer.
 		std::unique_ptr<font_manager> _font_manager; ///< The font manager.
+		std::shared_ptr<const font> _default_ui_font; ///< The default font for the user interface.
 		size_t _stateid_alloc = 0; ///< Records how many states have been registered.
 	};
 }

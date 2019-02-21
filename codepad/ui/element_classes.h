@@ -86,11 +86,11 @@ namespace codepad::ui {
 	/// Registry of a certain attribute of each element class.
 	template <typename T> class class_registry {
 	public:
-		std::map<str_t, T> mapping; ///< The mapping between class names and attribute values.
+		std::map<str_t, T, std::less<>> mapping; ///< The mapping between class names and attribute values.
 
 		/// Returns the attribute corresponding to the given class name. If noine exists, the default attribute (the
 		/// one corresponding to an empty class name) is returned.
-		T &get_or_default(const str_t &cls) {
+		T &get_or_default(str_view_t cls) {
 			auto found = mapping.find(cls);
 			return found == mapping.end() ? mapping[str_t()] : found->second;
 		}
@@ -103,12 +103,12 @@ namespace codepad::ui {
 	/// Registry of \ref class_hotkey_group "element_hotkey_groups".
 	class class_hotkeys_registry {
 	public:
-		std::map<str_t, class_hotkey_group> hotkeys; ///< The mapping between class names and hotkey groups.
+		std::map<str_t, class_hotkey_group, std::less<>> hotkeys; ///< The mapping between class names and hotkey groups.
 
 		/// Finds the hotkey group corresponding to the class name given.
 		///
 		/// \return Pointer to the hotkey group. \p nullptr if none is found.
-		const class_hotkey_group *try_get(const str_t &cls) const {
+		const class_hotkey_group *try_get(str_view_t cls) const {
 			auto it = hotkeys.find(cls);
 			if (it != hotkeys.end()) {
 				return &it->second;

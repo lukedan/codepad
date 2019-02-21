@@ -8,7 +8,7 @@
 
 #include "interpretation.h"
 
-namespace codepad::editor::code {
+namespace codepad::editors::code {
 	void caret_set::calculate_byte_positions(const interpretation &interp) {
 		if (bytepos_valid) {
 			return;

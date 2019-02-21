@@ -243,7 +243,7 @@
 	],
 
 
-	"insert_caret": [
+	"code_insert_caret": [
 		{
 			"states": [ "focused" ],
 			"layers": [
@@ -319,7 +319,7 @@
 			]
 		}
 	],
-	"overwrite_caret": [
+	"code_overwrite_caret": [
 		{
 			"states": [ "focused" ],
 			"layers": [
@@ -395,7 +395,186 @@
 			]
 		}
 	],
-	"editor_selection": [
+	"code_selection": [
+		{
+			"states": [ "focused" ],
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": {
+						"default": [ 0.3, 0.5, 1.0, 0.3 ],
+						"target": [ 0.3, 0.5, 1.0, 0.3 ],
+						"duration": 0.1,
+						"transition": "linear"
+					}
+				}
+			]
+		},
+		{
+			"inherit_from": [ "focused" ],
+			"layers": [
+				{
+					"color": {
+						"target": [ 0.3, 0.3, 0.3, 0.5 ]
+					}
+				}
+			]
+		}
+	],
+	"binary_insert_caret": [
+		{
+			"states": [ "focused" ],
+			"layers": [
+				{
+					"anchor": "ltb",
+					"width_alloc": "px",
+					"margin": 0.0,
+					"size": [ 1.0, 1.0 ],
+					"color": {
+						"frames": [
+							{
+								"target": [ 1.0, 1.0, 1.0, 1.0 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.8 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.6 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.4 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.2 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.0 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.2 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.4 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.6 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.8 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 1.0 ]
+							}
+						],
+						"default": [ 1.0, 1.0, 1.0, 1.0 ],
+						"repeat": 20
+					}
+				}
+			]
+		},
+		{
+			"layers": [
+				{
+					"anchor": "ltb",
+					"width_alloc": "px",
+					"margin": 0.0,
+					"size": [ 1.0, 1.0 ],
+					"color": {
+						"target": [ 1.0, 1.0, 1.0, 0.8 ],
+						"duration": 0.1
+					}
+				}
+			]
+		}
+	],
+	"binary_overwrite_caret": [
+		{
+			"states": [ "focused" ],
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": {
+						"frames": [
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.5 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.4 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.3 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.2 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.1 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.0 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.1 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.2 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.3 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.4 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.5 ],
+								"duration": 0.1
+							},
+							{
+								"target": [ 1.0, 1.0, 1.0, 0.5 ]
+							}
+						],
+						"default": [ 1.0, 1.0, 1.0, 0.5 ],
+						"repeat": 20
+					}
+				}
+			]
+		},
+		{
+			"layers": [
+				{
+					"anchor": "ltrb",
+					"margin": 0.0,
+					"color": {
+						"target": [ 1.0, 1.0, 1.0, 0.4 ],
+						"duration": 0.1
+					}
+				}
+			]
+		}
+	],
+	"binary_selection": [
 		{
 			"states": [ "focused" ],
 			"layers": [

@@ -74,7 +74,7 @@ namespace codepad::ui {
 			return _children.size();
 		}
 
-		event<element_collection_change_info>
+		info_event<element_collection_change_info>
 			/// Invoked before an \ref element's about to be added, removed, or before when an element's Z-index has
 			/// been changed.
 			changing,
@@ -489,12 +489,12 @@ namespace codepad::ui {
 		}
 
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("panel");
 		}
 	protected:
 		/// Sets \ref _can_focus to \p false.
-		void _initialize(const str_t &cls, const element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const element_metrics &metrics) override {
 			panel_base::_initialize(cls, metrics);
 			_can_focus = false;
 		}
@@ -562,7 +562,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("stack_panel");
 		}
 	protected:
@@ -679,7 +679,7 @@ namespace codepad::ui {
 		}
 
 		/// Sets \ref _can_focus to \p false by default.
-		void _initialize(const str_t &cls, const element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const element_metrics &metrics) override {
 			panel::_initialize(cls, metrics);
 			_can_focus = false;
 		}

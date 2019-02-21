@@ -103,7 +103,7 @@ namespace codepad::ui {
 		get_manager().get_scheduler().schedule_metrics_config_update(*this);
 	}
 
-	void element::_initialize(const str_t &cls, const element_metrics &metrics) {
+	void element::_initialize(str_view_t cls, const element_metrics &metrics) {
 #ifdef CP_CHECK_USAGE_ERRORS
 		_initialized = true;
 #endif

@@ -446,12 +446,12 @@ namespace codepad::ui {
 			/// Initializes all fields of this struct.
 			explicit key_frame(
 				T tar, animation_duration_t dur = animation_duration_t::zero(), transition_function func = nullptr
-			) : target(tar), duration(dur), transition_func(func) {
+			) : target(tar), duration(dur), transition_func(std::move(func)) {
 			}
 
 			T target{}; ///< The target value.
 			/// The duration of this key frame, i.e., the time after the last key frame and before this key frame.
-			animation_duration_t duration;
+			animation_duration_t duration{0};
 			/// The transition function. If this is \p nullptr, then the animation will immediately reach \ref target
 			/// value at this \ref key_frame.
 			transition_function transition_func;
@@ -529,179 +529,6 @@ namespace codepad::ui {
 			return animation_duration_t::max(); // don't update
 		}
 	};
-	/*
-	/// A property of a \ref visual_layer that can be animated. This only stores the
-	/// parameters of the animation; the actual animating process is done on \ref state.
-	/// After the animation is over, the value stays at \ref to.
-	///
-	/// \tparam T The type of the underlying value.
-	template <typename T> struct animated_property {
-		/// Represents a state of the animated property.
-		struct state {
-			/// Default constructor.
-			state() = default;
-			/// Constructs the initial state of a given animated property, with a given initial value that's taken
-			/// if animated_property::has_from is \p false. This is called when transitioning between element states.
-			state(const animated_property &prop, const T &curv) : from(prop.has_from ? prop.from : curv) {
-				prop.update(*this, 0.0); // update to obtain the correct initial value
-			}
-			/// Constructs the initial state of a given animated property with no initial value. This is called when
-			/// a \ref state is newly created without any previous states.
-			explicit state(const animated_property &prop) : state(prop, prop.from) {
-			}
-
-			T
-				/// The start value. It's equal to animated_property::from if animated_property::has_from
-				/// is \p true or the state is created with init_state() const instead of init_state(T) const.
-				/// Otherwise it's equal to the value passed to init_state(T) const.
-				from,
-				current_value; ///< The current value.
-			/// The elapsed time since the animation started or last repeated.
-			double current_time_warped = 0.0;
-			bool stationary = false; ///< Marks whether the animation has finished.
-		};
-
-		T
-			from, ///< The initial value of the animation.
-			to; ///< The final value of the animation.
-		bool
-			has_from = false, ///< Whether the animation should always start from \ref from.
-			/// Whether the animatiou should automatically play backwards to the beginning after
-			/// reaching \ref to. Note that if \ref has_from is \p false it may not end at \ref from.
-			auto_reverse = false,
-			repeat = false; ///< Whether the animation should repeat itself after it's finished.
-		double
-			/// The time it should take for the animated value to change to \ref to for the first time.
-			duration = 0.0,
-			/// The proportion that the duration is scaled by when the animation is played backwards.
-			reverse_duration_scale = 1.0;
-		/// The transition function.
-		transition_function transition_func = transition_functions::linear;
-
-		/// Updates the given state.
-		///
-		/// \param s The state to be updated.
-		/// \param dt The time since the state was last updated.
-		void update(state &s, double dt) const {
-			if (!s.stationary) {
-				s.current_time_warped += dt;
-				double period = duration; // the period
-				if (auto_reverse) { // add reverse portion to the period
-					period += duration * reverse_duration_scale;
-				}
-				if (s.current_time_warped >= period) {
-					if (repeat) { // start new period
-						s.current_time_warped = std::fmod(s.current_time_warped, period);
-					} else { // the animation is over
-						s.current_value = to;
-						s.stationary = true; // no need to update anymore
-						return;
-					}
-				}
-				double progress = 0.0; // value passed to transition_func
-				if (s.current_time_warped < duration) { // forward
-					progress = s.current_time_warped / duration;
-				} else { // backwards
-					progress = 1.0 - (s.current_time_warped - duration) / (duration * reverse_duration_scale);
-				}
-				s.current_value = lerp(s.from, to, transition_func(progress));
-			}
-		}
-	};
-	/// Specialization of \ref animated_property for \ref os::texture "textures".
-	/// The multiple supplied textures are displayed in order, each for its specified duration.
-	/// After the animation is over, the current image is kept to be the last image displayed.
-	template <> struct animated_property<texture> {
-		/// The default time an image is displayed if no duration is specified.
-		constexpr static double default_frametime = 1.0 / 30.0;
-
-		/// A frame. Contains an image and the duration it's displayed.
-		using texture_keyframe = std::pair<std::shared_ptr<texture>, double>;
-		/// Represents a state of the animated property.
-		struct state {
-			/// Default constructor.
-			state() = default;
-			/// Constructs the state from a given property, setting the current frame as the first one of its
-			/// frames. If there are no frames in the property, a solid rectangle filling the area is displayed.
-			explicit state(const animated_property &prop) : current_frame(prop.frames.begin()) {
-			}
-
-			/// Iterator to the current frame. \p end() of the container if it's empty.
-			std::vector<texture_keyframe>::const_iterator current_frame;
-			double current_frame_time = 0.0; ///< The time since the current frame has been displayed.
-			bool
-				reversing = false, ///< Marks whether the animation is currently playing in reverse.
-				stationary = false; ///< Marks whether the animation has finished.
-		};
-
-		std::vector<texture_keyframe> frames; ///< The list of frames and frametimes.
-		bool
-			/// Whether the animatiou should automatically play backwards to the beginning after
-			/// playing forward to the end.
-			auto_reverse = false,
-			repeat = false; ///< Whether the animation should repeat after ending.
-		/// The proportion that the frame times are scaled by when the animation is played backwards.
-		double reverse_duration_scale = 1.0;
-
-		/// Returns the sum of all frame times.
-		double duration() const {
-			double res = 0.0;
-			for (const texture_keyframe &frame : frames) {
-				res += frame.second;
-			}
-			return res;
-		}
-		/// Updates the given state.
-		///
-		/// \param s The state to be updated.
-		/// \param dt The time since the state was last updated.
-		void update(state &s, double dt) const {
-			if (s.current_frame == frames.end()) {
-				s.stationary = true;
-			}
-			if (s.stationary) {
-				return;
-			}
-			s.current_frame_time += dt;
-			while (true) {
-				if (s.reversing) { // backwards
-					double frametime = s.current_frame->second * reverse_duration_scale;
-					if (s.current_frame_time < frametime) { // current frame not finished
-						break;
-					}
-					s.current_frame_time -= frametime;
-					if (s.current_frame == frames.begin()) { // at the end
-						if (!repeat) { // no more animation
-							s.stationary = true;
-							break;
-						}
-						s.reversing = false;
-					} else {
-						--s.current_frame;
-					}
-				} else { // forward
-					if (s.current_frame_time < s.current_frame->second) { // current frame not finished
-						break;
-					}
-					s.current_frame_time -= s.current_frame->second;
-					++s.current_frame;
-					if (s.current_frame == frames.end()) { // at the end
-						if (auto_reverse) {
-							s.reversing = true;
-							--s.current_frame;
-						} else if (repeat) {
-							s.current_frame = frames.begin();
-						} else { // no more animation
-							s.stationary = true;
-							--s.current_frame; // roll back to the last frame
-							break;
-						}
-					}
-				}
-			}
-		}
-	};
-	*/
 
 	/// Patterns used to match states.
 	struct state_pattern {

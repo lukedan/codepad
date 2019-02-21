@@ -601,8 +601,39 @@ namespace codepad::ui {
 	}
 
 
-	shared_ptr<font> create_font(font_manager &man, str_view_t view, double sz, font_style style) {
-		return make_shared<freetype_font>(man, view, sz, style);
+	shared_ptr<const font> font_manager::_load_font(const font_parameters &params) {
+		return make_shared<freetype_font>(*this, params.name, params.size, params.style);
+	}
+
+	font_parameters font_manager::get_default_ui_font_parameters() {
+		NONCLIENTMETRICS ncmetrics;
+		ncmetrics.cbSize = sizeof(ncmetrics);
+		winapi_check(SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(ncmetrics), &ncmetrics, 0));
+
+		const LOGFONT &logfnt = ncmetrics.lfMenuFont;
+		HFONT fnt = CreateFontIndirect(&logfnt);
+		winapi_check(fnt);
+		HDC dc = GetDC(nullptr);
+		winapi_check(dc);
+		HGDIOBJ original = SelectObject(dc, fnt);
+		gdi_check(original);
+
+		TEXTMETRIC metrics;
+		winapi_check(GetTextMetrics(dc, &metrics));
+		POINT pts[2];
+		pts[0].y = 0;
+		pts[1].y = metrics.tmHeight - metrics.tmInternalLeading;
+		winapi_check(LPtoDP(dc, pts, 2));
+
+		gdi_check(SelectObject(dc, original));
+		winapi_check(DeleteObject(fnt));
+
+		return font_parameters(
+			os::_details::wstring_to_utf8(logfnt.lfFaceName),
+			static_cast<size_t>(pts[1].y - pts[0].y),
+			(logfnt.lfWeight > FW_REGULAR ? font_style::bold : font_style::normal) |
+			(logfnt.lfItalic ? font_style::italic : font_style::normal)
+		);
 	}
 
 

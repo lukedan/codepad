@@ -1,3 +1,6 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 #pragma once
 
 /// \file
@@ -629,8 +632,8 @@ namespace codepad::ui {
 			return true;
 		}
 		/// Parses a set of \ref class_hotkey_group "element_hotkey_groups" from a given JSON object.
-		inline static void parse_config(
-			std::map<str_t, class_hotkey_group> &mapping, const json::node_t &obj
+		template <typename Map> inline static void parse_config(
+			Map &mapping, const json::node_t &obj
 		) {
 			if (obj.IsObject()) {
 				for (auto i = obj.MemberBegin(); i != obj.MemberEnd(); ++i) {

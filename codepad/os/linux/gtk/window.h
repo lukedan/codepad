@@ -7,11 +7,11 @@
 #include <gdk/gdkkeysyms.h>
 
 #include "../../../ui/manager.h"
-#include "../../window.h"
+#include "../../../ui/window.h"
 #include "misc.h"
 
 namespace codepad::os {
-	class window : public window_base {
+	class window : public ui::window_base {
 		friend class opengl_renderer;
 		friend class software_renderer;
 		friend class ui::element;
@@ -19,6 +19,7 @@ namespace codepad::os {
 		using native_handle_t = GtkWidget*;
 
 		explicit window(window *parent = nullptr) {
+			// TODO parent
 			_wnd = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 			// connect signals
 			_connect_signal(_wnd, "delete_event", _on_delete_event);
@@ -35,7 +36,7 @@ namespace codepad::os {
 			// set gravity to static so that coordinates are relative to the client region
 			gtk_window_set_gravity(GTK_WINDOW(_wnd), GDK_GRAVITY_STATIC);
 			gtk_window_set_focus_on_map(GTK_WINDOW(_wnd), true);
-			gtk_widget_set_app_paintable(_wnd, true); // not sure if this is useful
+			gtk_widget_set_app_paintable(_wnd, true); // TODO not sure if this is useful
 			gtk_widget_add_events(
 				_wnd,
 				GDK_POINTER_MOTION_MASK |
@@ -160,22 +161,24 @@ namespace codepad::os {
 		}
 
 		static gboolean _on_delete_event(GtkWidget*, GdkEvent*, window*);
-		inline static gboolean _on_leave_notify_event(GtkWidget *widget, GdkEvent *ev, window *wnd) {
+		inline static gboolean _on_leave_notify_event(GtkWidget*, GdkEvent*, window *wnd) {
 			wnd->_on_mouse_leave();
 			return true;
 		}
 		static gboolean _on_motion_notify_event(GtkWidget*, GdkEvent*, window*);
-		inline static void _on_size_allocate(GtkWidget *widget, GdkRectangle *rect, window *wnd) {
+		inline static void _on_size_allocate(GtkWidget*, GdkRectangle *rect, window *wnd) {
 			wnd->_layout = rectd(0.0, static_cast<double>(rect->width), 0.0, static_cast<double>(rect->height));
-			_form_onevent<size_changed_info>(*wnd, &window::_on_size_changed, vec2i(rect->width, rect->height));
+			_form_onevent<ui::size_changed_info>(*wnd, &window::_on_size_changed, vec2i(rect->width, rect->height));
 		}
 		static gboolean _on_button_press_event(GtkWidget*, GdkEvent*, window*);
 		static gboolean _on_button_release_event(GtkWidget*, GdkEvent*, window*);
 		inline static gboolean _on_focus_in_event(GtkWidget*, GdkEvent*, window *wnd) {
+			gtk_im_context_focus_in(wnd->_imctx);
 			wnd->_on_got_window_focus();
 			return true;
 		}
 		inline static gboolean _on_focus_out_event(GtkWidget*, GdkEvent*, window *wnd) {
+			gtk_im_context_focus_out(wnd->_imctx);
 			wnd->_on_lost_window_focus();
 			return true;
 		}
@@ -232,21 +235,12 @@ namespace codepad::os {
 			while (gtk_events_pending()) {
 				gtk_main_iteration();
 			}
-			ui::manager::get().schedule_update(*this);
-		}
-
-		void _on_got_window_focus() override {
-			gtk_im_context_focus_in(_imctx);
-			window_base::_on_got_window_focus();
-		}
-		void _on_lost_window_focus() override {
-			gtk_im_context_focus_out(_imctx);
-			window_base::_on_lost_window_focus();
+			get_manager().get_scheduler().schedule_element_update(*this);
 		}
 
 		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
 			window_base::_initialize(cls, metrics);
-			ui::manager::get().schedule_update(*this);
+			get_manager().get_scheduler().schedule_element_update(*this);
 			gtk_window_present(GTK_WINDOW(_wnd));
 			// setup IM context
 			_imctx = gtk_im_multicontext_new();

@@ -31,7 +31,7 @@ namespace codepad::ui {
 		get_manager().get_renderer().end();
 	}
 
-	void window_base::_initialize(const str_t &cls, const ui::element_metrics &metrics) {
+	void window_base::_initialize(str_view_t cls, const ui::element_metrics &metrics) {
 		panel::_initialize(cls, metrics);
 		_is_focus_scope = true;
 		get_manager().get_renderer()._new_window(*this);

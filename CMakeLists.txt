@@ -31,9 +31,8 @@ target_sources(codepad
 		codepad/core/encodings.h
 		codepad/core/event.h
 		codepad/core/globals.cpp
-		codepad/core/hotkey_registry.h
+		codepad/core/json.h
 		codepad/core/misc.h
-		codepad/core/tasks.h
 
 		codepad/editors/code/caret_set.cpp
 		codepad/editors/code/caret_set.h
@@ -60,27 +59,27 @@ target_sources(codepad
 		codepad/os/current/renderer.h
 		codepad/os/current/window.h
 		codepad/os/filesystem.h
-		codepad/os/font.h
+		codepad/os/freetype_font_base.h
 		codepad/os/misc.h
 		codepad/os/opengl_renderer_base.cpp
 		codepad/os/opengl_renderer_base.h
-		codepad/os/renderer.h
 		codepad/os/software_renderer_base.cpp
 		codepad/os/software_renderer_base.h
-		codepad/os/window.cpp
-		codepad/os/window.h
 
 		codepad/ui/arrangements.cpp
 		codepad/ui/arrangements.h
+		codepad/ui/atlas.h
 		codepad/ui/commands.h
 		codepad/ui/common_elements.cpp
 		codepad/ui/common_elements.h
+		codepad/ui/config_parsers.h
 		codepad/ui/draw.h
 		codepad/ui/element.cpp
 		codepad/ui/element.h
-		codepad/ui/element_classes.cpp
 		codepad/ui/element_classes.h
+		codepad/ui/font.h
 		codepad/ui/font_family.h
+		codepad/ui/hotkey_registry.h
 		codepad/ui/manager.cpp
 		codepad/ui/manager.h
 		codepad/ui/misc.h
@@ -88,8 +87,14 @@ target_sources(codepad
 		codepad/ui/native_commands.h
 		codepad/ui/panel.cpp
 		codepad/ui/panel.h
+		codepad/ui/renderer.h
+		codepad/ui/scheduler.h
+		codepad/ui/text_rendering.cpp
+		codepad/ui/text_rendering.h
 		codepad/ui/visual.cpp
 		codepad/ui/visual.h
+		codepad/ui/window.cpp
+		codepad/ui/window.h
 
 		codepad/main.cpp)
 target_compile_definitions(codepad

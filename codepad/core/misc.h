@@ -313,7 +313,8 @@ namespace codepad {
 			return v.x > xmin && v.x < xmax && v.y > ymin && v.y < ymax;
 		}
 
-		/// Adjusts \ref xmin and \ref ymin so that nonnegative_area() returns \p true.
+		/// Adjusts \ref xmin and \ref ymin so that nonnegative_area() returns \p true. This version uses the smaller
+		/// value.
 		void make_valid_min() {
 			if (xmin > xmax) {
 				xmin = xmax;
@@ -322,13 +323,24 @@ namespace codepad {
 				ymin = ymax;
 			}
 		}
-		/// Adjusts \ref xmax and \ref ymax so that nonnegative_area() returns \p true.
+		/// Adjusts \ref xmax and \ref ymax so that nonnegative_area() returns \p true. This version uses the larger
+		/// value.
 		void make_valid_max() {
 			if (xmin > xmax) {
 				xmax = xmin;
 			}
 			if (ymin > ymax) {
 				ymax = ymin;
+			}
+		}
+		/// Adjusts \ref xmax and \ref ymax so that nonnegative_area() returns \p true. This version uses the average
+		/// value.
+		void make_valid_average() {
+			if (xmin > xmax) {
+				xmin = xmax = 0.5 * (xmin + xmax);
+			}
+			if (ymin > ymax) {
+				ymin = ymax = 0.5 * (ymin + ymax);
 			}
 		}
 
@@ -990,45 +1002,52 @@ namespace codepad {
 	/// Struct that monitors the beginning, ending, and duration of its lifespan.
 	struct performance_monitor {
 	public:
-		/// Shorthand for nan, which indicates that no time limit is imposed.
-		constexpr static double no_time_limit = std::numeric_limits<double>::quiet_NaN();
+		using clock_t = std::chrono::high_resolution_clock; ///< The clock used for measuring performance.
 
-		/// Constructs the \ref performance_monitor from the given labels and expected running time.
-		performance_monitor(const char *slbl, str_t dlbl, double exp = no_time_limit) :
-			_dyn_lbl(std::move(dlbl)), _beg_time(get_uptime().count()), _expected(exp), _static_lbl(slbl) {
+		/// Determines when and how should the measured running time be logged.
+		enum class log_condition : unsigned char {
+			always, ///< Always log time.
+			late_only, ///< Only when the execution time exceeds the expected time.
+			never ///< Never log time.
+		};
+
+		/// Constructs the \ref performance_monitor from the given label.
+		explicit performance_monitor(str_view_t lbl, log_condition cond = log_condition::late_only) :
+			_label(lbl), _beg_time(clock_t::now()), _cond(cond) {
 		}
-		/// Constructor without dynamic label.
-		explicit performance_monitor(const char *slbl, double exp = no_time_limit) :
-			performance_monitor(slbl, str_t(), exp) {
-		}
-		/// Constructor from a \ref code_position, a label, and a time limit.
-		/// The function of the \ref code_position is used as the static label.
-		performance_monitor(const code_position &pos, str_t dlbl, double exp = no_time_limit) :
-			performance_monitor(pos.function, std::move(dlbl), exp) {
-		}
-		/// Constructor from a \ref code_position and a time limit.
-		explicit performance_monitor(const code_position &pos, double exp = no_time_limit) :
-			performance_monitor(pos, str_t(), exp) {
+		/// Constructs the \ref performance_monitor from the given label and expected running time.
+		template <typename Dur> performance_monitor(
+			str_view_t lbl, Dur exp, log_condition cond = log_condition::late_only
+		) : performance_monitor(lbl, cond) {
+			_expected = std::chrono::duration_cast<clock_t::duration>(exp);
 		}
 		/// Destructor. Logs if the running time exceeds the expected time.
 		~performance_monitor() {
-			if (!std::isnan(_expected)) {
-				auto end_time = get_uptime();
-				double secs = end_time.count() - _beg_time;
-				if (secs > _expected) {
-					logger::get().log_warning(
-						CP_HERE, "operation taking longer(", secs, "s) than expected(", _expected, "s): ",
-						_static_lbl, " ", _dyn_lbl
-					);
-				}
+			auto dur = clock_t::now() - _beg_time;
+			// TODO print duration directly after C++20
+			auto sdur = std::chrono::duration_cast<std::chrono::duration<double>>(dur);
+			if (dur > _expected && _cond != log_condition::never) {
+				logger::get().log_warning(
+					CP_HERE, "operation took longer(", sdur.count(), "s) than expected(",
+					_expected.count(), "): ", _label
+				);
+			} else if (_cond == log_condition::always) {
+				logger::get().log_verbose(
+					CP_HERE, "operation took ", sdur.count(), "s: ", _label
+				);
 			}
 		}
+
+		/// Logs the time since the creation of this object so far.
+		void log_time() {
+			auto dur = std::chrono::duration_cast<std::chrono::duration<double>>(clock_t::now() - _beg_time);
+			logger::get().log_verbose(CP_HERE, _label, ": operation has been running for ", dur.count(), "s");
+		}
 	protected:
-		str_t _dyn_lbl; ///< The dynamic label generated at run time.
-		double
-			_beg_time = 0.0, ///< The time when this object is constructed, obtained from get_uptime().
-			_expected = std::numeric_limits<double>::quiet_NaN(); ///< The expected running time.
-		const char *_static_lbl = nullptr; ///< The statie label.
+		str_view_t _label; ///< The label for this performance monitor.
+		clock_t::time_point _beg_time; ///< The time when this object is constructed, obtained from get_uptime().
+		clock_t::duration _expected = clock_t::duration::max(); ///< The expected running time.
+		log_condition _cond = log_condition::late_only; ///< The condition under which to log the running time.
 	};
 
 
@@ -1141,7 +1160,7 @@ namespace codepad {
 	void initialize(int, char**);
 		}
 
-		// demangle
+// demangle
 #ifdef __GNUC__
 #	include <cxxabi.h>
 #endif

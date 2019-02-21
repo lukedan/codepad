@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Declaration and implementation of manager class for \ref codepad::editor::buffer.
+/// Declaration and implementation of manager class for \ref codepad::editors::buffer.
 
 #include <stack>
 
@@ -12,7 +12,7 @@
 #include "buffer.h"
 #include "code/interpretation.h"
 
-namespace codepad::editor {
+namespace codepad::editors {
 	/// Used to identify a \ref buffer in certain events.
 	struct buffer_info {
 		/// Assigns the specified \ref buffer to \ref buf.
@@ -65,6 +65,8 @@ namespace codepad::editor {
 
 		/// Returns the \ref code::interpretation of the given \ref buffer corresponding to the given
 		/// \ref code::buffer_encoding, creating a new one if none is found.
+		///
+		/// \todo Asynchronous loading.
 		std::shared_ptr<code::interpretation> open_interpretation(
 			const std::shared_ptr<buffer> &buf, const code::buffer_encoding &encoding
 		) {
@@ -76,7 +78,7 @@ namespace codepad::editor {
 					return ptr;
 				}
 			} else {
-				it = data.interpretations.try_emplace(encoding.get_name()).first;
+				it = data.interpretations.try_emplace(str_t(encoding.get_name())).first;
 			}
 			auto ptr = std::make_shared<code::interpretation>(buf, encoding);
 			it->second = ptr;
@@ -143,7 +145,7 @@ namespace codepad::editor {
 			}
 		}
 
-		event<buffer_info>
+		info_event<buffer_info>
 			/// Invoked when a buffer has been created. Components and plugins that make use of per-buffer tags
 			/// may have to handle this (and only this, as the tags are automatically disposed) event to initialize
 			/// them.
@@ -179,11 +181,11 @@ namespace codepad::editor {
 
 			std::weak_ptr<buffer> buf; ///< Pointer to the buffer.
 			/// All \ref code::interpretation "interpretations" of this \ref buffer.
-			std::unordered_map<str_t, std::weak_ptr<code::interpretation>> interpretations;
+			std::map<str_t, std::weak_ptr<code::interpretation>, std::less<>> interpretations;
 		};
 
 		/// Stores all \p buffer "buffers" that correspond to files and their <tt>std::filesystem::path</tt>s.
-		std::unordered_map<std::filesystem::path, _buffer_data> _file_map;
+		std::map<std::filesystem::path, _buffer_data> _file_map;
 		/// Stores all \p buffer "buffers" that don't correspond to files.
 		std::vector<_buffer_data> _noname_map;
 		/// Stores indices of disposed buffers in \ref _noname_map for more efficient allocation of indices.

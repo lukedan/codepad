@@ -39,8 +39,8 @@ namespace codepad::ui {
 
 	void visual_layer::render(renderer_base &r, rectd rgn, const state &s) const {
 		texture empty, *tex = &empty;
-		if (s.texture.current_value) {
-			tex = s.texture.current_value.get();
+		if (s.tex.current_value) {
+			tex = s.tex.current_value.get();
 		}
 		switch (layer_type) {
 		case type::solid:

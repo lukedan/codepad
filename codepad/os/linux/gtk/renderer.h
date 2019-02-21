@@ -7,7 +7,7 @@
 #include <GL/gl.h>
 #include <gtk/gtk.h>
 
-#include "../../renderer.h"
+#include "../../../ui/renderer.h"
 #include "../../software_renderer_base.h"
 #include "../../opengl_renderer_base.h"
 #include "window.h"
@@ -16,11 +16,11 @@ namespace codepad::os {
 	class software_renderer : public software_renderer_base {
 	public:
 		/// \todo Find the cairo operator corresponding to <tt>GL_ONE, GL_ONE_MINUS_SRC_ALPHA</tt>.
-		void begin(const window_base &wnd) override {
+		void begin(const ui::window_base &wnd) override {
 			auto *cwnd = static_cast<const window*>(&wnd);
 			_wnd_rec *crec = &_wnds.find(cwnd)->second;
 			_begin_render_target(_render_target_stackframe(
-				crec->texture.w, crec->texture.h, crec->texture.data, [this, cwnd, crec]() {
+				crec->texture.w, crec->texture.h, crec->texture.data, [cwnd, crec]() {
 					if (crec->buf.surface) {
 						// copy buffer data to cairo surface
 						cairo_surface_flush(crec->buf.surface);
@@ -94,18 +94,17 @@ namespace codepad::os {
 			return true;
 		}
 
-		void _new_window(window_base &wnd) override {
+		void _new_window(ui::window_base &wnd) override {
 			auto *w = static_cast<window*>(&wnd);
 			_wnd_rec wr;
 			auto it = _wnds.emplace(w, std::move(wr)).first;
-			w->size_changed += [it, w](size_changed_info &info) {
+			w->size_changed += [it, w](ui::size_changed_info &info) {
 				it->second.resize_buffer(static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y));
-				ui::manager::get().update_invalid_layout();
-				ui::manager::get().update_visual_immediate(*w);
+				w->get_manager().get_scheduler().update_layout_and_visual();
 			};
 			g_signal_connect(w->_wnd, "draw", reinterpret_cast<GCallback>(_actual_render), &it->second);
 		}
-		void _delete_window(window_base &wnd) override {
+		void _delete_window(ui::window_base &wnd) override {
 			assert_true_logical(_wnds.erase(static_cast<window*>(&wnd)) == 1, "corrupted window registry");
 		}
 
@@ -126,12 +125,12 @@ namespace codepad::os {
 			}
 
 			GtkWidget *widget = nullptr;
-			framebuffer buffer;
+			ui::framebuffer buffer;
 		};
 
 		inline static gboolean _on_glarea_render(GtkGLArea *area, GdkGLContext *ctx, window *wnd) {
 			logger::get().log_error(CP_HERE, "fuck no");
-			auto &rend = static_cast<opengl_renderer&>(renderer_base::get());
+			auto &rend = static_cast<opengl_renderer&>(wnd->get_manager().get_renderer());
 			_wnd_rec &rec = rend._wndmapping[wnd];
 			_gl_buffer<GL_ARRAY_BUFFER> buf;
 			buf.initialize(rend);
@@ -167,7 +166,7 @@ namespace codepad::os {
 			return true;
 		}
 
-		void _new_window(window_base &wnd) override {
+		void _new_window(ui::window_base &wnd) override {
 #ifdef CP_CHECK_LOGICAL_ERRORS
 			auto w = dynamic_cast<window*>(&wnd);
 			assert_true_logical(w != nullptr, "invalid window passed to renderer");
@@ -192,13 +191,13 @@ namespace codepad::os {
 				_initialize_gl(_get_gl_func);
 			}
 			auto it = _wndmapping.emplace(w, glarea);
-			w->size_changed += [this, it = it.first](size_changed_info &info) {
+			w->size_changed += [this, it = it.first](ui::size_changed_info &info) {
 				it->second.buffer = new_framebuffer(
 					static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y)
 				);
 			};
 		}
-		void _delete_window(window_base &wnd) override {
+		void _delete_window(ui::window_base &wnd) override {
 #ifdef CP_CHECK_LOGICAL_ERRORS
 			auto w = dynamic_cast<window*>(&wnd);
 			assert_true_logical(w != nullptr, "invalid window passed to renderer");
@@ -207,7 +206,7 @@ namespace codepad::os {
 #endif
 			_wndmapping.erase(w);
 		}
-		std::function<void()> _get_begin_window_func(const window_base &wnd) override {
+		std::function<void()> _get_begin_window_func(const ui::window_base &wnd) override {
 			auto *cw = static_cast<const window*>(&wnd);
 			auto it = _wndmapping.find(cw);
 			gtk_gl_area_make_current(GTK_GL_AREA(it->second.widget));
@@ -215,7 +214,7 @@ namespace codepad::os {
 				_gl.BindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(_get_id(it->second.buffer)));
 			};
 		}
-		std::function<void()> _get_end_window_func(const window_base &wnd) override {
+		std::function<void()> _get_end_window_func(const ui::window_base &wnd) override {
 			auto *cw = static_cast<const window*>(&wnd);
 			auto it = _wndmapping.find(cw);
 			return [this, it]() {

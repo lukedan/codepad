@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Includes all platform-specific headers for the linux platform.
+/// Includes all OS-specific headers for Linux.
 
 #include "linux/misc.h"
 #include "linux/font.h"

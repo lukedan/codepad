@@ -116,9 +116,9 @@ namespace codepad::ui {
 	/// Contains information about key presses.
 	struct key_info {
 		/// Constructor.
-		explicit key_info(key k) : key(k) {
+		explicit key_info(key k) : key_pressed(k) {
 		}
-		const key key; ///< The key that has been pressed.
+		const key key_pressed; ///< The key that has been pressed.
 	};
 	/// Contains information about text input.
 	struct text_info {
@@ -364,24 +364,25 @@ namespace codepad::ui {
 		/// Shorthand for setting or unsetting the \ref manager::predefined_states::vertical state.
 		void set_is_vertical(bool);
 
-		event<void>
+		info_event<>
 			mouse_enter, ///< Triggered when the mouse starts to be over the element.
 			mouse_leave, ///< Triggered when the mouse ceases to be over the element.
 			got_focus, ///< Triggered when the element gets the focus.
 			lost_focus, ///< Triggered when the element loses the focus.
-			lost_capture; ///< Triggered when the element loses mouse capture.
-		event<mouse_move_info> mouse_move; ///< Triggered when the mouse moves over the element.
-		event<mouse_button_info>
+			lost_capture, ///< Triggered when the element loses mouse capture.
+			layout_changed; ///< Triggered when the layout of this element has changed.
+		info_event<mouse_move_info> mouse_move; ///< Triggered when the mouse moves over the element.
+		info_event<mouse_button_info>
 			mouse_down, ///< Triggered when a mouse button is pressed when the mouse is over the element.
 			mouse_up; ///< Triggered when a mouse button is released when the mouse is over the elemnet.
-		event<mouse_scroll_info> mouse_scroll; ///< Triggered when the user scrolls the mouse over the element.
-		event<key_info>
+		info_event<mouse_scroll_info> mouse_scroll; ///< Triggered when the user scrolls the mouse over the element.
+		info_event<key_info>
 			key_down, ///< Triggered when a key is pressed when the element has the focus.
 			key_up; ///< Triggered when a key is released when the element has the focus.
-		event<text_info> keyboard_text; ///< Triggered as the user types when the element has the focus.
+		info_event<text_info> keyboard_text; ///< Triggered as the user types when the element has the focus.
 
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("element");
 		}
 	private:
@@ -524,6 +525,7 @@ namespace codepad::ui {
 				logger::get().log_warning(CP_HERE, "layout system produced nan on ", demangle(typeid(*this).name()));
 			}
 			invalidate_visual();
+			layout_changed.invoke();
 		}
 
 		/// Called immediately after the element is created to initialize it. Initializes \ref _config with the given
@@ -533,14 +535,22 @@ namespace codepad::ui {
 		///
 		/// \param cls The class of the element.
 		/// \param metrics The element's metrics configuration.
-		virtual void _initialize(const str_t &cls, const element_metrics &metrics);
+		virtual void _initialize(str_view_t cls, const element_metrics &metrics);
+		/// Called after the logical parent of this element (which is a composite element) has been fully constructed,
+		/// i.e., it and all of its children (including this element) has been constructed and properly initialized.
+		/// If this element does not have a logical parent, this function will not be called. The order in which this
+		/// is called for all descendents is arbitrary.
+		virtual void _on_logical_parent_constructed() {
+		}
 		/// Called immediately before the element is disposed. Removes the element from its parent if it has one.
 		/// All derived classes should call \p base::_dispose <em>after</em> disposing of their own components.
 		/// It is primarily intended to avoid pitfalls associated with virtual function calls in destructors to have
 		/// this function.
 		virtual void _dispose();
 	private:
-		manager *_manager = nullptr; ///< The \ref manager of this element.
+		/// The \ref manager of this element. This is set after this element is constructed but before
+		/// \ref _initialize() is called.
+		manager *_manager = nullptr;
 #ifdef CP_CHECK_USAGE_ERRORS
 		bool _initialized = false; ///< Indicates wheter the element has been properly initialized and disposed.
 #endif

@@ -33,6 +33,12 @@ namespace codepad::os {
 		/// The file is created if it doesn't exist, or truncated if it does.
 		create_or_truncate = create | open_and_truncate
 	};
+	/// Specifies the starting point for moving the file pointer.
+	enum class seek_mode {
+		begin, ///< The beginning of the file.
+		current, ///< The current position.
+		end ///< The end of the file.
+	};
 }
 
 namespace codepad {
@@ -50,17 +56,22 @@ namespace codepad::os {
 	public:
 		/// The type of native handles.
 		using native_handle_t =
-#ifdef CP_PLATFORM_WINDOWS
+#if defined(CP_PLATFORM_WINDOWS)
 			HANDLE;
 #elif defined(CP_PLATFORM_UNIX)
 			int;
 #endif
-		/// The type used to represent file sizes.
-		using size_type =
-#ifdef CP_PLATFORM_WINDOWS
+		/// The type used to represent positions. This type is not necessarily unsigned.
+		using pos_type =
+#if defined(CP_PLATFORM_WINDOWS)
 			LONGLONG;
 #elif defined(CP_PLATFORM_UNIX)
 			off_t;
+#endif
+		/// The type used to represent differences of \ref pos_type. This type is signed.
+		using difference_type =
+#if defined(CP_PLATFORM_WINDOWS)
+			LONGLONG;
 #endif
 
 		/// The value of an empty handle.
@@ -107,12 +118,24 @@ namespace codepad::os {
 		}
 
 		/// Gets and returns the size of the opened file. Returns 0 if the file is empty.
-		size_type get_size() const {
+		pos_type get_size() const {
 			if (valid()) {
 				return _get_size_impl();
 			}
 			return 0;
 		}
+
+		/// Reads a given amount of bytes into the given buffer.
+		///
+		/// \return The number of bytes read.
+		pos_type read(pos_type, void*);
+		/// Writes the given data to the file.
+		void write(const void*, pos_type);
+
+		/// Returns the position of the file pointer.
+		pos_type tell() const;
+		/// Moves the file pointer.
+		pos_type seek(seek_mode, difference_type);
 
 		/// Returns the native handle.
 		native_handle_t get_native_handle() const {
@@ -132,7 +155,7 @@ namespace codepad::os {
 		/// Closes the file. Assumes that it's valid.
 		void _close_impl();
 		/// Returns the size of the opened file. Assumes that it's valid.
-		size_type _get_size_impl() const;
+		pos_type _get_size_impl() const;
 	};
 
 	/// Represents a memory-mapped file.

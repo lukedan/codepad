@@ -135,9 +135,9 @@ namespace codepad::ui {
 			return intercept;
 		}
 
-		event<hotkey_info> triggered; ///< An event invoked whenever the user enters a hotkey.
+		info_event<hotkey_info> triggered; ///< An event invoked whenever the user enters a hotkey.
 		/// An event invoked when the user enters an invalid gesture and breaks the chain.
-		event<void> chain_interrupted;
+		info_event<> chain_interrupted;
 	protected:
 		/// Records the state of a hotkey group.
 		struct _hotkey_group_state {

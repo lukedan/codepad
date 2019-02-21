@@ -9,8 +9,8 @@
 using namespace codepad::ui;
 using namespace codepad::os;
 
-namespace codepad::editor {
-	void tab::_initialize(const str_t &cls, const element_metrics &metrics) {
+namespace codepad::editors {
+	void tab::_initialize(str_view_t cls, const element_metrics &metrics) {
 		panel::_initialize(cls, metrics);
 
 		_can_focus = true;
@@ -122,7 +122,7 @@ namespace codepad::editor {
 		_tab_buttons_region->children().move_before(*target._btn, before == nullptr ? nullptr : before->_btn);
 	}
 
-	void tab_host::_initialize(const str_t &cls, const element_metrics &metrics) {
+	void tab_host::_initialize(str_view_t cls, const element_metrics &metrics) {
 		panel_base::_initialize(cls, metrics);
 
 		get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {

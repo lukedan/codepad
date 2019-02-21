@@ -4,11 +4,11 @@
 #pragma once
 
 /// \file
-/// Contains classes used to format a view of a \ref codepad::editor::code::document.
+/// Contains classes used to format a view of a \ref codepad::editors::code::document.
 
 #include "interpretation.h"
 
-namespace codepad::editor::code {
+namespace codepad::editors::code {
 	/// The type of a linebreak.
 	enum class linebreak_type {
 		soft, ///< A soft linebreak, caused by wrapping.

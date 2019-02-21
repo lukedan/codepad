@@ -13,8 +13,9 @@
 #include "panel.h"
 #include "native_commands.h"
 #include "../editors/tabs.h"
-#include "../editors/code/editor.h"
+#include "../editors/code/contents_region.h"
 #include "../editors/code/components.h"
+#include "../editors/binary/contents_region.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -53,18 +54,20 @@ namespace codepad::ui {
 		register_element_type<scrollbar_drag_button>();
 		register_element_type<window>();
 
-		register_element_type<editor::split_panel>();
-		register_element_type<editor::tab_button>();
-		register_element_type<editor::tab>();
-		register_element_type<editor::drag_destination_selector>();
-		register_element_type<editor::tab_host>();
-		register_element_type<editor::code::codebox>();
-		register_element_type<editor::code::editor>();
-		register_element_type<editor::code::line_number_display>();
-		register_element_type<editor::code::minimap>();
+		register_element_type<editors::split_panel>();
+		register_element_type<editors::tab_button>();
+		register_element_type<editors::tab>();
+		register_element_type<editors::drag_destination_selector>();
+		register_element_type<editors::tab_host>();
+		register_element_type<editors::code::editor>();
+		register_element_type<editors::code::contents_region>();
+		register_element_type<editors::code::line_number_display>();
+		register_element_type<editors::code::minimap>();
+		register_element_type<editors::binary::editor>();
+		register_element_type<editors::binary::contents_region>();
 
 
-		
+
 		native_commands::register_all(_commands);
 		_scheduler.get_hotkey_listener().triggered += [this](hotkey_info &info) {
 			const auto *cmd = _commands.try_find_command(info.command);

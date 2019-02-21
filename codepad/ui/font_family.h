@@ -52,11 +52,11 @@ namespace codepad::ui {
 		font_family() = default;
 		/// Constructs the font family by loading the four fonts with different styles that correspond to the given
 		/// font name and size.
-		font_family(font_manager &man, const str_t &family, double size) :
-			normal(create_font(man, family, size, font_style::normal)),
-			bold(create_font(man, family, size, font_style::bold)),
-			italic(create_font(man, family, size, font_style::italic)),
-			bold_italic(create_font(man, family, size, font_style::bold_italic)) {
+		font_family(font_manager &man, str_view_t family, size_t size) :
+			normal(man.get_font(family, size, font_style::normal)),
+			bold(man.get_font(family, size, font_style::bold)),
+			italic(man.get_font(family, size, font_style::italic)),
+			bold_italic(man.get_font(family, size, font_style::bold_italic)) {
 		}
 		/// Constructs the font family with four <tt>std::shared_ptr</tt>s
 		/// that either are empty or point to existing fonts.

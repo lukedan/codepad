@@ -4,14 +4,14 @@
 #pragma once
 
 /// \file
-/// Structs used to render the contents of a \ref codepad::editor::code::editor.
+/// Structs used to render the contents of a \ref codepad::editors::code::contents_region.
 
 #include "../buffer.h"
 #include "interpretation.h"
 #include "view.h"
-#include "editor.h"
+#include "contents_region.h"
 
-namespace codepad::editor::code {
+namespace codepad::editors::code {
 	/// Indicates that no token is produced by the current component.
 	struct no_token {
 	};
@@ -55,7 +55,7 @@ namespace codepad::editor::code {
 
 		str_t contents; ///< The contents of this token.
 		colord color; ///< Color used to render this token.
-		/// The font used for the text. If this is empty, the normal font of the editor is used.
+		/// The font used for the text. If this is empty, the normal font of the contents_region is used.
 		std::shared_ptr<const ui::font> font;
 	};
 	/// Contains information about a token to be rendered.
@@ -106,8 +106,8 @@ namespace codepad::editor::code {
 			}
 			return token_generation_result(
 				text_gizmo_token(
-					editor::format_invalid_codepoint(cpit.get_codepoint()),
-					editor::get_invalid_codepoint_color()
+					contents_region::format_invalid_codepoint(cpit.get_codepoint()),
+					contents_region::get_invalid_codepoint_color()
 				), 1
 			);
 		}
@@ -306,12 +306,12 @@ namespace codepad::editor::code {
 }
 
 namespace codepad {
-	/// Enables bitwise operators for \ref editor::code::token_measurement_flags.
-	template <> struct enable_enum_bitwise_operators<editor::code::token_measurement_flags> : std::true_type {
+	/// Enables bitwise operators for \ref editors::code::token_measurement_flags.
+	template <> struct enable_enum_bitwise_operators<editors::code::token_measurement_flags> : std::true_type {
 	};
 }
 
-namespace codepad::editor::code {
+namespace codepad::editors::code {
 	/// Computes the metrics of each character in a clip of text.
 	struct text_metrics_accumulator {
 	public:

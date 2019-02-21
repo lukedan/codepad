@@ -3,6 +3,9 @@
 
 #pragma once
 
+/// \file
+/// Includes all OS-specific headers for Windows.
+
 #include "windows/misc.h"
 #include "windows/font.h"
 #include "windows/window.h"

@@ -30,12 +30,6 @@
     <ClInclude Include="editors\code\components.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editors\code\editor.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="editors\code\codebox.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\draw.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -144,9 +138,6 @@
     <ClInclude Include="editors\buffer_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editors\code\caret_set.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="core\settings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -183,6 +174,27 @@
     <ClInclude Include="ui\scheduler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="editors\binary\contents_region.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\binary\editor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\editor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\contents_region.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\caret_set.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\caret_set.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\interaction_modes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -191,16 +203,10 @@
     <ClCompile Include="os\windows\windows.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="editors\code\editor.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ui\manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ui\element.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="editors\code\codebox.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ui\panel.cpp">
@@ -242,7 +248,16 @@
     <ClCompile Include="ui\window.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ui\text_rendering.cpp">
+    <ClCompile Include="editors\code\editor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editors\binary\editor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editors\code\contents_region.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\font.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

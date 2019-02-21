@@ -8,7 +8,7 @@
 
 #include "../buffer.h"
 
-namespace codepad::editor::code {
+namespace codepad::editors::code {
 	/// The type of a line ending.
 	enum class line_ending : unsigned char {
 		none, ///< Unspecified or invalid. Sometimes also used to indicate EOF or soft linebreaks.

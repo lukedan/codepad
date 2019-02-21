@@ -8,6 +8,7 @@
 
 #include <functional>
 #include <list>
+#include <optional>
 
 namespace codepad {
 	/// Template for event structs. Users can register and unregister handlers.
@@ -29,8 +30,15 @@ namespace codepad {
 		public:
 			/// Default construtor.
 			token() = default;
+
+			/// Returns whether this token represents a registered event handler. Note that this may not be accurate
+			/// if the event itself has been disposed.
+			bool valid() const {
+				return _text_tok.has_value();
+			}
 		protected:
-			typename std::list<handler>::iterator _text_tok; ///< Iterator to the corresponding handler.
+			/// Iterator to the corresponding handler.
+			std::optional<typename std::list<handler>::iterator> _text_tok;
 
 			/// Protected constructor that sets the value of \ref _text_tok.
 			explicit token(const typename std::list<handler>::iterator &tok) : _text_tok(tok) {
@@ -53,11 +61,12 @@ namespace codepad {
 			auto it = _list.end();
 			return token(--it);
 		}
-		/// Unregisters a handler.
+		/// Unregisters a handler and resets the given token.
 		///
 		/// \param tok The token returned when registering the handler.
-		event_base &operator-=(const token &tok) {
-			_list.erase(tok._text_tok);
+		event_base &operator-=(token &tok) {
+			_list.erase(tok._text_tok.value());
+			tok._text_tok.reset();
 			return *this;
 		}
 
@@ -77,11 +86,11 @@ namespace codepad {
 		std::list<handler> _list; ///< The list of handlers that have been registered to this event.
 	};
 
-	/// Represents an event. Handlers receive a (non-const) reference
-	/// to a struct containing information about the event.
+	/// Represents an event whose handlers receive a non-const reference to a struct containing information about
+	/// the event.
 	///
 	/// \tparam T The type of information about the event.
-	template <typename T> struct event : public event_base<T&> {
+	template <typename T = void> struct info_event : public event_base<T&> {
 		/// Used to invoke the event when the parameters doesn't change in a meaningful way,
 		/// and when the caller doesn't wish to explicitly create an instance of the parameters.
 		///
@@ -91,8 +100,8 @@ namespace codepad {
 			this->invoke(p);
 		}
 	};
-	/// Specialization of \ref event when there's no parameters.
-	template <> struct event<void> : public event_base<> {
+	/// Specialization of \ref info_event when there's no parameters.
+	template <> struct info_event<void> : public event_base<> {
 	};
 
 	/// Generic parameters for events in which a value is updated. This struct holds the old value.

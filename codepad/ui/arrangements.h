@@ -3,7 +3,11 @@
 
 #pragma once
 
+/// \file
+/// Classes and structs related to arrangement configurations.
+
 #include <map>
+#include <vector>
 #include <functional>
 
 #include "misc.h"
@@ -72,15 +76,15 @@ namespace codepad::ui {
 		/// Used to notify the composite element when an element with a certain role is constructed.
 		using construction_notify = std::function<void(element*)>;
 		/// Mapping from roles to notification handlers.
-		using notify_mapping = std::map<str_t, construction_notify>;
+		using notify_mapping = std::map<str_view_t, construction_notify>;
 
 		/// Stores information about a child element.
 		struct child {
 			/// Constructs the corresponding child of a composite element, and schedules them to be updated if
-			/// necessary.
+			/// necessary. All created elements are added to the given \p std::vector.
 			///
-			/// \sa class_arrangements::construct_children
-			void construct(element_collection&, panel_base&, notify_mapping&) const;
+			/// \sa class_arrangements::construct_children()
+			void construct(element_collection&, panel_base&, notify_mapping&, std::vector<element*>&) const;
 
 			element_metrics metrics; ///< The child's metrics.
 			std::vector<child> children; ///< The child's children, if it's a \ref panel.
@@ -92,9 +96,9 @@ namespace codepad::ui {
 			element_state_id set_states = normal_element_state_id;
 		};
 
-		/// Constructs all children of a composite element with this arrangement, and marks elements for update if
-		/// necessary. This function should typically be called by the composite elements themselves in
-		/// \ref element::_initialize().
+		/// Constructs all children of a composite element with this arrangement, marks them to be updated if
+		/// necessary, and calls \ref element::_on_logical_parent_constructed() on all created elements. This
+		/// function should typically be called by the composite elements themselves in \ref element::_initialize().
 		///
 		/// \param logparent The composite element itself, which will be set as the logical parent of all children
 		///                  elements. All children elements will be added to \ref panel_base::_children.

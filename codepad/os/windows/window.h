@@ -149,7 +149,7 @@ namespace codepad::os {
 			return _hwnd;
 		}
 
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("window");
 		}
 	protected:
@@ -306,7 +306,7 @@ namespace codepad::os {
 			window_base::_on_mouse_enter();
 		}
 
-		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
 			window_base::_initialize(cls, metrics);
 			SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 			ShowWindow(_hwnd, SW_SHOW);

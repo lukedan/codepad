@@ -18,7 +18,7 @@
 #include "../ui/renderer.h"
 #include "../ui/window.h"
 
-namespace codepad::editor {
+namespace codepad::editors {
 	class tab;
 	class tab_manager;
 
@@ -108,12 +108,12 @@ namespace codepad::editor {
 		}
 
 		/// Returns the default class of all elements of type \ref split_panel.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("split_panel");
 		}
 
 		/// Returns the role identifier of the separator.
-		inline static str_t get_separator_role() {
+		inline static str_view_t get_separator_role() {
 			return CP_STRLIT("separator");
 		}
 	protected:
@@ -281,7 +281,7 @@ namespace codepad::editor {
 		}
 
 		/// Initializes \ref _sep and adds handlers for certain events.
-		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
 			ui::panel_base::_initialize(cls, metrics);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
@@ -364,21 +364,21 @@ namespace codepad::editor {
 
 		/// Invoked when the ``close'' button is clicked, or when the user presses the tertiary mouse button on the
 		/// \ref tab_button.
-		event<void> request_close;
-		event<tab_drag_info> start_drag; ///< Invoked when the user starts dragging the \ref tab_button.
-		event<tab_button_click_info> click; ///< Invoked when the user clicks the \ref tab_button.
+		info_event<> request_close;
+		info_event<tab_drag_info> start_drag; ///< Invoked when the user starts dragging the \ref tab_button.
+		info_event<tab_button_click_info> click; ///< Invoked when the user clicks the \ref tab_button.
 
 		/// Returns the default class of elements of type \ref tab_button.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("tab_button");
 		}
 
 		/// Returns the role identifier of the label.
-		inline static str_t get_label_role() {
+		inline static str_view_t get_label_role() {
 			return CP_STRLIT("label");
 		}
 		/// Returns the role identifier of the `close' button.
-		inline static str_t get_close_button_role() {
+		inline static str_view_t get_close_button_role() {
 			return CP_STRLIT("close_button");
 		}
 	protected:
@@ -431,7 +431,7 @@ namespace codepad::editor {
 		}
 
 		/// Initializes \ref _close_btn.
-		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
 			panel_base::_initialize(cls, metrics);
 
 			_can_focus = false;
@@ -457,28 +457,28 @@ namespace codepad::editor {
 		}
 
 		/// Returns the default class of elements of this type.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("drag_destination_selector");
 		}
 
 		/// Returns the role identifier of the `split left' indicator.
-		inline static str_t get_split_left_indicator_role() {
+		inline static str_view_t get_split_left_indicator_role() {
 			return CP_STRLIT("split_left_indicator");
 		}
 		/// Returns the role identifier of the `split right' indicator.
-		inline static str_t get_split_right_indicator_role() {
+		inline static str_view_t get_split_right_indicator_role() {
 			return CP_STRLIT("split_right_indicator");
 		}
 		/// Returns the role identifier of the `split up' indicator.
-		inline static str_t get_split_up_indicator_role() {
+		inline static str_view_t get_split_up_indicator_role() {
 			return CP_STRLIT("split_up_indicator");
 		}
 		/// Returns the role identifier of the `split down' indicator.
-		inline static str_t get_split_down_indicator_role() {
+		inline static str_view_t get_split_down_indicator_role() {
 			return CP_STRLIT("split_down_indicator");
 		}
 		/// Returns the role identifier of the `combine' indicator.
-		inline static str_t get_combine_indicator_role() {
+		inline static str_view_t get_combine_indicator_role() {
 			return CP_STRLIT("combine_indicator");
 		}
 	protected:
@@ -497,7 +497,7 @@ namespace codepad::editor {
 		drag_destination_type _dest = drag_destination_type::new_window;
 
 		/// Initializes all destination indicators.
-		void _initialize(const str_t &cls, const ui::element_metrics &metrics) override {
+		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
 			panel_base::_initialize(cls, metrics);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
@@ -576,16 +576,16 @@ namespace codepad::editor {
 		}
 
 		/// Returns the default class of elements of type \ref tab_host.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("tab_host");
 		}
 
 		/// Returns the role identifier of the region that contains all tab buttons.
-		inline static str_t get_tab_buttons_region_role() {
+		inline static str_view_t get_tab_buttons_region_role() {
 			return CP_STRLIT("tab_buttons_region");
 		}
 		/// Returns the role identifier of the region that contains tab contents.
-		inline static str_t get_tab_contents_region_role() {
+		inline static str_view_t get_tab_contents_region_role() {
 			return CP_STRLIT("tab_contents_region");
 		}
 	protected:
@@ -623,7 +623,7 @@ namespace codepad::editor {
 		void _on_tab_removed(tab&);
 
 		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.
-		void _initialize(const str_t&, const ui::element_metrics&) override;
+		void _initialize(str_view_t, const ui::element_metrics&) override;
 	private:
 		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.
 	};
@@ -665,7 +665,7 @@ namespace codepad::editor {
 		}
 
 		/// Returns the default class of elements of type \ref tab.
-		inline static str_t get_default_class() {
+		inline static str_view_t get_default_class() {
 			return CP_STRLIT("tab");
 		}
 	protected:
@@ -690,7 +690,7 @@ namespace codepad::editor {
 		}
 
 		/// Initializes \ref _btn.
-		void _initialize(const str_t&, const ui::element_metrics&) override;
+		void _initialize(str_view_t, const ui::element_metrics&) override;
 		/// Marks \ref _btn for disposal.
 		void _dispose() override {
 			get_manager().get_scheduler().mark_for_disposal(*_btn);

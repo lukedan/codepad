@@ -20,7 +20,7 @@ namespace codepad::os {
 	//   directwrite (IDWriteTextLayout::GetPairKerning)
 	class freetype_font : public freetype_font_base {
 	public:
-		freetype_font(ui::font_manager &man, str_view_t str, double sz, ui::font_style style) :
+		freetype_font(ui::font_manager &man, str_view_t str, size_t sz, ui::font_style style) :
 			freetype_font_base(man) {
 
 			constexpr size_t maximum_font_name_length = 100;

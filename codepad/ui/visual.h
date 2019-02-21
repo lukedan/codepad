@@ -25,16 +25,16 @@ namespace codepad::ui {
 			state() = default;
 			/// Initializes all property states with the properties of the given layer.
 			explicit state(const visual_layer &layer, animation_time_point_t now) :
-				texture(layer.texture_animation, now), margin(layer.margin_animation, now),
+				tex(layer.texture_animation, now), margin(layer.margin_animation, now),
 				color(layer.color_animation, now), size(layer.size_animation, now) {
 			}
 			/// Initializes all property states with the properties of the layer and the previous state.
 			state(const state &old, animation_time_point_t now) :
-				texture(old.texture.current_value, now), margin(old.margin.current_value, now),
+				tex(old.tex.current_value, now), margin(old.margin.current_value, now),
 				color(old.color.current_value, now), size(old.size.current_value, now) {
 			}
 
-			animated_property<std::shared_ptr<texture>, no_lerp>::state texture; ///< The state of \ref texture_animation.
+			animated_property<std::shared_ptr<texture>, no_lerp>::state tex; ///< The state of \ref texture_animation.
 			animated_property<thickness>::state margin; ///< The state of \ref margin_animation.
 			animated_property<colord>::state color; ///< The state of \ref color_animation.
 			animated_property<vec2d>::state size; ///< The state of \ref size_animation.
@@ -64,12 +64,12 @@ namespace codepad::ui {
 		animation_duration_t update(state &s, animation_time_point_t now) const {
 			auto res = animation_duration_t::max();
 			if (!s.all_stationary) {
-				res = std::min(res, texture_animation.update(s.texture, now));
+				res = std::min(res, texture_animation.update(s.tex, now));
 				res = std::min(res, margin_animation.update(s.margin, now));
 				res = std::min(res, color_animation.update(s.color, now));
 				res = std::min(res, size_animation.update(s.size, now));
 				s.all_stationary =
-					s.texture.stationary && s.color.stationary &&
+					s.tex.stationary && s.color.stationary &&
 					s.size.stationary && s.margin.stationary;
 			}
 			return res;

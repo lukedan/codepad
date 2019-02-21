@@ -83,7 +83,7 @@ namespace codepad {
 				sig_cont{0x80}; ///< Expected masked value of continuation bytes.
 
 			/// Returns `UTF-8'.
-			inline static str_t get_name() {
+			inline static str_view_t get_name() {
 				return CP_STRLIT("UTF-8");
 			}
 			/// Maximum 4 bytes for any codepoint encoded in UTF-8.
@@ -225,7 +225,7 @@ namespace codepad {
 		template <endianness Endianness = system_endianness> class utf16 {
 		public:
 			/// Returns either `UTF-16 LE' or `UTF-16 BE', depending on the Endianness.
-			inline static str_t get_name() {
+			inline static str_view_t get_name() {
 				if constexpr (Endianness == endianness::little_endian) {
 					return CP_STRLIT("UTF-16 LE");
 				} else {

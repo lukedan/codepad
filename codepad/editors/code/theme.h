@@ -4,11 +4,11 @@
 #pragma once
 
 /// \file
-/// Classes used to record and manage font color, style, etc. in a \ref codepad::editor::code::interpretation.
+/// Classes used to record and manage font color, style, etc. in a \ref codepad::editors::code::interpretation.
 
 #include "../../ui/font.h"
 
-namespace codepad::editor::code {
+namespace codepad::editors::code {
 	/// The type of a parameter of the text's theme.
 	enum class text_theme_parameter {
 		style, ///< The `style' parameter, corresponding to \ref ui::font_style.

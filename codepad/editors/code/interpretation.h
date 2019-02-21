@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Implementation of classes used to interpret a \ref codepad::editor::buffer.
+/// Implementation of classes used to interpret a \ref codepad::editors::buffer.
 
 #include <map>
 
@@ -14,7 +14,7 @@
 #include "theme.h"
 #include "caret_set.h"
 
-namespace codepad::editor::code {
+namespace codepad::editors::code {
 	/// Abstract class used to represent an encoding used to interpret a \ref buffer.
 	class buffer_encoding {
 	public:
@@ -22,7 +22,7 @@ namespace codepad::editor::code {
 		virtual ~buffer_encoding() = default;
 
 		/// Returns the name of this encoding.
-		virtual str_t get_name() const = 0;
+		virtual str_view_t get_name() const = 0;
 		/// Returns the maximum possible length of a codepoint, in bytes.
 		virtual size_t get_maximum_codepoint_length() const = 0;
 
@@ -42,7 +42,7 @@ namespace codepad::editor::code {
 	/// Encoding used to interpret a \ref buffer, based on a class in the \ref codepad::encodings namespace.
 	template <typename Encoding> class predefined_buffer_encoding : public buffer_encoding {
 		/// Calls \p get_name() in \p Encoding.
-		str_t get_name() const override {
+		str_view_t get_name() const override {
 			return Encoding::get_name();
 		}
 		/// Calls \p get_maximum_codepoint_length() in \p Encoding.
@@ -92,7 +92,7 @@ namespace codepad::editor::code {
 		///
 		/// \return Whether the registration was successful (i.e., no duplicate names were found).
 		bool register_encoding(std::unique_ptr<buffer_encoding> &&enc) {
-			return _map.try_emplace(enc->get_name(), std::move(enc)).second;
+			return _map.try_emplace(str_t(enc->get_name()), std::move(enc)).second;
 		}
 		/// Registers a built-in encoding.
 		///
@@ -101,7 +101,7 @@ namespace codepad::editor::code {
 			return register_encoding(std::make_unique<predefined_buffer_encoding<Encoding>>());
 		}
 		/// Returns the encoding with the given name, or \p nullptr if no such encoding is found.
-		const buffer_encoding *get_encoding(const str_t &name) const {
+		const buffer_encoding *get_encoding(str_view_t name) const {
 			auto it = _map.find(name);
 			if (it != _map.end()) {
 				return it->second.get();
@@ -109,7 +109,7 @@ namespace codepad::editor::code {
 			return nullptr;
 		}
 		/// Returns the full list of registered encodings.
-		const std::map<str_t, std::unique_ptr<buffer_encoding>> &get_all_encodings() const {
+		const std::map<str_t, std::unique_ptr<buffer_encoding>, std::less<>> &get_all_encodings() const {
 			return _map;
 		}
 
@@ -117,7 +117,7 @@ namespace codepad::editor::code {
 		static encoding_manager &get();
 	protected:
 		/// The mapping between encoding names and \ref buffer_encoding instances.
-		std::map<str_t, std::unique_ptr<buffer_encoding>> _map;
+		std::map<str_t, std::unique_ptr<buffer_encoding>, std::less<>> _map;
 		const buffer_encoding *_default = nullptr; ///< The default encoding.
 	};
 
@@ -384,12 +384,15 @@ namespace codepad::editor::code {
 		/// Constructor.
 		interpretation(std::shared_ptr<buffer> buf, const buffer_encoding &encoding) :
 			_buf(std::move(buf)), _encoding(&encoding) {
+
 			_begin_edit_tok = _buf->begin_edit += [this](buffer::begin_edit_info &info) {
 				_on_begin_edit(info);
 			};
 			_end_edit_tok = _buf->end_edit += [this](buffer::end_edit_info &info) {
 				_on_end_edit(info);
 			};
+
+			performance_monitor mon("full_decode", performance_monitor::log_condition::always);
 
 			std::vector<chunk_data> chunks;
 			linebreak_analyzer lines;
@@ -612,7 +615,7 @@ namespace codepad::editor::code {
 
 		/// Invoked when an edit has been made to the underlying \ref buffer, after this \ref interpretation has
 		/// finished updating.
-		event<buffer::end_edit_info> end_edit_interpret;
+		info_event<buffer::end_edit_info> end_edit_interpret;
 		// TODO visual_changed event
 	protected:
 		tree_type _chks; ///< Chunks used to speed up navigation.
@@ -620,8 +623,8 @@ namespace codepad::editor::code {
 		linebreak_registry _lbs; ///< Records all linebreaks.
 
 		const std::shared_ptr<buffer> _buf; ///< The underlying \ref buffer.
-		event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
-		event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
+		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
+		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
 		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
 
 		/// Used to find the number of bytes before a specified codepoint.

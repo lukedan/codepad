@@ -8,7 +8,7 @@
 
 #include "buffer_manager.h"
 
-namespace codepad::editor {
+namespace codepad::editors {
 	buffer::~buffer() {
 		buffer_manager::get()._on_deleting_buffer(*this);
 	}
