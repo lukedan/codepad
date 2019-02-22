@@ -342,13 +342,11 @@
     <ClInclude Include="core\json.h" />
     <ClInclude Include="core\settings.h" />
     <ClInclude Include="editors\binary\contents_region.h" />
-    <ClInclude Include="editors\binary\editor.h" />
     <ClInclude Include="editors\buffer.h" />
     <ClInclude Include="editors\buffer_manager.h" />
     <ClInclude Include="editors\caret_set.h" />
     <ClInclude Include="editors\code\caret_set.h" />
     <ClInclude Include="editors\code\linebreak_registry.h" />
-    <ClInclude Include="editors\code\editor.h" />
     <ClInclude Include="editors\code\contents_region.h" />
     <ClInclude Include="editors\code\components.h" />
     <ClInclude Include="editors\code\interpretation.h" />
@@ -356,6 +354,7 @@
     <ClInclude Include="editors\code\document_formatting_cache.h" />
     <ClInclude Include="editors\code\theme.h" />
     <ClInclude Include="editors\code\view.h" />
+    <ClInclude Include="editors\editor.h" />
     <ClInclude Include="editors\tabs.h" />
     <ClInclude Include="editors\interaction_modes.h" />
     <ClInclude Include="os\freetype_font_base.h" />
@@ -400,10 +399,8 @@
     <ClInclude Include="core\misc.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="editors\binary\editor.cpp" />
     <ClCompile Include="editors\buffer.cpp" />
     <ClCompile Include="editors\code\caret_set.cpp" />
-    <ClCompile Include="editors\code\editor.cpp" />
     <ClCompile Include="editors\code\contents_region.cpp" />
     <ClCompile Include="editors\tabs.cpp" />
     <ClCompile Include="main.cpp" />

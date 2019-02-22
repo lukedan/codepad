@@ -103,6 +103,8 @@ namespace codepad::editors {
 		using iterator = typename container::iterator;
 		/// Const iterator over the carets.
 		using const_iterator = typename container::const_iterator;
+		/// The type of data associated with each caret.
+		using data_type = Data;
 
 		/// Default virtual destructor.
 		virtual ~caret_set_base() = default;

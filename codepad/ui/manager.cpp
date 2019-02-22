@@ -59,11 +59,10 @@ namespace codepad::ui {
 		register_element_type<editors::tab>();
 		register_element_type<editors::drag_destination_selector>();
 		register_element_type<editors::tab_host>();
-		register_element_type<editors::code::editor>();
+		register_element_type<editors::editor>();
 		register_element_type<editors::code::contents_region>();
 		register_element_type<editors::code::line_number_display>();
 		register_element_type<editors::code::minimap>();
-		register_element_type<editors::binary::editor>();
 		register_element_type<editors::binary::contents_region>();
 
 

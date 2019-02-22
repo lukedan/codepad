@@ -412,7 +412,7 @@ namespace codepad::editors {
 				_t.insert_range_before_move(_t.end(), chunks.begin(), chunks.end());
 			} // TODO failed to open file
 
-			// STL version
+			/*// STL version
 			std::ifstream fin(filename, std::ios::binary);
 			if (fin) {
 				std::vector<chunk_data> chunks;
@@ -429,7 +429,7 @@ namespace codepad::editors {
 				if (!fin.bad()) {
 					_t.insert_range_before_move(_t.end(), chunks.begin(), chunks.end());
 				} // TODO failed to read file
-			} // TODO failed to open file
+			} // TODO failed to open file*/
 
 			/*
 			// memory-mapped version

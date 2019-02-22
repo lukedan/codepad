@@ -177,12 +177,6 @@
     <ClInclude Include="editors\binary\contents_region.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editors\binary\editor.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="editors\code\editor.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="editors\code\contents_region.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -193,6 +187,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="editors\interaction_modes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\editor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -246,12 +243,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ui\window.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="editors\code\editor.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="editors\binary\editor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="editors\code\contents_region.cpp">

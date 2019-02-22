@@ -49,13 +49,6 @@ namespace codepad::editors::code {
 			element::_on_added_to_parent();
 			_register_handlers();
 		}
-		/// Unregisters from \ref contents_region::content_modified.
-		void _on_removing_from_parent() override {
-			if (_resizetk.valid()) {
-				component_helper::get_contents_region(*this)->content_modified -= _resizetk;
-			}
-			element::_on_removing_from_parent();
-		}
 		/// Calls \ref _register_handlers() if necessary.
 		void _on_logical_parent_constructed() override {
 			if (!_resizetk.valid()) {
@@ -435,7 +428,7 @@ namespace codepad::editors::code {
 				return rectd::from_xywh(
 					clnrgn.xmin - edt->get_padding().left * get_scale(),
 					clnrgn.ymin - _get_y_offset() + (
-						component_helper::get_box(*this)->get_vertical_position() - edt->get_padding().top
+						editor::get_encapsulating(*this)->get_vertical_position() - edt->get_padding().top
 						) * get_scale(),
 					edt->get_layout().width() * get_scale(), clnrgn.height() * get_scale()
 				);
@@ -482,24 +475,14 @@ namespace codepad::editors::code {
 				_vis_tok = (edt->editing_visual_changed += [this]() {
 					_on_editor_visual_changed();
 				});
-				_vpos_tok = (box->vertical_viewport_changed += [this]() {
+				box->vertical_viewport_changed += [this]() {
 					_on_viewport_changed();
-				});
+				};
 			}
 		}
 		/// Calls \ref _register_handlers().
 		void _on_added_to_parent() override {
 			element::_on_added_to_parent();
-		}
-		/// Unregisters all previously registered event handlers.
-		void _on_removing_from_parent() override {
-			if (auto &&[box, edt] = component_helper::get_core_components(*this); edt) {
-				if (_vis_tok.valid()) {
-					edt->editing_visual_changed -= _vis_tok;
-					box->vertical_viewport_changed -= _vpos_tok;
-				}
-			}
-			element::_on_removing_from_parent();
 		}
 		/// Calls \ref _register_handlers() if necessary.
 		void _on_logical_parent_constructed() override {
@@ -583,9 +566,7 @@ namespace codepad::editors::code {
 		}
 
 		_page_cache _pgcache{*this}; ///< Caches rendered pages.
-		info_event<>::token
-			_vis_tok, ///< Used to listen to \ref contents_region::editing_visual_changed.
-			_vpos_tok; ///< Used to listen to \ref editor::vertical_viewport_changed.
+		info_event<>::token _vis_tok; ///< Used to listen to \ref contents_region::editing_visual_changed.
 		ui::visual_configuration _viewport_cfg; ///< Used to render the visible region indicator.
 		/// The offset of the mouse relative to the top border of the visible region indicator.
 		double _dragoffset = 0.0;

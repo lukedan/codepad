@@ -14,7 +14,6 @@
 #include "ui/config_parsers.h"
 #include "ui/text_rendering.h"
 #include "editors/tabs.h"
-#include "editors/code/editor.h"
 #include "editors/code/components.h"
 #include "editors/buffer.h"
 

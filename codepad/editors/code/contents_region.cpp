@@ -114,14 +114,17 @@ namespace codepad::editors::code {
 
 		double lh = get_line_height(), layoutw = get_layout().width();
 		pair<size_t, size_t> be = get_visible_lines();
-		caret_set::container ncon;
-		const caret_set::container *used = &_cset.carets;
-		if (_selecting) { // when selecting, use temporarily merged caret set for rendering
-			ncon = *used;
-			used = &ncon;
-			caret_set::add_caret(
-				ncon, {{_mouse_cache.position, _sel_end}, caret_data(0.0, _mouse_cache.at_back)}
-			);
+		caret_set extcarets;
+		const caret_set *used = &_cset;
+		std::vector<caret_selection_position> tempcarets = _interaction_manager.get_temporary_carets();
+		if (!tempcarets.empty()) {
+			extcarets = _cset;
+			for (const auto &caret : tempcarets) {
+				extcarets.add(caret_set::entry(
+					caret_selection(caret.caret, caret.selection), caret_data(0.0, caret.caret_at_back)
+				));
+			}
+			used = &extcarets;
 		}
 		font_family::baseline_info bi = get_font().get_baseline_info();
 
@@ -129,7 +132,7 @@ namespace codepad::editors::code {
 		get_manager().get_renderer().push_matrix_mult(matd3x3::translate(vec2d(
 			round(client.xmin),
 			round(
-				client.ymin - component_helper::get_box(*this)->get_vertical_position() +
+				client.ymin - editor::get_encapsulating(*this)->get_vertical_position() +
 				static_cast<double>(_fmt.get_folding().unfolded_to_folded_line_number(be.first)) * lh
 			)
 		)));
@@ -146,7 +149,7 @@ namespace codepad::editors::code {
 			const font_family &fnt = get_font();
 			text_metrics_accumulator metrics(fnt, get_line_height(), _fmt.get_tab_width());
 			atlas::batch_renderer brend(fnt.normal->get_manager().get_atlas());
-			caret_renderer caretrend(*used, firstchar, flineinfo.second == linebreak_type::soft);
+			caret_renderer caretrend(used->carets, firstchar, flineinfo.second == linebreak_type::soft);
 			while (it.get_position() < plastchar) {
 				token_generation_result tok = it.generate();
 				// text gizmo measurement is deferred

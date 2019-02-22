@@ -9,9 +9,10 @@
 #include <memory>
 
 #include "../../core/bst.h"
+#include "../editor.h"
+#include "../interaction_modes.h"
 #include "caret_set.h"
 #include "view.h"
-#include "editor.h"
 
 namespace codepad::editors::code {
 	/// The main component of a \ref editor that's responsible of text editing. This element should only be used as a
@@ -19,8 +20,7 @@ namespace codepad::editors::code {
 	///
 	/// \todo Proper syntax highlighting, drag & drop, code folding, etc.
 	/// \todo Extract caret movement code to somewhere else.
-	class contents_region : public ui::element {
-		friend editor;
+	class contents_region : public interactive_contents_region_base<caret_set> {
 	public:
 		constexpr static double
 			/// The scrolling speed coefficient when the user drags the selection out of the element.
@@ -32,11 +32,7 @@ namespace codepad::editors::code {
 
 		/// Sets the \ref interpretation displayed by the contents_region.
 		void set_document(std::shared_ptr<interpretation> newdoc) {
-			if (_doc) {
-				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
-				_doc->end_edit_interpret -= _end_edit_tok;
-				/*_doc->visual_changed -= _ctx_vis_change_tok;*/
-			}
+			_unbind_document_events();
 			_doc = std::move(newdoc);
 			_cset.reset();
 			if (_doc) {
@@ -70,21 +66,27 @@ namespace codepad::editors::code {
 		double get_line_height() const {
 			return get_font().maximum_height();
 		}
+
 		/// Returns the length of scrolling by one tick.
-		double get_scroll_delta() const {
+		double get_vertical_scroll_delta() const override {
 			return get_line_height() * _lines_per_scroll;
 		}
 		/// Returns the vertical viewport range.
-		double get_vertical_scroll_range() const {
+		double get_vertical_scroll_range() const override {
 			return
 				get_line_height() * static_cast<double>(get_num_visual_lines() - 1) +
 				get_layout().height() + get_padding().top;
 		}
+		/// Returns the horizontal viewport range.
+		double get_horizontal_scroll_range() const override {
+			// TODO
+			return 1.0;
+		}
 
-		/// If the mouse is over a selection, displays the normal cursor; otherwise displays the `I-beam' cursor.
+		/// Returns the overriden cursor if there is one, otherwise returns the `I'-beam cursor.
 		ui::cursor get_current_display_cursor() const override {
-			if (!_selecting && _cset.is_in_selection(_mouse_cache.position)) {
-				return ui::cursor::normal;
+			if (ui::cursor c = _interaction_manager.get_override_cursor(); c != ui::cursor::not_specified) {
+				return c;
 			}
 			return ui::cursor::text_beam;
 		}
@@ -99,7 +101,7 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns the current set of carets.
-		const caret_set &get_carets() const {
+		const caret_set &get_carets() const override {
 			return _cset;
 		}
 		/// Sets the current carets. The provided set of carets must not be empty. This function calculates the
@@ -134,6 +136,31 @@ namespace codepad::editors::code {
 			_make_caret_visible(_extract_position(*_cset.carets.rbegin()));
 			_on_carets_changed();
 		}
+
+		/// Adds the given caret to this \ref contents_region.
+		void add_caret(caret_selection_position c) override {
+			auto it = _cset.add(caret_set::entry(
+				caret_selection(c.caret, c.selection), caret_data(0.0, c.caret_at_back)
+			));
+			// the added caret may be merged, so alignment is calculated later
+			it->second.alignment = get_horizontal_caret_position(_extract_position(*it));
+			_on_carets_changed();
+		}
+		/// Removes the given caret.
+		void remove_caret(caret_set::const_iterator it) override {
+			_cset.carets.erase(it);
+			_on_carets_changed();
+		}
+		/// Clears all carets from this \ref contents_region.
+		void clear_carets() override {
+			_cset.carets.clear();
+			_on_carets_changed();
+		}
+		/// Extracts a \ref caret_selection_position.
+		caret_selection_position extract_caret_selection_position(const caret_set::entry &et) const override {
+			return caret_selection_position(et.first.first, et.first.second, et.second.softbreak_next_line);
+		}
+
 		/// Moves all carets. The caller needs to give very precise instructions on how to move them.
 		///
 		/// \param gd A function-like object that takes a \ref caret_set::entry as input and returns the position
@@ -223,16 +250,12 @@ namespace codepad::editors::code {
 
 		/// Calls \ref interpretation::on_backspace() with the current set of carets.
 		void on_backspace() {
-			if (_selecting) {
-				_end_mouse_selection();
-			}
+			_interaction_manager.on_edit_operation();
 			_doc->on_backspace(_cset, this);
 		}
 		/// Calls \ref interpretation::on_delete() with the current set of carets.
 		void on_delete() {
-			if (_selecting) {
-				_end_mouse_selection();
-			}
+			_interaction_manager.on_edit_operation();
 			_doc->on_delete(_cset, this);
 		}
 		/// Checks if there are editing actions available for undo-ing, and calls \ref undo if there is.
@@ -240,6 +263,7 @@ namespace codepad::editors::code {
 		/// \return \p true if an action has been reverted.
 		bool try_undo() {
 			if (_doc->get_buffer()->can_undo()) {
+				_interaction_manager.on_edit_operation();
 				_doc->get_buffer()->undo(this);
 				return true;
 			}
@@ -250,6 +274,7 @@ namespace codepad::editors::code {
 		/// \return \p true if an action has been restored.
 		bool try_redo() {
 			if (_doc->get_buffer()->can_redo()) {
+				_interaction_manager.on_edit_operation();
 				_doc->get_buffer()->redo(this);
 				return true;
 			}
@@ -294,15 +319,23 @@ namespace codepad::editors::code {
 		/// Similar to \ref get_visible_lines(double, double) const, except that this function uses the current viewport
 		/// of this contents_region as the parameters.
 		std::pair<size_t, size_t> get_visible_lines() const {
-			double top = component_helper::get_box(*this)->get_vertical_position() - get_padding().top;
+			double top = editor::get_encapsulating(*this)->get_vertical_position() - get_padding().top;
 			return get_visible_lines(top, top + get_layout().height());
 		}
 		/// Returns the caret position corresponding to a given position. Note that the offset is relative to the
 		/// top-left corner of the document rather than that of this element.
-		caret_position hit_test_for_caret(vec2d offset) const {
+		caret_position hit_test_for_caret_document(vec2d offset) const {
 			size_t line = static_cast<size_t>(std::max(offset.y / get_line_height(), 0.0));
 			line = std::min(_fmt.get_folding().folded_to_unfolded_line_number(line), get_num_visual_lines() - 1);
 			return _hit_test_unfolded_linebeg(line, offset.x);
+		}
+		/// Shorthand for \ref hit_test_for_caret_document when the coordinates are relative to this \ref ui::element.
+		///
+		/// \todo Need changes after adding horizontal scrolling.
+		caret_position hit_test_for_caret(vec2d pos) const override {
+			return hit_test_for_caret_document(vec2d(
+				pos.x, pos.y + editor::get_encapsulating(*this)->get_vertical_position()
+			));
 		}
 		/// Returns the horizontal visual position of a caret.
 		///
@@ -502,6 +535,11 @@ namespace codepad::editors::code {
 			return _get_appearance().family;
 		}
 
+		/// Casts the obtained \ref components_region_base to the correct type.
+		inline static contents_region *get_from_editor(editor &edt) {
+			return dynamic_cast<contents_region*>(edt.get_contents_region());
+		}
+
 		/// Returns the default class used by elements of type \ref contents_region.
 		inline static str_view_t get_default_class() {
 			return CP_STRLIT("code_contents_region");
@@ -525,26 +563,13 @@ namespace codepad::editors::code {
 		}
 
 		std::shared_ptr<interpretation> _doc; ///< The \ref interpretation bound to this contents_region.
-		info_event<>::token _ctx_vis_change_tok; ///< Token used when handling \ref document::visual_changed.
 		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
 		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
 
+		interaction_manager<caret_set> _interaction_manager; ///< The \ref interaction_manager.
 		caret_set _cset; ///< The set of carets.
-		vec2d _predrag_pos; ///< The position where the user presses the left mouse button.
-		double
-			/// Records the offset of the mouse when the user drags the selection to scroll the viewport.
-			_scrolldiff = 0.0,
-			_lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
-		/// Records the caret end's position of the selection, which the user is dragging with the mouse.
-		size_t _sel_end;
-		bool
-			_insert = true, ///< Indicates whether the contents_region is in `insert' mode.
-			/// Indicates whether the user, after pressing the left mouse button, can proceed to drag fragments of
-			/// text if he moves the mouse further than \ref dragdrop_distance.
-			_predrag = false,
-			_selecting = false; ///< Indicates whehter the user is making a selection using the mouse.
-
-		caret_position _mouse_cache; ///< The position that the mouse is currently hovering above.
+		double _lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
+		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
 		ui::visual_configuration
 			_caret_cfg, ///< Used to render all carets.
@@ -620,13 +645,13 @@ namespace codepad::editors::code {
 				wnd->set_active_caret_position(rectd::from_xywh(
 					pos.x + _get_caret_pos_x_unfolded_linebeg(wrapline, entry->first.first),
 					pos.y + lh * static_cast<double>(visline) -
-					component_helper::get_box(*this)->get_vertical_position(), 0.0, lh
+					editor::get_encapsulating(*this)->get_vertical_position(), 0.0, lh
 				));
 			}
 		}
 		/// Moves the viewport so that the given caret is visible.
-		void _make_caret_visible(caret_position caret) {
-			editor *cb = component_helper::get_box(*this);
+		void _make_caret_visible(caret_position caret) { // TODO
+			/*editor *cb = component_helper::get_editor(*this);
 			double fh = get_line_height();
 			size_t
 				ufline = _get_line_of_caret(caret),
@@ -637,20 +662,30 @@ namespace codepad::editors::code {
 			);
 			cb->make_point_visible(np);
 			np.y -= fh;
-			cb->make_point_visible(np);
+			cb->make_point_visible(np);*/
 		}
-		/// Shorthand for \ref hit_test_for_caret when the coordinates are relative to this \ref ui::element.
-		///
-		/// \todo Need changes after adding horizontal scrolling.
-		caret_position _hit_test_for_caret_viewport(vec2d pos) const {
-			return hit_test_for_caret(vec2d(
-				pos.x, pos.y + component_helper::get_box(*this)->get_vertical_position()
-			));
+
+		/// Unbinds events from \ref _doc if necessary.
+		void _unbind_document_events() {
+			if (_doc) {
+				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
+				_doc->end_edit_interpret -= _end_edit_tok;
+				/*_doc->visual_changed -= _ctx_vis_change_tok;*/
+			}
+		}
+
+		/// Simply calls \ref _on_carets_changed().
+		void _on_temporary_carets_changed() override {
+			_on_carets_changed();
 		}
 
 		/// Called when \ref buffer::begin_edit is triggered. Prepares \ref _cset for adjustments by calculating
-		/// byte positions of each caret.
-		void _on_begin_edit(buffer::begin_edit_info&) {
+		/// byte positions of each caret. If the source element is not this element, also calls
+		/// \ref interaction_manager::on_edit_operation() since it must not have been called previously.
+		void _on_begin_edit(buffer::begin_edit_info &info) {
+			if (info.source_element != this) {
+				_interaction_manager.on_edit_operation();
+			}
 			_cset.calculate_byte_positions(*_doc);
 			_fmt.prepare_for_edit(*_doc);
 		}
@@ -745,24 +780,6 @@ namespace codepad::editors::code {
 			set_carets_keepdata(std::move(newcarets));
 		}
 
-		/// Called to change \ref _editrgn_state.
-		void _set_editrgn_state(ui::element_state_id st) {
-			if (_editrgn_state != st) {
-				_editrgn_state = st;
-				_caret_cfg.on_state_changed(_editrgn_state);
-				_sel_cfg.on_state_changed(_editrgn_state);
-				get_manager().get_scheduler().schedule_visual_config_update(*this);
-			}
-		}
-		/// Called by the parent \ref editor when it gets focus. Adjusts the states of caret animations.
-		void _on_codebox_got_focus() {
-			_set_editrgn_state(_editrgn_state | get_manager().get_predefined_states().focused);
-		}
-		/// Called by the parent \ref editor when it loses focus. Adjusts the states of caret animations.
-		void _on_codebox_lost_focus() {
-			_set_editrgn_state(_editrgn_state & ~get_manager().get_predefined_states().focused);
-		}
-
 		/// Checks if line wrapping needs to be calculated.
 		///
 		/// \todo Recalculate the alignment of cursors.
@@ -824,79 +841,11 @@ namespace codepad::editors::code {
 		}
 
 		// mouse & keyboard interactions
-		/// Called when the user starts to make a selection using the mouse.
-		void _begin_mouse_selection(size_t startpos) {
-			assert_true_logical(!_selecting, "_begin_mouse_selection() called when selecting");
-			_selecting = true;
-			_sel_end = startpos;
-			_on_carets_changed();
-			get_window()->set_mouse_capture(*this);
-		}
-		/// Called when the user finishes making a selection using the mouse or when it's interrupted.
-		void _end_mouse_selection() {
-			assert_true_logical(_selecting, "_end_mouse_selection() called when not selecting");
-			_selecting = false;
-			auto it = _cset.add(caret_set::entry(
-				caret_selection(_mouse_cache.position, _sel_end),
-				caret_data(0.0, _mouse_cache.at_back)
-			));
-			// the added caret may be merged, so alignment is calculated later
-			it->second.alignment = get_horizontal_caret_position(_extract_position(*it));
-			_on_carets_changed();
-			get_window()->release_mouse_capture();
-		}
-		/// Updates \ref _mouse_cache and the current selection that's being edited with the mouse.
-		///
-		/// \param pos The mouse's position relative to the window.
-		void _update_mouse_selection(vec2d pos) {
-			vec2d elempos = pos - get_client_region().xmin_ymin(); // relative to this element
-			if (_selecting) {
-				vec2d clientpos = pos - get_layout().xmin_ymin(); // relative to the client region
-				_scrolldiff = 0.0f;
-				if (clientpos.y < 0.0) {
-					elempos.y -= clientpos.y;
-					_scrolldiff = clientpos.y;
-					get_manager().get_scheduler().schedule_element_update(*this);
-				} else {
-					double h = get_layout().height();
-					if (clientpos.y > h) {
-						elempos.y += h - clientpos.y;
-						_scrolldiff = clientpos.y - get_layout().height();
-						get_manager().get_scheduler().schedule_element_update(*this);
-					}
-				}
-			}
-			auto newmouse = _hit_test_for_caret_viewport(elempos);
-			if (_selecting && newmouse != _mouse_cache) {
-				_on_carets_changed();
-			}
-			_mouse_cache = newmouse;
-		}
-		/// Called when the user finishes editing the current selected region, or when drag-dropping is cancelled.
-		void _on_mouse_lbutton_up() {
-			if (_selecting) {
-				_end_mouse_selection();
-			} else if (_predrag) {
-				_predrag = false;
-				caret_position hitp = _hit_test_for_caret_viewport(_predrag_pos - get_client_region().xmin_ymin());
-				_cset.carets.clear();
-				_cset.carets.insert(caret_set::entry(
-					caret_selection(hitp.position, hitp.position), _get_caret_data(hitp)
-				));
-				_on_carets_changed();
-				get_window()->release_mouse_capture();
-			} else {
-				return;
-			}
-		}
-
 		/// Inserts the input text at each caret.
 		///
 		/// \todo Handle linebreaks.
-		void _on_keyboard_text(ui::text_info &info) override {
-			if (_selecting) {
-				_end_mouse_selection();
-			}
+		void _on_keyboard_text(ui::text_info &info) override { // TODO FIXME not working right now
+			_interaction_manager.on_edit_operation();
 			// encode added content
 			byte_string str;
 			const std::byte
@@ -917,15 +866,7 @@ namespace codepad::editors::code {
 		///
 		/// \todo Implement drag & drop.
 		void _on_mouse_move(ui::mouse_move_info &info) override {
-			_update_mouse_selection(info.new_position);
-			if (_predrag) {
-				if ((info.new_position - _predrag_pos).length_sqr() > dragdrop_distance * dragdrop_distance) {
-					_predrag = false;
-					logger::get().log_info(CP_HERE, "starting drag & drop of text");
-					get_window()->release_mouse_capture();
-					// TODO start drag drop
-				}
-			}
+			_interaction_manager.on_mouse_move(info);
 			element::_on_mouse_move(info);
 		}
 		/// If the primary mouse button is pressed, and the mouse is not in a selected region, then starts editing
@@ -935,56 +876,23 @@ namespace codepad::editors::code {
 		/// \todo Implement block selection.
 		/// \todo Use customizable modifiers and buttons.
 		void _on_mouse_down(ui::mouse_button_info &info) override {
-			_mouse_cache = _hit_test_for_caret_viewport(info.position - get_client_region().xmin_ymin());
-			if (info.button == ui::mouse_button::primary) {
-				if (!_cset.is_in_selection(_mouse_cache.position)) {
-					if ((info.modifiers & ui::modifier_keys::shift) != ui::modifier_keys::none) {
-						// TODO select a better caret
-						auto it = _cset.carets.end();
-						--it;
-						caret_selection cs = it->first;
-						_cset.carets.erase(it);
-						_begin_mouse_selection(cs.second);
-					} else {
-						if ((info.modifiers & ui::modifier_keys::control) == ui::modifier_keys::none) {
-							_cset.carets.clear();
-						}
-						_begin_mouse_selection(_mouse_cache.position);
-					}
-				} else {
-					_predrag_pos = info.position;
-					_predrag = true;
-					get_window()->set_mouse_capture(*this);
-				}
-			} else if (info.button == ui::mouse_button::tertiary) {
-				// TODO block selection
-			}
+			_interaction_manager.on_mouse_down(info);
 			element::_on_mouse_down(info);
 		}
 		/// Calls \ref _on_mouse_lbutton_up if the primary mouse button is released.
 		void _on_mouse_up(ui::mouse_button_info &info) override {
-			if (info.button == ui::mouse_button::primary) {
-				_on_mouse_lbutton_up();
-			}
+			_interaction_manager.on_mouse_up(info);
+			element::_on_mouse_up(info);
 		}
 		/// Calls \ref _on_mouse_lbutton_up.
 		void _on_capture_lost() override {
-			_on_mouse_lbutton_up();
+			_interaction_manager.on_capture_lost();
 			element::_on_capture_lost();
 		}
 		/// Updates mouse selection.
 		void _on_update() override {
+			_interaction_manager.on_update();
 			element::_on_update();
-			if (_selecting) {
-				editor *editor = component_helper::get_box(*this);
-				editor->set_vertical_position(
-					editor->get_vertical_position() +
-					move_speed_scale * _scrolldiff * get_manager().get_scheduler().update_delta_time()
-				);
-				_update_mouse_selection(get_window()->screen_to_client(
-					os::get_mouse_position()).convert<double>()
-				);
-			}
 		}
 
 		// visual & layout
@@ -996,7 +904,38 @@ namespace codepad::editors::code {
 			), _editrgn_state);
 			get_manager().get_scheduler().schedule_visual_config_update(*this);
 		}
+		/// Updates \ref _editrgn_state.
+		void _update_misc_region_state() {
+			if (auto *edt = editor::get_encapsulating(*this)) {
+				ui::element_state_id sid = edt->get_state() & get_manager().get_predefined_states().focused;
+				if (sid != _editrgn_state) {
+					_editrgn_state = sid;
+					_caret_cfg.on_state_changed(_editrgn_state);
+					_sel_cfg.on_state_changed(_editrgn_state);
+					get_manager().get_scheduler().schedule_visual_config_update(*this);
+				}
+			}
+		}
 
+		/// Registers handlers of events of the \ref editor.
+		void _on_logical_parent_constructed() override {
+			element::_on_logical_parent_constructed();
+			auto *edt = editor::get_encapsulating(*this);
+
+			edt->got_focus += [this]() {
+				_update_misc_region_state();
+			};
+			edt->lost_focus += [this]() {
+				_update_misc_region_state();
+			};
+
+			edt->horizontal_viewport_changed += [this]() {
+				_interaction_manager.on_viewport_changed();
+			};
+			edt->vertical_viewport_changed += [this]() {
+				_interaction_manager.on_viewport_changed();
+			};
+		}
 		/// Updates caret and selection visuals.
 		void _on_update_visual_configurations(ui::animation_update_info &info) override {
 			element::_on_update_visual_configurations(info);
@@ -1007,18 +946,24 @@ namespace codepad::editors::code {
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.
 		void _on_layout_changed() override {
 			_check_wrapping_width();
-			ui::element::_on_layout_changed();
+			element::_on_layout_changed();
 		}
 		/// Renders all visible text.
 		///
 		/// \todo Cannot deal with very long lines.
 		void _custom_render() override;
 
+		// misc
 		/// Sets the element to non-focusable, calls \ref _reset_caret_animation(), and initializes \ref _sel_cfg.
 		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
 			element::_initialize(cls, metrics);
 
 			_can_focus = false;
+
+			_interaction_manager.set_contents_region(*this);
+			// TODO
+			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_prepare_drag_mode_activator<caret_set>());
+			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_single_selection_mode_activator<caret_set>());
 
 			_reset_caret_animation();
 			_sel_cfg = ui::visual_configuration(
@@ -1027,8 +972,26 @@ namespace codepad::editors::code {
 		}
 		/// Unbinds the current document.
 		void _dispose() override {
-			set_document(nullptr); // unbind event listeners
+			_unbind_document_events();
 			element::_dispose();
 		}
 	};
+
+	/// Helper functions used to obtain the \ref contents_region associated with elements.
+	namespace component_helper {
+		/// Returns both the \ref editor and the \ref contents_region. If the returned \ref contents_region is not
+		/// \p nullptr, then the returned \ref editor also won't be \p nullptr.
+		inline std::pair<editor*, contents_region*> get_core_components(const ui::element &elem) {
+			editor *edt = editor::get_encapsulating(elem);
+			if (edt) {
+				return {edt, contents_region::get_from_editor(*edt)};
+			}
+			return {nullptr, nullptr};
+		}
+
+		/// Returns the \ref contents_region that corresponds to the given \ref ui::element.
+		inline contents_region *get_contents_region(const ui::element &elem) {
+			return get_core_components(elem).second;
+		}
+	}
 }
