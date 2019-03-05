@@ -38,7 +38,8 @@
 
 		{ "gestures": "backspace", "command": "contents_region.delete_before_carets" },
 		{ "gestures": "delete", "command": "contents_region.delete_after_carets" },
-		{ "gestures": "insert", "command": "contents_region.toggle_insert" }
+		{ "gestures": "insert", "command": "contents_region.toggle_insert" },
+		{ "gestures": "enter", "command": "contents_region.insert_new_line" }
 	],
 	"tab": [
 		{ "gestures": ["ctrl+t", "left"], "command": "tab.split_left" },

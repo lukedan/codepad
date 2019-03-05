@@ -35,28 +35,23 @@ namespace codepad::os {
 			_rtfstk.back().pop_clip();
 		}
 		/// Flushes the text buffer, then calls \p glDrawArrays to drwa the given triangles.
-		void draw_triangles(const ui::texture &t, const vec2d *ps, const vec2d *us, const colord *cs, size_t n) override {
+		void draw_triangles(const ui::texture &t, const ui::vertex_buffer &buf, size_t n) override {
 			if (n > 0) {
-				_gl_buffer<GL_ARRAY_BUFFER> buf;
-				buf.initialize(*this);
-				buf.clear_resize_dynamic_draw(*this, sizeof(_vertex) * n);
-				auto ptr = static_cast<_vertex*>(buf.map(*this));
-				for (size_t i = 0; i < n; ++i) {
-					ptr[i] = _vertex(ps[i], us[i], cs[i]);
-				}
-				buf.unmap(*this);
-
 				_defaultprog.acivate(*this);
+				_gl.BindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(_get_id(buf)));
 				_gl.VertexAttribPointer(
-					0, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, pos))
+					0, 2, GL_FLOAT, false, sizeof(ui::vertexf),
+					reinterpret_cast<const GLvoid*>(offsetof(ui::vertexf, position))
 				);
 				_gl.EnableVertexAttribArray(0);
 				_gl.VertexAttribPointer(
-					1, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, uv))
+					1, 2, GL_FLOAT, false, sizeof(ui::vertexf),
+					reinterpret_cast<const GLvoid*>(offsetof(ui::vertexf, uv))
 				);
 				_gl.EnableVertexAttribArray(1);
 				_gl.VertexAttribPointer(
-					2, 4, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, c))
+					2, 4, GL_FLOAT, false, sizeof(ui::vertexf),
+					reinterpret_cast<const GLvoid*>(offsetof(ui::vertexf, color))
 				);
 				_gl.EnableVertexAttribArray(2);
 				_gl.ActiveTexture(GL_TEXTURE0);
@@ -66,8 +61,6 @@ namespace codepad::os {
 				}
 				glBindTexture(GL_TEXTURE_2D, tex);
 				glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(n));
-
-				buf.dispose(*this);
 			}
 		}
 		/// Flushes the text buffer, then calls \p glDrawArrays to draw the given lines.
@@ -122,8 +115,8 @@ namespace codepad::os {
 			_erase_texture(tex);
 		}
 
-		/// Creates a \ref framebuffer of the given size.
-		ui::framebuffer new_framebuffer(size_t w, size_t h) override {
+		/// Creates a \ref frame_buffer of the given size.
+		ui::frame_buffer new_frame_buffer(size_t w, size_t h) override {
 			GLuint fbid, tid;
 			_gl.GenFramebuffers(1, &fbid);
 			glGenTextures(1, &tid);
@@ -142,25 +135,25 @@ namespace codepad::os {
 				logger::get().log_error(CP_HERE, "glCheckFramebufferStatus returned ", res);
 				assert_true_sys(false, "OpenGL error: unable to create framebuffer: ");
 			}
-			return _make_framebuffer(fbid, _make_texture(static_cast<ui::texture::id_t>(tid), w, h));
+			return _make_frame_buffer(fbid, _make_texture(static_cast<ui::texture::id_t>(tid), w, h));
 		}
-		/// Deletes and erases the given \ref framebuffer.
-		void delete_framebuffer(ui::framebuffer &fb) override {
+		/// Deletes and erases the given \ref frame_buffer.
+		void delete_frame_buffer(ui::frame_buffer &fb) override {
 			auto id = static_cast<GLuint>(_get_id(fb)), tid = static_cast<GLuint>(_get_id(fb.get_texture()));
 			_gl.DeleteFramebuffers(1, &id);
 			glDeleteTextures(1, &tid);
-			_erase_framebuffer(fb);
+			_erase_frame_buffer(fb);
 		}
-		/// Calls \ref continue_framebuffer to start rendering to the \ref framebuffer,
+		/// Calls \ref continue_frame_buffer to start rendering to the \ref frame_buffer,
 		/// then clears its contents.
-		void begin_framebuffer(const ui::framebuffer &fb) override {
-			continue_framebuffer(fb);
+		void begin_frame_buffer(const ui::frame_buffer &fb) override {
+			continue_frame_buffer(fb);
 			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 			glClear(GL_COLOR_BUFFER_BIT);
 		}
-		/// Calls \ref _begin_render_target to continue rendering to the given \ref framebuffer.
-		void continue_framebuffer(const ui::framebuffer &fb) override {
-			assert_true_usage(fb.has_content(), "cannot draw to an empty frame buffer");
+		/// Calls \ref _begin_render_target to continue rendering to the given \ref frame_buffer.
+		void continue_frame_buffer(const ui::frame_buffer &fb) override {
+			assert_true_usage(fb.has_contents(), "cannot draw to an empty frame buffer");
 			_begin_render_target(_render_target_stackframe(
 				false, fb.get_texture().get_width(), fb.get_texture().get_height(),
 				[this, id = static_cast<GLuint>(_get_id(fb))]() {
@@ -174,6 +167,32 @@ namespace codepad::os {
 			));
 			_gl_verify();
 		}
+
+		/// Calls \p glGenBuffers() and \p glBufferData() to generate a buffer and allocate memory.
+		ui::vertex_buffer new_vertex_buffer(size_t sz) override {
+			GLuint buf;
+			_gl.GenBuffers(1, &buf);
+			_gl.BindBuffer(GL_ARRAY_BUFFER, buf);
+			_gl.BufferData(GL_ARRAY_BUFFER, sz * sizeof(ui::vertexf), nullptr, GL_DYNAMIC_DRAW);
+			return _make_vertex_buffer(static_cast<size_t>(buf), sz);
+		}
+		/// Calls \p glDeleteBuffers to delete the given \ref vertex_buffer. The buffer must not be mapped.
+		void delete_vertex_buffer(ui::vertex_buffer &buf) override {
+			auto id = static_cast<GLuint>(_get_id(buf));
+			_gl.DeleteBuffers(1, &id);
+			_erase_vertex_buffer(buf);
+		}
+		/// Calls \p glMapBuffer() to map the given buffer.
+		ui::vertexf *map_vertex_buffer(ui::vertex_buffer &buf) override {
+			_gl.BindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(_get_id(buf)));
+			return static_cast<ui::vertexf*>(_gl.MapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE));
+		}
+		/// Calls \p glUnmapBuffer to unmap the given buffer.
+		void unmap_vertex_buffer(ui::vertex_buffer &buf) override {
+			_gl.BindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(_get_id(buf)));
+			_gl.UnmapBuffer(GL_ARRAY_BUFFER);
+		}
+
 
 		/// Flushes the text buffer, then calls \p glPushMatrix and \p glLoadMatrix to push
 		/// a matrix onto the stack.
@@ -373,20 +392,6 @@ namespace codepad::os {
 			}
 		};
 
-		/// A vertex.
-		struct _vertex {
-			/// Default constructor.
-			_vertex() = default;
-			/// Initializes the vertex with the given data.
-			_vertex(vec2d p, vec2d u, colord co) :
-				pos(p.convert<float>()), uv(u.convert<float>()), c(co.convert<float>()) {
-			}
-
-			vec2f
-				pos, ///< Vertex position.
-				uv; ///< Texture UV coordinates.
-			colorf c; ///< Color.
-		};
 		/// Stores an OpenGL buffer.
 		///
 		/// \tparam Target The desired usage of the underlying data.
@@ -483,116 +488,6 @@ namespace codepad::os {
 			}
 		protected:
 			GLuint _id = 0; ///< The ID of the buffer.
-		};
-
-		/// Buffers the text to render, and draws them all at once when necessary.
-		struct _text_buffer {
-			/// The minimum count of quads that the buffer can contain.
-			constexpr static size_t minimum_allocation_size = 10;
-
-			/// The buffer that stores vertex data.
-			_gl_buffer<GL_ARRAY_BUFFER> vertex_buffer;
-			/// The buffer that stores vertex indices. Its contents is reused between batches.
-			_gl_buffer<GL_ELEMENT_ARRAY_BUFFER> id_buffer;
-			size_t
-				/// The number of quads indexed by \ref id_buffer. This can be larger than \ref quad_count
-				/// since the indices can be reused.
-				indexed_quad_count = 0,
-				allocated_quad_count = 0, ///< The number of quads that the buffer can contain.
-				quad_count = 0; ///< The number of quads added to the buffer.
-			void
-				*vertex_memory = nullptr, ///< Pointer to mapped \ref vertex_buffer.
-				*id_memory = nullptr; ///< Pointer to mapped \ref id_buffer.
-
-			/// Initializes \ref id_buffer and \ref vertex_buffer, and allocates memory for them..
-			void initialize(opengl_renderer_base &rend) {
-				allocated_quad_count = minimum_allocation_size;
-				vertex_buffer.initialize(rend);
-				vertex_buffer.clear_resize_dynamic_draw(rend, sizeof(_vertex) * 4 * allocated_quad_count);
-				vertex_memory = vertex_buffer.map(rend);
-				id_buffer.initialize(rend);
-				id_buffer.clear_resize_dynamic_draw(rend, sizeof(GLuint) * 6 * allocated_quad_count);
-				id_memory = id_buffer.map(rend);
-			}
-			/// Returns whether the buffers are valid.
-			///
-			/// \sa _automatic_gl_data_buffer::valid()
-			bool valid() const {
-				return vertex_buffer.valid();
-			}
-			/// Disposes \ref id_buffer and \ref vertex_buffer.
-			void dispose(opengl_renderer_base &rend) {
-				vertex_buffer.dispose(rend);
-				id_buffer.dispose(rend);
-			}
-
-			/// Appends a character to the buffer.
-			void append(opengl_renderer_base &rend, rectd layout, rectd uv, colord c) {
-				if (quad_count == allocated_quad_count) {
-					_enlarge(rend);
-				}
-				size_t vertcount = quad_count * 4;
-				if (indexed_quad_count == quad_count) {
-					// add more indices
-					size_t idcount = quad_count * 6;
-					_push_back(id_memory, static_cast<GLuint>(vertcount), idcount);
-					_push_back(id_memory, static_cast<GLuint>(vertcount + 1), idcount);
-					_push_back(id_memory, static_cast<GLuint>(vertcount + 2), idcount);
-					_push_back(id_memory, static_cast<GLuint>(vertcount + 1), idcount);
-					_push_back(id_memory, static_cast<GLuint>(vertcount + 3), idcount);
-					_push_back(id_memory, static_cast<GLuint>(vertcount + 2), idcount);
-					++indexed_quad_count;
-				}
-				// add vertices
-				_push_back(vertex_memory, _vertex(layout.xmin_ymin(), uv.xmin_ymin(), c), vertcount);
-				_push_back(vertex_memory, _vertex(layout.xmax_ymin(), uv.xmax_ymin(), c), vertcount);
-				_push_back(vertex_memory, _vertex(layout.xmin_ymax(), uv.xmin_ymax(), c), vertcount);
-				_push_back(vertex_memory, _vertex(layout.xmax_ymax(), uv.xmax_ymax(), c), vertcount);
-				++quad_count;
-			}
-			/// Draws all buffered characters with the given texture. The caller is responsible of checking if there
-			/// is actually any characters to render.
-			///
-			/// \todo Are these glVertexAttribPointer really necessary?
-			void flush(opengl_renderer_base &rend, GLuint tex) {
-				vertex_buffer.unmap(rend);
-				id_buffer.unmap(rend);
-
-				rend._defaultprog.acivate(rend);
-				rend._gl.VertexAttribPointer(
-					0, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, pos))
-				);
-				rend._gl.EnableVertexAttribArray(0);
-				rend._gl.VertexAttribPointer(
-					1, 2, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, uv))
-				);
-				rend._gl.EnableVertexAttribArray(1);
-				rend._gl.VertexAttribPointer(
-					2, 4, GL_FLOAT, false, sizeof(_vertex), reinterpret_cast<const GLvoid*>(offsetof(_vertex, c))
-				);
-				rend._gl.EnableVertexAttribArray(2);
-				rend._gl.ActiveTexture(GL_TEXTURE0);
-				glBindTexture(GL_TEXTURE_2D, tex);
-				glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quad_count * 6), GL_UNSIGNED_INT, nullptr);
-				quad_count = 0;
-
-				vertex_memory = vertex_buffer.map(rend);
-				id_memory = id_buffer.map(rend);
-			}
-		protected:
-			/// Enlarges all buffers to twice their previous sizes.
-			void _enlarge(opengl_renderer_base &rend) {
-				allocated_quad_count *= 2;
-				id_buffer.unmap(rend);
-				vertex_buffer.unmap(rend);
-				id_memory = id_buffer.copy_resize_dynamic_draw(rend, sizeof(GLuint) * 6 * allocated_quad_count);
-				vertex_memory = vertex_buffer.copy_resize_dynamic_draw(rend, sizeof(_vertex) * 4 * allocated_quad_count);
-			}
-			/// Given an array of objects and the current position, puts the given object at the position and then
-			/// increments the position.
-			template <typename T> void _push_back(void *mem, T obj, size_t &pos) {
-				static_cast<T*>(mem)[pos++] = obj;
-			}
 		};
 
 		/// Stores the information about a render target that's being rendered to.

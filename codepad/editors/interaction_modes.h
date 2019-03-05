@@ -226,7 +226,7 @@ namespace codepad::editors {
 					_active.reset();
 				}
 			} else {
-				if constexpr (ActivatorPtr) {
+				if constexpr (static_cast<bool>(ActivatorPtr)) {
 					for (mode_activator_t *act : _activators) {
 						if (auto ptr = (act->*ActivatorPtr)(*this, std::forward<Args>(args)...)) { // activated
 							_active = std::move(ptr);
@@ -434,13 +434,13 @@ namespace codepad::editors {
 			}
 
 			/// Exit on mouse up.
-			virtual bool on_mouse_up(manager_t &man, ui::mouse_button_info&) {
+			bool on_mouse_up(manager_t &man, ui::mouse_button_info&) override {
 				man.get_contents_region().get_window()->release_mouse_capture();
 				// TODO replace caret
 				return false;
 			}
 			/// Checks the position of the mouse, and starts drag drop and exits if the distance is enough.
-			virtual bool on_mouse_move(manager_t &man, ui::mouse_move_info &info) {
+			bool on_mouse_move(manager_t &man, ui::mouse_move_info &info) override {
 				if ((info.new_position - _init_pos).length_sqr() > 25.0) { // TODO magic value
 					logger::get().log_info(CP_HERE, "start drag drop");
 					// TODO start
@@ -450,12 +450,12 @@ namespace codepad::editors {
 				return true;
 			}
 			/// Exit on capture lost.
-			virtual bool on_capture_lost(manager_t&) {
+			bool on_capture_lost(manager_t&) override {
 				return false;
 			}
 
 			/// Exit on edit operations.
-			virtual bool on_edit_operation(manager_t &man) {
+			bool on_edit_operation(manager_t &man) override {
 				man.get_contents_region().get_window()->release_mouse_capture();
 				return false;
 			}

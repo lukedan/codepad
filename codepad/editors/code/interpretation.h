@@ -238,7 +238,7 @@ namespace codepad::editors::code {
 			/// Moves on to the next character.
 			void next() {
 				if (is_linebreak()) {
-					for (size_t i = 0; i < get_linebreak_length(_lbit->ending); ++i) {
+					for (size_t i = 0; i < get_line_ending_length(_lbit->ending); ++i) {
 						_cpit.next();
 					}
 					++_lbit;
@@ -475,6 +475,14 @@ namespace codepad::editors::code {
 		const text_theme_data &get_text_theme() const {
 			return _theme;
 		}
+		/// Returns the default line ending for this \ref interpretation.
+		line_ending get_default_line_ending() const {
+			return _line_ending;
+		}
+		/// Sets the default line ending for this \ref interpretation. Note that this does not affect existing text.
+		void set_default_line_ending(line_ending end) {
+			_line_ending = end;
+		}
 
 
 		/// Called when the user presses `backspace' to modify the underlying \ref buffer. If there's only one caret
@@ -625,6 +633,7 @@ namespace codepad::editors::code {
 		const std::shared_ptr<buffer> _buf; ///< The underlying \ref buffer.
 		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
 		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
+		line_ending _line_ending = line_ending::n; ///< The default line ending for this \ref interpretation.
 		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
 
 		/// Used to find the number of bytes before a specified codepoint.

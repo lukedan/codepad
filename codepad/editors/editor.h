@@ -17,6 +17,8 @@ namespace codepad::editors {
 	class contents_region_base : public ui::element {
 	public:
 		/// Returns the amount of space to scroll for a `tick'.
+		virtual double get_horizontal_scroll_delta() const = 0;
+		/// Returns the amount of space to scroll for a `tick'.
 		virtual double get_vertical_scroll_delta() const = 0;
 		/// Returns the horizontal viewport range.
 		virtual double get_horizontal_scroll_range() const = 0;
@@ -31,6 +33,9 @@ namespace codepad::editors {
 		virtual void add_caret(caret_selection_position) = 0;
 		/// Clears all carets from the contents region.
 		virtual void clear_carets() = 0;
+
+		/// Called when text is being typed into this contents region.
+		virtual void on_text_input(str_view_t) = 0;
 
 		/// Invoked when the visual of the contents has changed, e.g., when it is modified, when the document that's
 		/// being edited is changed, or when the font has been changed, etc.
@@ -119,10 +124,16 @@ namespace codepad::editors {
 		/// Scrolls the viewport of the \ref editor.
 		void _on_mouse_scroll(ui::mouse_scroll_info &info) override {
 			_vert_scroll->set_value(
-				_vert_scroll->get_value() - _contents->get_vertical_scroll_delta() * info.offset
+				_vert_scroll->get_value() - _contents->get_vertical_scroll_delta() * info.delta.y
 			);
-			// TODO horizontal scrolling?
+			_hori_scroll->set_value(
+				_hori_scroll->get_value() + _contents->get_horizontal_scroll_delta() * info.delta.x
+			);
 			info.mark_handled();
+		}
+		/// Invokes \ref content_region_base::on_text_input().
+		void _on_keyboard_text(ui::text_info &info) override {
+			_contents->on_text_input(info.content);
 		}
 
 		/// Initializes \ref hori_scroll, \ref _vert_scroll and \ref _contents.

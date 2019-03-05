@@ -38,12 +38,13 @@ namespace codepad::ui {
 	struct mouse_scroll_info {
 	public:
 		/// Constructor.
-		mouse_scroll_info(double d, vec2d pos) : offset(d), position(pos) {
+		mouse_scroll_info(vec2d d, vec2d pos) : delta(d), position(pos) {
 		}
-		const double offset; ///< The offset of the mouse scroll.
-		/// The position of the mouse when the scroll took place, relative to the top-left corner of the window's
-		/// client area.
-		const vec2d position;
+		const vec2d
+			delta, ///< The offset of the mouse scroll.
+			/// The position of the mouse when the scroll took place, relative to the top-left corner of the window's
+			/// client area.
+			position;
 		/// Returns \p true if the scroll has been handled by an element.
 		bool handled() const {
 			return _handled;

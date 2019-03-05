@@ -17,7 +17,7 @@ namespace codepad::editors::code {
 		rn ///< \p \\r\\n, usually used in Windows.
 	};
 	/// Returns the length, in codepoints, of the string representation of a \ref line_ending.
-	inline size_t get_linebreak_length(line_ending le) {
+	inline size_t get_line_ending_length(line_ending le) {
 		switch (le) {
 		case line_ending::none:
 			return 0;
@@ -29,6 +29,19 @@ namespace codepad::editors::code {
 			return 2;
 		}
 		return 0;
+	}
+	/// Returns the string representation of the given \ref line_ending.
+	inline std::u32string_view line_ending_to_string(line_ending le) {
+		switch (le) {
+		case line_ending::r:
+			return U"\r";
+		case line_ending::n:
+			return U"\n";
+		case line_ending::rn:
+			return U"\r\n";
+		default:
+			return U"";
+		}
 	}
 
 	/// A registry of all the lines in the file. This is mainly used to accelerate operations
@@ -58,7 +71,7 @@ namespace codepad::editors::code {
 				/// Returns the sum of line_info::nonbreak_chars and the corresponding length
 				/// of line_info::ending.
 				inline static size_t get(const node_type &n) {
-					return n.value.nonbreak_chars + get_linebreak_length(n.value.ending);
+					return n.value.nonbreak_chars + get_line_ending_length(n.value.ending);
 				}
 			};
 			/// Used to obtain the number of linebreaks that follows the line.

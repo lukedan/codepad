@@ -137,55 +137,6 @@ namespace codepad::editors::code {
 			explicit _page_cache(const minimap &p) : _parent(&p) {
 			}
 
-			/// Caches the vertical offsets corresponding to all four \ref font_style "font styles" for a specific
-			/// line. The offsets are calculated in a way so that the result are consistent wherever the pages are
-			/// split.
-			struct line_top_cache {
-				/// Initializes all fields of the struct.
-				///
-				/// \param top The position of the page's upper boundary.
-				explicit line_top_cache(double top) : page_top(top), floored_page_top(std::floor(page_top)) {
-				}
-
-				/// Calculates the vertical position given the position of the top of the line and the baseline
-				/// corresponding to a \ref font_style.
-				double get_render_line_top(double y, double baseline) const {
-					return (std::round((y + baseline) * get_scale() + page_top) - floored_page_top) / get_scale();
-				}
-				/// Calls \ref get_render_line_top to recalculate the positions for all
-				/// \ref font_style "font styles".
-				void refresh(double y) {
-					normal = get_render_line_top(y, baselines.get(ui::font_style::normal));
-					bold = get_render_line_top(y, baselines.get(ui::font_style::bold));
-					italic = get_render_line_top(y, baselines.get(ui::font_style::italic));
-					bold_italic = get_render_line_top(y, baselines.get(ui::font_style::bold_italic));
-				}
-				/// Returns the position corresponding to the given \ref font_style.
-				double get(ui::font_style fs) {
-					switch (fs) {
-					case ui::font_style::normal:
-						return normal;
-					case ui::font_style::bold:
-						return bold;
-					case ui::font_style::italic:
-						return italic;
-					case ui::font_style::bold_italic:
-						return bold_italic;
-					}
-					assert_true_logical(false, "invalid font style");
-					return 0.0;
-				}
-
-				/// Stores the baselines of all fonts in a \ref ui::font_family.
-				ui::font_family::baseline_info baselines{contents_region::get_font().get_baseline_info()};
-				double
-					page_top, ///< The position of the page's upper boundary.
-					floored_page_top, ///< Floored position of the page's upper boundary.
-					normal = 0.0, ///< The position corresponding to \ref font_style::normal.
-					bold = 0.0, ///< The position corresponding to \ref font_style::bold.
-					italic = 0.0, ///< The position corresponding to \ref font_style::italic.
-					bold_italic = 0.0; ///< The position corresponding to \ref font_style::bold_italic.
-			};
 			/// Clears all cached pages, and re-renders the currently visible page immediately. To render this page
 			/// on demand, simply clear \ref pages and call \ref invalidate().
 			void restart() {
@@ -276,8 +227,8 @@ namespace codepad::editors::code {
 			}
 
 			/// The cached pages. The keys are the indices of each page's first line, and the values are
-			/// corresponding \ref os::framebuffer "framebuffers".
-			std::map<size_t, ui::framebuffer> pages;
+			/// corresponding \ref os::frame_buffer "framebuffers".
+			std::map<size_t, ui::frame_buffer> pages;
 		protected:
 			/// The index past the end of the range of lines that has been rendered and stored in \ref pages.
 			size_t
@@ -287,26 +238,68 @@ namespace codepad::editors::code {
 			/// Marks whether this cache is ready for rendering the currently visible portion of the document.
 			bool _ready = false;
 
+			/// Renders characters in a specific way so that they are more visible in the minimap.
+			struct _char_renderer {
+			public:
+				/// Initializes the batch renderer and \ref _scale.
+				_char_renderer(ui::atlas &atl, double scale) : _renderer(atl), _scale(scale) {
+				}
+
+				/// Adds the given character to the \ref ui::atlas::batch_renderer.
+				void add_character(const ui::font::entry &entry, vec2d position, colord color) {
+					rectd place = entry.placement.translated(
+						position
+					).coordinates_scaled(_scale).fit_grid_enlarge<double>();
+					place.xmin = std::max(place.xmin, _last_xmax);
+					_renderer.add_sprite(entry.texture, place, color);
+					_last_xmax = place.xmax;
+				}
+				/// Resets this \ref _char_renderer to start from the beginning of the line.
+				void reset() {
+					_last_xmax = 0.0;
+				}
+
+				/// Returns the position of the right boundary of the last renderered character, relative to the
+				/// left of the first character.
+				double get_xmax() const {
+					return _last_xmax;
+				}
+				/// Returns a reference to \ref _renderer.
+				ui::atlas::batch_renderer &get_renderer() {
+					return _renderer;
+				}
+				/// \overload
+				const ui::atlas::batch_renderer &get_renderer() const {
+					return _renderer;
+				}
+			protected:
+				ui::atlas::batch_renderer _renderer; ///< The \ref ui::atlas::batch_renderer.
+				double
+					_scale = 0.0, ///< The scale of the characters.
+					_last_xmax = 0.0; ///< The position of the right boundary of the last character.
+			};
 			/// Renders the page specified by the range of lines, and inserts the result into \ref pages. Note that
 			/// this function does not automatically set \ref _page_end.
 			///
-			/// \param s Index of the first line of the page, with word wrapping and folding enabled.
-			/// \param pe Index past the last line of the page, with word wrapping and folding enabled.
+			/// \param s Index of the first visual line of the page.
+			/// \param pe Index past the last visual line of the page.
+			///
+			/// \todo Correct Y offset of characters of different fonts.
 			void _render_page(size_t s, size_t pe) {
 				performance_monitor mon(CP_STRLIT("render_minimap_page"), page_rendering_time_redline);
 				if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
 					double lh = edt->get_line_height(), scale = get_scale();
-					line_top_cache lct(static_cast<double>(s) * lh * scale);
 
 					ui::renderer_base &r = _parent->get_manager().get_renderer();
-					ui::framebuffer buf = r.new_framebuffer(
-						// add 1 because the start position was floored instead of rounded
+					ui::frame_buffer buf = r.new_frame_buffer(
+						// add 1 because the starting position was floored instead of rounded
 						_width, static_cast<size_t>(std::ceil(lh * scale * static_cast<double>(pe - s))) + 1
 					);
-					r.begin_framebuffer(buf);
+					r.begin_frame_buffer(buf);
 					{ // this scope ensures that batch_renderer::flush() is called
 						const view_formatting &fmt = edt->get_formatting();
 						size_t
+							curvisline = s,
 							firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
 								fmt.get_folding().folded_to_unfolded_line_number(s)
 							).first,
@@ -321,38 +314,63 @@ namespace codepad::editors::code {
 						text_metrics_accumulator metrics(
 							contents_region::get_font(), lh, edt->get_formatting().get_tab_width()
 						);
-						ui::atlas::batch_renderer brend(contents_region::get_font().normal->get_manager().get_atlas());
-						// records the position of the right boundary of the last character that has just been
-						// rendered
-						double lastx = 0.0;
+						_char_renderer crend(contents_region::get_font().normal->get_manager().get_atlas(), scale);
+						// reserve for the maximum possible number of quads
+						crend.get_renderer().get_batch().reserve_quads((pe - s) * _width);
 						while (it.get_position() < plastchar) {
 							token_generation_result tok = it.generate();
-							metrics.next(tok.result);
+							metrics.next<token_measurement_flags::defer_text_gizmo_measurement>(tok.result);
 							if (std::holds_alternative<character_token>(tok.result)) {
 								auto &chartok = std::get<character_token>(tok.result);
 								if (is_graphical_char(chartok.value)) { // render one character
-									rectd rec = metrics.get_character().current_char_entry().placement.translated(
-										vec2d(metrics.get_character().char_left(), metrics.get_y())
-									).coordinates_scaled(scale).fit_grid_enlarge<double>();
-									rec.xmin = std::max(rec.xmin, lastx);
-									if (rec.xmin < _width) { // render only visible characters
-										brend.add_sprite(
-											metrics.get_character().current_char_entry().texture, rec, chartok.color
-										);
-									} else {
-										// TODO skip to next line
-									}
-									lastx = rec.xmax;
+									crend.add_character(
+										metrics.get_character().current_char_entry(),
+										vec2d(metrics.get_character().char_left(), metrics.get_y()),
+										chartok.color
+									);
 								}
 							} else if (std::holds_alternative<linebreak_token>(tok.result)) {
-								lct.refresh(metrics.get_y());
-								lastx = 0.0;
+								++curvisline;
+								crend.reset();
 							} else if (std::holds_alternative<text_gizmo_token>(tok.result)) {
-								// TODO draw text gizmo
+								auto &texttok = std::get<text_gizmo_token>(tok.result);
+								auto tokit = texttok.contents.begin();
+								codepoint last = 0;
+								vec2d pos(metrics.get_character().char_right(), metrics.get_y());
+								double xdiff = 0.0;
+								while (tokit != texttok.contents.end()) {
+									codepoint cp;
+									if (encodings::utf8::next_codepoint(tokit, texttok.contents.end(), cp)) {
+										std::shared_ptr<const ui::font>
+											fnt = texttok.font ? texttok.font : contents_region::get_font().normal;
+										if (last != 0) {
+											xdiff += fnt->get_kerning(last, cp).x;
+										}
+										auto &entry = fnt->get_char_entry(cp);
+										crend.add_character(entry, vec2d(pos.x + xdiff, pos.y), texttok.color);
+										xdiff += entry.advance;
+										last = cp;
+									} else {
+										last = 0;
+										logger::get().log_warning(CP_HERE, "invalid codepoint in text gizmo");
+									}
+								}
+								metrics.get_modify_character().next_gizmo(xdiff);
 							} else if (std::holds_alternative<image_gizmo_token>(tok.result)) {
 								// TODO
 							}
-							it.update(tok.steps);
+							if (crend.get_xmax() < _width) {
+								it.update(tok.steps);
+							} else { // skip right to the next line
+								++curvisline;
+								size_t
+									pos = fmt.get_linebreaks().get_beginning_char_of_visual_line(
+										fmt.get_folding().folded_to_unfolded_line_number(curvisline)
+									).first;
+								it.reposition(pos);
+								metrics.next_line();
+								crend.reset();
+							}
 						}
 					}
 					r.end();

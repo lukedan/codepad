@@ -21,7 +21,7 @@ namespace codepad::ui {
 		class batch_renderer {
 		public:
 			/// Initializes this renderer with the associated \ref atlas.
-			explicit batch_renderer(atlas &atl) : _atlas(atl) {
+			explicit batch_renderer(atlas &atl) : _batch(atl.get_renderer()), _atlas(atl) {
 			}
 			/// Calls \ref flush().
 			~batch_renderer() {
@@ -43,9 +43,18 @@ namespace codepad::ui {
 			void flush() {
 				if (!_batch.empty()) {
 					const texture &tex = _atlas.get_page(_current_page);
-					_batch.draw(*tex.get_renderer(), tex);
+					_batch.draw(tex);
 					_batch.clear();
 				}
+			}
+
+			/// Returns a reference to \ref _batch.
+			render_batch &get_batch() {
+				return _batch;
+			}
+			/// \overload
+			const render_batch &get_batch() const {
+				return _batch;
 			}
 		protected:
 			render_batch _batch; ///< The batch of characters.
@@ -165,6 +174,10 @@ namespace codepad::ui {
 		/// Returns the width of borders.
 		size_t get_border_width() const {
 			return _border;
+		}
+		/// Returns the \ref renderer_base associated with this \ref atlas.
+		renderer_base &get_renderer() const {
+			return _r;
 		}
 	protected:
 		std::vector<texture> _pages; ///< The pages.

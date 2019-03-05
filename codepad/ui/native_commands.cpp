@@ -114,6 +114,11 @@ namespace codepad::ui::native_commands {
 				code::contents_region::get_from_editor(*e)->on_delete();
 			})
 		);
+		reg.register_command(
+			CP_STRLIT("contents_region.insert_new_line"), convert_type<editor>([](editor *e) {
+				code::contents_region::get_from_editor(*e)->on_return();
+			})
+		);
 
 		reg.register_command(
 			CP_STRLIT("contents_region.toggle_insert"), convert_type<editor>([](editor *e) {

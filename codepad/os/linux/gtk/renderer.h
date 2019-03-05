@@ -125,7 +125,7 @@ namespace codepad::os {
 			}
 
 			GtkWidget *widget = nullptr;
-			ui::framebuffer buffer;
+			ui::frame_buffer buffer;
 		};
 
 		inline static gboolean _on_glarea_render(GtkGLArea *area, GdkGLContext *ctx, window *wnd) {
@@ -192,7 +192,7 @@ namespace codepad::os {
 			}
 			auto it = _wndmapping.emplace(w, glarea);
 			w->size_changed += [this, it = it.first](ui::size_changed_info &info) {
-				it->second.buffer = new_framebuffer(
+				it->second.buffer = new_frame_buffer(
 					static_cast<size_t>(info.new_size.x), static_cast<size_t>(info.new_size.y)
 				);
 			};

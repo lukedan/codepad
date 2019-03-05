@@ -61,8 +61,8 @@ namespace codepad::ui {
 						1.0 - s.margin.current_value.bottom / static_cast<double>(h)
 					);
 				colord curc = s.color.current_value;
-				render_batch rb;
-				rb.reserve(18);
+				render_batch rb(r);
+				rb.reserve_quads(9);
 				rb.add_quad(
 					rectd(outer.xmin, inner.xmin, outer.ymin, inner.ymin),
 					rectd(0.0, texr.xmin, 0.0, texr.ymin), curc
@@ -99,7 +99,7 @@ namespace codepad::ui {
 					rectd(inner.xmax, outer.xmax, inner.ymax, outer.ymax),
 					rectd(texr.xmax, 1.0, texr.ymax, 1.0), curc
 				);
-				rb.draw(r, *tex);
+				rb.draw(*tex);
 			}
 			break;
 		}

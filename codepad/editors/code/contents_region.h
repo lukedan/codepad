@@ -71,6 +71,11 @@ namespace codepad::editors::code {
 		double get_vertical_scroll_delta() const override {
 			return get_line_height() * _lines_per_scroll;
 		}
+		/// Returns the length of scrolling by one tick. Currently the same value as that returned by
+		/// \ref get_vertical_scroll_delta().
+		double get_horizontal_scroll_delta() const override {
+			return get_vertical_scroll_delta();
+		}
 		/// Returns the vertical viewport range.
 		double get_vertical_scroll_range() const override {
 			return
@@ -248,6 +253,25 @@ namespace codepad::editors::code {
 			set_insert_mode(!is_insert_mode());
 		}
 
+		// edit operations
+		/// Inserts the input text at each caret.
+		void on_text_input(str_view_t text) override {
+			_interaction_manager.on_edit_operation();
+			// encode added content
+			byte_string str;
+			const std::byte
+				*it = reinterpret_cast<const std::byte*>(text.data()),
+				*end = it + text.size();
+			while (it != end) {
+				codepoint cp;
+				if (encodings::utf8::next_codepoint(it, end, cp)) {
+					str.append(_doc->get_encoding()->encode_codepoint(cp));
+				} else {
+					logger::get().log_warning(CP_HERE, "skipped invalid byte sequence in input");
+				}
+			}
+			_doc->on_insert(_cset, str, this);
+		}
 		/// Calls \ref interpretation::on_backspace() with the current set of carets.
 		void on_backspace() {
 			_interaction_manager.on_edit_operation();
@@ -257,6 +281,16 @@ namespace codepad::editors::code {
 		void on_delete() {
 			_interaction_manager.on_edit_operation();
 			_doc->on_delete(_cset, this);
+		}
+		/// Called when the user presses the `enter' key to insert a line break at all carets.
+		void on_return() {
+			_interaction_manager.on_edit_operation();
+			std::u32string_view le = line_ending_to_string(_doc->get_default_line_ending());
+			byte_string encoded;
+			for (char32_t c : le) {
+				encoded.append(_doc->get_encoding()->encode_codepoint(c));
+			}
+			_doc->on_insert(_cset, encoded, this);
 		}
 		/// Checks if there are editing actions available for undo-ing, and calls \ref undo if there is.
 		///
@@ -326,8 +360,7 @@ namespace codepad::editors::code {
 		/// top-left corner of the document rather than that of this element.
 		caret_position hit_test_for_caret_document(vec2d offset) const {
 			size_t line = static_cast<size_t>(std::max(offset.y / get_line_height(), 0.0));
-			line = std::min(_fmt.get_folding().folded_to_unfolded_line_number(line), get_num_visual_lines() - 1);
-			return _hit_test_unfolded_linebeg(line, offset.x);
+			return _hit_test_at_visual_line(std::min(line, get_num_visual_lines() - 1), offset.x);
 		}
 		/// Shorthand for \ref hit_test_for_caret_document when the coordinates are relative to this \ref ui::element.
 		///
@@ -341,9 +374,7 @@ namespace codepad::editors::code {
 		///
 		/// \return The horizontal position of the caret, relative to the leftmost of the document.
 		double get_horizontal_caret_position(caret_position pos) const {
-			size_t line = _get_line_of_caret(pos);
-			line = _fmt.get_folding().get_beginning_line_of_folded_lines(line);
-			return _get_caret_pos_x_unfolded_linebeg(line, pos.position);
+			return _get_caret_pos_x_at_visual_line(_get_visual_line_of_caret(pos), pos.position);
 		}
 
 		/// Moves all carets one character to the left. If \p continueselection is \p false, then all carets that have
@@ -374,57 +405,44 @@ namespace codepad::editors::code {
 				return {et.first.second, false};
 			}, continueselection);
 		}
-		/// Moves all carets one line up. If \p continueselection is \p false, then all carets that have selected
-		/// regions will be placed at the front of the selection, before being moved up. If a caret is at the topmost
-		/// line and its selection is not cancelled, it will not be moved.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_up(bool continueselection) {
-			move_carets([this](const caret_set::entry &et) {
-				caret_position res = _move_caret_vertically(
-					_get_line_of_caret(_extract_position(et)), -1, et.second.alignment
+		/// Moves all carets vertically by a given number of lines.
+		void move_all_carets_vertically(int offset, bool continue_selection) {
+			move_carets([this, offset](const caret_set::entry &et) {
+				auto res = _move_caret_vertically(
+					_get_visual_line_of_caret(_extract_position(et)), offset, et.second.alignment
 				);
 				return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
-			}, [this](const caret_set::entry &et) {
-				size_t ml = _get_line_of_caret(_extract_position(et));
-				double bl = et.second.alignment;
-				if (et.first.second < et.first.first) {
-					ml = _get_line_of_caret(caret_position(et.first.second));
+			}, [this, offset](const caret_set::entry &et) {
+				size_t ml;
+				double bl;
+				if ((et.first.first > et.first.second) == (offset > 0)) {
+					ml = _get_visual_line_of_caret(_extract_position(et));
+					bl = et.second.alignment;
+				} else {
+					ml = _get_visual_line_of_caret(caret_position(et.first.second));
 					bl = get_horizontal_caret_position(caret_position(et.first.second));
 				}
-				auto res = _move_caret_vertically(ml, -1, bl);
+				auto res = _move_caret_vertically(ml, offset, bl);
 				return std::make_pair(res.position, caret_data(bl, res.at_back));
-			}, continueselection);
+			}, continue_selection);
 		}
-		/// Moves all carets one line down. If \p continueselection is \p false, then all carets that have selected
-		/// regions will be placed at the back of the selection, before being moved down. If a caret is already at the
-		/// bottommost line and its selection is not cancelled, it will not be moved.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_down(bool continueselection) {
-			move_carets([this](const caret_set::entry &et) {
-				auto res = _move_caret_vertically(_get_line_of_caret(_extract_position(et)), 1, et.second.alignment);
-				return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
-			}, [this](const caret_set::entry &et) {
-				size_t ml = _get_line_of_caret(_extract_position(et));
-				double bl = et.second.alignment;
-				if (et.first.second > et.first.first) {
-					ml = _get_line_of_caret(caret_position(et.first.second));
-					bl = get_horizontal_caret_position(caret_position(et.first.second));
-				}
-				auto res = _move_caret_vertically(ml, 1, bl);
-				return std::make_pair(res.position, caret_data(bl, res.at_back));
-			}, continueselection);
+		/// Moves all carets one line up.
+		void move_all_carets_up(bool continue_selection) {
+			move_all_carets_vertically(-1, continue_selection);
 		}
-		/// Moves all carets to the beginning of the lines they're at, with folding and word wrapping enabled.
+		/// Moves all carets one line down.
+		void move_all_carets_down(bool continue_selection) {
+			move_all_carets_vertically(1, continue_selection);
+		}
+		/// Moves all carets to the beginning of the lines they're at.
 		///
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_to_line_beginning(bool continueselection) {
 			move_carets([this](const caret_set::entry &et) {
 				return std::make_pair(
 					_fmt.get_linebreaks().get_beginning_char_of_visual_line(
-						_fmt.get_folding().get_beginning_line_of_folded_lines(
-							_get_line_of_caret(_extract_position(et))
+						_fmt.get_folding().folded_to_unfolded_line_number(
+							_get_visual_line_of_caret(_extract_position(et))
 						)
 					).first, true
 				);
@@ -437,9 +455,9 @@ namespace codepad::editors::code {
 		void move_all_carets_to_line_beginning_advanced(bool continueselection) {
 			move_carets([this](const caret_set::entry &et) {
 				size_t
-					line = _get_line_of_caret(_extract_position(et)),
-					reall = _fmt.get_folding().get_beginning_line_of_folded_lines(line);
-				auto linfo = _fmt.get_linebreaks().get_line_info(reall);
+					visline = _get_visual_line_of_caret(_extract_position(et)),
+					unfolded = _fmt.get_folding().folded_to_unfolded_line_number(visline);
+				auto linfo = _fmt.get_linebreaks().get_line_info(unfolded);
 				size_t begp = std::max(linfo.first.first_char, linfo.second.prev_chars), exbegp = begp;
 				if (linfo.first.first_char >= linfo.second.prev_chars) {
 					size_t nextsb =
@@ -472,8 +490,8 @@ namespace codepad::editors::code {
 			move_carets([this](caret_set::entry cp) {
 				return std::make_pair(
 					_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
-						_fmt.get_folding().get_past_ending_line_of_folded_lines(
-							_get_line_of_caret(_extract_position(cp))
+						_fmt.get_folding().folded_to_unfolded_line_number(
+							_get_visual_line_of_caret(_extract_position(cp)) + 1
 						) - 1
 					).first, caret_data(std::numeric_limits<double>::max(), false)
 				);
@@ -589,45 +607,31 @@ namespace codepad::editors::code {
 		/// Returns the global \ref _appearance_config.
 		static _appearance_config &_get_appearance();
 
-		/// Returns the line that the given caret is on, with wrapping considered. Folding is not taken into account,
-		/// so callers may need to consult with <tt>_fmt.get_folding()</tt>.
-		size_t _get_line_of_caret(caret_position pos) const {
+		/// Returns the visual line that the given caret is on.
+		size_t _get_visual_line_of_caret(caret_position pos) const {
 			auto
 				res = _fmt.get_linebreaks().get_visual_line_and_column_and_softbreak_before_or_at_char(pos.position);
+			size_t unfolded = std::get<0>(res);
 			if (
 				!pos.at_back &&
 				std::get<2>(res).entry != _fmt.get_linebreaks().begin() &&
 				std::get<2>(res).prev_chars == pos.position
 				) {
-				return std::get<0>(res) - 1;
+				--unfolded;
 			}
-			return std::get<0>(res);
+			return _fmt.get_folding().unfolded_to_folded_line_number(unfolded);
 		}
 		/// Given a line index and a horizontal position, returns the closest caret position.
 		///
-		/// \param line The line index, with word wrapping enabled but folding disabled. Note that this function
-		///             still takes folding into account.
+		/// \param line The visual line index.
 		/// \param x The horizontal position.
-		caret_position _hit_test_unfolded_linebeg(size_t line, double x) const;
-		/// Returns the horizontal position of a caret. This function is used when the line of the caret has been
-		/// previously obtained to avoid repeated calls to \ref _get_line_of_caret. Note that calling
-		/// \ref folding_registry::get_beginning_line_of_folded_lines may be necessary to obtain the correct line
-		/// number.
-		///
-		/// \param line The line that the caret is on, with only wrapping considered (i.e., folding is not
-		///             considered). If a group of lines is joined by folding, this must be the first line.
-		/// \param position The position of the caret in the whole document.
-		double _get_caret_pos_x_unfolded_linebeg(size_t line, size_t position) const;
+		caret_position _hit_test_at_visual_line(size_t line, double x) const;
 		/// Returns the horizontal position of a caret. This function is used when the line of the caret has been
 		/// previously obtained to avoid repeated calls to \ref _get_line_of_caret.
 		///
-		/// \param line The line that the caret is on, with both wrapping and folding considered.
+		/// \param line The visual line that the caret is on.
 		/// \param position The position of the caret in the whole document.
-		double _get_caret_pos_x_folded_linebeg(size_t line, size_t position) const {
-			return _get_caret_pos_x_unfolded_linebeg(
-				_fmt.get_folding().folded_to_unfolded_line_number(line), position
-			);
-		}
+		double _get_caret_pos_x_at_visual_line(size_t line, size_t position) const;
 
 		/// Called when the vertical position of the document is changed or when the carets have been moved,
 		/// to update the caret position used by IMs.
@@ -638,12 +642,11 @@ namespace codepad::editors::code {
 			// when selecting with a mouse, it's possible that there are no carets in _cset at all
 			if (!_cset.carets.empty() && wnd != nullptr) {
 				auto entry = _cset.carets.begin();
-				size_t wrapline = _get_line_of_caret(_extract_position(*entry));
-				size_t visline = _fmt.get_folding().unfolded_to_folded_line_number(wrapline);
+				size_t visline = _get_visual_line_of_caret(_extract_position(*entry));
 				double lh = get_line_height();
 				vec2d pos = get_client_region().xmin_ymin();
 				wnd->set_active_caret_position(rectd::from_xywh(
-					pos.x + _get_caret_pos_x_unfolded_linebeg(wrapline, entry->first.first),
+					pos.x + _get_caret_pos_x_at_visual_line(visline, entry->first.first),
 					pos.y + lh * static_cast<double>(visline) -
 					editor::get_encapsulating(*this)->get_vertical_position(), 0.0, lh
 				));
@@ -657,7 +660,7 @@ namespace codepad::editors::code {
 				ufline = _get_line_of_caret(caret),
 				fline = _fmt.get_folding().unfolded_to_folded_line_number(ufline);
 			vec2d np(
-				_get_caret_pos_x_folded_linebeg(fline, caret.position),
+				_get_caret_pos_x_at_visual_line(fline, caret.position),
 				static_cast<double>(fline + 1) * fh + get_padding().top
 			);
 			cb->make_point_visible(np);
@@ -826,45 +829,21 @@ namespace codepad::editors::code {
 		}
 		/// Moves the caret vertically according to the given information.
 		///
-		/// \param line The line that the caret is on, with wrapping enabled but folding disabled.
+		/// \param line The visual line that the caret is on.
 		/// \param diff The number of lines to move the caret by. This can be either positive or negative.
 		/// \param align The alignment of the caret, similar to \ref caret_data::alignment.
 		caret_position _move_caret_vertically(size_t line, int diff, double align) {
-			line = _fmt.get_folding().unfolded_to_folded_line_number(line);
-			if (diff < 0 && -diff > static_cast<int>(line)) {
+			if (diff < 0 && static_cast<size_t>(-diff) > line) {
 				line = 0;
 			} else {
-				line = _fmt.get_folding().folded_to_unfolded_line_number(line + diff);
-				line = std::min(line, get_num_visual_lines() - 1);
+				line = std::min(line + diff, get_num_visual_lines() - 1);
 			}
-			return _hit_test_unfolded_linebeg(line, align);
+			return _hit_test_at_visual_line(line, align);
 		}
 
 		// mouse & keyboard interactions
-		/// Inserts the input text at each caret.
-		///
-		/// \todo Handle linebreaks.
-		void _on_keyboard_text(ui::text_info &info) override { // TODO FIXME not working right now
-			_interaction_manager.on_edit_operation();
-			// encode added content
-			byte_string str;
-			const std::byte
-				*it = reinterpret_cast<const std::byte*>(info.content.c_str()),
-				*end = it + info.content.size();
-			while (it != end) {
-				codepoint cp;
-				if (encodings::utf8::next_codepoint(it, end, cp)) {
-					str.append(_doc->get_encoding()->encode_codepoint(cp));
-				} else {
-					logger::get().log_warning(CP_HERE, "skipped invalid byte sequence in input");
-				}
-			}
-			_doc->on_insert(_cset, str, this);
-		}
 		/// Calls \ref _update_mouse_selection to update the current selection and mouse position, then
 		/// starts drag-dropping if the mouse has moved far enough from where it's pressed.
-		///
-		/// \todo Implement drag & drop.
 		void _on_mouse_move(ui::mouse_move_info &info) override {
 			_interaction_manager.on_mouse_move(info);
 			element::_on_mouse_move(info);
@@ -874,7 +853,6 @@ namespace codepad::editors::code {
 		/// actions for drag-dropping. Otherwise, if the tertiary mouse button is pressed, starts block selection.
 		///
 		/// \todo Implement block selection.
-		/// \todo Use customizable modifiers and buttons.
 		void _on_mouse_down(ui::mouse_button_info &info) override {
 			_interaction_manager.on_mouse_down(info);
 			element::_on_mouse_down(info);

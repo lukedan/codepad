@@ -509,7 +509,7 @@ namespace codepad::ui {
 		/// Parses the given key.
 		///
 		/// \todo Currently incomplete.
-		inline static key parse_key(const str_t &str) {
+		inline static key parse_key(str_view_t str) {
 			if (str.length() == 1) {
 				if (str[0] >= 'a' && str[0] <= 'z') {
 					return static_cast<key>(
@@ -558,6 +558,9 @@ namespace codepad::ui {
 			}
 			if (str == CP_STRLIT("end")) {
 				return key::end;
+			}
+			if (str == CP_STRLIT("enter")) {
+				return key::enter;
 			}
 			return key::max_value;
 		}

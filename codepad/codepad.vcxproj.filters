@@ -114,9 +114,6 @@
     <ClInclude Include="editors\tabs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editors\code\document_formatting_cache.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\misc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -190,6 +187,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="editors\editor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editors\code\view_caching.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -27,8 +27,8 @@ namespace codepad::ui {
 		void next_char(codepoint c, font_style fs) {
 			const font &fnt = *_font.get_by_style(fs);
 			double kerning = 0.0;
-			if (_last_char != 0 && _last_style == fs) {
-				kerning = fnt.get_kerning(_last_char, c).x;
+			if (_cur_char != 0 && _cur_style == fs) {
+				kerning = fnt.get_kerning(_cur_char, c).x;
 			}
 			auto *entry = &fnt.get_char_entry(c);
 			_next_impl(c, fs, kerning, c == U'\t' ? _get_target_tab_width(kerning) : entry->advance, entry);
@@ -77,30 +77,24 @@ namespace codepad::ui {
 
 		/// Resets the struct to the initial state.
 		void reset() {
-			_last_style = _cur_style = font_style::normal;
+			_cur_style = font_style::normal;
 			_last_right = _cur_width = _cur_left = 0.0;
-			_last_char = _cur_char = 0;
+			_cur_char = 0;
 			_cur_entry = nullptr;
 		}
 	protected:
-		font_style
-			_last_style = font_style::normal, ///< The font style of the last char.
-			_cur_style = font_style::normal; ///< The font style of the current char.
+		font_style _cur_style = font_style::normal; ///< The font style of the current char.
 		font_family _font; ///< The font family used for all the calculations.
 		double
 			_last_right = 0.0, ///< The position of the right boundary of the previous character.
 			_cur_width = 0.0, ///< The width of the current character.
 			_cur_left = 0.0, ///< The position of the left boundary of the current character.
 			_tab_width = 0.0; ///< The width of a tab character, in pixels.
-		codepoint
-			_last_char = 0, ///< The last character.
-			_cur_char = 0; ///< The current character.
+		codepoint _cur_char = 0; ///< The current character.
 		const font::entry *_cur_entry = nullptr; ///< The entry for the current character.
 
 		/// Adds the given metrics to the end of the line. This function supports both normal characters and gizmos.
 		void _next_impl(codepoint cp, font_style style, double kerning, double width, const font::entry *entry) {
-			_last_style = _cur_style;
-			_last_char = _cur_char;
 			_cur_style = style;
 			_cur_char = cp;
 			_cur_entry = entry;

@@ -17,7 +17,7 @@ namespace codepad::editors::code {
 	/*
 	/// For long lines, the text is split into small chunks and the length of each chunk is calculated and stored
 	/// separately to accelerate certain operations.
-	class line_length_data {
+	class line_part_length_cache {
 	public:
 		constexpr static size_t maximum_chunk_size = 80; ///< The maimum size of a chunk.
 

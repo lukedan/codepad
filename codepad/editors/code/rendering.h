@@ -74,15 +74,22 @@ namespace codepad::editors::code {
 
 
 	/// Iterates through a range of text in a \ref interpretation and gathers tokens to be rendered. The template
-	/// parameters are extra components used in this process.
+	/// parameters are extra components used in this process. Each component must contain the following three
+	/// functions: \p generate(), which optionally generates a token for the current position; \p reposition(), which
+	/// is used to notify this component of the change of the current position; and \ref update(), which is also
+	/// used to notify of the change of the position, but the position is guaranteed to move forward and the change
+	/// is likely small, which may allow for some optimizations.
+	///
+	/// \note While the \p generate() function is called for each component in the order they're specified, the
+	///       \p update() and \p reposition() functions are called in the reverse order, so that the position has
+	///       already been updated.
 	template<typename ...Args> struct rendering_token_iterator;
 	/// The most basic specialization of \ref rendering_token_iterator.
 	template<> struct rendering_token_iterator<> {
 	public:
 		/// Constructs this \ref rendering_token_iterator with the given \ref interpretation and starting position.
 		rendering_token_iterator(const interpretation &interp, size_t begpos) : _pos(begpos), _interp(interp) {
-			_char_it = _interp.at_character(_pos);
-			_theme_it = _interp.get_text_theme().get_iter_at(_pos);
+			reposition(_pos);
 		}
 		/// Forwards the arguments in the tuple to other constructors.
 		template<typename ...Args> rendering_token_iterator(std::tuple<Args...> args) :
@@ -113,14 +120,19 @@ namespace codepad::editors::code {
 		}
 		/// Adjusts the position of \ref _char_it and \ref _theme_it.
 		void update(size_t steps) {
-			_pos += steps;
 			if (steps == 1) {
+				++_pos;
 				_char_it.next();
 				_interp.get_text_theme().incr_iter(_theme_it, _pos);
 			} else if (steps > 1) {
-				_char_it = _interp.at_character(_pos);
-				_theme_it = _interp.get_text_theme().get_iter_at(_pos);
+				reposition(_pos + steps);
 			}
+		}
+		/// Resets the current position.
+		void reposition(size_t pos) {
+			_pos = pos;
+			_char_it = _interp.at_character(_pos);
+			_theme_it = _interp.get_text_theme().get_iter_at(_pos);
 		}
 
 		/// Returns the base \ref rendering_token_iterator with no components.
@@ -170,8 +182,13 @@ namespace codepad::editors::code {
 		}
 		/// Updates all components.
 		void update(size_t steps) {
-			_mycomp.update(*this, steps);
 			_base::update(steps);
+			_mycomp.update(*this, steps);
+		}
+		/// Resets the current position.
+		void reposition(size_t pos) {
+			_base::reposition(pos);
+			_mycomp.reposition(*this);
 		}
 
 		/// Generates the next token, then updates using the returned number of steps.
@@ -212,7 +229,7 @@ namespace codepad::editors::code {
 	public:
 		/// Initializes this struct with the given \ref soft_linebreak_registry at the given position.
 		soft_linebreak_inserter(const soft_linebreak_registry &reg, size_t pos) : _reg(reg) {
-			_reset_position(pos);
+			_reposition_impl(pos);
 		}
 
 		/// Checks and generates a soft linebreak if necessary. \ref _cur_softbreak and \ref _prev_chars are updated
@@ -229,12 +246,15 @@ namespace codepad::editors::code {
 		/// Updates \ref _cur_softbreak according to the given offset.
 		void update(rendering_token_iterator<> &it, size_t steps) {
 			if (steps > 0 && _cur_softbreak != _reg.end()) { // no update needed if not moved
-				size_t targetpos = it.get_position() + steps;
-				if (targetpos > _prev_chars + _cur_softbreak->length) {
-					// reset once iterator to the next soft linebreak is invalid
-					_reset_position(targetpos);
+				if (it.get_position() > _prev_chars + _cur_softbreak->length) {
+					// reset once the iterator to the next soft linebreak is invalid
+					reposition(it);
 				}
 			}
+		}
+		/// Resets the current position.
+		void reposition(rendering_token_iterator<> &it) {
+			_reposition_impl(it.get_position());
 		}
 	protected:
 		soft_linebreak_registry::iterator _cur_softbreak; ///< Iterator to the next soft linebreak.
@@ -242,7 +262,7 @@ namespace codepad::editors::code {
 		size_t _prev_chars = 0; ///< The number of characters before \ref _cur_softbreak.
 
 		/// Resets \ref _cur_softbreak and \ref _prev_char to the given position.
-		void _reset_position(size_t pos) {
+		void _reposition_impl(size_t pos) {
 			auto softbreak = _reg.get_softbreak_before_or_at_char(pos);
 			_prev_chars = softbreak.prev_chars;
 			_cur_softbreak = softbreak.entry;
@@ -253,7 +273,7 @@ namespace codepad::editors::code {
 	public:
 		/// Initializes this struct with the given \ref folding_registry at the given position.
 		folded_region_skipper(const folding_registry &reg, size_t pos) : _reg(reg) {
-			_reset_position(pos);
+			_reposition_impl(pos);
 		}
 
 		/// Checks and skips the folded region if necessary.
@@ -268,19 +288,23 @@ namespace codepad::editors::code {
 			return token_generation_result();
 		}
 		/// Updates \ref _cur_region according to the given offset.
-		void update(rendering_token_iterator<> &it, size_t steps) {
+		void update(rendering_token_iterator<> &it, size_t) {
 			if (_cur_region != _reg.end()) {
-				size_t targetpos = it.get_position() + steps, regionend = _region_start + _cur_region->range;
-				if (targetpos >= regionend) { // advance to the next region and check again
+				size_t pos = it.get_position(), regionend = _region_start + _cur_region->range;
+				if (pos >= regionend) { // advance to the next region and check again
 					++_cur_region;
 					if (_cur_region != _reg.end()) {
 						_region_start = regionend + _cur_region->gap;
-						if (_region_start + _cur_region->range <= targetpos) { // nope, still ahead
-							_reset_position(targetpos);
+						if (_region_start + _cur_region->range <= pos) { // nope, still ahead
+							reposition(it);
 						}
 					}
 				}
 			}
+		}
+		/// Resets the current position.
+		void reposition(rendering_token_iterator<> &it) {
+			_reposition_impl(it.get_position());
 		}
 	protected:
 		folding_registry::iterator _cur_region; ///< Iterator to the next folded region.
@@ -288,7 +312,7 @@ namespace codepad::editors::code {
 		size_t _region_start = 0; ///< Position of the beginning of the next folded region.
 
 		/// Resets \ref _cur_region and \ref _region_start to the given position.
-		void _reset_position(size_t pos) {
+		void _reposition_impl(size_t pos) {
 			auto region = _reg.find_region_containing_or_first_after_open(pos);
 			_cur_region = region.entry;
 			if (_cur_region != _reg.end()) {
@@ -300,8 +324,10 @@ namespace codepad::editors::code {
 
 	/// Specifies how tokens are measured.
 	enum class token_measurement_flags {
-		normal = 0, ///< Tokens are measured normally.
-		defer_text_gizmo_measurement = 1 ///< Gizmos are not measured. Use \ref get_character() to add them manually.
+		none = 0, ///< Tokens are measured normally.
+		/// Gizmos are not measured. Use \ref text_metrics_accumulator::get_modify_character() to add them manually.
+		defer_text_gizmo_measurement = 1,
+		newline_handled = 2 ///< Means that any \ref linebreak_token has already been handled.
 	};
 }
 
@@ -321,15 +347,21 @@ namespace codepad::editors::code {
 		}
 
 		/// Computes the metrics for the next token.
-		template <token_measurement_flags Flags = token_measurement_flags::normal> void next(const token &tok) {
+		template <token_measurement_flags Flags = token_measurement_flags::none> void next(const token &tok) {
 			if (std::holds_alternative<linebreak_token>(tok)) {
-				_y += _line_height;
-				_last_length = _char.char_right();
+				next_line();
 			}
-			measure_token<Flags>(_char, tok);
+			measure_token<Flags | token_measurement_flags::newline_handled>(_char, tok);
+		}
+		/// Updates metrics as if the text has jumped to the start of the next line. Note that in this case
+		/// \ref _last_length may be shorter than the actual line length.
+		void next_line() {
+			_y += _line_height;
+			_last_length = _char.char_right();
+			_char.reset();
 		}
 		/// Adds the given \ref token to the \ref ui::character_metrics_accumulator.
-		template <token_measurement_flags Flags = token_measurement_flags::normal> inline static void measure_token(
+		template <token_measurement_flags Flags = token_measurement_flags::none> inline static void measure_token(
 			ui::character_metrics_accumulator &metrics, const token &tok
 		) {
 			if (std::holds_alternative<character_token>(tok)) {
@@ -340,7 +372,7 @@ namespace codepad::editors::code {
 			} else if (std::holds_alternative<text_gizmo_token>(tok)) {
 				if constexpr (
 					(Flags & token_measurement_flags::defer_text_gizmo_measurement) ==
-					token_measurement_flags::normal
+					token_measurement_flags::none
 				) {
 					auto &texttok = std::get<text_gizmo_token>(tok);
 					metrics.next_gizmo(ui::text_renderer::measure_plain_text(
@@ -348,7 +380,9 @@ namespace codepad::editors::code {
 					).x);
 				}
 			} else if (std::holds_alternative<linebreak_token>(tok)) {
-				metrics.reset();
+				if constexpr ((Flags & token_measurement_flags::newline_handled) == token_measurement_flags::none) {
+					metrics.reset();
+				}
 			}
 		}
 

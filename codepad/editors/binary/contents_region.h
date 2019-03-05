@@ -34,8 +34,6 @@ namespace codepad::editors::binary {
 	};
 
 	/// The \ref ui::element that displays the contents of the \ref buffer and handles user interactions.
-	///
-	/// \todo Reduce duplicate code.
 	class contents_region : public interactive_contents_region_base<caret_set> {
 	public:
 		/// How this display should be wrapped.
@@ -129,6 +127,11 @@ namespace codepad::editors::binary {
 		double get_vertical_scroll_delta() const override {
 			return get_line_height() * _lines_per_scroll;
 		}
+		/// Returns the length of scrolling by one tick. Currently the same value as that returned by
+		/// \ref get_vertical_scroll_delta().
+		double get_horizontal_scroll_delta() const override {
+			return get_vertical_scroll_delta();
+		}
 		/// Returns the vertical viewport range.
 		double get_vertical_scroll_range() const override {
 			return
@@ -206,6 +209,11 @@ namespace codepad::editors::binary {
 			return ui::cursor::text_beam;
 		}
 
+		/// Catches all characters that are valid in hexadecimal, and modifies the contents of the \ref buffer.
+		void on_text_input(str_view_t t) override {
+			// TODO
+		}
+
 		/// Returns the \ref caret_position correponding to the given mouse position. The mouse position is relative
 		/// to the top left corner of the document.
 		caret_position hit_test_for_caret_document(vec2d pos) const {
@@ -239,6 +247,20 @@ namespace codepad::editors::binary {
 			/// Invoked when the set of carets is changed. Note that this does not necessarily mean that the result
 			/// of \ref get_carets will change.
 			carets_changed;
+
+		/// Converts a character into the corresponding hexadecimal value.
+		inline static int get_hex_value(codepoint c1) {
+			if (c1 >= '0' && c1 <= '9') {
+				return c1 - '0';
+			}
+			if (c1 >= 'a' && c1 <= 'f') {
+				return c1 - 'a' + 10;
+			}
+			if (c1 >= 'A' && c1 <= 'F') {
+				return c1 - 'A' + 10;
+			}
+			return 0;
+		}
 
 		/// Returns the default class used by elements of type \ref contents_region.
 		inline static str_view_t get_default_class() {

@@ -59,8 +59,11 @@ namespace codepad::editors::code {
 		return {};
 	}
 
-	double contents_region::_get_caret_pos_x_unfolded_linebeg(size_t line, size_t position) const {
-		size_t linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line).first;
+	double contents_region::_get_caret_pos_x_at_visual_line(size_t line, size_t position) const {
+		size_t
+			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
+				_fmt.get_folding().folded_to_unfolded_line_number(line)
+			).first;
 		rendering_token_iterator<folded_region_skipper> iter(
 			make_tuple(cref(_fmt.get_folding()), linebeg),
 			make_tuple(cref(*_doc), linebeg)
@@ -73,8 +76,11 @@ namespace codepad::editors::code {
 		return metrics.char_right();
 	}
 
-	caret_position contents_region::_hit_test_unfolded_linebeg(size_t line, double x) const {
-		size_t linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(line).first;
+	caret_position contents_region::_hit_test_at_visual_line(size_t line, double x) const {
+		size_t
+			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
+				_fmt.get_folding().folded_to_unfolded_line_number(line)
+			).first;
 		rendering_token_iterator<soft_linebreak_inserter, folded_region_skipper> iter(
 			make_tuple(cref(_fmt.get_linebreaks()), linebeg),
 			make_tuple(cref(_fmt.get_folding()), linebeg),

@@ -22,7 +22,7 @@
 #include "../editors/buffer_manager.h"
 #include "../editors/code/components.h"
 #include "../editors/code/contents_region.h"
-#include "../editors/code/document_formatting_cache.h"
+#include "../editors/code/view_caching.h"
 
 using namespace std;
 

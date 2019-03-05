@@ -221,7 +221,19 @@ namespace codepad::os {
 				winapi_check(ScreenToClient(form->_hwnd, &p));
 				_form_onevent<ui::mouse_scroll_info>(
 					*form, &window::_on_mouse_scroll,
-					GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), vec2d(p.x, p.y)
+					vec2d(0.0, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)), vec2d(p.x, p.y)
+					);
+				return 0;
+			}
+			case WM_MOUSEHWHEEL:
+			{
+				POINT p;
+				p.x = GET_X_LPARAM(lparam);
+				p.y = GET_Y_LPARAM(lparam);
+				winapi_check(ScreenToClient(form->_hwnd, &p));
+				_form_onevent<ui::mouse_scroll_info>(
+					*form, &window::_on_mouse_scroll,
+					vec2d(GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), 0.0), vec2d(p.x, p.y)
 					);
 				return 0;
 			}

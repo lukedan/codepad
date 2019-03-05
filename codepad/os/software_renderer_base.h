@@ -84,24 +84,24 @@ namespace codepad::os {
 			_clipstk.pop_back();
 		}
 
-		/// Allocates a texture of the given size, and returns the corresponding \ref framebuffer.
-		ui::framebuffer new_framebuffer(size_t w, size_t h) override {
+		/// Allocates a texture of the given size, and returns the corresponding \ref frame_buffer.
+		ui::frame_buffer new_frame_buffer(size_t w, size_t h) override {
 			ui::texture::id_t nid = _alloc_id();
 			_txs[nid].resize(w, h);
-			return _make_framebuffer(nid, _make_texture(nid, w, h));
+			return _make_frame_buffer(nid, _make_texture(nid, w, h));
 		}
 		/// Deletes the texture corresponding to the frame buffer, and erases the frame buffer.
-		void delete_framebuffer(ui::framebuffer &fb) override {
+		void delete_frame_buffer(ui::frame_buffer &fb) override {
 			_delete_texture_by_id(_get_id(fb.get_texture()));
-			_erase_framebuffer(fb);
+			_erase_frame_buffer(fb);
 		}
-		/// Calls \ref continue_framebuffer and then clears the current buffer.
-		void begin_framebuffer(const ui::framebuffer &fb) override {
-			continue_framebuffer(fb);
+		/// Calls \ref continue_frame_buffer and then clears the current buffer.
+		void begin_frame_buffer(const ui::frame_buffer &fb) override {
+			continue_frame_buffer(fb);
 			_clear_texture(_rtfstk.back().buffer, _rtfstk.back().width, _rtfstk.back().height);
 		}
 		/// Calls \ref _begin_render_target to start rendering to the frame buffer.
-		void continue_framebuffer(const ui::framebuffer &fb) override {
+		void continue_frame_buffer(const ui::frame_buffer &fb) override {
 			_tex_rec &tr = _txs[_get_id(fb.get_texture())];
 			_begin_render_target(_render_target_stackframe(tr.w, tr.h, tr.data));
 		}
