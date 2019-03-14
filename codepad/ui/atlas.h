@@ -23,9 +23,11 @@ namespace codepad::ui {
 			/// Initializes this renderer with the associated \ref atlas.
 			explicit batch_renderer(atlas &atl) : _batch(atl.get_renderer()), _atlas(atl) {
 			}
-			/// Calls \ref flush().
+			/// Flushes all batched vertices without recreating the \ref render_batch.
 			~batch_renderer() {
-				flush();
+				if (!_batch.empty()) {
+					_batch.draw_and_discard(_atlas.get_page(_current_page));
+				}
 			}
 
 			/// Renders a sprite in the given position with the given color. The texture will be stretched to fill
@@ -42,9 +44,9 @@ namespace codepad::ui {
 			/// Renders all batched sprites.
 			void flush() {
 				if (!_batch.empty()) {
-					const texture &tex = _atlas.get_page(_current_page);
-					_batch.draw(tex);
-					_batch.clear();
+					renderer_base *rend = _batch.get_renderer();
+					_batch.draw_and_discard(_atlas.get_page(_current_page));
+					_batch = render_batch(*rend);
 				}
 			}
 

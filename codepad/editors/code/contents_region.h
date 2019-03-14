@@ -56,7 +56,7 @@ namespace codepad::editors::code {
 			return _doc;
 		}
 
-		/// Returns the total number of visual lines, with folding and word wrapping enabled.
+		/// Returns the total number of visual lines.
 		size_t get_num_visual_lines() const {
 			return _fmt.get_linebreaks().num_visual_lines() - _fmt.get_folding().folded_linebreaks();
 		}
@@ -337,24 +337,20 @@ namespace codepad::editors::code {
 			_on_folding_changed();
 		}
 
-		/// Returns the range of line indices that are visible for the given viewport, with word wrapping enabled but
-		/// folding disabled. Note that the second line is the one past the last visible line.
-		std::pair<size_t, size_t> get_visible_lines(double top, double bottom) const {
+		/// Returns the range of visual line indices that are visible for the given viewport. Note that the second
+		/// line is the one past the last visible line.
+		std::pair<size_t, size_t> get_visible_visual_lines(double top, double bottom) const {
 			double lh = get_line_height();
-			return std::make_pair(_fmt.get_folding().folded_to_unfolded_line_number(
-				static_cast<size_t>(std::max(0.0, top / lh))
-			), std::min(
-				_fmt.get_folding().folded_to_unfolded_line_number(
-					static_cast<size_t>(std::max(0.0, bottom / lh)) + 1
-				),
-				_fmt.get_linebreaks().num_visual_lines()
-			));
+			return std::make_pair(
+				static_cast<size_t>(std::max(0.0, top / lh)),
+				std::min(static_cast<size_t>(std::max(0.0, bottom / lh)) + 1, get_num_visual_lines())
+			);
 		}
-		/// Similar to \ref get_visible_lines(double, double) const, except that this function uses the current viewport
-		/// of this contents_region as the parameters.
-		std::pair<size_t, size_t> get_visible_lines() const {
+		/// Similar to the other \ref get_visible_visual_lines(), except that this function uses the current viewport of the
+		/// \ref editor as the parameters.
+		std::pair<size_t, size_t> get_visible_visual_lines() const {
 			double top = editor::get_encapsulating(*this)->get_vertical_position() - get_padding().top;
-			return get_visible_lines(top, top + get_layout().height());
+			return get_visible_visual_lines(top, top + get_layout().height());
 		}
 		/// Returns the caret position corresponding to a given position. Note that the offset is relative to the
 		/// top-left corner of the document rather than that of this element.

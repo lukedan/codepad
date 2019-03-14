@@ -31,56 +31,62 @@ namespace codepad::editors {
 	};
 
 	/// Virtual base class of different interaction modes. This class receive certain events, to which it must return
-	/// a \p bool indicating whether this mode is still in effect.
+	/// a \p bool indicating whether this mode is still in effect. An object of this type is owned by a specific
+	/// \ref manager_t.
 	template <typename CaretSet> class interaction_mode {
 	public:
 		using manager_t = interaction_manager<CaretSet>; ///< The corresponding \ref interaction_manager type.
 
+		/// Initializes \ref _manager.
+		interaction_mode(manager_t &man) : _manager(man) {
+		}
 		/// Default virtual constructor.
 		virtual ~interaction_mode() = default;
 
 		/// Called when a mouse button has been pressed.
-		virtual bool on_mouse_down(manager_t&, ui::mouse_button_info&) {
+		virtual bool on_mouse_down(ui::mouse_button_info&) {
 			return true;
 		}
 		/// Called when a mouse button has been released.
-		virtual bool on_mouse_up(manager_t&, ui::mouse_button_info&) {
+		virtual bool on_mouse_up(ui::mouse_button_info&) {
 			return true;
 		}
 		/// Called when the mouse has been moved.
-		virtual bool on_mouse_move(manager_t&, ui::mouse_move_info&) {
+		virtual bool on_mouse_move(ui::mouse_move_info&) {
 			return true;
 		}
 		/// Called when the mouse capture has been lost.
-		virtual bool on_capture_lost(manager_t&) {
+		virtual bool on_capture_lost() {
 			return true;
 		}
 		/// Called when the element is being updated.
-		virtual bool on_update(manager_t&) {
+		virtual bool on_update() {
 			return true;
 		}
 
 		/// Called when an edit operation is about to take place, where the carets will likely be used.
-		virtual bool on_edit_operation(manager_t&) {
+		virtual bool on_edit_operation() {
 			return true;
 		}
 		/// Called when the viewport of the contents region has changed.
-		virtual bool on_viewport_changed(manager_t&) {
+		virtual bool on_viewport_changed() {
 			return true;
 		}
 
 		/// Returns the override cursor in this mode. If the cursor is not overriden, return
 		/// \ref ui::cursor::not_specified.
-		virtual ui::cursor get_override_cursor(const manager_t&) const {
+		virtual ui::cursor get_override_cursor() const {
 			return ui::cursor::not_specified;
 		}
 
 		/// Returns a list of temporary carets that should be rendered but are not actually in effect.
-		virtual std::vector<caret_selection_position> get_temporary_carets(manager_t&) const = 0;
+		virtual std::vector<caret_selection_position> get_temporary_carets() const = 0;
 	protected:
 		/// Notify the contents region by calling
 		/// \ref interactive_contents_region_base::_on_temporary_carets_changed().
-		void _on_temporary_carets_changed(manager_t&);
+		void _on_temporary_carets_changed();
+
+		manager_t &_manager; ///< The manager of this \ref interaction_mode object.
 	};
 	/// Virtual base class that controls the activation of \ref interaction_mode "interaction_modes". This class
 	/// receives certain events, to which it can either return \p nullptr, meaning that this mode is not activated,
@@ -155,7 +161,7 @@ namespace codepad::editors {
 		/// \sa interaction_mode::get_temporary_carets()
 		std::vector<caret_selection_position> get_temporary_carets() {
 			if (_active) {
-				return _active->get_temporary_carets(*this);
+				return _active->get_temporary_carets();
 			}
 			return {};
 		}
@@ -199,7 +205,7 @@ namespace codepad::editors {
 		/// decided by the list of \ref interaction_mode_activator "interaction_mode_activators".
 		ui::cursor get_override_cursor() const {
 			if (_active) {
-				return _active->get_override_cursor(*this);
+				return _active->get_override_cursor();
 			}
 			for (const mode_activator_t *activator : _activators) {
 				ui::cursor c = activator->get_override_cursor(*this);
@@ -222,7 +228,7 @@ namespace codepad::editors {
 		/// will be disposed if necessary.
 		template <auto ActivatorPtr, auto ModePtr, typename ...Args> void _dispatch_event(Args &&...args) {
 			if (_active) {
-				if (!(_active.get()->*ModePtr)(*this, std::forward<Args>(args)...)) { // deactivated
+				if (!(_active.get()->*ModePtr)(std::forward<Args>(args)...)) { // deactivated
 					_active.reset();
 				}
 			} else {
@@ -243,8 +249,8 @@ namespace codepad::editors {
 		}
 	};
 
-	template <typename CaretSet> void interaction_mode<CaretSet>::_on_temporary_carets_changed(manager_t &man) {
-		man.get_contents_region()._on_temporary_carets_changed();
+	template <typename CaretSet> void interaction_mode<CaretSet>::_on_temporary_carets_changed() {
+		_manager.get_contents_region()._on_temporary_carets_changed();
 	}
 
 
@@ -252,15 +258,19 @@ namespace codepad::editors {
 	namespace interaction_modes {
 		/// A mode where the user can scroll the viewport by moving the mouse near or out of boundaries. This is
 		/// intended to be used as a base class for other interaction modes.
-		template <typename CaretSet> class mouse_nagivation_mode : public interaction_mode<CaretSet> {
+		template <typename CaretSet> class mouse_navigation_mode : public interaction_mode<CaretSet> {
 		public:
 			using typename interaction_mode<CaretSet>::manager_t;
 
 			constexpr static double default_padding_value = 50.0; ///< The default value of \ref _padding.
 
+			/// Initializes the base class with the given \ref manager_t.
+			mouse_navigation_mode(manager_t &man) : interaction_mode<CaretSet>(man) {
+			}
+
 			/// Updates \ref _speed. This function always returns \p true.
-			bool on_mouse_move(manager_t &man, ui::mouse_move_info &info) override {
-				contents_region_base &elem = man.get_contents_region();
+			bool on_mouse_move(ui::mouse_move_info &info) override {
+				contents_region_base &elem = this->_manager.get_contents_region();
 				rectd r = ui::thickness(_padding).shrink(elem.get_layout());
 				r.make_valid_average();
 				// find anchor point
@@ -288,9 +298,9 @@ namespace codepad::editors {
 				return true;
 			}
 			/// Updates the position of the contents region. This function always returns \p true.
-			bool on_update(manager_t &man) override {
+			bool on_update() override {
 				if (_scrolling) {
-					contents_region_base &contents = man.get_contents_region();
+					contents_region_base &contents = this->_manager.get_contents_region();
 					auto *edt = editor::get_encapsulating(contents);
 					edt->set_position(
 						edt->get_position() + _speed * contents.get_manager().get_scheduler().update_delta_time()
@@ -308,9 +318,9 @@ namespace codepad::editors {
 		};
 
 		/// The mode that allows the user to edit a single selected region using the mouse.
-		template <typename CaretSet> class mouse_single_selection_mode : public mouse_nagivation_mode<CaretSet> {
+		template <typename CaretSet> class mouse_single_selection_mode : public mouse_navigation_mode<CaretSet> {
 		public:
-			using typename mouse_nagivation_mode<CaretSet>::manager_t;
+			using typename mouse_navigation_mode<CaretSet>::manager_t;
 
 			/// How existing carets will be handled.
 			enum class mode {
@@ -322,8 +332,8 @@ namespace codepad::editors {
 			/// Acquires mouse capture and initializes the caret with the given value.
 			mouse_single_selection_mode(
 				manager_t &man, ui::mouse_button trig, caret_selection_position initial_value
-			) : mouse_nagivation_mode<CaretSet>(), _selection(initial_value), _trigger_button(trig) {
-				contents_region_base &elem = man.get_contents_region();
+			) : mouse_navigation_mode<CaretSet>(man), _selection(initial_value), _trigger_button(trig) {
+				contents_region_base &elem = this->_manager.get_contents_region();
 				elem.get_window()->set_mouse_capture(elem);
 			}
 			/// Delegate constructor that initializes the caret with the mouse position.
@@ -332,40 +342,40 @@ namespace codepad::editors {
 			}
 
 			/// Updates the caret.
-			bool on_mouse_move(manager_t &man, ui::mouse_move_info &info) override {
-				mouse_nagivation_mode<CaretSet>::on_mouse_move(man, info);
-				if (man.get_mouse_position() != _selection.get_caret_position()) {
-					_selection.set_caret_position(man.get_mouse_position());
-					interaction_mode<CaretSet>::_on_temporary_carets_changed(man);
+			bool on_mouse_move(ui::mouse_move_info &info) override {
+				mouse_navigation_mode<CaretSet>::on_mouse_move(info);
+				if (this->_manager.get_mouse_position() != _selection.get_caret_position()) {
+					_selection.set_caret_position(this->_manager.get_mouse_position());
+					interaction_mode<CaretSet>::_on_temporary_carets_changed();
 				}
 				return true;
 			}
 			/// Updates the caret.
-			bool on_viewport_changed(manager_t &man) override {
-				_selection.set_caret_position(man.get_mouse_position());
+			bool on_viewport_changed() override {
+				_selection.set_caret_position(this->_manager.get_mouse_position());
 				return true;
 			}
 			/// Releases capture and exits this mode if \ref _trigger_button is released.
-			bool on_mouse_up(manager_t &man, ui::mouse_button_info &info) override {
+			bool on_mouse_up(ui::mouse_button_info &info) override {
 				if (info.button == _trigger_button) {
-					_exit(man, true);
+					_exit(true);
 					return false;
 				}
 				return true;
 			}
 			/// Exits this mode.
-			bool on_capture_lost(manager_t &man) override {
-				_exit(man, false);
+			bool on_capture_lost() override {
+				_exit(false);
 				return false;
 			}
 			/// Exits this mode.
-			bool on_edit_operation(manager_t &man) override {
-				_exit(man, true);
+			bool on_edit_operation() override {
+				_exit(true);
 				return false;
 			}
 
 			/// Returns \ref _selection.
-			std::vector<caret_selection_position> get_temporary_carets(manager_t&) const override {
+			std::vector<caret_selection_position> get_temporary_carets() const override {
 				return {_selection};
 			}
 		protected:
@@ -375,10 +385,10 @@ namespace codepad::editors {
 
 			/// Called when about to exit the mode. Adds the caret to the caret set. If \p release_capture is
 			/// \p true, then \ref ui::window_base::release_mouse_capture() will also be called.
-			void _exit(manager_t &man, bool release_capture) {
-				man.get_contents_region().add_caret(_selection);
+			void _exit(bool release_capture) {
+				this->_manager.get_contents_region().add_caret(_selection);
 				if (release_capture) {
-					man.get_contents_region().get_window()->release_mouse_capture();
+					this->_manager.get_contents_region().get_window()->release_mouse_capture();
 				}
 			}
 		};
@@ -429,44 +439,49 @@ namespace codepad::editors {
 			using typename interaction_mode<CaretSet>::manager_t;
 
 			/// Initializes \ref _init_pos and acquires mouse capture.
-			mouse_prepare_drag_mode(manager_t &man, vec2d pos) : interaction_mode<CaretSet>(), _init_pos(pos) {
-				man.get_contents_region().get_window()->set_mouse_capture(man.get_contents_region());
+			mouse_prepare_drag_mode(manager_t &man, vec2d pos) : interaction_mode<CaretSet>(man), _init_pos(pos) {
+				this->_manager.get_contents_region().get_window()->set_mouse_capture(
+					this->_manager.get_contents_region()
+				);
 			}
 
 			/// Exit on mouse up.
-			bool on_mouse_up(manager_t &man, ui::mouse_button_info&) override {
-				man.get_contents_region().get_window()->release_mouse_capture();
-				// TODO replace caret
+			bool on_mouse_up(ui::mouse_button_info&) override {
+				this->_manager.get_contents_region().get_window()->release_mouse_capture();
+				this->_manager.get_contents_region().clear_carets();
+				this->_manager.get_contents_region().add_caret(
+					caret_selection_position(this->_manager.get_mouse_position())
+				);
 				return false;
 			}
 			/// Checks the position of the mouse, and starts drag drop and exits if the distance is enough.
-			bool on_mouse_move(manager_t &man, ui::mouse_move_info &info) override {
+			bool on_mouse_move(ui::mouse_move_info &info) override {
 				if ((info.new_position - _init_pos).length_sqr() > 25.0) { // TODO magic value
 					logger::get().log_info(CP_HERE, "start drag drop");
 					// TODO start
-					man.get_contents_region().get_window()->release_mouse_capture();
+					this->_manager.get_contents_region().get_window()->release_mouse_capture();
 					return false;
 				}
 				return true;
 			}
 			/// Exit on capture lost.
-			bool on_capture_lost(manager_t&) override {
+			bool on_capture_lost() override {
 				return false;
 			}
 
 			/// Exit on edit operations.
-			bool on_edit_operation(manager_t &man) override {
-				man.get_contents_region().get_window()->release_mouse_capture();
+			bool on_edit_operation() override {
+				this->_manager.get_contents_region().get_window()->release_mouse_capture();
 				return false;
 			}
 
 			/// Returns \ref ui::cursor::normal.
-			ui::cursor get_override_cursor(const manager_t&) const override {
+			ui::cursor get_override_cursor() const override {
 				return ui::cursor::normal;
 			}
 
 			/// No temporary carets.
-			std::vector<caret_selection_position> get_temporary_carets(manager_t&) const override {
+			std::vector<caret_selection_position> get_temporary_carets() const override {
 				return {};
 			}
 		protected:

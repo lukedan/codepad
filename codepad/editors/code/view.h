@@ -228,6 +228,7 @@ namespace codepad::editors::code {
 		tree_type _t; ///< The underlying \ref binary_tree that records all soft linebreaks.
 		const linebreak_registry *_reg = nullptr; ///< The associated \ref linebreak_registry.
 
+
 		/// Obtains information about the visual line at the given position. For the visual line with the given
 		/// line number, it returns two iterators, one to a soft `segment' and one to a hard `segment', that contain
 		/// the visual line. Values indicating the positions of these iterators are also returned. If the file
@@ -245,59 +246,91 @@ namespace codepad::editors::code {
 			size_t &softc, size_t &hardc, size_t line
 		) const {
 			assert_true_logical(softc == 0 && hardc == 0, "irresponsible caller");
-			if (line > _t.root()->synth_data.total_softbreaks + _reg->num_linebreaks()) { // past the end
+			size_t softbreaks = num_softbreaks(), res = softbreaks;
+			if (line > softbreaks + _reg->num_linebreaks()) { // past the end
 				softit = _t.end();
 				softc = _t.root()->synth_data.total_length;
 				hardit = _reg->end();
 				hardc = _reg->num_chars();
-				return _t.root()->synth_data.total_softbreaks;
+				return softbreaks;
 			}
-			size_t
-				cursc = 0, // number of characters before the node, excluding the left subtree
-				softl = 0, // number of soft linebreaks before the node, excluding the left subtree
-				softlres = 0; // number of soft linebreaks before the node
-
-			for (node_type *n = _t.root(); n; ) { // descend
-				size_t
-					sccs = cursc, // like cursc but does not exclude the left subtree
-					scls = softl; // like softl but does not exclude the left subtree
-				if (n->left) { // add left subtree
-					sccs += n->left->synth_data.total_length;
-					scls += n->left->synth_data.total_softbreaks;
-				}
-				if (scls > line) { // too many soft linebreaks
-					n = n->left;
-				} else {
-					auto hres = _reg->get_line_info(line - scls); // query hard linebreaks
-					// basically, cannot have a linebreak of the same type as the first linebreak
-					// between the current two, or it's not the result
-					if (!(
-						(hardc > hres.first_char && hardc < sccs) ||
-						(softc > sccs && softc < hres.first_char)
-						)) { // update the result
-						hardit = hres.entry;
-						hardc = hres.first_char;
-						softit = _t.get_const_iterator_for(n);
-						softc = sccs;
-						softlres = scls;
-					}
-					if (hres.first_char < sccs) { // the hard linebreak is in front, goto left subtree
-						n = n->left;
-					} else { // goto right subtree
-						cursc = sccs + n->value.length;
-						softl = scls + 1;
-						n = n->right;
-					}
-				}
-			}
-			if (softc + softit->length < hardc) { // after the last soft linebreak
-				--hardit;
-				hardc -= hardit->nonbreak_chars + (hardit->ending == line_ending::none ? 0 : 1);
+			if (line >= softbreaks) { // first candidate result
 				softit = _t.end();
 				softc = _t.root()->synth_data.total_length;
-				softlres = _t.root()->synth_data.total_softbreaks;
+				auto hres = _reg->get_line_info(line - softbreaks);
+				hardit = hres.entry;
+				hardc = hres.first_char;
 			}
-			return softlres;
+			node_type *mynode = _t.root();
+			linebreak_registry::node_type *theirnode = _reg->_t.root();
+			// the four following variables contain the sum of values of all nodes before (not including) the
+			// current node, but not including nodes in its left subtree
+			size_t myanccount = 0, myancpos = 0, theiranccount = 0, theirancpos = 0;
+			while (mynode && theirnode) {
+				size_t
+					mycount = myanccount, myexcpos = myancpos,
+					theircount = theiranccount, theirexcpos = theirancpos;
+				if (mynode->left) {
+					mycount += mynode->left->synth_data.total_softbreaks;
+					myexcpos += mynode->left->synth_data.total_length;
+				}
+				if (theirnode->left) {
+					theircount += theirnode->left->synth_data.total_linebreaks;
+					theirexcpos += theirnode->left->synth_data.total_chars;
+				}
+				size_t
+					mypos = myexcpos + mynode->value.length,
+					theirpos = theirexcpos + linebreak_registry::line_synth_data::get_node_char_num::get(*theirnode),
+					before = mycount + theircount;
+
+				if (before > line) {
+					// one of the nodes right before mynode and theirnode is not in the part on the left, must be the
+					// larger one
+					if (myexcpos > theirexcpos) {
+						mynode = mynode->left;
+					} else {
+						theirnode = theirnode->left;
+					}
+				} else if (before < line) {
+					// one of mynode and theirnode is in the part on the left, must be the smaller one
+					if (mypos < theirpos) {
+						mynode = mynode->right;
+						myanccount = mycount + 1;
+						myancpos = mypos;
+					} else {
+						theirnode = theirnode->right;
+						theiranccount = theircount + 1;
+						theirancpos = theirpos;
+					}
+				} else { // new candidate
+					// basically, a candidate linebreak of the same type as the first current result linebreak cannot
+					// be between the two current result linebreaks, or it's not the result
+					if (!(
+						(softc > myexcpos && softc < theirexcpos) ||
+						(hardc > theirexcpos && hardc < myexcpos)
+						)) {
+						softit = _t.get_iterator_for(mynode);
+						softc = myexcpos;
+						hardit = _reg->_t.get_iterator_for(theirnode);
+						hardc = theirexcpos;
+						res = mycount;
+					}
+					// if myexcpos > theirexcpos and mynode goes to the left branch, then the original mynode will
+					// always be between the new mynode and the new theirnode, and vice versa
+					if (myexcpos > theirexcpos) {
+						mynode = mynode->left;
+						theirnode = theirnode->right;
+						theiranccount = theircount + 1;
+						theirancpos = theirpos;
+					} else {
+						theirnode = theirnode->left;
+						mynode = mynode->right;
+						myanccount = mycount + 1;
+						myancpos = mypos;
+					}
+				}
+			}
+			return res;
 		}
 	};
 
@@ -338,7 +371,7 @@ namespace codepad::editors::code {
 				range = 0, ///< The length of this folded region, i.e., the number of characters folded.
 				/// The number of linebreaks (including both hard and soft ones) that \ref gap covers.
 				gap_lines = 0,
-				/// The number of linebreaks (including both hard and soft ones) that \ref range covers.
+				/// The number of linebreaks that \ref range covers. They can only be hard linebreaks.
 				folded_lines = 0,
 				bytepos_first = 0, ///< Position of the first byte of this folded region.
 				bytepos_second = 0; ///< Position past the last byte of this folded region.
@@ -369,7 +402,7 @@ namespace codepad::editors::code {
 				total_length = 0, ///< The total number of characters in this subtree.
 				total_folded_chars = 0, ///< The total number of characters that are folded in this subtree.
 				total_lines = 0, ///< The total number of linebreaks (both soft and hard ones) in this subtree.
-				/// The total number of folded linebreaks (both soft and hard ones) in this subtree.
+				/// The total number of folded linebreaks in this subtree. They can only be hard linebreaks.
 				total_folded_lines = 0,
 				tree_size = 0; ///< The number of nodes in this subtree.
 
@@ -844,10 +877,10 @@ namespace codepad::editors::code {
 			size_t plines = 0, totc = 0;
 			for (auto i = _fr._t.begin(); i != _fr._t.end(); ++i) {
 				totc += i->gap;
-				size_t bl = _lbr.get_hard_linebreaks().get_line_and_column_of_char(totc).line;
+				size_t bl = _lbr.get_visual_line_of_char(totc); /*_lbr.get_hard_linebreaks().get_line_and_column_of_char(totc).line;*/
 				i.get_value_rawmod().gap_lines = bl - plines;
 				totc += i->range;
-				size_t el = _lbr.get_hard_linebreaks().get_line_and_column_of_char(totc).line;
+				size_t el = _lbr.get_visual_line_of_char(totc); /*_lbr.get_hard_linebreaks().get_line_and_column_of_char(totc).line;*/
 				i.get_value_rawmod().folded_lines = el - bl;
 				plines = el;
 			}

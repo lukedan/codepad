@@ -12,10 +12,12 @@
 #include "element.h"
 #include "panel.h"
 #include "native_commands.h"
-#include "../editors/tabs.h"
+#include "tabs/manager.h"
+#include "tabs/animated_tab_button_panel.h"
 #include "../editors/code/contents_region.h"
 #include "../editors/code/components.h"
 #include "../editors/binary/contents_region.h"
+#include "../editors/binary/components.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -54,17 +56,19 @@ namespace codepad::ui {
 		register_element_type<scrollbar_drag_button>();
 		register_element_type<window>();
 
-		register_element_type<editors::split_panel>();
-		register_element_type<editors::tab_button>();
-		register_element_type<editors::tab>();
-		register_element_type<editors::drag_destination_selector>();
-		register_element_type<editors::tab_host>();
+		register_element_type<split_panel>();
+		register_element_type<tab_button>();
+		register_element_type<tab>();
+		register_element_type<drag_destination_selector>();
+		register_element_type<tab_host>();
+		register_element_type<animated_tab_buttons_panel>();
+
 		register_element_type<editors::editor>();
 		register_element_type<editors::code::contents_region>();
 		register_element_type<editors::code::line_number_display>();
 		register_element_type<editors::code::minimap>();
 		register_element_type<editors::binary::contents_region>();
-
+		register_element_type<editors::binary::primary_offset_display>();
 
 
 		native_commands::register_all(_commands);

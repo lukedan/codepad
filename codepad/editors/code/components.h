@@ -31,15 +31,14 @@ namespace codepad::editors::code {
 			return CP_STRLIT("line_number_display");
 		}
 	protected:
-		info_event<>::token _resizetk; ///< The token used to listen to \ref contents_region::content_modified.
+		info_event<>::token _vis_change_tok; ///< The token used to listen to \ref contents_region::editing_visual_changed.
 
-		/// Registers \ref _resizetk if an \ref contents_region can be found.
+		/// Registers \ref _vis_change_tok if a \ref contents_region can be found.
 		void _register_handlers() {
 			if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				_resizetk = (edt->content_modified += [this]() {
+				_vis_change_tok = (edt->editing_visual_changed += [this]() {
 					// when the content is modified, it is possible that the number of digits is changed,
 					// so we recalculate layout here
-					// TODO maybe only recalculate layout when necessary?
 					_on_desired_size_changed(true, false);
 				});
 			}
@@ -51,7 +50,8 @@ namespace codepad::editors::code {
 		}
 		/// Calls \ref _register_handlers() if necessary.
 		void _on_logical_parent_constructed() override {
-			if (!_resizetk.valid()) {
+			element::_on_logical_parent_constructed();
+			if (!_vis_change_tok.valid()) {
 				_register_handlers();
 			}
 		}
@@ -142,7 +142,7 @@ namespace codepad::editors::code {
 			void restart() {
 				pages.clear();
 				if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
-					std::pair<size_t, size_t> be = _parent->_get_visible_lines_folded();
+					std::pair<size_t, size_t> be = _parent->_get_visible_visual_lines();
 					double slh = edt->get_line_height() * get_scale();
 					size_t
 						numlines = edt->get_num_visual_lines(),
@@ -172,7 +172,7 @@ namespace codepad::editors::code {
 					restart();
 				} else {
 					if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
-						std::pair<size_t, size_t> be = _parent->_get_visible_lines_folded();
+						std::pair<size_t, size_t> be = _parent->_get_visible_visual_lines();
 						size_t page_beg = pages.begin()->first;
 						if (be.first >= page_beg && be.second <= _page_end) { // all are visible
 							return;
@@ -393,7 +393,7 @@ namespace codepad::editors::code {
 		/// Renders all visible pages.
 		void _custom_render() override {
 			if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				std::pair<size_t, size_t> vlines = _get_visible_lines_folded();
+				std::pair<size_t, size_t> vlines = _get_visible_visual_lines();
 				double slh = edt->get_line_height() * get_scale();
 				rectd pagergn = get_client_region();
 				pagergn.ymin = std::round(pagergn.ymin - _get_y_offset());
@@ -461,16 +461,11 @@ namespace codepad::editors::code {
 			r.xmax = std::min(r.xmax, get_client_region().xmax);
 			return r;
 		}
-		/// Returns the range of lines that are visible in the \ref minimap, with word wrapping and folding enabled.
-		std::pair<size_t, size_t> _get_visible_lines_folded() const {
+		/// Returns the range of lines that are visible in the \ref minimap.
+		std::pair<size_t, size_t> _get_visible_visual_lines() const {
 			if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				double lh = edt->get_line_height() * get_scale(), ys = _get_y_offset();
-				return {
-					static_cast<size_t>(ys / lh), std::min(
-						static_cast<size_t>(std::max(ys + get_client_region().height(), 0.0) / lh) + 1,
-						edt->get_num_visual_lines()
-					)
-				};
+				double scale = get_scale(), ys = _get_y_offset();
+				return edt->get_visible_visual_lines(ys / scale, (ys + get_client_region().height()) / scale);
 			}
 			return {0, 0};
 		}

@@ -111,9 +111,6 @@
     <ClInclude Include="editors\code\rendering.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editors\tabs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\misc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -192,6 +189,21 @@
     <ClInclude Include="editors\code\view_caching.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="editors\binary\components.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\tabs\split_panel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\tabs\tab.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\tabs\tab_host.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\tabs\manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -230,9 +242,6 @@
     <ClCompile Include="os\software_renderer_base.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="editors\tabs.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ui\arrangements.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -249,6 +258,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ui\font.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\tabs\tab_host.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\tabs\tab.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -163,6 +163,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -179,6 +180,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -194,6 +196,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -210,6 +213,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -227,6 +231,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -247,6 +252,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -267,6 +273,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -288,6 +295,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -308,6 +316,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -328,6 +337,7 @@
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>false</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -341,6 +351,7 @@
     <ClInclude Include="apigen_definitions.h" />
     <ClInclude Include="core\json.h" />
     <ClInclude Include="core\settings.h" />
+    <ClInclude Include="editors\binary\components.h" />
     <ClInclude Include="editors\binary\contents_region.h" />
     <ClInclude Include="editors\buffer.h" />
     <ClInclude Include="editors\buffer_manager.h" />
@@ -355,7 +366,6 @@
     <ClInclude Include="editors\code\theme.h" />
     <ClInclude Include="editors\code\view.h" />
     <ClInclude Include="editors\editor.h" />
-    <ClInclude Include="editors\tabs.h" />
     <ClInclude Include="editors\interaction_modes.h" />
     <ClInclude Include="os\freetype_font_base.h" />
     <ClInclude Include="os\opengl_renderer_base.h" />
@@ -383,6 +393,11 @@
     <ClInclude Include="ui\common_elements.h" />
     <ClInclude Include="ui\draw.h" />
     <ClInclude Include="ui\scheduler.h" />
+    <ClInclude Include="ui\tabs\animated_tab_button_panel.h" />
+    <ClInclude Include="ui\tabs\manager.h" />
+    <ClInclude Include="ui\tabs\split_panel.h" />
+    <ClInclude Include="ui\tabs\tab.h" />
+    <ClInclude Include="ui\tabs\tab_host.h" />
     <ClInclude Include="ui\text_rendering.h" />
     <ClInclude Include="ui\visual.h" />
     <ClInclude Include="ui\manager.h" />
@@ -402,11 +417,12 @@
     <ClCompile Include="editors\buffer.cpp" />
     <ClCompile Include="editors\code\caret_set.cpp" />
     <ClCompile Include="editors\code\contents_region.cpp" />
-    <ClCompile Include="editors\tabs.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="os\opengl_renderer_base.cpp" />
     <ClCompile Include="os\software_renderer_base.cpp" />
     <ClCompile Include="ui\font.cpp" />
+    <ClCompile Include="ui\tabs\tab.cpp" />
+    <ClCompile Include="ui\tabs\tab_host.cpp" />
     <ClCompile Include="ui\window.cpp" />
     <ClCompile Include="os\windows\filesystem.cpp" />
     <ClCompile Include="os\windows\windows.cpp" />

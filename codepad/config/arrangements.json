@@ -148,7 +148,7 @@
 				"set_states": "vertical",
 				"children": [
 					{
-						"type": "stack_panel",
+						"type": "animated_tab_buttons_panel",
 						"role": "tab_buttons_region",
 						"class": "tab_host.tab_buttons_region",
 						"metrics": {
@@ -254,15 +254,6 @@
 		]
 	},
 
-	"line_number_display": {
-		"metrics": [
-			{
-				"value": {
-					"padding": [ 10, 0, 5, 0 ]
-				}
-			}
-		]
-	},
 	"code_editor": {
 		"inherit_metrics_from": "element_fill_container",
 		"children": [
@@ -302,7 +293,12 @@
 				"children": [
 					{
 						"type": "line_number_display",
-						"inherit_metrics_from": "line_number_display"
+						"class": "position_display",
+						"metrics": {
+							"value": {
+								"padding": [ 10, 0, 5, 0 ]
+							}
+						}
 					},
 					{
 						"type": "code_contents_region",
@@ -363,6 +359,15 @@
 					}
 				},
 				"children": [
+					{
+						"type": "primary_offset_display",
+						"class": "position_display",
+						"metrics": {
+							"value": {
+								"padding": [ 10, 0, 5, 0 ]
+							}
+						}
+					},
 					{
 						"type": "binary_contents_region",
 						"role": "contents_region",

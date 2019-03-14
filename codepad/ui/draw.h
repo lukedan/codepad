@@ -13,13 +13,16 @@ namespace codepad::ui {
 	/// Stores a batch of vertices in a \ref vertex_buffer for rendering to reduce the number of draw calls.
 	struct render_batch {
 	public:
-		constexpr static size_t minimum_size = 50; ///< The minimum capacity.
+		constexpr static size_t minimum_capacity = 50; ///< The minimum capacity.
 		/// The factor by which to enlarge the container if there's not enough capacity.
 		constexpr static double enlarge_factor = 3.0;
 
-		/// Initializes this batch by creating the vertex buffer.
-		render_batch(renderer_base &r) : _buf(r.new_vertex_buffer(minimum_size)) {
+		/// Creates a vertex buffer with the given capacity.
+		render_batch(renderer_base &r, size_t cap) : _buf(r.new_vertex_buffer(cap)) {
 			_ptr = r.map_vertex_buffer(_buf);
+		}
+		/// Creates a vertex buffer with \ref minimum_capacity.
+		render_batch(renderer_base &r) : render_batch(r, minimum_capacity) {
 		}
 		/// Move construction.
 		render_batch(render_batch &&src) : _buf(std::move(src._buf)), _ptr(src._ptr), _count(src._count) {
@@ -79,15 +82,38 @@ namespace codepad::ui {
 			_add_triangle_unchecked(r.xmax_ymin(), r.xmax_ymax(), r.xmin_ymax(), uvtr, uvbr, uvbl, ctr, cbr, cbl);
 		}
 
+		/// Unmaps the vertex buffer. This \ref render_batch will become immutable, but can still be used for
+		/// rendering.
+		void freeze() {
+			_buf.get_renderer()->unmap_vertex_buffer(_buf);
+			_ptr = nullptr;
+		}
 		/// Renders all stored triangles using the given renderer and texture.
 		void draw(const texture &tex) {
 			assert_true_logical(
 				tex.get_renderer() == _buf.get_renderer(),
 				"renderer of the texture does not match that of the vertex buffer"
 			);
+			bool mut = _ptr == nullptr;
+			if (mut) {
+				_buf.get_renderer()->unmap_vertex_buffer(_buf);
+			}
+			_buf.get_renderer()->draw_triangles(tex, _buf, _count);
+			if (mut) {
+				_ptr = _buf.get_renderer()->map_vertex_buffer(_buf);
+			}
+		}
+		/// Renders all stored triangles using the given renderer and texture, then discards the vertex buffer. This
+		/// \ref render_batch should not be used afterwards.
+		void draw_and_discard(const texture &tex) {
+			assert_true_logical(
+				tex.get_renderer() == _buf.get_renderer(),
+				"renderer of the texture does not match that of the vertex buffer"
+			);
 			_buf.get_renderer()->unmap_vertex_buffer(_buf);
 			_buf.get_renderer()->draw_triangles(tex, _buf, _count);
-			_ptr = _buf.get_renderer()->map_vertex_buffer(_buf);
+			_buf.get_renderer()->delete_vertex_buffer(_buf);
+			_ptr = nullptr;
 		}
 
 		/// Allocates enough memory for the given number of triangles.
@@ -101,6 +127,11 @@ namespace codepad::ui {
 		/// Clears the sprites to be rendered.
 		void clear() {
 			_count = 0;
+		}
+		/// Returns the associated \ref renderer_base. This will not work after \ref draw_and_discard() have been
+		/// called.
+		renderer_base *get_renderer() const {
+			return _buf.get_renderer();
 		}
 		/// Returns whether this batch is empty.
 		bool empty() const {

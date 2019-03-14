@@ -373,7 +373,7 @@ namespace codepad::editors::code {
 				if constexpr (
 					(Flags & token_measurement_flags::defer_text_gizmo_measurement) ==
 					token_measurement_flags::none
-				) {
+					) {
 					auto &texttok = std::get<text_gizmo_token>(tok);
 					metrics.next_gizmo(ui::text_renderer::measure_plain_text(
 						texttok.contents, texttok.font ? texttok.font : metrics.get_font_family().normal
@@ -430,9 +430,7 @@ namespace codepad::editors::code {
 					_cur_caret = prev;
 				}
 			}
-			_next_caret = _cur_caret;
 			if (_cur_caret != _carets.end()) {
-				++_next_caret;
 				_range = std::minmax(_cur_caret->first.first, _cur_caret->first.second);
 				if (pos >= _range.first) { // midway in the selected region
 					_sel_regions.emplace_back();
@@ -440,7 +438,7 @@ namespace codepad::editors::code {
 					_in_selection = true;
 				}
 			}
-			_last_soft_linebreak = soft;
+			_last_is_stall = soft;
 		}
 
 		/// Called after a token is generated and the corresponding metrics has been updated.
@@ -449,24 +447,16 @@ namespace codepad::editors::code {
 			const token_generation_result &tok
 		) {
 			if (tok.steps > 0) { // about to move forward; this is the only chance
-				_checked_generate_carets_all<false>(iter, metrics, tok.result);
+				_check_generate_caret(iter, metrics, tok);
 				_update_selection(iter, metrics, tok.result);
-				_last_soft_linebreak = false;
-			} else {
-				if (std::holds_alternative<linebreak_token>(tok.result)) { // soft linebreak
-					assert_true_logical(
-						std::get<linebreak_token>(tok.result).type == line_ending::none,
-						"hard linebreak with zero length"
-					);
-					_checked_generate_carets_all<true>(iter, metrics, tok.result);
-					_last_soft_linebreak = true;
-				} else { // other stuff like (pure) gizmos
-					// TODO
-					_last_soft_linebreak = false;
-				}
+				_check_generate_caret(iter, metrics, tok);
+				_last_is_stall = false;
+			} else { // a `stall'
+				_check_generate_caret(iter, metrics, tok);
+				_last_is_stall = true;
 			}
 			if (_in_selection && std::holds_alternative<linebreak_token>(tok.result)) {
-				_update_selection_linebreak(metrics, std::get<linebreak_token>(tok.result));
+				_break_selected_lines(metrics, std::get<linebreak_token>(tok.result));
 			}
 		}
 		/// Called after all visible text has been laid out. This function exists to ensure that carets are rendered
@@ -479,7 +469,7 @@ namespace codepad::editors::code {
 				);
 			}
 			if (_cur_caret != _carets.end() && _cur_caret->first.first == iter.get_position()) {
-				// render the last caret
+				// render the caret that's possibly at the end of the document
 				_caret_rects.emplace_back(rectd::from_xywh(
 					metrics.get_character().char_right(), metrics.get_y(),
 					metrics.get_character().get_font_family().normal->get_char_entry(' ').advance,
@@ -499,15 +489,14 @@ namespace codepad::editors::code {
 	protected:
 		std::vector<rectd> _caret_rects; ///< The positions of all carets.
 		std::vector<std::vector<rectd>> _sel_regions; ///< The positions of selected regions.
-		caret_set::const_iterator
-			_cur_caret, ///< Iterator to the current caret.
-			_next_caret; ///< Iterator to the next caret.
+		caret_set::const_iterator _cur_caret; ///< Iterator to the current caret.
 		std::pair<size_t, size_t> _range; ///< The range of \ref _cur_caret.
 		double _region_begin = 0.0; ///< Position of the leftmost border of the current selected region on this line.
 		const caret_set::container &_carets; ///< The set of carets.
 		bool
 			_in_selection = false, ///< Indicates whether the current position is selected.
-			_last_soft_linebreak = false; ///< Indicates whether the last token was a soft linebreak.
+			/// Indicates whether the last token was a `stall', e.g., a soft linebreak or a pure gizmo.
+			_last_is_stall = false;
 
 		/// Generates a caret at the current location.
 		void _generate_caret(const text_metrics_accumulator &metrics, bool linebreak) {
@@ -525,32 +514,20 @@ namespace codepad::editors::code {
 				));
 			}
 		}
-		/// Checks and generates a caret if necessary, given an iterator to a caret. The iterator must not point
-		/// past at the end of the container.
-		template <bool AtSoftbreak> void _checked_generate_caret_single(
+		/// Checks and generates a caret if necessary.
+		void _check_generate_caret(
 			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics,
-			[[maybe_unused]] const token &tok, const caret_set::const_iterator &it
+			const token_generation_result &tok
 		) {
-			if (it->first.first == iter.get_position()) {
-				if constexpr (AtSoftbreak) {
-					if (!it->second.softbreak_next_line) {
-						_generate_caret(metrics, true);
-					}
+			if (_cur_caret != _carets.end() && _cur_caret->first.first == iter.get_position()) {
+				bool generate;
+				if (tok.steps > 0) {
+					generate = !_last_is_stall || _cur_caret->second.softbreak_next_line;
 				} else {
-					if (!_last_soft_linebreak || it->second.softbreak_next_line) {
-						_generate_caret(metrics, std::holds_alternative<linebreak_token>(tok));
-					}
+					generate = !_last_is_stall && !_cur_caret->second.softbreak_next_line;
 				}
-			}
-		}
-		/// Checks and generates carets for \ref _cur_caret and \ref _next_caret if necessary.
-		template <bool AtSoftbreak> void _checked_generate_carets_all(
-			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics, const token &tok
-		) {
-			if (_cur_caret != _carets.end()) {
-				_checked_generate_caret_single<AtSoftbreak>(iter, metrics, tok, _cur_caret);
-				if (_next_caret != _carets.end()) {
-					_checked_generate_caret_single<AtSoftbreak>(iter, metrics, tok, _next_caret);
+				if (generate) {
+					_generate_caret(metrics, std::holds_alternative<linebreak_token>(tok.result));
 				}
 			}
 		}
@@ -577,10 +554,11 @@ namespace codepad::editors::code {
 						);
 					}
 					// move on to the next caret
-					_cur_caret = _next_caret;
-					if (_cur_caret != _carets.end()) {
-						++_next_caret;
+					for (++_cur_caret; _cur_caret != _carets.end(); ++_cur_caret) {
 						_range = std::minmax(_cur_caret->first.first, _cur_caret->first.second);
+						if (_range.second >= it.get_position()) {
+							break;
+						}
 					}
 					_in_selection = false;
 					return true;
@@ -603,6 +581,10 @@ namespace codepad::editors::code {
 		void _update_selection(
 			const rendering_token_iterator<> &it, const text_metrics_accumulator &metrics, const token &tok
 		) {
+			if (_in_selection && _range.second < it.get_position()) { // already past the last caret, emergency break
+				// this is to prevent certain carets from disappearing
+				_update_selection_state(it, metrics, tok);
+			}
 			if (_cur_caret != _carets.end()) {
 				if (_update_selection_state(it, metrics, tok)) {
 					if (_cur_caret != _carets.end()) {
@@ -611,9 +593,10 @@ namespace codepad::editors::code {
 				}
 			}
 		}
+
 		/// Breaks the current selected region when a linebreak is encountered. \ref _in_selection must be \p true
 		/// when this function is called.
-		void _update_selection_linebreak(const text_metrics_accumulator &metrics, const linebreak_token &tok) {
+		void _break_selected_lines(const text_metrics_accumulator &metrics, const linebreak_token &tok) {
 			double xmax = metrics.get_last_line_length();
 			if (tok.type != line_ending::none) { // hard linebreak, append a space
 				xmax += metrics.get_character().get_font_family().normal->get_char_entry(' ').advance;

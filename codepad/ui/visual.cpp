@@ -99,7 +99,7 @@ namespace codepad::ui {
 					rectd(inner.xmax, outer.xmax, inner.ymax, outer.ymax),
 					rectd(texr.xmax, 1.0, texr.ymax, 1.0), curc
 				);
-				rb.draw(*tex);
+				rb.draw_and_discard(*tex);
 			}
 			break;
 		}

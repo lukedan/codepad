@@ -18,7 +18,6 @@
 #include "../ui/font_family.h"
 #include "../ui/native_commands.h"
 #include "../ui/visual.h"
-#include "../editors/tabs.h"
 #include "../editors/buffer_manager.h"
 #include "../editors/code/components.h"
 #include "../editors/code/contents_region.h"

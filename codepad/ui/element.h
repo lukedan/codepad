@@ -7,6 +7,7 @@
 /// Implementation of elements, the basic component of the user interface.
 
 #include <list>
+#include <any>
 
 #include "../apigen_definitions.h"
 
@@ -397,6 +398,7 @@ namespace codepad::ui {
 		element_state_id _state = normal_element_state_id; ///< The element's current state.
 		int _zindex = zindex::normal; ///< The z-index of the element.
 		cursor _cursor = cursor::not_specified; ///< The custom cursor of the element.
+		std::any _parent_data; ///< Data generated and used by the parent.
 	protected:
 		bool _can_focus = true; ///< Indicates whether this element can have the focus.
 		rectd _layout; ///< The absolute layout of the element in the window.

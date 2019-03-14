@@ -65,7 +65,11 @@ namespace codepad {
 		///
 		/// \param tok The token returned when registering the handler.
 		event_base &operator-=(token &tok) {
-			_list.erase(tok._text_tok.value());
+			if (_state && _state->executing == tok._text_tok.value()) {
+				_state->erase_when_done = true;
+			} else {
+				_list.erase(tok._text_tok.value());
+			}
 			tok._text_tok.reset();
 			return *this;
 		}
@@ -74,16 +78,33 @@ namespace codepad {
 		///
 		/// \param p The parameters used to invoke the handlers.
 		template <typename ...Ts> void invoke(Ts &&...p) {
-			for (handler &h : _list) {
-				h(std::forward<Ts>(p)...);
+			_invoke_state st;
+			_state = &st;
+			for (auto it = _list.begin(); it != _list.end(); ) {
+				st.executing = it;
+				(*it)(std::forward<Ts>(p)...);
+				if (st.erase_when_done) {
+					it = _list.erase(it);
+					st.erase_when_done = false;
+				} else {
+					++it;
+				}
 			}
+			_state = nullptr;
 		}
 		/// Invokes all handlers with the given parameters.
 		template <typename ...Ts> void operator()(Ts &&...p) {
 			invoke(std::forward<Ts>(p)...);
 		}
 	protected:
+		/// Records the state when \ref invoke() is called. Used to support removing handlers when invoking them.
+		struct _invoke_state {
+			typename std::list<handler>::const_iterator executing; ///< The handler that's being executed.
+			bool erase_when_done = false; ///< Whether to unregister the current handler when it's finished executing.
+		};
+
 		std::list<handler> _list; ///< The list of handlers that have been registered to this event.
+		_invoke_state *_state = nullptr; ///< Records the state of the current invocation to \ref invoke().
 	};
 
 	/// Represents an event whose handlers receive a non-const reference to a struct containing information about

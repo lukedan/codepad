@@ -16,24 +16,28 @@ namespace codepad::ui {
 	class manager;
 	class panel_base;
 
-	/// Contains information about changes in an \ref element_collection.
-	struct element_collection_change_info {
-		/// Specifies the type of the change.
-		enum class type {
-			add, ///< Addition of an element.
-			remove, ///< Removal of an element.
-			set_zindex, ///< Change of an element's z-index.
-			set_order ///< Change of an element's order in the container.
-		};
-		/// Constructor.
-		element_collection_change_info(type t, element &c) : change_type(t), subject(c) {
-		}
-		const type change_type; ///< The type of the change.
-		element &subject; ///< The \ref element that's involved.
-	};
 	/// Stores and manages a collection of elements.
 	class element_collection {
 	public:
+		/// Contains information about changes in an \ref element_collection.
+		struct change_info {
+			/// Specifies the type of the change.
+			enum class type {
+				add, ///< Addition of an element.
+				remove, ///< Removal of an element.
+				set_zindex, ///< Change of an element's z-index.
+				set_order ///< Change of an element's order in the container.
+			};
+			/// Initializes all fields of this struct.
+			change_info(type t, element &c, element *ex) : change_type(t), subject(c), before(ex) {
+			}
+
+			const type change_type; ///< The type of the change.
+			element &subject; ///< The \ref element that's involved.
+			/// Context sensitive field that specifies the first succeeding element after this operation.
+			element *const before = nullptr;
+		};
+
 		/// Constructs the collection with the given parent.
 		explicit element_collection(panel_base &b) : _f(b) {
 		}
@@ -74,7 +78,7 @@ namespace codepad::ui {
 			return _children.size();
 		}
 
-		info_event<element_collection_change_info>
+		info_event<change_info>
 			/// Invoked before an \ref element's about to be added, removed, or before when an element's Z-index has
 			/// been changed.
 			changing,
@@ -243,7 +247,7 @@ namespace codepad::ui {
 
 		/// Called when an element is about to be added to this panel. Derived classes can override this function to
 		/// introduce desired behavior.
-		virtual void _on_child_adding(element&) {
+		virtual void _on_child_adding(element&, element*) {
 		}
 		/// Called when an element is about to be removed from the panel. Derived classes can override this function
 		/// to introduce desired behavior.
@@ -261,12 +265,12 @@ namespace codepad::ui {
 		}
 		/// Called when the order of an element in the container is about to be changed. Derived classes can override
 		/// this function to introduce desired behavior.
-		virtual void _on_child_order_changing(element&) {
+		virtual void _on_child_order_changing(element&, element*) {
 		}
 
 		/// Called when an element has been added to this panel. Invalidates the layout of the newly added element,
 		/// and the visual of the panel itself.
-		virtual void _on_child_added(element &e) {
+		virtual void _on_child_added(element &e, element*) {
 			_on_desired_size_changed(true, true);
 			e.invalidate_layout();
 			invalidate_visual();
@@ -285,7 +289,7 @@ namespace codepad::ui {
 		}
 		/// Called when the order of an element in the container has been changed. Invalidates the visual of the
 		/// panel.
-		virtual void _on_child_order_changed(element&) {
+		virtual void _on_child_order_changed(element&, element*) {
 			invalidate_visual();
 		}
 
@@ -397,6 +401,15 @@ namespace codepad::ui {
 		/// Finds the element with the largest Z-index that is interactive and contains the given point.
 		element *_hit_test_for_child(vec2d);
 
+		/// Returns \ref element::_parent_data.
+		inline static const std::any &_child_get_parent_data(const element &e) {
+			return e._parent_data;
+		}
+		/// \overload
+		inline static std::any &_child_get_parent_data(element &e) {
+			return e._parent_data;
+		}
+
 		/// Sets the horizontal layout of a given child.
 		inline static void _child_set_horizontal_layout(element &e, double xmin, double xmax) {
 			e._layout.xmin = xmin;
@@ -484,7 +497,7 @@ namespace codepad::ui {
 	class panel : public panel_base {
 	public:
 		/// Returns all of its children.
-		element_collection & children() {
+		element_collection &children() {
 			return _children;
 		}
 
@@ -661,9 +674,9 @@ namespace codepad::ui {
 		}
 
 		/// Invalidates the children's layout as well.
-		void _on_child_added(element &elem) override {
+		void _on_child_added(element &elem, element *before) override {
 			_invalidate_children_layout();
-			panel::_on_child_added(elem);
+			panel::_on_child_added(elem, before);
 		}
 		/// Invalidates the children's layout as well.
 		void _on_child_removed(element &elem) override {
@@ -671,11 +684,11 @@ namespace codepad::ui {
 			panel::_on_child_removed(elem);
 		}
 		/// Invalidates the children's layout since it is determined by their ordering.
-		void _on_child_order_changed(element &elem) override {
+		void _on_child_order_changed(element &elem, element *before) override {
 			bool vertical = is_vertical();
 			_on_desired_size_changed(!vertical, vertical);
 			_invalidate_children_layout();
-			panel::_on_child_order_changed(elem);
+			panel::_on_child_order_changed(elem, before);
 		}
 
 		/// Sets \ref _can_focus to \p false by default.

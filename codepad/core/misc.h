@@ -779,6 +779,71 @@ namespace codepad {
 	/// Color whose components are of type <tt>unsigned char</tt>.
 	using colori = color<unsigned char>;
 
+	/// Returns the index of the highest bit in the given integer. Returns 64 if \p v is 0.
+	inline constexpr size_t high_bit_index(std::uint64_t v) {
+		if (v == 0) {
+			return 64;
+		}
+		size_t res = 0;
+		if ((v & 0xFFFFFFFF00000000) == 0) {
+			res += 32;
+			v <<= 32;
+		}
+		if ((v & 0xFFFF000000000000) == 0) {
+			res += 16;
+			v <<= 16;
+		}
+		if ((v & 0xFF00000000000000) == 0) {
+			res += 8;
+			v <<= 8;
+		}
+		if ((v & 0xF000000000000000) == 0) {
+			res += 4;
+			v <<= 4;
+		}
+		if ((v & 0xC000000000000000) == 0) {
+			res += 2;
+			v <<= 2;
+		}
+		if ((v & 0x7000000000000000) == 0) {
+			res += 1;
+			v <<= 1;
+		}
+		return 63 - res;
+	}
+	/// Returns the index of the lowest bit in the given integer. Returns 64 if \p v is 0.
+	inline constexpr size_t low_bit_index(std::uint64_t v) {
+		if (v == 0) {
+			return 64;
+		}
+		size_t res = 0;
+		if ((v & 0x00000000FFFFFFFF) == 0) {
+			res += 32;
+			v >>= 32;
+		}
+		if ((v & 0x000000000000FFFF) == 0) {
+			res += 16;
+			v >>= 16;
+		}
+		if ((v & 0x00000000000000FF) == 0) {
+			res += 8;
+			v >>= 8;
+		}
+		if ((v & 0x000000000000000F) == 0) {
+			res += 4;
+			v >>= 4;
+		}
+		if ((v & 0x0000000000000003) == 0) {
+			res += 2;
+			v >>= 2;
+		}
+		if ((v & 0x0000000000000001) == 0) {
+			res += 1;
+			v >>= 1;
+		}
+		return res;
+	}
+
 	/// Linear interpolation.
 	///
 	/// \param from Returned if \p perc = 0.
@@ -1158,7 +1223,7 @@ namespace codepad {
 	/// Initializes the program by calling \ref os::initialize first and then performing several other
 	/// initialization steps.
 	void initialize(int, char**);
-		}
+}
 
 // demangle
 #ifdef __GNUC__
@@ -1209,5 +1274,5 @@ namespace codepad {
 		log_warning(CP_HERE, "stacktrace logging is not supported with this configuration");
 #	endif
 }
-	}
+		}
 #endif

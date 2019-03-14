@@ -13,7 +13,8 @@
 #include "ui/native_commands.h"
 #include "ui/config_parsers.h"
 #include "ui/text_rendering.h"
-#include "editors/tabs.h"
+#include "ui/tabs/tab.h"
+#include "ui/tabs/manager.h"
 #include "editors/code/components.h"
 #include "editors/buffer.h"
 
@@ -48,7 +49,7 @@ int main(int argc, char **argv) {
 	tab *tmptab = tabman.new_tab();
 	tmptab->set_label(CP_STRLIT("Welcome"));
 	tmptab->children().add(*lbl);
-	tmptab->activate();
+	tmptab->get_host()->activate_tab(*tmptab);
 
 	while (!tabman.empty()) {
 		man.get_scheduler().idle_loop_body();

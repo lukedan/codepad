@@ -9,7 +9,7 @@
 #include <algorithm>
 
 #include "commands.h"
-#include "../editors/tabs.h"
+#include "tabs/manager.h"
 #include "../editors/buffer_manager.h"
 #include "../editors/code/contents_region.h"
 #include "../editors/code/components.h"

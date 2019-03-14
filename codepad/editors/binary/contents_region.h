@@ -262,6 +262,11 @@ namespace codepad::editors::binary {
 			return 0;
 		}
 
+		/// Casts the obtained \ref components_region_base to the correct type.
+		inline static contents_region *get_from_editor(editor &edt) {
+			return dynamic_cast<contents_region*>(edt.get_contents_region());
+		}
+
 		/// Returns the default class used by elements of type \ref contents_region.
 		inline static str_view_t get_default_class() {
 			return CP_STRLIT("binary_contents_region");
@@ -326,7 +331,7 @@ namespace codepad::editors::binary {
 			/// The number of bytes per row. Only used when \ref _wrap is \ref wrap_mode::fixed.
 			_target_bytes_per_row = 16,
 			_cached_bytes_per_row = 16; ///< The cached actual number of bytes per row.
-		wrap_mode _wrap = wrap_mode::fixed; ///< Indicates how the bytes should be wrapped.
+		wrap_mode _wrap = wrap_mode::auto_fill; ///< Indicates how the bytes should be wrapped.
 		/// Indicates whether this \ref contents_region is in `insert' mode or in `overwrite' mode.
 		bool _insert = true;
 
@@ -518,10 +523,7 @@ namespace codepad::editors::binary {
 					(get_client_region().width() + _blank_width) / (_cached_max_byte_width + _blank_width), 1.0
 				)); // no need for std::floor
 				if (_wrap == wrap_mode::auto_power2) {
-					size_t bit = ~(~static_cast<size_t>(0) >> 1);
-					for (; bit > 1 && (max & bit) == 0; bit >>= 1) {
-					}
-					target = bit;
+					target = size_t(1) << high_bit_index(max);
 				} else {
 					target = max;
 				}
@@ -673,4 +675,22 @@ namespace codepad::editors::binary {
 			element::_dispose();
 		}
 	};
+
+	/// Helper functions used to obtain the \ref contents_region associated with elements.
+	namespace component_helper {
+		/// Returns both the \ref editor and the \ref contents_region. If the returned \ref contents_region is not
+		/// \p nullptr, then the returned \ref editor also won't be \p nullptr.
+		inline std::pair<editor*, contents_region*> get_core_components(const ui::element &elem) {
+			editor *edt = editor::get_encapsulating(elem);
+			if (edt) {
+				return {edt, contents_region::get_from_editor(*edt)};
+			}
+			return {nullptr, nullptr};
+		}
+
+		/// Returns the \ref contents_region that corresponds to the given \ref ui::element.
+		inline contents_region *get_contents_region(const ui::element &elem) {
+			return get_core_components(elem).second;
+		}
+	}
 }
