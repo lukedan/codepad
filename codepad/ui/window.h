@@ -24,7 +24,8 @@ namespace codepad::ui {
 		}
 		const vec2i new_size; ///< The new size of the window.
 	};
-	/// Base class of all windows. Defines basic interfaces that all windows should implement.
+	/// Base class of all windows. Defines basic interfaces that all windows should implement. Note that
+	/// \ref show_and_activate() needs to be called manually after its construction for this window to be displayed.
 	class window_base : public panel {
 		friend element_collection;
 		friend decoration;
@@ -45,6 +46,16 @@ namespace codepad::ui {
 		/// Indicate to the user that the window needs attention, but without changing its state.
 		virtual void prompt_ready() = 0;
 
+		/// Shows the window without activating it.
+		virtual void show() = 0;
+		/// Shows and activates the window.
+		virtual void show_and_activate() {
+			show();
+			activate();
+		}
+		/// Hides the window without closing it.
+		virtual void hide() = 0;
+
 		/// Sets whether the `maximize' button is displayed.
 		virtual void set_display_maximize_button(bool) = 0;
 		/// Sets whether the `minimize' button is displayed.
@@ -55,6 +66,10 @@ namespace codepad::ui {
 		virtual void set_display_border(bool) = 0;
 		/// Sets whether the user can resize the window.
 		virtual void set_sizable(bool) = 0;
+		/// Sets whether this window is displayed about all other normal windows.
+		virtual void set_topmost(bool) = 0;
+		/// Sets if this window is shown in the taskbar or the task list. This may have other side effects.
+		virtual void set_show_icon(bool) = 0;
 
 		/// Tests if the given point is in the window, including its title bar and borders.
 		virtual bool hit_test_full_client(vec2i) const = 0;

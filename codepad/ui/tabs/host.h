@@ -11,24 +11,24 @@
 #include "../manager.h"
 #include "tab.h"
 
-namespace codepad::ui {
+namespace codepad::ui::tabs {
 	/// Specifies the type of a tab's destination when being dragged.
 	enum class drag_destination_type {
 		new_window, ///< The tab will be moved to a new window.
-		/// The tab has been added to a \ref tab_host, and the user is currently dragging and repositioning it in
-		/// the tab list. After the user finishes dragging, it will remain at its place in the \ref tab_host.
+		/// The tab has been added to a \ref host, and the user is currently dragging and repositioning it in
+		/// the tab list. After the user finishes dragging, it will remain at its place in the \ref host.
 		combine_in_tab,
-		combine, ///< The tab will be added to a \ref tab_host.
-		/// The current \ref tab_host will be split into two, with the original tabs on the right and the
+		combine, ///< The tab will be added to a \ref host.
+		/// The current \ref host will be split into two, with the original tabs on the right and the
 		/// tab being dragged on the left.
 		new_panel_left,
-		/// The current \ref tab_host will be split into two, with the original tabs on the bottom and the
+		/// The current \ref host will be split into two, with the original tabs on the bottom and the
 		/// tab being dragged on the top.
 		new_panel_top,
-		/// The current \ref tab_host will be split into two, with the original tabs on the left and the
+		/// The current \ref host will be split into two, with the original tabs on the left and the
 		/// tab being dragged on the right.
 		new_panel_right,
-		/// The current \ref tab_host will be split into two, with the original tabs on the top and the
+		/// The current \ref host will be split into two, with the original tabs on the top and the
 		/// tab being dragged on the bottom.
 		new_panel_bottom
 	};
@@ -118,7 +118,7 @@ namespace codepad::ui {
 	/// An element for displaying multiple tabs. It contains a ``tabs'' region for displaying the
 	/// \ref tab_button "tab_buttons" of all available \ref tab "tabs" and a region that displays the currently
 	/// selected tab.
-	class tab_host final : public panel_base {
+	class host final : public panel_base {
 		friend tab;
 		friend tab_manager;
 	public:
@@ -144,7 +144,7 @@ namespace codepad::ui {
 
 		/// Switches the currently visible tab, but without changing the focus.
 		void switch_tab(tab &t) {
-			assert_true_logical(t.logical_parent() == this, "the tab doesn't belong to this tab_host");
+			assert_true_logical(t.logical_parent() == this, "the tab doesn't belong to this host");
 			if (_active_tab) {
 				_active_tab->set_render_visibility(false);
 				_active_tab->set_hittest_visibility(false);
@@ -176,7 +176,7 @@ namespace codepad::ui {
 			return _tab_buttons_region->get_layout();
 		}
 
-		/// Returns the total number of tabs in the \ref tab_host.
+		/// Returns the total number of tabs in the \ref host.
 		size_t get_tab_count() const {
 			return _tab_contents_region->children().size();
 		}
@@ -191,7 +191,7 @@ namespace codepad::ui {
 			return _tab_contents_region->children();
 		}
 
-		/// Returns the default class of elements of type \ref tab_host.
+		/// Returns the default class of elements of type \ref host.
 		inline static str_view_t get_default_class() {
 			return CP_STRLIT("tab_host");
 		}
@@ -211,7 +211,7 @@ namespace codepad::ui {
 
 		/// Pointer to the active tab.
 		tab *_active_tab = nullptr;
-		/// The \ref drag_destination_selector currently attached to this \ref tab_host.
+		/// The \ref drag_destination_selector currently attached to this \ref host.
 		drag_destination_selector *_dsel = nullptr;
 
 		/// Sets the associated \ref drag_destination_selector.

@@ -10,7 +10,7 @@
 #include "../panel.h"
 #include "../manager.h"
 
-namespace codepad::ui {
+namespace codepad::ui::tabs {
 	/// A panel with two regions separated by a draggable separator.
 	class split_panel : public ui::panel_base {
 	public:

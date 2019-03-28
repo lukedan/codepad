@@ -90,10 +90,6 @@ namespace codepad::ui {
 		}
 		/// Renders all stored triangles using the given renderer and texture.
 		void draw(const texture &tex) {
-			assert_true_logical(
-				tex.get_renderer() == _buf.get_renderer(),
-				"renderer of the texture does not match that of the vertex buffer"
-			);
 			bool mut = _ptr == nullptr;
 			if (mut) {
 				_buf.get_renderer()->unmap_vertex_buffer(_buf);
@@ -106,10 +102,6 @@ namespace codepad::ui {
 		/// Renders all stored triangles using the given renderer and texture, then discards the vertex buffer. This
 		/// \ref render_batch should not be used afterwards.
 		void draw_and_discard(const texture &tex) {
-			assert_true_logical(
-				tex.get_renderer() == _buf.get_renderer(),
-				"renderer of the texture does not match that of the vertex buffer"
-			);
 			_buf.get_renderer()->unmap_vertex_buffer(_buf);
 			_buf.get_renderer()->draw_triangles(tex, _buf, _count);
 			_buf.get_renderer()->delete_vertex_buffer(_buf);

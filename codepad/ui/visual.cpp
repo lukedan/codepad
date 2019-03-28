@@ -42,11 +42,12 @@ namespace codepad::ui {
 		if (s.tex.current_value) {
 			tex = s.tex.current_value.get();
 		}
+		render_batch rb(r);
 		switch (layer_type) {
 		case type::solid:
 			{
 				rectd cln = get_center_rect(s, rgn);
-				r.draw_quad(*tex, cln, rectd(0.0, 1.0, 0.0, 1.0), s.color.current_value);
+				rb.add_quad(cln, rectd(0.0, 1.0, 0.0, 1.0), s.color.current_value);
 			}
 			break;
 		case type::grid:
@@ -61,7 +62,6 @@ namespace codepad::ui {
 						1.0 - s.margin.current_value.bottom / static_cast<double>(h)
 					);
 				colord curc = s.color.current_value;
-				render_batch rb(r);
 				rb.reserve_quads(9);
 				rb.add_quad(
 					rectd(outer.xmin, inner.xmin, outer.ymin, inner.ymin),
@@ -99,10 +99,10 @@ namespace codepad::ui {
 					rectd(inner.xmax, outer.xmax, inner.ymax, outer.ymax),
 					rectd(texr.xmax, 1.0, texr.ymax, 1.0), curc
 				);
-				rb.draw_and_discard(*tex);
 			}
 			break;
 		}
+		rb.draw_and_discard(*tex);
 	}
 
 

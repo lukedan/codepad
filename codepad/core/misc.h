@@ -452,9 +452,22 @@ namespace codepad {
 		void set_identity() {
 			for (size_t y = 0; y < H; ++y) {
 				for (size_t x = 0; x < W; ++x) {
-					elem[y][x] = (x == y ? 1 : 0);
+					elem[y][x] = static_cast<T>(x == y ? 1 : 0);
 				}
 			}
+		}
+
+		/// Converts all values to another type.
+		///
+		/// \tparam U The desired type.
+		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, matrix<U, W, H>> convert() const {
+			matrix<U, W, H> res;
+			for (size_t y = 0; y < H; ++y) {
+				for (size_t x = 0; x < W; ++x) {
+					res[y][x] = static_cast<U>(elem[y][x]);
+				}
+			}
+			return res;
 		}
 
 		/// Returns the requested row of the matrix.
@@ -616,8 +629,12 @@ namespace codepad {
 	template <typename T> inline vec2<T> operator*(const matrix<T, 2, 2> &lhs, vec2<T> rhs) {
 		return vec2<T>(lhs[0][0] * rhs.x + lhs[0][1] * rhs.y, lhs[1][0] * rhs.x + lhs[1][1] * rhs.y);
 	}
+	/// 2x2 matrices whose elements are of type \p float.
+	using matf2x2 = matrix<float, 2, 2>;
 	/// 2x2 matrices whose elements are of type \p double.
 	using matd2x2 = matrix<double, 2, 2>;
+	/// 3x3 matrices whose elements are of type \p float.
+	using matf3x3 = matrix<float, 3, 3>;
 	/// 3x3 matrices whose elements are of type \p double.
 	using matd3x3 = matrix<double, 3, 3>;
 

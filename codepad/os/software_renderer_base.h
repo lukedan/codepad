@@ -23,14 +23,12 @@ namespace codepad::os {
 	public:
 		/// Adds the default texture into the texture registry.
 		software_renderer_base() {
-			_txs.emplace_back();
+			_textures.emplace_back();
 		}
 
 		/// Calls \ref _draw_triangles_impl to render a series of triangles.
-		void draw_triangles(
-			const ui::texture &tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
-		) override {
-			_draw_triangles_impl(_get_id(tid), poss, uvs, cs, sz);
+		void draw_triangles(const ui::texture &tex, const ui::vertex_buffer &buf, size_t n) override {
+			_draw_triangles_impl(_get_id(tex), _vertex_buffers[_get_id(buf)].get(), n);
 		}
 		/// Calls \ref _draw_line to draw a series of lines.
 		///
@@ -38,8 +36,8 @@ namespace codepad::os {
 		void draw_lines(const vec2d *vs, const colord *cs, size_t sz) override {
 			for (size_t i = 0; i < sz; i += 2) {
 				_draw_line(
-					_matstk.back().transform(vs[i]).convert<_real_t>(),
-					_matstk.back().transform(vs[i + 1]).convert<_real_t>(),
+					_matstk.back().transform(vs[i].convert<_real_t>()),
+					_matstk.back().transform(vs[i + 1].convert<_real_t>()),
 					cs[i].convert<_color_t::value_type>()
 				);
 			}
@@ -63,9 +61,13 @@ namespace codepad::os {
 		/// Allocates space for the new texture, copies the data,
 		/// and returns a \ref texture with the allocated ID.
 		ui::texture new_texture(size_t w, size_t h, const std::uint8_t *rgba) override {
-			ui::texture::id_t nid = _alloc_id();
-			_txs[nid].set_rgba(w, h, static_cast<const unsigned char*>(rgba));
+			ui::texture::id_t nid = _alloc_texture_id();
+			_textures[nid].set_rgba(w, h, rgba);
 			return _make_texture(nid, w, h);
+		}
+		/// Updates the contents of the texture by calling \ref _tex_rec::set_rgba().
+		void update_texture(ui::texture &tex, const std::uint8_t *rgba) override {
+			_textures[_get_id(tex)].set_rgba(tex.get_width(), tex.get_height(), rgba);
 		}
 		/// Deletes and erases the given texture.
 		void delete_texture(ui::texture &tex) override {
@@ -73,21 +75,10 @@ namespace codepad::os {
 			_erase_texture(tex);
 		}
 
-		/// Pushes a clip onto _render_target_stackframe::clip_stack.
-		void push_clip(recti r) override {
-			r = recti::common_part(r, _clipstk.back());
-			r.make_valid_max();
-			_clipstk.push_back(r);
-		}
-		/// Pops a clip.
-		void pop_clip() override {
-			_clipstk.pop_back();
-		}
-
 		/// Allocates a texture of the given size, and returns the corresponding \ref frame_buffer.
 		ui::frame_buffer new_frame_buffer(size_t w, size_t h) override {
-			ui::texture::id_t nid = _alloc_id();
-			_txs[nid].resize(w, h);
+			ui::texture::id_t nid = _alloc_texture_id();
+			_textures[nid].resize(w, h);
 			return _make_frame_buffer(nid, _make_texture(nid, w, h));
 		}
 		/// Deletes the texture corresponding to the frame buffer, and erases the frame buffer.
@@ -102,21 +93,60 @@ namespace codepad::os {
 		}
 		/// Calls \ref _begin_render_target to start rendering to the frame buffer.
 		void continue_frame_buffer(const ui::frame_buffer &fb) override {
-			_tex_rec &tr = _txs[_get_id(fb.get_texture())];
+			_tex_rec &tr = _textures[_get_id(fb.get_texture())];
 			_begin_render_target(_render_target_stackframe(tr.w, tr.h, tr.data));
+		}
+
+		/// Creates a new \ref vertex_buffer that contains the given number of \ref vertexf.
+		ui::vertex_buffer new_vertex_buffer(size_t size) override {
+			size_t id = 0;
+			if (_vbuf_id_realloc.empty()) {
+				id = _vertex_buffers.size();
+				_vertex_buffers.emplace_back();
+			} else {
+				id = _vbuf_id_realloc.back();
+				_vbuf_id_realloc.pop_back();
+			}
+			_vertex_buffers[id] = std::make_unique<ui::vertexf[]>(size);
+			return _make_vertex_buffer(id, size);
+		}
+		/// Deletes the given \ref vertex_buffer.
+		void delete_vertex_buffer(ui::vertex_buffer &buf) override {
+			size_t id = _get_id(buf);
+			_vertex_buffers[id].reset();
+			_vbuf_id_realloc.emplace_back(id);
+			_erase_vertex_buffer(buf);
+		}
+		/// Returns the corresponding pointer.
+		ui::vertexf *map_vertex_buffer(ui::vertex_buffer &buf) override {
+			return _vertex_buffers[_get_id(buf)].get();
+		}
+		/// Does nothing.
+		void unmap_vertex_buffer(ui::vertex_buffer&) override {
+		}
+
+		/// Pushes a clip onto _render_target_stackframe::clip_stack.
+		void push_clip(recti r) override {
+			r = recti::common_part(r, _clipstk.back());
+			r.make_valid_max();
+			_clipstk.push_back(r);
+		}
+		/// Pops a clip.
+		void pop_clip() override {
+			_clipstk.pop_back();
 		}
 
 		/// Pushes a \ref matd3x3 onto \ref _matstk;
 		void push_matrix(const matd3x3 &m) override {
-			_matstk.push_back(m);
+			_matstk.push_back(m.convert<_real_t>());
 		}
 		/// Multiplies the \ref matd3x3 with the one on the top of \ref _matstk and pushes it onto the stack.
 		void push_matrix_mult(const matd3x3 &m) override {
-			_matstk.push_back(_matstk.back() * m);
+			_matstk.push_back(_matstk.back() * m.convert<_real_t>());
 		}
 		/// Obtains the \ref matd3x3 on the top of \ref _matstk.
 		matd3x3 top_matrix() const override {
-			return _matstk.back();
+			return _matstk.back().convert<double>();
 		}
 		/// Pops a \ref matd3x3 from \ref _matstk.
 		void pop_matrix() override {
@@ -139,6 +169,7 @@ namespace codepad::os {
 		using _real_t = float; ///< The floating-point type used for rendering operations.
 		using _color_t = color<_real_t>; ///< The type of the underlying pixels.
 		using _vec2_t = vec2<_real_t>; ///< The vector type used for calculations.
+		using _mat3x3_t = matrix<_real_t, 3, 3>; ///< The matrix type for calculations.
 
 		struct _ivec4i32;
 		/// 4-d vector of floats, accelerated using SSE intrinsics if enabled.
@@ -456,10 +487,14 @@ namespace codepad::os {
 			std::function<void()> end; ///< The function to be called after the rendering's finished.
 		};
 
-		std::vector<_tex_rec> _txs; ///< The list of textures.
-		std::vector<ui::texture::id_t> _id_realloc; ///< Stores the indices of deallocated textures.
+		std::vector<_tex_rec> _textures; ///< The list of textures.
+		std::vector<ui::texture::id_t> _tex_id_realloc; ///< Stores the indices of deallocated textures.
+
+		std::vector<std::unique_ptr<ui::vertexf[]>> _vertex_buffers; ///< The list of vertex buffers.
+		std::vector<ui::vertex_buffer::id_t> _vbuf_id_realloc; ///< Stores the indices of deallocated vertex buffers.
+
 		std::vector<_render_target_stackframe> _rtfstk; ///< The stack of render target stackframes.
-		std::vector<matd3x3> _matstk; ///< The stack of matrices shared by all render targets.
+		std::vector<_mat3x3_t> _matstk; ///< The stack of matrices shared by all render targets.
 		std::vector<ui::blend_function> _blendstk; ///< The stack of blend functions shared by all render targets.
 		std::vector<recti> _clipstk; ///< The stack of clip regions shared by all render targets.
 
@@ -473,35 +508,38 @@ namespace codepad::os {
 		}
 
 		/// Allocates and returns an ID for a new texture.
-		ui::texture::id_t _alloc_id() {
+		ui::texture::id_t _alloc_texture_id() {
 			ui::texture::id_t nid;
-			if (_id_realloc.empty()) {
-				nid = _txs.size();
-				_txs.emplace_back();
+			if (_tex_id_realloc.empty()) {
+				nid = _textures.size();
+				_textures.emplace_back();
 			} else {
-				nid = _id_realloc.back();
-				_id_realloc.pop_back();
+				nid = _tex_id_realloc.back();
+				_tex_id_realloc.pop_back();
 			}
 			return nid;
 		}
-		/// Disposes the texture with the given ID, and pushes the ID onto \ref _id_realloc.
+		/// Disposes the texture with the given ID, and pushes the ID onto \ref _tex_id_realloc.
 		void _delete_texture_by_id(ui::texture::id_t id) {
-			_txs[id].dispose();
-			_id_realloc.push_back(id);
+			_textures[id].dispose();
+			_tex_id_realloc.push_back(id);
 		}
+
+		// actual rendering stuff
 		/// Draws a batch of triangles with the given texture and vertices.
 		void _draw_triangles_impl(
-			ui::texture::id_t tid, const vec2d *poss, const vec2d *uvs, const colord *cs, size_t sz
+			ui::texture::id_t tid, const ui::vertexf *verts, size_t sz
 		) {
-			const vec2d *cp = poss, *cuv = uvs;
-			const colord *cc = cs;
-			vec2d tmp[3];
+			_vec2_t pos[3], uv[3];
+			_ivec4f c[3];
 			const ui::blend_function &bfun = _blendstk.back();
-			for (; sz > 2; sz -= 3, cp += 3, cuv += 3, cc += 3) {
-				tmp[0] = _matstk.back().transform(cp[0]);
-				tmp[1] = _matstk.back().transform(cp[1]);
-				tmp[2] = _matstk.back().transform(cp[2]);
-				_draw_triangle(tmp, cuv, cc, tid, bfun.source_factor, bfun.destination_factor);
+			for (; sz > 2; sz -= 3, verts += 3) {
+				for (size_t i = 0; i < 3; ++i) {
+					pos[i] = _matstk.back().transform(verts[i].position.convert<_real_t>());
+					uv[i] = verts[i].uv.convert<_real_t>();
+					c[i] = _convert_from_color(verts[i].color.convert<_real_t>());
+				}
+				_draw_triangle(pos, uv, c, tid, bfun.source_factor, bfun.destination_factor);
 			}
 		}
 
@@ -565,17 +603,10 @@ namespace codepad::os {
 		/// \param srcf The factor to blend the colors to be drawn with.
 		/// \param dstf The factor to blend the colors already on the canvas with.
 		void _draw_triangle(
-			const vec2d *ps, const vec2d *uvs, const colord *cs, ui::texture::id_t tex,
+			const _vec2_t *ps, const _vec2_t *uvs, const _ivec4f *cs, ui::texture::id_t tex,
 			ui::blend_factor srcf, ui::blend_factor dstf
 		) {
-			_vec2_t rps[3]{ps[0].convert<_real_t>(), ps[1].convert<_real_t>(), ps[2].convert<_real_t>()};
-			_vec2_t ruvs[3]{uvs[0].convert<_real_t>(), uvs[1].convert<_real_t>(), uvs[2].convert<_real_t>()};
-			_ivec4f rcs[3]{
-				_convert_from_color(cs[0].convert<float>()),
-				_convert_from_color(cs[1].convert<float>()),
-				_convert_from_color(cs[2].convert<float>())
-			};
-			const _vec2_t *yi[3]{rps, rps + 1, rps + 2};
+			const _vec2_t *yi[3]{ps, ps + 1, ps + 2};
 			if (yi[0]->y > yi[1]->y) {
 				std::swap(yi[0], yi[1]);
 			}
@@ -585,32 +616,32 @@ namespace codepad::os {
 			if (yi[0]->y > yi[1]->y) {
 				std::swap(yi[0], yi[1]);
 			}
-			const _tex_rec &tr = _txs[tex];
+			const _tex_rec &tr = _textures[tex];
 			_real_t
 				invk_01 = (yi[1]->x - yi[0]->x) / (yi[1]->y - yi[0]->y),
 				invk_02 = (yi[2]->x - yi[0]->x) / (yi[2]->y - yi[0]->y),
 				invk_12 = (yi[2]->x - yi[1]->x) / (yi[2]->y - yi[1]->y);
-			_pq_params pq(rps[0], rps[1], rps[2]);
+			_pq_params pq(ps[0], ps[1], ps[2]);
 			if (invk_01 > invk_02) {
 				_draw_triangle_half(
 					yi[0]->x, yi[0]->y, invk_02, invk_01, yi[0]->y, yi[1]->y, tr, pq,
-					ruvs[0], ruvs[1], ruvs[2], rcs[0], rcs[1], rcs[2], srcf, dstf
+					uvs[0], uvs[1], uvs[2], cs[0], cs[1], cs[2], srcf, dstf
 				);
 			} else {
 				_draw_triangle_half(
 					yi[0]->x, yi[0]->y, invk_01, invk_02, yi[0]->y, yi[1]->y, tr, pq,
-					ruvs[0], ruvs[1], ruvs[2], rcs[0], rcs[1], rcs[2], srcf, dstf
+					uvs[0], uvs[1], uvs[2], cs[0], cs[1], cs[2], srcf, dstf
 				);
 			}
 			if (invk_02 > invk_12) {
 				_draw_triangle_half(
 					yi[2]->x, yi[2]->y, invk_02, invk_12, yi[1]->y, yi[2]->y, tr, pq,
-					ruvs[0], ruvs[1], ruvs[2], rcs[0], rcs[1], rcs[2], srcf, dstf
+					uvs[0], uvs[1], uvs[2], cs[0], cs[1], cs[2], srcf, dstf
 				);
 			} else {
 				_draw_triangle_half(
 					yi[2]->x, yi[2]->y, invk_12, invk_02, yi[1]->y, yi[2]->y, tr, pq,
-					ruvs[0], ruvs[1], ruvs[2], rcs[0], rcs[1], rcs[2], srcf, dstf
+					uvs[0], uvs[1], uvs[2], cs[0], cs[1], cs[2], srcf, dstf
 				);
 			}
 		}

@@ -1,11 +1,17 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 #pragma once
+
+/// \file
+/// Classes used to add animations to tab buttons.
 
 #include "../element.h"
 #include "../panel.h"
-#include "tab_host.h"
+#include "host.h"
 #include "manager.h"
 
-namespace codepad::ui {
+namespace codepad::ui::tabs {
 	/// Pure virtual class that controls the animation of \ref tab_button "tab_buttons".
 	class tab_button_animation_controller {
 	public:
@@ -53,18 +59,18 @@ namespace codepad::ui {
 		/// Updates the current value based on the delta time given.
 		virtual bool _update_tab_impl(double&, double) const = 0;
 	};
+	/// Tab button animation controller with no animation.
+	class trivial_tab_button_animation_controller : public simple_tab_button_animation_controller {
+	protected:
+		/// Updates the given value.
+		bool _update_tab_impl(double &v, double) const override {
+			v = 0.0;
+			return false;
+		}
+	};
 	/// Tab button animation controller in which the position of the element changes exponentially.
 	class exponential_tab_button_animation_controller : public simple_tab_button_animation_controller {
 	public:
-		/// Returns a reference to \ref _base.
-		double &base() {
-			return _base;
-		}
-		/// \overload
-		double base() const {
-			return _base;
-		}
-
 		/// Returns a reference to \ref _time_scale.
 		double &time_scale() {
 			return _time_scale;
@@ -74,9 +80,7 @@ namespace codepad::ui {
 			return _time_scale;
 		}
 	protected:
-		double
-			_base = 10.0, ///< The base of the exponential.
-			_time_scale = 20.0; ///< The scale factor for time values.
+		double _time_scale = 20.0; ///< The scale factor for time values.
 
 		/// Updates the given value.
 		bool _update_tab_impl(double &v, double dt) const override {
@@ -84,7 +88,7 @@ namespace codepad::ui {
 				v = 0.0;
 				return false;
 			}
-			v *= std::pow(_base, -dt * _time_scale);
+			v *= std::exp(-dt * _time_scale);
 			return true;
 		}
 	};
@@ -118,6 +122,11 @@ namespace codepad::ui {
 		}
 	};
 
+	/// Tab button animation controller that behaves like a damped spring.
+	class damped_spring_tab_button_animation_controller : public tab_button_animation_controller {
+
+	};
+
 
 	/// A panel that adds animations to \ref tab_button "tab buttons" when they're moved around. This only works when
 	/// the tab buttons have fixed sizes and margins in the direction they're laid out.
@@ -147,11 +156,11 @@ namespace codepad::ui {
 		/// Used to handle \ref tab_manager::drag_move_tab_button.
 		info_event<tab_drag_update_info>::token _updatetok;
 
-		/// Returns the \ref tab_host that owns this panel.
-		tab_host *_get_host() const {
-			return dynamic_cast<tab_host*>(logical_parent());
+		/// Returns the \ref host that owns this panel.
+		host *_get_host() const {
+			return dynamic_cast<host*>(logical_parent());
 		}
-		/// Returns the \ref tab_manager of the \ref tab_host that owns this panel.
+		/// Returns the \ref tab_manager of the \ref host that owns this panel.
 		tab_manager &_get_tab_manager() const {
 			return _get_host()->get_tab_manager();
 		}
@@ -313,7 +322,7 @@ namespace codepad::ui {
 		/// Called when \ref tab_manager::drag_move_tab_button is invoked.
 		void _on_drag_update(tab_drag_update_info &info) {
 			// update position in tab list
-			tab_host *host = _get_host();
+			host *host = _get_host();
 			tab_manager &man = _get_tab_manager();
 			tab_button &dragbtn = man.get_dragging_tab()->get_button();
 			rectd client = get_client_region();

@@ -161,12 +161,12 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -178,7 +178,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
@@ -194,12 +194,12 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -211,7 +211,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
@@ -229,14 +229,14 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -250,7 +250,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
@@ -271,14 +271,14 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -293,14 +293,14 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -314,7 +314,7 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
@@ -335,14 +335,14 @@
       <PreprocessorDefinitions>NOMINMAX;OEMRESOURCE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;CP_USE_SSE2;CP_PLATFORM_WINDOWS;CP_LOG_STACKTRACE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)/%(RelativeDir)</ObjectFileName>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -397,7 +397,7 @@
     <ClInclude Include="ui\tabs\manager.h" />
     <ClInclude Include="ui\tabs\split_panel.h" />
     <ClInclude Include="ui\tabs\tab.h" />
-    <ClInclude Include="ui\tabs\tab_host.h" />
+    <ClInclude Include="ui\tabs\host.h" />
     <ClInclude Include="ui\text_rendering.h" />
     <ClInclude Include="ui\visual.h" />
     <ClInclude Include="ui\manager.h" />
@@ -422,7 +422,7 @@
     <ClCompile Include="os\software_renderer_base.cpp" />
     <ClCompile Include="ui\font.cpp" />
     <ClCompile Include="ui\tabs\tab.cpp" />
-    <ClCompile Include="ui\tabs\tab_host.cpp" />
+    <ClCompile Include="ui\tabs\host.cpp" />
     <ClCompile Include="ui\window.cpp" />
     <ClCompile Include="os\windows\filesystem.cpp" />
     <ClCompile Include="os\windows\windows.cpp" />

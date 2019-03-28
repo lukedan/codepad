@@ -11,15 +11,15 @@
 #include "../panel.h"
 #include "../common_elements.h"
 
-namespace codepad::ui {
-	class tab_host;
+namespace codepad::ui::tabs {
+	class host;
 	class tab_manager;
 	class tab;
 
-	/// A button representing a \ref tab in a \ref tab_host.
+	/// A button representing a \ref tab in a \ref host.
 	class tab_button : public ui::panel_base {
 		friend tab_manager;
-		friend tab_host;
+		friend host;
 	public:
 		/// The minimum distance the mouse cursor have to move before dragging starts.
 		///
@@ -35,7 +35,7 @@ namespace codepad::ui {
 			/// Initializes all fields of the struct.
 			explicit drag_start_info(vec2d df) : drag_diff(df) {
 			}
-			const vec2d drag_diff; ///< The offset of the top left corner of the \ref tab_button from the mouse cursor.
+			const vec2d drag_diff; ///< The offset of the mouse cursor from the top left corner of the \ref tab_button.
 		};
 
 		/// Contains information about the user clicking a \ref tab_button.
@@ -110,7 +110,7 @@ namespace codepad::ui {
 						get_window()->screen_to_client(os::get_mouse_position()).convert<double>() - _mdpos;
 					if (diff.length_sqr() > drag_pivot * drag_pivot) {
 						_predrag = false;
-						start_drag.invoke_noret(get_layout().xmin_ymin() - _mdpos);
+						start_drag.invoke_noret(_mdpos - get_layout().xmin_ymin());
 					} else {
 						get_manager().get_scheduler().schedule_element_update(*this);
 					}
@@ -140,7 +140,7 @@ namespace codepad::ui {
 
 	/// A tab that contains other elements.
 	class tab : public ui::panel {
-		friend tab_host;
+		friend host;
 		friend tab_manager;
 	public:
 		/// Sets the text displayed on the \ref tab_button.
@@ -162,8 +162,8 @@ namespace codepad::ui {
 		tab_button &get_button() const {
 			return *_btn;
 		}
-		/// Returns the \ref tab_host that this tab is currently in, which should be its logical parent.
-		tab_host *get_host() const;
+		/// Returns the \ref host that this tab is currently in, which should be its logical parent.
+		host *get_host() const;
 		/// Returns the manager of this tab.
 		tab_manager &get_tab_manager() const {
 			return *_tab_manager;

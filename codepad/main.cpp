@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
 	codepad::initialize(argc, argv);
 
 	manager man;
-	man.set_renderer(std::make_unique<opengl_renderer>());
+	man.set_renderer(std::make_unique<software_renderer>());
 	man.set_font_manager(std::make_unique<font_manager>(man));
 
 	{
@@ -39,14 +39,14 @@ int main(int argc, char **argv) {
 
 	hotkey_json_parser::parse_config(man.get_class_hotkeys().hotkeys, json::parse_file("config/keys.json"));
 
-	tab_manager tabman(man);
+	tabs::tab_manager tabman(man);
 
 	font_family codefnt(man.get_font_manager(), CP_STRLIT("Fira Code"), 12);
 	code::contents_region::set_font(codefnt);
 
 	auto *lbl = man.create_element<label>();
 	lbl->content().set_text(CP_STRLIT("Ctrl+O to open a file"));
-	tab *tmptab = tabman.new_tab();
+	tabs::tab *tmptab = tabman.new_tab();
 	tmptab->set_label(CP_STRLIT("Welcome"));
 	tmptab->children().add(*lbl);
 	tmptab->get_host()->activate_tab(*tmptab);

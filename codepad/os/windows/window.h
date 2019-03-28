@@ -8,6 +8,7 @@
 #include <Windows.h>
 #include <windowsx.h>
 #include <imm.h>
+#include <dwmapi.h>
 
 #include "../../ui/manager.h"
 #include "../../ui/renderer.h"
@@ -92,22 +93,44 @@ namespace codepad::os {
 			FlashWindowEx(&fwi);
 		}
 
-		void set_display_maximize_button(bool disp) override {
-			_set_window_style_bit(disp, WS_MAXIMIZE);
+		/// Calls \p ShowWindow() to show the window.
+		void show() override {
+			ShowWindow(_hwnd, SW_SHOWNA);
 		}
-		void set_display_minimize_button(bool disp) override {
-			_set_window_style_bit(disp, WS_MINIMIZE);
+		/// Calls \p ShowWindow() to show and activate the window.
+		void show_and_activate() override {
+			ShowWindow(_hwnd, SW_SHOWNORMAL);
 		}
-		void set_display_caption_bar(bool disp) override {
-			_set_window_style_bit(disp, WS_CAPTION ^ WS_BORDER);
-		}
-		void set_display_border(bool disp) override {
-			_set_window_style_bit(disp, WS_BORDER);
-		}
-		void set_sizable(bool size) override {
-			_set_window_style_bit(size, WS_THICKFRAME);
+		/// Calls \p ShowWindow() to hide the window.
+		void hide() override {
+			ShowWindow(_hwnd, SW_HIDE);
 		}
 
+		void set_display_maximize_button(bool disp) override {
+			_set_window_style_bit(disp, WS_MAXIMIZE, GWL_STYLE);
+		}
+		void set_display_minimize_button(bool disp) override {
+			_set_window_style_bit(disp, WS_MINIMIZE, GWL_STYLE);
+		}
+		void set_display_caption_bar(bool disp) override {
+			_set_window_style_bit(disp, WS_CAPTION ^ WS_BORDER, GWL_STYLE);
+		}
+		void set_display_border(bool disp) override {
+			_set_window_style_bit(disp, WS_BORDER, GWL_STYLE);
+		}
+		void set_sizable(bool size) override {
+			_set_window_style_bit(size, WS_THICKFRAME, GWL_STYLE);
+		}
+		/// Calls \p SetWindowPos() to set whether this window is above other normal windows.
+		void set_topmost(bool topmost) override {
+			winapi_check(SetWindowPos(
+				_hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
+			));
+		}
+		/// Calls \ref _set_window_style_bit() to set whether this window has a taskbar icon.
+		void set_show_icon(bool show) override {
+			_set_window_style_bit(!show, WS_EX_TOOLWINDOW, GWL_EXSTYLE);
+		}
 		bool hit_test_full_client(vec2i v) const override {
 			RECT r;
 			winapi_check(GetWindowRect(_hwnd, &r));
@@ -283,9 +306,10 @@ namespace codepad::os {
 			static _wndclass &get();
 		};
 
-		void _set_window_style_bit(bool v, LONG bit) {
-			LONG old = GetWindowLong(_hwnd, GWL_STYLE);
-			SetWindowLong(_hwnd, GWL_STYLE, v ? old | bit : old & ~bit);
+		/// Sets the specified bites to the given value by calling \p SetWindowLong().
+		void _set_window_style_bit(bool v, LONG bit, int type) {
+			LONG old = GetWindowLong(_hwnd, type);
+			SetWindowLong(_hwnd, type, v ? old | bit : old & ~bit);
 			winapi_check(SetWindowPos(
 				_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
 			));
@@ -309,7 +333,13 @@ namespace codepad::os {
 		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
 			window_base::_initialize(cls, metrics);
 			SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-			ShowWindow(_hwnd, SW_SHOW);
+
+			/*DWM_BLURBEHIND bb;
+			std::memset(&bb, 0, sizeof(bb));
+			bb.dwFlags = DWM_BB_ENABLE;
+			bb.fEnable = true;
+			bb.hRgnBlur = NULL;
+			DwmEnableBlurBehindWindow(_hwnd, &bb);*/
 		}
 		void _dispose() override {
 			winapi_check(DestroyWindow(_hwnd));

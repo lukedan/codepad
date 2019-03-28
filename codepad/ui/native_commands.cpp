@@ -18,6 +18,7 @@
 using namespace std;
 
 using namespace codepad::os;
+using namespace codepad::ui::tabs;
 using namespace codepad::editors;
 
 namespace codepad::ui::native_commands {
@@ -174,7 +175,7 @@ namespace codepad::ui::native_commands {
 
 		// TODO options to not use the default encoding
 		reg.register_command(
-			CP_STRLIT("open_file_dialog"), convert_type<tab_host>([](tab_host *th) {
+			CP_STRLIT("open_file_dialog"), convert_type<host>([](host *th) {
 				auto files = open_file_dialog(th->get_window(), file_dialog_type::multiple_selection);
 				tab *last = nullptr;
 				for (const auto &path : files) {
@@ -201,7 +202,7 @@ namespace codepad::ui::native_commands {
 
 		// TODO options to not use the default encoding
 		reg.register_command(
-			CP_STRLIT("new_file"), convert_type<tab_host>([](tab_host *th) {
+			CP_STRLIT("new_file"), convert_type<host>([](host *th) {
 				auto buf = buffer_manager::get().new_file();
 				auto interp = buffer_manager::get().open_interpretation(buf, code::encoding_manager::get().get_default());
 
@@ -218,7 +219,7 @@ namespace codepad::ui::native_commands {
 		);
 
 		reg.register_command(
-			CP_STRLIT("open_binary_file_dialog"), convert_type<tab_host>([](tab_host *th) {
+			CP_STRLIT("open_binary_file_dialog"), convert_type<host>([](host *th) {
 				auto files = open_file_dialog(th->get_window(), file_dialog_type::multiple_selection);
 				tab *last = nullptr;
 				for (const auto &path : files) {

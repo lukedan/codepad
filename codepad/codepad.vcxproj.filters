@@ -198,10 +198,13 @@
     <ClInclude Include="ui\tabs\tab.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ui\tabs\tab_host.h">
+    <ClInclude Include="ui\tabs\manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ui\tabs\manager.h">
+    <ClInclude Include="ui\tabs\animated_tab_button_panel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\tabs\host.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -260,10 +263,10 @@
     <ClCompile Include="ui\font.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ui\tabs\tab_host.cpp">
+    <ClCompile Include="ui\tabs\tab.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ui\tabs\tab.cpp">
+    <ClCompile Include="ui\tabs\host.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

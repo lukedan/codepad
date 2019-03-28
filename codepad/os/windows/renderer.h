@@ -133,6 +133,7 @@ namespace codepad {
 				_pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
 				_pfd.iPixelType = PFD_TYPE_RGBA;
 				_pfd.cColorBits = 32;
+				_pfd.cAlphaBits = 8;
 				_pfd.iLayerType = PFD_MAIN_PLANE;
 				winapi_check(_pformat = ChoosePixelFormat(GetDC(nullptr), &_pfd));
 			}

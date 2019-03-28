@@ -243,20 +243,6 @@ namespace codepad::ui {
 		/// \param buf The vertex buffer.
 		/// \param n Only the first \p n vertices will be taken into account.
 		virtual void draw_triangles(const texture &tex, const vertex_buffer &buf, size_t n) = 0;
-		/// \overload
-		virtual void draw_triangles(
-			const texture &tex, const vec2d *vs, const vec2d *uvs, const colord *cs, size_t n
-		) {
-			if (n > 0) {
-				vertex_buffer buf = new_vertex_buffer(n);
-				vertexf *vxs = map_vertex_buffer(buf);
-				for (size_t i = 0; i < n; ++i) {
-					vxs[i] = vertexf(vs[i], uvs[i], cs[i]);
-				}
-				unmap_vertex_buffer(buf);
-				draw_triangles(tex, buf, n);
-			}
-		}
 		// TODO either remove draw_lines or add vertex buffer edition
 		/// Draws an array of lines. Every two elements of the arrays are drawn as one line.
 		///
@@ -264,23 +250,6 @@ namespace codepad::ui {
 		/// \param uvs The texture coordinates of the vertices of the lines.
 		/// \param n The total number of vertices, i.e., two times the number of lines.
 		virtual void draw_lines(const vec2d *vs, const colord *uvs, size_t n) = 0;
-		/// Draws a rectangle.
-		///
-		/// \param tex The texture used to draw the rectangle.
-		/// \param r The coordinates of the rectangle.
-		/// \param t The texture coordinates.
-		/// \param c The color used to draw the rectangle.
-		virtual void draw_quad(const texture &tex, rectd r, rectd t, colord c) {
-			vec2d vs[6]{
-				r.xmin_ymin(), r.xmax_ymin(), r.xmin_ymax(),
-				r.xmax_ymin(), r.xmax_ymax(), r.xmin_ymax()
-			}, uvs[6]{
-				t.xmin_ymin(), t.xmax_ymin(), t.xmin_ymax(),
-				t.xmax_ymin(), t.xmax_ymax(), t.xmin_ymax()
-			};
-			colord cs[6] = {c, c, c, c, c, c};
-			draw_triangles(tex, vs, uvs, cs, 6);
-		}
 		/// Ends the current render target, which can either be a window or a \ref frame_buffer.
 		virtual void end() = 0;
 
@@ -320,7 +289,7 @@ namespace codepad::ui {
 		///
 		/// \todo Usage hints?
 		virtual vertex_buffer new_vertex_buffer(size_t) = 0;
-		/// Deletes the given vertex buffer. The buffer will become empty.
+		/// Deletes the given \ref vertex_buffer. The buffer will become empty.
 		virtual void delete_vertex_buffer(vertex_buffer&) = 0;
 		/// Maps the given \ref vertex_buffer.
 		virtual vertexf *map_vertex_buffer(vertex_buffer&) = 0;

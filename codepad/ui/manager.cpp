@@ -56,12 +56,12 @@ namespace codepad::ui {
 		register_element_type<scrollbar_drag_button>();
 		register_element_type<window>();
 
-		register_element_type<split_panel>();
-		register_element_type<tab_button>();
-		register_element_type<tab>();
-		register_element_type<drag_destination_selector>();
-		register_element_type<tab_host>();
-		register_element_type<animated_tab_buttons_panel>();
+		register_element_type<tabs::split_panel>();
+		register_element_type<tabs::tab_button>();
+		register_element_type<tabs::tab>();
+		register_element_type<tabs::drag_destination_selector>();
+		register_element_type<tabs::host>();
+		register_element_type<tabs::animated_tab_buttons_panel>();
 
 		register_element_type<editors::editor>();
 		register_element_type<editors::code::contents_region>();

@@ -414,9 +414,9 @@ namespace codepad::editors::code {
 					crgn.xmax = crgn.xmin + i->second.get_texture().get_width();
 					crgn.ymin = std::floor(crgn.ymin + slh * static_cast<double>(i->first));
 					crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_texture().get_height());
-					r.draw_quad(
-						i->second.get_texture(), crgn, rectd(0.0, 1.0, 0.0, 1.0), colord()
-					);
+					ui::render_batch rb(r);
+					rb.add_quad(crgn, rectd(0.0, 1.0, 0.0, 1.0), colord());
+					rb.draw_and_discard(i->second.get_texture());
 				}
 				r.pop_blend_function();
 				// render visible region indicator

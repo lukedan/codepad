@@ -8,9 +8,9 @@
 
 #include "manager.h"
 
-namespace codepad::ui {
-	tab_host *tab::get_host() const {
-		return dynamic_cast<tab_host*>(logical_parent());
+namespace codepad::ui::tabs {
+	host *tab::get_host() const {
+		return dynamic_cast<host*>(logical_parent());
 	}
 
 	void tab::_initialize(str_view_t cls, const element_metrics &metrics) {
@@ -29,7 +29,7 @@ namespace codepad::ui {
 		};
 		_btn->start_drag += [this](tab_button::drag_start_info &p) {
 			vec2d diff = p.drag_diff - vec2d(get_layout().xmin, _btn->get_layout().ymin);
-			get_tab_manager().start_drag_tab(*this, p.drag_diff, get_layout().translated(diff));
+			get_tab_manager().start_drag_tab(*this, p.drag_diff, get_layout().translated(-diff));
 		};
 	}
 
