@@ -147,22 +147,22 @@ namespace codepad::ui::native_commands {
 
 		reg.register_command(
 			CP_STRLIT("tab.split_left"), convert_type<tab>([](tab *t) {
-				t->get_tab_manager().split_tab(*t, false, true);
+				t->get_tab_manager().split_tab(*t, orientation::horizontal, true);
 			})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_right"), convert_type<tab>([](tab *t) {
-				t->get_tab_manager().split_tab(*t, false, false);
+				t->get_tab_manager().split_tab(*t, orientation::horizontal, false);
 			})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_up"), convert_type<tab>([](tab *t) {
-				t->get_tab_manager().split_tab(*t, true, true);
+				t->get_tab_manager().split_tab(*t, orientation::vertical, true);
 			})
 		);
 		reg.register_command(
 			CP_STRLIT("tab.split_down"), convert_type<tab>([](tab *t) {
-				t->get_tab_manager().split_tab(*t, true, false);
+				t->get_tab_manager().split_tab(*t, orientation::vertical, false);
 			})
 		);
 
@@ -231,9 +231,9 @@ namespace codepad::ui::native_commands {
 						th->get_manager().create_element("editor", "binary_editor")
 					);
 					auto *contents = dynamic_cast<binary::contents_region*>(editor->get_contents_region());
-					contents->set_font(
+					/*contents->set_font(
 						contents->get_manager().get_font_manager().get_font("Fira Code", 12)
-					); // TODO customizable font
+					); // TODO customizable font*/
 					contents->set_buffer(std::move(ctx));
 					tb->children().add(*editor);
 					last = tb;

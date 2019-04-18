@@ -64,7 +64,8 @@ namespace codepad::editors::code {
 		///
 		/// \todo Add customizable line height.
 		double get_line_height() const {
-			return get_font().maximum_height();
+			/*return get_font().maximum_height();*/
+			return 0.0;
 		}
 
 		/// Returns the length of scrolling by one tick.
@@ -538,6 +539,7 @@ namespace codepad::editors::code {
 			return colord(1.0, 0.2, 0.2, 1.0);
 		}
 
+		/*
 		/// Sets the \ref ui::font_family used by all contents_region instances. The caller must make sure in advance that
 		/// global variables relating to fonts have been properly initialized.
 		inline static void set_font(const ui::font_family &ff) {
@@ -548,6 +550,7 @@ namespace codepad::editors::code {
 		inline static const ui::font_family &get_font() {
 			return _get_appearance().family;
 		}
+		*/
 
 		/// Casts the obtained \ref components_region_base to the correct type.
 		inline static contents_region *get_from_editor(editor &edt) {
@@ -585,23 +588,8 @@ namespace codepad::editors::code {
 		double _lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
-		ui::visual_configuration
-			_caret_cfg, ///< Used to render all carets.
-			_sel_cfg;  ///< Used to render rectangular parts of selected regions.
-		/// Element state of carets and selections.
-		ui::element_state_id _editrgn_state = ui::normal_element_state_id;
-
 		view_formatting _fmt; ///< The \ref view_formatting associated with this contents_region.
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
-
-		/// Contains additional configuration of editors' appearance.
-		///
-		/// \todo Make this into a setting?
-		struct _appearance_config {
-			ui::font_family family; ///< The \ref ui::font_family used to display text.
-		};
-		/// Returns the global \ref _appearance_config.
-		static _appearance_config &_get_appearance();
 
 		/// Returns the visual line that the given caret is on.
 		size_t _get_visual_line_of_caret(caret_position pos) const {
@@ -873,21 +861,12 @@ namespace codepad::editors::code {
 		/// Sets the correct class of \ref _caret_cfg, resets the animation of carets, and schedules this element for
 		/// updating.
 		void _reset_caret_animation() {
-			_caret_cfg = ui::visual_configuration(get_manager().get_class_visuals().get_or_default(
-				is_insert_mode() ? get_insert_caret_class() : get_overwrite_caret_class()
-			), _editrgn_state);
-			get_manager().get_scheduler().schedule_visual_config_update(*this);
+			// TODO
 		}
 		/// Updates \ref _editrgn_state.
 		void _update_misc_region_state() {
 			if (auto *edt = editor::get_encapsulating(*this)) {
-				ui::element_state_id sid = edt->get_state() & get_manager().get_predefined_states().focused;
-				if (sid != _editrgn_state) {
-					_editrgn_state = sid;
-					_caret_cfg.on_state_changed(_editrgn_state);
-					_sel_cfg.on_state_changed(_editrgn_state);
-					get_manager().get_scheduler().schedule_visual_config_update(*this);
-				}
+				// TODO
 			}
 		}
 
@@ -910,12 +889,6 @@ namespace codepad::editors::code {
 				_interaction_manager.on_viewport_changed();
 			};
 		}
-		/// Updates caret and selection visuals.
-		void _on_update_visual_configurations(ui::animation_update_info &info) override {
-			element::_on_update_visual_configurations(info);
-			info.update_configuration(_caret_cfg);
-			info.update_configuration(_sel_cfg);
-		}
 
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.
 		void _on_layout_changed() override {
@@ -929,10 +902,8 @@ namespace codepad::editors::code {
 
 		// misc
 		/// Sets the element to non-focusable, calls \ref _reset_caret_animation(), and initializes \ref _sel_cfg.
-		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
-			element::_initialize(cls, metrics);
-
-			_can_focus = false;
+		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
+			element::_initialize(cls, config);
 
 			_interaction_manager.set_contents_region(*this);
 			// TODO
@@ -940,9 +911,7 @@ namespace codepad::editors::code {
 			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_single_selection_mode_activator<caret_set>());
 
 			_reset_caret_animation();
-			_sel_cfg = ui::visual_configuration(
-				get_manager().get_class_visuals().get_or_default(get_contents_region_selection_class())
-			);
+			// TODO
 		}
 		/// Unbinds the current document.
 		void _dispose() override {

@@ -139,18 +139,7 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Schedules the given element's visual configurations to be updated.
-		void schedule_visual_config_update(element &elem) {
-			_visualcfg_update.emplace(&elem);
-			_reset_update_estimate();
-		}
-		/// Schedules the given element's \ref metrics_configuration to be updated.
-		void schedule_metrics_config_update(element &elem) {
-			if (!elem._config.metrics_config.get_state().all_stationary) {
-				_metricscfg_update.emplace(&elem);
-				_reset_update_estimate();
-			}
-		}
+		// update tasks
 		/// Schedules the given element to be updated next frame.
 		void schedule_element_update(element &e) {
 			_upd.insert(&e);
@@ -218,35 +207,6 @@ namespace codepad::ui {
 
 			if (aninow >= _next_update) { // only update when necessary
 				animation_duration_t wait_time = animation_duration_t::max();
-
-				// from schedule_visual_config_update()
-				if (!_visualcfg_update.empty()) {
-					std::set<element*> oldset;
-					swap(oldset, _visualcfg_update);
-					for (element *e : oldset) {
-						animation_update_info info(aninow);
-						e->invalidate_visual();
-						e->_on_update_visual_configurations(info);
-						if (!info.is_stationary()) {
-							wait_time = std::min(wait_time, info.get_wait_time());
-							schedule_visual_config_update(*e);
-						}
-					}
-				}
-
-				// from schedule_metrics_config_update()
-				if (!_metricscfg_update.empty()) {
-					std::set<element*> oldset;
-					swap(oldset, _metricscfg_update);
-					for (element *e : oldset) {
-						e->invalidate_layout();
-						wait_time = std::min(wait_time, e->_config.metrics_config.update(aninow));
-						if (!e->_config.metrics_config.get_state().all_stationary) {
-							schedule_metrics_config_update(*e);
-						}
-					}
-				}
-
 				_next_update = aninow + wait_time;
 				if (wait_time > _update_wait_threshold) { // set timer
 					// the update may have taken some time
@@ -274,9 +234,27 @@ namespace codepad::ui {
 			return _upd_dt;
 		}
 
+		// animations
+		/// Starts an animation that's associated with a particular \ref element. If any playing animation of the
+		/// same elements has the same target (tested using \ref )
+		void start_animation(std::unique_ptr<playing_animation_base> ani, element * elem) {
+			auto [entry, inserted] = _element_animations.try_emplace(elem);
+			auto it = entry->second.begin();
+			while (it != entry->second.end()) { // remove animations with the same subject
+				if ((*it)->get_subject().equals(ani->get_subject())) {
+					it = entry->second.erase(it);
+				} else {
+					++it;
+				}
+			}
+			entry->second.emplace_back(std::move(ani));
+			_next_update = animation_clock_t::now();
+		}
+
+		// focus
 		/// Sets the currently focused element. When called, this function also interrupts any ongoing composition.
 		/// The element must belong to a window. This function should not be called recursively.
-		void set_focused_element(element *elem) {
+		void set_focused_element(element * elem) {
 #ifdef CP_CHECK_LOGICAL_ERRORS
 			static bool _in = false;
 
@@ -300,7 +278,7 @@ namespace codepad::ui {
 				if (newfocus) {
 					// update hotkey groups
 					for (element *cur = newfocus; cur; cur = cur->parent()) {
-						gps.emplace_back(cur->_config.hotkey_config, cur);
+						gps.emplace_back(cur->_hotkeys, cur);
 					}
 					// update scope focus on root path
 					element *scope_focus = newfocus;
@@ -340,7 +318,7 @@ namespace codepad::ui {
 
 		/// Marks the given element for disposal. The element is only disposed when \ref dispose_marked_elements()
 		/// is called. It is safe to call this multiple times before the element's actually disposed.
-		void mark_for_disposal(element &e) {
+		void mark_for_disposal(element & e) {
 			_del.insert(&e);
 		}
 		/// Disposes all elements that has been marked for disposal. Other elements that are not marked
@@ -363,8 +341,7 @@ namespace codepad::ui {
 						_children_layout_scheduled.erase(pnl);
 					}
 					_layout_notify.erase(elem);
-					_visualcfg_update.erase(elem);
-					_metricscfg_update.erase(elem);
+					_element_animations.erase(elem);
 					_dirty.erase(elem);
 					_del.erase(elem);
 					_upd.erase(elem);
@@ -403,8 +380,8 @@ namespace codepad::ui {
 			return
 				_active_update_tasks > 0 || !_temp_tasks.empty() || // tasks
 				!_del.empty() || // element disposal
-				( // element config update
-					!(_visualcfg_update.empty() && _metricscfg_update.empty()) &&
+				( // animations
+					!_element_animations.empty() &&
 					_next_update <= std::chrono::high_resolution_clock::now() + _update_wait_threshold
 					) ||
 				!_upd.empty() || // element update
@@ -442,14 +419,11 @@ namespace codepad::ui {
 		/// Stores the panels whose children's layout need computing.
 		std::set<panel_base*> _children_layout_scheduled;
 
-		/// Stores the set of elements whose \ref element::_on_update_visual_configurations() are to be called.
-		std::set<element*> _visualcfg_update;
-		/// Stores the set of elements whose \ref metrics_configuration need updating.
-		std::set<element*> _metricscfg_update;
-
 		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
 		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
 		std::set<element*> _upd; ///< Stores all elements that are to be updated.
+		/// Stores all playing animations of elements.
+		std::map<element*, std::list<std::unique_ptr<playing_animation_base>>> _element_animations;
 
 		std::list<update_task> _regular_tasks; ///< The list of registered update tasks.
 		std::vector<std::function<void()>> _temp_tasks; ///< The list of temporary tasks.
@@ -470,7 +444,7 @@ namespace codepad::ui {
 
 		/// Finds the focus scope that the given \ref element is in. The element itself is not taken into account.
 		/// Returns \p nullptr if the element is not in any scope (which should only happen for windows).
-		panel_base *_find_focus_scope(element &e) const {
+		panel_base *_find_focus_scope(element & e) const {
 			panel_base *scope = e.parent(); // innermost focus scope
 			for (; scope && !scope->is_focus_scope(); scope = scope->parent()) {
 			}
@@ -478,10 +452,10 @@ namespace codepad::ui {
 		}
 		/// Called by \ref element_collection when an element is about to be removed from it. This function updates
 		/// the innermost focus scopes as well as the global focus.
-		void _on_removing_element(element &e) {
+		void _on_removing_element(element & e) {
 			panel_base *scope = _find_focus_scope(e);
 			if (scope) {
-				if (element *sfocus = scope->get_focused_element_in_scope()) {
+				if (element * sfocus = scope->get_focused_element_in_scope()) {
 					for (element *f = sfocus; f && f != scope; f = f->parent()) {
 						if (f == &e) { // focus is removed from the scope
 							scope->_scope_focus = nullptr;
@@ -496,11 +470,11 @@ namespace codepad::ui {
 			for (element *gfocus = _focus; gfocus; gfocus = gfocus->parent()) { // check if global focus is removed
 				if (gfocus == &e) { // yes it is
 					panel_base *newfocus = e.parent();
-					for (
-						;
-						newfocus && !newfocus->get_can_focus() && !newfocus->is_focus_scope();
-						newfocus = newfocus->parent()
+					while (
+						newfocus && (newfocus->get_visibility() & visibility::focus) == visibility::none &&
+						!newfocus->is_focus_scope()
 						) {
+						newfocus = newfocus->parent();
 					}
 					set_focused_element(newfocus); // may be nullptr, which is ok
 					break;

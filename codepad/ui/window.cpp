@@ -18,20 +18,21 @@ namespace codepad::ui {
 		dec._wnd = this;
 		_decos.push_back(&dec);
 		dec._tok = --_decos.end();
-		get_manager().get_scheduler().schedule_visual_config_update(*this);
+		// TODO start animations
 	}
 
 	void window_base::_on_prerender() {
-		get_manager().get_renderer().begin(*this);
+		get_manager().get_renderer().begin_drawing(*this);
+		get_manager().get_renderer().clear(colord(0.0, 0.0, 0.0, 0.0));
 		panel::_on_prerender();
 	}
 
 	void window_base::_on_postrender() {
 		panel::_on_postrender();
-		get_manager().get_renderer().end();
+		get_manager().get_renderer().end_drawing();
 	}
 
-	void window_base::_initialize(str_view_t cls, const ui::element_metrics &metrics) {
+	void window_base::_initialize(str_view_t cls, const element_configuration &metrics) {
 		panel::_initialize(cls, metrics);
 		_is_focus_scope = true;
 		get_manager().get_renderer()._new_window(*this);
@@ -100,27 +101,10 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_update_visual_configurations(animation_update_info &info) {
-		panel::_on_update_visual_configurations(info);
-		for (auto i = _decos.begin(); i != _decos.end(); ) {
-			info.update_configuration((*i)->_vis_config);
-			if (
-				(*i)->_vis_config.get_state().all_stationary &&
-				((*i)->get_state() & get_manager().get_predefined_states().corpse) != 0
-			) {
-				auto j = i;
-				++i;
-				delete *j; // the decoration will remove itself from _decos in its destructor
-				continue;
-			}
-			++i;
-		}
-	}
-
 	void window_base::_custom_render() {
 		panel::_custom_render();
 		for (decoration *dec : _decos) {
-			dec->_vis_config.render(get_manager().get_renderer(), dec->_layout);
+			/*dec->_vis_config.render(get_manager().get_renderer(), dec->_layout);*/
 		}
 	}
 }

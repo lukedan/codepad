@@ -13,10 +13,9 @@ namespace codepad::ui::tabs {
 		return dynamic_cast<host*>(logical_parent());
 	}
 
-	void tab::_initialize(str_view_t cls, const element_metrics &metrics) {
-		panel::_initialize(cls, metrics);
+	void tab::_initialize(str_view_t cls, const element_configuration &config) {
+		panel::_initialize(cls, config);
 
-		_can_focus = true;
 		_is_focus_scope = true;
 
 		_btn = get_manager().create_element<tab_button>();

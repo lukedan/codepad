@@ -330,8 +330,8 @@ namespace codepad::os {
 			window_base::_on_mouse_enter();
 		}
 
-		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
-			window_base::_initialize(cls, metrics);
+		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
+			window_base::_initialize(cls, config);
 			SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
 			/*DWM_BLURBEHIND bb;

@@ -8,7 +8,6 @@
 
 #include "contents_region.h"
 #include "rendering.h"
-#include "../../ui/draw.h"
 
 namespace codepad::editors::code {
 	/// Displays a the line number for each line.
@@ -16,13 +15,13 @@ namespace codepad::editors::code {
 	public:
 		/// Returns the width of the longest line number.
 		ui::size_allocation get_desired_width() const override {
-			if (contents_region *edt = component_helper::get_contents_region(*this)) {
+			/*if (contents_region *edt = component_helper::get_contents_region(*this)) {
 				size_t ln = edt->get_document()->num_lines(), w = 0;
 				for (; ln > 0; ++w, ln /= 10) {
 				}
 				double maxw = contents_region::get_font().normal->get_max_width_charset(U"0123456789");
 				return ui::size_allocation(get_padding().width() + static_cast<double>(w) * maxw, true);
-			}
+			}*/
 			return ui::size_allocation(0, true);
 		}
 
@@ -58,7 +57,7 @@ namespace codepad::editors::code {
 
 		/// Renders all visible line numbers.
 		void _custom_render() override {
-			if (auto&&[box, edt] = component_helper::get_core_components(*this); edt) {
+			/*if (auto&&[box, edt] = component_helper::get_core_components(*this); edt) {
 				const view_formatting &fmt = edt->get_formatting();
 				double
 					lh = edt->get_line_height(),
@@ -84,7 +83,7 @@ namespace codepad::editors::code {
 						);
 					}
 				}
-			}
+			}*/
 		}
 	};
 
@@ -102,7 +101,8 @@ namespace codepad::editors::code {
 
 		/// Returns the scale of the text based on \ref _target_height.
 		inline static double get_scale() {
-			return _target_height / contents_region::get_font().maximum_height();
+			/*return _target_height / contents_region::get_font().maximum_height();*/
+			return 1.0;
 		}
 
 		/// Sets the desired font height of minimaps. Note that font height is different from line height.
@@ -123,7 +123,7 @@ namespace codepad::editors::code {
 			return CP_STRLIT("minimap_viewport");
 		}
 	protected:
-		/// Caches rendered pages so it won't be necessary to render large pages of text frequently.
+		/*/// Caches rendered pages so it won't be necessary to render large pages of text frequently.
 		struct _page_cache {
 			constexpr static size_t minimum_width = 50; ///< The minimum width of a page.
 			constexpr static double
@@ -377,22 +377,16 @@ namespace codepad::editors::code {
 					pages.insert(std::make_pair(s, std::move(buf)));
 				}
 			}
-		};
-
-		/// Updates \ref _viewport_cfg.
-		void _on_update_visual_configurations(ui::animation_update_info &info) override {
-			element::_on_update_visual_configurations(info);
-			info.update_configuration(_viewport_cfg);
-		}
+		};*/
 
 		/// Checks and validates \ref _pgcache by calling \ref _page_cache::prepare.
 		void _on_prerender() override {
 			element::_on_prerender();
-			_pgcache.prepare();
+			/*_pgcache.prepare();*/
 		}
 		/// Renders all visible pages.
 		void _custom_render() override {
-			if (contents_region *edt = component_helper::get_contents_region(*this)) {
+			/*if (contents_region *edt = component_helper::get_contents_region(*this)) {
 				std::pair<size_t, size_t> vlines = _get_visible_visual_lines();
 				double slh = edt->get_line_height() * get_scale();
 				rectd pagergn = get_client_region();
@@ -421,7 +415,7 @@ namespace codepad::editors::code {
 				r.pop_blend_function();
 				// render visible region indicator
 				_viewport_cfg.render(r, _get_clamped_viewport_rect());
-			}
+			}*/
 		}
 
 		/// Calculates and returns the vertical offset of all pages according to \ref editor::get_vertical_position.
@@ -470,15 +464,12 @@ namespace codepad::editors::code {
 			return {0, 0};
 		}
 
-		/// Changes the state of the visible region indicator.
-		void _on_state_changed(value_update_info<ui::element_state_id> &info) override {
-			_viewport_cfg.on_state_changed(get_state());
-			element::_on_state_changed(info);
-		}
+		// TODO notify the visible region indicator of events
+
 		/// Notifies and invalidates \ref _pgcache.
 		void _on_layout_changed() override {
-			_pgcache.on_width_changed(get_layout().width());
-			_pgcache.invalidate(); // invalidate no matter what since the height may have also changed
+			/*_pgcache.on_width_changed(get_layout().width());
+			_pgcache.invalidate(); // invalidate no matter what since the height may have also changed*/
 			element::_on_layout_changed();
 		}
 
@@ -507,12 +498,12 @@ namespace codepad::editors::code {
 		/// Marks \ref _pgcache for update when the viewport has changed, to determine if more pages need to
 		/// be rendered when \ref _on_prerender is called.
 		void _on_viewport_changed() {
-			_pgcache.invalidate();
+			/*_pgcache.invalidate();*/
 		}
 		/// Clears \ref _pgcache.
 		void _on_editor_visual_changed() {
-			_pgcache.pages.clear();
-			_pgcache.invalidate();
+			/*_pgcache.pages.clear();
+			_pgcache.invalidate();*/
 		}
 
 		/// If the user presses ahd holds the primary mouse button on the viewport, starts dragging it; otherwise,
@@ -569,18 +560,14 @@ namespace codepad::editors::code {
 			_dragging = false;
 		}
 
-		/// Sets the class of \ref _viewport_cfg.
-		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
-			element::_initialize(cls, metrics);
-			_can_focus = false;
-			_viewport_cfg = ui::visual_configuration(
-				get_manager().get_class_visuals().get_or_default(get_viewport_class())
-			);
+		/// Initializes \ref _viewport_cfg.
+		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
+			element::_initialize(cls, config);
+			// TODO initialize viewport indicator
 		}
 
-		_page_cache _pgcache{*this}; ///< Caches rendered pages.
+		/*_page_cache _pgcache{*this}; ///< Caches rendered pages.*/
 		info_event<>::token _vis_tok; ///< Used to listen to \ref contents_region::editing_visual_changed.
-		ui::visual_configuration _viewport_cfg; ///< Used to render the visible region indicator.
 		/// The offset of the mouse relative to the top border of the visible region indicator.
 		double _dragoffset = 0.0;
 		bool _dragging = false; ///< Indicates whether the visible region indicator is being dragged.

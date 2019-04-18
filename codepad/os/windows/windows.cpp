@@ -5,7 +5,6 @@
 #include <Shlwapi.h>
 
 #include "../windows.h"
-#include "font.h"
 
 using namespace std;
 
@@ -148,6 +147,15 @@ namespace codepad::os {
 				form->_on_close_request();
 				return 0;
 
+			case WM_PAINT:
+			{
+				PAINTSTRUCT ps;
+				winapi_check(BeginPaint(form->_hwnd, &ps));
+				form->_on_render();
+				EndPaint(form->_hwnd, &ps);
+				return 0;
+			}
+
 			case WM_SIZE:
 			{
 				if (wparam != SIZE_MINIMIZED) {
@@ -159,8 +167,8 @@ namespace codepad::os {
 						form->get_manager().get_scheduler().update_layout_and_visual();
 					}
 				}
+				return 0;
 			}
-			return 0;
 
 			case WM_SYSKEYDOWN:
 				[[fallthrough]]; // same processing
@@ -608,7 +616,7 @@ namespace codepad {
 #endif
 
 namespace codepad::ui {
-	texture load_image(renderer_base &r, const filesystem::path &filename) {
+	/*texture load_image(renderer_base &r, const filesystem::path &filename) {
 		return wic_image_loader::get().load_image(r, filename);
 	}
 
@@ -646,7 +654,7 @@ namespace codepad::ui {
 			(logfnt.lfWeight > FW_REGULAR ? font_style::bold : font_style::normal) |
 			(logfnt.lfItalic ? font_style::italic : font_style::normal)
 		);
-	}
+	}*/
 
 
 	bool scheduler::_idle_system(wait_type ty) {

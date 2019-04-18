@@ -35,83 +35,49 @@ namespace codepad::ui {
 
 	void element::_on_mouse_down(mouse_button_info &p) {
 		if (p.button == mouse_button::primary) {
-			if (_can_focus && !p.focus_set()) {
+			if (is_visible(visibility::focus) && !p.focus_set()) {
 				p.mark_focus_set();
 				get_manager().get_scheduler().set_focused_element(this);
 			}
-			set_state_bits(get_manager().get_predefined_states().mouse_down, true);
 		}
 		mouse_down.invoke(p);
 	}
 
-	void element::_on_mouse_enter() {
-		set_state_bits(get_manager().get_predefined_states().mouse_over, true);
-		mouse_enter.invoke();
-	}
-
-	void element::_on_mouse_leave() {
-		set_state_bits(get_manager().get_predefined_states().mouse_over, false);
-		mouse_leave.invoke();
-	}
-
-	void element::_on_got_focus() {
-		set_state_bits(get_manager().get_predefined_states().focused, true);
-		for (element *e = this; e; e = e->parent()) {
-			e->set_state_bits(get_manager().get_predefined_states().child_focused, true);
-		}
-		got_focus.invoke();
-	}
-
-	void element::_on_lost_focus() {
-		set_state_bits(get_manager().get_predefined_states().focused, false);
-		for (element *e = this; e; e = e->parent()) {
-			e->set_state_bits(get_manager().get_predefined_states().child_focused, false);
-		}
-		lost_focus.invoke();
-	}
-
-	void element::_on_mouse_up(mouse_button_info &p) {
-		if (p.button == mouse_button::primary) {
-			set_state_bits(get_manager().get_predefined_states().mouse_down, false);
-		}
-		mouse_up.invoke(p);
-	}
-
-	void element::_on_update_visual_configurations(animation_update_info &info) {
-		info.update_configuration(_config.visual_config);
-	}
-
 	void element::_on_prerender() {
-		get_manager().get_renderer().push_clip(_layout.fit_grid_enlarge<int>());
+		/*get_manager().get_renderer().push_clip(_layout.fit_grid_enlarge<int>());*/ // TODO clips
 	}
 
 	void element::_on_render() {
-		if (is_render_visible()) {
+		if (is_visible(visibility::visual)) {
 			_on_prerender();
-			_config.visual_config.render(get_manager().get_renderer(), get_layout());
+			for (const generic_visual_geometry &g : _params.visual_parameters.geometries) {
+				g.draw(get_layout(), get_manager().get_renderer());
+			}
 			_custom_render();
 			_on_postrender();
 		}
 	}
 
 	void element::_on_postrender() {
-		get_manager().get_renderer().pop_clip();
+		/*get_manager().get_renderer().pop_clip();*/
 	}
 
-	void element::_on_state_changed(value_update_info<element_state_id>&) {
-		get_manager().get_scheduler().schedule_visual_config_update(*this);
-		get_manager().get_scheduler().schedule_metrics_config_update(*this);
-	}
-
-	void element::_initialize(str_view_t cls, const element_metrics &metrics) {
+	void element::_initialize(str_view_t cls, const element_configuration &config) {
 #ifdef CP_CHECK_USAGE_ERRORS
 		_initialized = true;
 #endif
-		_config.visual_config = visual_configuration(
-			get_manager().get_class_visuals().get_or_default(cls), _state
-		);
-		_config.metrics_config = metrics_configuration(metrics, _state);
-		_config.hotkey_config = get_manager().get_class_hotkeys().try_get(cls);
+		_params = config.default_parameters;
+		for (auto &p : config.event_triggers) {
+			_register_event(p.first, [this, storyboard = &p.second]() {
+				for (auto &ani : storyboard->animations) {
+					get_manager().get_scheduler().start_animation(ani.start_for(*this), this);
+				}
+			});
+		}
+		for (auto &attr : config.additional_attributes) {
+			_set_attribute(attr.first, attr.second);
+		}
+		_hotkeys = get_manager().get_class_hotkeys().get(cls);
 	}
 
 	void element::_dispose() {
@@ -139,57 +105,11 @@ namespace codepad::ui {
 		return dynamic_cast<window_base*>(cur);
 	}
 
-	bool element::is_mouse_over() const {
-		return (_state & get_manager().get_predefined_states().mouse_over) != 0;
-	}
-
-	bool element::is_render_visible() const {
-		return (_state & get_manager().get_predefined_states().render_invisible) == 0;
-	}
-
-	void element::set_render_visibility(bool val) {
-		set_state_bits(get_manager().get_predefined_states().render_invisible, !val);
-	}
-
-	bool element::is_hittest_visible() const {
-		return (_state & get_manager().get_predefined_states().hittest_invisible) == 0;
-	}
-
-	void element::set_hittest_visibility(bool val) {
-		set_state_bits(get_manager().get_predefined_states().hittest_invisible, !val);
-	}
-
-	bool element::is_layout_visible() const {
-		return (_state & get_manager().get_predefined_states().layout_invisible) == 0;
-	}
-
-	void element::set_layout_visibility(bool val) {
-		set_state_bits(get_manager().get_predefined_states().layout_invisible, !val);
-	}
-
-	bool element::is_focused() const {
-		return (_state & get_manager().get_predefined_states().focused) != 0;
-	}
-
-	bool element::is_vertical() const {
-		return (_state & get_manager().get_predefined_states().vertical) != 0;
-	}
-
-	void element::set_is_vertical(bool v) {
-		set_state_bits(get_manager().get_predefined_states().vertical, v);
-	}
-
 
 	void decoration::set_layout(rectd r) {
 		_layout = r;
 		if (_wnd) {
 			_wnd->invalidate_visual();
-		}
-	}
-
-	void decoration::_on_state_invalidated() {
-		if (_wnd) {
-			_manager.get_scheduler().schedule_visual_config_update(*_wnd);
 		}
 	}
 
@@ -201,9 +121,6 @@ namespace codepad::ui {
 
 	void decoration::set_class(const str_t &cls) {
 		_class = cls;
-		_vis_config = visual_configuration(
-			_manager.get_class_visuals().get_or_default(_class), _state
-		);
-		_on_state_invalidated();
+		// TODO
 	}
 }

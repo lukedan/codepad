@@ -7,8 +7,7 @@
 #include "core/event.h"
 #include "core/bst.h"
 #include "os/current/all.h"
-#include "ui/font_family.h"
-#include "ui/draw.h"
+#include "os/windows/direct2d_renderer.h"
 #include "ui/common_elements.h"
 #include "ui/native_commands.h"
 #include "ui/config_parsers.h"
@@ -27,22 +26,21 @@ int main(int argc, char **argv) {
 	codepad::initialize(argc, argv);
 
 	manager man;
-	man.set_renderer(std::make_unique<software_renderer>());
-	man.set_font_manager(std::make_unique<font_manager>(man));
+	man.set_renderer(std::make_unique<direct2d::renderer>());
+	/*man.set_renderer(std::make_unique<software_renderer>());*/
+	/*man.set_font_manager(std::make_unique<font_manager>(man));*/
 
 	{
-		ui_config_json_parser parser(man);
-		parser.parse_visual_config(json::parse_file("config/skin.json"));
-		parser.parse_arrangements_config(json::parse_file("config/arrangements.json"));
-		parser.get_texture_table().load_all(man.get_renderer(), "config/");
+		ui_config_json_parser<json::rapidjson::value_t> parser(man);
+		parser.parse_arrangements_config(json::parse_file<json::rapidjson::document_t>("config/arrangements.json").root().get<json::rapidjson::object_t>());
 	}
 
-	hotkey_json_parser::parse_config(man.get_class_hotkeys().hotkeys, json::parse_file("config/keys.json"));
+	hotkey_json_parser<json::rapidjson::value_t>::parse_config(man.get_class_hotkeys().mapping, json::parse_file<json::rapidjson::document_t>("config/keys.json").root().get<json::rapidjson::object_t>());
 
 	tabs::tab_manager tabman(man);
 
-	font_family codefnt(man.get_font_manager(), CP_STRLIT("Fira Code"), 12);
-	code::contents_region::set_font(codefnt);
+	/*font_family codefnt(man.get_font_manager(), CP_STRLIT("Fira Code"), 12);
+	code::contents_region::set_font(codefnt);*/
 
 	auto *lbl = man.create_element<label>();
 	lbl->content().set_text(CP_STRLIT("Ctrl+O to open a file"));

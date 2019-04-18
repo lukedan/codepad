@@ -16,9 +16,8 @@ namespace codepad::ui {
 	void class_arrangements::child::construct(
 		element_collection &col, panel_base &logparent, notify_mapping &roles, vector<element*> &construction_notify
 	) const {
-		element *e = logparent.get_manager().create_element_custom(type, element_class, metrics);
+		element *e = logparent.get_manager().create_element_custom(type, element_class, configuration);
 		e->_logical_parent = &logparent;
-		e->set_state_bits(set_states, true);
 		construction_notify.emplace_back(e);
 		if (!children.empty()) {
 			auto *pnl = dynamic_cast<panel*>(e);
@@ -40,8 +39,6 @@ namespace codepad::ui {
 				roles.erase(it);
 			}
 		}
-		logparent.get_manager().get_scheduler().schedule_visual_config_update(*e);
-		logparent.get_manager().get_scheduler().schedule_metrics_config_update(*e);
 	}
 
 
@@ -53,8 +50,6 @@ namespace codepad::ui {
 		for (element *e : newelems) {
 			e->_on_logical_parent_constructed();
 		}
-		logparent.get_manager().get_scheduler().schedule_visual_config_update(logparent);
-		logparent.get_manager().get_scheduler().schedule_metrics_config_update(logparent);
 		if (!roles.empty()) {
 			logger::get().log_warning(CP_HERE, "there are unmatched roles");
 		}

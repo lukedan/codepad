@@ -43,10 +43,10 @@ namespace codepad::os {
 
 namespace codepad {
 	/// Enables bitwise operators for \ref os::access_rights.
-	template <> struct enable_enum_bitwise_operators<os::access_rights> : std::true_type {
+	template <> struct enable_enum_bitwise_operators<os::access_rights> : public std::true_type {
 	};
 	/// Enables bitwise operators for \ref os::open_mode.
-	template <> struct enable_enum_bitwise_operators<os::open_mode> : std::true_type {
+	template <> struct enable_enum_bitwise_operators<os::open_mode> : public std::true_type {
 	};
 }
 
@@ -85,13 +85,13 @@ namespace codepad::os {
 			_handle(_open_impl(path, acc, mode)) {
 		}
 		/// Move constructor.
-		file(file &&rhs) : _handle(rhs._handle) {
+		file(file &&rhs) noexcept : _handle(rhs._handle) {
 			rhs._handle = empty_handle;
 		}
 		/// No copy construction.
 		file(const file&) = delete;
 		/// Move assignment.
-		file &operator=(file &&rhs) {
+		file &operator=(file &&rhs) noexcept {
 			std::swap(_handle, rhs._handle);
 			return *this;
 		}

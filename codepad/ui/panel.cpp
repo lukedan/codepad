@@ -154,19 +154,16 @@ namespace codepad::ui {
 		}
 		mouse_down.invoke(p);
 		if (p.button == mouse_button::primary) {
-			if (_can_focus && !p.focus_set()) {
+			if (is_visible(visibility::focus) && !p.focus_set()) {
 				p.mark_focus_set();
 				get_manager().get_scheduler().set_focused_element(this);
-			}
-			if (mouseover == nullptr) {
-				set_state_bits(get_manager().get_predefined_states().mouse_down, true);
 			}
 		}
 	}
 
 	element *panel_base::_hit_test_for_child(vec2d p) {
 		for (element *elem : _children.z_ordered()) {
-			if (elem->is_hittest_visible() && elem->hit_test(p)) {
+			if (elem->is_visible(visibility::interact) && elem->hit_test(p)) {
 				return elem;
 			}
 		}
@@ -181,14 +178,5 @@ namespace codepad::ui {
 		}
 		_children.clear();
 		element::_dispose();
-	}
-
-
-	void stack_panel::_on_state_changed(value_update_info<element_state_id> &p) {
-		panel::_on_state_changed(p);
-		if (_has_any_state_bit_changed(get_manager().get_predefined_states().vertical, p)) {
-			_on_desired_size_changed(true, true);
-			_invalidate_children_layout();
-		}
 	}
 }

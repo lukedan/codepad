@@ -10,7 +10,6 @@
 #include <string_view>
 
 #include "../../ui/element.h"
-#include "../../ui/font_family.h"
 #include "../buffer.h"
 #include "../caret_set.h"
 #include "../interaction_modes.h"
@@ -112,7 +111,8 @@ namespace codepad::editors::binary {
 		///
 		/// \todo Add customizable line height.
 		double get_line_height() const {
-			return _font ? _font->height() : 0.0;
+			/*return _font ? _font->height() : 0.0;*/
+			return 0.0;
 		}
 		/// Returns the number of lines.
 		size_t get_num_lines() const {
@@ -179,7 +179,7 @@ namespace codepad::editors::binary {
 			}
 		}
 
-		/// Returns the \ref ui::font for rendering characters.
+		/*/// Returns the \ref ui::font for rendering characters.
 		const std::shared_ptr<const ui::font> &get_font() const {
 			return _font;
 		}
@@ -190,7 +190,7 @@ namespace codepad::editors::binary {
 			if (!_update_bytes_per_row()) {
 				_on_content_visual_changed();
 			}
-		}
+		}*/
 
 		/// Sets the number of lines to scroll per `tick'.
 		void set_num_lines_per_scroll(double v) {
@@ -312,21 +312,14 @@ namespace codepad::editors::binary {
 			return str_view_t(_lut[static_cast<unsigned char>(b)], 2);
 		}
 
-		ui::visual_configuration
-			_caret_cfg, ///< Used to render carets.
-			_selection_cfg;  ///< Used to render rectangular parts of selected regions.
 		caret_set _carets; ///< The set of carets.
 		interaction_manager<caret_set> _interaction_manager; ///< Manages certain mouse and keyboard interactions.
 		std::shared_ptr<buffer> _buf; ///< The buffer that's being edited.
-		std::shared_ptr<const ui::font> _font; ///< The \ref ui::font used to display the bytes.
 		info_event<buffer::end_edit_info>::token _mod_tok; ///< Used to listen to \ref buffer::
 		double
 			_cached_max_byte_width = 0.0, ///< The width of a character.
 			_blank_width = 5.0, ///< The distance between two consecutive bytes.
 			_lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
-		/// The \ref ui::element_state_id used for miscellaneous regions such as \ref _caret_cfg and
-		/// \ref _selection_cfg.
-		ui::element_state_id _misc_region_state = ui::normal_element_state_id;
 		size_t
 			/// The number of bytes per row. Only used when \ref _wrap is \ref wrap_mode::fixed.
 			_target_bytes_per_row = 16,
@@ -420,6 +413,7 @@ namespace codepad::editors::binary {
 
 		/// Renders all visible bytes.
 		void _custom_render() override {
+			/*
 			if (auto *edt = editor::get_encapsulating(*this)) {
 				size_t
 					firstline = _get_line_at_position(edt->get_vertical_position()),
@@ -506,6 +500,7 @@ namespace codepad::editors::binary {
 					}
 				}
 			}
+			*/
 		}
 
 		// formatting
@@ -605,31 +600,14 @@ namespace codepad::editors::binary {
 		/// Sets the correct class of \ref _caret_cfg, resets the animation of carets, and schedules this element for
 		/// updating.
 		void _reset_caret_animation() {
-			_caret_cfg = ui::visual_configuration(get_manager().get_class_visuals().get_or_default(
-				is_insert_mode() ? get_insert_caret_class() : get_overwrite_caret_class()
-			), _misc_region_state);
-			get_manager().get_scheduler().schedule_visual_config_update(*this);
+			// TODO
 		}
 		/// Updates the value of \ref _misc_region_state, and updates \ref _caret_cfg and \ref _selection_cfg
 		/// accordingly.
 		void _update_misc_region_state() {
-			if (auto *edt = editor::get_encapsulating(*this)) {
-				ui::element_state_id sid = edt->get_state() & get_manager().get_predefined_states().focused;
-				if (sid != _misc_region_state) {
-					_misc_region_state = sid;
-					_caret_cfg.on_state_changed(_misc_region_state);
-					_selection_cfg.on_state_changed(_misc_region_state);
-					get_manager().get_scheduler().schedule_visual_config_update(*this);
-				}
-			}
+			// TODO
 		}
 
-		/// Updates caret and selection visuals.
-		void _on_update_visual_configurations(ui::animation_update_info &info) override {
-			element::_on_update_visual_configurations(info);
-			info.update_configuration(_caret_cfg);
-			info.update_configuration(_selection_cfg);
-		}
 		/// Registers handlers used to update \ref _misc_region_state.
 		void _on_logical_parent_constructed() override {
 			element::_on_logical_parent_constructed();
@@ -653,10 +631,8 @@ namespace codepad::editors::binary {
 		// misc
 		/// Sets the element to non-focusable, calls \ref _reset_caret_animation(), and initializes
 		/// \ref _selection_cfg.
-		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
-			element::_initialize(cls, metrics);
-
-			_can_focus = false;
+		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
+			element::_initialize(cls, config);
 
 			// initialize _interaction_manager
 			_interaction_manager.set_contents_region(*this);
@@ -665,9 +641,7 @@ namespace codepad::editors::binary {
 			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_single_selection_mode_activator<caret_set>());
 
 			_reset_caret_animation();
-			_selection_cfg = ui::visual_configuration(
-				get_manager().get_class_visuals().get_or_default(get_contents_region_selection_class())
-			);
+			// TODO
 		}
 		/// Sets the current document to empty to unbind event listeners.
 		void _dispose() override {

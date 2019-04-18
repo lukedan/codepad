@@ -1,214 +1,224 @@
 {
-	"element_fill_container": {
-		"metrics": {
-			"value": {
-				"width": "100%",
-				"height": "100%",
-				"margin": 0.0,
-				"anchor": "ltrb"
-			}
+	"": {
+		"visuals": {
+			"geometries": [
+				{
+					"type": "rounded_rectangle",
+					"top_left": [
+						[ 0.0, 0.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 1.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"radiusx": 2,
+					"radiusy": 2,
+					"fill": {
+						"type": "solid",
+						"color": [1.0, 1.0, 1.0, 0.2]
+					}
+				}
+			]
 		}
 	},
 
 
-	"scrollbar": {
-		"metrics": [
-			{
-				"states_mask": "vertical",
-				"value": {
-					"width": "100%",
-					"height": "8px",
-					"margin": 0.0,
-					"anchor": "lrb"
-				}
-			},
-			{
-				"states": "vertical",
-				"states_mask": "vertical",
-				"value": {
-					"width": "8px",
-					"height": "100%",
-					"margin": 0.0,
-					"anchor": "trb"
-				}
-			}
-		],
+	"element_fill_container": {
+		"layout": {
+			"width": "100%",
+			"height": "100%",
+			"margin": 0.0,
+			"anchor": "ltrb"
+		}
+	},
+
+
+	"scrollbar_horizontal": {
+		"layout": {
+			"width": "100%",
+			"height": "8px",
+			"margin": 0.0,
+			"anchor": "lrb"
+		},
+		"inherit_visuals_from": "",
 		"children": [
 			{
 				"type": "button",
 				"role": "page_up_button",
-				"inherit_metrics_from": "element_fill_container"
+				"inherit_layout_from": "element_fill_container"
 			},
 			{
 				"type": "scrollbar_drag_button",
 				"role": "drag_button",
-				"inherit_metrics_from": "element_fill_container"
+				"inherit_visuals_from": "",
+				"inherit_layout_from": "element_fill_container"
 			},
 			{
 				"type": "button",
 				"role": "page_down_button",
-				"inherit_metrics_from": "element_fill_container"
+				"inherit_layout_from": "element_fill_container"
+			}
+		]
+	},
+	"scrollbar_vertical": {
+		"layout": {
+			"width": "8px",
+			"height": "100%",
+			"margin": 0.0,
+			"anchor": "trb"
+		},
+		"inherit_visuals_from": "",
+		"children": [
+			{
+				"type": "button",
+				"role": "page_up_button",
+				"inherit_layout_from": "element_fill_container"
+			},
+			{
+				"type": "scrollbar_drag_button",
+				"role": "drag_button",
+				"inherit_visuals_from": "",
+				"inherit_layout_from": "element_fill_container"
+			},
+			{
+				"type": "button",
+				"role": "page_down_button",
+				"inherit_layout_from": "element_fill_container"
 			}
 		]
 	},
 
 
-	"": {
-		"metrics": {
-			"value": {
-			}
-		}
-	},
-
-
 	"drag_destination_indicator_block": {
-		"metrics": {
-			"value": {
-				"width": "30px",
-				"height": "30px",
-				"anchor": 0.0
-			}
+		"layout": {
+			"width": "30px",
+			"height": "30px",
+			"anchor": 0.0
 		}
 	},
 	"drag_destination_selector": {
-		"metrics": {
-			"value": {
-				"width": "90px",
-				"height": "90px",
-				"margin": 1.0,
-				"anchor": ""
-			}
+		"layout": {
+			"width": "90px",
+			"height": "90px",
+			"margin": 1.0,
+			"anchor": ""
 		},
 		"children": [
 			{
 				"type": "element",
 				"class": "drag_destination_selector.split_left_indicator",
 				"role": "split_left_indicator",
-				"inherit_metrics_from": "drag_destination_indicator_block",
-				"metrics": {
-					"value": {
-						"anchor": "ltb"
-					}
+				"inherit_layout_from": "drag_destination_indicator_block",
+				"layout": {
+					"anchor": "ltb"
 				}
 			},
 			{
 				"type": "element",
 				"class": "drag_destination_selector.split_right_indicator",
 				"role": "split_right_indicator",
-				"inherit_metrics_from": "drag_destination_indicator_block",
-				"metrics": {
-					"value": {
-						"anchor": "trb"
-					}
+				"inherit_layout_from": "drag_destination_indicator_block",
+				"layout": {
+					"anchor": "trb"
 				}
 			},
 			{
 				"type": "element",
 				"class": "drag_destination_selector.split_up_indicator",
 				"role": "split_up_indicator",
-				"inherit_metrics_from": "drag_destination_indicator_block",
-				"metrics": {
-					"value": {
-						"anchor": "ltr"
-					}
+				"inherit_layout_from": "drag_destination_indicator_block",
+				"layout": {
+					"anchor": "ltr"
 				}
 			},
 			{
 				"type": "element",
 				"class": "drag_destination_selector.split_down_indicator",
 				"role": "split_down_indicator",
-				"inherit_metrics_from": "drag_destination_indicator_block",
-				"metrics": {
-					"value": {
-						"anchor": "lrb"
-					}
+				"inherit_layout_from": "drag_destination_indicator_block",
+				"layout": {
+					"anchor": "lrb"
 				}
 			},
 			{
 				"type": "element",
 				"class": "drag_destination_selector.combine_indicator",
 				"role": "combine_indicator",
-				"inherit_metrics_from": "drag_destination_indicator_block",
-				"metrics": {
-					"value": {
-						"margin": 1.0,
-						"anchor": ""
-					}
+				"inherit_layout_from": "drag_destination_indicator_block",
+				"layout": {
+					"margin": 1.0,
+					"anchor": ""
 				}
 			}
 		]
 	},
 
 	"tab_host": {
-		"inherit_metrics_from": "element_fill_container",
+		"inherit_layout_from": "element_fill_container",
+		"inherit_visuals_from": "",
 		"children": [
 			{
 				"type": "stack_panel",
-				"inherit_metrics_from": "element_fill_container",
-				"set_states": "vertical",
+				"inherit_layout_from": "element_fill_container",
+				"extras": {
+					"orientation": "vertical"
+				},
 				"children": [
 					{
 						"type": "animated_tab_buttons_panel",
 						"role": "tab_buttons_region",
 						"class": "tab_host.tab_buttons_region",
-						"metrics": {
-							"value": {
-								"width": "100%",
-								"height": "30px",
-								"margin": 0.0,
-								"anchor": "lr"
-							}
+						"layout": {
+							"width": "100%",
+							"height": "30px",
+							"margin": 0.0,
+							"anchor": "lr"
 						}
 					},
 					{
 						"type": "panel",
 						"role": "tab_contents_region",
-						"inherit_metrics_from": "element_fill_container"
+						"inherit_layout_from": "element_fill_container"
 					}
 				]
 			}
 		]
 	},
 	"tab_button": {
-		"metrics": {
-			"value": {
-				"width": "auto",
-				"height": "100%"
-			}
+		"layout": {
+			"width": "auto",
+			"height": "100%"
 		},
+		"inherit_visuals_from": "",
 		"children": [
 			{
 				"type": "stack_panel",
 				"class": "tab_button_background",
-				"metrics": {
-					"value": {
-						"height": "100%",
-						"padding": 5.0
-					}
+				"layout": {
+					"height": "100%",
+					"padding": 5.0
 				},
 				"children": [
 					{
 						"type": "label",
 						"role": "label",
+						"visibility": "vl",
 						"set_states": "hittest_invisible",
-						"metrics": {
-							"value": {
-								"margin": [ 0.0, 1.0, 0.0, 1.0 ],
-								"anchor": "lr"
-							}
+						"layout": {
+							"margin": [ 0.0, 1.0, 0.0, 1.0 ],
+							"anchor": "lr"
 						}
 					},
 					{
 						"type": "button",
 						"class": "tab_button.close_button",
 						"role": "close_button",
-						"metrics": {
-							"value": {
-								"width": "15px",
-								"height": "15px",
-								"margin": [ 5.0, 1.0, 0.0, 1.0 ],
-								"anchor": "lr"
-							}
+						"layout": {
+							"width": "15px",
+							"height": "15px",
+							"margin": [ 5.0, 1.0, 0.0, 1.0 ],
+							"anchor": "lr"
 						}
 					}
 				]
@@ -216,167 +226,145 @@
 		]
 	},
 	"tab": {
-		"inherit_metrics_from": "element_fill_container"
+		"inherit_layout_from": "element_fill_container",
+		"inherit_visuals_from": ""
 	},
 
 	"separator": {
-		"metrics": [
-			{
-				"states": "vertical",
-				"states_mask": "vertical",
-				"value": {
-					"width": "100%",
-					"height": "5px",
-					"margin": [ 0.0, 1.0, 0.0, 1.0 ],
-					"anchor": "lr"
-				}
-			},
-			{
-				"states_mask": "vertical",
-				"value": {
-					"width": "5px",
-					"height": "100%",
-					"margin": [ 1.0, 0.0, 1.0, 0.0 ],
-					"anchor": "tb"
-				}
-			}
-		]
+		"inherit_visuals_from": "",
+		"layout": {
+			"width": "5px",
+			"height": "5px",
+			"margin": [ 1.0, 1.0, 1.0, 1.0 ],
+			"anchor": "ltrb"
+		}
 	},
 	"split_panel": {
-		"inherit_metrics_from": "element_fill_container",
+		"inherit_visuals_from": "",
+		"inherit_layout_from": "element_fill_container",
 		"children": [
 			{
 				"type": "element",
 				"role": "separator",
 				"class": "split_panel.separator",
-				"inherit_metrics_from": "separator"
+				"inherit_layout_from": "separator"
 			}
 		]
 	},
 
 	"code_editor": {
-		"inherit_metrics_from": "element_fill_container",
+		"inherit_layout_from": "element_fill_container",
 		"children": [
 			{
 				"type": "scrollbar",
 				"role": "vertical_scrollbar",
-				"inherit_metrics_from": "scrollbar",
-				"set_states": "vertical",
-				"metrics": {
-					"states": "vertical",
-					"states_mask": "vertical",
-					"value": {
-						"margin": [ 0.0, 0.0, 0.0, 8.0 ]
-					}
+				"class": "scrollbar_vertical",
+				"inherit_layout_from": "scrollbar_vertical",
+				"inherit_visuals_from": "",
+				"extras": {
+					"orientation": "vertical"
+				},
+				"layout": {
+					"margin": [ 0.0, 0.0, 0.0, 8.0 ]
 				}
 			},
 			{
 				"type": "scrollbar",
 				"role": "horizontal_scrollbar",
-				"inherit_metrics_from": "scrollbar",
-				"metrics": {
-					"states_mask": "vertical",
-					"value": {
-						"margin": [ 0.0, 0.0, 8.0, 0.0 ]
-					}
+				"class": "scrollbar_horizontal",
+				"inherit_layout_from": "scrollbar_horizontal",
+				"inherit_visuals_from": "",
+				"extras": {
+					"orientation": "horizontal"
+				},
+				"layout": {
+					"margin": [ 0.0, 0.0, 8.0, 0.0 ]
 				}
 			},
 			{
 				"type": "stack_panel",
 				"role": "components_panel",
-				"inherit_metrics_from": "element_fill_container",
-				"metrics": {
-					"value": {
-						"margin": [ 0.0, 0.0, 8.0, 8.0 ]
-					}
+				"inherit_layout_from": "element_fill_container",
+				"extras": {
+					"orientation": "horizontal"
+				},
+				"layout": {
+					"margin": [ 0.0, 0.0, 8.0, 8.0 ]
 				},
 				"children": [
 					{
 						"type": "line_number_display",
 						"class": "position_display",
-						"metrics": {
-							"value": {
-								"padding": [ 10, 0, 5, 0 ]
-							}
+						"layout": {
+							"padding": [ 10, 0, 5, 0 ]
 						}
 					},
 					{
 						"type": "code_contents_region",
 						"role": "contents_region",
-						"metrics": {
-							"value": {
-								"width": "1*",
-								"height": "100%",
-								"padding": [ 2.0, 0.0, 0.0, 0.0 ]
-							}
+						"layout": {
+							"width": "1*",
+							"height": "100%",
+							"padding": [ 2.0, 0.0, 0.0, 0.0 ]
 						}
 					},
 					{
-						"type": "minimap",
-						"metrics": {
-							"value": {
-							}
-						}
+						"type": "minimap"
 					}
 				]
 			}
 		]
 	},
 	"binary_editor": {
-		"inherit_metrics_from": "element_fill_container",
+		"inherit_layout_from": "element_fill_container",
 		"children": [
 			{
 				"type": "scrollbar",
 				"role": "vertical_scrollbar",
-				"inherit_metrics_from": "scrollbar",
-				"set_states": "vertical",
-				"metrics": {
-					"states": "vertical",
-					"states_mask": "vertical",
-					"value": {
-						"margin": [ 0.0, 0.0, 0.0, 8.0 ]
-					}
+				"class": "scrollbar_vertical",
+				"extras": {
+					"orientation": "vertical"
+				},
+				"layout": {
+					"margin": [ 0.0, 0.0, 0.0, 8.0 ]
 				}
 			},
 			{
 				"type": "scrollbar",
 				"role": "horizontal_scrollbar",
-				"inherit_metrics_from": "scrollbar",
-				"metrics": {
-					"states_mask": "vertical",
-					"value": {
-						"margin": [ 0.0, 0.0, 8.0, 0.0 ]
-					}
+				"class": "scrollbar_horizontal",
+				"extras": {
+					"orientation": "horizontal"
+				},
+				"layout": {
+					"margin": [ 0.0, 0.0, 8.0, 0.0 ]
 				}
 			},
 			{
 				"type": "stack_panel",
 				"role": "components_panel",
-				"inherit_metrics_from": "element_fill_container",
-				"metrics": {
-					"value": {
-						"margin": [ 0.0, 0.0, 8.0, 8.0 ]
-					}
+				"inherit_layout_from": "element_fill_container",
+				"extras": {
+					"orientation": "horizontal"
+				},
+				"layout": {
+					"margin": [ 0.0, 0.0, 8.0, 8.0 ]
 				},
 				"children": [
 					{
 						"type": "primary_offset_display",
 						"class": "position_display",
-						"metrics": {
-							"value": {
-								"padding": [ 10, 0, 5, 0 ]
-							}
+						"layout": {
+							"padding": [ 10, 0, 5, 0 ]
 						}
 					},
 					{
 						"type": "binary_contents_region",
 						"role": "contents_region",
-						"metrics": {
-							"value": {
-								"width": "1*",
-								"height": "100%",
-								"padding": [ 2.0, 0.0, 0.0, 0.0 ]
-							}
+						"layout": {
+							"width": "1*",
+							"height": "100%",
+							"padding": [ 2.0, 0.0, 0.0, 0.0 ]
 						}
 					}
 				]

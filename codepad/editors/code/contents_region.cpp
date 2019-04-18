@@ -15,6 +15,7 @@ using namespace codepad::os;
 namespace codepad::editors::code {
 	/// \todo Also consider folded regions.
 	vector<size_t> contents_region::_recalculate_wrapping_region(size_t beg, size_t end) const {
+		/*
 		vector<size_t> poss;
 		size_t last = 0;
 
@@ -36,9 +37,12 @@ namespace codepad::editors::code {
 			iter.update(res.steps);
 		}
 		return poss;
+		*/
+		return {};
 	}
 
 	double contents_region::_get_caret_pos_x_at_visual_line(size_t line, size_t position) const {
+		/*
 		size_t
 			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
@@ -53,9 +57,12 @@ namespace codepad::editors::code {
 			text_metrics_accumulator::measure_token(metrics, res);
 		}
 		return metrics.char_right();
+		*/
+		return 0.0;
 	}
 
 	caret_position contents_region::_hit_test_at_visual_line(size_t line, double x) const {
+		/*
 		size_t
 			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
@@ -79,6 +86,8 @@ namespace codepad::editors::code {
 			iter.update(res.steps);
 		}
 		return caret_position(_doc->get_linebreaks().num_chars(), true);
+		*/
+		return caret_position();
 	}
 
 	void contents_region::_on_end_edit(buffer::end_edit_info &info) {
@@ -95,6 +104,7 @@ namespace codepad::editors::code {
 	}
 
 	void contents_region::_custom_render() {
+		/*
 		performance_monitor mon(CP_STRLIT("render_contents"));
 
 		double lh = get_line_height(), layoutw = get_layout().width();
@@ -184,7 +194,7 @@ namespace codepad::editors::code {
 					metrics.next_line();
 					// TODO update carets
 				} else {
-				}*/
+				}*//*
 				it.update(tok.steps);
 			}
 
@@ -200,5 +210,6 @@ namespace codepad::editors::code {
 			}
 		}
 		get_manager().get_renderer().pop_matrix();
+		*/
 	}
 }

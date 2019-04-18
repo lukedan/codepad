@@ -6,11 +6,8 @@
 /// \file
 /// Classes that measure and render text.
 
-#include "font.h"
-#include "font_family.h"
-#include "draw.h"
-
 namespace codepad::ui {
+	/*
 	/// Struct for measuring and calculating text layout for a single line. For gizmos, the character code is set to
 	/// zero, and no kerning is taken into consideration.
 	struct character_metrics_accumulator {
@@ -208,4 +205,5 @@ namespace codepad::ui {
 			return measure_plain_text(cont.begin(), cont.end(), fnt);
 		}
 	}
+	*/
 }

@@ -37,7 +37,7 @@ namespace codepad::ui::tabs {
 		rectd get_region1() const {
 			rectd cln = get_client_region();
 			return
-				is_vertical() ?
+				get_orientation() == orientation::vertical ?
 				rectd(cln.xmin, cln.xmax, cln.ymin, _sep->get_layout().ymin) :
 				rectd(cln.xmin, _sep->get_layout().xmin, cln.ymin, cln.ymax);
 		}
@@ -45,7 +45,7 @@ namespace codepad::ui::tabs {
 		rectd get_region2() const {
 			rectd cln = get_client_region();
 			return
-				is_vertical() ?
+				get_orientation() == orientation::vertical ?
 				rectd(cln.xmin, cln.xmax, _sep->get_layout().ymax, cln.ymax) :
 				rectd(_sep->get_layout().xmax, cln.xmax, cln.ymin, cln.ymax);
 		}
@@ -60,19 +60,31 @@ namespace codepad::ui::tabs {
 			_sep_position = std::clamp(pos, 0.0, 1.0);
 			if (!_maintainpos) {
 				double totw =
-					is_vertical() ?
+					get_orientation() == orientation::vertical ?
 					get_client_region().height() - _sep->get_layout().height() :
 					get_client_region().width() - _sep->get_layout().width();
 				auto *sp = dynamic_cast<split_panel*>(_c1);
-				if (sp && sp->is_vertical() == is_vertical()) {
+				if (sp && sp->get_orientation() == get_orientation()) {
 					sp->_maintain_separator_position<false>(totw, oldpos, get_separator_position());
 				}
 				sp = dynamic_cast<split_panel*>(_c2);
-				if (sp && sp->is_vertical() == is_vertical()) {
+				if (sp && sp->get_orientation() == get_orientation()) {
 					sp->_maintain_separator_position<true>(totw, oldpos, get_separator_position());
 				}
 			}
 			_invalidate_children_layout();
+		}
+
+		/// Returns the current orientation.
+		orientation get_orientation() const {
+			return _orientation;
+		}
+		/// Sets the current orientation.
+		void set_orientation(orientation o) {
+			if (_orientation != o) {
+				_orientation = o;
+				_on_orientation_changed();
+			}
 		}
 
 		/// Returns the default class of all elements of type \ref split_panel.
@@ -97,6 +109,8 @@ namespace codepad::ui::tabs {
 			_sep_position = 0.5,
 			/// The offset to the mouse when the user drags the separator.
 			_sep_offset = 0.0;
+		/// The orientation in which the two children are laid out.
+		orientation _orientation = orientation::horizontal;
 		bool
 			/// Indicates when the position of \ref _sep is being set in \ref _maintain_separator_position to avoid
 			/// infinite recursion.
@@ -116,10 +130,10 @@ namespace codepad::ui::tabs {
 		/// \param pnewv The updated position of the parent's separator.
 		template <bool MinChanged> void _maintain_separator_position(double ptotw, double poldv, double pnewv) {
 			vec2d sepsz = _sep->get_layout().size();
-			double
-				newpos,
-				oldpos = get_separator_position(),
-				padding = is_vertical() ? sepsz.y + get_padding().height() : sepsz.x + get_padding().width();
+			double newpos, oldpos = get_separator_position(), padding =
+				get_orientation() == orientation::vertical ?
+				sepsz.y + get_padding().height() :
+				sepsz.x + get_padding().width();
 			double
 				// the total width of the two regions, before and after the change
 				omytotw, nmytotw,
@@ -141,7 +155,7 @@ namespace codepad::ui::tabs {
 			}
 			// the possibly affected child
 			auto *sp = dynamic_cast<split_panel*>(MinChanged ? _c1 : _c2);
-			if (sp && sp->is_vertical() == is_vertical()) {
+			if (sp && sp->get_orientation() == get_orientation()) {
 				// must also be a split_panel with the same orientation
 				// here we transform the positions so that it's as if this split_panel doesn't exist
 				// for example, if MinChanged is true, we transform the positions from
@@ -177,7 +191,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Changes the given child to the specified value.
-		void _change_child(ui::element *&e, ui::element *newv) {
+		void _change_child(ui::element * &e, ui::element * newv) {
 			if (e) {
 				ui::element *old = e; // because e may be changed in _on_child_removed
 				_children.remove(*old);
@@ -189,7 +203,7 @@ namespace codepad::ui::tabs {
 			}
 		}
 		/// Sets the corresponding pointer to \p nullptr.
-		void _on_child_removed(element &e) override {
+		void _on_child_removed(element & e) override {
 			if (&e == _c1 || &e == _c2) {
 				if (&e == _c1) {
 					_c1 = nullptr;
@@ -200,21 +214,18 @@ namespace codepad::ui::tabs {
 			panel_base::_on_child_removed(e);
 		}
 
-		/// Calls \ref invalidate_layout if the element's orientation has been changed, and updates the `vertical'
-		/// state bit of \ref _sep accordingly.
-		void _on_state_changed(value_update_info<ui::element_state_id> &p) override {
-			panel_base::_on_state_changed(p);
-			if (_has_any_state_bit_changed(get_manager().get_predefined_states().vertical, p)) {
-				_sep->set_is_vertical(is_vertical());
-				_invalidate_children_layout();
-			}
+		/// Called after the current orientation has been changed. Calls \ref invalidate_layout, and notifies
+		/// \ref _sep of this change.
+		virtual void _on_orientation_changed() {
+			// TODO notify _sep of this change
+			_invalidate_children_layout();
 		}
 
 		/// Renders all children with additional clip regions.
 		void _custom_render() override {
 			_child_on_render(*_sep);
 			ui::renderer_base &r = get_manager().get_renderer();
-			if (_c1) {
+			/*if (_c1) {
 				r.push_clip(get_region1().fit_grid_enlarge<int>());
 				_child_on_render(*_c1);
 				r.pop_clip();
@@ -223,13 +234,13 @@ namespace codepad::ui::tabs {
 				r.push_clip(get_region2().fit_grid_enlarge<int>());
 				_child_on_render(*_c2);
 				r.pop_clip();
-			}
+			}*/
 		}
 
 		/// Updates the layout of all children.
 		void _on_update_children_layout() override {
 			rectd client = get_client_region();
-			if (is_vertical()) {
+			if (get_orientation() == orientation::vertical) {
 				panel_base::layout_child_horizontal(*_sep, client.xmin, client.xmax);
 				auto metrics = _sep->get_layout_height();
 				double top = (client.height() - metrics.value) * _sep_position + client.ymin;
@@ -249,19 +260,18 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Initializes \ref _sep and adds handlers for certain events.
-		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
-			ui::panel_base::_initialize(cls, metrics);
+		void _initialize(str_view_t cls, const element_configuration & config) override {
+			ui::panel_base::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_separator_role(), _role_cast(_sep)}
 				});
 
-			_sep->set_can_focus(false);
-			_sep->mouse_down += [this](ui::mouse_button_info &p) {
+			_sep->mouse_down += [this](ui::mouse_button_info & p) {
 				if (p.button == ui::mouse_button::primary) {
 					_sep_dragging = true;
 					_sep_offset =
-						is_vertical() ?
+						get_orientation() == orientation::vertical ?
 						p.position.y - _sep->get_layout().ymin :
 						p.position.x - _sep->get_layout().xmin;
 					get_window()->set_mouse_capture(*_sep);
@@ -270,17 +280,17 @@ namespace codepad::ui::tabs {
 			_sep->lost_capture += [this]() {
 				_sep_dragging = false;
 			};
-			_sep->mouse_up += [this](ui::mouse_button_info &p) {
+			_sep->mouse_up += [this](ui::mouse_button_info & p) {
 				if (_sep_dragging && p.button == ui::mouse_button::primary) {
 					_sep_dragging = false;
 					get_window()->release_mouse_capture();
 				}
 			};
-			_sep->mouse_move += [this](ui::mouse_move_info &p) {
+			_sep->mouse_move += [this](ui::mouse_move_info & p) {
 				if (_sep_dragging) {
 					rectd client = get_client_region();
 					double position =
-						is_vertical() ?
+						get_orientation() == orientation::vertical ?
 						(p.new_position.y - _sep_offset - client.ymin) /
 						(client.height() - _sep->get_layout().height()) :
 						(p.new_position.x - _sep_offset - client.xmin) /

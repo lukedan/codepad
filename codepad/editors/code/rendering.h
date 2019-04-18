@@ -20,11 +20,10 @@ namespace codepad::editors::code {
 		/// Default constructor.
 		character_token() = default;
 		/// Initializes all fields of this struct.
-		character_token(codepoint cp, ui::font_style s, colord c) : value(cp), style(s), color(c) {
+		character_token(codepoint cp, colord c) : value(cp), color(c) {
 		}
 
 		codepoint value = 0; ///< The character.
-		ui::font_style style = ui::font_style::normal; ///< The style of the character.
 		colord color; ///< Color of the character.
 	};
 	/// Indicates that the next token to be rendered is a linebreak.
@@ -48,15 +47,9 @@ namespace codepad::editors::code {
 		/// Constructs a text gizmo with the given contents and color, and the default font.
 		text_gizmo_token(str_t str, colord c) : contents(std::move(str)), color(c) {
 		}
-		/// Constructs a text gizmo with the given contents, color, and font.
-		text_gizmo_token(str_t str, colord c, std::shared_ptr<const ui::font> fnt) :
-			contents(std::move(str)), color(c), font(std::move(fnt)) {
-		}
 
 		str_t contents; ///< The contents of this token.
 		colord color; ///< Color used to render this token.
-		/// The font used for the text. If this is empty, the normal font of the contents_region is used.
-		std::shared_ptr<const ui::font> font;
 	};
 	/// Contains information about a token to be rendered.
 	using token = std::variant<no_token, character_token, linebreak_token, image_gizmo_token, text_gizmo_token>;
@@ -106,9 +99,7 @@ namespace codepad::editors::code {
 			const auto &cpit = _char_it.codepoint();
 			if (cpit.is_codepoint_valid()) {
 				return token_generation_result(
-					character_token(
-						cpit.get_codepoint(), _theme_it.current_theme.style, _theme_it.current_theme.color
-					), 1
+					character_token(cpit.get_codepoint(), _theme_it.current_theme.color), 1
 				);
 			}
 			return token_generation_result(
@@ -333,11 +324,12 @@ namespace codepad::editors::code {
 
 namespace codepad {
 	/// Enables bitwise operators for \ref editors::code::token_measurement_flags.
-	template <> struct enable_enum_bitwise_operators<editors::code::token_measurement_flags> : std::true_type {
+	template <> struct enable_enum_bitwise_operators<editors::code::token_measurement_flags> : public std::true_type {
 	};
 }
 
 namespace codepad::editors::code {
+	/*
 	/// Computes the metrics of each character in a clip of text.
 	struct text_metrics_accumulator {
 	public:
@@ -398,6 +390,7 @@ namespace codepad::editors::code {
 		double get_y() const {
 			return _y;
 		}
+
 		/// Returns the associated \ref ui::character_metrics_accumulator for modification. This is usually used with
 		/// measurement flags such as \ref token_measurement_flags::defer_text_gizmo_measurement.
 		ui::character_metrics_accumulator &get_modify_character() {
@@ -414,6 +407,7 @@ namespace codepad::editors::code {
 			_last_length = 0.0, ///< The length of the previous line.
 			_line_height = 0.0; ///< The height of a line.
 	};
+	*/
 
 	/// A standalone component that gathers information about carets to be rendered later.
 	struct caret_renderer {
@@ -441,6 +435,7 @@ namespace codepad::editors::code {
 			_last_is_stall = soft;
 		}
 
+		/*
 		/// Called after a token is generated and the corresponding metrics has been updated.
 		void on_update(
 			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics,
@@ -477,6 +472,7 @@ namespace codepad::editors::code {
 				));
 			}
 		}
+		*/
 
 		/// Returns the bounding boxes of all carets.
 		std::vector<rectd> &get_caret_rects() {
@@ -498,6 +494,7 @@ namespace codepad::editors::code {
 			/// Indicates whether the last token was a `stall', e.g., a soft linebreak or a pure gizmo.
 			_last_is_stall = false;
 
+		/*
 		/// Generates a caret at the current location.
 		void _generate_caret(const text_metrics_accumulator &metrics, bool linebreak) {
 			if (linebreak) {
@@ -606,5 +603,6 @@ namespace codepad::editors::code {
 			);
 			_region_begin = 0.0;
 		}
+		*/
 	};
 }

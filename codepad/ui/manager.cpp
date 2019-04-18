@@ -25,20 +25,7 @@ using namespace codepad::os;
 
 namespace codepad::ui {
 	manager::manager() {
-		_predef_states.mouse_over = register_state_id(CP_STRLIT("mouse_over"), element_state_type::passive);
-		_predef_states.mouse_down = register_state_id(CP_STRLIT("mouse_down"), element_state_type::passive);
-		_predef_states.focused = register_state_id(CP_STRLIT("focused"), element_state_type::passive);
-		_predef_states.child_focused = register_state_id(CP_STRLIT("child_focused"), element_state_type::passive);
-		_predef_states.selected = register_state_id(CP_STRLIT("selected"), element_state_type::passive);
-		_predef_states.corpse = register_state_id(CP_STRLIT("corpse"), element_state_type::passive);
-
-		_predef_states.render_invisible = register_state_id(CP_STRLIT("render_invisible"), element_state_type::configuration);
-		_predef_states.hittest_invisible = register_state_id(CP_STRLIT("hittest_invisible"), element_state_type::configuration);
-		_predef_states.layout_invisible = register_state_id(CP_STRLIT("layout_invisible"), element_state_type::configuration);
-		_predef_states.vertical = register_state_id(CP_STRLIT("vertical"), element_state_type::configuration);
-
-
-		// TODO use reflection in C++20 (?) for everything below
+		// TODO use reflection in C++23 (?) for everything below
 		register_transition_function(CP_STRLIT("linear"), transition_functions::linear);
 		register_transition_function(CP_STRLIT("smoothstep"), transition_functions::smoothstep);
 		register_transition_function(CP_STRLIT("concave_quadratic"), transition_functions::concave_quadratic);

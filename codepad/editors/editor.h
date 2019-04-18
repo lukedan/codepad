@@ -137,8 +137,8 @@ namespace codepad::editors {
 		}
 
 		/// Initializes \ref hori_scroll, \ref _vert_scroll and \ref _contents.
-		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
-			panel_base::_initialize(cls, metrics);
+		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
+			panel_base::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_vertical_scrollbar_role(), _role_cast(_vert_scroll)},

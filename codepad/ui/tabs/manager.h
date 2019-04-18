@@ -26,10 +26,10 @@ namespace codepad::ui::tabs {
 		tab_manager(ui::manager &man) : _manager(man) {
 			_update_hosts_token = _manager.get_scheduler().register_update_task([this]() {
 				update_changed_hosts();
-			});
+				});
 			_update_drag_token = _manager.get_scheduler().register_update_task([this]() {
 				update_drag();
-			});
+				});
 
 			_possel = _manager.create_element<drag_destination_selector>();
 		}
@@ -46,10 +46,10 @@ namespace codepad::ui::tabs {
 		tab *new_tab() {
 			host *hst = nullptr;
 			if (!_wndlist.empty()) {
-				_enumerate_hosts(*_wndlist.begin(), [&hst](host &h) {
+				_enumerate_hosts(*_wndlist.begin(), [&hst](host & h) {
 					hst = &h;
 					return false;
-				});
+					});
 			}
 			return new_tab_in(hst);
 		}
@@ -94,14 +94,13 @@ namespace codepad::ui::tabs {
 		/// \ref split_panel, and moves the given tab into the other \ref host.
 		///
 		/// \param t The \ref tab.
-		/// \param vertical If \p true, the new tab will be placed above or below old ones. Otherwise they'll be
-		///                 placed side by side.
+		/// \param vertical The orientation in which this \ref host should split.
 		/// \param newfirst If \p true, \p t will be placed in the top/left \ref host while other remaining
 		///                 tabs will be put in the bottom/right \ref host.
-		void split_tab(tab &t, bool vertical, bool newfirst) {
+		void split_tab(tab &t, orientation orient, bool newfirst) {
 			host *host = t.get_host();
 			assert_true_usage(host != nullptr, "cannot split tab without host");
-			_split_tab(*host, t, vertical, newfirst);
+			_split_tab(*host, t, orient, newfirst);
 		}
 		/// Creates a new \ref os::window and a \ref host and moves the given tab into the newly created
 		/// \ref host. The size of the tab will be kept unchanged.
@@ -195,7 +194,7 @@ namespace codepad::ui::tabs {
 						bool goon = true;
 						vec2d mpos = wnd->screen_to_client(mouse).convert<double>();
 						if (wnd->hit_test_full_client(mouse)) {
-							_enumerate_hosts(wnd, [&](host &hst) {
+							_enumerate_hosts(wnd, [&](host & hst) {
 								rectd rgn = hst.get_tab_buttons_region();
 								if (rgn.contains(mpos)) { // switch to combine_in_tab
 									_dtype = drag_destination_type::combine_in_tab;
@@ -227,7 +226,7 @@ namespace codepad::ui::tabs {
 									}
 								}
 								return true;
-							});
+								});
 							if (!goon) {
 								break;
 							}
@@ -301,14 +300,15 @@ namespace codepad::ui::tabs {
 						_split_tab(
 							*_dest, *_drag,
 							_dtype == drag_destination_type::new_panel_top ||
-							_dtype == drag_destination_type::new_panel_bottom,
+							_dtype == drag_destination_type::new_panel_bottom ?
+							orientation::vertical : orientation::horizontal,
 							_dtype == drag_destination_type::new_panel_left ||
 							_dtype == drag_destination_type::new_panel_top
 						);
 						break;
 					}
 					// the mouse button is not down anymore
-					_drag->_btn->set_state_bits(_manager.get_predefined_states().mouse_down, false);
+					// TODO notify mouse up
 					_drag = nullptr;
 					end_drag_move.invoke();
 				} else { // keep updating
@@ -332,9 +332,9 @@ namespace codepad::ui::tabs {
 		/// \param diff The offset from the top left corner of the \ref tab_button to the mouse cursor.
 		/// \param layout The layout of the \ref tab's main region.
 		/// \param stop A callable object that returns \p true when the tab should be released.
-		void start_drag_tab(tab &t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
+		void start_drag_tab(tab & t, vec2d diff, rectd layout, std::function<bool()> stop = []() {
 			return !os::is_mouse_button_down(ui::mouse_button::primary);
-		}) {
+			}) {
 			assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 
 			_drag_tab_window = dynamic_cast<window_base*>(_manager.create_element("window", "tabs.drag_ghost_window"));
@@ -394,15 +394,15 @@ namespace codepad::ui::tabs {
 				_wndlist.insert(_wndlist.begin(), wnd);
 			};
 			wnd->close_request += [this, wnd]() { // when requested to be closed, send request to all tabs
-				_enumerate_hosts(wnd, [](host &hst) {
+				_enumerate_hosts(wnd, [](host & hst) {
 					auto &tabs = hst.get_tabs().items();
 					std::vector<element*> ts(tabs.begin(), tabs.end());
 					for (element *e : ts) {
-						if (tab *t = dynamic_cast<tab*>(e)) {
+						if (tab * t = dynamic_cast<tab*>(e)) {
 							t->_on_close_requested();
 						}
 					}
-				});
+					});
 				update_changed_hosts(); // to ensure that empty hosts are merged
 				if (wnd->children().items().size() == 1) {
 					auto *hst = dynamic_cast<host*>(*wnd->children().items().begin());
@@ -416,7 +416,7 @@ namespace codepad::ui::tabs {
 		}
 		/// Deletes the given window managed by this \ref tab_manager. Use this instead of directly calling
 		/// \ref scheduler::mark_for_disposal().
-		void _delete_window(ui::window_base &wnd) {
+		void _delete_window(ui::window_base & wnd) {
 			for (auto it = _wndlist.begin(); it != _wndlist.end(); ++it) {
 				if (*it == &wnd) {
 					_wndlist.erase(it);
@@ -441,7 +441,7 @@ namespace codepad::ui::tabs {
 		}
 		/// Prepares and marks a \ref host for disposal. Use this instead of directly calling
 		/// \ref scheduler::mark_for_disposal().
-		void _delete_tab_host(host &hst) {
+		void _delete_tab_host(host & hst) {
 			logger::get().log_info(CP_HERE, "tab host 0x", &hst, " disposed");
 			if (_drag && _dest == &hst) {
 				logger::get().log_info(CP_HERE, "resetting drag destination");
@@ -454,9 +454,8 @@ namespace codepad::ui::tabs {
 		}
 		/// Splits the given \ref host into halves, and returns the resulting \ref split_panel. The original
 		/// \ref host will be removed from its parent.
-		split_panel *_replace_with_split_panel(host &hst) {
+		split_panel *_replace_with_split_panel(host & hst) {
 			split_panel *sp = _manager.create_element<split_panel>(), *f = dynamic_cast<split_panel*>(hst.parent());
-			sp->set_can_focus(false);
 			if (f) {
 				if (f->get_child1() == &hst) {
 					f->set_child1(sp);
@@ -477,7 +476,7 @@ namespace codepad::ui::tabs {
 		/// other half.
 		///
 		/// \sa split_tab
-		void _split_tab(host &hst, tab &t, bool vertical, bool newfirst) {
+		void _split_tab(host & hst, tab & t, orientation orient, bool newfirst) {
 			if (t.get_host() == &hst) {
 				hst.remove_tab(t);
 			}
@@ -491,11 +490,11 @@ namespace codepad::ui::tabs {
 				sp->set_child2(th);
 			}
 			th->add_tab(t);
-			sp->set_is_vertical(vertical);
+			sp->set_orientation(orient);
 		}
 
 		/// Moves the given \ref tab to a new window with the given layout, detaching it from its original parent.
-		void _move_tab_to_new_window(tab &t, rectd layout) {
+		void _move_tab_to_new_window(tab & t, rectd layout) {
 			host *hst = t.get_host();
 			if (hst != nullptr) {
 				hst->remove_tab(t);
@@ -512,7 +511,7 @@ namespace codepad::ui::tabs {
 		/// Disposes \ref _dragdec if it isn't \p nullptr.
 		void _try_dispose_preview() {
 			if (_dragdec) {
-				_dragdec->set_state(_manager.get_predefined_states().corpse);
+				// TODO dispose it
 				_dragdec = nullptr;
 			}
 		}
@@ -525,7 +524,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Returns the layout of \ref _dragdec for the given \ref host and \ref drag_destination_type.
-		inline static rectd _get_preview_layout(const host &th, drag_destination_type dtype) {
+		inline static rectd _get_preview_layout(const host & th, drag_destination_type dtype) {
 			rectd r = th.get_layout();
 			switch (dtype) {
 			case drag_destination_type::new_panel_left:
@@ -550,7 +549,7 @@ namespace codepad::ui::tabs {
 		///
 		/// \param base The window.
 		/// \param cb A callable object. It can either return \p void, or a \p bool indicating whether to continue.
-		template <typename T> inline static void _enumerate_hosts(ui::window_base *base, T &&cb) {
+		template <typename T> inline static void _enumerate_hosts(ui::window_base * base, T && cb) {
 			assert_true_logical(base->children().size() == 1, "window must have only one child");
 			std::vector<ui::element*> hsts;
 			hsts.push_back(*base->children().items().begin());
@@ -586,7 +585,7 @@ namespace codepad::ui::tabs {
 
 		/// Called when a \ref tab is removed from a \ref host. Inserts the \ref host to \ref _changed to
 		/// update it afterwards, and schedules \ref update_changed_hosts() to be called.
-		void _on_tab_detached(host &host, tab&) {
+		void _on_tab_detached(host & host, tab&) {
 			_changed.insert(&host);
 			_manager.get_scheduler().schedule_update_task(_update_hosts_token);
 		}

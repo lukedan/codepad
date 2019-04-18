@@ -14,7 +14,7 @@ namespace codepad::ui {
 	void scrollbar_drag_button::_on_mouse_down(mouse_button_info &p) {
 		if (p.button == _trigbtn) {
 			scrollbar &b = _get_bar();
-			if (b.is_vertical()) {
+			if (b.get_orientation() == orientation::vertical) {
 				_doffset = p.position.y - get_layout().ymin;
 			} else {
 				_doffset = p.position.x - get_layout().xmin;
@@ -26,7 +26,9 @@ namespace codepad::ui {
 	void scrollbar_drag_button::_on_mouse_move(mouse_move_info &p) {
 		if (_trigbtn_down) {
 			scrollbar &b = _get_bar();
-			b._on_drag_button_moved((b.is_vertical() ? p.new_position.y : p.new_position.x) - _doffset);
+			b._on_drag_button_moved(
+				(b.get_orientation() == orientation::vertical ? p.new_position.y : p.new_position.x) - _doffset
+			);
 		}
 		button_base::_on_mouse_move(p);
 	}

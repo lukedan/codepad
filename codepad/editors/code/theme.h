@@ -6,7 +6,7 @@
 /// \file
 /// Classes used to record and manage font color, style, etc. in a \ref codepad::editors::code::interpretation.
 
-#include "../../ui/font.h"
+#include "../../ui/renderer.h"
 
 namespace codepad::editors::code {
 	/// The type of a parameter of the text's theme.
@@ -16,12 +16,12 @@ namespace codepad::editors::code {
 	};
 	/// Specifies the theme of the text.
 	struct text_theme_specification {
+		// TODO font style
 		/// Default constructor.
 		text_theme_specification() = default;
 		/// Initializes the struct with the given parameters.
-		text_theme_specification(ui::font_style fs, colord c) : style(fs), color(c) {
+		text_theme_specification(colord c) : color(c) {
 		}
-		ui::font_style style = ui::font_style::normal; ///< The style of the font.
 		colord color; ///< The color of the text.
 	};
 	/// Records a parameter of the theme of the entire buffer. Internally, it keeps a list of
@@ -98,14 +98,11 @@ namespace codepad::editors::code {
 	};
 	/// Records the text's theme across the entire buffer.
 	struct text_theme_data {
-		text_theme_parameter_info<ui::font_style> style; ///< Redords the text's style across the ehtire buffer.
 		text_theme_parameter_info<colord> color; ///< Redords the text's color across the ehtire buffer.
 
 		/// An iterator used to obtain the theme of the text at a certain position.
 		struct char_iterator {
 			text_theme_specification current_theme; ///< The current theme of the text.
-			/// The iterator to the next position-style pair.
-			text_theme_parameter_info<ui::font_style>::const_iterator next_style_iterator;
 			/// The iterator to the next position-color pair.
 			text_theme_parameter_info<colord>::const_iterator next_color_iterator;
 		};
@@ -113,27 +110,22 @@ namespace codepad::editors::code {
 		/// Sets the theme of the text in the given range.
 		void set_range(size_t s, size_t pe, text_theme_specification tc) {
 			color.set_range(s, pe, tc.color);
-			style.set_range(s, pe, tc.style);
 		}
 		/// Returns the theme of the text at the given position.
 		text_theme_specification get_at(size_t p) const {
-			return text_theme_specification(style.get_at(p), color.get_at(p));
+			return text_theme_specification(color.get_at(p));
 		}
 		/// Sets the theme of all text to the given value.
 		void clear(const text_theme_specification &def) {
-			style.clear(def.style);
 			color.clear(def.color);
 		}
 
 		/// Returns a \ref char_iterator specifying the text theme at the given position.
 		char_iterator get_iter_at(size_t p) const {
 			char_iterator rv;
-			rv.next_style_iterator = style.get_iter_at(p);
 			rv.next_color_iterator = color.get_iter_at(p);
-			assert_true_logical(rv.next_style_iterator != style.end(), "empty theme parameter info encountered");
 			assert_true_logical(rv.next_color_iterator != color.end(), "empty theme parameter info encountered");
-			rv.current_theme = text_theme_specification(rv.next_style_iterator->second, rv.next_color_iterator->second);
-			++rv.next_style_iterator;
+			rv.current_theme = text_theme_specification(rv.next_color_iterator->second);
 			++rv.next_color_iterator;
 			return rv;
 		}
@@ -162,7 +154,6 @@ namespace codepad::editors::code {
 		/// where the \ref char_iterator was originally at.
 		void incr_iter(char_iterator &cv, size_t cp) const {
 			_incr_iter_elem(cp, cv.next_color_iterator, color, cv.current_theme.color);
-			_incr_iter_elem(cp, cv.next_style_iterator, style, cv.current_theme.style);
 		}
 	};
 }

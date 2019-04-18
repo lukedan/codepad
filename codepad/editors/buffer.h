@@ -14,6 +14,7 @@
 
 #include "../core/bst.h"
 #include "../ui/element.h"
+#include "../os/filesystem.h"
 
 namespace codepad::editors {
 	class buffer_manager;

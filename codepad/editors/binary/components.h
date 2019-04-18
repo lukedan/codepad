@@ -14,7 +14,7 @@ namespace codepad::editors::binary {
 		ui::size_allocation get_desired_width() const override {
 			if (auto[edt, rgn] = component_helper::get_core_components(*this); rgn) {
 				size_t chars = _get_label_length(rgn->get_buffer()->length());
-				double maxw = rgn->get_font()->get_max_width_charset(U"0123456789ABCDEF");
+				double maxw = 0.0;/*rgn->get_font()->get_max_width_charset(U"0123456789ABCDEF");*/
 				return ui::size_allocation(get_padding().width() + chars * maxw, true);
 			}
 			return ui::size_allocation(0, true);
@@ -73,7 +73,7 @@ namespace codepad::editors::binary {
 		}
 		/// Renders the offsets.
 		void _custom_render() override {
-			element::_custom_render();
+			/*element::_custom_render();
 			if (auto[edt, rgn] = component_helper::get_core_components(*this); rgn) {
 				// position of the first line relative to the window
 				double
@@ -95,7 +95,7 @@ namespace codepad::editors::binary {
 						_to_hex(offset, chars), *rgn->get_font(), vec2d(left, ypos), colord(), rend
 					);
 				}
-			}
+			}*/
 		}
 	};
 }

@@ -171,13 +171,16 @@ namespace codepad::ui::tabs {
 		}
 		/// Returns the absolute part of the span of the given element in the current orientation.
 		double _get_absolute_span(const element &elem) const {
-			return is_vertical() ? _get_vertical_absolute_span(elem) : _get_horizontal_absolute_span(elem);
+			return
+				get_orientation() == orientation::vertical ?
+				_get_vertical_absolute_span(elem) :
+				_get_horizontal_absolute_span(elem);
 		}
 
 		/// Initializes additional information of the newly added element, and moves existing tab buttons.
 		void _on_child_added(element &elem, element *before) override {
 			stack_panel::_on_child_added(elem, before);
-			if (auto *btn = dynamic_cast<tab_button*>(&elem)) { // initialize info
+			if (auto * btn = dynamic_cast<tab_button*>(&elem)) { // initialize info
 				tab_manager &man = _get_tab_manager();
 				if (man.is_dragging_tab() && &man.get_dragging_tab()->get_button() == &elem) {
 					// the button is already being dragged
@@ -203,10 +206,10 @@ namespace codepad::ui::tabs {
 			}
 		}
 		/// Unbinds from \ref tab_button::start_drag and resets the additional data of that \ref element..
-		void _on_child_removing(element &elem) override {
+		void _on_child_removing(element & elem) override {
 			stack_panel::_on_child_removing(elem);
 
-			if (auto *btn = dynamic_cast<tab_button*>(&elem)) {
+			if (auto * btn = dynamic_cast<tab_button*>(&elem)) {
 				tab_manager &man = _get_tab_manager();
 				if (man.is_dragging_tab() && &man.get_dragging_tab()->get_button() == &elem) {
 					// the button is being dragged away
@@ -232,7 +235,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Starts animation for affected elements.
-		void _on_child_order_changing(element &elem, element *before) override {
+		void _on_child_order_changing(element & elem, element * before) override {
 			stack_panel::_on_child_order_changing(elem, before);
 
 			// find positions
@@ -272,7 +275,7 @@ namespace codepad::ui::tabs {
 			for (element *e : _children.items()) {
 				double off = _animation->get_offset(_get_data(*e)->data);
 				rectd layout = e->get_layout();
-				if (is_vertical()) {
+				if (get_orientation() == orientation::vertical) {
 					_child_set_vertical_layout(*e, layout.ymin + off, layout.ymax + off);
 				} else {
 					_child_set_horizontal_layout(*e, layout.xmin + off, layout.xmax + off);
@@ -307,7 +310,7 @@ namespace codepad::ui::tabs {
 			_droptok = man.end_drag_move += [this]() {
 				_on_end_drag();
 			};
-			_updatetok = man.drag_move_tab_button += [this](tab_drag_update_info &info) {
+			_updatetok = man.drag_move_tab_button += [this](tab_drag_update_info & info) {
 				_on_drag_update(info);
 			};
 		}
@@ -320,15 +323,16 @@ namespace codepad::ui::tabs {
 			man.drag_move_tab_button -= _updatetok;
 		}
 		/// Called when \ref tab_manager::drag_move_tab_button is invoked.
-		void _on_drag_update(tab_drag_update_info &info) {
+		void _on_drag_update(tab_drag_update_info & info) {
 			// update position in tab list
 			host *host = _get_host();
 			tab_manager &man = _get_tab_manager();
 			tab_button &dragbtn = man.get_dragging_tab()->get_button();
 			rectd client = get_client_region();
-			double
-				relpos = is_vertical() ? info.position.y - client.ymin : info.position.x - client.xmin,
-				accu = 0.0;
+			double accu = 0.0, relpos =
+				get_orientation() == orientation::vertical ?
+				info.position.y - client.ymin :
+				info.position.x - client.xmin;
 			auto beforeit = host->get_tabs().items().begin();
 			for (element *e : _children.items()) {
 				if (e != &dragbtn) {
@@ -342,7 +346,7 @@ namespace codepad::ui::tabs {
 			}
 			// calculate current position
 			double curpos = relpos;
-			if (is_vertical()) {
+			if (get_orientation() == orientation::vertical) {
 				if ((dragbtn.get_anchor() & anchor::top) != anchor::none) {
 					curpos -= dragbtn.get_margin().top;
 				}
@@ -363,8 +367,8 @@ namespace codepad::ui::tabs {
 		/// Initializes \ref _animation.
 		///
 		/// \todo Use customizable animation controller.
-		void _initialize(str_view_t cls, const ui::element_metrics &m) override {
-			stack_panel::_initialize(cls, m);
+		void _initialize(str_view_t cls, const ui::element_configuration & config) override {
+			stack_panel::_initialize(cls, config);
 
 			_animation = std::make_shared<exponential_tab_button_animation_controller>();
 		}

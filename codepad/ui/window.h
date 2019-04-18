@@ -28,6 +28,7 @@ namespace codepad::ui {
 	/// \ref show_and_activate() needs to be called manually after its construction for this window to be displayed.
 	class window_base : public panel {
 		friend element_collection;
+		friend renderer_base;
 		friend decoration;
 	public:
 		/// Sets the caption of the window.
@@ -132,6 +133,7 @@ namespace codepad::ui {
 			lost_window_focus; ///< Invoked when the window loses keyboard focus.
 		info_event<size_changed_info> size_changed; ///< Invoked when the window's size has changed.
 	protected:
+		std::any _renderer_data; ///< Renderer-specific data associated with this window.
 		/// The list of decorations associated with this window. Since decorations are automatically
 		/// unregistered when disposed, special care must be taken when iterating through the list
 		/// while deleting its entries.
@@ -178,9 +180,6 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Updates the \ref visual_configuration of all \ref decoration "decorations".
-		void _on_update_visual_configurations(animation_update_info&) override;
-
 		/// Called in decoration::~decoration() to automatically unregister the decoration.
 		virtual void _on_decoration_destroyed(decoration &d) {
 			assert_true_logical(d._wnd == this, "calling the wrong window");
@@ -190,7 +189,7 @@ namespace codepad::ui {
 
 
 		/// Registers the window to \ref renderer_base.
-		void _initialize(str_view_t, const element_metrics&) override;
+		void _initialize(str_view_t, const element_configuration&) override;
 		/// Deletes all decorations, releases the focus, and unregisters the window from \ref renderer_base.
 		void _dispose() override;
 

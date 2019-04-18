@@ -15,9 +15,7 @@
 #include "../ui/renderer.h"
 #include "../ui/manager.h"
 #include "../ui/element_classes.h"
-#include "../ui/font_family.h"
 #include "../ui/native_commands.h"
-#include "../ui/visual.h"
 #include "../editors/buffer_manager.h"
 #include "../editors/code/components.h"
 #include "../editors/code/contents_region.h"
@@ -156,10 +154,6 @@ namespace codepad {
 			return _v.object;
 		}
 #endif
-		freetype_font_base::_library &freetype_font_base::_library::get() {
-			static _global_wrapper<_library> _v;
-			return _v.object;
-		}
 	}
 	namespace editors {
 		buffer_manager &buffer_manager::get() {
@@ -167,10 +161,6 @@ namespace codepad {
 			return _v.object;
 		}
 		namespace code {
-			contents_region::_appearance_config &contents_region::_get_appearance() {
-				static _global_wrapper<_appearance_config> _v;
-				return _v.object;
-			}
 			encoding_manager &encoding_manager::get() {
 				static _global_wrapper<encoding_manager> _v;
 				return _v.object;

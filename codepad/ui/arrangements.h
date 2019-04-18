@@ -11,64 +11,13 @@
 #include <functional>
 
 #include "misc.h"
+#include "animation.h"
+#include "element_parameters.h"
 
 namespace codepad::ui {
 	class element;
 	class element_collection;
 	class panel_base;
-
-	/// Contains (animations of) metrics that determines the layout of an element in a certain state.
-	class metrics_state {
-	public:
-		/// The state of an element's metrics. Contains the states of all
-		/// \ref animated_property "animated_proprties".
-		struct state {
-			/// Default constructor.
-			state() = default;
-			/// Initializes this struct to be the initial state of the given \ref metrics_state.
-			explicit state(const metrics_state &metrics, animation_time_point_t now) :
-				margin(metrics.margin_animation, now), padding(metrics.padding_animation, now),
-				size(metrics.size_animation, now) {
-			}
-			/// Initializes this struct to be the initial state of the given \ref metrics_state, with given initial
-			/// values that are taken if the corresponding animation doesn't have one.
-			state(const state &s, animation_time_point_t now) :
-				margin(s.margin.current_value, now), padding(s.padding.current_value, now),
-				size(s.size.current_value, now) {
-			}
-
-			animated_property<thickness>::state
-				margin, ///< The state of \ref margin_animation.
-				padding; ///< The state of \ref padding_animation.
-			animated_property<vec2d>::state size; ///< The state of \ref size_animation.
-			bool all_stationary = false; ///< Marks if all animations have finished.
-		};
-
-		/// Updates the given \ref state with the given time delta.
-		animation_duration_t update(state &s, animation_time_point_t now) const {
-			auto res = animation_duration_t::max();
-			if (!s.all_stationary) {
-				res = std::min(res, margin_animation.update(s.margin, now));
-				res = std::min(res, padding_animation.update(s.padding, now));
-				res = std::min(res, size_animation.update(s.size, now));
-				s.all_stationary =
-					s.margin.stationary && s.padding.stationary && s.size.stationary;
-			}
-			return res;
-		}
-
-		animated_property<thickness>
-			margin_animation, ///< The element's margin.
-			padding_animation; ///< The element's internal padding.
-		animated_property<vec2d> size_animation; ///< The element's size.
-		anchor elem_anchor = anchor::all; ///< The element's anchor.
-		size_allocation_type
-			width_alloc = size_allocation_type::automatic, ///< Determines how the element's width is allocated.
-			height_alloc = size_allocation_type::automatic; ///< Determines how the element's height is allocated.
-	};
-
-	/// Class that fully determines the metrics of an \ref element.
-	using element_metrics = state_mapping<metrics_state>;
 
 	/// Controls the arrangements of composite elements.
 	class class_arrangements {
@@ -86,14 +35,12 @@ namespace codepad::ui {
 			/// \sa class_arrangements::construct_children()
 			void construct(element_collection&, panel_base&, notify_mapping&, std::vector<element*>&) const;
 
-			element_metrics metrics; ///< The child's metrics.
+			element_configuration configuration; ///< The full configuration of the child.
 			std::vector<child> children; ///< The child's children, if it's a \ref panel.
 			str_t
 				role, ///< The child's role in the composite element.
 				type, ///< The child's type.
 				element_class; ///< The child's class.
-			/// The set of \ref element_state_id bits that'll be set for this child.
-			element_state_id set_states = normal_element_state_id;
 		};
 
 		/// Constructs all children of a composite element with this arrangement, marks them to be updated if
@@ -117,7 +64,7 @@ namespace codepad::ui {
 			construct_children(logparent, mapping);
 		}
 
-		element_metrics metrics; ///< Metrics of the composite element.
+		element_configuration configuration; ///< The configuration of this element.
 		std::vector<child> children; ///< Children of the composite element.
 	};
 }

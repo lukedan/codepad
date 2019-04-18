@@ -30,22 +30,10 @@
     <ClInclude Include="editors\code\components.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ui\draw.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\font_family.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="os\windows\font.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="os\windows\misc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\windows\window.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="os\windows\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\windows.h">
@@ -60,13 +48,7 @@
     <ClInclude Include="editors\code\view.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="os\current\font.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="os\current\window.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="os\current\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="os\current\misc.h">
@@ -76,9 +58,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ui\native_commands.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\visual.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ui\element_classes.h">
@@ -102,19 +81,10 @@
     <ClInclude Include="ui\common_elements.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="os\software_renderer_base.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="os\opengl_renderer_base.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="editors\code\rendering.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ui\misc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\arrangements.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="editors\buffer.h">
@@ -150,19 +120,10 @@
     <ClInclude Include="ui\text_rendering.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="os\freetype_font_base.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\font.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ui\renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ui\window.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\atlas.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ui\scheduler.h">
@@ -207,6 +168,21 @@
     <ClInclude Include="ui\tabs\host.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="os\windows\direct2d_renderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\animation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\element_parameters.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\arrangements.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\animation_path.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -227,9 +203,6 @@
     <ClCompile Include="ui\native_commands.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ui\visual.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="core\globals.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -237,15 +210,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="os\windows\filesystem.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="os\opengl_renderer_base.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="os\software_renderer_base.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\arrangements.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="editors\code\caret_set.cpp">
@@ -260,13 +224,19 @@
     <ClCompile Include="editors\code\contents_region.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ui\font.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ui\tabs\tab.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ui\tabs\host.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\renderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\arrangements.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\animation_path.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

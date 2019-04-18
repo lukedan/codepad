@@ -82,8 +82,8 @@ namespace codepad::ui::tabs {
 		drag_destination_type _dest = drag_destination_type::new_window;
 
 		/// Initializes all destination indicators.
-		void _initialize(str_view_t cls, const element_metrics &metrics) override {
-			panel_base::_initialize(cls, metrics);
+		void _initialize(str_view_t cls, const element_configuration &config) override {
+			panel_base::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_split_left_indicator_role(), _role_cast(_split_left)},
@@ -93,7 +93,6 @@ namespace codepad::ui::tabs {
 				{get_combine_indicator_role(), _role_cast(_combine)},
 				});
 
-			set_can_focus(false);
 			set_zindex(zindex::overlay);
 
 			_setup_indicator(*_split_left, drag_destination_type::new_panel_left);
@@ -105,7 +104,6 @@ namespace codepad::ui::tabs {
 
 		/// Initializes the given destination indicator.
 		void _setup_indicator(element &elem, drag_destination_type type) {
-			elem.set_can_focus(false);
 			elem.mouse_enter += [this, type]() {
 				_dest = type;
 			};
@@ -130,8 +128,7 @@ namespace codepad::ui::tabs {
 			_tab_contents_region->children().add(t);
 			_tab_buttons_region->children().add(*t._btn);
 
-			t.set_render_visibility(false);
-			t.set_hittest_visibility(false);
+			t.set_visibility(visibility::none);
 			if (get_tab_count() == 1) {
 				switch_tab(t);
 			}
@@ -146,15 +143,13 @@ namespace codepad::ui::tabs {
 		void switch_tab(tab &t) {
 			assert_true_logical(t.logical_parent() == this, "the tab doesn't belong to this host");
 			if (_active_tab) {
-				_active_tab->set_render_visibility(false);
-				_active_tab->set_hittest_visibility(false);
-				_active_tab->set_state_bits(get_manager().get_predefined_states().selected, false);
+				_active_tab->set_visibility(visibility::none);
+				// TODO set selected
 				_active_tab->_btn->set_zindex(0); // TODO a bit hacky
 			}
 			_active_tab = &t;
-			t.set_render_visibility(true);
-			t.set_hittest_visibility(true);
-			t.set_state_bits(get_manager().get_predefined_states().selected, true);
+			_active_tab->set_visibility(visibility::full);
+			// TODO set selected
 			t._btn->set_zindex(1);
 		}
 		/// Switches the currently visible tab and sets the focus to that tab.
@@ -257,8 +252,8 @@ namespace codepad::ui::tabs {
 		void _on_tab_removed(tab&);
 
 		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.
-		void _initialize(str_view_t cls, const element_metrics &metrics) override {
-			panel_base::_initialize(cls, metrics);
+		void _initialize(str_view_t cls, const element_configuration &config) override {
+			panel_base::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_tab_buttons_region_role(), _role_cast(_tab_buttons_region)},

@@ -9,9 +9,7 @@
 #include "element.h"
 #include "panel.h"
 #include "manager.h"
-#include "draw.h"
 #include "text_rendering.h"
-#include "font_family.h"
 #include "window.h"
 #include "../core/misc.h"
 #include "../core/encodings.h"
@@ -36,6 +34,7 @@ namespace codepad::ui {
 			return _text;
 		}
 
+		/*
 		/// Sets the font used to display text.
 		void set_font(std::shared_ptr<const font> fnt) {
 			_fnt = std::move(fnt);
@@ -46,6 +45,7 @@ namespace codepad::ui {
 		const std::shared_ptr<const font> &get_font() const {
 			return _fnt;
 		}
+		*/
 
 		/// Sets the color used to display text.
 		void set_color(colord c) {
@@ -74,33 +74,41 @@ namespace codepad::ui {
 
 		/// Returns the size of the text, measuring it if necessary.
 		virtual vec2d get_text_size() const {
+			/*
 			if (!_size_cache.has_value()) {
 				auto &&f = _fnt ? _fnt : _parent.get_manager().get_default_ui_font();
 				_size_cache = text_renderer::measure_plain_text(_text, f);
 			}
 			return _size_cache.value();
+			*/
+			return vec2d();
 		}
 		/// Returns the position of the top-left corner of the displayed text,
 		/// relative to the window's client area.
 		vec2d get_text_position() const {
+			/*
 			rectd inner = _parent.get_client_region();
 			vec2d spare = inner.size() - get_text_size();
 			return inner.xmin_ymin() + vec2d(spare.x * _offset.x, spare.y * _offset.y);
+			*/
+			return vec2d();
 		}
 
 		/// Renders the text.
 		void render() const {
+			/*
 			auto &&f = _fnt ? _fnt : _parent.get_manager().get_default_ui_font();
 			if (f) {
 				text_renderer::render_plain_text(_text, *f, get_text_position(), _clr);
 			}
+			*/
 		}
 
 		info_event<> text_size_changed; ///< Invoked when the size of the text has changed.
 	protected:
 		mutable std::optional<vec2d> _size_cache; ///< Measured size of the current text, using the current font.
 		str_t _text; ///< The text to display.
-		std::shared_ptr<const font> _fnt; ///< The custom font.
+		/*std::shared_ptr<const font> _fnt; ///< The custom font.*/
 		colord _clr; ///< The color used to display the text.
 		vec2d _offset; ///< The offset of the text.
 		element &_parent; ///< The \ref element that this belongs to.
@@ -145,9 +153,8 @@ namespace codepad::ui {
 		}
 
 		/// Initializes the element.
-		void _initialize(str_view_t cls, const element_metrics &metrics) override {
-			element::_initialize(cls, metrics);
-			_can_focus = false;
+		void _initialize(str_view_t cls, const element_configuration &config) override {
+			element::_initialize(cls, config);
 
 			_content.text_size_changed += [this]() {
 				_on_desired_size_changed(true, true);
@@ -210,14 +217,17 @@ namespace codepad::ui {
 			}
 			element::_on_mouse_up(p);
 		}
-		/// Called when the mouse position need to be updated. Checks if the mouse is still over the element.
-		/// Changes the visual state if \ref _allow_cancel is set to \p true.
+		/// Called when the mouse position need to be updated. If \ref _allow_cancel is \p true, checks if the mouse
+		/// is still over the element, and invokes \ref _on_mouse_enter() or \ref _on_mouse_leave() accordingly.
 		void _on_update_mouse_pos(vec2d pos) {
 			if (_allow_cancel) {
-				if (hit_test(pos)) {
-					set_state_bits(get_manager().get_predefined_states().mouse_over, true);
-				} else {
-					set_state_bits(get_manager().get_predefined_states().mouse_over, false);
+				bool over = hit_test(pos);
+				if (over != is_mouse_over()) {
+					if (over) {
+						_on_mouse_enter();
+					} else {
+						_on_mouse_leave();
+					}
 				}
 			}
 		}
@@ -307,10 +317,8 @@ namespace codepad::ui {
 		scrollbar &_get_bar() const;
 
 		/// Initializes the element.
-		void _initialize(str_view_t cls, const element_metrics &metrics) override {
-			button_base::_initialize(cls, metrics);
-
-			set_can_focus(false);
+		void _initialize(str_view_t cls, const element_configuration &config) override {
+			button_base::_initialize(cls, config);
 
 			_trigtype = trigger_type::mouse_down;
 			_allow_cancel = false;
@@ -334,14 +342,14 @@ namespace codepad::ui {
 
 		/// Returns the default desired width of the scroll bar.
 		size_allocation get_desired_width() const override {
-			if (is_vertical()) {
+			if (get_orientation() == orientation::vertical) {
 				return size_allocation(default_thickness, true);
 			}
 			return size_allocation(1.0, false);
 		}
 		/// Returns the default desired height of the scroll bar.
 		size_allocation get_desired_height() const override {
-			if (!is_vertical()) {
+			if (get_orientation() != orientation::vertical) {
 				return size_allocation(default_thickness, true);
 			}
 			return size_allocation(1.0, false);
@@ -390,6 +398,18 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Returns the current orientation.
+		orientation get_orientation() const {
+			return _orientation;
+		}
+		/// Sets the current orientation.
+		void set_orientation(orientation o) {
+			if (o != _orientation) {
+				_orientation = o;
+				_on_orientation_changed();
+			}
+		}
+
 		/// Invoked when the value of the scrollbar is changed.
 		info_event<value_update_info<double>> value_changed;
 
@@ -415,6 +435,7 @@ namespace codepad::ui {
 			_total_range = 1.0, ///< The length of the whole range.
 			_value = 0.0, ///< The minimum visible position.
 			_visible_range = 0.1; ///< The length of the visible range.
+		orientation _orientation = orientation::horizontal; ///< The orientation of this scrollbar.
 		scrollbar_drag_button *_drag = nullptr; ///< The drag button.
 		button
 			*_pgup = nullptr, ///< The `page up' button.
@@ -426,7 +447,7 @@ namespace codepad::ui {
 		void _on_update_children_layout() override {
 			rectd cln = get_client_region();
 			double min, max, mid1, mid2;
-			if (is_vertical()) {
+			if (get_orientation() == orientation::vertical) {
 				min = cln.ymin;
 				max = cln.ymax;
 			} else {
@@ -447,7 +468,7 @@ namespace codepad::ui {
 				mid1 = min + ratio * _value;
 				mid2 = mid1 + ratio * _visible_range;
 			}
-			if (is_vertical()) {
+			if (get_orientation() == orientation::vertical) {
 				panel_base::layout_child_horizontal(*_drag, cln.xmin, cln.xmax);
 				panel_base::layout_child_horizontal(*_pgup, cln.xmin, cln.xmax);
 				panel_base::layout_child_horizontal(*_pgdn, cln.xmin, cln.xmax);
@@ -469,7 +490,7 @@ namespace codepad::ui {
 		virtual void _on_drag_button_moved(double newmin) {
 			double min, range, draglen;
 			rectd client = get_client_region();
-			if (is_vertical()) {
+			if (get_orientation() == orientation::vertical) {
 				min = client.ymin;
 				range = client.height();
 				draglen = _drag->get_layout().height();
@@ -488,10 +509,20 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Sets the orientation of this element if requested.
+		void _set_attribute(str_view_t name, const json::value_storage & value) override {
+			if (name == u8"orientation") {
+				if (orientation o; json_object_parsers::try_parse(value.get_value(), o)) {
+					set_orientation(o);
+				}
+				return;
+			}
+			panel_base::_set_attribute(name, value);
+		}
+
 		/// Initializes the three buttons and adds them as children.
-		void _initialize(str_view_t cls, const element_metrics &metrics) override {
-			panel_base::_initialize(cls, metrics);
-			_can_focus = false;
+		void _initialize(str_view_t cls, const element_configuration & config) override {
+			panel_base::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(
 				*this, {
@@ -501,25 +532,20 @@ namespace codepad::ui {
 				});
 
 			_pgup->set_trigger_type(button_base::trigger_type::mouse_down);
-			_pgup->set_can_focus(false);
 			_pgup->click += [this]() {
 				set_value(get_value() - get_visible_range());
 			};
 
 			_pgdn->set_trigger_type(button_base::trigger_type::mouse_down);
-			_pgdn->set_can_focus(false);
 			_pgdn->click += [this]() {
 				set_value(get_value() + get_visible_range());
 			};
 		}
 
-		/// Calls \ref invalidate_layout() if the element's orientation has been changed.
-		void _on_state_changed(value_update_info<element_state_id> &p) override {
-			panel_base::_on_state_changed(p);
-			if (_has_any_state_bit_changed(get_manager().get_predefined_states().vertical, p)) {
-				_on_desired_size_changed(true, true);
-				_invalidate_children_layout();
-			}
+		/// Called after the orientation has been changed. Invalidates the layout of all components.
+		virtual void _on_orientation_changed() {
+			_on_desired_size_changed(true, true);
+			_invalidate_children_layout();
 		}
 	};
 }

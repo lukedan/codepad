@@ -344,7 +344,7 @@ namespace codepad::editors::code {
 		/// Called when a range of codepoints has been inserted to the buffer.
 		void insert_codepoints(iterator at, size_t offset, const std::vector<line_info> &lines) {
 			if (at != _t.end() && offset > at->nonbreak_chars) { // break \r\n
-				assert_true_logical(at->ending == line_ending::rn, "invalid begin offset");
+				assert_true_logical(at->ending == line_ending::rn, "invalid begin padding");
 				size_t n = at->nonbreak_chars;
 				{
 					auto mod = _t.get_modifier_for(at.get_node());
@@ -412,13 +412,13 @@ namespace codepad::editors::code {
 				return;
 			}
 			if (beg->nonbreak_chars < begcpoff) { // break \r\n
-				assert_true_logical(beg->ending == line_ending::rn, "invalid begin offset");
+				assert_true_logical(beg->ending == line_ending::rn, "invalid begin padding");
 				_t.get_modifier_for(beg.get_node())->ending = line_ending::r;
 				++beg;
 				begcpoff = 0;
 			}
 			if (end != _t.end() && end->nonbreak_chars < endcpoff) { // break \r\n
-				assert_true_logical(end->ending == line_ending::rn, "invalid end offset");
+				assert_true_logical(end->ending == line_ending::rn, "invalid end padding");
 				{
 					auto mod = _t.get_modifier_for(end.get_node());
 					endcpoff = mod->nonbreak_chars = (beg == end ? begcpoff : 0);

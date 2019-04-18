@@ -1,14 +1,17 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "font.h"
+#include "renderer.h"
 
 /// \file
-/// Implementation of certain methods related to text rendering.
+/// Implementation of certain renderer-specific functions.
 
-#include "manager.h"
+#include "window.h"
+
+using namespace std;
 
 namespace codepad::ui {
-	font_manager::font_manager(manager &man) : _atlas(man.get_renderer()), _manager(man) {
+	any &renderer_base::_get_window_data(window_base &wnd) {
+		return wnd._renderer_data;
 	}
 }

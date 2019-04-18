@@ -28,7 +28,7 @@ namespace codepad::ui {
 }
 namespace codepad {
 	/// Enables bitwise operators for \ref modifier_keys.
-	template <> struct enable_enum_bitwise_operators<ui::modifier_keys> : std::true_type {
+	template <> struct enable_enum_bitwise_operators<ui::modifier_keys> : public std::true_type {
 	};
 }
 

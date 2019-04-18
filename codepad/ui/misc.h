@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Fundamental types and variables of the user interface.
+/// Miscellaneous types and functions for the user interface.
 
 #include <cstdint>
 #include <charconv>
@@ -15,64 +15,119 @@
 #include "renderer.h"
 
 namespace codepad::ui {
-	/// Contains a collection of specializations of \ref parse() that parse objects from JSON objects.
+	/// Contains a collection of functions that parse objects from JSON objects.
 	namespace json_object_parsers {
-		/// The standard parser interface.
-		template <typename T> T parse(const json::node_t&);
-
 		/// Parses \ref vec2d. The object must be of the following format: <tt>[x, y]</tt>
-		template <> inline vec2d parse<vec2d>(const json::node_t &obj) {
-			if (obj.IsArray() && obj.Size() > 1) {
-				return vec2d(obj[0].GetDouble(), obj[1].GetDouble());
+		template <typename Value> inline bool try_parse(const Value &obj, vec2d &v) {
+			if (typename Value::array_t arr; json::try_cast(obj, arr) && arr.size() >= 2) {
+				v.x = json::cast_or_default<double>(arr[0], 0.0);
+				v.y = json::cast_or_default<double>(arr[1], 0.0);
+				return true;
 			}
-			logger::get().log_warning(CP_HERE, "invalid vec2 representation");
-			return vec2d();
+			return false;
 		}
 		/// Parses \ref colord. The object can take the following formats: <tt>["hsl", h, s, l(, a)]</tt> for
 		/// HSL format colors, and <tt>[r, g, b(, a)]</tt> for RGB format colors.
-		template <> inline colord parse<colord>(const json::node_t &obj) {
-			if (obj.IsArray()) { // must be an array
-				if (obj.Size() > 3 && obj[0].IsString() && json::get_as_string(obj[0]) == CP_STRLIT("hsl")) {
-					colord c = colord::from_hsl(obj[1].GetDouble(), obj[2].GetDouble(), obj[3].GetDouble());
-					if (obj.Size() > 4) {
-						c.a = obj[4].GetDouble();
+		template <typename Value> inline bool try_parse(const Value &obj, colord &c) {
+			if (typename Value::array_t arr; json::try_cast(obj, arr) && arr.size() >= 3) { // must be an array
+				if (arr.size() > 3) {
+					if (str_view_t type; json::try_cast(arr[0], type) && type == u8"hsl") {
+						double h, s, l;
+						json::try_cast(arr[1], h);
+						json::try_cast(arr[2], s);
+						json::try_cast(arr[3], l);
+						c = colord::from_hsl(h, s, l);
+						if (arr.size() > 4) {
+							json::try_cast(arr[4], c.a);
+						}
+						return true;
+					} else {
+						json::try_cast(arr[3], c.a);
 					}
-					return c;
 				}
-				if (obj.Size() > 3) {
-					return colord(
-						obj[0].GetDouble(), obj[1].GetDouble(),
-						obj[2].GetDouble(), obj[3].GetDouble()
-					);
-				}
-				if (obj.Size() == 3) {
-					return colord(
-						obj[0].GetDouble(), obj[1].GetDouble(), obj[2].GetDouble(), 1.0
-					);
-				}
+				json::try_cast(arr[0], c.r);
+				json::try_cast(arr[1], c.g);
+				json::try_cast(arr[2], c.b);
+				return true;
 			}
-			logger::get().log_warning(CP_HERE, "invalid color representation");
-			return colord();
+			return false;
 		}
-		/// Parses a duration from a number. The unit is seconds. Note that this function has a different name, so
-		/// each duration type has to implement their own \p parse() function.
+		/// Parses a duration from a number. If the object is a number, it is treated as the number of seconds.
 		///
 		/// \todo Also accept string representations.
-		template <typename Rep, typename Period> inline std::chrono::duration<Rep, Period> parse_duration(
-			const json::node_t &val
+		template <typename Value, typename Rep, typename Period> inline bool try_parse(
+			const Value &val, std::chrono::duration<Rep, Period> &dur
 		) {
-			using _res_t = std::chrono::duration<Rep, Period>;
-
-			if (val.IsNumber()) {
-				return std::chrono::duration_cast<_res_t>(std::chrono::duration<double>(val.GetDouble()));
+			if (double secs; json::try_cast(val, secs)) {
+				dur = std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(
+					std::chrono::duration<double>(secs)
+					);
+				return true;
 			}
-			logger::get().log_warning(CP_HERE, "invalid duration representation");
-			return _res_t();
+			return false;
+		}
+	}
+
+	/// Orientation.
+	enum class orientation : unsigned char {
+		horizontal, ///< Horizontal.
+		vertical ///< Vertical.
+	};
+	namespace json_object_parsers {
+		/// Parses \ref orientation.
+		template <typename Value> inline bool try_parse(const Value &obj, orientation &o) {
+			if (str_view_t val; json::try_cast(obj, val)) {
+				if (val == u8"h" || val == u8"hori" || val == u8"horizontal") {
+					o = orientation::horizontal;
+					return true;
+				} else if (val == u8"v" || val == u8"vert" || val == u8"vertical") {
+					o = orientation::vertical;
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+
+	/// The visibility of an \ref element.
+	enum class visibility : unsigned char {
+		none = 0, ///< Invisible in all aspects.
+		visual = 1, ///< The element is rendered.
+		interact = 2, ///< The element is taken into account during hit testing.
+		layout = 4, ///< The element is taken into account when calculating layout.
+		focus = 8, ///< The element can be the focused element.
+
+		full = visual | interact | layout | focus ///< Visible in all aspects.
+	};
+}
+namespace codepad {
+	/// Enables bitwise operators for \ref modifier_keys.
+	template <> struct enable_enum_bitwise_operators<ui::visibility> : public std::true_type {
+	};
+}
+namespace codepad::ui {
+	namespace json_object_parsers {
+		/// Parses \ref visibility.
+		template <typename Value> inline bool try_parse(const Value &obj, visibility &v) {
+			if (obj.is<json::null_t>()) {
+				v = visibility::none;
+				return true;
+			}
+			if (str_view_t val; json::try_cast(obj, val)) {
+				v = get_bitset_from_string<visibility>({
+					{u8'v', visibility::visual},
+					{u8'i', visibility::interact},
+					{u8'l', visibility::layout},
+					{u8'f', visibility::focus}
+					}, val);
+				return true;
+			}
+			return false;
 		}
 	}
 
 	/// The style of the cursor.
-	enum class cursor {
+	enum class cursor : unsigned char {
 		normal, ///< The normal cursor.
 		busy, ///< The `busy' cursor.
 		crosshair, ///< The `crosshair' cursor.
@@ -89,9 +144,69 @@ namespace codepad::ui {
 
 		not_specified ///< An unspecified cursor.
 	};
+	namespace json_object_parsers {
+		/// Parses a \ref cursor.
+		template <typename Value> inline bool try_parse(const Value &obj, cursor &c) {
+			if (str_view_t s; json::try_cast(obj, s)) {
+				if (s == u8"normal") {
+					c = cursor::normal;
+					return true;
+				}
+				if (s == u8"busy") {
+					c = cursor::busy;
+					return true;
+				}
+				if (s == u8"crosshair") {
+					c = cursor::crosshair;
+					return true;
+				}
+				if (s == u8"hand") {
+					c = cursor::hand;
+					return true;
+				}
+				if (s == u8"help") {
+					c = cursor::help;
+					return true;
+				}
+				if (s == u8"text_beam") {
+					c = cursor::text_beam;
+					return true;
+				}
+				if (s == u8"denied") {
+					c = cursor::denied;
+					return true;
+				}
+				if (s == u8"arrow_all") {
+					c = cursor::arrow_all;
+					return true;
+				}
+				if (s == u8"arrow_northeast_southwest") {
+					c = cursor::arrow_northeast_southwest;
+					return true;
+				}
+				if (s == u8"arrow_north_south") {
+					c = cursor::arrow_north_south;
+					return true;
+				}
+				if (s == u8"arrow_northwest_southeast") {
+					c = cursor::arrow_northwest_southeast;
+					return true;
+				}
+				if (s == u8"arrow_east_west") {
+					c = cursor::arrow_east_west;
+					return true;
+				}
+				if (s == u8"invisible") {
+					c = cursor::invisible;
+					return true;
+				}
+			}
+			return false;
+		}
+	}
 
 	/// Represents a button of the mouse.
-	enum class mouse_button {
+	enum class mouse_button : unsigned char {
 		primary, ///< The primary button. For the right-handed layout, this is the left button.
 		tertiary, ///< The middle button.
 		secondary ///< The secondary button. For the right-handed layout, this is the right button.
@@ -159,8 +274,6 @@ namespace codepad::ui {
 	/// The total number of supported keys.
 	constexpr size_t total_num_keys = static_cast<size_t>(key::max_value);
 
-	using element_state_id = std::uint_fast32_t; ///< Bitsets that represents states of an \ref element.
-	constexpr static element_state_id normal_element_state_id = 0; ///< Represents the default (normal) state.
 	/// Represents a margin, a padding, etc.
 	struct thickness {
 		/// Constructs the struct with the same value for all four sides.
@@ -202,18 +315,19 @@ namespace codepad::ui {
 		/// Parses \ref thickness. The object can take the following formats:
 		/// <tt>[left, top, right, bottom]</tt> or a single number specifying the value for all four
 		/// directions.
-		template <> inline thickness parse<thickness>(const json::node_t &obj) {
-			if (obj.IsArray() && obj.Size() > 3) {
-				return thickness(
-					obj[0].GetDouble(), obj[1].GetDouble(),
-					obj[2].GetDouble(), obj[3].GetDouble()
-				);
+		template <typename Value> inline bool try_parse(const Value &obj, thickness &t) {
+			if (typename Value::array_t arr; json::try_cast(obj, arr) && arr.size() >= 4) {
+				json::try_cast(arr[0], t.left);
+				json::try_cast(arr[1], t.top);
+				json::try_cast(arr[2], t.right);
+				json::try_cast(arr[3], t.bottom);
+				return true;
 			}
-			if (obj.IsNumber()) {
-				return thickness(obj.GetDouble());
+			if (double v; json::try_cast(obj, v)) {
+				t.left = t.top = t.right = t.bottom = v;
+				return true;
 			}
-			logger::get().log_warning(CP_HERE, "invalid thickness representation");
-			return thickness();
+			return false;
 		}
 	}
 }
@@ -264,30 +378,30 @@ namespace codepad::ui {
 		/// fields, a single number in pixels, or a string that optionally ends with `*', `%', or `px', the former
 		/// two of which indicates that the value is a proportion. If the string ends with `%', the value is
 		/// additionally divided by 100, thus using `%' and `*' mixedly is not recommended.
-		template <> inline size_allocation parse<size_allocation>(const json::node_t &obj) {
-			if (obj.IsObject()) { // full object representation
-				size_allocation alloc;
-				json::try_get(obj, "value", alloc.value);
-				json::try_get(obj, "is_pixels", alloc.is_pixels);
-				return alloc;
+		template <typename Value> inline bool try_parse(const Value &obj, size_allocation &sz) {
+			if (json::try_cast(obj, sz.value)) { // number in pixels
+				sz.is_pixels = true;
+				return true;
 			}
-			if (obj.IsNumber()) { // number in pixels
-				return size_allocation(obj.GetDouble(), true);
+			if (typename Value::object_t full; json::try_cast(obj, full)) { // full object representation
+				json::try_cast_member(full, u8"value", sz.value);
+				json::try_cast_member(full, u8"is_pixels", sz.is_pixels);
+				return true;
 			}
-			if (obj.IsString()) {
-				auto view = json::get_as_string_view(obj);
-				size_allocation alloc(0.0, true); // in pixels if no suffix is present
-				bool percentage = _details::ends_with(view, "%"); // the value is additionally divided by 100
-				if (percentage || _details::ends_with(view, "*")) { // proportion
-					alloc.is_pixels = false;
+			if (str_view_t str; json::try_cast(obj, str)) {
+				sz.value = 0;
+				sz.is_pixels = true; // in pixels if no suffix is present
+				bool percentage = _details::ends_with(str, "%"); // the value is additionally divided by 100
+				if (percentage || _details::ends_with(str, "*")) { // proportion
+					sz.is_pixels = false;
 				}
-				std::from_chars(view.data(), view.data() + view.size(), alloc.value); // result ignored, 0 by default
+				std::from_chars(str.data(), str.data() + str.size(), sz.value); // result ignored
 				if (percentage) {
-					alloc.value *= 0.01;
+					sz.value *= 0.01;
 				}
-				return alloc;
+				return true;
 			}
-			return size_allocation();
+			return false;
 		}
 	}
 
@@ -321,22 +435,23 @@ namespace codepad::ui {
 		/// Parses \ref anchor. The object can be a string that contains any combination of characters `l', `t',
 		/// `r', and `b', standing for \ref anchor::left, \ref anchor::top, \ref anchor::right, and
 		/// \ref anchor::bottom, respectively
-		template <> inline anchor parse<anchor>(const json::node_t &obj) {
-			if (obj.IsString()) {
-				return get_bitset_from_string<anchor>({
+		template <typename Value> inline bool try_parse(const Value &obj, anchor &a) {
+			if (str_view_t str; json::try_cast(obj, str)) {
+				a = get_bitset_from_string<anchor>({
 					{CP_STRLIT('l'), anchor::left},
 					{CP_STRLIT('t'), anchor::top},
 					{CP_STRLIT('r'), anchor::right},
 					{CP_STRLIT('b'), anchor::bottom}
-					}, json::get_as_string(obj));
+					}, str);
+				return true;
 			}
-			return anchor::none;
+			return false;
 		}
 	}
 }
 namespace codepad {
 	/// Enables bitwise operators for \ref ui::anchor.
-	template<> struct enable_enum_bitwise_operators<ui::anchor> : std::true_type {
+	template<> struct enable_enum_bitwise_operators<ui::anchor> : public std::true_type {
 	};
 }
 
@@ -352,270 +467,22 @@ namespace codepad::ui {
 		/// Parses \ref size_allocation_type. Checks if the given object (which must be a string) is one of the
 		/// constants and returns the corresponding value. If none matches, \ref size_allocation_type::automatic is
 		/// returned.
-		template <> inline size_allocation_type parse<size_allocation_type>(const json::node_t &obj) {
-			if (obj.IsString()) {
-				str_t s = json::get_as_string(obj);
-				if (s == CP_STRLIT("fixed") || s == CP_STRLIT("pixels") || s == CP_STRLIT("px")) {
-					return size_allocation_type::fixed;
+		template <typename Value> inline bool try_parse(const Value &obj, size_allocation_type &ty) {
+			if (str_view_t str; json::try_cast(obj, str)) {
+				if (str == u8"fixed" || str == u8"pixels" || str == u8"px") {
+					ty = size_allocation_type::fixed;
+					return true;
 				}
-				if (s == CP_STRLIT("proportion") || s == CP_STRLIT("prop") || s == CP_STRLIT("*")) {
-					return size_allocation_type::proportion;
+				if (str == u8"proportion" || str == u8"prop" || str == u8"*") {
+					ty = size_allocation_type::proportion;
+					return true;
 				}
-				if (s == CP_STRLIT("automatic") || s == CP_STRLIT("auto")) {
-					return size_allocation_type::automatic;
+				if (str == u8"automatic" || str == u8"auto") {
+					ty = size_allocation_type::automatic;
+					return true;
 				}
 			}
-			return size_allocation_type::automatic;
+			return false;
 		}
 	}
-
-	/// Transition functions used in animations.
-	namespace transition_functions {
-		/// The linear transition function.
-		inline double linear(double v) {
-			return v;
-		}
-
-		/// The smoothstep transition function.
-		inline double smoothstep(double v) {
-			return v * v * (3.0 - 2.0 * v);
-		}
-
-		/// The concave quadratic transition function.
-		inline double concave_quadratic(double v) {
-			return v * v;
-		}
-		/// The convex quadratic transition function.
-		inline double convex_quadratic(double v) {
-			v = 1.0 - v;
-			return 1.0 - v * v;
-		}
-
-		/// The concave cubic transition function.
-		inline double concave_cubic(double v) {
-			return v * v * v;
-		}
-		/// The convex cubic transition function.
-		inline double convex_cubic(double v) {
-			v = 1.0 - v;
-			return 1.0 - v * v * v;
-		}
-	}
-
-	/// Type of the transition function used to control the process of a \ref animated_property. This function
-	/// accepts a double in the range of [0, 1] and return a double in the same range. The input indicates the
-	/// current process of the animation, and the output is used to linearly interpolate the current value between
-	/// \ref animated_property::from and \ref animated_property::to.
-	using transition_function = std::function<double(double)>;
-
-	/// Used to interpolate between values using \ref lerp().
-	template <typename T> struct default_lerp {
-		/// Calls \ref lerp().
-		T operator()(T from, T to, double perc) const {
-			return lerp(from, to, perc);
-		}
-	};
-	/// Returns the target value without interpolating.
-	struct no_lerp {
-		/// Returns \p to.
-		template <typename T> T operator()(T, T to, double) const {
-			return to;
-		}
-	};
-	using animation_clock_t = std::chrono::high_resolution_clock; ///< Type of the clock used for animation updating.
-	using animation_time_point_t = animation_clock_t::time_point; ///< Represents a time point in an animation.
-	using animation_duration_t = animation_clock_t::duration; ///< Represents a duration in an animation.
-	namespace json_object_parsers {
-		/// Parses a \ref animation_duration_t by calling \ref parse_duration().
-		template <> inline animation_duration_t parse<animation_duration_t>(const json::node_t &obj) {
-			return parse_duration<animation_duration_t::rep, animation_duration_t::period>(obj);
-		}
-	}
-	/// A property that can be animated. Each property consists of multiple key frames with corresponding
-	/// target values, durations, and transition functions.
-	template <typename T, typename Lerp = default_lerp<T>> struct animated_property {
-	public:
-		/// The maximum number of key frames to advance per update. This is to prevent repeating key frames with zero
-		/// duration from locking up the program.
-		constexpr static size_t maximum_frames_per_update = 1000;
-
-		/// A key frame.
-		struct key_frame {
-			/// Default constructor.
-			key_frame() = default;
-			/// Initializes all fields of this struct.
-			explicit key_frame(
-				T tar, animation_duration_t dur = animation_duration_t::zero(), transition_function func = nullptr
-			) : target(tar), duration(dur), transition_func(std::move(func)) {
-			}
-
-			T target{}; ///< The target value.
-			/// The duration of this key frame, i.e., the time after the last key frame and before this key frame.
-			animation_duration_t duration{0};
-			/// The transition function. If this is \p nullptr, then the animation will immediately reach \ref target
-			/// value at this \ref key_frame.
-			transition_function transition_func;
-		};
-		/// Tracks an ongoing animation.
-		struct state {
-			/// Default constructor.
-			state() = default;
-			/// Initializes this state using a custom starting value.
-			state(const T &start, animation_time_point_t now) :
-				from(start), current_value(start), key_frame_start(now) {
-			}
-			/// Initializes this state using \ref default_from_value as the starting value.
-			state(const animated_property &prop, animation_time_point_t now) : state(prop.default_from_value, now) {
-			}
-
-			T
-				from, ///< The value of the last key frame, or the original value.
-				current_value; ///< The current value of the animation.
-			animation_time_point_t key_frame_start; ///< Time when the last \ref key_frame was reached.
-			size_t
-				current_frame = 0, ///< The index of the current \ref key_frame.
-				repeated = 0; ///< The number of times that this animation has been repeated.
-			bool stationary = false; ///< Indicates whether this animation has finished.
-		};
-
-		std::vector<key_frame> key_frames; ///< The list of key frames.
-		T default_from_value; ///< The default starting value of this animation if no value is previously present.
-		/// The number of times to repeat the whole animation. If this is 0, then the animation will be repeated
-		/// indefinitely.
-		size_t repeat_times = 1;
-
-		/// Updates a given \ref state.
-		///
-		/// \param s The \ref state.
-		/// \param now The time of now.
-		/// \return The time, in seconds, before this \ref state needs to be updated again.
-		animation_duration_t update(state &s, animation_time_point_t now) const {
-			if (!s.stationary) {
-				for (size_t i = 0; i < maximum_frames_per_update; ++i) { // go through the frames
-					if (s.current_frame >= key_frames.size()) { // animation has finished
-						s.stationary = true;
-						s.current_value = key_frames.empty() ? default_from_value : key_frames.back().target;
-						return animation_duration_t::max();
-					}
-					const key_frame &f = key_frames[s.current_frame];
-					animation_time_point_t key_frame_end = s.key_frame_start + f.duration;
-					if (key_frame_end > now) { // at the correct frame
-						if (f.transition_func) {
-							s.current_value = Lerp()(s.from, f.target, f.transition_func(
-								std::chrono::duration<double>(now - s.key_frame_start) / f.duration
-							));
-							return animation_duration_t(0); // update immediately
-						} else { // wait until this key frame is over
-							s.current_value = f.target;
-							return key_frame_end - now;
-						}
-					}
-					// advance frame
-					s.key_frame_start += f.duration;
-					s.from = f.target; // next frame starts at the target value of this frame
-					if (++s.current_frame == key_frames.size()) { // at the end, check if should repeat
-						++s.repeated;
-						if (repeat_times == 0 || s.repeated < repeat_times) { // yes
-							s.current_frame = 0;
-						} else { // this animation has finished
-							s.stationary = true;
-							s.current_value = f.target;
-							return animation_duration_t::max();
-						}
-					}
-				}
-				logger::get().log_warning(CP_HERE, "potential infinite loop in animation");
-			}
-			return animation_duration_t::max(); // don't update
-		}
-	};
-
-	/// Patterns used to match states.
-	struct state_pattern {
-		/// Default constructor.
-		state_pattern() = default;
-		/// Creates a state pattern with the given target and (optionally) mask.
-		explicit state_pattern(element_state_id tarval, element_state_id maskval = ~normal_element_state_id) :
-			mask(maskval), target(tarval) {
-		}
-
-		element_state_id
-			/// Used to mask the state in question.
-			mask = ~normal_element_state_id,
-			/// The target state, after having been masked.
-			target = normal_element_state_id;
-
-		/// Equality.
-		friend bool operator==(const state_pattern &lhs, const state_pattern &rhs) {
-			return lhs.mask == rhs.mask && lhs.target == rhs.target;
-		}
-		/// Inequality.
-		friend bool operator!=(const state_pattern &lhs, const state_pattern &rhs) {
-			return !(lhs == rhs);
-		}
-
-		/// Tests if the given value matches this pattern.
-		bool match(element_state_id v) const {
-			return (v & mask) == target;
-		}
-	};
-	/// Records the mapping between different states and corresponding property values.
-	template <typename T> class state_mapping {
-	public:
-		/// Returns the first entry that matches the given \ref element_state_id, or \p nullptr if none exists.
-		const T *try_match_state(element_state_id s) const {
-			auto found = _match(s);
-			return found == _entries.end() ? nullptr : &found->value;
-		}
-		/// Returns the first entry that matches the given \ref element_state_id. If no such state exists, the first
-		/// one of all states is returned.
-		const T &match_state_or_first(element_state_id s) const {
-			auto found = _match(s);
-			return (found == _entries.end() ? _entries.at(0) : *found).value;
-		}
-
-		/// Returns the first entry that has the exact same \ref state_pattern as what's given.
-		T *try_get_state(state_pattern pat) {
-			auto found = _find(_entries.begin(), _entries.end(), pat);
-			return found == _entries.end() ? nullptr : &found->value;
-		}
-		/// Const version of \ref try_get_state().
-		const T *try_get_state(state_pattern pat) const {
-			auto found = _find(_entries.begin(), _entries.end(), pat);
-			return found == _entries.end() ? nullptr : &found->value;
-		}
-
-		/// Adds a new entry with the given pattern and state value to the end of the list.
-		void register_state(state_pattern pat, T obj) {
-			_entries.emplace_back(pat, std::move(obj));
-		}
-	protected:
-		/// Stores a \ref state_pattern and the corresponding state value.
-		struct _entry {
-			/// Default constructor.
-			_entry() = default;
-			/// Constructor that initializes all fields of the struct.
-			_entry(state_pattern pat, T val) : value(std::move(val)), pattern(pat) {
-			}
-
-			T value; ///< The value.
-			state_pattern pattern; ///< The pattern.
-		};
-		std::vector<_entry> _entries; ///< Different property values in different states.
-
-		/// Finds the first entry in \ref _entries whose \ref _entry::pattern matches the given state.
-		typename std::vector<_entry>::const_iterator _match(element_state_id state) const {
-			auto it = _entries.begin();
-			for (; it != _entries.end() && !it->pattern.match(state); ++it) {
-			}
-			return it;
-		}
-		/// Finds the first entry in \ref _entries whose \ref _entry::pattern is the same as the given one.
-		template <typename It> inline static It _find(It beg, It end, state_pattern pattern) {
-			auto it = beg;
-			for (; it != end && it->pattern != pattern; ++it) {
-			}
-			return it;
-		}
-	};
 }

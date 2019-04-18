@@ -38,6 +38,116 @@ namespace codepad::os {
 		inline bool is_key_down_id(int vk) {
 			return (GetAsyncKeyState(vk) & 0x8000) != 0;
 		}
+
+		/// A wrapper for reference-counted COM objects.
+		template <typename T> struct com_wrapper {
+		public:
+			/// Default constructor.
+			com_wrapper() = default;
+			/// Copy constructor.
+			com_wrapper(const com_wrapper &src) : _ptr(src._ptr) {
+				_check_add_ref();
+			}
+			/// Move constructor.
+			com_wrapper(com_wrapper &&src) : _ptr(src._ptr) {
+				src._ptr = nullptr;
+			}
+			/// Copy assignment.
+			com_wrapper &operator=(const com_wrapper &src) {
+				set_share(src._ptr);
+				return *this;
+			}
+			/// Move assignment.
+			com_wrapper &operator=(com_wrapper &&src) {
+				set_give(src._ptr);
+				src._ptr = nullptr;
+				return *this;
+			}
+			/// Releases the poitner.
+			~com_wrapper() {
+				_check_release();
+			}
+
+			/// Casting to parent types.
+			template <
+				typename U, typename = std::enable_if_t<std::is_base_of_v<U, T>, void>
+			> operator com_wrapper<U>() {
+				auto ptr = static_cast<U*>(_ptr);
+				com_wrapper<U> res;
+				res.set_share(ptr);
+				return res;
+			}
+
+			/// Sets the underlying pointer and increment the reference count.
+			com_wrapper &set_share(T *ptr) {
+				_check_release();
+				_ptr = ptr;
+				_check_add_ref();
+				return *this;
+			}
+			/// Sets the underlying pointer without incrementing the reference count.
+			com_wrapper &set_give(T *ptr) {
+				_check_release();
+				_ptr = ptr;
+				return *this;
+			}
+			/// Releases the currently holding object.
+			com_wrapper &reset() {
+				return set_give(nullptr);
+			}
+
+			/// Returns the underlying pointer.
+			T *get() const {
+				return _ptr;
+			}
+			/// Returns a pointer to the underlying pointer. The existing pointer will be released. This is mainly
+			/// useful when creating objects.
+			T **get_ref() {
+				_check_release();
+				_ptr = nullptr;
+				return &_ptr;
+			}
+			/// Convenience operator.
+			T *operator->() const {
+				return get();
+			}
+
+			/// Returns whether this wrapper holds no objects.
+			bool empty() const {
+				return _ptr == nullptr;
+			}
+			/// Returns whether this brush has any content.
+			explicit operator bool() const {
+				return !empty();
+			}
+		protected:
+			T *_ptr = nullptr; ///< The pointer.
+
+			/// Checks and releases \ref _ptr.
+			void _check_release() {
+				if (_ptr) {
+					_ptr->Release();
+				}
+			}
+			/// Checks and increments the reference count of \ref _ptr.
+			void _check_add_ref() {
+				if (_ptr) {
+					_ptr->AddRef();
+				}
+			}
+		};
+		/// Creates a new \ref com_wrapper, and calls \ref com_wrapper::set_share() to share the given pointer.
+		template <typename T> inline com_wrapper<T> make_com_wrapper_share(T *ptr) {
+			com_wrapper<T> res;
+			res.set_share(ptr);
+			return res;
+		}
+		/// Creates a new \ref com_wrapper, and calls \ref com_wrapper::set_give() to give the given pointer to it.
+		template <typename T> inline com_wrapper<T> make_com_wrapper_give(T *ptr) {
+			com_wrapper<T> res;
+			res.set_give(ptr);
+			return res;
+		}
 	}
 
 	inline bool is_mouse_button_down(ui::mouse_button mb) {
@@ -113,75 +223,37 @@ namespace codepad::os {
 		}
 	}
 
+	/// Loads images using WIC.
 	struct wic_image_loader {
 	public:
+		/// Initializes \ref _factory.
 		wic_image_loader() {
 			HRESULT res = CoCreateInstance(
-				CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_factory)
+				CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
 			);
-#ifdef _MSC_VER
 			if (res == REGDB_E_CLASSNOTREG) { // workaround for missing component in win7
 				res = CoCreateInstance(
-					CLSID_WICImagingFactory1, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_factory)
+					CLSID_WICImagingFactory1, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
 				);
 			}
-#endif
 			com_check(res);
-#ifdef __GNUC__
-			// workaround for missing function in mingw libs
-			_handle = LoadLibrary(TEXT("WindowsCodecs.dll"));
-			_conv_func = reinterpret_cast<PWICConvertBitmapSource>(
-				GetProcAddress(_handle, "WICConvertBitmapSource")
-				);
-#endif
 		}
-		~wic_image_loader() {
-			_factory->Release();
-#ifdef __GNUC__
-			FreeLibrary(_handle);
-#endif
-		}
-		ui::texture load_image(ui::renderer_base &r, const std::filesystem::path &filename) {
-			IWICBitmapDecoder *decoder = nullptr;
+		/// Loads an image. The pixel foramt of the image is not certain; use \p WICConvertBitmapSource to convert
+		/// it to the desired format.
+		_details::com_wrapper<IWICBitmapSource> load_image(const std::filesystem::path &filename) {
+			_details::com_wrapper<IWICBitmapDecoder> decoder;
+			_details::com_wrapper<IWICBitmapFrameDecode> frame;
 			com_check(_factory->CreateDecoderFromFilename(
 				filename.c_str(), nullptr,
-				GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder
+				GENERIC_READ, WICDecodeMetadataCacheOnDemand, decoder.get_ref()
 			));
-			IWICBitmapFrameDecode *frame = nullptr;
-			IWICBitmapSource *convertedframe = nullptr;
-			com_check(decoder->GetFrame(0, &frame));
-#ifdef __GNUC__
-			com_check(_conv_func(GUID_WICPixelFormat32bppRGBA, frame, &convertedframe));
-#else
-			com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppRGBA, frame, &convertedframe));
-#endif
-			frame->Release();
-			UINT w, h;
-			com_check(convertedframe->GetSize(&w, &h));
-			size_t bufsize = 4 * w * h;
-			void *buffer = std::malloc(bufsize);
-			com_check(convertedframe->CopyPixels(
-				nullptr, static_cast<UINT>(4 * w), static_cast<UINT>(bufsize),
-				static_cast<BYTE*>(buffer))
-			);
-			ui::texture res = r.new_texture(
-				static_cast<size_t>(w), static_cast<size_t>(h), static_cast<std::uint8_t*>(buffer)
-			);
-			std::free(buffer);
-			convertedframe->Release();
-			decoder->Release();
-			return res;
+			com_check(decoder->GetFrame(0, frame.get_ref()));
+			return frame;
 		}
 
 		static wic_image_loader &get();
 	protected:
-		IWICImagingFactory * _factory = nullptr;
+		_details::com_wrapper<IWICImagingFactory> _factory;
 		_details::com_usage _uses_com;
-#ifdef __GNUC__
-		using PWICConvertBitmapSource =
-			HRESULT(WINAPI*)(REFWICPixelFormatGUID, IWICBitmapSource*, IWICBitmapSource**);
-		PWICConvertBitmapSource _conv_func = nullptr;
-		HMODULE _handle = nullptr;
-#endif
 	};
 }

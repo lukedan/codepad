@@ -47,7 +47,7 @@ namespace std {
 namespace codepad {
 	/// Indicates if all following bitwise operators are enabled for a type. Enum classes can create specializations
 	/// to enable them.
-	template <typename> struct enable_enum_bitwise_operators : std::false_type {
+	template <typename> struct enable_enum_bitwise_operators : public std::false_type {
 	};
 	/// Indicates if all following bitwise operators are enabled for a type.
 	///
@@ -418,6 +418,10 @@ namespace codepad {
 		/// Constructs a rectangle given its top-left corner, width, and height.
 		inline static constexpr rect from_xywh(T x, T y, T w, T h) {
 			return rect(x, x + w, y, y + h);
+		}
+		/// Constructs a rectangle given the position of its top-left corner and its bottom-right corner.
+		inline static constexpr rect from_corners(vec2<T> topleft, vec2<T> bottomright) {
+			return rect(topleft.x, bottomright.x, topleft.y, bottomright.y);
 		}
 	};
 	/// Rectangles with coordinates of type \p double.
@@ -875,7 +879,7 @@ namespace codepad {
 	/// \param list A list of character-bit relationships.
 	/// \param str The string to gather bits from.
 	template <typename T, typename C> inline T get_bitset_from_string(
-		std::initializer_list<std::pair<C, T>> list, const std::basic_string<C> &str
+		std::initializer_list<std::pair<C, T>> list, std::basic_string_view<C> str
 	) {
 		T result{};
 		for (C c : str) {
@@ -1240,7 +1244,7 @@ namespace codepad {
 	/// Initializes the program by calling \ref os::initialize first and then performing several other
 	/// initialization steps.
 	void initialize(int, char**);
-}
+		}
 
 // demangle
 #ifdef __GNUC__
@@ -1291,5 +1295,5 @@ namespace codepad {
 		log_warning(CP_HERE, "stacktrace logging is not supported with this configuration");
 #	endif
 }
-		}
+	}
 #endif

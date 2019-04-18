@@ -15,11 +15,10 @@
 #include "../core/event.h"
 #include "../core/misc.h"
 #include "../os/misc.h"
+#include "animation_path.h"
 #include "hotkey_registry.h"
 #include "element_classes.h"
-#include "visual.h"
 #include "renderer.h"
-#include "draw.h"
 
 namespace codepad::ui {
 	class panel_base;
@@ -80,41 +79,6 @@ namespace codepad::ui {
 	protected:
 		bool _focus_set = false; ///< Marks if the click has caused the focused element to change.
 	};
-	/// Contains information as well as feedback for updating animations.
-	struct animation_update_info {
-	public:
-		/// Initializes \ref now to \ref animation_clock_t::now().
-		animation_update_info() : animation_update_info(animation_clock_t::now()) {
-		}
-		/// Initializes \ref now.
-		explicit animation_update_info(animation_time_point_t t) : now(t) {
-		}
-
-		const animation_time_point_t now; ///< The time.
-
-		/// Updates the given configuration and updates \ref _wait and \ref _stationary accordingly. Use this instead
-		/// of \ref configuration::update, or related statistics (\ref _wait and \ref _stationary) won't be properly
-		/// updated.
-		template <typename T> void update_configuration(configuration<T> &cfg) {
-			_wait = std::min(_wait, cfg.update(now));
-			if (!cfg.get_state().all_stationary) {
-				_stationary = false;
-			}
-		}
-
-		/// Returns \ref _wait.
-		animation_duration_t get_wait_time() const {
-			return _wait;
-		}
-		/// Returns \ref _stationary.
-		bool is_stationary() const {
-			return _stationary;
-		}
-	protected:
-		/// The amount of time to wait before updating again.
-		animation_duration_t _wait = animation_duration_t::max();
-		bool _stationary = true; ///< Marks if all animations have finished playing.
-	};
 	/// Contains information about key presses.
 	struct key_info {
 		/// Constructor.
@@ -159,6 +123,7 @@ namespace codepad::ui {
 		friend scheduler;
 		friend panel_base;
 		friend class_arrangements;
+		friend animation_path::builder::getter_components::element_parameters_getter_component;
 	public:
 		/// Default virtual destrucor.
 		virtual ~element() = default;
@@ -204,30 +169,30 @@ namespace codepad::ui {
 
 		/// Returns the margin metric of this element.
 		thickness get_margin() const {
-			return _config.metrics_config.get_state().margin.current_value;
+			return _params.layout_parameters.margin;
 		}
 		/// Returns the padding metric of this element.
 		thickness get_padding() const {
-			return _config.metrics_config.get_state().padding.current_value;
+			return _params.layout_parameters.padding;
 		}
 		/// Returns the size metric of this element. Note that this is not the element's actual size, and this value
 		/// may or may not be used in layout calculation.
 		///
 		/// \sa get_actual_size()
 		vec2d get_size() const {
-			return _config.metrics_config.get_state().size.current_value;
+			return _params.layout_parameters.size;
 		}
 		/// Returns the anchor metric of this element.
 		anchor get_anchor() const {
-			return _config.metrics_config.get_controller().elem_anchor;
+			return _params.layout_parameters.elem_anchor;
 		}
 		/// Returns the width allocation metric of this element.
 		size_allocation_type get_width_allocation() const {
-			return _config.metrics_config.get_controller().width_alloc;
+			return _params.layout_parameters.width_alloc;
 		}
 		/// Returns the height allocation metric of this element.
 		size_allocation_type get_height_allocation() const {
-			return _config.metrics_config.get_controller().height_alloc;
+			return _params.layout_parameters.height_alloc;
 		}
 
 		/// Returns the desired width of the element. Derived elements can override this to change the default
@@ -259,34 +224,20 @@ namespace codepad::ui {
 		virtual cursor get_default_cursor() const {
 			return cursor::normal;
 		}
-		/// Sets the custom cursor displayed when the mouse is over this element.
-		/// If the given cursor is \ref cursor::not_specified, then the element will have no custom cursor.
-		void set_overriden_cursor(cursor c) {
-			_cursor = c;
-		}
 		/// Returns the custom cursor displayed when the mouse is over this element.
-		cursor get_overriden_cursor() const {
-			return _cursor;
+		cursor get_custom_cursor() const {
+			return _params.custom_cursor;
 		}
 		/// Returns the cursor displayed when the mouse is over this element.
 		/// This function returns the cusrom cursor if there is one,
 		/// or the result returned by \ref get_default_cursor.
 		virtual cursor get_current_display_cursor() const {
-			if (_cursor == cursor::not_specified) {
+			cursor overriden = get_custom_cursor();
+			if (overriden == cursor::not_specified) {
 				return get_default_cursor();
 			}
-			return _cursor;
+			return overriden;
 		}
-
-		/// Sets if this element can have the focus.
-		void set_can_focus(bool v) {
-			_can_focus = v;
-		}
-		/// Returns whether the element can have the focus.
-		bool get_can_focus() const {
-			return _can_focus;
-		}
-
 
 		/// Returns the window that contains the element, or \p nullptr if the element's not currently attached to
 		/// one.
@@ -303,23 +254,24 @@ namespace codepad::ui {
 			return _zindex;
 		}
 
-		/// Returns the state of this element.
-		element_state_id get_state() const {
-			return _state;
+		/// Sets the visibility of this element.
+		void set_visibility(visibility v) {
+			value_update_info<visibility> info(get_visibility());
+			_params.visibility = v;
+			_on_visibility_changed(info);
 		}
-		/// Sets the state of this element, invoking \ref _on_state_changed when necessary. Under most circumstances
-		/// \ref set_state_bits is the more practical alternative.
-		void set_state(element_state_id state) {
-			if (state != _state) {
-				value_update_info<element_state_id> info(_state);
-				_state = state;
-				_config.on_state_changed(_state);
-				_on_state_changed(info);
-			}
+		/// Returns the current visibility of this element.
+		visibility get_visibility() const {
+			return _params.visibility;
 		}
-		/// Sets certain bits of the visual style to the given value by calling \ref set_state.
-		void set_state_bits(element_state_id bits, bool v) {
-			set_state(v ? _state | bits : _state & ~bits);
+		/// Tests if the visiblity of this element have all the given visiblity flags set.
+		bool is_visible(visibility vis) const {
+			return (get_visibility() & vis) == vis;
+		}
+
+		/// Returns if the mouse is hovering over this element.
+		bool is_mouse_over() const {
+			return _mouse_over;
 		}
 
 		/// Invalidates the visual of the element so that it'll be re-rendered next frame.
@@ -332,39 +284,6 @@ namespace codepad::ui {
 		/// \sa manager::invalid_layout()
 		void invalidate_layout();
 
-
-		/// Shorthand for testing if the \ref manager::predefined_states::mouse_over bit is set in the element's
-		/// states. Note that this function may not be accurate when, e.g., the mouse is captured.
-		///
-		/// \sa hit_test
-		bool is_mouse_over() const;
-
-		/// Shorthand for testing if the \ref manager::predefined_states::render_invisible bit is \em not set in the
-		/// element's states.
-		bool is_render_visible() const;
-		/// Shorthand for setting or unsetting the \ref manager::predefined_states::render_invisible state.
-		void set_render_visibility(bool);
-		/// Shorthand for testing if the \ref manager::predefined_states::hittest_invisible bit is \em not set in the
-		/// element's states.
-		bool is_hittest_visible() const;
-		/// Shorthand for setting or unsetting the \ref manager::predefined_states::hittest_invisible state.
-		void set_hittest_visibility(bool);
-		/// Shorthand for testing if the \ref manager::predefined_states::layout_invisible bit is \em not set in the
-		/// element's states.
-		bool is_layout_visible() const;
-		/// Shorthand for setting or unsetting the \ref manager::predefined_states::layout_invisible state.
-		void set_layout_visibility(bool);
-
-		/// Shorthand for testing if the \ref manager::predefined_states::focused bit is \em not set in the element's
-		/// states. The result may differ from that from testing if \p this is equal to
-		/// \ref manager::get_focused_element on certain occasions, more specifically when the focused element is
-		/// changing.
-		bool is_focused() const;
-		/// Shorthand for testing if the \ref manager::predefined_states::vertical bit is set in the element's
-		/// states.
-		bool is_vertical() const;
-		/// Shorthand for setting or unsetting the \ref manager::predefined_states::vertical state.
-		void set_is_vertical(bool);
 
 		info_event<>
 			mouse_enter, ///< Triggered when the mouse starts to be over the element.
@@ -388,68 +307,76 @@ namespace codepad::ui {
 			return CP_STRLIT("element");
 		}
 	private:
-		element_configuration _config; ///< The configuration of this element.
+		element_parameters _params; ///< The parameters of this element.
+		const class_hotkey_group *_hotkeys = nullptr; ///< The hotkey group of this element.
 		panel_base
 			*_parent = nullptr, ///< Pointer to the element's parent.
 			/// The element's logical parent. In composite elements this points to the top level composite element.
 			/// Composite elements that allow users to dynamically add children may also use this to indicate the
 			/// actual element that handles their logic.
 			*_logical_parent = nullptr;
-		element_state_id _state = normal_element_state_id; ///< The element's current state.
 		int _zindex = zindex::normal; ///< The z-index of the element.
-		cursor _cursor = cursor::not_specified; ///< The custom cursor of the element.
 		std::any _parent_data; ///< Data generated and used by the parent.
+		bool _mouse_over = false; ///< Indicates if the mouse is hoverihg this element.
 	protected:
-		bool _can_focus = true; ///< Indicates whether this element can have the focus.
 		rectd _layout; ///< The absolute layout of the element in the window.
 
 		/// Called when the mouse starts to be over the element.
-		/// Updates the visual style and invokes \ref mouse_enter.
+		/// Updates \ref _mouse_over and invokes \ref mouse_enter.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_enter();
+		virtual void _on_mouse_enter() {
+			_mouse_over = true;
+			mouse_enter.invoke();
+		}
 		/// Called when the mouse ceases to be over the element.
-		/// Updates the visual style and invokes \ref mouse_leave.
+		/// Updates \ref _mouse_over and invokes \ref mouse_leave.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_leave();
-		/// Called when the element gets the focus.
-		/// Updates the visual style and invokes \ref got_focus.
+		virtual void _on_mouse_leave() {
+			_mouse_over = false;
+			mouse_leave.invoke();
+		}
+		/// Called when the element gets the focus. Invokes \ref got_focus.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_got_focus();
-		/// Called when the element loses the focus.
-		/// Updates the visual style and invokes \ref lost_focus.
+		virtual void _on_got_focus() {
+			got_focus.invoke();
+		}
+		/// Called when the element loses the focus. Invokes \ref lost_focus.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_lost_focus();
+		virtual void _on_lost_focus() {
+			lost_focus.invoke();
+		}
 		/// Called when the mouse moves over the element. Invokes \ref mouse_move.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_move(mouse_move_info &p) {
+		virtual void _on_mouse_move(mouse_move_info & p) {
 			mouse_move.invoke(p);
 		}
 		/// Called when a mouse button is pressed when the mouse is over this element.
-		/// Changes the focus and the visual style if appropriate, and invokes \ref mouse_down.
+		/// Changes the focus if appropriate, and invokes \ref mouse_down.
 		/// Derived classes should override this function instead of registering for the event.
 		virtual void _on_mouse_down(mouse_button_info&);
-		/// Called when a mouse button is released when the mouse is over this element.
-		/// Updates the visual style and invokes \ref mouse_up.
+		/// Called when a mouse button is released when the mouse is over this element. Invokes \ref mouse_up.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_up(mouse_button_info&);
+		virtual void _on_mouse_up(mouse_button_info & p) {
+			mouse_up.invoke(p);
+		}
 		/// Called when the user scrolls the mouse over the element. Invokes \ref mouse_scroll.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_scroll(mouse_scroll_info &p) {
+		virtual void _on_mouse_scroll(mouse_scroll_info & p) {
 			mouse_scroll.invoke(p);
 		}
 		/// Called when a key is pressed when the element has the focus. Invokes \ref key_down.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_key_down(key_info &p) {
+		virtual void _on_key_down(key_info & p) {
 			key_down.invoke(p);
 		}
 		/// Called when a key is released when the element has the focus. Invokes \ref key_up.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_key_up(key_info &p) {
+		virtual void _on_key_up(key_info & p) {
 			key_up.invoke(p);
 		}
 		/// Called when the users types characters when the element has the focus. Invokes \ref keyboard_text.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_keyboard_text(text_info &p) {
+		virtual void _on_keyboard_text(text_info & p) {
 			keyboard_text.invoke(p);
 		}
 		/// Called when the state of the ongoing composition has changed. Derived classes can override this
@@ -470,9 +397,18 @@ namespace codepad::ui {
 		}
 
 		/// Called when the padding of the element has changed. Calls \ref invalidate_visual.
-		/// Derived classes should override this function instead of registering for the event.
 		virtual void _on_padding_changed() {
 			invalidate_visual();
+		}
+		/// Called when the visibility of this element has changed.
+		virtual void _on_visibility_changed(value_update_info<visibility> & p) {
+			visibility changed = p.old_value ^ get_visibility();
+			if ((changed & visibility::layout) != visibility::none) {
+				invalidate_layout();
+			} else if ((changed & visibility::visual) != visibility::none) {
+				invalidate_visual();
+			}
+			// TODO handle visibility::focus
 		}
 
 		/// Called when the element has lost the capture it previously got. Note that
@@ -485,17 +421,6 @@ namespace codepad::ui {
 		/// \ref _config is updated here by default, and \ref invalidate_visual is called when necessary.
 		virtual void _on_update() {
 		}
-
-		/// Called to update \ref visual_configuration associated with this element. Layout configuration of elements
-		/// are instead managed by \ref manager since extra ones are rarely useful.
-		virtual void _on_update_visual_configurations(animation_update_info&);
-
-		/// Checks if any bit in \p bits have changed, given the element's old states.
-		bool _has_any_state_bit_changed(element_state_id bits, const value_update_info<element_state_id> &p) const {
-			return ((_state ^ p.old_value) & bits) != 0;
-		}
-		/// Called when the state of \ref _state has changed. Schedules update for \ref _config.
-		virtual void _on_state_changed(value_update_info<element_state_id>&);
 
 		/// Called when the element is about to be rendered.
 		/// Pushes a clip that prevents anything to be drawn outside of its layout.
@@ -531,6 +456,39 @@ namespace codepad::ui {
 			layout_changed.invoke();
 		}
 
+		/// Registers the callback to the event if the names match. The callback will be moved out of place if it's
+		/// registered.
+		///
+		/// \return Whether the names match or not.
+		template <typename Info> bool _try_register_event(
+			str_view_t name, str_view_t expected, info_event<Info> & event, std::function<void()> & callback
+		) {
+			if (name == expected) {
+				if constexpr (std::is_same_v<Info, void>) { // register directly
+					event += std::move(callback);
+				} else { // ignore the arguments
+					event += [cb = std::move(callback)](Info&) {
+						cb();
+					};
+				}
+				return true;
+			}
+			return false;
+		}
+		/// Registers the callback for the event with the given name. This is used mainly for storyboard animations.
+		virtual void _register_event(str_view_t name, std::function<void()> callback) {
+			_try_register_event(name, u8"mouse_enter", mouse_enter, callback);
+			_try_register_event(name, u8"mouse_leave", mouse_leave, callback);
+			_try_register_event(name, u8"got_focus", got_focus, callback);
+			_try_register_event(name, u8"lost_focus", lost_focus, callback);
+			_try_register_event(name, u8"mouse_down", mouse_down, callback);
+			_try_register_event(name, u8"mouse_up", mouse_up, callback);
+		}
+
+		/// Sets a custom attribute for this element.
+		virtual void _set_attribute(str_view_t name, const json::value_storage &v) {
+		}
+
 		/// Called immediately after the element is created to initialize it. Initializes \ref _config with the given
 		/// class. All derived classes should call \p base::_initialize <em>before</em> performing any other
 		/// initialization. It is primarily intended to avoid pitfalls associated with virtual function calls in
@@ -538,7 +496,7 @@ namespace codepad::ui {
 		///
 		/// \param cls The class of the element.
 		/// \param metrics The element's metrics configuration.
-		virtual void _initialize(str_view_t cls, const element_metrics &metrics);
+		virtual void _initialize(str_view_t cls, const element_configuration & config);
 		/// Called after the logical parent of this element (which is a composite element) has been fully constructed,
 		/// i.e., it and all of its children (including this element) has been constructed and properly initialized.
 		/// If this element does not have a logical parent, this function will not be called. The order in which this
@@ -575,8 +533,7 @@ namespace codepad::ui {
 		/// Copy constructor. The decoration will have the same class, state, manager, etc. of the original
 		/// decoration, only that it won't be registered to any window.
 		decoration(const decoration &src) :
-			_vis_config(src._vis_config), _class(src._class), _layout(src._layout), _state(src._state),
-			_manager(src._manager) {
+			_class(src._class), _layout(src._layout), _manager(src._manager) {
 		}
 		/// Destructor. If \ref _wnd is not \p nullptr, notifies the window of its disposal.
 		~decoration();
@@ -595,34 +552,16 @@ namespace codepad::ui {
 			return _class;
 		}
 
-		/// Sets the state used to render the decoration.
-		void set_state(element_state_id id) {
-			if (_state != id) {
-				_state = id;
-				_vis_config.on_state_changed(id);
-				_on_state_invalidated();
-			}
-		}
-		/// Returns the state used to render the decoration.
-		element_state_id get_state() const {
-			return _state;
-		}
-
 		/// Returns the os::window_base that the decoration is currently registered to.
 		window_base *get_window() const {
 			return _wnd;
 		}
 	protected:
-		visual_configuration _vis_config; ///< Stores the state of the decoration's visual.
 		str_t _class; ///< The decoration's class.
 		rectd _layout; ///< The layout of the decoration.
 		/// A token used to accelerate the insertion and removal of decorations.
 		std::list<decoration*>::const_iterator _tok;
 		window_base *_wnd = nullptr; ///< The window that the decoration is currently registered to.
-		element_state_id _state = normal_element_state_id; ///< The decoration's state.
 		manager &_manager; ///< The \ref manager of this decoration.
-
-		/// Called when the \ref _vis_config should be updated. Calls \ref manager::schedule_visual_config_update().
-		void _on_state_invalidated();
 	};
 }

@@ -17,7 +17,7 @@ namespace codepad::ui::tabs {
 	class tab;
 
 	/// A button representing a \ref tab in a \ref host.
-	class tab_button : public ui::panel_base {
+	class tab_button : public panel_base {
 		friend tab_manager;
 		friend host;
 	public:
@@ -28,7 +28,7 @@ namespace codepad::ui::tabs {
 		/// The default padding.
 		///
 		/// \todo Make this customizable.
-		constexpr static ui::thickness content_padding = ui::thickness(5.0);
+		constexpr static thickness content_padding = thickness(5.0);
 
 		/// Contains information about the user starting to drag a \ref tab_button.
 		struct drag_start_info {
@@ -41,10 +41,10 @@ namespace codepad::ui::tabs {
 		/// Contains information about the user clicking a \ref tab_button.
 		struct click_info {
 			/// Initializes all fields of the struct.
-			explicit click_info(ui::mouse_button_info &i) : button_info(i) {
+			explicit click_info(mouse_button_info &i) : button_info(i) {
 			}
-			/// The \ref ui::mouse_button_info of the \ref ui::element::mouse_down event.
-			ui::mouse_button_info &button_info;
+			/// The \ref mouse_button_info of the \ref element::mouse_down event.
+			mouse_button_info &button_info;
 		};
 
 		/// Sets the label displayed on the button.
@@ -76,8 +76,8 @@ namespace codepad::ui::tabs {
 			return CP_STRLIT("close_button");
 		}
 	protected:
-		ui::label *_label; ///< Used to display the tab's label.
-		ui::button *_close_btn; ///< The `close' button.
+		label *_label; ///< Used to display the tab's label.
+		button *_close_btn; ///< The `close' button.
 		vec2d _mdpos; ///< The positon where the user presses the primary mouse button.
 		/// Indicates whether the user has pressed the primary mouse button when hovering over this element and may
 		/// or may not start dragging.
@@ -86,16 +86,16 @@ namespace codepad::ui::tabs {
 		/// Handles mouse button interactions.
 		///
 		/// \todo Make actions customizable.
-		void _on_mouse_down(ui::mouse_button_info &p) override {
+		void _on_mouse_down(mouse_button_info &p) override {
 			if (
-				p.button == ui::mouse_button::primary &&
+				p.button == mouse_button::primary &&
 				!_close_btn->is_mouse_over()
 				) {
 				_mdpos = p.position;
 				_predrag = true;
 				get_manager().get_scheduler().schedule_element_update(*this);
 				click.invoke_noret(p);
-			} else if (p.button == ui::mouse_button::tertiary) {
+			} else if (p.button == mouse_button::tertiary) {
 				request_close.invoke();
 			}
 			panel_base::_on_mouse_down(p);
@@ -105,7 +105,7 @@ namespace codepad::ui::tabs {
 		void _on_update() override {
 			panel_base::_on_update();
 			if (_predrag) {
-				if (os::is_mouse_button_down(ui::mouse_button::primary)) {
+				if (os::is_mouse_button_down(mouse_button::primary)) {
 					vec2d diff =
 						get_window()->screen_to_client(os::get_mouse_position()).convert<double>() - _mdpos;
 					if (diff.length_sqr() > drag_pivot * drag_pivot) {
@@ -121,17 +121,14 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Initializes \ref _close_btn.
-		void _initialize(str_view_t cls, const ui::element_metrics &metrics) override {
-			panel_base::_initialize(cls, metrics);
-
-			_can_focus = false;
+		void _initialize(str_view_t cls, const element_configuration &config) override {
+			panel_base::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_label_role(), _role_cast(_label)},
 				{get_close_button_role(), _role_cast(_close_btn)}
 				});
 
-			_close_btn->set_can_focus(false);
 			_close_btn->click += [this]() {
 				request_close.invoke();
 			};
@@ -139,7 +136,7 @@ namespace codepad::ui::tabs {
 	};
 
 	/// A tab that contains other elements.
-	class tab : public ui::panel {
+	class tab : public panel {
 		friend host;
 		friend tab_manager;
 	public:
@@ -180,20 +177,14 @@ namespace codepad::ui::tabs {
 		/// this function removes this tab from the host, then marks this for disposal.
 		virtual void _on_close_requested();
 
-		/// Updates the state of \ref _btn.
-		void _on_state_changed(value_update_info<ui::element_state_id> &info) override {
-			panel::_on_state_changed(info);
-			const auto &states = get_manager().get_predefined_states();
-			ui::element_state_id concerned_states = states.focused | states.child_focused | states.selected;
-			_btn->set_state((_btn->get_state() & ~concerned_states) | (get_state() & concerned_states));
-		}
+		// TODO notify the button when this element is selected
 
 		/// Initializes \ref _btn.
-		void _initialize(str_view_t, const ui::element_metrics&) override;
+		void _initialize(str_view_t, const element_configuration&) override;
 		/// Marks \ref _btn for disposal.
 		void _dispose() override {
 			get_manager().get_scheduler().mark_for_disposal(*_btn);
-			ui::panel::_dispose();
+			panel::_dispose();
 		}
 	private:
 		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.

@@ -6,501 +6,473 @@
 /// \file
 /// Parsers of JSON configuration files.
 
+#include <vector>
+
+#include "hotkey_registry.h"
 #include "element_classes.h"
 #include "element.h"
 #include "manager.h"
 
 namespace codepad::ui {
-	/// A table of textures that is to be loaded later.
-	///
-	/// \remark Using absolute paths with this class should be avoided. The table may cause actually
-	///         different paths to be treated as the same since the parent folder is specified afterwards.
-	struct texture_table {
-	public:
-		/// Returns a \p shared_ptr to a texture corresponding to a given path name.
-		/// If no such pointer exists, one will be created.
-		const std::shared_ptr<texture> &get(const std::filesystem::path &s) {
-			auto found = _tbl.find(s);
-			if (found != _tbl.end()) {
-				return found->second;
-			}
-			return _tbl.emplace(s, std::make_shared<texture>()).first->second;
-		}
-
-		/// Loads all textures from the specified folder.
-		void load_all(renderer_base &r, const std::filesystem::path &folder) {
-			for (auto &pair : _tbl) {
-				*pair.second = load_image(r, folder / pair.first);
-			}
-		}
-	protected:
-		/// The mapping from paths to pointer to textures.
-		std::map<std::filesystem::path, std::shared_ptr<texture>> _tbl;
-	};
-
 	/// Parses visuals from JSON objects.
-	class ui_config_json_parser {
+	///
+	/// \todo Warn invalid config entries.
+	template <typename ValueType> class ui_config_json_parser {
 	public:
+		using value_t = ValueType; ///< The type that holds JSON values.
+		using object_t = typename ValueType::object_t; ///< The type that holds JSON objects.
+		using array_t = typename ValueType::array_t; ///< The type that holds JSON arrays.
+
 		/// Initializes the class with the given \ref manager.
 		ui_config_json_parser(manager &man) : _manager(man) {
 		}
 
-		/// Parses a \ref visual_layer from the given JSON object, and registers all required textures to the given
-		/// \ref texture_table. If the layer contains only a single string, then it is treated as the file name of
-		/// the texture, and interpreted as an \ref animated_property<texture>.
-		void parse_layer(const json::node_t &val, visual_layer &layer) {
-			if (val.IsObject()) {
-				_find_and_parse_animation(val, CP_STRLIT("texture"), layer.texture_animation);
-				_find_and_parse_animation(val, CP_STRLIT("color"), layer.color_animation);
-				_try_find_and_parse(val, CP_STRLIT("type"), layer.layer_type);
-				_find_and_parse_animation(val, CP_STRLIT("margin"), layer.margin_animation);
-				_try_find_and_parse(val, CP_STRLIT("anchor"), layer.rect_anchor);
-				_parse_size(val, layer.size_animation, layer.width_alloc, layer.height_alloc);
-			} else if (val.IsString()) {
-				layer = visual_layer();
-				_parse_animation(val, layer.texture_animation);
-				return;
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid layer info");
-			}
-		}
-		/// Parses a \ref visual_state from the given JSON object, and registers all required textures to the
-		/// given \ref texture_table. The JSON object must be an array, whose elements will be parsed by
-		/// \ref parse_layer.
-		void parse_visual_state(const json::node_t &val, visual_state &vs) {
-			if (val.IsArray()) {
-				if (vs.layers.size() < val.Size()) {
-					vs.layers.resize(val.Size());
-				}
-				for (size_t i = 0; i < val.Size(); ++i) {
-					parse_layer(val[static_cast<rapidjson::SizeType>(i)], vs.layers[i]);
-				}
-			} else {
-				logger::get().log_warning(CP_HERE, "state format incorrect");
-			}
-		}
-		/// Parses a \ref class_visual from the given JSON object, and registers all required textures to the given
-		/// \ref texture_table. Inheritance is implemented by duplicating the \ref visual_state that it inherits
-		/// from and then parse the new state without clearing the old one. Therefore, the state that's inherited
-		/// from must occur before the state that inherits from it.
-		void parse_visual(const json::node_t &val, class_visual &provider) {
-			if (val.IsArray()) {
-				for (auto i = val.Begin(); i != val.End(); ++i) {
-					visual_state vps;
-					state_pattern pattern;
-					if (i->IsObject()) {
-						pattern = _parse_state_pattern(*i);
-						json::node_t::ConstMemberIterator fmem;
-						fmem = i->FindMember(CP_STRLIT("inherit_from"));
-						if (fmem != i->MemberEnd()) {
-							state_pattern tgpat = _parse_state_pattern(fmem->value);
-							visual_state *st = provider.try_get_state(tgpat);
-							if (st != nullptr) {
-								vps = *st;
-							} else {
-								logger::get().log_warning(CP_HERE, "invalid inheritance");
-							}
-						}
-						fmem = i->FindMember(CP_STRLIT("layers"));
-						if (fmem != i->MemberEnd()) {
-							parse_visual_state(fmem->value, vps);
-						}
-					} else {
-						parse_visual_state(*i, vps);
-					}
-					provider.register_state(pattern, std::move(vps));
-				}
-			} else {
-				logger::get().log_warning(CP_HERE, "element visuals must be declared as an array");
-			}
-		}
-		/// Parses the whole set of visuals for \ref _manager from the given JSON object. The original list is not
-		/// emptied so configs can be appended to one another.
-		void parse_visual_config(const json::node_t &val) {
-			if (val.IsObject()) {
-				for (auto i = val.MemberBegin(); i != val.MemberEnd(); ++i) {
-					class_visual vp;
-					parse_visual(i->value, vp);
-					auto[it, inserted] = _manager.get_class_visuals().mapping.try_emplace(
-						json::get_as_string(i->name), std::move(vp)
-					);
-					if (!inserted) {
-						logger::get().log_warning(CP_HERE, "duplicate class visuals");
-					}
-				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid visual config format");
-			}
-		}
-
 		/// Parses a \ref metrics_state from the given JSON object, and adds it to \p value. If one for the specified
 		/// state already exists in \p value, it is kept if the inheritance is not overriden with \p inherit_from.
-		void parse_metrics_state(const json::node_t &val, element_metrics &value) {
-			if (val.IsObject()) {
-				metrics_state mst, *dest = &mst;
-				state_pattern pattern = _parse_state_pattern(val);
-				json::node_t::ConstMemberIterator fmem;
-				fmem = val.FindMember(CP_STRLIT("inherit_from"));
-				if (fmem != val.MemberEnd()) {
-					state_pattern frompat = _parse_state_pattern(fmem->value);
-					metrics_state *st = value.try_get_state(frompat);
-					if (st != nullptr) {
-						mst = *st;
-					} else {
-						logger::get().log_warning(CP_HERE, "invalid inheritance");
-					}
-				} else {
-					metrics_state *present = value.try_get_state(pattern);
-					if (present != nullptr) {
-						dest = present;
-					}
+		void parse_configuration(const object_t &val, element_configuration &value) {
+			parse_parameters(val, value.default_parameters);
+
+			if (object_t extraobj; json::try_cast_member(val, u8"extras", extraobj)) {
+				for (auto it = extraobj.member_begin(); it != extraobj.member_end(); ++it) {
+					value.additional_attributes.emplace(
+						it.name(), json::store(it.value())
+					);
 				}
-				fmem = val.FindMember(CP_STRLIT("value"));
-				if (fmem != val.MemberEnd() && fmem->value.IsObject()) {
-					_find_and_parse_animation(fmem->value, CP_STRLIT("padding"), dest->padding_animation);
-					_find_and_parse_animation(fmem->value, CP_STRLIT("margin"), dest->margin_animation);
-					_try_find_and_parse(fmem->value, CP_STRLIT("anchor"), dest->elem_anchor);
-					_parse_size(fmem->value, dest->size_animation, dest->width_alloc, dest->height_alloc);
-				} else {
-					logger::get().log_warning(CP_HERE, "cannot find metrics value");
-				}
-				if (dest == &mst) {
-					value.register_state(pattern, std::move(mst));
-				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid metrics state format");
 			}
+
+			// TODO animations
 		}
-		/// Parses a \ref element_metrics from the given JSON object. Inheritance is implemented in a way similar to
-		/// that of \ref parse_visual(). Note that inheritance of \ref metrics_state will override that of
-		/// \ref element_metrics.
-		void parse_metrics(const json::node_t &val, element_metrics &metrics) {
-			if (val.IsArray()) {
-				for (auto it = val.Begin(); it != val.End(); ++it) {
-					parse_metrics_state(*it, metrics);
+		/// Parses a \ref element_parameters from the given JSON object.
+		void parse_parameters(const object_t &val, element_parameters &value) {
+			if (str_view_t cls; json::try_cast_member(val, u8"inherit_layout_from", cls)) {
+				if (auto * ancestor = _manager.get_class_arrangements().get(cls)) {
+					value.layout_parameters = ancestor->configuration.default_parameters.layout_parameters;
 				}
-			} else if (val.IsObject()) {
-				parse_metrics_state(val, metrics);
-			} else {
-				logger::get().log_warning(CP_HERE, "element metrics must be declared as an array");
+			}
+			if (object_t obj; json::try_cast_member(val, u8"layout", obj)) {
+				parse_layout_parameters(obj, value.layout_parameters);
+			}
+
+			if (str_view_t cls; json::try_cast_member(val, u8"inherit_visuals_from", cls)) {
+				if (auto * ancestor = _manager.get_class_arrangements().get(cls)) {
+					value.visual_parameters = ancestor->configuration.default_parameters.visual_parameters;
+				}
+			}
+			if (object_t obj; json::try_cast_member(val, u8"visuals", obj)) {
+				parse_visual_parameters(obj, value.visual_parameters);
+			}
+
+			_try_parse_member(val, u8"visibility", value.visibility);
+			_try_parse_member(val, u8"cursor", value.custom_cursor);
+		}
+		/// Parses a \ref element_layout_parameters from the given JSON object.
+		void parse_layout_parameters(const object_t &val, element_layout_parameters &value) {
+			_parse_size(val, value.size, value.width_alloc, value.height_alloc);
+			_try_parse_member(val, u8"anchor", value.elem_anchor);
+			_try_parse_member(val, u8"margin", value.margin);
+			_try_parse_member(val, u8"padding", value.padding);
+		}
+		/// Parses a \ref element_visual_parameters from the given JSON object.
+		void parse_visual_parameters(const object_t &val, element_visual_parameters &value) {
+			if (object_t obj; json::try_cast_member(val, u8"transform", obj)) {
+				_parse_transform(obj, value.transform);
+			}
+			if (array_t arr; json::try_cast_member(val, u8"geometries", arr)) {
+				for (auto &&geom : arr) {
+					if (object_t gobj; json::try_cast(geom, gobj)) {
+						_parse_geometry(gobj, value.geometries.emplace_back());
+					}
+				}
 			}
 		}
 		/// Parses additional attributes of a \ref class_arrangements::child from the given JSON object.
 		void parse_additional_arrangement_attributes(
-			const json::node_t &val, class_arrangements::child &child
+			const object_t &val, class_arrangements::child &child
 		) {
-			if (val.IsObject()) {
-				if (!json::try_get(val, CP_STRLIT("type"), child.type)) {
-					logger::get().log_warning(CP_HERE, "missing type for child");
-				}
-				if (!json::try_get(val, CP_STRLIT("class"), child.element_class)) {
-					child.element_class = child.type;
-				}
-				json::try_get(val, CP_STRLIT("role"), child.role);
-				auto fmem = val.FindMember(CP_STRLIT("set_states"));
-				if (fmem != val.MemberEnd()) {
-					child.set_states = _parse_state_id(fmem->value, true);
-				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid child arrangement format");
+			if (!json::try_cast_member(val, u8"type", child.type)) {
+				logger::get().log_warning(CP_HERE, "missing type for child");
 			}
+			child.element_class = json::cast_member_or_default(val, u8"class", child.type);
+			json::try_cast_member(val, u8"role", child.role);
 		}
 		/// Parses the metrics and children arrangements of either a composite element or one of its children, given
 		/// a JSON object.
-		template <typename T> void parse_class_arrangements(const json::node_t &val, T &obj) {
-			if (val.IsObject()) {
-				bool has_metrics = false;
-				str_t metrics_inheritance;
-				auto &registry = _manager.get_class_arrangements();
-				if (json::try_get(val, CP_STRLIT("inherit_metrics_from"), metrics_inheritance)) {
-					auto src = registry.mapping.find(metrics_inheritance);
-					if (src != registry.mapping.end()) {
-						has_metrics = true;
-						obj.metrics = src->second.metrics;
-					} else {
-						logger::get().log_warning(CP_HERE, "invalid metrics inheritance");
-					}
-				}
-				json::node_t::ConstMemberIterator fmem;
-				fmem = val.FindMember(CP_STRLIT("metrics"));
-				if (fmem != val.MemberEnd()) {
-					has_metrics = true;
-					parse_metrics(fmem->value, obj.metrics);
-				}
-				if (!has_metrics) {
-					logger::get().log_warning(CP_HERE, "missing metrics for child");
-				}
-				fmem = val.FindMember(CP_STRLIT("children"));
-				if (fmem != val.MemberEnd() && fmem->value.IsArray()) {
-					for (auto elem = fmem->value.Begin(); elem != fmem->value.End(); ++elem) {
+		template <typename T> void parse_class_arrangements(const object_t &val, T &obj) {
+			parse_configuration(val, obj.configuration);
+			if (array_t arr; json::try_cast_member(val, u8"children", arr)) {
+				for (auto &&elem : arr) {
+					if (object_t child; json::try_cast(elem, child)) {
 						class_arrangements::child ch;
-						parse_additional_arrangement_attributes(*elem, ch);
-						parse_class_arrangements(*elem, ch);
+						parse_additional_arrangement_attributes(child, ch);
+						parse_class_arrangements(child, ch);
 						obj.children.emplace_back(std::move(ch));
 					}
 				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid child arrangement format");
 			}
 		}
 		/// Parses the whole set of arrangements for \ref _manager from the given JSON object. The original list is
 		/// not emptied so configs can be appended to one another.
-		void parse_arrangements_config(const json::node_t &val) {
-			if (val.IsObject()) {
-				for (auto i = val.MemberBegin(); i != val.MemberEnd(); ++i) {
+		void parse_arrangements_config(const object_t &val) {
+			for (auto i = val.member_begin(); i != val.member_end(); ++i) {
+				if (object_t obj; json::try_cast(i.value(), obj)) {
 					class_arrangements arr;
-					parse_class_arrangements(i->value, arr);
-					auto[it, inserted] = _manager.get_class_arrangements().mapping.try_emplace(
-						json::get_as_string(i->name), std::move(arr)
+					parse_class_arrangements(obj, arr);
+					auto [it, inserted] = _manager.get_class_arrangements().mapping.emplace(
+						i.name(), std::move(arr)
 					);
 					if (!inserted) {
 						logger::get().log_warning(CP_HERE, "duplicate class arrangements");
 					}
 				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid arrangements config format");
 			}
-		}
-
-		/// Returns the list of textures.
-		texture_table &get_texture_table() {
-			return _textures;
-		}
-		/// \overload
-		const texture_table &get_texture_table() const {
-			return _textures;
 		}
 	protected:
-		texture_table _textures; ///< Stores the list of textures to be loaded.
+		std::filesystem::path _resources_path; ///< The path where are textures are located.
+		std::map<std::filesystem::path, std::shared_ptr<bitmap>> _textures; ///< Stores the list of textures.
 		manager &_manager; ///< The \ref manager associated with this parser.
 
-		/// Calls \ref json_object_parsers::parse() to parse an object from the given JSON object, only that this
-		/// function handles the special case where a texture is required. Use this instead of directly calling
-		/// \ref json_object_parsers::parse() when the type of object is unknown.
-		template <typename T> T _parse_object(const json::node_t &obj) {
-			if constexpr (std::is_same_v<T, std::shared_ptr<texture>>) {
-				if (obj.IsString()) {
-					return _textures.get(json::get_as_string_view(obj));
-				}
-				logger::get().log_warning(CP_HERE, "failed to parse texture");
-				return nullptr;
-			} else {
-				return json_object_parsers::parse<T>(obj);
-			}
-		}
-
-		/// Finds the attribute with the given name within the given JSON object, and parses it with a corresponding
-		/// parser.
+		/// Tries to find and parse the member with the specified name into the given object.
 		///
-		/// \return Whether the attribute has been found.
-		template <typename T> bool _try_find_and_parse(const json::node_t &val, const str_t &s, T &v) {
-			auto found = val.FindMember(s.c_str());
-			if (found != val.MemberEnd()) {
-				v = _parse_object<T>(found->value);
-				return true;
+		/// \return \p true if the member is found and successfully parsed.
+		template <typename T> inline bool _try_parse_member(
+			const object_t &obj, str_view_t name, T &res
+		) {
+			if (auto it = obj.find_member(name); it != obj.member_end()) {
+				return json_object_parsers::try_parse(it.value(), res);
 			}
 			return false;
 		}
-		/// Finds the attribute with the given name within the given JSON object, and parses it with a corresponding
-		/// parser. If no such attribute is found, the given default value is returned.
-		template <typename T> T _find_and_parse(const json::node_t &val, const str_t &s, T dflt) {
-			T v = dflt;
-			_try_find_and_parse(val, s, v);
-			return v;
+		/// Tries to find and parse the member with the specified name. If no such member is found or parsing failed,
+		/// the specified default value will be returned.
+		template <typename T> inline T _parse_member_or_default(
+			const object_t &obj, str_view_t name, const T &def
+		) {
+			T res;
+			if (_try_parse_member(obj, name, res)) {
+				return res;
+			}
+			return def;
+		}
+
+		/// Returns the texture given by the path.
+		std::shared_ptr<bitmap> _get_texture(const std::filesystem::path &path) {
+			auto fullpath = _resources_path / path;
+			auto it = _textures.find(fullpath);
+			if (it == _textures.end()) {
+				auto bitmap = _manager.get_renderer().load_bitmap(fullpath);
+				it = _textures.emplace(std::move(fullpath), std::move(bitmap)).first;
+			}
+			return it->second;
 		}
 
 		// below are utility functions for parsing parts of the configuration
-		/// Finds the animation with the given name within the given JSON object, and parses it if there is one.
-		template <typename T, typename Lerp> void _find_and_parse_animation(
-			const json::node_t &val, const str_t &s, animated_property<T, Lerp> &p
-		) {
-			auto found = val.FindMember(s.c_str());
-			if (found != val.MemberEnd()) {
-				_parse_animation(found->value, p);
-			}
-		}
-
 		/// Parses the `width' or `height' field that specifies the size of an object in one direction.
-		inline static void _parse_size_component(const json::node_t &val, double &v, size_allocation_type &ty) {
-			if (val.IsString()) {
-				str_view_t view = json::get_as_string_view(val);
-				if (view == "auto" || view == "Auto") {
+		inline static void _parse_size_component(const value_t &val, double &v, size_allocation_type &ty) {
+			if (str_view_t str; json::try_cast(val, str)) {
+				if (str == u8"auto" || str == u8"Auto") {
 					v = 0.0;
 					ty = size_allocation_type::automatic;
 					return;
 				}
 			}
-			auto alloc = json_object_parsers::parse<size_allocation>(val);
-			v = alloc.value;
-			ty = alloc.is_pixels ? size_allocation_type::fixed : size_allocation_type::proportion;
+			if (size_allocation alloc; json_object_parsers::try_parse(val, alloc)) {
+				v = alloc.value;
+				ty = alloc.is_pixels ? size_allocation_type::fixed : size_allocation_type::proportion;
+				return;
+			}
+			logger::get().log_warning(CP_HERE, "failed to parse size component");
 		}
-		/// Parses the size of an object. This can either be a size animation with two allocation types if there's
-		/// animation, or two \ref size_allocation that specify the static size of the object.
+		/// Parses the size of an element. This can either be a \ref vec2d with two \ref size_allocation, or two
+		/// strings that specify the width and height, together with their \ref size_allocation.
 		void _parse_size(
-			const json::node_t &val, animated_property<vec2d> &size,
-			size_allocation_type &wtype, size_allocation_type &htype
+			const object_t &val, vec2d &size, size_allocation_type &walloc, size_allocation_type &halloc
 		) {
 			// first try to parse width_alloc and height_alloc, which may be overriden later
-			_try_find_and_parse(val, CP_STRLIT("width_alloc"), wtype);
-			_try_find_and_parse(val, CP_STRLIT("height_alloc"), htype);
+			_try_parse_member(val, u8"width_alloc", walloc);
+			_try_parse_member(val, u8"height_alloc", halloc);
 			// try to find width and height
-			auto w = val.FindMember("width"), h = val.FindMember("height");
-			// allows partial specification, but not mixing with size
-			if (w != val.MemberEnd() || h != val.MemberEnd()) {
-				vec2d sz;
-				if (w != val.MemberEnd()) {
-					_parse_size_component(w->value, sz.x, wtype);
+			auto w = val.find_member(u8"width"), h = val.find_member(u8"height");
+			// allows partial specification, but not mixed
+			if (w != val.member_end() || h != val.member_end()) {
+				if (w != val.member_end()) {
+					_parse_size_component(w.value(), size.x, walloc);
 				}
-				if (h != val.MemberEnd()) {
-					_parse_size_component(h->value, sz.y, htype);
+				if (h != val.member_end()) {
+					_parse_size_component(h.value(), size.y, halloc);
 				}
-				size = animated_property<vec2d>();
-				size.default_from_value = sz;
-				size.key_frames.emplace_back(sz);
 			} else { // parse size
-				_find_and_parse_animation(val, CP_STRLIT("size"), size);
+				_try_parse_member(val, u8"size", size);
 			}
 		}
 
-		/// Finds the corresponding fields in \p val and parses them as a \ref state_pattern. If the given JSON
-		/// object is an object, then this function searches for the fields `states' and `states_mask'. Otherwise,
-		/// it directly passes the object to \ref _parse_state_id(), and no mask is used. All calls to
-		/// \ref _parse_state_id() will have the \p configonly parameter set to \p false.
-		state_pattern _parse_state_pattern(const json::node_t &val) {
-			state_pattern pat;
-			if (val.IsObject()) {
-				json::node_t::ConstMemberIterator fmem = val.FindMember(CP_STRLIT("states"));
-				if (fmem != val.MemberEnd()) {
-					pat.target = _parse_state_id(fmem->value, false);
-				}
-				fmem = val.FindMember(CP_STRLIT("states_mask"));
-				if (fmem != val.MemberEnd()) {
-					pat.mask = _parse_state_id(fmem->value, false);
-				}
-			} else {
-				pat.target = _parse_state_id(val, false);
-			}
-			return pat;
-		}
-		/// Parses a visual state ID. The given JSON object can either be a single state name, or an array of state
-		/// names.
-		///
-		/// \param val The JSON object, either a string or an array of strings, each denoting a state bit.
-		/// \param configonly If \p true, only config states will be loaded; encountering non-config states will
-		///                   result in a warning message.
-		/// \sa element_state_type
-		element_state_id _parse_state_id(const json::node_t &val, bool configonly) {
-			element_state_id id = normal_element_state_id;
-			if (val.IsString()) {
-				id = _manager.get_state_info(json::get_as_string(val)).id;
-			} else if (val.IsArray()) {
-				for (auto j = val.Begin(); j != val.End(); ++j) {
-					if (j->IsString()) {
-						element_state_info st = _manager.get_state_info(json::get_as_string(*j));
-						if (configonly && st.type != element_state_type::configuration) {
-							logger::get().log_warning(CP_HERE, "non-config state bit encountered in config-only state");
-						} else {
-							id |= st.id;
-						}
-					}
-				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid state ID format");
-			}
-			return id;
-		}
-
-		/// Parses a \ref animated_property::key_frame.
-		template <typename T, typename Lerp> void _parse_key_frame(
-			const json::node_t &obj, typename animated_property<T, Lerp>::key_frame &frame
+		/// Parses a \ref animated_property::keyframe.
+		template <typename T, typename Lerp> void _parse_keyframe(
+			const object_t &obj, typename keyframe_animation_definition<T, Lerp>::keyframe &frame
 		) {
-			_try_find_and_parse(obj, CP_STRLIT("duration"), frame.duration);
-			_try_find_and_parse(obj, CP_STRLIT("target"), frame.target);
+			_try_parse_member(obj, u8"duration", frame.duration);
+			if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) {
+				if (str_view_t path; json::try_cast_member(obj, u8"target", path)) {
+					frame.target = _get_texture(path);
+				}
+			} else {
+				_try_parse_member(obj, u8"target", frame.target);
+			}
 			// transition function
-			auto fmem = obj.FindMember(CP_STRLIT("transition"));
-			if (fmem != obj.MemberEnd()) {
-				if (fmem->value.IsString()) {
-					transition_function f = _manager.try_get_transition_func(json::get_as_string_view(fmem->value));
-					if (f) {
-						frame.transition_func = f;
-					} else {
-						logger::get().log_warning(
-							CP_HERE, "unknown transition function: ", json::get_as_string_view(fmem->value)
-						);
-					}
-				} else if (!fmem->value.IsNull()) {
-					logger::get().log_warning(CP_HERE, "cannot parse transition function, must be a string");
+			if (str_view_t str; json::try_cast_member(obj, u8"transition", str)) {
+				if (transition_function f = _manager.try_get_transition_func(str)) {
+					frame.transition_func = f;
 				}
 			}
 		}
 		/// Parses an \ref animated_property from a given JSON object. If the JSON object is not an object but an
 		/// array, number, or any other invalid format, the \ref animated_property will be reset to its default
-		/// state, with only one key frame whose \ref animated_property::key_frame::target set to the given value
+		/// state, with only one key frame whose \ref animated_property::keyframe::target set to the given value
 		/// (i.e., inheritance will be ignored). Otherwise, It parses and writes over existing key frames.
-		template <typename T, typename Lerp> void _parse_animation(
-			const json::node_t &obj, animated_property<T, Lerp> &ani
+		template <typename T, typename Lerp> void _parse_keyframe_animation(
+			const object_t &obj, keyframe_animation_definition<T, Lerp> &ani
 		) {
-			if (obj.IsObject()) {
-				json::node_t::ConstMemberIterator mem;
-				mem = obj.FindMember(CP_STRLIT("frames"));
-				if (mem != obj.MemberEnd()) {
-					if (mem->value.IsArray()) { // list of frames
-						for (size_t i = 0; i < mem->value.Size(); ++i) {
-							if (ani.key_frames.size() <= i) {
-								ani.key_frames.emplace_back();
-							}
-							_parse_key_frame<T, Lerp>(
-								mem->value[static_cast<rapidjson::SizeType>(i)], ani.key_frames[i]
-								);
-						}
-					} else {
-						logger::get().log_warning(CP_HERE, "the list of key frames must be a list");
+			if (array_t arr; json::try_cast_member(obj, u8"frames", arr)) { // list of frames
+				for (auto &&kf : arr) {
+					if (object_t kfobj; json::try_cast(kf, kfobj)) {
+						_parse_keyframe<T, Lerp>(kfobj, ani.key_frames.emplace_back());
 					}
-				} else { // parse directly, only one key frame
-					if (ani.key_frames.empty()) {
-						ani.key_frames.emplace_back();
-					}
-					_parse_key_frame<T, Lerp>(obj, ani.key_frames[0]);
 				}
-				_try_find_and_parse(obj, CP_STRLIT("default"), ani.default_from_value);
-				mem = obj.FindMember(CP_STRLIT("repeat"));
-				if (mem != obj.MemberEnd()) {
-					if (mem->value.IsUint64()) {
-						ani.repeat_times = static_cast<size_t>(mem->value.GetUint64());
-					} else if (mem->value.IsBool()) { // repeat forever?
-						ani.repeat_times = mem->value.IsTrue() ? 0 : 1;
-					} else {
-						logger::get().log_warning(
-							CP_HERE, "repeat must be either a non-negative integer or a boolean"
-						);
+			} else { // parse directly, only one key frame
+				_parse_keyframe<T, Lerp>(obj, ani.key_frames.emplace_back());
+			}
+			if (auto fmem = obj.find_member(u8"repeat"); fmem != obj.member_end()) {
+				value_t repeatval = fmem.value();
+				if (repeatval.is<std::uint64_t>()) {
+					ani.repeat_times = static_cast<size_t>(repeatval.get<std::uint64_t>());
+				} else if (repeatval.is<bool>()) { // repeat forever?
+					ani.repeat_times = repeatval.get<bool>() ? 0 : 1;
+				} else {
+					logger::get().log_warning(
+						CP_HERE, "repeat must be either a non-negative integer or a boolean"
+					);
+				}
+			}
+		}
+
+		/// Parses a \ref transforms::generic from the given JSON object.
+		void _parse_transform(const object_t &obj, transforms::generic &value) {
+			if (str_view_t type; json::try_cast_member(obj, u8"type", type)) {
+				// TODO raw transformation
+				if (type == u8"translation") {
+					auto &trans = value.value.emplace<transforms::translation>();
+					_try_parse_member(obj, u8"offset", trans.offset);
+				} else if (type == u8"scale") {
+					auto &trans = value.value.emplace<transforms::scale>();
+					_try_parse_member(obj, u8"center", trans.center);
+					_try_parse_member(obj, u8"scale", trans.scale_factor);
+				} else if (type == u8"rotation") {
+					auto &trans = value.value.emplace<transforms::rotation>();
+					_try_parse_member(obj, u8"center", trans.center);
+					json::try_cast_member(obj, u8"angle", trans.angle);
+				} else if (type == u8"composite") {
+					auto &trans = value.value.emplace<transforms::collection>();
+					if (array_t arr; json::try_cast_member(obj, u8"children", arr)) {
+						for (auto &&cdef : arr) {
+							if (object_t cobj; json::try_cast(cdef, cobj)) {
+								trans.components.emplace_back();
+								_parse_transform(cobj, trans.components.back());
+							}
+						}
 					}
 				}
 			} else {
-				ani = animated_property<T, Lerp>();
-				T val = _parse_object<T>(obj);
-				ani.default_from_value = val;
-				ani.key_frames.emplace_back(val);
+				logger::get().log_warning(CP_HERE, "invalid transform type");
+			}
+		}
+
+		/// Parses a \ref gradient_stop_collection from the given JSON object.
+		void _parse_gradient_stop_collection(const array_t &obj, gradient_stop_collection &stops) {
+			for (auto &&stopdef : obj) {
+				auto &stop = stops.emplace_back();
+				if (object_t obj; json::try_cast(stopdef, obj)) {
+					json::try_cast_member(obj, u8"position", stop.position);
+					_try_parse_member(obj, u8"color", stop.color);
+				} else if (array_t arr; json::try_cast(stopdef, arr) && arr.size() >= 2) {
+					if (arr.size() > 2) {
+						logger::get().log_warning(CP_HERE, "too many items in gradient stop definition");
+					}
+					json::try_cast(arr[0], stop.position);
+					json_object_parsers::try_parse(arr[1], stop.color);
+				} else {
+					logger::get().log_warning(CP_HERE, "invalid gradient stop format");
+				}
+			}
+		}
+		/// Parses a \ref generic_brush from the given JSON object.
+		void _parse_brush(const value_t &val, generic_brush &value) {
+			if (object_t obj; json::try_cast(val, obj)) {
+				if (str_view_t type; json::try_cast_member(obj, u8"type", type)) {
+					if (type == u8"solid") {
+						auto &brush = value.value.emplace<brushes::solid_color>();
+						_try_parse_member(obj, u8"color", brush.color);
+					} else if (type == u8"linear_gradient") {
+						auto &brush = value.value.emplace<brushes::linear_gradient>();
+						_try_parse_member(obj, u8"from", brush.from);
+						_try_parse_member(obj, u8"to", brush.to);
+						if (array_t stops; json::try_cast_member(obj, u8"gradient_stops", stops)) {
+							_parse_gradient_stop_collection(stops, brush.gradient_stops);
+						}
+					} else if (type == u8"radial_gradient") {
+						auto &brush = value.value.emplace<brushes::radial_gradient>();
+						_try_parse_member(obj, u8"center", brush.center);
+						json::try_cast_member(obj, u8"radius", brush.radius);
+						if (array_t stops; json::try_cast_member(obj, u8"gradient_stops", stops)) {
+							_parse_gradient_stop_collection(stops, brush.gradient_stops);
+						}
+					} else if (type == u8"bitmap") {
+						auto &brush = value.value.emplace<brushes::bitmap_pattern>();
+						if (str_view_t img; json::try_cast_member(obj, u8"image", img)) {
+							brush.image = _get_texture(img);
+						}
+					} else if (type != u8"none") {
+						logger::get().log_warning(CP_HERE, "invalid brush type string");
+					}
+				} else {
+					logger::get().log_warning(CP_HERE, "invalid brush type");
+				}
+				if (object_t transobj; json::try_cast_member(obj, u8"transform", transobj)) {
+					_parse_transform(transobj, value.transform);
+				}
+			} else {
+				auto &brush = value.value.emplace<brushes::solid_color>();
+			}
+		}
+		/// Parses a \ref generic_pen from the given JSON object.
+		void _parse_pen(const value_t &val, generic_pen &value) {
+			if (object_t obj; json::try_cast(val, obj)) {
+				json::try_cast_member(obj, u8"thickness", value.thickness);
+			}
+			_parse_brush(val, value.brush);
+		}
+
+		/// Parses a \ref geometries::path::part.
+		void _parse_subpath_part(const object_t &obj, geometries::path::part &value) {
+			if (obj.size() > 0) {
+				if (obj.size() > 1) {
+					logger::get().log_warning(CP_HERE, "too many members for a path part");
+				}
+				auto member = obj.member_begin();
+				str_view_t op = member.name();
+				if (op == u8"line_to") {
+					auto &part = value.value.emplace<geometries::path::segment>();
+					json_object_parsers::try_parse(member.value(), part.to);
+				} else if (op == u8"arc") {
+					if (object_t partobj; json::try_cast(member.value(), partobj)) {
+						auto &part = value.value.emplace<geometries::path::arc>();
+
+						bool clockwise = false, major = false;
+						json::try_cast_member(partobj, u8"clockwise", clockwise);
+						json::try_cast_member(partobj, u8"major", major);
+
+						_try_parse_member(partobj, u8"to", part.to);
+						part.direction = clockwise ? sweep_direction::clockwise : sweep_direction::counter_clockwise;
+						part.type = major ? arc_type::major : arc_type::minor;
+						json::try_cast_member(partobj, u8"radius", part.radius);
+					}
+				} else if (op == u8"bezier") {
+					if (object_t partobj; json::try_cast(member.value(), partobj)) {
+						auto &part = value.value.emplace<geometries::path::cubic_bezier>();
+						_try_parse_member(partobj, u8"to", part.to);
+						_try_parse_member(partobj, u8"control1", part.control1);
+						_try_parse_member(partobj, u8"control2", part.control2);
+					}
+				} else {
+					logger::get().log_warning(CP_HERE, "invalid path part operation name");
+				}
+			} else {
+				logger::get().log_warning(CP_HERE, "empty path part");
+			}
+		}
+		/// Parses a \ref generic_visual_geometry from the given JSON object.
+		void _parse_geometry(const object_t &obj, generic_visual_geometry &value) {
+			if (str_view_t type; json::try_cast_member(obj, u8"type", type)) {
+				if (type == u8"rectangle") {
+					auto &geom = value.value.emplace<geometries::rectangle>();
+					_try_parse_member(obj, u8"top_left", geom.top_left);
+					_try_parse_member(obj, u8"bottom_right", geom.bottom_right);
+				} else if (type == u8"rounded_rectangle") {
+					auto &geom = value.value.emplace<geometries::rounded_rectangle>();
+					_try_parse_member(obj, u8"top_left", geom.top_left);
+					_try_parse_member(obj, u8"bottom_right", geom.bottom_right);
+					_try_parse_member(obj, u8"radiusx", geom.radiusx);
+					_try_parse_member(obj, u8"radiusy", geom.radiusy);
+				} else if (type == u8"ellipse") {
+					auto &geom = value.value.emplace<geometries::ellipse>();
+					_try_parse_member(obj, u8"top_left", geom.top_left);
+					_try_parse_member(obj, u8"bottom_right", geom.bottom_right);
+				} else if (type == u8"path") {
+					auto &geom = value.value.emplace<geometries::path>();
+					if (array_t paths; json::try_cast_member(obj, u8"subpaths", paths)) {
+						for (auto &&spdef : paths) {
+							geometries::path::subpath &sp = geom.subpaths.emplace_back();
+							if (object_t spobj; json::try_cast(spdef, spobj)) {
+								_try_parse_member(spobj, u8"start", sp.starting_point);
+								if (array_t parts; json::try_cast_member(spobj, u8"parts", parts)) {
+									for (auto &&partdef : parts) {
+										if (object_t partobj; json::try_cast(partdef, partobj)) {
+											_parse_subpath_part(partobj, sp.parts.emplace_back());
+										}
+									}
+								}
+								json::try_cast_member(spobj, u8"closed", sp.closed);
+							} else if (array_t sparr; json::try_cast(spdef, sparr) && sparr.size() >= 2) {
+								auto partit = sparr.begin(), partend = sparr.end() - 1;
+								json_object_parsers::try_parse(*partit, sp.starting_point);
+								for (++partit; partit != partend; ++partit) {
+									if (object_t partobj; json::try_cast(*partit, partobj)) {
+										_parse_subpath_part(partobj, sp.parts.emplace_back());
+									}
+								}
+								if (object_t endobj; json::try_cast(*partend, endobj)) {
+									json::try_cast_member(endobj, u8"closed", sp.closed);
+								}
+							} else {
+								logger::get().log_warning(CP_HERE, "invalid subpath format");
+							}
+						}
+					}
+				}
+			} else {
+				logger::get().log_warning(CP_HERE, "invalid geometry type");
+			}
+			if (object_t transobj; json::try_cast_member(obj, u8"transform", transobj)) {
+				_parse_transform(transobj, value.transform);
+			}
+			if (auto fmem = obj.find_member(u8"fill"); fmem != obj.member_end()) {
+				_parse_brush(fmem.value(), value.fill);
+			}
+			if (auto fmem = obj.find_member(u8"stroke"); fmem != obj.member_end()) {
+				_parse_pen(fmem.value(), value.stroke);
 			}
 		}
 	};
 
 	/// Parses hotkeys from JSON objects.
-	class hotkey_json_parser {
+	template <typename ValueType> class hotkey_json_parser {
 	public:
 		constexpr static char key_delim = '+'; ///< The delimiter for keys.
 
-												 /// Parses a modifier key from a given string.
-		inline static modifier_keys parse_modifier(const str_t &str) {
-			if (str == CP_STRLIT("ctrl")) {
+		using value_t = ValueType; ///< The type for JSON values.
+		using object_t = typename ValueType::object_t; ///< The type for JSON objects.
+		using array_t = typename ValueType::array_t; ///< The type for JSON arrays.
+
+		/// Parses a modifier key from a given string.
+		inline static modifier_keys parse_modifier(str_view_t str) {
+			if (str == u8"ctrl") {
 				return modifier_keys::control;
 			}
-			if (str == CP_STRLIT("alt")) {
+			if (str == u8"alt") {
 				return modifier_keys::alt;
 			}
-			if (str == CP_STRLIT("shift")) {
+			if (str == u8"shift") {
 				return modifier_keys::shift;
 			}
-			if (str == CP_STRLIT("super")) {
+			if (str == u8"super") {
 				return modifier_keys::super;
 			}
 			logger::get().log_warning(CP_HERE, "invalid modifier");
@@ -529,37 +501,37 @@ namespace codepad::ui {
 					return key::divide;
 				}
 			}
-			if (str == CP_STRLIT("left")) {
+			if (str == u8"left") {
 				return key::left;
 			}
-			if (str == CP_STRLIT("right")) {
+			if (str == u8"right") {
 				return key::right;
 			}
-			if (str == CP_STRLIT("up")) {
+			if (str == u8"up") {
 				return key::up;
 			}
-			if (str == CP_STRLIT("down")) {
+			if (str == u8"down") {
 				return key::down;
 			}
-			if (str == CP_STRLIT("space")) {
+			if (str == u8"space") {
 				return key::space;
 			}
-			if (str == CP_STRLIT("insert")) {
+			if (str == u8"insert") {
 				return key::insert;
 			}
-			if (str == CP_STRLIT("delete")) {
+			if (str == u8"delete") {
 				return key::del;
 			}
-			if (str == CP_STRLIT("backspace")) {
+			if (str == u8"backspace") {
 				return key::backspace;
 			}
-			if (str == CP_STRLIT("home")) {
+			if (str == u8"home") {
 				return key::home;
 			}
-			if (str == CP_STRLIT("end")) {
+			if (str == u8"end") {
 				return key::end;
 			}
-			if (str == CP_STRLIT("enter")) {
+			if (str == u8"enter") {
 				return key::enter;
 			}
 			return key::max_value;
@@ -567,51 +539,44 @@ namespace codepad::ui {
 		/// Parses a \ref key_gesture from the given object. The object must be a string,
 		/// which will be broken into parts with \ref key_delim. Each part is then parsed separately
 		/// by either \ref parse_modifier, or \ref parse_key for the last part.
-		inline static bool parse_hotkey_gesture(key_gesture &gest, const json::node_t &obj) {
-			if (!obj.IsString()) {
-				logger::get().log_warning(CP_HERE, "invalid key gesture");
-				return false;
-			}
-			const char *last = obj.GetString(), *cur = last;
+		inline static bool parse_hotkey_gesture(key_gesture & gest, str_view_t val) {
+			auto last = val.begin(), cur = last;
 			gest.mod_keys = modifier_keys::none;
-			for (size_t i = 0; i < obj.GetStringLength(); ++i, ++cur) {
+			for (; cur != val.end(); ++cur) {
 				if (*cur == key_delim && cur != last) {
-					gest.mod_keys |= parse_modifier(str_t(last, cur - last));
+					gest.mod_keys |= parse_modifier(str_view_t(&*last, cur - last));
 					last = cur + 1;
 				}
 			}
-			gest.primary = parse_key(str_t(last, cur - last));
+			gest.primary = parse_key(str_view_t(&*last, cur - last));
 			return true;
 		}
 		/// Parses a JSON object for a list of \ref key_gesture "key_gestures" and the corresponding command.
 		inline static bool parse_hotkey_entry(
-			std::vector<key_gesture> &gests, str_t &cmd, const json::node_t &obj
+			std::vector<key_gesture> & gests, str_t & cmd, const object_t & obj
 		) {
-			if (!obj.IsObject()) {
+			if (!json::try_cast_member(obj, u8"command", cmd)) {
 				return false;
 			}
-			auto command = obj.FindMember(CP_STRLIT("command"));
-			if (command == obj.MemberEnd() || !command->value.IsString()) {
-				return false;
-			}
-			cmd = json::get_as_string(command->value);
-			auto gestures = obj.FindMember(CP_STRLIT("gestures"));
-			if (gestures == obj.MemberEnd()) {
-				return false;
-			}
-			if (gestures->value.IsString()) {
-				key_gesture g;
-				if (!parse_hotkey_gesture(g, gestures->value)) {
-					return false;
-				}
-				gests.push_back(g);
-			} else if (gestures->value.IsArray()) {
-				for (auto i = gestures->value.Begin(); i != gestures->value.End(); ++i) {
-					key_gesture g;
-					if (!parse_hotkey_gesture(g, *i)) {
-						continue;
+			if (auto gestures = obj.find_member(u8"gestures"); gestures != obj.member_end()) {
+				if (str_view_t g; json::try_cast(gestures.value(), g)) {
+					key_gesture gestval;
+					if (!parse_hotkey_gesture(gestval, g)) {
+						return false;
 					}
-					gests.push_back(g);
+					gests.emplace_back(gestval);
+				} else if (array_t garr; json::try_cast(gestures.value(), garr)) {
+					for (auto &&g : garr) {
+						if (str_view_t gstr; json::try_cast(g, gstr)) {
+							key_gesture gval;
+							if (!parse_hotkey_gesture(gval, gstr)) {
+								continue;
+							}
+							gests.emplace_back(gval);
+						}
+					}
+				} else {
+					return false;
 				}
 			} else {
 				return false;
@@ -619,30 +584,29 @@ namespace codepad::ui {
 			return true;
 		}
 		/// Parses an \ref class_hotkey_group from an JSON array.
-		inline static bool parse_class_hotkey(class_hotkey_group &gp, const json::node_t &obj) {
-			if (!obj.IsArray()) {
-				return false;
-			}
-			for (auto i = obj.Begin(); i != obj.End(); ++i) {
-				std::vector<key_gesture> gs;
-				str_t name;
-				if (parse_hotkey_entry(gs, name, *i)) {
-					gp.register_hotkey(gs, std::move(name));
-				} else {
-					logger::get().log_warning(CP_HERE, "invalid hotkey entry");
+		inline static bool parse_class_hotkey(class_hotkey_group & gp, const array_t & arr) {
+			for (auto &&cls : arr) {
+				if (object_t obj; json::try_cast(cls, obj)) {
+					std::vector<key_gesture> gs;
+					str_t name;
+					if (parse_hotkey_entry(gs, name, obj)) {
+						gp.register_hotkey(gs, std::move(name));
+					} else {
+						logger::get().log_warning(CP_HERE, "invalid hotkey entry");
+					}
 				}
 			}
 			return true;
 		}
 		/// Parses a set of \ref class_hotkey_group "element_hotkey_groups" from a given JSON object.
 		template <typename Map> inline static void parse_config(
-			Map &mapping, const json::node_t &obj
+			Map & mapping, const object_t & obj
 		) {
-			if (obj.IsObject()) {
-				for (auto i = obj.MemberBegin(); i != obj.MemberEnd(); ++i) {
-					class_hotkey_group gp;
-					if (parse_class_hotkey(gp, i->value)) {
-						mapping.emplace(json::get_as_string(i->name), std::move(gp));
+			for (auto i = obj.member_begin(); i != obj.member_end(); ++i) {
+				class_hotkey_group gp;
+				if (array_t arr; json::try_cast(i.value(), arr)) {
+					if (parse_class_hotkey(gp, arr)) {
+						mapping.emplace(i.name(), std::move(gp));
 					}
 				}
 			}
