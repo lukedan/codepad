@@ -21,14 +21,10 @@ namespace codepad::ui {
 		// TODO start animations
 	}
 
-	void window_base::_on_prerender() {
+	void window_base::_on_render() {
 		get_manager().get_renderer().begin_drawing(*this);
 		get_manager().get_renderer().clear(colord(0.0, 0.0, 0.0, 0.0));
-		panel::_on_prerender();
-	}
-
-	void window_base::_on_postrender() {
-		panel::_on_postrender();
+		panel::_on_render();
 		get_manager().get_renderer().end_drawing();
 	}
 
@@ -101,7 +97,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_custom_render() {
+	void window_base::_custom_render() const {
 		panel::_custom_render();
 		for (decoration *dec : _decos) {
 			/*dec->_vis_config.render(get_manager().get_renderer(), dec->_layout);*/

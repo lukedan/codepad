@@ -354,7 +354,7 @@ namespace codepad {
 			return *this;
 		}
 		/// Move assignment. Exchanges the \ref _root of two trees.
-		binary_tree &operator=(binary_tree &&tree) {
+		binary_tree &operator=(binary_tree &&tree) noexcept {
 			std::swap(_root, tree._root);
 			return *this;
 		}

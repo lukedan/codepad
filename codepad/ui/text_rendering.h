@@ -51,14 +51,14 @@ namespace codepad::ui {
 		double prev_char_right() const {
 			return _last_right;
 		}
-		/// Returns the current character. The return value is 0 if the current token is a gizmo.
+		/// Returns the current character. The return value is 0 if the current fragment is a gizmo.
 		codepoint current_char() const {
 			return _cur_char;
 		}
 		/// Returns the \ref font::entry for the current character. This is valid only if \ref current_char() returns
 		/// a non-zero value.
 		const font::entry &current_char_entry() const {
-			assert_true_logical(_cur_entry != nullptr, "the current token is a gizmo");
+			assert_true_logical(_cur_entry != nullptr, "the current fragment is a gizmo");
 			return *_cur_entry;
 		}
 

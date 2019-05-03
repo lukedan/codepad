@@ -12,7 +12,7 @@ namespace codepad::editors::binary {
 	public:
 		/// Returns the desired with.
 		ui::size_allocation get_desired_width() const override {
-			if (auto[edt, rgn] = component_helper::get_core_components(*this); rgn) {
+			if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
 				size_t chars = _get_label_length(rgn->get_buffer()->length());
 				double maxw = 0.0;/*rgn->get_font()->get_max_width_charset(U"0123456789ABCDEF");*/
 				return ui::size_allocation(get_padding().width() + chars * maxw, true);
@@ -29,7 +29,7 @@ namespace codepad::editors::binary {
 
 		/// Registers \ref _vis_change_tok if a \ref contents_region can be found.
 		void _register_handlers() {
-			if (auto[edt, rgn] = component_helper::get_core_components(*this); rgn) {
+			if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
 				_events_registered = true;
 				rgn->content_modified += [this]() {
 					// when the content is modified, it is possible that the number of digits is changed
@@ -72,9 +72,9 @@ namespace codepad::editors::binary {
 			return res;
 		}
 		/// Renders the offsets.
-		void _custom_render() override {
-			/*element::_custom_render();
-			if (auto[edt, rgn] = component_helper::get_core_components(*this); rgn) {
+		void _custom_render() const override {
+			element::_custom_render();
+			/*if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
 				// position of the first line relative to the window
 				double
 					top = rgn->get_client_region().ymin - edt->get_vertical_position(),
@@ -85,14 +85,13 @@ namespace codepad::editors::binary {
 						),
 					chars = _get_label_length(rgn->get_buffer()->length()),
 					offset = firstline * rgn->get_bytes_per_row();
-				ui::atlas::batch_renderer rend(rgn->get_font()->get_manager().get_atlas());
 				for (
 					double ypos = top + firstline * rgn->get_line_height();
 					ypos < get_layout().ymax && offset < rgn->get_buffer()->length();
 					ypos += rgn->get_line_height(), offset += rgn->get_bytes_per_row()
 					) {
-					ui::text_renderer::render_plain_text(
-						_to_hex(offset, chars), *rgn->get_font(), vec2d(left, ypos), colord(), rend
+					get_manager().get_renderer().draw_text(
+						_to_hex(offset, chars), *rgn->get_font(), vec2d(get_padding().left, ypos), colord(), rend
 					);
 				}
 			}*/

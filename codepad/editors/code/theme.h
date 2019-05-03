@@ -9,20 +9,17 @@
 #include "../../ui/renderer.h"
 
 namespace codepad::editors::code {
-	/// The type of a parameter of the text's theme.
-	enum class text_theme_parameter {
-		style, ///< The `style' parameter, corresponding to \ref ui::font_style.
-		color ///< The `color' parameter.
-	};
 	/// Specifies the theme of the text.
 	struct text_theme_specification {
-		// TODO font style
 		/// Default constructor.
 		text_theme_specification() = default;
-		/// Initializes the struct with the given parameters.
-		text_theme_specification(colord c) : color(c) {
+		/// Initializes all members of this struct.
+		text_theme_specification(colord c, ui::font_style st, ui::font_weight w) : color(c), style(st), weight(w) {
 		}
+
 		colord color; ///< The color of the text.
+		ui::font_style style = ui::font_style::normal; ///< The font style.
+		ui::font_weight weight = ui::font_weight::normal; ///< The font weight.
 	};
 	/// Records a parameter of the theme of the entire buffer. Internally, it keeps a list of
 	/// (position, value) pairs, and characters will use the last value specified before it.
@@ -98,62 +95,105 @@ namespace codepad::editors::code {
 	};
 	/// Records the text's theme across the entire buffer.
 	struct text_theme_data {
-		text_theme_parameter_info<colord> color; ///< Redords the text's color across the ehtire buffer.
+		text_theme_parameter_info<colord> color; ///< Records the text's color across the ehtire buffer.
+		text_theme_parameter_info<ui::font_style> style; ///< Records the text's style across the entire buffer.
+		text_theme_parameter_info<ui::font_weight> weight; ///< Records the text's weight across the entire buffer.
 
-		/// An iterator used to obtain the theme of the text at a certain position.
+		/// An iterator used to obtain the theme of the text at a certain position. This should only be used
+		/// temporarily when the associated \ref text_theme_data isn't changing.
 		struct char_iterator {
+			/// Default constructor.
+			char_iterator() = default;
+			/// Initializes \ref current_theme from the given iterators, then initializes all \p next_* iterators by
+			/// incrementing the given ones.
+			char_iterator(const text_theme_data &data, size_t position) :
+				_next_color(data.color.get_iter_at(position)),
+				_next_style(data.style.get_iter_at(position)),
+				_next_weight(data.weight.get_iter_at(position)),
+				_data(&data) {
+
+				current_theme = text_theme_specification(
+					_next_color->second, _next_style->second, _next_weight->second
+				);
+				++_next_color;
+				++_next_style;
+				++_next_weight;
+			}
+
+			/// Moves the given \ref char_iterator to the given position. The position must be after where this
+			/// \ref char_iterator was at.
+			void move_forward(size_t pos) {
+				_move_iter_forward(_next_color, _data->color, current_theme.color, pos);
+				_move_iter_forward(_next_style, _data->style, current_theme.style, pos);
+				_move_iter_forward(_next_weight, _data->weight, current_theme.weight, pos);
+			}
+			/// Returns the number of characters to the next change of any parameter, given the current position.
+			size_t forecast(size_t pos) const {
+				size_t res = _forecast_iter(_next_color, _data->color, pos);
+				res = std::min(res, _forecast_iter(_next_style, _data->style, pos));
+				res = std::min(res, _forecast_iter(_next_weight, _data->weight, pos));
+				return res;
+			}
+
 			text_theme_specification current_theme; ///< The current theme of the text.
+		protected:
 			/// The iterator to the next position-color pair.
-			text_theme_parameter_info<colord>::const_iterator next_color_iterator;
+			text_theme_parameter_info<colord>::const_iterator _next_color;
+			/// The iterator to the next position-\ref ui::font_style pair.
+			text_theme_parameter_info<ui::font_style>::const_iterator _next_style;
+			/// The iterator to the next position-\ref ui::font_weight pair.
+			text_theme_parameter_info<ui::font_weight>::const_iterator _next_weight;
+			const text_theme_data *_data = nullptr; ///< The associated \ref text_theme_data.
+
+			/// Called by \ref move_forward(). Increments a \ref text_theme_parameter_info::const_iterator if
+			/// necessary.
+			///
+			/// \param it The iterator.
+			/// \param spec The set of position-value pairs.
+			/// \param val The value at the position.
+			/// \param cp The new position in the text.
+			template <typename T> inline static void _move_iter_forward(
+				typename text_theme_parameter_info<T>::const_iterator &it,
+				const text_theme_parameter_info<T> &spec, T &val, size_t pos
+			) {
+				if (it != spec.end() && it->first <= pos) { // fast case: only need to increment once
+					val = it->second;
+					++it;
+					if (it != spec.end() && it->first <= pos) { // slow: reposition
+						it = spec.get_iter_at(pos);
+						val = it->second;
+						++it;
+					}
+				}
+			}
+
+			/// \ref forecast() for a single parameter.
+			template <typename T> inline static size_t _forecast_iter(
+				const typename text_theme_parameter_info<T>::const_iterator &it,
+				const text_theme_parameter_info<T> &spec, size_t pos
+			) {
+				if (it != spec.end()) {
+					return it->first - pos;
+				}
+				return std::numeric_limits<size_t>::max();
+			}
 		};
 
 		/// Sets the theme of the text in the given range.
 		void set_range(size_t s, size_t pe, text_theme_specification tc) {
 			color.set_range(s, pe, tc.color);
+			style.set_range(s, pe, tc.style);
+			weight.set_range(s, pe, tc.weight);
 		}
 		/// Returns the theme of the text at the given position.
 		text_theme_specification get_at(size_t p) const {
-			return text_theme_specification(color.get_at(p));
+			return text_theme_specification(color.get_at(p), style.get_at(p), weight.get_at(p));
 		}
 		/// Sets the theme of all text to the given value.
 		void clear(const text_theme_specification &def) {
 			color.clear(def.color);
-		}
-
-		/// Returns a \ref char_iterator specifying the text theme at the given position.
-		char_iterator get_iter_at(size_t p) const {
-			char_iterator rv;
-			rv.next_color_iterator = color.get_iter_at(p);
-			assert_true_logical(rv.next_color_iterator != color.end(), "empty theme parameter info encountered");
-			rv.current_theme = text_theme_specification(rv.next_color_iterator->second);
-			++rv.next_color_iterator;
-			return rv;
-		}
-	protected:
-		/// Used when incrementing a \ref char_iterator, to check whether a
-		/// \ref text_theme_parameter_info::const_iterator needs incrementing,
-		/// and to increment it if necessary.
-		///
-		/// \param cp The new position in the text.
-		/// \param it The iterator.
-		/// \param fullset The set of position-value pairs.
-		/// \param fval The value at the position.
-		template <typename T> inline static void _incr_iter_elem(
-			size_t cp,
-			typename text_theme_parameter_info<T>::const_iterator &it,
-			const text_theme_parameter_info<T> &fullset,
-			T &fval
-		) {
-			if (it != fullset.end() && it->first <= cp) {
-				fval = it->second;
-				++it;
-			}
-		}
-	public:
-		/// Moves the given \ref char_iterator to the given position. The position must be immediately after
-		/// where the \ref char_iterator was originally at.
-		void incr_iter(char_iterator &cv, size_t cp) const {
-			_incr_iter_elem(cp, cv.next_color_iterator, color, cv.current_theme.color);
+			style.clear(def.style);
+			weight.clear(def.weight);
 		}
 	};
 }

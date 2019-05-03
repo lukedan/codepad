@@ -68,8 +68,8 @@ namespace codepad::ui {
 				invalidate_children_layout(*e.parent());
 			}
 		}
-		/// Invalidates the layout of all children of a \ref panel_base.
-		void invalidate_children_layout(panel_base &p) {
+		/// Invalidates the layout of all children of a \ref panel.
+		void invalidate_children_layout(panel &p) {
 			_children_layout_scheduled.emplace(&p);
 		}
 		/// Marks the element for layout validation, meaning that its layout is valid but
@@ -91,9 +91,9 @@ namespace codepad::ui {
 			std::deque<element*> notify(_layout_notify.begin(), _layout_notify.end()); // list of elements to be notified
 			_layout_notify.clear();
 			// gather the list of elements with invalidated layout
-			std::set<panel_base*> childrenupdate;
+			std::set<panel*> childrenupdate;
 			swap(childrenupdate, _children_layout_scheduled);
-			for (panel_base *pnl : childrenupdate) {
+			for (panel *pnl : childrenupdate) {
 				pnl->_on_update_children_layout();
 				for (element *elem : pnl->_children.items()) {
 					notify.emplace_back(elem);
@@ -103,7 +103,7 @@ namespace codepad::ui {
 				element *li = notify.front();
 				notify.pop_front();
 				li->_on_layout_changed();
-				auto *pnl = dynamic_cast<panel_base*>(li);
+				auto *pnl = dynamic_cast<panel*>(li);
 				if (pnl != nullptr) {
 					for (element *elem : pnl->_children.items()) {
 						notify.emplace_back(elem);
@@ -126,7 +126,7 @@ namespace codepad::ui {
 			}
 			performance_monitor mon("render", render_time_redline);
 			// gather the list of windows to render
-			std::set<element*> ss;
+			std::set<window_base*> ss;
 			for (auto i : _dirty) {
 				window_base *wnd = i->get_window();
 				if (wnd) {
@@ -264,7 +264,7 @@ namespace codepad::ui {
 
 			element *newfocus = elem;
 			while (true) { // handle nested focus scopes
-				if (auto scope = dynamic_cast<panel_base*>(newfocus); scope && scope->is_focus_scope()) {
+				if (auto scope = dynamic_cast<panel*>(newfocus); scope && scope->is_focus_scope()) {
 					element *in_scope = scope->get_focused_element_in_scope();
 					if (in_scope && in_scope != newfocus) {
 						newfocus = in_scope;
@@ -282,7 +282,7 @@ namespace codepad::ui {
 					}
 					// update scope focus on root path
 					element *scope_focus = newfocus;
-					for (panel_base *scp = newfocus->parent(); scp; scp = scp->parent()) {
+					for (panel *scp = newfocus->parent(); scp; scp = scp->parent()) {
 						if (scp->is_focus_scope()) {
 							scp->_scope_focus = scope_focus;
 							scope_focus = scp;
@@ -336,7 +336,7 @@ namespace codepad::ui {
 					assert_true_usage(!elem->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
 					// remove the current entry from all lists
-					auto *pnl = dynamic_cast<panel_base*>(elem);
+					auto *pnl = dynamic_cast<panel*>(elem);
 					if (pnl) {
 						_children_layout_scheduled.erase(pnl);
 					}
@@ -417,7 +417,7 @@ namespace codepad::ui {
 		/// Stores the elements whose \ref element::_on_layout_changed() need to be called.
 		std::set<element*> _layout_notify;
 		/// Stores the panels whose children's layout need computing.
-		std::set<panel_base*> _children_layout_scheduled;
+		std::set<panel*> _children_layout_scheduled;
 
 		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
 		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
@@ -444,8 +444,8 @@ namespace codepad::ui {
 
 		/// Finds the focus scope that the given \ref element is in. The element itself is not taken into account.
 		/// Returns \p nullptr if the element is not in any scope (which should only happen for windows).
-		panel_base *_find_focus_scope(element & e) const {
-			panel_base *scope = e.parent(); // innermost focus scope
+		panel *_find_focus_scope(element & e) const {
+			panel *scope = e.parent(); // innermost focus scope
 			for (; scope && !scope->is_focus_scope(); scope = scope->parent()) {
 			}
 			return scope;
@@ -453,7 +453,7 @@ namespace codepad::ui {
 		/// Called by \ref element_collection when an element is about to be removed from it. This function updates
 		/// the innermost focus scopes as well as the global focus.
 		void _on_removing_element(element & e) {
-			panel_base *scope = _find_focus_scope(e);
+			panel *scope = _find_focus_scope(e);
 			if (scope) {
 				if (element * sfocus = scope->get_focused_element_in_scope()) {
 					for (element *f = sfocus; f && f != scope; f = f->parent()) {
@@ -469,7 +469,7 @@ namespace codepad::ui {
 
 			for (element *gfocus = _focus; gfocus; gfocus = gfocus->parent()) { // check if global focus is removed
 				if (gfocus == &e) { // yes it is
-					panel_base *newfocus = e.parent();
+					panel *newfocus = e.parent();
 					while (
 						newfocus && (newfocus->get_visibility() & visibility::focus) == visibility::none &&
 						!newfocus->is_focus_scope()

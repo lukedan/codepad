@@ -19,19 +19,19 @@ namespace codepad::editors::code {
 		vector<size_t> poss;
 		size_t last = 0;
 
-		rendering_token_iterator<folded_region_skipper> iter(
+		fragment_generator<folded_region_skipper> iter(
 			make_tuple(cref(_fmt.get_folding()), beg),
 			make_tuple(cref(*_doc), beg)
 		);
 		text_metrics_accumulator metrics(get_font(), get_line_height(), _fmt.get_tab_width());
 
 		while (iter.get_position() < end) {
-			token_generation_result res = iter.generate();
+			fragment_generation_result res = iter.generate();
 			metrics.next<>(res.result);
 			if (iter.get_position() > last && metrics.get_character().char_right() > _view_width) { // wrap
 				poss.emplace_back(iter.get_position()); // TODO stalls not taken into account
 				metrics.next_line();
-				metrics.next<>(res.result); // TODO better way to re-measure the token
+				metrics.next<>(res.result); // TODO better way to re-measure the fragment
 				last = iter.get_position();
 			}
 			iter.update(res.steps);
@@ -47,13 +47,13 @@ namespace codepad::editors::code {
 			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
-		rendering_token_iterator<folded_region_skipper> iter(
+		fragment_generator<folded_region_skipper> iter(
 			make_tuple(cref(_fmt.get_folding()), linebeg),
 			make_tuple(cref(*_doc), linebeg)
 		);
 		character_metrics_accumulator metrics(get_font(), _fmt.get_tab_width());
 		while (iter.get_position() < position) {
-			token res = iter.generate_and_update();
+			fragment res = iter.generate_and_update();
 			text_metrics_accumulator::measure_token(metrics, res);
 		}
 		return metrics.char_right();
@@ -67,15 +67,15 @@ namespace codepad::editors::code {
 			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
-		rendering_token_iterator<soft_linebreak_inserter, folded_region_skipper> iter(
+		fragment_generator<soft_linebreak_inserter, folded_region_skipper> iter(
 			make_tuple(cref(_fmt.get_linebreaks()), linebeg),
 			make_tuple(cref(_fmt.get_folding()), linebeg),
 			make_tuple(cref(*_doc), linebeg)
 		);
 		character_metrics_accumulator metrics(get_font(), _fmt.get_tab_width());
 		while (iter.get_position() < _doc->get_linebreaks().num_chars()) {
-			token_generation_result res = iter.generate();
-			if (holds_alternative<linebreak_token>(res.result)) { // end of the line
+			fragment_generation_result res = iter.generate();
+			if (holds_alternative<linebreak_fragment>(res.result)) { // end of the line
 				// explicitly require that it's at the end of the line, rather than at the beginning of the next
 				return caret_position(iter.get_position(), false);
 			}
@@ -103,10 +103,10 @@ namespace codepad::editors::code {
 		_on_content_visual_changed();
 	}
 
-	void contents_region::_custom_render() {
-		/*
-		performance_monitor mon(CP_STRLIT("render_contents"));
+	void contents_region::_custom_render() const {
+		interactive_contents_region_base::_custom_render();
 
+		performance_monitor mon(CP_STRLIT("render_contents"));
 		double lh = get_line_height(), layoutw = get_layout().width();
 		pair<size_t, size_t> be = get_visible_visual_lines();
 		caret_set extcarets;
@@ -121,15 +121,11 @@ namespace codepad::editors::code {
 			}
 			used = &extcarets;
 		}
-		font_family::baseline_info bi = get_font().get_baseline_info();
 
-		rectd client = get_client_region();
 		get_manager().get_renderer().push_matrix_mult(matd3x3::translate(vec2d(
-			round(client.xmin),
-			round(
-				client.ymin - editor::get_encapsulating(*this)->get_vertical_position() +
-				static_cast<double>(be.first) * lh
-			)
+			get_padding().left,
+			get_padding().top - editor::get_encapsulating(*this)->get_vertical_position() +
+			static_cast<double>(be.first) * lh
 		)));
 		{ // matrix pushed
 			// parameters
@@ -142,62 +138,42 @@ namespace codepad::editors::code {
 					_fmt.get_folding().folded_to_unfolded_line_number(be.second)
 				).first,
 				curvisline = be.first;
-			const font_family &fnt = get_font();
 
 			// rendering facilities
-			rendering_token_iterator<soft_linebreak_inserter, folded_region_skipper> it(
-				make_tuple(cref(_fmt.get_linebreaks()), firstchar),
-				make_tuple(cref(_fmt.get_folding()), firstchar),
-				make_tuple(cref(*_doc), firstchar)
+			fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> gen(
+				*_doc, firstchar,
+				soft_linebreak_inserter(_fmt.get_linebreaks(), firstchar),
+				folded_region_skipper(_fmt.get_folding(), firstchar)
 			);
-			text_metrics_accumulator metrics(fnt, get_line_height(), _fmt.get_tab_width());
-			atlas::batch_renderer brend(fnt.normal->get_manager().get_atlas());
-			caret_renderer caretrend(used->carets, firstchar, flineinfo.second == linebreak_type::soft);
+			fragment_assembler ass(*this, 0.8 * get_line_height());
+			/*caret_renderer caretrend(used->carets, firstchar, flineinfo.second == linebreak_type::soft);*/
+			renderer_base &rend = get_manager().get_renderer();
 
 			// actual rendering code
-			while (it.get_position() < plastchar) {
-				token_generation_result tok = it.generate();
-				// text gizmo measurement is deferred
-				metrics.next<token_measurement_flags::defer_text_gizmo_measurement>(tok.result);
-				// render the token
-				if (holds_alternative<character_token>(tok.result)) {
-					auto &chartok = get<character_token>(tok.result);
-					if (is_graphical_char(chartok.value) && metrics.get_character().char_left() < layoutw) {
-						font::character_rendering_info info = fnt.get_by_style(chartok.style)->draw_character(
-							chartok.value,
-							vec2d(metrics.get_character().char_left(), metrics.get_y() + bi.get(chartok.style))
-						);
-						brend.add_sprite(info.texture, info.placement, chartok.color);
-					}
-				} else if (holds_alternative<text_gizmo_token>(tok.result)) { // text gizmo
-					auto &tgtok = get<text_gizmo_token>(tok.result);
-					vec2d sz = text_renderer::render_plain_text(
-						tgtok.contents, *(tgtok.font ? tgtok.font : fnt.normal),
-						vec2d(metrics.get_character().char_right(), metrics.get_y()), tgtok.color,
-						brend
-					);
-					metrics.get_modify_character().next_gizmo(sz.x);
-				} else if (holds_alternative<image_gizmo_token>(tok.result)) {
-					// TODO
-				} else if (holds_alternative<linebreak_token>(tok.result)) { // update line index
+			while (gen.get_position() < plastchar) {
+				fragment_generation_result frag = gen.generate_and_update();
+				// render the fragment
+				std::visit([this, &ass](auto && frag) {
+					auto &&rendering = ass.append(frag);
+					ass.render(get_manager().get_renderer(), rendering);
+					}, frag.result);
+				/*caretrend.on_update(it.get_base(), metrics, tok);*/ // update caret renderer
+				if (std::holds_alternative<linebreak_fragment>(frag.result)) {
 					++curvisline;
-				}
-				// metrics are fully updated only by now
-				caretrend.on_update(it.get_base(), metrics, tok);
-				/*if (metrics.get_character().char_right() > get_layout().width() - get_padding().left) {
+				} else if (ass.get_horizontal_position() + get_padding().left > get_layout().width()) {
 					// skip to the next line
 					++curvisline;
 					auto pos = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 						_fmt.get_folding().folded_to_unfolded_line_number(curvisline)
 					);
-					it.reposition(pos.first);
-					metrics.next_line();
-					// TODO update carets
-				} else {
-				}*//*
-				it.update(tok.steps);
+					gen.reposition(pos.first);
+					ass.set_horizontal_position(0.0);
+					ass.advance_vertical_position(1);
+					// TODO update caret renderer
+				}
 			}
 
+			/*
 			// render carets
 			caretrend.finish(it.get_base(), metrics);
 			for (const rectd &rgn : caretrend.get_caret_rects()) {
@@ -208,8 +184,8 @@ namespace codepad::editors::code {
 					_sel_cfg.render(get_manager().get_renderer(), rgn);
 				}
 			}
+			*/
 		}
 		get_manager().get_renderer().pop_matrix();
-		*/
 	}
 }

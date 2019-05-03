@@ -403,7 +403,7 @@ namespace codepad::json {
 			document_t(document_t &&src) noexcept : _doc(std::move(src._doc)) {
 			}
 			/// Move assignment.
-			document_t &operator=(document_t &&src) {
+			document_t &operator=(document_t &&src) noexcept {
 				_doc = std::move(src._doc);
 				return *this;
 			}
@@ -765,5 +765,61 @@ namespace codepad::json {
 			return res;
 		}
 		return def;
+	}
+
+	/// Contains structs used to parse objects of various types from JSON values.
+	namespace object_parsers {
+		/// The basic parser type that simply uses \ref try_cast() to parse the object.
+		template <typename T> struct parser {
+			/// The basic parsing function. Simply calls \ref try_cast().
+			template <typename Value> bool operator()(const Value &v, T &res) const {
+				return try_cast(v, res);
+			}
+		};
+		/// Shorthand for \ref parser::operator()().
+		template <typename T, typename Value, typename Parser = parser<T>> bool try_parse(
+			const Value & val, T & res, const Parser & p = Parser{}
+		) {
+			return p(val, res);
+		}
+		/// \ref try_parse() with a default value.
+		template <typename T, typename Value, typename Parser = parser<T>> T parse_or_default(
+			const Value & val, const T &def, const Parser & p = Parser{}
+		) {
+			T res;
+			if (try_parse(val, res, p)) {
+				return res;
+			}
+			return def;
+		}
+
+		/// Indicates the result of a call to \ref try_parse_member().
+		enum class parse_member_result : unsigned char {
+			success, ///< The member is found and successfully parsed. This is the only success state.
+			parsing_failed, ///< The member is found but could not be parsed.
+			not_found ///< A member with the given name is not found.
+		};
+		/// Tries to find a member in a JSON object and parse it using the specified parser.
+		template <typename T, typename Object, typename Parser = parser<T>> parse_member_result try_parse_member(
+			const Object & val, str_view_t name, T & res, const Parser & p = Parser{}
+		) {
+			if (auto fmem = val.find_member(name); fmem != val.member_end()) {
+				if (p(fmem.value(), res)) {
+					return parse_member_result::success;
+				}
+				return parse_member_result::parsing_failed;
+			}
+			return parse_member_result::not_found;
+		}
+		/// \ref try_parse_member() with a default value if parsing failed.
+		template <typename T, typename Object, typename Parser = parser<T>> T parse_member_or_default(
+			const Object & val, str_view_t name, const T &def, const Parser & p = Parser{}
+		) {
+			T res;
+			if (try_parse_member(val, name, res, p) == parse_member_result::success) {
+				return res;
+			}
+			return def;
+		}
 	}
 }

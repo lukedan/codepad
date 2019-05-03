@@ -17,7 +17,7 @@ namespace codepad::ui::tabs {
 	class tab;
 
 	/// A button representing a \ref tab in a \ref host.
-	class tab_button : public panel_base {
+	class tab_button : public panel {
 		friend tab_manager;
 		friend host;
 	public:
@@ -49,11 +49,11 @@ namespace codepad::ui::tabs {
 
 		/// Sets the label displayed on the button.
 		void set_label(str_t str) {
-			_label->content().set_text(std::move(str));
+			_label->set_text(std::move(str));
 		}
 		/// Returns the label curretly displayed on the button.
 		const str_t &get_label() const {
-			return _label->content().get_text();
+			return _label->get_text();
 		}
 
 		/// Invoked when the ``close'' button is clicked, or when the user presses the tertiary mouse button on the
@@ -91,19 +91,19 @@ namespace codepad::ui::tabs {
 				p.button == mouse_button::primary &&
 				!_close_btn->is_mouse_over()
 				) {
-				_mdpos = p.position;
+				_mdpos = p.position.get(*this);
 				_predrag = true;
 				get_manager().get_scheduler().schedule_element_update(*this);
 				click.invoke_noret(p);
 			} else if (p.button == mouse_button::tertiary) {
 				request_close.invoke();
 			}
-			panel_base::_on_mouse_down(p);
+			panel::_on_mouse_down(p);
 		}
 
 		/// Checks and starts dragging.
 		void _on_update() override {
-			panel_base::_on_update();
+			panel::_on_update();
 			if (_predrag) {
 				if (os::is_mouse_button_down(mouse_button::primary)) {
 					vec2d diff =
@@ -122,7 +122,7 @@ namespace codepad::ui::tabs {
 
 		/// Initializes \ref _close_btn.
 		void _initialize(str_view_t cls, const element_configuration &config) override {
-			panel_base::_initialize(cls, config);
+			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_label_role(), _role_cast(_label)},

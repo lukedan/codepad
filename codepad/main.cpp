@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
 	code::contents_region::set_font(codefnt);*/
 
 	auto *lbl = man.create_element<label>();
-	lbl->content().set_text(CP_STRLIT("Ctrl+O to open a file"));
+	lbl->set_text(CP_STRLIT("Ctrl+O to open a file"));
 	tabs::tab *tmptab = tabman.new_tab();
 	tmptab->set_label(CP_STRLIT("Welcome"));
 	tmptab->children().add(*lbl);

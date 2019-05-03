@@ -34,12 +34,12 @@ namespace codepad::editors::code {
 
 		/// Registers \ref _vis_change_tok if a \ref contents_region can be found.
 		void _register_handlers() {
-			if (contents_region *edt = component_helper::get_contents_region(*this)) {
+			if (contents_region * edt = component_helper::get_contents_region(*this)) {
 				_vis_change_tok = (edt->editing_visual_changed += [this]() {
 					// when the content is modified, it is possible that the number of digits is changed,
 					// so we recalculate layout here
 					_on_desired_size_changed(true, false);
-				});
+					});
 			}
 		}
 		/// Registers for \ref contents_region::content_modified.
@@ -56,7 +56,8 @@ namespace codepad::editors::code {
 		}
 
 		/// Renders all visible line numbers.
-		void _custom_render() override {
+		void _custom_render() const override {
+			element::_custom_render();
 			/*if (auto&&[box, edt] = component_helper::get_core_components(*this); edt) {
 				const view_formatting &fmt = edt->get_formatting();
 				double
@@ -100,17 +101,19 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns the scale of the text based on \ref _target_height.
-		inline static double get_scale() {
-			/*return _target_height / contents_region::get_font().maximum_height();*/
+		double get_scale() const {
+			if (contents_region * con = component_helper::get_contents_region(*this)) {
+				return get_target_line_height() / con->get_line_height();
+			}
 			return 1.0;
 		}
 
-		/// Sets the desired font height of minimaps. Note that font height is different from line height.
-		inline static void set_target_font_height(double h) {
+		/// Sets the desired line height of minimaps.
+		inline static void set_target_line_height(double h) {
 			_target_height = h;
 		}
-		/// Returns the current font height of minimaps.
-		inline static double get_target_font_height() {
+		/// Returns the current line height of minimaps.
+		inline static double get_target_line_height() {
 			return _target_height;
 		}
 
@@ -123,10 +126,10 @@ namespace codepad::editors::code {
 			return CP_STRLIT("minimap_viewport");
 		}
 	protected:
-		/*/// Caches rendered pages so it won't be necessary to render large pages of text frequently.
+		/// Caches rendered pages so it won't be necessary to render large pages of text frequently.
 		struct _page_cache {
-			constexpr static size_t minimum_width = 50; ///< The minimum width of a page.
 			constexpr static double
+				minimum_width = 50, ///< The minimum width of a page.
 				/// Factor used to enlarge the width of pages when the actual width exceeds the page width.
 				enlarge_factor = 1.5,
 				/// If the actual width is less than this times page width, then page width is shrunk to fit the
@@ -141,9 +144,9 @@ namespace codepad::editors::code {
 			/// on demand, simply clear \ref pages and call \ref invalidate().
 			void restart() {
 				pages.clear();
-				if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
+				if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
 					std::pair<size_t, size_t> be = _parent->_get_visible_visual_lines();
-					double slh = edt->get_line_height() * get_scale();
+					double slh = edt->get_line_height() * _parent->get_scale();
 					size_t
 						numlines = edt->get_num_visual_lines(),
 						pgsize = std::max(be.second - be.first, static_cast<size_t>(minimum_page_size / slh) + 1),
@@ -171,14 +174,14 @@ namespace codepad::editors::code {
 				if (pages.empty()) {
 					restart();
 				} else {
-					if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
+					if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
 						std::pair<size_t, size_t> be = _parent->_get_visible_visual_lines();
 						size_t page_beg = pages.begin()->first;
 						if (be.first >= page_beg && be.second <= _page_end) { // all are visible
 							return;
 						}
 						size_t min_page_lines = static_cast<size_t>(
-							minimum_page_size / (edt->get_line_height() * get_scale())
+							minimum_page_size / (edt->get_line_height() * _parent->get_scale())
 							) + 1,
 							// the number of lines in the page about to be rendered
 							page_lines = std::max(be.second - be.first, min_page_lines);
@@ -212,72 +215,30 @@ namespace codepad::editors::code {
 
 			/// Called when the width of the \ref minimap has changed to update \ref _width.
 			void on_width_changed(double w) {
-				w += 1.0; // add 1 to avoid rounding issues
 				if (w > _width) {
 					do {
-						_width = static_cast<size_t>(_width * enlarge_factor);
+						_width = _width * enlarge_factor;
 					} while (w > _width);
 					logger::get().log_verbose(CP_HERE, "minimap width extended to ", _width);
 					pages.clear();
 					invalidate();
 				} else if (_width > minimum_width && w < shirnk_threshold * _width) {
-					_width = std::max(minimum_width, static_cast<size_t>(std::ceil(w)));
+					_width = std::max(minimum_width, w);
 					logger::get().log_verbose(CP_HERE, "minimap width shrunk to ", _width);
 				}
 			}
 
 			/// The cached pages. The keys are the indices of each page's first line, and the values are
 			/// corresponding \ref os::frame_buffer "framebuffers".
-			std::map<size_t, ui::frame_buffer> pages;
+			std::map<size_t, ui::render_target_data> pages;
 		protected:
 			/// The index past the end of the range of lines that has been rendered and stored in \ref pages.
-			size_t
-				_page_end = 0,
-				_width = minimum_width; ///< The width of all pages, in pixels.
+			size_t _page_end = 0;
+			double _width = minimum_width; ///< The width of all pages.
 			const minimap *_parent = nullptr; ///< The associated \ref minimap.
 			/// Marks whether this cache is ready for rendering the currently visible portion of the document.
 			bool _ready = false;
 
-			/// Renders characters in a specific way so that they are more visible in the minimap.
-			struct _char_renderer {
-			public:
-				/// Initializes the batch renderer and \ref _scale.
-				_char_renderer(ui::atlas &atl, double scale) : _renderer(atl), _scale(scale) {
-				}
-
-				/// Adds the given character to the \ref ui::atlas::batch_renderer.
-				void add_character(const ui::font::entry &entry, vec2d position, colord color) {
-					rectd place = entry.placement.translated(
-						position
-					).coordinates_scaled(_scale).fit_grid_enlarge<double>();
-					place.xmin = std::max(place.xmin, _last_xmax);
-					_renderer.add_sprite(entry.texture, place, color);
-					_last_xmax = place.xmax;
-				}
-				/// Resets this \ref _char_renderer to start from the beginning of the line.
-				void reset() {
-					_last_xmax = 0.0;
-				}
-
-				/// Returns the position of the right boundary of the last renderered character, relative to the
-				/// left of the first character.
-				double get_xmax() const {
-					return _last_xmax;
-				}
-				/// Returns a reference to \ref _renderer.
-				ui::atlas::batch_renderer &get_renderer() {
-					return _renderer;
-				}
-				/// \overload
-				const ui::atlas::batch_renderer &get_renderer() const {
-					return _renderer;
-				}
-			protected:
-				ui::atlas::batch_renderer _renderer; ///< The \ref ui::atlas::batch_renderer.
-				double
-					_scale = 0.0, ///< The scale of the characters.
-					_last_xmax = 0.0; ///< The position of the right boundary of the last character.
-			};
 			/// Renders the page specified by the range of lines, and inserts the result into \ref pages. Note that
 			/// this function does not automatically set \ref _page_end.
 			///
@@ -287,110 +248,75 @@ namespace codepad::editors::code {
 			/// \todo Correct Y offset of characters of different fonts.
 			void _render_page(size_t s, size_t pe) {
 				performance_monitor mon(CP_STRLIT("render_minimap_page"), page_rendering_time_redline);
-				if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
-					double lh = edt->get_line_height(), scale = get_scale();
+				if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
+					double lh = edt->get_line_height(), scale = _parent->get_scale();
 
 					ui::renderer_base &r = _parent->get_manager().get_renderer();
-					ui::frame_buffer buf = r.new_frame_buffer(
+					ui::render_target_data rt = r.create_render_target(vec2d(
 						// add 1 because the starting position was floored instead of rounded
-						_width, static_cast<size_t>(std::ceil(lh * scale * static_cast<double>(pe - s))) + 1
-					);
-					r.begin_frame_buffer(buf);
-					{ // this scope ensures that batch_renderer::flush() is called
-						const view_formatting &fmt = edt->get_formatting();
-						size_t
-							curvisline = s,
-							firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
-								fmt.get_folding().folded_to_unfolded_line_number(s)
-							).first,
-							plastchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
-								fmt.get_folding().folded_to_unfolded_line_number(pe)
-							).first;
-						rendering_token_iterator<soft_linebreak_inserter, folded_region_skipper> it(
-							std::make_tuple(std::cref(fmt.get_linebreaks()), firstchar),
-							std::make_tuple(std::cref(fmt.get_folding()), firstchar),
-							std::make_tuple(std::cref(*edt->get_document()), firstchar)
+						_width, std::ceil(lh * scale * static_cast<double>(pe - s)) + 1
+					));
+
+					const view_formatting & fmt = edt->get_formatting();
+					size_t
+						curvisline = s,
+						firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
+							fmt.get_folding().folded_to_unfolded_line_number(s)
+						).first,
+						plastchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
+							fmt.get_folding().folded_to_unfolded_line_number(pe)
+						).first;
+
+					fragment_generator<fragment_generator_component_hub<
+						soft_linebreak_inserter, folded_region_skipper
+						>> gen(
+							*edt->get_document(), firstchar,
+							soft_linebreak_inserter(fmt.get_linebreaks(), firstchar),
+							folded_region_skipper(fmt.get_folding(), firstchar)
 						);
-						text_metrics_accumulator metrics(
-							contents_region::get_font(), lh, edt->get_formatting().get_tab_width()
-						);
-						_char_renderer crend(contents_region::get_font().normal->get_manager().get_atlas(), scale);
-						// reserve for the maximum possible number of quads
-						crend.get_renderer().get_batch().reserve_quads((pe - s) * _width);
-						while (it.get_position() < plastchar) {
-							token_generation_result tok = it.generate();
-							metrics.next<token_measurement_flags::defer_text_gizmo_measurement>(tok.result);
-							if (std::holds_alternative<character_token>(tok.result)) {
-								auto &chartok = std::get<character_token>(tok.result);
-								if (is_graphical_char(chartok.value)) { // render one character
-									crend.add_character(
-										metrics.get_character().current_char_entry(),
-										vec2d(metrics.get_character().char_left(), metrics.get_y()),
-										chartok.color
-									);
-								}
-							} else if (std::holds_alternative<linebreak_token>(tok.result)) {
-								++curvisline;
-								crend.reset();
-							} else if (std::holds_alternative<text_gizmo_token>(tok.result)) {
-								auto &texttok = std::get<text_gizmo_token>(tok.result);
-								auto tokit = texttok.contents.begin();
-								codepoint last = 0;
-								vec2d pos(metrics.get_character().char_right(), metrics.get_y());
-								double xdiff = 0.0;
-								while (tokit != texttok.contents.end()) {
-									codepoint cp;
-									if (encodings::utf8::next_codepoint(tokit, texttok.contents.end(), cp)) {
-										std::shared_ptr<const ui::font>
-											fnt = texttok.font ? texttok.font : contents_region::get_font().normal;
-										if (last != 0) {
-											xdiff += fnt->get_kerning(last, cp).x;
-										}
-										auto &entry = fnt->get_char_entry(cp);
-										crend.add_character(entry, vec2d(pos.x + xdiff, pos.y), texttok.color);
-										xdiff += entry.advance;
-										last = cp;
-									} else {
-										last = 0;
-										logger::get().log_warning(CP_HERE, "invalid codepoint in text gizmo");
-									}
-								}
-								metrics.get_modify_character().next_gizmo(xdiff);
-							} else if (std::holds_alternative<image_gizmo_token>(tok.result)) {
-								// TODO
-							}
-							if (crend.get_xmax() < _width) {
-								it.update(tok.steps);
-							} else { // skip right to the next line
-								++curvisline;
-								size_t
-									pos = fmt.get_linebreaks().get_beginning_char_of_visual_line(
-										fmt.get_folding().folded_to_unfolded_line_number(curvisline)
-									).first;
-								it.reposition(pos);
-								metrics.next_line();
-								crend.reset();
-							}
+					fragment_assembler ass(*edt, 0.8 * edt->get_line_height());
+
+					r.begin_drawing(*rt.render_target);
+					r.push_matrix_mult(matd3x3::scale(vec2d(0.0, 0.0), scale));
+					while (gen.get_position() < plastchar) {
+						fragment_generation_result tok = gen.generate_and_update();
+						std::visit([&ass, &r](auto && frag) {
+							auto &&rendering = ass.append(frag);
+							ass.render(r, rendering);
+							}, tok.result);
+						if (std::holds_alternative<linebreak_fragment>(tok.result)) {
+							++curvisline;
+						} else if (ass.get_horizontal_position() > _width / scale) {
+							++curvisline;
+							size_t
+								pos = fmt.get_linebreaks().get_beginning_char_of_visual_line(
+									fmt.get_folding().folded_to_unfolded_line_number(curvisline)
+								).first;
+							gen.reposition(pos);
+							ass.advance_vertical_position(1);
+							ass.set_horizontal_position(0.0);
 						}
 					}
-					r.end();
-					pages.insert(std::make_pair(s, std::move(buf)));
+					r.pop_matrix();
+					r.end_drawing();
+					pages.insert(std::make_pair(s, std::move(rt)));
 				}
 			}
-		};*/
+		};
 
 		/// Checks and validates \ref _pgcache by calling \ref _page_cache::prepare.
 		void _on_prerender() override {
 			element::_on_prerender();
-			/*_pgcache.prepare();*/
+			_pgcache.prepare();
 		}
 		/// Renders all visible pages.
-		void _custom_render() override {
-			/*if (contents_region *edt = component_helper::get_contents_region(*this)) {
+		void _custom_render() const override {
+			element::_custom_render();
+			if (contents_region * edt = component_helper::get_contents_region(*this)) {
 				std::pair<size_t, size_t> vlines = _get_visible_visual_lines();
-				double slh = edt->get_line_height() * get_scale();
-				rectd pagergn = get_client_region();
-				pagergn.ymin = std::round(pagergn.ymin - _get_y_offset());
+				double
+					slh = edt->get_line_height() * get_scale(),
+					top = std::round(get_padding().top - _get_y_offset());
 				auto
 					ibeg = _pgcache.pages.upper_bound(vlines.first),
 					iend = _pgcache.pages.lower_bound(vlines.second);
@@ -400,27 +326,30 @@ namespace codepad::editors::code {
 					logger::get().log_error(CP_HERE, "agnomaly in page range selection");
 				}
 				ui::renderer_base &r = get_manager().get_renderer();
-				r.push_blend_function(ui::blend_function(
-					ui::blend_factor::one, ui::blend_factor::one_minus_source_alpha
-				));
 				for (auto i = ibeg; i != iend; ++i) {
-					rectd crgn = pagergn;
-					crgn.xmax = crgn.xmin + i->second.get_texture().get_width();
-					crgn.ymin = std::floor(crgn.ymin + slh * static_cast<double>(i->first));
-					crgn.ymax = crgn.ymin + static_cast<double>(i->second.get_texture().get_height());
-					ui::render_batch rb(r);
-					rb.add_quad(crgn, rectd(0.0, 1.0, 0.0, 1.0), colord());
-					rb.draw_and_discard(i->second.get_texture());
+					auto &bmp = *i->second.bitmap;
+					vec2d topleft(get_padding().left, std::floor(top + slh * static_cast<double>(i->first)));
+					r.draw_rectangle(
+						rectd::from_corners(topleft, topleft + bmp.get_size()),
+						ui::generic_brush_parameters(
+							ui::brush_parameters::bitmap_pattern(&bmp), matd3x3::translate(topleft)
+						),
+						ui::generic_pen_parameters()
+					);
 				}
-				r.pop_blend_function();
 				// render visible region indicator
-				_viewport_cfg.render(r, _get_clamped_viewport_rect());
-			}*/
+				r.draw_rounded_rectangle(
+					_get_clamped_viewport_rect(), 5.0, 5.0,
+					ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 0.2))),
+					ui::generic_pen_parameters()
+				); // TODO temp
+				/*_viewport_cfg.render(r, _get_clamped_viewport_rect());*/
+			}
 		}
 
 		/// Calculates and returns the vertical offset of all pages according to \ref editor::get_vertical_position.
 		double _get_y_offset() const {
-			if (auto &&[box, edt] = component_helper::get_core_components(*this); edt) {
+			if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
 				size_t nlines = edt->get_num_visual_lines();
 				double
 					lh = edt->get_line_height(),
@@ -435,14 +364,14 @@ namespace codepad::editors::code {
 		}
 		/// Returns the rectangle marking the \ref contents_region's visible region.
 		rectd _get_viewport_rect() const {
-			if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				rectd clnrgn = get_client_region();
+			if (contents_region * edt = component_helper::get_contents_region(*this)) {
+				double scale = get_scale();
 				return rectd::from_xywh(
-					clnrgn.xmin - edt->get_padding().left * get_scale(),
-					clnrgn.ymin - _get_y_offset() + (
+					get_padding().left - edt->get_padding().left * scale,
+					get_padding().top - _get_y_offset() + (
 						editor::get_encapsulating(*this)->get_vertical_position() - edt->get_padding().top
-						) * get_scale(),
-					edt->get_layout().width() * get_scale(), clnrgn.height() * get_scale()
+						) * scale,
+					edt->get_layout().width() * scale, get_client_region().height() * scale
 				);
 			}
 			return rectd();
@@ -457,7 +386,7 @@ namespace codepad::editors::code {
 		}
 		/// Returns the range of lines that are visible in the \ref minimap.
 		std::pair<size_t, size_t> _get_visible_visual_lines() const {
-			if (contents_region *edt = component_helper::get_contents_region(*this)) {
+			if (contents_region * edt = component_helper::get_contents_region(*this)) {
 				double scale = get_scale(), ys = _get_y_offset();
 				return edt->get_visible_visual_lines(ys / scale, (ys + get_client_region().height()) / scale);
 			}
@@ -468,17 +397,17 @@ namespace codepad::editors::code {
 
 		/// Notifies and invalidates \ref _pgcache.
 		void _on_layout_changed() override {
-			/*_pgcache.on_width_changed(get_layout().width());
-			_pgcache.invalidate(); // invalidate no matter what since the height may have also changed*/
+			_pgcache.on_width_changed(get_layout().width());
+			_pgcache.invalidate(); // invalidate no matter what since the height may have also changed
 			element::_on_layout_changed();
 		}
 
 		/// Registers event handlers to update the minimap and viewport indicator automatically.
 		void _register_handlers() {
-			if (auto&&[box, edt] = component_helper::get_core_components(*this); edt) {
+			if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
 				_vis_tok = (edt->editing_visual_changed += [this]() {
 					_on_editor_visual_changed();
-				});
+					});
 				box->vertical_viewport_changed += [this]() {
 					_on_viewport_changed();
 				};
@@ -498,30 +427,30 @@ namespace codepad::editors::code {
 		/// Marks \ref _pgcache for update when the viewport has changed, to determine if more pages need to
 		/// be rendered when \ref _on_prerender is called.
 		void _on_viewport_changed() {
-			/*_pgcache.invalidate();*/
+			_pgcache.invalidate();
 		}
 		/// Clears \ref _pgcache.
 		void _on_editor_visual_changed() {
-			/*_pgcache.pages.clear();
-			_pgcache.invalidate();*/
+			_pgcache.pages.clear();
+			_pgcache.invalidate();
 		}
 
 		/// If the user presses ahd holds the primary mouse button on the viewport, starts dragging it; otherwise,
 		/// if the user presses the left mouse button, jumps to the corresponding position.
-		void _on_mouse_down(ui::mouse_button_info &info) override {
+		void _on_mouse_down(ui::mouse_button_info & info) override {
 			element::_on_mouse_down(info);
 			if (info.button == ui::mouse_button::primary) {
-				if (auto&&[box, edt] = component_helper::get_core_components(*this); edt) {
+				if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
 					rectd rv = _get_viewport_rect();
-					if (rv.contains(info.position)) {
-						_dragoffset = rv.ymin - info.position.y;
+					if (rv.contains(info.position.get(*this))) { // TODO bug
+						_dragoffset = rv.ymin - info.position.get(*this).y;
 						get_window()->set_mouse_capture(*this);
 						_dragging = true;
 					} else {
 						rectd client = get_client_region();
 						double ch = client.height();
 						box->set_vertical_position(std::min(
-							(info.position.y - client.ymin + _get_y_offset()) / get_scale() - 0.5 * ch,
+							(info.position.get(*this).y - client.ymin + _get_y_offset()) / get_scale() - 0.5 * ch,
 							static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - ch
 						) + edt->get_padding().top);
 					}
@@ -529,7 +458,7 @@ namespace codepad::editors::code {
 			}
 		}
 		/// Stops dragging.
-		void _on_mouse_up(ui::mouse_button_info &info) override {
+		void _on_mouse_up(ui::mouse_button_info & info) override {
 			element::_on_mouse_up(info);
 			if (_dragging && info.button == ui::mouse_button::primary) {
 				_dragging = false;
@@ -539,14 +468,14 @@ namespace codepad::editors::code {
 		/// If dragging, updates the position of the viewport.
 		///
 		/// \todo Small glitch when starting to drag the region when it's partially out of the minimap area.
-		void _on_mouse_move(ui::mouse_move_info &info) override {
+		void _on_mouse_move(ui::mouse_move_info & info) override {
 			element::_on_mouse_move(info);
 			if (_dragging) {
-				if (auto&&[box, edt] = component_helper::get_core_components(*this); edt) {
+				if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
 					rectd client = get_client_region();
 					double
 						scale = get_scale(),
-						yp = info.new_position.y + _dragoffset - client.ymin,
+						yp = info.new_position.get(*this).y + _dragoffset,
 						toth =
 						static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - client.height(),
 						totch = std::min(client.height() * (1.0 - scale), toth * scale);
@@ -561,12 +490,12 @@ namespace codepad::editors::code {
 		}
 
 		/// Initializes \ref _viewport_cfg.
-		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
+		void _initialize(str_view_t cls, const ui::element_configuration & config) override {
 			element::_initialize(cls, config);
 			// TODO initialize viewport indicator
 		}
 
-		/*_page_cache _pgcache{*this}; ///< Caches rendered pages.*/
+		_page_cache _pgcache{*this}; ///< Caches rendered pages.
 		info_event<>::token _vis_tok; ///< Used to listen to \ref contents_region::editing_visual_changed.
 		/// The offset of the mouse relative to the top border of the visible region indicator.
 		double _dragoffset = 0.0;

@@ -14,7 +14,7 @@ using namespace codepad::os;
 
 namespace codepad::ui {
 	element_collection::~element_collection() {
-		assert_true_logical(_children.empty(), "clear() not called in panel_base::_dispose()");
+		assert_true_logical(_children.empty(), "clear() not called in panel::_dispose()");
 	}
 
 	void element_collection::insert_before(element *before, element &target) {
@@ -143,13 +143,12 @@ namespace codepad::ui {
 	}
 
 
-	void panel_base::_invalidate_children_layout() {
+	void panel::_invalidate_children_layout() {
 		get_manager().get_scheduler().invalidate_children_layout(*this);
 	}
 
-	void panel_base::_on_mouse_down(mouse_button_info &p) {
-		element *mouseover = _hit_test_for_child(p.position);
-		if (mouseover != nullptr) {
+	void panel::_on_mouse_down(mouse_button_info &p) {
+		if (element *mouseover = _hit_test_for_child(p.position)) {
 			mouseover->_on_mouse_down(p);
 		}
 		mouse_down.invoke(p);
@@ -161,16 +160,18 @@ namespace codepad::ui {
 		}
 	}
 
-	element *panel_base::_hit_test_for_child(vec2d p) {
+	element *panel::_hit_test_for_child(const mouse_position &p) {
 		for (element *elem : _children.z_ordered()) {
-			if (elem->is_visible(visibility::interact) && elem->hit_test(p)) {
-				return elem;
+			if (elem->is_visible(visibility::interact)) {
+				if (elem->hit_test(p.get(*elem))) {
+					return elem;
+				}
 			}
 		}
 		return nullptr;
 	}
 
-	void panel_base::_dispose() {
+	void panel::_dispose() {
 		if (_dispose_children) {
 			for (auto i : _children.items()) {
 				get_manager().get_scheduler().mark_for_disposal(*i);

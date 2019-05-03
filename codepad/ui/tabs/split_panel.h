@@ -12,7 +12,7 @@
 
 namespace codepad::ui::tabs {
 	/// A panel with two regions separated by a draggable separator.
-	class split_panel : public ui::panel_base {
+	class split_panel : public ui::panel {
 	public:
 		constexpr static double minimum_panel_size = 30.0; ///< The minimum size that a region can have.
 
@@ -211,7 +211,7 @@ namespace codepad::ui::tabs {
 					_c2 = nullptr;
 				}
 			}
-			panel_base::_on_child_removed(e);
+			panel::_on_child_removed(e);
 		}
 
 		/// Called after the current orientation has been changed. Calls \ref invalidate_layout, and notifies
@@ -222,7 +222,8 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Renders all children with additional clip regions.
-		void _custom_render() override {
+		void _custom_render() const override {
+			panel::_custom_render();
 			_child_on_render(*_sep);
 			ui::renderer_base &r = get_manager().get_renderer();
 			/*if (_c1) {
@@ -241,27 +242,27 @@ namespace codepad::ui::tabs {
 		void _on_update_children_layout() override {
 			rectd client = get_client_region();
 			if (get_orientation() == orientation::vertical) {
-				panel_base::layout_child_horizontal(*_sep, client.xmin, client.xmax);
+				panel::layout_child_horizontal(*_sep, client.xmin, client.xmax);
 				auto metrics = _sep->get_layout_height();
 				double top = (client.height() - metrics.value) * _sep_position + client.ymin;
 				_child_set_vertical_layout(*_sep, top, top + metrics.value);
 			} else {
-				panel_base::layout_child_vertical(*_sep, client.ymin, client.ymax);
+				panel::layout_child_vertical(*_sep, client.ymin, client.ymax);
 				auto metrics = _sep->get_layout_width();
 				double left = (client.width() - metrics.value) * _sep_position + client.xmin;
 				_child_set_horizontal_layout(*_sep, left, left + metrics.value);
 			}
 			if (_c1) {
-				panel_base::layout_child(*_c1, get_region1());
+				panel::layout_child(*_c1, get_region1());
 			}
 			if (_c2) {
-				panel_base::layout_child(*_c2, get_region2());
+				panel::layout_child(*_c2, get_region2());
 			}
 		}
 
 		/// Initializes \ref _sep and adds handlers for certain events.
 		void _initialize(str_view_t cls, const element_configuration & config) override {
-			ui::panel_base::_initialize(cls, config);
+			ui::panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_separator_role(), _role_cast(_sep)}
@@ -272,8 +273,8 @@ namespace codepad::ui::tabs {
 					_sep_dragging = true;
 					_sep_offset =
 						get_orientation() == orientation::vertical ?
-						p.position.y - _sep->get_layout().ymin :
-						p.position.x - _sep->get_layout().xmin;
+						p.position.get(*_sep).y :
+						p.position.get(*_sep).x;
 					get_window()->set_mouse_capture(*_sep);
 				}
 			};
@@ -290,10 +291,10 @@ namespace codepad::ui::tabs {
 				if (_sep_dragging) {
 					rectd client = get_client_region();
 					double position =
-						get_orientation() == orientation::vertical ?
-						(p.new_position.y - _sep_offset - client.ymin) /
+						get_orientation() == orientation::vertical ? // TODO FIXME
+						(p.new_position.get(*_sep).y - _sep_offset) /
 						(client.height() - _sep->get_layout().height()) :
-						(p.new_position.x - _sep_offset - client.xmin) /
+						(p.new_position.get(*_sep).x - _sep_offset) /
 						(client.width() - _sep->get_layout().width());
 					set_separator_position(position);
 				}

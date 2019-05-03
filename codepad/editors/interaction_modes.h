@@ -159,7 +159,7 @@ namespace codepad::editors {
 		/// Returns a list of temporary carets.
 		///
 		/// \sa interaction_mode::get_temporary_carets()
-		std::vector<caret_selection_position> get_temporary_carets() {
+		std::vector<caret_selection_position> get_temporary_carets() const {
 			if (_active) {
 				return _active->get_temporary_carets();
 			}
@@ -168,17 +168,17 @@ namespace codepad::editors {
 
 		/// Called when a mouse button has been pressed.
 		void on_mouse_down(ui::mouse_button_info &info) {
-			_update_cached_positions(info.position - _contents_region->get_layout().xmin_ymin());
+			_update_cached_positions(info.position.get(*_contents_region));
 			_dispatch_event<&mode_activator_t::on_mouse_down, &mode_t::on_mouse_down>(info);
 		}
 		/// Called when a mouse button has been released.
 		void on_mouse_up(ui::mouse_button_info &info) {
-			_update_cached_positions(info.position - _contents_region->get_layout().xmin_ymin());
+			_update_cached_positions(info.position.get(*_contents_region));
 			_dispatch_event<&mode_activator_t::on_mouse_up, &mode_t::on_mouse_up>(info);
 		}
 		/// Called when the mouse has been moved.
 		void on_mouse_move(ui::mouse_move_info &info) {
-			_update_cached_positions(info.new_position - _contents_region->get_layout().xmin_ymin());
+			_update_cached_positions(info.new_position.get(*_contents_region));
 			_dispatch_event<&mode_activator_t::on_mouse_move, &mode_t::on_mouse_move>(info);
 		}
 		/// Called when the mouse capture has been lost.
@@ -275,7 +275,7 @@ namespace codepad::editors {
 				r.make_valid_average();
 				// find anchor point
 				_scrolling = false;
-				vec2d anchor = info.new_position;
+				vec2d anchor = info.new_position.get(elem);
 				if (anchor.x < r.xmin) {
 					anchor.x = r.xmin;
 					_scrolling = true;
@@ -291,7 +291,7 @@ namespace codepad::editors {
 					_scrolling = true;
 				}
 				// calculate speed
-				_speed = info.new_position - anchor; // TODO further manipulate _speed
+				_speed = info.new_position.get(elem) - anchor; // TODO further manipulate _speed
 				if (_scrolling) { // schedule update
 					elem.get_manager().get_scheduler().schedule_element_update(elem);
 				}
@@ -456,7 +456,9 @@ namespace codepad::editors {
 			}
 			/// Checks the position of the mouse, and starts drag drop and exits if the distance is enough.
 			bool on_mouse_move(ui::mouse_move_info &info) override {
-				if ((info.new_position - _init_pos).length_sqr() > 25.0) { // TODO magic value
+				if (
+					(info.new_position.get(this->_manager.get_contents_region()) - _init_pos).length_sqr() > 25.0
+					) { // TODO magic value
 					logger::get().log_info(CP_HERE, "start drag drop");
 					// TODO start
 					this->_manager.get_contents_region().get_window()->release_mouse_capture();
@@ -497,7 +499,9 @@ namespace codepad::editors {
 			/// Activates a \ref mouse_prepare_drag_mode if the mouse is in a selected region.
 			std::unique_ptr<mode_t> on_mouse_down(manager_t &man, ui::mouse_button_info &info) override {
 				if (man.get_contents_region().get_carets().is_in_selection(man.get_mouse_position().position)) {
-					return std::make_unique<mouse_prepare_drag_mode<CaretSet>>(man, info.position);
+					return std::make_unique<mouse_prepare_drag_mode<CaretSet>>(
+						man, info.position.get(man.get_contents_region())
+						);
 				}
 				return nullptr;
 			}

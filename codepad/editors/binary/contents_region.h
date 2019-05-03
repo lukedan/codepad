@@ -412,7 +412,8 @@ namespace codepad::editors::binary {
 		}
 
 		/// Renders all visible bytes.
-		void _custom_render() override {
+		void _custom_render() const override {
+			interactive_contents_region_base::_custom_render();
 			/*
 			if (auto *edt = editor::get_encapsulating(*this)) {
 				size_t

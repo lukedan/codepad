@@ -11,6 +11,7 @@
 #include <d2d1_1.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
+#include <dwrite.h>
 
 #include "../../ui/renderer.h"
 #include "window.h"
@@ -73,33 +74,62 @@ namespace codepad::os::direct2d {
 			D2D1_SIZE_F sz = _bitmap->GetSize();
 			return vec2d(sz.width, sz.height);
 		}
-		/// Returns whether \ref _bitmap is emtpy.
-		bool empty() const override {
-			return _bitmap.empty();
-		}
 	protected:
 		_details::com_wrapper<ID2D1Bitmap1> _bitmap; ///< The bitmap.
-
-		/// Initializes \ref _bitmap directly.
-		explicit bitmap(_details::com_wrapper<ID2D1Bitmap1> src) : _bitmap(src) {
-		}
 	};
 
 	/// A Direct2D bitmap render target.
 	class render_target : public ui::render_target {
 		friend renderer;
+	protected:
+		_details::com_wrapper<ID2D1Bitmap1> _bitmap; ///< The bitmap used with Direct2D.
+		_details::com_wrapper<ID3D11Texture2D> _texture; ///< The texture.
+	};
+
+	/// Wrapper around an \p IDWriteTextFormat.
+	class text_format : public ui::text_format {
+		friend renderer;
+	protected:
+		_details::com_wrapper<IDWriteTextFormat> _fmt; ///< The \p IDWriteTextFormat handle.
+	};
+
+	/// Wrapper around an \p IDWriteTextLayout.
+	class formatted_text : public ui::formatted_text {
+		friend renderer;
 	public:
-		/// Returns the \ref bitmap corresponding to this \ref render_target.
-		std::unique_ptr<ui::bitmap> get_bitmap() const override {
-			return std::make_unique<bitmap>(bitmap(_bitmap));
+		/// Returns the layout of the text.
+		rectd get_layout() const override {
+			DWRITE_TEXT_METRICS metrics;
+			com_check(_text->GetMetrics(&metrics));
+			return rectd::from_xywh(
+				metrics.left, metrics.top, metrics.widthIncludingTrailingWhitespace, metrics.height
+			);
 		}
-		/// Returns whether \ref _target is empty.
-		bool empty() const override {
-			return _bitmap.empty();
+		/// Returns the metrics of each line.
+		std::vector<line_metrics> get_line_metrics() const override {
+			constexpr size_t small_buffer_size = 5;
+
+			DWRITE_LINE_METRICS small_buffer[small_buffer_size], *bufptr = small_buffer;
+			std::vector<DWRITE_LINE_METRICS> large_buffer;
+			UINT32 linecount;
+			HRESULT res = _text->GetLineMetrics(small_buffer, small_buffer_size, &linecount);
+			auto ressize = static_cast<size_t>(linecount);
+			if (res == E_NOT_SUFFICIENT_BUFFER) {
+				large_buffer.resize(ressize);
+				bufptr = large_buffer.data();
+				com_check(_text->GetLineMetrics(bufptr, linecount, &linecount));
+			} else {
+				com_check(res);
+			}
+			std::vector<line_metrics> resvec;
+			resvec.reserve(ressize);
+			for (size_t i = 0; i < ressize; ++i) {
+				resvec.emplace_back(bufptr[i].height, bufptr[i].baseline);
+			}
+			return resvec;
 		}
 	protected:
-		_details::com_wrapper<ID2D1Bitmap1> _bitmap; ///< The render target.
-		_details::com_wrapper<ID3D11Texture2D> _texture; ///< The Direct3D texture.
+		_details::com_wrapper<IDWriteTextLayout> _text; ///< The \p IDWriteTextLayout handle.
 	};
 
 	/// Encapsules a \p ID2D1PathGeometry and a \p ID2D1GeometrySink.
@@ -200,10 +230,23 @@ namespace codepad::os::direct2d {
 			assert_true_usage(rt, "invalid render target type");
 			return *rt;
 		}
+		/// Casts a \ref ui::bitmap to a \ref bitmap.
 		inline static bitmap &cast_bitmap(ui::bitmap &b) {
 			auto *bmp = dynamic_cast<bitmap*>(&b);
 			assert_true_usage(bmp, "invalid bitmap type");
 			return *bmp;
+		}
+		/// Casts a \ref ui::text_format to a \ref text_format.
+		inline static text_format &cast_text_format(ui::text_format &b) {
+			auto *fmt = dynamic_cast<text_format*>(&b);
+			assert_true_usage(fmt, "invalid text format type");
+			return *fmt;
+		}
+		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
+		inline static formatted_text &cast_formatted_text(ui::formatted_text &t) {
+			auto *ft = dynamic_cast<formatted_text*>(&t);
+			assert_true_usage(ft, "invalid formatted text type");
+			return *ft;
 		}
 	}
 
@@ -215,7 +258,6 @@ namespace codepad::os::direct2d {
 
 		/// Initializes \ref _d2d_factory.
 		renderer() {
-			com_check(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, _d2d_factory.get_ref()));
 			D3D_FEATURE_LEVEL supported_feature_levels[]{
 				D3D_FEATURE_LEVEL_11_1,
 				D3D_FEATURE_LEVEL_11_0,
@@ -238,15 +280,25 @@ namespace codepad::os::direct2d {
 				nullptr
 			));
 			com_check(_d3d_device->QueryInterface(_dxgi_device.get_ref()));
+
+			com_check(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, _d2d_factory.get_ref()));
 			com_check(_d2d_factory->CreateDevice(_dxgi_device.get(), _d2d_device.get_ref()));
 			com_check(_d2d_device->CreateDeviceContext(
 				D2D1_DEVICE_CONTEXT_OPTIONS_NONE, _d2d_device_context.get_ref()
 			));
+			_d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+
+			com_check(DWriteCreateFactory(
+				DWRITE_FACTORY_TYPE_SHARED,
+				__uuidof(IDWriteFactory),
+				reinterpret_cast<IUnknown * *>(_dwrite_factory.get_ref())
+			));
 		}
 
 		/// Creates a render target of the given size.
-		std::unique_ptr<ui::render_target> create_render_target(vec2d size) override {
-			auto res = std::make_unique<render_target>();
+		ui::render_target_data create_render_target(vec2d size) override {
+			auto resrt = std::make_unique<render_target>();
+			auto resbmp = std::make_unique<bitmap>();
 			_details::com_wrapper<IDXGISurface> surface;
 
 			D3D11_TEXTURE2D_DESC texture_desc;
@@ -261,28 +313,51 @@ namespace codepad::os::direct2d {
 			texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 			texture_desc.CPUAccessFlags = 0;
 			texture_desc.MiscFlags = 0;
-			com_check(_d3d_device->CreateTexture2D(&texture_desc, nullptr, res->_texture.get_ref()));
-			com_check(res->_texture->QueryInterface(surface.get_ref()));
+			com_check(_d3d_device->CreateTexture2D(&texture_desc, nullptr, resrt->_texture.get_ref()));
+			com_check(resrt->_texture->QueryInterface(surface.get_ref()));
 			com_check(_d2d_device_context->CreateBitmapFromDxgiSurface(
 				surface.get(),
 				D2D1::BitmapProperties1(
 					D2D1_BITMAP_OPTIONS_TARGET,
 					D2D1::PixelFormat(pixel_format, D2D1_ALPHA_MODE_PREMULTIPLIED),
-					0.0f, 0.0f // TODO dpi
+					// using 0.0 here as in the docs causes the bitmap to have infinite size
+					96.0f, 96.0f // TODO dpi
 				),
-				res->_bitmap.get_ref()
+				resrt->_bitmap.get_ref()
 			));
-			return res;
+			resbmp->_bitmap = resrt->_bitmap;
+			return ui::render_target_data(std::move(resrt), std::move(resbmp));
 		}
 
 		/// Loads a \ref bitmap from disk.
 		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp) override {
-			_details::com_wrapper<IWICBitmapSource> img = wic_image_loader::get().load_image(bmp);
+			auto res = std::make_unique<bitmap>();
 			_details::com_wrapper<IWICBitmapSource> converted;
-			_details::com_wrapper<ID2D1Bitmap1> res;
+			_details::com_wrapper<IWICBitmapSource> img = wic_image_loader::get().load_image(bmp);
+
 			com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppPBGRA, img.get(), converted.get_ref()));
-			com_check(_d2d_device_context->CreateBitmapFromWicBitmap(converted.get(), res.get_ref()));
-			return std::make_unique<bitmap>(bitmap(std::move(res)));
+			com_check(_d2d_device_context->CreateBitmapFromWicBitmap(converted.get(), res->_bitmap.get_ref()));
+			return res;
+		}
+
+		/// Creates a \p IDWriteTextFormat.
+		std::unique_ptr<ui::text_format> create_text_format(
+			str_view_t family, double size, ui::font_style style, ui::font_weight weight, ui::font_stretch stretch
+		) override {
+			auto res = std::make_unique<text_format>();
+			auto u16family = os::_details::utf8_to_wstring(family);
+
+			com_check(_dwrite_factory->CreateTextFormat(
+				u16family.c_str(),
+				nullptr,
+				DWRITE_FONT_WEIGHT_NORMAL, // TODO
+				_cast(style),
+				DWRITE_FONT_STRETCH_NORMAL, // TODO
+				static_cast<FLOAT>(size),
+				L"", // TODO is this ok?
+				res->_fmt.get_ref()
+			));
+			return res;
 		}
 
 		/// Starts drawing to the given window.
@@ -322,7 +397,7 @@ namespace codepad::os::direct2d {
 		virtual void push_matrix_mult(matd3x3 m) {
 			D2D1_MATRIX_3X2_F mat = _details::cast_matrix(m);
 			_render_target_stackframe &frame = _render_stack.top();
-			frame.matrices.push(frame.matrices.top() * mat);
+			frame.matrices.push(mat * frame.matrices.top());
 			_update_transform();
 		}
 		/// Pops a matrix from the stack.
@@ -384,6 +459,75 @@ namespace codepad::os::direct2d {
 		) override {
 			_draw_geometry(_path_builder._end(), brush, pen);
 		}
+
+		/// Calls \ref _format_text_impl().
+		std::unique_ptr<ui::formatted_text> format_text(
+			str_view_t text, ui::text_format &fmt, vec2d maxsize, ui::wrapping_mode wrap,
+			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
+		) override {
+			auto converted = _details::utf8_to_wstring(text);
+			return _format_text_impl(converted, fmt, maxsize, wrap, halign, valign);
+		}
+		/// Calls \ref _format_text_impl().
+		std::unique_ptr<ui::formatted_text> format_text(
+			std::basic_string_view<codepoint> text, ui::text_format &fmt, vec2d maxsize, ui::wrapping_mode wrap,
+			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
+		) override {
+			std::basic_string<std::byte> bytestr;
+			for (codepoint cp : text) {
+				bytestr += encodings::utf16<>::encode_codepoint(cp);
+			}
+			return _format_text_impl(
+				std::basic_string_view<WCHAR>(reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2),
+				fmt, maxsize, wrap, halign, valign
+			);
+		}
+		/// Calls \p ID2D1DeviceContext::DrawTextLayout to render the given \ref formatted_text.
+		void draw_formatted_text(
+			ui::formatted_text & text, vec2d topleft, const ui::generic_brush_parameters & brush
+		) override {
+			if (auto brushobj = _create_brush(brush)) {
+				auto ctext = _details::cast_formatted_text(text);
+				_d2d_device_context->DrawTextLayout(
+					_details::cast_point(topleft),
+					ctext._text.get(),
+					brushobj.get(),
+					D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT
+				);
+			}
+		}
+		/// Calls \ref _draw_text_impl().
+		void draw_text(
+			str_view_t text, rectd layout,
+			ui::text_format & format, ui::wrapping_mode wrap,
+			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
+			const ui::generic_brush_parameters & brush
+		) override {
+			if (auto brushobj = _create_brush(brush)) {
+				auto u16text = _details::utf8_to_wstring(text);
+				_draw_text_impl(u16text, layout, format, wrap, halign, valign, std::move(brushobj));
+			}
+		}
+		/// Calls \ref _draw_text_impl().
+		void draw_text(
+			std::basic_string_view<codepoint> text, rectd layout,
+			ui::text_format & format, ui::wrapping_mode wrap,
+			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
+			const ui::generic_brush_parameters & brush
+		) override {
+			if (auto brushobj = _create_brush(brush)) {
+				std::basic_string<std::byte> bytestr;
+				for (codepoint cp : text) {
+					bytestr += encodings::utf16<>::encode_codepoint(cp);
+				}
+				_draw_text_impl(
+					std::basic_string_view<WCHAR>(
+						reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2
+						),
+					layout, format, wrap, halign, valign, std::move(brushobj)
+				);
+			}
+		}
 	protected:
 		/// Stores window-specific data.
 		struct _window_data {
@@ -417,9 +561,57 @@ namespace codepad::os::direct2d {
 		_details::com_wrapper<ID3D11Device> _d3d_device; ///< The Direct3D device.
 		_details::com_wrapper<IDXGIDevice> _dxgi_device; ///< The DXGI device.
 		_details::com_wrapper<IDXGIAdapter> _dxgi_adapter; ///< The DXGI adapter.
+		_details::com_wrapper<IDWriteFactory> _dwrite_factory; ///< The DirectWrite factory.
+
+		/// Casts a \ref font_style to a \p DWRITE_FONT_STYLE.
+		inline static DWRITE_FONT_STYLE _cast(ui::font_style style) {
+			switch (style) {
+			case ui::font_style::normal:
+				return DWRITE_FONT_STYLE_NORMAL;
+			case ui::font_style::italic:
+				return DWRITE_FONT_STYLE_ITALIC;
+			case ui::font_style::oblique:
+				return DWRITE_FONT_STYLE_OBLIQUE;
+			}
+			return DWRITE_FONT_STYLE_NORMAL; // should not be here
+		}
+		/// Casts a \ref horizontal_text_alignment to a \p DWRITE_TEXT_ALIGNMENT.
+		inline static DWRITE_TEXT_ALIGNMENT _cast(ui::horizontal_text_alignment align) {
+			switch (align) {
+			case ui::horizontal_text_alignment::center:
+				return DWRITE_TEXT_ALIGNMENT_CENTER;
+			case ui::horizontal_text_alignment::front:
+				return DWRITE_TEXT_ALIGNMENT_LEADING;
+			case ui::horizontal_text_alignment::rear:
+				return DWRITE_TEXT_ALIGNMENT_TRAILING;
+			}
+			return DWRITE_TEXT_ALIGNMENT_LEADING; // should not be here
+		}
+		/// Casts a \ref vertical_text_alignment to a \p DWRITE_PARAGRAPH_ALIGNMENT.
+		inline static DWRITE_PARAGRAPH_ALIGNMENT _cast(ui::vertical_text_alignment align) {
+			switch (align) {
+			case ui::vertical_text_alignment::top:
+				return DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+			case ui::vertical_text_alignment::center:
+				return DWRITE_PARAGRAPH_ALIGNMENT_CENTER;
+			case ui::vertical_text_alignment::bottom:
+				return DWRITE_PARAGRAPH_ALIGNMENT_FAR;
+			}
+			return DWRITE_PARAGRAPH_ALIGNMENT_NEAR; // should not be here
+		}
+		/// Casts a \ref wrapping_mode to a \p DWRITE_WORD_WRAPPING.
+		inline static DWRITE_WORD_WRAPPING _cast(ui::wrapping_mode wrap) {
+			switch (wrap) {
+			case ui::wrapping_mode::none:
+				return DWRITE_WORD_WRAPPING_NO_WRAP;
+			case ui::wrapping_mode::wrap:
+				return DWRITE_WORD_WRAPPING_WRAP;
+			}
+			return DWRITE_WORD_WRAPPING_NO_WRAP; // should not be here
+		}
 
 		/// Starts drawing to a \p ID2D1RenderTarget.
-		void _begin_draw_impl(ID2D1Image *target) {
+		void _begin_draw_impl(ID2D1Image * target) {
 			_d2d_device_context->SetTarget(target);
 			if (_render_stack.empty()) {
 				_d2d_device_context->BeginDraw();
@@ -434,8 +626,8 @@ namespace codepad::os::direct2d {
 		/// Draws the given geometry.
 		void _draw_geometry(
 			_details::com_wrapper<ID2D1Geometry> geom,
-			const ui::generic_brush_parameters &brush_def,
-			const ui::generic_pen_parameters &pen_def
+			const ui::generic_brush_parameters & brush_def,
+			const ui::generic_pen_parameters & pen_def
 		) {
 			if (_details::com_wrapper<ID2D1Brush> brush = _create_brush(brush_def)) {
 				_d2d_device_context->FillGeometry(geom.get(), brush.get());
@@ -447,7 +639,7 @@ namespace codepad::os::direct2d {
 
 		/// Creates a brush based on \ref ui::brush_parameters::solid_color.
 		_details::com_wrapper<ID2D1SolidColorBrush> _create_brush(
-			const ui::brush_parameters::solid_color &brush_def
+			const ui::brush_parameters::solid_color & brush_def
 		) {
 			_details::com_wrapper<ID2D1SolidColorBrush> brush;
 			com_check(_d2d_device_context->CreateSolidColorBrush(
@@ -457,7 +649,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a \p ID2D1GradientStopCollection.
 		_details::com_wrapper<ID2D1GradientStopCollection> _create_gradient_stop_collection(
-			const std::vector<ui::gradient_stop> &stops_def
+			const std::vector<ui::gradient_stop> & stops_def
 		) {
 			_details::com_wrapper<ID2D1GradientStopCollection> gradients;
 			std::vector<D2D1_GRADIENT_STOP> stops;
@@ -472,7 +664,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a brush based on \ref ui::brush_parameters::linear_gradient.
 		_details::com_wrapper<ID2D1LinearGradientBrush> _create_brush(
-			const ui::brush_parameters::linear_gradient &brush_def
+			const ui::brush_parameters::linear_gradient & brush_def
 		) {
 			_details::com_wrapper<ID2D1LinearGradientBrush> brush;
 			if (brush_def.gradients) {
@@ -488,7 +680,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a brush based on \ref ui::brush_parameters::radial_gradient.
 		_details::com_wrapper<ID2D1RadialGradientBrush> _create_brush(
-			const ui::brush_parameters::radial_gradient &brush_def
+			const ui::brush_parameters::radial_gradient & brush_def
 		) {
 			_details::com_wrapper<ID2D1RadialGradientBrush> brush;
 			if (brush_def.gradients) {
@@ -505,7 +697,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a brush based on \ref ui::brush_parameters::bitmap_pattern.
 		_details::com_wrapper<ID2D1BitmapBrush> _create_brush(
-			const ui::brush_parameters::bitmap_pattern &brush_def
+			const ui::brush_parameters::bitmap_pattern & brush_def
 		) {
 			_details::com_wrapper<ID2D1BitmapBrush> brush;
 			if (brush_def.image) {
@@ -522,7 +714,7 @@ namespace codepad::os::direct2d {
 			return _details::com_wrapper<ID2D1Brush>();
 		}
 		/// Creates a \p ID2D1Brush from the given \ref ui::brush specification.
-		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::generic_brush_parameters &b) {
+		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::generic_brush_parameters & b) {
 			auto brush = std::visit([this](auto && brush) {
 				return _details::com_wrapper<ID2D1Brush>(_create_brush(brush));
 				}, b.value);
@@ -530,6 +722,48 @@ namespace codepad::os::direct2d {
 				brush->SetTransform(_details::cast_matrix(b.transform));
 			}
 			return brush;
+		}
+
+		/// Creates an \p IDWriteTextLayout.
+		std::unique_ptr<ui::formatted_text> _format_text_impl(
+			std::basic_string_view<WCHAR> text, ui::text_format & fmt, vec2d maxsize, ui::wrapping_mode wrap,
+			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
+		) {
+			auto res = std::make_unique<formatted_text>();
+			auto &cfmt = _details::cast_text_format(fmt);
+
+			cfmt._fmt->SetWordWrapping(_cast(wrap));
+			cfmt._fmt->SetTextAlignment(_cast(halign));
+			cfmt._fmt->SetParagraphAlignment(_cast(valign));
+
+			com_check(_dwrite_factory->CreateTextLayout(
+				text.data(), static_cast<UINT32>(text.size()),
+				cfmt._fmt.get(),
+				static_cast<FLOAT>(maxsize.x), static_cast<FLOAT>(maxsize.y),
+				res->_text.get_ref()
+			));
+			return res;
+		}
+		/// Calls \p ID2D1DeviceContext::DrawText to render the given text.
+		void _draw_text_impl(
+			std::basic_string_view<WCHAR> text, rectd layout,
+			ui::text_format & format, ui::wrapping_mode wrap,
+			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
+			_details::com_wrapper<ID2D1Brush> brush
+		) {
+			auto cfmt = _details::cast_text_format(format);
+
+			cfmt._fmt->SetWordWrapping(_cast(wrap));
+			cfmt._fmt->SetTextAlignment(_cast(halign));
+			cfmt._fmt->SetParagraphAlignment(_cast(valign));
+
+			_d2d_device_context->DrawText(
+				text.data(), static_cast<UINT32>(text.size()),
+				cfmt._fmt.get(),
+				_details::cast_rect(layout),
+				brush.get(),
+				D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT
+			);
 		}
 
 		/// Returns the \p IDXGIFactory associated with \ref _dxgi_device.
@@ -541,7 +775,7 @@ namespace codepad::os::direct2d {
 			return factory;
 		}
 		/// Creates a \p ID2DBitmap1 from a \p IDXGISwapChain1.
-		_details::com_wrapper<ID2D1Bitmap1> _create_bitmap_from_swap_chain(IDXGISwapChain1 *chain) {
+		_details::com_wrapper<ID2D1Bitmap1> _create_bitmap_from_swap_chain(IDXGISwapChain1 * chain) {
 			_details::com_wrapper<IDXGISurface> surface;
 			_details::com_wrapper<ID2D1Bitmap1> bitmap;
 			com_check(chain->GetBuffer(0, IID_PPV_ARGS(surface.get_ref())));
@@ -558,7 +792,7 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Creates a corresponding \p ID2D1HwndRenderTarget.
-		void _new_window(ui::window_base &w) override {
+		void _new_window(ui::window_base & w) override {
 			window &wnd = _details::cast_window(w);
 			std::any &data = _get_window_data(wnd);
 			_window_data actual_data;
@@ -594,7 +828,7 @@ namespace codepad::os::direct2d {
 			};
 		}
 		/// Releases all resources.
-		void _delete_window(ui::window_base &w) override {
+		void _delete_window(ui::window_base & w) override {
 			_get_window_data(w).reset();
 		}
 	};

@@ -14,6 +14,20 @@
 using namespace codepad::os;
 
 namespace codepad::ui {
+	vec2d mouse_position::get(element &e) const { // TODO non-recursive version?
+		if (e._cached_mouse_position_timestamp != _timestamp) {
+			assert_true_logical(e.parent() != nullptr, "invalid call to get mouse position");
+			vec2d parentpos = get(*e.parent());
+			e._cached_mouse_position = e._params.visual_parameters.transform.inverse_transform_point(
+				parentpos - (e.get_layout().xmin_ymin() - e.parent()->get_layout().xmin_ymin()),
+				e.get_layout().size()
+			);
+			e._cached_mouse_position_timestamp = _timestamp;
+		}
+		return e._cached_mouse_position;
+	}
+
+
 	void element::invalidate_visual() {
 		get_manager().get_scheduler().invalidate_visual(*this);
 	}
@@ -33,7 +47,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void element::_on_mouse_down(mouse_button_info &p) {
+	void element::_on_mouse_down(mouse_button_info & p) {
 		if (p.button == mouse_button::primary) {
 			if (is_visible(visibility::focus) && !p.focus_set()) {
 				p.mark_focus_set();
@@ -44,25 +58,44 @@ namespace codepad::ui {
 	}
 
 	void element::_on_prerender() {
+		vec2d offset = get_layout().xmin_ymin();
+		if (parent()) {
+			offset -= parent()->get_layout().xmin_ymin();
+		}
+		get_manager().get_renderer().push_matrix_mult(
+			matd3x3::translate(offset) * _params.visual_parameters.transform.get_matrix(get_layout().size())
+		);
 		/*get_manager().get_renderer().push_clip(_layout.fit_grid_enlarge<int>());*/ // TODO clips
 	}
 
-	void element::_on_render() {
-		if (is_visible(visibility::visual)) {
-			_on_prerender();
-			for (const generic_visual_geometry &g : _params.visual_parameters.geometries) {
-				g.draw(get_layout(), get_manager().get_renderer());
-			}
-			_custom_render();
-			_on_postrender();
+	void element::_custom_render() const {
+		/*if (is_mouse_over()) {
+			get_manager().get_renderer().draw_rectangle(
+				rectd(0.0, get_layout().width(), 0.0, get_layout().height()),
+				generic_brush_parameters(brush_parameters::solid_color(colord(1.0, 0.0, 0.0, 0.2))),
+				generic_pen_parameters(generic_brush_parameters(brush_parameters::none()))
+			);
+		}*/
+		vec2d unit = get_layout().size();
+		for (const generic_visual_geometry &g : _params.visual_parameters.geometries) {
+			g.draw(unit, get_manager().get_renderer());
 		}
 	}
 
 	void element::_on_postrender() {
 		/*get_manager().get_renderer().pop_clip();*/
+		get_manager().get_renderer().pop_matrix();
 	}
 
-	void element::_initialize(str_view_t cls, const element_configuration &config) {
+	void element::_on_render() {
+		if (is_visible(visibility::visual)) {
+			_on_prerender();
+			_custom_render();
+			_on_postrender();
+		}
+	}
+
+	void element::_initialize(str_view_t cls, const element_configuration & config) {
 #ifdef CP_CHECK_USAGE_ERRORS
 		_initialized = true;
 #endif

@@ -16,7 +16,11 @@
 					"radiusy": 2,
 					"fill": {
 						"type": "solid",
-						"color": [1.0, 1.0, 1.0, 0.2]
+						"color": [ 1.0, 1.0, 1.0, 0.1 ]
+					},
+					"stroke": {
+						"type": "solid",
+						"color": [ 1.0, 1.0, 1.0, 0.6 ]
 					}
 				}
 			]
@@ -169,6 +173,7 @@
 						"type": "animated_tab_buttons_panel",
 						"role": "tab_buttons_region",
 						"class": "tab_host.tab_buttons_region",
+						"inherit_visuals_from": "",
 						"layout": {
 							"width": "100%",
 							"height": "30px",
@@ -204,7 +209,6 @@
 						"type": "label",
 						"role": "label",
 						"visibility": "vl",
-						"set_states": "hittest_invisible",
 						"layout": {
 							"margin": [ 0.0, 1.0, 0.0, 1.0 ],
 							"anchor": "lr"
@@ -214,6 +218,7 @@
 						"type": "button",
 						"class": "tab_button.close_button",
 						"role": "close_button",
+						"inherit_visuals_from": "",
 						"layout": {
 							"width": "15px",
 							"height": "15px",
@@ -309,7 +314,11 @@
 						}
 					},
 					{
-						"type": "minimap"
+						"type": "minimap",
+						"layout": {
+							"width": "0.1*",
+							"height": "100%"
+						}
 					}
 				]
 			}

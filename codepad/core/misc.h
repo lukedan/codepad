@@ -87,19 +87,19 @@ namespace codepad {
 	/// Bitwise and for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
 		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
-	> operator&=(Enum &lhs, Enum rhs) {
+	> operator&=(Enum & lhs, Enum rhs) {
 		return lhs = lhs & rhs;
 	}
 	/// Bitwise or for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
 		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
-	> operator|=(Enum &lhs, Enum rhs) {
+	> operator|=(Enum & lhs, Enum rhs) {
 		return lhs = lhs | rhs;
 	}
 	/// Bitwise xor for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
 		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
-	> operator^=(Enum &lhs, Enum rhs) {
+	> operator^=(Enum & lhs, Enum rhs) {
 		return lhs = lhs ^ rhs;
 	}
 
@@ -474,6 +474,37 @@ namespace codepad {
 			return res;
 		}
 
+	private:
+		inline static void _dot(T ax, T ay, T az, T bx, T by, T bz, T & rx, T & ry, T & rz) {
+			rx = ay * bz - az * by;
+			ry = az * bx - ax * bz;
+			rz = ax * by - ay * bx;
+		}
+	public:
+		/// Calculates the inverse matrix of a 3x3 matrix.
+		///
+		/// \todo Necessary for nxn matrices?
+		constexpr std::enable_if_t<W == 3 && H == 3, matrix> inverse() const {
+			matrix res;
+			_dot(
+				elem[0][1], elem[1][1], elem[2][1],
+				elem[0][2], elem[1][2], elem[2][2],
+				res[0][0], res[0][1], res[0][2]
+			);
+			T det = elem[0][0] * res[0][0] + elem[1][0] * res[0][1] + elem[2][0] * res[0][2];
+			_dot(
+				elem[0][2], elem[1][2], elem[2][2],
+				elem[0][0], elem[1][0], elem[2][0],
+				res[1][0], res[1][1], res[1][2]
+			);
+			_dot(
+				elem[0][0], elem[1][0], elem[2][0],
+				elem[0][1], elem[1][1], elem[2][1],
+				res[2][0], res[2][1], res[2][2]
+			);
+			return res * (1.0 / det); // not gonna work for integer matrices, but who would use them?
+		}
+
 		/// Returns the requested row of the matrix.
 		///
 		/// \param y 0-based index of the row.
@@ -486,7 +517,7 @@ namespace codepad {
 		}
 
 		/// Addition.
-		matrix &operator+=(const matrix &rhs) {
+		matrix &operator+=(const matrix & rhs) {
 			for (size_t y = 0; y < H; ++y) {
 				for (size_t x = 0; x < W; ++x) {
 					elem[y][x] += rhs[y][x];
@@ -495,12 +526,12 @@ namespace codepad {
 			return *this;
 		}
 		/// Addition.
-		friend matrix operator+(matrix lhs, const matrix &rhs) {
+		friend matrix operator+(matrix lhs, const matrix & rhs) {
 			return lhs += rhs;
 		}
 
 		/// Subtraction.
-		matrix &operator-=(const matrix &rhs) {
+		matrix &operator-=(const matrix & rhs) {
 			for (size_t y = 0; y < H; ++y) {
 				for (size_t x = 0; x < W; ++x) {
 					elem[y][x] -= rhs[y][x];
@@ -509,10 +540,22 @@ namespace codepad {
 			return *this;
 		}
 		/// Subtraction.
-		friend matrix operator-(matrix lhs, const matrix &rhs) {
+		friend matrix operator-(matrix lhs, const matrix & rhs) {
 			return lhs -= rhs;
 		}
 
+		/// In-place matrix multiplication, only for square matrices.
+		std::enable_if_t<W == H, matrix&> operator*=(const matrix & rhs) {
+			matrix res;
+			for (size_t y = 0; y < H; ++y) {
+				for (size_t x = 0; x < W; ++x) {
+					for (size_t k = 0; k < W; ++k) {
+						res[y][x] = elem[y][k] * rhs[k][x];
+					}
+				}
+			}
+			return *this = res;
+		}
 		/// Scalar multiplication.
 		matrix &operator*=(T rhs) {
 			for (size_t y = 0; y < H; ++y) {
@@ -617,7 +660,7 @@ namespace codepad {
 	};
 	/// Matrix multiplication.
 	template <typename T, size_t M, size_t N, size_t P> inline matrix<T, P, M> operator*(
-		const matrix<T, N, M> &lhs, const matrix<T, P, N> &rhs
+		const matrix<T, N, M> & lhs, const matrix<T, P, N> & rhs
 		) {
 		matrix<T, P, M> result;
 		for (size_t y = 0; y < M; ++y) {
@@ -630,7 +673,7 @@ namespace codepad {
 		return result;
 	}
 	/// Multiplication of 2x2 matrices with \ref vec2 "vec2s".
-	template <typename T> inline vec2<T> operator*(const matrix<T, 2, 2> &lhs, vec2<T> rhs) {
+	template <typename T> inline vec2<T> operator*(const matrix<T, 2, 2> & lhs, vec2<T> rhs) {
 		return vec2<T>(lhs[0][0] * rhs.x + lhs[0][1] * rhs.y, lhs[1][0] * rhs.x + lhs[1][1] * rhs.y);
 	}
 	/// 2x2 matrices whose elements are of type \p float.
@@ -940,7 +983,7 @@ namespace codepad {
 
 
 	/// End of recursion.
-	template <typename St, typename T> inline void print_to(St &s, T &&arg) {
+	template <typename St, typename T> inline void print_to(St & s, T && arg) {
 		s << std::forward<T>(arg);
 	}
 	/// Prints objects to a stream with \p operator<<.
@@ -949,7 +992,7 @@ namespace codepad {
 	/// \param f The first object to print.
 	/// \param args Other following objects.
 	template <typename St, typename First, typename ...Others>
-	inline std::enable_if_t<(sizeof...(Others) > 0), void> print_to(St &s, First &&f, Others &&...args) {
+	inline std::enable_if_t<(sizeof...(Others) > 0), void> print_to(St & s, First && f, Others && ...args) {
 		print_to(s, std::forward<First>(f));
 		print_to(s, std::forward<Others>(args)...);
 	}
@@ -1176,8 +1219,8 @@ namespace codepad {
 		if (!v) {
 			logger::get().log_error_with_stacktrace(CP_HERE, "System error encountered: ", msg);
 			std::abort();
-		}
 	}
+}
 #else
 	template <> inline void assert_true<error_level::system_error>(bool, const char*) {
 	}
@@ -1188,7 +1231,7 @@ namespace codepad {
 		if (!v) {
 			logger::get().log_error_with_stacktrace(CP_HERE, "Usage error encountered: ", msg);
 			std::abort();
-		}
+	}
 	}
 #else
 	template <> inline void assert_true<error_level::usage_error>(bool, const char*) {
@@ -1200,7 +1243,7 @@ namespace codepad {
 		if (!v) {
 			logger::get().log_error_with_stacktrace(CP_HERE, "Logical error encountered: ", msg);
 			std::abort();
-		}
+	}
 	}
 #else
 	template <> inline void assert_true<error_level::logical_error>(bool, const char*) {

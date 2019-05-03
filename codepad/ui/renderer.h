@@ -25,19 +25,131 @@ namespace codepad::ui {
 
 		/// Returns the size of this bitmap.
 		virtual vec2d get_size() const = 0;
-		/// Returns whether this bitmap does not actually reference any object.
-		virtual bool empty() const = 0;
 	};
 	/// Basic interface of an off-screen render target.
 	class render_target {
 	public:
 		/// Default virtual destructor.
 		virtual ~render_target() = default;
+	};
 
-		/// Returns the \ref bitmap corresponding to this \ref render_target.
-		virtual std::unique_ptr<bitmap> get_bitmap() const = 0;
-		/// Returns whether this render target does not actually reference any object.
-		virtual bool empty() const = 0;
+	/// Stores a \ref bitmap and potentially the associated \ref render_target.
+	struct render_target_data {
+		/// Default constructor.
+		render_target_data() = default;
+		/// Initializes all fields of this struct.
+		render_target_data(std::unique_ptr<render_target> rt, std::unique_ptr<bitmap> bmp) :
+			render_target(std::move(rt)), bitmap(std::move(bmp)) {
+		}
+
+		std::unique_ptr<render_target> render_target; ///< The \ref render_target.
+		std::unique_ptr<bitmap> bitmap; ///< The \ref bitmap.
+	};
+
+	/// Basic interface of the formatting of text, with determined font, size, style, and weight.
+	class text_format {
+	public:
+		/// Default virtual destructor.
+		virtual ~text_format() = default;
+	};
+	/// A piece of text whose format has been calculated and cached to speed up rendering and measuring operations.
+	class formatted_text {
+	public:
+		/// Stores the result of hit test operations.
+		struct hit_test_result {
+			size_t character = 0; ///< The character index that the given point is on.
+		};
+		/// Stores the metrics of a single line.
+		struct line_metrics {
+			/// Default constructor.
+			line_metrics() = default;
+			/// Initializes all fields of this struct.
+			line_metrics(double h, double b) : height(h), baseline(b) {
+			}
+
+			double
+				height = 0.0, ///< The height of this line.
+				baseline = 0.0; ///< The distance from the top of the line to the baseline.
+		};
+
+		/// Default virtual destructor.
+		virtual ~formatted_text() = default;
+
+		/// Returns the region occupied by the text in the layout region.
+		virtual rectd get_layout() const = 0;
+		/// Returns the metrics of all lines.
+		virtual std::vector<line_metrics> get_line_metrics() const = 0;
+		/*virtual std::pair<size_t, bool> hit_test(vec2d) const = 0;*/
+	};
+
+	/// Determines the style of rendered text.
+	enum class font_style : unsigned char {
+		normal, ///< Normal text.
+		italic, ///< Slant text.
+		oblique ///< Artificially slant text.
+	};
+	//              fc   dwrite
+	// THIN         0    100
+	// EXTRALIGHT   40   200
+	// LIGHT        50   300
+	// SEMILIGHT    55   350
+	// BOOK         75
+	// REGULAR	    80   400
+	// MEDIUM	    100  500
+	// SEMIBOLD	    180  600
+	// BOLD		    200  700
+	// EXTRABOLD	205  800
+	// BLACK		210  900
+	// EXTRABLACK	215  950
+	/// The weight of text.
+	///
+	/// \todo WTF is the difference between FontConfig and DWrite?
+	enum class font_weight : unsigned char {
+		normal = 40
+	};
+	//                  fc   dwrite
+	// ULTRACONDENSED	50   1
+	// EXTRACONDENSED	63   2
+	// CONDENSED	    75   3
+	// SEMICONDENSED	87   4
+	// NORMAL		    100  5
+	// SEMIEXPANDED     113  6
+	// EXPANDED	        125  7
+	// EXTRAEXPANDED	150  8
+	// ULTRAEXPANDED	200  9
+	/// The horizontal stretch of text.
+	///
+	/// \todo Documentation and values.
+	enum class font_stretch : unsigned char {
+		ultra_condensed,
+		extra_condensed,
+		condensed,
+		semi_condensed,
+		normal,
+		semi_expanded,
+		expanded,
+		extra_expanded,
+		ultra_expanded
+	};
+
+	/// Determines how text is wrapped when it overflows the given boundary.
+	enum class wrapping_mode : unsigned char {
+		none, ///< Don't wrap.
+		wrap ///< Wrap, but in a unspecified manner.
+	};
+	/// Controls the horizontal alignment of text.
+	///
+	/// \todo Justified alignment?
+	enum class horizontal_text_alignment : unsigned char {
+		front, ///< The front of the text is aligned with the front end of the layout box.
+		center, ///< Center alignment.
+		rear ///< The rear of the text is aligned with the rear end of the layout box.
+	};
+	/// Controls the vertical alignment of text.
+	enum class vertical_text_alignment : unsigned char {
+		top, ///< Top.
+		center, ///< Center.
+		bottom ///< Bottom.
 	};
 
 	/// Clockwise or counter-clockwise direction.
@@ -160,6 +272,11 @@ namespace codepad::ui {
 		generic_brush_parameters() {
 			transform.set_identity();
 		}
+		/// Initializes \ref value with a specific type of brush.
+		template <typename Brush> explicit generic_brush_parameters(Brush b) :
+			value(std::in_place_type<Brush>, std::move(b)) {
+			transform.set_identity();
+		}
 		/// Initializes \ref value with a specific type of brush, and \ref transform.
 		template <typename Brush> generic_brush_parameters(Brush b, matd3x3 trans) :
 			value(std::in_place_type<Brush>, std::move(b)), transform(trans) {
@@ -189,10 +306,16 @@ namespace codepad::ui {
 		virtual ~renderer_base() = default;
 
 		/// Creates a new render target of the given size.
-		virtual std::unique_ptr<render_target> create_render_target(vec2d) = 0;
+		virtual render_target_data create_render_target(vec2d) = 0;
 
 		/// Loads a \ref bitmap from disk.
 		virtual std::unique_ptr<bitmap> load_bitmap(const std::filesystem::path&) = 0;
+
+		/// Returns a pointer to the font identified by its name. The font may either be cached and returned
+		/// directly, or loaded on demand.
+		virtual std::unique_ptr<text_format> create_text_format(
+			str_view_t, double, font_style, font_weight, font_stretch
+		) = 0;
 
 		/// Starts drawing to the given window.
 		virtual void begin_drawing(window_base&) = 0;
@@ -204,7 +327,9 @@ namespace codepad::ui {
 		/// Pushes a new matrix onto the stack for subsequent drawing operations.
 		virtual void push_matrix(matd3x3) = 0;
 		/// Multiplies the current matrix with the given matrix and pushes it onto the stack for subsequent drawing
-		/// operations.
+		/// operations. Note that this matrix is multiplied as the right hand side, i.e., M * M' * v, where M is the
+		/// current matrix, M' is the given matrix, and v is the vector being transformed. Thus, this transform is
+		/// applied \emph before previous transforms.
 		virtual void push_matrix_mult(matd3x3) = 0;
 		/// Pops a matrix from the stack.
 		virtual void pop_matrix() = 0;
@@ -230,6 +355,41 @@ namespace codepad::ui {
 		virtual path_geometry_builder &start_path() = 0;
 		/// Finishes building the given path and draws it. The path will then be discarded.
 		virtual void end_and_draw_path(const generic_brush_parameters&, const generic_pen_parameters&) = 0;
+
+		/// Calculates the format of the given text using the given parameters, to speed up operations such as size
+		/// querying and hit testing.
+		virtual std::unique_ptr<formatted_text> format_text(
+			str_view_t, text_format&, vec2d, wrapping_mode, horizontal_text_alignment, vertical_text_alignment
+		) = 0;
+		/// \ref format_text() that accepts a UTF-32 string.
+		virtual std::unique_ptr<formatted_text> format_text(
+			std::basic_string_view<codepoint>, text_format&, vec2d, wrapping_mode,
+			horizontal_text_alignment, vertical_text_alignment
+		) = 0;
+		/// Draws the given \ref formatted_text at the given position using the given brush. The position indicates
+		/// the top left corner of the layout box.
+		virtual void draw_formatted_text(formatted_text&, vec2d, const generic_brush_parameters&) = 0;
+		/// Shorthand for a combination of \ref format_text() and \ref draw_formatted_text(). Implementations may
+		/// override this to reduce intermediate steps.
+		virtual void draw_text(
+			str_view_t text, rectd layout,
+			text_format &format, wrapping_mode wrap,
+			horizontal_text_alignment halign, vertical_text_alignment valign,
+			const generic_brush_parameters &brush
+		) {
+			auto fmt = format_text(text, format, layout.size(), wrap, halign, valign);
+			draw_formatted_text(*fmt, layout.xmin_ymin(), brush);
+		}
+		/// \ref draw_text() that accepts a UTF-32 string.
+		virtual void draw_text(
+			std::basic_string_view<codepoint> text, rectd layout,
+			text_format &format, wrapping_mode wrap,
+			horizontal_text_alignment halign, vertical_text_alignment valign,
+			const generic_brush_parameters &brush
+		) {
+			auto fmt = format_text(text, format, layout.size(), wrap, halign, valign);
+			draw_formatted_text(*fmt, layout.xmin_ymin(), brush);
+		}
 	protected:
 		/// Called to register the creation of a window.
 		virtual void _new_window(window_base&) = 0;

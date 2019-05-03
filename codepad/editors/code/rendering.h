@@ -6,130 +6,224 @@
 /// \file
 /// Structs used to render the contents of a \ref codepad::editors::code::contents_region.
 
+#include <tuple>
+
 #include "../buffer.h"
 #include "interpretation.h"
 #include "view.h"
 #include "contents_region.h"
 
 namespace codepad::editors::code {
-	/// Indicates that no token is produced by the current component.
-	struct no_token {
+	/// Indicates that no fragment is produced by the current component.
+	struct no_fragment {
 	};
-	/// Indicates that the next token to be rendered is a character.
-	struct character_token {
+	/// A fragment of text that does not contain invalid codepoints, tabs, or linebreaks.
+	struct text_fragment {
 		/// Default constructor.
-		character_token() = default;
+		text_fragment() = default;
 		/// Initializes all fields of this struct.
-		character_token(codepoint cp, colord c) : value(cp), color(c) {
+		text_fragment(std::basic_string<codepoint> txt, text_theme_specification t) : text(txt), theme(t) {
 		}
 
-		codepoint value = 0; ///< The character.
-		colord color; ///< Color of the character.
+		std::basic_string<codepoint> text; ///< The text.
+		text_theme_specification theme; ///< The theme of this character.
 	};
-	/// Indicates that the next token to be rendered is a linebreak.
-	struct linebreak_token {
+	/// A fragment that contains a single tab character.
+	struct tab_fragment {
+	};
+	/// A fragment that contains an invalid codepoint.
+	struct invalid_codepoint_fragment {
 		/// Default constructor.
-		linebreak_token() = default;
+		invalid_codepoint_fragment() = default;
+		/// Initializes \ref value.
+		explicit invalid_codepoint_fragment(codepoint cp) : value(cp) {
+		}
+
+		codepoint value = 0; ///< The byte value of this codepoint.
+	};
+	/// A fragment that contains a single linebreak.
+	struct linebreak_fragment {
+		/// Default constructor.
+		linebreak_fragment() = default;
 		/// Initializes all fields of this struct.
-		explicit linebreak_token(line_ending le) : type(le) {
+		explicit linebreak_fragment(line_ending le) : type(le) {
 		}
 
 		line_ending type = line_ending::none; ///< The type of this linebreak.
 	};
-	/// Indicates that the next token to be rendered is an image.
-	struct image_gizmo_token {
+
+	/// Indicates that the next fragment to be rendered is an image.
+	struct image_gizmo_fragment {
 		// TODO
 	};
-	/// Indicates that the next token to be rendered is a short clip of text.
-	struct text_gizmo_token {
+	/// Indicates that the next fragment to be rendered is a short clip of text.
+	struct text_gizmo_fragment {
 		/// Default constructor.
-		text_gizmo_token() = default;
-		/// Constructs a text gizmo with the given contents and color, and the default font.
-		text_gizmo_token(str_t str, colord c) : contents(std::move(str)), color(c) {
-		}
-
-		str_t contents; ///< The contents of this token.
-		colord color; ///< Color used to render this token.
-	};
-	/// Contains information about a token to be rendered.
-	using token = std::variant<no_token, character_token, linebreak_token, image_gizmo_token, text_gizmo_token>;
-	/// Holds the result of a step of token generation.
-	struct token_generation_result {
-		/// Constructs this struct to indicate that no token is generated.
-		token_generation_result() = default;
+		text_gizmo_fragment() = default;
 		/// Initializes all fields of this struct.
-		template<typename T> token_generation_result(T tok, size_t diff) : result(tok), steps(diff) {
+		text_gizmo_fragment(ui::font_parameters f, str_t str, colord c) : font(f), contents(std::move(str)), color(c) {
 		}
 
-		token result; ///< The generated token.
-		size_t steps = 0; ///< The number of characters to move forward.
+		ui::font_parameters font; ///< The font used to render this fragment.
+		str_t contents; ///< The contents of this fragment.
+		colord color; ///< Color used to render this fragment.
+	};
+
+	/// Contains information about a fragment to be rendered.
+	using fragment = std::variant<
+		no_fragment,
+		text_fragment, tab_fragment, invalid_codepoint_fragment, linebreak_fragment,
+		image_gizmo_fragment, text_gizmo_fragment
+	>;
+	/// Holds the result of a step of fragment generation.
+	struct fragment_generation_result {
+		/// Constructs this struct to indicate that no fragment is generated.
+		fragment_generation_result() = default;
+		/// Initializes all fields of this struct.
+		template <typename T> constexpr fragment_generation_result(T tok, size_t diff) :
+			result(std::in_place_type<T>, tok), steps(diff) {
+		}
+
+		fragment result; ///< The generated fragment.
+		/// The number of characters to move forward. If \ref result holds a \ref no_fragment, then this member
+		/// indicates how many characters before the next fragment will be generated.
+		size_t steps = 0;
+
+		/// Returns a \ref fragment_generation_result
+		inline static fragment_generation_result exhausted() {
+			return fragment_generation_result(no_fragment(), std::numeric_limits<size_t>::max());
+		}
 	};
 
 
-	/// Iterates through a range of text in a \ref interpretation and gathers tokens to be rendered. The template
-	/// parameters are extra components used in this process. Each component must contain the following three
-	/// functions: \p generate(), which optionally generates a token for the current position; \p reposition(), which
-	/// is used to notify this component of the change of the current position; and \ref update(), which is also
-	/// used to notify of the change of the position, but the position is guaranteed to move forward and the change
-	/// is likely small, which may allow for some optimizations.
-	///
-	/// \note While the \p generate() function is called for each component in the order they're specified, the
-	///       \p update() and \p reposition() functions are called in the reverse order, so that the position has
-	///       already been updated.
-	template<typename ...Args> struct rendering_token_iterator;
-	/// The most basic specialization of \ref rendering_token_iterator.
-	template<> struct rendering_token_iterator<> {
+	/// Used to host additional components of the \ref fragment_generator. Each component must contain the following
+	/// three functions: \p generate(), which optionally generates a fragment for the current position;
+	/// \p reposition(), which is used to notify this component of the change of the current position; and
+	/// \p update(), which is also used to notify of the change of the position, but the position is guaranteed to
+	/// move forward and the change is likely small, which may allow for some optimizations.
+	template <typename ...Args> struct fragment_generator_component_hub {
 	public:
-		/// Constructs this \ref rendering_token_iterator with the given \ref interpretation and starting position.
-		rendering_token_iterator(const interpretation &interp, size_t begpos) : _pos(begpos), _interp(interp) {
+		/// Initializes \ref _components directly.
+		template <typename ...InitArgs> explicit fragment_generator_component_hub(InitArgs &&...args) :
+			_components(std::forward<InitArgs>(args)...) {
+		}
+
+		/// Generates a fragment. If no fragment is generated (i.e., \ref fragment_generation_result::result holds a
+		/// \ref no_fragment), \ref fragment_generation_result::steps holds the minimum number of steps before a
+		/// fragment would be generated by a component.
+		fragment_generation_result generate(size_t position) {
+			return _generate_impl(position);
+		}
+		/// Updates all components.
+		void update(size_t oldpos, size_t steps) {
+			_update_impl(oldpos, steps, std::make_index_sequence<sizeof...(Args)>());
+		}
+		/// Repositions all components.
+		void reposition(size_t position) {
+			_reposition_impl(position, std::make_index_sequence<sizeof...(Args)>());
+		}
+	protected:
+		std::tuple<Args...> _components; ///< The components.
+
+		// TODO is the Count parameter neccessary?
+		// https://en.cppreference.com/w/cpp/language/if
+		/// Recursive implementation of \ref generate().
+		template <size_t Index = 0, size_t Count = sizeof...(Args)> fragment_generation_result _generate_impl(size_t position) {
+			if constexpr (Index < Count) {
+				fragment_generation_result frag =
+					std::get<std::min(Index, Count - 1)>(_components).generate(position);
+				if (std::holds_alternative<no_fragment>(frag.result)) { // nope
+					size_t steps = frag.steps;
+					frag = _generate_impl<Index + 1, Count>(position);
+					if (std::holds_alternative<no_fragment>(frag.result)) { // still nope
+						frag.steps = std::min(frag.steps, steps);
+					}
+				}
+				return frag;
+			} else {
+				return fragment_generation_result::exhausted();
+			}
+		}
+		/// Implementation of \ref update().
+		template <size_t ...Indices> void _update_impl(
+			size_t oldpos, size_t steps, std::index_sequence<Indices...>
+		) {
+			(..., std::get<Indices>(_components).update(oldpos, steps));
+		}
+		/// Implementation of \ref reposition().
+		template <size_t ...Indices> void _reposition_impl(size_t position, std::index_sequence<Indices...>) {
+			(..., std::get<Indices>(_components).reposition(position));
+		}
+	};
+
+	/// Iterates through a range of text in a \ref interpretation and generates fragments to be rendered.
+	template <typename Hub> struct fragment_generator {
+		/// The maximum length of a single text fragment.
+		constexpr static size_t maximum_text_fragment_length = 100;
+
+		/// Constructs this \ref fragment_generator with the given \ref interpretation and starting position, and the
+		/// \ref fragment_generator_component_hub from all other arguments.
+		template <typename ...Args> fragment_generator(const interpretation &interp, size_t begpos, Args &&...args) :
+			_pos(begpos), _interp(interp), _components(std::forward<Args>(args)...) {
 			reposition(_pos);
 		}
-		/// Forwards the arguments in the tuple to other constructors.
-		template<typename ...Args> rendering_token_iterator(std::tuple<Args...> args) :
-			rendering_token_iterator(std::make_index_sequence<sizeof...(Args)>(), args) {
-		}
-		/// Virtual destructor.
-		virtual ~rendering_token_iterator() = default;
 
-		/// Returns the token for the character or linebreak, and advances to the next character.
-		token_generation_result generate() {
-			if (_char_it.is_linebreak()) {
-				return token_generation_result(linebreak_token(_char_it.get_linebreak()), 1);
+		/// Returns the fragment for the character or linebreak, and advances to the next character.
+		fragment_generation_result generate_and_update() {
+			// generate (also _char_it is updated in this step)
+			fragment_generation_result res = _components.generate(get_position());
+			if (std::holds_alternative<no_fragment>(res.result)) { // generate text
+				if (!_char_it.codepoint().is_codepoint_valid()) { // invalid codepoint
+					res = fragment_generation_result(
+						invalid_codepoint_fragment(_char_it.codepoint().get_codepoint()), 1
+					);
+					_char_it.next();
+				} else if (_char_it.is_linebreak()) { // hard linebreak
+					res = fragment_generation_result(linebreak_fragment(_char_it.get_linebreak()), 1);
+					_char_it.next();
+				} else if (_char_it.codepoint().get_codepoint() == '\t') { // tab
+					res = fragment_generation_result(tab_fragment(), 1);
+					_char_it.next();
+				} else { // otherwise generate a clip of text
+					size_t maxsteps = std::min(res.steps, maximum_text_fragment_length);
+					maxsteps = std::min(maxsteps, _theme_it.forecast(_pos)); // integrate theme information
+					res.steps = 0;
+					text_fragment &frag = res.result.emplace<text_fragment>();
+					frag.theme = _theme_it.current_theme;
+					do {
+						frag.text.push_back(_char_it.codepoint().get_codepoint());
+						_char_it.next();
+						++res.steps;
+					} while (
+						res.steps < maxsteps &&
+						!_char_it.codepoint().ended() &&
+						_char_it.codepoint().is_codepoint_valid() &&
+						!_char_it.is_linebreak() &&
+						_char_it.codepoint().get_codepoint() != '\t'
+						);
+				}
+			} else { // only update _char_it
+				if (res.steps == 1) {
+					_char_it.next();
+				} else if (res.steps > 1) {
+					_char_it = _interp.at_character(_pos + res.steps); // TODO room for optimization
+				}
 			}
-			const auto &cpit = _char_it.codepoint();
-			if (cpit.is_codepoint_valid()) {
-				return token_generation_result(
-					character_token(cpit.get_codepoint(), _theme_it.current_theme.color), 1
-				);
-			}
-			return token_generation_result(
-				text_gizmo_token(
-					contents_region::format_invalid_codepoint(cpit.get_codepoint()),
-					contents_region::get_invalid_codepoint_color()
-				), 1
-			);
-		}
-		/// Adjusts the position of \ref _char_it and \ref _theme_it.
-		void update(size_t steps) {
-			if (steps == 1) {
-				++_pos;
-				_char_it.next();
-				_interp.get_text_theme().incr_iter(_theme_it, _pos);
-			} else if (steps > 1) {
-				reposition(_pos + steps);
-			}
+			// update everything else
+			size_t oldpos = _pos;
+			_pos += res.steps;
+			_theme_it.move_forward(_pos);
+			_components.update(oldpos, res.steps);
+			return res;
 		}
 		/// Resets the current position.
 		void reposition(size_t pos) {
 			_pos = pos;
 			_char_it = _interp.at_character(_pos);
-			_theme_it = _interp.get_text_theme().get_iter_at(_pos);
+			_theme_it = text_theme_data::char_iterator(_interp.get_text_theme(), _pos);
+			_components.reposition(_pos);
 		}
 
-		/// Returns the base \ref rendering_token_iterator with no components.
-		rendering_token_iterator<> &get_base() {
-			return *this;
-		}
 		/// Returns the current postiion of this iterator. If this called inside the \p update() method of a
 		/// component, then the returned position is that before updating.
 		size_t get_position() const {
@@ -137,9 +231,9 @@ namespace codepad::editors::code {
 		}
 	protected:
 		/// Forwards the arguments in the given tuple to other constructors.
-		template<size_t ...Indices, typename MyArgs> rendering_token_iterator(
-			std::index_sequence<Indices...>, MyArgs &&tuple
-		) : rendering_token_iterator(std::get<Indices>(std::forward<MyArgs>(tuple))...) {
+		template <size_t ...Indices, typename MyArgs> fragment_generator(
+			std::index_sequence<Indices...>, MyArgs && tuple
+		) : fragment_generator(std::get<Indices>(std::forward<MyArgs>(tuple))...) {
 		}
 
 		/// Iterator to the current character in the \ref interpretation.
@@ -148,70 +242,7 @@ namespace codepad::editors::code {
 		text_theme_data::char_iterator _theme_it;
 		size_t _pos = 0; ///< The position of character \ref _char_it points to.
 		const interpretation &_interp; ///< The associated \ref interpretation.
-	};
-	/// The specialization of \ref rendering_token_iterator that holds a component.
-	template<typename FirstComp, typename ...OtherComps> struct rendering_token_iterator<FirstComp, OtherComps...> :
-		protected rendering_token_iterator<OtherComps...> {
-	public:
-		/// Constructs the iterator using a series of tuples, each containing the arguments for one component.
-		template<typename MyArgs, typename ...OtherArgs> rendering_token_iterator(
-			MyArgs &&myargs, OtherArgs &&...others
-		) : rendering_token_iterator(
-			std::make_index_sequence<std::tuple_size_v<std::decay_t<MyArgs>>>(),
-			std::forward<MyArgs>(myargs), std::forward<OtherArgs>(others)...
-		) {
-		}
-
-		/// Returns the \ref token returned by the \p next() method of the current component if it's valid, or the
-		/// first valid one returned by following components.
-		token_generation_result generate() {
-			token_generation_result tok = _mycomp.generate(*this);
-			if (!std::holds_alternative<no_token>(tok.result)) {
-				return tok;
-			}
-			return _base::generate();
-		}
-		/// Updates all components.
-		void update(size_t steps) {
-			_base::update(steps);
-			_mycomp.update(*this, steps);
-		}
-		/// Resets the current position.
-		void reposition(size_t pos) {
-			_base::reposition(pos);
-			_mycomp.reposition(*this);
-		}
-
-		/// Generates the next token, then updates using the returned number of steps.
-		///
-		/// \return The generated token.
-		token generate_and_update() {
-			token_generation_result res = generate();
-			update(res.steps);
-			return res.result;
-		}
-
-		using rendering_token_iterator<OtherComps...>::get_base;
-		using rendering_token_iterator<OtherComps...>::get_position;
-	protected:
-		/// The base class that contains all components following this one.
-		using _base = rendering_token_iterator<OtherComps...>;
-
-		/// Constructer that initializes the current component. The \p std::index_sequence is used to unpack the
-		/// \p std::tuple.
-		template<
-			size_t ...Indices, typename MyArgs, typename FirstOtherArgs, typename ...OtherArgs
-		> rendering_token_iterator(
-			std::index_sequence<Indices...>, MyArgs &&mytuple, FirstOtherArgs &&other_tuple, OtherArgs &&...others
-		) :
-			_base(
-				std::make_index_sequence<std::tuple_size_v<std::decay_t<FirstOtherArgs>>>(),
-				std::forward<FirstOtherArgs>(other_tuple), std::forward<OtherArgs>(others)...
-			),
-			_mycomp(std::get<Indices>(std::forward<MyArgs>(mytuple))...) {
-		}
-
-		FirstComp _mycomp; ///< The current component.
+		Hub _components; ///< Extra components.
 	};
 
 
@@ -220,194 +251,253 @@ namespace codepad::editors::code {
 	public:
 		/// Initializes this struct with the given \ref soft_linebreak_registry at the given position.
 		soft_linebreak_inserter(const soft_linebreak_registry &reg, size_t pos) : _reg(reg) {
-			_reposition_impl(pos);
+			reposition(pos);
 		}
 
 		/// Checks and generates a soft linebreak if necessary. \ref _cur_softbreak and \ref _prev_chars are updated
 		/// here instead of in \ref update() because this component don't really advance the current position and
 		/// will otherwise cause conflicts.
-		token_generation_result generate(rendering_token_iterator<> &it) {
-			if (_cur_softbreak != _reg.end() && it.get_position() == _prev_chars + _cur_softbreak->length) {
-				_prev_chars += _cur_softbreak->length;
-				++_cur_softbreak;
-				return token_generation_result(linebreak_token(line_ending::none), 0);
+		fragment_generation_result generate(size_t position) {
+			if (_cur_softbreak != _reg.end()) {
+				size_t nextpos = _prev_chars + _cur_softbreak->length;
+				if (position == nextpos) {
+					_prev_chars += _cur_softbreak->length;
+					++_cur_softbreak;
+					return fragment_generation_result(linebreak_fragment(line_ending::none), 0);
+				}
+				return fragment_generation_result(no_fragment(), nextpos - position);
 			}
-			return token_generation_result();
+			return fragment_generation_result::exhausted();
 		}
 		/// Updates \ref _cur_softbreak according to the given offset.
-		void update(rendering_token_iterator<> &it, size_t steps) {
+		void update(size_t oldpos, size_t steps) {
+			size_t newpos = oldpos + steps;
 			if (steps > 0 && _cur_softbreak != _reg.end()) { // no update needed if not moved
-				if (it.get_position() > _prev_chars + _cur_softbreak->length) {
+				if (newpos > _prev_chars + _cur_softbreak->length) {
 					// reset once the iterator to the next soft linebreak is invalid
-					reposition(it);
+					reposition(newpos);
 				}
 			}
 		}
 		/// Resets the current position.
-		void reposition(rendering_token_iterator<> &it) {
-			_reposition_impl(it.get_position());
+		void reposition(size_t position) {
+			auto softbreak = _reg.get_softbreak_before_or_at_char(position);
+			_prev_chars = softbreak.prev_chars;
+			_cur_softbreak = softbreak.entry;
 		}
 	protected:
 		soft_linebreak_registry::iterator _cur_softbreak; ///< Iterator to the next soft linebreak.
 		const soft_linebreak_registry &_reg; ///< The registry for soft linebreaks.
 		size_t _prev_chars = 0; ///< The number of characters before \ref _cur_softbreak.
-
-		/// Resets \ref _cur_softbreak and \ref _prev_char to the given position.
-		void _reposition_impl(size_t pos) {
-			auto softbreak = _reg.get_softbreak_before_or_at_char(pos);
-			_prev_chars = softbreak.prev_chars;
-			_cur_softbreak = softbreak.entry;
-		}
 	};
 	/// A component that jumps to the ends of folded regions and generates corresponding gizmos.
 	struct folded_region_skipper {
 	public:
 		/// Initializes this struct with the given \ref folding_registry at the given position.
 		folded_region_skipper(const folding_registry &reg, size_t pos) : _reg(reg) {
-			_reposition_impl(pos);
+			reposition(pos);
 		}
 
 		/// Checks and skips the folded region if necessary.
-		token_generation_result generate(rendering_token_iterator<> &it) {
-			if (_cur_region != _reg.end() && it.get_position() >= _region_start) { // jump
-				// TODO gizmo should be customizable
-				return token_generation_result(
-					text_gizmo_token("...", colord(0.8, 0.8, 0.8, 1.0)),
-					_cur_region->range - (it.get_position() - _region_start)
-				);
+		fragment_generation_result generate(size_t position) {
+			if (_cur_region != _reg.end()) {
+				if (position >= _region_start) { // jump
+					// TODO fragment should be customizable
+					return fragment_generation_result(
+						text_gizmo_fragment(ui::font_parameters(), "...", colord(0.8, 0.8, 0.8, 1.0)),
+						_cur_region->range - (position - _region_start)
+					);
+				}
+				return fragment_generation_result(no_fragment(), _region_start - position);
 			}
-			return token_generation_result();
+			return fragment_generation_result::exhausted();
 		}
 		/// Updates \ref _cur_region according to the given offset.
-		void update(rendering_token_iterator<> &it, size_t) {
+		void update(size_t oldpos, size_t steps) {
 			if (_cur_region != _reg.end()) {
-				size_t pos = it.get_position(), regionend = _region_start + _cur_region->range;
-				if (pos >= regionend) { // advance to the next region and check again
+				size_t newpos = oldpos + steps, regionend = _region_start + _cur_region->range;
+				if (newpos >= regionend) { // advance to the next region and check again
 					++_cur_region;
 					if (_cur_region != _reg.end()) {
 						_region_start = regionend + _cur_region->gap;
-						if (_region_start + _cur_region->range <= pos) { // nope, still ahead
-							reposition(it);
+						if (_region_start + _cur_region->range <= newpos) { // nope, still ahead
+							reposition(newpos);
 						}
 					}
 				}
 			}
 		}
 		/// Resets the current position.
-		void reposition(rendering_token_iterator<> &it) {
-			_reposition_impl(it.get_position());
-		}
-	protected:
-		folding_registry::iterator _cur_region; ///< Iterator to the next folded region.
-		const folding_registry &_reg; ///< The registry for folded regions.
-		size_t _region_start = 0; ///< Position of the beginning of the next folded region.
-
-		/// Resets \ref _cur_region and \ref _region_start to the given position.
-		void _reposition_impl(size_t pos) {
-			auto region = _reg.find_region_containing_or_first_after_open(pos);
+		void reposition(size_t position) {
+			auto region = _reg.find_region_containing_or_first_after_open(position);
 			_cur_region = region.entry;
 			if (_cur_region != _reg.end()) {
 				_region_start = region.prev_chars + _cur_region->gap;
 			}
 		}
+	protected:
+		folding_registry::iterator _cur_region; ///< Iterator to the next folded region.
+		const folding_registry &_reg; ///< The registry for folded regions.
+		size_t _region_start = 0; ///< Position of the beginning of the next folded region.
 	};
 
 
-	/// Specifies how tokens are measured.
-	enum class token_measurement_flags {
-		none = 0, ///< Tokens are measured normally.
-		/// Gizmos are not measured. Use \ref text_metrics_accumulator::get_modify_character() to add them manually.
-		defer_text_gizmo_measurement = 1,
-		newline_handled = 2 ///< Means that any \ref linebreak_token has already been handled.
-	};
-}
-
-namespace codepad {
-	/// Enables bitwise operators for \ref editors::code::token_measurement_flags.
-	template <> struct enable_enum_bitwise_operators<editors::code::token_measurement_flags> : public std::true_type {
-	};
-}
-
-namespace codepad::editors::code {
-	/*
-	/// Computes the metrics of each character in a clip of text.
-	struct text_metrics_accumulator {
+	/// Used to format, measure, and assemble \ref fragment "fragments".
+	class fragment_assembler {
 	public:
-		/// Initializes this struct with the given font, line height, and tab size.
-		text_metrics_accumulator(const ui::font_family &fnt, double line_height, double tab_size) :
-			_char(fnt, tab_size), _line_height(line_height) {
-		}
-
-		/// Computes the metrics for the next token.
-		template <token_measurement_flags Flags = token_measurement_flags::none> void next(const token &tok) {
-			if (std::holds_alternative<linebreak_token>(tok)) {
-				next_line();
+		/// Used when the fragment should be rendered as text.
+		struct text_rendering {
+			/// Default constructor.
+			text_rendering() = default;
+			/// Initializes all fields of this struct.
+			text_rendering(std::unique_ptr<ui::formatted_text> t, vec2d pos, double basecorr, colord c) :
+				text(std::move(t)), topleft(pos), baseline_correction(basecorr), color(c) {
 			}
-			measure_token<Flags | token_measurement_flags::newline_handled>(_char, tok);
+
+			std::unique_ptr<ui::formatted_text> text; ///< The formatted text.
+			vec2d topleft; ///< The top-left position of this fragment, without \ref baseline_correction.
+			/// The offset to add to the result of \ref get_vertical_position() to align the baseline of all text.
+			double baseline_correction = 0.0;
+			colord color; ///< The color of the text.
+		};
+		/// Basic information about unrendered fragments.
+		struct basic_rendering {
+			/// Default constructor.
+			basic_rendering() = default;
+			/// Initializes \ref topleft.
+			explicit basic_rendering(vec2d v) : topleft(v) {
+			}
+
+			vec2d topleft; ///< The top-left position of this fragment.
+		};
+
+		/// Initializes the renderer, font, and spacing.
+		fragment_assembler(
+			ui::renderer_base &r, str_view_t ff, double sz, double lh, double base, double tabw,
+			invalid_codepoint_formatter fmt, colord invclr
+		) :
+			_renderer(&r), _font_family(ff), _invalid_cp_fmt(std::move(fmt)), _invalid_cp_color(invclr),
+			_font_size(sz), _line_height(lh), _baseline(base), _tab_width(tabw) {
 		}
-		/// Updates metrics as if the text has jumped to the start of the next line. Note that in this case
-		/// \ref _last_length may be shorter than the actual line length.
-		void next_line() {
-			_y += _line_height;
-			_last_length = _char.char_right();
-			_char.reset();
-		}
-		/// Adds the given \ref token to the \ref ui::character_metrics_accumulator.
-		template <token_measurement_flags Flags = token_measurement_flags::none> inline static void measure_token(
-			ui::character_metrics_accumulator &metrics, const token &tok
+		/// Initializes this struct using the given \ref contents_region.
+		fragment_assembler(const contents_region &rgn, double base) : fragment_assembler(
+			rgn.get_manager().get_renderer(), rgn.get_font_family(), rgn.get_font_size(), // TODO baseline should also be a property of a contents_region
+			rgn.get_line_height(), base, rgn.get_tab_width(), rgn.get_invalid_codepoint_formatter(), rgn.get_invalid_codepoint_color() // TODO custom color
 		) {
-			if (std::holds_alternative<character_token>(tok)) {
-				auto &chartok = std::get<character_token>(tok);
-				metrics.next_char(chartok.value, chartok.style);
-			} else if (std::holds_alternative<image_gizmo_token>(tok)) { // TODO
-
-			} else if (std::holds_alternative<text_gizmo_token>(tok)) {
-				if constexpr (
-					(Flags & token_measurement_flags::defer_text_gizmo_measurement) ==
-					token_measurement_flags::none
-					) {
-					auto &texttok = std::get<text_gizmo_token>(tok);
-					metrics.next_gizmo(ui::text_renderer::measure_plain_text(
-						texttok.contents, texttok.font ? texttok.font : metrics.get_font_family().normal
-					).x);
-				}
-			} else if (std::holds_alternative<linebreak_token>(tok)) {
-				if constexpr ((Flags & token_measurement_flags::newline_handled) == token_measurement_flags::none) {
-					metrics.reset();
-				}
-			}
 		}
 
-		/// Returns the height of a line.
-		double get_line_height() const {
-			return _line_height;
+		/// Sets \ref _xpos.
+		void set_horizontal_position(double pos) {
+			_xpos = pos;
 		}
-		/// Returns the length of the previous line.
-		double get_last_line_length() const {
-			return _last_length;
+		/// Adds the given value to \ref _xpos.
+		void advance_horizontal_position(double diff) {
+			set_horizontal_position(get_horizontal_position() + diff);
 		}
-		/// Returns the current vertical position.
-		double get_y() const {
-			return _y;
+		/// Returns the starting horizontal position for the next fragment.
+		double get_horizontal_position() const {
+			return _xpos;
+		}
+		/// Sets \ref _line_top.
+		void set_vertical_position(double pos) {
+			_line_top = pos;
+		}
+		/// Increases the vertical position by the given number times the line height.
+		void advance_vertical_position(size_t lines) {
+			set_vertical_position(get_vertical_position() + lines * _line_height);
+		}
+		/// Returns the top position of the current line.
+		double get_vertical_position() const {
+			return _line_top;
+		}
+		/// Returns the combined result of \ref get_horizontal_position() and \ref get_vertical_position().
+		vec2d get_position() const {
+			return vec2d(get_horizontal_position(), get_vertical_position());
 		}
 
-		/// Returns the associated \ref ui::character_metrics_accumulator for modification. This is usually used with
-		/// measurement flags such as \ref token_measurement_flags::defer_text_gizmo_measurement.
-		ui::character_metrics_accumulator &get_modify_character() {
-			return _char;
+		/// Does nothing but returning the current position.
+		basic_rendering append(const no_fragment & frag) {
+			return basic_rendering(get_position());
 		}
-		/// Returns the associated \ref ui::character_metrics_accumulator.
-		const ui::character_metrics_accumulator &get_character() const {
-			return _char;
+		/// Appends a \ref text_fragment to the rendered document by calling \ref _append_text().
+		text_rendering append(const text_fragment & frag) {
+			return _append_text(std::basic_string_view<codepoint>(frag.text), ui::font_parameters(
+				str_t(_font_family), _font_size, frag.theme.style, frag.theme.weight, ui::font_stretch::normal
+			), frag.theme.color);
+		}
+		/// Appends a \ref tab_fragment to the rendered document.
+		basic_rendering append(const tab_fragment & frag) {
+			basic_rendering r(get_position());
+			set_horizontal_position((std::floor(get_horizontal_position() / _tab_width) + 1.0) * _tab_width);
+			return r;
+		}
+		/// Appends a \ref invalid_codepoint_fragment to the rendered document.
+		text_rendering append(const invalid_codepoint_fragment & frag) {
+			str_t textrepr = _invalid_cp_fmt(frag.value);
+			return _append_text(str_view_t(textrepr), ui::font_parameters(
+				str_t(_font_family), _font_size, ui::font_style::italic, ui::font_weight::normal, ui::font_stretch::normal
+			), _invalid_cp_color); // TODO customizable font params
+		}
+		/// Appends a \ref linebreak_fragment to the rendered document by simply moving the current position.
+		basic_rendering append(const linebreak_fragment & frag) {
+			basic_rendering r(get_position());
+			set_horizontal_position(0.0);
+			advance_vertical_position(1);
+			return r;
+		}
+		/// Appends a \ref image_gizmo_fragment to the rendered document.
+		basic_rendering append(const image_gizmo_fragment & frag) {
+			// TODO
+			return basic_rendering(get_position());
+		}
+		/// Appends a \ref text_gizmo_fragment to the rendered document by calling \ref _append_text().
+		text_rendering append(const text_gizmo_fragment & frag) {
+			return _append_text(str_view_t(frag.contents), frag.font, frag.color);
+		}
+
+		/// Does nothing. Defined to complete the basic interface.
+		void render(ui::renderer_base&, const basic_rendering&) {
+		}
+		/// Renders the text using the given renderer, at the position specified in the \ref text_rendering.
+		/// Additional transformations may be necessary to 
+		void render(ui::renderer_base & r, const text_rendering & text) {
+			r.draw_formatted_text(
+				*text.text, vec2d(text.topleft.x, text.topleft.y + text.baseline_correction),
+				ui::generic_brush_parameters(ui::brush_parameters::solid_color(text.color))
+			);
 		}
 	protected:
-		ui::character_metrics_accumulator _char; ///< Computes metrics of characters in the current line.
+		ui::renderer_base *_renderer = nullptr; ///< The renderer.
+		str_view_t _font_family; ///< The font family.
+		invalid_codepoint_formatter _invalid_cp_fmt; ///< Used to format and display invalid codepoints.
+		colord _invalid_cp_color; ///< The color of invalid codepoints.
 		double
-			_y = 0.0, ///< The current vertical position.
-			_last_length = 0.0, ///< The length of the previous line.
-			_line_height = 0.0; ///< The height of a line.
+			_font_size = 0.0, ///< The font size.
+			_line_height = 0.0, ///< The height of a line.
+			_baseline = 0.0, ///< The desired base line position from the top of the line.
+			_tab_width = 0.0, ///< The maximum width of a tab character.
+			_line_top = 0.0, ///< The top of the current line.
+			_xpos = 0.0; ///< The horizontal position, relative to the left side of the document.
+
+		/// Appends a clip of text
+		template <typename Char> text_rendering _append_text(
+			std::basic_string_view<Char> text, ui::font_parameters font, colord color
+		) {
+			std::unique_ptr<ui::text_format> format = _renderer->create_text_format(
+				font.family, font.size, font.style, font.weight, font.stretch
+			);
+			std::unique_ptr<ui::formatted_text> fmttext = _renderer->format_text(
+				text, *format,
+				vec2d(), ui::wrapping_mode::none,
+				ui::horizontal_text_alignment::front, ui::vertical_text_alignment::top
+			);
+			std::vector<ui::formatted_text::line_metrics> lines = fmttext->get_line_metrics();
+			vec2d pos = get_position();
+			advance_horizontal_position(fmttext->get_layout().xmax);
+			return text_rendering(std::move(fmttext), pos, _baseline - lines[0].baseline, color);
+		}
 	};
-	*/
+
 
 	/// A standalone component that gathers information about carets to be rendered later.
 	struct caret_renderer {
@@ -436,10 +526,10 @@ namespace codepad::editors::code {
 		}
 
 		/*
-		/// Called after a token is generated and the corresponding metrics has been updated.
+		/// Called after a fragment is generated and the corresponding metrics has been updated.
 		void on_update(
-			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics,
-			const token_generation_result &tok
+			const fragment_generator<> &iter, const text_metrics_accumulator &metrics,
+			const fragment_generation_result &tok
 		) {
 			if (tok.steps > 0) { // about to move forward; this is the only chance
 				_check_generate_caret(iter, metrics, tok);
@@ -450,13 +540,13 @@ namespace codepad::editors::code {
 				_check_generate_caret(iter, metrics, tok);
 				_last_is_stall = true;
 			}
-			if (_in_selection && std::holds_alternative<linebreak_token>(tok.result)) {
-				_break_selected_lines(metrics, std::get<linebreak_token>(tok.result));
+			if (_in_selection && std::holds_alternative<linebreak_fragment>(tok.result)) {
+				_break_selected_lines(metrics, std::get<linebreak_fragment>(tok.result));
 			}
 		}
 		/// Called after all visible text has been laid out. This function exists to ensure that carets are rendered
 		/// properly at the very end of the document.
-		void finish(const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics) {
+		void finish(const fragment_generator<> &iter, const text_metrics_accumulator &metrics) {
 			if (_in_selection) { // close selected region
 				_sel_regions.back().emplace_back(
 					_region_begin, metrics.get_character().char_right(),
@@ -491,7 +581,7 @@ namespace codepad::editors::code {
 		const caret_set::container &_carets; ///< The set of carets.
 		bool
 			_in_selection = false, ///< Indicates whether the current position is selected.
-			/// Indicates whether the last token was a `stall', e.g., a soft linebreak or a pure gizmo.
+			/// Indicates whether the last fragment was a `stall', e.g., a soft linebreak or a pure gizmo.
 			_last_is_stall = false;
 
 		/*
@@ -513,8 +603,8 @@ namespace codepad::editors::code {
 		}
 		/// Checks and generates a caret if necessary.
 		void _check_generate_caret(
-			const rendering_token_iterator<> &iter, const text_metrics_accumulator &metrics,
-			const token_generation_result &tok
+			const fragment_generator<> &iter, const text_metrics_accumulator &metrics,
+			const fragment_generation_result &tok
 		) {
 			if (_cur_caret != _carets.end() && _cur_caret->first.first == iter.get_position()) {
 				bool generate;
@@ -524,7 +614,7 @@ namespace codepad::editors::code {
 					generate = !_last_is_stall && !_cur_caret->second.softbreak_next_line;
 				}
 				if (generate) {
-					_generate_caret(metrics, std::holds_alternative<linebreak_token>(tok.result));
+					_generate_caret(metrics, std::holds_alternative<linebreak_fragment>(tok.result));
 				}
 			}
 		}
@@ -534,12 +624,12 @@ namespace codepad::editors::code {
 		///
 		/// \return Indicates whether the state has been changed.
 		bool _update_selection_state(
-			const rendering_token_iterator<> &it, const text_metrics_accumulator &metrics, const token &tok
+			const fragment_generator<> &it, const text_metrics_accumulator &metrics, const fragment &tok
 		) {
 			if (_in_selection) {
 				if (it.get_position() >= _range.second) {
 					// finish this region
-					if (std::holds_alternative<linebreak_token>(tok)) {
+					if (std::holds_alternative<linebreak_fragment>(tok)) {
 						_sel_regions.back().emplace_back(
 							_region_begin, metrics.get_last_line_length(),
 							metrics.get_y() - metrics.get_line_height(), metrics.get_y()
@@ -565,7 +655,7 @@ namespace codepad::editors::code {
 					// start this region
 					_sel_regions.emplace_back();
 					_region_begin =
-						std::holds_alternative<linebreak_token>(tok) ?
+						std::holds_alternative<linebreak_fragment>(tok) ?
 						metrics.get_last_line_length() :
 						metrics.get_character().char_left();
 					_in_selection = true;
@@ -576,7 +666,7 @@ namespace codepad::editors::code {
 		}
 		/// Updates selected regions. This function calls \ref _update_selection_state() twice.
 		void _update_selection(
-			const rendering_token_iterator<> &it, const text_metrics_accumulator &metrics, const token &tok
+			const fragment_generator<> &it, const text_metrics_accumulator &metrics, const fragment &tok
 		) {
 			if (_in_selection && _range.second < it.get_position()) { // already past the last caret, emergency break
 				// this is to prevent certain carets from disappearing
@@ -593,7 +683,7 @@ namespace codepad::editors::code {
 
 		/// Breaks the current selected region when a linebreak is encountered. \ref _in_selection must be \p true
 		/// when this function is called.
-		void _break_selected_lines(const text_metrics_accumulator &metrics, const linebreak_token &tok) {
+		void _break_selected_lines(const text_metrics_accumulator &metrics, const linebreak_fragment &tok) {
 			double xmax = metrics.get_last_line_length();
 			if (tok.type != line_ending::none) { // hard linebreak, append a space
 				xmax += metrics.get_character().get_font_family().normal->get_char_entry(' ').advance;

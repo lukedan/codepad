@@ -22,10 +22,6 @@ namespace codepad::ui {
 			relative,
 			absolute; ///< The absolute offset in addition to \ref relative.
 
-		/// Returns the absolute position given the containing rectangle.
-		vec2d get_absolute_position(rectd layout) const {
-			return layout.xmin_ymin() + get_absolute_offset(layout.size());
-		}
 		/// Returns the absolute offset given the size of the containing region.
 		vec2d get_absolute_offset(vec2d size) const {
 			return absolute + vec2d(size.x * relative.x, size.y * relative.y);
@@ -42,20 +38,20 @@ namespace codepad::ui {
 			return relative * total + absolute;
 		}
 	};
-	namespace json_object_parsers {
-		/// Parses a \ref relative_vec2d. The node can either be its full representation
+}
+namespace codepad::json::object_parsers {
+	/// Parser for \ref ui::relative_vec2d.
+	template <> struct parser<ui::relative_vec2d> {
+		/// Parses a \ref ui::relative_vec2d. The node can either be its full representation
 		/// (<tt>{"absolute": [x, y], "relative": [x, y]}</tt>), or a list of two vectors with the relative value in
 		/// the front (<tt>[[absx, absy], [relx, rely]]</tt>), or a single vector indicating the relative value.
-		template <typename Value> inline bool try_parse(const Value &obj, relative_vec2d &v) {
+		template <typename Value> bool operator()(const Value &obj, ui::relative_vec2d &v) const {
 			if (typename Value::object_t full; json::try_cast(obj, full)) {
 				// {"absolute": [x, y], "relative": [x, y]}
-				if (auto fmem = full.find_member(u8"absolute"); fmem != full.member_end()) {
-					try_parse(fmem.value(), v.absolute);
-				}
-				if (auto fmem = full.find_member(u8"relative"); fmem != full.member_end()) {
-					try_parse(fmem.value(), v.relative);
-				}
-				return true;
+				parse_member_result
+					absres = try_parse_member(full, u8"absolute", v.absolute),
+					relres = try_parse_member(full, u8"relative", v.relative);
+				return absres == parse_member_result::success || relres == parse_member_result::success;
 			}
 			if (typename Value::array_t arr; json::try_cast(obj, arr) && arr.size() >= 2) {
 				// [[relx, rely], [absx, absy]]
@@ -69,8 +65,11 @@ namespace codepad::ui {
 			v.relative = vec2d();
 			return try_parse(obj, v.absolute);
 		}
-		/// Parses a \ref relative_double. The format is similar to that of \ref relative_vec2d.
-		template <typename Value> inline bool try_parse(const Value &obj, relative_double &d) {
+	};
+	/// Parser for \ref ui::relative_double.
+	template <> struct parser<ui::relative_double> {
+		/// Parses a \ref ui::relative_double. The format is similar to that of \ref relative_vec2d.
+		template <typename Value> bool operator()(const Value &obj, ui::relative_double &d) const {
 			if (typename Value::object_t full; json::try_cast(obj, full)) { // full representation
 				json::try_cast_member(full, u8"absolute", d.absolute);
 				json::try_cast_member(full, u8"relative", d.relative);
@@ -85,30 +84,28 @@ namespace codepad::ui {
 			d.relative = 0.0;
 			return json::try_cast(obj, d.absolute);
 		}
-	}
+	};
+}
 
+namespace codepad::ui {
 	/// Various types of transforms.
 	namespace transforms {
-		/// Transformation defined by a matrix.
-		struct raw {
-			/// Sets \ref matrix to be an identity matrix.
-			raw() {
-				matrix.set_identity();
+		/// The identity transform.
+		struct identity {
+			/// Returns the identity matrix.
+			matd3x3 get_matrix(vec2d) const {
+				matd3x3 res;
+				res.set_identity();
+				return res;
 			}
-			/// Initializes \ref matrix.
-			explicit raw(matd3x3 m) : matrix(m) {
+			/// Returns the original point.
+			vec2d transform_point(vec2d pt, vec2d) const {
+				return pt;
 			}
-
-			/// Returns \ref matrix.
-			matd3x3 get_matrix(rectd) const {
-				return matrix;
+			/// Returns the original point.
+			vec2d inverse_transform_point(vec2d pt, vec2d) const {
+				return pt;
 			}
-			/// Transforms the given point.
-			vec2d transform_point(vec2d pt, rectd) const {
-				return matrix.transform(pt);
-			}
-
-			matd3x3 matrix; ///< The matrix.
 		};
 		/// Transformation that translates an object.
 		struct translation {
@@ -119,12 +116,16 @@ namespace codepad::ui {
 			}
 
 			/// Returns a \ref matd3x3 that represents this transform.
-			matd3x3 get_matrix(rectd layout) const {
-				return matd3x3::translate(offset.get_absolute_offset(layout.size()));
+			matd3x3 get_matrix(vec2d unit) const {
+				return matd3x3::translate(offset.get_absolute_offset(unit));
 			}
 			/// Translates the given point.
-			vec2d transform_point(vec2d pt, rectd layout) const {
-				return pt + offset.get_absolute_offset(layout.size());
+			vec2d transform_point(vec2d pt, vec2d unit) const {
+				return pt + offset.get_absolute_offset(unit);
+			}
+			/// Translates the given point in the opposite direction.
+			vec2d inverse_transform_point(vec2d pt, vec2d unit) const {
+				return pt - offset.get_absolute_offset(unit);
 			}
 
 			relative_vec2d offset; ///< The translation.
@@ -139,15 +140,23 @@ namespace codepad::ui {
 			}
 
 			/// Returns a \ref matd3x3 that represents this transform.
-			matd3x3 get_matrix(rectd layout) const {
-				return matd3x3::scale(center.get_absolute_position(layout), scale_factor);
+			matd3x3 get_matrix(vec2d unit) const {
+				return matd3x3::scale(center.get_absolute_offset(unit), scale_factor);
 			}
 			/// Scales the given point.
-			vec2d transform_point(vec2d pt, rectd layout) const {
-				vec2d c = center.get_absolute_position(layout);
+			vec2d transform_point(vec2d pt, vec2d unit) const {
+				vec2d c = center.get_absolute_offset(unit);
 				pt -= c;
 				pt.x *= scale_factor.x;
 				pt.y *= scale_factor.y;
+				return pt + c;
+			}
+			/// Scales the given point using the inverse scale factor.
+			vec2d inverse_transform_point(vec2d pt, vec2d unit) const {
+				vec2d c = center.get_absolute_offset(unit);
+				pt -= c;
+				pt.x /= scale_factor.x;
+				pt.y /= scale_factor.y;
 				return pt + c;
 			}
 
@@ -163,12 +172,19 @@ namespace codepad::ui {
 			}
 
 			/// Returns a \ref matd3x3 that represents this transform.
-			matd3x3 get_matrix(rectd layout) const {
-				return matd3x3::rotate_clockwise(center.get_absolute_position(layout), angle);
+			matd3x3 get_matrix(vec2d unit) const {
+				return matd3x3::rotate_clockwise(center.get_absolute_offset(unit), angle);
 			}
 			/// Rotates the given point.
-			vec2d transform_point(vec2d pt, rectd layout) const {
-				vec2d vec(std::cos(angle), std::sin(angle)), c = center.get_absolute_position(layout);
+			vec2d transform_point(vec2d pt, vec2d unit) const {
+				vec2d vec(std::cos(angle), std::sin(angle)), c = center.get_absolute_offset(unit);
+				pt -= c;
+				pt = vec2d(pt.x * vec.x - pt.y * vec.y, pt.x * vec.y + pt.y * vec.x);
+				return pt + c;
+			}
+			/// Rotates the given point in the opposite direction.
+			vec2d inverse_transform_point(vec2d pt, vec2d unit) const {
+				vec2d vec(std::cos(angle), -std::sin(angle)), c = center.get_absolute_offset(unit);
 				pt -= c;
 				pt = vec2d(pt.x * vec.x - pt.y * vec.y, pt.x * vec.y + pt.y * vec.x);
 				return pt + c;
@@ -177,14 +193,42 @@ namespace codepad::ui {
 			relative_vec2d center; ///< The center of rotation.
 			double angle = 0.0; ///< The angle to roatate, in radians.
 		};
+		/// Transformation defined by a matrix.
+		struct raw {
+			/// Sets \ref matrix to be an identity matrix.
+			raw() {
+				matrix.set_identity();
+			}
+			/// Initializes \ref matrix.
+			explicit raw(matd3x3 m) : matrix(m) {
+			}
+
+			/// Returns \ref matrix.
+			matd3x3 get_matrix(vec2d) const {
+				return matrix;
+			}
+			/// Transforms the given point.
+			vec2d transform_point(vec2d pt, vec2d) const {
+				return matrix.transform(pt);
+			}
+			/// Inverse transforms the given point.
+			vec2d inverse_transform_point(vec2d pt, vec2d) const {
+				return matrix.inverse().transform(pt);
+			}
+
+			matd3x3 matrix; ///< The matrix.
+		};
 
 		struct generic;
 		/// A collection of \ref transforms::generic that are applied in order.
 		struct collection {
 			/// Returns the combined transformation matrix.
-			matd3x3 get_matrix(rectd) const;
+			matd3x3 get_matrix(vec2d) const;
 			/// Transforms the given point. This is performed by calling \p transform_point() for each component.
-			vec2d transform_point(vec2d, rectd) const;
+			vec2d transform_point(vec2d, vec2d) const;
+			/// Inverse transforms the given point. This is performed by calling \p inverse_transform_point() for
+			/// each component in the reverse order.
+			vec2d inverse_transform_point(vec2d, vec2d) const;
 
 			std::vector<generic> components; ///< The list of transforms.
 		};
@@ -192,18 +236,24 @@ namespace codepad::ui {
 		/// A generic, polymorphic transform.
 		struct generic {
 			/// Holds a generic transformation.
-			using value_type = std::variant<raw, translation, scale, rotation, collection>;
+			using value_type = std::variant<identity, translation, scale, rotation, collection, raw>;
 
 			/// Returns the transformation matrix.
-			matd3x3 get_matrix(rectd layout) const {
-				return std::visit([&layout](auto && trans) {
-					return trans.get_matrix(layout);
+			matd3x3 get_matrix(vec2d unit) const {
+				return std::visit([&unit](auto && trans) {
+					return trans.get_matrix(unit);
 					}, value);
 			}
 			/// Transforms the given point.
-			vec2d transform_point(vec2d pt, rectd layout) const {
-				return std::visit([&pt, &layout](auto && trans) {
-					return trans.transform_point(pt, layout);
+			vec2d transform_point(vec2d pt, vec2d unit) const {
+				return std::visit([&pt, &unit](auto && trans) {
+					return trans.transform_point(pt, unit);
+					}, value);
+			}
+			/// Inverse transforms the given point.
+			vec2d inverse_transform_point(vec2d pt, vec2d unit) const {
+				return std::visit([&pt, &unit](auto && trans) {
+					return trans.inverse_transform_point(pt, unit);
 					}, value);
 			}
 
@@ -211,30 +261,112 @@ namespace codepad::ui {
 		};
 
 
-		inline matd3x3 collection::get_matrix(rectd layout) const {
+		inline matd3x3 collection::get_matrix(vec2d unit) const {
 			matd3x3 res;
 			res.set_identity();
 			for (const generic &g : components) {
-				res = g.get_matrix(layout) * res;
+				res = g.get_matrix(unit) * res;
 			}
 			return res;
 		}
 
-		inline vec2d collection::transform_point(vec2d pt, rectd layout) const {
+		inline vec2d collection::transform_point(vec2d pt, vec2d unit) const {
 			for (const generic &g : components) {
-				pt = g.transform_point(pt, layout);
+				pt = g.transform_point(pt, unit);
+			}
+			return pt;
+		}
+
+		inline vec2d collection::inverse_transform_point(vec2d pt, vec2d unit) const {
+			for (auto it = components.rbegin(); it != components.rend(); ++it) {
+				pt = it->inverse_transform_point(pt, unit);
 			}
 			return pt;
 		}
 	}
+}
+
+namespace codepad::json::object_parsers {
+	/// Parser for \ref ui::transform::generic.
+	template <> struct parser<ui::transforms::generic> {
+		/// Parses a generic transform. The value can either be:
+		///  - A list, whcih is interpreted as a transform collection.
+		///  - An object with a member named either `trasnaltion', `scale', `rotation', or `children'. These members
+		///    are checked in order and only the first one is handled.
+		template <typename Value> bool operator()(const Value &val, ui::transforms::generic &v) const {
+			if (val.is<null_t>()) {
+				v.value.emplace<ui::transforms::identity>();
+			}
+			typename Value::array_t arr;
+			bool has_array = false; // marks if arr is valid
+			if (typename Value::object_t obj; try_cast(val, obj)) {
+				parse_member_result res;
+				{ // translation
+					ui::relative_vec2d offset;
+					res = try_parse_member(obj, u8"translation", offset);
+					if (res == parse_member_result::success) {
+						v.value.emplace<ui::transforms::translation>(offset);
+						return true;
+					}
+					if (res == parse_member_result::parsing_failed) {
+						return false;
+					}
+				}
+				{ // scale
+					ui::relative_vec2d center;
+					vec2d scale;
+					res = try_parse_member(obj, u8"scale", scale);
+					if (res == parse_member_result::success) {
+						try_parse_member(obj, u8"center", center);
+						v.value.emplace<ui::transforms::scale>(center, scale);
+						return true;
+					}
+					if (res == parse_member_result::parsing_failed) {
+						return false;
+					}
+				}
+				{ // rotation
+					ui::relative_vec2d center;
+					double angle;
+					res = try_parse_member(obj, u8"rotation", angle);
+					if (res == parse_member_result::success) {
+						try_parse_member(obj, u8"center", center);
+						v.value.emplace<ui::transforms::rotation>(center, angle);
+						return true;
+					}
+					if (res == parse_member_result::parsing_failed) {
+						return false;
+					}
+				}
+				if (json::try_cast_member(obj, u8"children", arr)) {
+					has_array = true;
+				}
+			}
+			if (!has_array) {
+				if (!json::try_cast(val, arr)) {
+					return false;
+				}
+			}
+			ui::transforms::collection res;
+			for (auto &&trans : arr) {
+				if (!(*this)(trans, res.components.emplace_back())) {
+					return false;
+				}
+			}
+			v.value.emplace<ui::transforms::collection>(std::move(res));
+			return true;
+		}
+	};
+}
 
 
+namespace codepad::ui {
 	/// Various types of brushes.
 	namespace brushes {
 		/// Corresponds to \ref brush_parameters::solid_color.
 		struct solid_color {
 			/// Returns the corresponding \ref brush_parameters::solid_color given the target region.
-			brush_parameters::solid_color get_parameters(rectd) const {
+			brush_parameters::solid_color get_parameters(vec2d) const {
 				return brush_parameters::solid_color(color);
 			}
 
@@ -243,9 +375,9 @@ namespace codepad::ui {
 		/// Corresponds to \ref brush_parameters::linear_gradient.
 		struct linear_gradient {
 			/// Returns the corresponding \ref brush_parameters::linear_gradient given the target region.
-			brush_parameters::linear_gradient get_parameters(rectd layout) const {
+			brush_parameters::linear_gradient get_parameters(vec2d unit) const {
 				return brush_parameters::linear_gradient(
-					from.get_absolute_position(layout), to.get_absolute_position(layout), gradient_stops
+					from.get_absolute_offset(unit), to.get_absolute_offset(unit), gradient_stops
 				);
 			}
 
@@ -257,9 +389,9 @@ namespace codepad::ui {
 		/// Corresponds to \ref brush_parameters::radial_gradient.
 		struct radial_gradient {
 			/// Returns the corresponding \ref brush_parameters::radial_gradient given the target region.
-			brush_parameters::radial_gradient get_parameters(rectd layout) const {
+			brush_parameters::radial_gradient get_parameters(vec2d unit) const {
 				return brush_parameters::radial_gradient(
-					center.get_absolute_position(layout), radius, gradient_stops
+					center.get_absolute_offset(unit), radius, gradient_stops
 				);
 			}
 
@@ -270,7 +402,7 @@ namespace codepad::ui {
 		/// Corresponds to \ref brush_parameters::bitmap_pattern.
 		struct bitmap_pattern {
 			/// Returns the corresponding \ref brush_parameters::bitmap_pattern given the target region.
-			brush_parameters::bitmap_pattern get_parameters(rectd) const {
+			brush_parameters::bitmap_pattern get_parameters(vec2d) const {
 				return brush_parameters::bitmap_pattern(&*image);
 			}
 
@@ -279,7 +411,7 @@ namespace codepad::ui {
 		/// Corresponds to \ref brush_parameters::none.
 		struct none {
 			/// Returns a new \ref brush_parameters::none object.
-			brush_parameters::none get_parameters(rectd) const {
+			brush_parameters::none get_parameters(vec2d) const {
 				return brush_parameters::none();
 			}
 		};
@@ -297,12 +429,12 @@ namespace codepad::ui {
 		>;
 
 		/// Returns the corresponding brush parameters given the target region.
-		generic_brush_parameters get_parameters(rectd layout) const {
+		generic_brush_parameters get_parameters(vec2d unit) const {
 			if (std::holds_alternative<brushes::none>(value)) {
 				return generic_brush_parameters();
 			}
-			return std::visit([this, &layout](auto && b) {
-				return generic_brush_parameters(b.get_parameters(layout), transform.get_matrix(layout));
+			return std::visit([this, &unit](auto && b) {
+				return generic_brush_parameters(b.get_parameters(unit), transform.get_matrix(unit));
 				}, value);
 		}
 
@@ -312,13 +444,14 @@ namespace codepad::ui {
 	/// A generic pen defined by a brush.
 	struct generic_pen {
 		/// Returns the corresponding pen parameters given the target region.
-		generic_pen_parameters get_parameters(rectd layout) const {
-			return generic_pen_parameters(brush.get_parameters(layout), thickness);
+		generic_pen_parameters get_parameters(vec2d unit) const {
+			return generic_pen_parameters(brush.get_parameters(unit), thickness);
 		}
 
 		generic_brush brush; ///< The brush.
-		double thickness; ///< The thickness of this pen.
+		double thickness = 1.0; ///< The thickness of this pen.
 	};
+
 
 	/// Various types of geometries that can be used in the definition of an element's visuals.
 	namespace geometries {
@@ -330,11 +463,11 @@ namespace codepad::ui {
 
 			/// Draws this rectangle in the specified region with the specified bursh and pen.
 			void draw(
-				rectd layout, renderer_base &r,
+				vec2d unit, renderer_base &r,
 				const generic_brush_parameters &brush, const generic_pen_parameters &pen
 			) const {
 				r.draw_rectangle(rectd::from_corners(
-					top_left.get_absolute_position(layout), bottom_right.get_absolute_position(layout)
+					top_left.get_absolute_offset(unit), bottom_right.get_absolute_offset(unit)
 				), brush, pen);
 			}
 		};
@@ -349,12 +482,12 @@ namespace codepad::ui {
 
 			/// Draws this rounded rectangle in the specified region with the specified bursh and pen.
 			void draw(
-				rectd layout, renderer_base &r,
+				vec2d unit, renderer_base &r,
 				const generic_brush_parameters &brush, const generic_pen_parameters &pen
 			) const {
 				r.draw_rounded_rectangle(
-					rectd::from_corners(top_left.get_absolute_position(layout), bottom_right.get_absolute_position(layout)),
-					radiusx.get_absolute(layout.width()), radiusy.get_absolute(layout.height()),
+					rectd::from_corners(top_left.get_absolute_offset(unit), bottom_right.get_absolute_offset(unit)),
+					radiusx.get_absolute(unit.x), radiusy.get_absolute(unit.y),
 					brush, pen
 				);
 			}
@@ -367,10 +500,10 @@ namespace codepad::ui {
 
 			/// Draws this ellipse in the specified region with the specified bursh and pen.
 			void draw(
-				rectd layout, renderer_base &r,
+				vec2d unit, renderer_base &r,
 				const generic_brush_parameters &brush, const generic_pen_parameters &pen
 			) const {
-				auto rgn = rectd::from_corners(top_left.get_absolute_position(layout), bottom_right.get_absolute_position(layout));
+				auto rgn = rectd::from_corners(top_left.get_absolute_offset(unit), bottom_right.get_absolute_offset(unit));
 				r.draw_ellipse(rgn.center(), 0.5 * rgn.width(), 0.5 * rgn.height(), brush, pen);
 			}
 		};
@@ -382,8 +515,8 @@ namespace codepad::ui {
 				relative_vec2d to; ///< The end point of the segment.
 
 				/// Adds this part to a \ref path_geometry_builder.
-				void add_to(path_geometry_builder &builder, rectd layout) const {
-					builder.add_segment(to.get_absolute_position(layout));
+				void add_to(path_geometry_builder &builder, vec2d unit) const {
+					builder.add_segment(to.get_absolute_offset(unit));
 				}
 			};
 			/// A part of a \ref subpath that's an arc.
@@ -394,8 +527,8 @@ namespace codepad::ui {
 				arc_type type = arc_type::minor; ///< The type of this arc.
 
 				/// Adds this part to a \ref path_geometry_builder.
-				void add_to(path_geometry_builder &builder, rectd layout) const {
-					builder.add_arc(to.get_absolute_position(layout), radius, direction, type);
+				void add_to(path_geometry_builder &builder, vec2d unit) const {
+					builder.add_arc(to.get_absolute_offset(unit), radius, direction, type);
 				}
 			};
 			/// A part of a \ref subpath that's a cubic bezier.
@@ -406,9 +539,9 @@ namespace codepad::ui {
 					control2; ///< The second control point.
 
 				/// Adds this part to a \ref path_geometry_builder.
-				void add_to(path_geometry_builder &builder, rectd layout) const {
+				void add_to(path_geometry_builder &builder, vec2d unit) const {
 					builder.add_cubic_bezier(
-						to.get_absolute_position(layout), control1.get_absolute_position(layout), control2.get_absolute_position(layout)
+						to.get_absolute_offset(unit), control1.get_absolute_offset(unit), control2.get_absolute_offset(unit)
 					);
 				}
 			};
@@ -419,9 +552,9 @@ namespace codepad::ui {
 				using value_type = std::variant<segment, arc, cubic_bezier>;
 
 				/// Adds this part to a \ref path_geometry_builder.
-				void add_to(path_geometry_builder &builder, rectd layout) const {
+				void add_to(path_geometry_builder &builder, vec2d unit) const {
 					std::visit([&](auto && obj) {
-						obj.add_to(builder, layout);
+						obj.add_to(builder, unit);
 						}, value);
 				}
 
@@ -439,14 +572,14 @@ namespace codepad::ui {
 
 			/// Draws this path in the specified region with the specified brush and pen.
 			void draw(
-				rectd layout, renderer_base &r,
+				vec2d unit, renderer_base &r,
 				const generic_brush_parameters &brush, const generic_pen_parameters &pen
 			) const {
 				path_geometry_builder &builder = r.start_path();
 				for (const auto &sp : subpaths) {
-					builder.move_to(sp.starting_point.get_absolute_position(layout));
+					builder.move_to(sp.starting_point.get_absolute_offset(unit));
 					for (const auto &p : sp.parts) {
-						p.add_to(builder, layout);
+						p.add_to(builder, unit);
 					}
 					if (sp.closed) {
 						builder.close();
@@ -465,10 +598,10 @@ namespace codepad::ui {
 		>; ///< The definition of the value of this geometry.
 
 		/// Draws this geometry in the specified region with the specified brush and pen.
-		void draw(rectd layout, renderer_base &r) const {
-			r.push_matrix_mult(transform.get_matrix(layout));
+		void draw(vec2d unit, renderer_base &r) const {
+			r.push_matrix_mult(transform.get_matrix(unit));
 			std::visit([&](auto && obj) {
-				obj.draw(layout, r, fill.get_parameters(layout), stroke.get_parameters(layout));
+				obj.draw(unit, r, fill.get_parameters(unit), stroke.get_parameters(unit));
 				}, value);
 			r.pop_matrix();
 		}

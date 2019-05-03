@@ -62,21 +62,19 @@ namespace codepad::ui {
 				parse_visual_parameters(obj, value.visual_parameters);
 			}
 
-			_try_parse_member(val, u8"visibility", value.visibility);
-			_try_parse_member(val, u8"cursor", value.custom_cursor);
+			json::object_parsers::try_parse_member(val, u8"visibility", value.visibility);
+			json::object_parsers::try_parse_member(val, u8"cursor", value.custom_cursor);
 		}
 		/// Parses a \ref element_layout_parameters from the given JSON object.
 		void parse_layout_parameters(const object_t &val, element_layout_parameters &value) {
 			_parse_size(val, value.size, value.width_alloc, value.height_alloc);
-			_try_parse_member(val, u8"anchor", value.elem_anchor);
-			_try_parse_member(val, u8"margin", value.margin);
-			_try_parse_member(val, u8"padding", value.padding);
+			json::object_parsers::try_parse_member(val, u8"anchor", value.elem_anchor);
+			json::object_parsers::try_parse_member(val, u8"margin", value.margin);
+			json::object_parsers::try_parse_member(val, u8"padding", value.padding);
 		}
 		/// Parses a \ref element_visual_parameters from the given JSON object.
 		void parse_visual_parameters(const object_t &val, element_visual_parameters &value) {
-			if (object_t obj; json::try_cast_member(val, u8"transform", obj)) {
-				_parse_transform(obj, value.transform);
-			}
+			json::object_parsers::try_parse_member(val, u8"transform", value.transform);
 			if (array_t arr; json::try_cast_member(val, u8"geometries", arr)) {
 				for (auto &&geom : arr) {
 					if (object_t gobj; json::try_cast(geom, gobj)) {
@@ -131,29 +129,6 @@ namespace codepad::ui {
 		std::map<std::filesystem::path, std::shared_ptr<bitmap>> _textures; ///< Stores the list of textures.
 		manager &_manager; ///< The \ref manager associated with this parser.
 
-		/// Tries to find and parse the member with the specified name into the given object.
-		///
-		/// \return \p true if the member is found and successfully parsed.
-		template <typename T> inline bool _try_parse_member(
-			const object_t &obj, str_view_t name, T &res
-		) {
-			if (auto it = obj.find_member(name); it != obj.member_end()) {
-				return json_object_parsers::try_parse(it.value(), res);
-			}
-			return false;
-		}
-		/// Tries to find and parse the member with the specified name. If no such member is found or parsing failed,
-		/// the specified default value will be returned.
-		template <typename T> inline T _parse_member_or_default(
-			const object_t &obj, str_view_t name, const T &def
-		) {
-			T res;
-			if (_try_parse_member(obj, name, res)) {
-				return res;
-			}
-			return def;
-		}
-
 		/// Returns the texture given by the path.
 		std::shared_ptr<bitmap> _get_texture(const std::filesystem::path &path) {
 			auto fullpath = _resources_path / path;
@@ -175,7 +150,7 @@ namespace codepad::ui {
 					return;
 				}
 			}
-			if (size_allocation alloc; json_object_parsers::try_parse(val, alloc)) {
+			if (size_allocation alloc; json::object_parsers::try_parse(val, alloc)) {
 				v = alloc.value;
 				ty = alloc.is_pixels ? size_allocation_type::fixed : size_allocation_type::proportion;
 				return;
@@ -188,8 +163,8 @@ namespace codepad::ui {
 			const object_t &val, vec2d &size, size_allocation_type &walloc, size_allocation_type &halloc
 		) {
 			// first try to parse width_alloc and height_alloc, which may be overriden later
-			_try_parse_member(val, u8"width_alloc", walloc);
-			_try_parse_member(val, u8"height_alloc", halloc);
+			json::object_parsers::try_parse_member(val, u8"width_alloc", walloc);
+			json::object_parsers::try_parse_member(val, u8"height_alloc", halloc);
 			// try to find width and height
 			auto w = val.find_member(u8"width"), h = val.find_member(u8"height");
 			// allows partial specification, but not mixed
@@ -201,7 +176,7 @@ namespace codepad::ui {
 					_parse_size_component(h.value(), size.y, halloc);
 				}
 			} else { // parse size
-				_try_parse_member(val, u8"size", size);
+				json::object_parsers::try_parse_member(val, u8"size", size);
 			}
 		}
 
@@ -209,13 +184,13 @@ namespace codepad::ui {
 		template <typename T, typename Lerp> void _parse_keyframe(
 			const object_t &obj, typename keyframe_animation_definition<T, Lerp>::keyframe &frame
 		) {
-			_try_parse_member(obj, u8"duration", frame.duration);
+			json::object_parsers::try_parse_member(obj, u8"duration", frame.duration);
 			if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) {
 				if (str_view_t path; json::try_cast_member(obj, u8"target", path)) {
 					frame.target = _get_texture(path);
 				}
 			} else {
-				_try_parse_member(obj, u8"target", frame.target);
+				json::object_parsers::try_parse_member(obj, u8"target", frame.target);
 			}
 			// transition function
 			if (str_view_t str; json::try_cast_member(obj, u8"transition", str)) {
@@ -254,50 +229,20 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Parses a \ref transforms::generic from the given JSON object.
-		void _parse_transform(const object_t &obj, transforms::generic &value) {
-			if (str_view_t type; json::try_cast_member(obj, u8"type", type)) {
-				// TODO raw transformation
-				if (type == u8"translation") {
-					auto &trans = value.value.emplace<transforms::translation>();
-					_try_parse_member(obj, u8"offset", trans.offset);
-				} else if (type == u8"scale") {
-					auto &trans = value.value.emplace<transforms::scale>();
-					_try_parse_member(obj, u8"center", trans.center);
-					_try_parse_member(obj, u8"scale", trans.scale_factor);
-				} else if (type == u8"rotation") {
-					auto &trans = value.value.emplace<transforms::rotation>();
-					_try_parse_member(obj, u8"center", trans.center);
-					json::try_cast_member(obj, u8"angle", trans.angle);
-				} else if (type == u8"composite") {
-					auto &trans = value.value.emplace<transforms::collection>();
-					if (array_t arr; json::try_cast_member(obj, u8"children", arr)) {
-						for (auto &&cdef : arr) {
-							if (object_t cobj; json::try_cast(cdef, cobj)) {
-								trans.components.emplace_back();
-								_parse_transform(cobj, trans.components.back());
-							}
-						}
-					}
-				}
-			} else {
-				logger::get().log_warning(CP_HERE, "invalid transform type");
-			}
-		}
 
 		/// Parses a \ref gradient_stop_collection from the given JSON object.
-		void _parse_gradient_stop_collection(const array_t &obj, gradient_stop_collection &stops) {
-			for (auto &&stopdef : obj) {
+		void _parse_gradient_stop_collection(const array_t &arr, gradient_stop_collection &stops) {
+			for (auto &&stopdef : arr) {
 				auto &stop = stops.emplace_back();
-				if (object_t obj; json::try_cast(stopdef, obj)) {
-					json::try_cast_member(obj, u8"position", stop.position);
-					_try_parse_member(obj, u8"color", stop.color);
+				if (object_t stopobj; json::try_cast(stopdef, stopobj)) {
+					json::try_cast_member(stopobj, u8"position", stop.position);
+					json::object_parsers::try_parse_member(stopobj, u8"color", stop.color);
 				} else if (array_t arr; json::try_cast(stopdef, arr) && arr.size() >= 2) {
 					if (arr.size() > 2) {
 						logger::get().log_warning(CP_HERE, "too many items in gradient stop definition");
 					}
 					json::try_cast(arr[0], stop.position);
-					json_object_parsers::try_parse(arr[1], stop.color);
+					json::object_parsers::try_parse(arr[1], stop.color);
 				} else {
 					logger::get().log_warning(CP_HERE, "invalid gradient stop format");
 				}
@@ -309,17 +254,17 @@ namespace codepad::ui {
 				if (str_view_t type; json::try_cast_member(obj, u8"type", type)) {
 					if (type == u8"solid") {
 						auto &brush = value.value.emplace<brushes::solid_color>();
-						_try_parse_member(obj, u8"color", brush.color);
+						json::object_parsers::try_parse_member(obj, u8"color", brush.color);
 					} else if (type == u8"linear_gradient") {
 						auto &brush = value.value.emplace<brushes::linear_gradient>();
-						_try_parse_member(obj, u8"from", brush.from);
-						_try_parse_member(obj, u8"to", brush.to);
+						json::object_parsers::try_parse_member(obj, u8"from", brush.from);
+						json::object_parsers::try_parse_member(obj, u8"to", brush.to);
 						if (array_t stops; json::try_cast_member(obj, u8"gradient_stops", stops)) {
 							_parse_gradient_stop_collection(stops, brush.gradient_stops);
 						}
 					} else if (type == u8"radial_gradient") {
 						auto &brush = value.value.emplace<brushes::radial_gradient>();
-						_try_parse_member(obj, u8"center", brush.center);
+						json::object_parsers::try_parse_member(obj, u8"center", brush.center);
 						json::try_cast_member(obj, u8"radius", brush.radius);
 						if (array_t stops; json::try_cast_member(obj, u8"gradient_stops", stops)) {
 							_parse_gradient_stop_collection(stops, brush.gradient_stops);
@@ -335,9 +280,7 @@ namespace codepad::ui {
 				} else {
 					logger::get().log_warning(CP_HERE, "invalid brush type");
 				}
-				if (object_t transobj; json::try_cast_member(obj, u8"transform", transobj)) {
-					_parse_transform(transobj, value.transform);
-				}
+				json::object_parsers::try_parse_member(obj, u8"transform", value.transform);
 			} else {
 				auto &brush = value.value.emplace<brushes::solid_color>();
 			}
@@ -360,7 +303,7 @@ namespace codepad::ui {
 				str_view_t op = member.name();
 				if (op == u8"line_to") {
 					auto &part = value.value.emplace<geometries::path::segment>();
-					json_object_parsers::try_parse(member.value(), part.to);
+					json::object_parsers::try_parse(member.value(), part.to);
 				} else if (op == u8"arc") {
 					if (object_t partobj; json::try_cast(member.value(), partobj)) {
 						auto &part = value.value.emplace<geometries::path::arc>();
@@ -369,7 +312,7 @@ namespace codepad::ui {
 						json::try_cast_member(partobj, u8"clockwise", clockwise);
 						json::try_cast_member(partobj, u8"major", major);
 
-						_try_parse_member(partobj, u8"to", part.to);
+						json::object_parsers::try_parse_member(partobj, u8"to", part.to);
 						part.direction = clockwise ? sweep_direction::clockwise : sweep_direction::counter_clockwise;
 						part.type = major ? arc_type::major : arc_type::minor;
 						json::try_cast_member(partobj, u8"radius", part.radius);
@@ -377,9 +320,9 @@ namespace codepad::ui {
 				} else if (op == u8"bezier") {
 					if (object_t partobj; json::try_cast(member.value(), partobj)) {
 						auto &part = value.value.emplace<geometries::path::cubic_bezier>();
-						_try_parse_member(partobj, u8"to", part.to);
-						_try_parse_member(partobj, u8"control1", part.control1);
-						_try_parse_member(partobj, u8"control2", part.control2);
+						json::object_parsers::try_parse_member(partobj, u8"to", part.to);
+						json::object_parsers::try_parse_member(partobj, u8"control1", part.control1);
+						json::object_parsers::try_parse_member(partobj, u8"control2", part.control2);
 					}
 				} else {
 					logger::get().log_warning(CP_HERE, "invalid path part operation name");
@@ -393,25 +336,25 @@ namespace codepad::ui {
 			if (str_view_t type; json::try_cast_member(obj, u8"type", type)) {
 				if (type == u8"rectangle") {
 					auto &geom = value.value.emplace<geometries::rectangle>();
-					_try_parse_member(obj, u8"top_left", geom.top_left);
-					_try_parse_member(obj, u8"bottom_right", geom.bottom_right);
+					json::object_parsers::try_parse_member(obj, u8"top_left", geom.top_left);
+					json::object_parsers::try_parse_member(obj, u8"bottom_right", geom.bottom_right);
 				} else if (type == u8"rounded_rectangle") {
 					auto &geom = value.value.emplace<geometries::rounded_rectangle>();
-					_try_parse_member(obj, u8"top_left", geom.top_left);
-					_try_parse_member(obj, u8"bottom_right", geom.bottom_right);
-					_try_parse_member(obj, u8"radiusx", geom.radiusx);
-					_try_parse_member(obj, u8"radiusy", geom.radiusy);
+					json::object_parsers::try_parse_member(obj, u8"top_left", geom.top_left);
+					json::object_parsers::try_parse_member(obj, u8"bottom_right", geom.bottom_right);
+					json::object_parsers::try_parse_member(obj, u8"radiusx", geom.radiusx);
+					json::object_parsers::try_parse_member(obj, u8"radiusy", geom.radiusy);
 				} else if (type == u8"ellipse") {
 					auto &geom = value.value.emplace<geometries::ellipse>();
-					_try_parse_member(obj, u8"top_left", geom.top_left);
-					_try_parse_member(obj, u8"bottom_right", geom.bottom_right);
+					json::object_parsers::try_parse_member(obj, u8"top_left", geom.top_left);
+					json::object_parsers::try_parse_member(obj, u8"bottom_right", geom.bottom_right);
 				} else if (type == u8"path") {
 					auto &geom = value.value.emplace<geometries::path>();
 					if (array_t paths; json::try_cast_member(obj, u8"subpaths", paths)) {
 						for (auto &&spdef : paths) {
 							geometries::path::subpath &sp = geom.subpaths.emplace_back();
 							if (object_t spobj; json::try_cast(spdef, spobj)) {
-								_try_parse_member(spobj, u8"start", sp.starting_point);
+								json::object_parsers::try_parse_member(spobj, u8"start", sp.starting_point);
 								if (array_t parts; json::try_cast_member(spobj, u8"parts", parts)) {
 									for (auto &&partdef : parts) {
 										if (object_t partobj; json::try_cast(partdef, partobj)) {
@@ -422,7 +365,7 @@ namespace codepad::ui {
 								json::try_cast_member(spobj, u8"closed", sp.closed);
 							} else if (array_t sparr; json::try_cast(spdef, sparr) && sparr.size() >= 2) {
 								auto partit = sparr.begin(), partend = sparr.end() - 1;
-								json_object_parsers::try_parse(*partit, sp.starting_point);
+								json::object_parsers::try_parse(*partit, sp.starting_point);
 								for (++partit; partit != partend; ++partit) {
 									if (object_t partobj; json::try_cast(*partit, partobj)) {
 										_parse_subpath_part(partobj, sp.parts.emplace_back());
@@ -440,9 +383,7 @@ namespace codepad::ui {
 			} else {
 				logger::get().log_warning(CP_HERE, "invalid geometry type");
 			}
-			if (object_t transobj; json::try_cast_member(obj, u8"transform", transobj)) {
-				_parse_transform(transobj, value.transform);
-			}
+			json::object_parsers::try_parse_member(obj, u8"transform", value.transform);
 			if (auto fmem = obj.find_member(u8"fill"); fmem != obj.member_end()) {
 				_parse_brush(fmem.value(), value.fill);
 			}
@@ -559,9 +500,9 @@ namespace codepad::ui {
 				return false;
 			}
 			if (auto gestures = obj.find_member(u8"gestures"); gestures != obj.member_end()) {
-				if (str_view_t g; json::try_cast(gestures.value(), g)) {
+				if (str_view_t gstr; json::try_cast(gestures.value(), gstr)) {
 					key_gesture gestval;
-					if (!parse_hotkey_gesture(gestval, g)) {
+					if (!parse_hotkey_gesture(gestval, gstr)) {
 						return false;
 					}
 					gests.emplace_back(gestval);

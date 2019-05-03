@@ -17,7 +17,7 @@
 namespace codepad::ui {
 	class element;
 	class element_collection;
-	class panel_base;
+	class panel;
 
 	/// Controls the arrangements of composite elements.
 	class class_arrangements {
@@ -33,7 +33,7 @@ namespace codepad::ui {
 			/// necessary. All created elements are added to the given \p std::vector.
 			///
 			/// \sa class_arrangements::construct_children()
-			void construct(element_collection&, panel_base&, notify_mapping&, std::vector<element*>&) const;
+			void construct(element_collection&, panel&, notify_mapping&, std::vector<element*>&) const;
 
 			element_configuration configuration; ///< The full configuration of the child.
 			std::vector<child> children; ///< The child's children, if it's a \ref panel.
@@ -48,17 +48,17 @@ namespace codepad::ui {
 		/// function should typically be called by the composite elements themselves in \ref element::_initialize().
 		///
 		/// \param logparent The composite element itself, which will be set as the logical parent of all children
-		///                  elements. All children elements will be added to \ref panel_base::_children.
+		///                  elements. All children elements will be added to \ref panel::_children.
 		/// \param roles A mapping between roles and notify functions, used by the composite element to properly
 		///              acknowledge and register them. Successfully constructed entries are removed from the list,
 		///              so that elements with duplicate roles can be detected, and the composite element can later
 		///              check what items remain to determine which ones of its children are missing.
-		void construct_children(panel_base &logparent, notify_mapping &roles) const;
-		/// Overload of \ref construct_children(panel_base&, notify_mapping&) const that doesn't require an actual
+		void construct_children(panel &logparent, notify_mapping &roles) const;
+		/// Overload of \ref construct_children(panel&, notify_mapping&) const that doesn't require an actual
 		/// \ref notify_mapping instance. The caller can still check if the corresponding pointers are unchanged to
 		/// determine if those objects are constructed.
 		void construct_children(
-			panel_base &logparent, std::initializer_list<notify_mapping::value_type> args
+			panel &logparent, std::initializer_list<notify_mapping::value_type> args
 		) const {
 			notify_mapping mapping(std::move(args));
 			construct_children(logparent, mapping);

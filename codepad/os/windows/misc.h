@@ -49,7 +49,7 @@ namespace codepad::os {
 				_check_add_ref();
 			}
 			/// Move constructor.
-			com_wrapper(com_wrapper &&src) : _ptr(src._ptr) {
+			com_wrapper(com_wrapper &&src) noexcept : _ptr(src._ptr) {
 				src._ptr = nullptr;
 			}
 			/// Copy assignment.
@@ -58,7 +58,7 @@ namespace codepad::os {
 				return *this;
 			}
 			/// Move assignment.
-			com_wrapper &operator=(com_wrapper &&src) {
+			com_wrapper &operator=(com_wrapper &&src) noexcept {
 				set_give(src._ptr);
 				src._ptr = nullptr;
 				return *this;
@@ -207,6 +207,9 @@ namespace codepad::os {
 		}
 		/// Converts the given null-terminated UTF-8 string to UTF-16 with the \p MultiByteToWideChar function.
 		inline std::basic_string<WCHAR> utf8_to_wstring(std::string_view str) { // TODO use u8string_view
+			if (str.size() == 0) {
+				return L"";
+			}
 			int chars = MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.length()), nullptr, 0);
 			assert_true_sys(chars != 0, "failed to convert utf8 string to utf16");
 			std::basic_string<WCHAR> res;

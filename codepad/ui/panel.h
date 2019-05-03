@@ -14,7 +14,7 @@
 
 namespace codepad::ui {
 	class manager;
-	class panel_base;
+	class panel;
 
 	/// Stores and manages a collection of elements.
 	class element_collection {
@@ -39,7 +39,7 @@ namespace codepad::ui {
 		};
 
 		/// Constructs the collection with the given parent.
-		explicit element_collection(panel_base &b) : _f(b) {
+		explicit element_collection(panel &b) : _f(b) {
 		}
 		/// Destructor. Checks to ensure that the collection has been cleared.
 		~element_collection();
@@ -86,7 +86,7 @@ namespace codepad::ui {
 			/// changed.
 			changed;
 	protected:
-		panel_base & _f; ///< The panel that this collection belongs to.
+		panel & _f; ///< The panel that this collection belongs to.
 		std::list<element*>
 			_children, ///< The list of children.
 			_zorder; ///< Also the list of children, stored in descending order of their Z-index.
@@ -96,7 +96,7 @@ namespace codepad::ui {
 	///
 	/// \remark Before creating classes that derive from this class, read the documentation of
 	///         \ref _on_child_removed first.
-	class panel_base : public element {
+	class panel : public element {
 		friend element;
 		friend element_collection;
 		friend manager;
@@ -143,7 +143,7 @@ namespace codepad::ui {
 		}
 
 
-		/// Returns whether this \ref panel_base is a focus scope.
+		/// Returns whether this \ref panel is a focus scope.
 		bool is_focus_scope() const {
 			return _is_focus_scope;
 		}
@@ -153,8 +153,13 @@ namespace codepad::ui {
 			return _scope_focus;
 		}
 
+		/// Returns all of its children.
+		element_collection &children() {
+			return _children;
+		}
 
-		/// Calculates the layout of an \ref element on a direction (horizontal or vertical) in a \ref panel_base
+
+		/// Calculates the layout of an \ref element on a direction (horizontal or vertical) in a \ref panel
 		/// with the given parameters. If all of \p anchormin, \p pixelsize, and \p anchormax are \p true, all sizes
 		/// are taken into account and the extra space is distributed evenly before and after the element.
 		///
@@ -241,6 +246,11 @@ namespace codepad::ui {
 			layout_child_horizontal(child, client.xmin, client.xmax);
 			layout_child_vertical(child, client.ymin, client.ymax);
 		}
+
+		/// Returns the default class of elements of this type.
+		inline static str_view_t get_default_class() {
+			return u8"panel";
+		}
 	protected:
 		/// Calls \ref manager::invalidate_children_layout() to mark the layout of all children for update.
 		void _invalidate_children_layout();
@@ -300,7 +310,8 @@ namespace codepad::ui {
 		}
 
 		/// Renders all element in ascending order of their z-index.
-		void _custom_render() override {
+		void _custom_render() const override {
+			element::_custom_render();
 			for (auto i = _children.z_ordered().rbegin(); i != _children.z_ordered().rend(); ++i) {
 				(*i)->_on_render();
 			}
@@ -368,7 +379,7 @@ namespace codepad::ui {
 					j->_on_mouse_leave();
 				}
 			}
-			if (mouseover != nullptr) {
+			if (mouseover) {
 				if (!mouseover->is_mouse_over()) { // just moved onto the element
 					mouseover->_on_mouse_enter();
 				}
@@ -379,27 +390,25 @@ namespace codepad::ui {
 		}
 		/// Sends the message to the topmost element that the mouse is over.
 		void _on_mouse_scroll(mouse_scroll_info & p) override {
-			element *mouseover = _hit_test_for_child(p.position);
-			if (mouseover != nullptr) {
+			if (element * mouseover = _hit_test_for_child(p.position)) {
 				mouseover->_on_mouse_scroll(p);
 			}
 			element::_on_mouse_scroll(p);
 		}
 		/// Sends the message to the topmost element that the mouse is over.
 		void _on_mouse_up(mouse_button_info & p) override {
-			element *mouseover = _hit_test_for_child(p.position);
-			if (mouseover != nullptr) {
+			if (element * mouseover = _hit_test_for_child(p.position)) {
 				mouseover->_on_mouse_up(p);
 			}
 			element::_on_mouse_up(p);
 		}
 
+		/// Finds the element with the largest Z-index that is interactive and contains the given point.
+		element *_hit_test_for_child(const mouse_position&);
+
 		/// For each child, removes it from \ref _children, and marks it for disposal if \ref _dispose_children is
 		/// \p true.
 		void _dispose() override;
-
-		/// Finds the element with the largest Z-index that is interactive and contains the given point.
-		element *_hit_test_for_child(vec2d);
 
 		/// Returns \ref element::_parent_data.
 		inline static const std::any &_child_get_parent_data(const element & e) {
@@ -425,7 +434,7 @@ namespace codepad::ui {
 			e._layout = r;
 		}
 		/// Sets the logical parent of a child.
-		inline static void _child_set_logical_parent(element & e, panel_base * logparent) {
+		inline static void _child_set_logical_parent(element & e, panel * logparent) {
 			e._logical_parent = logparent;
 		}
 
@@ -493,19 +502,6 @@ namespace codepad::ui {
 			_is_focus_scope = false; ///< Indicates if this panel is a focus scope (borrowed from WPF).
 	};
 
-	/// A basic panel whose children can be freely accessed.
-	class panel : public panel_base {
-	public:
-		/// Returns all of its children.
-		element_collection &children() {
-			return _children;
-		}
-
-		/// Returns the default class of elements of this type.
-		inline static str_view_t get_default_class() {
-			return CP_STRLIT("panel");
-		}
-	};
 
 	/// Arranges all children sequentially in a given orientation.
 	class stack_panel : public panel {
@@ -551,19 +547,19 @@ namespace codepad::ui {
 		}
 
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel with the given
-		/// orientation and client area. All elements must be children of the given \ref panel_base.
+		/// orientation and client area. All elements must be children of the given \ref panel.
 		/// \ref element::notify_layout_change() is called automatically.
 		template <bool Vertical> inline static void layout_elements_in(
 			rectd client, const std::vector<element*> &elems
 		) {
 			if constexpr (Vertical) {
 				_layout_elements_in_impl<
-					true, &panel_base::layout_child_horizontal,
+					true, &panel::layout_child_horizontal,
 					&rectd::ymin, &rectd::ymax, &rectd::xmin, &rectd::xmax
 				>(client, elems);
 			} else {
 				_layout_elements_in_impl<
-					false, &panel_base::layout_child_vertical,
+					false, &panel::layout_child_vertical,
 					&rectd::xmin, &rectd::xmax, &rectd::ymin, &rectd::ymax
 				>(client, elems);
 			}
@@ -643,8 +639,8 @@ namespace codepad::ui {
 					(info.size.is_pixels ? total_px : total_prop) += info.size.value;
 					(info.margin_max.is_pixels ? total_px : total_prop) += info.margin_max.value;
 					layoutinfo.emplace_back(info);
-				} else { // not accounted for; behave as panel_base
-					panel_base::layout_child(*e, client);
+				} else { // not accounted for; behave as panel
+					panel::layout_child(*e, client);
 				}
 			}
 			// distribute the remaining space
@@ -707,9 +703,9 @@ namespace codepad::ui {
 		}
 
 		/// Handles the orientation attribute.
-		void _set_attribute(str_view_t name, const json::value_storage &value) override {
+		void _set_attribute(str_view_t name, const json::value_storage & value) override {
 			if (name == u8"orientation") {
-				if (orientation o; json_object_parsers::try_parse(value.get_value(), o)) {
+				if (orientation o; json::object_parsers::try_parse(value.get_value(), o)) {
 					set_orientation(o);
 				}
 				return;

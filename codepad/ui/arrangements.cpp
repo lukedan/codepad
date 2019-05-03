@@ -14,7 +14,7 @@ using namespace std;
 
 namespace codepad::ui {
 	void class_arrangements::child::construct(
-		element_collection &col, panel_base &logparent, notify_mapping &roles, vector<element*> &construction_notify
+		element_collection &col, panel &logparent, notify_mapping &roles, vector<element*> &construction_notify
 	) const {
 		element *e = logparent.get_manager().create_element_custom(type, element_class, configuration);
 		e->_logical_parent = &logparent;
@@ -42,7 +42,7 @@ namespace codepad::ui {
 	}
 
 
-	void class_arrangements::construct_children(panel_base &logparent, notify_mapping &roles) const {
+	void class_arrangements::construct_children(panel &logparent, notify_mapping &roles) const {
 		vector<element*> newelems;
 		for (const child &c : children) {
 			c.construct(logparent._children, logparent, roles, newelems);

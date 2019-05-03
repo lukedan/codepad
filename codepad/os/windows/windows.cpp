@@ -134,12 +134,12 @@ namespace codepad::os {
 	}
 
 	template <typename Inf, typename ...Args> inline void _form_onevent(
-		window &w, void (window::*handle)(Inf&), Args &&...args
+		window & w, void (window:: * handle)(Inf&), Args && ...args
 	) {
 		Inf inf(forward<Args>(args)...);
 		(w.*handle)(inf);
 	}
-	LRESULT CALLBACK _wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+	LRESULT CALLBACK window::_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		auto *form = window::_get_associated_window(hwnd);
 		if (form) {
 			switch (msg) {
@@ -171,14 +171,14 @@ namespace codepad::os {
 			}
 
 			case WM_SYSKEYDOWN:
-				[[fallthrough]]; // same processing
+				[[fallthrough]] ; // same processing
 			case WM_KEYDOWN:
 				_form_onevent<ui::key_info>(
 					*form, &window::_on_key_down, _details::_key_id_backmapping.v[wparam]
 					);
 				break;
 			case WM_SYSKEYUP:
-				[[fallthrough]];
+				[[fallthrough]] ;
 			case WM_KEYUP:
 				_form_onevent<ui::key_info>(
 					*form, &window::_on_key_up, _details::_key_id_backmapping.v[wparam]
@@ -229,7 +229,8 @@ namespace codepad::os {
 				winapi_check(ScreenToClient(form->_hwnd, &p));
 				_form_onevent<ui::mouse_scroll_info>(
 					*form, &window::_on_mouse_scroll,
-					vec2d(0.0, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)), vec2d(p.x, p.y)
+					vec2d(0.0, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)),
+					form->_update_mouse_position(vec2d(p.x, p.y))
 					);
 				return 0;
 			}
@@ -241,7 +242,8 @@ namespace codepad::os {
 				winapi_check(ScreenToClient(form->_hwnd, &p));
 				_form_onevent<ui::mouse_scroll_info>(
 					*form, &window::_on_mouse_scroll,
-					vec2d(GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), 0.0), vec2d(p.x, p.y)
+					vec2d(GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), 0.0),
+					form->_update_mouse_position(vec2d(p.x, p.y))
 					);
 				return 0;
 			}
@@ -251,7 +253,8 @@ namespace codepad::os {
 					form->_on_mouse_enter();
 				}
 				_form_onevent<ui::mouse_move_info>(
-					*form, &window::_on_mouse_move, vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					*form, &window::_on_mouse_move,
+					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					);
 				return 0;
 			case WM_MOUSELEAVE:
@@ -262,42 +265,42 @@ namespace codepad::os {
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_down,
 					mouse_button::primary, _get_modifiers(),
-					vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					);
 				return 0;
 			case WM_LBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_up,
 					mouse_button::primary, _get_modifiers(),
-					vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					);
 				return 0;
 			case WM_RBUTTONDOWN:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_down,
 					mouse_button::secondary, _get_modifiers(),
-					vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					);
 				return 0;
 			case WM_RBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_up,
 					mouse_button::secondary, _get_modifiers(),
-					vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					);
 				return 0;
 			case WM_MBUTTONDOWN:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_down,
 					mouse_button::tertiary, _get_modifiers(),
-					vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					);
 				return 0;
 			case WM_MBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_up,
 					mouse_button::tertiary, _get_modifiers(),
-					vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					);
 				return 0;
 
@@ -393,14 +396,14 @@ namespace codepad::os {
 #define CP_USE_LEGACY_OPEN_FILE_DIALOG // new open file dialog doesn't work right now
 
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
-	vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
+	vector<filesystem::path> open_file_dialog(const window_base * parent, file_dialog_type type) {
 		const size_t file_buffer_size = 1000;
 
 #	ifdef CP_CHECK_LOGICAL_ERRORS
 		auto *wnd = dynamic_cast<const window*>(parent);
 		assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
 #	else
-		const window *wnd = static_cast<const window*>(parent);
+		const window * wnd = static_cast<const window*>(parent);
 #	endif
 		OPENFILENAME ofn;
 		TCHAR file[file_buffer_size];
@@ -513,18 +516,18 @@ namespace codepad::os {
 		com_check(pDialogEventHandler->QueryInterface(riid, ppv));
 		pDialogEventHandler->Release();
 	}
-	vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
+	vector<filesystem::path> open_file_dialog(const window_base * parent, file_dialog_type type) {
 		const COMDLG_FILTERSPEC file_types = {L"All files", L"*.*"};
 
 #	ifdef CP_CHECK_LOGICAL_ERRORS
 		const window *wnd = dynamic_cast<const window*>(parent);
 		assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
 #	else
-		const window *wnd = static_cast<const window*>(parent);
+		const window * wnd = static_cast<const window*>(parent);
 #	endif
 		_details::com_usage uses_com;
-		IFileOpenDialog *dialog = nullptr;
-		IFileDialogEvents *devents = nullptr;
+		IFileOpenDialog * dialog = nullptr;
+		IFileDialogEvents * devents = nullptr;
 		DWORD cookie, options;
 		com_check(CoCreateInstance(
 			CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)

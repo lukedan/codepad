@@ -47,7 +47,7 @@ namespace codepad::editors {
 	/// \todo Currently many components, including contents regions, are not designed to be able to be moved between
 	///       different editors, mainly because they do not unbind from events they listen to when they're disposed
 	///       of. If no such uses are desired then users must take caution, otherwise this needs to be fixed.
-	class editor : public ui::panel_base {
+	class editor : public ui::panel {
 	public:
 		/// Sets the vertical position of this \ref editor.
 		void set_vertical_position(double p) {
@@ -138,7 +138,7 @@ namespace codepad::editors {
 
 		/// Initializes \ref hori_scroll, \ref _vert_scroll and \ref _contents.
 		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
-			panel_base::_initialize(cls, config);
+			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_vertical_scrollbar_role(), _role_cast(_vert_scroll)},

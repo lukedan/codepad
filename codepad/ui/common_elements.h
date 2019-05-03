@@ -15,131 +15,66 @@
 #include "../core/encodings.h"
 
 namespace codepad::ui {
-	/// Used to display text in \ref element "elements".
-	///
-	/// \todo Need a more elegent way to notify the parent of layout & visual changes.
-	class content_host {
-	public:
-		/// Constructor, binds the object to an \ref element.
-		content_host(element &p) : _parent(p) {
+	/// The parameters used to identify a font.
+	struct font_parameters {
+		/// Default constructor.
+		font_parameters() = default;
+		/// Initializes all fields of this struct.
+		font_parameters(
+			str_t f, double sz, font_style st = font_style::normal,
+			font_weight w = font_weight::normal, font_stretch width = font_stretch::normal
+		) : family(std::move(f)), size(sz), style(st), weight(w), stretch(width) {
 		}
 
-		/// Sets the text to display.
-		void set_text(str_t s) {
-			_text = std::move(s);
-			_on_text_size_changed();
-		}
-		/// Gets the text that's displayed.
-		const str_t &get_text() const {
-			return _text;
-		}
-
-		/*
-		/// Sets the font used to display text.
-		void set_font(std::shared_ptr<const font> fnt) {
-			_fnt = std::move(fnt);
-			_on_text_size_changed();
-		}
-		/// Returns the custom font set by the user. Note that \p nullptr is returned if no font is set, while the
-		/// default font is used to display text.
-		const std::shared_ptr<const font> &get_font() const {
-			return _fnt;
-		}
-		*/
-
-		/// Sets the color used to display text.
-		void set_color(colord c) {
-			_clr = c;
-			_parent.invalidate_visual();
-		}
-		/// Gets the current color used to display text.
-		colord get_color() const {
-			return _clr;
-		}
-
-		/// Sets the offset of the text. The offset is relative to the size of the parent control,
-		/// so (0.5, 0.5) puts the text to the center while (1.0, 0.0) puts the text to the top-right corner.
-		/// If both dimensions are in range [0, 1] then the text will be fully contained by the
-		/// parent control's client region, and vice versa.
-		///
-		/// \sa element::get_client_region()
-		void set_text_offset(vec2d o) {
-			_offset = o;
-			_parent.invalidate_visual();
-		}
-		/// Returns the offset of the text.
-		vec2d get_text_offset() const {
-			return _offset;
-		}
-
-		/// Returns the size of the text, measuring it if necessary.
-		virtual vec2d get_text_size() const {
-			/*
-			if (!_size_cache.has_value()) {
-				auto &&f = _fnt ? _fnt : _parent.get_manager().get_default_ui_font();
-				_size_cache = text_renderer::measure_plain_text(_text, f);
-			}
-			return _size_cache.value();
-			*/
-			return vec2d();
-		}
-		/// Returns the position of the top-left corner of the displayed text,
-		/// relative to the window's client area.
-		vec2d get_text_position() const {
-			/*
-			rectd inner = _parent.get_client_region();
-			vec2d spare = inner.size() - get_text_size();
-			return inner.xmin_ymin() + vec2d(spare.x * _offset.x, spare.y * _offset.y);
-			*/
-			return vec2d();
-		}
-
-		/// Renders the text.
-		void render() const {
-			/*
-			auto &&f = _fnt ? _fnt : _parent.get_manager().get_default_ui_font();
-			if (f) {
-				text_renderer::render_plain_text(_text, *f, get_text_position(), _clr);
-			}
-			*/
-		}
-
-		info_event<> text_size_changed; ///< Invoked when the size of the text has changed.
-	protected:
-		mutable std::optional<vec2d> _size_cache; ///< Measured size of the current text, using the current font.
-		str_t _text; ///< The text to display.
-		/*std::shared_ptr<const font> _fnt; ///< The custom font.*/
-		colord _clr; ///< The color used to display the text.
-		vec2d _offset; ///< The offset of the text.
-		element &_parent; ///< The \ref element that this belongs to.
-
-		/// Called when the size of the text has potentially changed. Resets \ref _size_cache and invokes
-		/// \ref text_size_changed.
-		void _on_text_size_changed() {
-			_size_cache.reset();
-			text_size_changed.invoke();
-		}
+		str_t family; ///< The font family.
+		double size = 10.0; ///< The font size.
+		font_style style = font_style::normal; ///< The font style.
+		font_weight weight = font_weight::normal; ///< The font weight.
+		font_stretch stretch = font_stretch::normal; ///< The stretch of the font.
 	};
 
 	/// A label that displays plain text. Non-focusable by default.
 	class label : public element {
 	public:
-		/// Returns the underlying \ref content_host.
-		content_host &content() {
-			return _content;
-		}
-		/// Const version of content().
-		const content_host &content() const {
-			return _content;
-		}
-
 		/// Returns the combined width of the text and the padding in pixels.
 		size_allocation get_desired_width() const override {
-			return size_allocation(_content.get_text_size().x + get_padding().width(), true);
+			_check_cache_format();
+			return size_allocation(_cached_fmt->get_layout().width(), true);
 		}
 		/// Returns the combined height of the text and the padding in pixels.
 		size_allocation get_desired_height() const override {
-			return size_allocation(_content.get_text_size().y + get_padding().height(), true);
+			_check_cache_format();
+			return size_allocation(_cached_fmt->get_layout().height(), true);
+		}
+
+		/// Returns the text.
+		const str_t get_text() const {
+			return _text;
+		}
+		/// Sets the text.
+		void set_text(str_t t) {
+			_text = std::move(t);
+			_on_text_layout_changed();
+		}
+
+		/// Returns the brush.
+		const generic_brush &get_brush() const {
+			return _text_brush;
+		}
+		/// Sets the brush.
+		void set_brush(generic_brush b) {
+			_text_brush = std::move(b);
+			invalidate_visual();
+		}
+
+		/// Returns the font parameters.
+		const font_parameters get_font_parameters() const {
+			return _font;
+		}
+		/// Sets the font parameters.
+		void set_font_parameters(font_parameters params) {
+			_font = std::move(params);
+			_on_text_layout_changed();
 		}
 
 		/// Returns the default class of elements of this type.
@@ -147,25 +82,50 @@ namespace codepad::ui {
 			return CP_STRLIT("label");
 		}
 	protected:
+		str_t _text; ///< The text.
+		generic_brush _text_brush; ///< The brush.
+		font_parameters _font; ///< The font.
+		mutable std::unique_ptr<formatted_text> _cached_fmt; ///< The cached formatted text.
+
+		/// Calls \ref _check_cache_format().
+		void _on_prerender() override {
+			element::_on_prerender();
+			_check_cache_format();
+		}
 		/// Renders the text.
-		void _custom_render() override {
-			_content.render();
+		void _custom_render() const override {
+			element::_custom_render();
+
+			rectd client = get_client_region();
+			generic_brush_parameters brush = _text_brush.get_parameters(client.size());
+			brush.transform *= matd3x3::translate(client.xmin_ymin() - get_layout().xmin_ymin());
+			get_manager().get_renderer().draw_formatted_text(
+				*_cached_fmt, client.xmin_ymin(), brush
+			);
 		}
 
-		/// Initializes the element.
-		void _initialize(str_view_t cls, const element_configuration &config) override {
-			element::_initialize(cls, config);
-
-			_content.text_size_changed += [this]() {
-				_on_desired_size_changed(true, true);
-			};
+		/// Ensures that \ref _cached_fmt is valid.
+		void _check_cache_format() const {
+			if (!_cached_fmt) {
+				rectd client = get_client_region();
+				auto fmt = get_manager().get_renderer().create_text_format(
+					_font.family, _font.size, _font.style, _font.weight, _font.stretch
+				);
+				_cached_fmt = get_manager().get_renderer().format_text(
+					get_text(), *fmt, client.size(), wrapping_mode::none,
+					horizontal_text_alignment::front, vertical_text_alignment::top
+				);
+			}
 		}
-
-		content_host _content{*this}; ///< Manages the contents to display.
+		/// Called when the layout of the text has potentially changed.
+		virtual void _on_text_layout_changed() {
+			_cached_fmt.reset();
+			_on_desired_size_changed(true, true);
+		}
 	};
 
 	/// Base class of button-like elements, that provides all interfaces only internally.
-	class button_base : public element {
+	class button : public panel {
 	public:
 		/// Indicates when the click event is triggered.
 		enum class trigger_type {
@@ -173,76 +133,6 @@ namespace codepad::ui {
 			mouse_up ///< The event is triggered after the user presses then releases the button.
 		};
 
-		/// Returns the default class of elements of this type.
-		inline static str_view_t get_default_class() {
-			return CP_STRLIT("button_base");
-		}
-	protected:
-		bool
-			_trigbtn_down = false, ///< Indicates whether the trigger button is currently down.
-			/// If \p true, the user will be able to cancel the click after pressing the trigger button,
-			/// by moving the cursor out of the button and releasing the trigger button,
-			/// when trigger type is set to trigger_type::mouse_up.
-			_allow_cancel = true;
-		trigger_type _trigtype = trigger_type::mouse_up; ///< The trigger type of this button.
-		/// The mouse button that triggers the button.
-		mouse_button _trigbtn = mouse_button::primary;
-
-		/// Checks for clicks.
-		void _on_mouse_down(mouse_button_info &p) override {
-			_on_update_mouse_pos(p.position);
-			if (p.button == _trigbtn) {
-				_trigbtn_down = true;
-				get_window()->set_mouse_capture(*this); // capture the mouse
-				if (_trigtype == trigger_type::mouse_down) {
-					_on_click();
-				}
-			}
-			element::_on_mouse_down(p);
-		}
-		/// Calls _on_trigger_button_up().
-		void _on_capture_lost() override {
-			_trigbtn_down = false;
-			element::_on_capture_lost();
-		}
-		/// Checks if this is a valid click.
-		void _on_mouse_up(mouse_button_info &p) override {
-			_on_update_mouse_pos(p.position);
-			if (_trigbtn_down && p.button == _trigbtn) {
-				_trigbtn_down = false;
-				get_window()->release_mouse_capture();
-				if (is_mouse_over() && _trigtype == trigger_type::mouse_up) {
-					_on_click();
-				}
-			}
-			element::_on_mouse_up(p);
-		}
-		/// Called when the mouse position need to be updated. If \ref _allow_cancel is \p true, checks if the mouse
-		/// is still over the element, and invokes \ref _on_mouse_enter() or \ref _on_mouse_leave() accordingly.
-		void _on_update_mouse_pos(vec2d pos) {
-			if (_allow_cancel) {
-				bool over = hit_test(pos);
-				if (over != is_mouse_over()) {
-					if (over) {
-						_on_mouse_enter();
-					} else {
-						_on_mouse_leave();
-					}
-				}
-			}
-		}
-		/// Updates the mouse position.
-		void _on_mouse_move(mouse_move_info &p) override {
-			_on_update_mouse_pos(p.new_position);
-			element::_on_mouse_move(p);
-		}
-
-		/// Callback that is called when the user clicks the button.
-		virtual void _on_click() = 0;
-	};
-	/// Simple implementation of a button.
-	class button : public button_base {
-	public:
 		/// Returns \p true if the button is currently pressed.
 		bool is_trigger_button_pressed() const {
 			return _trigbtn_down;
@@ -258,8 +148,6 @@ namespace codepad::ui {
 		}
 
 		/// Sets when the button click is triggered.
-		///
-		/// \sa button_base::trigger_type
 		void set_trigger_type(trigger_type t) {
 			_trigtype = t;
 		}
@@ -284,15 +172,79 @@ namespace codepad::ui {
 			return CP_STRLIT("button");
 		}
 	protected:
-		/// Invokes \ref click.
-		void _on_click() override {
+		bool
+			_trigbtn_down = false, ///< Indicates whether the trigger button is currently down.
+			/// If \p true, the user will be able to cancel the click after pressing the trigger button,
+			/// by moving the cursor out of the button and releasing the trigger button,
+			/// if  \ref _trigtype is set to trigger_type::mouse_up.
+			_allow_cancel = true;
+		trigger_type _trigtype = trigger_type::mouse_up; ///< The trigger type of this button.
+		/// The mouse button that triggers the button.
+		mouse_button _trigbtn = mouse_button::primary;
+
+		/// Checks for clicks.
+		void _on_mouse_down(mouse_button_info &p) override {
+			_on_update_mouse_pos(p.position.get(*this));
+			if (_hit_test_for_child(p.position) == nullptr) {
+				if (p.button == _trigbtn) {
+					_trigbtn_down = true;
+					get_window()->set_mouse_capture(*this); // capture the mouse
+					if (_trigtype == trigger_type::mouse_down) {
+						_on_click();
+					}
+				}
+			}
+			panel::_on_mouse_down(p);
+		}
+		/// Calls _on_trigger_button_up().
+		void _on_capture_lost() override {
+			_trigbtn_down = false;
+			panel::_on_capture_lost();
+		}
+		/// Checks if this is a valid click.
+		void _on_mouse_up(mouse_button_info &p) override {
+			_on_update_mouse_pos(p.position.get(*this));
+			if (
+				_trigbtn_down && p.button == _trigbtn &&
+				_hit_test_for_child(p.position) == nullptr
+				) {
+				_trigbtn_down = false;
+				get_window()->release_mouse_capture();
+				if (is_mouse_over() && _trigtype == trigger_type::mouse_up) {
+					_on_click();
+				}
+			}
+			panel::_on_mouse_up(p);
+		}
+		/// Called when the mouse position need to be updated. If \ref _allow_cancel is \p true, checks if the mouse
+		/// is still over the element, and invokes \ref _on_mouse_enter() or \ref _on_mouse_leave() accordingly.
+		void _on_update_mouse_pos(vec2d pos) {
+			if (_allow_cancel) {
+				bool over = hit_test(pos);
+				if (over != is_mouse_over()) {
+					if (over) {
+						_on_mouse_enter();
+					} else {
+						_on_mouse_leave();
+					}
+				}
+			}
+		}
+		/// Updates the mouse position.
+		void _on_mouse_move(mouse_move_info &p) override {
+			_on_update_mouse_pos(p.new_position.get(*this));
+			element::_on_mouse_move(p);
+		}
+
+		/// Callback that is called when the user clicks the button. Invokes \ref click by default.
+		virtual void _on_click() {
 			click.invoke();
 		}
 	};
 
 	class scrollbar;
 	/// The draggable button of a \ref scrollbar.
-	class scrollbar_drag_button : public button_base {
+	class scrollbar_drag_button : public button {
 	public:
 		/// Returns the minimum length of this button.
 		double get_minimum_length() const {
@@ -316,14 +268,6 @@ namespace codepad::ui {
 		/// Returns the \ref scrollbar that this button belongs to.
 		scrollbar &_get_bar() const;
 
-		/// Initializes the element.
-		void _initialize(str_view_t cls, const element_configuration &config) override {
-			button_base::_initialize(cls, config);
-
-			_trigtype = trigger_type::mouse_down;
-			_allow_cancel = false;
-		}
-
 		/// Overridden so that instances this element can be created.
 		void _on_click() override {
 		}
@@ -334,7 +278,7 @@ namespace codepad::ui {
 		void _on_mouse_move(mouse_move_info&) override;
 	};
 	/// A scroll bar.
-	class scrollbar : public panel_base {
+	class scrollbar : public panel {
 		friend scrollbar_drag_button;
 	public:
 		/// The default thickness of scrollbars.
@@ -469,16 +413,16 @@ namespace codepad::ui {
 				mid2 = mid1 + ratio * _visible_range;
 			}
 			if (get_orientation() == orientation::vertical) {
-				panel_base::layout_child_horizontal(*_drag, cln.xmin, cln.xmax);
-				panel_base::layout_child_horizontal(*_pgup, cln.xmin, cln.xmax);
-				panel_base::layout_child_horizontal(*_pgdn, cln.xmin, cln.xmax);
+				panel::layout_child_horizontal(*_drag, cln.xmin, cln.xmax);
+				panel::layout_child_horizontal(*_pgup, cln.xmin, cln.xmax);
+				panel::layout_child_horizontal(*_pgdn, cln.xmin, cln.xmax);
 				_child_set_vertical_layout(*_drag, mid1, mid2);
 				_child_set_vertical_layout(*_pgup, min, mid1);
 				_child_set_vertical_layout(*_pgdn, mid2, max);
 			} else {
-				panel_base::layout_child_vertical(*_drag, cln.ymin, cln.ymax);
-				panel_base::layout_child_vertical(*_pgup, cln.ymin, cln.ymax);
-				panel_base::layout_child_vertical(*_pgdn, cln.ymin, cln.ymax);
+				panel::layout_child_vertical(*_drag, cln.ymin, cln.ymax);
+				panel::layout_child_vertical(*_pgup, cln.ymin, cln.ymax);
+				panel::layout_child_vertical(*_pgdn, cln.ymin, cln.ymax);
 				_child_set_horizontal_layout(*_drag, mid1, mid2);
 				_child_set_horizontal_layout(*_pgup, min, mid1);
 				_child_set_horizontal_layout(*_pgdn, mid2, max);
@@ -486,21 +430,19 @@ namespace codepad::ui {
 		}
 		/// Called when \ref _drag is being dragged by the user. Calculate the new value of this \ref scrollbar.
 		///
-		/// \param newmin The new top or left boundary of \ref _drag.
+		/// \param newmin The new top or left boundary of \ref _drag relative to this element.
 		virtual void _on_drag_button_moved(double newmin) {
-			double min, range, draglen;
+			double range, draglen;
 			rectd client = get_client_region();
 			if (get_orientation() == orientation::vertical) {
-				min = client.ymin;
 				range = client.height();
 				draglen = _drag->get_layout().height();
 			} else {
-				min = client.xmin;
 				range = client.width();
 				draglen = _drag->get_layout().width();
 			}
 			double
-				diff = newmin - min,
+				diff = newmin,
 				totsz = range;
 			if (_drag_button_extended) {
 				set_value((get_total_range() - get_visible_range()) * diff / (totsz - draglen));
@@ -512,17 +454,17 @@ namespace codepad::ui {
 		/// Sets the orientation of this element if requested.
 		void _set_attribute(str_view_t name, const json::value_storage & value) override {
 			if (name == u8"orientation") {
-				if (orientation o; json_object_parsers::try_parse(value.get_value(), o)) {
+				if (orientation o; json::object_parsers::try_parse(value.get_value(), o)) {
 					set_orientation(o);
 				}
 				return;
 			}
-			panel_base::_set_attribute(name, value);
+			panel::_set_attribute(name, value);
 		}
 
 		/// Initializes the three buttons and adds them as children.
 		void _initialize(str_view_t cls, const element_configuration & config) override {
-			panel_base::_initialize(cls, config);
+			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(
 				*this, {
@@ -531,12 +473,12 @@ namespace codepad::ui {
 				{get_page_down_button_role(), _role_cast(_pgdn)}
 				});
 
-			_pgup->set_trigger_type(button_base::trigger_type::mouse_down);
+			_pgup->set_trigger_type(button::trigger_type::mouse_down);
 			_pgup->click += [this]() {
 				set_value(get_value() - get_visible_range());
 			};
 
-			_pgdn->set_trigger_type(button_base::trigger_type::mouse_down);
+			_pgdn->set_trigger_type(button::trigger_type::mouse_down);
 			_pgdn->click += [this]() {
 				set_value(get_value() + get_visible_range());
 			};

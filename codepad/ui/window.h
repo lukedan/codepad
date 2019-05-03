@@ -17,6 +17,8 @@
 #include "element_classes.h"
 
 namespace codepad::ui {
+	class scheduler;
+
 	/// Contains information about the resizing of windows.
 	struct size_changed_info {
 		/// Initializes the struct with the given new size.
@@ -27,6 +29,7 @@ namespace codepad::ui {
 	/// Base class of all windows. Defines basic interfaces that all windows should implement. Note that
 	/// \ref show_and_activate() needs to be called manually after its construction for this window to be displayed.
 	class window_base : public panel {
+		friend scheduler;
 		friend element_collection;
 		friend renderer_base;
 		friend decoration;
@@ -140,13 +143,19 @@ namespace codepad::ui {
 		std::list<decoration*> _decos;
 		element *_capture = nullptr; ///< The element that captures the mouse.
 
+		/// Updates \ref _cached_mouse_position and \ref _cached_mouse_position_timestamp, and returns a
+		/// corresponding \ref mouse_position object.
+		mouse_position _update_mouse_position(vec2d pos) {
+			_cached_mouse_position = pos;
+			++_cached_mouse_position_timestamp;
+			return mouse_position(_cached_mouse_position_timestamp);
+		}
+
 		/// Calls renderer_base::begin to start rendering to this window.
-		void _on_prerender() override;
+		void _on_render() override;
 		/// Renders all the window's children, then renders all decorations on top of the rendered result. Also
 		/// removes all corpse decorations whose animations have finished.
-		void _custom_render() override;
-		/// Calls renderer_base::end to finish rendering to this window.
-		void _on_postrender() override;
+		void _custom_render() const override;
 
 		/// Called when the user clicks the `close' button.
 		virtual void _on_close_request() {

@@ -7,6 +7,7 @@
 /// Implementation of elements, the basic component of the user interface.
 
 #include <list>
+#include <stack>
 #include <any>
 
 #include "../apigen_definitions.h"
@@ -21,30 +22,47 @@
 #include "renderer.h"
 
 namespace codepad::ui {
-	class panel_base;
+	class panel;
 	class manager;
 	class scheduler;
+	class window_base;
+
+	/// Used to transform mouse position between the coordinate systems of a hierarchy of elements.
+	struct mouse_position {
+		friend window_base;
+	public:
+		/// Returns the mouse position relative to the specified \ref element.
+		vec2d get(element&) const;
+	protected:
+		size_t _timestamp = 0; ///< The timestamp of the corresponding mouse event.
+
+		/// Initializes \ref _timestamp.
+		explicit mouse_position(size_t ts) : _timestamp(ts) {
+		}
+	};
 
 	/// Contains information about mouse movement.
 	struct mouse_move_info {
 	public:
 		/// Constructor.
-		explicit mouse_move_info(vec2d p) : new_position(p) {
+		explicit mouse_move_info(mouse_position m) : new_position(m) {
 		}
+
 		/// The position that the mouse has moved to, relative to the top-left corner of the window's client area.
-		const vec2d new_position;
+		const mouse_position new_position;
 	};
 	/// Contains information about mouse scrolling.
 	struct mouse_scroll_info {
 	public:
 		/// Constructor.
-		mouse_scroll_info(vec2d d, vec2d pos) : delta(d), position(pos) {
+		mouse_scroll_info(vec2d d, mouse_position pos) : delta(d), position(pos) {
 		}
-		const vec2d
-			delta, ///< The offset of the mouse scroll.
-			/// The position of the mouse when the scroll took place, relative to the top-left corner of the window's
-			/// client area.
-			position;
+
+		const vec2d delta; ///< The offset of the mouse scroll.
+		/// The position of the mouse when the scroll took place, relative to the top-left corner of the window's
+		/// client area.
+		const mouse_position position;
+
 		/// Returns \p true if the scroll has been handled by an element.
 		bool handled() const {
 			return _handled;
@@ -61,12 +79,14 @@ namespace codepad::ui {
 	struct mouse_button_info {
 	public:
 		/// Constructor.
-		mouse_button_info(mouse_button mb, modifier_keys mods, vec2d pos) :
+		mouse_button_info(mouse_button mb, modifier_keys mods, mouse_position pos) :
 			button(mb), modifiers(mods), position(pos) {
 		}
+
 		const mouse_button button; ///< The mouse button that the user has pressed.
 		const modifier_keys modifiers; ///< The modifiers that are pressed.
-		const vec2d position; ///< The position of the mouse when the event took place.
+		const mouse_position position; ///< The position of the mouse when the event took place.
+
 		/// Returns \p true if the click has caused the focused element to change.
 		bool focus_set() const {
 			return _focus_set;
@@ -121,19 +141,20 @@ namespace codepad::ui {
 		friend class window_base;
 		friend manager;
 		friend scheduler;
-		friend panel_base;
+		friend panel;
 		friend class_arrangements;
+		friend mouse_position;
 		friend animation_path::builder::getter_components::element_parameters_getter_component;
 	public:
 		/// Default virtual destrucor.
 		virtual ~element() = default;
 
 		/// Returns the parent element.
-		panel_base *parent() const {
+		panel *parent() const {
 			return _parent;
 		}
 		/// Returns the element's logical parent.
-		panel_base *logical_parent() const {
+		panel *logical_parent() const {
 			return _logical_parent;
 		}
 
@@ -215,7 +236,7 @@ namespace codepad::ui {
 		/// Used to test if a given point lies in the element.
 		/// Derived classes can override this function to create elements with more complex shapes.
 		virtual bool hit_test(vec2d p) const {
-			return _layout.contains(p);
+			return p.x > 0.0 && p.x < _layout.width() && p.y > 0.0 && p.y < _layout.height();
 		}
 
 
@@ -309,14 +330,19 @@ namespace codepad::ui {
 	private:
 		element_parameters _params; ///< The parameters of this element.
 		const class_hotkey_group *_hotkeys = nullptr; ///< The hotkey group of this element.
-		panel_base
+		int _zindex = zindex::normal; ///< The z-index of the element.
+
+		panel
 			*_parent = nullptr, ///< Pointer to the element's parent.
 			/// The element's logical parent. In composite elements this points to the top level composite element.
 			/// Composite elements that allow users to dynamically add children may also use this to indicate the
 			/// actual element that handles their logic.
 			*_logical_parent = nullptr;
-		int _zindex = zindex::normal; ///< The z-index of the element.
 		std::any _parent_data; ///< Data generated and used by the parent.
+
+		vec2d _cached_mouse_position; ///< Cached mouse position relative to this elemnt.
+		/// The timestamp used to check if \ref _cached_mouse_position is valid.
+		size_t _cached_mouse_position_timestamp = 0;
 		bool _mouse_over = false; ///< Indicates if the mouse is hoverihg this element.
 	protected:
 		rectd _layout; ///< The absolute layout of the element in the window.
@@ -387,12 +413,12 @@ namespace codepad::ui {
 		virtual void _on_composition_finished() {
 		}
 
-		/// Called after the element is added to a \ref panel_base. This method is invoked after
-		/// \ref panel_base::_on_child_added() and \ref element_collection::changed.
+		/// Called after the element is added to a \ref panel. This method is invoked after
+		/// \ref panel::_on_child_added() and \ref element_collection::changed.
 		virtual void _on_added_to_parent() {
 		}
-		/// Called when the element is about to be removed from a \ref panel_base. This method is invoked before
-		/// \ref panel_base::_on_child_removing() and \ref element_collection::changing.
+		/// Called when the element is about to be removed from a \ref panel. This method is invoked before
+		/// \ref panel::_on_child_removing() and \ref element_collection::changing.
 		virtual void _on_removing_from_parent() {
 		}
 
@@ -425,10 +451,9 @@ namespace codepad::ui {
 		/// Called when the element is about to be rendered.
 		/// Pushes a clip that prevents anything to be drawn outside of its layout.
 		virtual void _on_prerender();
-		/// Called when the element is rendered.
+		/// Called when the element is rendered. Renders all visual geometries.
 		/// Derived classes should override this function to perform custom rendering.
-		virtual void _custom_render() {
-		}
+		virtual void _custom_render() const;
 		/// Called after the element has been rendered. Pops the clip pushed in \ref _on_prerender.
 		virtual void _on_postrender();
 		/// Renders the element if the element does not have \ref manager::predefined_states::render_invisible state.
@@ -444,7 +469,7 @@ namespace codepad::ui {
 		void _on_desired_size_changed(bool width, bool height);
 		/// Called by \ref manager when the layout has changed. Calls \ref invalidate_visual. Derived classes can
 		/// override this to update layout-dependent properties. For panels, override
-		/// \ref panel_base::_on_update_children_layout() instead when re-calculating the layout of its children.
+		/// \ref panel::_on_update_children_layout() instead when re-calculating the layout of its children.
 		virtual void _on_layout_changed() {
 			if (
 				std::isnan(get_layout().xmin) || std::isnan(get_layout().xmax) ||
@@ -486,7 +511,14 @@ namespace codepad::ui {
 		}
 
 		/// Sets a custom attribute for this element.
-		virtual void _set_attribute(str_view_t name, const json::value_storage &v) {
+		virtual void _set_attribute(str_view_t name, const json::value_storage & v) {
+			if (name == u8"z_index") {
+				std::int32_t z;
+				if (json::try_cast(v.get_value(), z)) {
+					set_zindex(z);
+				}
+				return;
+			}
 		}
 
 		/// Called immediately after the element is created to initialize it. Initializes \ref _config with the given

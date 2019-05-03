@@ -34,7 +34,7 @@ namespace codepad::ui::tabs {
 	};
 
 	/// Used to select the destimation of a \ref tab that's being dragged.
-	class drag_destination_selector : public panel_base {
+	class drag_destination_selector : public panel {
 	public:
 		/// Returns the current \ref drag_destination_type.
 		drag_destination_type get_drag_destination(vec2d) const {
@@ -83,7 +83,7 @@ namespace codepad::ui::tabs {
 
 		/// Initializes all destination indicators.
 		void _initialize(str_view_t cls, const element_configuration &config) override {
-			panel_base::_initialize(cls, config);
+			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_split_left_indicator_role(), _role_cast(_split_left)},
@@ -116,7 +116,7 @@ namespace codepad::ui::tabs {
 	/// An element for displaying multiple tabs. It contains a ``tabs'' region for displaying the
 	/// \ref tab_button "tab_buttons" of all available \ref tab "tabs" and a region that displays the currently
 	/// selected tab.
-	class host final : public panel_base {
+	class host final : public panel {
 		friend tab;
 		friend tab_manager;
 	public:
@@ -253,7 +253,7 @@ namespace codepad::ui::tabs {
 
 		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.
 		void _initialize(str_view_t cls, const element_configuration &config) override {
-			panel_base::_initialize(cls, config);
+			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_tab_buttons_region_role(), _role_cast(_tab_buttons_region)},

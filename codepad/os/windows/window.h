@@ -20,7 +20,6 @@ namespace codepad::os {
 	class opengl_renderer;
 
 	class window : public ui::window_base {
-		friend LRESULT CALLBACK _wndproc(HWND, UINT, WPARAM, LPARAM);
 		friend class software_renderer;
 		friend class opengl_renderer;
 		friend ui::element;
@@ -278,6 +277,8 @@ namespace codepad::os {
 				}
 			}
 		};
+
+		static LRESULT CALLBACK _wndproc(HWND, UINT, WPARAM, LPARAM);
 
 		/// Checks if the given window is managed by codepad and if so, retrieves a pointer to the corresponding
 		/// \ref window. If it's not, returns \p nullptr.
