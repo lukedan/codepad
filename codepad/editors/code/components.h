@@ -274,7 +274,7 @@ namespace codepad::editors::code {
 							soft_linebreak_inserter(fmt.get_linebreaks(), firstchar),
 							folded_region_skipper(fmt.get_folding(), firstchar)
 						);
-					fragment_assembler ass(*edt, 0.8 * edt->get_line_height());
+					fragment_assembler ass(*edt);
 
 					r.begin_drawing(*rt.render_target);
 					r.push_matrix_mult(matd3x3::scale(vec2d(0.0, 0.0), scale));

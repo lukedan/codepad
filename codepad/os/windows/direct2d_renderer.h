@@ -128,6 +128,27 @@ namespace codepad::os::direct2d {
 			}
 			return resvec;
 		}
+
+		/// Invokes \p IDWriteTextLayout::HitTestPoint().
+		hit_test_result hit_test(vec2d pos) const override {
+			BOOL trailing, inside;
+			DWRITE_HIT_TEST_METRICS metrics;
+			com_check(_text->HitTestPoint(
+				static_cast<FLOAT>(pos.x), static_cast<FLOAT>(pos.y), &trailing, &inside, &metrics
+			));
+			return hit_test_result(
+				static_cast<size_t>(metrics.textPosition),
+				rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height),
+				trailing != 0
+			);
+		}
+		/// Invokes \p IDWriteTextLayout::HitTestTextPosition().
+		rectd get_character_placement(size_t pos) const override {
+			FLOAT px, py;
+			DWRITE_HIT_TEST_METRICS metrics;
+			com_check(_text->HitTestTextPosition(static_cast<UINT32>(pos), false, &px, &py, &metrics));
+			return rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
+		}
 	protected:
 		_details::com_wrapper<IDWriteTextLayout> _text; ///< The \p IDWriteTextLayout handle.
 	};

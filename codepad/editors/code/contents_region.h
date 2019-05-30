@@ -94,6 +94,11 @@ namespace codepad::editors::code {
 			return _line_height;
 		}
 
+		/// Returns the vertical position of the baseline.
+		double get_baseline() const {
+			return _line_height * 0.8; // TODO customizable baseline?
+		}
+
 		/// Sets the maximum width of a tab character.
 		void set_tab_width(double w) {
 			_tab_width = w;
@@ -217,7 +222,7 @@ namespace codepad::editors::code {
 		}
 		/// Extracts a \ref caret_selection_position.
 		caret_selection_position extract_caret_selection_position(const caret_set::entry & et) const override {
-			return caret_selection_position(et.first.first, et.first.second, et.second.softbreak_next_line);
+			return caret_selection_position(et.first.first, et.first.second, et.second.after_stall);
 		}
 
 		/// Moves all carets. The caller needs to give very precise instructions on how to move them.
@@ -436,7 +441,7 @@ namespace codepad::editors::code {
 				return std::make_pair(_move_caret_left(et.first.first), true);
 				}, [](const caret_set::entry & et) -> std::pair<size_t, bool> {
 					if (et.first.first < et.first.second) {
-						return {et.first.first, et.second.softbreak_next_line};
+						return {et.first.first, et.second.after_stall};
 					}
 					return {et.first.second, true};
 				}, continueselection);
@@ -450,7 +455,7 @@ namespace codepad::editors::code {
 				return std::make_pair(_move_caret_right(et.first.first), false);
 				}, [](const caret_set::entry & et) -> std::pair<size_t, bool> {
 					if (et.first.first > et.first.second) {
-						return {et.first.first, et.second.softbreak_next_line};
+						return {et.first.first, et.second.after_stall};
 					}
 					return {et.first.second, false};
 				}, continueselection);
@@ -627,7 +632,7 @@ namespace codepad::editors::code {
 	protected:
 		/// Extracts a \ref _caret_position from a \ref caret_set::entry.
 		inline static caret_position _extract_position(const caret_set::entry & entry) {
-			return caret_position(entry.first.first, entry.second.softbreak_next_line);
+			return caret_position(entry.first.first, entry.second.after_stall);
 		}
 
 		std::shared_ptr<interpretation> _doc; ///< The \ref interpretation bound to this contents_region.
@@ -817,7 +822,7 @@ namespace codepad::editors::code {
 						}
 					}
 					caret_set::entry et(
-						{cp1, cp2}, _get_caret_data(caret_position(cp1, pair.second.softbreak_next_line))
+						{cp1, cp2}, _get_caret_data(caret_position(cp1, pair.second.after_stall))
 					);
 					newcarets.add(et);
 				}

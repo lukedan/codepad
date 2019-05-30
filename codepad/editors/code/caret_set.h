@@ -16,13 +16,13 @@ namespace codepad::editors::code {
 		/// Default constructor.
 		caret_data() = default;
 		/// Constructor that initializes all fields of this struct.
-		caret_data(double align, bool sbnext) : alignment(align), softbreak_next_line(sbnext) {
+		caret_data(double align, bool sbnext) : alignment(align), after_stall(sbnext) {
 		}
 
 		double alignment = 0.0; ///< The alignment of the caret when it moves vertically.
 		/// Only used when the caret is positioned at a soft linebreak, to determine which line it's on.
 		/// \p false if it's on the former line, and \p true if it's on the latter.
-		bool softbreak_next_line = false;
+		bool after_stall = false;
 
 		size_t
 			bytepos_first = 0, ///< The position, in bytes, of the first element of a \ref caret_selection.
