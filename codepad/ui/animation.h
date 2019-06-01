@@ -89,6 +89,23 @@ namespace codepad::ui {
 		/// \ref playing_animation_base.
 		virtual std::unique_ptr<playing_animation_base> start(std::unique_ptr<animation_subject_base>) const = 0;
 	};
+	/// Basic information for JSON animation parsers.
+	///
+	/// \tparam Context The parser context. It must provide two methods: \p try_parse_object<T>(), and
+	///                 \p get_manager(), and all JSON-related type definitions.
+	template <typename Context> class animation_parser_base {
+	public:
+		using value_t = typename Context::value_t; ///< The value type.
+		using object_t = typename Context::object_t; ///< The object type.
+		using array_t = typename Context::array_t; ///< The array type.
+
+		/// Default virtual constructor.
+		virtual ~animation_parser_base() = default;
+
+		/// The main function used to parse animations.
+		virtual std::unique_ptr<animation_definition_base> parse(const value_t&, Context&) const = 0;
+	};
+
 
 	/// Basic interface of \ref animation_subject_base with a specific type.
 	template <typename T> class typed_animation_subject_base : public animation_subject_base {
@@ -99,12 +116,31 @@ namespace codepad::ui {
 		virtual void set(T) = 0;
 	};
 
-	/// Used to interpolate between values using \ref lerp().
+	/// Used to interpolate between values using \ref lerp(). If such interpolation is not possible, returns the from
+	/// value.
 	template <typename T> struct default_lerp {
-		/// Calls \ref lerp().
+	public:
+		/// Calls \ref lerp() if \ref _can_lerp::value is \p true.
 		T operator()(T from, T to, double perc) const {
-			return lerp(from, to, perc);
+			if constexpr (_can_lerp::value) {
+				return lerp(from, to, perc);
+			} else {
+				return from;
+			}
 		}
+	protected:
+		/// Used to test if lerping is possible for this type.
+		struct _can_lerp {
+			/// Matches if all necessary operators are implemented.
+			template <typename U = T> static std::true_type test(decltype(
+				std::declval<U>() + (std::declval<U>() - std::declval<U>()) * 0.5, 0
+				));
+			/// Matches otherwise.
+			template <typename U = T> static std::false_type test(...);
+
+			/// The result.
+			constexpr static bool value = std::is_same_v<decltype(test(0)), std::true_type>;
+		};
 	};
 	/// Returns the target value without interpolating.
 	struct no_lerp {
@@ -144,6 +180,68 @@ namespace codepad::ui {
 		/// indefinitely.
 		size_t repeat_times = 1;
 	};
+	/// Parser for a \ref keyframe_animation_definition.
+	template <typename Context, typename T, typename Lerp = default_lerp<T>> class keyframe_animation_parser :
+		public animation_parser_base<Context> {
+	public:
+		/// The corresponding animation definition type.
+		using animation_definition_t = keyframe_animation_definition<T, Lerp>;
+		using base_t = animation_parser_base<Context>; ///< The base type.
+		using value_t = typename base_t::value_t; ///< The value type.
+		using object_t = typename base_t::object_t; ///< The object type.
+		using array_t = typename base_t::array_t; ///< The array type.
+
+		/// The parser interface.
+		std::unique_ptr<animation_definition_base> parse(const value_t &val, Context &ctx) const override {
+			auto ani = std::make_unique<animation_definition_t>();
+			std::optional<array_t> frames;
+			if (object_t obj; json::try_cast(val, obj)) {
+				if (auto fmem = obj.find_member(u8"repeat"); fmem != obj.member_end()) {
+					value_t repeatval = fmem.value();
+					if (repeatval.is<std::uint64_t>()) {
+						ani->repeat_times = static_cast<size_t>(repeatval.get<std::uint64_t>());
+					} else if (repeatval.is<bool>()) { // repeat forever?
+						ani->repeat_times = repeatval.get<bool>() ? 0 : 1;
+					} else {
+						logger::get().log_warning(
+							CP_HERE, "repeat must be either a non-negative integer or a boolean"
+						);
+					}
+				}
+				if (array_t arr; json::try_cast_member(obj, u8"frames", arr)) {
+					frames.emplace(std::move(arr));
+				} else {
+					ani->key_frames.emplace_back(_parse_keyframe(obj, ctx));
+				}
+			} else if (array_t arr; json::try_cast(val, arr)) {
+				frames.emplace(std::move(arr));
+			} else { // single value
+				ctx.try_parse_object(val, ani->key_frames.emplace_back().target);
+			}
+			if (frames) {
+				for (auto &&kf : frames.value()) {
+					if (object_t kfobj; json::try_cast(kf, kfobj)) {
+						ani->key_frames.emplace_back(_parse_keyframe(kfobj, ctx));
+					}
+				}
+			}
+			return ani;
+		}
+	protected:
+		typename animation_definition_t::keyframe _parse_keyframe(const object_t &obj, Context &ctx) const {
+			typename animation_definition_t::keyframe result;
+			json::object_parsers::try_parse_member(obj, u8"duration", result.duration);
+			if (auto fmem = obj.find_member(u8"to"); fmem != obj.member_end()) { // target
+				ctx.try_parse_object(fmem.value(), result.target);
+			}
+			if (str_view_t str; json::try_cast_member(obj, u8"transition", str)) { // transition function
+				if (transition_function f = ctx.get_manager().try_get_transition_func(str)) {
+					result.transition_func = f;
+				}
+			}
+			return result;
+		}
+	};
 	/// An ongoing \ref keygrame_animation_definition
 	template <typename T, typename Lerp> class playing_keyframe_animation : public playing_animation_base {
 	public:
@@ -156,7 +254,7 @@ namespace codepad::ui {
 		/// Initializes this playing animation.
 		playing_keyframe_animation(
 			const definition_t &def, std::unique_ptr<typed_animation_subject_base<T>> sub
-		) : _from(sub->get()), _def(&def), _subject(std::move(sub)) {
+		) : _from(sub->get()), _keyframe_start(animation_clock_t::now()), _def(&def), _subject(std::move(sub)) {
 		}
 
 		/// Updates this animation.

@@ -146,7 +146,9 @@ namespace codepad::ui {
 		/// Updates \ref _cached_mouse_position and \ref _cached_mouse_position_timestamp, and returns a
 		/// corresponding \ref mouse_position object.
 		mouse_position _update_mouse_position(vec2d pos) {
-			_cached_mouse_position = pos;
+			_cached_mouse_position = get_parameters().visual_parameters.transform.inverse_transform_point(
+				pos - get_layout().xmin_ymin(), get_layout().size()
+			);
 			++_cached_mouse_position_timestamp;
 			return mouse_position(_cached_mouse_position_timestamp);
 		}
@@ -222,8 +224,8 @@ namespace codepad::ui {
 				panel::_on_mouse_leave();
 			}
 		}
-		/// If the mouse is captured by an element, forwards the event to the element. Otherwise falls back
-		/// to the default behavior.
+		/// If the mouse is captured by an element, forwards the event to it. Otherwise falls back to the default
+		/// behavior.
 		void _on_mouse_move(mouse_move_info &p) override {
 			if (_capture != nullptr) {
 				if (!_capture->is_mouse_over()) {

@@ -588,11 +588,11 @@ namespace codepad::json {
 			object_t() = default;
 
 			/// Returns an iterator to the first element.
-			iterator begin() const {
+			iterator member_begin() const {
 				return iterator(_obj->begin());
 			}
 			/// Returns an iterator past the last element.
-			iterator end() const {
+			iterator member_end() const {
 				return iterator(_obj->end());
 			}
 			/// Finds the member with the specified name.
@@ -696,9 +696,11 @@ namespace codepad::json {
 			} else if constexpr (std::is_same_v<T, str_t> || std::is_same_v<T, str_view_t>) {
 				return std::get<str_t>(*_v);
 			} else if constexpr (std::is_same_v<T, object_t>) {
-				return object_t(&std::get<value_storage::object>(*_v));
+				const auto &obj = std::get<value_storage::object>(*_v); // TODO fuck msvc
+				return object_t(&obj);
 			} else if constexpr (std::is_same_v<T, array_t>) {
-				return array_t(&std::get<value_storage::array>(*_v));
+				const auto &arr = std::get<value_storage::array>(*_v);
+				return array_t(&arr);
 			} else {
 				if constexpr (std::is_floating_point_v<T>) {
 					if (std::holds_alternative<double>(*_v)) {
@@ -821,5 +823,10 @@ namespace codepad::json {
 			}
 			return def;
 		}
+	}
+
+	/// The default JSON engine.
+	namespace default_engine {
+		using namespace codepad::json::rapidjson;
 	}
 }

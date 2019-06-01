@@ -295,6 +295,12 @@ namespace codepad::ui {
 			return _mouse_over;
 		}
 
+		/// Returns the current generic parameters of this element.
+		const element_parameters &get_parameters() const {
+			return _params;
+		}
+
+
 		/// Invalidates the visual of the element so that it'll be re-rendered next frame.
 		///
 		/// \sa manager::invalidate_visual()

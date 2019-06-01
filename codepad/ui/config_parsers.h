@@ -24,7 +24,7 @@ namespace codepad::ui {
 		using array_t = typename ValueType::array_t; ///< The type that holds JSON arrays.
 
 		/// Initializes the class with the given \ref manager.
-		ui_config_json_parser(manager &man) : _manager(man) {
+		explicit ui_config_json_parser(manager &man) : _manager(man) {
 		}
 
 		/// Parses a \ref metrics_state from the given JSON object, and adds it to \p value. If one for the specified
@@ -40,7 +40,28 @@ namespace codepad::ui {
 				}
 			}
 
-			// TODO animations
+			if (str_view_t from; json::try_cast_member(val, u8"inherit_animations_from", from)) {
+				if (auto * ancestor = _manager.get_class_arrangements().get(from)) {
+					value.event_triggers = ancestor->configuration.event_triggers;
+				}
+			}
+			if (object_t allanis; json::try_cast_member(val, u8"animations", allanis)) {
+				for (auto sbit = allanis.member_begin(); sbit != allanis.member_end(); ++sbit) {
+					if (object_t sbobj; json::try_cast(sbit.value(), sbobj)) {
+						storyboard sb;
+						for (auto aniit = sbobj.member_begin(); aniit != sbobj.member_end(); ++aniit) {
+							auto &&bs = animation_path::parse(aniit.name());
+							if (bs.subject_creator && bs.parser) {
+								storyboard::entry entry;
+								entry.subject = std::move(bs.subject_creator);
+								entry.definition = bs.parser->parse(aniit.value(), *this);
+								sb.animations.emplace_back(std::move(entry));
+							}
+						}
+						value.event_triggers.try_emplace(str_t(sbit.name()), std::move(sb)); // TODO check if inserted or merge?
+					}
+				}
+			}
 		}
 		/// Parses a \ref element_parameters from the given JSON object.
 		void parse_parameters(const object_t &val, element_parameters &value) {
@@ -124,6 +145,24 @@ namespace codepad::ui {
 				}
 			}
 		}
+
+		/// Tries to parse an object of the given type.
+		template <typename T> bool try_parse_object(const value_t &val, T &res) {
+			if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) { // special handling for bitmaps
+				if (str_view_t path; json::try_cast(val, path)) {
+					res = _get_texture(path);
+					return true;
+				}
+				return false;
+			} else { // parse using json::object_parsers
+				return json::object_parsers::try_parse(val, res);
+			}
+		}
+
+		/// Returns the associated \ref manager.
+		manager &get_manager() const {
+			return _manager;
+		}
 	protected:
 		std::filesystem::path _resources_path; ///< The path where are textures are located.
 		std::map<std::filesystem::path, std::shared_ptr<bitmap>> _textures; ///< Stores the list of textures.
@@ -177,55 +216,6 @@ namespace codepad::ui {
 				}
 			} else { // parse size
 				json::object_parsers::try_parse_member(val, u8"size", size);
-			}
-		}
-
-		/// Parses a \ref animated_property::keyframe.
-		template <typename T, typename Lerp> void _parse_keyframe(
-			const object_t &obj, typename keyframe_animation_definition<T, Lerp>::keyframe &frame
-		) {
-			json::object_parsers::try_parse_member(obj, u8"duration", frame.duration);
-			if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) {
-				if (str_view_t path; json::try_cast_member(obj, u8"target", path)) {
-					frame.target = _get_texture(path);
-				}
-			} else {
-				json::object_parsers::try_parse_member(obj, u8"target", frame.target);
-			}
-			// transition function
-			if (str_view_t str; json::try_cast_member(obj, u8"transition", str)) {
-				if (transition_function f = _manager.try_get_transition_func(str)) {
-					frame.transition_func = f;
-				}
-			}
-		}
-		/// Parses an \ref animated_property from a given JSON object. If the JSON object is not an object but an
-		/// array, number, or any other invalid format, the \ref animated_property will be reset to its default
-		/// state, with only one key frame whose \ref animated_property::keyframe::target set to the given value
-		/// (i.e., inheritance will be ignored). Otherwise, It parses and writes over existing key frames.
-		template <typename T, typename Lerp> void _parse_keyframe_animation(
-			const object_t &obj, keyframe_animation_definition<T, Lerp> &ani
-		) {
-			if (array_t arr; json::try_cast_member(obj, u8"frames", arr)) { // list of frames
-				for (auto &&kf : arr) {
-					if (object_t kfobj; json::try_cast(kf, kfobj)) {
-						_parse_keyframe<T, Lerp>(kfobj, ani.key_frames.emplace_back());
-					}
-				}
-			} else { // parse directly, only one key frame
-				_parse_keyframe<T, Lerp>(obj, ani.key_frames.emplace_back());
-			}
-			if (auto fmem = obj.find_member(u8"repeat"); fmem != obj.member_end()) {
-				value_t repeatval = fmem.value();
-				if (repeatval.is<std::uint64_t>()) {
-					ani.repeat_times = static_cast<size_t>(repeatval.get<std::uint64_t>());
-				} else if (repeatval.is<bool>()) { // repeat forever?
-					ani.repeat_times = repeatval.get<bool>() ? 0 : 1;
-				} else {
-					logger::get().log_warning(
-						CP_HERE, "repeat must be either a non-negative integer or a boolean"
-					);
-				}
 			}
 		}
 

@@ -69,13 +69,6 @@ namespace codepad::ui {
 	}
 
 	void element::_custom_render() const {
-		/*if (is_mouse_over()) {
-			get_manager().get_renderer().draw_rectangle(
-				rectd(0.0, get_layout().width(), 0.0, get_layout().height()),
-				generic_brush_parameters(brush_parameters::solid_color(colord(1.0, 0.0, 0.0, 0.2))),
-				generic_pen_parameters(generic_brush_parameters(brush_parameters::none()))
-			);
-		}*/
 		vec2d unit = get_layout().size();
 		for (const generic_visual_geometry &g : _params.visual_parameters.geometries) {
 			g.draw(unit, get_manager().get_renderer());

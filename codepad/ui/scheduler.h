@@ -201,12 +201,29 @@ namespace codepad::ui {
 		/// Updates all elements that are scheduled to be updated by \ref schedule_visual_config_update(),
 		/// \ref schedule_metrics_config_update(), and \ref schedule_element_update().
 		void update_scheduled_elements() {
-			performance_monitor mon("update_misc");
+			performance_monitor mon("update_elements");
 
 			auto aninow = animation_clock_t::now();
 
 			if (aninow >= _next_update) { // only update when necessary
 				animation_duration_t wait_time = animation_duration_t::max();
+
+				for (auto elemit = _element_animations.begin(); elemit != _element_animations.end(); ) {
+					for (auto aniit = elemit->second.begin(); aniit != elemit->second.end(); ) {
+						if (auto nexttime = (*aniit)->update(aninow)) {
+							wait_time = std::min(wait_time, nexttime.value());
+							++aniit;
+						} else {
+							aniit = elemit->second.erase(aniit);
+						}
+					}
+					if (elemit->second.empty()) {
+						elemit = _element_animations.erase(elemit);
+					} else {
+						++elemit;
+					}
+				}
+
 				_next_update = aninow + wait_time;
 				if (wait_time > _update_wait_threshold) { // set timer
 					// the update may have taken some time

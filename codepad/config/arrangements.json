@@ -46,6 +46,7 @@
 			"anchor": "lrb"
 		},
 		"inherit_visuals_from": "",
+		"inherit_animations_from": "",
 		"children": [
 			{
 				"type": "button",
@@ -73,6 +74,7 @@
 			"anchor": "trb"
 		},
 		"inherit_visuals_from": "",
+		"inherit_animations_from": "",
 		"children": [
 			{
 				"type": "button",
@@ -161,6 +163,7 @@
 	"tab_host": {
 		"inherit_layout_from": "element_fill_container",
 		"inherit_visuals_from": "",
+		"inherit_animations_from": "",
 		"children": [
 			{
 				"type": "stack_panel",
@@ -195,7 +198,63 @@
 			"width": "auto",
 			"height": "100%"
 		},
-		"inherit_visuals_from": "",
+		"visuals": {
+			"geometries": [
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.0, 1.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 1.0 ],
+						[ 0.0, 0.0 ]
+					]
+				},
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.5, 0.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"bottom_right": [
+						[ 0.5, 0.0 ],
+						[ 0.0, 2.0 ]
+					]
+				},
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.0, 0.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 1.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"fill": {
+						"type": "solid",
+						"color": [ 1.0, 1.0, 1.0, 0.0 ]
+					}
+				}
+			]
+		},
+		"animations": {
+			"mouse_enter": {
+				"visuals.geometries[2].fill.(solid_color_brush.color).a": {
+					"to": 0.2,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+			"mouse_leave": {
+				"visuals.geometries[2].fill.(solid_color_brush.color).a": {
+					"to": 0.0,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			}
+		},
 		"children": [
 			{
 				"type": "stack_panel",
@@ -218,7 +277,62 @@
 						"type": "button",
 						"class": "tab_button.close_button",
 						"role": "close_button",
-						"inherit_visuals_from": "",
+						"visuals": {
+							"geometries": [
+								{
+									"type": "path",
+									"subpaths": [
+										[
+											[
+												[ 0.2, 0.2 ],
+												[ 0.0, 0.0 ]
+											],
+											{
+												"line_to": [
+													[ 0.8, 0.8 ],
+													[ 0.0, 0.0 ]
+												]
+											},
+											{ "closed": false }
+										],
+										[
+											[
+												[ 0.8, 0.2 ],
+												[ 0.0, 0.0 ]
+											],
+											{
+												"line_to": [
+													[ 0.2, 0.8 ],
+													[ 0.0, 0.0 ]
+												]
+											},
+											{ "closed": false }
+										]
+									],
+									"stroke": {
+										"type": "solid",
+										"color": [ 0.0, 0.0, 0.0, 1.0 ],
+										"thickness": 1.5
+									}
+								}
+							]
+						},
+						"animations": {
+							"mouse_enter": {
+								"visuals.geometries[0].stroke.(solid_color_brush.color)": {
+									"to": [ 0.8, 0.0, 0.0, 1.0 ],
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							},
+							"mouse_leave": {
+								"visuals.geometries[0].stroke.(solid_color_brush.color)": {
+									"to": [ 0.0, 0.0, 0.0, 1.0 ],
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							}
+						},
 						"layout": {
 							"width": "15px",
 							"height": "15px",
@@ -232,11 +346,13 @@
 	},
 	"tab": {
 		"inherit_layout_from": "element_fill_container",
-		"inherit_visuals_from": ""
+		"inherit_visuals_from": "",
+		"inherit_animations_from": ""
 	},
 
 	"separator": {
 		"inherit_visuals_from": "",
+		"inherit_animations_from": "",
 		"layout": {
 			"width": "5px",
 			"height": "5px",
@@ -246,6 +362,7 @@
 	},
 	"split_panel": {
 		"inherit_visuals_from": "",
+		"inherit_animations_from": "",
 		"inherit_layout_from": "element_fill_container",
 		"children": [
 			{

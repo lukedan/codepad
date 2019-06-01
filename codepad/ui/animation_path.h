@@ -11,6 +11,7 @@
 
 namespace codepad::ui {
 	class element;
+	template <typename ValueType> class ui_config_json_parser;
 
 	/// Used to parse strings into \ref typed_animation_target_base.
 	namespace animation_path {
@@ -28,7 +29,7 @@ namespace codepad::ui {
 			str_view_t
 				type, ///< The expected type of the current object. Can be empty.
 				property; ///< The target property.
-			std::optional<size_t> index = 0; ///< The index, if this component is a list.
+			std::optional<size_t> index; ///< The index, if this component is a list.
 		};
 		using component_list = std::vector<component>; ///< A list of components.
 
@@ -50,6 +51,18 @@ namespace codepad::ui {
 			/// Creates the corresponding \ref animation_subject_base for the given \ref element_parameters.
 			virtual std::unique_ptr<animation_subject_base> create_for(Source&) const = 0;
 		};
+
+		/// Contains all necessary information for creating animations.
+		template <typename Context> struct bootstrapper {
+			using context = Context; ///< The type of the parser context.
+
+			std::unique_ptr<subject_creator<element>> subject_creator; ///< Used to create animation subjects.
+			/// Used to parse animations from JSON.
+			std::unique_ptr<animation_parser_base<Context>> parser;
+		};
+		/// \ref bootstrapper with the default JSON engine.
+		using default_bootstrapper = bootstrapper<ui_config_json_parser<json::default_engine::value_t>>;
+
 
 		/// The parser.
 		namespace parser {
@@ -88,13 +101,14 @@ namespace codepad::ui {
 
 				/// Parses an index.
 				inline parse_result parse_index(str_view_t::const_iterator &it, str_view_t::const_iterator end, size_t &v) {
-					if (it == end || *it++ != '[') {
+					if (it == end || *it != '[') {
 						return parse_result::not_found;
 					}
+					++it;
 					if (it == end || !(*it >= '0' && *it <= '9')) {
 						return parse_result::error;
 					}
-					v = *it++ - '0';
+					v = *(it++) - '0';
 					while (it != end) {
 						if (*it == ']') {
 							++it;
@@ -103,7 +117,7 @@ namespace codepad::ui {
 						if (!(*it >= '0' && *it <= '9')) {
 							return parse_result::error;
 						}
-						v = v * 10 + (*it++ - '0');
+						v = v * 10 + (*(it++) - '0');
 					}
 					return parse_result::error; // no closing bracket
 				}
@@ -199,7 +213,7 @@ namespace codepad::ui {
 					return parse_result::error;
 				}
 				while (it != path.end()) {
-					if (*it != '.') {
+					if (*(it++) != '.') {
 						return parse_result::error; // technically completed, but it's a single path
 					}
 					list.emplace_back();
@@ -387,27 +401,22 @@ namespace codepad::ui {
 			}
 
 			/// Dispatches the call given the visual property.
-			std::unique_ptr<subject_creator<element>> get_common_element_property(
+			default_bootstrapper get_common_element_property(
 				component_list::const_iterator, component_list::const_iterator
 			);
 		}
 
-		/// Given an animation path, returns a corresponding \ref typed_animation_subject_base.
-		inline std::unique_ptr<subject_creator<element>> parse(
-			str_view_t path, std::vector<component> &components
-		) {
-			parser::parse_result res = parser::parse(path, components);
-			if (res == parser::parse_result::completed) {
-				return builder::get_common_element_property(components.begin(), components.end());
-			}
-			return nullptr;
-		}
+		/// Given an animation path, returns a corresponding \ref default_bootstrapper. The caller also has access to
+		/// all components in the path.
+		default_bootstrapper parse(str_view_t, std::vector<component>&);
+		/// Given an animation path, returns a corresponding \ref default_bootstrapper.
+		default_bootstrapper parse(str_view_t);
 	}
 
 	/// An aggregate of animations. Name borrowed from WPF.
 	struct storyboard {
 		/// Stores information about a single animation.
-		struct animation {
+		struct entry {
 			std::shared_ptr<animation_definition_base> definition; ///< The definition of this animation.
 			std::shared_ptr<animation_path::subject_creator<element>> subject; ///< The subject of this animation.
 
@@ -417,6 +426,6 @@ namespace codepad::ui {
 			}
 		};
 
-		std::vector<animation> animations; ///< The list of animations.
+		std::vector<entry> animations; ///< The list of animations.
 	};
 }
