@@ -432,53 +432,84 @@ namespace codepad::os::direct2d {
 			_d2d_device_context->Clear(_details::cast_color(color));
 		}
 
-		/// Draws a \ref ellipse_geometry.
-		void draw_ellipse(
-			vec2d center, double radiusx, double radiusy,
-			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
-		) override {
-			ID2D1EllipseGeometry *geom;
-			com_check(_d2d_factory->CreateEllipseGeometry(
-				D2D1::Ellipse(
-					_details::cast_point(center), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
-				),
-				&geom
-			));
-			_draw_geometry(_details::make_com_wrapper_give(geom), brush, pen);
-		}
-		/// Draws a \ref rectangle_geometry.
-		void draw_rectangle(
-			rectd rect, const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
-		) override {
-			ID2D1RectangleGeometry *geom;
-			com_check(_d2d_factory->CreateRectangleGeometry(_details::cast_rect(rect), &geom));
-			_draw_geometry(_details::make_com_wrapper_give(geom), brush, pen);
-		}
-		/// Draws a \ref rounded_rectangle_geometry.
-		void draw_rounded_rectangle(
-			rectd region, double radiusx, double radiusy,
-			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
-		) override {
-			ID2D1RoundedRectangleGeometry *geom;
-			com_check(_d2d_factory->CreateRoundedRectangleGeometry(
-				D2D1::RoundedRect(
-					_details::cast_rect(region), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
-				),
-				&geom
-			));
-			_draw_geometry(_details::make_com_wrapper_give(geom), brush, pen);
-		}
-
 		/// Calls \ref path_geometry_builder::_start() and returns \ref _path_builder.
 		ui::path_geometry_builder &start_path() override {
 			_path_builder._start(_d2d_factory.get());
 			return _path_builder;
+		}
+
+		/// Draws a \p ID2D1EllipseGeometry.
+		void draw_ellipse(
+			vec2d center, double radiusx, double radiusy,
+			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+		) override {
+			_details::com_wrapper<ID2D1EllipseGeometry> geom;
+			com_check(_d2d_factory->CreateEllipseGeometry(
+				D2D1::Ellipse(
+					_details::cast_point(center), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
+				),
+				geom.get_ref()
+			));
+			_draw_geometry(std::move(geom), brush, pen);
+		}
+		/// Draws a \p ID2D1RectangleGeometry.
+		void draw_rectangle(
+			rectd rect, const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+		) override {
+			_details::com_wrapper<ID2D1RectangleGeometry> geom;
+			com_check(_d2d_factory->CreateRectangleGeometry(_details::cast_rect(rect), geom.get_ref()));
+			_draw_geometry(std::move(geom), brush, pen);
+		}
+		/// Draws a \p ID2D1RoundedRectangleGeometry.
+		void draw_rounded_rectangle(
+			rectd region, double radiusx, double radiusy,
+			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+		) override {
+			_details::com_wrapper<ID2D1RoundedRectangleGeometry> geom;
+			com_check(_d2d_factory->CreateRoundedRectangleGeometry(
+				D2D1::RoundedRect(
+					_details::cast_rect(region), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
+				),
+				geom.get_ref()
+			));
+			_draw_geometry(std::move(geom), brush, pen);
 		}
 		/// Calls \ref path_geometry_builder::_end() and draws the returned geometry.
 		void end_and_draw_path(
 			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
 		) override {
 			_draw_geometry(_path_builder._end(), brush, pen);
+		}
+
+		/// Creates a \p ID2D1EllipseGeometry and pushes it as a clip.
+		void push_ellipse_clip(vec2d center, double radiusx, double radiusy) override {
+			_details::com_wrapper<ID2D1EllipseGeometry> geom;
+			com_check(_d2d_factory->CreateEllipseGeometry(D2D1::Ellipse(
+				_details::cast_point(center), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
+			), geom.get_ref()));
+			_push_layer(std::move(geom));
+		}
+		/// Creates a \p ID2D1RectangleGeometry and pushes it as a clip.
+		void push_rectangle_clip(rectd rect) override {
+			_details::com_wrapper<ID2D1RectangleGeometry> geom;
+			com_check(_d2d_factory->CreateRectangleGeometry(_details::cast_rect(rect), geom.get_ref()));
+			_push_layer(std::move(geom));
+		}
+		/// Creates a \p ID2D1RoundedRectangleGeometry and pushes it as a clip.
+		void push_rounded_rectangle_clip(rectd rect, double radiusx, double radiusy) override {
+			_details::com_wrapper<ID2D1RoundedRectangleGeometry> geom;
+			com_check(_d2d_factory->CreateRoundedRectangleGeometry(D2D1::RoundedRect(
+				_details::cast_rect(rect), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
+			), geom.get_ref()));
+			_push_layer(std::move(geom));
+		}
+		/// Calls \ref path_geometry_builder::_end() and pushes the returned geometry as a clip.
+		void end_and_push_path_clip() override {
+			_push_layer(_path_builder._end());
+		}
+		/// Calls \p ID2D1DeviceContext::PopLayer() to pop the most recently pushed layer.
+		void pop_clip() override {
+			_d2d_device_context->PopLayer();
 		}
 
 		/// Calls \ref _format_text_impl().
@@ -656,6 +687,13 @@ namespace codepad::os::direct2d {
 			if (_details::com_wrapper<ID2D1Brush> pen = _create_brush(pen_def.brush)) {
 				_d2d_device_context->DrawGeometry(geom.get(), pen.get(), static_cast<FLOAT>(pen_def.thickness));
 			}
+		}
+		/// Calls \p ID2D1DeviceContext::PushLayer() to push a layer with the specified geometry as its clip.
+		void _push_layer(_details::com_wrapper<ID2D1Geometry> clip) {
+			_d2d_device_context->PushLayer(D2D1::LayerParameters(
+				D2D1::InfiniteRect(), clip.get(), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+				D2D1::IdentityMatrix(), 1.0f, nullptr, D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE
+			), nullptr);
 		}
 
 		/// Creates a brush based on \ref ui::brush_parameters::solid_color.

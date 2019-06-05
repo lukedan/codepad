@@ -150,6 +150,9 @@ namespace codepad::editors::code {
 			used = &extcarets;
 		}
 
+		get_manager().get_renderer().push_rectangle_clip(
+			rectd::from_xywh(0.0, 0.0, get_layout().width(), get_layout().height())
+		);
 		get_manager().get_renderer().push_matrix_mult(matd3x3::translate(vec2d(
 			get_padding().left,
 			get_padding().top - editor::get_encapsulating(*this)->get_vertical_position() +
@@ -222,5 +225,6 @@ namespace codepad::editors::code {
 			}
 		}
 		get_manager().get_renderer().pop_matrix();
+		get_manager().get_renderer().pop_clip();
 	}
 }

@@ -522,7 +522,7 @@ namespace codepad::ui {
 			/// A part of a \ref subpath that's an arc.
 			struct arc {
 				relative_vec2d to; ///< The end point of this arc.
-				double radius; ///< The radius of this arc.
+				double radius = 0.0; ///< The radius of this arc.
 				sweep_direction direction = sweep_direction::clockwise; ///< The sweep direction of this arc.
 				arc_type type = arc_type::minor; ///< The type of this arc.
 
@@ -546,7 +546,7 @@ namespace codepad::ui {
 				}
 			};
 
-			///< Contains a part of a \ref subpath.
+			/// Contains a part of a \ref subpath.
 			struct part {
 				/// The type that holds a specific type of part.
 				using value_type = std::variant<segment, arc, cubic_bezier>;
@@ -561,14 +561,14 @@ namespace codepad::ui {
 				value_type value; ///< The value of this part.
 			};
 
-			/// A part of a path, independent of all other sub-paths.
+			/// A part of a path, independent of all other subpaths.
 			struct subpath {
 				std::vector<part> parts; ///< Parts of this subpath.
 				relative_vec2d starting_point; ///< The starting point of this subpath.
 				bool closed = false; ///< Whether this subpath should be closed when stroked.
 			};
 
-			std::vector<subpath> subpaths; ///< The list of sub-paths.
+			std::vector<subpath> subpaths; ///< The list of subpaths.
 
 			/// Draws this path in the specified region with the specified brush and pen.
 			void draw(

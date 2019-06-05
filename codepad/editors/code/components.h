@@ -326,6 +326,7 @@ namespace codepad::editors::code {
 					logger::get().log_error(CP_HERE, "agnomaly in page range selection");
 				}
 				ui::renderer_base &r = get_manager().get_renderer();
+				r.push_rectangle_clip(rectd::from_xywh(0.0, 0.0, get_layout().width(), get_layout().height()));
 				for (auto i = ibeg; i != iend; ++i) {
 					auto &bmp = *i->second.bitmap;
 					vec2d topleft(get_padding().left, std::floor(top + slh * static_cast<double>(i->first)));
@@ -344,6 +345,7 @@ namespace codepad::editors::code {
 					ui::generic_pen_parameters()
 				); // TODO temp
 				/*_viewport_cfg.render(r, _get_clamped_viewport_rect());*/
+				r.pop_clip();
 			}
 		}
 
@@ -380,8 +382,8 @@ namespace codepad::editors::code {
 		/// overflow when the \ref contents_region's width is large.
 		rectd _get_clamped_viewport_rect() const {
 			rectd r = _get_viewport_rect();
-			r.xmin = std::max(r.xmin, get_client_region().xmin);
-			r.xmax = std::min(r.xmax, get_client_region().xmax);
+			r.xmin = std::max(r.xmin, get_padding().left);
+			r.xmax = std::min(r.xmax, get_layout().width() - get_padding().right);
 			return r;
 		}
 		/// Returns the range of lines that are visible in the \ref minimap.
@@ -442,15 +444,14 @@ namespace codepad::editors::code {
 			if (info.button == ui::mouse_button::primary) {
 				if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
 					rectd rv = _get_viewport_rect();
-					if (rv.contains(info.position.get(*this))) { // TODO bug
-						_dragoffset = rv.ymin - info.position.get(*this).y;
+					if (rv.contains(info.position.get(*this))) {
+						_dragoffset = rv.ymin - info.position.get(*this).y; // TODO not always accurate
 						get_window()->set_mouse_capture(*this);
 						_dragging = true;
 					} else {
-						rectd client = get_client_region();
-						double ch = client.height();
+						double ch = get_client_region().height();
 						box->set_vertical_position(std::min(
-							(info.position.get(*this).y - client.ymin + _get_y_offset()) / get_scale() - 0.5 * ch,
+							(info.position.get(*this).y - get_padding().top + _get_y_offset()) / get_scale() - 0.5 * ch,
 							static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - ch
 						) + edt->get_padding().top);
 					}

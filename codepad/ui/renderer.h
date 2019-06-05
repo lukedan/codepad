@@ -310,6 +310,7 @@ namespace codepad::ui {
 		double thickness = 1.0; ///< The thickness of this pen.
 	};
 
+
 	/// Basic interface of a renderer.
 	class renderer_base {
 		friend window_base;
@@ -349,24 +350,36 @@ namespace codepad::ui {
 		/// Clears the current surface using the given color.
 		virtual void clear(colord) = 0;
 
-		/// Draws a \ref ellipse_geometry.
+		/// Starts to build a path.
+		virtual path_geometry_builder &start_path() = 0;
+
+		/// Draws a ellipse.
 		virtual void draw_ellipse(
 			vec2d center, double radiusx, double radiusy,
 			const generic_brush_parameters &brush, const generic_pen_parameters &pen
 		) = 0;
-		/// Draws a \ref rectangle_geometry.
+		/// Draws a rectangle.
 		virtual void draw_rectangle(
 			rectd rect, const generic_brush_parameters &brush, const generic_pen_parameters &pen
 		) = 0;
-		/// Draws a \ref rounded_rectangle_geometry.
+		/// Draws a rounded rectangle.
 		virtual void draw_rounded_rectangle(
 			rectd region, double radiusx, double radiusy,
 			const generic_brush_parameters &brush, const generic_pen_parameters &pen
 		) = 0;
-		/// Starts to build a path.
-		virtual path_geometry_builder &start_path() = 0;
-		/// Finishes building the given path and draws it. The path will then be discarded.
+		/// Finishes building the current path and draws it. The path will then be discarded.
 		virtual void end_and_draw_path(const generic_brush_parameters&, const generic_pen_parameters&) = 0;
+
+		/// Pushes an ellipse clip.
+		virtual void push_ellipse_clip(vec2d center, double radiusx, double radiusy) = 0;
+		/// Pushes a rectangle clip.
+		virtual void push_rectangle_clip(rectd rect) = 0;
+		/// Pushes a rounded rectangle clip.
+		virtual void push_rounded_rectangle_clip(rectd rect, double radiusx, double radiusy) = 0;
+		/// Finishes building the current path and pushes it as a clip. The path will then be discarded.
+		virtual void end_and_push_path_clip() = 0;
+		/// Pops a previously pushed clip.
+		virtual void pop_clip() = 0;
 
 		/// Calculates the format of the given text using the given parameters, to speed up operations such as size
 		/// querying and hit testing.
