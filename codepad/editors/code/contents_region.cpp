@@ -14,7 +14,7 @@ using namespace codepad::os;
 
 namespace codepad::editors::code {
 	/// \todo Also consider folded regions.
-	vector<size_t> contents_region::_recalculate_wrapping_region(size_t beg, size_t end) const {
+	vector<size_t> contents_region::_recalculate_wrapping_region(size_t, size_t) const {
 		/*
 		vector<size_t> poss;
 		size_t last = 0;
@@ -61,7 +61,7 @@ namespace codepad::editors::code {
 						position - (iter.get_position() - res.steps)
 					).xmin;
 				}
-				return 
+				return
 					ass.get_horizontal_position();
 			}
 			visit([&ass](auto && frag) {
@@ -135,7 +135,7 @@ namespace codepad::editors::code {
 		interactive_contents_region_base::_custom_render();
 
 		performance_monitor mon(CP_STRLIT("render_contents"));
-		double lh = get_line_height(), layoutw = get_layout().width();
+		double lh = get_line_height();
 		pair<size_t, size_t> be = get_visible_visual_lines();
 		caret_set extcarets;
 		const caret_set *used = &_cset;
@@ -177,7 +177,7 @@ namespace codepad::editors::code {
 				folded_region_skipper(_fmt.get_folding(), firstchar)
 			);
 			fragment_assembler ass(*this);
-			caret_renderer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
+			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
 			renderer_base & rend = get_manager().get_renderer();
 
 			// actual rendering code
@@ -191,17 +191,19 @@ namespace codepad::editors::code {
 					}, frag.result);
 				if (std::holds_alternative<linebreak_fragment>(frag.result)) {
 					++curvisline;
-				}/* else if (ass.get_horizontal_position() + get_padding().left > get_layout().width()) {
+				} else if (ass.get_horizontal_position() + get_padding().left > get_layout().width()) {
 					// skip to the next line
 					++curvisline;
 					auto pos = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 						_fmt.get_folding().folded_to_unfolded_line_number(curvisline)
 					);
-					gen.reposition(pos.first);
+					// update caret renderer
+					caretrend.skip_line(pos.second == linebreak_type::soft, pos.first);
+					gen.reposition(pos.first); // reposition fragment generator
+					// update fragment assenbler
 					ass.set_horizontal_position(0.0);
 					ass.advance_vertical_position(1);
-					// TODO update caret renderer
-				}*/
+				}
 			}
 
 			// render carets
@@ -214,14 +216,20 @@ namespace codepad::editors::code {
 					ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 1.0))))
 				);
 			}
+			rounded_selection_renderer rcrend;
 			for (const auto &selrgn : caretrend.get_selection_rects()) {
-				for (const auto &rgn : selrgn) {
+				rcrend.render(
+					rend, selrgn,
+					ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.2, 0.2, 1.0, 0.3))),
+					ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.0, 0.0, 0.0, 1.0))))
+				);
+				/*for (const auto &rgn : selrgn) {
 					rend.draw_rectangle(
 						rgn,
 						ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.2, 0.2, 1.0, 0.3))),
 						ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.0, 0.0, 0.0, 1.0))))
 					);
-				}
+				}*/
 			}
 		}
 		get_manager().get_renderer().pop_matrix();

@@ -29,6 +29,12 @@ namespace codepad::ui {
 			/// Maximum expected time for all rendering operations during a single frame.
 			render_time_redline{0.04};
 
+#ifdef CP_PLATFORM_WINDOWS
+		using thread_id_t = std::uint32_t; ///< The type for thread IDs.
+#elif defined(CP_PLATFORM_UNIX)
+		// TODO
+#endif
+
 		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
 		enum class wait_type {
 			blocking, ///< This operation is synchronous.
@@ -60,6 +66,10 @@ namespace codepad::ui {
 			std::function<void()> task; ///< The function to be executed.
 			bool needs_update = false; ///< Marks if \ref task needs to be executed next update.
 		};
+
+		/// Constructor. Initializes \ref _thread_id.
+		scheduler() : _thread_id(_get_thread_id()) {
+		}
 
 		/// Invalidates the layout of an element. Its parent will be notified to recalculate its layout.
 		void invalidate_layout(element &e) {
@@ -420,6 +430,12 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Wakes the main thread up from the idle state by calling \ref _wake_up(). This function can be called from
+		/// other threads as long as this \ref scheduler object has finished construction.
+		void wake_up() {
+			_wake_up();
+		}
+
 		/// Returns the \ref hotkey_listener.
 		hotkey_listener &get_hotkey_listener() {
 			return _hotkeys;
@@ -454,10 +470,14 @@ namespace codepad::ui {
 		/// resource consumption.
 		std::chrono::high_resolution_clock::duration _update_wait_threshold{0};
 
+		thread_id_t _thread_id; ///< The thread ID of the thread that this scheduler is running on.
+
 		double _upd_dt = 0.0; ///< The duration since elements were last updated.
 		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
 		size_t _active_update_tasks = 0; ///< The number of active update tasks.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
+
+		std::thread::id _tid;
 
 		/// Finds the focus scope that the given \ref element is in. The element itself is not taken into account.
 		/// Returns \p nullptr if the element is not in any scope (which should only happen for windows).
@@ -515,5 +535,10 @@ namespace codepad::ui {
 		/// program will regain control and thus can update stuff. If this is called when a timer has previously
 		/// been set, it may or may not be cancelled. This function is platform-dependent.
 		void _set_timer(std::chrono::high_resolution_clock::duration);
+		/// Returns the current thread ID.
+		static thread_id_t _get_thread_id();
+		/// Wakes the main thread up from the idle state. This function can be called from other threads as long as
+		/// this \ref scheduler object has finished construction.
+		void _wake_up();
 	};
 }

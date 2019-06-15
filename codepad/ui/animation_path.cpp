@@ -249,7 +249,7 @@ namespace codepad::ui::animation_path {
 #define CP_APB_CURRENT_TYPE transforms::generic, transform
 #define CP_APB_CURRENT_VARIANT_INFO value_type, value
 		template <
-			type Type, size_t Count = 0, typename Comp
+			type Type, size_t Count, typename Comp
 		> inline default_bootstrapper CP_APB_GETTER_NAME(transform) (
 			component_list::const_iterator begin, component_list::const_iterator end, Comp comp
 		) {
@@ -411,7 +411,8 @@ namespace codepad::ui::animation_path {
 			CP_APB_CHECK_TYPE;
 
 			CP_APB_TRY_FORWARD_MEMBER(to, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(radius, double);
+			CP_APB_TRY_FORWARD_MEMBER(radius, rel_vec2d);
+			CP_APB_TRY_FORWARD_MEMBER(rotation, double);
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 

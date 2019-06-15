@@ -700,7 +700,7 @@ namespace codepad::editors::code {
 			}
 		}
 		/// Moves the viewport so that the given caret is visible.
-		void _make_caret_visible(caret_position caret) { // TODO
+		void _make_caret_visible(caret_position) { // TODO
 			/*editor *cb = component_helper::get_editor(*this);
 			double fh = get_line_height();
 			size_t

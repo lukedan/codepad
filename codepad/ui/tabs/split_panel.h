@@ -92,8 +92,8 @@ namespace codepad::ui::tabs {
 			return CP_STRLIT("split_panel");
 		}
 
-		/// Returns the role identifier of the separator.
-		inline static str_view_t get_separator_role() {
+		/// Returns the name identifier of the separator.
+		inline static str_view_t get_separator_name() {
 			return CP_STRLIT("separator");
 		}
 	protected:
@@ -226,16 +226,16 @@ namespace codepad::ui::tabs {
 			panel::_custom_render();
 			_child_on_render(*_sep);
 			ui::renderer_base &r = get_manager().get_renderer();
-			/*if (_c1) {
-				r.push_clip(get_region1().fit_grid_enlarge<int>());
+			if (_c1) {
+				r.push_rectangle_clip(get_region1());
 				_child_on_render(*_c1);
 				r.pop_clip();
 			}
 			if (_c2) {
-				r.push_clip(get_region2().fit_grid_enlarge<int>());
+				r.push_rectangle_clip(get_region2());
 				_child_on_render(*_c2);
 				r.pop_clip();
-			}*/
+			}
 		}
 
 		/// Updates the layout of all children.
@@ -265,7 +265,7 @@ namespace codepad::ui::tabs {
 			ui::panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_separator_role(), _role_cast(_sep)}
+				{get_separator_name(), _name_cast(_sep)}
 				});
 
 			_sep->mouse_down += [this](ui::mouse_button_info & p) {

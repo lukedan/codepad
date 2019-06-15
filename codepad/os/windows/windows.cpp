@@ -3,6 +3,7 @@
 
 #include <ShObjIdl.h>
 #include <Shlwapi.h>
+#include <processthreadsapi.h>
 
 #include "../windows.h"
 
@@ -94,7 +95,7 @@ namespace codepad::os {
 					v[_key_id_mapping[i]] = static_cast<key>(i);
 				}
 			}
-			key v[255];
+			key v[255]{};
 		} _key_id_backmapping;
 	}
 
@@ -144,6 +145,7 @@ namespace codepad::os {
 		if (form) {
 			switch (msg) {
 			case WM_CLOSE:
+				form->get_manager().get_scheduler().wake_up(); // this message is not intercepted by GetMessage or PeekMessage
 				form->_on_close_request();
 				return 0;
 
@@ -619,16 +621,7 @@ namespace codepad {
 #endif
 
 namespace codepad::ui {
-	/*texture load_image(renderer_base &r, const filesystem::path &filename) {
-		return wic_image_loader::get().load_image(r, filename);
-	}
-
-
-	shared_ptr<const font> font_manager::_load_font(const font_parameters &params) {
-		return make_shared<freetype_font>(*this, params.name, params.size, params.style);
-	}
-
-	font_parameters font_manager::get_default_ui_font_parameters() {
+	/*font_parameters font_manager::get_default_ui_font_parameters() {
 		NONCLIENTMETRICS ncmetrics;
 		ncmetrics.cbSize = sizeof(ncmetrics);
 		winapi_check(SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(ncmetrics), &ncmetrics, 0));
@@ -691,5 +684,13 @@ namespace codepad::ui {
 		UINT timeout = std::chrono::duration_cast<std::chrono::duration<UINT, std::milli>>(duration).count();
 		_timer_handle = SetTimer(nullptr, _timer_handle, timeout, nullptr);
 		assert_true_sys(_timer_handle != 0, "failed to register timer");
+	}
+
+	scheduler::thread_id_t scheduler::_get_thread_id() {
+		return GetCurrentThreadId();
+	}
+
+	void scheduler::_wake_up() {
+		winapi_check(PostThreadMessage(_thread_id, WM_NULL, 0, 0));
 	}
 }

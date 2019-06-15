@@ -231,9 +231,6 @@ namespace codepad::ui::native_commands {
 						th->get_manager().create_element("editor", "binary_editor")
 					);
 					auto *contents = dynamic_cast<binary::contents_region*>(editor->get_contents_region());
-					/*contents->set_font(
-						contents->get_manager().get_font_manager().get_font("Fira Code", 12)
-					); // TODO customizable font*/
 					contents->set_buffer(std::move(ctx));
 					tb->children().add(*editor);
 					last = tb;

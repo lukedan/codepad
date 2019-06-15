@@ -522,13 +522,16 @@ namespace codepad::ui {
 			/// A part of a \ref subpath that's an arc.
 			struct arc {
 				relative_vec2d to; ///< The end point of this arc.
-				double radius = 0.0; ///< The radius of this arc.
+				relative_vec2d radius; ///< The radius of the corresponding ellipse.
+				double rotation = 0.0; ///< The rotation of the corresponding ellipse.
 				sweep_direction direction = sweep_direction::clockwise; ///< The sweep direction of this arc.
 				arc_type type = arc_type::minor; ///< The type of this arc.
 
 				/// Adds this part to a \ref path_geometry_builder.
 				void add_to(path_geometry_builder &builder, vec2d unit) const {
-					builder.add_arc(to.get_absolute_offset(unit), radius, direction, type);
+					builder.add_arc(
+						to.get_absolute_offset(unit), radius.get_absolute_offset(unit), rotation, direction, type
+					);
 				}
 			};
 			/// A part of a \ref subpath that's a cubic bezier.
@@ -641,8 +644,48 @@ namespace codepad::ui {
 	/// Contains configuration of an element's behavior.
 	struct element_configuration {
 	public:
+		/// Used to uniquely identify an \ref info_event.
+		struct event_identifier {
+			/// Default constructor.
+			event_identifier() = default;
+			/// Constructs this struct with only the name of the event.
+			explicit event_identifier(str_t n) : name(std::move(n)) {
+			}
+			/// Initializes all fields of this struct.
+			event_identifier(str_t s, str_t n) : subject(std::move(s)), name(std::move(n)) {
+			}
+
+			/// Parses an \ref event_identifier from a string.
+			inline static event_identifier parse_from_string(str_view_t s) {
+				str_view_t::const_iterator sep1 = s.end(), sep2 = s.end();
+				if (auto it = s.begin(); it != s.end()) {
+					for (codepoint cp; it != s.end(); ) {
+						auto begin = it;
+						if (encodings::utf8::next_codepoint(it, s.end(), cp)) {
+							if (cp == U'.') { // separator, only consider the first one
+								return event_identifier(str_t(s.begin(), begin), str_t(it, s.end()));
+							}
+						}
+					}
+				}
+				return event_identifier(str_t(s));
+			}
+
+			str_t
+				/// The subject that owns and invokes this event. This may be empty if the subject is the element
+				/// itself.
+				subject,
+				name; ///< The name of the event.
+		};
+
+		/// Contains information about an event trigger.
+		struct event_trigger {
+			event_identifier identifier; ///< Identifier of the event.
+			storyboard animations; ///< The animations to play.
+		};
+
 		element_parameters default_parameters; ///< The default parameters for elements of this class.
-		std::map<str_t, storyboard> event_triggers; ///< Animations that are played when events are triggered.
+		std::vector<event_trigger> event_triggers; ///< The list of event triggers.
 		/// Additional attributes that are dependent of the element's type.
 		std::map<str_t, json::value_storage> additional_attributes;
 	};

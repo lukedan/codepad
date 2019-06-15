@@ -480,7 +480,7 @@ namespace codepad::ui {
 
 		/// Used by composite elements to automatically check and cast a component pointer to the correct type, and
 		/// assign it to the given pointer.
-		template <typename Elem> inline static class_arrangements::construction_notify _role_cast(Elem * &elem) {
+		template <typename Elem> inline static class_arrangements::construction_notify _name_cast(Elem * &elem) {
 			return [ppelem = &elem](element * ptr) {
 				*ppelem = dynamic_cast<Elem*>(ptr);
 				if (*ppelem == nullptr) {

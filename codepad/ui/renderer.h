@@ -200,8 +200,14 @@ namespace codepad::ui {
 		virtual void add_segment(vec2d) = 0;
 		/// Adds a cubic bezier segment.
 		virtual void add_cubic_bezier(vec2d to, vec2d control1, vec2d control2) = 0;
-		/// Adds an arc (part of a circle).
-		virtual void add_arc(vec2d to, double radius, sweep_direction dir, arc_type type) = 0;
+		/// Adds an arc, a part of a ellipse.
+		///
+		/// \param to The ending point of this arc.
+		/// \param radius The radius before rotation.
+		/// \param rotation The clockwise rotation of the ellipse.
+		/// \param dir The sweep direction of this arc.
+		/// \param type Indicates whether this is a major arc or a minor one.
+		virtual void add_arc(vec2d to, vec2d radius, double rotation, sweep_direction dir, arc_type type) = 0;
 	};
 
 	// brush parameters

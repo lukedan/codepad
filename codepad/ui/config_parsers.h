@@ -45,20 +45,21 @@ namespace codepad::ui {
 					value.event_triggers = ancestor->configuration.event_triggers;
 				}
 			}
-			if (object_t allanis; json::try_cast_member(val, u8"animations", allanis)) {
-				for (auto sbit = allanis.member_begin(); sbit != allanis.member_end(); ++sbit) {
+			if (object_t triggers; json::try_cast_member(val, u8"animations", triggers)) {
+				for (auto sbit = triggers.member_begin(); sbit != triggers.member_end(); ++sbit) {
 					if (object_t sbobj; json::try_cast(sbit.value(), sbobj)) {
-						storyboard sb;
+						element_configuration::event_trigger trigger;
+						trigger.identifier = element_configuration::event_identifier::parse_from_string(sbit.name());
 						for (auto aniit = sbobj.member_begin(); aniit != sbobj.member_end(); ++aniit) {
 							auto &&bs = animation_path::parse(aniit.name());
 							if (bs.subject_creator && bs.parser) {
 								storyboard::entry entry;
 								entry.subject = std::move(bs.subject_creator);
 								entry.definition = bs.parser->parse(aniit.value(), *this);
-								sb.animations.emplace_back(std::move(entry));
+								trigger.animations.animations.emplace_back(std::move(entry));
 							}
 						}
-						value.event_triggers.try_emplace(str_t(sbit.name()), std::move(sb)); // TODO check if inserted or merge?
+						value.event_triggers.emplace_back(std::move(trigger));
 					}
 				}
 			}
@@ -112,7 +113,7 @@ namespace codepad::ui {
 				logger::get().log_warning(CP_HERE, "missing type for child");
 			}
 			child.element_class = json::cast_member_or_default(val, u8"class", child.type);
-			json::try_cast_member(val, u8"role", child.role);
+			json::try_cast_member(val, u8"name", child.name);
 		}
 		/// Parses the metrics and children arrangements of either a composite element or one of its children, given
 		/// a JSON object.
@@ -227,12 +228,12 @@ namespace codepad::ui {
 				if (object_t stopobj; json::try_cast(stopdef, stopobj)) {
 					json::try_cast_member(stopobj, u8"position", stop.position);
 					json::object_parsers::try_parse_member(stopobj, u8"color", stop.color);
-				} else if (array_t arr; json::try_cast(stopdef, arr) && arr.size() >= 2) {
-					if (arr.size() > 2) {
+				} else if (array_t stoparr; json::try_cast(stopdef, stoparr) && stoparr.size() >= 2) {
+					if (stoparr.size() > 2) {
 						logger::get().log_warning(CP_HERE, "too many items in gradient stop definition");
 					}
-					json::try_cast(arr[0], stop.position);
-					json::object_parsers::try_parse(arr[1], stop.color);
+					json::try_cast(stoparr[0], stop.position);
+					json::object_parsers::try_parse(stoparr[1], stop.color);
 				} else {
 					logger::get().log_warning(CP_HERE, "invalid gradient stop format");
 				}
@@ -273,6 +274,7 @@ namespace codepad::ui {
 				json::object_parsers::try_parse_member(obj, u8"transform", value.transform);
 			} else {
 				auto &brush = value.value.emplace<brushes::solid_color>();
+				json::object_parsers::try_parse(val, brush.color);
 			}
 		}
 		/// Parses a \ref generic_pen from the given JSON object.
@@ -305,7 +307,15 @@ namespace codepad::ui {
 						json::object_parsers::try_parse_member(partobj, u8"to", part.to);
 						part.direction = clockwise ? sweep_direction::clockwise : sweep_direction::counter_clockwise;
 						part.type = major ? arc_type::major : arc_type::minor;
-						json::try_cast_member(partobj, u8"radius", part.radius);
+						json::try_cast_member(partobj, u8"rotation", part.rotation);
+						if (auto it = partobj.find_member(u8"radius"); it != partobj.member_end()) {
+							if (double rad; json::try_cast(it.value(), rad)) { // first try parsing a single value
+								part.radius.relative = vec2d();
+								part.radius.absolute = vec2d(rad, rad);
+							} else {
+								json::object_parsers::try_parse_member(partobj, u8"radius", part.radius);
+							}
+						}
 					}
 				} else if (op == u8"bezier") {
 					if (object_t partobj; json::try_cast(member.value(), partobj)) {
@@ -498,9 +508,9 @@ namespace codepad::ui {
 					gests.emplace_back(gestval);
 				} else if (array_t garr; json::try_cast(gestures.value(), garr)) {
 					for (auto &&g : garr) {
-						if (str_view_t gstr; json::try_cast(g, gstr)) {
+						if (str_view_t gpart; json::try_cast(g, gpart)) {
 							key_gesture gval;
-							if (!parse_hotkey_gesture(gval, gstr)) {
+							if (!parse_hotkey_gesture(gval, gpart)) {
 								continue;
 							}
 							gests.emplace_back(gval);

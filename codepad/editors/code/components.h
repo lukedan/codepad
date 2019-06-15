@@ -244,8 +244,6 @@ namespace codepad::editors::code {
 			///
 			/// \param s Index of the first visual line of the page.
 			/// \param pe Index past the last visual line of the page.
-			///
-			/// \todo Correct Y offset of characters of different fonts.
 			void _render_page(size_t s, size_t pe) {
 				performance_monitor mon(CP_STRLIT("render_minimap_page"), page_rendering_time_redline);
 				if (contents_region * edt = component_helper::get_contents_region(*_parent)) {

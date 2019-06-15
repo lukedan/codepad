@@ -121,7 +121,7 @@ namespace codepad::ui {
 	template <typename T> struct default_lerp {
 	public:
 		/// Calls \ref lerp() if \ref _can_lerp::value is \p true.
-		T operator()(T from, T to, double perc) const {
+		T operator()(T from, [[maybe_unused]] T to, [[maybe_unused]] double perc) const {
 			if constexpr (_can_lerp::value) {
 				return lerp(from, to, perc);
 			} else {
@@ -294,6 +294,7 @@ namespace codepad::ui {
 				}
 			}
 			logger::get().log_warning(CP_HERE, "potential zero-duration loop in animation");
+			return std::nullopt;
 		}
 
 		/// Returns \ref _subject.

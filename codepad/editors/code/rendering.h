@@ -125,16 +125,14 @@ namespace codepad::editors::code {
 	protected:
 		std::tuple<Args...> _components; ///< The components.
 
-		// TODO is the Count parameter neccessary?
-		// https://en.cppreference.com/w/cpp/language/if
 		/// Recursive implementation of \ref generate().
-		template <size_t Index = 0, size_t Count = sizeof...(Args)> fragment_generation_result _generate_impl(size_t position) {
-			if constexpr (Index < Count) {
+		template <size_t Index = 0> fragment_generation_result _generate_impl([[maybe_unused]] size_t position) {
+			if constexpr (Index < sizeof...(Args)) {
 				fragment_generation_result frag =
-					std::get<std::min(Index, Count - 1)>(_components).generate(position);
+					std::get<std::min(Index, sizeof...(Args) - 1)>(_components).generate(position);
 				if (std::holds_alternative<no_fragment>(frag.result)) { // nope
 					size_t steps = frag.steps;
-					frag = _generate_impl<Index + 1, Count>(position);
+					frag = _generate_impl<Index + 1>(position);
 					if (std::holds_alternative<no_fragment>(frag.result)) { // still nope
 						frag.steps = std::min(frag.steps, steps);
 					}
@@ -432,7 +430,7 @@ namespace codepad::editors::code {
 			), frag.theme.color);
 		}
 		/// Appends a \ref tab_fragment to the rendered document.
-		basic_rendering append(const tab_fragment & frag) {
+		basic_rendering append(const tab_fragment&) {
 			basic_rendering r(get_position());
 			set_horizontal_position((std::floor(get_horizontal_position() / _tab_width) + 1.0) * _tab_width);
 			return r;
@@ -445,14 +443,14 @@ namespace codepad::editors::code {
 			), _invalid_cp_color); // TODO customizable font params
 		}
 		/// Appends a \ref linebreak_fragment to the rendered document by simply moving the current position.
-		basic_rendering append(const linebreak_fragment & frag) {
+		basic_rendering append(const linebreak_fragment&) {
 			basic_rendering r(get_position());
 			set_horizontal_position(0.0);
 			advance_vertical_position(1);
 			return r;
 		}
 		/// Appends a \ref image_gizmo_fragment to the rendered document.
-		basic_rendering append(const image_gizmo_fragment & frag) {
+		basic_rendering append(const image_gizmo_fragment&) {
 			// TODO
 			return basic_rendering(get_position());
 		}
@@ -506,37 +504,38 @@ namespace codepad::editors::code {
 
 
 	/// A standalone component that gathers information about carets to be rendered later.
-	struct caret_renderer {
+	struct caret_gatherer {
 	public:
 		constexpr static size_t maximum_num_lookahead_carets = 2; ///< The maximum number of pending carets.
 
 		/// Constructs this struct with the given \ref caret_set, position, \ref fragment_assembler, and a boolean
 		/// indicating whether the previous fragment is a stall.
-		caret_renderer(
+		caret_gatherer(
 			const caret_set::container &set, size_t pos, const fragment_assembler &ass, bool stall
 		) : _carets(set), _assembler(&ass) {
-			// find the first caret to render
+			// find the first candidate caret to render
 			auto first = _carets.lower_bound(std::make_pair(pos, 0));
 			if (first != _carets.begin()) {
 				auto prev = first;
 				--prev;
-				if (prev->first.second > pos) {
+				if (prev->first.second >= pos) {
 					first = prev;
 				}
 			}
-			for (size_t i = 0; i < maximum_num_lookahead_carets && first != _carets.end(); ++first) {
-				if ((first->first.second == pos && first->first.first < first->first.second) || (
-					first->first.first == pos && first->first.first >= first->first.second &&
-					stall && !first->second.after_stall
-					)) { // two cases, too late for this one, i not incremented
-					continue;
+			while (first != _carets.end() && _queued.size() < maximum_num_lookahead_carets) {
+				std::pair<size_t, size_t> range = std::minmax(first->first.first, first->first.second);
+				if (range.second > pos || !_should_end_before_stall(first->first, first->second, stall)) {
+					// not too late
+					if ( // not too early to start
+						range.first < pos ||
+						(range.first == pos && _should_start_before_stall(first->first, first->second, stall))
+						) { // should jumpstart
+						_active.emplace_back(_single_caret_renderer::jumpstart(*_assembler, first));
+					} else { // queue for later
+						_queued.emplace_back(first);
+					}
 				}
-				if (auto && rend = _single_caret_renderer::jumpstart(*_assembler, pos, stall, first)) {
-					_active.emplace_back(std::move(rend.value()));
-				} else {
-					_queued.emplace_back(first);
-				}
-				++i;
+				++first;
 			}
 		}
 
@@ -545,17 +544,16 @@ namespace codepad::editors::code {
 		template <typename Fragment, typename Rendering> void handle_fragment(
 			const Fragment &frag, const Rendering &rend, size_t steps, size_t posafter
 		) {
-			caret_set::const_iterator next = _carets.end(); // the next caret to be queued
-			if (!_queued.empty()) {
-				next = _queued.back();
-				++next;
-			}
 			// check & start new renderers
 			for (auto it = _queued.begin(); it != _queued.end(); ) {
 				if (auto && renderer = _single_caret_renderer::start_at_fragment(
 					frag, rend, steps, posafter, *this, *it
 				)) {
 					_active.emplace_back(std::move(renderer.value()));
+					// maintain the number of queued carets
+					if (caret_set::const_iterator next = _queued.back(); (++next) != _carets.end()) {
+						_queued.emplace_back(next);
+					}
 					it = _queued.erase(it);
 				} else {
 					++it;
@@ -569,9 +567,45 @@ namespace codepad::editors::code {
 					++it;
 				}
 			}
-			// queue new carets
-			for (; _queued.size() < maximum_num_lookahead_carets && next != _carets.end(); ++next) {
-				_queued.emplace_back(next);
+		}
+
+		/// Skips the rest of the current line and possibly part of the next line. This function should be called
+		/// *before* the metrics in the \ref fragment_assembler are updated.
+		void skip_line(bool stall, size_t posafter) {
+			// first update active renderers
+			for (auto it = _active.begin(); it != _active.end(); ) {
+				if (!it->handle_line_skip(
+					posafter, stall,
+					_assembler->get_horizontal_position(), _assembler->get_vertical_position(),
+					_assembler->get_vertical_position() + _assembler->get_line_height(),
+					*this
+				)) {
+					it = _active.erase(it);
+				} else {
+					++it;
+				}
+			}
+			// check & jumpstart or discard pending carets
+			for (auto it = _queued.begin(); it != _queued.end(); ) {
+				std::pair<size_t, size_t> range = std::minmax((*it)->first.first, (*it)->first.second);
+				if ( // too early
+					range.first > posafter ||
+					(range.first == posafter && !_should_start_before_stall((*it)->first, (*it)->second, stall))
+					) {
+					++it; // next
+				} else { // either start or discard
+					if ( // should start
+						range.second > posafter ||
+						(range.second == posafter && !_should_end_before_stall((*it)->first, (*it)->second, stall))
+						) {
+						_active.emplace_back(_single_caret_renderer::jumpstart_at_skip_line(*_assembler, *it));
+					} // otherwise should only discard
+					// queue another & remove entry
+					if (caret_set::const_iterator next = _queued.back(); (++next) != _carets.end()) {
+						_queued.emplace_back(next);
+					}
+					it = _queued.erase(it);
+				}
 			}
 		}
 
@@ -580,6 +614,7 @@ namespace codepad::editors::code {
 			for (auto &rend : _active) {
 				rend.finish(position, *this);
 			}
+			// TODO draw the possibly left out "last caret"
 		}
 
 		/// Returns a reference to the associated \ref fragment_assembler.
@@ -596,6 +631,15 @@ namespace codepad::editors::code {
 			return _selected_regions;
 		}
 	protected:
+		/// Returns \p true if \p at_stall is \p true and the caret should start before the stall.
+		inline static bool _should_start_before_stall(caret_selection caret, const caret_data &data, bool at_stall) {
+			return at_stall && caret.second > caret.first && !data.after_stall;
+		}
+		/// Returns \p true if \p at_stall is \p true and the caret should end before the stall.
+		inline static bool _should_end_before_stall(caret_selection caret, const caret_data &data, bool at_stall) {
+			return at_stall && (caret.second > caret.first || !data.after_stall);
+		}
+
 		/// Handles a single caret. The return values of the \p handle_fragment() methods return \p false if this
 		/// caret has ended.
 		struct _single_caret_renderer {
@@ -603,14 +647,14 @@ namespace codepad::editors::code {
 			/// Does nothing when at a \ref no_fragment. Actually, this shouldn't happen.
 			inline static std::optional<_single_caret_renderer> start_at_fragment(
 				const no_fragment&, const fragment_assembler::basic_rendering&,
-				size_t, size_t, caret_renderer&, caret_set::const_iterator
+				size_t, size_t, caret_gatherer&, caret_set::const_iterator
 			) {
 				return std::nullopt;
 			}
 			/// Tries to start rendering a new caret at the given \ref text_fragment.
 			inline static std::optional<_single_caret_renderer> start_at_fragment(
 				const text_fragment&, const fragment_assembler::text_rendering & r,
-				size_t steps, size_t posafter, caret_renderer & rend, caret_set::const_iterator iter
+				size_t steps, size_t posafter, caret_gatherer & rend, caret_set::const_iterator iter
 			) {
 				_single_caret_renderer res(iter, r.topleft.x);
 				if (res._range.second + steps < posafter) { // too late
@@ -631,61 +675,58 @@ namespace codepad::editors::code {
 			}
 			/// Tries to start rendering a new caret at the given \ref linebreak_fragment.
 			inline static std::optional<_single_caret_renderer> start_at_fragment(
-				const linebreak_fragment &frag, const fragment_assembler::basic_rendering &r,
-				size_t steps, size_t posafter, caret_renderer &rend, caret_set::const_iterator iter
+				const linebreak_fragment&, const fragment_assembler::basic_rendering &r,
+				size_t steps, size_t posafter, caret_gatherer &rend, caret_set::const_iterator iter
 			) {
 				return _start_at_solid_fragment(rectd::from_xywh(
 					r.topleft.x, r.topleft.y, 10.0, rend.get_fragment_assembler().get_line_height()
-				), steps, posafter, rend, iter); // TODO
+				), steps, posafter, rend, iter); // TODO proper width
 			}
 			/// Tries to start rendering a new caret at the given generic solid fragment.
 			template <
 				typename Frag, typename Rendering
 			> inline static std::optional<_single_caret_renderer> start_at_fragment(
-				const Frag & frag, const Rendering & r, size_t steps, size_t posafter,
-				caret_renderer & rend, caret_set::const_iterator iter
+				const Frag&, const Rendering & r, size_t steps, size_t posafter,
+				caret_gatherer & rend, caret_set::const_iterator iter
 			) {
 				return _start_at_solid_fragment(
 					_get_solid_fragment_caret_position(r, rend.get_fragment_assembler()), steps, posafter, rend, iter
 				);
 			}
 
-			/// Starts rendering a caret halfway. This function assumes that the caret should either start now or
-			/// later, i.e., the caret is never late.
-			inline static std::optional<_single_caret_renderer> jumpstart(
-				const fragment_assembler & ass, size_t posafter, bool laststall, caret_set::const_iterator iter
+			/// Starts rendering a caret halfway at the beginning of the view.
+			inline static _single_caret_renderer jumpstart(
+				const fragment_assembler & ass, caret_set::const_iterator iter
 			) {
-				_single_caret_renderer res(iter, ass.get_horizontal_position());
-				if (res._range.first > posafter) { // too early
-					return std::nullopt;
-				}
-				if (res._range.first < posafter) { // definitely start now
-					return res;
-				}
-				if (res._range.first == posafter) {
-					if (laststall && !iter->second.after_stall) { // start without adding a caret
-						return res;
-					} // otherwise it will be started at the first fragment
-				}
-				return std::nullopt;
+				return _single_caret_renderer(iter, ass.get_horizontal_position());
+			}
+
+			/// Starts rendering a caret halfway when skipping part of a line.
+			inline static _single_caret_renderer jumpstart_at_skip_line(
+				const fragment_assembler & ass, caret_set::const_iterator iter
+			) {
+				vec2d pos = ass.get_position();
+				_single_caret_renderer res(iter, pos.x);
+				res._append_line_selection(pos.x, pos.y, pos.y + ass.get_line_height());
+				return res;
 			}
 
 			/// Handles a \ref no_fragment by doing nothing. Normally this should not happen.
 			bool handle_fragment(
 				const no_fragment&, const fragment_assembler::basic_rendering&,
-				size_t, size_t, caret_renderer&
+				size_t, size_t, caret_gatherer&
 			) {
 				return true;
 			}
 			/// Handles a \ref text_fragment.
 			bool handle_fragment(
-				const text_fragment & frag, const fragment_assembler::text_rendering & r,
-				size_t steps, size_t posafter, caret_renderer & rend
+				const text_fragment&, const fragment_assembler::text_rendering & r,
+				size_t steps, size_t posafter, caret_gatherer & rend
 			) {
 				assert_true_logical(steps > 0, "invalid text fragment");
 				if (posafter > _range.second) { // terminate here
 					rectd pos = r.text->get_character_placement(_range.second - (posafter - steps));
-					_terminate(_range.second, rectd::from_xywh(
+					_terminate_with_caret(_range.second, rectd::from_xywh(
 						pos.xmin + r.topleft.x, rend.get_fragment_assembler().get_vertical_position(),
 						pos.width(), rend.get_fragment_assembler().get_line_height()
 					), rend);
@@ -696,16 +737,14 @@ namespace codepad::editors::code {
 			/// Handles a \ref linebreak_fragment.
 			bool handle_fragment(
 				const linebreak_fragment & frag, const fragment_assembler::basic_rendering & r,
-				size_t steps, size_t posafter, caret_renderer & rend
+				size_t steps, size_t posafter, caret_gatherer & rend
 			) {
 				rectd pos = rectd::from_xywh(
-					r.topleft.x, r.topleft.y, 0.0, rend.get_fragment_assembler().get_line_height()
+					r.topleft.x, r.topleft.y, 10.0, rend.get_fragment_assembler().get_line_height()
 				);
-				if (frag.type != line_ending::none) {
-					pos.xmax += 10.0; // TODO should be the width of a space?
-				}
-				if (_handle_solid_fragment(pos, steps, posafter, rend)) { // not over, add selected region
-					_selected_regions.emplace_back(_region_left, pos.xmax, pos.ymin, pos.ymax);
+				if (_handle_solid_fragment(pos, steps, posafter, rend)) { // not over, to the next line
+					// for soft linebreaks, do not add space after the line
+					_append_line_selection(frag.type == line_ending::none ? pos.xmin : pos.xmax, pos.ymin, pos.ymax);
 					_region_left = 0.0;
 					return true;
 				}
@@ -714,22 +753,47 @@ namespace codepad::editors::code {
 			/// Handles a generic solid fragment. This includes the \ref image_gizmo_fragment, the
 			/// \ref text_giamo_fragment, the \ref tab_fragment, and the \ref invalid_codepoint_fragment.
 			template <typename Frag, typename Rendering> bool handle_fragment(
-				const Frag&, const Rendering & r, size_t steps, size_t posafter, caret_renderer & rend
+				const Frag&, const Rendering & r, size_t steps, size_t posafter, caret_gatherer & rend
 			) {
 				return _handle_solid_fragment(
 					_get_solid_fragment_caret_position(r, rend.get_fragment_assembler()), steps, posafter, rend
 				);
 			}
 
+			/// Called when the rest of the current line and possibly part of the next line are skipped.
+			///
+			/// \param steps The number of characters skipped.
+			/// \param posafter The text position after skipping.
+			/// \param x The right boundary of the last rendered fragment.
+			/// \param ymin The top boundary of the last line.
+			/// \param ymax The bottom boundary of the last line.
+			/// \param lineheight The height of a line.
+			/// \param stall Indicates whether the last skipped fragment is a stall.
+			/// \param rend The \ref caret_gatherer.
+			bool handle_line_skip(
+				size_t posafter, bool stall, double x, double ymin, double ymax, caret_gatherer &rend
+			) {
+				if (
+					_range.second < posafter || // end before this position
+					(_range.second == posafter && _should_end_before_stall(_caret->first, _caret->second, stall))
+					) { // stop here
+					_terminate(x, ymin, ymax, rend);
+					return false;
+				} // else jump to the next line
+				_append_line_selection(x, ymin, ymax);
+				_region_left = 0.0;
+				return true;
+			}
+
 			/// Properly finishes rendering to this caret. Note that this function may render an extra caret that
 			/// should not be visible.
-			void finish(size_t pos, caret_renderer & rend) {
+			void finish(size_t pos, caret_gatherer & rend) {
 				const fragment_assembler &ass = rend.get_fragment_assembler();
 				rectd caret = rectd::from_xywh(
 					ass.get_horizontal_position(), rend.get_fragment_assembler().get_vertical_position(),
 					10.0, ass.get_line_height()
 				); // TODO use the width of a space?
-				_terminate(pos, caret, rend);
+				_terminate_with_caret(pos, caret, rend);
 			}
 		protected:
 			caret_set::const_iterator _caret; ///< Iterator to the caret data.
@@ -764,20 +828,14 @@ namespace codepad::editors::code {
 			/// Checks if the given caret starts at the given solid fragment (one that's not a text fragment). If so,
 			/// returns a corresponding \ref _single_caret_renderer and adds a caret if necessary.
 			inline static std::optional<_single_caret_renderer> _start_at_solid_fragment(
-				rectd caret, size_t steps, size_t posafter, caret_renderer & rend, caret_set::const_iterator c
+				rectd caret, size_t steps, size_t posafter, caret_gatherer & rend, caret_set::const_iterator c
 			) {
 				_single_caret_renderer res(c, caret.xmin);
 				if (res._range.second + steps < posafter) { // too late
 					return std::nullopt;
 				}
 				if (steps == 0) { // stall
-					// only start if the caret is in the front, otherwise it should always be started later where
-					// it's not a stall
-					if (
-						res._range.first == posafter &&
-						res._range.first == c->first.first &&
-						!c->second.after_stall
-						) { // start & add caret if the caret is here in front and should not be put after the stall
+					if (res._range.first == posafter && _should_start_before_stall(c->first, c->second, true)) {
 						rend._caret_rects.emplace_back(caret);
 						return res;
 					}
@@ -793,34 +851,40 @@ namespace codepad::editors::code {
 			}
 
 			/// Handles a fragmen which the caret cannot appear inside.
-			bool _handle_solid_fragment(rectd caret, size_t steps, size_t posafter, caret_renderer & rend) {
+			bool _handle_solid_fragment(rectd caret, size_t steps, size_t posafter, caret_gatherer & rend) {
 				if (steps == 0) { // stall
-					if (posafter == _range.second && ( // maybe stop if
-						_range.second != _caret->first.first || // selected region is nonempty and caret at the front
-						!_caret->second.after_stall // or caret is before stall
-						)) {
-						_terminate(posafter, caret, rend);
+					if (posafter == _range.second && _should_end_before_stall(_caret->first, _caret->second, true)) {
+						_terminate_with_caret(posafter, caret, rend);
 						return false;
 					}
 				} else { // not stall
 					if (posafter > _range.second) { // stop here & this fragment is completely covered
-						_terminate(posafter - steps, caret, rend);
+						_terminate_with_caret(posafter - steps, caret, rend);
 						return false;
 					}
 				}
 				return true;
 			}
 
-			/// Normally should be called right before finishing this caret and selected region. This function
-			/// appends a caret to \ref caret_renderer::_caret_rects if necessary, appends a final selected rectangle
-			/// to \ref _selected_regions, then moves it to \ref caret_renderer::_selected_regions.
-			void _terminate(size_t pos, rectd caret, caret_renderer & rend) {
+			/// Appends to \ref _selected_regions the rectangle corresponding to this line.
+			void _append_line_selection(double x, double ymin, double ymax) {
+				_selected_regions.emplace_back(_region_left, x, ymin, ymax);
+			}
+
+			/// Called right before finishing this caret and selected region. This function appends a caret to
+			/// \ref caret_gatherer::_caret_rects if necessary, appends a final selected rectangle to
+			/// \ref _selected_regions, then moves it to \ref caret_gatherer::_selected_regions.
+			void _terminate_with_caret(size_t pos, rectd caret, caret_gatherer & rend) {
 				if (_range.second != _caret->first.second && pos == _range.second) {
 					// add caret only if the positions match, and the caret is after the selected region which is
 					// nonempty (to avoid rendering the caret twice)
 					rend._caret_rects.emplace_back(caret);
 				}
-				_selected_regions.emplace_back(_region_left, caret.xmin, caret.ymin, caret.ymax);
+				_terminate(caret.xmin, caret.ymin, caret.ymax, rend);
+			}
+			/// Similar to \ref _terminate_with_caret but does not append a caret region.
+			void _terminate(double x, double ymin, double ymax, caret_gatherer &rend) {
+				_append_line_selection(x, ymin, ymax);
 				rend._selected_regions.emplace_back(std::move(_selected_regions));
 			}
 		};
@@ -831,5 +895,124 @@ namespace codepad::editors::code {
 		std::list<_single_caret_renderer> _active; ///< The list of active renderers for individual carets.
 		std::list<caret_set::const_iterator> _queued; ///< The list of carets that would start shortly.
 		const fragment_assembler *_assembler = nullptr; ///< The associated \ref fragment_assembler.
+	};
+
+
+	/// Basic interface for rendering selected regions.
+	class selection_renderer {
+	public:
+		/// Default virtual destructor.
+		virtual ~selection_renderer() = default;
+
+		/// Renders a single selected region.
+		virtual void render(
+			ui::renderer_base&, const std::vector<rectd>&,
+			const ui::generic_brush_parameters&, const ui::generic_pen_parameters&
+		) const = 0;
+	};
+
+	/// Renders selected regions with rounded corners.
+	class rounded_selection_renderer : public selection_renderer {
+	public:
+		/// Renders these regions as a single path with round corners.
+		void render(
+			ui::renderer_base &rend,
+			const std::vector<rectd> &rects,
+			const ui::generic_brush_parameters &brush,
+			const ui::generic_pen_parameters &pen
+		) const override {
+			auto &builder = rend.start_path();
+
+			double
+				toprx = _half_radius(rects.front().width()),
+				topry = _half_radius(rects.front().height());
+
+			builder.move_to(vec2d(rects.front().xmin, rects.front().ymin + topry));
+			builder.add_arc(
+				vec2d(rects.front().xmin + toprx, rects.front().ymin), vec2d(toprx, topry), 0.0,
+				ui::sweep_direction::clockwise, ui::arc_type::minor
+			);
+			builder.add_segment(vec2d(rects.front().xmax - toprx, rects.front().ymin));
+			builder.add_arc(
+				vec2d(rects.front().xmax, rects.front().ymin + topry), vec2d(toprx, topry), 0.0,
+				ui::sweep_direction::clockwise, ui::arc_type::minor
+			);
+
+			{ // downwards
+				auto last = rects.begin(), cur = last;
+				for (++cur; cur != rects.end(); last = cur, ++cur) {
+					bool right = cur->xmax > last->xmax;
+					double
+						rx = _half_radius(std::abs(last->xmax - cur->xmax)),
+						posrx = right ? rx : -rx,
+						ry1 = _half_radius(last->height()),
+						ry2 = _half_radius(cur->height());
+
+					builder.add_segment(vec2d(last->xmax, last->ymax - ry1));
+					builder.add_arc(
+						vec2d(last->xmax + posrx, last->ymax), vec2d(rx, ry1), 0.0,
+						right ? ui::sweep_direction::counter_clockwise : ui::sweep_direction::clockwise,
+						ui::arc_type::minor
+					);
+					builder.add_segment(vec2d(cur->xmax - posrx, cur->ymin));
+					builder.add_arc(
+						vec2d(cur->xmax, cur->ymin + ry2), vec2d(rx, ry2), 0.0,
+						right ? ui::sweep_direction::clockwise : ui::sweep_direction::counter_clockwise,
+						ui::arc_type::minor
+					);
+				}
+			}
+
+			double
+				botrx = _half_radius(rects.back().width()),
+				botry = _half_radius(rects.back().height());
+
+			builder.add_segment(vec2d(rects.back().xmax, rects.back().ymax - botry));
+			builder.add_arc(
+				vec2d(rects.back().xmax - botrx, rects.back().ymax), vec2d(botrx, botry), 0.0,
+				ui::sweep_direction::clockwise, ui::arc_type::minor
+			);
+			builder.add_segment(vec2d(rects.back().xmin + botrx, rects.back().ymax));
+			builder.add_arc(
+				vec2d(rects.back().xmin, rects.back().ymax - botry), vec2d(botrx, botry), 0.0,
+				ui::sweep_direction::clockwise, ui::arc_type::minor
+			);
+
+			{ // upwards
+				auto last = rects.rbegin(), cur = last;
+				for (++cur; cur != rects.rend(); last = cur, ++cur) {
+					bool right = cur->xmin > last->xmin;
+					double
+						rx = _half_radius(std::abs(cur->xmin - last->xmin)),
+						posrx = right ? rx : -rx,
+						ry1 = _half_radius(last->height()),
+						ry2 = _half_radius(cur->height());
+
+					builder.add_segment(vec2d(last->xmin, last->ymin + ry1));
+					builder.add_arc(
+						vec2d(last->xmin + posrx, last->ymin), vec2d(rx, ry1), 0.0,
+						right ? ui::sweep_direction::clockwise : ui::sweep_direction::counter_clockwise,
+						ui::arc_type::minor
+					);
+					builder.add_segment(vec2d(cur->xmin - posrx, cur->ymax));
+					builder.add_arc(
+						vec2d(cur->xmin, cur->ymax - ry2), vec2d(rx, ry2), 0.0,
+						right ? ui::sweep_direction::counter_clockwise : ui::sweep_direction::clockwise,
+						ui::arc_type::minor
+					);
+				}
+			}
+
+			builder.close();
+
+			rend.end_and_draw_path(brush, pen);
+		}
+
+		double maximum_radius = 4.0; ///< The maximum radius of the corners.
+	protected:
+		/// Returns the smaller value between half the input and \ref maximum_radius.
+		double _half_radius(double v) const {
+			return std::min(0.5 * v, maximum_radius);
+		}
 	};
 }

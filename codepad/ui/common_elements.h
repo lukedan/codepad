@@ -362,16 +362,16 @@ namespace codepad::ui {
 			return CP_STRLIT("scrollbar");
 		}
 
-		/// Returns the role identifier of the `page up' button.
-		inline static str_view_t get_page_up_button_role() {
+		/// Returns the name identifier of the `page up' button.
+		inline static str_view_t get_page_up_button_name() {
 			return CP_STRLIT("page_up_button");
 		}
-		/// Returns the role identifier of the `page down' button.
-		inline static str_view_t get_page_down_button_role() {
+		/// Returns the name identifier of the `page down' button.
+		inline static str_view_t get_page_down_button_name() {
 			return CP_STRLIT("page_down_button");
 		}
-		/// Returns the role identifier of the drag button.
-		inline static str_view_t get_drag_button_role() {
+		/// Returns the name identifier of the drag button.
+		inline static str_view_t get_drag_button_name() {
 			return CP_STRLIT("drag_button");
 		}
 	protected:
@@ -468,9 +468,9 @@ namespace codepad::ui {
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(
 				*this, {
-					{get_drag_button_role(), _role_cast(_drag)},
-				{get_page_up_button_role(), _role_cast(_pgup)},
-				{get_page_down_button_role(), _role_cast(_pgdn)}
+					{get_drag_button_name(), _name_cast(_drag)},
+				{get_page_up_button_name(), _name_cast(_pgup)},
+				{get_page_down_button_name(), _name_cast(_pgdn)}
 				});
 
 			_pgup->set_trigger_type(button::trigger_type::mouse_down);

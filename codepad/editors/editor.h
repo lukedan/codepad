@@ -96,16 +96,16 @@ namespace codepad::editors {
 			return CP_STRLIT("editor");
 		}
 
-		/// Returns the role identifier of the vertical scrollbar.
-		inline static str_view_t get_vertical_scrollbar_role() {
+		/// Returns the name identifier of the vertical scrollbar.
+		inline static str_view_t get_vertical_scrollbar_name() {
 			return CP_STRLIT("vertical_scrollbar");
 		}
-		/// Returns the role identifier of the horizontal scrollbar.
-		inline static str_view_t get_horizontal_scrollbar_role() {
+		/// Returns the name identifier of the horizontal scrollbar.
+		inline static str_view_t get_horizontal_scrollbar_name() {
 			return CP_STRLIT("horizontal_scrollbar");
 		}
-		/// Returns the role identifier of the contents_region.
-		inline static str_view_t get_contents_region_role() {
+		/// Returns the name identifier of the contents_region.
+		inline static str_view_t get_contents_region_name() {
 			return CP_STRLIT("contents_region");
 		}
 	protected:
@@ -141,9 +141,9 @@ namespace codepad::editors {
 			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_vertical_scrollbar_role(), _role_cast(_vert_scroll)},
-				{get_horizontal_scrollbar_role(), _role_cast(_hori_scroll)},
-				{get_contents_region_role(), _role_cast(_contents)}
+				{get_vertical_scrollbar_name(), _name_cast(_vert_scroll)},
+				{get_horizontal_scrollbar_name(), _name_cast(_hori_scroll)},
+				{get_contents_region_name(), _name_cast(_contents)}
 				});
 
 			_vert_scroll->value_changed += [this](value_update_info<double>&) {

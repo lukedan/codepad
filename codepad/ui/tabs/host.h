@@ -46,24 +46,24 @@ namespace codepad::ui::tabs {
 			return CP_STRLIT("drag_destination_selector");
 		}
 
-		/// Returns the role identifier of the `split left' indicator.
-		inline static str_view_t get_split_left_indicator_role() {
+		/// Returns the name identifier of the `split left' indicator.
+		inline static str_view_t get_split_left_indicator_name() {
 			return CP_STRLIT("split_left_indicator");
 		}
-		/// Returns the role identifier of the `split right' indicator.
-		inline static str_view_t get_split_right_indicator_role() {
+		/// Returns the name identifier of the `split right' indicator.
+		inline static str_view_t get_split_right_indicator_name() {
 			return CP_STRLIT("split_right_indicator");
 		}
-		/// Returns the role identifier of the `split up' indicator.
-		inline static str_view_t get_split_up_indicator_role() {
+		/// Returns the name identifier of the `split up' indicator.
+		inline static str_view_t get_split_up_indicator_name() {
 			return CP_STRLIT("split_up_indicator");
 		}
-		/// Returns the role identifier of the `split down' indicator.
-		inline static str_view_t get_split_down_indicator_role() {
+		/// Returns the name identifier of the `split down' indicator.
+		inline static str_view_t get_split_down_indicator_name() {
 			return CP_STRLIT("split_down_indicator");
 		}
-		/// Returns the role identifier of the `combine' indicator.
-		inline static str_view_t get_combine_indicator_role() {
+		/// Returns the name identifier of the `combine' indicator.
+		inline static str_view_t get_combine_indicator_name() {
 			return CP_STRLIT("combine_indicator");
 		}
 	protected:
@@ -86,11 +86,11 @@ namespace codepad::ui::tabs {
 			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_split_left_indicator_role(), _role_cast(_split_left)},
-				{get_split_right_indicator_role(), _role_cast(_split_right)},
-				{get_split_up_indicator_role(), _role_cast(_split_up)},
-				{get_split_down_indicator_role(), _role_cast(_split_down)},
-				{get_combine_indicator_role(), _role_cast(_combine)},
+				{get_split_left_indicator_name(), _name_cast(_split_left)},
+				{get_split_right_indicator_name(), _name_cast(_split_right)},
+				{get_split_up_indicator_name(), _name_cast(_split_up)},
+				{get_split_down_indicator_name(), _name_cast(_split_down)},
+				{get_combine_indicator_name(), _name_cast(_combine)},
 				});
 
 			set_zindex(zindex::overlay);
@@ -191,12 +191,12 @@ namespace codepad::ui::tabs {
 			return CP_STRLIT("tab_host");
 		}
 
-		/// Returns the role identifier of the region that contains all tab buttons.
-		inline static str_view_t get_tab_buttons_region_role() {
+		/// Returns the name identifier of the region that contains all tab buttons.
+		inline static str_view_t get_tab_buttons_region_name() {
 			return CP_STRLIT("tab_buttons_region");
 		}
-		/// Returns the role identifier of the region that contains tab contents.
-		inline static str_view_t get_tab_contents_region_role() {
+		/// Returns the name identifier of the region that contains tab contents.
+		inline static str_view_t get_tab_contents_region_name() {
 			return CP_STRLIT("tab_contents_region");
 		}
 	protected:
@@ -256,8 +256,8 @@ namespace codepad::ui::tabs {
 			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_tab_buttons_region_role(), _role_cast(_tab_buttons_region)},
-				{get_tab_contents_region_role(), _role_cast(_tab_contents_region)}
+				{get_tab_buttons_region_name(), _name_cast(_tab_buttons_region)},
+				{get_tab_contents_region_name(), _name_cast(_tab_contents_region)}
 				});
 
 			_tab_contents_region->children().changing += [this](element_collection::change_info &p) {

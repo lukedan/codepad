@@ -67,12 +67,12 @@ namespace codepad::ui::tabs {
 			return CP_STRLIT("tab_button");
 		}
 
-		/// Returns the role identifier of the label.
-		inline static str_view_t get_label_role() {
+		/// Returns the name identifier of the label.
+		inline static str_view_t get_label_name() {
 			return CP_STRLIT("label");
 		}
-		/// Returns the role identifier of the `close' button.
-		inline static str_view_t get_close_button_role() {
+		/// Returns the name identifier of the `close' button.
+		inline static str_view_t get_close_button_name() {
 			return CP_STRLIT("close_button");
 		}
 	protected:
@@ -125,8 +125,8 @@ namespace codepad::ui::tabs {
 			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_label_role(), _role_cast(_label)},
-				{get_close_button_role(), _role_cast(_close_btn)}
+				{get_label_name(), _name_cast(_label)},
+				{get_close_button_name(), _name_cast(_close_btn)}
 				});
 
 			_close_btn->click += [this]() {

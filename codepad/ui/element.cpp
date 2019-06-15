@@ -65,7 +65,7 @@ namespace codepad::ui {
 		get_manager().get_renderer().push_matrix_mult(
 			matd3x3::translate(offset) * _params.visual_parameters.transform.get_matrix(get_layout().size())
 		);
-		/*get_manager().get_renderer().push_clip(_layout.fit_grid_enlarge<int>());*/ // TODO clips
+		/*get_manager().get_renderer().push_clip(_layout.fit_grid_enlarge<int>());*/ // TODO clips?
 	}
 
 	void element::_custom_render() const {
@@ -93,13 +93,6 @@ namespace codepad::ui {
 		_initialized = true;
 #endif
 		_params = config.default_parameters;
-		for (auto &p : config.event_triggers) {
-			_register_event(p.first, [this, storyboard = &p.second]() {
-				for (auto &ani : storyboard->animations) {
-					get_manager().get_scheduler().start_animation(ani.start_for(*this), this);
-				}
-			});
-		}
 		for (auto &attr : config.additional_attributes) {
 			_set_attribute(attr.first, attr.second);
 		}

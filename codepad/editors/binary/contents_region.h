@@ -210,7 +210,7 @@ namespace codepad::editors::binary {
 		}
 
 		/// Catches all characters that are valid in hexadecimal, and modifies the contents of the \ref buffer.
-		void on_text_input(str_view_t t) override {
+		void on_text_input(str_view_t) override {
 			// TODO
 		}
 

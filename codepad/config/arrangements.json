@@ -50,18 +50,18 @@
 		"children": [
 			{
 				"type": "button",
-				"role": "page_up_button",
+				"name": "page_up_button",
 				"inherit_layout_from": "element_fill_container"
 			},
 			{
 				"type": "scrollbar_drag_button",
-				"role": "drag_button",
+				"name": "drag_button",
 				"inherit_visuals_from": "",
 				"inherit_layout_from": "element_fill_container"
 			},
 			{
 				"type": "button",
-				"role": "page_down_button",
+				"name": "page_down_button",
 				"inherit_layout_from": "element_fill_container"
 			}
 		]
@@ -78,18 +78,18 @@
 		"children": [
 			{
 				"type": "button",
-				"role": "page_up_button",
+				"name": "page_up_button",
 				"inherit_layout_from": "element_fill_container"
 			},
 			{
 				"type": "scrollbar_drag_button",
-				"role": "drag_button",
+				"name": "drag_button",
 				"inherit_visuals_from": "",
 				"inherit_layout_from": "element_fill_container"
 			},
 			{
 				"type": "button",
-				"role": "page_down_button",
+				"name": "page_down_button",
 				"inherit_layout_from": "element_fill_container"
 			}
 		]
@@ -114,7 +114,7 @@
 			{
 				"type": "element",
 				"class": "drag_destination_selector.split_left_indicator",
-				"role": "split_left_indicator",
+				"name": "split_left_indicator",
 				"inherit_layout_from": "drag_destination_indicator_block",
 				"layout": {
 					"anchor": "ltb"
@@ -123,7 +123,7 @@
 			{
 				"type": "element",
 				"class": "drag_destination_selector.split_right_indicator",
-				"role": "split_right_indicator",
+				"name": "split_right_indicator",
 				"inherit_layout_from": "drag_destination_indicator_block",
 				"layout": {
 					"anchor": "trb"
@@ -132,7 +132,7 @@
 			{
 				"type": "element",
 				"class": "drag_destination_selector.split_up_indicator",
-				"role": "split_up_indicator",
+				"name": "split_up_indicator",
 				"inherit_layout_from": "drag_destination_indicator_block",
 				"layout": {
 					"anchor": "ltr"
@@ -141,7 +141,7 @@
 			{
 				"type": "element",
 				"class": "drag_destination_selector.split_down_indicator",
-				"role": "split_down_indicator",
+				"name": "split_down_indicator",
 				"inherit_layout_from": "drag_destination_indicator_block",
 				"layout": {
 					"anchor": "lrb"
@@ -150,7 +150,7 @@
 			{
 				"type": "element",
 				"class": "drag_destination_selector.combine_indicator",
-				"role": "combine_indicator",
+				"name": "combine_indicator",
 				"inherit_layout_from": "drag_destination_indicator_block",
 				"layout": {
 					"margin": 1.0,
@@ -174,7 +174,7 @@
 				"children": [
 					{
 						"type": "animated_tab_buttons_panel",
-						"role": "tab_buttons_region",
+						"name": "tab_buttons_region",
 						"class": "tab_host.tab_buttons_region",
 						"inherit_visuals_from": "",
 						"layout": {
@@ -186,7 +186,7 @@
 					},
 					{
 						"type": "panel",
-						"role": "tab_contents_region",
+						"name": "tab_contents_region",
 						"inherit_layout_from": "element_fill_container"
 					}
 				]
@@ -266,7 +266,7 @@
 				"children": [
 					{
 						"type": "label",
-						"role": "label",
+						"name": "label",
 						"visibility": "vl",
 						"layout": {
 							"margin": [ 0.0, 1.0, 0.0, 1.0 ],
@@ -276,7 +276,7 @@
 					{
 						"type": "button",
 						"class": "tab_button.close_button",
-						"role": "close_button",
+						"name": "close_button",
 						"visuals": {
 							"geometries": [
 								{
@@ -367,7 +367,7 @@
 		"children": [
 			{
 				"type": "element",
-				"role": "separator",
+				"name": "separator",
 				"class": "split_panel.separator",
 				"inherit_layout_from": "separator"
 			}
@@ -379,7 +379,7 @@
 		"children": [
 			{
 				"type": "scrollbar",
-				"role": "vertical_scrollbar",
+				"name": "vertical_scrollbar",
 				"class": "scrollbar_vertical",
 				"inherit_layout_from": "scrollbar_vertical",
 				"inherit_visuals_from": "",
@@ -392,7 +392,7 @@
 			},
 			{
 				"type": "scrollbar",
-				"role": "horizontal_scrollbar",
+				"name": "horizontal_scrollbar",
 				"class": "scrollbar_horizontal",
 				"inherit_layout_from": "scrollbar_horizontal",
 				"inherit_visuals_from": "",
@@ -405,8 +405,9 @@
 			},
 			{
 				"type": "stack_panel",
-				"role": "components_panel",
+				"name": "components_panel",
 				"inherit_layout_from": "element_fill_container",
+				"visibility": "lvi",
 				"extras": {
 					"orientation": "horizontal"
 				},
@@ -423,7 +424,8 @@
 					},
 					{
 						"type": "code_contents_region",
-						"role": "contents_region",
+						"name": "contents_region",
+						"visibility": "lvi",
 						"layout": {
 							"width": "1*",
 							"height": "100%",
@@ -446,7 +448,7 @@
 		"children": [
 			{
 				"type": "scrollbar",
-				"role": "vertical_scrollbar",
+				"name": "vertical_scrollbar",
 				"class": "scrollbar_vertical",
 				"extras": {
 					"orientation": "vertical"
@@ -457,7 +459,7 @@
 			},
 			{
 				"type": "scrollbar",
-				"role": "horizontal_scrollbar",
+				"name": "horizontal_scrollbar",
 				"class": "scrollbar_horizontal",
 				"extras": {
 					"orientation": "horizontal"
@@ -468,7 +470,7 @@
 			},
 			{
 				"type": "stack_panel",
-				"role": "components_panel",
+				"name": "components_panel",
 				"inherit_layout_from": "element_fill_container",
 				"extras": {
 					"orientation": "horizontal"
@@ -486,7 +488,7 @@
 					},
 					{
 						"type": "binary_contents_region",
-						"role": "contents_region",
+						"name": "contents_region",
 						"layout": {
 							"width": "1*",
 							"height": "100%",

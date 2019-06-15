@@ -112,7 +112,7 @@ namespace codepad::os::direct2d {
 			DWRITE_LINE_METRICS small_buffer[small_buffer_size], *bufptr = small_buffer;
 			std::vector<DWRITE_LINE_METRICS> large_buffer;
 			UINT32 linecount;
-			HRESULT res = _text->GetLineMetrics(small_buffer, small_buffer_size, &linecount);
+			HRESULT res = _text->GetLineMetrics(small_buffer, small_buffer_size, &linecount); // TODO bottleneck
 			auto ressize = static_cast<size_t>(linecount);
 			if (res == E_NOT_SUFFICIENT_BUFFER) {
 				large_buffer.resize(ressize);
@@ -191,13 +191,13 @@ namespace codepad::os::direct2d {
 			));
 		}
 		/// Adds an arc (part of a circle).
-		void add_arc(vec2d to, double radius, ui::sweep_direction dir, ui::arc_type type) override {
+		void add_arc(vec2d to, vec2d radius, double rotation, ui::sweep_direction dir, ui::arc_type type) override {
 			_on_stroke();
 			_last_point = _details::cast_point(to);
 			_sink->AddArc(D2D1::ArcSegment(
 				_last_point,
-				D2D1::SizeF(static_cast<FLOAT>(radius), static_cast<FLOAT>(radius)),
-				0.0f,
+				D2D1::SizeF(static_cast<FLOAT>(radius.x), static_cast<FLOAT>(radius.y)),
+				static_cast<FLOAT>(rotation),
 				dir == ui::sweep_direction::clockwise ?
 				D2D1_SWEEP_DIRECTION_CLOCKWISE :
 				D2D1_SWEEP_DIRECTION_COUNTER_CLOCKWISE,
@@ -878,7 +878,7 @@ namespace codepad::os::direct2d {
 			actual_data.target = _create_bitmap_from_swap_chain(actual_data.swap_chain.get());
 			data.emplace<_window_data>(actual_data);
 			// listen to size_changed
-			wnd.size_changed += [this, pwnd = &wnd](ui::size_changed_info & info) {
+			wnd.size_changed += [this, pwnd = &wnd](ui::size_changed_info&) {
 				auto &data = _window_data::get(*pwnd);
 				data.target.reset(); // gotta release 'em all!
 				com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));

@@ -27,8 +27,6 @@ int main(int argc, char **argv) {
 
 	manager man;
 	man.set_renderer(std::make_unique<direct2d::renderer>());
-	/*man.set_renderer(std::make_unique<software_renderer>());*/
-	/*man.set_font_manager(std::make_unique<font_manager>(man));*/
 
 	{
 		ui_config_json_parser<json::default_engine::value_t> parser(man);
@@ -38,9 +36,6 @@ int main(int argc, char **argv) {
 	hotkey_json_parser<json::default_engine::value_t>::parse_config(man.get_class_hotkeys().mapping, json::parse_file<json::default_engine::document_t>("config/keys.json").root().get<json::default_engine::object_t>());
 
 	tabs::tab_manager tabman(man);
-
-	/*font_family codefnt(man.get_font_manager(), CP_STRLIT("Fira Code"), 12);
-	code::contents_region::set_font(codefnt);*/
 
 	auto *lbl = man.create_element<label>();
 	lbl->set_text(CP_STRLIT("Ctrl+O to open a file"));
