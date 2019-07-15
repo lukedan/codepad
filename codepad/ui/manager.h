@@ -40,7 +40,7 @@ namespace codepad::ui {
 		template <typename Elem> void register_element_type() {
 			register_element_type(str_t(Elem::get_default_class()), []() {
 				return new Elem();
-			});
+				});
 		}
 		/// Registers a new element type for creation.
 		void register_element_type(str_t type, element_constructor constructor) {
@@ -85,7 +85,7 @@ namespace codepad::ui {
 
 		/// Registers the given transition function.
 		void register_transition_function(str_t name, transition_function func) {
-			auto[it, inserted] = _transfunc_map.emplace(std::move(name), std::move(func));
+			auto [it, inserted] = _transfunc_map.emplace(std::move(name), std::move(func));
 			if (!inserted) {
 				logger::get().log_warning(CP_HERE, "duplicate transition function name: ", name);
 			}
@@ -98,6 +98,18 @@ namespace codepad::ui {
 				return it->second;
 			}
 			return nullptr;
+		}
+
+		/// Returns the texture at the given path, loading it from disk when necessary.
+		std::shared_ptr<bitmap> get_texture(const std::filesystem::path &path) {
+			auto it = _textures.find(path);
+			if (it == _textures.end()) {
+				auto loaded = get_renderer().load_bitmap(path);
+				auto pair = _textures.emplace(path, std::move(loaded));
+				assert_true_logical(pair.second, "failed to register loaded bitmap");
+				it = pair.first;
+			}
+			return it->second;
 		}
 
 		/// Sets the renderer used for all managed elements. Normally this only needs to be called once during
@@ -154,27 +166,56 @@ namespace codepad::ui {
 		std::map<str_t, element_constructor, std::less<>> _ctor_map;
 		/// Mapping from names to transition functions.
 		std::map<str_t, transition_function, std::less<>> _transfunc_map;
+
+		/// The mapping between file names and textures.
+		std::map<std::filesystem::path, std::shared_ptr<bitmap>> _textures; // TODO resource path
+
 		scheduler _scheduler; ///< The \ref scheduler.
 		std::unique_ptr<renderer_base> _renderer; ///< The renderer.
-		size_t _stateid_alloc = 0; ///< Records how many states have been registered.
 	};
+
+
+	template <typename T> inline bool typed_animation_value_parser<T>::try_parse(
+		const json::value_storage &value, [[maybe_unused]] manager &m, T &res
+	) const {
+		if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) { // load textures
+			if (str_view_t path; json::try_cast(value.get_value(), path)) {
+				res = m.get_texture(path);
+				return res != nullptr;
+			}
+			return false;
+		} else { // parse everything else directly
+			return json::object_parsers::try_parse(value.get_value(), res);
+		}
+	}
+
+	template <
+		typename T
+	> inline std::unique_ptr<animation_definition_base> typed_animation_value_parser<T>::parse_keyframe_animation(
+		const generic_keyframe_animation_definition &def, manager &m
+	) const {
+		using animation = keyframe_animation_definition<T, default_lerp<T>>;
+		std::vector<typename animation::keyframe> keyframes;
+		for (auto &&kf : def.keyframes) {
+			T target;
+			if (!try_parse(kf.target, m, target)) {
+				logger::get().log_warning(CP_HERE, "failed to parse keyframe target");
+			}
+			keyframes.emplace_back(target, kf.duration, kf.transition_func);
+		}
+		return std::make_unique<animation>(std::move(keyframes), def.repeat_times);
+	}
+
 
 	namespace animation_path::builder {
 		template <
-			typename Component, type Type
-		> inline auto member_subject<Component, Type>::get() const -> const output_type & {
-			return *_prototype._comp.get(&_target);
-		}
-
-		template <typename Component, type Type> inline void member_subject<Component, Type>::set(output_type v) {
-			output_type *ptr = _prototype._comp.get(&_target);
-			if (ptr) {
-				*ptr = std::move(v);
-				if constexpr (Type == type::affects_layout) {
-					_target.get_manager().get_scheduler().invalidate_layout(_target);
-				}
-				_target.get_manager().get_scheduler().invalidate_visual(_target);
+			typename Comp, element_property_type Type
+		> void element_member_subject<Comp, Type>::set(output_type output) {
+			member_subject<Comp>::set(std::move(output));
+			if constexpr (Type == element_property_type::affects_layout) {
+				this->_target.get_manager().get_scheduler().invalidate_layout(this->_target);
 			}
+			this->_target.get_manager().get_scheduler().invalidate_visual(this->_target);
 		}
 	}
 }

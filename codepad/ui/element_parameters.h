@@ -678,10 +678,16 @@ namespace codepad::ui {
 				name; ///< The name of the event.
 		};
 
+		/// Stores the parameters used to start animations.
+		struct animation_parameters {
+			generic_keyframe_animation_definition definition; ///< The definition of the animation.
+			animation_path::component_list subject; ///< The animation subject.
+		};
+
 		/// Contains information about an event trigger.
 		struct event_trigger {
 			event_identifier identifier; ///< Identifier of the event.
-			storyboard animations; ///< The animations to play.
+			std::vector<animation_parameters> animations; ///< The animations to play.
 		};
 
 		element_parameters default_parameters; ///< The default parameters for elements of this class.

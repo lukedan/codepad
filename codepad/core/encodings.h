@@ -10,8 +10,6 @@
 #include <cstddef>
 #include <string>
 #include <iterator>
-// TODO use formal header for C++20
-#include <experimental/coroutine>
 
 namespace codepad {
 	/// Specifies the byte order of words.

@@ -294,7 +294,7 @@ namespace codepad::os {
 		}
 
 		HWND _hwnd;
-		HDC _dc;
+		HDC _dc; // TODO is this useful?
 
 		struct _wndclass {
 			_wndclass();

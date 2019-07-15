@@ -194,6 +194,7 @@
 		]
 	},
 	"tab_button": {
+		"name": "main_panel",
 		"layout": {
 			"width": "auto",
 			"height": "100%"
@@ -311,7 +312,7 @@
 									],
 									"stroke": {
 										"type": "solid",
-										"color": [ 0.0, 0.0, 0.0, 1.0 ],
+										"color": [ 0.0, 0.0, 0.0, 0.0 ],
 										"thickness": 1.5
 									}
 								}
@@ -319,15 +320,30 @@
 						},
 						"animations": {
 							"mouse_enter": {
-								"visuals.geometries[0].stroke.(solid_color_brush.color)": {
-									"to": [ 0.8, 0.0, 0.0, 1.0 ],
+								"visuals.geometries[0].stroke.(solid_color_brush.color).r": {
+									"to": 0.8,
 									"duration": 0.1,
 									"transition": "linear"
 								}
 							},
 							"mouse_leave": {
-								"visuals.geometries[0].stroke.(solid_color_brush.color)": {
-									"to": [ 0.0, 0.0, 0.0, 1.0 ],
+								"visuals.geometries[0].stroke.(solid_color_brush.color).r": {
+									"to": 0.0,
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							},
+
+							"main_panel.mouse_enter": {
+								"visuals.geometries[0].stroke.(solid_color_brush.color).a": {
+									"to": 1.0,
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							},
+							"main_panel.mouse_leave": {
+								"visuals.geometries[0].stroke.(solid_color_brush.color).a": {
+									"to": 0.0,
 									"duration": 0.1,
 									"transition": "linear"
 								}

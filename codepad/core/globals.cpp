@@ -70,7 +70,7 @@ namespace codepad {
 		template <typename ...Args> explicit _global_wrapper(Args &&...args) : object(forward<Args>(args)...) {
 			// logging is not performed for logger since it may lead to recursive initialization
 			if constexpr (!is_same_v<T, logger>) {
-				logger::get().log_info(
+				logger::get().log_debug(
 					CP_HERE,
 					string((_global_init_stk.size() - 1) * 2, ' '), // indent
 					"finish init: ", _global_init_stk.top()
@@ -92,7 +92,7 @@ namespace codepad {
 			_init_marker() {
 				string tname = demangle(typeid(T).name());
 				if constexpr (!is_same_v<T, logger>) { // logging is not performed for logger
-					logger::get().log_info(
+					logger::get().log_debug(
 						CP_HERE, string(_global_init_stk.size() * 2, ' '),
 						"begin init: ", tname
 					);
@@ -102,7 +102,7 @@ namespace codepad {
 			/// Destructor. Logs when the object has been destructed.
 			~_init_marker() {
 				if constexpr (!is_same_v<T, logger>) { // logging is not performed for logger
-					logger::get().log_info(CP_HERE, "disposed: ", _cur_global_dispose);
+					logger::get().log_debug(CP_HERE, "disposed: ", _cur_global_dispose);
 				}
 				_cur_global_dispose.clear();
 			}
@@ -118,6 +118,10 @@ namespace codepad {
 	// all singleton getters
 	logger &logger::get() {
 		static _global_wrapper<logger> _v;
+		return _v.object;
+	}
+	call_counter &call_counter::get() {
+		static _global_wrapper<call_counter> _v;
 		return _v.object;
 	}
 	namespace os {

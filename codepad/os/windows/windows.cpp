@@ -662,6 +662,8 @@ namespace codepad::ui {
 		} else {
 			res = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
 		}
+		call_counter::get().dump();
+		call_counter::get().reset();
 		if (res != 0) {
 			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) { // handle hotkeys
 				auto *form = os::window::_get_associated_window(msg.hwnd);

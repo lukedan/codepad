@@ -16,6 +16,7 @@
 #include <chrono>
 #include <mutex>
 #include <condition_variable>
+#include <unordered_map>
 #include <cstdlib>
 
 #if __has_include(<filesystem>)
@@ -115,7 +116,7 @@ namespace codepad {
 	/// Information about a position in the code of codepad.
 	struct code_position {
 		/// Constructs the \ref code_position with the corresponding information.
-		code_position(const char *fil, const char *func, int l) : file(fil), function(func), line(l) {
+		code_position(std::string_view fil, std::string_view func, int l) : file(fil), function(func), line(l) {
 		}
 
 		/// Prints a \ref code_position to a stream.
@@ -123,11 +124,38 @@ namespace codepad {
 			return out << cp.function << " @" << cp.file << ":" << cp.line;
 		}
 
-		const char
-			*file, ///< The file.
-			*function; ///< The function.
-		int line; ///< The line of the file.
+		std::string_view
+			file, ///< The file.
+			function; ///< The function.
+		int line = 0; ///< The line of the file.
+
+		/// Equality.
+		friend bool operator==(const code_position &lhs, const code_position &rhs) {
+			return lhs.file == rhs.file && lhs.function == rhs.function && lhs.line == rhs.line;
+		}
+		/// Inequality.
+		friend bool operator!=(const code_position &lhs, const code_position &rhs) {
+			return !(lhs == rhs);
+		}
 	};
+}
+
+namespace std {
+	/// Hash specialization for \ref codepad::code_position.
+	template <> struct hash<codepad::code_position> {
+		/// The implementation.
+		size_t operator()(const codepad::code_position &pos) const {
+			size_t res = hash<int>()(pos.line);
+			hash<string_view> viewhasher;
+			res ^= viewhasher(pos.function) + 0x9e3779b9 + (res << 6) + (res >> 2);
+			res ^= viewhasher(pos.file) + 0x9e3779b9 + (res << 6) + (res >> 2);
+			return res;
+		}
+	};
+}
+
+
+namespace codepad {
 	/// A \ref codepad::code_position representing where it appears.
 #define CP_HERE ::codepad::code_position(__FILE__, __func__, __LINE__)
 
@@ -1004,6 +1032,8 @@ namespace codepad {
 		warning, ///< Notification of exceptions that are not enough to crash the program.
 		error, ///< Notification of internal program errors.
 
+		debug, ///< Debugging information.
+
 		other ///< Log that does not belong to any of the categories above.
 	};
 
@@ -1025,11 +1055,11 @@ namespace codepad {
 #endif
 			&s) : _fout(s, std::ios::app) {
 			log_raw("\n\n####################\n\n");
-			log_info(CP_HERE, "new logger \"", s, "\" created");
+			log_debug(CP_HERE, "new logger \"", s, "\" created");
 		}
 		/// Destructor. Usually marks the end of a session.
 		~logger() {
-			log_info(CP_HERE, "session shutdown");
+			log_debug(CP_HERE, "session shutdown");
 		}
 
 		/// Logs the given information with the given log level.
@@ -1058,38 +1088,27 @@ namespace codepad {
 		}
 
 		/// Logs the given information with the `verbose' log level.
-		///
-		/// \param cp The position indicating where the log was produced.
-		/// \param args The log information.
 		template <typename ...Args> void log_verbose(const code_position &cp, Args &&...args) {
 			_log_fmt("       ", cp, std::forward<Args>(args)...);
 		}
 		/// Logs the given information with the `info' log level.
-		///
-		/// \param cp The position indicating where the log was produced.
-		/// \param args The log information.
 		template <typename ...Args> void log_info(const code_position &cp, Args &&...args) {
 			_log_fmt(" INFO  ", cp, std::forward<Args>(args)...);
 		}
 		/// Logs the given information with the `warning' log level.
-		///
-		/// \param cp The position indicating where the log was produced.
-		/// \param args The log information.
 		template <typename ...Args> void log_warning(const code_position &cp, Args &&...args) {
 			_log_fmt("\033[33mWARNING\033[0m", cp, std::forward<Args>(args)...);
 		}
 		/// Logs the given information with the `error' log level, and flushes the streams.
-		///
-		/// \param cp The position indicating where the log was produced.
-		/// \param args The log information.
 		template <typename ...Args> void log_error(const code_position &cp, Args &&...args) {
 			_log_fmt("\033[31m ERROR \033[0m", cp, std::forward<Args>(args)...);
 			_fout.flush();
 		}
+		/// Logs the given information with the `error' log level, and flushes the streams.
+		template <typename ...Args> void log_debug(const code_position &cp, Args &&...args) {
+			_log_fmt("\033[34m DEBUG \033[0m", cp, std::forward<Args>(args)...);
+		}
 		/// Logs the given information and stacktrace with the `error' log level, and flushes the streams.
-		///
-		/// \param cp The position indicating where the log was produced.
-		/// \param args The log information.
 		template <typename ...Args> void log_error_with_stacktrace(const code_position &cp, Args &&...args) {
 			log_error(cp, std::forward<Args>(args)...);
 			log_stacktrace();
@@ -1156,12 +1175,12 @@ namespace codepad {
 			// TODO print duration directly after C++20
 			auto sdur = std::chrono::duration_cast<std::chrono::duration<double>>(dur);
 			if (dur > _expected && _cond != log_condition::never) {
-				logger::get().log_warning(
+				logger::get().log_info(
 					CP_HERE, "operation took longer(", sdur.count(), "s) than expected(",
 					_expected.count(), "): ", _label
 				);
 			} else if (_cond == log_condition::always) {
-				logger::get().log_verbose(
+				logger::get().log_debug(
 					CP_HERE, "operation took ", sdur.count(), "s: ", _label
 				);
 			}
@@ -1170,13 +1189,48 @@ namespace codepad {
 		/// Logs the time since the creation of this object so far.
 		void log_time() {
 			auto dur = std::chrono::duration_cast<std::chrono::duration<double>>(clock_t::now() - _beg_time);
-			logger::get().log_verbose(CP_HERE, _label, ": operation has been running for ", dur.count(), "s");
+			logger::get().log_debug(CP_HERE, _label, ": operation has been running for ", dur.count(), "s");
 		}
 	protected:
 		str_view_t _label; ///< The label for this performance monitor.
 		clock_t::time_point _beg_time; ///< The time when this object is constructed, obtained from get_uptime().
 		clock_t::duration _expected = clock_t::duration::max(); ///< The expected running time.
 		log_condition _cond = log_condition::late_only; ///< The condition under which to log the running time.
+	};
+
+
+	/// Used to count the number of times a position in the code is reached.
+	struct call_counter {
+	public:
+		/// Registers the given number of calls for the specific slot.
+		void increment(const code_position &pos, size_t count = 1) {
+			auto &&[iter, inserted] = _counters.try_emplace(pos, 0);
+			iter->second += count;
+			_has_calls = true; // count could be 0, but whatever
+		}
+
+		/// Dumps the result of all slots.
+		void dump() const {
+			if (_has_calls) {
+				logger::get().log_debug(CP_HERE, "dumping call counters:");
+				for (auto &pair : _counters) {
+					logger::get().log_debug(CP_HERE, "  ", pair.first.function, ": ", pair.second);
+				}
+			}
+		}
+		/// Resets the value of all slots to zero.
+		void reset() {
+			for (auto &pair : _counters) {
+				pair.second = 0;
+			}
+			_has_calls = false;
+		}
+
+		/// Returns the global static \ref call_counter object.
+		static call_counter &get();
+	protected:
+		std::unordered_map<code_position, size_t> _counters; ///< The counters.
+		bool _has_calls = false; ///< Records if any calls have been registered.
 	};
 
 
@@ -1219,8 +1273,8 @@ namespace codepad {
 		if (!v) {
 			logger::get().log_error_with_stacktrace(CP_HERE, "System error encountered: ", msg);
 			std::abort();
+		}
 	}
-}
 #else
 	template <> inline void assert_true<error_level::system_error>(bool, const char*) {
 	}
@@ -1231,7 +1285,7 @@ namespace codepad {
 		if (!v) {
 			logger::get().log_error_with_stacktrace(CP_HERE, "Usage error encountered: ", msg);
 			std::abort();
-	}
+		}
 	}
 #else
 	template <> inline void assert_true<error_level::usage_error>(bool, const char*) {
@@ -1243,7 +1297,7 @@ namespace codepad {
 		if (!v) {
 			logger::get().log_error_with_stacktrace(CP_HERE, "Logical error encountered: ", msg);
 			std::abort();
-	}
+		}
 	}
 #else
 	template <> inline void assert_true<error_level::logical_error>(bool, const char*) {
@@ -1287,7 +1341,7 @@ namespace codepad {
 	/// Initializes the program by calling \ref os::initialize first and then performing several other
 	/// initialization steps.
 	void initialize(int, char**);
-		}
+}
 
 // demangle
 #ifdef __GNUC__
@@ -1337,6 +1391,6 @@ namespace codepad {
 #	else
 		log_warning(CP_HERE, "stacktrace logging is not supported with this configuration");
 #	endif
-}
 	}
+}
 #endif

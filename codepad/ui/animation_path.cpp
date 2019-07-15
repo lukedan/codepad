@@ -52,45 +52,56 @@ namespace codepad::ui::animation_path {
 #define CP_APB_CHECK_TYPE CP_APB_EXPAND_CALL(CP_APB_DO_CHECK_TYPE, CP_APB_CURRENT_TYPE)
 
 
-#define CP_APB_MAY_TERMINATE_EARLY                                                                  \
-	if (begin == end) {                                                                             \
-		default_bootstrapper res;                                                                   \
-		res.subject_creator = make_subject_creator<Type>(comp);                                     \
-		res.parser = make_unique<                                                                   \
-			keyframe_animation_parser<default_bootstrapper::context, typename Comp::output_type>    \
-		>();                                                                                        \
-		return res;                                                                                 \
+#define CP_APB_BOOTSTRAPPER_T bootstrapper<typename Comp::input_type>
+
+#define CP_APB_MAY_TERMINATE_EARLY                                                            \
+	if (begin == end) {                                                                       \
+		CP_APB_BOOTSTRAPPER_T res;                                                            \
+		res.subject_creator = make_unique<SubjectCreator<Comp>>(comp);                        \
+		res.parser = make_unique<typed_animation_value_parser<typename Comp::output_type>>(); \
+		return res;                                                                           \
 	}
 
 #define CP_APB_MUST_NOT_TERMINATE_EARLY                                            \
 	if (begin == end) {                                                            \
 		logger::get().log_warning(CP_HERE, "animation path terminated too early"); \
-		return default_bootstrapper();                                             \
+		return CP_APB_BOOTSTRAPPER_T();                                            \
 	}
 
 
 #define CP_APB_GETTER_NAME(TYPENAME) get_ ## TYPENAME ## _property
 #define CP_APB_DO_DECLARE_GETTER(TYPE, TYPENAME)                                            \
 	template <                                                                              \
-		type Type, typename Comp                                                            \
-	> inline default_bootstrapper CP_APB_GETTER_NAME(TYPENAME) (                            \
+		template <typename> typename SubjectCreator, typename Comp                          \
+	> inline CP_APB_BOOTSTRAPPER_T CP_APB_GETTER_NAME(TYPENAME) (                           \
 		component_list::const_iterator begin, component_list::const_iterator end, Comp comp \
 	)
 #define CP_APB_DECLARE_GETTER CP_APB_EXPAND_CALL(CP_APB_DO_DECLARE_GETTER, CP_APB_CURRENT_TYPE)
 #define CP_APB_START_GETTER CP_APB_DECLARE_GETTER {
 
+#define CP_APB_DO_DEFINE_PROPERTY_GETTER(TYPE, TYPENAME)                       \
+	template <> bootstrapper<TYPE> get_property<TYPE>(                         \
+		component_list::const_iterator beg, component_list::const_iterator end \
+	) {                                                                        \
+		return CP_APB_GETTER_NAME(TYPENAME)<member_subject_creator>(           \
+			beg, end, getter_components::dummy_component<TYPE>()               \
+			);                                                                 \
+	}
+#define CP_APB_DEFINE_PROPERTY_GETTER CP_APB_EXPAND_CALL(CP_APB_DO_DEFINE_PROPERTY_GETTER, CP_APB_CURRENT_TYPE)
+
 #define CP_APB_END_GETTER                                       \
 		logger::get().log_warning(CP_HERE, "invalid property"); \
-		return default_bootstrapper();                          \
-	}
+		return CP_APB_BOOTSTRAPPER_T();                         \
+	}                                                           \
+	CP_APB_DEFINE_PROPERTY_GETTER
 
 
-#define CP_APB_DO_TRY_FORWARD_MEMBER(TYPE, TYPENAME, PROP_NAME, PROP_TYPENAME)                \
-	if (begin->property == u8 ## #PROP_NAME) {                                                \
-		CP_APB_NO_INDEX;                                                                      \
-		return CP_APB_GETTER_NAME(PROP_TYPENAME)<Type>(++begin, end, getter_components::pair( \
-			comp, getter_components::member_component<&TYPE::PROP_NAME>()                     \
-		));                                                                                   \
+#define CP_APB_DO_TRY_FORWARD_MEMBER(TYPE, TYPENAME, PROP_NAME, PROP_TYPENAME)                          \
+	if (begin->property == u8 ## #PROP_NAME) {                                                          \
+		CP_APB_NO_INDEX;                                                                                \
+		return CP_APB_GETTER_NAME(PROP_TYPENAME)<SubjectCreator>(++begin, end, getter_components::pair( \
+			comp, getter_components::member_component<&TYPE::PROP_NAME>()                               \
+		));                                                                                             \
 	}
 #define CP_APB_TRY_FORWARD_MEMBER(PROP_NAME, PROP_TYPENAME) \
 	CP_APB_EXPAND_CALL(CP_APB_DO_TRY_FORWARD_MEMBER, CP_APB_CURRENT_TYPE, PROP_NAME, PROP_TYPENAME)
@@ -98,7 +109,7 @@ namespace codepad::ui::animation_path {
 #define CP_APB_DO_TRY_FORWARD_VARIANT(TYPE, TYPENAME, VARIANT_TYPE, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME) \
 	if (begin->type == u8 ## #TARGET_TYPENAME) {                                                             \
 		CP_APB_NO_INDEX;                                                                                     \
-		return CP_APB_GETTER_NAME(TARGET_TYPENAME)<Type>(begin, end, getter_components::pair(                \
+		return CP_APB_GETTER_NAME(TARGET_TYPENAME)<SubjectCreator>(begin, end, getter_components::pair(      \
 			getter_components::pair(comp, getter_components::member_component<&TYPE::PROP_NAME>()),          \
 			getter_components::variant_component<TYPE::VARIANT_TYPE, TARGET_TYPE>()                          \
 		));                                                                                                  \
@@ -109,18 +120,18 @@ namespace codepad::ui::animation_path {
 		TARGET_TYPE, TARGET_TYPENAME                                                     \
 	)
 
-#define CP_APB_DO_TRY_FORWARD_ARRAY(TYPE, TYPENAME, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME)        \
-	if (begin->property == u8 ## #PROP_NAME && begin->index.has_value()) {                          \
-		return CP_APB_GETTER_NAME(TARGET_TYPENAME)<Type>(++begin, end, getter_components::pair(     \
-			getter_components::pair(comp, getter_components::member_component<&TYPE::PROP_NAME>()), \
-			getter_components::array_component<TARGET_TYPE>(begin->index.value())                   \
-		));                                                                                         \
+#define CP_APB_DO_TRY_FORWARD_ARRAY(TYPE, TYPENAME, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME)              \
+	if (begin->property == u8 ## #PROP_NAME && begin->index.has_value()) {                                \
+		return CP_APB_GETTER_NAME(TARGET_TYPENAME)<SubjectCreator>(++begin, end, getter_components::pair( \
+			getter_components::pair(comp, getter_components::member_component<&TYPE::PROP_NAME>()),	      \
+			getter_components::array_component<TARGET_TYPE>(begin->index.value())					      \
+		));																							      \
 	}
 #define CP_APB_TRY_FORWARD_ARRAY(PROP_NAME, TARGET_TYPE, TARGET_TYPENAME) \
 	CP_APB_EXPAND_CALL(CP_APB_DO_TRY_FORWARD_ARRAY, CP_APB_CURRENT_TYPE, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME)
 
 
-	// primitive types
+		// primitive types
 #define CP_APB_CURRENT_TYPE double, double
 		CP_APB_START_GETTER
 			CP_APB_MAY_TERMINATE_EARLY;
@@ -187,11 +198,11 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-	// transforms
+			// transforms
 #define CP_APB_CURRENT_TYPE transforms::generic, transform
 		template <
-			type, size_t = 0, typename Comp
-		> inline default_bootstrapper CP_APB_GETTER_NAME(transform) (
+			template <typename> typename, typename Comp, size_t = 0
+		> inline CP_APB_BOOTSTRAPPER_T CP_APB_GETTER_NAME(transform) (
 			component_list::const_iterator, component_list::const_iterator, Comp
 		);
 #undef CP_APB_CURRENT_TYPE
@@ -227,20 +238,24 @@ namespace codepad::ui::animation_path {
 
 #define CP_APB_CURRENT_TYPE transforms::collection, transform_collection
 		template <
-			type Type, size_t Count = 0, typename Comp
-		> inline default_bootstrapper CP_APB_GETTER_NAME(transform_collection) (
+			template <typename> typename SubjectCreator, typename Comp, size_t Count = 0
+		> inline CP_APB_BOOTSTRAPPER_T CP_APB_GETTER_NAME(transform_collection) (
 			component_list::const_iterator begin, component_list::const_iterator end, [[maybe_unused]] Comp comp
 		) {
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
 
-			if constexpr (Count < 2) {
+			if constexpr (Count < 1) {
 				if (begin->property == u8"children" && begin->index.has_value()) {
-					return CP_APB_GETTER_NAME(transform)<Type, Count + 1>(++begin, end, getter_components::pair(
+					auto &&nextcomp = getter_components::pair(
 						getter_components::pair(
 							comp, getter_components::member_component<&transforms::collection::components>()
-						), getter_components::array_component<transforms::generic>(begin->index.value())
-					));
+						),
+						getter_components::array_component<transforms::generic>(begin->index.value())
+					);
+					return CP_APB_GETTER_NAME(transform)<SubjectCreator, decay_t<decltype(nextcomp)>, Count + 1>(
+						++begin, end, nextcomp
+						);
 				}
 			}
 		CP_APB_END_GETTER
@@ -249,8 +264,8 @@ namespace codepad::ui::animation_path {
 #define CP_APB_CURRENT_TYPE transforms::generic, transform
 #define CP_APB_CURRENT_VARIANT_INFO value_type, value
 		template <
-			type Type, size_t Count, typename Comp
-		> inline default_bootstrapper CP_APB_GETTER_NAME(transform) (
+			template <typename> typename SubjectCreator, typename Comp, size_t Count
+		> inline CP_APB_BOOTSTRAPPER_T CP_APB_GETTER_NAME(transform) (
 			component_list::const_iterator begin, component_list::const_iterator end, Comp comp
 		) {
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
@@ -265,15 +280,20 @@ namespace codepad::ui::animation_path {
 			CP_APB_TRY_FORWARD_VARIANT(transforms::rotation, rotation_transform);
 			if (begin->type == u8"transform_collection") {
 				CP_APB_NO_INDEX;
-				return CP_APB_GETTER_NAME(transform_collection)<Type, Count>(begin, end, getter_components::pair(
-					getter_components::pair(comp, getter_components::member_component<&transforms::generic::value>()),
+				auto &&nextcomp = getter_components::pair(
+					getter_components::pair(
+						comp, getter_components::member_component<&transforms::generic::value>()
+					),
 					getter_components::variant_component<transforms::generic::value_type, transforms::collection>()
-				));
+				);
+				return CP_APB_GETTER_NAME(transform_collection)<SubjectCreator, decay_t<decltype(nextcomp)>, Count>(
+					begin, end, nextcomp
+					);
 			}
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-	// brushes
+					// brushes
 #define CP_APB_CURRENT_TYPE gradient_stop, gradient_stop
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
@@ -356,13 +376,14 @@ namespace codepad::ui::animation_path {
 				}
 			}
 
-			return CP_APB_GETTER_NAME(brush)<Type>(begin, end, getter_components::pair(
+			return CP_APB_GETTER_NAME(brush)<SubjectCreator>(begin, end, getter_components::pair(
 				comp, getter_components::member_component<&generic_pen::brush>()
 			));
 		}
+		CP_APB_DEFINE_PROPERTY_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-	// geometries
+			// geometries
 #define CP_APB_CURRENT_TYPE geometries::rectangle, rectangle
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
@@ -395,7 +416,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-	// path
+				// path
 #define CP_APB_CURRENT_TYPE geometries::path::segment, segment
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
@@ -506,64 +527,32 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-		namespace getter_components {
-			/// Used to obtain the \ref element_parameters of an element.
-			struct element_parameters_getter_component {
-				using input_type = element; ///< The input type.
-				using output_type = element_parameters; ///< The output type.
+		template <element_property_type Type> struct _wrapper {
+			template <typename Comp> using type = element_member_subject_creator<Comp, Type>;
+		};
 
-				/// Returns the member.
-				inline static output_type *get(input_type *input) {
-					if (input) {
-						return &input->_params;
-					}
-					return nullptr;
-				}
-
-				/// Two instances are always equal.
-				friend bool operator==(
-					const element_parameters_getter_component&,
-					const element_parameters_getter_component&
-					) {
-					return true;
-				}
-			};
-		}
-
-		default_bootstrapper get_common_element_property(
+		bootstrapper<element> get_common_element_property(
 			component_list::const_iterator begin, component_list::const_iterator end
 		) {
+			using Comp = getter_components::member_component<&element::_params>;
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			check_type(*begin, "element");
 
 			if (begin->property == "visuals") {
-				return get_element_visual_parameters_property<type::visual_only>(
+				return get_element_visual_parameters_property<_wrapper<element_property_type::visual_only>::type>(
 					++begin, end, getter_components::pair(
-						getter_components::element_parameters_getter_component(),
+						getter_components::member_component<&element::_params>(),
 						getter_components::member_component<&element_parameters::visual_parameters>()
 					));
 			}
 			if (begin->property == "layout") {
-				return get_element_layout_parameters_property<type::affects_layout>(
+				return get_element_layout_parameters_property<_wrapper<element_property_type::affects_layout>::type>(
 					++begin, end, getter_components::pair(
-						getter_components::element_parameters_getter_component(),
+						getter_components::member_component<&element::_params>(),
 						getter_components::member_component<&element_parameters::layout_parameters>()
 					));
 			}
-			return default_bootstrapper();
+			return bootstrapper<element>();
 		}
-	}
-
-	default_bootstrapper parse(str_view_t path, std::vector<component> &components) {
-		parser::parse_result res = parser::parse(path, components);
-		if (res == parser::parse_result::completed) {
-			return builder::get_common_element_property(components.begin(), components.end());
-		}
-		return default_bootstrapper();
-	}
-
-	default_bootstrapper parse(str_view_t path) {
-		std::vector<component> comps;
-		return parse(path, comps);
 	}
 }

@@ -13,11 +13,48 @@
 using namespace std;
 
 namespace codepad::ui {
-	void class_arrangements::construction_context::register_triggers_for(element &elem, const element_configuration &config) {
+	/// Data relavent to the starting of animations. Shared pointers are used to allow for duplication.
+	struct _animation_starter {
+		/// Default constructor.
+		_animation_starter() = default;
+		/// Initializes all fields of this struct.
+		_animation_starter(
+			std::shared_ptr<animation_path::subject_creator<element>> sbj,
+			std::shared_ptr<animation_definition_base> def
+		) : subject_creator(std::move(sbj)), definition(std::move(def)) {
+		}
+
+		/// Used to create animation subjects.
+		std::shared_ptr<animation_path::subject_creator<element>> subject_creator;
+		std::shared_ptr<animation_definition_base> definition; ///< Definition of this animation.
+
+		/// Starts this animation for the given \ref element, and returns the resulting \ref playing_animation_base.
+		std::unique_ptr<playing_animation_base> start_for(element &e) const {
+			return definition->start(subject_creator->create_for(e));
+		}
+	};
+
+	void class_arrangements::construction_context::register_triggers_for(
+		element &elem, const element_configuration &config
+	) {
 		for (auto &trig : config.event_triggers) {
 			element *subj = find_by_name(trig.identifier.subject, elem);
-			subj->_register_event(trig.identifier.name, [target = &elem, storyboard = &trig.animations]() {
-				for (auto &ani : storyboard->animations) {
+			if (subj == nullptr) {
+				logger::get().log_warning(CP_HERE, "cannot find element with name: ", trig.identifier.subject);
+				continue;
+			}
+			std::vector<_animation_starter> anis;
+			for (auto &ani : trig.animations) {
+				animation_path::bootstrapper<element> bs = elem._parse_animation_path(ani.subject);
+				if (bs.parser == nullptr || bs.subject_creator == nullptr) {
+					logger::get().log_warning(CP_HERE, "failed to parse animation path"); // TODO maybe print the path
+					continue;
+				}
+				auto &&definition = bs.parser->parse_keyframe_animation(ani.definition, elem.get_manager());
+				anis.emplace_back(std::move(bs.subject_creator), std::move(definition));
+			}
+			subj->_register_event(trig.identifier.name, [target = &elem, animations = std::move(anis)]() {
+				for (auto &ani : animations) {
 					target->get_manager().get_scheduler().start_animation(ani.start_for(*target), target);
 				}
 			});

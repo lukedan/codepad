@@ -27,8 +27,9 @@ namespace codepad::ui {
 		explicit ui_config_json_parser(manager &man) : _manager(man) {
 		}
 
-		/// Parses a \ref metrics_state from the given JSON object, and adds it to \p value. If one for the specified
-		/// state already exists in \p value, it is kept if the inheritance is not overriden with \p inherit_from.
+		/// Parses a \ref element_configuration from the given JSON object, and adds it to \p value. If one for the
+		/// specified states already exists in \p value, it is kept if the inheritance is not overriden with
+		/// \p inherit_from.
 		void parse_configuration(const object_t &val, element_configuration &value) {
 			parse_parameters(val, value.default_parameters);
 
@@ -51,13 +52,16 @@ namespace codepad::ui {
 						element_configuration::event_trigger trigger;
 						trigger.identifier = element_configuration::event_identifier::parse_from_string(sbit.name());
 						for (auto aniit = sbobj.member_begin(); aniit != sbobj.member_end(); ++aniit) {
-							auto &&bs = animation_path::parse(aniit.name());
-							if (bs.subject_creator && bs.parser) {
-								storyboard::entry entry;
-								entry.subject = std::move(bs.subject_creator);
-								entry.definition = bs.parser->parse(aniit.value(), *this);
-								trigger.animations.animations.emplace_back(std::move(entry));
+							animation_path::component_list components;
+							auto res = animation_path::parser::parse(aniit.name(), components);
+							if (res != animation_path::parser::result::completed) {
+								logger::get().log_warning(CP_HERE, "failed to segment animation path: ", aniit.name());
+								continue;
 							}
+							element_configuration::animation_parameters aniparams;
+							aniparams.subject = std::move(components);
+							_parse_keyframe_animation(aniit.value(), aniparams.definition);
+							trigger.animations.emplace_back(std::move(aniparams));
 						}
 						value.event_triggers.emplace_back(std::move(trigger));
 					}
@@ -136,6 +140,7 @@ namespace codepad::ui {
 			for (auto i = val.member_begin(); i != val.member_end(); ++i) {
 				if (object_t obj; json::try_cast(i.value(), obj)) {
 					class_arrangements arr;
+					json::try_cast_member(obj, u8"name", arr.name);
 					parse_class_arrangements(obj, arr);
 					auto [it, inserted] = _manager.get_class_arrangements().mapping.emplace(
 						i.name(), std::move(arr)
@@ -147,38 +152,12 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Tries to parse an object of the given type.
-		template <typename T> bool try_parse_object(const value_t &val, T &res) {
-			if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) { // special handling for bitmaps
-				if (str_view_t path; json::try_cast(val, path)) {
-					res = _get_texture(path);
-					return true;
-				}
-				return false;
-			} else { // parse using json::object_parsers
-				return json::object_parsers::try_parse(val, res);
-			}
-		}
-
 		/// Returns the associated \ref manager.
 		manager &get_manager() const {
 			return _manager;
 		}
 	protected:
-		std::filesystem::path _resources_path; ///< The path where are textures are located.
-		std::map<std::filesystem::path, std::shared_ptr<bitmap>> _textures; ///< Stores the list of textures.
 		manager &_manager; ///< The \ref manager associated with this parser.
-
-		/// Returns the texture given by the path.
-		std::shared_ptr<bitmap> _get_texture(const std::filesystem::path &path) {
-			auto fullpath = _resources_path / path;
-			auto it = _textures.find(fullpath);
-			if (it == _textures.end()) {
-				auto bitmap = _manager.get_renderer().load_bitmap(fullpath);
-				it = _textures.emplace(std::move(fullpath), std::move(bitmap)).first;
-			}
-			return it->second;
-		}
 
 		// below are utility functions for parsing parts of the configuration
 		/// Parses the `width' or `height' field that specifies the size of an object in one direction.
@@ -263,7 +242,7 @@ namespace codepad::ui {
 					} else if (type == u8"bitmap") {
 						auto &brush = value.value.emplace<brushes::bitmap_pattern>();
 						if (str_view_t img; json::try_cast_member(obj, u8"image", img)) {
-							brush.image = _get_texture(img);
+							brush.image = get_manager().get_texture(img);
 						}
 					} else if (type != u8"none") {
 						logger::get().log_warning(CP_HERE, "invalid brush type string");
@@ -389,6 +368,55 @@ namespace codepad::ui {
 			}
 			if (auto fmem = obj.find_member(u8"stroke"); fmem != obj.member_end()) {
 				_parse_pen(fmem.value(), value.stroke);
+			}
+		}
+
+
+		/// Parses a \ref generic_keyframe_animation_definition::keyframe from the given JSON object.
+		void _parse_keyframe(const object_t obj, generic_keyframe_animation_definition::keyframe &value) {
+			json::object_parsers::try_parse_member(obj, u8"duration", value.duration);
+			if (auto fmem = obj.find_member(u8"to"); fmem != obj.member_end()) { // target
+				value.target = json::store(fmem.value());
+			}
+			if (str_view_t str; json::try_cast_member(obj, u8"transition", str)) { // transition function
+				if (transition_function f = get_manager().try_get_transition_func(str)) {
+					value.transition_func = f;
+				}
+			}
+		}
+		/// Parses a \ref generic_keyframe_animation_definition from the given JSON value.
+		void _parse_keyframe_animation(const value_t val, generic_keyframe_animation_definition &value) {
+			std::optional<array_t> frames;
+			if (object_t obj; json::try_cast(val, obj)) {
+				if (auto fmem = obj.find_member(u8"repeat"); fmem != obj.member_end()) {
+					value_t repeatval = fmem.value();
+					if (repeatval.is<std::uint64_t>()) {
+						value.repeat_times = static_cast<size_t>(repeatval.get<std::uint64_t>());
+					} else if (repeatval.is<bool>()) { // repeat forever?
+						value.repeat_times = repeatval.get<bool>() ? 0 : 1;
+					} else {
+						logger::get().log_warning(
+							CP_HERE, "repeat must be either a non-negative integer or a boolean"
+						);
+					}
+				}
+				if (array_t arr; json::try_cast_member(obj, u8"frames", arr)) {
+					frames.emplace(std::move(arr));
+				} else {
+					_parse_keyframe(obj, value.keyframes.emplace_back());
+				}
+			} else if (array_t arr; json::try_cast(val, arr)) {
+				frames.emplace(std::move(arr));
+			} else { // single value
+				auto &kf = value.keyframes.emplace_back();
+				kf.target = json::store(val);
+			}
+			if (frames) {
+				for (auto &&kf : frames.value()) {
+					if (object_t kfobj; json::try_cast(kf, kfobj)) {
+						_parse_keyframe(kfobj, value.keyframes.emplace_back());
+					}
+				}
 			}
 		}
 	};

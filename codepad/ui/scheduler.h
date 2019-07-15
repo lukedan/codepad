@@ -327,7 +327,7 @@ namespace codepad::ui {
 				if (newfocus) {
 					newfocus->_on_got_focus();
 				}
-				logger::get().log_verbose(
+				logger::get().log_debug(
 					CP_HERE, "focus changed from ",
 					oldfocus, " <", oldfocus ? demangle(typeid(*oldfocus).name()) : "empty", "> to ",
 					_focus, " <", _focus ? demangle(typeid(*_focus).name()) : "empty", ">"

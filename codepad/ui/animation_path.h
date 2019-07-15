@@ -20,24 +20,18 @@ namespace codepad::ui {
 			/// Default constructor.
 			component() = default;
 			/// Initializes \ref property.
-			explicit component(str_view_t prop) : property(prop) {
+			explicit component(str_t prop) : property(std::move(prop)) {
 			}
 			/// Initializes all fields of this struct.
-			component(str_view_t t, str_view_t prop) : type(t), property(prop) {
+			component(str_t t, str_t prop) : type(std::move(t)), property(std::move(prop)) {
 			}
 
-			str_view_t
+			str_t
 				type, ///< The expected type of the current object. Can be empty.
 				property; ///< The target property.
 			std::optional<size_t> index; ///< The index, if this component is a list.
 		};
 		using component_list = std::vector<component>; ///< A list of components.
-
-		/// The type of an animation path.
-		enum class type {
-			visual_only, ///< The animation only affects the visual of an element.
-			affects_layout ///< The animation affects the layout of an element.
-		};
 
 		/// Basic interface used to create a \ref typed_animation_subject_base given a
 		/// \ref element_parameters.
@@ -53,19 +47,15 @@ namespace codepad::ui {
 		};
 
 		/// Contains all necessary information for creating animations.
-		template <typename Context> struct bootstrapper {
-			using context = Context; ///< The type of the parser context.
-
-			std::unique_ptr<subject_creator<element>> subject_creator; ///< Used to create animation subjects.
-			/// Used to parse animations from JSON.
-			std::unique_ptr<animation_parser_base<Context>> parser;
+		template <typename Source> struct bootstrapper {
+			std::unique_ptr<subject_creator<Source>> subject_creator; ///< Used to create animation subjects.
+			std::unique_ptr<animation_value_parser_base> parser; ///< Used to parse animations from JSON.
 		};
-		/// \ref bootstrapper with the default JSON engine.
-		using default_bootstrapper = bootstrapper<ui_config_json_parser<json::default_engine::value_t>>;
 
 
 		/// The parser.
-		namespace parser {
+		class parser {
+		public:
 			// type = name
 			// property = name
 			// index = '[' number ']'
@@ -78,171 +68,167 @@ namespace codepad::ui {
 			//
 			// path = component | path '.' component
 			/// The result of parsing a part of the path.
-			enum class parse_result {
+			enum class result {
 				completed, ///< Success.
 				not_found, ///< The path does not match the format at all.
 				error ///< The path matches partially but is not complete.
 			};
 
-			/// Misceallneous parser functions.
-			namespace _details {
-				/// Parses a string that contains only a to z, 0 to 9, or underscores.
-				inline parse_result parse_string(str_view_t::const_iterator &it, str_view_t::const_iterator end) {
-					size_t nchars = 0;
-					while (it != end) {
-						if (*it != '_' && !(*it >= 'a' && *it <= 'z') && !(*it >= 'A' && *it <= 'Z')) {
-							break;
-						}
-						++nchars;
-						++it;
-					}
-					return nchars > 0 ? parse_result::completed : parse_result::not_found;
-				}
-
-				/// Parses an index.
-				inline parse_result parse_index(str_view_t::const_iterator &it, str_view_t::const_iterator end, size_t &v) {
-					if (it == end || *it != '[') {
-						return parse_result::not_found;
-					}
-					++it;
-					if (it == end || !(*it >= '0' && *it <= '9')) {
-						return parse_result::error;
-					}
-					v = *(it++) - '0';
-					while (it != end) {
-						if (*it == ']') {
-							++it;
-							return parse_result::completed;
-						}
-						if (!(*it >= '0' && *it <= '9')) {
-							return parse_result::error;
-						}
-						v = v * 10 + (*(it++) - '0');
-					}
-					return parse_result::error; // no closing bracket
-				}
-
-				/// Parses a typed component.
-				inline parse_result parse_typed_component(
-					str_view_t::const_iterator & it, str_view_t::const_iterator end, component & v
-				) {
-					if (it == end || *it != '(') {
-						return parse_result::not_found;
-					}
-					// type
-					auto beg = ++it;
-					if (parse_string(it, end) != parse_result::completed) {
-						return parse_result::error;
-					}
-					v.type = str_view_t(&*beg, it - beg);
-					// dot
-					if (it == end || *it != '.') {
-						return parse_result::error;
-					}
-					// property
-					beg = ++it;
-					if (parse_string(it, end) != parse_result::completed) {
-						return parse_result::error;
-					}
-					v.property = str_view_t(&*beg, it - beg);
-					// index & closing parenthesis
-					bool closed = false;
-					if (it != end && *it == ')') {
-						++it;
-						closed = true;
-					}
-					size_t id = 0;
-					parse_result res = parse_index(it, end, id);
-					if (res == parse_result::error) {
-						return parse_result::error;
-					}
-					if (res == parse_result::completed) {
-						v.index.emplace(id);
-					}
-					if (it != end && *it == ')') {
-						if (closed) {
-							return parse_result::error;
-						}
-						++it;
-						closed = true;
-					}
-					return closed ? parse_result::completed : parse_result::error;
-				}
-
-				/// Parses a typed component.
-				inline parse_result parse_untyped_component(
-					str_view_t::const_iterator & it, str_view_t::const_iterator end, component & v
-				) {
-					auto beg = it;
-					if (parse_string(it, end) != parse_result::completed) {
-						return parse_result::not_found;
-					}
-					v.property = str_view_t(&*beg, it - beg);
-					size_t id;
-					parse_result res = parse_index(it, end, id);
-					if (res == parse_result::error) {
-						return parse_result::error;
-					}
-					if (res == parse_result::completed) {
-						v.index.emplace(id);
-					}
-					return parse_result::completed;
-				}
-
-				/// Parses a component.
-				inline parse_result parse_component(
-					str_view_t::const_iterator & it, str_view_t::const_iterator end, component & v
-				) {
-					parse_result res = parse_typed_component(it, end, v);
-					if (res != parse_result::not_found) {
-						return res;
-					}
-					return parse_untyped_component(it, end, v);
-				}
-			}
-
-			/// Splits an animation target path into components. See the comment in 
-			inline parse_result parse(str_view_t path, component_list &list) {
+			/// Splits an animation target path into components. See the comment in <tt>namespace parsing</tt>.
+			inline static result parse(str_view_t path, component_list &list) {
 				if (path.empty()) {
-					return parse_result::not_found;
+					return result::not_found;
 				}
 				auto it = path.begin();
 				list.emplace_back();
-				parse_result res = _details::parse_component(it, path.end(), list.back());
-				if (res != parse_result::completed) {
-					return parse_result::error;
+				result res = _parse_component(it, path.end(), list.back());
+				if (res != result::completed) {
+					return result::error;
 				}
 				while (it != path.end()) {
 					if (*(it++) != '.') {
-						return parse_result::error; // technically completed, but it's a single path
+						return result::error; // technically completed, but it's a single path
 					}
 					list.emplace_back();
-					res = _details::parse_component(it, path.end(), list.back());
-					if (res != parse_result::completed) {
-						return parse_result::error;
+					res = _parse_component(it, path.end(), list.back());
+					if (res != result::completed) {
+						return result::error;
 					}
 				}
-				return parse_result::completed;
+				return result::completed;
 			}
-		}
+		protected:
+			/// Parses a string that contains only a to z, 0 to 9, or underscores.
+			inline static result _parse_string(str_view_t::const_iterator &it, str_view_t::const_iterator end) {
+				size_t nchars = 0;
+				while (it != end) {
+					if (*it != '_' && !(*it >= 'a' && *it <= 'z') && !(*it >= 'A' && *it <= 'Z')) {
+						break;
+					}
+					++nchars;
+					++it;
+				}
+				return nchars > 0 ? result::completed : result::not_found;
+			}
+			/// Parses an index.
+			inline static result _parse_index(
+				str_view_t::const_iterator &it, str_view_t::const_iterator end, size_t &v
+			) {
+				if (it == end || *it != '[') {
+					return result::not_found;
+				}
+				++it;
+				if (it == end || !(*it >= '0' && *it <= '9')) {
+					return result::error;
+				}
+				v = *(it++) - '0';
+				while (it != end) {
+					if (*it == ']') {
+						++it;
+						return result::completed;
+					}
+					if (!(*it >= '0' && *it <= '9')) {
+						return result::error;
+					}
+					v = v * 10 + (*(it++) - '0');
+				}
+				return result::error; // no closing bracket
+			}
+
+			/// Parses a typed component.
+			inline static result parse_typed_component(
+				str_view_t::const_iterator &it, str_view_t::const_iterator end, component &v
+			) {
+				if (it == end || *it != '(') {
+					return result::not_found;
+				}
+				// type
+				auto beg = ++it;
+				if (_parse_string(it, end) != result::completed) {
+					return result::error;
+				}
+				v.type = str_t(&*beg, it - beg);
+				// dot
+				if (it == end || *it != '.') {
+					return result::error;
+				}
+				// property
+				beg = ++it;
+				if (_parse_string(it, end) != result::completed) {
+					return result::error;
+				}
+				v.property = str_t(&*beg, it - beg);
+				// index & closing parenthesis
+				bool closed = false;
+				if (it != end && *it == ')') {
+					++it;
+					closed = true;
+				}
+				size_t id = 0;
+				result res = _parse_index(it, end, id);
+				if (res == result::error) {
+					return result::error;
+				}
+				if (res == result::completed) {
+					v.index.emplace(id);
+				}
+				if (it != end && *it == ')') {
+					if (closed) {
+						return result::error;
+					}
+					++it;
+					closed = true;
+				}
+				return closed ? result::completed : result::error;
+			}
+
+			/// Parses a typed component.
+			inline static result _parse_untyped_component(
+				str_view_t::const_iterator &it, str_view_t::const_iterator end, component &v
+			) {
+				auto beg = it;
+				if (_parse_string(it, end) != result::completed) {
+					return result::not_found;
+				}
+				v.property = str_view_t(&*beg, it - beg);
+				size_t id;
+				result res = _parse_index(it, end, id);
+				if (res == result::error) {
+					return result::error;
+				}
+				if (res == result::completed) {
+					v.index.emplace(id);
+				}
+				return result::completed;
+			}
+
+			/// Parses a component.
+			inline static result _parse_component(
+				str_view_t::const_iterator &it, str_view_t::const_iterator end, component &v
+			) {
+				result res = parse_typed_component(it, end, v);
+				if (res != result::not_found) {
+					return res;
+				}
+				return _parse_untyped_component(it, end, v);
+			}
+		};
 
 		/// Builds a \ref typed_animation_subject_base from a \ref component_list.
 		namespace builder {
-			template <typename, type> class member_subject_creator;
+			template <typename> class member_subject_creator;
 
 			/// Implementation of \ref typed_animation_subject_base that accesses the value through a getter
 			/// component.
-			template <typename Component, type Type> class member_subject :
+			template <typename Component> class member_subject :
 				public typed_animation_subject_base<typename Component::output_type> {
 			public:
-				constexpr static type subject_type = Type; ///< The \ref type of the subject.
-
 				using input_type = typename Component::input_type; ///< The input type of the component.
 				using output_type = typename Component::output_type; ///< The tyep of the subject.
 
 				/// Initializes all fields of this struct.
 				member_subject(
-					input_type &e, const member_subject_creator<Component, Type> &proto
+					input_type &e, const member_subject_creator<Component> &proto
 				) : _target(e), _prototype(proto) {
 				}
 
@@ -257,56 +243,119 @@ namespace codepad::ui {
 				bool equals(const animation_subject_base&) const override;
 			protected:
 				input_type &_target; ///< The \ref element_parameters struct whose value will be modified.
-				const member_subject_creator<Component, Type> &_prototype; ///< The object that created this.
+				const member_subject_creator<Component> &_prototype; ///< The object that created this.
 			};
 
 			/// Creates instances of \ref member_subject, given an instance of the input.
-			template <typename Component, type Type> class member_subject_creator :
+			template <typename Component> class member_subject_creator :
 				public subject_creator<typename Component::input_type> {
-				friend member_subject<Component, Type>;
+				friend member_subject<Component>;
 			public:
-				constexpr static type subject_type = Type; ///< The \ref type of the subject.
-
 				using input_type = typename Component::input_type; ///< The input type of the component.
 
 				/// Initializes \ref _comp.
-				explicit member_subject_creator(Component comp) : _comp(comp) {
+				explicit member_subject_creator(Component comp) : _comp(std::move(comp)) {
 				}
 
-				/// Creates a \ref member_subject for the given \ref element.
+				/// Creates a \ref member_subject for the given input.
 				std::unique_ptr<animation_subject_base> create_for(input_type &e) const override {
-					return std::make_unique<member_subject<Component, Type>>(e, *this);
+					return std::make_unique<member_subject<Component>>(e, *this);
 				}
 			protected:
 				Component _comp; ///< The component.
 			};
-			/// Creates a \ref member_subject_creator from the given getter component.
-			template <
-				type Type, typename Component
-			> inline std::unique_ptr<member_subject_creator<Component, Type>> make_subject_creator(
-				Component comp
-			) {
-				return std::make_unique<member_subject_creator<Component, Type>>(std::move(comp));
-			}
 
-			template <typename Component, type Type> inline bool member_subject<Component, Type>::equals(
+			template <typename Component> inline bool member_subject<Component>::equals(
 				const animation_subject_base &other
 			) const {
-				auto *ptr = dynamic_cast<const member_subject<Component, Type>*>(&other);
+				auto *ptr = dynamic_cast<const member_subject<Component>*>(&other);
 				if (ptr) {
 					return ptr->_prototype._comp == _prototype._comp;
 				}
 				return false;
 			}
 
+			template <
+				typename Component
+			> inline auto member_subject<Component>::get() const -> const output_type& {
+				return *_prototype._comp.get(&_target);
+			}
+
+			template <typename Component> inline void member_subject<Component>::set(output_type v) {
+				output_type *ptr = _prototype._comp.get(&_target);
+				if (ptr) {
+					*ptr = std::move(v);
+				}
+			}
+
+
+			/// Indicates the effects an element's property has on its visuals and layout.
+			enum class element_property_type {
+				visual_only, ///< The property only affects the element's visuals.
+				affects_layout ///< The property affects the element's layout.
+			};
+
+			/// A member subject that also invalidates the visuals or layout of an element when set. If the property
+			/// affects neither, use \ref member_subject.
+			template <typename Comp, element_property_type Type> class element_member_subject :
+				public member_subject<Comp> {
+			public:
+				using input_type = typename member_subject<Comp>::input_type; ///< The input type.
+				using output_type = typename member_subject<Comp>::output_type; ///< The output type.
+
+				static_assert(std::is_same_v<input_type, element>, "input type must be element");
+
+				/// Forwarding constructor.
+				element_member_subject(input_type &e, const member_subject_creator<Comp> &proto) :
+					member_subject<Comp>(e, proto) {
+				}
+
+				/// Sets the value and calls \ref scheduler::invalidate_visual() or
+				/// \ref scheduler::invalidate_layout() accordingly.
+				void set(output_type) override;
+			};
+
+			/// Subject creators used with \ref element_member_subject.
+			template <typename Comp, element_property_type Type> class element_member_subject_creator :
+				public member_subject_creator<Comp> {
+			public:
+				using input_type = typename member_subject_creator<Comp>::input_type; ///< The input type.
+
+				/// Forwarding constructor.
+				explicit element_member_subject_creator(Comp comp) : member_subject_creator<Comp>(std::move(comp)) {
+				}
+
+				/// Creates a \ref element_member_subject for the given \ref element.
+				std::unique_ptr<animation_subject_base> create_for(input_type &e) const override {
+					return std::make_unique<element_member_subject<Comp, Type>>(e, *this);
+				}
+			};
+
+
 			/// The components used to build the animation subject.
 			namespace getter_components {
-				struct element_parameters_getter_component;
+				/// A component that simply forwards its input.
+				template <typename T> struct dummy_component {
+					using input_type = T; ///< The input type.
+					using output_type = T; ///< The output type.
+
+					/// Returns the input as-is.
+					inline static output_type *get(input_type *input) {
+						return input;
+					}
+
+					/// Two instances are always equal.
+					friend bool operator==(const dummy_component&, const dummy_component&) {
+						return true;
+					}
+				};
 
 				/// A component that retrieves values based on member pointers.
 				template <auto MemPtr> struct member_component {
-					using input_type = typename member_pointer_traits<decltype(MemPtr)>::owner_type; ///< The input type.
-					using output_type = typename member_pointer_traits<decltype(MemPtr)>::value_type; ///< The output type.
+					/// The input type.
+					using input_type = typename member_pointer_traits<decltype(MemPtr)>::owner_type;
+					/// The output type.
+					using output_type = typename member_pointer_traits<decltype(MemPtr)>::value_type;
 
 					/// Returns the member.
 					inline static output_type *get(input_type *input) {
@@ -400,32 +449,15 @@ namespace codepad::ui {
 				}
 			}
 
+			/// Interprets an animation path and returns the corresponding \ref subject_creator. Only certain
+			/// instantiations of this function exist.
+			template <typename T> bootstrapper<T> get_property(
+				component_list::const_iterator, component_list::const_iterator
+			);
 			/// Dispatches the call given the visual property.
-			default_bootstrapper get_common_element_property(
+			bootstrapper<element> get_common_element_property(
 				component_list::const_iterator, component_list::const_iterator
 			);
 		}
-
-		/// Given an animation path, returns a corresponding \ref default_bootstrapper. The caller also has access to
-		/// all components in the path.
-		default_bootstrapper parse(str_view_t, std::vector<component>&);
-		/// Given an animation path, returns a corresponding \ref default_bootstrapper.
-		default_bootstrapper parse(str_view_t);
 	}
-
-	/// An aggregate of animations. Name borrowed from WPF.
-	struct storyboard {
-		/// Stores information about a single animation.
-		struct entry {
-			std::shared_ptr<animation_definition_base> definition; ///< The definition of this animation.
-			std::shared_ptr<animation_path::subject_creator<element>> subject; ///< The subject of this animation.
-
-			/// Creates a \ref playing_animation_base for the given \ref element.
-			std::unique_ptr<playing_animation_base> start_for(element &e) const {
-				return definition->start(subject->create_for(e));
-			}
-		};
-
-		std::vector<entry> animations; ///< The list of animations.
-	};
 }

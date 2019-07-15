@@ -144,7 +144,10 @@ namespace codepad::ui {
 		friend panel;
 		friend class_arrangements;
 		friend mouse_position;
-		friend animation_path::builder::getter_components::element_parameters_getter_component;
+		friend animation_path::bootstrapper<element> animation_path::builder::get_common_element_property(
+			animation_path::component_list::const_iterator,
+			animation_path::component_list::const_iterator
+		);
 	public:
 		/// Default virtual destrucor.
 		virtual ~element() = default;
@@ -487,6 +490,7 @@ namespace codepad::ui {
 			layout_changed.invoke();
 		}
 
+
 		/// Registers the callback to the event if the names match. The callback will be moved out of place if it's
 		/// registered.
 		///
@@ -527,6 +531,15 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Parses a segmented animation path and returns a corresponding \ref animation_path::bootstrapper. The
+		/// default behavior is to simply call \ref animation_path::builder::get_common_element_property().
+		virtual animation_path::bootstrapper<element> _parse_animation_path(
+			const animation_path::component_list &components
+		) {
+			return animation_path::builder::get_common_element_property(components.begin(), components.end());
+		}
+
+
 		/// Called immediately after the element is created to initialize it. Initializes \ref _config with the given
 		/// class. All derived classes should call \p base::_initialize <em>before</em> performing any other
 		/// initialization. It is primarily intended to avoid pitfalls associated with virtual function calls in
@@ -553,6 +566,9 @@ namespace codepad::ui {
 #ifdef CP_CHECK_USAGE_ERRORS
 		bool _initialized = false; ///< Indicates wheter the element has been properly initialized and disposed.
 #endif
+
+		// stray friend declaration
+		friend animation_path::builder::getter_components::member_component<&element::_params>;
 	};
 
 	/// A decoration that is rendered above all elements. The user cannot interact with the decoration in any way.

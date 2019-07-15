@@ -11,6 +11,8 @@
 #include "misc.h"
 
 namespace codepad::ui {
+	class manager;
+
 	using animation_clock_t = std::chrono::high_resolution_clock; ///< Type of the clock used for animation updating.
 	using animation_time_point_t = animation_clock_t::time_point; ///< Represents a time point in an animation.
 	using animation_duration_t = animation_clock_t::duration; ///< Represents a duration in an animation.
@@ -89,22 +91,6 @@ namespace codepad::ui {
 		/// \ref playing_animation_base.
 		virtual std::unique_ptr<playing_animation_base> start(std::unique_ptr<animation_subject_base>) const = 0;
 	};
-	/// Basic information for JSON animation parsers.
-	///
-	/// \tparam Context The parser context. It must provide two methods: \p try_parse_object<T>(), and
-	///                 \p get_manager(), and all JSON-related type definitions.
-	template <typename Context> class animation_parser_base {
-	public:
-		using value_t = typename Context::value_t; ///< The value type.
-		using object_t = typename Context::object_t; ///< The object type.
-		using array_t = typename Context::array_t; ///< The array type.
-
-		/// Default virtual constructor.
-		virtual ~animation_parser_base() = default;
-
-		/// The main function used to parse animations.
-		virtual std::unique_ptr<animation_definition_base> parse(const value_t&, Context&) const = 0;
-	};
 
 
 	/// Basic interface of \ref animation_subject_base with a specific type.
@@ -115,6 +101,7 @@ namespace codepad::ui {
 		/// Sets the current value.
 		virtual void set(T) = 0;
 	};
+
 
 	/// Used to interpolate between values using \ref lerp(). If such interpolation is not possible, returns the from
 	/// value.
@@ -150,6 +137,7 @@ namespace codepad::ui {
 		}
 	};
 
+
 	/// Defines a keyframe animation. Key frames contain target values, durations, and transition functions.
 	template <typename T, typename Lerp = default_lerp<T>> class keyframe_animation_definition :
 		public animation_definition_base {
@@ -159,9 +147,8 @@ namespace codepad::ui {
 			/// Default constructor.
 			keyframe() = default;
 			/// Initializes all fields of this struct.
-			explicit keyframe(
-				T tar, animation_duration_t dur = animation_duration_t::zero(), transition_function func = nullptr
-			) : target(tar), duration(dur), transition_func(std::move(func)) {
+			keyframe(T tar, animation_duration_t d, transition_function t) :
+				target(std::move(tar)), duration(d), transition_func(std::move(t)) {
 			}
 
 			T target{}; ///< The target value.
@@ -172,76 +159,66 @@ namespace codepad::ui {
 			transition_function transition_func;
 		};
 
+		/// Default constructor.
+		keyframe_animation_definition() = default;
+		/// Initializes all fields of this struct.
+		keyframe_animation_definition(std::vector<keyframe> kfs, size_t repeat) :
+			keyframes(std::move(kfs)), repeat_times(repeat) {
+		}
+
 		/// Starts a \ref playing_keyframe_animation.
 		std::unique_ptr<playing_animation_base> start(std::unique_ptr<animation_subject_base>) const override;
 
-		std::vector<keyframe> key_frames; ///< The list of key frames.
+		std::vector<keyframe> keyframes; ///< The list of key frames.
 		/// The number of times to repeat the whole animation. If this is 0, then the animation will be repeated
 		/// indefinitely.
 		size_t repeat_times = 1;
 	};
-	/// Parser for a \ref keyframe_animation_definition.
-	template <typename Context, typename T, typename Lerp = default_lerp<T>> class keyframe_animation_parser :
-		public animation_parser_base<Context> {
-	public:
-		/// The corresponding animation definition type.
-		using animation_definition_t = keyframe_animation_definition<T, Lerp>;
-		using base_t = animation_parser_base<Context>; ///< The base type.
-		using value_t = typename base_t::value_t; ///< The value type.
-		using object_t = typename base_t::object_t; ///< The object type.
-		using array_t = typename base_t::array_t; ///< The array type.
 
-		/// The parser interface.
-		std::unique_ptr<animation_definition_base> parse(const value_t &val, Context &ctx) const override {
-			auto ani = std::make_unique<animation_definition_t>();
-			std::optional<array_t> frames;
-			if (object_t obj; json::try_cast(val, obj)) {
-				if (auto fmem = obj.find_member(u8"repeat"); fmem != obj.member_end()) {
-					value_t repeatval = fmem.value();
-					if (repeatval.is<std::uint64_t>()) {
-						ani->repeat_times = static_cast<size_t>(repeatval.get<std::uint64_t>());
-					} else if (repeatval.is<bool>()) { // repeat forever?
-						ani->repeat_times = repeatval.get<bool>() ? 0 : 1;
-					} else {
-						logger::get().log_warning(
-							CP_HERE, "repeat must be either a non-negative integer or a boolean"
-						);
-					}
-				}
-				if (array_t arr; json::try_cast_member(obj, u8"frames", arr)) {
-					frames.emplace(std::move(arr));
-				} else {
-					ani->key_frames.emplace_back(_parse_keyframe(obj, ctx));
-				}
-			} else if (array_t arr; json::try_cast(val, arr)) {
-				frames.emplace(std::move(arr));
-			} else { // single value
-				ctx.try_parse_object(val, ani->key_frames.emplace_back().target);
-			}
-			if (frames) {
-				for (auto &&kf : frames.value()) {
-					if (object_t kfobj; json::try_cast(kf, kfobj)) {
-						ani->key_frames.emplace_back(_parse_keyframe(kfobj, ctx));
-					}
-				}
-			}
-			return ani;
-		}
-	protected:
-		typename animation_definition_t::keyframe _parse_keyframe(const object_t &obj, Context &ctx) const {
-			typename animation_definition_t::keyframe result;
-			json::object_parsers::try_parse_member(obj, u8"duration", result.duration);
-			if (auto fmem = obj.find_member(u8"to"); fmem != obj.member_end()) { // target
-				ctx.try_parse_object(fmem.value(), result.target);
-			}
-			if (str_view_t str; json::try_cast_member(obj, u8"transition", str)) { // transition function
-				if (transition_function f = ctx.get_manager().try_get_transition_func(str)) {
-					result.transition_func = f;
-				}
-			}
-			return result;
-		}
+	/// Stores generic keyframe animation parameters that can be further processed into a
+	/// \ref keyframe_animation_definition.
+	struct generic_keyframe_animation_definition {
+		/// A key frame.
+		struct keyframe {
+			/// Stores the target value which has not yet been parsed.
+			///
+			/// \sa keyframe_animation_definition::keyframe::target
+			json::value_storage target;
+			animation_duration_t duration{0}; ///< \sa keyframe_animation_definition::keyframe::duration
+			transition_function transition_func; ///< \sa keyframe_animation_definition::keyframe::transition_func
+		};
+
+		std::vector<keyframe> keyframes; ///< The list of key frames.
+		size_t repeat_times = 1; ///< \sa keyframe_animation_definition::repeat_times 
 	};
+
+
+	/// Used to parse values used in animations, and to start keyframe animations.
+	class animation_value_parser_base {
+	public:
+		/// Default virtual destructor.
+		virtual ~animation_value_parser_base() = default;
+
+		/// Parses a keyframe animation.
+		virtual std::unique_ptr<animation_definition_base> parse_keyframe_animation(
+			const generic_keyframe_animation_definition&, manager&
+		) const = 0;
+	};
+
+	/// Value parser for a specific type.
+	template <typename T> class typed_animation_value_parser : public animation_value_parser_base {
+	public:
+		/// Tries to parse the given JSON value into a specific value. By default this function simply calls
+		/// \ref json::object_parsers::try_parse().
+		virtual bool try_parse(const json::value_storage&, manager&, T&) const;
+
+		/// Parses a \ref keyframe_animation_definition.
+		std::unique_ptr<animation_definition_base> parse_keyframe_animation(
+			const generic_keyframe_animation_definition&, manager&
+		) const override;
+	};
+
+
 	/// An ongoing \ref keygrame_animation_definition
 	template <typename T, typename Lerp> class playing_keyframe_animation : public playing_animation_base {
 	public:
@@ -263,11 +240,11 @@ namespace codepad::ui {
 		/// \return The time before this \ref state needs to be updated again.
 		std::optional<animation_duration_t> update(animation_time_point_t now) override {
 			for (size_t i = 0; i < maximum_frames_per_update; ++i) { // go through the frames
-				if (_cur_frame >= _def->key_frames.size()) { // animation has finished
-					_subject->set(_def->key_frames.back().target);
+				if (_cur_frame >= _def->keyframes.size()) { // animation has finished
+					_subject->set(_def->keyframes.back().target);
 					return std::nullopt;
 				}
-				const definition_t::keyframe &f = _def->key_frames[_cur_frame];
+				const definition_t::keyframe &f = _def->keyframes[_cur_frame];
 				animation_time_point_t key_frame_end = _keyframe_start + f.duration;
 				if (key_frame_end > now) { // at the correct frame
 					if (f.transition_func) {
@@ -283,7 +260,7 @@ namespace codepad::ui {
 				// advance frame
 				_keyframe_start += f.duration;
 				_from = f.target; // next frame starts at the target value of this frame
-				if (++_cur_frame == _def->key_frames.size()) { // at the end, check if should repeat
+				if (++_cur_frame == _def->keyframes.size()) { // at the end, check if should repeat
 					++_repeated;
 					if (_def->repeat_times == 0 || _repeated < _def->repeat_times) { // yes
 						_cur_frame = 0;
@@ -310,6 +287,7 @@ namespace codepad::ui {
 		std::unique_ptr<typed_animation_subject_base<T>> _subject; ///< The subject of this animation.
 		const definition_t *_def = nullptr; ///< The definition of this animation.
 	};
+
 	template <
 		typename T, typename Lerp
 	> std::unique_ptr<playing_animation_base> keyframe_animation_definition<T, Lerp>::start(

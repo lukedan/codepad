@@ -33,7 +33,10 @@ int main(int argc, char **argv) {
 		parser.parse_arrangements_config(json::parse_file<json::default_engine::document_t>("config/arrangements.json").root().get<json::default_engine::object_t>());
 	}
 
-	hotkey_json_parser<json::default_engine::value_t>::parse_config(man.get_class_hotkeys().mapping, json::parse_file<json::default_engine::document_t>("config/keys.json").root().get<json::default_engine::object_t>());
+	hotkey_json_parser<json::default_engine::value_t>::parse_config(
+		man.get_class_hotkeys().mapping,
+		json::parse_file<json::default_engine::document_t>("config/keys.json").root().get<json::default_engine::object_t>()
+	);
 
 	tabs::tab_manager tabman(man);
 
