@@ -125,7 +125,7 @@ namespace codepad::json {
 				return Derived(_get_it(it) + diff);
 			}
 			/// Addition.
-			friend Derived operator+(difference_type diff, const Derived & it) {
+			friend Derived operator+(difference_type diff, const Derived &it) {
 				return Derived(diff + _get_it(it));
 			}
 
@@ -135,32 +135,32 @@ namespace codepad::json {
 				return *reinterpret_cast<Derived*>(this);
 			}
 			/// Subtraction.
-			friend Derived operator-(const Derived & it, difference_type diff) {
+			friend Derived operator-(const Derived &it, difference_type diff) {
 				return _make_it(_get_it(it) - diff);
 			}
 			/// Subtraction.
-			friend Derived operator-(difference_type diff, const Derived & it) {
+			friend Derived operator-(difference_type diff, const Derived &it) {
 				return _make_it(diff - _get_it(it));
 			}
 			/// Difference calculation.
-			friend difference_type operator-(const Derived & lhs, const Derived & rhs) {
+			friend difference_type operator-(const Derived &lhs, const Derived &rhs) {
 				return _get_it(lhs) - _get_it(rhs);
 			}
 
 			/// Comparison.
-			friend bool operator>(const Derived & lhs, const Derived & rhs) {
+			friend bool operator>(const Derived &lhs, const Derived &rhs) {
 				return _get_it(lhs) > _get_it(rhs);
 			}
 			/// Comparison.
-			friend bool operator>=(const Derived & lhs, const Derived & rhs) {
+			friend bool operator>=(const Derived &lhs, const Derived &rhs) {
 				return _get_it(lhs) >= _get_it(rhs);
 			}
 			/// Comparison.
-			friend bool operator<(const Derived & lhs, const Derived & rhs) {
+			friend bool operator<(const Derived &lhs, const Derived &rhs) {
 				return _get_it(lhs) < _get_it(rhs);
 			}
 			/// Comparison.
-			friend bool operator<=(const Derived & lhs, const Derived & rhs) {
+			friend bool operator<=(const Derived &lhs, const Derived &rhs) {
 				return _get_it(lhs) <= _get_it(rhs);
 			}
 		protected:
@@ -169,7 +169,7 @@ namespace codepad::json {
 			}
 		private:
 			/// Returns the base iterator for the given derived object.
-			inline static const BaseIt &_get_it(const Derived & d) {
+			inline static const BaseIt &_get_it(const Derived &d) {
 				return d._it;
 			}
 			/// Creates a derived object given a base iterator.
@@ -416,7 +416,10 @@ namespace codepad::json {
 			/// Parses the given document.
 			inline static document_t parse(str_view_t data) {
 				document_t res;
-				res._doc.Parse(data.data(), data.size());
+				res._doc.Parse<
+					::rapidjson::kParseCommentsFlag |
+					::rapidjson::kParseTrailingCommasFlag
+				>(data.data(), data.size());
 				return res;
 			}
 		protected:

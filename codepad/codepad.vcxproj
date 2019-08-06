@@ -168,7 +168,7 @@
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -204,7 +204,7 @@
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetyped.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -243,7 +243,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -287,7 +287,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
@@ -310,7 +310,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -354,7 +354,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;opengl32.lib;gdi32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>windowscodecs.lib;imm32.lib;Dwmapi.lib;shlwapi.lib;d2d1.lib;d3d11.lib;dwrite.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>

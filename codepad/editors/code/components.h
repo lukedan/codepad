@@ -219,12 +219,12 @@ namespace codepad::editors::code {
 					do {
 						_width = _width * enlarge_factor;
 					} while (w > _width);
-					logger::get().log_verbose(CP_HERE, "minimap width extended to ", _width);
+					logger::get().log_debug(CP_HERE, "minimap width extended to ", _width);
 					pages.clear();
 					invalidate();
 				} else if (_width > minimum_width && w < shirnk_threshold * _width) {
 					_width = std::max(minimum_width, w);
-					logger::get().log_verbose(CP_HERE, "minimap width shrunk to ", _width);
+					logger::get().log_debug(CP_HERE, "minimap width shrunk to ", _width);
 				}
 			}
 

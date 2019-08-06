@@ -27,8 +27,8 @@ namespace codepad::ui::tabs {
 			_on_close_requested();
 		};
 		_btn->start_drag += [this](tab_button::drag_start_info &p) {
-			vec2d diff = p.drag_diff - vec2d(get_layout().xmin, _btn->get_layout().ymin);
-			get_tab_manager().start_drag_tab(*this, p.drag_diff, get_layout().translated(-diff));
+			vec2d diff = p.reference - vec2d(get_layout().xmin, _btn->get_layout().ymin);
+			get_tab_manager().start_dragging_tab(*this, p.reference, get_layout().translated(-diff));
 		};
 	}
 

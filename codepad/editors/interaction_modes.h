@@ -271,7 +271,7 @@ namespace codepad::editors {
 			/// Updates \ref _speed. This function always returns \p true.
 			bool on_mouse_move(ui::mouse_move_info &info) override {
 				contents_region_base &elem = this->_manager.get_contents_region();
-				rectd r = ui::thickness(_padding).shrink(elem.get_layout());
+				rectd r = ui::thickness(_padding).shrink(rectd::from_corners(vec2d(), elem.get_layout().size()));
 				r.make_valid_average();
 				// find anchor point
 				_scrolling = false;

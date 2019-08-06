@@ -209,13 +209,14 @@ namespace codepad::ui {
 
 	namespace animation_path::builder {
 		template <
-			typename Comp, element_property_type Type
-		> void element_member_subject<Comp, Type>::set(output_type output) {
-			member_subject<Comp>::set(std::move(output));
+			typename Output, element_property_type Type
+		> void element_member_access_subject<Output, Type>::set(Output val) {
+			member_access_subject<element, Output>::set(std::move(val));
+			element &e = this->_object;
 			if constexpr (Type == element_property_type::affects_layout) {
-				this->_target.get_manager().get_scheduler().invalidate_layout(this->_target);
+				e.get_manager().get_scheduler().invalidate_layout(e);
 			}
-			this->_target.get_manager().get_scheduler().invalidate_visual(this->_target);
+			e.get_manager().get_scheduler().invalidate_visual(e);
 		}
 	}
 }

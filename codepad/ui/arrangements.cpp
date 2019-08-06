@@ -19,19 +19,15 @@ namespace codepad::ui {
 		_animation_starter() = default;
 		/// Initializes all fields of this struct.
 		_animation_starter(
-			std::shared_ptr<animation_path::subject_creator<element>> sbj,
-			std::shared_ptr<animation_definition_base> def
-		) : subject_creator(std::move(sbj)), definition(std::move(def)) {
+			std::shared_ptr<animation_subject_base> sbj,
+			std::shared_ptr<animation_definition_base> def,
+			std::any data
+		) : subject(std::move(sbj)), definition(std::move(def)), subject_data(std::move(data)) {
 		}
 
-		/// Used to create animation subjects.
-		std::shared_ptr<animation_path::subject_creator<element>> subject_creator;
+		std::shared_ptr<animation_subject_base> subject; ///< Used to create animation subjects.
 		std::shared_ptr<animation_definition_base> definition; ///< Definition of this animation.
-
-		/// Starts this animation for the given \ref element, and returns the resulting \ref playing_animation_base.
-		std::unique_ptr<playing_animation_base> start_for(element &e) const {
-			return definition->start(subject_creator->create_for(e));
-		}
+		std::any subject_data; ///< Data used by \ref subject.
 	};
 
 	void class_arrangements::construction_context::register_triggers_for(
@@ -45,19 +41,33 @@ namespace codepad::ui {
 			}
 			std::vector<_animation_starter> anis;
 			for (auto &ani : trig.animations) {
-				animation_path::bootstrapper<element> bs = elem._parse_animation_path(ani.subject);
-				if (bs.parser == nullptr || bs.subject_creator == nullptr) {
+				animation_subject_information subject = elem._parse_animation_path(ani.subject);
+				if (subject.parser == nullptr || subject.subject == nullptr) {
 					logger::get().log_warning(CP_HERE, "failed to parse animation path"); // TODO maybe print the path
 					continue;
 				}
-				auto &&definition = bs.parser->parse_keyframe_animation(ani.definition, elem.get_manager());
-				anis.emplace_back(std::move(bs.subject_creator), std::move(definition));
+				auto &&definition = subject.parser->parse_keyframe_animation(ani.definition, elem.get_manager());
+				anis.emplace_back(
+					std::move(subject.subject), std::move(definition), std::move(subject.subject_data)
+				);
 			}
-			subj->_register_event(trig.identifier.name, [target = &elem, animations = std::move(anis)]() {
+			if (!subj->_register_event(trig.identifier.name, [target = &elem, animations = std::move(anis)]() {
 				for (auto &ani : animations) {
-					target->get_manager().get_scheduler().start_animation(ani.start_for(*target), target);
+					target->get_manager().get_scheduler().start_animation(
+						ani.definition->start(ani.subject), target
+					);
 				}
-			});
+			})) {
+				logger::get().log_warning(CP_HERE, "unknown event name: ", trig.identifier.name);
+			}
+		}
+	}
+
+	void class_arrangements::construction_context::set_additional_attributes_for(
+		element &elem, const element_configuration &config
+	) {
+		for (auto &&attr : config.additional_attributes) {
+			elem._set_attribute(attr.first, attr.second);
 		}
 	}
 
@@ -95,14 +105,20 @@ namespace codepad::ui {
 		construction_context ctx(logparent);
 		ctx.register_name(name, logparent);
 		for (const child &c : children) {
-			if (element * celem = c.construct(ctx)) {
+			if (element *celem = c.construct(ctx)) {
 				logparent.children().add(*celem);
 			}
 		}
 		// triggers
 		ctx.register_triggers_for(logparent, configuration);
-		for (auto &created : ctx.all_created) {
+		for (auto &&created : ctx.all_created) {
 			ctx.register_triggers_for(*created.second, created.first->configuration);
+		}
+		// additional attributes
+		// these are set after triggers are registered to enable elements to correctly react to attributes being set
+		construction_context::set_additional_attributes_for(logparent, configuration);
+		for (auto &&created : ctx.all_created) {
+			construction_context::set_additional_attributes_for(*created.second, created.first->configuration);
 		}
 		// construction notification
 		for (auto &created : ctx.all_created) {

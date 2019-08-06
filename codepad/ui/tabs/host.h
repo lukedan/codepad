@@ -12,33 +12,35 @@
 #include "tab.h"
 
 namespace codepad::ui::tabs {
-	/// Specifies the type of a tab's destination when being dragged.
-	enum class drag_destination_type {
-		new_window, ///< The tab will be moved to a new window.
-		/// The tab has been added to a \ref host, and the user is currently dragging and repositioning it in
-		/// the tab list. After the user finishes dragging, it will remain at its place in the \ref host.
-		combine_in_tab,
-		combine, ///< The tab will be added to a \ref host.
-		/// The current \ref host will be split into two, with the original tabs on the right and the
+	/// Indicates how the tab hosts should be split when the user drops the tab button in a \ref host.
+	enum class drag_split_type : std::uint8_t {
+		new_window, ///< The tab should be put in a new window.
+		combine, ///< The tab should be added to this host.
+		/// The current \ref host will be split in two, with the original tabs on the right and the
 		/// tab being dragged on the left.
-		new_panel_left,
-		/// The current \ref host will be split into two, with the original tabs on the bottom and the
+		split_left,
+		/// The current \ref host will be split in two, with the original tabs on the bottom and the
 		/// tab being dragged on the top.
-		new_panel_top,
-		/// The current \ref host will be split into two, with the original tabs on the left and the
+		split_top,
+		/// The current \ref host will be split in two, with the original tabs on the left and the
 		/// tab being dragged on the right.
-		new_panel_right,
-		/// The current \ref host will be split into two, with the original tabs on the top and the
+		split_right,
+		/// The current \ref host will be split in two, with the original tabs on the top and the
 		/// tab being dragged on the bottom.
-		new_panel_bottom
+		split_bottom
 	};
 
 	/// Used to select the destimation of a \ref tab that's being dragged.
 	class drag_destination_selector : public panel {
 	public:
 		/// Returns the current \ref drag_destination_type.
-		drag_destination_type get_drag_destination(vec2d) const {
+		drag_split_type get_drag_destination() const {
 			return _dest;
+		}
+
+		/// Called to update the mouse position.
+		void update(mouse_move_info &p) {
+			_on_mouse_move(p);
 		}
 
 		/// Returns the default class of elements of this type.
@@ -69,7 +71,7 @@ namespace codepad::ui::tabs {
 	protected:
 		element
 			/// Element indicating that the result should be \ref drag_destination_type::new_panel_left.
-			* _split_left = nullptr,
+			*_split_left = nullptr,
 			/// Element indicating that the result should be \ref drag_destination_type::new_panel_right.
 			*_split_right = nullptr,
 			/// Element indicating that the result should be \ref drag_destination_type::new_panel_top.
@@ -79,7 +81,7 @@ namespace codepad::ui::tabs {
 			/// Element indicating that the result should be \ref drag_destination_type::combine.
 			*_combine = nullptr;
 		/// The current drag destination.
-		drag_destination_type _dest = drag_destination_type::new_window;
+		drag_split_type _dest = drag_split_type::new_window;
 
 		/// Initializes all destination indicators.
 		void _initialize(str_view_t cls, const element_configuration &config) override {
@@ -95,20 +97,20 @@ namespace codepad::ui::tabs {
 
 			set_zindex(zindex::overlay);
 
-			_setup_indicator(*_split_left, drag_destination_type::new_panel_left);
-			_setup_indicator(*_split_right, drag_destination_type::new_panel_right);
-			_setup_indicator(*_split_up, drag_destination_type::new_panel_top);
-			_setup_indicator(*_split_down, drag_destination_type::new_panel_bottom);
-			_setup_indicator(*_combine, drag_destination_type::combine);
+			_setup_indicator(*_split_left, drag_split_type::split_left);
+			_setup_indicator(*_split_right, drag_split_type::split_right);
+			_setup_indicator(*_split_up, drag_split_type::split_top);
+			_setup_indicator(*_split_down, drag_split_type::split_bottom);
+			_setup_indicator(*_combine, drag_split_type::combine);
 		}
 
 		/// Initializes the given destination indicator.
-		void _setup_indicator(element &elem, drag_destination_type type) {
+		void _setup_indicator(element &elem, drag_split_type type) {
 			elem.mouse_enter += [this, type]() {
 				_dest = type;
 			};
 			elem.mouse_leave += [this]() {
-				_dest = drag_destination_type::new_window;
+				_dest = drag_split_type::new_window;
 			};
 		}
 	};
@@ -130,7 +132,7 @@ namespace codepad::ui::tabs {
 
 			t.set_visibility(visibility::none);
 			if (get_tab_count() == 1) {
-				switch_tab(t);
+				switch_tab(&t);
 			}
 		}
 		/// Removes a \ref tab from this host by simply removing it from \ref _children. The rest are handled by
@@ -139,22 +141,24 @@ namespace codepad::ui::tabs {
 			_tab_contents_region->children().remove(t);
 		}
 
-		/// Switches the currently visible tab, but without changing the focus.
-		void switch_tab(tab &t) {
-			assert_true_logical(t.logical_parent() == this, "the tab doesn't belong to this host");
+		/// Switches the currently visible tab without changing the focus.
+		void switch_tab(tab *t) {
+			assert_true_logical(t == nullptr || t->logical_parent() == this, "the tab doesn't belong to this host");
 			if (_active_tab) {
 				_active_tab->set_visibility(visibility::none);
-				// TODO set selected
 				_active_tab->_btn->set_zindex(0); // TODO a bit hacky
+				_active_tab->_on_unselected();
 			}
-			_active_tab = &t;
-			_active_tab->set_visibility(visibility::full);
-			// TODO set selected
-			t._btn->set_zindex(1);
+			_active_tab = t;
+			if (_active_tab) {
+				_active_tab->set_visibility(visibility::full);
+				_active_tab->_btn->set_zindex(1);
+				_active_tab->_on_selected();
+			}
 		}
 		/// Switches the currently visible tab and sets the focus to that tab.
 		void activate_tab(tab &t) {
-			switch_tab(t);
+			switch_tab(&t);
 			get_manager().get_scheduler().set_focused_element(&t);
 		}
 
@@ -166,9 +170,9 @@ namespace codepad::ui::tabs {
 			_tab_buttons_region->children().move_before(*target._btn, before == nullptr ? nullptr : before->_btn);
 		}
 
-		/// Returns the region that all tab buttons are in.
-		rectd get_tab_buttons_region() const {
-			return _tab_buttons_region->get_layout();
+		/// Returns the \ref panel that contains all tab buttons.
+		panel &get_tab_buttons_region() const {
+			return *_tab_buttons_region;
 		}
 
 		/// Returns the total number of tabs in the \ref host.
@@ -230,7 +234,7 @@ namespace codepad::ui::tabs {
 		void _on_tab_removing(tab &t) {
 			if (&t == _active_tab) { // change active tab
 				if (_tab_contents_region->children().size() == 1) {
-					_active_tab = nullptr;
+					switch_tab(nullptr);
 				} else {
 					auto it = _tab_contents_region->children().items().begin();
 					for (; it != _tab_contents_region->children().items().end() && *it != &t; ++it) {
@@ -243,7 +247,7 @@ namespace codepad::ui::tabs {
 					if (++it == _tab_contents_region->children().items().end()) {
 						it = --original;
 					}
-					switch_tab(*dynamic_cast<tab*>(*it));
+					switch_tab(dynamic_cast<tab*>(*it));
 				}
 			}
 		}

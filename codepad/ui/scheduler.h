@@ -37,8 +37,8 @@ namespace codepad::ui {
 
 		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
 		enum class wait_type {
-			blocking, ///< This operation is synchronous.
-			non_blocking ///< This operation is asynchronous.
+			blocking, ///< This operation may stall.
+			non_blocking ///< This operation returns immediately.
 		};
 		/// Stores a task that can be executed every update.
 		struct update_task {
@@ -488,8 +488,8 @@ namespace codepad::ui {
 			return scope;
 		}
 		/// Called by \ref element_collection when an element is about to be removed from it. This function updates
-		/// the innermost focus scopes as well as the global focus.
-		void _on_removing_element(element & e) {
+		/// the innermost focus scopes, the global focus, and the capture state of the window.
+		void _on_removing_element(element &e) {
 			panel *scope = _find_focus_scope(e);
 			if (scope) {
 				if (element * sfocus = scope->get_focused_element_in_scope()) {
@@ -518,6 +518,19 @@ namespace codepad::ui {
 				}
 				// otherwise, only the focus in that scope (which is not in effect) has changed, and nothing needs
 				// to be done
+			}
+
+			// release mouse capture if necessary
+			if (window_base *wnd = e.get_window()) {
+				for (element *c = wnd->get_mouse_capture(); c; c = c->parent()) {
+					if (c == &e) { // yes, the captured element is a child of the removed element
+						wnd->release_mouse_capture();
+						// manually call _on_capture_lost() because it's not called elsewhere and this is not the
+						// element willingly releasing the capture
+						wnd->get_mouse_capture()->_on_capture_lost();
+						break;
+					}
+				}
 			}
 		}
 

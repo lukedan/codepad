@@ -87,6 +87,8 @@ namespace codepad::ui::tabs {
 			}
 		}
 
+		info_event<> orientation_changed; ///< Invoked whenever the orientation has been changed.
+
 		/// Returns the default class of all elements of type \ref split_panel.
 		inline static str_view_t get_default_class() {
 			return CP_STRLIT("split_panel");
@@ -203,7 +205,7 @@ namespace codepad::ui::tabs {
 			}
 		}
 		/// Sets the corresponding pointer to \p nullptr.
-		void _on_child_removed(element & e) override {
+		void _on_child_removed(element &e) override {
 			if (&e == _c1 || &e == _c2) {
 				if (&e == _c1) {
 					_c1 = nullptr;
@@ -217,25 +219,8 @@ namespace codepad::ui::tabs {
 		/// Called after the current orientation has been changed. Calls \ref invalidate_layout, and notifies
 		/// \ref _sep of this change.
 		virtual void _on_orientation_changed() {
-			// TODO notify _sep of this change
 			_invalidate_children_layout();
-		}
-
-		/// Renders all children with additional clip regions.
-		void _custom_render() const override {
-			panel::_custom_render();
-			_child_on_render(*_sep);
-			ui::renderer_base &r = get_manager().get_renderer();
-			if (_c1) {
-				r.push_rectangle_clip(get_region1());
-				_child_on_render(*_c1);
-				r.pop_clip();
-			}
-			if (_c2) {
-				r.push_rectangle_clip(get_region2());
-				_child_on_render(*_c2);
-				r.pop_clip();
-			}
+			orientation_changed.invoke();
 		}
 
 		/// Updates the layout of all children.
@@ -260,15 +245,26 @@ namespace codepad::ui::tabs {
 			}
 		}
 
+		/// Handles the \p set_horizontal and \p set_vertical events.
+		bool _register_event(str_view_t name, std::function<void()> callback) override {
+			return
+				_event_helpers::register_orientation_events(
+					name, orientation_changed, [this]() {
+						return get_orientation();
+					}, callback
+				) ||
+				panel::_register_event(name, std::move(callback));
+		}
+
 		/// Initializes \ref _sep and adds handlers for certain events.
-		void _initialize(str_view_t cls, const element_configuration & config) override {
+		void _initialize(str_view_t cls, const element_configuration &config) override {
 			ui::panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
 				{get_separator_name(), _name_cast(_sep)}
 				});
 
-			_sep->mouse_down += [this](ui::mouse_button_info & p) {
+			_sep->mouse_down += [this](ui::mouse_button_info &p) {
 				if (p.button == ui::mouse_button::primary) {
 					_sep_dragging = true;
 					_sep_offset =
@@ -281,20 +277,20 @@ namespace codepad::ui::tabs {
 			_sep->lost_capture += [this]() {
 				_sep_dragging = false;
 			};
-			_sep->mouse_up += [this](ui::mouse_button_info & p) {
+			_sep->mouse_up += [this](ui::mouse_button_info &p) {
 				if (_sep_dragging && p.button == ui::mouse_button::primary) {
 					_sep_dragging = false;
 					get_window()->release_mouse_capture();
 				}
 			};
-			_sep->mouse_move += [this](ui::mouse_move_info & p) {
+			_sep->mouse_move += [this](ui::mouse_move_info &p) {
 				if (_sep_dragging) {
 					rectd client = get_client_region();
 					double position =
 						get_orientation() == orientation::vertical ? // TODO FIXME
-						(p.new_position.get(*_sep).y - _sep_offset) /
+						(p.new_position.get(*this).y - _sep_offset) /
 						(client.height() - _sep->get_layout().height()) :
-						(p.new_position.get(*_sep).x - _sep_offset) /
+						(p.new_position.get(*this).x - _sep_offset) /
 						(client.width() - _sep->get_layout().width());
 					set_separator_position(position);
 				}

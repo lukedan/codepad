@@ -89,12 +89,12 @@ namespace codepad::ui {
 
 		/// Starts the animation for the given \ref animation_subject_base, and returns the corresponding
 		/// \ref playing_animation_base.
-		virtual std::unique_ptr<playing_animation_base> start(std::unique_ptr<animation_subject_base>) const = 0;
+		virtual std::unique_ptr<playing_animation_base> start(std::shared_ptr<animation_subject_base>) const = 0;
 	};
 
 
 	/// Basic interface of \ref animation_subject_base with a specific type.
-	template <typename T> class typed_animation_subject_base : public animation_subject_base {
+	template <typename T> class typed_animation_subject : public animation_subject_base {
 	public:
 		/// Returns the current value.
 		virtual const T &get() const = 0;
@@ -167,7 +167,7 @@ namespace codepad::ui {
 		}
 
 		/// Starts a \ref playing_keyframe_animation.
-		std::unique_ptr<playing_animation_base> start(std::unique_ptr<animation_subject_base>) const override;
+		std::unique_ptr<playing_animation_base> start(std::shared_ptr<animation_subject_base>) const override;
 
 		std::vector<keyframe> keyframes; ///< The list of key frames.
 		/// The number of times to repeat the whole animation. If this is 0, then the animation will be repeated
@@ -230,7 +230,7 @@ namespace codepad::ui {
 
 		/// Initializes this playing animation.
 		playing_keyframe_animation(
-			const definition_t &def, std::unique_ptr<typed_animation_subject_base<T>> sub
+			const definition_t &def, std::shared_ptr<typed_animation_subject<T>> sub
 		) : _from(sub->get()), _keyframe_start(animation_clock_t::now()), _def(&def), _subject(std::move(sub)) {
 		}
 
@@ -284,21 +284,17 @@ namespace codepad::ui {
 		size_t
 			_cur_frame = 0, ///< The index of the current \ref keyframe.
 			_repeated = 0; ///< The number of times that this animation has been repeated.
-		std::unique_ptr<typed_animation_subject_base<T>> _subject; ///< The subject of this animation.
+		std::shared_ptr<typed_animation_subject<T>> _subject; ///< The subject of this animation.
 		const definition_t *_def = nullptr; ///< The definition of this animation.
 	};
 
 	template <
 		typename T, typename Lerp
 	> std::unique_ptr<playing_animation_base> keyframe_animation_definition<T, Lerp>::start(
-		std::unique_ptr<animation_subject_base> subject
+		std::shared_ptr<animation_subject_base> subject
 	) const {
-		auto *typed = dynamic_cast<typed_animation_subject_base<T>*>(subject.get());
-		if (typed) {
-			subject.release();
-			return std::make_unique<playing_keyframe_animation<T, Lerp>>(
-				*this, std::unique_ptr<typed_animation_subject_base<T>>(typed)
-				);
+		if (auto typed = std::dynamic_pointer_cast<typed_animation_subject<T>>(subject)) {
+			return std::make_unique<playing_keyframe_animation<T, Lerp>>(*this, typed);
 		}
 		logger::get().log_warning(CP_HERE, "the given subject of the animation is not typed");
 		return nullptr;

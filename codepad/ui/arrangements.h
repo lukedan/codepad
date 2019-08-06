@@ -59,6 +59,8 @@ namespace codepad::ui {
 
 			/// Registers all triggers of the given \ref element_configuration.
 			void register_triggers_for(element&, const element_configuration&);
+			/// Sets additional attributes for the given \ref element.
+			static void set_additional_attributes_for(element&, const element_configuration&);
 		};
 		/// Stores information about a child element.
 		struct child {

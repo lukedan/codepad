@@ -6,6 +6,9 @@
 /// \file
 /// Classes and structs used to control the animations of elements.
 
+#include <tuple>
+#include <memory>
+
 #include "../core/misc.h"
 #include "animation.h"
 
@@ -30,28 +33,13 @@ namespace codepad::ui {
 				type, ///< The expected type of the current object. Can be empty.
 				property; ///< The target property.
 			std::optional<size_t> index; ///< The index, if this component is a list.
+
+			/// Returns \p true if \ref type is the same as the input or if \ref type is empty.
+			bool is_type_or_empty(str_view_t ty) const {
+				return type.empty() || type == ty;
+			}
 		};
 		using component_list = std::vector<component>; ///< A list of components.
-
-		/// Basic interface used to create a \ref typed_animation_subject_base given a
-		/// \ref element_parameters.
-		///
-		/// \tparam Source The source of the subject.
-		template <typename Source> class subject_creator {
-		public:
-			/// Default destructor.
-			virtual ~subject_creator() = default;
-
-			/// Creates the corresponding \ref animation_subject_base for the given \ref element_parameters.
-			virtual std::unique_ptr<animation_subject_base> create_for(Source&) const = 0;
-		};
-
-		/// Contains all necessary information for creating animations.
-		template <typename Source> struct bootstrapper {
-			std::unique_ptr<subject_creator<Source>> subject_creator; ///< Used to create animation subjects.
-			std::unique_ptr<animation_value_parser_base> parser; ///< Used to parse animations from JSON.
-		};
-
 
 		/// The parser.
 		class parser {
@@ -214,80 +202,9 @@ namespace codepad::ui {
 			}
 		};
 
-		/// Builds a \ref typed_animation_subject_base from a \ref component_list.
+		/// Builds a \ref typed_animation_subject from a \ref component_list.
 		namespace builder {
-			template <typename> class member_subject_creator;
-
-			/// Implementation of \ref typed_animation_subject_base that accesses the value through a getter
-			/// component.
-			template <typename Component> class member_subject :
-				public typed_animation_subject_base<typename Component::output_type> {
-			public:
-				using input_type = typename Component::input_type; ///< The input type of the component.
-				using output_type = typename Component::output_type; ///< The tyep of the subject.
-
-				/// Initializes all fields of this struct.
-				member_subject(
-					input_type &e, const member_subject_creator<Component> &proto
-				) : _target(e), _prototype(proto) {
-				}
-
-				/// The getter.
-				const output_type &get() const override;
-				/// The setter. This function also invokes \ref scheduler::invalidate_layout() or
-				/// \ref scheduler::invalidate_visuals() if necessary.
-				void set(output_type) override;
-
-				/// Uses \p dynamic_cast to check if the given \ref animation_subject_base is also a
-				/// \ref member_subject, and if so, checks if the corresponding getter components are equal.
-				bool equals(const animation_subject_base&) const override;
-			protected:
-				input_type &_target; ///< The \ref element_parameters struct whose value will be modified.
-				const member_subject_creator<Component> &_prototype; ///< The object that created this.
-			};
-
-			/// Creates instances of \ref member_subject, given an instance of the input.
-			template <typename Component> class member_subject_creator :
-				public subject_creator<typename Component::input_type> {
-				friend member_subject<Component>;
-			public:
-				using input_type = typename Component::input_type; ///< The input type of the component.
-
-				/// Initializes \ref _comp.
-				explicit member_subject_creator(Component comp) : _comp(std::move(comp)) {
-				}
-
-				/// Creates a \ref member_subject for the given input.
-				std::unique_ptr<animation_subject_base> create_for(input_type &e) const override {
-					return std::make_unique<member_subject<Component>>(e, *this);
-				}
-			protected:
-				Component _comp; ///< The component.
-			};
-
-			template <typename Component> inline bool member_subject<Component>::equals(
-				const animation_subject_base &other
-			) const {
-				auto *ptr = dynamic_cast<const member_subject<Component>*>(&other);
-				if (ptr) {
-					return ptr->_prototype._comp == _prototype._comp;
-				}
-				return false;
-			}
-
-			template <
-				typename Component
-			> inline auto member_subject<Component>::get() const -> const output_type& {
-				return *_prototype._comp.get(&_target);
-			}
-
-			template <typename Component> inline void member_subject<Component>::set(output_type v) {
-				output_type *ptr = _prototype._comp.get(&_target);
-				if (ptr) {
-					*ptr = std::move(v);
-				}
-			}
-
+			template <typename, typename> class typed_member_access;
 
 			/// Indicates the effects an element's property has on its visuals and layout.
 			enum class element_property_type {
@@ -295,39 +212,195 @@ namespace codepad::ui {
 				affects_layout ///< The property affects the element's layout.
 			};
 
-			/// A member subject that also invalidates the visuals or layout of an element when set. If the property
-			/// affects neither, use \ref member_subject.
-			template <typename Comp, element_property_type Type> class element_member_subject :
-				public member_subject<Comp> {
+			/// Used to access members given an object and to create \ref animation_subject instances.
+			template <typename Source> class member_access {
 			public:
-				using input_type = typename member_subject<Comp>::input_type; ///< The input type.
-				using output_type = typename member_subject<Comp>::output_type; ///< The output type.
+				/// Default virtual destructor.
+				virtual ~member_access() = default;
 
-				static_assert(std::is_same_v<input_type, element>, "input type must be element");
+				/// Returns a pointer to the member given the object.
+				virtual void *get(Source&) const = 0;
 
-				/// Forwarding constructor.
-				element_member_subject(input_type &e, const member_subject_creator<Comp> &proto) :
-					member_subject<Comp>(e, proto) {
+				/// Creates an \ref animation_subject_base given the source object. Returns \p nullptr if this object
+				/// does not support this operation. The created subject may reference this \ref member_access via a
+				/// reference, so this object must outlive the subject.
+				virtual std::unique_ptr<animation_subject_base> create_for_source(Source&) const {
+					return nullptr;
+				}
+				/// Creates an \ref animation_subject_base given an \ref element and the \ref typed_member_access
+				/// used to retrieve the actual source that's a member of the \ref element. Returns \p nullptr if
+				/// this object does not support this operation. The created subject may reference this
+				/// \ref member_access or the intermediate \ref typed_member_access via a reference, so these objects
+				/// must outlive the subject.
+				virtual std::unique_ptr<animation_subject_base> create_for_element(
+					element&, typed_member_access<element, Source>&, element_property_type
+				) const {
+					return nullptr;
 				}
 
-				/// Sets the value and calls \ref scheduler::invalidate_visual() or
-				/// \ref scheduler::invalidate_layout() accordingly.
-				void set(output_type) override;
+				/// Used to determine if two \ref member_access objects are equivalent.
+				virtual bool equals(const member_access<Source>&) const = 0;
 			};
 
-			/// Subject creators used with \ref element_member_subject.
-			template <typename Comp, element_property_type Type> class element_member_subject_creator :
-				public member_subject_creator<Comp> {
+			/// \ref member_access with type information of the member.
+			template <typename Source, typename Member> class typed_member_access : public member_access<Source> {
 			public:
-				using input_type = typename member_subject_creator<Comp>::input_type; ///< The input type.
-
-				/// Forwarding constructor.
-				explicit element_member_subject_creator(Comp comp) : member_subject_creator<Comp>(std::move(comp)) {
+				/// Returns the result of \ref get_typed().
+				void *get(Source &v) const override {
+					return get_typed(v);
 				}
 
-				/// Creates a \ref element_member_subject for the given \ref element.
-				std::unique_ptr<animation_subject_base> create_for(input_type &e) const override {
-					return std::make_unique<element_member_subject<Comp, Type>>(e, *this);
+				/// Returns a poionter to the typed member given the object.
+				virtual Member *get_typed(Source&) const = 0;
+			};
+
+
+			/// Animation subjects created by a \ref component_member_access.
+			template <
+				element_property_type Type, typename Intermediate, typename Target
+			> class custom_element_member_subject : public typed_animation_subject<Target> {
+			public:
+				/// Initializes all fields of this struct.
+				custom_element_member_subject(
+					const typed_member_access<element, Intermediate> &first,
+					const typed_member_access<Intermediate, Target> &second,
+					element &obj
+				) : typed_animation_subject<Target>(), _first(first), _second(second), _source(obj) {
+				}
+
+				/// Returns the value.
+				const Target &get() const override {
+					return *_second.get_typed(*_first.get_typed(_source));
+				}
+				/// Sets the value.
+				void set(Target t) override {
+					*_second.get_typed(*_first.get_typed(_source)) = std::move(t);
+				}
+
+				/// Checks if \ref _first, \ref _second, and \ref _source are the same if the other object is also
+				/// of this type. Otherwise returns \p false.
+				bool equals(const animation_subject_base &other) const override {
+					auto *o = dynamic_cast<const custom_element_member_subject<Type, Intermediate, Target>*>(&other);
+					if (o) {
+						return o->_first.equals(_first) && o->_second.equals(_second) && &o->_source == &_source;
+					}
+					return false;
+				}
+			protected:
+				const typed_member_access<element, Intermediate> &_first; ///< The first part of the getter.
+				const typed_member_access<Intermediate, Target> &_second; ///< The second part of the getter.
+				element &_source; ///< The source \ref element.
+			};
+
+			/// Generic member access through a getter component.
+			template <typename Comp> class component_member_access :
+				public typed_member_access<typename Comp::input_type, typename Comp::output_type> {
+			public:
+				using input_type = typename Comp::input_type; ///< The input type.
+				using output_type = typename Comp::output_type; ///< The output type.
+
+				/// Initializes \ref _component.
+				explicit component_member_access(Comp comp) : _component(std::move(comp)) {
+				}
+
+				/// Retrieves the member through \ref _component.
+				output_type *get_typed(input_type &input) const override {
+					return _component.get(&input);
+				}
+
+				/// Creates a \ref custom_element_member_subject.
+				std::unique_ptr<animation_subject_base> create_for_element(
+					element &elem, typed_member_access<element, input_type> &middle, element_property_type type
+				) const override {
+					switch (type) {
+					case element_property_type::visual_only:
+						return std::make_unique<custom_element_member_subject<
+							element_property_type::visual_only, input_type, output_type
+						>>(middle, *this, elem);
+					case element_property_type::affects_layout:
+						return std::make_unique<custom_element_member_subject<
+							element_property_type::affects_layout, input_type, output_type
+						>>(middle, *this, elem);
+					}
+					return nullptr;
+				}
+
+				/// Checks if the other \ref member_access is also a \ref component_member_access, and if so, checks
+				/// if the components are equivalent.
+				bool equals(const member_access<input_type> &other) const override {
+					if (auto *acc = dynamic_cast<const component_member_access<Comp>*>(&other)) {
+						return _component == acc->_component;
+					}
+					return false;
+				}
+			protected:
+				Comp _component; ///< The getter component.
+			};
+			/// Shorthand for constructing \ref component_member_access objects.
+			template <typename Comp> std::unique_ptr<
+				component_member_access<std::decay_t<Comp>>
+			> make_component_member_access(Comp comp) {
+				return std::make_unique<component_member_access<std::decay_t<Comp>>>(std::move(comp));
+			}
+
+
+			/// Contains information about a member of an object.
+			template <typename Source> struct member_information {
+				std::unique_ptr<member_access<Source>> member; ///< The member.
+				std::unique_ptr<animation_value_parser_base> parser; ///< Used to parse animations from JSON.
+			};
+
+
+			/// An \ref typed_animation_subject that grants access to a value throught a reference to an object and a
+			/// \ref typed_member_access. The \ref typed_member_access must outlive this object.
+			template <typename Input, typename Output> class member_access_subject :
+				public typed_animation_subject<Output> {
+			public:
+				/// Initializes all fields of this class.
+				member_access_subject(const typed_member_access<Input, Output> &m, Input &obj) : _member(m), _object(obj) {
+				}
+
+				/// Retrieves the value through \ref _member.
+				const Output &get() const override {
+					return *_member.get_typed(_object);
+				}
+				/// Sets the value through \ref _member.
+				void set(Output v) override {
+					*_member.get_typed(_object) = std::move(v);
+				}
+
+				/// Tests the equality between two subjects.
+				bool equals(const animation_subject_base &subject) const override {
+					if (auto *ptr = dynamic_cast<const member_access_subject<Input, Output>*>(&subject)) {
+						return &_object == &ptr->_object && _member.equals(ptr->_member);
+					}
+					return false;
+				}
+			protected:
+				/// Reference to the \ref typed_member_access object.
+				const typed_member_access<Input, Output> &_member;
+				Input &_object; ///< The object that the subject belong to.
+			};
+
+			/// A \ref member_access_subject whose input is an \ref element. This struct calls
+			/// \ref mamager::invalidate_layout() and \ref manager::invalidate_visuals() appropriately.
+			template <typename Output, element_property_type Type> class element_member_access_subject :
+				public member_access_subject<element, Output> {
+			public:
+				element_member_access_subject(const typed_member_access<element, Output> &m, element &obj) :
+					member_access_subject<element, Output>(m, obj) {
+				}
+
+				/// Calls \ref member_access_subject::set(), then calls \ref manager::invalidate_layout() and/or
+				/// \ref manager::invalidate_visuals().
+				void set(Output) override;
+
+				/// Tests the equality between two subjects.
+				bool equals(const animation_subject_base &subject) const override {
+					if (auto *ptr = dynamic_cast<const element_member_access_subject<Output, Type>*>(&subject)) {
+						return &this->_object == &ptr->_object && this->_member.equals(ptr->_member);
+					}
+					return false;
 				}
 			};
 
@@ -411,8 +484,27 @@ namespace codepad::ui {
 						return true;
 					}
 				};
+				/// A component used to cast the input pointer.
+				template <typename Source, typename Target> struct dynamic_cast_component {
+					using input_type = Source; ///< The input type.
+					using output_type = Target; ///< The output type.
+
+					/// Returns the cast pointer.
+					inline static std::enable_if_t<std::is_base_of_v<input_type, output_type>, output_type*> get(
+						input_type *input
+					) {
+						return dynamic_cast<output_type*>(input);
+					}
+
+					/// Two instances with the same template arguments are always equal.
+					friend bool operator==(const dynamic_cast_component&, const dynamic_cast_component&) {
+						return true;
+					}
+				};
 
 				/// Pairs the given components.
+				///
+				/// \todo C++20, [[no_unique_address]] or something.
 				template <typename Comp1, typename Comp2> struct paired_component {
 					static_assert(
 						std::is_same_v<typename Comp1::output_type, typename Comp2::input_type>,
@@ -442,22 +534,51 @@ namespace codepad::ui {
 					}
 				};
 				/// Constructs a \ref paired_component using the given two components.
-				template <typename Comp1, typename Comp2> inline paired_component<Comp1, Comp2> pair(
-					Comp1 c1, Comp2 c2
-				) {
-					return paired_component<Comp1, Comp2>(std::move(c1), std::move(c2));
+				template <typename Comp1, typename Comp2> inline paired_component<
+					std::decay_t<Comp1>, std::decay_t<Comp2>
+				> pair(Comp1 c1, Comp2 c2) {
+					return paired_component<std::decay_t<Comp1>, std::decay_t<Comp2>>(std::move(c1), std::move(c2));
 				}
 			}
 
-			/// Interprets an animation path and returns the corresponding \ref subject_creator. Only certain
+
+			/// Interprets an animation path and returns the corresponding \ref member_information. Only certain
 			/// instantiations of this function exist.
-			template <typename T> bootstrapper<T> get_property(
+			template <typename T> member_information<T> get_member_subject(
 				component_list::const_iterator, component_list::const_iterator
 			);
 			/// Dispatches the call given the visual property.
-			bootstrapper<element> get_common_element_property(
+			member_information<element> get_common_element_property(
 				component_list::const_iterator, component_list::const_iterator
 			);
 		}
 	}
+
+	/// Contains information about the subject of an animation.
+	struct animation_subject_information {
+		std::unique_ptr<animation_subject_base> subject; ///< The subject to be animated.
+		std::unique_ptr<animation_value_parser_base> parser; ///< Used to parse animations from JSON.
+		std::any subject_data; ///< Data that need to live as long as \ref subject.
+
+		/// Creates a \ref animation_subject_information from a
+		/// \ref animation_path::builder::member_information<element> by calling
+		/// \ref animation_path::member_access::create_for_source().
+		inline static animation_subject_information from_element(
+			animation_path::builder::member_information<element> member, element &elem
+		) {
+			animation_subject_information res;
+			res.parser = std::move(member.parser);
+			res.subject = member.member->create_for_source(elem);
+			std::shared_ptr<animation_path::builder::member_access<element>> ptr(std::move(member.member));
+			res.subject_data.emplace<std::shared_ptr<animation_path::builder::member_access<element>>>(ptr);
+			return res;
+		}
+
+		/// Similar to \ref from_element(), but calls \ref animation_path::member_access::create_for_element().
+		template <typename Intermediate> inline static animation_subject_information from_element_custom(
+			animation_path::builder::member_information<Intermediate>,
+			std::unique_ptr<animation_path::builder::typed_member_access<element, Intermediate>>,
+			element&, animation_path::builder::element_property_type
+		);
+	};
 }

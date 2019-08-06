@@ -9,6 +9,7 @@
 #include <string>
 
 #include "misc.h"
+#include "settings.h"
 #include "../os/current/all.h"
 #include "../ui/commands.h"
 #include "../ui/common_elements.h"
@@ -30,6 +31,8 @@ using namespace codepad::editors::code;
 
 namespace codepad {
 	double minimap::_target_height = 2.0;
+
+	window_base *mouse_position::_active_window = nullptr;
 
 	/*std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;*/
 
@@ -122,6 +125,10 @@ namespace codepad {
 	}
 	call_counter &call_counter::get() {
 		static _global_wrapper<call_counter> _v;
+		return _v.object;
+	}
+	settings &settings::get() {
+		static _global_wrapper<settings> _v;
 		return _v.object;
 	}
 	namespace os {

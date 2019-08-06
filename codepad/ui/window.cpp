@@ -4,7 +4,7 @@
 #include "window.h"
 
 /// \file
-/// Implementation of certain functions of \ref codepad::os::window_base.
+/// Implementation of certain functions of \ref codepad::ui::window_base.
 
 #include <vector>
 

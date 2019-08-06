@@ -27,7 +27,8 @@ namespace codepad::ui {
 	class scheduler;
 	class window_base;
 
-	/// Used to transform mouse position between the coordinate systems of a hierarchy of elements.
+	/// Used to transform mouse position between the coordinate systems of a hierarchy of elements. This struct does
+	/// not take into account factors like hit testing, visibility, etc.
 	struct mouse_position {
 		friend window_base;
 	public:
@@ -35,6 +36,8 @@ namespace codepad::ui {
 		vec2d get(element&) const;
 	protected:
 		size_t _timestamp = 0; ///< The timestamp of the corresponding mouse event.
+
+		static window_base *_active_window; ///< The window that currently has valid mouse position data.
 
 		/// Initializes \ref _timestamp.
 		explicit mouse_position(size_t ts) : _timestamp(ts) {
@@ -144,10 +147,11 @@ namespace codepad::ui {
 		friend panel;
 		friend class_arrangements;
 		friend mouse_position;
-		friend animation_path::bootstrapper<element> animation_path::builder::get_common_element_property(
-			animation_path::component_list::const_iterator,
-			animation_path::component_list::const_iterator
-		);
+		friend animation_path::builder::member_information<element>
+			animation_path::builder::get_common_element_property(
+				animation_path::component_list::const_iterator,
+				animation_path::component_list::const_iterator
+			);
 	public:
 		/// Default virtual destrucor.
 		virtual ~element() = default;
@@ -446,9 +450,12 @@ namespace codepad::ui {
 			// TODO handle visibility::focus
 		}
 
-		/// Called when the element has lost the capture it previously got. Note that
-		/// \ref os::window::set_mouse_capture should not be called in this handler.
+		/// Called when the element has lost the capture it previously got. This can happen when the capture is
+		/// broken by an external event or when the element or one of its ancestors is removed from the window. This
+		/// function invokes \ref lost_capture. Note that \ref os::window::set_mouse_capture should not be called in
+		/// this handler.
 		virtual void _on_capture_lost() {
+			lost_capture.invoke();
 		}
 
 		/// Called when the \ref manager updates all elements that have been registered. Updates can be scheduled for
@@ -491,14 +498,12 @@ namespace codepad::ui {
 		}
 
 
-		/// Registers the callback to the event if the names match. The callback will be moved out of place if it's
-		/// registered.
-		///
-		/// \return Whether the names match or not.
-		template <typename Info> bool _try_register_event(
-			str_view_t name, str_view_t expected, info_event<Info> & event, std::function<void()> & callback
-		) {
-			if (name == expected) {
+		/// Helper pseudo-namespace that contains utility functions to handle event registrations.
+		struct _event_helpers {
+			/// Registers the callback to the given event.
+			template <typename Info> inline static void register_event(
+				info_event<Info> &event, std::function<void()> callback
+			) {
 				if constexpr (std::is_same_v<Info, void>) { // register directly
 					event += std::move(callback);
 				} else { // ignore the arguments
@@ -506,22 +511,56 @@ namespace codepad::ui {
 						cb();
 					};
 				}
-				return true;
 			}
-			return false;
-		}
+			/// Calls \ref register_event() to register the event if the given name matches the expected name.
+			///
+			/// \return Whether the event has been registered.
+			template <typename Info> inline static bool try_register_event(
+				str_view_t name, str_view_t expected, info_event<Info> &event, std::function<void()> &callback
+			) {
+				if (name == expected) {
+					register_event(event, std::move(callback));
+					return true;
+				}
+				return false;
+			}
+
+			/// Registers events for \p set_horizontal and \p set_vertical events.
+			template <typename Info> inline static bool register_orientation_events(
+				str_view_t name, info_event<Info> &event,
+				std::function<orientation()> get_orientation, std::function<void()> &callback
+			) {
+				if (name == u8"set_vertical") {
+					register_event(event, [cb = std::move(callback), get_ori = std::move(get_orientation)]() {
+						if (get_ori() == orientation::vertical) {
+							cb();
+						}
+					});
+					return true;
+				} else if (name == u8"set_horizontal") {
+					register_event(event, [cb = std::move(callback), get_ori = std::move(get_orientation)]() {
+						if (get_ori() == orientation::horizontal) {
+							cb();
+						}
+					});
+					return true;
+				}
+				return false;
+			}
+		};
 		/// Registers the callback for the event with the given name. This is used mainly for storyboard animations.
-		virtual void _register_event(str_view_t name, std::function<void()> callback) {
-			_try_register_event(name, u8"mouse_enter", mouse_enter, callback);
-			_try_register_event(name, u8"mouse_leave", mouse_leave, callback);
-			_try_register_event(name, u8"got_focus", got_focus, callback);
-			_try_register_event(name, u8"lost_focus", lost_focus, callback);
-			_try_register_event(name, u8"mouse_down", mouse_down, callback);
-			_try_register_event(name, u8"mouse_up", mouse_up, callback);
+		virtual bool _register_event(str_view_t name, std::function<void()> callback) {
+			return
+				_event_helpers::try_register_event(name, u8"mouse_enter", mouse_enter, callback) ||
+				_event_helpers::try_register_event(name, u8"mouse_leave", mouse_leave, callback) ||
+				_event_helpers::try_register_event(name, u8"got_focus", got_focus, callback) ||
+				_event_helpers::try_register_event(name, u8"lost_focus", lost_focus, callback) ||
+				_event_helpers::try_register_event(name, u8"mouse_down", mouse_down, callback) ||
+				_event_helpers::try_register_event(name, u8"mouse_up", mouse_up, callback);
 		}
 
 		/// Sets a custom attribute for this element.
-		virtual void _set_attribute(str_view_t name, const json::value_storage & v) {
+		virtual void _set_attribute(str_view_t name, const json::value_storage &v) {
 			if (name == u8"z_index") {
 				std::int32_t z;
 				if (json::try_cast(v.get_value(), z)) {
@@ -533,10 +572,12 @@ namespace codepad::ui {
 
 		/// Parses a segmented animation path and returns a corresponding \ref animation_path::bootstrapper. The
 		/// default behavior is to simply call \ref animation_path::builder::get_common_element_property().
-		virtual animation_path::bootstrapper<element> _parse_animation_path(
+		virtual animation_subject_information _parse_animation_path(
 			const animation_path::component_list &components
 		) {
-			return animation_path::builder::get_common_element_property(components.begin(), components.end());
+			return animation_subject_information::from_element(
+				animation_path::builder::get_common_element_property(components.begin(), components.end()), *this
+			);
 		}
 
 
@@ -606,7 +647,7 @@ namespace codepad::ui {
 			return _class;
 		}
 
-		/// Returns the os::window_base that the decoration is currently registered to.
+		/// Returns the \ref window_base that the decoration is currently registered to.
 		window_base *get_window() const {
 			return _wnd;
 		}
@@ -618,4 +659,22 @@ namespace codepad::ui {
 		window_base *_wnd = nullptr; ///< The window that the decoration is currently registered to.
 		manager &_manager; ///< The \ref manager of this decoration.
 	};
+
+
+	template <
+		typename Intermediate
+	> inline static animation_subject_information animation_subject_information::from_element_custom(
+		animation_path::builder::member_information<Intermediate> member,
+		std::unique_ptr<animation_path::builder::typed_member_access<element, Intermediate>> median,
+		element &elem, animation_path::builder::element_property_type type
+	) {
+		animation_subject_information res;
+		res.parser = std::move(member.parser);
+		res.subject = member.member->create_for_element(elem, *median, type);
+		res.subject_data = std::make_any<std::tuple<
+			std::shared_ptr<animation_path::builder::member_access<element>>,
+			std::shared_ptr<animation_path::builder::member_access<Intermediate>>
+			>>(std::move(median), std::move(member.member));
+		return res;
+	}
 }

@@ -1,34 +1,5 @@
 {
-	"": {
-		"visuals": {
-			"geometries": [
-				{
-					"type": "rounded_rectangle",
-					"top_left": [
-						[ 0.0, 0.0 ],
-						[ 0.0, 0.0 ]
-					],
-					"bottom_right": [
-						[ 1.0, 1.0 ],
-						[ 0.0, 0.0 ]
-					],
-					"radiusx": 2,
-					"radiusy": 2,
-					"fill": {
-						"type": "solid",
-						"color": [ 1.0, 1.0, 1.0, 0.1 ]
-					},
-					"stroke": {
-						"type": "solid",
-						"color": [ 1.0, 1.0, 1.0, 0.6 ]
-					}
-				}
-			]
-		}
-	},
-
-
-	"element_fill_container": {
+	"fill": {
 		"layout": {
 			"width": "100%",
 			"height": "100%",
@@ -38,63 +9,88 @@
 	},
 
 
-	"scrollbar_horizontal": {
+	"window": {
 		"layout": {
-			"width": "100%",
-			"height": "8px",
+			"padding": 3
+		}
+	},
+
+	"scrollbar": {
+		"layout": {
+			"size": [ 8, 8 ],
+			"width_allocation": "*",
+			"height_allocation": "px",
 			"margin": 0.0,
 			"anchor": "lrb"
 		},
-		"inherit_visuals_from": "",
-		"inherit_animations_from": "",
-		"children": [
-			{
-				"type": "button",
-				"name": "page_up_button",
-				"inherit_layout_from": "element_fill_container"
-			},
-			{
-				"type": "scrollbar_drag_button",
-				"name": "drag_button",
-				"inherit_visuals_from": "",
-				"inherit_layout_from": "element_fill_container"
-			},
-			{
-				"type": "button",
-				"name": "page_down_button",
-				"inherit_layout_from": "element_fill_container"
-			}
-		]
-	},
-	"scrollbar_vertical": {
-		"layout": {
-			"width": "8px",
-			"height": "100%",
-			"margin": 0.0,
-			"anchor": "trb"
+		"visuals": {
+			"geometries": [
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.0, 0.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 1.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"fill": {
+						"type": "solid",
+						"color": [ 0.1, 0.1, 0.1, 1.0 ]
+					}
+				}
+			]
 		},
-		"inherit_visuals_from": "",
-		"inherit_animations_from": "",
 		"children": [
 			{
 				"type": "button",
 				"name": "page_up_button",
-				"inherit_layout_from": "element_fill_container"
+				"inherit_layout_from": "fill"
 			},
 			{
 				"type": "scrollbar_drag_button",
 				"name": "drag_button",
-				"inherit_visuals_from": "",
-				"inherit_layout_from": "element_fill_container"
+				"inherit_layout_from": "fill",
+				"visuals": {
+					"geometries": [
+						{
+							"type": "rectangle",
+							"top_left": [
+								[ 0.0, 0.0 ],
+								[ 1.0, 1.0 ]
+							],
+							"bottom_right": [
+								[ 1.0, 1.0 ],
+								[ -1.0, -1.0 ]
+							],
+							"fill": {
+								"type": "solid",
+								"color": [ 0.4, 0.4, 0.4, 1.0 ]
+							}
+						}
+					]
+				}
 			},
 			{
 				"type": "button",
 				"name": "page_down_button",
-				"inherit_layout_from": "element_fill_container"
+				"inherit_layout_from": "fill"
 			}
-		]
+		],
+		"animations": {
+			"set_horizontal": {
+				"layout.width_alloc": "*",
+				"layout.height_alloc": "px",
+				"layout.anchor": "lrb"
+			},
+			"set_vertical": {
+				"layout.width_alloc": "px",
+				"layout.height_alloc": "*",
+				"layout.anchor": "trb"
+			}
+		}
 	},
-
 
 	"drag_destination_indicator_block": {
 		"layout": {
@@ -104,70 +100,469 @@
 		}
 	},
 	"drag_destination_selector": {
-		"layout": {
-			"width": "90px",
-			"height": "90px",
-			"margin": 1.0,
-			"anchor": ""
+		"inherit_layout_from": "fill",
+		"visuals": {
+			"geometries": [
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.0, 0.0 ],
+						[ 20.0, 20.0 ]
+					],
+					"bottom_right": [
+						[ 0.5, 1.0 ],
+						[ 0.0, -20.0 ]
+					],
+					"fill": {
+						"type": "solid",
+						"color": [ 1.0, 1.0, 1.0, 0.0 ]
+					}
+				},
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.5, 0.0 ],
+						[ 0.0, 20.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 1.0 ],
+						[ -20.0, -20.0 ]
+					],
+					"fill": {
+						"type": "solid",
+						"color": [ 1.0, 1.0, 1.0, 0.0 ]
+					}
+				},
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.0, 0.0 ],
+						[ 20.0, 20.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 0.5 ],
+						[ -20.0, 0.0 ]
+					],
+					"fill": {
+						"type": "solid",
+						"color": [ 1.0, 1.0, 1.0, 0.0 ]
+					}
+				},
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.0, 0.5 ],
+						[ 20.0, 0.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 1.0 ],
+						[ -20.0, -20.0 ]
+					],
+					"fill": {
+						"type": "solid",
+						"color": [ 1.0, 1.0, 1.0, 0.0 ]
+					}
+				},
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.0, 0.0 ],
+						[ 20.0, 20.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 1.0 ],
+						[ -20.0, -20.0 ]
+					],
+					"fill": {
+						"type": "solid",
+						"color": [ 1.0, 1.0, 1.0, 0.0 ]
+					}
+				}
+			]
+		},
+		"animations": {
+			"split_left_indicator.mouse_enter": {
+				"visuals.geometries[0].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.5,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+			"split_left_indicator.mouse_leave": {
+				"visuals.geometries[0].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.0,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+
+			"split_right_indicator.mouse_enter": {
+				"visuals.geometries[1].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.5,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+			"split_right_indicator.mouse_leave": {
+				"visuals.geometries[1].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.0,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+
+			"split_up_indicator.mouse_enter": {
+				"visuals.geometries[2].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.5,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+			"split_up_indicator.mouse_leave": {
+				"visuals.geometries[2].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.0,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+
+			"split_down_indicator.mouse_enter": {
+				"visuals.geometries[3].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.5,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+			"split_down_indicator.mouse_leave": {
+				"visuals.geometries[3].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.0,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+
+			"combine_indicator.mouse_enter": {
+				"visuals.geometries[4].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.5,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+			"combine_indicator.mouse_leave": {
+				"visuals.geometries[4].(rectangle.fill).(solid_color_brush.color).a": {
+					"to": 0.0,
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			}
 		},
 		"children": [
 			{
-				"type": "element",
-				"class": "drag_destination_selector.split_left_indicator",
-				"name": "split_left_indicator",
-				"inherit_layout_from": "drag_destination_indicator_block",
+				"type": "panel",
 				"layout": {
-					"anchor": "ltb"
-				}
-			},
-			{
-				"type": "element",
-				"class": "drag_destination_selector.split_right_indicator",
-				"name": "split_right_indicator",
-				"inherit_layout_from": "drag_destination_indicator_block",
-				"layout": {
-					"anchor": "trb"
-				}
-			},
-			{
-				"type": "element",
-				"class": "drag_destination_selector.split_up_indicator",
-				"name": "split_up_indicator",
-				"inherit_layout_from": "drag_destination_indicator_block",
-				"layout": {
-					"anchor": "ltr"
-				}
-			},
-			{
-				"type": "element",
-				"class": "drag_destination_selector.split_down_indicator",
-				"name": "split_down_indicator",
-				"inherit_layout_from": "drag_destination_indicator_block",
-				"layout": {
-					"anchor": "lrb"
-				}
-			},
-			{
-				"type": "element",
-				"class": "drag_destination_selector.combine_indicator",
-				"name": "combine_indicator",
-				"inherit_layout_from": "drag_destination_indicator_block",
-				"layout": {
+					"width": "100px",
+					"height": "100px",
 					"margin": 1.0,
 					"anchor": ""
-				}
+				},
+				"children": [
+					{
+						"type": "element",
+						"name": "split_left_indicator",
+						"inherit_layout_from": "drag_destination_indicator_block",
+						"visuals": {
+							"geometries": [
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.6, 0.8, 1.0, 0.2 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 0.0, 0.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ 0.0, 0.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 5.0, 5.0 ]
+									],
+									"bottom_right": [
+										[ 0.5, 1.0 ],
+										[ 0.0, -5.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"stroke": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 5.0, 5.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ -5.0, -5.0 ]
+									]
+								}
+							]
+						},
+						"layout": {
+							"anchor": "ltb"
+						}
+					},
+					{
+						"type": "element",
+						"name": "split_right_indicator",
+						"inherit_layout_from": "drag_destination_indicator_block",
+						"visuals": {
+							"geometries": [
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.6, 0.8, 1.0, 0.2 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 0.0, 0.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ 0.0, 0.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.5, 0.0 ],
+										[ 0.0, 5.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ -5.0, -5.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"stroke": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 5.0, 5.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ -5.0, -5.0 ]
+									]
+								}
+							]
+						},
+						"layout": {
+							"anchor": "trb"
+						}
+					},
+					{
+						"type": "element",
+						"name": "split_up_indicator",
+						"inherit_layout_from": "drag_destination_indicator_block",
+						"visuals": {
+							"geometries": [
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.6, 0.8, 1.0, 0.2 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 0.0, 0.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ 0.0, 0.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 5.0, 5.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 0.5 ],
+										[ -5.0, 0.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"stroke": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 5.0, 5.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ -5.0, -5.0 ]
+									]
+								}
+							]
+						},
+						"layout": {
+							"anchor": "ltr"
+						}
+					},
+					{
+						"type": "element",
+						"name": "split_down_indicator",
+						"inherit_layout_from": "drag_destination_indicator_block",
+						"visuals": {
+							"geometries": [
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.6, 0.8, 1.0, 0.2 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 0.0, 0.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ 0.0, 0.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.5 ],
+										[ 5.0, 0.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ -5.0, -5.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"stroke": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 5.0, 5.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ -5.0, -5.0 ]
+									]
+								}
+							]
+						},
+						"layout": {
+							"anchor": "lrb"
+						}
+					},
+					{
+						"type": "element",
+						"name": "combine_indicator",
+						"inherit_layout_from": "drag_destination_indicator_block",
+						"visuals": {
+							"geometries": [
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.6, 0.8, 1.0, 0.2 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 0.0, 0.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ 0.0, 0.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"fill": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 8.0, 8.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ -8.0, -8.0 ]
+									]
+								},
+								{
+									"type": "rectangle",
+									"stroke": {
+										"type": "solid",
+										"color": [ 0.4, 0.6, 1.0, 1.0 ]
+									},
+									"top_left": [
+										[ 0.0, 0.0 ],
+										[ 5.0, 5.0 ]
+									],
+									"bottom_right": [
+										[ 1.0, 1.0 ],
+										[ -5.0, -5.0 ]
+									]
+								}
+							]
+						},
+						"layout": {
+							"margin": 1.0,
+							"anchor": ""
+						}
+					}
+				]
 			}
 		]
 	},
 
 	"tab_host": {
-		"inherit_layout_from": "element_fill_container",
-		"inherit_visuals_from": "",
-		"inherit_animations_from": "",
+		"inherit_layout_from": "fill",
 		"children": [
 			{
 				"type": "stack_panel",
-				"inherit_layout_from": "element_fill_container",
+				"inherit_layout_from": "fill",
 				"extras": {
 					"orientation": "vertical"
 				},
@@ -175,8 +570,6 @@
 					{
 						"type": "animated_tab_buttons_panel",
 						"name": "tab_buttons_region",
-						"class": "tab_host.tab_buttons_region",
-						"inherit_visuals_from": "",
 						"layout": {
 							"width": "100%",
 							"height": "30px",
@@ -187,14 +580,14 @@
 					{
 						"type": "panel",
 						"name": "tab_contents_region",
-						"inherit_layout_from": "element_fill_container"
+						"inherit_layout_from": "fill"
 					}
 				]
 			}
 		]
 	},
 	"tab_button": {
-		"name": "main_panel",
+		"name": "main",
 		"layout": {
 			"width": "auto",
 			"height": "100%"
@@ -210,56 +603,33 @@
 					"bottom_right": [
 						[ 1.0, 1.0 ],
 						[ 0.0, 0.0 ]
-					]
-				},
-				{
-					"type": "rectangle",
-					"top_left": [
-						[ 0.5, 0.0 ],
-						[ 0.0, 0.0 ]
-					],
-					"bottom_right": [
-						[ 0.5, 0.0 ],
-						[ 0.0, 2.0 ]
-					]
-				},
-				{
-					"type": "rectangle",
-					"top_left": [
-						[ 0.0, 0.0 ],
-						[ 0.0, 0.0 ]
-					],
-					"bottom_right": [
-						[ 1.0, 1.0 ],
-						[ 0.0, 0.0 ]
 					],
 					"fill": {
 						"type": "solid",
-						"color": [ 1.0, 1.0, 1.0, 0.0 ]
+						"color": [ 1.0, 1.0, 1.0, 0.15 ]
 					}
 				}
 			]
 		},
 		"animations": {
-			"mouse_enter": {
-				"visuals.geometries[2].fill.(solid_color_brush.color).a": {
-					"to": 0.2,
-					"duration": 0.1,
-					"transition": "linear"
-				}
-			},
-			"mouse_leave": {
-				"visuals.geometries[2].fill.(solid_color_brush.color).a": {
+			"tab_selected": {
+				"visuals.geometries[0].(rectangle.top_left).relative.y": {
 					"to": 0.0,
 					"duration": 0.1,
-					"transition": "linear"
+					"transition": "convex_quadratic"
+				}
+			},
+			"tab_unselected": {
+				"visuals.geometries[0].(rectangle.top_left).relative.y": {
+					"to": 1.0,
+					"duration": 0.1,
+					"transition": "concave_quadratic"
 				}
 			}
 		},
 		"children": [
 			{
 				"type": "stack_panel",
-				"class": "tab_button_background",
 				"layout": {
 					"height": "100%",
 					"padding": 5.0
@@ -272,11 +642,32 @@
 						"layout": {
 							"margin": [ 0.0, 1.0, 0.0, 1.0 ],
 							"anchor": "lr"
+						},
+						"extras": {
+							"text_brush": {
+								"type": "solid",
+								"color": [ 0.8, 0.8, 0.8, 1.0 ]
+							}
+						},
+						"animations": {
+							"main.mouse_enter": {
+								"text_brush.(solid_color_brush.color)": {
+									"to": [ 1.0, 1.0, 1.0, 1.0 ],
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							},
+							"main.mouse_leave": {
+								"text_brush.(solid_color_brush.color)": {
+									"to": [ 0.8, 0.8, 0.8, 1.0 ],
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							}
 						}
 					},
 					{
 						"type": "button",
-						"class": "tab_button.close_button",
 						"name": "close_button",
 						"visuals": {
 							"geometries": [
@@ -312,7 +703,7 @@
 									],
 									"stroke": {
 										"type": "solid",
-										"color": [ 0.0, 0.0, 0.0, 0.0 ],
+										"color": [ 0.8, 0.8, 0.8, 0.0 ],
 										"thickness": 1.5
 									}
 								}
@@ -320,28 +711,38 @@
 						},
 						"animations": {
 							"mouse_enter": {
-								"visuals.geometries[0].stroke.(solid_color_brush.color).r": {
-									"to": 0.8,
+								"visuals.geometries[0].stroke.(solid_color_brush.color).g": {
+									"to": 0.0,
 									"duration": 0.1,
 									"transition": "linear"
-								}
-							},
-							"mouse_leave": {
-								"visuals.geometries[0].stroke.(solid_color_brush.color).r": {
+								},
+								"visuals.geometries[0].stroke.(solid_color_brush.color).b": {
 									"to": 0.0,
 									"duration": 0.1,
 									"transition": "linear"
 								}
 							},
+							"mouse_leave": {
+								"visuals.geometries[0].stroke.(solid_color_brush.color).g": {
+									"to": 0.8,
+									"duration": 0.1,
+									"transition": "linear"
+								},
+								"visuals.geometries[0].stroke.(solid_color_brush.color).b": {
+									"to": 0.8,
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							},
 
-							"main_panel.mouse_enter": {
+							"main.mouse_enter": {
 								"visuals.geometries[0].stroke.(solid_color_brush.color).a": {
 									"to": 1.0,
 									"duration": 0.1,
 									"transition": "linear"
 								}
 							},
-							"main_panel.mouse_leave": {
+							"main.mouse_leave": {
 								"visuals.geometries[0].stroke.(solid_color_brush.color).a": {
 									"to": 0.0,
 									"duration": 0.1,
@@ -361,44 +762,63 @@
 		]
 	},
 	"tab": {
-		"inherit_layout_from": "element_fill_container",
-		"inherit_visuals_from": "",
-		"inherit_animations_from": ""
-	},
-
-	"separator": {
-		"inherit_visuals_from": "",
-		"inherit_animations_from": "",
-		"layout": {
-			"width": "5px",
-			"height": "5px",
-			"margin": [ 1.0, 1.0, 1.0, 1.0 ],
-			"anchor": "ltrb"
+		"inherit_layout_from": "fill",
+		"visuals": {
+			"geometries": [
+				{
+					"type": "rectangle",
+					"top_left": [
+						[ 0.0, 0.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"bottom_right": [
+						[ 1.0, 1.0 ],
+						[ 0.0, 0.0 ]
+					],
+					"fill": {
+						"type": "solid",
+						"color": [ 1.0, 1.0, 1.0, 0.15 ]
+					}
+				}
+			]
 		}
 	},
+
 	"split_panel": {
-		"inherit_visuals_from": "",
-		"inherit_animations_from": "",
-		"inherit_layout_from": "element_fill_container",
+		"name": "main",
+		"inherit_layout_from": "fill",
 		"children": [
 			{
 				"type": "element",
 				"name": "separator",
-				"class": "split_panel.separator",
-				"inherit_layout_from": "separator"
+				"layout": {
+					"size": [ 5, 5 ],
+					"width_allocation": "px",
+					"height_allocation": "*",
+					"margin": 0.0,
+					"anchor": "ltrb"
+				},
+				"animations": {
+					"main.set_horizontal": {
+						"layout.width_alloc": "*",
+						"layout.height_alloc": "px"
+					},
+					"main.set_vertical": {
+						"layout.width_alloc": "px",
+						"layout.height_alloc": "*"
+					}
+				}
 			}
 		]
 	},
 
 	"code_editor": {
-		"inherit_layout_from": "element_fill_container",
+		"inherit_layout_from": "fill",
 		"children": [
 			{
 				"type": "scrollbar",
 				"name": "vertical_scrollbar",
-				"class": "scrollbar_vertical",
-				"inherit_layout_from": "scrollbar_vertical",
-				"inherit_visuals_from": "",
+				"class": "scrollbar",
 				"extras": {
 					"orientation": "vertical"
 				},
@@ -409,9 +829,7 @@
 			{
 				"type": "scrollbar",
 				"name": "horizontal_scrollbar",
-				"class": "scrollbar_horizontal",
-				"inherit_layout_from": "scrollbar_horizontal",
-				"inherit_visuals_from": "",
+				"class": "scrollbar",
 				"extras": {
 					"orientation": "horizontal"
 				},
@@ -422,7 +840,7 @@
 			{
 				"type": "stack_panel",
 				"name": "components_panel",
-				"inherit_layout_from": "element_fill_container",
+				"inherit_layout_from": "fill",
 				"visibility": "lvi",
 				"extras": {
 					"orientation": "horizontal"
@@ -433,7 +851,6 @@
 				"children": [
 					{
 						"type": "line_number_display",
-						"class": "position_display",
 						"layout": {
 							"padding": [ 10, 0, 5, 0 ]
 						}
@@ -460,12 +877,12 @@
 		]
 	},
 	"binary_editor": {
-		"inherit_layout_from": "element_fill_container",
+		"inherit_layout_from": "fill",
 		"children": [
 			{
 				"type": "scrollbar",
 				"name": "vertical_scrollbar",
-				"class": "scrollbar_vertical",
+				"class": "scrollbar",
 				"extras": {
 					"orientation": "vertical"
 				},
@@ -476,7 +893,7 @@
 			{
 				"type": "scrollbar",
 				"name": "horizontal_scrollbar",
-				"class": "scrollbar_horizontal",
+				"class": "scrollbar",
 				"extras": {
 					"orientation": "horizontal"
 				},
@@ -487,7 +904,7 @@
 			{
 				"type": "stack_panel",
 				"name": "components_panel",
-				"inherit_layout_from": "element_fill_container",
+				"inherit_layout_from": "fill",
 				"extras": {
 					"orientation": "horizontal"
 				},
@@ -497,7 +914,6 @@
 				"children": [
 					{
 						"type": "primary_offset_display",
-						"class": "position_display",
 						"layout": {
 							"padding": [ 10, 0, 5, 0 ]
 						}

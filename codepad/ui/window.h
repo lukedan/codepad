@@ -36,14 +36,16 @@ namespace codepad::ui {
 	public:
 		/// Sets the caption of the window.
 		virtual void set_caption(const str_t&) = 0;
-		/// Retrieves the position of the top-left corner of the window's client region relative to the desktop.
-		virtual vec2i get_position() const = 0;
-		/// Moves the window so that the top-left corner of the window's client region is at the given position.
-		virtual void set_position(vec2i) = 0;
-		/// Returns the size of the window's client region.
-		virtual vec2i get_client_size() const = 0;
-		/// Sets the size the window's client region.
-		virtual void set_client_size(vec2i) = 0;
+		/// Retrieves the physical position of the top-left corner of the window's client region in screen
+		/// coordinates.
+		virtual vec2d get_position() const = 0;
+		/// Moves the window so that the top-left corner of the window's client region is at the given physical
+		/// position. The position may not be exact due to rounding errors.
+		virtual void set_position(vec2d) = 0;
+		/// Returns the logical size of the window's client region.
+		virtual vec2d get_client_size() const = 0;
+		/// Sets the logical size the window's client region. The size may not be exact due to rounding errors.
+		virtual void set_client_size(vec2d) = 0;
 
 		/// Brings the window to foreground and activates it.
 		virtual void activate() = 0;
@@ -75,13 +77,16 @@ namespace codepad::ui {
 		/// Sets if this window is shown in the taskbar or the task list. This may have other side effects.
 		virtual void set_show_icon(bool) = 0;
 
-		/// Tests if the given point is in the window, including its title bar and borders.
-		virtual bool hit_test_full_client(vec2i) const = 0;
+		/// Tests if the given physical position in screen coordinates is in the window, including its title bar and
+		/// borders.
+		virtual bool hit_test_full_client(vec2d) const = 0;
 
-		/// Obtains the corresponding position in client coordinates.
-		virtual vec2i screen_to_client(vec2i) const = 0;
-		/// Obtains the corresponding position in screen coordinates.
-		virtual vec2i client_to_screen(vec2i) const = 0;
+		/// Obtains the corresponding logical position in client coordinates from the given physical position in
+		/// screen coordinates.
+		virtual vec2d screen_to_client(vec2d) const = 0;
+		/// Obtains the corresponding physical position in screen coordinates from the given logical position in
+		/// client coordinates.
+		virtual vec2d client_to_screen(vec2d) const = 0;
 
 		/// Called to set the position of the currently active caret. This position
 		/// is used by input methods to display components such as the candidate window.
@@ -93,12 +98,40 @@ namespace codepad::ui {
 		/// always receives notifications as if the mouse were over it, until \ref release_mouse_capture is
 		/// called. Derived classes should override this function to notify the desktop environment.
 		virtual void set_mouse_capture(element &elem) {
-			logger::get().log_verbose(
+			logger::get().log_debug(
 				CP_HERE, "set mouse capture 0x", &elem,
 				" <", demangle(typeid(elem).name()), ">"
 			);
 			assert_true_usage(_capture == nullptr, "mouse already captured");
 			_capture = &elem;
+			// send appropriate mouse leave / enter messages
+			// TODO this may cause stack overflow
+			/*if (!_capture->is_mouse_over()) {
+				std::vector<element*> enters; // the list of elements where mouse_enter should be sent to
+				for (panel *e = elem.parent(); e; e = e->parent()) { // send mouse_leave messages
+					if (e->is_mouse_over()) {
+						for (element *cur : e->children().z_ordered()) {
+							if (cur->is_mouse_over()) {
+								// if the mouse is over an element then
+								// it must not contain _capture
+								cur->_on_mouse_leave();
+								// there should only be one element that the mouse is over,
+								// but we'll iterate over all of them just because
+							}
+						}
+						break;
+						// TODO if the mouse is not in this window then mouse_leave messages will *not* be sent
+						//      not sure if anything should be done, or if the system set_capture function will
+						//      handle it
+					}
+					enters.emplace_back(e);
+				}
+				// send mouse_enter messages
+				for (auto it = enters.rbegin(); it != enters.rend(); ++it) {
+					(*it)->_on_mouse_enter();
+				}
+				_capture->_on_mouse_enter();
+			}*/
 		}
 		/// Returns the element that currently captures the mouse, or \p nullptr.
 		virtual element *get_mouse_capture() const {
@@ -106,9 +139,10 @@ namespace codepad::ui {
 		}
 		/// Releases the mouse capture. Derived classes should override this function to notify the system.
 		virtual void release_mouse_capture() {
-			logger::get().log_verbose(CP_HERE, "release mouse capture");
+			logger::get().log_debug(CP_HERE, "release mouse capture");
 			assert_true_usage(_capture != nullptr, "mouse not captured");
 			_capture = nullptr;
+			// TODO send a mouse_move message to correct mouse over information?
 		}
 		/// If the mouse is captured, returns the mouse cursor of \ref _capture; otherwise falls back to
 		/// the default behavior.
@@ -146,6 +180,7 @@ namespace codepad::ui {
 		/// Updates \ref _cached_mouse_position and \ref _cached_mouse_position_timestamp, and returns a
 		/// corresponding \ref mouse_position object.
 		mouse_position _update_mouse_position(vec2d pos) {
+			mouse_position::_active_window = this;
 			_cached_mouse_position = get_parameters().visual_parameters.transform.inverse_transform_point(
 				pos - get_layout().xmin_ymin(), get_layout().size()
 			);
@@ -207,7 +242,7 @@ namespace codepad::ui {
 		/// If the mouse is captured by an element, forwards the event to the element. Otherwise falls back
 		/// to the default behavior.
 		void _on_mouse_enter() override {
-			if (_capture != nullptr) {
+			if (_capture != nullptr) { // TODO technically this won't happen as the window has already captured the mouse
 				_capture->_on_mouse_enter();
 				element::_on_mouse_enter();
 			} else {
@@ -217,7 +252,7 @@ namespace codepad::ui {
 		/// If the mouse is captured by an element, forwards the event to the element. Otherwise falls back
 		/// to the default behavior.
 		void _on_mouse_leave() override {
-			if (_capture != nullptr) {
+			if (_capture != nullptr) { // TODO technically this won't happen
 				_capture->_on_mouse_leave();
 				element::_on_mouse_leave();
 			} else {
@@ -228,9 +263,6 @@ namespace codepad::ui {
 		/// behavior.
 		void _on_mouse_move(mouse_move_info &p) override {
 			if (_capture != nullptr) {
-				if (!_capture->is_mouse_over()) {
-					_capture->_on_mouse_enter();
-				}
 				_capture->_on_mouse_move(p);
 				element::_on_mouse_move(p);
 			} else {

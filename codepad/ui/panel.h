@@ -404,7 +404,7 @@ namespace codepad::ui {
 		}
 
 		/// Finds the element with the largest Z-index that is interactive and contains the given point.
-		element *_hit_test_for_child(const mouse_position&);
+		element *_hit_test_for_child(const mouse_position&) const;
 
 		/// For each child, removes it from \ref _children, and marks it for disposal if \ref _dispose_children is
 		/// \p true.

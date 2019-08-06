@@ -11,10 +11,74 @@
 #include "manager.h"
 #include "text_rendering.h"
 #include "window.h"
+#include "animation_path.h"
+#include "config_parsers.h"
 #include "../core/misc.h"
 #include "../core/encodings.h"
+#include "../core/settings.h"
 
 namespace codepad::ui {
+	/// Used when starting dragging to add a small deadzone where dragging will not yet trigger. The mouse is
+	/// captured when the mouse is in the deadzone.
+	class drag_deadzone {
+	public:
+		/// Initializes \ref _radius.
+		drag_deadzone() : _radius(_get_radius_setting().get_main_profile()) {
+		}
+
+		/// Initializes the starting position and starts dragging by capturing the mouse.
+		void start(const mouse_position &mouse, element &parent) {
+			if (window_base * wnd = parent.get_window()) { // start only if the element's in a window
+				wnd->set_mouse_capture(parent);
+				_start = mouse.get(*wnd);
+				_deadzone = true;
+			}
+		}
+		/// Updates the mouse position.
+		///
+		/// \return \p true if the mouse has moved out of the deadzone and dragging should start, or \p false if the
+		///         mouse is still in the deadzone.
+		bool update(const mouse_position &mouse, element &parent) {
+			if (window_base * wnd = parent.get_window()) {
+				double sqrdiff = (mouse.get(*wnd) - _start).length_sqr(), r = _radius.get();
+				if (sqrdiff > r * r) { // start dragging
+					wnd->release_mouse_capture();
+					_deadzone = false;
+					return true;
+				}
+			}
+			return false;
+		}
+		/// Cancels the drag operation.
+		void on_cancel(element &parent) {
+			assert_true_logical(_deadzone, "please first check is_active() before calling on_cancel()");
+			if (window_base * wnd = parent.get_window()) {
+				if (wnd->get_mouse_capture()) {
+					wnd->release_mouse_capture();
+				}
+			}
+			_deadzone = false;
+		}
+		/// Cancels the drag operation without releasing the capture (as it has already been lost).
+		void on_capture_lost() {
+			_deadzone = false;
+		}
+
+		/// Returns \p true if the user is trying to drag the associated object but is in the deadzone.
+		bool is_active() const {
+			return _deadzone;
+		}
+	protected:
+		settings::getter<double> _radius; ///< Used to retrieve the radius of the deadzone.
+		/// The starting position relative to the window. This is to ensure that the size of the deadzone stays
+		/// consistent when the element itself is transformed.
+		vec2d _start;
+		bool _deadzone = false; ///< \p true if the user is dragging and is in the deadzone.
+
+		/// Returns the \ref settings::retriever_parser of the deadzone's radius.
+		static settings::retriever_parser<double> &_get_radius_setting();
+	};
+
 	/// The parameters used to identify a font.
 	struct font_parameters {
 		/// Default constructor.
@@ -97,11 +161,10 @@ namespace codepad::ui {
 			element::_custom_render();
 
 			rectd client = get_client_region();
+			vec2d offset = client.xmin_ymin() - get_layout().xmin_ymin();
 			generic_brush_parameters brush = _text_brush.get_parameters(client.size());
-			brush.transform *= matd3x3::translate(client.xmin_ymin() - get_layout().xmin_ymin());
-			get_manager().get_renderer().draw_formatted_text(
-				*_cached_fmt, client.xmin_ymin(), brush
-			);
+			brush.transform *= matd3x3::translate(offset);
+			get_manager().get_renderer().draw_formatted_text(*_cached_fmt, offset, brush);
 		}
 
 		/// Ensures that \ref _cached_fmt is valid.
@@ -121,6 +184,43 @@ namespace codepad::ui {
 		virtual void _on_text_layout_changed() {
 			_cached_fmt.reset();
 			_on_desired_size_changed(true, true);
+		}
+
+		/// Handles the parsing of \ref _text_brush.
+		void _set_attribute(str_view_t name, const json::value_storage &v) override {
+			if (name == u8"text_brush") {
+				ui_config_json_parser<json::storage::value_t> parser(get_manager());
+				parser.parse_brush(v.get_value(), _text_brush);
+				return;
+			}
+			element::_set_attribute(name, v);
+		}
+		/// Handles animations related to \ref _text_brush.
+		animation_subject_information _parse_animation_path(
+			const animation_path::component_list &components
+		) override {
+			if (
+				!components.empty() &&
+				components[0].is_type_or_empty(u8"label") &&
+				components[0].property == u8"text_brush" &&
+				!components[0].index.has_value()
+				) {
+				auto bs = animation_path::builder::get_member_subject<generic_brush>(
+					++components.begin(), components.end()
+					);
+				std::unique_ptr<animation_path::builder::typed_member_access<element, generic_brush>> other =
+					animation_path::builder::make_component_member_access(
+						animation_path::builder::getter_components::pair(
+							animation_path::builder::getter_components::dynamic_cast_component<element, label>(),
+							animation_path::builder::getter_components::member_component<&label::_text_brush>()
+						)
+					);
+				return animation_subject_information::from_element_custom(
+					std::move(bs), std::move(other), *this,
+					animation_path::builder::element_property_type::visual_only
+				);
+			}
+			return element::_parse_animation_path(components);
 		}
 	};
 
@@ -356,6 +456,7 @@ namespace codepad::ui {
 
 		/// Invoked when the value of the scrollbar is changed.
 		info_event<value_update_info<double>> value_changed;
+		info_event<> orientation_changed; ///< Invoked when the orientation of this element is changed.
 
 		/// Returns the default class of elements of this type.
 		inline static str_view_t get_default_class() {
@@ -452,7 +553,7 @@ namespace codepad::ui {
 		}
 
 		/// Sets the orientation of this element if requested.
-		void _set_attribute(str_view_t name, const json::value_storage & value) override {
+		void _set_attribute(str_view_t name, const json::value_storage &value) override {
 			if (name == u8"orientation") {
 				if (orientation o; json::object_parsers::try_parse(value.get_value(), o)) {
 					set_orientation(o);
@@ -461,17 +562,27 @@ namespace codepad::ui {
 			}
 			panel::_set_attribute(name, value);
 		}
+		/// Handles the \p set_horizontal and \p set_vertical events.
+		bool _register_event(str_view_t name, std::function<void()> callback) override {
+			return
+				_event_helpers::register_orientation_events(
+					name, orientation_changed, [this]() {
+						return get_orientation();
+					}, callback
+				) || panel::_register_event(name, std::move(callback));
+		}
 
 		/// Initializes the three buttons and adds them as children.
-		void _initialize(str_view_t cls, const element_configuration & config) override {
+		void _initialize(str_view_t cls, const element_configuration &config) override {
 			panel::_initialize(cls, config);
 
 			get_manager().get_class_arrangements().get_or_default(cls).construct_children(
 				*this, {
 					{get_drag_button_name(), _name_cast(_drag)},
-				{get_page_up_button_name(), _name_cast(_pgup)},
-				{get_page_down_button_name(), _name_cast(_pgdn)}
-				});
+					{get_page_up_button_name(), _name_cast(_pgup)},
+					{get_page_down_button_name(), _name_cast(_pgdn)}
+				}
+			);
 
 			_pgup->set_trigger_type(button::trigger_type::mouse_down);
 			_pgup->click += [this]() {
@@ -488,6 +599,7 @@ namespace codepad::ui {
 		virtual void _on_orientation_changed() {
 			_on_desired_size_changed(true, true);
 			_invalidate_children_layout();
+			orientation_changed.invoke();
 		}
 	};
 }

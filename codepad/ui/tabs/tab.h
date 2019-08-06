@@ -18,6 +18,7 @@ namespace codepad::ui::tabs {
 
 	/// A button representing a \ref tab in a \ref host.
 	class tab_button : public panel {
+		friend tab;
 		friend tab_manager;
 		friend host;
 	public:
@@ -33,9 +34,13 @@ namespace codepad::ui::tabs {
 		/// Contains information about the user starting to drag a \ref tab_button.
 		struct drag_start_info {
 			/// Initializes all fields of the struct.
-			explicit drag_start_info(vec2d df) : drag_diff(df) {
+			explicit drag_start_info(vec2d df) : reference(df) {
 			}
-			const vec2d drag_diff; ///< The offset of the mouse cursor from the top left corner of the \ref tab_button.
+			/// The offset of the mouse cursor from the top left corner of the \ref tab_button without
+			/// transformations.
+			///
+			/// \sa tab_button::_drag_pos
+			const vec2d reference;
 		};
 
 		/// Contains information about the user clicking a \ref tab_button.
@@ -56,9 +61,12 @@ namespace codepad::ui::tabs {
 			return _label->get_text();
 		}
 
-		/// Invoked when the ``close'' button is clicked, or when the user presses the tertiary mouse button on the
-		/// \ref tab_button.
-		info_event<> request_close;
+		info_event<>
+			/// Invoked when the ``close'' button is clicked, or when the user presses the tertiary mouse button on the
+			/// \ref tab_button.
+			request_close,
+			tab_selected, ///< Invoked when the associated tab is selected.
+			tab_unselected; ///< Invoked when the associated tab is unselected.
 		info_event<drag_start_info> start_drag; ///< Invoked when the user starts dragging the \ref tab_button.
 		info_event<click_info> click; ///< Invoked when the user clicks the \ref tab_button.
 
@@ -76,48 +84,69 @@ namespace codepad::ui::tabs {
 			return CP_STRLIT("close_button");
 		}
 	protected:
-		label *_label; ///< Used to display the tab's label.
-		button *_close_btn; ///< The `close' button.
-		vec2d _mdpos; ///< The positon where the user presses the primary mouse button.
-		/// Indicates whether the user has pressed the primary mouse button when hovering over this element and may
-		/// or may not start dragging.
-		bool _predrag = false;
+		drag_deadzone _drag; ///< Used when starting dragging.
+		/// The reference point for dragging. This is the position of the mouse relative to this \ref tab_button
+		/// without transformations (i.e., if no transformations were applied to this element).
+		vec2d _drag_pos;
+		label *_label = nullptr; ///< Used to display the tab's label.
+		button *_close_btn = nullptr; ///< The `close' button.
 
 		/// Handles mouse button interactions.
 		///
 		/// \todo Make actions customizable.
 		void _on_mouse_down(mouse_button_info &p) override {
-			if (
-				p.button == mouse_button::primary &&
-				!_close_btn->is_mouse_over()
-				) {
-				_mdpos = p.position.get(*this);
-				_predrag = true;
-				get_manager().get_scheduler().schedule_element_update(*this);
-				click.invoke_noret(p);
-			} else if (p.button == mouse_button::tertiary) {
+			switch (p.button) {
+			case mouse_button::primary:
+				if (!_close_btn->is_mouse_over()) {
+					_drag_pos =
+						p.position.get(*parent()) - (get_layout().xmin_ymin() - parent()->get_layout().xmin_ymin());
+					_drag.start(p.position, *this);
+					click.invoke_noret(p);
+				}
+				break;
+			case mouse_button::tertiary:
 				request_close.invoke();
+				break;
 			}
 			panel::_on_mouse_down(p);
 		}
-
-		/// Checks and starts dragging.
-		void _on_update() override {
-			panel::_on_update();
-			if (_predrag) {
-				if (os::is_mouse_button_down(mouse_button::primary)) {
-					vec2d diff =
-						get_window()->screen_to_client(os::get_mouse_position()).convert<double>() - _mdpos;
-					if (diff.length_sqr() > drag_pivot * drag_pivot) {
-						_predrag = false;
-						start_drag.invoke_noret(_mdpos - get_layout().xmin_ymin());
-					} else {
-						get_manager().get_scheduler().schedule_element_update(*this);
-					}
-				} else {
-					_predrag = false;
+		/// Updates \ref _drag, and invokes \ref start_drag if necessary.
+		void _on_mouse_move(mouse_move_info &p) override {
+			if (_drag.is_active()) {
+				if (_drag.update(p.new_position, *this)) {
+					start_drag.invoke_noret(_drag_pos);
 				}
 			}
+			panel::_on_mouse_move(p);
+		}
+		/// Cancels \ref _drag if necessary.
+		void _on_mouse_up(mouse_button_info &p) override {
+			if (_drag.is_active()) {
+				_drag.on_cancel(*this);
+			}
+			panel::_on_mouse_up(p);
+		}
+		/// Cancels \ref _drag if necessary.
+		void _on_capture_lost() override {
+			_drag.on_capture_lost();
+			panel::_on_capture_lost();
+		}
+
+		/// Registers \ref tab_selected and \ref tab_unselected events.
+		bool _register_event(str_view_t name, std::function<void()> callback) override {
+			return
+				_event_helpers::try_register_event(name, u8"tab_selected", tab_selected, callback) ||
+				_event_helpers::try_register_event(name, u8"tab_unselected", tab_unselected, callback) ||
+				panel::_register_event(name, std::move(callback));
+		}
+
+		/// Called when the associated tab is selected. Invokes \ref tab_selected.
+		virtual void _on_tab_selected() {
+			tab_selected.invoke();
+		}
+		/// Called when the associated tab is unselected. Invokes \ref tab_unselected.
+		virtual void _on_tab_unselected() {
+			tab_unselected.invoke();
 		}
 
 		/// Initializes \ref _close_btn.
@@ -166,18 +195,20 @@ namespace codepad::ui::tabs {
 			return *_tab_manager;
 		}
 
+		info_event<>
+			selected, ///< Invoked when this tab is selected.
+			unselected; ///< Invoked when this tab is unselected.
+
 		/// Returns the default class of elements of type \ref tab.
 		inline static str_view_t get_default_class() {
 			return CP_STRLIT("tab");
 		}
 	protected:
-		tab_button *_btn; ///< The \ref tab_button associated with tab.
+		tab_button *_btn = nullptr; ///< The \ref tab_button associated with tab.
 
 		/// Called when \ref request_close is called to handle the user's request of closing this tab. By default,
 		/// this function removes this tab from the host, then marks this for disposal.
 		virtual void _on_close_requested();
-
-		// TODO notify the button when this element is selected
 
 		/// Initializes \ref _btn.
 		void _initialize(str_view_t, const element_configuration&) override;
@@ -185,6 +216,25 @@ namespace codepad::ui::tabs {
 		void _dispose() override {
 			get_manager().get_scheduler().mark_for_disposal(*_btn);
 			panel::_dispose();
+		}
+
+		/// Registers \ref selected and \ref unselected events.
+		bool _register_event(str_view_t name, std::function<void()> callback) override {
+			return
+				_event_helpers::try_register_event(name, u8"selected", selected, callback) ||
+				_event_helpers::try_register_event(name, u8"unselected", unselected, callback) ||
+				panel::_register_event(name, std::move(callback));
+		}
+
+		/// Called when this tab is selected. Invokes \ref tab_button::_on_tab_selected() and \ref selected.
+		virtual void _on_selected() {
+			_btn->_on_tab_selected();
+			selected.invoke();
+		}
+		/// Called when this tab is unselected. Invokes \ref tab_button::_on_tab_unselected() and \ref unselected.
+		virtual void _on_unselected() {
+			_btn->_on_tab_unselected();
+			unselected.invoke();
 		}
 	private:
 		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.

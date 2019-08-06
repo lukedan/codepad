@@ -14,14 +14,25 @@
 using namespace codepad::os;
 
 namespace codepad::ui {
-	vec2d mouse_position::get(element &e) const { // TODO non-recursive version?
+	vec2d mouse_position::get(element &e) const {
 		if (e._cached_mouse_position_timestamp != _timestamp) {
-			assert_true_logical(e.parent() != nullptr, "invalid call to get mouse position");
-			vec2d parentpos = get(*e.parent());
-			e._cached_mouse_position = e._params.visual_parameters.transform.inverse_transform_point(
-				parentpos - (e.get_layout().xmin_ymin() - e.parent()->get_layout().xmin_ymin()),
-				e.get_layout().size()
-			);
+			vec2d fresh_pos;
+			if (e.parent() == nullptr) {
+				window_base *wnd = dynamic_cast<window_base*>(&e);
+				assert_true_usage(wnd, "cannot get mouse position for isolated element");
+				assert_true_logical(
+					_active_window && _active_window != wnd,
+					"there must be one window with fresh mouse position"
+				);
+				// TODO transforms not taken into account: should they? definitely inconsistent right now
+				fresh_pos = wnd->screen_to_client(_active_window->client_to_screen(get(*_active_window)));
+			} else { // TODO non-recursive version?
+				fresh_pos = e._params.visual_parameters.transform.inverse_transform_point(
+					get(*e.parent()) - (e.get_layout().xmin_ymin() - e.parent()->get_layout().xmin_ymin()),
+					e.get_layout().size()
+				);
+			}
+			e._cached_mouse_position = fresh_pos;
 			e._cached_mouse_position_timestamp = _timestamp;
 		}
 		return e._cached_mouse_position;
@@ -88,14 +99,11 @@ namespace codepad::ui {
 		}
 	}
 
-	void element::_initialize(str_view_t cls, const element_configuration & config) {
+	void element::_initialize(str_view_t cls, const element_configuration &config) {
 #ifdef CP_CHECK_USAGE_ERRORS
 		_initialized = true;
 #endif
 		_params = config.default_parameters;
-		for (auto &attr : config.additional_attributes) {
-			_set_attribute(attr.first, attr.second);
-		}
 		_hotkeys = get_manager().get_class_hotkeys().get(cls);
 	}
 

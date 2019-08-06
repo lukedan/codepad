@@ -45,13 +45,13 @@ namespace codepad::os {
 			auto u16str = _details::utf8_to_wstring(cap.c_str());
 			winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
 		}
-		vec2i get_position() const override {
+		vec2d get_position() const override {
 			POINT tl;
 			tl.x = tl.y = 0;
 			winapi_check(ClientToScreen(_hwnd, &tl));
-			return vec2i(tl.x, tl.y);
+			return vec2d(static_cast<double>(tl.x), static_cast<double>(tl.y));
 		}
-		void set_position(vec2i pos) override {
+		void set_position(vec2d pos) override {
 			RECT r;
 			POINT tl;
 			tl.x = tl.y = 0;
@@ -59,21 +59,23 @@ namespace codepad::os {
 			winapi_check(ClientToScreen(_hwnd, &tl));
 			tl.x -= r.left;
 			tl.y -= r.top;
-			winapi_check(SetWindowPos(_hwnd, nullptr, pos.x - tl.x, pos.y - tl.y, 0, 0, SWP_NOSIZE));
+			winapi_check(SetWindowPos(
+				_hwnd, nullptr, static_cast<int>(pos.x) - tl.x, static_cast<int>(pos.y) - tl.y, 0, 0, SWP_NOSIZE
+			));
 		}
-		vec2i get_client_size() const override {
+		vec2d get_client_size() const override {
 			RECT r;
 			winapi_check(GetClientRect(_hwnd, &r));
-			return vec2i(r.right, r.bottom);
+			return vec2d(static_cast<double>(r.right), static_cast<double>(r.bottom)); // TODO dpi
 		}
-		void set_client_size(vec2i sz) override {
+		void set_client_size(vec2d sz) override {
 			RECT wndrgn, cln;
 			winapi_check(GetWindowRect(_hwnd, &wndrgn));
 			winapi_check(GetClientRect(_hwnd, &cln));
 			winapi_check(SetWindowPos(
 				_hwnd, nullptr, 0, 0,
-				wndrgn.right - wndrgn.left - cln.right + sz.x,
-				wndrgn.bottom - wndrgn.top - cln.bottom + sz.y,
+				wndrgn.right - wndrgn.left - cln.right + static_cast<int>(std::round(sz.x)), // TODO dpi
+				wndrgn.bottom - wndrgn.top - cln.bottom + static_cast<int>(std::round(sz.y)),
 				SWP_NOMOVE
 			));
 		}
@@ -130,25 +132,25 @@ namespace codepad::os {
 		void set_show_icon(bool show) override {
 			_set_window_style_bit(!show, WS_EX_TOOLWINDOW, GWL_EXSTYLE);
 		}
-		bool hit_test_full_client(vec2i v) const override {
+		bool hit_test_full_client(vec2d v) const override {
 			RECT r;
 			winapi_check(GetWindowRect(_hwnd, &r));
 			return r.left <= v.x && r.right > v.x && r.top <= v.y && r.bottom > v.y;
 		}
 
-		vec2i screen_to_client(vec2i v) const override {
+		vec2d screen_to_client(vec2d v) const override {
 			POINT p;
-			p.x = v.x;
-			p.y = v.y;
+			p.x = static_cast<int>(std::round(v.x)); // TODO dpi
+			p.y = static_cast<int>(std::round(v.y));
 			winapi_check(ScreenToClient(_hwnd, &p));
-			return vec2i(p.x, p.y);
+			return vec2d(static_cast<double>(p.x), static_cast<double>(p.y));
 		}
-		vec2i client_to_screen(vec2i v) const override {
+		vec2d client_to_screen(vec2d v) const override {
 			POINT p;
-			p.x = v.x;
-			p.y = v.y;
+			p.x = static_cast<int>(std::round(v.x)); // TODO dpi
+			p.y = static_cast<int>(std::round(v.y));
 			winapi_check(ClientToScreen(_hwnd, &p));
-			return vec2i(p.x, p.y);
+			return vec2d(static_cast<double>(p.x), static_cast<double>(p.y));
 		}
 
 		void set_mouse_capture(ui::element &elem) override {

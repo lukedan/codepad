@@ -128,6 +128,11 @@ namespace codepad::ui {
 					if (object_t child; json::try_cast(elem, child)) {
 						class_arrangements::child ch;
 						parse_additional_arrangement_attributes(child, ch);
+						if (auto *cls = get_manager().get_class_arrangements().get(ch.element_class)) {
+							// provide default values for its element configuration
+							// TODO animations may be invalidated by additional parsing
+							ch.configuration = cls->configuration;
+						}
 						parse_class_arrangements(child, ch);
 						obj.children.emplace_back(std::move(ch));
 					}
@@ -150,6 +155,52 @@ namespace codepad::ui {
 					}
 				}
 			}
+		}
+
+		/// Parses a \ref generic_brush from the given JSON object.
+		void parse_brush(const value_t &val, generic_brush &value) {
+			if (object_t obj; json::try_cast(val, obj)) {
+				if (str_view_t type; json::try_cast_member(obj, u8"type", type)) {
+					if (type == u8"solid") {
+						auto &brush = value.value.emplace<brushes::solid_color>();
+						json::object_parsers::try_parse_member(obj, u8"color", brush.color);
+					} else if (type == u8"linear_gradient") {
+						auto &brush = value.value.emplace<brushes::linear_gradient>();
+						json::object_parsers::try_parse_member(obj, u8"from", brush.from);
+						json::object_parsers::try_parse_member(obj, u8"to", brush.to);
+						if (array_t stops; json::try_cast_member(obj, u8"gradient_stops", stops)) {
+							_parse_gradient_stop_collection(stops, brush.gradient_stops);
+						}
+					} else if (type == u8"radial_gradient") {
+						auto &brush = value.value.emplace<brushes::radial_gradient>();
+						json::object_parsers::try_parse_member(obj, u8"center", brush.center);
+						json::try_cast_member(obj, u8"radius", brush.radius);
+						if (array_t stops; json::try_cast_member(obj, u8"gradient_stops", stops)) {
+							_parse_gradient_stop_collection(stops, brush.gradient_stops);
+						}
+					} else if (type == u8"bitmap") {
+						auto &brush = value.value.emplace<brushes::bitmap_pattern>();
+						if (str_view_t img; json::try_cast_member(obj, u8"image", img)) {
+							brush.image = get_manager().get_texture(img);
+						}
+					} else if (type != u8"none") {
+						logger::get().log_warning(CP_HERE, "invalid brush type string");
+					}
+				} else {
+					logger::get().log_warning(CP_HERE, "invalid brush type");
+				}
+				json::object_parsers::try_parse_member(obj, u8"transform", value.transform);
+			} else {
+				auto &brush = value.value.emplace<brushes::solid_color>();
+				json::object_parsers::try_parse(val, brush.color);
+			}
+		}
+		/// Parses a \ref generic_pen from the given JSON object.
+		void parse_pen(const value_t &val, generic_pen &value) {
+			if (object_t obj; json::try_cast(val, obj)) {
+				json::try_cast_member(obj, u8"thickness", value.thickness);
+			}
+			parse_brush(val, value.brush);
 		}
 
 		/// Returns the associated \ref manager.
@@ -217,51 +268,6 @@ namespace codepad::ui {
 					logger::get().log_warning(CP_HERE, "invalid gradient stop format");
 				}
 			}
-		}
-		/// Parses a \ref generic_brush from the given JSON object.
-		void _parse_brush(const value_t &val, generic_brush &value) {
-			if (object_t obj; json::try_cast(val, obj)) {
-				if (str_view_t type; json::try_cast_member(obj, u8"type", type)) {
-					if (type == u8"solid") {
-						auto &brush = value.value.emplace<brushes::solid_color>();
-						json::object_parsers::try_parse_member(obj, u8"color", brush.color);
-					} else if (type == u8"linear_gradient") {
-						auto &brush = value.value.emplace<brushes::linear_gradient>();
-						json::object_parsers::try_parse_member(obj, u8"from", brush.from);
-						json::object_parsers::try_parse_member(obj, u8"to", brush.to);
-						if (array_t stops; json::try_cast_member(obj, u8"gradient_stops", stops)) {
-							_parse_gradient_stop_collection(stops, brush.gradient_stops);
-						}
-					} else if (type == u8"radial_gradient") {
-						auto &brush = value.value.emplace<brushes::radial_gradient>();
-						json::object_parsers::try_parse_member(obj, u8"center", brush.center);
-						json::try_cast_member(obj, u8"radius", brush.radius);
-						if (array_t stops; json::try_cast_member(obj, u8"gradient_stops", stops)) {
-							_parse_gradient_stop_collection(stops, brush.gradient_stops);
-						}
-					} else if (type == u8"bitmap") {
-						auto &brush = value.value.emplace<brushes::bitmap_pattern>();
-						if (str_view_t img; json::try_cast_member(obj, u8"image", img)) {
-							brush.image = get_manager().get_texture(img);
-						}
-					} else if (type != u8"none") {
-						logger::get().log_warning(CP_HERE, "invalid brush type string");
-					}
-				} else {
-					logger::get().log_warning(CP_HERE, "invalid brush type");
-				}
-				json::object_parsers::try_parse_member(obj, u8"transform", value.transform);
-			} else {
-				auto &brush = value.value.emplace<brushes::solid_color>();
-				json::object_parsers::try_parse(val, brush.color);
-			}
-		}
-		/// Parses a \ref generic_pen from the given JSON object.
-		void _parse_pen(const value_t &val, generic_pen &value) {
-			if (object_t obj; json::try_cast(val, obj)) {
-				json::try_cast_member(obj, u8"thickness", value.thickness);
-			}
-			_parse_brush(val, value.brush);
 		}
 
 		/// Parses a \ref geometries::path::part.
@@ -364,10 +370,10 @@ namespace codepad::ui {
 			}
 			json::object_parsers::try_parse_member(obj, u8"transform", value.transform);
 			if (auto fmem = obj.find_member(u8"fill"); fmem != obj.member_end()) {
-				_parse_brush(fmem.value(), value.fill);
+				parse_brush(fmem.value(), value.fill);
 			}
 			if (auto fmem = obj.find_member(u8"stroke"); fmem != obj.member_end()) {
-				_parse_pen(fmem.value(), value.stroke);
+				parse_pen(fmem.value(), value.stroke);
 			}
 		}
 

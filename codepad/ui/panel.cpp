@@ -160,7 +160,7 @@ namespace codepad::ui {
 		}
 	}
 
-	element *panel::_hit_test_for_child(const mouse_position &p) {
+	element *panel::_hit_test_for_child(const mouse_position &p) const {
 		for (element *elem : _children.z_ordered()) {
 			if (elem->is_visible(visibility::interact)) {
 				if (elem->hit_test(p.get(*elem))) {

@@ -122,11 +122,6 @@ namespace codepad::ui::tabs {
 		}
 	};
 
-	/// Tab button animation controller that behaves like a damped spring.
-	class damped_spring_tab_button_animation_controller : public tab_button_animation_controller {
-
-	};
-
 
 	/// A panel that adds animations to \ref tab_button "tab buttons" when they're moved around. This only works when
 	/// the tab buttons have fixed sizes and margins in the direction they're laid out.
@@ -152,7 +147,7 @@ namespace codepad::ui::tabs {
 		};
 
 		std::shared_ptr<tab_button_animation_controller> _animation; ///< Controls the animation of tabs.
-		info_event<>::token _droptok; ///< Used to handle \ref tab_manager::end_drag_move.
+		info_event<>::token _droptok; ///< Used to handle \ref tab_manager::end_drag.
 		/// Used to handle \ref tab_manager::drag_move_tab_button.
 		info_event<tab_drag_update_info>::token _updatetok;
 
@@ -307,7 +302,7 @@ namespace codepad::ui::tabs {
 		/// being dragged enters this panel.
 		void _on_start_drag() {
 			tab_manager &man = _get_tab_manager();
-			_droptok = man.end_drag_move += [this]() {
+			_droptok = man.end_drag += [this]() {
 				_on_end_drag();
 			};
 			_updatetok = man.drag_move_tab_button += [this](tab_drag_update_info & info) {
@@ -319,7 +314,7 @@ namespace codepad::ui::tabs {
 		void _on_end_drag() {
 			get_manager().get_scheduler().schedule_element_update(*this);
 			tab_manager &man = _get_tab_manager();
-			man.end_drag_move -= _droptok;
+			man.end_drag -= _droptok;
 			man.drag_move_tab_button -= _updatetok;
 		}
 		/// Called when \ref tab_manager::drag_move_tab_button is invoked.
@@ -328,11 +323,10 @@ namespace codepad::ui::tabs {
 			host *host = _get_host();
 			tab_manager &man = _get_tab_manager();
 			tab_button &dragbtn = man.get_dragging_tab()->get_button();
-			rectd client = get_client_region();
 			double accu = 0.0, relpos =
 				get_orientation() == orientation::vertical ?
-				info.position.y - client.ymin :
-				info.position.x - client.xmin;
+				info.position.y :
+				info.position.x;
 			auto beforeit = host->get_tabs().items().begin();
 			for (element *e : _children.items()) {
 				if (e != &dragbtn) {
