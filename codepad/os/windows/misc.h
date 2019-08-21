@@ -13,7 +13,7 @@ namespace codepad::os {
 	template <typename T> inline void winapi_check(T v) {
 #ifdef CP_CHECK_SYSTEM_ERRORS
 		if (!v) {
-			logger::get().log_error(CP_HERE, "WinAPI error code ", GetLastError());
+			logger::get().log_error(CP_HERE) << "WinAPI error code " << GetLastError();
 			assert_true_sys(false, "WinAPI error");
 		}
 #endif
@@ -27,7 +27,7 @@ namespace codepad::os {
 	inline void com_check(HRESULT v) {
 #ifdef CP_CHECK_SYSTEM_ERRORS
 		if (v != S_OK) {
-			logger::get().log_error(CP_HERE, "COM error code ", v);
+			logger::get().log_error(CP_HERE) << "COM error code " << v;
 			assert_true_sys(false, "COM error");
 		}
 #endif

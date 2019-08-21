@@ -12,7 +12,8 @@
 #include <variant>
 #include <any>
 
-#include "../core/misc.h"
+#include "../core/math.h"
+#include "../core/json/misc.h"
 
 namespace codepad::ui {
 	class window_base;
@@ -222,6 +223,42 @@ namespace codepad::ui {
 		colord color; ///< The color of this gradient stop.
 		double position = 0.0; ///< The position of this gradient.
 	};
+}
+namespace codepad::json {
+	/// Parser for \ref ui::gradient_stop.
+	template <> struct default_parser<ui::gradient_stop> {
+		/// The main parser interface.
+		template <typename ValueType> std::optional<ui::gradient_stop> operator()(const ValueType &val) const {
+			std::optional<double> pos;
+			std::optional<colord> color;
+			if (auto object = val.try_cast<typename ValueType::object_t>()) {
+				if (object->size() > 2) {
+					val.log<log_level::warning>(CP_HERE) << "redundant fields in gradient stop definition";
+				}
+				pos = object->parse_member<double>(u8"position");
+				color = object->parse_member<colord>(u8"color");
+			} else if (auto arr = val.try_cast<typename ValueType::array_t>()) {
+				if (arr->size() >= 2) {
+					if (arr->size() > 2) {
+						val.log<log_level::warning>(CP_HERE) << "redundant data in gradient stop definition";
+					}
+					pos = arr->at(0).parse<double>();
+					color = arr->at(1).parse<colord>();
+				} else {
+					val.log<log_level::error>(CP_HERE) << "not enough information in gradient stop definition";
+				}
+			} else {
+				val.log<log_level::error>(CP_HERE) << "invalid gradient stop format";
+			}
+			if (pos && color) {
+				return ui::gradient_stop(color.value(), pos.value());
+			}
+			return std::nullopt;
+		}
+	};
+}
+
+namespace codepad::ui {
 	using gradient_stop_collection = std::vector<gradient_stop>; ///< A list of gradient stops.
 	/// Structures used to stores the parameters of a brush.
 	namespace brush_parameters {

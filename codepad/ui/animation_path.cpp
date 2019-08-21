@@ -10,7 +10,6 @@
 
 #include "element.h"
 #include "manager.h"
-#include "config_parsers.h"
 
 using namespace std;
 
@@ -42,19 +41,19 @@ namespace codepad::ui::animation_path {
 		/// Checks that \ref component::type is either empty or the specified type.
 		inline void check_type(const component &comp, str_view_t target) {
 			if (!comp.is_type_or_empty(target)) {
-				logger::get().log_warning(CP_HERE, "invalid target type: ", target);
+				logger::get().log_warning(CP_HERE) << "invalid target type: " << target;
 			}
 		}
 		/// Checks that this \ref component is the last one.
 		inline void check_finished(component_list::const_iterator begin, component_list::const_iterator end) {
 			if (++begin != end) {
-				logger::get().log_warning(CP_HERE, "redundant properties");
+				logger::get().log_warning(CP_HERE) << "redundant properties";
 			}
 		}
 		/// Checks that the component does not have an index.
 		inline void check_no_index(const component &comp) {
 			if (comp.index.has_value()) {
-				logger::get().log_warning(CP_HERE, "unexpected index");
+				logger::get().log_warning(CP_HERE) << "unexpected index";
 			}
 		}
 
@@ -80,10 +79,10 @@ namespace codepad::ui::animation_path {
 		return res;                                                                           \
 	}
 
-#define CP_APB_MUST_NOT_TERMINATE_EARLY                                            \
-	if (begin == end) {                                                            \
-		logger::get().log_warning(CP_HERE, "animation path terminated too early"); \
-		return CP_APB_SUBJECT_INFO_T();                                            \
+#define CP_APB_MUST_NOT_TERMINATE_EARLY                                              \
+	if (begin == end) {                                                              \
+		logger::get().log_warning(CP_HERE) << "animation path terminated too early"; \
+		return CP_APB_SUBJECT_INFO_T();                                              \
 	}
 
 
@@ -107,10 +106,10 @@ namespace codepad::ui::animation_path {
 	}
 #define CP_APB_DEFINE_PROPERTY_GETTER CP_APB_EXPAND_CALL(CP_APB_DO_DEFINE_PROPERTY_GETTER, CP_APB_CURRENT_TYPE)
 
-#define CP_APB_END_GETTER                                       \
-		logger::get().log_warning(CP_HERE, "invalid property"); \
-		return CP_APB_SUBJECT_INFO_T();                         \
-	}                                                           \
+#define CP_APB_END_GETTER                                         \
+		logger::get().log_warning(CP_HERE) << "invalid property"; \
+		return CP_APB_SUBJECT_INFO_T();                           \
+	}                                                             \
 	CP_APB_DEFINE_PROPERTY_GETTER
 
 
@@ -129,7 +128,6 @@ namespace codepad::ui::animation_path {
 
 #define CP_APB_DO_TRY_FORWARD_VARIANT(TYPE, TYPENAME, VARIANT_TYPE, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME) \
 	if (begin->type == u8 ## #TARGET_TYPENAME) {                                                             \
-		CP_APB_NO_INDEX;                                                                                     \
 		return CP_APB_GETTER_NAME(TARGET_TYPENAME)<MemberAccess>(begin, end, getter_components::pair(        \
 			getter_components::pair(comp, getter_components::member_component<&TYPE::PROP_NAME>()),          \
 			getter_components::variant_component<TYPE::VARIANT_TYPE, TARGET_TYPE>()                          \
@@ -165,6 +163,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
+		// enums
 #define CP_APB_CURRENT_TYPE anchor, anchor
 		CP_APB_START_GETTER
 			CP_APB_MAY_TERMINATE_EARLY;
@@ -177,6 +176,19 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
+#define CP_APB_CURRENT_TYPE cursor, cursor
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
+#define CP_APB_CURRENT_TYPE visibility, visibility
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
+		// other basic types
 #define CP_APB_CURRENT_TYPE shared_ptr<bitmap>, bitmap
 		CP_APB_START_GETTER
 			CP_APB_MAY_TERMINATE_EARLY;
@@ -219,7 +231,7 @@ namespace codepad::ui::animation_path {
 
 #define CP_APB_CURRENT_TYPE relative_double, rel_double
 		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
+			CP_APB_MAY_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
 
 			CP_APB_TRY_FORWARD_MEMBER(relative, double);
@@ -229,7 +241,7 @@ namespace codepad::ui::animation_path {
 
 #define CP_APB_CURRENT_TYPE relative_vec2d, rel_vec2d
 		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
+			CP_APB_MAY_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
 
 			CP_APB_TRY_FORWARD_MEMBER(relative, vec2d);
@@ -545,7 +557,7 @@ namespace codepad::ui::animation_path {
 #undef CP_APB_CURRENT_TYPE
 
 
-#define CP_APB_CURRENT_TYPE element_visual_parameters, element_visual_parameters
+#define CP_APB_CURRENT_TYPE visuals, visuals
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -555,7 +567,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE element_layout_parameters, element_layout_parameters
+#define CP_APB_CURRENT_TYPE element_layout, element_layout
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -582,17 +594,33 @@ namespace codepad::ui::animation_path {
 			check_type(*begin, "element");
 
 			if (begin->property == "visuals") {
-				return get_element_visual_parameters_property<_wrapper<element_property_type::visual_only>::type>(
+				return get_visuals_property<_wrapper<element_property_type::visual_only>::type>(
 					++begin, end, getter_components::pair(
 						getter_components::member_component<&element::_params>(),
 						getter_components::member_component<&element_parameters::visual_parameters>()
 					));
 			}
 			if (begin->property == "layout") {
-				return get_element_layout_parameters_property<_wrapper<element_property_type::affects_layout>::type>(
+				return get_element_layout_property<_wrapper<element_property_type::affects_layout>::type>(
 					++begin, end, getter_components::pair(
 						getter_components::member_component<&element::_params>(),
 						getter_components::member_component<&element_parameters::layout_parameters>()
+					));
+			}
+			if (begin->property == "cursor") {
+				CP_APB_NO_INDEX;
+				return get_cursor_property<component_member_access>(
+					++begin, end, getter_components::pair(
+						getter_components::member_component<&element::_params>(),
+						getter_components::member_component<&element_parameters::custom_cursor>()
+					));
+			}
+			if (begin->property == "visibility") {
+				CP_APB_NO_INDEX;
+				return get_visibility_property<_wrapper<element_property_type::affects_layout>::type>(
+					++begin, end, getter_components::pair(
+						getter_components::member_component<&element::_params>(),
+						getter_components::member_component<&element_parameters::visibility>()
 					));
 			}
 			return member_information<element>();

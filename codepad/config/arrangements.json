@@ -18,8 +18,8 @@
 	"scrollbar": {
 		"layout": {
 			"size": [ 8, 8 ],
-			"width_allocation": "*",
-			"height_allocation": "px",
+			"width_alloc": "*",
+			"height_alloc": "px",
 			"margin": 0.0,
 			"anchor": "lrb"
 		},
@@ -96,7 +96,7 @@
 		"layout": {
 			"width": "30px",
 			"height": "30px",
-			"anchor": 0.0
+			"margin": 0.0
 		}
 	},
 	"drag_destination_selector": {
@@ -182,14 +182,14 @@
 		},
 		"animations": {
 			"split_left_indicator.mouse_enter": {
-				"visuals.geometries[0].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[0].fill.(solid_color_brush.color).a": {
 					"to": 0.5,
 					"duration": 0.1,
 					"transition": "linear"
 				}
 			},
 			"split_left_indicator.mouse_leave": {
-				"visuals.geometries[0].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[0].fill.(solid_color_brush.color).a": {
 					"to": 0.0,
 					"duration": 0.1,
 					"transition": "linear"
@@ -197,14 +197,14 @@
 			},
 
 			"split_right_indicator.mouse_enter": {
-				"visuals.geometries[1].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[1].fill.(solid_color_brush.color).a": {
 					"to": 0.5,
 					"duration": 0.1,
 					"transition": "linear"
 				}
 			},
 			"split_right_indicator.mouse_leave": {
-				"visuals.geometries[1].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[1].fill.(solid_color_brush.color).a": {
 					"to": 0.0,
 					"duration": 0.1,
 					"transition": "linear"
@@ -212,14 +212,14 @@
 			},
 
 			"split_up_indicator.mouse_enter": {
-				"visuals.geometries[2].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[2].fill.(solid_color_brush.color).a": {
 					"to": 0.5,
 					"duration": 0.1,
 					"transition": "linear"
 				}
 			},
 			"split_up_indicator.mouse_leave": {
-				"visuals.geometries[2].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[2].fill.(solid_color_brush.color).a": {
 					"to": 0.0,
 					"duration": 0.1,
 					"transition": "linear"
@@ -227,14 +227,14 @@
 			},
 
 			"split_down_indicator.mouse_enter": {
-				"visuals.geometries[3].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[3].fill.(solid_color_brush.color).a": {
 					"to": 0.5,
 					"duration": 0.1,
 					"transition": "linear"
 				}
 			},
 			"split_down_indicator.mouse_leave": {
-				"visuals.geometries[3].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[3].fill.(solid_color_brush.color).a": {
 					"to": 0.0,
 					"duration": 0.1,
 					"transition": "linear"
@@ -242,14 +242,14 @@
 			},
 
 			"combine_indicator.mouse_enter": {
-				"visuals.geometries[4].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[4].fill.(solid_color_brush.color).a": {
 					"to": 0.5,
 					"duration": 0.1,
 					"transition": "linear"
 				}
 			},
 			"combine_indicator.mouse_leave": {
-				"visuals.geometries[4].(rectangle.fill).(solid_color_brush.color).a": {
+				"visuals.geometries[4].fill.(solid_color_brush.color).a": {
 					"to": 0.0,
 					"duration": 0.1,
 					"transition": "linear"
@@ -793,19 +793,88 @@
 				"name": "separator",
 				"layout": {
 					"size": [ 5, 5 ],
-					"width_allocation": "px",
-					"height_allocation": "*",
+					"width_alloc": "px",
+					"height_alloc": "*",
 					"margin": 0.0,
 					"anchor": "ltrb"
 				},
+				"cursor": "arrow_east_west",
+				"visuals": {
+					"geometries": [
+						{
+							"type": "path",
+							"subpaths": [
+								[
+									[
+										[ 0.5, 0.0 ],
+										[ 0.0, 2.0 ]
+									],
+									{
+										"line_to": [
+											[ 0.5, 1.0 ],
+											[ 0.0, -2.0 ]
+										]
+									},
+									{ "closed": false }
+								]
+							],
+							"stroke": {
+								"type": "solid",
+								"color": [ 0.8, 0.8, 0.8, 0.0 ],
+								"thickness": 1
+							}
+						}
+					]
+				},
 				"animations": {
 					"main.set_horizontal": {
-						"layout.width_alloc": "*",
-						"layout.height_alloc": "px"
+						"layout.width_alloc": "px",
+						"layout.height_alloc": "*",
+						"cursor": "arrow_east_west",
+						"visuals.geometries[0].(path.subpaths)[0].starting_point": {
+							"to": [
+								[ 0.5, 0.0 ],
+								[ 0.0, 2.0 ]
+							]
+						},
+						"visuals.geometries[0].(path.subpaths)[0].parts[0].(segment.to)": {
+							"to": [
+								[ 0.5, 1.0 ],
+								[ 0.0, -2.0 ]
+							]
+						}
 					},
 					"main.set_vertical": {
-						"layout.width_alloc": "px",
-						"layout.height_alloc": "*"
+						"layout.width_alloc": "*",
+						"layout.height_alloc": "px",
+						"cursor": "arrow_north_south",
+						"visuals.geometries[0].(path.subpaths)[0].starting_point": {
+							"to": [
+								[ 0.0, 0.5 ],
+								[ 2.0, 0.0 ]
+							]
+						},
+						"visuals.geometries[0].(path.subpaths)[0].parts[0].(segment.to)": {
+							"to": [
+								[ 1.0, 0.5 ],
+								[ -2.0, 0.0 ]
+							]
+						}
+					},
+
+					"mouse_enter": {
+						"visuals.geometries[0].stroke.(solid_color_brush.color).a": {
+							"to": 1.0,
+							"duration": 0.1,
+							"transition": "linear"
+						}
+					},
+					"mouse_leave": {
+						"visuals.geometries[0].stroke.(solid_color_brush.color).a": {
+							"to": 0.0,
+							"duration": 0.1,
+							"transition": "linear"
+						}
 					}
 				}
 			}
@@ -867,6 +936,43 @@
 					},
 					{
 						"type": "minimap",
+						"extras": {
+							"viewport_visuals": {
+								"geometries": [
+									{
+										"type": "rectangle",
+										"top_left": [
+											[ 0.0, 0.0 ],
+											[ 0.0, 0.0 ]
+										],
+										"bottom_right": [
+											[ 1.0, 1.0 ],
+											[ 0.0, 0.0 ]
+										],
+										"fill": {
+											"type": "solid",
+											"color": [ 1.0, 1.0, 1.0, 0.1 ]
+										}
+									}
+								]
+							}
+						},
+						"animations": {
+							"mouse_enter": {
+								"viewport_visuals.geometries[0].fill.(solid_color_brush.color).a": {
+									"to": 0.3,
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							},
+							"mouse_leave": {
+								"viewport_visuals.geometries[0].fill.(solid_color_brush.color).a": {
+									"to": 0.1,
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							}
+						},
 						"layout": {
 							"width": "0.1*",
 							"height": "100%"

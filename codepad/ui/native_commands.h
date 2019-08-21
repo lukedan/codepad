@@ -15,10 +15,9 @@ namespace codepad::ui::native_commands {
 		return[func = std::move(f)](element *e) {
 			Elem *te = dynamic_cast<Elem*>(e);
 			if (e != nullptr && te == nullptr) { // not the right type
-				logger::get().log_warning(
-					CP_HERE, "callback with invalid element type ",
-					demangle(typeid(*e).name()), ", expected ", demangle(typeid(Elem).name())
-				);
+				logger::get().log_warning(CP_HERE) <<
+					"callback with invalid element type " << demangle(typeid(*e).name()) <<
+					", expected " << demangle(typeid(Elem).name());
 				return;
 			}
 			func(te);

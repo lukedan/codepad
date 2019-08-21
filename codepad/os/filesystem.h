@@ -13,6 +13,7 @@
 #endif
 
 #include "../core/misc.h"
+#include "../core/assert.h"
 
 namespace codepad::os {
 	/// Specifies what operations are to be performed on a file.

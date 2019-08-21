@@ -21,10 +21,14 @@ namespace codepad::ui {
 		// TODO start animations
 	}
 
-	void window_base::_on_render() {
+	void window_base::_on_prerender() {
 		get_manager().get_renderer().begin_drawing(*this);
 		get_manager().get_renderer().clear(colord(0.0, 0.0, 0.0, 0.0));
-		panel::_on_render();
+		panel::_on_prerender();
+	}
+
+	void window_base::_on_postrender() {
+		panel::_on_postrender();
 		get_manager().get_renderer().end_drawing();
 	}
 

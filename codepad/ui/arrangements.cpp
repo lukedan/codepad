@@ -36,14 +36,15 @@ namespace codepad::ui {
 		for (auto &trig : config.event_triggers) {
 			element *subj = find_by_name(trig.identifier.subject, elem);
 			if (subj == nullptr) {
-				logger::get().log_warning(CP_HERE, "cannot find element with name: ", trig.identifier.subject);
+				logger::get().log_warning(CP_HERE) << "cannot find element with name: " << trig.identifier.subject;
 				continue;
 			}
 			std::vector<_animation_starter> anis;
 			for (auto &ani : trig.animations) {
 				animation_subject_information subject = elem._parse_animation_path(ani.subject);
 				if (subject.parser == nullptr || subject.subject == nullptr) {
-					logger::get().log_warning(CP_HERE, "failed to parse animation path"); // TODO maybe print the path
+					// TODO maybe print the path
+					logger::get().log_warning(CP_HERE) << "failed to parse animation path";
 					continue;
 				}
 				auto &&definition = subject.parser->parse_keyframe_animation(ani.definition, elem.get_manager());
@@ -58,7 +59,7 @@ namespace codepad::ui {
 					);
 				}
 			})) {
-				logger::get().log_warning(CP_HERE, "unknown event name: ", trig.identifier.name);
+				logger::get().log_warning(CP_HERE) << "unknown event name: " << trig.identifier.name;
 			}
 		}
 	}
@@ -79,7 +80,7 @@ namespace codepad::ui {
 			if (!children.empty()) { // construct children
 				auto *pnl = dynamic_cast<panel*>(e);
 				if (pnl == nullptr) {
-					logger::get().log_warning(CP_HERE, "invalid children for non-panel type: ", type);
+					logger::get().log_warning(CP_HERE) << "invalid children for non-panel type: " << type;
 				} else {
 					for (const child &c : children) {
 						if (element * celem = c.construct(ctx)) {
@@ -90,12 +91,12 @@ namespace codepad::ui {
 			}
 			if (!name.empty()) { // register name
 				if (!ctx.register_name(name, *e)) {
-					logger::get().log_warning(CP_HERE, "duplicate element names: ", name);
+					logger::get().log_warning(CP_HERE) << "duplicate element names: " << name;
 				}
 			}
 			ctx.all_created.emplace_back(this, e); // register creation
 		} else {
-			logger::get().log_warning(CP_HERE, "failed to construct element with type ", type);
+			logger::get().log_warning(CP_HERE) << "failed to construct element with type " << type;
 		}
 		return e;
 	}

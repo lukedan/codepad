@@ -71,6 +71,13 @@ namespace codepad::editors::code {
 		return ass.get_horizontal_position();
 	}
 
+	settings::retriever_parser<double> &contents_region::_get_font_size_setting() {
+		static settings::retriever_parser<double> _setting = settings::get().create_retriever_parser<double>(
+			{u8"editor", u8"font_size"}, settings::basic_parsers::basic_type_with_default<double>(12.0)
+		);
+		return _setting;
+	}
+
 	caret_position contents_region::_hit_test_at_visual_line(size_t line, double x) const {
 		size_t
 			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
@@ -118,7 +125,7 @@ namespace codepad::editors::code {
 		return caret_position(_doc->get_linebreaks().num_chars(), true);
 	}
 
-	void contents_region::_on_end_edit(buffer::end_edit_info & info) {
+	void contents_region::_on_end_edit(buffer::end_edit_info &info) {
 		// fixup view
 		_fmt.fixup_after_edit(info, *_doc);
 		// TODO improve performance
@@ -223,13 +230,6 @@ namespace codepad::editors::code {
 					ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.2, 0.2, 1.0, 0.3))),
 					ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.0, 0.0, 0.0, 1.0))))
 				);
-				/*for (const auto &rgn : selrgn) {
-					rend.draw_rectangle(
-						rgn,
-						ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.2, 0.2, 1.0, 0.3))),
-						ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.0, 0.0, 0.0, 1.0))))
-					);
-				}*/
 			}
 		}
 		get_manager().get_renderer().pop_matrix();

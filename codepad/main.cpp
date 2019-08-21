@@ -1,11 +1,13 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include <thread>
-#include <fstream>
+#include <iostream>
 
 #include "core/event.h"
 #include "core/bst.h"
+#include "core/logger_sinks.h"
+#include "core/json/parsing.h"
+#include "core/json/rapidjson.h"
 #include "os/current/all.h"
 #include "os/windows/direct2d_renderer.h"
 #include "ui/common_elements.h"
@@ -25,17 +27,21 @@ using namespace codepad::editors;
 int main(int argc, char **argv) {
 	codepad::initialize(argc, argv);
 
+	logger::get().sinks.emplace_back(logger_sinks::console_sink());
+
 	manager man;
 	man.set_renderer(std::make_unique<direct2d::renderer>());
 
 	{
-		ui_config_json_parser<json::default_engine::value_t> parser(man);
-		parser.parse_arrangements_config(json::parse_file<json::default_engine::document_t>("config/arrangements.json").root().get<json::default_engine::object_t>());
+		json::rapidjson::document_t doc = json::parse_file<json::rapidjson::document_t>("config/arrangements.json");
+		auto val = json::parsing::make_value(doc.root());
+		arrangements_parser<decltype(val)> parser(man);
+		parser.parse_arrangements_config(val.get<decltype(val)::object_t>());
 	}
 
-	hotkey_json_parser<json::default_engine::value_t>::parse_config(
+	hotkey_json_parser<json::rapidjson::value_t>::parse_config(
 		man.get_class_hotkeys().mapping,
-		json::parse_file<json::default_engine::document_t>("config/keys.json").root().get<json::default_engine::object_t>()
+		json::parse_file<json::rapidjson::document_t>("config/keys.json").root().get<json::rapidjson::object_t>()
 	);
 
 	tabs::tab_manager tabman(man);

@@ -24,13 +24,13 @@ namespace codepad {
 #define CP_STRLIT(X) u8 ## X
 	/// STL string with default character type.
 	///
-	/// \todo Use std::u8string when C++20 drops.
+	/// \todo C++20: Use std::u8string when C++20.
 	using str_t = std::basic_string<char>;
 	/// STL string_view with default character type.
 	///
-	/// \todo Use std::u8string_view in C++20.
+	/// \todo C++20: Use std::u8string_view.
 	using str_view_t = std::basic_string_view<char>;
-	/// Type used to store codepoints. \p char32_t is not used because its range is 0~0x10FFFF which may not be able
+	/// Type used to store codepoints. \p char32_t is not used because its range is 0~0x10FFFF, so it may not be able
 	/// to correctly represent invalid codepoints.
 	using codepoint = std::uint32_t;
 
@@ -84,7 +84,7 @@ namespace codepad {
 
 			/// Returns `UTF-8'.
 			inline static str_view_t get_name() {
-				return CP_STRLIT("UTF-8");
+				return u8"UTF-8";
 			}
 			/// Maximum 4 bytes for any codepoint encoded in UTF-8.
 			inline static size_t get_maximum_codepoint_length() {
@@ -227,9 +227,9 @@ namespace codepad {
 			/// Returns either `UTF-16 LE' or `UTF-16 BE', depending on the Endianness.
 			inline static str_view_t get_name() {
 				if constexpr (Endianness == endianness::little_endian) {
-					return CP_STRLIT("UTF-16 LE");
+					return u8"UTF-16 LE";
 				} else {
-					return CP_STRLIT("UTF-16 BE");
+					return u8"UTF-16 BE";
 				}
 			}
 			/// Maximum 4 bytes for any codepoint encoded in UTF-16.

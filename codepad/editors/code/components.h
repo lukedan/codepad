@@ -219,12 +219,12 @@ namespace codepad::editors::code {
 					do {
 						_width = _width * enlarge_factor;
 					} while (w > _width);
-					logger::get().log_debug(CP_HERE, "minimap width extended to ", _width);
+					logger::get().log_debug(CP_HERE) << "minimap width extended to " << _width;
 					pages.clear();
 					invalidate();
 				} else if (_width > minimum_width && w < shirnk_threshold * _width) {
 					_width = std::max(minimum_width, w);
-					logger::get().log_debug(CP_HERE, "minimap width shrunk to ", _width);
+					logger::get().log_debug(CP_HERE) << "minimap width shrunk to " << _width;
 				}
 			}
 
@@ -245,8 +245,6 @@ namespace codepad::editors::code {
 			/// \param s Index of the first visual line of the page.
 			/// \param pe Index past the last visual line of the page.
 			void _render_page(size_t s, size_t pe) {
-				logger::get().log_debug(CP_HERE, "minimap page ", pe - s, " lines");
-
 				performance_monitor mon(CP_STRLIT("render_minimap_page"), page_rendering_time_redline);
 				if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
 					double lh = edt->get_line_height(), scale = _parent->get_scale();
@@ -312,7 +310,7 @@ namespace codepad::editors::code {
 		/// Renders all visible pages.
 		void _custom_render() const override {
 			element::_custom_render();
-			if (contents_region * edt = component_helper::get_contents_region(*this)) {
+			if (contents_region *edt = component_helper::get_contents_region(*this)) {
 				std::pair<size_t, size_t> vlines = _get_visible_visual_lines();
 				double
 					slh = edt->get_line_height() * get_scale(),
@@ -323,8 +321,9 @@ namespace codepad::editors::code {
 				if (ibeg != _pgcache.pages.begin()) {
 					--ibeg;
 				} else {
-					logger::get().log_error(CP_HERE, "agnomaly in page range selection");
+					logger::get().log_error(CP_HERE) << "agnomaly in page range selection";
 				}
+
 				ui::renderer_base &r = get_manager().get_renderer();
 				r.push_rectangle_clip(rectd::from_xywh(0.0, 0.0, get_layout().width(), get_layout().height()));
 				for (auto i = ibeg; i != iend; ++i) {
@@ -339,12 +338,7 @@ namespace codepad::editors::code {
 					);
 				}
 				// render visible region indicator
-				r.draw_rounded_rectangle(
-					_get_clamped_viewport_rect(), 5.0, 5.0,
-					ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 0.2))),
-					ui::generic_pen_parameters()
-				); // TODO temp
-				/*_viewport_cfg.render(r, _get_clamped_viewport_rect());*/
+				_viewport_visuals.render(_get_clamped_viewport_rect(), r);
 				r.pop_clip();
 			}
 		}
@@ -388,7 +382,7 @@ namespace codepad::editors::code {
 		}
 		/// Returns the range of lines that are visible in the \ref minimap.
 		std::pair<size_t, size_t> _get_visible_visual_lines() const {
-			if (contents_region * edt = component_helper::get_contents_region(*this)) {
+			if (contents_region *edt = component_helper::get_contents_region(*this)) {
 				double scale = get_scale(), ys = _get_y_offset();
 				return edt->get_visible_visual_lines(ys / scale, (ys + get_client_region().height()) / scale);
 			}
@@ -493,10 +487,35 @@ namespace codepad::editors::code {
 		/// Initializes \ref _viewport_cfg.
 		void _initialize(str_view_t cls, const ui::element_configuration & config) override {
 			element::_initialize(cls, config);
-			// TODO initialize viewport indicator
+		}
+
+		/// Handles \ref _viewport_visuals.
+		void _set_attribute(str_view_t name, const json::value_storage &v) override {
+			if (name == u8"viewport_visuals") {
+				if (auto visuals = v.get_value().parse<ui::visuals>(
+					ui::managed_json_parser<ui::visuals>(get_manager())
+					)) {
+					_viewport_visuals = std::move(visuals.value());
+				}
+				return;
+			}
+			element::_set_attribute(name, v);
+		}
+		/// Handles animations related to \ref _viewport_visuals.
+		ui::animation_subject_information _parse_animation_path(
+			const ui::animation_path::component_list &components
+		) override {
+			if (!components.empty() && components[0].is_similar(u8"minimap", u8"viewport_visuals")) {
+				return ui::animation_subject_information::from_member<&minimap::_viewport_visuals>(
+					*this, ui::animation_path::builder::element_property_type::visual_only,
+					++components.begin(), components.end()
+					);
+			}
+			return element::_parse_animation_path(components);
 		}
 
 		_page_cache _pgcache{*this}; ///< Caches rendered pages.
+		ui::visuals _viewport_visuals; ///< The visuals for the viewport.
 		info_event<>::token _vis_tok; ///< Used to listen to \ref contents_region::editing_visual_changed.
 		/// The offset of the mouse relative to the top border of the visible region indicator.
 		double _dragoffset = 0.0;

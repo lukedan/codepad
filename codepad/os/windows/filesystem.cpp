@@ -60,7 +60,7 @@ namespace codepad::os {
 			_interpret_open_mode(mode), FILE_ATTRIBUTE_NORMAL, nullptr
 		);
 		if (res == INVALID_HANDLE_VALUE) {
-			logger::get().log_warning(CP_HERE, "CreateFile failed with error code ", GetLastError());
+			logger::get().log_warning(CP_HERE) << "CreateFile failed with error code " << GetLastError();
 		}
 		return res;
 	}
@@ -125,11 +125,11 @@ namespace codepad::os {
 			assert_true_usage(GetLastError() != ERROR_ALREADY_EXISTS, "cannot open multiple mappings to one file");
 			_ptr = MapViewOfFile(_handle, acc == access_rights::read ? FILE_MAP_READ : FILE_MAP_WRITE, 0, 0, 0);
 			if (!_ptr) {
-				logger::get().log_warning(CP_HERE, "MapViewOfFile failed with error code ", GetLastError());
+				logger::get().log_warning(CP_HERE) << "MapViewOfFile failed with error code " << GetLastError();
 				winapi_check(CloseHandle(_handle));
 			}
 		} else {
-			logger::get().log_warning(CP_HERE, "CreateFileMapping failed with error code ", GetLastError());
+			logger::get().log_warning(CP_HERE) << "CreateFileMapping failed with error code " << GetLastError();
 		}
 	}
 

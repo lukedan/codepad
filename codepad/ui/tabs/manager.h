@@ -461,9 +461,9 @@ namespace codepad::ui::tabs {
 		/// Prepares and marks a \ref host for disposal. Use this instead of directly calling
 		/// \ref scheduler::mark_for_disposal().
 		void _delete_tab_host(host &hst) {
-			logger::get().log_debug(CP_HERE, "tab host 0x", &hst, " disposed");
+			logger::get().log_debug(CP_HERE) << "tab host 0x" << &hst << " disposed";
 			if (_drag && _drag_destination == &hst) {
-				logger::get().log_debug(CP_HERE, "resetting drag destination");
+				logger::get().log_debug(CP_HERE) << "resetting drag destination";
 				_try_dispose_preview();
 				_try_detach_destination_selector();
 				_drag_destination = nullptr;
@@ -697,7 +697,7 @@ namespace codepad::ui::tabs {
 					rectd r = _dragrect;
 					r.ymin = -_drag_offset.y;
 					_move_tab_to_new_window(
-						*_drag, r.translated(os::get_mouse_position().convert<double>())
+						*_drag, r.translated(os::get_mouse_position().convert<double>()) // TODO fixme wrong position
 					);
 					break;
 				}

@@ -134,11 +134,11 @@ namespace codepad::editors {
 		using mode_activator_t = interaction_mode_activator<CaretSet>;
 
 		/// Returns a reference to \ref _activators.
-		std::vector<mode_activator_t*> &activators() {
+		std::vector<std::unique_ptr<mode_activator_t>> &activators() {
 			return _activators;
 		}
 		/// \overload
-		const std::vector<mode_activator_t*> &activators() const {
+		const std::vector<std::unique_ptr<mode_activator_t>> &activators() const {
 			return _activators;
 		}
 
@@ -207,7 +207,7 @@ namespace codepad::editors {
 			if (_active) {
 				return _active->get_override_cursor();
 			}
-			for (const mode_activator_t *activator : _activators) {
+			for (auto &&activator : _activators) {
 				ui::cursor c = activator->get_override_cursor(*this);
 				if (c != ui::cursor::not_specified) {
 					return c;
@@ -216,7 +216,7 @@ namespace codepad::editors {
 			return ui::cursor::not_specified;
 		}
 	protected:
-		std::vector<mode_activator_t*> _activators; ///< The list of activators.
+		std::vector<std::unique_ptr<mode_activator_t>> _activators; ///< The list of activators.
 		/// The cached mouse position relative to the corresponding \ref ui::element, used when none is supplied.
 		vec2d _cached_mouse_position;
 		caret_position _cached_position; ///< The cached mouse position.
@@ -233,8 +233,8 @@ namespace codepad::editors {
 				}
 			} else {
 				if constexpr (static_cast<bool>(ActivatorPtr)) {
-					for (mode_activator_t *act : _activators) {
-						if (auto ptr = (act->*ActivatorPtr)(*this, std::forward<Args>(args)...)) { // activated
+					for (auto &&act : _activators) {
+						if (auto ptr = ((*act).*ActivatorPtr)(*this, std::forward<Args>(args)...)) { // activated
 							_active = std::move(ptr);
 							break;
 						}
@@ -406,7 +406,7 @@ namespace codepad::editors {
 					// select a caret to be edited
 					auto it = man.get_contents_region().get_carets().carets.begin(); // TODO select a better caret
 					if (it == man.get_contents_region().get_carets().carets.end()) { // should not happen
-						logger::get().log_warning(CP_HERE, "empty caret set when starting mouse interaction");
+						logger::get().log_warning(CP_HERE) << "empty caret set when starting mouse interaction";
 						return nullptr;
 					}
 					caret_selection_position sel = man.get_contents_region().extract_caret_selection_position(*it);
@@ -459,7 +459,7 @@ namespace codepad::editors {
 				if (
 					(info.new_position.get(this->_manager.get_contents_region()) - _init_pos).length_sqr() > 25.0
 					) { // TODO magic value
-					logger::get().log_info(CP_HERE, "start drag drop");
+					logger::get().log_debug(CP_HERE) << "start drag drop";
 					// TODO start
 					this->_manager.get_contents_region().get_window()->release_mouse_capture();
 					return false;

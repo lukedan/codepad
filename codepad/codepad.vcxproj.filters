@@ -105,9 +105,6 @@
     <ClInclude Include="core\settings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\json.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="apigen_definitions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -181,6 +178,33 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ui\animation_path.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\logging.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\math.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\profiling.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\assert.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\json\misc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\json\rapidjson.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\json\storage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\json\parsing.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\logger_sinks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

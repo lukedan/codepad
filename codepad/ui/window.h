@@ -98,10 +98,8 @@ namespace codepad::ui {
 		/// always receives notifications as if the mouse were over it, until \ref release_mouse_capture is
 		/// called. Derived classes should override this function to notify the desktop environment.
 		virtual void set_mouse_capture(element &elem) {
-			logger::get().log_debug(
-				CP_HERE, "set mouse capture 0x", &elem,
-				" <", demangle(typeid(elem).name()), ">"
-			);
+			logger::get().log_debug(CP_HERE) <<
+				"set mouse capture 0x" << &elem << " <" << demangle(typeid(elem).name()) << ">";
 			assert_true_usage(_capture == nullptr, "mouse already captured");
 			_capture = &elem;
 			// send appropriate mouse leave / enter messages
@@ -139,7 +137,7 @@ namespace codepad::ui {
 		}
 		/// Releases the mouse capture. Derived classes should override this function to notify the system.
 		virtual void release_mouse_capture() {
-			logger::get().log_debug(CP_HERE, "release mouse capture");
+			logger::get().log_debug(CP_HERE) << "release mouse capture";
 			assert_true_usage(_capture != nullptr, "mouse not captured");
 			_capture = nullptr;
 			// TODO send a mouse_move message to correct mouse over information?
@@ -188,8 +186,11 @@ namespace codepad::ui {
 			return mouse_position(_cached_mouse_position_timestamp);
 		}
 
-		/// Calls renderer_base::begin to start rendering to this window.
-		void _on_render() override;
+		/// Calls \ref renderer_base::begin_drawing() and \ref renderer_base::clear() to start rendering to this
+		/// window.
+		void _on_prerender() override;
+		/// Calls \ref renderer_base::end_drawing() to stop drawing.
+		void _on_postrender() override;
 		/// Renders all the window's children, then renders all decorations on top of the rendered result. Also
 		/// removes all corpse decorations whose animations have finished.
 		void _custom_render() const override;

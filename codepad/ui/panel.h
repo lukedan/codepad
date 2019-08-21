@@ -480,13 +480,13 @@ namespace codepad::ui {
 
 		/// Used by composite elements to automatically check and cast a component pointer to the correct type, and
 		/// assign it to the given pointer.
-		template <typename Elem> inline static class_arrangements::construction_notify _name_cast(Elem * &elem) {
-			return [ppelem = &elem](element * ptr) {
+		template <typename Elem> inline static class_arrangements::construction_notify _name_cast(Elem *&elem) {
+			return [ppelem = &elem](element *ptr) {
 				*ppelem = dynamic_cast<Elem*>(ptr);
 				if (*ppelem == nullptr) {
-					logger::get().log_warning(
-						CP_HERE, "potentially incorrect component type, need ", demangle(typeid(Elem).name())
-					);
+					logger::get().log_error(CP_HERE) <<
+						"incorrect component type, need " << demangle(typeid(Elem).name()) <<
+						", found " << demangle(typeid(*ptr).name());
 				}
 			};
 		}
@@ -705,8 +705,8 @@ namespace codepad::ui {
 		/// Handles the orientation attribute.
 		void _set_attribute(str_view_t name, const json::value_storage & value) override {
 			if (name == u8"orientation") {
-				if (orientation o; json::object_parsers::try_parse(value.get_value(), o)) {
-					set_orientation(o);
+				if (auto ori = value.get_value().parse<orientation>()) {
+					set_orientation(ori.value());
 				}
 				return;
 			}

@@ -12,7 +12,6 @@
 #include "text_rendering.h"
 #include "window.h"
 #include "animation_path.h"
-#include "config_parsers.h"
 #include "../core/misc.h"
 #include "../core/encodings.h"
 #include "../core/settings.h"
@@ -189,8 +188,11 @@ namespace codepad::ui {
 		/// Handles the parsing of \ref _text_brush.
 		void _set_attribute(str_view_t name, const json::value_storage &v) override {
 			if (name == u8"text_brush") {
-				ui_config_json_parser<json::storage::value_t> parser(get_manager());
-				parser.parse_brush(v.get_value(), _text_brush);
+				if (auto brush = v.get_value().parse<generic_brush>(
+					managed_json_parser<generic_brush>(get_manager())
+					)) {
+					_text_brush = brush.value();
+				}
 				return;
 			}
 			element::_set_attribute(name, v);
@@ -199,25 +201,10 @@ namespace codepad::ui {
 		animation_subject_information _parse_animation_path(
 			const animation_path::component_list &components
 		) override {
-			if (
-				!components.empty() &&
-				components[0].is_type_or_empty(u8"label") &&
-				components[0].property == u8"text_brush" &&
-				!components[0].index.has_value()
-				) {
-				auto bs = animation_path::builder::get_member_subject<generic_brush>(
+			if (!components.empty() && components[0].is_similar(u8"label", u8"text_brush")) {
+				return animation_subject_information::from_member<&label::_text_brush>(
+					*this, animation_path::builder::element_property_type::visual_only,
 					++components.begin(), components.end()
-					);
-				std::unique_ptr<animation_path::builder::typed_member_access<element, generic_brush>> other =
-					animation_path::builder::make_component_member_access(
-						animation_path::builder::getter_components::pair(
-							animation_path::builder::getter_components::dynamic_cast_component<element, label>(),
-							animation_path::builder::getter_components::member_component<&label::_text_brush>()
-						)
-					);
-				return animation_subject_information::from_element_custom(
-					std::move(bs), std::move(other), *this,
-					animation_path::builder::element_property_type::visual_only
 				);
 			}
 			return element::_parse_animation_path(components);
@@ -555,8 +542,8 @@ namespace codepad::ui {
 		/// Sets the orientation of this element if requested.
 		void _set_attribute(str_view_t name, const json::value_storage &value) override {
 			if (name == u8"orientation") {
-				if (orientation o; json::object_parsers::try_parse(value.get_value(), o)) {
-					set_orientation(o);
+				if (auto ori = value.get_value().parse<orientation>()) {
+					set_orientation(ori.value());
 				}
 				return;
 			}

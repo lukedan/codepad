@@ -475,7 +475,7 @@ namespace codepad::ui {
 		/// Renders the element if the element does not have \ref manager::predefined_states::render_invisible state.
 		/// This function first calls \ref _on_prerender, then updates \ref _state and renders the background, calls
 		/// \ref _custom_render, and finally calls \ref _on_postrender.
-		virtual void _on_render();
+		void _on_render();
 
 		/// Called by the element itself when its desired size has changed. It should be left for the parent to
 		/// decide whether it should invalidate its own layout or call \ref invalidate_layout() on this child.
@@ -491,7 +491,8 @@ namespace codepad::ui {
 				std::isnan(get_layout().xmin) || std::isnan(get_layout().xmax) ||
 				std::isnan(get_layout().ymin) || std::isnan(get_layout().ymax)
 				) {
-				logger::get().log_warning(CP_HERE, "layout system produced nan on ", demangle(typeid(*this).name()));
+				logger::get().log_warning(CP_HERE) <<
+					"layout system produced nan on " << demangle(typeid(*this).name());
 			}
 			invalidate_visual();
 			layout_changed.invoke();
@@ -562,9 +563,8 @@ namespace codepad::ui {
 		/// Sets a custom attribute for this element.
 		virtual void _set_attribute(str_view_t name, const json::value_storage &v) {
 			if (name == u8"z_index") {
-				std::int32_t z;
-				if (json::try_cast(v.get_value(), z)) {
-					set_zindex(z);
+				if (auto z = v.get_value().cast<std::int32_t>()) {
+					set_zindex(z.value());
 				}
 				return;
 			}
@@ -676,5 +676,32 @@ namespace codepad::ui {
 			std::shared_ptr<animation_path::builder::member_access<Intermediate>>
 			>>(std::move(median), std::move(member.member));
 		return res;
+	}
+
+	template <
+		auto Member
+	> inline static animation_subject_information animation_subject_information::from_member(
+		element &elem, animation_path::builder::element_property_type type,
+		animation_path::component_list::const_iterator begin, animation_path::component_list::const_iterator end
+	) {
+		using member_component = animation_path::builder::getter_components::member_component<Member>;
+		using input = typename member_component::input_type;
+		using output = typename member_component::output_type;
+
+		auto inner = animation_path::builder::get_member_subject<output>(begin, end);
+		if (inner.member && inner.parser) {
+			std::unique_ptr<
+				animation_path::builder::typed_member_access<element, output>
+			> outer = animation_path::builder::make_component_member_access(
+				animation_path::builder::getter_components::pair(
+					animation_path::builder::getter_components::dynamic_cast_component<element, input>(),
+					member_component()
+				)
+			);
+			return animation_subject_information::from_element_custom(
+				std::move(inner), std::move(outer), elem, type
+			);
+		}
+		return animation_subject_information();
 	}
 }

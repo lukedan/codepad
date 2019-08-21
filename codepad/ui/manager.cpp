@@ -64,7 +64,7 @@ namespace codepad::ui {
 			if (cmd) {
 				(*cmd)(info.parameter);
 			} else {
-				logger::get().log_warning(CP_HERE, "invalid command: ", info.command);
+				logger::get().log_warning(CP_HERE) << "invalid command: " << info.command;
 			}
 		};
 	}

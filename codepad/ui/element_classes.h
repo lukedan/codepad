@@ -8,7 +8,6 @@
 
 #include <map>
 
-#include "../core/json.h"
 #include "hotkey_registry.h"
 #include "arrangements.h"
 #include "element_parameters.h"

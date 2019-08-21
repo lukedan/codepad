@@ -11,68 +11,102 @@
 #include <chrono>
 
 #include "../core/misc.h"
-#include "../core/json.h"
+#include "../core/json/misc.h"
+#include "../core/json/parsing.h"
 #include "renderer.h"
 
 namespace codepad {
 	/// Contains a collection of functions that parse objects from JSON objects.
-	namespace json::object_parsers {
+	namespace json {
 		/// Parser for \ref vec2d.
-		template <> struct parser<vec2d> {
+		template <> struct default_parser<vec2d> {
 			/// Parses \ref vec2d. The object must be of the following format: <tt>[x, y]</tt>
-			template <typename Value> bool operator()(const Value &obj, vec2d &v) const {
-				if (typename Value::array_t arr; json::try_cast(obj, arr) && arr.size() >= 2) {
-					v.x = json::cast_or_default<double>(arr[0], 0.0);
-					v.y = json::cast_or_default<double>(arr[1], 0.0);
-					return true;
+			template <typename Value> std::optional<vec2d> operator()(const Value &val) const {
+				std::optional<double> x, y;
+				if (auto arr = val.try_cast<typename Value::array_t>()) {
+					if (arr->size() >= 2) {
+						if (arr->size() > 2) {
+							val.log<log_level::warning>(CP_HERE) << u8"too many elements in vec2";
+						}
+						x = arr->at(0).parse<double>();
+						y = arr->at(1).parse<double>();
+					} else {
+						val.log<log_level::error>(CP_HERE) << u8"too few elements in vec2";
+					}
+				} else if (auto obj = val.try_cast<typename Value::object_t>()) {
+					if (obj->size() > 2) {
+						val.log<log_level::warning>(CP_HERE) << u8"redundant fields in vec2 definition";
+					}
+					x = obj->parse_member<double>(u8"x");
+					y = obj->parse_member<double>(u8"y");
+				} else {
+					val.log<log_level::error>(CP_HERE) << u8"invalid vec2 format";
 				}
-				return false;
+				if (x && y) {
+					return vec2d(x.value(), y.value());
+				}
+				return std::nullopt;
 			}
 		};
 
 		/// Parser for \ref colord.
-		template <> struct parser<colord> {
+		template <> struct default_parser<colord> {
 			/// Parses \ref colord. The object can take the following formats: <tt>["hsl", h, s, l(, a)]</tt> for
 			/// HSL format colors, and <tt>[r, g, b(, a)]</tt> for RGB format colors.
-			template <typename Value> bool operator()(const Value &obj, colord &c) const {
-				if (typename Value::array_t arr; json::try_cast(obj, arr) && arr.size() >= 3) { // must be an array
-					if (arr.size() > 3) {
-						if (str_view_t type; json::try_cast(arr[0], type) && type == u8"hsl") {
-							double h, s, l;
-							json::try_cast(arr[1], h);
-							json::try_cast(arr[2], s);
-							json::try_cast(arr[3], l);
-							c = colord::from_hsl(h, s, l);
-							if (arr.size() > 4) {
-								json::try_cast(arr[4], c.a);
+			template <typename Value> std::optional<colord> operator()(const Value &val) const {
+				if (auto arr = val.cast<typename Value::array_t>()) { // must be an array
+					if (arr->size() >= 3) {
+						colord result;
+						if (arr->size() > 3) {
+							if (auto format = arr->at(0).try_cast<str_view_t>()) {
+								if (format.value() == u8"hsl") {
+									auto
+										h = arr->at(1).cast<double>(),
+										s = arr->at(2).cast<double>(),
+										l = arr->at(3).cast<double>();
+									result = colord::from_hsl(h.value(), s.value(), l.value());
+									if (arr->size() > 4) {
+										result.a = arr->at(3).cast<double>().value_or(1.0);
+										if (arr->size() > 5) {
+											val.log<log_level::error>(CP_HERE) <<
+												"redundant fields in color definition";
+										}
+									}
+									return result;
+								}
+							} else {
+								result.a = arr->at(3).cast<double>().value_or(1.0);
 							}
-							return true;
-						} else {
-							json::try_cast(arr[3], c.a);
+							if (arr->size() > 4) {
+								val.log<log_level::error>(CP_HERE) << "redundant fields in color definition";
+							}
 						}
+						result.r = arr->at(0).cast<double>().value_or(0.0);
+						result.g = arr->at(1).cast<double>().value_or(0.0);
+						result.b = arr->at(2).cast<double>().value_or(0.0);
+						return result;
+					} else {
+						val.log<log_level::error>(CP_HERE) << "too few elements in color definition";
 					}
-					json::try_cast(arr[0], c.r);
-					json::try_cast(arr[1], c.g);
-					json::try_cast(arr[2], c.b);
-					return true;
 				}
-				return false;
+				return std::nullopt;
 			}
 		};
 
 		/// Parser for \p std::chrono::duration.
-		template <typename Rep, typename Period> struct parser<std::chrono::duration<Rep, Period>> {
+		template <typename Rep, typename Period> struct default_parser<std::chrono::duration<Rep, Period>> {
 			/// Parses a duration from a number. If the object is a number, it is treated as the number of seconds.
 			///
 			/// \todo Also accept string representations.
-			template <typename Value> bool operator()(const Value &val, std::chrono::duration<Rep, Period> &dur) const {
-				if (double secs; json::try_cast(val, secs)) {
-					dur = std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(
-						std::chrono::duration<double>(secs)
+			template <typename Value> std::optional<std::chrono::duration<Rep, Period>> operator()(
+				const Value &val
+				) const {
+				if (auto secs = val.cast<double>()) {
+					return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(
+						std::chrono::duration<double>(secs.value())
 						);
-					return true;
 				}
-				return false;
+				return std::nullopt;
 			}
 		};
 	}
@@ -84,21 +118,22 @@ namespace codepad {
 			vertical ///< Vertical.
 		};
 	}
-	namespace json::object_parsers {
+	namespace json {
 		/// Parser for \ref ui::orientation.
-		template <> struct parser<ui::orientation> {
+		template <> struct default_parser<ui::orientation> {
 			/// Parses \ref orientation.
-			template <typename Value> bool operator()(const Value &obj, ui::orientation &o) const {
-				if (str_view_t val; json::try_cast(obj, val)) {
-					if (val == u8"h" || val == u8"hori" || val == u8"horizontal") {
-						o = ui::orientation::horizontal;
-						return true;
-					} else if (val == u8"v" || val == u8"vert" || val == u8"vertical") {
-						o = ui::orientation::vertical;
-						return true;
+			template <typename Value> std::optional<ui::orientation> operator()(const Value &obj) const {
+				if (auto opt_str = obj.cast<str_view_t>()) {
+					str_view_t str = opt_str.value();
+					if (str == u8"h" || str == u8"hori" || str == u8"horizontal") {
+						return ui::orientation::horizontal;
+					} else if (str == u8"v" || str == u8"vert" || str == u8"vertical") {
+						return ui::orientation::vertical;
+					} else {
+						obj.log<log_level::error>(CP_HERE) << "invalid orientation string";
 					}
 				}
-				return false;
+				return std::nullopt;
 			}
 		};
 	}
@@ -118,25 +153,24 @@ namespace codepad {
 	/// Enables bitwise operators for \ref modifier_keys.
 	template <> struct enable_enum_bitwise_operators<ui::visibility> : public std::true_type {
 	};
-	namespace json::object_parsers {
+	namespace json {
 		/// Parser for \ref ui::visibility.
-		template <> struct parser<ui::visibility> {
+		template <> struct default_parser<ui::visibility> {
 			/// Parses \ref ui::visibility. Each character in the string corresponds to a bit of the value.
-			template <typename Value> bool operator()(const Value &obj, ui::visibility &v) const {
-				if (obj.is<json::null_t>()) {
-					v = ui::visibility::none;
-					return true;
-				}
-				if (str_view_t val; json::try_cast(obj, val)) {
-					v = get_bitset_from_string<ui::visibility>({
+			template <typename Value> std::optional<ui::visibility> operator()(const Value &val) const {
+				if (val.template is<json::null_t>()) {
+					return ui::visibility::none;
+				} else if (auto str = val.try_cast<str_view_t>()) {
+					return get_bitset_from_string<ui::visibility>({
 						{u8'v', ui::visibility::visual},
 						{u8'i', ui::visibility::interact},
 						{u8'l', ui::visibility::layout},
 						{u8'f', ui::visibility::focus}
-						}, val);
-					return true;
+						}, str.value());
+				} else {
+					val.log<log_level::error>(CP_HERE) << "invalid visibility format";
 				}
-				return false;
+				return std::nullopt;
 			}
 		};
 	}
@@ -161,66 +195,41 @@ namespace codepad {
 			not_specified ///< An unspecified cursor.
 		};
 	}
-	namespace json::object_parsers {
+	namespace json {
 		/// Parser for \ref ui::cursor.
-		template <> struct parser<ui::cursor> {
+		template <> struct default_parser<ui::cursor> {
 			/// Parses a \ref ui::cursor.
-			template <typename Value> bool operator()(const Value &obj, ui::cursor &c) const {
-				if (str_view_t s; json::try_cast(obj, s)) {
-					if (s == u8"normal") {
-						c = ui::cursor::normal;
-						return true;
-					}
-					if (s == u8"busy") {
-						c = ui::cursor::busy;
-						return true;
-					}
-					if (s == u8"crosshair") {
-						c = ui::cursor::crosshair;
-						return true;
-					}
-					if (s == u8"hand") {
-						c = ui::cursor::hand;
-						return true;
-					}
-					if (s == u8"help") {
-						c = ui::cursor::help;
-						return true;
-					}
-					if (s == u8"text_beam") {
-						c = ui::cursor::text_beam;
-						return true;
-					}
-					if (s == u8"denied") {
-						c = ui::cursor::denied;
-						return true;
-					}
-					if (s == u8"arrow_all") {
-						c = ui::cursor::arrow_all;
-						return true;
-					}
-					if (s == u8"arrow_northeast_southwest") {
-						c = ui::cursor::arrow_northeast_southwest;
-						return true;
-					}
-					if (s == u8"arrow_north_south") {
-						c = ui::cursor::arrow_north_south;
-						return true;
-					}
-					if (s == u8"arrow_northwest_southeast") {
-						c = ui::cursor::arrow_northwest_southeast;
-						return true;
-					}
-					if (s == u8"arrow_east_west") {
-						c = ui::cursor::arrow_east_west;
-						return true;
-					}
-					if (s == u8"invisible") {
-						c = ui::cursor::invisible;
-						return true;
+			template <typename Value> std::optional<ui::cursor> operator()(const Value &val) const {
+				if (auto str = val.cast<str_view_t>()) {
+					if (str.value() == u8"normal") {
+						return ui::cursor::normal;
+					} else if (str.value() == u8"busy") {
+						return ui::cursor::busy;
+					} else if (str.value() == u8"crosshair") {
+						return ui::cursor::crosshair;
+					} else if (str.value() == u8"hand") {
+						return ui::cursor::hand;
+					} else if (str.value() == u8"help") {
+						return ui::cursor::help;
+					} else if (str.value() == u8"text_beam") {
+						return ui::cursor::text_beam;
+					} else if (str.value() == u8"denied") {
+						return ui::cursor::denied;
+					} else if (str.value() == u8"arrow_all") {
+						return ui::cursor::arrow_all;
+					} else if (str.value() == u8"arrow_northeast_southwest") {
+						return ui::cursor::arrow_northeast_southwest;
+					} else if (str.value() == u8"arrow_north_south") {
+						return ui::cursor::arrow_north_south;
+					} else if (str.value() == u8"arrow_northwest_southeast") {
+						return ui::cursor::arrow_northwest_southeast;
+					} else if (str.value() == u8"arrow_east_west") {
+						return ui::cursor::arrow_east_west;
+					} else if (str.value() == u8"invisible") {
+						return ui::cursor::invisible;
 					}
 				}
-				return false;
+				return std::nullopt;
 			}
 		};
 	}
@@ -294,7 +303,71 @@ namespace codepad {
 		};
 		/// The total number of supported keys.
 		constexpr size_t total_num_keys = static_cast<size_t>(key::max_value);
+	}
+	/// Parser for \ref ui::key.
+	template <> struct enum_parser<ui::key> {
+		/// The parser interface.
+		inline static std::optional<ui::key> parse(str_view_t str) {
+			// TODO caseless comparison
+			if (str.length() == 1) {
+				if (str[0] >= 'a' && str[0] <= 'z') {
+					return static_cast<ui::key>(
+						static_cast<size_t>(ui::key::a) + (str[0] - 'a')
+						);
+				}
+				switch (str[0]) {
+				case ' ':
+					return ui::key::space;
+				case '+':
+					return ui::key::add;
+				case '-':
+					return ui::key::subtract;
+				case '*':
+					return ui::key::multiply;
+				case '/':
+					return ui::key::divide;
+				}
+			}
+			if (str == u8"left") {
+				return ui::key::left;
+			} else if (str == u8"right") {
+				return ui::key::right;
+			} else if (str == u8"up") {
+				return ui::key::up;
+			} else if (str == u8"down") {
+				return ui::key::down;
+			} else if (str == u8"space") {
+				return ui::key::space;
+			} else if (str == u8"insert") {
+				return ui::key::insert;
+			} else if (str == u8"delete") {
+				return ui::key::del;
+			} else if (str == u8"backspace") {
+				return ui::key::backspace;
+			} else if (str == u8"home") {
+				return ui::key::home;
+			} else if (str == u8"end") {
+				return ui::key::end;
+			} else if (str == u8"enter") {
+				return ui::key::enter;
+			}
+			return std::nullopt;
+		}
+	};
+	namespace json {
+		/// Parser for \ref ui::key.
+		template <> struct default_parser<ui::key> {
+			/// The parser interface.
+			template <typename Value> std::optional<ui::key> operator()(const Value &val) const {
+				if (auto str = val.cast<str_view_t>()) {
+					return enum_parser<ui::key>::parse(str.value());
+				}
+				return std::nullopt;
+			}
+		};
+	}
 
+	namespace ui {
 		/// Represents a margin, a padding, etc.
 		struct thickness {
 			/// Constructs the struct with the same value for all four sides.
@@ -333,25 +406,35 @@ namespace codepad {
 			}
 		};
 	}
-	namespace json::object_parsers {
+	namespace json {
 		/// Parser for \ref ui::thickness.
-		template <> struct parser<ui::thickness> {
+		template <> struct default_parser<ui::thickness> {
 			/// Parses \ref ui::thickness. The object can take the following formats:
 			/// <tt>[left, top, right, bottom]</tt> or a single number specifying the value for all four
 			/// directions.
-			template <typename Value> bool operator()(const Value &obj, ui::thickness &t) const {
-				if (typename Value::array_t arr; json::try_cast(obj, arr) && arr.size() >= 4) {
-					json::try_cast(arr[0], t.left);
-					json::try_cast(arr[1], t.top);
-					json::try_cast(arr[2], t.right);
-					json::try_cast(arr[3], t.bottom);
-					return true;
+			template <typename Value> std::optional<ui::thickness> operator()(const Value &val) const {
+				if (auto arr = val.try_cast<typename Value::array_t>()) {
+					if (arr->size() >= 4) {
+						if (arr->size() > 4) {
+							val.log<log_level::error>(CP_HERE) << "redundant elements in thickness definition";
+						}
+						auto
+							l = arr->at(0).cast<double>(),
+							t = arr->at(1).cast<double>(),
+							r = arr->at(2).cast<double>(),
+							b = arr->at(3).cast<double>();
+						if (l && t && r && b) {
+							return ui::thickness(l.value(), t.value(), r.value(), b.value());
+						}
+					} else {
+						val.log<log_level::error>(CP_HERE) << "too few elements in thickness";
+					}
+				} else if (auto v = val.try_cast<double>()) {
+					return ui::thickness(v.value());
+				} else {
+					val.log<log_level::error>(CP_HERE) << "invalid thickness format";
 				}
-				if (double v; json::try_cast(obj, v)) {
-					t.left = t.top = t.right = t.bottom = v;
-					return true;
-				}
-				return false;
+				return std::nullopt;
 			}
 		};
 	}
@@ -375,11 +458,20 @@ namespace codepad {
 			size_allocation(double v, bool px) : value(v), is_pixels(px) {
 			}
 
+			/// Returns a \ref size_allocation corresponding to the given number of pixels.
+			inline static size_allocation pixels(double px) {
+				return size_allocation(px, true);
+			}
+			/// Returns a \ref size_allocation corresponding to the given proportion.
+			inline static size_allocation proportion(double val) {
+				return size_allocation(val, false);
+			}
+
 			double value = 0.0; ///< The value.
 			bool is_pixels = false; ///< Indicates whether \ref value is in pixels instead of a proportion.
 		};
 	}
-	namespace json::object_parsers {
+	namespace json {
 		/// ends_with.
 		///
 		/// \todo Use STL implementation after C++20.
@@ -398,35 +490,38 @@ namespace codepad {
 			}
 		}
 		/// Parser for \ref ui::size_allocation.
-		template <> struct parser<ui::size_allocation> {
+		template <> struct default_parser<ui::size_allocation> {
 			/// Parses a \ref ui::size_allocation. The object can either be a full representation of the struct with two
 			/// fields, a single number in pixels, or a string that optionally ends with `*', `%', or `px', the former
 			/// two of which indicates that the value is a proportion. If the string ends with `%', the value is
 			/// additionally divided by 100, thus using `%' and `*' mixedly is not recommended.
-			template <typename Value> bool operator()(const Value &obj, ui::size_allocation &sz) const {
-				if (json::try_cast(obj, sz.value)) { // number in pixels
-					sz.is_pixels = true;
-					return true;
-				}
-				if (typename Value::object_t full; json::try_cast(obj, full)) { // full object representation
-					json::try_cast_member(full, u8"value", sz.value);
-					json::try_cast_member(full, u8"is_pixels", sz.is_pixels);
-					return true;
-				}
-				if (str_view_t str; json::try_cast(obj, str)) {
-					sz.value = 0;
-					sz.is_pixels = true; // in pixels if no suffix is present
-					bool percentage = _details::ends_with(str, "%"); // the value is additionally divided by 100
-					if (percentage || _details::ends_with(str, "*")) { // proportion
-						sz.is_pixels = false;
+			template <typename Value> std::optional<ui::size_allocation> operator()(const Value &val) const {
+				if (auto pixels = val.try_cast<double>()) { // number in pixels
+					return ui::size_allocation::pixels(pixels.value());
+				} else if (auto str = val.try_cast<str_view_t>()) {
+					ui::size_allocation res(0.0, true); // in pixels if no suffix is present
+					bool percentage = _details::ends_with(str.value(), "%"); // the value is additionally divided by 100
+					if (percentage || _details::ends_with(str.value(), "*")) { // proportion
+						res.is_pixels = false;
 					}
-					std::from_chars(str.data(), str.data() + str.size(), sz.value); // result ignored
+					std::from_chars(str->data(), str->data() + str->size(), res.value); // result ignored
 					if (percentage) {
-						sz.value *= 0.01;
+						res.value *= 0.01;
 					}
-					return true;
+					return res;
+				} else if (auto full = val.try_cast<typename Value::object_t>()) { // full object representation
+					auto value = full->parse_member<double>(u8"value");
+					auto is_pixels = full->parse_member<bool>(u8"is_pixels");
+					if (value && is_pixels) {
+						if (full->size() > 2) {
+							full->log<log_level::error>(CP_HERE) << "redundant fields in size allocation";
+						}
+						return ui::size_allocation(value.value(), is_pixels.value());
+					}
+				} else {
+					val.log<log_level::error>(CP_HERE) << "invalid size allocation format";
 				}
-				return false;
+				return std::nullopt;
 			}
 		};
 	}
@@ -462,23 +557,22 @@ namespace codepad {
 	/// Enables bitwise operators for \ref ui::anchor.
 	template <> struct enable_enum_bitwise_operators<ui::anchor> : public std::true_type {
 	};
-	namespace json::object_parsers {
+	namespace json {
 		/// Parser for \ref ui::anchor.
-		template <> struct parser<ui::anchor> {
+		template <> struct default_parser<ui::anchor> {
 			/// Parses \ref ui::anchor. The object can be a string that contains any combination of characters `l',
 			/// `t', `r', and `b', standing for \ref ui::anchor::left, \ref ui::anchor::top, \ref ui::anchor::right,
 			/// and \ref ui::anchor::bottom, respectively.
-			template <typename Value> bool operator()(const Value &obj, ui::anchor &a) const {
-				if (str_view_t str; json::try_cast(obj, str)) {
-					a = get_bitset_from_string<ui::anchor>({
+			template <typename Value> std::optional<ui::anchor> operator()(const Value &obj) const {
+				if (auto str = obj.cast<str_view_t>()) {
+					return get_bitset_from_string<ui::anchor>({
 						{CP_STRLIT('l'), ui::anchor::left},
 						{CP_STRLIT('t'), ui::anchor::top},
 						{CP_STRLIT('r'), ui::anchor::right},
 						{CP_STRLIT('b'), ui::anchor::bottom}
-						}, str);
-					return true;
+						}, str.value());
 				}
-				return false;
+				return std::nullopt;
 			}
 		};
 	}
@@ -492,27 +586,42 @@ namespace codepad {
 			proportion ///< The user specifies the size as a proportion.
 		};
 	}
-	namespace json::object_parsers {
+	/// Parser for \ref ui::size_allocation_type.
+	template <> struct enum_parser<ui::size_allocation_type> {
+		/// The parser interface.
+		inline static std::optional<ui::size_allocation_type> parse(str_view_t str) {
+			// TODO caseless comparison
+			if (str == u8"fixed" || str == u8"pixels" || str == u8"px") {
+				return ui::size_allocation_type::fixed;
+			} else if (str == u8"proportion" || str == u8"prop" || str == u8"*") {
+				return ui::size_allocation_type::proportion;
+			} else if (str == u8"automatic" || str == u8"auto") {
+				return ui::size_allocation_type::automatic;
+			}
+			return std::nullopt;
+		}
+	};
+	namespace json {
 		/// Parser for \ref ui::size_allocation_type.
-		template <> struct parser<ui::size_allocation_type> {
+		template <> struct default_parser<ui::size_allocation_type> {
 			/// Parses \ref ui::size_allocation_type. Checks if the given object (which must be a string) is one of
 			/// the constants and returns the corresponding value.
-			template <typename Value> bool operator()(const Value &obj, ui::size_allocation_type &ty) const {
-				if (str_view_t str; json::try_cast(obj, str)) {
-					if (str == u8"fixed" || str == u8"pixels" || str == u8"px") {
-						ty = ui::size_allocation_type::fixed;
-						return true;
-					}
-					if (str == u8"proportion" || str == u8"prop" || str == u8"*") {
-						ty = ui::size_allocation_type::proportion;
-						return true;
-					}
-					if (str == u8"automatic" || str == u8"auto") {
-						ty = ui::size_allocation_type::automatic;
-						return true;
-					}
+			template <typename Value> std::optional<ui::size_allocation_type> operator()(const Value &obj) const {
+				if (auto str = obj.cast<str_view_t>()) {
+					return enum_parser<ui::size_allocation_type>::parse(str.value());
 				}
-				return false;
+				return std::nullopt;
+			}
+		};
+	}
+
+	namespace ui {
+		/// A JSON parser that loads resources from the specified \ref manager. The default implementation does not rely
+		/// upon a \ref manager and simply defaults to \ref json::default_parser.
+		template <typename T> struct managed_json_parser {
+			/// The parser interface.
+			template <typename Value> std::optional<T> operator()(const Value &v) const {
+				return json::default_parser<T>{}(v);
 			}
 		};
 	}

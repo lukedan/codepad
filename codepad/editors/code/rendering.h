@@ -686,8 +686,8 @@ namespace codepad::editors::code {
 			template <
 				typename Frag, typename Rendering
 			> inline static std::optional<_single_caret_renderer> start_at_fragment(
-				const Frag&, const Rendering & r, size_t steps, size_t posafter,
-				caret_gatherer & rend, caret_set::const_iterator iter
+				const Frag&, const Rendering &r, size_t steps, size_t posafter,
+				caret_gatherer &rend, caret_set::const_iterator iter
 			) {
 				return _start_at_solid_fragment(
 					_get_solid_fragment_caret_position(r, rend.get_fragment_assembler()), steps, posafter, rend, iter

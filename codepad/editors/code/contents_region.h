@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "../../core/bst.h"
+#include "../../core/settings.h"
 #include "../editor.h"
 #include "../interaction_modes.h"
 #include "caret_set.h"
@@ -326,7 +327,7 @@ namespace codepad::editors::code {
 				if (encodings::utf8::next_codepoint(it, end, cp)) {
 					str.append(_doc->get_encoding()->encode_codepoint(cp));
 				} else {
-					logger::get().log_warning(CP_HERE, "skipped invalid byte sequence in input");
+					logger::get().log_warning(CP_HERE) << "skipped invalid byte sequence in input";
 				}
 			}
 			_doc->on_insert(_cset, str, this);
@@ -595,19 +596,6 @@ namespace codepad::editors::code {
 			return colord(1.0, 0.2, 0.2, 1.0);
 		}
 
-		/*
-		/// Sets the \ref ui::font_family used by all contents_region instances. The caller must make sure in advance that
-		/// global variables relating to fonts have been properly initialized.
-		inline static void set_font(const ui::font_family &ff) {
-			_get_appearance().family = ff;
-		}
-		/// Returns the \ref ui::font_family used by all contents_region instances. The caller must make sure in advance that
-		/// global variables relating to fonts have been properly initialized.
-		inline static const ui::font_family &get_font() {
-			return _get_appearance().family;
-		}
-		*/
-
 		/// Casts the obtained \ref components_region_base to the correct type.
 		inline static contents_region *get_from_editor(editor & edt) {
 			return dynamic_cast<contents_region*>(edt.get_contents_region());
@@ -653,6 +641,11 @@ namespace codepad::editors::code {
 			_line_height = 18.0; ///< The height of a line.
 		view_formatting _fmt; ///< The \ref view_formatting associated with this contents_region.
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
+
+
+		/// Retrieves the setting entry that determines the font size.
+		static settings::retriever_parser<double> &_get_font_size_setting();
+
 
 		/// Returns the visual line that the given caret is on.
 		size_t _get_visual_line_of_caret(caret_position pos) const {

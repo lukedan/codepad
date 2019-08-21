@@ -14,7 +14,6 @@
 
 namespace codepad::ui {
 	class element;
-	template <typename ValueType> class ui_config_json_parser;
 
 	/// Used to parse strings into \ref typed_animation_target_base.
 	namespace animation_path {
@@ -37,6 +36,11 @@ namespace codepad::ui {
 			/// Returns \p true if \ref type is the same as the input or if \ref type is empty.
 			bool is_type_or_empty(str_view_t ty) const {
 				return type.empty() || type == ty;
+			}
+			/// Returns \p true if \ref property matches the given property name, \ref type is empty or matches the
+			/// given type name, and \ref index is empty.
+			bool is_similar(str_view_t ty, str_view_t prop) const {
+				return is_type_or_empty(ty) && prop == property && !index.has_value();
 			}
 		};
 		using component_list = std::vector<component>; ///< A list of components.
@@ -255,6 +259,59 @@ namespace codepad::ui {
 			};
 
 
+			/// An \ref typed_animation_subject that grants access to a value throught a reference to an object and a
+			/// \ref typed_member_access. The \ref typed_member_access must outlive this object.
+			template <typename Input, typename Output> class member_access_subject :
+				public typed_animation_subject<Output> {
+			public:
+				/// Initializes all fields of this class.
+				member_access_subject(const typed_member_access<Input, Output> &m, Input &obj) : _member(m), _object(obj) {
+				}
+
+				/// Retrieves the value through \ref _member.
+				const Output &get() const override {
+					return *_member.get_typed(_object);
+				}
+				/// Sets the value through \ref _member.
+				void set(Output v) override {
+					*_member.get_typed(_object) = std::move(v);
+				}
+
+				/// Tests the equality between two subjects.
+				bool equals(const animation_subject_base &subject) const override {
+					if (auto * ptr = dynamic_cast<const member_access_subject<Input, Output>*>(&subject)) {
+						return &_object == &ptr->_object && _member.equals(ptr->_member);
+					}
+					return false;
+				}
+			protected:
+				/// Reference to the \ref typed_member_access object.
+				const typed_member_access<Input, Output> &_member;
+				Input &_object; ///< The object that the subject belong to.
+			};
+
+			/// A \ref member_access_subject whose input is an \ref element. This struct calls
+			/// \ref mamager::invalidate_layout() and \ref manager::invalidate_visuals() appropriately.
+			template <typename Output, element_property_type Type> class element_member_access_subject :
+				public member_access_subject<element, Output> {
+			public:
+				element_member_access_subject(const typed_member_access<element, Output> &m, element &obj) :
+					member_access_subject<element, Output>(m, obj) {
+				}
+
+				/// Calls \ref member_access_subject::set(), then calls \ref manager::invalidate_layout() and/or
+				/// \ref manager::invalidate_visuals().
+				void set(Output) override;
+
+				/// Tests the equality between two subjects.
+				bool equals(const animation_subject_base &subject) const override {
+					if (auto * ptr = dynamic_cast<const element_member_access_subject<Output, Type>*>(&subject)) {
+						return &this->_object == &ptr->_object && this->_member.equals(ptr->_member);
+					}
+					return false;
+				}
+			};
+
 			/// Animation subjects created by a \ref component_member_access.
 			template <
 				element_property_type Type, typename Intermediate, typename Target
@@ -272,9 +329,14 @@ namespace codepad::ui {
 				const Target &get() const override {
 					return *_second.get_typed(*_first.get_typed(_source));
 				}
-				/// Sets the value.
+				/// Sets the value, calling \ref scheduler::invalidate_layout() or
+				/// \ref scheduler::invalidate_visual() if necessary.
 				void set(Target t) override {
 					*_second.get_typed(*_first.get_typed(_source)) = std::move(t);
+					if constexpr (Type == element_property_type::affects_layout) {
+						_source.get_manager().get_scheduler().invalidate_layout(_source);
+					}
+					_source.get_manager().get_scheduler().invalidate_visual(_source);
 				}
 
 				/// Checks if \ref _first, \ref _second, and \ref _source are the same if the other object is also
@@ -308,6 +370,10 @@ namespace codepad::ui {
 					return _component.get(&input);
 				}
 
+				/// Creates a \ref member_access_subject.
+				std::unique_ptr<animation_subject_base> create_for_source(input_type &input) const override {
+					return std::make_unique<member_access_subject<input_type, output_type>>(*this, input);
+				}
 				/// Creates a \ref custom_element_member_subject.
 				std::unique_ptr<animation_subject_base> create_for_element(
 					element &elem, typed_member_access<element, input_type> &middle, element_property_type type
@@ -348,60 +414,6 @@ namespace codepad::ui {
 			template <typename Source> struct member_information {
 				std::unique_ptr<member_access<Source>> member; ///< The member.
 				std::unique_ptr<animation_value_parser_base> parser; ///< Used to parse animations from JSON.
-			};
-
-
-			/// An \ref typed_animation_subject that grants access to a value throught a reference to an object and a
-			/// \ref typed_member_access. The \ref typed_member_access must outlive this object.
-			template <typename Input, typename Output> class member_access_subject :
-				public typed_animation_subject<Output> {
-			public:
-				/// Initializes all fields of this class.
-				member_access_subject(const typed_member_access<Input, Output> &m, Input &obj) : _member(m), _object(obj) {
-				}
-
-				/// Retrieves the value through \ref _member.
-				const Output &get() const override {
-					return *_member.get_typed(_object);
-				}
-				/// Sets the value through \ref _member.
-				void set(Output v) override {
-					*_member.get_typed(_object) = std::move(v);
-				}
-
-				/// Tests the equality between two subjects.
-				bool equals(const animation_subject_base &subject) const override {
-					if (auto *ptr = dynamic_cast<const member_access_subject<Input, Output>*>(&subject)) {
-						return &_object == &ptr->_object && _member.equals(ptr->_member);
-					}
-					return false;
-				}
-			protected:
-				/// Reference to the \ref typed_member_access object.
-				const typed_member_access<Input, Output> &_member;
-				Input &_object; ///< The object that the subject belong to.
-			};
-
-			/// A \ref member_access_subject whose input is an \ref element. This struct calls
-			/// \ref mamager::invalidate_layout() and \ref manager::invalidate_visuals() appropriately.
-			template <typename Output, element_property_type Type> class element_member_access_subject :
-				public member_access_subject<element, Output> {
-			public:
-				element_member_access_subject(const typed_member_access<element, Output> &m, element &obj) :
-					member_access_subject<element, Output>(m, obj) {
-				}
-
-				/// Calls \ref member_access_subject::set(), then calls \ref manager::invalidate_layout() and/or
-				/// \ref manager::invalidate_visuals().
-				void set(Output) override;
-
-				/// Tests the equality between two subjects.
-				bool equals(const animation_subject_base &subject) const override {
-					if (auto *ptr = dynamic_cast<const element_member_access_subject<Output, Type>*>(&subject)) {
-						return &this->_object == &ptr->_object && this->_member.equals(ptr->_member);
-					}
-					return false;
-				}
 			};
 
 
@@ -456,6 +468,8 @@ namespace codepad::ui {
 						if (input && index < input->size()) {
 							return &((*input)[index]);
 						}
+						logger::get().log_warning(CP_HERE) <<
+							demangle(typeid(*this).name()) << "[" << index << "]: index overflow";
 						return nullptr;
 					}
 
@@ -476,6 +490,8 @@ namespace codepad::ui {
 						if (input && std::holds_alternative<Target>(*input)) {
 							return &std::get<Target>(*input);
 						}
+						logger::get().log_warning(CP_HERE) <<
+							demangle(typeid(variant_component<Variant, Target>).name()) << ": type mismatch";
 						return nullptr;
 					}
 
@@ -493,7 +509,14 @@ namespace codepad::ui {
 					inline static std::enable_if_t<std::is_base_of_v<input_type, output_type>, output_type*> get(
 						input_type *input
 					) {
-						return dynamic_cast<output_type*>(input);
+						if (input) {
+							if (output_type *out = dynamic_cast<output_type*>(input)) {
+								return out;
+							}
+							logger::get().log_warning(CP_HERE) <<
+								demangle(typeid(dynamic_cast_component<Source, Target>).name()) << ": failed cast";
+						}
+						return nullptr;
 					}
 
 					/// Two instances with the same template arguments are always equal.
@@ -573,12 +596,17 @@ namespace codepad::ui {
 			res.subject_data.emplace<std::shared_ptr<animation_path::builder::member_access<element>>>(ptr);
 			return res;
 		}
-
 		/// Similar to \ref from_element(), but calls \ref animation_path::member_access::create_for_element().
 		template <typename Intermediate> inline static animation_subject_information from_element_custom(
 			animation_path::builder::member_information<Intermediate>,
 			std::unique_ptr<animation_path::builder::typed_member_access<element, Intermediate>>,
 			element&, animation_path::builder::element_property_type
+		);
+
+		/// Creates a \ref animation_subject_information by combing a \ref 
+		template <auto Member> inline static animation_subject_information from_member(
+			element&, animation_path::builder::element_property_type,
+			animation_path::component_list::const_iterator, animation_path::component_list::const_iterator
 		);
 	};
 }

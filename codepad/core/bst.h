@@ -10,6 +10,7 @@
 #include <functional>
 
 #include "misc.h"
+#include "assert.h"
 
 namespace codepad {
 	/// A struct used to specify that no additional data is stored in the nodes of a \ref binary_tree.
@@ -250,19 +251,19 @@ namespace codepad {
 				return !(lhs == rhs);
 			}
 
-			/// Pre-increment.
+			/// Prefix increment.
 			iterator_base &operator++() {
 				assert_true_logical(_n != nullptr, "cannot increment iterator");
 				_n = _n->next();
 				return *this;
 			}
-			/// Post-increment.
+			/// Postfix increment.
 			const iterator_base operator++(int) {
 				iterator_base ov = *this;
 				++*this;
 				return ov;
 			}
-			/// Pre-decrement.
+			/// Prefix decrement.
 			iterator_base &operator--() {
 				if (_n) {
 					_n = _n->prev();
@@ -272,7 +273,7 @@ namespace codepad {
 				}
 				return *this;
 			}
-			/// Post-decrement.
+			/// Postfix decrement.
 			const iterator_base operator--(int) {
 				iterator_base ov = *this;
 				--*this;
@@ -542,7 +543,7 @@ namespace codepad {
 		template <typename ...Args> iterator emplace_before_custom_synth(const_iterator before, Args &&...args) {
 			return emplace_before_custom_synth(before.get_node(), std::forward<Args>(args)...);
 		}
-		/// \ref emplace_before_custom_synth(node*, MySynth&&, Args&&...) with the default synthesizer.
+		/// \ref emplace_before_custom_synth() with the default synthesizer.
 		template <typename ...Args> iterator emplace_before(node *before, Args &&...args) {
 			return emplace_before_custom_synth(before, _root.synth, std::forward<Args>(args)...);
 		}

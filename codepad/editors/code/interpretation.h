@@ -538,7 +538,7 @@ namespace codepad::editors::code {
 			for (const chunk_data &chk : _chks) {
 				if (chk.num_codepoints == 0 || chk.num_bytes == 0) {
 					error = true;
-					logger::get().log_error(CP_HERE, "empty chunk encountered");
+					logger::get().log_error(CP_HERE) << "empty chunk encountered";
 				}
 			}
 
@@ -559,10 +559,9 @@ namespace codepad::editors::code {
 					}
 					if (it.get_position() > chkend) {
 						error = true;
-						logger::get().log_error(
-							CP_HERE, "codepoint boundary mismatch at byte ", chkend,
-							": expected ", it.get_position()
-						);
+						logger::get().log_error(CP_HERE) <<
+							"codepoint boundary mismatch at byte " << chkend <<
+							": expected " << it.get_position();
 					}
 					bytesbefore = chkend;
 					++chk;
@@ -571,16 +570,14 @@ namespace codepad::editors::code {
 			if (it != _buf->end() || chk != _chks.end()) {
 				error = true;
 				if (it != _buf->end()) {
-					logger::get().log_error(
-						CP_HERE, "document length mismatch: chunks ended abruptly at byte ", it.get_position(),
-						", expected ", _buf->length()
-					);
+					logger::get().log_error(CP_HERE) <<
+						"document length mismatch: chunks ended abruptly at byte " << it.get_position() <<
+						", expected " << _buf->length();
 				} else {
-					logger::get().log_error(
-						CP_HERE, "document length mismatch: got ",
-						_chks.empty() ? 0 : _chks.root()->synth_data.total_bytes, " bytes, expected ",
-						_buf->length(), " bytes"
-					);
+					logger::get().log_error(CP_HERE) <<
+						"document length mismatch: got " <<
+						(_chks.empty() ? 0 : _chks.root()->synth_data.total_bytes) << " bytes, expected " <<
+						_buf->length() << " bytes";
 				}
 			}
 			linebreaks.finish();
@@ -591,19 +588,17 @@ namespace codepad::editors::code {
 			while (explineit != linebreaks.result().end() && gotlineit != _lbs.end()) {
 				if (gotlineit->nonbreak_chars != explineit->nonbreak_chars) {
 					error = true;
-					logger::get().log_error(
-						CP_HERE, "line length mismatch at line ", line, ", starting at codepoint ",
-						_lbs.get_beginning_codepoint_of(gotlineit), ": expected ", explineit->nonbreak_chars,
-						", got ", gotlineit->nonbreak_chars
-					);
+					logger::get().log_error(CP_HERE) <<
+						"line length mismatch at line " << line << ", starting at codepoint " <<
+						_lbs.get_beginning_codepoint_of(gotlineit) << ": expected " << explineit->nonbreak_chars <<
+						", got " << gotlineit->nonbreak_chars;
 				}
 				if (gotlineit->ending != explineit->ending) {
 					error = true;
-					logger::get().log_error(
-						CP_HERE, "linebreak type mismatch at line ", line, ", starting at codepoint ",
-						_lbs.get_beginning_codepoint_of(gotlineit), ": expected ",
-						static_cast<int>(explineit->ending), ", got ", static_cast<int>(gotlineit->ending)
-					);
+					logger::get().log_error(CP_HERE) <<
+						"linebreak type mismatch at line " << line << ", starting at codepoint " <<
+						_lbs.get_beginning_codepoint_of(gotlineit) << ": expected " <<
+						static_cast<int>(explineit->ending) << ", got " << static_cast<int>(gotlineit->ending);
 				}
 				++explineit;
 				++gotlineit;
@@ -611,10 +606,9 @@ namespace codepad::editors::code {
 			}
 			if (_lbs.num_linebreaks() + 1 != linebreaks.result().size()) {
 				error = true;
-				logger::get().log_error(
-					CP_HERE, "number of lines mismatch: got ", _lbs.num_linebreaks() + 1,
-					", expected ", linebreaks.result().size()
-				);
+				logger::get().log_error(CP_HERE) <<
+					"number of lines mismatch: got " << _lbs.num_linebreaks() + 1 <<
+					", expected " << linebreaks.result().size();
 			}
 
 			return !error;

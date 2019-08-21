@@ -5,6 +5,7 @@
 #include <Shlwapi.h>
 #include <processthreadsapi.h>
 
+#include "../../core/logger_sinks.h"
 #include "../windows.h"
 
 using namespace std;
@@ -212,9 +213,9 @@ namespace codepad::os {
 						auto *ptr = reinterpret_cast<const std::byte*>(&wparam);
 						codepoint res;
 						if (!encodings::utf16<>::next_codepoint(ptr, ptr + 4, res)) {
-							logger::get().log_warning( // TODO check if this will ever be triggered
-								CP_HERE, "invalid UTF-16 codepoint, possible faulty windows message handling"
-							);
+							logger::get().log_warning(CP_HERE) <<
+								"invalid UTF-16 codepoint, possible faulty windows message handling";
+							// TODO check if this will ever be triggered
 							return 0;
 						}
 						content = reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(res).c_str());
@@ -583,11 +584,11 @@ namespace codepad::os {
 #	endif
 #	include <DbgHelp.h>
 namespace codepad {
-	void logger::log_stacktrace() {
+	void logger::log_entry::append_stacktrace() {
 		constexpr static DWORD max_frames = 1000;
 		constexpr static size_t max_symbol_length = 1000;
 
-		log_custom("STACKTRACE");
+		_contents << "\n-- stacktrace --\n";
 		void *frames[max_frames];
 		HANDLE proc = GetCurrentProcess();
 		unsigned char symmem[sizeof(SYMBOL_INFO) + max_symbol_length * sizeof(TCHAR)];
@@ -612,13 +613,25 @@ namespace codepad {
 				file = os::_details::wstring_to_utf8(lineinfo.FileName);
 				line = to_string(lineinfo.LineNumber);
 			}
-			log_custom("    ", func, "(0x", frames[i], ") @", file, ":", line);
+			_contents << "  " << func << "(0x" << frames[i] << ") @" << file << ":" << line << "\n";
 		}
 		assert_true_sys(SymCleanup(GetCurrentProcess()), "failed to clean up symbols");
-		log_custom("STACKTRACE|END");
+		_contents << "\n-- stacktrace --\n";
 	}
 }
 #endif
+
+
+namespace codepad::logger_sinks {
+	size_t console_sink::_get_console_width() const {
+		HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+		winapi_check(out != INVALID_HANDLE_VALUE);
+		CONSOLE_SCREEN_BUFFER_INFO info;
+		winapi_check(GetConsoleScreenBufferInfo(out, &info));
+		return static_cast<size_t>(info.srWindow.Right - info.srWindow.Left + 1);
+	}
+}
+
 
 namespace codepad::ui {
 	/*font_parameters font_manager::get_default_ui_font_parameters() {

@@ -13,6 +13,7 @@
 #include <fstream>
 
 #include "../core/bst.h"
+#include "../core/profiling.h"
 #include "../ui/element.h"
 #include "../os/filesystem.h"
 
@@ -85,7 +86,7 @@ namespace codepad::editors {
 				_it(it._it), _s(it._s), _chunkpos(it._chunkpos) {
 			}
 
-			/// Pre-increment.
+			/// Prefix increment.
 			iterator_base &operator++() {
 				if (++_s == _it->end()) {
 					_chunkpos += _it->size();
@@ -94,13 +95,13 @@ namespace codepad::editors {
 				}
 				return *this;
 			}
-			/// Post-increment.
+			/// Postfix increment.
 			const iterator_base operator++(int) {
 				iterator_base ov = *this;
 				++*this;
 				return ov;
 			}
-			/// Pre-decrement.
+			/// Prefix decrement.
 			iterator_base &operator--() {
 				if (_it == _it.get_container()->end() || _s == _it->begin()) {
 					--_it;
@@ -110,7 +111,7 @@ namespace codepad::editors {
 				--_s;
 				return *this;
 			}
-			/// Post-decrement.
+			/// Postfix decrement.
 			const iterator_base operator--(int) {
 				iterator_base ov = *this;
 				--*this;

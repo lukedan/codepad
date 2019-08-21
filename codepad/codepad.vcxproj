@@ -361,7 +361,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="apigen_definitions.h" />
-    <ClInclude Include="core\json.h" />
+    <ClInclude Include="core\assert.h" />
+    <ClInclude Include="core\json\misc.h" />
+    <ClInclude Include="core\json\rapidjson.h" />
+    <ClInclude Include="core\json\storage.h" />
+    <ClInclude Include="core\logger_sinks.h" />
+    <ClInclude Include="core\logging.h" />
+    <ClInclude Include="core\math.h" />
+    <ClInclude Include="core\json\parsing.h" />
+    <ClInclude Include="core\profiling.h" />
     <ClInclude Include="core\settings.h" />
     <ClInclude Include="editors\binary\components.h" />
     <ClInclude Include="editors\binary\contents_region.h" />

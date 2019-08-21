@@ -16,10 +16,10 @@
 #include "renderer.h"
 #include "scheduler.h"
 #include "commands.h"
+#include "config_parsers.h"
 
 namespace codepad::ui {
-	/// Manages the update, layout, and rendering of all GUI elements, and the registration and retrieval of
-	/// \ref element_state_id "element_state_ids" and transition functions.
+	/// This manages various UI-related registries and resources, acting as the core of all UI code.
 	class manager {
 		friend class window_base;
 	public:
@@ -87,12 +87,12 @@ namespace codepad::ui {
 		void register_transition_function(str_t name, transition_function func) {
 			auto [it, inserted] = _transfunc_map.emplace(std::move(name), std::move(func));
 			if (!inserted) {
-				logger::get().log_warning(CP_HERE, "duplicate transition function name: ", name);
+				logger::get().log_warning(CP_HERE) << "duplicate transition function name: " << name;
 			}
 		}
 		/// Finds and returns the transition function corresponding to the given name. If none is found, \p nullptr
 		/// is returned.
-		transition_function try_get_transition_func(str_view_t name) const {
+		transition_function find_transition_function(str_view_t name) const {
 			auto it = _transfunc_map.find(name);
 			if (it != _transfunc_map.end()) {
 				return it->second;
@@ -125,20 +125,32 @@ namespace codepad::ui {
 		/// Returns the registry of \ref class_arrangements "class_arrangementss" corresponding to all element
 		/// classes.
 		class_arrangements_registry &get_class_arrangements() {
-			return _carngs;
+			return _class_arrangements;
 		}
 		/// Const version of \ref get_class_arrangements().
 		const class_arrangements_registry &get_class_arrangements() const {
-			return _carngs;
+			return _class_arrangements;
 		}
 		/// Returns the registry of \ref class_hotkey_group "element_hotkey_groups" corresponding to all element
 		/// classes.
 		class_hotkeys_registry &get_class_hotkeys() {
-			return _chks;
+			return _class_hotkeys;
 		}
 		/// Const version of \ref get_class_hotkeys().
 		const class_hotkeys_registry &get_class_hotkeys() const {
-			return _chks;
+			return _class_hotkeys;
+		}
+
+		/// Finds the color that corresponds to the given name in the color scheme.
+		std::optional<colord> find_color(str_view_t name) const {
+			if (auto it = _color_scheme.find(name); it != _color_scheme.end()) {
+				return it->second;
+			}
+			return std::nullopt;
+		}
+		/// Returns the current color scheme.
+		const std::map<str_t, colord, std::less<>> &get_color_scheme() const {
+			return _color_scheme;
 		}
 
 		/// Returns the \ref scheduler.
@@ -158,9 +170,19 @@ namespace codepad::ui {
 		const command_registry &get_command_registry() const {
 			return _commands;
 		}
+
+		/// Reloadss all visual configuration, including arrangements and the color scheme.
+		template <typename ValueType> void reload_visuals(const ValueType &value) {
+			_color_scheme.clear();
+			_class_arrangements.mapping.clear();
+
+			arrangements_parser<ValueType> parser(*this);
+		}
 	protected:
-		class_arrangements_registry _carngs; ///< All arrangements.
-		class_hotkeys_registry _chks; ///< All hotkeys.
+		class_arrangements_registry _class_arrangements; ///< All class arrangements.
+		class_hotkeys_registry _class_hotkeys; ///< All class hotkeys.
+		std::map<str_t, colord, std::less<>> _color_scheme; ///< The color scheme.
+
 		command_registry _commands; ///< All commands.
 		/// Registry of constructors of all element types.
 		std::map<str_t, element_constructor, std::less<>> _ctor_map;
@@ -175,17 +197,21 @@ namespace codepad::ui {
 	};
 
 
-	template <typename T> inline bool typed_animation_value_parser<T>::try_parse(
+	template <typename T> inline bool typed_animation_value_parser<T>::try_parse( // TODO use std::optional
 		const json::value_storage &value, [[maybe_unused]] manager &m, T &res
 	) const {
 		if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) { // load textures
-			if (str_view_t path; json::try_cast(value.get_value(), path)) {
-				res = m.get_texture(path);
+			if (auto path = value.get_value().cast<str_view_t>()) {
+				res = m.get_texture(path.value());
 				return res != nullptr;
 			}
 			return false;
 		} else { // parse everything else directly
-			return json::object_parsers::try_parse(value.get_value(), res);
+			if (auto v = value.get_value().parse<T>()) {
+				res = std::move(v.value());
+				return true;
+			}
+			return false;
 		}
 	}
 
@@ -199,7 +225,7 @@ namespace codepad::ui {
 		for (auto &&kf : def.keyframes) {
 			T target;
 			if (!try_parse(kf.target, m, target)) {
-				logger::get().log_warning(CP_HERE, "failed to parse keyframe target");
+				logger::get().log_warning(CP_HERE) << "failed to parse keyframe target";
 			}
 			keyframes.emplace_back(target, kf.duration, kf.transition_func);
 		}
@@ -218,5 +244,34 @@ namespace codepad::ui {
 			}
 			e.get_manager().get_scheduler().invalidate_visual(e);
 		}
+	}
+
+
+	template <
+		typename Value
+	> std::optional<brushes::bitmap_pattern> managed_json_parser<brushes::bitmap_pattern>::operator()(
+		const Value &val
+		) const {
+		if (auto obj = val.cast<typename Value::object_t>()) {
+			if (auto image = obj->parse_member<str_view_t>(u8"image")) {
+				return brushes::bitmap_pattern(_manager.get_texture(image.value()));
+			}
+		}
+		return std::nullopt;
+	}
+
+
+	template <
+		typename Value
+	> std::optional<transition_function> managed_json_parser<transition_function>::operator()(
+		const Value &val
+		) const {
+		if (auto str = val.cast<str_view_t>()) {
+			if (auto func = _manager.find_transition_function(str.value())) {
+				return func;
+			}
+			val.log<log_level::error>(CP_HERE) << "unrecognized transition function: " << str.value();
+		}
+		return std::nullopt;
 	}
 }

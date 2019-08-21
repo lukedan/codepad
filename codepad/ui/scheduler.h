@@ -11,7 +11,9 @@
 #include <deque>
 #include <chrono>
 #include <functional>
+#include <thread>
 
+#include "../core/profiling.h"
 #include "element.h"
 #include "panel.h"
 #include "window.h"
@@ -327,11 +329,10 @@ namespace codepad::ui {
 				if (newfocus) {
 					newfocus->_on_got_focus();
 				}
-				logger::get().log_debug(
-					CP_HERE, "focus changed from ",
-					oldfocus, " <", oldfocus ? demangle(typeid(*oldfocus).name()) : "empty", "> to ",
-					_focus, " <", _focus ? demangle(typeid(*_focus).name()) : "empty", ">"
-				);
+				logger::get().log_debug(CP_HERE) <<
+					"focus changed from " << oldfocus << " <" <<
+					(oldfocus ? demangle(typeid(*oldfocus).name()) : "empty") << "> to " << _focus << " <" <<
+					(_focus ? demangle(typeid(*_focus).name()) : "empty") << ">";
 			}
 
 #ifdef CP_CHECK_LOGICAL_ERRORS

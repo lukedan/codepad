@@ -8,16 +8,10 @@
 
 namespace codepad::ui {
 	settings::retriever_parser<double> &drag_deadzone::_get_radius_setting() {
-		static settings::retriever_parser<double> _settings = settings::get().create_retriever_parser<double>(
-			std::vector<str_t>({"drag_deadzone_radius"}),
-			[](std::optional<json::storage::value_t> v) {
-				if (double dv; v && json::try_cast(v.value(), dv)) {
-					return dv;
-				}
-				return 5.0; // TODO use system default
-			}
-		);
-		return _settings;
+		static settings::retriever_parser<double> _setting = settings::get().create_retriever_parser<double>(
+			{u8"drag_deadzone_radius"}, settings::basic_parsers::basic_type_with_default<double>(5.0)
+		); // TODO use system default
+		return _setting;
 	}
 
 

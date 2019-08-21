@@ -13,6 +13,7 @@
 #include <variant>
 
 #include "../core/misc.h"
+#include "../core/json/misc.h"
 #include "../os/misc.h"
 
 namespace codepad::ui {
@@ -27,9 +28,38 @@ namespace codepad::ui {
 	};
 }
 namespace codepad {
-	/// Enables bitwise operators for \ref modifier_keys.
+	/// Enables bitwise operators for \ref ui::modifier_keys.
 	template <> struct enable_enum_bitwise_operators<ui::modifier_keys> : public std::true_type {
 	};
+	/// Parser for \ref ui::modifier_keys.
+	template <> struct enum_parser<ui::modifier_keys> {
+		/// The parser interface.
+		inline static std::optional<ui::modifier_keys> parse(str_view_t str) {
+			// TODO caseless comparison
+			if (str == u8"ctrl") {
+				return ui::modifier_keys::control;
+			} else if (str == u8"alt") {
+				return ui::modifier_keys::alt;
+			} else if (str == u8"shift") {
+				return ui::modifier_keys::shift;
+			} else if (str == u8"super") {
+				return ui::modifier_keys::super;
+			}
+			return std::nullopt;
+		}
+	};
+	namespace json {
+		/// Parser for \ref ui::modifier_keys.
+		template <> struct default_parser<ui::modifier_keys> {
+			/// The parser interface.
+			template <typename Value> std::optional<ui::modifier_keys> operator()(const Value &val) const {
+				if (auto str = val.cast<str_view_t>()) {
+					return enum_parser<ui::modifier_keys>::parse(str.value());
+				}
+				return std::nullopt;
+			}
+		};
+	}
 }
 
 namespace codepad::ui {

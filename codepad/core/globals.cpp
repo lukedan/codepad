@@ -36,20 +36,8 @@ namespace codepad {
 
 	/*std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;*/
 
-
-	chrono::high_resolution_clock::time_point get_app_epoch() {
-		static chrono::high_resolution_clock::time_point _epoch = chrono::high_resolution_clock::now();
-		return _epoch;
-	}
-	chrono::duration<double> get_uptime() {
-		return chrono::duration<double>(chrono::high_resolution_clock::now() - get_app_epoch());
-	}
-
-
 	void initialize(int argc, char **argv) {
 		os::initialize(argc, argv);
-
-		get_app_epoch(); // initialize epoch
 
 		/*document_formatting_cache::enable();*/
 	}
@@ -73,11 +61,8 @@ namespace codepad {
 		template <typename ...Args> explicit _global_wrapper(Args &&...args) : object(forward<Args>(args)...) {
 			// logging is not performed for logger since it may lead to recursive initialization
 			if constexpr (!is_same_v<T, logger>) {
-				logger::get().log_debug(
-					CP_HERE,
-					string((_global_init_stk.size() - 1) * 2, ' '), // indent
-					"finish init: ", _global_init_stk.top()
-				);
+				logger::get().log_debug(CP_HERE) <<
+					string((_global_init_stk.size() - 1) * 2, ' ') << "finish init: " << _global_init_stk.top();
 			}
 			_global_init_stk.pop();
 		}
@@ -95,17 +80,15 @@ namespace codepad {
 			_init_marker() {
 				string tname = demangle(typeid(T).name());
 				if constexpr (!is_same_v<T, logger>) { // logging is not performed for logger
-					logger::get().log_debug(
-						CP_HERE, string(_global_init_stk.size() * 2, ' '),
-						"begin init: ", tname
-					);
+					logger::get().log_debug(CP_HERE) <<
+						string(_global_init_stk.size() * 2, ' ') << "begin init: " << tname;
 				}
 				_global_init_stk.emplace(move(tname));
 			}
 			/// Destructor. Logs when the object has been destructed.
 			~_init_marker() {
 				if constexpr (!is_same_v<T, logger>) { // logging is not performed for logger
-					logger::get().log_debug(CP_HERE, "disposed: ", _cur_global_dispose);
+					logger::get().log_debug(CP_HERE) << "disposed: " << _cur_global_dispose;
 				}
 				_cur_global_dispose.clear();
 			}

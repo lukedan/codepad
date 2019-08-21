@@ -14,8 +14,9 @@
 #include <set>
 #include <optional>
 
+#include "json/misc.h"
+#include "json/storage.h"
 #include "encodings.h"
-#include "json.h"
 #include "misc.h"
 #include "event.h"
 
@@ -45,8 +46,8 @@ namespace codepad {
 				key += name;
 				key += ']';
 				if (auto fmem = _value.find_member(key); fmem != _value.member_end()) { // yes
-					if (json::storage::object_t obj; json::try_cast(fmem.value(), obj)) {
-						auto result = _children.emplace(str_t(name), std::make_unique<profile>(this, obj));
+					if (auto obj = fmem.value().cast<json::storage::object_t>()) {
+						auto result = _children.emplace(str_t(name), std::make_unique<profile>(this, obj.value()));
 						assert_true_logical(result.second, "map insert should have succeeded");
 						return result.first->second.get();
 					}
@@ -64,7 +65,9 @@ namespace codepad {
 						if (++it == end) { // found it, return
 							return fmem.value();
 						}
-						if (!json::try_cast(fmem.value(), current)) { // not an object
+						if (auto obj = fmem.value().cast<json::storage::object_t>()) {
+							current = obj.value();
+						} else { // not an object
 							return std::nullopt;
 						}
 					} else { // not found
@@ -122,13 +125,15 @@ namespace codepad {
 							for (const profile_value *current = this; current->_parent; current = current->_parent) {
 								key.emplace_back(current->_key);
 							}
-							if (profile * pv = value.find_profile(key.rbegin(), key.rend())) {
-								jsonval = pv->retrieve(_base._key.begin(), _base._key.end());
-							}
-						} else {
+							profile &prof = value.find_deepest_profile(key.rbegin(), key.rend());
+							jsonval = prof.retrieve(_base._key.begin(), _base._key.end());
+						} else { // just a small optimization to skip key collection & profile searching
 							jsonval = value.get_main_profile().retrieve(_base._key.begin(), _base._key.end());
 						}
-						_value = _base.parser(jsonval);
+						T newval = _base.parser(jsonval);
+						if (newval != _value) {
+							_value = std::move(newval);
+						}
 						// update timestamp
 						_timestamp = value._timestamp;
 					}
@@ -237,14 +242,44 @@ namespace codepad {
 			profile_value &_value;
 		};
 
+		/// Contains basic parsers for settings.
+		struct basic_parsers {
+			/// Parses the value by simply calling \p value_t::parse(). If the parse fails or if the setting is not
+			/// present, the specified default value is returned.
+			template <
+				typename T, typename Parser = json::default_parser<T>
+			> inline static typename retriever_parser<T>::value_parser basic_type_with_default(
+				T def, Parser parser = Parser{}
+			) {
+				return [d = std::move(def), p = std::move(parser)](std::optional<json::storage::value_t> v) {
+					if (v) {
+						return v.value().parse<T>(p).value_or(d);
+					}
+					return d;
+				};
+			}
+		};
+
 
 		/// Finds the profile corresponding to the given key. Returns \p nullptr if no such profile is found.
-		template <typename It> profile *find_profile(It begin, It end) {
+		template <typename It> profile *find_profile_exact(It begin, It end) {
 			profile *current = &get_main_profile();
 			for (std::decay_t<It> it = begin; current && it != end; ++it) {
 				current = current->find_child(*it);
 			}
 			return current;
+		}
+		/// Tries to find the deepest existing profile that matches the given key.
+		template <typename It> profile &find_deepest_profile(It begin, It end) {
+			profile *current = &get_main_profile();
+			for (std::decay_t<It> it = begin; it != end; ++it) {
+				profile *next = current->find_child(*it);
+				if (next == nullptr) {
+					break;
+				}
+				current = next;
+			}
+			return *current;
 		}
 		/// Returns the main profile.
 		profile &get_main_profile() {
