@@ -7,6 +7,8 @@
 /// Logging related classes.
 
 #include <sstream>
+#include <vector>
+#include <chrono>
 #include <functional>
 
 #include "misc.h"
@@ -21,12 +23,22 @@ namespace codepad {
 		debug ///< Debugging information.
 	};
 
+	/// Receives and processes log messages.
+	class log_sink {
+	public:
+		/// Default virtual destructor.
+		virtual ~log_sink() = default;
+
+		/// Called when a message is sent.
+		virtual void on_message(
+			const std::chrono::duration<double>&, const code_position&, log_level, str_view_t
+		) = 0;
+	};
+
 	/// Struct used to format and produce log.
 	struct logger {
 	public:
 		using clock_t = std::chrono::high_resolution_clock; ///< The clock used to calculate time.
-		/// A callback that handles a log message.
-		using sink_t = std::function<void(const code_position&, log_level, str_view_t)>;
 		/// Dummy struct that signals the \ref log_entry that a stacktrace should be added at this location.
 		struct stacktrace_t {
 		};
@@ -81,8 +93,9 @@ namespace codepad {
 			void _flush() {
 				if (_parent) {
 					auto message = _contents.str();
+					auto dur = std::chrono::high_resolution_clock::now() - _parent->get_creation_time();
 					for (auto &&sink : _parent->sinks) {
-						sink(_pos, _level, message);
+						sink->on_message(dur, _pos, _level, message);
 					}
 					_parent = nullptr;
 				}
@@ -96,10 +109,12 @@ namespace codepad {
 
 		constexpr static stacktrace_t stacktrace{}; ///< The static \ref stacktrace_t object.
 
-		/// Default constructor.
-		logger() = default;
-		/// Constructs the \ref logger with the given list of sinks.
-		explicit logger(std::vector<sink_t> snks) : sinks(std::move(snks)) {
+		/// Creates a logger with no sinks.
+		logger() : logger(std::vector<std::unique_ptr<log_sink>>()) {
+		}
+		/// Initializes the list of sinks.
+		explicit logger(std::vector<std::unique_ptr<log_sink>> sinks) :
+			sinks(std::move(sinks)), _creation(std::chrono::high_resolution_clock::now()) {
 		}
 
 		/// Creates a new \ref log_entry with the specified \ref log_level.
@@ -123,9 +138,24 @@ namespace codepad {
 			return log<log_level::debug>(cp);
 		}
 
-		/// Gets the global \ref logger object.
-		static logger &get();
+		/// Returns the time of this logger's creation.
+		std::chrono::high_resolution_clock::time_point get_creation_time() const {
+			return _creation;
+		}
 
-		std::vector<sink_t> sinks; ///< Sinks that accept log entries.
+		/// Gets the current global \ref logger.
+		inline static logger &get() {
+			return *_current;
+		}
+		/// Sets the current \ref logger.
+		inline static void set_current(std::unique_ptr<logger> c) {
+			_current = std::move(c);
+		}
+
+		std::vector<std::unique_ptr<log_sink>> sinks; ///< Sinks that accept log entries.
+	protected:
+		static std::unique_ptr<logger> _current; ///< The currently active logger.
+
+		std::chrono::high_resolution_clock::time_point _creation; ///< The time of this logger's creation.
 	};
 }

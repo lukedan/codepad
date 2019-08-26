@@ -32,6 +32,8 @@ using namespace codepad::editors::code;
 namespace codepad {
 	double minimap::_target_height = 2.0;
 
+	std::unique_ptr<logger> logger::_current;
+
 	window_base *mouse_position::_active_window = nullptr;
 
 	/*std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;*/
@@ -102,10 +104,6 @@ namespace codepad {
 	};
 
 	// all singleton getters
-	logger &logger::get() {
-		static _global_wrapper<logger> _v;
-		return _v.object;
-	}
 	call_counter &call_counter::get() {
 		static _global_wrapper<call_counter> _v;
 		return _v.object;

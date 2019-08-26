@@ -623,7 +623,7 @@ namespace codepad {
 
 
 namespace codepad::logger_sinks {
-	size_t console_sink::_get_console_width() const {
+	size_t console_sink::_get_console_width() {
 		HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
 		winapi_check(out != INVALID_HANDLE_VALUE);
 		CONSOLE_SCREEN_BUFFER_INFO info;

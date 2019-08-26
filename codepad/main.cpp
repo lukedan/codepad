@@ -25,9 +25,12 @@ using namespace codepad::ui;
 using namespace codepad::editors;
 
 int main(int argc, char **argv) {
-	codepad::initialize(argc, argv);
+	auto global_log = std::make_unique<logger>();
+	global_log->sinks.emplace_back(std::make_unique<logger_sinks::console_sink>());
+	global_log->sinks.emplace_back(std::make_unique<logger_sinks::file_sink>("codepad.log"));
+	logger::set_current(std::move(global_log));
 
-	logger::get().sinks.emplace_back(logger_sinks::console_sink());
+	codepad::initialize(argc, argv);
 
 	manager man;
 	man.set_renderer(std::make_unique<direct2d::renderer>());
