@@ -30,6 +30,8 @@ int main(int argc, char **argv) {
 	global_log->sinks.emplace_back(std::make_unique<logger_sinks::file_sink>("codepad.log"));
 	logger::set_current(std::move(global_log));
 
+	settings::get().load("config/settings.json");
+
 	codepad::initialize(argc, argv);
 
 	manager man;

@@ -57,24 +57,24 @@ namespace codepad::json {
 			return make_value_storage<null_t>();
 		}
 		if (v.template is<bool>()) {
-			return make_value_storage<bool>(v.get<bool>());
+			return make_value_storage<bool>(v.template get<bool>());
 		}
 		if (v.template is<std::int64_t>()) {
-			return make_value_storage<std::int64_t>(v.get<std::int64_t>());
+			return make_value_storage<std::int64_t>(v.template get<std::int64_t>());
 		}
 		if (v.template is<std::uint64_t>()) {
-			return make_value_storage<std::uint64_t>(v.get<std::uint64_t>());
+			return make_value_storage<std::uint64_t>(v.template get<std::uint64_t>());
 		}
 		if (v.template is<double>()) {
-			return make_value_storage<double>(v.get<double>());
+			return make_value_storage<double>(v.template get<double>());
 		}
 		if (v.template is<str_view_t>()) {
-			return make_value_storage<str_t>(v.get<str_view_t>());
+			return make_value_storage<str_t>(v.template get<str_view_t>());
 		}
 		if (v.template is<typename Value::object_t>()) {
 			value_storage val(std::in_place_type<value_storage::object>);
 			auto &dict = std::get<value_storage::object>(val.value);
-			auto &&obj = v.get<typename Value::object_t>();
+			auto &&obj = v.template get<typename Value::object_t>();
 			for (auto it = obj.member_begin(); it != obj.member_end(); ++it) {
 				dict.emplace(it.name(), store(it.value()));
 			}
@@ -83,7 +83,7 @@ namespace codepad::json {
 		if (v.template is<typename Value::array_t>()) {
 			value_storage val(std::in_place_type<value_storage::array>);
 			auto &list = std::get<value_storage::array>(val.value);
-			for (auto &&n : v.get<typename Value::array_t>()) {
+			for (auto &&n : v.template get<typename Value::array_t>()) {
 				list.emplace_back(store(n));
 			}
 			return val;

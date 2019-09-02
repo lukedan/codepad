@@ -33,6 +33,54 @@ namespace codepad::ui {
 		vec2d get_absolute_offset(vec2d size) const {
 			return absolute + vec2d(size.x * relative.x, size.y * relative.y);
 		}
+
+		/// In-place addition.
+		relative_vec2d &operator+=(relative_vec2d rhs) {
+			relative += rhs.relative;
+			absolute += rhs.absolute;
+			return *this;
+		}
+		/// Addition.
+		friend relative_vec2d operator+(relative_vec2d lhs, relative_vec2d rhs) {
+			return relative_vec2d(lhs.relative + rhs.relative, lhs.absolute + rhs.absolute);
+		}
+
+		/// In-place subtraction.
+		relative_vec2d &operator-=(relative_vec2d rhs) {
+			relative -= rhs.relative;
+			absolute -= rhs.absolute;
+			return *this;
+		}
+		/// Subtraction.
+		friend relative_vec2d operator-(relative_vec2d lhs, relative_vec2d rhs) {
+			return relative_vec2d(lhs.relative - rhs.relative, lhs.absolute - rhs.absolute);
+		}
+
+		/// Multiplication.
+		friend relative_vec2d operator*(relative_vec2d lhs, double rhs) {
+			return relative_vec2d(lhs.relative * rhs, lhs.absolute * rhs);
+		}
+		/// Multiplication.
+		friend relative_vec2d operator*(double lhs, relative_vec2d rhs) {
+			return rhs * lhs;
+		}
+		/// In-place multiplication.
+		relative_vec2d &operator*=(double rhs) {
+			relative *= rhs;
+			absolute *= rhs;
+			return *this;
+		}
+
+		/// Division.
+		friend relative_vec2d operator/(relative_vec2d lhs, double rhs) {
+			return relative_vec2d(lhs.relative / rhs, lhs.absolute / rhs);
+		}
+		/// In-place multiplication.
+		relative_vec2d &operator/=(double rhs) {
+			relative /= rhs;
+			absolute /= rhs;
+			return *this;
+		}
 	};
 	/// Defines a length relative to that of a region.
 	struct relative_double {
@@ -50,6 +98,54 @@ namespace codepad::ui {
 		double get_absolute(double total) const {
 			return relative * total + absolute;
 		}
+
+		/// In-place addition.
+		relative_double &operator+=(relative_double rhs) {
+			relative += rhs.relative;
+			absolute += rhs.absolute;
+			return *this;
+		}
+		/// Addition.
+		friend relative_double operator+(relative_double lhs, relative_double rhs) {
+			return relative_double(lhs.relative + rhs.relative, lhs.absolute + rhs.absolute);
+		}
+
+		/// In-place subtraction.
+		relative_double &operator-=(relative_double rhs) {
+			relative -= rhs.relative;
+			absolute -= rhs.absolute;
+			return *this;
+		}
+		/// Subtraction.
+		friend relative_double operator-(relative_double lhs, relative_double rhs) {
+			return relative_double(lhs.relative - rhs.relative, lhs.absolute - rhs.absolute);
+		}
+
+		/// Multiplication.
+		friend relative_double operator*(relative_double lhs, double rhs) {
+			return relative_double(lhs.relative * rhs, lhs.absolute * rhs);
+		}
+		/// Multiplication.
+		friend relative_double operator*(double lhs, relative_double rhs) {
+			return rhs * lhs;
+		}
+		/// In-place multiplication.
+		relative_double &operator*=(double rhs) {
+			relative *= rhs;
+			absolute *= rhs;
+			return *this;
+		}
+
+		/// Division.
+		friend relative_double operator/(relative_double lhs, double rhs) {
+			return relative_double(lhs.relative / rhs, lhs.absolute / rhs);
+		}
+		/// In-place multiplication.
+		relative_double &operator/=(double rhs) {
+			relative /= rhs;
+			absolute /= rhs;
+			return *this;
+		}
 	};
 }
 namespace codepad::json {
@@ -59,33 +155,34 @@ namespace codepad::json {
 		/// (<tt>{"absolute": [x, y], "relative": [x, y]}</tt>), or a list of two vectors with the relative value in
 		/// the front (<tt>[[relx, rely], [absx, absy]]</tt>), or a single vector indicating the absolute value.
 		template <typename Value> std::optional<ui::relative_vec2d> operator()(const Value &val) const {
-			if (auto arr = val.try_cast<typename Value::array_t>()) {
+			if (auto arr = val.template try_cast<typename Value::array_t>()) {
 				if (arr->size() >= 2) {
 					if (arr->size() > 2) {
-						val.log<log_level::warning>(CP_HERE) << "redundant members in relative vec2d definition";
+						val.template log<log_level::warning>(CP_HERE) <<
+						    "redundant members in relative vec2d definition";
 					}
-					if (auto x = arr->at(0).try_cast<double>()) { // only absolute component
-						if (auto y = arr->at(1).cast<double>()) {
+					if (auto x = arr->at(0).template try_cast<double>()) { // only absolute component
+						if (auto y = arr->at(1).template cast<double>()) {
 							return ui::relative_vec2d(vec2d(), vec2d(x.value(), y.value()));
 						}
-					} else if (auto rel_vec = arr->at(0).try_parse<vec2d>()) { // array representation
-						if (auto abs_vec = arr->at(1).parse<vec2d>()) {
+					} else if (auto rel_vec = arr->at(0).template try_parse<vec2d>()) { // array representation
+						if (auto abs_vec = arr->at(1).template parse<vec2d>()) {
 							return ui::relative_vec2d(rel_vec.value(), abs_vec.value());
 						}
 					} else {
-						val.log<log_level::error>(CP_HERE) << "invalid relative vec2d component format";
+						val.template log<log_level::error>(CP_HERE) << "invalid relative vec2d component format";
 					}
 				} else {
-					val.log<log_level::error>(CP_HERE) << "not enough entries in relative vec2d definition";
+					val.template log<log_level::error>(CP_HERE) << "not enough entries in relative vec2d definition";
 				}
-			} else if (auto full = val.try_cast<typename Value::object_t>()) { // full representation
-				if (auto abs = full->parse_member<vec2d>(u8"absolute")) {
-					if (auto rel = full->parse_member<vec2d>(u8"relative")) {
+			} else if (auto full = val.template try_cast<typename Value::object_t>()) { // full representation
+				if (auto abs = full->template parse_member<vec2d>(u8"absolute")) {
+					if (auto rel = full->template parse_member<vec2d>(u8"relative")) {
 						return ui::relative_vec2d(rel.value(), abs.value());
 					}
 				}
 			} else {
-				val.log<log_level::error>(CP_HERE) << "invalid relative vec2d format";
+				val.template log<log_level::error>(CP_HERE) << "invalid relative vec2d format";
 			}
 			return std::nullopt;
 		}
@@ -94,33 +191,33 @@ namespace codepad::json {
 	template <> struct default_parser<ui::relative_double> {
 		/// Parses a \ref ui::relative_double. The format is similar to that of \ref relative_vec2d.
 		template <typename Value> std::optional<ui::relative_double> operator()(const Value &val) const {
-			if (auto full = val.try_cast<typename Value::object_t>()) { // full representation
-				if (auto abs = full->parse_member<double>(u8"absolute")) {
-					if (auto rel = full->parse_member<double>(u8"relative")) {
+			if (auto full = val.template try_cast<typename Value::object_t>()) { // full representation
+				if (auto abs = full->template parse_member<double>(u8"absolute")) {
+					if (auto rel = full->template parse_member<double>(u8"relative")) {
 						if (full->size() > 2) {
-							val.log<log_level::warning>(CP_HERE) << "redundant fields in relative double";
+							val.template log<log_level::warning>(CP_HERE) << "redundant fields in relative double";
 						}
 						return ui::relative_double(rel.value(), abs.value());
 					}
 				}
-			} else if (auto arr = val.try_cast<typename Value::array_t>()) { // a list of two doubles
+			} else if (auto arr = val.template try_cast<typename Value::array_t>()) { // a list of two doubles
 				if (arr->size() >= 2) {
 					if (arr->size() > 2) {
-						val.log<log_level::warning>(CP_HERE) << "redundant elements in relative double";
+						val.template log<log_level::warning>(CP_HERE) << "redundant elements in relative double";
 					}
 					auto
-						rel = arr->at(0).cast<double>(),
-						abs = arr->at(1).cast<double>();
+						rel = arr->at(0).template cast<double>(),
+						abs = arr->at(1).template cast<double>();
 					if (rel && abs) {
 						return ui::relative_double(rel.value(), abs.value());
 					}
 				} else {
-					val.log<log_level::error>(CP_HERE) << "too few elements in relative double";
+					val.template log<log_level::error>(CP_HERE) << "too few elements in relative double";
 				}
-			} else if (auto abs = val.try_cast<double>()) { // absolute only
+			} else if (auto abs = val.template try_cast<double>()) { // absolute only
 				return ui::relative_double(0.0, abs.value());
 			} else {
-				val.log<log_level::error>(CP_HERE) << "invalid relative double format";
+				val.template log<log_level::error>(CP_HERE) << "invalid relative double format";
 			}
 			return std::nullopt;
 		}
@@ -340,40 +437,40 @@ namespace codepad::json {
 		///  - An object with a member named either `trasnaltion', `scale', `rotation', or `children'. These members
 		///    are checked in order and only the first one is handled.
 		template <typename Value> std::optional<ui::transforms::generic> operator()(const Value &val) const {
-			if (val.is<null_t>()) {
+			if (val.template is<null_t>()) {
 				return ui::transforms::generic::make<ui::transforms::identity>();
 			}
 			std::optional<typename Value::array_t> group;
-			if (auto obj = val.try_cast<typename Value::object_t>()) {
-				if (auto offset = obj->parse_optional_member<ui::relative_vec2d>(u8"translation")) {
+			if (auto obj = val.template try_cast<typename Value::object_t>()) {
+				if (auto offset = obj->template parse_optional_member<ui::relative_vec2d>(u8"translation")) {
 					return ui::transforms::generic::make<ui::transforms::translation>(offset.value());
 				}
-				if (auto scale = obj->parse_optional_member<vec2d>(u8"scale")) {
-					if (auto center = obj->parse_member<ui::relative_vec2d>(u8"center")) {
+				if (auto scale = obj->template parse_optional_member<vec2d>(u8"scale")) {
+					if (auto center = obj->template parse_member<ui::relative_vec2d>(u8"center")) {
 						return ui::transforms::generic::make<ui::transforms::scale>(center.value(), scale.value());
 					}
 				}
-				if (auto rotation = obj->parse_optional_member<double>(u8"rotation")) {
-					if (auto center = obj->parse_member<ui::relative_vec2d>(u8"center")) {
+				if (auto rotation = obj->template parse_optional_member<double>(u8"rotation")) {
+					if (auto center = obj->template parse_member<ui::relative_vec2d>(u8"center")) {
 						return ui::transforms::generic::make<ui::transforms::rotation>(
 							center.value(), rotation.value()
 							);
 					}
 				}
-				group = obj->parse_optional_member<typename Value::array_t>(u8"children");
+				group = obj->template parse_optional_member<typename Value::array_t>(u8"children");
 			} else { // try to parse transform collection
-				group = val.try_cast<typename Value::array_t>();
+				group = val.template try_cast<typename Value::array_t>();
 			}
 			if (group) {
 				ui::transforms::collection res;
 				for (auto &&trans : group.value()) {
-					if (auto child = trans.parse<ui::transforms::generic>()) {
+					if (auto child = trans.template parse<ui::transforms::generic>()) {
 						res.components.emplace_back(std::move(child.value()));
 					}
 				}
 				return ui::transforms::generic::make<ui::transforms::collection>(std::move(res));
 			} else {
-				val.log<log_level::error>(CP_HERE) << "invalid transform format";
+				val.template log<log_level::error>(CP_HERE) << "invalid transform format";
 			}
 			return std::nullopt;
 		}
@@ -467,8 +564,8 @@ namespace codepad::json {
 	template <> struct default_parser<ui::brushes::solid_color> {
 		/// The parser interface.
 		template <typename Value> std::optional<ui::brushes::solid_color> operator()(const Value &val) const {
-			if (auto obj = val.cast<typename Value::object_t>()) {
-				if (auto color = obj->parse_member<colord>(u8"color")) {
+			if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto color = obj->template parse_member<colord>(u8"color")) {
 					return ui::brushes::solid_color(color.value());
 				}
 			}
@@ -479,10 +576,10 @@ namespace codepad::json {
 	template <> struct default_parser<ui::brushes::linear_gradient> {
 		/// The parser interface.
 		template <typename Value> std::optional<ui::brushes::linear_gradient> operator()(const Value &val) const {
-			if (auto obj = val.cast<typename Value::object_t>()) {
-				if (auto from = obj->parse_member<ui::relative_vec2d>(u8"from")) {
-					if (auto to = obj->parse_member<ui::relative_vec2d>(u8"to")) {
-						if (auto stops = obj->parse_member<ui::gradient_stop_collection>(
+			if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto from = obj->template parse_member<ui::relative_vec2d>(u8"from")) {
+					if (auto to = obj->template parse_member<ui::relative_vec2d>(u8"to")) {
+						if (auto stops = obj->template parse_member<ui::gradient_stop_collection>(
 							u8"gradient_stops", array_parser<ui::gradient_stop>()
 							)) {
 							return ui::brushes::linear_gradient(from.value(), to.value(), std::move(stops.value()));
@@ -497,13 +594,15 @@ namespace codepad::json {
 	template <> struct default_parser<ui::brushes::radial_gradient> {
 		/// The parser interface.
 		template <typename Value> std::optional<ui::brushes::radial_gradient> operator()(const Value &val) const {
-			if (auto obj = val.cast<typename Value::object_t>()) {
-				if (auto center = obj->parse_member<ui::relative_vec2d>(u8"center")) {
-					if (auto radius = obj->parse_member<double>(u8"radius")) {
-						if (auto stops = obj->parse_member<ui::gradient_stop_collection>(
+			if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto center = obj->template parse_member<ui::relative_vec2d>(u8"center")) {
+					if (auto radius = obj->template parse_member<double>(u8"radius")) {
+						if (auto stops = obj->template parse_member<ui::gradient_stop_collection>(
 							u8"gradient_stops", array_parser<ui::gradient_stop>()
 							)) {
-							return ui::brushes::radial_gradient(center.value(), radius.value(), std::move(stops.value()));
+							return ui::brushes::radial_gradient(
+								center.value(), radius.value(), std::move(stops.value())
+								);
 						}
 					}
 				}
@@ -559,41 +658,41 @@ namespace codepad::ui {
 
 		/// The parser interface.
 		template <typename Value> std::optional<generic_brush> operator()(const Value &val) const {
-			if (auto obj = val.try_cast<typename Value::object_t>()) {
+			if (auto obj = val.template try_cast<typename Value::object_t>()) {
 				generic_brush result;
-				if (auto type = obj->parse_member<str_view_t>(u8"type")) {
+				if (auto type = obj->template parse_member<str_view_t>(u8"type")) {
 					if (type.value() == u8"solid") {
-						if (auto brush = val.parse<brushes::solid_color>()) {
+						if (auto brush = val.template parse<brushes::solid_color>()) {
 							result.value.emplace<brushes::solid_color>(std::move(brush.value()));
 						}
 					} else if (type.value() == u8"linear_gradient") {
-						if (auto brush = val.parse<brushes::linear_gradient>()) {
+						if (auto brush = val.template parse<brushes::linear_gradient>()) {
 							result.value.emplace<brushes::linear_gradient>(std::move(brush.value()));
 						}
 					} else if (type.value() == u8"radial_gradient") {
-						if (auto brush = val.parse<brushes::radial_gradient>()) {
+						if (auto brush = val.template parse<brushes::radial_gradient>()) {
 							result.value.emplace<brushes::radial_gradient>(std::move(brush.value()));
 						}
 					} else if (type.value() == u8"radial_gradient") {
-						if (auto brush = val.parse<brushes::radial_gradient>()) {
+						if (auto brush = val.template parse<brushes::radial_gradient>()) {
 							result.value.emplace<brushes::radial_gradient>(std::move(brush.value()));
 						}
 					} else if (type.value() == u8"bitmap") {
-						if (auto brush = val.parse<brushes::bitmap_pattern>(
+						if (auto brush = val.template parse<brushes::bitmap_pattern>(
 							managed_json_parser<brushes::bitmap_pattern>(_manager)
 							)) {
 							result.value.emplace<brushes::bitmap_pattern>(std::move(brush.value()));
 						}
 					} else if (type.value() != u8"none") {
-						val.log<log_level::error>(CP_HERE) << "invalid brush type";
+						val.template log<log_level::error>(CP_HERE) << "invalid brush type";
 						return std::nullopt;
 					}
 				}
-				if (auto trans = obj->parse_optional_member<transforms::generic>(u8"transform")) {
+				if (auto trans = obj->template parse_optional_member<transforms::generic>(u8"transform")) {
 					result.transform = std::move(trans.value());
 				}
 				return result;
-			} else if (auto color = val.parse<colord>()) {
+			} else if (auto color = val.template parse<colord>()) {
 				generic_brush result;
 				result.value.emplace<brushes::solid_color>(color.value());
 				return result;
@@ -623,11 +722,12 @@ namespace codepad::ui {
 
 		/// The parser interface.
 		template <typename Value> std::optional<generic_pen> operator()(const Value &val) const {
-			if (auto brush = val.parse<generic_brush>(managed_json_parser<generic_brush>(_manager))) {
+			if (auto brush = val.template parse<generic_brush>(managed_json_parser<generic_brush>(_manager))) {
 				generic_pen result;
 				result.brush = brush.value();
-				if (auto obj = val.cast<typename Value::object_t>()) {
-					result.thickness = obj->parse_optional_member<double>(u8"thickness").value_or(result.thickness);
+				if (auto obj = val.template cast<typename Value::object_t>()) {
+					result.thickness =
+						obj->template parse_optional_member<double>(u8"thickness").value_or(result.thickness);
 				}
 				return result;
 			}
@@ -669,9 +769,9 @@ namespace codepad {
 		template <> struct default_parser<ui::geometries::rectangle> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::rectangle> operator()(const Value &val) const {
-				if (auto obj = val.cast<typename Value::object_t>()) {
-					if (auto top_left = obj->parse_member<ui::relative_vec2d>(u8"top_left")) {
-						if (auto bottom_right = obj->parse_member<ui::relative_vec2d>(u8"bottom_right")) {
+				if (auto obj = val.template cast<typename Value::object_t>()) {
+					if (auto top_left = obj->template parse_member<ui::relative_vec2d>(u8"top_left")) {
+						if (auto bottom_right = obj->template parse_member<ui::relative_vec2d>(u8"bottom_right")) {
 							return ui::geometries::rectangle(top_left.value(), bottom_right.value());
 						}
 					}
@@ -718,11 +818,11 @@ namespace codepad {
 			template <typename Value> std::optional<ui::geometries::rounded_rectangle> operator()(
 				const Value &val
 				) const {
-				if (auto obj = val.cast<typename Value::object_t>()) {
-					if (auto top_left = obj->parse_member<ui::relative_vec2d>(u8"top_left")) {
-						if (auto bottom_right = obj->parse_member<ui::relative_vec2d>(u8"bottom_right")) {
-							if (auto rx = obj->parse_member<ui::relative_double>(u8"radiusx")) {
-								if (auto ry = obj->parse_member<ui::relative_double>(u8"radiusy")) {
+				if (auto obj = val.template cast<typename Value::object_t>()) {
+					if (auto top_left = obj->template parse_member<ui::relative_vec2d>(u8"top_left")) {
+						if (auto bottom_right = obj->template parse_member<ui::relative_vec2d>(u8"bottom_right")) {
+							if (auto rx = obj->template parse_member<ui::relative_double>(u8"radiusx")) {
+								if (auto ry = obj->template parse_member<ui::relative_double>(u8"radiusy")) {
 									return ui::geometries::rounded_rectangle(
 										top_left.value(), bottom_right.value(), rx.value(), ry.value()
 									);
@@ -766,9 +866,9 @@ namespace codepad {
 		template <> struct default_parser<ui::geometries::ellipse> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::ellipse> operator()(const Value &val) const {
-				if (auto obj = val.cast<typename Value::object_t>()) {
-					if (auto top_left = obj->parse_member<ui::relative_vec2d>(u8"top_left")) {
-						if (auto bottom_right = obj->parse_member<ui::relative_vec2d>(u8"bottom_right")) {
+				if (auto obj = val.template cast<typename Value::object_t>()) {
+					if (auto top_left = obj->template parse_member<ui::relative_vec2d>(u8"top_left")) {
+						if (auto bottom_right = obj->template parse_member<ui::relative_vec2d>(u8"bottom_right")) {
 							return ui::geometries::ellipse(top_left.value(), bottom_right.value());
 						}
 					}
@@ -869,39 +969,42 @@ namespace codepad {
 		template <> struct default_parser<ui::geometries::path::part> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::path::part> operator()(const Value &val) const {
-				if (auto obj = val.cast<typename Value::object_t>()) {
+				if (auto obj = val.template cast<typename Value::object_t>()) {
 					if (obj->size() > 0) {
 						if (obj->size() > 1) {
-							val.log<log_level::warning>(CP_HERE) << "too many fields in subpath part";
+							val.template log<log_level::warning>(CP_HERE) << "too many fields in subpath part";
 						}
 						auto member = obj->member_begin();
 						if (member.name() == u8"line_to") {
-							if (auto to = member.value().parse<ui::relative_vec2d>()) {
+							if (auto to = member.value().template parse<ui::relative_vec2d>()) {
 								ui::geometries::path::part res;
 								res.value.emplace<ui::geometries::path::segment>().to = to.value();
 								return res;
 							}
 						} else if (member.name() == u8"arc") {
-							if (auto part_obj = member.value().cast<typename Value::object_t>()) {
-								if (auto to = part_obj->parse_member<ui::relative_vec2d>(u8"to")) {
+							if (auto part_obj = member.value().template cast<typename Value::object_t>()) {
+								if (auto to = part_obj->template parse_member<ui::relative_vec2d>(u8"to")) {
 									if (auto it = part_obj->find_member(u8"radius"); it != part_obj->member_end()) {
 										ui::geometries::path::part res;
 										auto &arc = res.value.emplace<ui::geometries::path::arc>();
-										if (auto r = it.value().try_cast<double>()) {
+										if (auto r = it.value().template try_cast<double>()) {
 											arc.radius.absolute = vec2d(r.value(), r.value());
-										} else if (auto rval = it.value().parse<ui::relative_vec2d>()) {
+										} else if (auto rval = it.value().template parse<ui::relative_vec2d>()) {
 											arc.radius = rval.value();
 										} else {
-											it.value().log<log_level::error>(CP_HERE) << "invalid radius format";
+											it.value().template log<log_level::error>(CP_HERE) <<
+												"invalid radius format";
 											return std::nullopt;
 										}
 										arc.direction =
-											part_obj->parse_member<bool>(u8"clockwise").value_or(false) ?
+											part_obj->template parse_member<bool>(u8"clockwise").value_or(false) ?
 											ui::sweep_direction::clockwise : ui::sweep_direction::counter_clockwise;
 										arc.type =
-											part_obj->parse_member<bool>(u8"major").value_or(false) ?
+											part_obj->template parse_member<bool>(u8"major").value_or(false) ?
 											ui::arc_type::major : ui::arc_type::minor;
-										if (auto rot = part_obj->parse_optional_member<double>(u8"rotation")) {
+										if (
+											auto rot = part_obj->template parse_optional_member<double>(u8"rotation")
+										) {
 											arc.rotation = rot.value();
 										}
 										return res;
@@ -909,10 +1012,14 @@ namespace codepad {
 								}
 							}
 						} else if (member.name() == u8"bezier") {
-							if (auto part_obj = member.value().cast<typename Value::object_t>()) {
-								if (auto to = part_obj->parse_member<ui::relative_vec2d>(u8"to")) {
-									if (auto c1 = part_obj->parse_member<ui::relative_vec2d>(u8"control1")) {
-										if (auto c2 = part_obj->parse_member<ui::relative_vec2d>(u8"control2")) {
+							if (auto part_obj = member.value().template cast<typename Value::object_t>()) {
+								if (auto to = part_obj->template parse_member<ui::relative_vec2d>(u8"to")) {
+									if (auto c1 = part_obj->template parse_member<ui::relative_vec2d>(
+										u8"control1"
+									)) {
+										if (auto c2 = part_obj->template parse_member<ui::relative_vec2d>(
+											u8"control2"
+										)) {
 											ui::geometries::path::part res;
 											auto &bezier = res.value.emplace<ui::geometries::path::cubic_bezier>();
 											bezier.to = to.value();
@@ -924,10 +1031,10 @@ namespace codepad {
 								}
 							}
 						} else {
-							val.log<log_level::error>(CP_HERE) << "invalid subpath part type";
+							val.template log<log_level::error>(CP_HERE) << "invalid subpath part type";
 						}
 					} else {
-						val.log<log_level::error>(CP_HERE) << "empty subpath part";
+						val.template log<log_level::error>(CP_HERE) << "empty subpath part";
 					}
 				}
 				return std::nullopt;
@@ -940,12 +1047,12 @@ namespace codepad {
 			template <typename Value> std::optional<ui::geometries::path::subpath> operator()(
 				const Value &val
 				) const {
-				if (auto obj = val.try_cast<typename Value::object_t>()) {
-					if (auto start = obj->parse_member<ui::relative_vec2d>(u8"start")) {
-						if (auto parts = obj->parse_member<std::vector<ui::geometries::path::part>>(
+				if (auto obj = val.template try_cast<typename Value::object_t>()) {
+					if (auto start = obj->template parse_member<ui::relative_vec2d>(u8"start")) {
+						if (auto parts = obj->template parse_member<std::vector<ui::geometries::path::part>>(
 							u8"parts", array_parser<ui::geometries::path::part>()
 							)) {
-							if (auto closed = obj->parse_member<bool>(u8"closed")) {
+							if (auto closed = obj->template parse_member<bool>(u8"closed")) {
 								ui::geometries::path::subpath res;
 								res.starting_point = start.value();
 								res.parts = std::move(parts.value());
@@ -954,17 +1061,17 @@ namespace codepad {
 							}
 						}
 					}
-				} else if (auto arr = val.try_cast<typename Value::array_t>()) {
+				} else if (auto arr = val.template try_cast<typename Value::array_t>()) {
 					if (arr->size() > 2) {
 						auto beg = arr->begin(), end = arr->end() - 1;
-						if (auto start = beg->parse<ui::relative_vec2d>()) {
-							if (auto final_obj = end->cast<typename Value::object_t>()) {
-								if (auto closed = final_obj->parse_member<bool>(u8"closed")) {
+						if (auto start = beg->template parse<ui::relative_vec2d>()) {
+							if (auto final_obj = end->template cast<typename Value::object_t>()) {
+								if (auto closed = final_obj->template parse_member<bool>(u8"closed")) {
 									ui::geometries::path::subpath res;
 									res.starting_point = start.value();
 									res.closed = closed.value();
 									for (++beg; beg != end; ++beg) {
-										if (auto part = beg->parse<ui::geometries::path::part>()) {
+										if (auto part = beg->template parse<ui::geometries::path::part>()) {
 											res.parts.emplace_back(part.value());
 										}
 									}
@@ -973,10 +1080,10 @@ namespace codepad {
 							}
 						}
 					} else {
-						val.log<log_level::error>(CP_HERE) << "too few elements in subpath";
+						val.template log<log_level::error>(CP_HERE) << "too few elements in subpath";
 					}
 				} else {
-					val.log<log_level::error>(CP_HERE) << "invalid subpath format";
+					val.template log<log_level::error>(CP_HERE) << "invalid subpath format";
 				}
 				return std::nullopt;
 			}
@@ -986,8 +1093,8 @@ namespace codepad {
 		template <> struct default_parser<ui::geometries::path> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::path> operator()(const Value &val) const {
-				if (auto obj = val.cast<typename Value::object_t>()) {
-					if (auto subpaths = obj->parse_member<std::vector<ui::geometries::path::subpath>>(
+				if (auto obj = val.template cast<typename Value::object_t>()) {
+					if (auto subpaths = obj->template parse_member<std::vector<ui::geometries::path::subpath>>(
 						u8"subpaths", array_parser<ui::geometries::path::subpath>()
 						)) {
 						ui::geometries::path result;
@@ -1032,46 +1139,46 @@ namespace codepad::ui {
 
 		/// The parser interface.
 		template <typename Value> std::optional<generic_visual_geometry> operator()(const Value &val) const {
-			if (auto obj = val.cast<typename Value::object_t>()) {
-				if (auto type = obj->parse_member<str_view_t>(u8"type")) {
+			if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto type = obj->template parse_member<str_view_t>(u8"type")) {
 					generic_visual_geometry result;
 					if (type.value() == u8"rectangle") {
-						if (auto rect = val.parse<geometries::rectangle>()) {
+						if (auto rect = val.template parse<geometries::rectangle>()) {
 							result.value.emplace<geometries::rectangle>(rect.value());
 						} else {
 							return std::nullopt;
 						}
 					} else if (type.value() == u8"rounded_rectangle") {
-						if (auto rrect = val.parse<geometries::rounded_rectangle>()) {
+						if (auto rrect = val.template parse<geometries::rounded_rectangle>()) {
 							result.value.emplace<geometries::rounded_rectangle>(rrect.value());
 						} else {
 							return std::nullopt;
 						}
 					} else if (type.value() == u8"ellipse") {
-						if (auto ellip = val.parse<geometries::ellipse>()) {
+						if (auto ellip = val.template parse<geometries::ellipse>()) {
 							result.value.emplace<geometries::ellipse>(ellip.value());
 						} else {
 							return std::nullopt;
 						}
 					} else if (type.value() == u8"path") {
-						if (auto path = val.parse<geometries::path>()) {
+						if (auto path = val.template parse<geometries::path>()) {
 							result.value.emplace<geometries::path>(std::move(path.value()));
 						} else {
 							return std::nullopt;
 						}
 					} else {
-						val.log<log_level::error>(CP_HERE) << "invalid geometry type";
+						val.template log<log_level::error>(CP_HERE) << "invalid geometry type";
 						return std::nullopt;
 					}
-					if (auto trans = obj->parse_optional_member<transforms::generic>(u8"transform")) {
+					if (auto trans = obj->template parse_optional_member<transforms::generic>(u8"transform")) {
 						result.transform = std::move(trans.value());
 					}
-					if (auto fill = obj->parse_optional_member<generic_brush>(
+					if (auto fill = obj->template parse_optional_member<generic_brush>(
 						u8"fill", managed_json_parser<generic_brush>(_manager)
 						)) {
 						result.fill = fill.value();
 					}
-					if (auto stroke = obj->parse_optional_member<generic_pen>(
+					if (auto stroke = obj->template parse_optional_member<generic_pen>(
 						u8"stroke", managed_json_parser<generic_pen>(_manager)
 						)) {
 						result.stroke = stroke.value();
@@ -1112,25 +1219,25 @@ namespace codepad::ui {
 			auto geom_parser = json::array_parser<
 				generic_visual_geometry, managed_json_parser<generic_visual_geometry>
 			>(managed_json_parser<generic_visual_geometry>(_manager));
-			if (auto obj = val.try_cast<typename Value::object_t>()) {
-				if (auto geoms = obj->parse_member<std::vector<generic_visual_geometry>>(
+			if (auto obj = val.template try_cast<typename Value::object_t>()) {
+				if (auto geoms = obj->template parse_member<std::vector<generic_visual_geometry>>(
 					u8"geometries", geom_parser
 					)) {
 					visuals res;
 					res.geometries = std::move(geoms.value());
-					if (auto trans = obj->parse_optional_member<transforms::generic>(u8"transform")) {
+					if (auto trans = obj->template parse_optional_member<transforms::generic>(u8"transform")) {
 						res.transform = std::move(trans.value());
 					}
 					return res;
 				}
-			} else if (val.is<typename Value::array_t>()) {
-				if (auto geoms = val.parse<std::vector<generic_visual_geometry>>(geom_parser)) {
+			} else if (val.template is<typename Value::array_t>()) {
+				if (auto geoms = val.template parse<std::vector<generic_visual_geometry>>(geom_parser)) {
 					visuals res;
 					res.geometries = std::move(geoms.value());
 					return res;
 				}
 			} else {
-				val.log<log_level::error>(CP_HERE) << "invalid visuals format";
+				val.template log<log_level::error>(CP_HERE) << "invalid visuals format";
 			}
 			return std::nullopt;
 		}
@@ -1155,16 +1262,19 @@ namespace codepad::json {
 	template <> struct default_parser<ui::element_layout> {
 		/// The parser interface.
 		template <typename ValueType> std::optional<ui::element_layout> operator()(const ValueType &val) const {
-			if (auto obj = val.cast<typename ValueType::object_t>()) {
+			if (auto obj = val.template cast<typename ValueType::object_t>()) {
 				ui::element_layout result;
-				result.margin = obj->parse_optional_member<ui::thickness>(u8"margin").value_or(result.margin);
-				result.padding = obj->parse_optional_member<ui::thickness>(u8"padding").value_or(result.padding);
-				result.elem_anchor = obj->parse_optional_member<ui::anchor>(u8"anchor").value_or(result.elem_anchor);
+				result.margin =
+					obj->template parse_optional_member<ui::thickness>(u8"margin").value_or(result.margin);
+				result.padding =
+					obj->template parse_optional_member<ui::thickness>(u8"padding").value_or(result.padding);
+				result.elem_anchor =
+					obj->template parse_optional_member<ui::anchor>(u8"anchor").value_or(result.elem_anchor);
 				// parse size
-				result.width_alloc = obj->parse_optional_member<ui::size_allocation_type>(
+				result.width_alloc = obj->template parse_optional_member<ui::size_allocation_type>(
 					u8"width_alloc"
 					).value_or(result.width_alloc);
-				result.height_alloc = obj->parse_optional_member<ui::size_allocation_type>(
+				result.height_alloc = obj->template parse_optional_member<ui::size_allocation_type>(
 					u8"height_alloc"
 					).value_or(result.height_alloc);
 				auto w = obj->find_member(u8"width"), h = obj->find_member(u8"height");
@@ -1176,7 +1286,7 @@ namespace codepad::json {
 						_parse_size_component(h.value(), result.size.y, result.height_alloc);
 					}
 				} else { // parse a single size
-					result.size = obj->parse_optional_member<vec2d>(u8"size").value_or(result.size);
+					result.size = obj->template parse_optional_member<vec2d>(u8"size").value_or(result.size);
 				}
 				return result;
 			}
@@ -1187,19 +1297,19 @@ namespace codepad::json {
 		template <typename ValueType> inline static void _parse_size_component(
 			const ValueType &val, double &v, ui::size_allocation_type &ty
 		) {
-			if (auto str = val.try_cast<str_view_t>()) {
+			if (auto str = val.template try_cast<str_view_t>()) {
 				if (str.value() == u8"auto" || str.value() == u8"Auto") {
 					v = 0.0;
 					ty = ui::size_allocation_type::automatic;
 					return;
 				}
 			}
-			if (auto alloc = val.parse<ui::size_allocation>()) {
+			if (auto alloc = val.template parse<ui::size_allocation>()) {
 				v = alloc->value;
 				ty = alloc->is_pixels ? ui::size_allocation_type::fixed : ui::size_allocation_type::proportion;
 				return;
 			}
-			val.log<log_level::error>(CP_HERE) << "failed to parse size component";
+			val.template log<log_level::error>(CP_HERE) << "failed to parse size component";
 		}
 	};
 }

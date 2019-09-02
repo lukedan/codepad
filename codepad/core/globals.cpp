@@ -157,6 +157,31 @@ namespace codepad {
 				static _global_wrapper<encoding_manager> _v;
 				return _v.object;
 			}
+
+			interaction_mode_registry<caret_set> &contents_region::get_interaction_mode_registry() {
+				static _global_wrapper<interaction_mode_registry<caret_set>> _v;
+				static bool _initialized = false;
+
+				if (!_initialized) {
+					_v.object.mapping.emplace(
+						u8"prepare_drag", []() {
+							return std::make_unique<
+								interaction_modes::mouse_prepare_drag_mode_activator<caret_set>
+							>();
+						}
+					);
+					_v.object.mapping.emplace(
+						u8"single_selection", []() {
+							return std::make_unique<
+								interaction_modes::mouse_single_selection_mode_activator<caret_set>
+							>();
+						}
+					);
+					_initialized = true;
+				}
+
+				return _v.object;
+			}
 		}
 	}
 }

@@ -263,5 +263,8 @@
     <ClCompile Include="ui\animation_path.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="editors\generic_settings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

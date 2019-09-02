@@ -424,7 +424,7 @@ namespace codepad::editors::code {
 			return basic_rendering(get_position());
 		}
 		/// Appends a \ref text_fragment to the rendered document by calling \ref _append_text().
-		text_rendering append(const text_fragment & frag) {
+		text_rendering append(const text_fragment &frag) {
 			return _append_text(std::basic_string_view<codepoint>(frag.text), ui::font_parameters(
 				str_t(_font_family), _font_size, frag.theme.style, frag.theme.weight, ui::font_stretch::normal
 			), frag.theme.color);
@@ -436,7 +436,7 @@ namespace codepad::editors::code {
 			return r;
 		}
 		/// Appends a \ref invalid_codepoint_fragment to the rendered document.
-		text_rendering append(const invalid_codepoint_fragment & frag) {
+		text_rendering append(const invalid_codepoint_fragment &frag) {
 			str_t textrepr = _invalid_cp_fmt(frag.value);
 			return _append_text(str_view_t(textrepr), ui::font_parameters(
 				str_t(_font_family), _font_size, ui::font_style::italic, ui::font_weight::normal, ui::font_stretch::normal
@@ -455,7 +455,7 @@ namespace codepad::editors::code {
 			return basic_rendering(get_position());
 		}
 		/// Appends a \ref text_gizmo_fragment to the rendered document by calling \ref _append_text().
-		text_rendering append(const text_gizmo_fragment & frag) {
+		text_rendering append(const text_gizmo_fragment &frag) {
 			return _append_text(str_view_t(frag.contents), frag.font, frag.color);
 		}
 
@@ -464,7 +464,7 @@ namespace codepad::editors::code {
 		}
 		/// Renders the text using the given renderer, at the position specified in the \ref text_rendering.
 		/// Additional transformations may be necessary to 
-		void render(ui::renderer_base & r, const text_rendering & text) {
+		void render(ui::renderer_base & r, const text_rendering &text) {
 			r.draw_formatted_text(
 				*text.text, vec2d(text.topleft.x, text.topleft.y + text.baseline_correction),
 				ui::generic_brush_parameters(ui::brush_parameters::solid_color(text.color))

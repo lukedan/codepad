@@ -66,12 +66,17 @@ namespace codepad::editors {
 	struct caret_selection_position {
 		/// Default constructor.
 		caret_selection_position() = default;
-		/// Convertsion constructor from a \ref caret_position.
+		/// Converting constructor from a \ref caret_position.
 		caret_selection_position(caret_position cpos) :
 			caret(cpos.position), selection(cpos.position), caret_at_back(cpos.at_back) {
 		}
+		/// Initializes this struct with a \ref caret_position and the position of the other end of the selection.
+		caret_selection_position(caret_position caret, size_t selection) :
+			caret_selection_position(caret.position, selection, caret.at_back) {
+		}
 		/// Initializes all fields of this struct.
-		caret_selection_position(size_t c, size_t s, bool back = false) : caret(c), selection(s), caret_at_back(back) {
+		caret_selection_position(size_t c, size_t s, bool back = false) :
+			caret(c), selection(s), caret_at_back(back) {
 		}
 
 		/// Sets the value of the part of this struct that corresponds to a \ref caret_position.

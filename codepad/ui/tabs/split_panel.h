@@ -248,7 +248,7 @@ namespace codepad::ui::tabs {
 		/// Handles the \p set_horizontal and \p set_vertical events.
 		bool _register_event(str_view_t name, std::function<void()> callback) override {
 			return
-				_event_helpers::register_orientation_events(
+				_event_helpers::try_register_orientation_events(
 					name, orientation_changed, [this]() {
 						return get_orientation();
 					}, callback

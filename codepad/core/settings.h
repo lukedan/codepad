@@ -16,6 +16,7 @@
 
 #include "json/misc.h"
 #include "json/storage.h"
+#include "json/rapidjson.h"
 #include "encodings.h"
 #include "misc.h"
 #include "event.h"
@@ -65,7 +66,7 @@ namespace codepad {
 						if (++it == end) { // found it, return
 							return fmem.value();
 						}
-						if (auto obj = fmem.value().cast<json::storage::object_t>()) {
+						if (auto obj = fmem.value().template cast<json::storage::object_t>()) {
 							current = obj.value();
 						} else { // not an object
 							return std::nullopt;
@@ -146,23 +147,23 @@ namespace codepad {
 					if (it != _children.end()) {
 						return **it;
 					}
-					auto res = _children.emplace(_base, this, str_t(key));
+					auto res = _children.emplace(std::make_unique<profile_value>(_base, this, str_t(key)));
 					assert_true_logical(res.second, "insertion should succeed");
 					return **res.first;
 				}
 			protected:
-				/// Used to compare to compare two 
+				/// Used to compare two \ref profile_value instances.
 				template <typename Cmp = std::less<void>> struct _profile_value_ptr_compare {
 					/// Allows \p std::set::find() to take \ref str_view_t as the key.
 					using is_transparent = std::true_type;
 
 					/// Overload for \p std::unique_ptr to \ref profile_value.
 					inline static str_view_t get_key(const std::unique_ptr<profile_value> &ptr) {
-						assert_true_logical(ptr, "empty pointer to settings profile value");
+						assert_true_logical(ptr != nullptr, "empty pointer to settings profile value");
 						return ptr->_key;
 					}
 					/// Overload for other string types.
-					template <typename T> inline static const T &get_key(const T &str) {
+					template <typename Str> inline static const Str &get_key(const Str &str) {
 						return str;
 					}
 
@@ -300,7 +301,18 @@ namespace codepad {
 		) {
 			return retriever_parser<T>(*this, std::move(key), std::move(parser));
 		}
-		// TODO set(): set _storage, increment _timestamp, and reset _main_profile
+
+		/// Updates the value of all settings.
+		void set(json::value_storage val) {
+			++_timestamp;
+			_main_profile = nullptr;
+			_storage = std::move(val);
+			changed.invoke();
+		}
+		/// Loads all settings from the given file.
+		void load(const std::filesystem::path &path) {
+			set(json::store(json::parse_file<json::rapidjson::document_t>(path).root()));
+		}
 
 		/// Returns the global \ref settings object.
 		static settings &get();

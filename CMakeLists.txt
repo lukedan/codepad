@@ -7,9 +7,8 @@ if(NOT DEFINED USE_SSE4)
 	set(USE_SSE4 Yes)
 endif()
 
-find_package(OpenGL REQUIRED)
-find_package(Freetype REQUIRED)
 if(UNIX)
+	find_package(Freetype REQUIRED)
 	set(USE_GTK Yes) # TODO
 	find_package(Fontconfig REQUIRED)
 	if(USE_GTK)
@@ -27,58 +26,73 @@ target_compile_features(codepad
 		cxx_std_17)
 target_sources(codepad
 	PRIVATE
+		codepad/core/json/misc.h
+		codepad/core/json/parsing.h
+		codepad/core/json/rapidjson.h
+		codepad/core/json/storage.h
+
+		codepad/core/assert.h
 		codepad/core/bst.h
 		codepad/core/encodings.h
 		codepad/core/event.h
 		codepad/core/globals.cpp
-		codepad/core/json.h
+		codepad/core/logger_sinks.h
+		codepad/core/logging.h
+		codepad/core/math.h
 		codepad/core/misc.h
+		codepad/core/profiling.h
+		codepad/core/settings.h
+
+		codepad/editors/binary/components.h
+		codepad/editors/binary/contents_region.h
 
 		codepad/editors/code/caret_set.cpp
 		codepad/editors/code/caret_set.h
-		codepad/editors/code/codebox.cpp
-		codepad/editors/code/codebox.h
 		codepad/editors/code/components.h
-		codepad/editors/code/document_formatting_cache.h
-		codepad/editors/code/editor.cpp
-		codepad/editors/code/editor.h
+		codepad/editors/code/contents_region.cpp
+		codepad/editors/code/contents_region.h
 		codepad/editors/code/interpretation.h
 		codepad/editors/code/linebreak_registry.h
 		codepad/editors/code/rendering.h
 		codepad/editors/code/theme.h
 		codepad/editors/code/view.h
+		codepad/editors/code/view_caching.h
+
 		codepad/editors/buffer.cpp
 		codepad/editors/buffer.h
 		codepad/editors/buffer_manager.h
-		codepad/editors/tabs.cpp
-		codepad/editors/tabs.h
+		codepad/editors/caret_set.h
+		codepad/editors/editor.h
+		codepad/editors/generic_settings.cpp
+		codepad/editors/interaction_modes.h
 
 		codepad/os/current/all.h
-		codepad/os/current/font.h
 		codepad/os/current/misc.h
-		codepad/os/current/renderer.h
 		codepad/os/current/window.h
 		codepad/os/filesystem.h
-		codepad/os/freetype_font_base.h
 		codepad/os/misc.h
-		codepad/os/opengl_renderer_base.cpp
-		codepad/os/opengl_renderer_base.h
-		codepad/os/software_renderer_base.cpp
-		codepad/os/software_renderer_base.h
 
+		codepad/ui/tabs/animated_tab_button_panel.h
+		codepad/ui/tabs/host.cpp
+		codepad/ui/tabs/host.h
+		codepad/ui/tabs/manager.h
+		codepad/ui/tabs/split_panel.h
+		codepad/ui/tabs/tab.cpp
+		codepad/ui/tabs/tab.h
+
+		codepad/ui/animation.h
+		codepad/ui/animation_path.cpp
+		codepad/ui/animation_path.h
 		codepad/ui/arrangements.cpp
 		codepad/ui/arrangements.h
-		codepad/ui/atlas.h
 		codepad/ui/commands.h
 		codepad/ui/common_elements.cpp
 		codepad/ui/common_elements.h
 		codepad/ui/config_parsers.h
-		codepad/ui/draw.h
 		codepad/ui/element.cpp
 		codepad/ui/element.h
 		codepad/ui/element_classes.h
-		codepad/ui/font.h
-		codepad/ui/font_family.h
+		codepad/ui/element_parameters.h
 		codepad/ui/hotkey_registry.h
 		codepad/ui/manager.cpp
 		codepad/ui/manager.h
@@ -87,12 +101,10 @@ target_sources(codepad
 		codepad/ui/native_commands.h
 		codepad/ui/panel.cpp
 		codepad/ui/panel.h
+		codepad/ui/renderer.cpp
 		codepad/ui/renderer.h
 		codepad/ui/scheduler.h
-		codepad/ui/text_rendering.cpp
 		codepad/ui/text_rendering.h
-		codepad/ui/visual.cpp
-		codepad/ui/visual.h
 		codepad/ui/window.cpp
 		codepad/ui/window.h
 
@@ -100,9 +112,6 @@ target_sources(codepad
 target_compile_definitions(codepad
 	PRIVATE
 		UNICODE _UNICODE CP_LOG_STACKTRACE)
-target_link_libraries(codepad
-	PRIVATE
-		Freetype::Freetype OpenGL::GL)
 
 if(MSVC)
 	target_compile_options(codepad
@@ -120,10 +129,9 @@ endif()
 if(WIN32)
 	target_sources(codepad
 		PRIVATE
+			codepad/os/windows/direct2d_renderer.h
 			codepad/os/windows/filesystem.cpp
-			codepad/os/windows/font.h
 			codepad/os/windows/misc.h
-			codepad/os/windows/renderer.h
 			codepad/os/windows/window.h
 			codepad/os/windows/windows.cpp
 			codepad/os/windows.h)

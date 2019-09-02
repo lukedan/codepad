@@ -8,6 +8,7 @@
 
 #include <algorithm>
 
+#include "../core/settings.h"
 #include "../ui/panel.h"
 #include "../ui/common_elements.h"
 #include "caret_set.h"
@@ -75,6 +76,12 @@ namespace codepad::editors {
 			set_vertical_position(pos.y);
 		}
 
+		/// Adjusts horizontal and vertical positions so that the given region is visible.
+		void make_region_visible(rectd rgn) {
+			_hori_scroll->make_range_visible(rgn.xmin, rgn.xmax);
+			_vert_scroll->make_range_visible(rgn.ymin, rgn.ymax);
+		}
+
 		/// Returns the associated \ref contents_region.
 		contents_region_base *get_contents_region() const {
 			return _contents;
@@ -85,6 +92,11 @@ namespace codepad::editors {
 			vertical_viewport_changed,
 			/// Event invoked when the horizontal position or viewport size has changed.
 			horizontal_viewport_changed;
+
+		/// Retrieves the setting entry that determines the font size.
+		static settings::retriever_parser<double> &get_font_size_setting();
+		/// Retrieves the setting entry that determines the list of interaction modes used in code editors.
+		static settings::retriever_parser<std::vector<str_t>> &get_interaction_modes_setting();
 
 		/// Returns the \ref editor that's the logical parent of the given \ref ui::element.
 		inline static editor *get_encapsulating(const ui::element &e) {

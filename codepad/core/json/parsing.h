@@ -402,21 +402,21 @@ namespace codepad::json {
 
 		template <typename ValueType> template <typename T> bool value_t<ValueType>::is() const {
 			if constexpr (std::is_same_v<T, object_t>) {
-				return _value.is<typename ValueType::object_t>();
+				return _value.template is<typename ValueType::object_t>();
 			} else if constexpr (std::is_same_v<T, array_t>) {
-				return _value.is<typename ValueType::array_t>();
+				return _value.template is<typename ValueType::array_t>();
 			} else {
-				return _value.is<T>();
+				return _value.template is<T>();
 			}
 		}
 
 		template <typename ValueType> template <typename T> T value_t<ValueType>::get() const {
 			if constexpr (std::is_same_v<T, object_t>) {
-				return object_t(_value.get<typename ValueType::object_t>(), _node);
+				return object_t(_value.template get<typename ValueType::object_t>(), _node);
 			} else if constexpr (std::is_same_v<T, array_t>) {
-				return array_t(_value.get<typename ValueType::array_t>(), _node);
+				return array_t(_value.template get<typename ValueType::array_t>(), _node);
 			} else {
-				return _value.get<T>();
+				return _value.template get<T>();
 			}
 		}
 

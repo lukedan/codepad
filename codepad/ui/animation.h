@@ -7,6 +7,7 @@
 /// Animation-related classes and structs.
 
 #include <optional>
+#include <iostream> // TODO remove this
 
 #include "misc.h"
 #include "../core/json/storage.h"
@@ -215,14 +216,14 @@ namespace codepad::ui {
 		template <typename Value> std::optional<generic_keyframe_animation_definition::keyframe> operator()(
 			const Value &val
 			) const {
-			if (auto obj = val.cast<typename Value::object_t>()) {
+			if (auto obj = val.template cast<typename Value::object_t>()) {
 				if (auto it = obj->find_member(u8"to"); it != obj->member_end()) {
 					generic_keyframe_animation_definition::keyframe res;
 					res.target = json::store(it.value());
-					if (auto dur = obj->parse_optional_member<animation_duration_t>(u8"duration")) {
+					if (auto dur = obj->template parse_optional_member<animation_duration_t>(u8"duration")) {
 						res.duration = dur.value();
 					}
-					if (auto trans = obj->parse_optional_member<transition_function>(
+					if (auto trans = obj->template parse_optional_member<transition_function>(
 						u8"transition", managed_json_parser<transition_function>(_manager)
 						)) {
 						res.transition_func = trans.value();
@@ -250,31 +251,32 @@ namespace codepad::ui {
 
 			managed_json_parser<_keyframe> keyframe_parser{_manager};
 			json::array_parser<_keyframe, managed_json_parser<_keyframe>> keyframe_list_parser{keyframe_parser};
-			if (auto obj = val.try_cast<typename Value::object_t>()) {
+			if (auto obj = val.template try_cast<typename Value::object_t>()) {
 				generic_keyframe_animation_definition res;
-				if (auto frames = obj->parse_optional_member<std::vector<_keyframe>>(
+				if (auto frames = obj->template parse_optional_member<std::vector<_keyframe>>(
 					u8"frames", keyframe_list_parser
 					)) {
 					res.keyframes = std::move(frames.value());
-				} else if (auto frame = val.try_parse<_keyframe>(keyframe_parser)) {
+				} else if (auto frame = val.template try_parse<_keyframe>(keyframe_parser)) {
 					res.keyframes.emplace_back(std::move(frame.value()));
 				} else {
-					val.log<log_level::error>(CP_HERE) << "no keyframe found in animation";
+					val.template log<log_level::error>(CP_HERE) << "no keyframe found in animation";
 					return std::nullopt;
 				}
 				if (auto it = obj->find_member(u8"repeat"); it != obj->member_end()) {
 					auto repeat_val = it.value();
-					if (auto num = repeat_val.try_cast<std::uint64_t>()) {
+					if (auto num = repeat_val.template try_cast<std::uint64_t>()) {
 						res.repeat_times = num.value();
-					} else if (auto boolean = repeat_val.try_cast<bool>()) {
+					} else if (auto boolean = repeat_val.template try_cast<bool>()) {
 						res.repeat_times = boolean.value() ? 0 : 1;
 					} else {
-						repeat_val.log<log_level::error>(CP_HERE) << "invalid repeat for keyframe animation";
+						repeat_val.template log<log_level::error>(CP_HERE) <<
+							"invalid repeat for keyframe animation";
 					}
 				}
 				return res;
-			} else if (val.is<typename Value::array_t>()) {
-				if (auto frames = val.parse<std::vector<_keyframe>>(keyframe_list_parser)) {
+			} else if (val.template is<typename Value::array_t>()) {
+				if (auto frames = val.template parse<std::vector<_keyframe>>(keyframe_list_parser)) {
 					generic_keyframe_animation_definition res;
 					res.keyframes = std::move(frames.value());
 					return res;
@@ -342,7 +344,7 @@ namespace codepad::ui {
 					_subject->set(_def->keyframes.back().target);
 					return std::nullopt;
 				}
-				const definition_t::keyframe &f = _def->keyframes[_cur_frame];
+				const typename definition_t::keyframe &f = _def->keyframes[_cur_frame];
 				animation_time_point_t key_frame_end = _keyframe_start + f.duration;
 				if (key_frame_end > now) { // at the correct frame
 					if (f.transition_func) {
@@ -351,7 +353,7 @@ namespace codepad::ui {
 						)));
 						return animation_duration_t(0); // update immediately
 					} else { // wait until this key frame is over
-						_subject->set(f.target);
+						_subject->set(_from);
 						return key_frame_end - now;
 					}
 				}

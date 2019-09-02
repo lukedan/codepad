@@ -31,7 +31,7 @@ namespace codepad::ui {
 		/// Parses a dictionary of colors.
 		void parse_color_scheme(const object_t &val, std::map<str_t, colord, std::less<>> &scheme) {
 			for (auto it = val.member_begin(); it != val.member_end(); ++it) {
-				if (auto color = it.value().parse<colord>()) {
+				if (auto color = it.value().template parse<colord>()) {
 					scheme.emplace(it.name(), color.value());
 				}
 			}
@@ -43,35 +43,35 @@ namespace codepad::ui {
 		void parse_configuration(const object_t &val, element_configuration &value) {
 			parse_parameters(val, value.default_parameters);
 
-			if (auto extraobj = val.parse_optional_member<object_t>(u8"extras")) {
+			if (auto extraobj = val.template parse_optional_member<object_t>(u8"extras")) {
 				for (auto it = extraobj->member_begin(); it != extraobj->member_end(); ++it) {
 					value.additional_attributes.emplace(it.name(), json::store(it.value()));
 				}
 			}
 
-			if (auto ani_from = val.parse_optional_member<str_view_t>(u8"inherit_animations_from")) {
+			if (auto ani_from = val.template parse_optional_member<str_view_t>(u8"inherit_animations_from")) {
 				if (auto *ancestor = get_manager().get_class_arrangements().get(ani_from.value())) {
 					value.event_triggers = ancestor->configuration.event_triggers;
 				} else {
-					val.log<log_level::error>(CP_HERE) << "invalid animation inheritance";
+					val.template log<log_level::error>(CP_HERE) << "invalid animation inheritance";
 				}
 			}
-			if (auto animations = val.parse_optional_member<object_t>(u8"animations")) {
+			if (auto animations = val.template parse_optional_member<object_t>(u8"animations")) {
 				for (auto sbit = animations->member_begin(); sbit != animations->member_end(); ++sbit) {
-					if (auto ani_obj = sbit.value().cast<object_t>()) {
+					if (auto ani_obj = sbit.value().template cast<object_t>()) {
 						element_configuration::event_trigger trigger;
 						trigger.identifier = element_configuration::event_identifier::parse_from_string(sbit.name());
 						for (auto aniit = ani_obj->member_begin(); aniit != ani_obj->member_end(); ++aniit) {
 							animation_path::component_list components;
 							auto res = animation_path::parser::parse(aniit.name(), components);
 							if (res != animation_path::parser::result::completed) {
-								aniit.value().log<log_level::error>(CP_HERE) <<
+								aniit.value().template log<log_level::error>(CP_HERE) <<
 									"failed to segment animation path, skipping";
 								continue;
 							}
 							element_configuration::animation_parameters aniparams;
 							aniparams.subject = std::move(components);
-							if (auto ani = aniit.value().parse<generic_keyframe_animation_definition>(
+							if (auto ani = aniit.value().template parse<generic_keyframe_animation_definition>(
 								managed_json_parser<generic_keyframe_animation_definition>(get_manager())
 								)) {
 								aniparams.definition = ani.value();
@@ -87,50 +87,52 @@ namespace codepad::ui {
 		}
 		/// Parses a \ref element_parameters from the given JSON object.
 		void parse_parameters(const object_t &val, element_parameters &value) {
-			if (auto layout_from = val.parse_optional_member<str_view_t>(u8"inherit_layout_from")) {
+			if (auto layout_from = val.template parse_optional_member<str_view_t>(u8"inherit_layout_from")) {
 				if (auto *ancestor = get_manager().get_class_arrangements().get(layout_from.value())) {
 					value.layout_parameters = ancestor->configuration.default_parameters.layout_parameters;
 				} else {
-					val.log<log_level::error>(CP_HERE) << "invalid layout inheritance";
+					val.template log<log_level::error>(CP_HERE) << "invalid layout inheritance";
 				}
 			}
-			if (auto layout = val.parse_optional_member<element_layout>(u8"layout")) {
+			if (auto layout = val.template parse_optional_member<element_layout>(u8"layout")) {
 				value.layout_parameters = layout.value();
 			}
 
-			if (auto visuals_from = val.parse_optional_member<str_view_t>(u8"inherit_visuals_from")) {
+			if (auto visuals_from = val.template parse_optional_member<str_view_t>(u8"inherit_visuals_from")) {
 				if (auto * ancestor = get_manager().get_class_arrangements().get(visuals_from.value())) {
 					value.visual_parameters = ancestor->configuration.default_parameters.visual_parameters;
 				} else {
-					val.log<log_level::error>(CP_HERE) << "invalid visual inheritance";
+					val.template log<log_level::error>(CP_HERE) << "invalid visual inheritance";
 				}
 			}
-			if (auto vis = val.parse_optional_member<visuals>(
+			if (auto vis = val.template parse_optional_member<visuals>(
 				u8"visuals", managed_json_parser<visuals>(get_manager())
 				)) {
 				value.visual_parameters = std::move(vis.value());
 			}
 
-			value.visibility = val.parse_optional_member<visibility>(u8"visibility").value_or(value.visibility);
-			value.custom_cursor = val.parse_optional_member<cursor>(u8"cursor").value_or(value.custom_cursor);
+			value.visibility =
+				val.template parse_optional_member<visibility>(u8"visibility").value_or(value.visibility);
+			value.custom_cursor =
+				val.template parse_optional_member<cursor>(u8"cursor").value_or(value.custom_cursor);
 		}
 		/// Parses additional attributes of a \ref class_arrangements::child from the given JSON object.
 		void parse_additional_arrangement_attributes(
 			const object_t &val, class_arrangements::child &child
 		) {
-			if (auto type = val.parse_member<str_view_t>(u8"type")) {
+			if (auto type = val.template parse_member<str_view_t>(u8"type")) {
 				child.type = type.value();
-				child.element_class = val.parse_optional_member<str_view_t>(u8"class").value_or(child.type);
-				child.name = val.parse_optional_member<str_view_t>(u8"name").value_or(child.name);
+				child.element_class = val.template parse_optional_member<str_view_t>(u8"class").value_or(child.type);
+				child.name = val.template parse_optional_member<str_view_t>(u8"name").value_or(child.name);
 			}
 		}
 		/// Parses the metrics and children arrangements of either a composite element or one of its children, given
 		/// a JSON object.
 		template <typename T> void parse_class_arrangements(const object_t &val, T &obj) {
 			parse_configuration(val, obj.configuration);
-			if (auto children = val.parse_optional_member<array_t>(u8"children")) {
+			if (auto children = val.template parse_optional_member<array_t>(u8"children")) {
 				for (auto &&elem : children.value()) {
-					if (auto child = elem.cast<object_t>()) {
+					if (auto child = elem.template cast<object_t>()) {
 						class_arrangements::child ch;
 						parse_additional_arrangement_attributes(child.value(), ch);
 						if (auto *cls = get_manager().get_class_arrangements().get(ch.element_class)) {
@@ -148,9 +150,9 @@ namespace codepad::ui {
 		/// not emptied so configs can be appended to one another.
 		void parse_arrangements_config(const object_t &val) {
 			for (auto i = val.member_begin(); i != val.member_end(); ++i) {
-				if (auto obj = i.value().cast<object_t>()) {
+				if (auto obj = i.value().template cast<object_t>()) {
 					class_arrangements arr;
-					if (auto name = obj->parse_optional_member<str_view_t>(u8"name")) {
+					if (auto name = obj->template parse_optional_member<str_view_t>(u8"name")) {
 						arr.name = str_t(name.value());
 					}
 					parse_class_arrangements(obj.value(), arr);
@@ -181,51 +183,28 @@ namespace codepad::ui {
 		using object_t = typename ValueType::object_t; ///< The type for JSON objects.
 		using array_t = typename ValueType::array_t; ///< The type for JSON arrays.
 
-		/// Parses a \ref key_gesture from the given object. The object must be a string,
-		/// which will be broken into parts with \ref key_delim. Each part is then parsed separately
-		/// by either \ref parse_modifier, or \ref parse_key for the last part.
-		inline static bool parse_hotkey_gesture(key_gesture &gest, str_view_t val) {
-			auto last = val.begin(), cur = last;
-			gest.mod_keys = modifier_keys::none;
-			for (; cur != val.end(); ++cur) {
-				if (*cur == key_delim && cur != last) {
-					if (auto mod = enum_parser<modifier_keys>::parse(str_view_t(&*last, cur - last))) {
-						gest.mod_keys |= mod.value();
-					}
-					last = cur + 1;
-				}
-			}
-			if (auto k = enum_parser<key>::parse(str_view_t(&*last, cur - last))) {
-				gest.primary = k.value();
-			} else {
-				return false;
-			}
-			return true;
-		}
 		/// Parses a JSON object for a list of \ref key_gesture "key_gestures" and the corresponding command.
 		inline static bool parse_hotkey_entry(
 			std::vector<key_gesture> &gests, str_t &cmd, const object_t &obj
 		) {
-			if (auto command = obj.parse_member<str_view_t>(u8"command")) {
+			if (auto command = obj.template parse_member<str_view_t>(u8"command")) {
 				cmd = command.value();
 			} else {
 				return false;
 			}
 			if (auto gestures = obj.find_member(u8"gestures"); gestures != obj.member_end()) {
-				if (auto gstr = gestures.value().try_cast<str_view_t>()) {
-					key_gesture gestval;
-					if (!parse_hotkey_gesture(gestval, gstr.value())) {
+				if (auto gstr = gestures.value().template try_cast<str_view_t>()) {
+					if (auto gestval = key_gesture::parse(gstr.value())) {
+						gests.emplace_back(gestval.value());
+					} else {
 						return false;
 					}
-					gests.emplace_back(gestval);
-				} else if (auto garr = gestures.value().try_cast<array_t>()) {
+				} else if (auto garr = gestures.value().template try_cast<array_t>()) {
 					for (auto &&g : garr.value()) {
-						if (auto gpart = g.try_cast<str_view_t>()) {
-							key_gesture gval;
-							if (!parse_hotkey_gesture(gval, gpart.value())) {
-								continue;
+						if (auto gpart = g.template try_cast<str_view_t>()) {
+							if (auto gestval = key_gesture::parse(gpart.value())) {
+								gests.emplace_back(gestval.value());
 							}
-							gests.emplace_back(gval);
 						}
 					}
 				} else {
@@ -239,7 +218,7 @@ namespace codepad::ui {
 		/// Parses an \ref class_hotkey_group from an JSON array.
 		inline static bool parse_class_hotkey(class_hotkey_group & gp, const array_t & arr) {
 			for (auto &&cls : arr) {
-				if (auto obj = cls.try_cast<object_t>()) {
+				if (auto obj = cls.template try_cast<object_t>()) {
 					std::vector<key_gesture> gs;
 					str_t name;
 					if (parse_hotkey_entry(gs, name, obj.value())) {
@@ -257,7 +236,7 @@ namespace codepad::ui {
 		) {
 			for (auto i = obj.member_begin(); i != obj.member_end(); ++i) {
 				class_hotkey_group gp;
-				if (auto arr = i.value().try_cast<array_t>()) {
+				if (auto arr = i.value().template try_cast<array_t>()) {
 					if (parse_class_hotkey(gp, arr.value())) {
 						mapping.emplace(i.name(), std::move(gp));
 					}

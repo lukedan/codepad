@@ -30,6 +30,8 @@ namespace codepad::ui {
 			relayout_time_redline{0.01},
 			/// Maximum expected time for all rendering operations during a single frame.
 			render_time_redline{0.04};
+		/// The maximum number of system messages that can be processed between two updates.
+		constexpr static size_t maximum_messages_per_update = 20;
 
 #ifdef CP_PLATFORM_WINDOWS
 		using thread_id_t = std::uint32_t; ///< The type for thread IDs.
@@ -100,7 +102,8 @@ namespace codepad::ui {
 			performance_monitor mon(CP_STRLIT("layout"), relayout_time_redline);
 			assert_true_logical(!_layouting, "update_invalid_layout() cannot be called recursively");
 			_layouting = true;
-			std::deque<element*> notify(_layout_notify.begin(), _layout_notify.end()); // list of elements to be notified
+			// list of elements to be notified
+			std::deque<element*> notify(_layout_notify.begin(), _layout_notify.end());
 			_layout_notify.clear();
 			// gather the list of elements with invalidated layout
 			std::set<panel*> childrenupdate;
@@ -219,7 +222,6 @@ namespace codepad::ui {
 
 			if (aninow >= _next_update) { // only update when necessary
 				animation_duration_t wait_time = animation_duration_t::max();
-
 				for (auto elemit = _element_animations.begin(); elemit != _element_animations.end(); ) {
 					for (auto aniit = elemit->second.begin(); aniit != elemit->second.end(); ) {
 						if (auto nexttime = (*aniit)->update(aninow)) {
@@ -235,12 +237,7 @@ namespace codepad::ui {
 						++elemit;
 					}
 				}
-
 				_next_update = aninow + wait_time;
-				if (wait_time > _update_wait_threshold) { // set timer
-					// the update may have taken some time
-					_set_timer(_next_update - std::chrono::high_resolution_clock::now());
-				}
 			}
 
 			auto nnow = std::chrono::high_resolution_clock::now();
@@ -277,7 +274,7 @@ namespace codepad::ui {
 				}
 			}
 			entry->second.emplace_back(std::move(ani));
-			_next_update = animation_clock_t::now();
+			_reset_update_estimate();
 		}
 
 		// focus
@@ -388,19 +385,19 @@ namespace codepad::ui {
 			_update_wait_threshold = d;
 		}
 
-		/// Simply calls \ref update_invalid_layout and \ref update_invalid_visuals.
-		void update_layout_and_visual() {
+		/// Simply calls \ref update_invalid_layout() and \ref update_invalid_visuals().
+		void update_layout_and_visuals() {
 			update_invalid_layout();
 			update_invalid_visuals();
 		}
 		/// Calls \ref update_tasks(), \ref dispose_marked_elements, \ref update_scheduled_elements,
-		/// and \ref update_layout_and_visual.
+		/// and \ref update_layout_and_visuals.
 		void update() {
-			performance_monitor mon(CP_STRLIT("Update UI"));
+			performance_monitor mon(CP_STRLIT("Update"));
 			update_tasks();
 			dispose_marked_elements();
 			update_scheduled_elements();
-			update_layout_and_visual();
+			update_layout_and_visuals();
 		}
 
 		/// Returns whether \ref update() needs to be called right now.
@@ -422,11 +419,15 @@ namespace codepad::ui {
 		/// single message from the system by calling \ref _idle_system() with \ref wait_type::blocking.
 		void idle_loop_body() {
 			if (needs_update()) {
+				// if updating is necessary, first perform this update, then process pending messages
 				update();
-				while (_idle_system(wait_type::non_blocking)) {
+				// limit the maximum number of messages processed at once
+				for (size_t i = 0; i < maximum_messages_per_update && _idle_system(wait_type::non_blocking); ++i) {
 				}
 			} else {
-				_idle_system(wait_type::blocking);
+				_set_timer(_next_update - std::chrono::high_resolution_clock::now()); // set up the timer
+				_idle_system(wait_type::blocking); // wait for the next event or the timer
+				// reset last update time so that the large blocking gap is not counted
 				_last_update = std::chrono::high_resolution_clock::now();
 			}
 		}
@@ -469,7 +470,7 @@ namespace codepad::ui {
 			_next_update;
 		/// If the next update is more than this amount of time away, then set the timer and yield control to reduce
 		/// resource consumption.
-		std::chrono::high_resolution_clock::duration _update_wait_threshold{0};
+		std::chrono::high_resolution_clock::duration _update_wait_threshold{std::chrono::milliseconds(5)};
 
 		thread_id_t _thread_id; ///< The thread ID of the thread that this scheduler is running on.
 

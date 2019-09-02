@@ -23,24 +23,24 @@ namespace codepad {
 			/// Parses \ref vec2d. The object must be of the following format: <tt>[x, y]</tt>
 			template <typename Value> std::optional<vec2d> operator()(const Value &val) const {
 				std::optional<double> x, y;
-				if (auto arr = val.try_cast<typename Value::array_t>()) {
+				if (auto arr = val.template try_cast<typename Value::array_t>()) {
 					if (arr->size() >= 2) {
 						if (arr->size() > 2) {
-							val.log<log_level::warning>(CP_HERE) << u8"too many elements in vec2";
+							val.template log<log_level::warning>(CP_HERE) << u8"too many elements in vec2";
 						}
-						x = arr->at(0).parse<double>();
-						y = arr->at(1).parse<double>();
+						x = arr->at(0).template parse<double>();
+						y = arr->at(1).template parse<double>();
 					} else {
-						val.log<log_level::error>(CP_HERE) << u8"too few elements in vec2";
+						val.template log<log_level::error>(CP_HERE) << u8"too few elements in vec2";
 					}
-				} else if (auto obj = val.try_cast<typename Value::object_t>()) {
+				} else if (auto obj = val.template try_cast<typename Value::object_t>()) {
 					if (obj->size() > 2) {
-						val.log<log_level::warning>(CP_HERE) << u8"redundant fields in vec2 definition";
+						val.template log<log_level::warning>(CP_HERE) << u8"redundant fields in vec2 definition";
 					}
-					x = obj->parse_member<double>(u8"x");
-					y = obj->parse_member<double>(u8"y");
+					x = obj->template parse_member<double>(u8"x");
+					y = obj->template parse_member<double>(u8"y");
 				} else {
-					val.log<log_level::error>(CP_HERE) << u8"invalid vec2 format";
+					val.template log<log_level::error>(CP_HERE) << u8"invalid vec2 format";
 				}
 				if (x && y) {
 					return vec2d(x.value(), y.value());
@@ -54,39 +54,40 @@ namespace codepad {
 			/// Parses \ref colord. The object can take the following formats: <tt>["hsl", h, s, l(, a)]</tt> for
 			/// HSL format colors, and <tt>[r, g, b(, a)]</tt> for RGB format colors.
 			template <typename Value> std::optional<colord> operator()(const Value &val) const {
-				if (auto arr = val.cast<typename Value::array_t>()) { // must be an array
+				if (auto arr = val.template cast<typename Value::array_t>()) { // must be an array
 					if (arr->size() >= 3) {
 						colord result;
 						if (arr->size() > 3) {
-							if (auto format = arr->at(0).try_cast<str_view_t>()) {
+							if (auto format = arr->at(0).template try_cast<str_view_t>()) {
 								if (format.value() == u8"hsl") {
 									auto
-										h = arr->at(1).cast<double>(),
-										s = arr->at(2).cast<double>(),
-										l = arr->at(3).cast<double>();
+										h = arr->at(1).template cast<double>(),
+										s = arr->at(2).template cast<double>(),
+										l = arr->at(3).template cast<double>();
 									result = colord::from_hsl(h.value(), s.value(), l.value());
 									if (arr->size() > 4) {
-										result.a = arr->at(3).cast<double>().value_or(1.0);
+										result.a = arr->at(3).template cast<double>().value_or(1.0);
 										if (arr->size() > 5) {
-											val.log<log_level::error>(CP_HERE) <<
+											val.template log<log_level::error>(CP_HERE) <<
 												"redundant fields in color definition";
 										}
 									}
 									return result;
 								}
 							} else {
-								result.a = arr->at(3).cast<double>().value_or(1.0);
+								result.a = arr->at(3).template cast<double>().value_or(1.0);
 							}
 							if (arr->size() > 4) {
-								val.log<log_level::error>(CP_HERE) << "redundant fields in color definition";
+								val.template log<log_level::error>(CP_HERE) <<
+									"redundant fields in color definition";
 							}
 						}
-						result.r = arr->at(0).cast<double>().value_or(0.0);
-						result.g = arr->at(1).cast<double>().value_or(0.0);
-						result.b = arr->at(2).cast<double>().value_or(0.0);
+						result.r = arr->at(0).template cast<double>().value_or(0.0);
+						result.g = arr->at(1).template cast<double>().value_or(0.0);
+						result.b = arr->at(2).template cast<double>().value_or(0.0);
 						return result;
 					} else {
-						val.log<log_level::error>(CP_HERE) << "too few elements in color definition";
+						val.template log<log_level::error>(CP_HERE) << "too few elements in color definition";
 					}
 				}
 				return std::nullopt;
@@ -101,7 +102,7 @@ namespace codepad {
 			template <typename Value> std::optional<std::chrono::duration<Rep, Period>> operator()(
 				const Value &val
 				) const {
-				if (auto secs = val.cast<double>()) {
+				if (auto secs = val.template cast<double>()) {
 					return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(
 						std::chrono::duration<double>(secs.value())
 						);
@@ -123,14 +124,14 @@ namespace codepad {
 		template <> struct default_parser<ui::orientation> {
 			/// Parses \ref orientation.
 			template <typename Value> std::optional<ui::orientation> operator()(const Value &obj) const {
-				if (auto opt_str = obj.cast<str_view_t>()) {
+				if (auto opt_str = obj.template cast<str_view_t>()) {
 					str_view_t str = opt_str.value();
 					if (str == u8"h" || str == u8"hori" || str == u8"horizontal") {
 						return ui::orientation::horizontal;
 					} else if (str == u8"v" || str == u8"vert" || str == u8"vertical") {
 						return ui::orientation::vertical;
 					} else {
-						obj.log<log_level::error>(CP_HERE) << "invalid orientation string";
+						obj.template log<log_level::error>(CP_HERE) << "invalid orientation string";
 					}
 				}
 				return std::nullopt;
@@ -160,7 +161,7 @@ namespace codepad {
 			template <typename Value> std::optional<ui::visibility> operator()(const Value &val) const {
 				if (val.template is<json::null_t>()) {
 					return ui::visibility::none;
-				} else if (auto str = val.try_cast<str_view_t>()) {
+				} else if (auto str = val.template try_cast<str_view_t>()) {
 					return get_bitset_from_string<ui::visibility>({
 						{u8'v', ui::visibility::visual},
 						{u8'i', ui::visibility::interact},
@@ -168,7 +169,7 @@ namespace codepad {
 						{u8'f', ui::visibility::focus}
 						}, str.value());
 				} else {
-					val.log<log_level::error>(CP_HERE) << "invalid visibility format";
+					val.template log<log_level::error>(CP_HERE) << "invalid visibility format";
 				}
 				return std::nullopt;
 			}
@@ -200,7 +201,7 @@ namespace codepad {
 		template <> struct default_parser<ui::cursor> {
 			/// Parses a \ref ui::cursor.
 			template <typename Value> std::optional<ui::cursor> operator()(const Value &val) const {
-				if (auto str = val.cast<str_view_t>()) {
+				if (auto str = val.template cast<str_view_t>()) {
 					if (str.value() == u8"normal") {
 						return ui::cursor::normal;
 					} else if (str.value() == u8"busy") {
@@ -241,6 +242,22 @@ namespace codepad {
 			tertiary, ///< The middle button.
 			secondary ///< The secondary button. For the right-handed layout, this is the right button.
 		};
+	}
+	/// Parser for \ref ui::mouse_button.
+	template <> struct enum_parser<ui::mouse_button> {
+		/// The parser interface.
+		inline static std::optional<ui::mouse_button> parse(str_view_t text) {
+			if (text == u8"primary" || text == u8"m1") {
+				return ui::mouse_button::primary;
+			} else if (text == u8"secondary" || text == u8"m2") {
+				return ui::mouse_button::secondary;
+			} else if (text == u8"tertiary" || text == u8"middle") {
+				return ui::mouse_button::tertiary;
+			}
+			return std::nullopt;
+		}
+	};
+	namespace ui {
 		/// Represents a key on the keyboard.
 		///
 		/// \todo Document all keys, add support for more keys (generic super key, symbols, etc.).
@@ -359,7 +376,7 @@ namespace codepad {
 		template <> struct default_parser<ui::key> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::key> operator()(const Value &val) const {
-				if (auto str = val.cast<str_view_t>()) {
+				if (auto str = val.template cast<str_view_t>()) {
 					return enum_parser<ui::key>::parse(str.value());
 				}
 				return std::nullopt;
@@ -413,26 +430,27 @@ namespace codepad {
 			/// <tt>[left, top, right, bottom]</tt> or a single number specifying the value for all four
 			/// directions.
 			template <typename Value> std::optional<ui::thickness> operator()(const Value &val) const {
-				if (auto arr = val.try_cast<typename Value::array_t>()) {
+				if (auto arr = val.template try_cast<typename Value::array_t>()) {
 					if (arr->size() >= 4) {
 						if (arr->size() > 4) {
-							val.log<log_level::error>(CP_HERE) << "redundant elements in thickness definition";
+							val.template log<log_level::error>(CP_HERE) <<
+								"redundant elements in thickness definition";
 						}
 						auto
-							l = arr->at(0).cast<double>(),
-							t = arr->at(1).cast<double>(),
-							r = arr->at(2).cast<double>(),
-							b = arr->at(3).cast<double>();
+							l = arr->at(0).template cast<double>(),
+							t = arr->at(1).template cast<double>(),
+							r = arr->at(2).template cast<double>(),
+							b = arr->at(3).template cast<double>();
 						if (l && t && r && b) {
 							return ui::thickness(l.value(), t.value(), r.value(), b.value());
 						}
 					} else {
-						val.log<log_level::error>(CP_HERE) << "too few elements in thickness";
+						val.template log<log_level::error>(CP_HERE) << "too few elements in thickness";
 					}
-				} else if (auto v = val.try_cast<double>()) {
+				} else if (auto v = val.template try_cast<double>()) {
 					return ui::thickness(v.value());
 				} else {
-					val.log<log_level::error>(CP_HERE) << "invalid thickness format";
+					val.template log<log_level::error>(CP_HERE) << "invalid thickness format";
 				}
 				return std::nullopt;
 			}
@@ -496,11 +514,12 @@ namespace codepad {
 			/// two of which indicates that the value is a proportion. If the string ends with `%', the value is
 			/// additionally divided by 100, thus using `%' and `*' mixedly is not recommended.
 			template <typename Value> std::optional<ui::size_allocation> operator()(const Value &val) const {
-				if (auto pixels = val.try_cast<double>()) { // number in pixels
+				if (auto pixels = val.template try_cast<double>()) { // number in pixels
 					return ui::size_allocation::pixels(pixels.value());
-				} else if (auto str = val.try_cast<str_view_t>()) {
+				} else if (auto str = val.template try_cast<str_view_t>()) {
 					ui::size_allocation res(0.0, true); // in pixels if no suffix is present
-					bool percentage = _details::ends_with(str.value(), "%"); // the value is additionally divided by 100
+					// the value is additionally divided by 100 if it's a percentage
+					bool percentage = _details::ends_with(str.value(), "%");
 					if (percentage || _details::ends_with(str.value(), "*")) { // proportion
 						res.is_pixels = false;
 					}
@@ -509,17 +528,18 @@ namespace codepad {
 						res.value *= 0.01;
 					}
 					return res;
-				} else if (auto full = val.try_cast<typename Value::object_t>()) { // full object representation
-					auto value = full->parse_member<double>(u8"value");
-					auto is_pixels = full->parse_member<bool>(u8"is_pixels");
+				} else if (auto full = val.template try_cast<typename Value::object_t>()) {
+					// full object representation
+					auto value = full->template parse_member<double>(u8"value");
+					auto is_pixels = full->template parse_member<bool>(u8"is_pixels");
 					if (value && is_pixels) {
 						if (full->size() > 2) {
-							full->log<log_level::error>(CP_HERE) << "redundant fields in size allocation";
+							full->template log<log_level::error>(CP_HERE) << "redundant fields in size allocation";
 						}
 						return ui::size_allocation(value.value(), is_pixels.value());
 					}
 				} else {
-					val.log<log_level::error>(CP_HERE) << "invalid size allocation format";
+					val.template log<log_level::error>(CP_HERE) << "invalid size allocation format";
 				}
 				return std::nullopt;
 			}
@@ -564,7 +584,7 @@ namespace codepad {
 			/// `t', `r', and `b', standing for \ref ui::anchor::left, \ref ui::anchor::top, \ref ui::anchor::right,
 			/// and \ref ui::anchor::bottom, respectively.
 			template <typename Value> std::optional<ui::anchor> operator()(const Value &obj) const {
-				if (auto str = obj.cast<str_view_t>()) {
+				if (auto str = obj.template cast<str_view_t>()) {
 					return get_bitset_from_string<ui::anchor>({
 						{CP_STRLIT('l'), ui::anchor::left},
 						{CP_STRLIT('t'), ui::anchor::top},
@@ -607,7 +627,7 @@ namespace codepad {
 			/// Parses \ref ui::size_allocation_type. Checks if the given object (which must be a string) is one of
 			/// the constants and returns the corresponding value.
 			template <typename Value> std::optional<ui::size_allocation_type> operator()(const Value &obj) const {
-				if (auto str = obj.cast<str_view_t>()) {
+				if (auto str = obj.template cast<str_view_t>()) {
 					return enum_parser<ui::size_allocation_type>::parse(str.value());
 				}
 				return std::nullopt;

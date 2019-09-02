@@ -295,7 +295,7 @@ namespace codepad::editors::code {
 		/// Moves all carets to specified positions, treating selections and non-selections the same. This function
 		/// is a shorthand for \ref move_carets(const GetPos&, const SelPos&, bool)
 		/// "move_carets(gp, gp, continueselection)".
-		template <typename GetPos> void move_carets(const GetPos & gp, bool continueselection) {
+		template <typename GetPos> void move_carets(const GetPos &gp, bool continueselection) {
 			return move_carets(gp, gp, continueselection);
 		}
 
@@ -305,8 +305,10 @@ namespace codepad::editors::code {
 		}
 		/// Sets whether the contents_region is currently in insert mode.
 		void set_insert_mode(bool v) {
-			_insert = v;
-			_reset_caret_animation();
+			if (v != _insert) {
+				_insert = v;
+				edit_mode_changed.invoke();
+			}
 		}
 		/// Toggles insert mode.
 		void toggle_insert_mode() {
@@ -422,8 +424,10 @@ namespace codepad::editors::code {
 		///
 		/// \todo Need changes after adding horizontal scrolling.
 		caret_position hit_test_for_caret(vec2d pos) const override {
+			auto *edt = editor::get_encapsulating(*this);
 			return hit_test_for_caret_document(vec2d(
-				pos.x, pos.y + editor::get_encapsulating(*this)->get_vertical_position()
+				pos.x + edt->get_horizontal_position() - get_padding().left,
+				pos.y + edt->get_vertical_position() - get_padding().top
 			));
 		}
 		/// Returns the horizontal visual position of a caret.
@@ -438,49 +442,61 @@ namespace codepad::editors::code {
 		///
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_left(bool continueselection) {
-			move_carets([this](const caret_set::entry & et) {
-				return std::make_pair(_move_caret_left(et.first.first), true);
-				}, [](const caret_set::entry & et) -> std::pair<size_t, bool> {
+			move_carets(
+				[this](const caret_set::entry & et) {
+					return std::make_pair(_move_caret_left(et.first.first), true);
+				},
+				[](const caret_set::entry & et) -> std::pair<size_t, bool> {
 					if (et.first.first < et.first.second) {
 						return {et.first.first, et.second.after_stall};
 					}
 					return {et.first.second, true};
-				}, continueselection);
+				},
+					continueselection
+					);
 		}
 		/// Moves all carets one character to the right. If \p continueselection is \p false, then all carets that have
 		/// selected regions will be placed at the back of the selection.
 		///
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_right(bool continueselection) {
-			move_carets([this](const caret_set::entry & et) {
-				return std::make_pair(_move_caret_right(et.first.first), false);
-				}, [](const caret_set::entry & et) -> std::pair<size_t, bool> {
+			move_carets(
+				[this](const caret_set::entry & et) {
+					return std::make_pair(_move_caret_right(et.first.first), false);
+				},
+				[](const caret_set::entry & et) -> std::pair<size_t, bool> {
 					if (et.first.first > et.first.second) {
 						return {et.first.first, et.second.after_stall};
 					}
 					return {et.first.second, false};
-				}, continueselection);
+				},
+					continueselection
+					);
 		}
 		/// Moves all carets vertically by a given number of lines.
 		void move_all_carets_vertically(int offset, bool continue_selection) {
-			move_carets([this, offset](const caret_set::entry & et) {
-				auto res = _move_caret_vertically(
-					_get_visual_line_of_caret(_extract_position(et)), offset, et.second.alignment
-				);
-				return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
-				}, [this, offset](const caret_set::entry & et) {
+			move_carets(
+				[this, offset](const caret_set::entry &et) {
+					auto res = _move_caret_vertically(
+						_get_visual_line_of_caret(_extract_position(et)), offset, et.second.alignment
+					);
+					return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
+				},
+				[this, offset](const caret_set::entry &et) {
 					size_t ml;
 					double bl;
-					if ((et.first.first > et.first.second) == (offset > 0)) {
+					if ((et.first.first > et.first.second) == (offset > 0)) { // move the caret end of the selection
 						ml = _get_visual_line_of_caret(_extract_position(et));
 						bl = et.second.alignment;
-					} else {
+					} else { // move the non-caret end of the selection
 						ml = _get_visual_line_of_caret(caret_position(et.first.second));
 						bl = get_horizontal_caret_position(caret_position(et.first.second));
 					}
 					auto res = _move_caret_vertically(ml, offset, bl);
 					return std::make_pair(res.position, caret_data(bl, res.at_back));
-				}, continue_selection);
+				},
+					continue_selection
+					);
 		}
 		/// Moves all carets one line up.
 		void move_all_carets_up(bool continue_selection) {
@@ -494,64 +510,73 @@ namespace codepad::editors::code {
 		///
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_to_line_beginning(bool continueselection) {
-			move_carets([this](const caret_set::entry & et) {
-				return std::make_pair(
-					_fmt.get_linebreaks().get_beginning_char_of_visual_line(
-						_fmt.get_folding().folded_to_unfolded_line_number(
-							_get_visual_line_of_caret(_extract_position(et))
-						)
-					).first, true
-				);
-				}, continueselection);
+			move_carets(
+				[this](const caret_set::entry & et) {
+					return std::make_pair(
+						_fmt.get_linebreaks().get_beginning_char_of_visual_line(
+							_fmt.get_folding().folded_to_unfolded_line_number(
+								_get_visual_line_of_caret(_extract_position(et))
+							)
+						).first, true
+					);
+				},
+				continueselection
+					);
 		}
 		/// Moves all carets to the beginning of the lines they're at, with folding and word wrapping enabled,
 		/// skipping all spaces in the front of the line.
 		///
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_to_line_beginning_advanced(bool continueselection) {
-			move_carets([this](const caret_set::entry & et) {
-				size_t
-					visline = _get_visual_line_of_caret(_extract_position(et)),
-					unfolded = _fmt.get_folding().folded_to_unfolded_line_number(visline);
-				auto linfo = _fmt.get_linebreaks().get_line_info(unfolded);
-				size_t begp = std::max(linfo.first.first_char, linfo.second.prev_chars), exbegp = begp;
-				if (linfo.first.first_char >= linfo.second.prev_chars) {
-					size_t nextsb =
-						linfo.second.entry == _fmt.get_linebreaks().end() ?
-						std::numeric_limits<size_t>::max() :
-						linfo.second.prev_chars + linfo.second.entry->length;
-					for (
-						auto cit = _doc->at_character(begp);
-						!cit.is_linebreak() && (
-							cit.codepoint().get_codepoint() == ' ' || cit.codepoint().get_codepoint() == '\t'
-							) && exbegp < nextsb;
-						cit.next(), ++exbegp
-						) {
+			move_carets(
+				[this](const caret_set::entry &et) {
+					size_t
+						visline = _get_visual_line_of_caret(_extract_position(et)),
+						unfolded = _fmt.get_folding().folded_to_unfolded_line_number(visline);
+					auto linfo = _fmt.get_linebreaks().get_line_info(unfolded);
+					size_t begp = std::max(linfo.first.first_char, linfo.second.prev_chars), exbegp = begp;
+					if (linfo.first.first_char >= linfo.second.prev_chars) {
+						size_t nextsb =
+							linfo.second.entry == _fmt.get_linebreaks().end() ?
+							std::numeric_limits<size_t>::max() :
+							linfo.second.prev_chars + linfo.second.entry->length;
+						for (
+							auto cit = _doc->at_character(begp);
+							!cit.is_linebreak() && (
+								cit.codepoint().get_codepoint() == ' ' || cit.codepoint().get_codepoint() == '\t'
+								) && exbegp < nextsb;
+							cit.next(), ++exbegp
+							) {
+						}
+						auto finfo = _fmt.get_folding().find_region_containing_open(exbegp);
+						if (finfo.entry != _fmt.get_folding().end()) {
+							exbegp = finfo.prev_chars + finfo.entry->gap;
+						}
+						if (nextsb <= exbegp) {
+							exbegp = begp;
+						}
 					}
-					auto finfo = _fmt.get_folding().find_region_containing_open(exbegp);
-					if (finfo.entry != _fmt.get_folding().end()) {
-						exbegp = finfo.prev_chars + finfo.entry->gap;
-					}
-					if (nextsb <= exbegp) {
-						exbegp = begp;
-					}
-				}
-				return std::make_pair(et.first.first == exbegp ? begp : exbegp, true);
-				}, continueselection);
+					return std::make_pair(et.first.first == exbegp ? begp : exbegp, true);
+				},
+				continueselection
+					);
 		}
 		/// Moves all carets to the end of the lines they're at, with folding and word wrapping enabled.
 		///
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_to_line_ending(bool continueselection) {
-			move_carets([this](caret_set::entry cp) {
-				return std::make_pair(
-					_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
-						_fmt.get_folding().folded_to_unfolded_line_number(
-							_get_visual_line_of_caret(_extract_position(cp)) + 1
-						) - 1
-					).first, caret_data(std::numeric_limits<double>::max(), false)
-				);
-				}, continueselection);
+			move_carets(
+				[this](caret_set::entry cp) {
+					return std::make_pair(
+						_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
+							_fmt.get_folding().folded_to_unfolded_line_number(
+								_get_visual_line_of_caret(_extract_position(cp)) + 1
+							) - 1
+						).first, caret_data(std::numeric_limits<double>::max(), false)
+					);
+				},
+				continueselection
+					);
 		}
 		/// Cancels all selected regions.
 		void cancel_all_selections() {
@@ -578,7 +603,12 @@ namespace codepad::editors::code {
 			/// regions are changed due to edits made from other views.
 			///
 			/// \todo Invoke this when folded regions are changed due to edits made from other views.
-			folding_changed;
+			folding_changed,
+			/// Invoked when the input mode changes from insert to overwrite or the other way around.
+			edit_mode_changed;
+
+		/// Returns the \ref interaction_mode_registry of code editors.
+		static interaction_mode_registry<caret_set> &get_interaction_mode_registry();
 
 		/// The default formatter for invalid codepoints.
 		inline static str_t format_invalid_codepoint(codepoint value) {
@@ -623,6 +653,8 @@ namespace codepad::editors::code {
 			return caret_position(entry.first.first, entry.second.after_stall);
 		}
 
+		using _base = interactive_contents_region_base<caret_set>; ///< The base type.
+
 		std::shared_ptr<interpretation> _doc; ///< The \ref interpretation bound to this contents_region.
 		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
 		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
@@ -634,6 +666,7 @@ namespace codepad::editors::code {
 
 		/// Used to format invalid codepoints.
 		invalid_codepoint_formatter _invalid_cp_fmt{format_invalid_codepoint};
+		ui::visuals _caret_visuals; ///< The visuals of carets.
 		str_t _font_family{"Fira Code"}; ///< The font family used to display code.
 		double
 			_font_size = 12.0, ///< The font size.
@@ -641,10 +674,6 @@ namespace codepad::editors::code {
 			_line_height = 18.0; ///< The height of a line.
 		view_formatting _fmt; ///< The \ref view_formatting associated with this contents_region.
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
-
-
-		/// Retrieves the setting entry that determines the font size.
-		static settings::retriever_parser<double> &_get_font_size_setting();
 
 
 		/// Returns the visual line that the given caret is on.
@@ -661,13 +690,15 @@ namespace codepad::editors::code {
 			}
 			return _fmt.get_folding().unfolded_to_folded_line_number(unfolded);
 		}
-		/// Given a line index and a horizontal position, returns the closest caret position.
+		/// Given a line index and a horizontal position, returns the closest caret position. Note that the
+		/// horizontal position should not include the left padding.
 		///
 		/// \param line The visual line index.
 		/// \param x The horizontal position.
 		caret_position _hit_test_at_visual_line(size_t line, double x) const;
-		/// Returns the horizontal position of a caret. This function is used when the line of the caret has been
-		/// previously obtained to avoid repeated calls to \ref _get_line_of_caret.
+		/// Returns the horizontal position of a caret. Note that the returned position does not include the left
+		/// padding. This function is used when the line of the caret has been previously obtained to avoid repeated
+		/// calls to \ref _get_line_of_caret.
 		///
 		/// \param line The visual line that the caret is on.
 		/// \param position The position of the caret in the whole document.
@@ -682,30 +713,27 @@ namespace codepad::editors::code {
 			// when selecting with a mouse, it's possible that there are no carets in _cset at all
 			if (!_cset.carets.empty() && wnd != nullptr) {
 				auto entry = _cset.carets.begin();
+				auto *edt = editor::get_encapsulating(*this);
 				size_t visline = _get_visual_line_of_caret(_extract_position(*entry));
 				double lh = get_line_height();
-				vec2d pos = get_client_region().xmin_ymin();
+				vec2d topleft = get_client_region().xmin_ymin();
 				wnd->set_active_caret_position(rectd::from_xywh(
-					pos.x + _get_caret_pos_x_at_visual_line(visline, entry->first.first),
-					pos.y + lh * static_cast<double>(visline) -
-					editor::get_encapsulating(*this)->get_vertical_position(), 0.0, lh
+					topleft.x + get_padding().left + _get_caret_pos_x_at_visual_line(visline, entry->first.first) -
+					edt->get_horizontal_position(),
+					topleft.y + get_padding().top + lh * static_cast<double>(visline) - edt->get_vertical_position(),
+					0.0, lh
 				));
 			}
 		}
 		/// Moves the viewport so that the given caret is visible.
-		void _make_caret_visible(caret_position) { // TODO
-			/*editor *cb = component_helper::get_editor(*this);
-			double fh = get_line_height();
-			size_t
-				ufline = _get_line_of_caret(caret),
-				fline = _fmt.get_folding().unfolded_to_folded_line_number(ufline);
-			vec2d np(
-				_get_caret_pos_x_at_visual_line(fline, caret.position),
-				static_cast<double>(fline + 1) * fh + get_padding().top
-			);
-			cb->make_point_visible(np);
-			np.y -= fh;
-			cb->make_point_visible(np);*/
+		void _make_caret_visible(caret_position caret) {
+			size_t line = _get_visual_line_of_caret(caret);
+			double
+				fh = get_line_height(),
+				xpos = _get_caret_pos_x_at_visual_line(line, caret.position),
+				ypos = static_cast<double>(line) * fh + get_padding().top;
+			rectd rgn = rectd::from_xywh(xpos, ypos, 0.0, fh); // TODO maybe include the whole selection
+			editor::get_encapsulating(*this)->make_region_visible(rgn);
 		}
 
 		/// Unbinds events from \ref _doc if necessary.
@@ -751,11 +779,10 @@ namespace codepad::editors::code {
 
 		/// Called when the set of carets has changed. This can occur when the user calls \p set_caret, or when
 		/// the current selection is being edited by the user. This function updates input method related
-		/// information, resets the caret animation, invokes \ref carets_changed, and calls \ref invalidate_visual.
+		/// information, invokes \ref carets_changed, and calls \ref invalidate_visual.
 		void _on_carets_changed() {
 			get_window()->interrupt_input_method();
 			_update_window_caret_position();
-			_reset_caret_animation();
 			carets_changed.invoke();
 			invalidate_visual();
 		}
@@ -886,7 +913,7 @@ namespace codepad::editors::code {
 		/// starts drag-dropping if the mouse has moved far enough from where it's pressed.
 		void _on_mouse_move(ui::mouse_move_info & info) override {
 			_interaction_manager.on_mouse_move(info);
-			element::_on_mouse_move(info);
+			_base::_on_mouse_move(info);
 		}
 		/// If the primary mouse button is pressed, and the mouse is not in a selected region, then starts editing
 		/// the current selected region. If the mouse is inside a selected region, starts monitoring the user's
@@ -895,48 +922,110 @@ namespace codepad::editors::code {
 		/// \todo Implement block selection.
 		void _on_mouse_down(ui::mouse_button_info & info) override {
 			_interaction_manager.on_mouse_down(info);
-			element::_on_mouse_down(info);
+			_base::_on_mouse_down(info);
 		}
 		/// Calls \ref _on_mouse_lbutton_up if the primary mouse button is released.
 		void _on_mouse_up(ui::mouse_button_info & info) override {
 			_interaction_manager.on_mouse_up(info);
-			element::_on_mouse_up(info);
+			_base::_on_mouse_up(info);
 		}
 		/// Calls \ref _on_mouse_lbutton_up.
 		void _on_capture_lost() override {
 			_interaction_manager.on_capture_lost();
-			element::_on_capture_lost();
+			_base::_on_capture_lost();
 		}
 		/// Updates mouse selection.
 		void _on_update() override {
 			_interaction_manager.on_update();
-			element::_on_update();
+			_base::_on_update();
 		}
 
 		// visual & layout
-		/// Sets the correct class of \ref _caret_cfg, resets the animation of carets, and schedules this element for
-		/// updating.
-		void _reset_caret_animation() {
-			// TODO
+		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.
+		void _on_layout_changed() override {
+			_check_wrapping_width();
+			_base::_on_layout_changed();
 		}
-		/// Updates \ref _editrgn_state.
-		void _update_misc_region_state() {
-			if (auto * edt = editor::get_encapsulating(*this)) {
-				// TODO
+		/// Renders all visible text.
+		///
+		/// \todo Cannot deal with very long lines.
+		void _custom_render() const override;
+
+		// construction and destruction
+		/// Sets the element to non-focusable, calls \ref _reset_caret_animation(), and initializes \ref _sel_cfg.
+		void _initialize(str_view_t cls, const ui::element_configuration & config) override {
+			_base::_initialize(cls, config);
+
+			_interaction_manager.set_contents_region(*this);
+			std::vector<str_t> profile; // TODO custom profile
+			auto &modes = editor::get_interaction_modes_setting().get_profile(
+				profile.begin(), profile.end()
+			).get_value();
+			for (auto &&mode_name : modes) {
+				if (auto mode = get_interaction_mode_registry().try_create(mode_name)) {
+					_interaction_manager.activators().emplace_back(std::move(mode));
+				}
 			}
+		}
+
+		/// Handles the registration of \p mode_changed_insert and \p mode_changed_overwrite events.
+		bool _register_edit_mode_changed_event(str_view_t name, std::function<void()> &callback) {
+			if (name == u8"mode_changed_insert") {
+				edit_mode_changed += [this, cb = std::move(callback)]() {
+					if (is_insert_mode()) {
+						cb();
+					}
+				};
+				return true;
+			}
+			if (name == u8"mode_changed_overwrite") {
+				edit_mode_changed += [this, cb = std::move(callback)]() {
+					if (!is_insert_mode()) {
+						cb();
+					}
+				};
+				return true;
+			}
+			return false;
+		}
+		/// Checks for the \ref carets_changed event.
+		bool _register_event(str_view_t name, std::function<void()> callback) override {
+			return
+				_register_edit_mode_changed_event(name, callback) ||
+				_event_helpers::try_register_event(name, u8"carets_changed", carets_changed, callback) ||
+				_base::_register_event(name, std::move(callback));
+		}
+
+		/// Handles the \p caret_visuals attribute.
+		void _set_attribute(str_view_t name, const json::value_storage &v) override {
+			if (name == u8"caret_visuals") {
+				if (auto vis = v.get_value().parse<ui::visuals>(
+					ui::managed_json_parser<ui::visuals>(get_manager())
+					)) {
+					_caret_visuals = std::move(vis.value());
+				}
+				return;
+			}
+			_base::_set_attribute(name, v);
+		}
+
+		/// Handles properties related to \ref _caret_visuals.
+		virtual ui::animation_subject_information _parse_animation_path(
+			const ui::animation_path::component_list &components
+		) {
+			if (!components.empty() && components.front().is_similar(u8"contents_region", u8"caret_visuals")) {
+				return ui::animation_subject_information::from_member<&contents_region::_caret_visuals>(
+					*this, ui::animation_path::builder::element_property_type::visual_only,
+					++components.begin(), components.end()
+					);
+			}
+			return _base::_parse_animation_path(components);
 		}
 
 		/// Registers handlers of events of the \ref editor.
 		void _on_logical_parent_constructed() override {
-			element::_on_logical_parent_constructed();
+			_base::_on_logical_parent_constructed();
 			auto *edt = editor::get_encapsulating(*this);
-
-			edt->got_focus += [this]() {
-				_update_misc_region_state();
-			};
-			edt->lost_focus += [this]() {
-				_update_misc_region_state();
-			};
 
 			edt->horizontal_viewport_changed += [this]() {
 				_interaction_manager.on_viewport_changed();
@@ -946,33 +1035,10 @@ namespace codepad::editors::code {
 			};
 		}
 
-		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.
-		void _on_layout_changed() override {
-			_check_wrapping_width();
-			element::_on_layout_changed();
-		}
-		/// Renders all visible text.
-		///
-		/// \todo Cannot deal with very long lines.
-		void _custom_render() const override;
-
-		// misc
-		/// Sets the element to non-focusable, calls \ref _reset_caret_animation(), and initializes \ref _sel_cfg.
-		void _initialize(str_view_t cls, const ui::element_configuration & config) override {
-			element::_initialize(cls, config);
-
-			_interaction_manager.set_contents_region(*this);
-			// TODO
-			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_prepare_drag_mode_activator<caret_set>());
-			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_single_selection_mode_activator<caret_set>());
-
-			_reset_caret_animation();
-			// TODO
-		}
 		/// Unbinds the current document.
 		void _dispose() override {
 			_unbind_document_events();
-			element::_dispose();
+			_base::_dispose();
 		}
 	};
 

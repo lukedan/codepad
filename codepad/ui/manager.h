@@ -252,8 +252,8 @@ namespace codepad::ui {
 	> std::optional<brushes::bitmap_pattern> managed_json_parser<brushes::bitmap_pattern>::operator()(
 		const Value &val
 		) const {
-		if (auto obj = val.cast<typename Value::object_t>()) {
-			if (auto image = obj->parse_member<str_view_t>(u8"image")) {
+		if (auto obj = val.template cast<typename Value::object_t>()) {
+			if (auto image = obj->template parse_member<str_view_t>(u8"image")) {
 				return brushes::bitmap_pattern(_manager.get_texture(image.value()));
 			}
 		}
@@ -266,11 +266,11 @@ namespace codepad::ui {
 	> std::optional<transition_function> managed_json_parser<transition_function>::operator()(
 		const Value &val
 		) const {
-		if (auto str = val.cast<str_view_t>()) {
+		if (auto str = val.template cast<str_view_t>()) {
 			if (auto func = _manager.find_transition_function(str.value())) {
 				return func;
 			}
-			val.log<log_level::error>(CP_HERE) << "unrecognized transition function: " << str.value();
+			val.template log<log_level::error>(CP_HERE) << "unrecognized transition function: " << str.value();
 		}
 		return std::nullopt;
 	}

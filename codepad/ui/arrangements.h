@@ -98,9 +98,9 @@ namespace codepad::ui {
 			construct_children(logparent, mapping);
 			if (!mapping.empty()) {
 				auto entry = logger::get().log_warning(CP_HERE);
-				entry << "there are unmatched names with roles:\n";
+				entry << "there are unmatched names with roles:";
 				for (auto &pair : mapping) {
-					entry << "  " << pair.first << "\n";
+					entry << "\n  " << pair.first;
 				}
 			}
 		}

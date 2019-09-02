@@ -11,6 +11,7 @@
 
 #include "../encodings.h"
 #include "../assert.h"
+#include "../profiling.h"
 
 namespace codepad::json {
 	// JSON engine interface:
@@ -72,7 +73,7 @@ namespace codepad::json {
 			if (auto arr = val.template cast<typename Value::array_t>()) {
 				std::vector<T> res;
 				for (auto &&elem : arr.value()) {
-					if (auto elem_val = elem.parse<T>(parser)) {
+					if (auto elem_val = elem.template parse<T>(parser)) {
 						res.emplace_back(std::move(elem_val.value()));
 					}
 				}
@@ -150,7 +151,7 @@ namespace codepad::json {
 		public:
 			using base_t = bidirectional_iterator_wrapper<Derived, BaseIt>; ///< The base type for this struct.
 			/// \sa bidirectional_iterator_wrapper::difference_type
-			using difference_type = bidirectional_iterator_wrapper<Derived, BaseIt>::difference_type;
+			using difference_type = typename bidirectional_iterator_wrapper<Derived, BaseIt>::difference_type;
 
 			/// In-place addition.
 			Derived &operator+=(difference_type diff) {
@@ -233,7 +234,8 @@ namespace codepad::json {
 				if (_this()->template is<T>()) {
 					return _this()->template get<T>();
 				}
-				_this()->log<log_level::error>(CP_HERE) << u8"cast to " << demangle(typeid(T).name()) << u8" failed";
+				_this()->template log<log_level::error>(CP_HERE) <<
+					u8"cast to " << demangle(typeid(T).name()) << u8" failed";
 				return std::nullopt;
 			}
 			/// Attempts to parse this value.
@@ -248,7 +250,7 @@ namespace codepad::json {
 			) const {
 				auto res = parser(*_this());
 				if (!res) {
-					_this()->log<log_level::error>(CP_HERE) <<
+					_this()->template log<log_level::error>(CP_HERE) <<
 						u8"parsing of " << demangle(typeid(T).name()) << u8" failed";
 				}
 				return res;
@@ -304,13 +306,13 @@ namespace codepad::json {
 				if (auto it = _this()->find_member(member); it != _this()->member_end()) {
 					auto res = parser(it.value());
 					if (!res) {
-						_this()->log<log_level::error>(CP_HERE) <<
+						_this()->template log<log_level::error>(CP_HERE) <<
 							u8"failed to parse member into " << demangle(typeid(T).name()) << u8": " << member;
 					}
 					return res;
 				}
 				if constexpr (!Optional) {
-					_this()->log<log_level::error>(CP_HERE) << u8"member not found: " << member;
+					_this()->template log<log_level::error>(CP_HERE) << u8"member not found: " << member;
 				}
 				return std::nullopt;
 			}

@@ -8,10 +8,29 @@
 
 #include <chrono>
 #include <unordered_map>
+#ifdef __GNUC__
+#	include <cxxabi.h>
+#endif
 
 #include "logging.h"
+#include "assert.h"
 
 namespace codepad {
+	/// Demangles a given type name for more human-readable output.
+	inline std::string demangle(const std::string &s) {
+#ifdef _MSC_VER
+		return s;
+#elif defined(__GNUC__)
+		int st;
+		char *result = abi::__cxa_demangle(s.c_str(), nullptr, nullptr, &st);
+		assert_true_sys(st == 0, "demangling failed");
+		std::string res(result);
+		std::free(result);
+		return res;
+#endif
+	}
+
+
 	/// Struct that monitors the beginning, ending, and duration of its lifespan.
 	struct performance_monitor {
 	public:

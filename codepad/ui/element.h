@@ -90,6 +90,11 @@ namespace codepad::ui {
 		const modifier_keys modifiers; ///< The modifiers that are pressed.
 		const mouse_position position; ///< The position of the mouse when the event took place.
 
+		/// Packs \ref button and \ref modifiers as a \ref mouse_gesture.
+		mouse_gesture get_gesture() const {
+			return mouse_gesture(button, modifiers);
+		}
+
 		/// Returns \p true if the click has caused the focused element to change.
 		bool focus_set() const {
 			return _focus_set;
@@ -527,7 +532,7 @@ namespace codepad::ui {
 			}
 
 			/// Registers events for \p set_horizontal and \p set_vertical events.
-			template <typename Info> inline static bool register_orientation_events(
+			template <typename Info> inline static bool try_register_orientation_events(
 				str_view_t name, info_event<Info> &event,
 				std::function<orientation()> get_orientation, std::function<void()> &callback
 			) {
@@ -548,6 +553,43 @@ namespace codepad::ui {
 				}
 				return false;
 			}
+
+			/// Registers an event that only triggers if the associated mouse button matches the given one.
+			inline static bool register_mouse_button_event(
+				info_event<mouse_button_info> &event, mouse_button mb, std::function<void()> callback
+			) {
+				event += [cb = std::move(callback), mb](mouse_button_info &info) {
+					if (info.button == mb) {
+						cb();
+					}
+				};
+			}
+			/// Registers separate mouse button events.
+			template <bool Down> inline static bool try_register_all_mouse_button_events(
+				str_view_t name, info_event<mouse_button_info> &event, std::function<void()> &callback
+			) {
+				str_view_t prim, scnd, trty;
+				if constexpr (Down) {
+					prim = u8"mouse_primary_down";
+					scnd = u8"mouse_secondary_down";
+					trty = u8"mouse_tertiary_down";
+				} else {
+					prim = u8"mouse_primary_up";
+					scnd = u8"mouse_secondary_up";
+					trty = u8"mouse_tertiary_up";
+				}
+				if (name == prim) {
+					register_mouse_button_event(event, mouse_button::primary, std::move(callback));
+					return true;
+				} else if (name == scnd) {
+					register_mouse_button_event(event, mouse_button::secondary, std::move(callback));
+					return true;
+				} else if (name == trty) {
+					register_mouse_button_event(event, mouse_button::tertiary, std::move(callback));
+					return true;
+				}
+				return false;
+			}
 		};
 		/// Registers the callback for the event with the given name. This is used mainly for storyboard animations.
 		virtual bool _register_event(str_view_t name, std::function<void()> callback) {
@@ -556,8 +598,8 @@ namespace codepad::ui {
 				_event_helpers::try_register_event(name, u8"mouse_leave", mouse_leave, callback) ||
 				_event_helpers::try_register_event(name, u8"got_focus", got_focus, callback) ||
 				_event_helpers::try_register_event(name, u8"lost_focus", lost_focus, callback) ||
-				_event_helpers::try_register_event(name, u8"mouse_down", mouse_down, callback) ||
-				_event_helpers::try_register_event(name, u8"mouse_up", mouse_up, callback);
+				_event_helpers::try_register_all_mouse_button_events<true>(name, mouse_down, callback) ||
+				_event_helpers::try_register_all_mouse_button_events<false>(name, mouse_up, callback);
 		}
 
 		/// Sets a custom attribute for this element.
@@ -663,7 +705,7 @@ namespace codepad::ui {
 
 	template <
 		typename Intermediate
-	> inline static animation_subject_information animation_subject_information::from_element_custom(
+	> inline animation_subject_information animation_subject_information::from_element_custom(
 		animation_path::builder::member_information<Intermediate> member,
 		std::unique_ptr<animation_path::builder::typed_member_access<element, Intermediate>> median,
 		element &elem, animation_path::builder::element_property_type type
@@ -680,7 +722,7 @@ namespace codepad::ui {
 
 	template <
 		auto Member
-	> inline static animation_subject_information animation_subject_information::from_member(
+	> inline animation_subject_information animation_subject_information::from_member(
 		element &elem, animation_path::builder::element_property_type type,
 		animation_path::component_list::const_iterator begin, animation_path::component_list::const_iterator end
 	) {

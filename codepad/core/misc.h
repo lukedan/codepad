@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <cmath>
 
 #include "encodings.h"
 
@@ -396,39 +397,10 @@ namespace codepad {
 	void initialize(int, char**);
 }
 
-// demangle
-#ifdef __GNUC__
-#	include <cxxabi.h>
-#endif
-namespace codepad {
-	/// Demangles a given type name for more human-readable output.
-	inline std::string demangle(std::string s) {
-#ifdef _MSC_VER
-		return s;
-#elif defined(__GNUC__)
-		int st;
-		char *result = abi::__cxa_demangle(s.c_str(), nullptr, nullptr, &st);
-		assert_true_sys(st == 0, "demangling failed");
-		std::string res(result);
-		std::free(result);
-		return res;
-#endif
-	}
-}
-
-#ifndef CP_LOG_STACKTRACE
-namespace codepad {
-	inline void logger::log_stacktrace() {
-		log_warning(CP_HERE, "stacktrace logging has been disabled");
-	}
-}
-#elif !defined(_MSC_VER) // windows version in os/windows/windows.cpp
+#if !defined(_MSC_VER) // windows version in os/windows/windows.cpp
 #	if defined(CP_PLATFORM_UNIX) && defined(__GNUC__)
 #		include <execinfo.h>
-#	endif
-namespace codepad {
-	inline void logger::log_stacktrace() {
-#	if defined(CP_PLATFORM_UNIX) && defined(__GNUC__)
+
 		constexpr static int max_frames = 1000;
 
 		void *frames[max_frames];
@@ -441,9 +413,5 @@ namespace codepad {
 		}
 		log_custom("STACKTRACE|END");
 		free(symbols);
-#	else
-		log_warning(CP_HERE, "stacktrace logging is not supported with this configuration");
 #	endif
-	}
-}
 #endif

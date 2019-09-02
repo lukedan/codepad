@@ -429,6 +429,7 @@
     <ClCompile Include="editors\buffer.cpp" />
     <ClCompile Include="editors\code\caret_set.cpp" />
     <ClCompile Include="editors\code\contents_region.cpp" />
+    <ClCompile Include="editors\generic_settings.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ui\animation_path.cpp" />
     <ClCompile Include="ui\renderer.cpp" />

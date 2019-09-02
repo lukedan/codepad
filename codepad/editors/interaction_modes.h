@@ -125,8 +125,8 @@ namespace codepad::editors {
 		}
 	};
 
-	/// Manages a list of \ref interaction_mode "interaction_modes". At any time at most one mode can be active, to
-	/// which all interaction events will be forwarded.
+	/// Manages a list of \ref interaction_mode "interaction_modes" for a single editor. At any time at most one mode
+	/// can be active, to which all interaction events will be forwarded.
 	template <typename CaretSet> class interaction_manager {
 	public:
 		using mode_t = interaction_mode<CaretSet>; ///< The corresponding \ref interaction_mode type.
@@ -252,6 +252,23 @@ namespace codepad::editors {
 	template <typename CaretSet> void interaction_mode<CaretSet>::_on_temporary_carets_changed() {
 		_manager.get_contents_region()._on_temporary_carets_changed();
 	}
+
+	/// A registry of interaction modes.
+	template <typename CaretSet> class interaction_mode_registry {
+	public:
+		/// Used to create instances of \ref interaction_mode_activator.
+		using activator_creator = std::function<std::unique_ptr<interaction_mode_activator<CaretSet>>()>;
+
+		/// Tries to create an \ref interaction_mode_activator that corresponds to the given name.
+		std::unique_ptr<interaction_mode_activator<CaretSet>> try_create(str_view_t name) const {
+			if (auto it = mapping.find(name); it != mapping.end()) {
+				return it->second();
+			}
+			return nullptr;
+		}
+
+		std::map<str_t, activator_creator, std::less<>> mapping; ///< The mapping between mode names and creators.
+	};
 
 
 	/// Contains several built-in interaction modes.
@@ -402,18 +419,25 @@ namespace codepad::editors {
 			std::unique_ptr<mode_t> on_mouse_down(
 				manager_t &man, ui::mouse_button_info &info
 			) override {
-				if (info.button == edit_button && info.modifiers == edit_modifiers) {
+				if (info.get_gesture() == edit_gesture) {
 					// select a caret to be edited
 					auto it = man.get_contents_region().get_carets().carets.begin(); // TODO select a better caret
 					if (it == man.get_contents_region().get_carets().carets.end()) { // should not happen
-						logger::get().log_warning(CP_HERE) << "empty caret set when starting mouse interaction";
+						logger::get().log_error(CP_HERE) << "empty caret set when starting mouse interaction";
 						return nullptr;
 					}
-					caret_selection_position sel = man.get_contents_region().extract_caret_selection_position(*it);
+					caret_selection_position caret_sel(
+						man.get_mouse_position(),
+						man.get_contents_region().extract_caret_selection_position(*it).selection
+					);
 					man.get_contents_region().remove_caret(it);
-					return std::make_unique<mouse_single_selection_mode<CaretSet>>(man, edit_button, sel);
-				} else if (info.button == multiple_select_button && info.modifiers == multiple_select_modifiers) {
-					return std::make_unique<mouse_single_selection_mode<CaretSet>>(man, multiple_select_button);
+					return std::make_unique<mouse_single_selection_mode<CaretSet>>(
+						man, edit_gesture.primary, caret_sel
+						);
+				} else if (info.get_gesture() == multiple_select_gesture) {
+					return std::make_unique<mouse_single_selection_mode<CaretSet>>(
+						man, multiple_select_gesture.primary
+						);
 				} else if (info.button == ui::mouse_button::primary) {
 					man.get_contents_region().clear_carets();
 					return std::make_unique<mouse_single_selection_mode<CaretSet>>(man, ui::mouse_button::primary);
@@ -421,16 +445,11 @@ namespace codepad::editors {
 				return nullptr;
 			}
 
-			ui::mouse_button
-				/// The mouse button used for multiple selection.
-				multiple_select_button = ui::mouse_button::primary,
-				/// The mouse button used for editing existing selected regions.
-				edit_button = ui::mouse_button::primary;
-			ui::modifier_keys
-				/// The modifier keys for multiple selection.
-				multiple_select_modifiers = ui::modifier_keys::control,
-				/// The modifiers for editing existing selected regions.
-				edit_modifiers = ui::modifier_keys::shift;
+			ui::mouse_gesture
+				/// The mouse gesture used for multiple selection.
+				multiple_select_gesture{ui::mouse_button::primary, ui::modifier_keys::control},
+				/// The mouse gesture used for editing existing selected regions.
+				edit_gesture{ui::mouse_button::primary, ui::modifier_keys::shift};
 		};
 
 		/// Mode where the user is about to start dragging text with the mouse.

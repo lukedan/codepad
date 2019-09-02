@@ -416,15 +416,19 @@ namespace codepad::ui {
 			return _visible_range;
 		}
 
-		/// Scrolls the scroll bar so that a certain point is in the visible region.
-		/// Note that the point appears at the very edge of the region if it's not visible before.
-		void make_point_visible(double v) {
-			if (_value > v) {
-				set_value(v);
+		/// Scrolls the scroll bar so that as much of the given range is visible as possible.
+		void make_range_visible(double min, double max) {
+			if (max - min > get_visible_range()) {
+				if (min > get_value()) {
+					set_value(min);
+				} else if (double maxtop = max - get_visible_range(); maxtop < get_value()) {
+					set_value(maxtop);
+				}
 			} else {
-				v -= _visible_range;
-				if (_value < v) {
-					set_value(v);
+				if (min < get_value()) {
+					set_value(min);
+				} else if (double mintop = max - get_visible_range(); mintop > get_value()) {
+					set_value(mintop);
 				}
 			}
 		}
@@ -552,7 +556,7 @@ namespace codepad::ui {
 		/// Handles the \p set_horizontal and \p set_vertical events.
 		bool _register_event(str_view_t name, std::function<void()> callback) override {
 			return
-				_event_helpers::register_orientation_events(
+				_event_helpers::try_register_orientation_events(
 					name, orientation_changed, [this]() {
 						return get_orientation();
 					}, callback

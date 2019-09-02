@@ -150,14 +150,13 @@ namespace codepad::os {
 				form->_on_close_request();
 				return 0;
 
-			case WM_PAINT:
+			/*case WM_PAINT:
 			{
 				PAINTSTRUCT ps;
 				winapi_check(BeginPaint(form->_hwnd, &ps));
-				form->_on_render();
 				EndPaint(form->_hwnd, &ps);
 				return 0;
-			}
+			}*/
 
 			case WM_SIZE:
 			{
@@ -167,7 +166,7 @@ namespace codepad::os {
 					size_changed_info p(vec2i(static_cast<int>(w), static_cast<int>(h)));
 					if (p.new_size.x > 0 && p.new_size.y > 0) {
 						form->_on_size_changed(p);
-						form->get_manager().get_scheduler().update_layout_and_visual();
+						form->get_manager().get_scheduler().update_layout_and_visuals();
 					}
 				}
 				return 0;
@@ -577,7 +576,8 @@ namespace codepad::os {
 #endif
 }
 
-#if defined(CP_LOG_STACKTRACE) && defined(_MSC_VER)
+#ifdef CP_LOG_STACKTRACE
+#	ifdef _MSC_VER
 #	pragma comment(lib, "dbghelp.lib")
 #	ifdef UNICODE
 #		define DBGHELP_TRANSLATE_TCHAR
@@ -619,6 +619,13 @@ namespace codepad {
 		_contents << "\n-- stacktrace --\n";
 	}
 }
+#	else
+namespace codepad {
+	void logger::log_entry::append_stacktrace() {
+		_contents << "\n-- [stacktrace not supported] --\n";
+	}
+}
+#	endif
 #endif
 
 

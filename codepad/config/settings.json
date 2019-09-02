@@ -1,0 +1,8 @@
+{
+	"code_editor": {
+		"interaction_modes": [
+			"prepare_drag",
+			"single_selection"
+		]
+	}
+}

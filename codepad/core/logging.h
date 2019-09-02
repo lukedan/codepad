@@ -71,8 +71,14 @@ namespace codepad {
 				_flush();
 			}
 
+#ifdef CP_LOG_STACKTRACE
 			/// Appends stacktrace information to this log entry. This function is platform-specific.
 			void append_stacktrace();
+#else
+			void append_stacktrace() {
+				*this << "\n-- [stacktrace disabled] --\n";
+			}
+#endif
 
 			/// Appends a stacktrace to this entry.
 			log_entry &operator<<(stacktrace_t) {

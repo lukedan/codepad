@@ -61,21 +61,13 @@ namespace codepad::editors::code {
 						position - (iter.get_position() - res.steps)
 					).xmin;
 				}
-				return
-					ass.get_horizontal_position();
+				return ass.get_horizontal_position();
 			}
 			visit([&ass](auto && frag) {
 				ass.append(frag);
 				}, res.result);
 		}
 		return ass.get_horizontal_position();
-	}
-
-	settings::retriever_parser<double> &contents_region::_get_font_size_setting() {
-		static settings::retriever_parser<double> _setting = settings::get().create_retriever_parser<double>(
-			{u8"editor", u8"font_size"}, settings::basic_parsers::basic_type_with_default<double>(12.0)
-		);
-		return _setting;
 	}
 
 	caret_position contents_region::_hit_test_at_visual_line(size_t line, double x) const {
@@ -213,16 +205,9 @@ namespace codepad::editors::code {
 				}
 			}
 
+			caretrend.finish(gen.get_position());
 			// render carets
 			// TODO
-			caretrend.finish(gen.get_position());
-			for (const rectd &rgn : caretrend.get_caret_rects()) {
-				rend.draw_rectangle(
-					rgn,
-					ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 0.3))),
-					ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 1.0))))
-				);
-			}
 			rounded_selection_renderer rcrend;
 			for (const auto &selrgn : caretrend.get_selection_rects()) {
 				rcrend.render(
@@ -230,6 +215,9 @@ namespace codepad::editors::code {
 					ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.2, 0.2, 1.0, 0.3))),
 					ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.0, 0.0, 0.0, 1.0))))
 				);
+			}
+			for (const rectd &rgn : caretrend.get_caret_rects()) {
+				_caret_visuals.render(rgn, rend);
 			}
 		}
 		get_manager().get_renderer().pop_matrix();
