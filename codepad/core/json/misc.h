@@ -153,6 +153,9 @@ namespace codepad::json {
 			/// \sa bidirectional_iterator_wrapper::difference_type
 			using difference_type = typename bidirectional_iterator_wrapper<Derived, BaseIt>::difference_type;
 
+			/// Default constructor.
+			random_iterator_wrapper() = default;
+
 			/// In-place addition.
 			Derived &operator+=(difference_type diff) {
 				base_t::_it += diff;

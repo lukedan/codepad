@@ -201,7 +201,7 @@ namespace codepad::os {
 		/// Returns the mapped size of the file. This could be larger than the file's actual size.
 		///
 		/// \todo Return rounded size.
-		size_t get_mapped_size() const;
+		std::size_t get_mapped_size() const;
 
 		/// Returns the pointer to the mapped memory region.
 		void *get_mapped_pointer() const {
@@ -217,7 +217,7 @@ namespace codepad::os {
 #ifdef CP_PLATFORM_WINDOWS
 		HANDLE _handle = nullptr; ///< The handle of the file mapping.
 #elif defined(CP_PLATFORM_UNIX)
-		size_t _len = 0; ///< The size of the mapped region in bytes.
+		std::size_t _len = 0; ///< The size of the mapped region in bytes.
 #endif
 
 		/// Maps the given \ref file with the specified \ref access_rights.

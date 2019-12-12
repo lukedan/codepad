@@ -84,7 +84,7 @@ namespace codepad {
 	struct call_counter {
 	public:
 		/// Registers the given number of calls for the specific slot.
-		void increment(const code_position &pos, size_t count = 1) {
+		void increment(const code_position &pos, std::size_t count = 1) {
 			auto &&[iter, inserted] = _counters.try_emplace(pos, 0);
 			iter->second += count;
 			_has_calls = true; // count could be 0, but whatever
@@ -111,7 +111,7 @@ namespace codepad {
 		/// Returns the global static \ref call_counter object.
 		static call_counter &get();
 	protected:
-		std::unordered_map<code_position, size_t> _counters; ///< The counters.
+		std::unordered_map<code_position, std::size_t> _counters; ///< The counters.
 		bool _has_calls = false; ///< Records if any calls have been registered.
 	};
 }

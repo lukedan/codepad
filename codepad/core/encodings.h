@@ -35,8 +35,8 @@ namespace codepad {
 	using codepoint = std::uint32_t;
 
 	/// A template version of \p std::strlen().
-	template <typename Char> inline size_t get_unit_count(const Char *cs) {
-		size_t i = 0;
+	template <typename Char> inline std::size_t get_unit_count(const Char *cs) {
+		std::size_t i = 0;
 		for (; *cs; ++i, ++cs) {
 		}
 		return i;
@@ -87,7 +87,7 @@ namespace codepad {
 				return u8"UTF-8";
 			}
 			/// Maximum 4 bytes for any codepoint encoded in UTF-8.
-			inline static size_t get_maximum_codepoint_length() {
+			inline static std::size_t get_maximum_codepoint_length() {
 				return 4;
 			}
 
@@ -233,7 +233,7 @@ namespace codepad {
 				}
 			}
 			/// Maximum 4 bytes for any codepoint encoded in UTF-16.
-			inline static size_t get_maximum_codepoint_length() {
+			inline static std::size_t get_maximum_codepoint_length() {
 				return 4;
 			}
 
@@ -404,7 +404,7 @@ namespace codepad {
 
 			/// Counts the number of codepoints in the given range.
 			/// Uses the distance between the two iterators if possible, otherwise falls back to the default behavior.
-			template <typename It1, typename It2> inline static size_t count_codepoints(It1 beg, It2 end) {
+			template <typename It1, typename It2> inline static std::size_t count_codepoints(It1 beg, It2 end) {
 				if constexpr (std::is_same_v<It1, It2>) {
 					return std::distance(beg, end);
 				} else {
@@ -413,11 +413,13 @@ namespace codepad {
 			}
 			/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
 			/// Directly increments the iterator if possible, otherwise falls back to the default behavior.
-			template <typename It1, typename It2> inline static size_t skip_codepoints(It1 &beg, It2 end, size_t num) {
+			template <typename It1, typename It2> inline static std::size_t skip_codepoints(
+				It1 &beg, It2 end, std::size_t num
+			) {
 				if constexpr (std::is_same_v<It1, It2> && std::is_base_of_v<
 					std::random_access_iterator_tag, typename std::iterator_traits<It1>::iterator_category
 				>) {
-					auto dist = std::min(num, static_cast<size_t>(end - beg));
+					auto dist = std::min(num, static_cast<std::size_t>(end - beg));
 					beg = beg + num;
 					return dist;
 				} else {

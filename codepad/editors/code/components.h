@@ -16,7 +16,7 @@ namespace codepad::editors::code {
 		/// Returns the width of the longest line number.
 		ui::size_allocation get_desired_width() const override {
 			/*if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				size_t ln = edt->get_document()->num_lines(), w = 0;
+				std::size_t ln = edt->get_document()->num_lines(), w = 0;
 				for (; ln > 0; ++w, ln /= 10) {
 				}
 				double maxw = contents_region::get_font().normal->get_max_width_charset(U"0123456789");
@@ -64,13 +64,13 @@ namespace codepad::editors::code {
 					lh = edt->get_line_height(),
 					ybeg = box->get_vertical_position() - edt->get_padding().top,
 					yend = ybeg + edt->get_layout().height();
-				size_t
-					fline = static_cast<size_t>(std::max(ybeg / lh, 0.0)),
-					eline = static_cast<size_t>(yend / lh) + 1;
+				std::size_t
+					fline = static_cast<std::size_t>(std::max(ybeg / lh, 0.0)),
+					eline = static_cast<std::size_t>(yend / lh) + 1;
 				rectd client = get_client_region();
 				double cury = client.ymin - ybeg + static_cast<double>(fline) * lh;
-				for (size_t curi = fline; curi < eline; ++curi, cury += lh) {
-					size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
+				for (std::size_t curi = fline; curi < eline; ++curi, cury += lh) {
+					std::size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
 					auto lineinfo = fmt.get_linebreaks().get_line_info(line);
 					if (lineinfo.first.entry == edt->get_document()->get_linebreaks().end()) {
 						break; // when after the end of the document
@@ -93,7 +93,7 @@ namespace codepad::editors::code {
 	public:
 		/// The maximum amount of time allowed for rendering a page (i.e., an entry of \ref _page_cache).
 		constexpr static std::chrono::duration<double> page_rendering_time_redline{0.03};
-		constexpr static size_t minimum_page_size = 500; /// Maximum height of a page, in pixels.
+		constexpr static std::size_t minimum_page_size = 500; /// Maximum height of a page, in pixels.
 
 		/// Returns the default width, which is proportional to that of the \ref contents_region.
 		ui::size_allocation get_desired_width() const override {
@@ -145,11 +145,13 @@ namespace codepad::editors::code {
 			void restart() {
 				pages.clear();
 				if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
-					std::pair<size_t, size_t> be = _parent->_get_visible_visual_lines();
+					std::pair<std::size_t, std::size_t> be = _parent->_get_visible_visual_lines();
 					double slh = edt->get_line_height() * _parent->get_scale();
-					size_t
+					std::size_t
 						numlines = edt->get_num_visual_lines(),
-						pgsize = std::max(be.second - be.first, static_cast<size_t>(minimum_page_size / slh) + 1),
+						pgsize = std::max(
+							be.second - be.first, static_cast<std::size_t>(minimum_page_size / slh) + 1
+						),
 						page_beg = 0;
 					_page_end = numlines;
 					if (pgsize < numlines) { // the viewport is smaller than one page
@@ -175,12 +177,12 @@ namespace codepad::editors::code {
 					restart();
 				} else {
 					if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
-						std::pair<size_t, size_t> be = _parent->_get_visible_visual_lines();
-						size_t page_beg = pages.begin()->first;
+						std::pair<std::size_t, std::size_t> be = _parent->_get_visible_visual_lines();
+						std::size_t page_beg = pages.begin()->first;
 						if (be.first >= page_beg && be.second <= _page_end) { // all are visible
 							return;
 						}
-						size_t min_page_lines = static_cast<size_t>(
+						std::size_t min_page_lines = static_cast<std::size_t>(
 							minimum_page_size / (edt->get_line_height() * _parent->get_scale())
 							) + 1,
 							// the number of lines in the page about to be rendered
@@ -191,13 +193,13 @@ namespace codepad::editors::code {
 						} else {
 							if (be.first < page_beg) { // render one page before the first one
 								// if the page before is not large enough, make it as large as min_page_lines
-								size_t frontline = std::max(page_beg, min_page_lines) - min_page_lines;
+								std::size_t frontline = std::max(page_beg, min_page_lines) - min_page_lines;
 								// at least the first visible line is rendered
 								_render_page(std::min(be.first, frontline), page_beg);
 							}
 							if (be.second > _page_end) { // render one page after the last one
 								// if not large enough, make it as large as min_page_lines
-								size_t backline = std::min(edt->get_num_visual_lines(), _page_end + min_page_lines);
+								std::size_t backline = std::min(edt->get_num_visual_lines(), _page_end + min_page_lines);
 								// at least the last visible line is rendered
 								backline = std::max(be.second, backline);
 								_render_page(_page_end, backline);
@@ -230,10 +232,10 @@ namespace codepad::editors::code {
 
 			/// The cached pages. The keys are the indices of each page's first line, and the values are
 			/// corresponding \ref os::frame_buffer "framebuffers".
-			std::map<size_t, ui::render_target_data> pages;
+			std::map<std::size_t, ui::render_target_data> pages;
 		protected:
 			/// The index past the end of the range of lines that has been rendered and stored in \ref pages.
-			size_t _page_end = 0;
+			std::size_t _page_end = 0;
 			double _width = minimum_width; ///< The width of all pages.
 			const minimap *_parent = nullptr; ///< The associated \ref minimap.
 			/// Marks whether this cache is ready for rendering the currently visible portion of the document.
@@ -244,7 +246,7 @@ namespace codepad::editors::code {
 			///
 			/// \param s Index of the first visual line of the page.
 			/// \param pe Index past the last visual line of the page.
-			void _render_page(size_t s, size_t pe) {
+			void _render_page(std::size_t s, std::size_t pe) {
 				performance_monitor mon(CP_STRLIT("render_minimap_page"), page_rendering_time_redline);
 				if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
 					double lh = edt->get_line_height(), scale = _parent->get_scale();
@@ -256,7 +258,7 @@ namespace codepad::editors::code {
 					));
 
 					const view_formatting & fmt = edt->get_formatting();
-					size_t
+					std::size_t
 						curvisline = s,
 						firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
 							fmt.get_folding().folded_to_unfolded_line_number(s)
@@ -286,7 +288,7 @@ namespace codepad::editors::code {
 							++curvisline;
 						} else if (ass.get_horizontal_position() > _width / scale) {
 							++curvisline;
-							size_t
+							std::size_t
 								pos = fmt.get_linebreaks().get_beginning_char_of_visual_line(
 									fmt.get_folding().folded_to_unfolded_line_number(curvisline)
 								).first;
@@ -311,7 +313,7 @@ namespace codepad::editors::code {
 		void _custom_render() const override {
 			element::_custom_render();
 			if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				std::pair<size_t, size_t> vlines = _get_visible_visual_lines();
+				std::pair<std::size_t, std::size_t> vlines = _get_visible_visual_lines();
 				double
 					slh = edt->get_line_height() * get_scale(),
 					top = std::round(get_padding().top - _get_y_offset());
@@ -346,7 +348,7 @@ namespace codepad::editors::code {
 		/// Calculates and returns the vertical offset of all pages according to \ref editor::get_vertical_position.
 		double _get_y_offset() const {
 			if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
-				size_t nlines = edt->get_num_visual_lines();
+				std::size_t nlines = edt->get_num_visual_lines();
 				double
 					lh = edt->get_line_height(),
 					vh = get_client_region().height(),
@@ -381,7 +383,7 @@ namespace codepad::editors::code {
 			return r;
 		}
 		/// Returns the range of lines that are visible in the \ref minimap.
-		std::pair<size_t, size_t> _get_visible_visual_lines() const {
+		std::pair<std::size_t, std::size_t> _get_visible_visual_lines() const {
 			if (contents_region *edt = component_helper::get_contents_region(*this)) {
 				double scale = get_scale(), ys = _get_y_offset();
 				return edt->get_visible_visual_lines(ys / scale, (ys + get_client_region().height()) / scale);

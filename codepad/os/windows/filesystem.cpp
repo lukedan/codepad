@@ -140,7 +140,7 @@ namespace codepad::os {
 		_handle = nullptr;
 	}
 
-	size_t file_mapping::get_mapped_size() const {
+	std::size_t file_mapping::get_mapped_size() const {
 		if (valid()) {
 			MEMORY_BASIC_INFORMATION info;
 			winapi_check(VirtualQuery(_ptr, &info, sizeof(info)));

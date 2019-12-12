@@ -161,7 +161,7 @@ namespace codepad::os {
 			case WM_SIZE:
 			{
 				if (wparam != SIZE_MINIMIZED) {
-					size_t w = LOWORD(lparam), h = HIWORD(lparam);
+					std::size_t w = LOWORD(lparam), h = HIWORD(lparam);
 					form->_layout = rectd(0.0, static_cast<double>(w), 0.0, static_cast<double>(h));
 					size_changed_info p(vec2i(static_cast<int>(w), static_cast<int>(h)));
 					if (p.new_size.x > 0 && p.new_size.y > 0) {
@@ -399,7 +399,7 @@ namespace codepad::os {
 
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
 	vector<filesystem::path> open_file_dialog(const window_base * parent, file_dialog_type type) {
-		const size_t file_buffer_size = 1000;
+		const std::size_t file_buffer_size = 1000;
 
 #	ifdef CP_CHECK_LOGICAL_ERRORS
 		auto *wnd = dynamic_cast<const window*>(parent);
@@ -586,7 +586,7 @@ namespace codepad::os {
 namespace codepad {
 	void logger::log_entry::append_stacktrace() {
 		constexpr static DWORD max_frames = 1000;
-		constexpr static size_t max_symbol_length = 1000;
+		constexpr static std::size_t max_symbol_length = 1000;
 
 		_contents << "\n-- stacktrace --\n";
 		void *frames[max_frames];
@@ -630,12 +630,12 @@ namespace codepad {
 
 
 namespace codepad::logger_sinks {
-	size_t console_sink::_get_console_width() {
+	std::size_t console_sink::_get_console_width() {
 		HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
 		winapi_check(out != INVALID_HANDLE_VALUE);
 		CONSOLE_SCREEN_BUFFER_INFO info;
 		winapi_check(GetConsoleScreenBufferInfo(out, &info));
-		return static_cast<size_t>(info.srWindow.Right - info.srWindow.Left + 1);
+		return static_cast<std::size_t>(info.srWindow.Right - info.srWindow.Left + 1);
 	}
 }
 
@@ -666,7 +666,7 @@ namespace codepad::ui {
 
 		return font_parameters(
 			os::_details::wstring_to_utf8(logfnt.lfFaceName),
-			static_cast<size_t>(pts[1].y - pts[0].y),
+			static_cast<std::size_t>(pts[1].y - pts[0].y),
 			(logfnt.lfWeight > FW_REGULAR ? font_style::bold : font_style::normal) |
 			(logfnt.lfItalic ? font_style::italic : font_style::normal)
 		);

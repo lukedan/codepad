@@ -14,7 +14,7 @@ namespace codepad {
 	/// Represents vectors, points, sizes, etc.
 	///
 	/// \tparam T The type of \ref x and \ref y components.
-	template <typename T> struct vec2 {
+	template <typename T> struct APIGEN_EXPORT_RECURSIVE vec2 {
 		/// Default constructor.
 		constexpr vec2() = default;
 		/// Constructor that initializes \ref x and \ref y.
@@ -26,9 +26,9 @@ namespace codepad {
 			y = 0; ///< The y coordinate.
 
 		/// Index components by numbers, 0 for \ref x and 1 for \ref y.
-		T &operator[](size_t);
-		/// Const version of operator[](size_t).
-		const T &operator[](size_t) const;
+		T &operator[](std::size_t);
+		/// Const version of operator[](std::size_t).
+		const T &operator[](std::size_t) const;
 
 		/// Converts all components to another type and returns the result.
 		///
@@ -107,11 +107,11 @@ namespace codepad {
 	/// Shorthand for vectors whose components are of type <tt>unsigned int</tt>.
 	using vec2u = vec2<unsigned int>;
 
-	template <typename T> inline T &vec2<T>::operator[](size_t sub) {
+	template <typename T> inline T &vec2<T>::operator[](std::size_t sub) {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
-	template <typename T> inline const T &vec2<T>::operator[](size_t sub) const {
+	template <typename T> inline const T &vec2<T>::operator[](std::size_t sub) const {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
@@ -119,7 +119,7 @@ namespace codepad {
 	/// Represnts a rectangular area.
 	///
 	/// \tparam T Type of all coordinates.
-	template <typename T> struct rect {
+	template <typename T> struct APIGEN_EXPORT_RECURSIVE rect {
 		/// Default constructor.
 		constexpr rect() = default;
 		/// Constructs a \ref rect with the given coordinates.
@@ -321,7 +321,7 @@ namespace codepad {
 	/// \tparam T Type of matrix elements.
 	/// \tparam W Width of the matrix.
 	/// \tparam H Height of the matrix.
-	template <typename T, size_t W, size_t H> struct matrix {
+	template <typename T, std::size_t W, std::size_t H> struct APIGEN_EXPORT_RECURSIVE matrix {
 		/// A row of the matrix.
 		using row = T[W];
 
@@ -329,16 +329,16 @@ namespace codepad {
 
 		/// Sets all elements to zero.
 		void set_zero() {
-			for (size_t y = 0; y < H; ++y) {
-				for (size_t x = 0; x < W; ++x) {
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] = 0;
 				}
 			}
 		}
 		/// Sets all elements on the diagonal line to 1, and all other elements to 0.
 		void set_identity() {
-			for (size_t y = 0; y < H; ++y) {
-				for (size_t x = 0; x < W; ++x) {
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] = static_cast<T>(x == y ? 1 : 0);
 				}
 			}
@@ -349,8 +349,8 @@ namespace codepad {
 		/// \tparam U The desired type.
 		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, matrix<U, W, H>> convert() const {
 			matrix<U, W, H> res;
-			for (size_t y = 0; y < H; ++y) {
-				for (size_t x = 0; x < W; ++x) {
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
 					res[y][x] = static_cast<U>(elem[y][x]);
 				}
 			}
@@ -391,18 +391,18 @@ namespace codepad {
 		/// Returns the requested row of the matrix.
 		///
 		/// \param y 0-based index of the row.
-		row &operator[](size_t y) {
+		row &operator[](std::size_t y) {
 			return elem[y];
 		}
 		/// Const version of \ref operator[].
-		const row &operator[](size_t y) const {
+		const row &operator[](std::size_t y) const {
 			return elem[y];
 		}
 
 		/// Addition.
 		matrix &operator+=(const matrix & rhs) {
-			for (size_t y = 0; y < H; ++y) {
-				for (size_t x = 0; x < W; ++x) {
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] += rhs[y][x];
 				}
 			}
@@ -415,8 +415,8 @@ namespace codepad {
 
 		/// Subtraction.
 		matrix &operator-=(const matrix & rhs) {
-			for (size_t y = 0; y < H; ++y) {
-				for (size_t x = 0; x < W; ++x) {
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] -= rhs[y][x];
 				}
 			}
@@ -430,9 +430,9 @@ namespace codepad {
 		/// In-place matrix multiplication, only for square matrices.
 		std::enable_if_t<W == H, matrix&> operator*=(const matrix & rhs) {
 			matrix res;
-			for (size_t y = 0; y < H; ++y) {
-				for (size_t x = 0; x < W; ++x) {
-					for (size_t k = 0; k < W; ++k) {
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
+					for (std::size_t k = 0; k < W; ++k) {
 						res[y][x] = elem[y][k] * rhs[k][x];
 					}
 				}
@@ -441,8 +441,8 @@ namespace codepad {
 		}
 		/// Scalar multiplication.
 		matrix &operator*=(T rhs) {
-			for (size_t y = 0; y < H; ++y) {
-				for (size_t x = 0; x < W; ++x) {
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] *= rhs;
 				}
 			}
@@ -459,8 +459,8 @@ namespace codepad {
 
 		/// Scalar division.
 		matrix &operator/=(T rhs) {
-			for (size_t y = 0; y < H; ++y) {
-				for (size_t x = 0; x < W; ++x) {
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] /= rhs;
 				}
 			}
@@ -542,13 +542,13 @@ namespace codepad {
 		}
 	};
 	/// Matrix multiplication.
-	template <typename T, size_t M, size_t N, size_t P> inline matrix<T, P, M> operator*(
+	template <typename T, std::size_t M, std::size_t N, std::size_t P> inline matrix<T, P, M> operator*(
 		const matrix<T, N, M> & lhs, const matrix<T, P, N> & rhs
 		) {
 		matrix<T, P, M> result;
-		for (size_t y = 0; y < M; ++y) {
-			for (size_t x = 0; x < P; ++x) {
-				for (size_t k = 0; k < N; ++k) {
+		for (std::size_t y = 0; y < M; ++y) {
+			for (std::size_t x = 0; x < P; ++x) {
+				for (std::size_t k = 0; k < N; ++k) {
 					result[y][x] += lhs[y][k] * rhs[k][x];
 				}
 			}

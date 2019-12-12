@@ -31,7 +31,7 @@ namespace codepad::ui {
 			/// Maximum expected time for all rendering operations during a single frame.
 			render_time_redline{0.04};
 		/// The maximum number of system messages that can be processed between two updates.
-		constexpr static size_t maximum_messages_per_update = 20;
+		constexpr static std::size_t maximum_messages_per_update = 20;
 
 #ifdef CP_PLATFORM_WINDOWS
 		using thread_id_t = std::uint32_t; ///< The type for thread IDs.
@@ -422,7 +422,7 @@ namespace codepad::ui {
 				// if updating is necessary, first perform this update, then process pending messages
 				update();
 				// limit the maximum number of messages processed at once
-				for (size_t i = 0; i < maximum_messages_per_update && _idle_system(wait_type::non_blocking); ++i) {
+				for (std::size_t i = 0; i < maximum_messages_per_update && _idle_system(wait_type::non_blocking); ++i) {
 				}
 			} else {
 				_set_timer(_next_update - std::chrono::high_resolution_clock::now()); // set up the timer
@@ -476,7 +476,7 @@ namespace codepad::ui {
 
 		double _upd_dt = 0.0; ///< The duration since elements were last updated.
 		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
-		size_t _active_update_tasks = 0; ///< The number of active update tasks.
+		std::size_t _active_update_tasks = 0; ///< The number of active update tasks.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 
 		std::thread::id _tid;
@@ -526,10 +526,11 @@ namespace codepad::ui {
 			if (window_base *wnd = e.get_window()) {
 				for (element *c = wnd->get_mouse_capture(); c; c = c->parent()) {
 					if (c == &e) { // yes, the captured element is a child of the removed element
+						element *capture = wnd->get_mouse_capture();
 						wnd->release_mouse_capture();
 						// manually call _on_capture_lost() because it's not called elsewhere and this is not the
 						// element willingly releasing the capture
-						wnd->get_mouse_capture()->_on_capture_lost();
+						capture->_on_capture_lost();
 						break;
 					}
 				}

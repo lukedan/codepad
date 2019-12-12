@@ -33,7 +33,7 @@ namespace codepad::os {
 			auto u16str = _details::utf8_to_wstring(clsname.c_str());
 			_wndclass::get();
 			winapi_check(_hwnd = CreateWindowEx(
-				WS_EX_ACCEPTFILES, reinterpret_cast<LPCTSTR>(static_cast<size_t>(_wndclass::get().atom)),
+				WS_EX_ACCEPTFILES, reinterpret_cast<LPCTSTR>(static_cast<std::size_t>(_wndclass::get().atom)),
 				reinterpret_cast<LPCTSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
 				CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 				parent ? parent->_hwnd : nullptr, nullptr, GetModuleHandle(nullptr), nullptr

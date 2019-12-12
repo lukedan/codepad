@@ -176,7 +176,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Returns the total number of tabs in the \ref host.
-		size_t get_tab_count() const {
+		std::size_t get_tab_count() const {
 			return _tab_contents_region->children().size();
 		}
 

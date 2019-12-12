@@ -70,8 +70,8 @@ namespace codepad::editors::code {
 		return ass.get_horizontal_position();
 	}
 
-	caret_position contents_region::_hit_test_at_visual_line(size_t line, double x) const {
-		size_t
+	caret_position contents_region::_hit_test_at_visual_line(std::size_t line, double x) const {
+		std::size_t
 			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
@@ -82,7 +82,7 @@ namespace codepad::editors::code {
 		);
 		fragment_assembler ass(*this);
 		while (iter.get_position() < _doc->get_linebreaks().num_chars()) {
-			size_t oldpos = iter.get_position();
+			std::size_t oldpos = iter.get_position();
 			fragment_generation_result res = iter.generate_and_update();
 			if (holds_alternative<linebreak_fragment>(res.result)) { // end of the line
 				// explicitly require that it's at the end of the line, rather than at the beginning of the next
@@ -135,7 +135,7 @@ namespace codepad::editors::code {
 
 		performance_monitor mon(CP_STRLIT("render_contents"));
 		double lh = get_line_height();
-		pair<size_t, size_t> be = get_visible_visual_lines();
+		pair<std::size_t, std::size_t> be = get_visible_visual_lines();
 		caret_set extcarets;
 		const caret_set *used = &_cset;
 		std::vector<caret_selection_position> tempcarets = _interaction_manager.get_temporary_carets();
@@ -162,7 +162,7 @@ namespace codepad::editors::code {
 			auto flineinfo = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 				_fmt.get_folding().folded_to_unfolded_line_number(be.first)
 			);
-			size_t
+			std::size_t
 				firstchar = flineinfo.first,
 				plastchar = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 					_fmt.get_folding().folded_to_unfolded_line_number(be.second)

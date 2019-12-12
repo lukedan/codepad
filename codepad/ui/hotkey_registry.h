@@ -239,7 +239,7 @@ namespace codepad {
 					c = &nl->second;
 				}
 				assert_true_logical(c->is_leaf(), "invalid hotkey chain to unregister");
-				size_t kid = sks.size();
+				std::size_t kid = sks.size();
 				// find the last node on the path with more than one child
 				for (auto i = stk.rbegin(); i != stk.rend(); ++i, --kid) {
 					typename _gesture_rec_t::layer_rec_t &children = (*i)->get_children();

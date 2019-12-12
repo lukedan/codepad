@@ -176,7 +176,7 @@ namespace codepad::ui {
 		/// Default constructor.
 		keyframe_animation_definition() = default;
 		/// Initializes all fields of this struct.
-		keyframe_animation_definition(std::vector<keyframe> kfs, size_t repeat) :
+		keyframe_animation_definition(std::vector<keyframe> kfs, std::size_t repeat) :
 			keyframes(std::move(kfs)), repeat_times(repeat) {
 		}
 
@@ -186,7 +186,7 @@ namespace codepad::ui {
 		std::vector<keyframe> keyframes; ///< The list of key frames.
 		/// The number of times to repeat the whole animation. If this is 0, then the animation will be repeated
 		/// indefinitely.
-		size_t repeat_times = 1;
+		std::size_t repeat_times = 1;
 	};
 
 	/// Stores generic keyframe animation parameters that can be further processed into a
@@ -203,7 +203,7 @@ namespace codepad::ui {
 		};
 
 		std::vector<keyframe> keyframes; ///< The list of key frames.
-		size_t repeat_times = 1; ///< \sa keyframe_animation_definition::repeat_times 
+		std::size_t repeat_times = 1; ///< \sa keyframe_animation_definition::repeat_times 
 	};
 	/// Parser for \ref generic_keyframe_animation_definition::keyframe.
 	template <> struct managed_json_parser<generic_keyframe_animation_definition::keyframe> {
@@ -324,7 +324,7 @@ namespace codepad::ui {
 	public:
 		/// The maximum number of key frames to advance per update. This is to prevent repeating key frames with zero
 		/// duration from locking up the program.
-		constexpr static size_t maximum_frames_per_update = 1000;
+		constexpr static std::size_t maximum_frames_per_update = 1000;
 
 		using definition_t = keyframe_animation_definition<T, Lerp>; ///< The type of animation definition.
 
@@ -339,7 +339,7 @@ namespace codepad::ui {
 		/// \param now The time of now.
 		/// \return The time before this \ref state needs to be updated again.
 		std::optional<animation_duration_t> update(animation_time_point_t now) override {
-			for (size_t i = 0; i < maximum_frames_per_update; ++i) { // go through the frames
+			for (std::size_t i = 0; i < maximum_frames_per_update; ++i) { // go through the frames
 				if (_cur_frame >= _def->keyframes.size()) { // animation has finished
 					_subject->set(_def->keyframes.back().target);
 					return std::nullopt;
@@ -381,7 +381,7 @@ namespace codepad::ui {
 	protected:
 		T _from; ///< The value of the last key frame, or the original value.
 		animation_time_point_t _keyframe_start; ///< Time when the last \ref keyframe was reached.
-		size_t
+		std::size_t
 			_cur_frame = 0, ///< The index of the current \ref keyframe.
 			_repeated = 0; ///< The number of times that this animation has been repeated.
 		std::shared_ptr<typed_animation_subject<T>> _subject; ///< The subject of this animation.

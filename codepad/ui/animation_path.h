@@ -31,7 +31,7 @@ namespace codepad::ui {
 			str_t
 				type, ///< The expected type of the current object. Can be empty.
 				property; ///< The target property.
-			std::optional<size_t> index; ///< The index, if this component is a list.
+			std::optional<std::size_t> index; ///< The index, if this component is a list.
 
 			/// Returns \p true if \ref type is the same as the input or if \ref type is empty.
 			bool is_type_or_empty(str_view_t ty) const {
@@ -92,7 +92,7 @@ namespace codepad::ui {
 		protected:
 			/// Parses a string that contains only a to z, 0 to 9, or underscores.
 			inline static result _parse_string(str_view_t::const_iterator &it, str_view_t::const_iterator end) {
-				size_t nchars = 0;
+				std::size_t nchars = 0;
 				while (it != end) {
 					if (*it != '_' && !(*it >= 'a' && *it <= 'z') && !(*it >= 'A' && *it <= 'Z')) {
 						break;
@@ -104,7 +104,7 @@ namespace codepad::ui {
 			}
 			/// Parses an index.
 			inline static result _parse_index(
-				str_view_t::const_iterator &it, str_view_t::const_iterator end, size_t &v
+				str_view_t::const_iterator &it, str_view_t::const_iterator end, std::size_t &v
 			) {
 				if (it == end || *it != '[') {
 					return result::not_found;
@@ -156,7 +156,7 @@ namespace codepad::ui {
 					++it;
 					closed = true;
 				}
-				size_t id = 0;
+				std::size_t id = 0;
 				result res = _parse_index(it, end, id);
 				if (res == result::error) {
 					return result::error;
@@ -183,7 +183,7 @@ namespace codepad::ui {
 					return result::not_found;
 				}
 				v.property = str_view_t(&*beg, it - beg);
-				size_t id;
+				std::size_t id;
 				result res = _parse_index(it, end, id);
 				if (res == result::error) {
 					return result::error;
@@ -460,7 +460,7 @@ namespace codepad::ui {
 					/// Default constructor.
 					array_component() = default;
 					/// Initializes \ref index.
-					explicit array_component(size_t i) : index(i) {
+					explicit array_component(std::size_t i) : index(i) {
 					}
 
 					/// Returns the object at \ref index.
@@ -473,7 +473,7 @@ namespace codepad::ui {
 						return nullptr;
 					}
 
-					size_t index = 0; ///< The index of the object containing the subject.
+					std::size_t index = 0; ///< The index of the object containing the subject.
 
 					/// Two instances are equal when their \ref index members are.
 					friend bool operator==(const array_component &lhs, const array_component &rhs) {

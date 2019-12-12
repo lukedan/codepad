@@ -28,10 +28,10 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			node_data() = default;
 			/// Initializes the struct with the given length.
-			explicit node_data(size_t l) : length(l) {
+			explicit node_data(std::size_t l) : length(l) {
 			}
 
-			size_t length = 0; ///< The number of characters between the two soft linebreaks.
+			std::size_t length = 0; ///< The number of characters between the two soft linebreaks.
 		};
 		/// Stores additional synthesized data of a subtree.
 		///
@@ -40,7 +40,7 @@ namespace codepad::editors::code {
 			/// The type of a node.
 			using node_type = binary_tree_node<node_data, node_synth_data>;
 
-			size_t
+			std::size_t
 				total_length = 0, ///< The total number of characters in the subtree.
 				total_softbreaks = 0; ///< The total number of soft linebreaks in the subtree.
 
@@ -69,11 +69,11 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			softbreak_info() = default;
 			/// Initializes all fields of the struct.
-			softbreak_info(const iterator &it, size_t pc, size_t pl) :
+			softbreak_info(const iterator &it, std::size_t pc, std::size_t pl) :
 				entry(it), prev_chars(pc), prev_softbreaks(pl) {
 			}
 			iterator entry; ///< Iterator to the corresponding soft `segment'.
-			size_t
+			std::size_t
 				prev_chars = 0, ///< The number of characters before the beginning of \ref entry.
 				prev_softbreaks = 0; ///< The number of soft linebreaks before the one \ref entry points to.
 		};
@@ -81,25 +81,25 @@ namespace codepad::editors::code {
 		/// Obtains information about a visual line.
 		///
 		/// \sa _find_line_ending
-		std::pair<linebreak_registry::linebreak_info, softbreak_info> get_line_info(size_t line) const {
+		std::pair<linebreak_registry::linebreak_info, softbreak_info> get_line_info(std::size_t line) const {
 			if (_t.empty()) {
 				return {_reg->get_line_info(line), softbreak_info(_t.end(), 0, 0)};
 			}
-			size_t softc = 0, hardc = 0;
+			std::size_t softc = 0, hardc = 0;
 			iterator soft;
 			linebreak_registry::iterator hard;
-			size_t slb = _find_line_ending(soft, hard, softc, hardc, line);
+			std::size_t slb = _find_line_ending(soft, hard, softc, hardc, line);
 			return {
 				linebreak_registry::linebreak_info(hard, hardc),
 				softbreak_info(soft, softc, slb)
 			};
 		}
 		/// Obtains the position of the given line's beginning and the type of the linebreak before the line.
-		std::pair<size_t, linebreak_type> get_beginning_char_of_visual_line(size_t line) const {
+		std::pair<std::size_t, linebreak_type> get_beginning_char_of_visual_line(std::size_t line) const {
 			if (_t.empty()) {
 				return {_reg->get_line_info(line).first_char, linebreak_type::hard};
 			}
-			size_t softc = 0, hardc = 0;
+			std::size_t softc = 0, hardc = 0;
 			iterator soft;
 			linebreak_registry::iterator hard;
 			_find_line_ending(soft, hard, softc, hardc, line);
@@ -112,7 +112,7 @@ namespace codepad::editors::code {
 		/// If the line ends with a nonempty hard linebreak, the returned position is that of the linebreak.
 		/// Otherwise, the position is that of the next line's beginning, or after the end of the document
 		/// if it's the last line.
-		std::pair<size_t, linebreak_type> get_past_ending_char_of_visual_line(size_t line) const {
+		std::pair<std::size_t, linebreak_type> get_past_ending_char_of_visual_line(std::size_t line) const {
 			if (_t.empty()) {
 				linebreak_registry::linebreak_info info = _reg->get_line_info(line);
 				if (info.entry != _reg->end()) {
@@ -120,7 +120,7 @@ namespace codepad::editors::code {
 				}
 				return {info.first_char, linebreak_type::hard};
 			}
-			size_t softc = 0, hardc = 0;
+			std::size_t softc = 0, hardc = 0;
 			iterator soft;
 			linebreak_registry::iterator hard;
 			_find_line_ending(soft, hard, softc, hardc, line);
@@ -137,20 +137,20 @@ namespace codepad::editors::code {
 		}
 		/// Obtains information about the soft `segment' that the given position is at. If the position is at a soft
 		/// linebreak, the segment after it is returned.
-		softbreak_info get_softbreak_before_or_at_char(size_t c) const {
+		softbreak_info get_softbreak_before_or_at_char(std::size_t c) const {
 			_get_softbreaks_before selector;
-			size_t nc = c;
+			std::size_t nc = c;
 			auto it = _t.find_custom(selector, nc);
 			return softbreak_info(it, c - nc, selector.num_softbreaks);
 		}
 		/// Returns the index of the visual line that the given character is on.
-		size_t get_visual_line_of_char(size_t c) const {
+		std::size_t get_visual_line_of_char(std::size_t c) const {
 			return
 				_reg->get_line_and_column_of_char(c).line +
 				get_softbreak_before_or_at_char(c).prev_softbreaks;
 		}
 		/// Returns the visual line and column of a given character.
-		std::pair<size_t, size_t> get_visual_line_and_column_of_char(size_t c) const {
+		std::pair<std::size_t, std::size_t> get_visual_line_and_column_of_char(std::size_t c) const {
 			auto hard = _reg->get_line_and_column_of_char(c);
 			_get_softbreaks_before selector;
 			_t.find_custom(selector, c);
@@ -158,9 +158,9 @@ namespace codepad::editors::code {
 		}
 		/// Returns the combined result of \ref get_visual_line_and_column_of_char and
 		/// \ref get_softbreak_before_or_at_char.
-		std::tuple<size_t, size_t, softbreak_info>
-			get_visual_line_and_column_and_softbreak_before_or_at_char(size_t c) const {
-			size_t nc = c;
+		std::tuple<std::size_t, std::size_t, softbreak_info>
+			get_visual_line_and_column_and_softbreak_before_or_at_char(std::size_t c) const {
+			std::size_t nc = c;
 			auto hard = _reg->get_line_and_column_of_char(c);
 			_get_softbreaks_before selector;
 			auto it = _t.find_custom(selector, nc);
@@ -187,11 +187,11 @@ namespace codepad::editors::code {
 		/// Sets the contents of this registry.
 		///
 		/// \param poss The new list of soft linebreaks' positions, sorted in increasing order.
-		void set_softbreaks(const std::vector<size_t> &poss) {
+		void set_softbreaks(const std::vector<std::size_t> &poss) {
 			std::vector<node_data> vs;
 			vs.reserve(poss.size());
-			size_t last = 0; // no reason to insert softbreak at position 0
-			for (size_t cp : poss) {
+			std::size_t last = 0; // no reason to insert softbreak at position 0
+			for (std::size_t cp : poss) {
 				assert_true_usage(cp > last, "softbreak list not properly sorted");
 				vs.emplace_back(cp - last);
 				last = cp;
@@ -200,11 +200,11 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns the total number of soft linebreaks.
-		size_t num_softbreaks() const {
+		std::size_t num_softbreaks() const {
 			return _t.root() ? _t.root()->synth_data.total_softbreaks : 0;
 		}
 		/// Returns the total number of visual lines.
-		size_t num_visual_lines() const {
+		std::size_t num_visual_lines() const {
 			return _reg->num_linebreaks() + num_softbreaks() + 1;
 		}
 		/// Returns the associated \ref linebreak_registry.
@@ -217,12 +217,12 @@ namespace codepad::editors::code {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = sum_synthesizer::index_finder<node_synth_data::length_property>;
 			/// Interface to binary_tree::find_custom.
-			int select_find(node_type &n, size_t &target) {
+			int select_find(node_type &n, std::size_t &target) {
 				return finder::template select_find<
 					node_synth_data::softbreaks_property
 				>(n, target, num_softbreaks);
 			}
-			size_t num_softbreaks = 0; ///< Records the number of soft linebreaks before the resulting node.
+			std::size_t num_softbreaks = 0; ///< Records the number of soft linebreaks before the resulting node.
 		};
 
 		tree_type _t; ///< The underlying \ref binary_tree that records all soft linebreaks.
@@ -241,12 +241,12 @@ namespace codepad::editors::code {
 		/// \param line The visual line to be queried.
 		/// \return The number of soft linebreaks before \p softit. Subtract this from \p line to obtain the
 		///         number of hard linebreaks before \p hardit.
-		size_t _find_line_ending(
+		std::size_t _find_line_ending(
 			iterator &softit, linebreak_registry::iterator &hardit,
-			size_t &softc, size_t &hardc, size_t line
+			std::size_t &softc, std::size_t &hardc, std::size_t line
 		) const {
 			assert_true_logical(softc == 0 && hardc == 0, "irresponsible caller");
-			size_t softbreaks = num_softbreaks(), res = softbreaks;
+			std::size_t softbreaks = num_softbreaks(), res = softbreaks;
 			if (line > softbreaks + _reg->num_linebreaks()) { // past the end
 				softit = _t.end();
 				softc = _t.root()->synth_data.total_length;
@@ -265,9 +265,9 @@ namespace codepad::editors::code {
 			linebreak_registry::node_type *theirnode = _reg->_t.root();
 			// the four following variables contain the sum of values of all nodes before (not including) the
 			// current node, but not including nodes in its left subtree
-			size_t myanccount = 0, myancpos = 0, theiranccount = 0, theirancpos = 0;
+			std::size_t myanccount = 0, myancpos = 0, theiranccount = 0, theirancpos = 0;
 			while (mynode && theirnode) {
-				size_t
+				std::size_t
 					mycount = myanccount, myexcpos = myancpos,
 					theircount = theiranccount, theirexcpos = theirancpos;
 				if (mynode->left) {
@@ -278,7 +278,7 @@ namespace codepad::editors::code {
 					theircount += theirnode->left->synth_data.total_linebreaks;
 					theirexcpos += theirnode->left->synth_data.total_chars;
 				}
-				size_t
+				std::size_t
 					mypos = myexcpos + mynode->value.length,
 					theirpos = theirexcpos + linebreak_registry::line_synth_data::get_node_char_num::get(*theirnode),
 					before = mycount + theircount;
@@ -345,11 +345,11 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			fold_region_data() = default;
 			/// Initializes all fields of this struct.
-			fold_region_data(size_t b, size_t e, size_t bl, size_t el) :
+			fold_region_data(std::size_t b, std::size_t e, std::size_t bl, std::size_t el) :
 				begin(b), end(e), begin_line(bl), end_line(el) {
 			}
 
-			size_t
+			std::size_t
 				begin = 0, ///< The beginning of the folded region.
 				end = 0, ///< The ending of the folded region.
 				begin_line = 0, ///< The visual line that \ref begin is on.
@@ -360,11 +360,11 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			fold_region_node_data() = default;
 			/// Initializes all fields of this struct.
-			fold_region_node_data(size_t g, size_t r, size_t gl, size_t rl) :
+			fold_region_node_data(std::size_t g, std::size_t r, std::size_t gl, std::size_t rl) :
 				gap(g), range(r), gap_lines(gl), folded_lines(rl) {
 			}
 
-			size_t
+			std::size_t
 				/// The gap between the ending of the last folded region (or the beginning of the document
 				/// if this is the first region) and the beginning of this folded region.
 				gap = 0,
@@ -385,7 +385,7 @@ namespace codepad::editors::code {
 			/// Used to obtain the total number of characters that a node covers.
 			struct get_node_span {
 				/// Returns the sum of \ref fold_region_node_data::gap and \ref fold_region_node_data::range.
-				inline static size_t get(const node_type &n) {
+				inline static std::size_t get(const node_type &n) {
 					return n.value.gap + n.value.range;
 				}
 			};
@@ -393,12 +393,12 @@ namespace codepad::editors::code {
 			struct get_node_line_span {
 				/// Returns the sum of \ref fold_region_node_data::gap_lines and
 				/// \ref fold_region_node_data::folded_lines.
-				inline static size_t get(const node_type &n) {
+				inline static std::size_t get(const node_type &n) {
 					return n.value.gap_lines + n.value.folded_lines;
 				}
 			};
 
-			size_t
+			std::size_t
 				total_length = 0, ///< The total number of characters in this subtree.
 				total_folded_chars = 0, ///< The total number of characters that are folded in this subtree.
 				total_lines = 0, ///< The total number of linebreaks (both soft and hard ones) in this subtree.
@@ -434,19 +434,19 @@ namespace codepad::editors::code {
 			/// \tparam TreeTotal The field of this struct that holds to the data of the whole region.
 			/// \tparam TreeFolded The field of this struct that holds to the data of the folded region.
 			template <
-				size_t fold_region_node_data::*Node,
-				size_t fold_region_synth_data::*TreeTotal, size_t fold_region_synth_data::*TreeFolded
+				std::size_t fold_region_node_data::*Node,
+				std::size_t fold_region_synth_data::*TreeTotal, std::size_t fold_region_synth_data::*TreeFolded
 			> struct unfolded_property_base {
 				/// Returns the value of \p Node.
-				inline static size_t get_node_value(const node_type &n) {
+				inline static std::size_t get_node_value(const node_type &n) {
 					return n.value.*Node;
 				}
 				/// The same as \ref get_node_value.
-				inline static size_t get_node_synth_value(const node_type &n) {
+				inline static std::size_t get_node_synth_value(const node_type &n) {
 					return get_node_value(n);
 				}
 				/// Returns the difference between \p TreeFolded and \p TreeTotal.
-				inline static size_t get_tree_synth_value(const node_type &n) {
+				inline static std::size_t get_tree_synth_value(const node_type &n) {
 					return n.synth_data.*TreeTotal - n.synth_data.*TreeFolded;
 				}
 			};
@@ -475,14 +475,14 @@ namespace codepad::editors::code {
 
 		/// Given a line index in the document with folding enabled, returns the index of the same line when folding
 		/// is disabled.
-		size_t folded_to_unfolded_line_number(size_t line) const {
+		std::size_t folded_to_unfolded_line_number(std::size_t line) const {
 			_folded_to_unfolded_line finder;
 			_t.find_custom(finder, line);
 			return finder.total + line;
 		}
 		/// Given a line index in the document with folding disabled, returns the index of the same line when folding
 		/// is enabled.
-		size_t unfolded_to_folded_line_number(size_t line) const {
+		std::size_t unfolded_to_folded_line_number(std::size_t line) const {
 			_unfolded_to_folded_line finder;
 			auto it = _t.find_custom(finder, line);
 			if (it != _t.end()) {
@@ -492,14 +492,14 @@ namespace codepad::editors::code {
 		}
 		/// Given a caret position in the document with folding enabled (i.e., as if all folded regions have been
 		/// removed), returns the corresponding position in the document with folding disabled.
-		size_t folded_to_unfolded_caret_pos(size_t pos) const {
+		std::size_t folded_to_unfolded_caret_pos(std::size_t pos) const {
 			_folded_to_unfolded_pos finder;
 			_t.find_custom(finder, pos);
 			return finder.total + pos;
 		}
 		/// Given a caret position in the document with folding disabled, returns the corresponding position in the
 		/// document with folding enabled (i.e., as if all folded regions have been removed).
-		size_t unfolded_to_folded_caret_pos(size_t pos) const {
+		std::size_t unfolded_to_folded_caret_pos(std::size_t pos) const {
 			_unfolded_to_folded_pos finder;
 			auto it = _t.find_custom(finder, pos);
 			if (it != _t.end()) {
@@ -510,12 +510,12 @@ namespace codepad::editors::code {
 
 		/// Given a line index in the document with folding disabled, returns the index (with folding disabled) of
 		/// the first of the set of lines that, with folding enabled, belongs to the line at the given index.
-		size_t get_beginning_line_of_folded_lines(size_t line) const {
+		std::size_t get_beginning_line_of_folded_lines(std::size_t line) const {
 			return folded_to_unfolded_line_number(unfolded_to_folded_line_number(line));
 		}
 		/// Given a line index in the document with folding disabled, returns the index (with folding disabled) past
 		/// the last of the set of lines that, with folding enabled, belongs to the line at the given index.
-		size_t get_past_ending_line_of_folded_lines(size_t line) const {
+		std::size_t get_past_ending_line_of_folded_lines(std::size_t line) const {
 			return folded_to_unfolded_line_number(unfolded_to_folded_line_number(line) + 1);
 		}
 
@@ -524,12 +524,12 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			fold_region_info() = default;
 			/// Initializes all fields of this struct.
-			fold_region_info(const iterator &it, size_t pc, size_t pl) :
+			fold_region_info(const iterator &it, std::size_t pc, std::size_t pl) :
 				entry(it), prev_chars(pc), prev_lines(pl) {
 			}
 
 			iterator entry; ///< Iterator to the resulting fold region.
-			size_t
+			std::size_t
 				prev_chars = 0, ///< The number of characters before \ref entry.
 				prev_lines = 0; ///< The number of linebreaks before \ref entry.
 
@@ -557,7 +557,7 @@ namespace codepad::editors::code {
 
 		/// Finds the folded region that fully encapsules the given position, i.e., the position does not lie on the
 		/// boundary of the result. If no such region is found, returns (\ref end(), 0, 0).
-		fold_region_info find_region_containing_open(size_t cp) const {
+		fold_region_info find_region_containing_open(std::size_t cp) const {
 			_find_region_open finder;
 			auto it = _t.find_custom(finder, cp);
 			if (it != _t.end() && cp > it->gap) {
@@ -568,7 +568,7 @@ namespace codepad::editors::code {
 		/// Finds the folded region that encapsules the given position. The position may lie on the boundary of the
 		/// result. If two such regions exist (happens when the position is between two adjancent folded regions),
 		/// the one in front is returned. If no such region is found, returns (\ref end(), 0, 0).
-		fold_region_info find_region_containing_closed(size_t cp) const {
+		fold_region_info find_region_containing_closed(std::size_t cp) const {
 			_find_region_closed finder;
 			auto it = _t.find_custom(finder, cp);
 			if (it != _t.end() && cp >= it->gap) {
@@ -578,7 +578,7 @@ namespace codepad::editors::code {
 		}
 		/// Similar to \ref find_region_containing_open, but returns the first folded region after the given
 		/// position if no such region is found.
-		fold_region_info find_region_containing_or_first_after_open(size_t cp) const {
+		fold_region_info find_region_containing_or_first_after_open(std::size_t cp) const {
 			_find_region_open finder;
 			auto it = _t.find_custom(finder, cp);
 			return fold_region_info(it, finder.total_chars, finder.total_lines);
@@ -586,7 +586,7 @@ namespace codepad::editors::code {
 		/// Similar to \ref find_region_containing_open, but returns the first folded region before the given
 		/// position if no such region is found. If the given position is before the first folded region,
 		/// returns (\ref end(), 0, 0).
-		fold_region_info find_region_containing_or_first_before_open(size_t cp) const {
+		fold_region_info find_region_containing_or_first_before_open(std::size_t cp) const {
 			_find_region_closed finder; // doesn't really matter whether it's open or closed
 			auto it = _t.find_custom(finder, cp);
 			if (it == _t.end() || cp <= it->gap) {
@@ -601,7 +601,7 @@ namespace codepad::editors::code {
 		}
 		/// Similar to \ref find_region_containing_closed, but returns the first folded region after the given
 		/// position if no such region is found.
-		fold_region_info find_region_containing_or_first_after_closed(size_t cp) const {
+		fold_region_info find_region_containing_or_first_after_closed(std::size_t cp) const {
 			_find_region_closed finder;
 			auto it = _t.find_custom(finder, cp);
 			return fold_region_info(it, finder.total_chars, finder.total_lines);
@@ -609,7 +609,7 @@ namespace codepad::editors::code {
 		/// Similar to \ref find_region_containing_closed, but returns the first folded region before the given
 		/// position if no such region is found. If the given position is before the first folded region,
 		/// returns (\ref end(), 0, 0).
-		fold_region_info find_region_containing_or_first_before_closed(size_t cp) const {
+		fold_region_info find_region_containing_or_first_before_closed(std::size_t cp) const {
 			_find_region_closed finder;
 			auto it = _t.find_custom(finder, cp);
 			if (it == _t.end() || cp < it->gap) {
@@ -656,7 +656,7 @@ namespace codepad::editors::code {
 		/// Removes the designated folded region.
 		void remove_folded_region(iterator it) {
 			assert_true_logical(it != _t.end(), "invalid iterator");
-			size_t dp = it->gap + it->range, dl = it->gap_lines + it->folded_lines;
+			std::size_t dp = it->gap + it->range, dl = it->gap_lines + it->folded_lines;
 			iterator next = _t.erase(it);
 			if (next != _t.end()) {
 				auto mod = _t.get_modifier_for(next.get_node());
@@ -684,13 +684,13 @@ namespace codepad::editors::code {
 			}
 			interpretation::character_position_converter cvt(interp);
 			buffer::position_patcher patcher(edt.positions);
-			size_t lastpos = 0;
+			std::size_t lastpos = 0;
 			for (auto it = _t.begin(); it != _t.end(); ) {
-				size_t
+				std::size_t
 					begbyte = patcher.patch<buffer::position_patcher::strategy::back>(it->bytepos_first),
 					endbyte = patcher.patch<buffer::position_patcher::strategy::front>(it->bytepos_second);
 				if (begbyte < endbyte) {
-					size_t begchar = cvt.byte_to_character(begbyte), endchar = cvt.byte_to_character(endbyte);
+					std::size_t begchar = cvt.byte_to_character(begbyte), endchar = cvt.byte_to_character(endbyte);
 					if (begchar < endchar) {
 						it.get_value_rawmod().gap = begchar - lastpos;
 						it.get_value_rawmod().range = endchar - begchar;
@@ -715,11 +715,11 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns the total number of linebreaks that have been folded.
-		size_t folded_linebreaks() const {
+		std::size_t folded_linebreaks() const {
 			return _t.root() ? _t.root()->synth_data.total_folded_lines : 0;
 		}
 		/// Returns the total number of folded regions.
-		size_t folded_region_count() const {
+		std::size_t folded_region_count() const {
 			return _t.root() ? _t.root()->synth_data.tree_size : 0;
 		}
 		/// Returns the underlying \ref tree_type "tree".
@@ -735,10 +735,10 @@ namespace codepad::editors::code {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = sum_synthesizer::index_finder<Prop>;
 			/// Interface for \ref binary_tree::find_custom.
-			int select_find(const node_type &n, size_t &v) {
+			int select_find(const node_type &n, std::size_t &v) {
 				return finder::template select_find<SynProp>(n, v, total_unfolded);
 			}
-			size_t total_unfolded = 0; ///< Stores the value of the additional synthesized property.
+			std::size_t total_unfolded = 0; ///< Stores the value of the additional synthesized property.
 		};
 		/// Used to convert unfolded positions to folded ones.
 		using _unfolded_to_folded_pos = _unfolded_to_folded<
@@ -757,10 +757,10 @@ namespace codepad::editors::code {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = sum_synthesizer::index_finder<Prop, false, std::less_equal<>>;
 			/// Interface for \ref binary_tree::find_custom.
-			int select_find(const node_type &n, size_t &v) {
+			int select_find(const node_type &n, std::size_t &v) {
 				return finder::template select_find<SynProp>(n, v, total);
 			}
-			size_t total = 0; ///< Stores the value of the additional synthesized property.
+			std::size_t total = 0; ///< Stores the value of the additional synthesized property.
 		};
 		/// Used to convert folded positions to unfolded ones.
 		using _folded_to_unfolded_pos = _folded_to_unfolded<
@@ -777,13 +777,13 @@ namespace codepad::editors::code {
 			using finder = sum_synthesizer::index_finder<
 				fold_region_synth_data::span_property, false, Cmp
 			>;
-			int select_find(const node_type &n, size_t &v) {
+			int select_find(const node_type &n, std::size_t &v) {
 				/// Interface for \ref binary_tree::find_custom.
 				return finder::template select_find<
 					fold_region_synth_data::span_property, fold_region_synth_data::line_span_property
 				>(n, v, total_chars, total_lines);
 			}
-			size_t
+			std::size_t
 				total_chars = 0, ///< Stores the total number of characters before the resulting node.
 				/// Stores the total number of linebreaks (both soft and hard ones) before the resulting node.
 				total_lines = 0;
@@ -802,7 +802,7 @@ namespace codepad::editors::code {
 				return;
 			}
 			interpretation::character_position_converter cvt(interp);
-			size_t pos = 0;
+			std::size_t pos = 0;
 			for (auto it = _t.begin(); it != _t.end(); ++it) {
 				pos += it->gap;
 				it.get_value_rawmod().bytepos_first = cvt.character_to_byte(pos);
@@ -820,7 +820,7 @@ namespace codepad::editors::code {
 	/// opened document.
 	class view_formatting {
 	public:
-		using fold_region = std::pair<size_t, size_t>; ///< Contains information about a folded region.
+		using fold_region = std::pair<std::size_t, std::size_t>; ///< Contains information about a folded region.
 
 		/// Default constructor.
 		view_formatting() = default;
@@ -832,7 +832,7 @@ namespace codepad::editors::code {
 		}
 
 		/// Sets the soft linebreaks of this view.
-		void set_softbreaks(const std::vector<size_t> &breaks) {
+		void set_softbreaks(const std::vector<std::size_t> &breaks) {
 			_lbr.set_softbreaks(breaks);
 			recalc_foldreg_lines();
 		}
@@ -874,13 +874,13 @@ namespace codepad::editors::code {
 		///
 		/// \todo Remove this when \ref folding_registry has been improved.
 		void recalc_foldreg_lines() {
-			size_t plines = 0, totc = 0;
+			std::size_t plines = 0, totc = 0;
 			for (auto i = _fr._t.begin(); i != _fr._t.end(); ++i) {
 				totc += i->gap;
-				size_t bl = _lbr.get_visual_line_of_char(totc); /*_lbr.get_hard_linebreaks().get_line_and_column_of_char(totc).line;*/
+				std::size_t bl = _lbr.get_visual_line_of_char(totc); /*_lbr.get_hard_linebreaks().get_line_and_column_of_char(totc).line;*/
 				i.get_value_rawmod().gap_lines = bl - plines;
 				totc += i->range;
-				size_t el = _lbr.get_visual_line_of_char(totc); /*_lbr.get_hard_linebreaks().get_line_and_column_of_char(totc).line;*/
+				std::size_t el = _lbr.get_visual_line_of_char(totc); /*_lbr.get_hard_linebreaks().get_line_and_column_of_char(totc).line;*/
 				i.get_value_rawmod().folded_lines = el - bl;
 				plines = el;
 			}

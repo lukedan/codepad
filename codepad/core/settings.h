@@ -179,7 +179,7 @@ namespace codepad {
 				std::set<std::unique_ptr<profile_value>, _profile_value_ptr_compare<>> _children;
 				T _value; ///< The value.
 				/// The timestamp. This is set to 0 so that a fresh value will always be fetched after construction.
-				size_t _timestamp = 0;
+				std::size_t _timestamp = 0;
 				profile_value *_parent; ///< The parent \ref profile_value.
 				retriever_parser &_base; ///< The associated \ref retriever_parser.
 			};
@@ -323,6 +323,6 @@ namespace codepad {
 	protected:
 		json::value_storage _storage; ///< Stores all values.
 		std::unique_ptr<profile> _main_profile; ///< The main profile.
-		size_t _timestamp = 1; ///< The version of loaded settings.
+		std::size_t _timestamp = 1; ///< The version of loaded settings.
 	};
 }

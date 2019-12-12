@@ -65,7 +65,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Returns the total number of windows managed by \ref tab_manager.
-		size_t window_count() const {
+		std::size_t window_count() const {
 			return _wndlist.size();
 		}
 

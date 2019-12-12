@@ -31,7 +31,7 @@ namespace codepad::json {
 				using array_t = typename value_t::array_t; ///< The type of JSON arrays.
 				using object_t = typename value_t::object_t; ///< The type of JSON objects.
 
-				using identifier_t = std::variant<size_t, str_t>; ///< Used to identify this object in the parent.
+				using identifier_t = std::variant<std::size_t, str_t>; ///< Used to identify this object in the parent.
 
 				/// Constructs a new context node using the given string as its identifier.
 				context_node(identifier_t id, std::shared_ptr<context_node> parent) :
@@ -43,8 +43,8 @@ namespace codepad::json {
 					return _id;
 				}
 				/// Returns the parent node.
-				const std::shared_ptr<context_node> &get_parent() const {
-					return _parent;
+				const context_node &get_parent() const {
+					return *_parent;
 				}
 
 				/// Prints the path to the given stream.
@@ -78,10 +78,10 @@ namespace codepad::json {
 			}
 			/// Creates a child node from the given identifier.
 			template <typename ValueType> std::shared_ptr<context_node<ValueType>> spawn_child(
-				std::shared_ptr<context_node<ValueType>> parent, size_t id
+				std::shared_ptr<context_node<ValueType>> parent, std::size_t id
 			) {
 				return std::make_shared<context_node<ValueType>>(
-					typename context_node<ValueType>::identifier_t(std::in_place_type<size_t>, id),
+					typename context_node<ValueType>::identifier_t(std::in_place_type<std::size_t>, id),
 					std::move(parent)
 					);
 			}
@@ -216,7 +216,7 @@ namespace codepad::json {
 			}
 
 			/// Returns the number of entries in this object.
-			size_t size() const {
+			std::size_t size() const {
 				return _object.size();
 			}
 		protected:
@@ -298,7 +298,7 @@ namespace codepad::json {
 				/// In-place addition.
 				iterator &operator+=(difference_type diff) {
 					_it += diff;
-					_pos = static_cast<size_t>(static_cast<difference_type>(_pos) + diff);
+					_pos = static_cast<std::size_t>(static_cast<difference_type>(_pos) + diff);
 					return *this;
 				}
 				/// Addition.
@@ -313,7 +313,7 @@ namespace codepad::json {
 				/// In-place subtraction.
 				iterator &operator-=(difference_type diff) {
 					_it -= diff;
-					_pos = static_cast<size_t>(static_cast<difference_type>(_pos) - diff);
+					_pos = static_cast<std::size_t>(static_cast<difference_type>(_pos) - diff);
 					return *this;
 				}
 				/// Subtraction.
@@ -354,12 +354,12 @@ namespace codepad::json {
 				using _context_node_t = _details::context_node<ValueType>; ///< Nodes that provide context information.
 
 				/// Initializes all fields of this struct.
-				iterator(base_iterator_t it, size_t pos, const array_t &arr) :
+				iterator(base_iterator_t it, std::size_t pos, const array_t &arr) :
 					_it(std::move(it)), _pos(pos), _arr(&arr) {
 				}
 
 				base_iterator_t _it; ///< The underlying iterator.
-				size_t _pos = 0; ///< The position of this iterator.
+				std::size_t _pos = 0; ///< The position of this iterator.
 				const array_t *_arr = nullptr; ///< The \ref array_t that created this iterator.
 			};
 
@@ -376,16 +376,16 @@ namespace codepad::json {
 			}
 
 			/// Returns the element at the given index.
-			value_t<ValueType> operator[](size_t i) const {
+			value_t<ValueType> operator[](std::size_t i) const {
 				return value_t(_array[i], _details::spawn_child(_node, i));
 			}
 			/// Returns the element at the given index.
-			value_t<ValueType> at(size_t i) const {
+			value_t<ValueType> at(std::size_t i) const {
 				return (*this)[i];
 			}
 
 			/// Returns the number of entries in this array.
-			size_t size() const {
+			std::size_t size() const {
 				return _array.size();
 			}
 		protected:

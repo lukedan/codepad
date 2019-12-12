@@ -13,7 +13,7 @@ namespace codepad::editors::binary {
 		/// Returns the desired with.
 		ui::size_allocation get_desired_width() const override {
 			if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
-				size_t chars = _get_label_length(rgn->get_buffer()->length());
+				std::size_t chars = _get_label_length(rgn->get_buffer()->length());
 				double maxw = 0.0;/*rgn->get_font()->get_max_width_charset(U"0123456789ABCDEF");*/
 				return ui::size_allocation(get_padding().width() + chars * maxw, true);
 			}
@@ -54,15 +54,15 @@ namespace codepad::editors::binary {
 		}
 
 		/// Returns the label length that corresponds to the given buffer size.
-		inline static size_t _get_label_length(size_t len) {
-			return 1 + high_bit_index(std::max<size_t>(len, 1)) / 4;
+		inline static std::size_t _get_label_length(std::size_t len) {
+			return 1 + high_bit_index(std::max<std::size_t>(len, 1)) / 4;
 		}
 
 		/// Returns the hexadecimal representation of the given number, padded to the given length with zeros.
-		inline static str_t _to_hex(size_t v, size_t len) {
+		inline static str_t _to_hex(std::size_t v, std::size_t len) {
 			str_t res(len, '0');
 			for (auto x = res.rbegin(); v != 0 && x != res.rend(); ++x, v >>= 4) {
-				size_t digit = v & 0xF;
+				std::size_t digit = v & 0xF;
 				if (digit < 10) {
 					*x = static_cast<char>(digit + '0'); // TODO use char8_t
 				} else {
@@ -79,8 +79,8 @@ namespace codepad::editors::binary {
 				double
 					top = rgn->get_client_region().ymin - edt->get_vertical_position(),
 					left = get_client_region().xmin;
-				size_t
-					firstline = static_cast<size_t>(
+				std::size_t
+					firstline = static_cast<std::size_t>(
 						std::max(0.0, (get_layout().ymin - top) / rgn->get_line_height())
 						),
 					chars = _get_label_length(rgn->get_buffer()->length()),

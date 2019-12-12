@@ -15,7 +15,7 @@
 namespace codepad::editors {
 	/// A caret and the associated selected region. The first element is the position of the caret,
 	/// and the second indicates the other end of the selcted region.
-	using caret_selection = std::pair<size_t, size_t>;
+	using caret_selection = std::pair<std::size_t, std::size_t>;
 
 	/// Contains information about the position of a caret with word wrapping enabled.
 	///
@@ -26,7 +26,7 @@ namespace codepad::editors {
 		/// Default constructor.
 		caret_position() = default;
 		/// Initializes all fields of this struct.
-		explicit caret_position(size_t pos, bool back = false) : position(pos), at_back(back) {
+		explicit caret_position(std::size_t pos, bool back = false) : position(pos), at_back(back) {
 		}
 
 		/// Equality. This may be inaccurate when both \ref position "positions" are the same.
@@ -55,7 +55,7 @@ namespace codepad::editors {
 			return !(lhs < rhs);
 		}
 
-		size_t position = 0; ///< The index of the unit that this caret is immediately before.
+		std::size_t position = 0; ///< The index of the unit that this caret is immediately before.
 		/// Indicates whether the caret should be considered as being before the character after it, rather than
 		/// being after the character before it. For example, if this caret is at the same position as a soft
 		/// linebreak, this field determines whether it appears at the end of the first line, or at the beginning
@@ -71,11 +71,11 @@ namespace codepad::editors {
 			caret(cpos.position), selection(cpos.position), caret_at_back(cpos.at_back) {
 		}
 		/// Initializes this struct with a \ref caret_position and the position of the other end of the selection.
-		caret_selection_position(caret_position caret, size_t selection) :
+		caret_selection_position(caret_position caret, std::size_t selection) :
 			caret_selection_position(caret.position, selection, caret.at_back) {
 		}
 		/// Initializes all fields of this struct.
-		caret_selection_position(size_t c, size_t s, bool back = false) :
+		caret_selection_position(std::size_t c, std::size_t s, bool back = false) :
 			caret(c), selection(s), caret_at_back(back) {
 		}
 
@@ -89,7 +89,7 @@ namespace codepad::editors {
 			return caret_position(caret, caret_at_back);
 		}
 
-		size_t
+		std::size_t
 			caret = 0, ///< The position of the caret.
 			selection = 0; ///< The position of the non-caret end of the selection.
 		bool caret_at_back = false; ///< \sa caret_position::at_back
@@ -176,7 +176,7 @@ namespace codepad::editors {
 		///
 		/// \tparam Cmp Used to determine whether being at the boundaries of selected regions counts as being
 		///             inside the region.
-		template <typename Cmp = std::less_equal<>> bool is_in_selection(size_t cp) const {
+		template <typename Cmp = std::less_equal<>> bool is_in_selection(std::size_t cp) const {
 			auto cur = carets.lower_bound(std::make_pair(cp, cp));
 			if (cur != carets.begin()) {
 				--cur;
@@ -204,7 +204,11 @@ namespace codepad::editors {
 		/// \param rm The caret of the resulting \ref caret_selection.
 		/// \param rs End of the selected region of the resulting \ref caret_selection.
 		/// \return Whether the two carets should be merged.
-		inline static bool try_merge_selection(size_t mm, size_t ms, size_t sm, size_t ss, size_t &rm, size_t &rs) {
+		inline static bool try_merge_selection(
+			std::size_t mm, std::size_t ms,
+			std::size_t sm, std::size_t ss,
+			std::size_t &rm, std::size_t &rs
+		) {
 			auto p1mmv = std::minmax(mm, ms), p2mmv = std::minmax(sm, ss);
 			// carets without selections
 			if (mm == ms && mm >= p2mmv.first && mm <= p2mmv.second) {
@@ -220,8 +224,10 @@ namespace codepad::editors {
 			if (p1mmv.second <= p2mmv.first || p1mmv.first >= p2mmv.second) { // no need to merge
 				return false;
 			}
-			size_t gmin = std::min(p1mmv.first, p2mmv.first), gmax = std::max(p1mmv.second, p2mmv.second);
-			assert_true_logical(!((mm == gmin && sm == gmax) || (mm == gmax && sm == gmin)), "caret layout shouldn't occur");
+			std::size_t gmin = std::min(p1mmv.first, p2mmv.first), gmax = std::max(p1mmv.second, p2mmv.second);
+			assert_true_logical(
+				!((mm == gmin && sm == gmax) || (mm == gmax && sm == gmin)), "caret layout shouldn't occur"
+			);
 			if (mm < ms) {
 				rm = gmin;
 				rs = gmax;

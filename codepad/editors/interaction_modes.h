@@ -517,7 +517,10 @@ namespace codepad::editors {
 
 			/// Activates a \ref mouse_prepare_drag_mode if the mouse is in a selected region.
 			std::unique_ptr<mode_t> on_mouse_down(manager_t &man, ui::mouse_button_info &info) override {
-				if (man.get_contents_region().get_carets().is_in_selection(man.get_mouse_position().position)) {
+				if (
+					info.button == button &&
+					man.get_contents_region().get_carets().is_in_selection(man.get_mouse_position().position)
+					) {
 					return std::make_unique<mouse_prepare_drag_mode<CaretSet>>(
 						man, info.position.get(man.get_contents_region())
 						);
@@ -534,6 +537,8 @@ namespace codepad::editors {
 				}
 				return interaction_mode_activator<CaretSet>::get_override_cursor(man);
 			}
+
+			ui::mouse_button button = ui::mouse_button::primary; ///< The mouse button that activates this mode.
 		};
 	}
 }

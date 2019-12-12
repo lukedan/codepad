@@ -1134,7 +1134,10 @@
 					"orientation": "vertical"
 				},
 				"layout": {
-					"margin": [ 0.0, 0.0, 0.0, 8.0 ]
+					"anchor": "tbr",
+					"margin": [ 0.0, 0.0, 0.0, 8.0 ],
+					"width": "8px",
+					"height": "100%"
 				}
 			},
 			{
@@ -1145,7 +1148,10 @@
 					"orientation": "horizontal"
 				},
 				"layout": {
-					"margin": [ 0.0, 0.0, 8.0, 0.0 ]
+					"anchor": "lrb",
+					"margin": [ 0.0, 0.0, 8.0, 0.0 ],
+					"width": "100%",
+					"height": "8px"
 				}
 			},
 			{
@@ -1163,6 +1169,8 @@
 					{
 						"type": "primary_offset_display",
 						"layout": {
+							"width": "auto",
+							"height": "100%",
 							"padding": [ 10, 0, 5, 0 ]
 						}
 					},

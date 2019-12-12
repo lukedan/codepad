@@ -35,12 +35,12 @@ namespace codepad::ui {
 		/// Returns the mouse position relative to the specified \ref element.
 		vec2d get(element&) const;
 	protected:
-		size_t _timestamp = 0; ///< The timestamp of the corresponding mouse event.
+		std::size_t _timestamp = 0; ///< The timestamp of the corresponding mouse event.
 
 		static window_base *_active_window; ///< The window that currently has valid mouse position data.
 
 		/// Initializes \ref _timestamp.
-		explicit mouse_position(size_t ts) : _timestamp(ts) {
+		explicit mouse_position(std::size_t ts) : _timestamp(ts) {
 		}
 	};
 
@@ -360,7 +360,7 @@ namespace codepad::ui {
 
 		vec2d _cached_mouse_position; ///< Cached mouse position relative to this elemnt.
 		/// The timestamp used to check if \ref _cached_mouse_position is valid.
-		size_t _cached_mouse_position_timestamp = 0;
+		std::size_t _cached_mouse_position_timestamp = 0;
 		bool _mouse_over = false; ///< Indicates if the mouse is hoverihg this element.
 	protected:
 		rectd _layout; ///< The absolute layout of the element in the window.
@@ -555,7 +555,7 @@ namespace codepad::ui {
 			}
 
 			/// Registers an event that only triggers if the associated mouse button matches the given one.
-			inline static bool register_mouse_button_event(
+			inline static void register_mouse_button_event(
 				info_event<mouse_button_info> &event, mouse_button mb, std::function<void()> callback
 			) {
 				event += [cb = std::move(callback), mb](mouse_button_info &info) {

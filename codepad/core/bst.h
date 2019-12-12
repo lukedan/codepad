@@ -1100,7 +1100,7 @@ namespace codepad {
 			/// Returns 1.
 			///
 			/// \tparam The type of the node.
-			template <typename Node> inline static size_t get(const Node&) {
+			template <typename Node> inline static std::size_t get(const Node&) {
 				return 1;
 			}
 		};

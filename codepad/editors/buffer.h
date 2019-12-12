@@ -40,7 +40,7 @@ namespace codepad::editors {
 		friend buffer_manager;
 	public:
 		/// The maximum number of bytes there can be in a single chunk.
-		constexpr static size_t maximum_bytes_per_chunk = 4096;
+		constexpr static std::size_t maximum_bytes_per_chunk = 4096;
 
 		/// Stores the contents of a chunk.
 		using chunk_data = byte_array;
@@ -51,7 +51,7 @@ namespace codepad::editors {
 			/// A node of the tree.
 			using node = binary_tree_node<chunk_data, node_data>;
 
-			size_t total_length = 0; ///< The total number of bytes in this subtree.
+			std::size_t total_length = 0; ///< The total number of bytes in this subtree.
 
 			using length_property = sum_synthesizer::compact_property<
 				synthesization_helper::func_value_property<&chunk_data::size>,
@@ -128,7 +128,7 @@ namespace codepad::editors {
 			}
 
 			/// Returns the position of the byte to which this iterator points.
-			size_t get_position() const {
+			std::size_t get_position() const {
 				if (_it != _it.get_container()->end()) {
 					return _chunkpos + (_s - _it->begin());
 				}
@@ -141,12 +141,12 @@ namespace codepad::editors {
 			}
 		protected:
 			/// Constructs an iterator that points to the given position.
-			iterator_base(const TIt &t, const SIt &s, size_t chkpos) : _it(t), _s(s), _chunkpos(chkpos) {
+			iterator_base(const TIt &t, const SIt &s, std::size_t chkpos) : _it(t), _s(s), _chunkpos(chkpos) {
 			}
 
 			TIt _it; ///< The tree's iterator.
 			SIt _s{}; ///< The chunk's iterator.
-			size_t _chunkpos = 0; ///< The position of the first byte of \ref _it in the \ref buffer.
+			std::size_t _chunkpos = 0; ///< The position of the first byte of \ref _it in the \ref buffer.
 		};
 		/// Iterator type.
 		using iterator = iterator_base<tree_type::iterator, chunk_data::iterator>;
@@ -160,11 +160,11 @@ namespace codepad::editors {
 			/// Default constructor.
 			modification_position() = default;
 			/// Initializes all field of this struct.
-			modification_position(size_t p, size_t rem, size_t add) :
+			modification_position(std::size_t p, std::size_t rem, std::size_t add) :
 				position(p), removed_range(rem), added_range(add) {
 			}
 
-			size_t
+			std::size_t
 				/// The position where the modification takes place. If multiple modifications are made simultaneously
 				/// by multiple carets, this position is obtained after all previous modifications have completed.
 				position = 0,
@@ -186,7 +186,7 @@ namespace codepad::editors {
 				removed_content, ///< Bytes removed by this modification.
 				added_content; ///< Bytes inserted by this modification.
 			/// The position where this modification took place, after all previous modifications have been made.
-			size_t position = 0;
+			std::size_t position = 0;
 		};
 		/// A list of modifications made by multiple carets at the same time.
 		using edit = std::vector<modification>;
@@ -216,15 +216,18 @@ namespace codepad::editors {
 
 			/// Returns the patched position. Modifications with no removed content receive special treatment: a
 			/// position is patched if it lies exactly at the position.
-			template <strategy Strat> size_t patch(size_t pos) {
+			template <strategy Strat> std::size_t patch(std::size_t pos) {
 				pos += _diff;
-				while (_next != _pos.end() && pos >= _next->position + std::max<size_t>(_next->removed_range, 1)) {
-					size_t ndiff = _next->added_range - _next->removed_range;
+				while (
+					_next != _pos.end() &&
+					pos >= _next->position + std::max<std::size_t>(_next->removed_range, 1)
+					) {
+					std::size_t ndiff = _next->added_range - _next->removed_range;
 					pos += ndiff;
 					_diff += ndiff;
 					++_next;
 				}
-				if (_next != _pos.end() && pos >= _next->position + std::min<size_t>(_next->removed_range, 1)) {
+				if (_next != _pos.end() && pos >= _next->position + std::min<std::size_t>(_next->removed_range, 1)) {
 					if constexpr (Strat == strategy::front) {
 						pos = _next->position;
 					} else if constexpr (Strat == strategy::back) {
@@ -239,7 +242,7 @@ namespace codepad::editors {
 			edit_positions::const_iterator _next; ///< Next modification to check.
 			const edit_positions &_pos; ///< Position info of the \ref edit.
 			/// The difference between old and new positions so far. It may overflow but will still work as intended.
-			size_t _diff = 0;
+			std::size_t _diff = 0;
 		};
 
 		/// Information about the starting of an edit to a \ref buffer.
@@ -301,7 +304,7 @@ namespace codepad::editors {
 			/// Erases a sequence of bytes starting from \p pos with length \p eraselen, and inserts \p insert at
 			/// \p pos. The position \p pos is supposed to be the value after all previous modifications have been
 			/// made.
-			void modify_nofixup(size_t pos, size_t eraselen, byte_string insert) {
+			void modify_nofixup(std::size_t pos, std::size_t eraselen, byte_string insert) {
 				modification mod;
 				mod.position = pos;
 				if (eraselen > 0) {
@@ -319,7 +322,7 @@ namespace codepad::editors {
 			}
 			/// Similar to \ref modify_nofixup, but \p pos is obtained before modifications have been made, and is
 			/// automatically adjusted with \ref _diff.
-			void modify(size_t pos, size_t eraselen, byte_string insert) {
+			void modify(std::size_t pos, std::size_t eraselen, byte_string insert) {
 				pos += _diff;
 				modify_nofixup(pos, eraselen, std::move(insert));
 			}
@@ -327,7 +330,7 @@ namespace codepad::editors {
 			/// Reverts a modification made previously. This operation is not recorded, and is intended to be used
 			/// solely throughout the duration of an edit.
 			void undo(const modification &mod) {
-				size_t pos = mod.position + _diff;
+				std::size_t pos = mod.position + _diff;
 				if (!mod.added_content.empty()) {
 					_buf->_erase(_buf->at(pos), _buf->at(pos + mod.added_content.size()));
 				}
@@ -358,7 +361,7 @@ namespace codepad::editors {
 			edit_type _type = edit_type::normal; ///< The type of this edit.
 			/// Used to adjust positions obtained before modifications are made. Note that although its value may
 			/// overflow, it'll still work as intended.
-			size_t _diff = 0;
+			std::size_t _diff = 0;
 		};
 		/// A wrapper for \ref modifier that automatically calls \ref modifier::begin() upon construction and
 		/// \ref modifier::end() upon destruction. The edit type can only be \ref edit_type::normal.
@@ -374,11 +377,11 @@ namespace codepad::editors {
 			}
 
 			/// Calls \ref modifier::modify().
-			void modify(size_t pos, size_t eraselen, byte_string insert) {
+			void modify(std::size_t pos, std::size_t eraselen, byte_string insert) {
 				_mod.modify(pos, eraselen, std::move(insert));
 			}
 			/// Calls \ref modifier::modify_nofixup().
-			void modify_nofixup(size_t pos, size_t eraselen, byte_string insert) {
+			void modify_nofixup(std::size_t pos, std::size_t eraselen, byte_string insert) {
 				_mod.modify_nofixup(pos, eraselen, std::move(insert));
 			}
 		protected:
@@ -386,7 +389,7 @@ namespace codepad::editors {
 		};
 
 		/// Constructs this \ref buffer with the given buffer index.
-		explicit buffer(size_t id) : _fileid(std::in_place_type<size_t>, id) {
+		explicit buffer(std::size_t id) : _fileid(std::in_place_type<std::size_t>, id) {
 		}
 		/// Constructs this \ref buffer with the given file name, and loads that file's contents.
 		explicit buffer(const std::filesystem::path &filename) :
@@ -423,7 +426,7 @@ namespace codepad::editors {
 					chk.resize(maximum_bytes_per_chunk);
 					fin.read(reinterpret_cast<char*>(chk.data()), maximum_bytes_per_chunk);
 				}
-				if (auto tail = static_cast<size_t>(fin.gcount()); tail > 0) {
+				if (auto tail = static_cast<std::size_t>(fin.gcount()); tail > 0) {
 					chunks.back().resize(tail);
 				} else {
 					chunks.pop_back();
@@ -490,8 +493,8 @@ namespace codepad::editors {
 		}
 
 		/// Returns an iterator to the byte at the given position of the buffer.
-		iterator at(size_t bytepos) {
-			size_t chkpos = bytepos;
+		iterator at(std::size_t bytepos) {
+			std::size_t chkpos = bytepos;
 			auto t = _t.find_custom(_byte_index_finder(), chkpos);
 			if (t == _t.end()) {
 				return iterator(t, chunk_data::iterator(), length());
@@ -499,8 +502,8 @@ namespace codepad::editors {
 			return iterator(t, t.get_value_rawmod().begin() + chkpos, bytepos - chkpos);
 		}
 		/// Const version of at().
-		const_iterator at(size_t bytepos) const {
-			size_t chkpos = bytepos;
+		const_iterator at(std::size_t bytepos) const {
+			std::size_t chkpos = bytepos;
 			auto t = _t.find_custom(_byte_index_finder(), chkpos);
 			if (t == _t.end()) {
 				return const_iterator(t, chunk_data::const_iterator(), length());
@@ -509,8 +512,8 @@ namespace codepad::editors {
 		}
 
 		/// Given a \ref const_iterator, returns the position of the byte it points to.
-		size_t get_position(const const_iterator &it) const {
-			size_t res = 0;
+		std::size_t get_position(const const_iterator &it) const {
+			std::size_t res = 0;
 			sum_synthesizer::sum_before<node_data::length_property>(it._it, res);
 			if (it._it != _t.end()) {
 				res += it._s - it._it->begin();
@@ -571,11 +574,11 @@ namespace codepad::editors {
 			return _history;
 		}
 		/// Returns the index after the last edit made to this buffer, potentially after redoing or undoing.
-		size_t current_edit() const {
+		std::size_t current_edit() const {
 			return _curedit;
 		}
 		/// Returns the number of bytes in this buffer.
-		size_t length() const {
+		std::size_t length() const {
 			node_type *n = _t.root();
 			return n == nullptr ? 0 : n->synth_data.total_length;
 		}
@@ -673,7 +676,7 @@ namespace codepad::editors {
 			if (it == _t.end()) {
 				return;
 			}
-			size_t nvl = it->size();
+			std::size_t nvl = it->size();
 			if (nvl * 2 > maximum_bytes_per_chunk) {
 				return;
 			}
@@ -706,7 +709,7 @@ namespace codepad::editors {
 		tree_type _t; ///< The underlying binary tree that stores all the chunks.
 		std::vector<edit> _history; ///< Records undoable or redoable edits made to this \ref buffer.
 		/// Used to identify this buffer. Also stores the path to the associated file, if one exists.
-		std::variant<size_t, std::filesystem::path> _fileid;
-		size_t _curedit = 0; ///< The index of the edit that's to be redone next should the need arise.
+		std::variant<std::size_t, std::filesystem::path> _fileid;
+		std::size_t _curedit = 0; ///< The index of the edit that's to be redone next should the need arise.
 	};
 }

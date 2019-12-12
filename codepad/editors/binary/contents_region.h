@@ -115,10 +115,10 @@ namespace codepad::editors::binary {
 			return 0.0;
 		}
 		/// Returns the number of lines.
-		size_t get_num_lines() const {
+		std::size_t get_num_lines() const {
 			if (_buf) {
-				size_t bytes = get_bytes_per_row();
-				return (std::max<size_t>(_buf->length(), 1) + bytes - 1) / bytes;
+				std::size_t bytes = get_bytes_per_row();
+				return (std::max<std::size_t>(_buf->length(), 1) + bytes - 1) / bytes;
 			}
 			return 0;
 		}
@@ -158,11 +158,11 @@ namespace codepad::editors::binary {
 		}
 
 		/// Returns the actual current number of bytes per row.
-		size_t get_bytes_per_row() const {
+		std::size_t get_bytes_per_row() const {
 			return _cached_bytes_per_row;
 		}
 		/// Sets the desired bytes per row. This value is only used when \ref _wrap is \ref wrap_mode::fixed.
-		void set_bytes_per_row(size_t val) {
+		void set_bytes_per_row(std::size_t val) {
 			_target_bytes_per_row = val;
 			_update_bytes_per_row();
 		}
@@ -220,9 +220,9 @@ namespace codepad::editors::binary {
 			if (_buf) {
 				pos.x = std::max(pos.x - get_padding().left, 0.0);
 				pos.y = std::max(pos.y - get_padding().top, 0.0);
-				size_t
+				std::size_t
 					line = std::min(_get_line_at_position(pos.y), get_num_lines() - 1),
-					col = std::min(static_cast<size_t>(
+					col = std::min(static_cast<std::size_t>(
 						0.5 + (pos.x + 0.5 * get_blank_width()) / (_cached_max_byte_width + get_blank_width())
 						), get_bytes_per_row()),
 					res = line * get_bytes_per_row() + col;
@@ -320,7 +320,7 @@ namespace codepad::editors::binary {
 			_cached_max_byte_width = 0.0, ///< The width of a character.
 			_blank_width = 5.0, ///< The distance between two consecutive bytes.
 			_lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
-		size_t
+		std::size_t
 			/// The number of bytes per row. Only used when \ref _wrap is \ref wrap_mode::fixed.
 			_target_bytes_per_row = 16,
 			_cached_bytes_per_row = 16; ///< The cached actual number of bytes per row.
@@ -331,29 +331,29 @@ namespace codepad::editors::binary {
 		// position conversion
 		/// Returns the line index at the given position, relative to the top of this document, i.e., without
 		/// scrolling. This function returns 0 if the position lies before the first line.
-		size_t _get_line_at_position(double pos) const {
-			return static_cast<size_t>(std::max((pos - get_padding().top) / get_line_height(), 0.0));
+		std::size_t _get_line_at_position(double pos) const {
+			return static_cast<std::size_t>(std::max((pos - get_padding().top) / get_line_height(), 0.0));
 		}
 		/// Returns the vertical offset of the top of the given line, relative to the top of the document.
-		double _get_line_offset(size_t line) const {
+		double _get_line_offset(std::size_t line) const {
 			return get_padding().top + get_line_height() * line;
 		}
 
 		/// Returns the index of the first visible byte at the given horizontal position.
-		size_t _get_column_at_position(double pos) const {
+		std::size_t _get_column_at_position(double pos) const {
 			return std::min(
 				get_bytes_per_row(),
-				static_cast<size_t>((pos + get_blank_width()) / (_cached_max_byte_width + get_blank_width()))
+				static_cast<std::size_t>((pos + get_blank_width()) / (_cached_max_byte_width + get_blank_width()))
 			);
 		}
 		/// Returns the horizontal offset of the left of the given column, relative to the left of the document.
-		double _get_column_offset(size_t x) const {
+		double _get_column_offset(std::size_t x) const {
 			return get_padding().left + (_cached_max_byte_width + get_blank_width()) * x;
 		}
 
 		/// Returns the line and column that the given byte is on.
-		std::pair<size_t, size_t> _get_line_and_column_of_byte(size_t byte) const {
-			size_t bpr = get_bytes_per_row(), line = byte / bpr;
+		std::pair<std::size_t, std::size_t> _get_line_and_column_of_byte(std::size_t byte) const {
+			std::size_t bpr = get_bytes_per_row(), line = byte / bpr;
 			return {line, byte - line * bpr};
 		}
 
@@ -379,9 +379,11 @@ namespace codepad::editors::binary {
 		}
 		/// Returns the rectangles that a selected region covers. The selection is clamped by the given parameters to
 		/// reduce unnecessary regions. The resulting regions are placed relative to the top left of the document.
-		std::vector<rectd> _get_selection_rects(caret_selection sel, size_t clampmin, size_t clampmax) const {
+		std::vector<rectd> _get_selection_rects(
+			caret_selection sel, std::size_t clampmin, std::size_t clampmax
+		) const {
 			auto pair = std::minmax(sel.first, sel.second);
-			size_t beg = std::max(pair.first, clampmin), end = std::min(pair.second, clampmax);
+			std::size_t beg = std::max(pair.first, clampmin), end = std::min(pair.second, clampmax);
 			if (beg >= end) { // not visible
 				return {};
 			}
@@ -403,7 +405,7 @@ namespace codepad::editors::binary {
 					colend = _get_column_offset(get_bytes_per_row()) - get_blank_width();
 				res.emplace_back(_get_column_offset(bcol), colend, y, y + lh);
 				y += lh;
-				for (size_t i = bline + 1; i < eline; ++i, y += lh) { // whole lines
+				for (std::size_t i = bline + 1; i < eline; ++i, y += lh) { // whole lines
 					res.emplace_back(colbeg, colend, y, y + lh);
 				}
 				res.emplace_back(colbeg, _get_column_offset(ecol) - get_blank_width(), y, y + lh);
@@ -416,14 +418,14 @@ namespace codepad::editors::binary {
 			interactive_contents_region_base::_custom_render();
 			/*
 			if (auto *edt = editor::get_encapsulating(*this)) {
-				size_t
+				std::size_t
 					firstline = _get_line_at_position(edt->get_vertical_position()),
 					// first byte in a line
 					firstbyte = _get_column_at_position(edt->get_horizontal_position()),
 					// past last byte in a line
 					lastbyte = std::min(
 						get_bytes_per_row(),
-						static_cast<size_t>(
+						static_cast<std::size_t>(
 						(edt->get_horizontal_position() + get_layout().width()) /
 							(_cached_max_byte_width + get_blank_width())
 							) + 1
@@ -441,16 +443,16 @@ namespace codepad::editors::binary {
 					) - edtpos;
 				// render bytes
 				ui::atlas::batch_renderer rend(_font->get_manager().get_atlas());
-				for (size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
+				for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
 					// render a single line
-					size_t pos = line * get_bytes_per_row() + firstbyte;
+					std::size_t pos = line * get_bytes_per_row() + firstbyte;
 					if (pos >= _buf->length()) {
 						break;
 					}
 					auto it = _buf->at(pos);
 					double x = topleft.x;
 					for (
-						size_t i = firstbyte;
+						std::size_t i = firstbyte;
 						i < lastbyte && it != _buf->end();
 						++i, ++it, x += _cached_max_byte_width + _blank_width
 						) {
@@ -477,7 +479,7 @@ namespace codepad::editors::binary {
 				if (it != cset->carets.begin()) {
 					--it;
 				}
-				size_t
+				std::size_t
 					clampmin = firstline * get_bytes_per_row(),
 					clampmax = (
 						_get_line_at_position(edt->get_vertical_position() + get_layout().height()) + 1
@@ -511,15 +513,15 @@ namespace codepad::editors::binary {
 		/// \return Whether the number of bytes per row has changed. This also indicates whether
 		///         \ref _on_content_visual_changed() has been called.
 		bool _update_bytes_per_row() {
-			size_t target = _cached_bytes_per_row;
+			std::size_t target = _cached_bytes_per_row;
 			if (_wrap == wrap_mode::fixed) {
 				target = _target_bytes_per_row;
 			} else { // automatic
-				size_t max = static_cast<size_t>(std::max(
+				std::size_t max = static_cast<std::size_t>(std::max(
 					(get_client_region().width() + _blank_width) / (_cached_max_byte_width + _blank_width), 1.0
 				)); // no need for std::floor
 				if (_wrap == wrap_mode::auto_power2) {
-					target = size_t(1) << high_bit_index(max);
+					target = std::size_t(1) << high_bit_index(max);
 				} else {
 					target = max;
 				}

@@ -111,7 +111,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the text.
-		const str_t get_text() const {
+		const str_t &get_text() const {
 			return _text;
 		}
 		/// Sets the text.

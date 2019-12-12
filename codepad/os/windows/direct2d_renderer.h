@@ -107,13 +107,13 @@ namespace codepad::os::direct2d {
 		}
 		/// Returns the metrics of each line.
 		std::vector<line_metrics> get_line_metrics() const override {
-			constexpr size_t small_buffer_size = 5;
+			constexpr std::size_t small_buffer_size = 5;
 
 			DWRITE_LINE_METRICS small_buffer[small_buffer_size], *bufptr = small_buffer;
 			std::vector<DWRITE_LINE_METRICS> large_buffer;
 			UINT32 linecount;
 			HRESULT res = _text->GetLineMetrics(small_buffer, small_buffer_size, &linecount); // TODO bottleneck
-			auto ressize = static_cast<size_t>(linecount);
+			auto ressize = static_cast<std::size_t>(linecount);
 			if (res == E_NOT_SUFFICIENT_BUFFER) {
 				large_buffer.resize(ressize);
 				bufptr = large_buffer.data();
@@ -123,7 +123,7 @@ namespace codepad::os::direct2d {
 			}
 			std::vector<line_metrics> resvec;
 			resvec.reserve(ressize);
-			for (size_t i = 0; i < ressize; ++i) {
+			for (std::size_t i = 0; i < ressize; ++i) {
 				resvec.emplace_back(bufptr[i].height, bufptr[i].baseline);
 			}
 			return resvec;
@@ -137,13 +137,13 @@ namespace codepad::os::direct2d {
 				static_cast<FLOAT>(pos.x), static_cast<FLOAT>(pos.y), &trailing, &inside, &metrics
 			));
 			return hit_test_result(
-				static_cast<size_t>(metrics.textPosition),
+				static_cast<std::size_t>(metrics.textPosition),
 				rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height),
 				trailing != 0
 			);
 		}
 		/// Invokes \p IDWriteTextLayout::HitTestTextPosition().
-		rectd get_character_placement(size_t pos) const override {
+		rectd get_character_placement(std::size_t pos) const override {
 			FLOAT px, py;
 			DWRITE_HIT_TEST_METRICS metrics;
 			com_check(_text->HitTestTextPosition(static_cast<UINT32>(pos), false, &px, &py, &metrics));
@@ -288,6 +288,7 @@ namespace codepad::os::direct2d {
 				D3D_FEATURE_LEVEL_9_2,
 				D3D_FEATURE_LEVEL_9_1
 			};
+			D3D_FEATURE_LEVEL created_feature_level;
 			com_check(D3D11CreateDevice(
 				nullptr,
 				D3D_DRIVER_TYPE_HARDWARE,
@@ -297,9 +298,10 @@ namespace codepad::os::direct2d {
 				ARRAYSIZE(supported_feature_levels),
 				D3D11_SDK_VERSION,
 				_d3d_device.get_ref(),
-				nullptr, // discarded right now
+				&created_feature_level,
 				nullptr
 			));
+			logger::get().log_debug(CP_HERE) << "D3D feature level: " << created_feature_level;
 			com_check(_d3d_device->QueryInterface(_dxgi_device.get_ref()));
 
 			com_check(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, _d2d_factory.get_ref()));
@@ -312,7 +314,7 @@ namespace codepad::os::direct2d {
 			com_check(DWriteCreateFactory(
 				DWRITE_FACTORY_TYPE_SHARED,
 				__uuidof(IDWriteFactory),
-				reinterpret_cast<IUnknown * *>(_dwrite_factory.get_ref())
+				reinterpret_cast<IUnknown**>(_dwrite_factory.get_ref())
 			));
 		}
 
@@ -410,19 +412,19 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Pushes a matrix onto the stack.
-		virtual void push_matrix(matd3x3 m) {
+		void push_matrix(matd3x3 m) override {
 			_render_stack.top().matrices.push(_details::cast_matrix(m));
 			_update_transform();
 		}
 		/// Multiplies the current matrix with the given matrix and pushes it onto the stack.
-		virtual void push_matrix_mult(matd3x3 m) {
+		void push_matrix_mult(matd3x3 m) override {
 			D2D1_MATRIX_3X2_F mat = _details::cast_matrix(m);
 			_render_target_stackframe &frame = _render_stack.top();
 			frame.matrices.push(mat * frame.matrices.top());
 			_update_transform();
 		}
 		/// Pops a matrix from the stack.
-		virtual void pop_matrix() {
+		void pop_matrix() override {
 			_render_stack.top().matrices.pop();
 			_update_transform();
 		}

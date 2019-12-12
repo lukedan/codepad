@@ -252,7 +252,7 @@ namespace codepad::ui::animation_path {
 		// transforms
 #define CP_APB_CURRENT_TYPE transforms::generic, transform
 		template <
-			template <typename> typename, typename Comp, size_t = 0
+			template <typename> typename, typename Comp, std::size_t = 0
 		> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(transform) (
 			component_list::const_iterator, component_list::const_iterator, Comp
 		);
@@ -289,7 +289,7 @@ namespace codepad::ui::animation_path {
 
 #define CP_APB_CURRENT_TYPE transforms::collection, transform_collection
 		template <
-			template <typename> typename MemberAccess, typename Comp, size_t Count = 0
+			template <typename> typename MemberAccess, typename Comp, std::size_t Count = 0
 		> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(transform_collection) (
 			component_list::const_iterator begin, component_list::const_iterator end, [[maybe_unused]] Comp comp
 		) {
@@ -315,7 +315,7 @@ namespace codepad::ui::animation_path {
 #define CP_APB_CURRENT_TYPE transforms::generic, transform
 #define CP_APB_CURRENT_VARIANT_INFO value_type, value
 		template <
-			template <typename> typename MemberAccess, typename Comp, size_t Count
+			template <typename> typename MemberAccess, typename Comp, std::size_t Count
 		> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(transform) (
 			component_list::const_iterator begin, component_list::const_iterator end, Comp comp
 		) {

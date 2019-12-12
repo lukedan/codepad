@@ -10,12 +10,14 @@
 #include <optional>
 #include <cmath>
 
+#include "../apigen_definitions.h"
+
 #include "encodings.h"
 
 namespace std {
 	/// Specialize \p std::hash<std::filesystem::path> that std doesn't specialize for some reason.
 	template <> struct hash<filesystem::path> {
-		size_t operator()(const filesystem::path &p) const {
+		std::size_t operator()(const filesystem::path &p) const {
 			return filesystem::hash_value(p);
 		}
 	};
@@ -128,8 +130,8 @@ namespace std {
 	/// Hash specialization for \ref codepad::code_position.
 	template <> struct hash<codepad::code_position> {
 		/// The implementation.
-		size_t operator()(const codepad::code_position &pos) const {
-			size_t res = hash<int>()(pos.line);
+		std::size_t operator()(const codepad::code_position &pos) const {
+			std::size_t res = hash<int>()(pos.line);
 			hash<string_view> viewhasher;
 			res ^= viewhasher(pos.function) + 0x9e3779b9 + (res << 6) + (res >> 2);
 			res ^= viewhasher(pos.file) + 0x9e3779b9 + (res << 6) + (res >> 2);
@@ -142,7 +144,7 @@ namespace codepad {
 	/// Color representation.
 	///
 	/// \tparam T Type of the four components. Must be a floating point type or <tt>unsigned char</tt>.
-	template <typename T> struct color {
+	template <typename T> struct APIGEN_EXPORT_RECURSIVE color {
 		static_assert(std::is_same_v<T, unsigned char> || std::is_floating_point_v<T>, "invalid color component type");
 
 		using value_type = T; ///< The type used to store all components.
@@ -298,11 +300,11 @@ namespace codepad {
 	using colori = color<unsigned char>;
 
 	/// Returns the index of the highest bit in the given integer. Returns 64 if \p v is 0.
-	inline constexpr size_t high_bit_index(std::uint64_t v) {
+	inline constexpr std::size_t high_bit_index(std::uint64_t v) {
 		if (v == 0) {
 			return 64;
 		}
-		size_t res = 0;
+		std::size_t res = 0;
 		if ((v & 0xFFFFFFFF00000000) == 0) {
 			res += 32;
 			v <<= 32;
@@ -330,11 +332,11 @@ namespace codepad {
 		return 63 - res;
 	}
 	/// Returns the index of the lowest bit in the given integer. Returns 64 if \p v is 0.
-	inline constexpr size_t low_bit_index(std::uint64_t v) {
+	inline constexpr std::size_t low_bit_index(std::uint64_t v) {
 		if (v == 0) {
 			return 64;
 		}
-		size_t res = 0;
+		std::size_t res = 0;
 		if ((v & 0x00000000FFFFFFFF) == 0) {
 			res += 32;
 			v >>= 32;

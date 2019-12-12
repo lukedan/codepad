@@ -174,7 +174,7 @@ namespace codepad::ui {
 		) {
 			codepoint last = 0;
 			double curline = 0.0, maxw = 0.0;
-			size_t linen = 1;
+			std::size_t linen = 1;
 			while (beg != end) {
 				codepoint cp;
 				if (!encodings::utf8::next_codepoint(beg, end, cp)) {

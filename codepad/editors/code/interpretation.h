@@ -24,7 +24,7 @@ namespace codepad::editors::code {
 		/// Returns the name of this encoding.
 		virtual str_view_t get_name() const = 0;
 		/// Returns the maximum possible length of a codepoint, in bytes.
-		virtual size_t get_maximum_codepoint_length() const = 0;
+		virtual std::size_t get_maximum_codepoint_length() const = 0;
 
 		/// Moves \p it to the beginning of the next codepoint, where the last byte is indicated by \p end, and
 		/// stores the decoded codepoint in \p res.
@@ -46,7 +46,7 @@ namespace codepad::editors::code {
 			return Encoding::get_name();
 		}
 		/// Calls \p get_maximum_codepoint_length() in \p Encoding.
-		size_t get_maximum_codepoint_length() const override {
+		std::size_t get_maximum_codepoint_length() const override {
 			return Encoding::get_maximum_codepoint_length();
 		}
 
@@ -91,7 +91,7 @@ namespace codepad::editors::code {
 		/// the original \p std::unique_ptr will not be affected.
 		///
 		/// \return Whether the registration was successful (i.e., no duplicate names were found).
-		bool register_encoding(std::unique_ptr<buffer_encoding> &&enc) {
+		bool register_encoding(std::unique_ptr<buffer_encoding> enc) {
 			return _map.try_emplace(str_t(enc->get_name()), std::move(enc)).second;
 		}
 		/// Registers a built-in encoding.
@@ -126,17 +126,17 @@ namespace codepad::editors::code {
 	class interpretation {
 	public:
 		/// Maximum number of codepoints in a chunk.
-		constexpr static size_t maximum_codepoints_per_chunk = 1000;
+		constexpr static std::size_t maximum_codepoints_per_chunk = 1000;
 
 		/// Information about a consecutive sequence of codepoints in the buffer.
 		struct chunk_data {
 			/// Default constructor.
 			chunk_data() = default;
 			/// Initializes all fields of this struct.
-			chunk_data(size_t bytes, size_t cps) : num_bytes(bytes), num_codepoints(cps) {
+			chunk_data(std::size_t bytes, std::size_t cps) : num_bytes(bytes), num_codepoints(cps) {
 			}
 
-			size_t
+			std::size_t
 				num_bytes = 0, ///< The number of bytes in this chunk.
 				/// The number of codepoints, including both valid and invalid ones, in this chunk.
 				num_codepoints = 0;
@@ -146,7 +146,7 @@ namespace codepad::editors::code {
 			/// A node of the tree.
 			using node = binary_tree_node<chunk_data, node_data>;
 
-			size_t
+			std::size_t
 				total_bytes = 0, ///< The total number of bytes in this subtree.
 				total_codepoints = 0; ///< The total number of codepoints in this subtree.
 
@@ -238,7 +238,7 @@ namespace codepad::editors::code {
 			/// Moves on to the next character.
 			void next() {
 				if (is_linebreak()) {
-					for (size_t i = 0; i < get_line_ending_length(_lbit->ending); ++i) {
+					for (std::size_t i = 0; i < get_line_ending_length(_lbit->ending); ++i) {
 						_cpit.next();
 					}
 					++_lbit;
@@ -257,7 +257,7 @@ namespace codepad::editors::code {
 				return _lbit->ending;
 			}
 			/// Returns the column where this iterator's at.
-			size_t get_column() const {
+			std::size_t get_column() const {
 				return _col;
 			}
 			/// Returns the underlying \ref codepoint_iterator.
@@ -267,11 +267,11 @@ namespace codepad::editors::code {
 		protected:
 			codepoint_iterator _cpit; ///< Iterates through the actual codepoints.
 			linebreak_registry::iterator _lbit; ///< Iterates through linebreaks.
-			size_t _col = 0; ///< The column where \ref _cpit is at.
+			std::size_t _col = 0; ///< The column where \ref _cpit is at.
 
 			/// Used by \ref interpretation to create an iterator pointing to a specific character.
 			character_iterator(
-				const codepoint_iterator &cpit, const linebreak_registry::iterator lbit, size_t col
+				const codepoint_iterator &cpit, const linebreak_registry::iterator lbit, std::size_t col
 			) : _cpit(cpit), _lbit(lbit), _col(col) {
 			}
 		};
@@ -294,7 +294,7 @@ namespace codepad::editors::code {
 
 			/// Returns the position of the first byte of the given codepoint. This should not be used mixedly with
 			/// \ref byte_to_codepoint().
-			size_t codepoint_to_byte(size_t pos) {
+			std::size_t codepoint_to_byte(std::size_t pos) {
 				if (_cpchk == _interp._chks.end()) {
 					// if _cpchk is at the end, then all following queries can only query about the end
 					return _interp._buf->length();
@@ -317,12 +317,12 @@ namespace codepad::editors::code {
 			}
 			/// Returns the position of the codepoint that contains the given byte. This should not be used mixedly
 			/// with \ref codepoint_to_byte().
-			size_t byte_to_codepoint(size_t pos) {
+			std::size_t byte_to_codepoint(std::size_t pos) {
 				if (_cpchk == _interp._chks.end()) {
 					// if _cpchk is at the end, then all following queries can only query about the end
 					return _chkcp;
 				}
-				size_t globalpos = pos;
+				std::size_t globalpos = pos;
 				if (_firstbyte + _cpchk->num_bytes > pos) {
 					pos -= _firstbyte;
 				} else {
@@ -343,7 +343,7 @@ namespace codepad::editors::code {
 			tree_type::const_iterator _cpchk; ///< Iterator to the current chunk in which the codepoint lies.
 			buffer::const_iterator _byteit; ///< Iterator to the current byte.
 			const interpretation &_interp; ///< The associated \ref interpretation.
-			size_t
+			std::size_t
 				_firstcp = 0, ///< The number of codepoints before \ref _cpchk.
 				_firstbyte = 0, ///< The number of bytes before \ref _cpchk.
 				_chkcp = 0; ///< The position of \ref _byteit in this chunk.
@@ -366,12 +366,12 @@ namespace codepad::editors::code {
 
 			/// Returns the position of the first byte of the character at the given position. This should not be
 			/// used mixedly with \ref byte_to_character().
-			size_t character_to_byte(size_t pos) {
+			std::size_t character_to_byte(std::size_t pos) {
 				return _cp2byte.codepoint_to_byte(_char2cp.character_to_codepoint(pos));
 			}
 			/// Returns the position of the character that contains this byte. This should not be used mixedly with
 			/// \ref character_to_byte().
-			size_t byte_to_character(size_t pos) {
+			std::size_t byte_to_character(std::size_t pos) {
 				return _char2cp.codepoint_to_character(_cp2byte.byte_to_codepoint(pos));
 			}
 		protected:
@@ -396,13 +396,13 @@ namespace codepad::editors::code {
 
 			std::vector<chunk_data> chunks;
 			linebreak_analyzer lines;
-			size_t
+			std::size_t
 				chkbegbytes = 0, chkbegcps = 0, curcp = 0,
 				splitcp = maximum_codepoints_per_chunk; // where to split the next chunk
 			for (buffer::const_iterator cur = _buf->begin(); cur != _buf->end(); ++curcp) {
 				if (curcp >= splitcp) {
 					// break chunk before this codepoint
-					size_t bytepos = cur.get_position();
+					std::size_t bytepos = cur.get_position();
 					chunks.emplace_back(bytepos - chkbegbytes, curcp - chkbegcps);
 					chkbegbytes = bytepos;
 					chkbegcps = curcp;
@@ -435,27 +435,27 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns a \ref codepoint_iterator pointing at the specified codepoint.
-		codepoint_iterator at_codepoint(size_t pos) const {
+		codepoint_iterator at_codepoint(std::size_t pos) const {
 			_codepoint_pos_converter finder;
 			_chks.find_custom(finder, pos);
 			codepoint_iterator res(_buf->at(finder.total_bytes), *this);
-			for (size_t i = 0; i < pos; ++i) {
+			for (std::size_t i = 0; i < pos; ++i) {
 				res.next();
 			}
 			return res;
 		}
 		/// Returns a \ref character_iterator pointing at the specified character.
-		character_iterator at_character(size_t pos) const {
+		character_iterator at_character(std::size_t pos) const {
 			auto[colinfo, cp] = _lbs.get_line_and_column_and_codepoint_of_char(pos);
 			return character_iterator(at_codepoint(cp), colinfo.line_iterator, colinfo.position_in_line);
 		}
 
 		/// Returns the total number of codepoints in this \ref interpretation.
-		size_t num_codepoints() const {
+		std::size_t num_codepoints() const {
 			return _chks.root() == nullptr ? 0 : _chks.root()->synth_data.total_codepoints;
 		}
 		/// Returns the result of \ref linebreak_registry::num_linebreaks() plus one.
-		size_t num_lines() const {
+		std::size_t num_lines() const {
 			return _lbs.num_linebreaks() + 1;
 		}
 
@@ -544,7 +544,7 @@ namespace codepad::editors::code {
 
 			buffer::const_iterator it = _buf->begin();
 			auto chk = _chks.begin();
-			size_t bytesbefore = 0;
+			std::size_t bytesbefore = 0;
 			linebreak_analyzer linebreaks;
 			while (it != _buf->end() && chk != _chks.end()) {
 				codepoint cp;
@@ -553,7 +553,7 @@ namespace codepad::editors::code {
 				}
 				linebreaks.put(cp);
 				while (chk != _chks.end()) {
-					size_t chkend = chk->num_bytes + bytesbefore;
+					std::size_t chkend = chk->num_bytes + bytesbefore;
 					if (it.get_position() < chkend) {
 						break;
 					}
@@ -584,7 +584,7 @@ namespace codepad::editors::code {
 
 			auto explineit = linebreaks.result().begin();
 			auto gotlineit = _lbs.begin();
-			size_t line = 0;
+			std::size_t line = 0;
 			while (explineit != linebreaks.result().end() && gotlineit != _lbs.end()) {
 				if (gotlineit->nonbreak_chars != explineit->nonbreak_chars) {
 					error = true;
@@ -635,23 +635,23 @@ namespace codepad::editors::code {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = sum_synthesizer::index_finder<node_data::num_codepoints_property>;
 			/// Interface for \ref binary_tree::find_custom.
-			int select_find(const node_type &n, size_t &c) {
+			int select_find(const node_type &n, std::size_t &c) {
 				return finder::template select_find<node_data::num_bytes_property>(n, c, total_bytes);
 			}
-			size_t total_bytes = 0; ///< Records the total number of bytes before the resulting chunk.
+			std::size_t total_bytes = 0; ///< Records the total number of bytes before the resulting chunk.
 		};
 		/// Used to find the chunk in which the i-th byte is located.
 		template <template <typename T> typename Cmp> using _byte_finder =
-			sum_synthesizer::index_finder<node_data::num_bytes_property, false, Cmp<size_t>>;
+			sum_synthesizer::index_finder<node_data::num_bytes_property, false, Cmp<std::size_t>>;
 		/// Used to find the chunk in which the i-th byte is located, and the number of codepoints before that chunk.
 		template <template <typename T> typename Cmp = std::less> struct _byte_pos_converter {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = _byte_finder<Cmp>;
 			/// Interface for \ref binary_tree::find_custom.
-			int select_find(const node_type &n, size_t &c) {
+			int select_find(const node_type &n, std::size_t &c) {
 				return finder::template select_find<node_data::num_codepoints_property>(n, c, total_codepoints);
 			}
-			size_t total_codepoints = 0; ///< Records the total number of codepoints before the resulting chunk.
+			std::size_t total_codepoints = 0; ///< Records the total number of codepoints before the resulting chunk.
 		};
 
 
@@ -660,10 +660,10 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			_precomp_mod_positions() = default;
 			/// Initializes all fields of this struct.
-			_precomp_mod_positions(size_t beg, size_t len) : begin(beg), length(len) {
+			_precomp_mod_positions(std::size_t beg, std::size_t len) : begin(beg), length(len) {
 			}
 
-			size_t
+			std::size_t
 				begin = 0, ///< Position of the first removed byte.
 				length = 0; ///< The number of consecutive removed bytes.
 		};
@@ -674,7 +674,7 @@ namespace codepad::editors::code {
 		std::vector<_precomp_mod_positions> _precomp_mod_insert(const caret_set &carets) {
 			std::vector<_precomp_mod_positions> res;
 			for (const caret_set::entry &et : carets.carets) {
-				size_t first = et.second.bytepos_first, second = et.second.bytepos_second;
+				std::size_t first = et.second.bytepos_first, second = et.second.bytepos_second;
 				if (first > second) {
 					std::swap(first, second);
 				}
@@ -687,7 +687,7 @@ namespace codepad::editors::code {
 			std::vector<_precomp_mod_positions> res;
 			character_position_converter conv(*this);
 			for (const caret_set::entry &et : carets.carets) {
-				size_t first = et.second.bytepos_first, second = et.second.bytepos_second;
+				std::size_t first = et.second.bytepos_first, second = et.second.bytepos_second;
 				if (et.first.first == et.first.second) {
 					if (et.first.first > 0) {
 						first = conv.character_to_byte(et.first.first - 1);
@@ -706,7 +706,7 @@ namespace codepad::editors::code {
 			std::vector<_precomp_mod_positions> res;
 			character_position_converter conv(*this);
 			for (const caret_set::entry &et : carets.carets) {
-				size_t first = et.second.bytepos_first, second = et.second.bytepos_second;
+				std::size_t first = et.second.bytepos_first, second = et.second.bytepos_second;
 				if (et.first.first == et.first.second) {
 					if (et.first.first < get_linebreaks().num_chars()) {
 						second = conv.character_to_byte(et.first.first + 1);
@@ -724,7 +724,7 @@ namespace codepad::editors::code {
 
 		/// Used by \ref _post_edit_fixup() to look for valid cached codepoint boundaries.
 		std::vector<buffer::modification_position>::const_iterator _advance_target_chunk_iterator(
-			tree_type::const_iterator &it, size_t &firstbyte, size_t &firstcp,
+			tree_type::const_iterator &it, std::size_t &firstbyte, std::size_t &firstcp,
 			std::vector<buffer::modification_position>::const_iterator modit,
 			std::vector<buffer::modification_position>::const_iterator modend
 		) {
@@ -786,7 +786,7 @@ namespace codepad::editors::code {
 		/// Adjusts \ref _chks and \ref _lbs after an edit has been made.
 		void _post_edit_fixup(buffer::end_edit_info &info) {
 			_debug_log_post_edit_fixup("starting post-edit fixup");
-			size_t
+			std::size_t
 				lastbyte = 0, // number of bytes before lastchk
 				lastcp = 0; // number of codepoints before lastchk
 			tree_type::const_iterator lastchk = _chks.begin();
@@ -794,17 +794,17 @@ namespace codepad::editors::code {
 				_debug_log_post_edit_fixup(
 					"  modification ", modit->position, " -", modit->removed_range, " +", modit->added_range
 				);
-				size_t
+				std::size_t
 					modaddend = modit->position + modit->added_range,
 					modremend = modit->position + modit->removed_range;
-				size_t
+				std::size_t
 					cpoffset = _encoding->get_maximum_codepoint_length() - 1,
 					// starting from where the interpretation may have been changed
 					suspect = std::max(modit->position, cpoffset) - cpoffset;
 				if (lastchk != _chks.end() && suspect > lastbyte + lastchk->num_bytes) {
 					// skip to the desired chunk
 					_debug_log_post_edit_fixup("    adjusting begin position");
-					size_t chkpos = suspect;
+					std::size_t chkpos = suspect;
 					// if a modification starts at the beginning of a chunk, then the codepoint barrier is invalid
 					_byte_pos_converter<std::less_equal> finder;
 					lastchk = _chks.find_custom(finder, chkpos);
@@ -812,7 +812,7 @@ namespace codepad::editors::code {
 					lastbyte = suspect - chkpos;
 				}
 				// otherwise start decoding from last position (start of chunk)
-				size_t cppos = lastcp;
+				std::size_t cppos = lastcp;
 				buffer::const_iterator bit = _buf->at(lastbyte);
 				_debug_log_post_edit_fixup("    starting from codepoint ", lastcp, ", byte ", lastbyte);
 
@@ -826,12 +826,12 @@ namespace codepad::editors::code {
 					lines.put(cp);
 				}
 				std::vector<chunk_data> chks;
-				size_t
+				std::size_t
 					firstcp = lastcp, // index of the first decoded codepoint
 					splitcp = lastcp + maximum_codepoints_per_chunk;
 				for (; bit != _buf->end() && bit.get_position() < modaddend; ++cppos) { // decode new content
 					if (cppos >= splitcp) { // break chunk
-						size_t bytepos = bit.get_position();
+						std::size_t bytepos = bit.get_position();
 						chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
 						lastbyte = bytepos;
 						lastcp = cppos;
@@ -844,10 +844,10 @@ namespace codepad::editors::code {
 				}
 
 				// find the next old codepoint boundary
-				size_t tgckpos = modremend; // position of the next old codepoint boundary
+				std::size_t tgckpos = modremend; // position of the next old codepoint boundary
 				_byte_pos_converter posfinder;
 				tree_type::const_iterator chkit = _chks.find_custom(posfinder, tgckpos);
-				size_t
+				std::size_t
 					endcp = posfinder.total_codepoints, // (one after) the last codepoint to remove from old _lbs
 					tgpos = modaddend - tgckpos; // adjust position to that after the edit
 				auto nextmodit = modit;
@@ -862,7 +862,7 @@ namespace codepad::editors::code {
 					// decode till the end of chunk
 					for (; bit != _buf->end() && bit.get_position() < tgpos; ++cppos) {
 						if (cppos >= splitcp) { // break chunk
-							size_t bytepos = bit.get_position();
+							std::size_t bytepos = bit.get_position();
 							chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
 							lastbyte = bytepos;
 							lastcp = cppos;
@@ -882,7 +882,7 @@ namespace codepad::editors::code {
 				}
 				// handle last chunk
 				lines.finish();
-				size_t bytepos = bit.get_position();
+				std::size_t bytepos = bit.get_position();
 				if (bytepos != lastbyte) {
 					chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
 					lastbyte = bytepos;

@@ -198,7 +198,7 @@ namespace codepad::os {
 			int len = WideCharToMultiByte(CP_UTF8, 0, str, -1, nullptr, 0, nullptr, nullptr);
 			assert_true_sys(len != 0, "failed to convert utf16 string to utf8");
 			std::string res;
-			res.resize(static_cast<size_t>(len));
+			res.resize(static_cast<std::size_t>(len));
 			assert_true_sys(
 				WideCharToMultiByte(CP_UTF8, 0, str, -1, res.data(), len, nullptr, nullptr) == len,
 				"failed to convert utf16 string to utf8"
@@ -213,7 +213,7 @@ namespace codepad::os {
 			int chars = MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.length()), nullptr, 0);
 			assert_true_sys(chars != 0, "failed to convert utf8 string to utf16");
 			std::basic_string<WCHAR> res;
-			res.resize(static_cast<size_t>(chars) * 2); // 2 words per char max
+			res.resize(static_cast<std::size_t>(chars) * 2); // 2 words per char max
 			assert_true_sys(MultiByteToWideChar(
 				CP_UTF8, 0, str.data(), static_cast<int>(str.length()), res.data(), chars
 			) == chars, "failed to convert utf16 string to utf8");

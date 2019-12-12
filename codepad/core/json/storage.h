@@ -191,7 +191,7 @@ namespace codepad::json {
 			}
 
 			/// Returns the number of members.
-			size_t size() const {
+			std::size_t size() const {
 				return _obj->size();
 			}
 		protected:
@@ -258,16 +258,16 @@ namespace codepad::json {
 			}
 
 			/// Returns the element at the given index.
-			value_t at(size_t i) const {
+			value_t at(std::size_t i) const {
 				return value_t(_arr->at(i));
 			}
 			/// Indexing operator.
-			value_t operator[](size_t i) const {
+			value_t operator[](std::size_t i) const {
 				return at(i);
 			}
 
 			/// Returns the number of elements in this array.
-			size_t size() const {
+			std::size_t size() const {
 				return _arr->size();
 			}
 		protected:

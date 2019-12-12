@@ -125,7 +125,7 @@ namespace codepad::json::rapidjson {
 		}
 
 		/// Returns the number of members this object has.
-		size_t size() const {
+		std::size_t size() const {
 			return _obj->MemberCount();
 		}
 	protected:
@@ -197,16 +197,16 @@ namespace codepad::json::rapidjson {
 		}
 
 		/// Indexing.
-		value_t operator[](size_t i) const {
+		value_t operator[](std::size_t i) const {
 			return value_t(&(*_arr)[static_cast<::rapidjson::SizeType>(i)]);
 		}
 		/// Returns the element at the given index.
-		value_t at(size_t i) const {
+		value_t at(std::size_t i) const {
 			return (*this)[i];
 		}
 
 		/// Returns the length of this array.
-		size_t size() const {
+		std::size_t size() const {
 			return _arr->Size();
 		}
 	protected:

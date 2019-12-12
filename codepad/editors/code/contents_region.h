@@ -61,7 +61,7 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns the total number of visual lines.
-		size_t get_num_visual_lines() const {
+		std::size_t get_num_visual_lines() const {
 			return _fmt.get_linebreaks().num_visual_lines() - _fmt.get_folding().folded_linebreaks();
 		}
 
@@ -244,26 +244,26 @@ namespace codepad::editors::code {
 		/// This version takes a \ref caret_position -like \p std::pair, calculates the horizontal position of
 		/// the caret, and returns the result. \ref caret_position itself is not used because it would be hard
 		/// for \ref move_carets to determine the new position.
-		caret_set::entry _complete_caret_entry(std::pair<size_t, bool> fst, size_t scnd) {
+		caret_set::entry _complete_caret_entry(std::pair<std::size_t, bool> fst, std::size_t scnd) {
 			return caret_set::entry(
 				caret_selection(fst.first, scnd), _get_caret_data(caret_position(fst.first, fst.second))
 			);
 		}
 		/// Used by \ref move_carets to interpret and organize the return values of the function-like objects.
 		/// This version takes a position and a \ref caret_data, and returns the combined result.
-		caret_set::entry _complete_caret_entry(std::pair<size_t, caret_data> fst, size_t scnd) {
+		caret_set::entry _complete_caret_entry(std::pair<std::size_t, caret_data> fst, std::size_t scnd) {
 			return caret_set::entry(caret_selection(fst.first, scnd), fst.second);
 		}
 	public:
 		/// Moves all carets to specified positions.
 		///
 		/// \param gp A function-like object that takes a \ref caret_set::entry as input and returns either: 1) a
-		///           <tt>std::pair<size_t, bool></tt>, containing the new position and a boolean value indicating
-		///           whether to treat the caret as if it were on the next line had it been at a soft linebreak, or
-		///           2) a <tt>std::pair<size_t, caret_data></tt>, containing the new position and related data. This
-		///           object is used when \p continueselection is \p true, or when the selection is empty (i.e.,
-		///           <tt>caret_selection::first == caret_selection::second</tt>). That is, this object focuses on
-		///           moving only the caret and does not care about the selection.
+		///           <tt>std::pair<std::size_t, bool></tt>, containing the new position and a boolean value
+		///           indicating whether to treat the caret as if it were on the next line had it been at a soft
+		///           linebreak, or 2) a <tt>std::pair<std::size_t, caret_data></tt>, containing the new position
+		///           and related data. This object is used when \p continueselection is \p true, or when the
+		///           selection is empty (i.e., <tt>caret_selection::first == caret_selection::second</tt>). That is,
+		///           this object focuses on moving only the caret and does not care about the selection.
 		/// \param sp Similar to \p gp, except that this object is used when \p continueselection is false and the
 		///           selection is not empty. In other words, this object is used when the selection should be
 		///           cancelled.
@@ -401,23 +401,23 @@ namespace codepad::editors::code {
 
 		/// Returns the range of visual line indices that are visible for the given viewport. Note that the second
 		/// line is the one past the last visible line.
-		std::pair<size_t, size_t> get_visible_visual_lines(double top, double bottom) const {
+		std::pair<std::size_t, std::size_t> get_visible_visual_lines(double top, double bottom) const {
 			double lh = get_line_height();
 			return std::make_pair(
-				static_cast<size_t>(std::max(0.0, top / lh)),
-				std::min(static_cast<size_t>(std::max(0.0, bottom / lh)) + 1, get_num_visual_lines())
+				static_cast<std::size_t>(std::max(0.0, top / lh)),
+				std::min(static_cast<std::size_t>(std::max(0.0, bottom / lh)) + 1, get_num_visual_lines())
 			);
 		}
 		/// Similar to the other \ref get_visible_visual_lines(), except that this function uses the current viewport of the
 		/// \ref editor as the parameters.
-		std::pair<size_t, size_t> get_visible_visual_lines() const {
+		std::pair<std::size_t, std::size_t> get_visible_visual_lines() const {
 			double top = editor::get_encapsulating(*this)->get_vertical_position() - get_padding().top;
 			return get_visible_visual_lines(top, top + get_layout().height());
 		}
 		/// Returns the caret position corresponding to a given position. Note that the offset is relative to the
 		/// top-left corner of the document rather than that of this element.
 		caret_position hit_test_for_caret_document(vec2d offset) const {
-			size_t line = static_cast<size_t>(std::max(offset.y / get_line_height(), 0.0));
+			std::size_t line = static_cast<std::size_t>(std::max(offset.y / get_line_height(), 0.0));
 			return _hit_test_at_visual_line(std::min(line, get_num_visual_lines() - 1), offset.x);
 		}
 		/// Shorthand for \ref hit_test_for_caret_document when the coordinates are relative to this \ref ui::element.
@@ -446,7 +446,7 @@ namespace codepad::editors::code {
 				[this](const caret_set::entry & et) {
 					return std::make_pair(_move_caret_left(et.first.first), true);
 				},
-				[](const caret_set::entry & et) -> std::pair<size_t, bool> {
+				[](const caret_set::entry & et) -> std::pair<std::size_t, bool> {
 					if (et.first.first < et.first.second) {
 						return {et.first.first, et.second.after_stall};
 					}
@@ -464,7 +464,7 @@ namespace codepad::editors::code {
 				[this](const caret_set::entry & et) {
 					return std::make_pair(_move_caret_right(et.first.first), false);
 				},
-				[](const caret_set::entry & et) -> std::pair<size_t, bool> {
+				[](const caret_set::entry & et) -> std::pair<std::size_t, bool> {
 					if (et.first.first > et.first.second) {
 						return {et.first.first, et.second.after_stall};
 					}
@@ -483,7 +483,7 @@ namespace codepad::editors::code {
 					return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
 				},
 				[this, offset](const caret_set::entry &et) {
-					size_t ml;
+					std::size_t ml;
 					double bl;
 					if ((et.first.first > et.first.second) == (offset > 0)) { // move the caret end of the selection
 						ml = _get_visual_line_of_caret(_extract_position(et));
@@ -530,15 +530,15 @@ namespace codepad::editors::code {
 		void move_all_carets_to_line_beginning_advanced(bool continueselection) {
 			move_carets(
 				[this](const caret_set::entry &et) {
-					size_t
+					std::size_t
 						visline = _get_visual_line_of_caret(_extract_position(et)),
 						unfolded = _fmt.get_folding().folded_to_unfolded_line_number(visline);
 					auto linfo = _fmt.get_linebreaks().get_line_info(unfolded);
-					size_t begp = std::max(linfo.first.first_char, linfo.second.prev_chars), exbegp = begp;
+					std::size_t begp = std::max(linfo.first.first_char, linfo.second.prev_chars), exbegp = begp;
 					if (linfo.first.first_char >= linfo.second.prev_chars) {
-						size_t nextsb =
+						std::size_t nextsb =
 							linfo.second.entry == _fmt.get_linebreaks().end() ?
-							std::numeric_limits<size_t>::max() :
+							std::numeric_limits<std::size_t>::max() :
 							linfo.second.prev_chars + linfo.second.entry->length;
 						for (
 							auto cit = _doc->at_character(begp);
@@ -612,7 +612,7 @@ namespace codepad::editors::code {
 
 		/// The default formatter for invalid codepoints.
 		inline static str_t format_invalid_codepoint(codepoint value) {
-			constexpr static size_t _buffer_size = 20;
+			constexpr static std::size_t _buffer_size = 20;
 			static char _buf[_buffer_size];
 
 			std::snprintf(_buf, _buffer_size, "[0x%lX]", static_cast<unsigned long>(value));
@@ -677,10 +677,10 @@ namespace codepad::editors::code {
 
 
 		/// Returns the visual line that the given caret is on.
-		size_t _get_visual_line_of_caret(caret_position pos) const {
+		std::size_t _get_visual_line_of_caret(caret_position pos) const {
 			auto
 				res = _fmt.get_linebreaks().get_visual_line_and_column_and_softbreak_before_or_at_char(pos.position);
-			size_t unfolded = std::get<0>(res);
+			std::size_t unfolded = std::get<0>(res);
 			if (
 				!pos.at_back &&
 				std::get<2>(res).entry != _fmt.get_linebreaks().begin() &&
@@ -695,14 +695,14 @@ namespace codepad::editors::code {
 		///
 		/// \param line The visual line index.
 		/// \param x The horizontal position.
-		caret_position _hit_test_at_visual_line(size_t line, double x) const;
+		caret_position _hit_test_at_visual_line(std::size_t line, double x) const;
 		/// Returns the horizontal position of a caret. Note that the returned position does not include the left
 		/// padding. This function is used when the line of the caret has been previously obtained to avoid repeated
 		/// calls to \ref _get_line_of_caret.
 		///
 		/// \param line The visual line that the caret is on.
 		/// \param position The position of the caret in the whole document.
-		double _get_caret_pos_x_at_visual_line(size_t line, size_t position) const;
+		double _get_caret_pos_x_at_visual_line(std::size_t line, std::size_t position) const;
 
 		/// Called when the vertical position of the document is changed or when the carets have been moved,
 		/// to update the caret position used by IMs.
@@ -714,7 +714,7 @@ namespace codepad::editors::code {
 			if (!_cset.carets.empty() && wnd != nullptr) {
 				auto entry = _cset.carets.begin();
 				auto *edt = editor::get_encapsulating(*this);
-				size_t visline = _get_visual_line_of_caret(_extract_position(*entry));
+				std::size_t visline = _get_visual_line_of_caret(_extract_position(*entry));
 				double lh = get_line_height();
 				vec2d topleft = get_client_region().xmin_ymin();
 				wnd->set_active_caret_position(rectd::from_xywh(
@@ -727,7 +727,7 @@ namespace codepad::editors::code {
 		}
 		/// Moves the viewport so that the given caret is visible.
 		void _make_caret_visible(caret_position caret) {
-			size_t line = _get_visual_line_of_caret(caret);
+			std::size_t line = _get_visual_line_of_caret(caret);
 			double
 				fh = get_line_height(),
 				xpos = _get_caret_pos_x_at_visual_line(line, caret.position),
@@ -804,7 +804,7 @@ namespace codepad::editors::code {
 		/// Recalculates word wrapping for the given lines.
 		///
 		/// \todo Currently not of too much use except for calculating word wrapping for the whole document.
-		std::vector<size_t> _recalculate_wrapping_region(size_t, size_t) const;
+		std::vector<std::size_t> _recalculate_wrapping_region(std::size_t, std::size_t) const;
 		/// Adjusts and recalculates caret positions from \ref caret_data::bytepos_first and
 		/// \ref caret_data::bytepos_second, after an edit has been made.
 		///
@@ -817,14 +817,14 @@ namespace codepad::editors::code {
 			// also, carets may merge into one another
 			if (info.source_element == this && info.type == edit_type::normal) {
 				for (const buffer::modification_position &pos : info.positions) {
-					size_t bp = pos.position + pos.added_range, cp = cvt.byte_to_character(bp);
+					std::size_t bp = pos.position + pos.added_range, cp = cvt.byte_to_character(bp);
 					caret_set::entry et({cp, cp}, _get_caret_data(caret_position(cp, false)));
 					newcarets.add(et);
 				}
 			} else {
 				buffer::position_patcher patcher(info.positions);
 				for (auto &pair : _cset.carets) {
-					size_t bp1 = pair.second.bytepos_first, bp2 = pair.second.bytepos_second, cp1, cp2;
+					std::size_t bp1 = pair.second.bytepos_first, bp2 = pair.second.bytepos_second, cp1, cp2;
 					if (bp1 == bp2) {
 						bp1 = bp2 = patcher.patch<buffer::position_patcher::strategy::back>(bp1);
 						cp1 = cp2 = cvt.byte_to_character(bp1);
@@ -870,11 +870,11 @@ namespace codepad::editors::code {
 		}
 
 		/// Moves the given position one character to the left, skipping any folded regions.
-		size_t _move_caret_left(size_t cp) {
+		std::size_t _move_caret_left(std::size_t cp) {
 			auto res = _fmt.get_folding().find_region_containing_or_first_before_open(cp);
 			auto &it = res.entry;
 			if (it != _fmt.get_folding().end()) {
-				size_t fp = res.prev_chars + it->gap, ep = fp + it->range;
+				std::size_t fp = res.prev_chars + it->gap, ep = fp + it->range;
 				if (ep >= cp && fp < cp) {
 					return fp;
 				}
@@ -882,16 +882,16 @@ namespace codepad::editors::code {
 			return cp > 0 ? cp - 1 : 0;
 		}
 		/// Moves the given position one character to the right, skipping any folded regions.
-		size_t _move_caret_right(size_t cp) {
+		std::size_t _move_caret_right(std::size_t cp) {
 			auto res = _fmt.get_folding().find_region_containing_or_first_after_open(cp);
 			auto &it = res.entry;
 			if (it != _fmt.get_folding().end()) {
-				size_t fp = res.prev_chars + it->gap, ep = fp + it->range;
+				std::size_t fp = res.prev_chars + it->gap, ep = fp + it->range;
 				if (fp <= cp && ep > cp) {
 					return ep;
 				}
 			}
-			size_t nchars = _doc->get_linebreaks().num_chars();
+			std::size_t nchars = _doc->get_linebreaks().num_chars();
 			return cp < nchars ? cp + 1 : nchars;
 		}
 		/// Moves the caret vertically according to the given information.
@@ -899,8 +899,8 @@ namespace codepad::editors::code {
 		/// \param line The visual line that the caret is on.
 		/// \param diff The number of lines to move the caret by. This can be either positive or negative.
 		/// \param align The alignment of the caret, similar to \ref caret_data::alignment.
-		caret_position _move_caret_vertically(size_t line, int diff, double align) {
-			if (diff < 0 && static_cast<size_t>(-diff) > line) {
+		caret_position _move_caret_vertically(std::size_t line, int diff, double align) {
+			if (diff < 0 && static_cast<std::size_t>(-diff) > line) {
 				line = 0;
 			} else {
 				line = std::min(line + diff, get_num_visual_lines() - 1);
@@ -1010,9 +1010,9 @@ namespace codepad::editors::code {
 		}
 
 		/// Handles properties related to \ref _caret_visuals.
-		virtual ui::animation_subject_information _parse_animation_path(
+		ui::animation_subject_information _parse_animation_path(
 			const ui::animation_path::component_list &components
-		) {
+		) override {
 			if (!components.empty() && components.front().is_similar(u8"contents_region", u8"caret_visuals")) {
 				return ui::animation_subject_information::from_member<&contents_region::_caret_visuals>(
 					*this, ui::animation_path::builder::element_property_type::visual_only,

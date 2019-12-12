@@ -47,7 +47,7 @@ namespace codepad::editors {
 			buffer_created.invoke_noret(*res);
 			return res;
 		}
-		/// Creates a new file not yet associated with a path, identified by a \p size_t.
+		/// Creates a new file not yet associated with a path, identified by a \p std::size_t.
 		std::shared_ptr<buffer> new_file() {
 			std::shared_ptr<buffer> ctx;
 			if (_noname_alloc.empty()) {
@@ -70,7 +70,7 @@ namespace codepad::editors {
 		std::shared_ptr<code::interpretation> open_interpretation(
 			const std::shared_ptr<buffer> &buf, const code::buffer_encoding &encoding
 		) {
-			_buffer_data &data = _get_data_of(buf);
+			_buffer_data &data = _get_data_of(*buf);
 			auto it = data.interpretations.find(encoding.get_name());
 			if (it != data.interpretations.end()) {
 				auto ptr = it->second.lock();
@@ -103,8 +103,8 @@ namespace codepad::editors {
 		///
 		/// \remark This function tries to enlarge \ref buffer::_tags of all open buffers if no previously
 		///         deallocated slot is available.
-		size_t allocate_tag() {
-			size_t res;
+		std::size_t allocate_tag() {
+			std::size_t res;
 			if (_tag_alloc.empty()) {
 				res = _tag_alloc_max++;
 				for_each_buffer([this](std::shared_ptr<document> &doc) {
@@ -118,7 +118,7 @@ namespace codepad::editors {
 		}
 		/// Deallocates a tag slot, and clears the corresponding entries in \ref document::_tags for all open
 		/// documents.
-		void deallocate_tag(size_t tag) {
+		void deallocate_tag(std::size_t tag) {
 			for_each_buffer([tag](std::shared_ptr<document> &doc) {
 				doc->_tags[tag].reset();
 				});
@@ -189,17 +189,17 @@ namespace codepad::editors {
 		/// Stores all \p buffer "buffers" that don't correspond to files.
 		std::vector<_buffer_data> _noname_map;
 		/// Stores indices of disposed buffers in \ref _noname_map for more efficient allocation of indices.
-		std::stack<size_t> _noname_alloc;
+		std::stack<std::size_t> _noname_alloc;
 
-		std::stack<size_t> _tag_alloc; ///< Stores deallocated tag indices.
-		size_t _tag_alloc_max = 0; ///< Stores the next index to allocate for a tag if \ref _tag_alloc is empty.
+		std::stack<std::size_t> _tag_alloc; ///< Stores deallocated tag indices.
+		std::size_t _tag_alloc_max = 0; ///< Stores the next index to allocate for a tag if \ref _tag_alloc is empty.
 
 		/// Returns the \ref _buffer_data associated with the given \ref buffer.
-		_buffer_data &_get_data_of(const std::shared_ptr<buffer> &buf) {
-			if (std::holds_alternative<size_t>(buf->_fileid)) {
-				return _noname_map[std::get<size_t>(buf->_fileid)];
+		_buffer_data &_get_data_of(const buffer &buf) {
+			if (std::holds_alternative<std::size_t>(buf._fileid)) {
+				return _noname_map[std::get<std::size_t>(buf._fileid)];
 			}
-			auto found = _file_map.find(std::get<std::filesystem::path>(buf->_fileid));
+			auto found = _file_map.find(std::get<std::filesystem::path>(buf._fileid));
 			assert_true_logical(found != _file_map.end(), "getting data of invalid buffer");
 			return found->second;
 		}
@@ -208,8 +208,8 @@ namespace codepad::editors {
 		/// index to \ref _noname_map.
 		void _on_deleting_buffer(buffer &buf) {
 			buffer_disposing.invoke_noret(buf);
-			if (std::holds_alternative<size_t>(buf._fileid)) {
-				_noname_alloc.emplace(std::get<size_t>(buf._fileid));
+			if (std::holds_alternative<std::size_t>(buf._fileid)) {
+				_noname_alloc.emplace(std::get<std::size_t>(buf._fileid));
 			} else {
 				assert_true_logical(
 					_file_map.erase(std::get<std::filesystem::path>(buf._fileid)) == 1,
@@ -221,7 +221,7 @@ namespace codepad::editors {
 		/// must have already been saved (i.e., the file must exist).
 		///
 		/// \todo Try to merge two buffers when one is being saved to an already opened buffer.
-		void _on_saved_new_buffer(size_t id, std::filesystem::path f) {
+		void _on_saved_new_buffer(std::size_t id, std::filesystem::path f) {
 			f = std::filesystem::canonical(f);
 			_noname_alloc.emplace(id);
 			_buffer_data &target = _noname_map[id];

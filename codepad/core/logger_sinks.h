@@ -59,7 +59,7 @@ namespace codepad::logger_sinks {
 		/// Default constructor.
 		console_sink() = default;
 		/// Constructs a \ref console_sink with the given settings.
-		console_sink(color_scheme scheme, size_t time_w) : _colors(scheme), _time_width(time_w) {
+		console_sink(color_scheme scheme, std::size_t time_w) : _colors(scheme), _time_width(time_w) {
 		}
 
 		/// Prints the logging message.
@@ -70,7 +70,7 @@ namespace codepad::logger_sinks {
 			std::cout <<
 				std::setiosflags(std::ios::fixed) << std::setw(_time_width) << std::setprecision(2) << time.count();
 
-			size_t w = std::max(_get_console_width(), _time_width) - _time_width;
+			std::size_t w = std::max(_get_console_width(), _time_width) - _time_width;
 
 			std::stringstream ss;
 			ss << pos.function << " @ " << pos.file << ":" << pos.line;
@@ -105,16 +105,16 @@ namespace codepad::logger_sinks {
 		}
 
 		/// Returns the width of displayed time.
-		size_t &time_display_width() {
+		std::size_t &time_display_width() {
 			return _time_width;
 		}
 		/// \overload
-		size_t time_display_width() const {
+		std::size_t time_display_width() const {
 			return _time_width;
 		}
 	protected:
 		color_scheme _colors; ///< The color scheme.
-		size_t _time_width = 8; ///< The width of displayed time.
+		std::size_t _time_width = 8; ///< The width of displayed time.
 
 		/// Returns the color that correspond to the given \ref log_level.
 		color_scheme::entry _entry_color(log_level level) {
@@ -133,11 +133,11 @@ namespace codepad::logger_sinks {
 
 		/// Changes the foreground color.
 		void _color_fg(color code) {
-			std::cout << "\033[" << static_cast<size_t>(code) << "m";
+			std::cout << "\033[" << static_cast<std::size_t>(code) << "m";
 		}
 		/// Changes the background color.
 		void _color_bg(color code) {
-			std::cout << "\033[" << static_cast<size_t>(code) + 10 << "m\033[K";
+			std::cout << "\033[" << static_cast<std::size_t>(code) + 10 << "m\033[K";
 		}
 		/// Changes output color by calling \ref _color_fg() and \ref _color_bg().
 		void _color(color_scheme::entry scheme) {
@@ -155,9 +155,9 @@ namespace codepad::logger_sinks {
 			std::cout << std::setw(_time_width) << text;
 		}
 		/// Prints the message with a fixed width.
-		void _print_w(str_view_t msg, color_scheme::entry scheme, color_scheme::entry banner, size_t w) {
+		void _print_w(str_view_t msg, color_scheme::entry scheme, color_scheme::entry banner, std::size_t w) {
 			_color(scheme);
-			size_t cl = 0;
+			std::size_t cl = 0;
 			for (auto it = msg.begin(); it != msg.end(); ++it) {
 				if (*it == '\n' || cl == w) {
 					std::cout << "\n";
@@ -174,7 +174,7 @@ namespace codepad::logger_sinks {
 		}
 
 		/// Returns the width of the console window. This function is platform-specific.
-		static size_t _get_console_width();
+		static std::size_t _get_console_width();
 	};
 
 	/// A sink that writes logging information to a file.
@@ -196,16 +196,16 @@ namespace codepad::logger_sinks {
 		}
 
 		/// Returns a reference to the time output width.
-		size_t &time_output_width() {
+		std::size_t &time_output_width() {
 			return _time_width;
 		}
 		/// \overload
-		size_t time_output_width() const {
+		std::size_t time_output_width() const {
 			return _time_width;
 		}
 	protected:
 		std::ofstream _fout; ///< The output stream.
-		size_t _time_width = 12; ///< The width of times.
+		std::size_t _time_width = 12; ///< The width of times.
 
 		/// Returns the text label that corresponds to the given \ref log_level.
 		inline static str_view_t _get_level_label(log_level l) {

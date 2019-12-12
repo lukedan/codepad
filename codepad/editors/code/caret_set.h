@@ -24,7 +24,7 @@ namespace codepad::editors::code {
 		/// \p false if it's on the former line, and \p true if it's on the latter.
 		bool after_stall = false;
 
-		size_t
+		std::size_t
 			bytepos_first = 0, ///< The position, in bytes, of the first element of a \ref caret_selection.
 			bytepos_second = 0; ///< The position, in bytes, of the second element of a \ref caret_selection.
 	};

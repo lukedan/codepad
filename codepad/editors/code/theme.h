@@ -26,9 +26,9 @@ namespace codepad::editors::code {
 	template <typename T> class text_theme_parameter_info {
 	public:
 		/// Iterator.
-		using iterator = typename std::map<size_t, T>::iterator;
+		using iterator = typename std::map<std::size_t, T>::iterator;
 		/// Const iterator.
-		using const_iterator = typename std::map<size_t, T>::const_iterator;
+		using const_iterator = typename std::map<std::size_t, T>::const_iterator;
 
 		/// Default constructor. Adds a default-initialized value to position 0.
 		text_theme_parameter_info() : text_theme_parameter_info(T()) {
@@ -44,7 +44,7 @@ namespace codepad::editors::code {
 			_changes[0] = def;
 		}
 		/// Sets the parameter of the given range to the given value.
-		void set_range(size_t s, size_t pe, T c) {
+		void set_range(std::size_t s, std::size_t pe, T c) {
 			assert_true_usage(s < pe, "invalid range");
 			auto beg = get_iter_at(s), end = get_iter_at(pe);
 			T begv = beg->second, endv = end->second;
@@ -57,7 +57,7 @@ namespace codepad::editors::code {
 			}
 		}
 		/// Retrieves the value of the parameter at the given position.
-		T get_at(size_t cp) const {
+		T get_at(std::size_t cp) const {
 			return get_iter_at(cp)->second;
 		}
 
@@ -70,7 +70,7 @@ namespace codepad::editors::code {
 			return _changes.end();
 		}
 		/// Returns an iterator to the pair that determines the parameter at the given position.
-		iterator get_iter_at(size_t cp) {
+		iterator get_iter_at(std::size_t cp) {
 			return --_changes.upper_bound(cp);
 		}
 		/// Const version of \ref begin().
@@ -81,17 +81,17 @@ namespace codepad::editors::code {
 		const_iterator end() const {
 			return _changes.end();
 		}
-		/// Const version of \ref get_iter_at(size_t).
-		const_iterator get_iter_at(size_t cp) const {
+		/// Const version of \ref get_iter_at(std::size_t).
+		const_iterator get_iter_at(std::size_t cp) const {
 			return --_changes.upper_bound(cp);
 		}
 
 		/// Returns the number of position-value pairs in this parameter.
-		size_t size() const {
+		std::size_t size() const {
 			return _changes.size();
 		}
 	protected:
-		std::map<size_t, T> _changes; ///< The underlying \p std::map that stores the position-value pairs.
+		std::map<std::size_t, T> _changes; ///< The underlying \p std::map that stores the position-value pairs.
 	};
 	/// Records the text's theme across the entire buffer.
 	struct text_theme_data {
@@ -106,7 +106,7 @@ namespace codepad::editors::code {
 			char_iterator() = default;
 			/// Initializes \ref current_theme from the given iterators, then initializes all \p next_* iterators by
 			/// incrementing the given ones.
-			char_iterator(const text_theme_data &data, size_t position) :
+			char_iterator(const text_theme_data &data, std::size_t position) :
 				_next_color(data.color.get_iter_at(position)),
 				_next_style(data.style.get_iter_at(position)),
 				_next_weight(data.weight.get_iter_at(position)),
@@ -122,14 +122,14 @@ namespace codepad::editors::code {
 
 			/// Moves the given \ref char_iterator to the given position. The position must be after where this
 			/// \ref char_iterator was at.
-			void move_forward(size_t pos) {
+			void move_forward(std::size_t pos) {
 				_move_iter_forward(_next_color, _data->color, current_theme.color, pos);
 				_move_iter_forward(_next_style, _data->style, current_theme.style, pos);
 				_move_iter_forward(_next_weight, _data->weight, current_theme.weight, pos);
 			}
 			/// Returns the number of characters to the next change of any parameter, given the current position.
-			size_t forecast(size_t pos) const {
-				size_t res = _forecast_iter(_next_color, _data->color, pos);
+			std::size_t forecast(std::size_t pos) const {
+				std::size_t res = _forecast_iter(_next_color, _data->color, pos);
 				res = std::min(res, _forecast_iter(_next_style, _data->style, pos));
 				res = std::min(res, _forecast_iter(_next_weight, _data->weight, pos));
 				return res;
@@ -154,7 +154,7 @@ namespace codepad::editors::code {
 			/// \param cp The new position in the text.
 			template <typename T> inline static void _move_iter_forward(
 				typename text_theme_parameter_info<T>::const_iterator &it,
-				const text_theme_parameter_info<T> &spec, T &val, size_t pos
+				const text_theme_parameter_info<T> &spec, T &val, std::size_t pos
 			) {
 				if (it != spec.end() && it->first <= pos) { // fast case: only need to increment once
 					val = it->second;
@@ -168,25 +168,25 @@ namespace codepad::editors::code {
 			}
 
 			/// \ref forecast() for a single parameter.
-			template <typename T> inline static size_t _forecast_iter(
+			template <typename T> inline static std::size_t _forecast_iter(
 				const typename text_theme_parameter_info<T>::const_iterator &it,
-				const text_theme_parameter_info<T> &spec, size_t pos
+				const text_theme_parameter_info<T> &spec, std::size_t pos
 			) {
 				if (it != spec.end()) {
 					return it->first - pos;
 				}
-				return std::numeric_limits<size_t>::max();
+				return std::numeric_limits<std::size_t>::max();
 			}
 		};
 
 		/// Sets the theme of the text in the given range.
-		void set_range(size_t s, size_t pe, text_theme_specification tc) {
+		void set_range(std::size_t s, std::size_t pe, text_theme_specification tc) {
 			color.set_range(s, pe, tc.color);
 			style.set_range(s, pe, tc.style);
 			weight.set_range(s, pe, tc.weight);
 		}
 		/// Returns the theme of the text at the given position.
-		text_theme_specification get_at(size_t p) const {
+		text_theme_specification get_at(std::size_t p) const {
 			return text_theme_specification(color.get_at(p), style.get_at(p), weight.get_at(p));
 		}
 		/// Sets the theme of all text to the given value.

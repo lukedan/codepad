@@ -61,10 +61,10 @@ namespace codepad::ui {
 			/// Default constructor.
 			hit_test_result() = default;
 			/// Initializes all fields of this struct.
-			hit_test_result(size_t c, rectd layout, bool r) : character(c), character_layout(layout), rear(r) {
+			hit_test_result(std::size_t c, rectd layout, bool r) : character(c), character_layout(layout), rear(r) {
 			}
 
-			size_t character = 0; ///< The character index that the given point is on.
+			std::size_t character = 0; ///< The character index that the given point is on.
 			rectd character_layout; ///< The layout of \ref character.
 			bool rear = false; ///< Indicates if the position is after \ref character.
 		};
@@ -92,7 +92,7 @@ namespace codepad::ui {
 		/// Retrieves information about the character that is below the given point.
 		virtual hit_test_result hit_test(vec2d) const = 0;
 		/// Returns the space that the character at the given position occupies.
-		virtual rectd get_character_placement(size_t) const = 0;
+		virtual rectd get_character_placement(std::size_t) const = 0;
 	};
 
 	/// Determines the style of rendered text.

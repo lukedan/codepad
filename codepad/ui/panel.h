@@ -74,7 +74,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the number of elements currently in the collection.
-		size_t size() const {
+		std::size_t size() const {
 			return _children.size();
 		}
 

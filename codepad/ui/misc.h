@@ -319,7 +319,7 @@ namespace codepad {
 			max_value ///< The total number of supported keys.
 		};
 		/// The total number of supported keys.
-		constexpr size_t total_num_keys = static_cast<size_t>(key::max_value);
+		constexpr std::size_t total_num_keys = static_cast<std::size_t>(key::max_value);
 	}
 	/// Parser for \ref ui::key.
 	template <> struct enum_parser<ui::key> {
@@ -329,7 +329,7 @@ namespace codepad {
 			if (str.length() == 1) {
 				if (str[0] >= 'a' && str[0] <= 'z') {
 					return static_cast<ui::key>(
-						static_cast<size_t>(ui::key::a) + (str[0] - 'a')
+						static_cast<std::size_t>(ui::key::a) + (str[0] - 'a')
 						);
 				}
 				switch (str[0]) {

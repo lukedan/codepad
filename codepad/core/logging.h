@@ -36,7 +36,7 @@ namespace codepad {
 	};
 
 	/// Struct used to format and produce log.
-	struct logger {
+	struct APIGEN_EXPORT_RECURSIVE logger {
 	public:
 		using clock_t = std::chrono::high_resolution_clock; ///< The clock used to calculate time.
 		/// Dummy struct that signals the \ref log_entry that a stacktrace should be added at this location.
@@ -47,7 +47,7 @@ namespace codepad {
 			friend logger;
 		public:
 			/// Move constructor.
-			log_entry(log_entry &&src) :
+			log_entry(log_entry &&src) noexcept :
 				_contents(std::move(src._contents)), _pos(std::move(src._pos)),
 				_parent(src._parent), _level(src._level) {
 				src._parent = nullptr;
@@ -55,7 +55,7 @@ namespace codepad {
 			/// No copy construction.
 			log_entry(const log_entry&) = delete;
 			/// Move assignment.
-			log_entry &operator=(log_entry &&src) {
+			log_entry &operator=(log_entry &&src) noexcept {
 				_flush();
 				_contents = std::move(src._contents);
 				_pos = std::move(src._pos);
