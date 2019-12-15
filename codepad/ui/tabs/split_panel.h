@@ -193,7 +193,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Changes the given child to the specified value.
-		void _change_child(ui::element * &e, ui::element * newv) {
+		void _change_child(ui::element *&e, ui::element *newv) {
 			if (e) {
 				ui::element *old = e; // because e may be changed in _on_child_removed
 				_children.remove(*old);

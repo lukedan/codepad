@@ -213,7 +213,7 @@ namespace codepad::os::direct2d {
 		bool _stroking = false; ///< Indicates whether strokes are being drawn.
 
 		/// Initializes \ref _geom.
-		void _start(ID2D1Factory * factory) {
+		void _start(ID2D1Factory *factory) {
 			com_check(factory->CreatePathGeometry(_geom.get_ref()));
 			com_check(_geom->Open(_sink.get_ref()));
 			_stroking = false;
@@ -319,14 +319,14 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Creates a render target of the given size.
-		ui::render_target_data create_render_target(vec2d size) override {
+		ui::render_target_data create_render_target(vec2d size, vec2d scaling_factor) override {
 			auto resrt = std::make_unique<render_target>();
 			auto resbmp = std::make_unique<bitmap>();
 			_details::com_wrapper<IDXGISurface> surface;
 
 			D3D11_TEXTURE2D_DESC texture_desc;
-			texture_desc.Width = size.x;
-			texture_desc.Height = size.y; // TODO dpi
+			texture_desc.Width = static_cast<UINT>(std::ceil(size.x * scaling_factor.x));
+			texture_desc.Height = static_cast<UINT>(std::ceil(size.y * scaling_factor.y));
 			texture_desc.MipLevels = 1;
 			texture_desc.ArraySize = 1;
 			texture_desc.Format = pixel_format;
@@ -343,8 +343,8 @@ namespace codepad::os::direct2d {
 				D2D1::BitmapProperties1(
 					D2D1_BITMAP_OPTIONS_TARGET,
 					D2D1::PixelFormat(pixel_format, D2D1_ALPHA_MODE_PREMULTIPLIED),
-					// using 0.0 here as in the docs causes the bitmap to have infinite size
-					96.0f, 96.0f // TODO dpi
+					static_cast<FLOAT>(USER_DEFAULT_SCREEN_DPI * scaling_factor.x),
+					static_cast<FLOAT>(USER_DEFAULT_SCREEN_DPI * scaling_factor.y)
 				),
 				resrt->_bitmap.get_ref()
 			));
@@ -353,12 +353,13 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Loads a \ref bitmap from disk.
-		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp) override {
+		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) override {
 			auto res = std::make_unique<bitmap>();
 			_details::com_wrapper<IWICBitmapSource> converted;
 			_details::com_wrapper<IWICBitmapSource> img = wic_image_loader::get().load_image(bmp);
 
 			com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppPBGRA, img.get(), converted.get_ref()));
+			// TODO include scaling factor using one of the overloads
 			com_check(_d2d_device_context->CreateBitmapFromWicBitmap(converted.get(), res->_bitmap.get_ref()));
 			return res;
 		}
@@ -386,12 +387,15 @@ namespace codepad::os::direct2d {
 		/// Starts drawing to the given window.
 		void begin_drawing(ui::window_base &w) override {
 			auto &data = _window_data::get(_details::cast_window(w));
-			_begin_draw_impl(data.target.get());
+			_begin_draw_impl(data.target.get(), w.get_scaling_factor() * USER_DEFAULT_SCREEN_DPI);
 			_present_chains.emplace(data.swap_chain.get());
 		}
 		/// Starts drawing to the given \ref render_target.
 		void begin_drawing(ui::render_target &r) override {
-			_begin_draw_impl(_details::cast_render_target(r)._bitmap.get());
+			_details::com_wrapper<ID2D1Bitmap1> &bitmap = _details::cast_render_target(r)._bitmap;
+			FLOAT dpix, dpiy;
+			bitmap->GetDpi(&dpix, &dpiy);
+			_begin_draw_impl(bitmap.get(), vec2d(dpix, dpiy));
 		}
 		/// Finishes drawing.
 		void end_drawing() override {
@@ -399,7 +403,7 @@ namespace codepad::os::direct2d {
 			assert_true_usage(_render_stack.top().matrices.size() == 1, "push_matrix/pop_matrix calls mismatch");
 			_render_stack.pop();
 			if (_render_stack.empty()) {
-				com_check(_d2d_device_context->EndDraw()); // TODO handle device lost?
+				com_check(_d2d_device_context->EndDraw());
 				_d2d_device_context->SetTarget(nullptr); // so that windows can be resized normally
 				for (IDXGISwapChain *chain : _present_chains) {
 					com_check(chain->Present(0, 0));
@@ -538,7 +542,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Calls \p ID2D1DeviceContext::DrawTextLayout to render the given \ref formatted_text.
 		void draw_formatted_text(
-			ui::formatted_text & text, vec2d topleft, const ui::generic_brush_parameters & brush
+			ui::formatted_text &text, vec2d topleft, const ui::generic_brush_parameters &brush
 		) override {
 			if (auto brushobj = _create_brush(brush)) {
 				auto ctext = _details::cast_formatted_text(text);
@@ -553,9 +557,9 @@ namespace codepad::os::direct2d {
 		/// Calls \ref _draw_text_impl().
 		void draw_text(
 			str_view_t text, rectd layout,
-			ui::text_format & format, ui::wrapping_mode wrap,
+			ui::text_format &format, ui::wrapping_mode wrap,
 			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
-			const ui::generic_brush_parameters & brush
+			const ui::generic_brush_parameters &brush
 		) override {
 			if (auto brushobj = _create_brush(brush)) {
 				auto u16text = _details::utf8_to_wstring(text);
@@ -565,9 +569,9 @@ namespace codepad::os::direct2d {
 		/// Calls \ref _draw_text_impl().
 		void draw_text(
 			std::basic_string_view<codepoint> text, rectd layout,
-			ui::text_format & format, ui::wrapping_mode wrap,
+			ui::text_format &format, ui::wrapping_mode wrap,
 			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
-			const ui::generic_brush_parameters & brush
+			const ui::generic_brush_parameters &brush
 		) override {
 			if (auto brushobj = _create_brush(brush)) {
 				std::basic_string<std::byte> bytestr;
@@ -665,8 +669,9 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Starts drawing to a \p ID2D1RenderTarget.
-		void _begin_draw_impl(ID2D1Image * target) {
+		void _begin_draw_impl(ID2D1Image *target, vec2d dpi) {
 			_d2d_device_context->SetTarget(target);
+			_d2d_device_context->SetDpi(static_cast<FLOAT>(dpi.x), static_cast<FLOAT>(dpi.y));
 			if (_render_stack.empty()) {
 				_d2d_device_context->BeginDraw();
 			}
@@ -680,8 +685,8 @@ namespace codepad::os::direct2d {
 		/// Draws the given geometry.
 		void _draw_geometry(
 			_details::com_wrapper<ID2D1Geometry> geom,
-			const ui::generic_brush_parameters & brush_def,
-			const ui::generic_pen_parameters & pen_def
+			const ui::generic_brush_parameters &brush_def,
+			const ui::generic_pen_parameters &pen_def
 		) {
 			if (_details::com_wrapper<ID2D1Brush> brush = _create_brush(brush_def)) {
 				_d2d_device_context->FillGeometry(geom.get(), brush.get());
@@ -700,7 +705,7 @@ namespace codepad::os::direct2d {
 
 		/// Creates a brush based on \ref ui::brush_parameters::solid_color.
 		_details::com_wrapper<ID2D1SolidColorBrush> _create_brush(
-			const ui::brush_parameters::solid_color & brush_def
+			const ui::brush_parameters::solid_color &brush_def
 		) {
 			_details::com_wrapper<ID2D1SolidColorBrush> brush;
 			com_check(_d2d_device_context->CreateSolidColorBrush(
@@ -710,7 +715,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a \p ID2D1GradientStopCollection.
 		_details::com_wrapper<ID2D1GradientStopCollection> _create_gradient_stop_collection(
-			const std::vector<ui::gradient_stop> & stops_def
+			const std::vector<ui::gradient_stop> &stops_def
 		) {
 			_details::com_wrapper<ID2D1GradientStopCollection> gradients;
 			std::vector<D2D1_GRADIENT_STOP> stops;
@@ -725,7 +730,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a brush based on \ref ui::brush_parameters::linear_gradient.
 		_details::com_wrapper<ID2D1LinearGradientBrush> _create_brush(
-			const ui::brush_parameters::linear_gradient & brush_def
+			const ui::brush_parameters::linear_gradient &brush_def
 		) {
 			_details::com_wrapper<ID2D1LinearGradientBrush> brush;
 			if (brush_def.gradients) {
@@ -741,7 +746,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a brush based on \ref ui::brush_parameters::radial_gradient.
 		_details::com_wrapper<ID2D1RadialGradientBrush> _create_brush(
-			const ui::brush_parameters::radial_gradient & brush_def
+			const ui::brush_parameters::radial_gradient &brush_def
 		) {
 			_details::com_wrapper<ID2D1RadialGradientBrush> brush;
 			if (brush_def.gradients) {
@@ -758,7 +763,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a brush based on \ref ui::brush_parameters::bitmap_pattern.
 		_details::com_wrapper<ID2D1BitmapBrush> _create_brush(
-			const ui::brush_parameters::bitmap_pattern & brush_def
+			const ui::brush_parameters::bitmap_pattern &brush_def
 		) {
 			_details::com_wrapper<ID2D1BitmapBrush> brush;
 			if (brush_def.image) {
@@ -775,7 +780,7 @@ namespace codepad::os::direct2d {
 			return _details::com_wrapper<ID2D1Brush>();
 		}
 		/// Creates a \p ID2D1Brush from the given \ref ui::brush specification.
-		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::generic_brush_parameters & b) {
+		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::generic_brush_parameters &b) {
 			auto brush = std::visit([this](auto && brush) {
 				return _details::com_wrapper<ID2D1Brush>(_create_brush(brush));
 				}, b.value);
@@ -787,7 +792,7 @@ namespace codepad::os::direct2d {
 
 		/// Creates an \p IDWriteTextLayout.
 		std::unique_ptr<ui::formatted_text> _format_text_impl(
-			std::basic_string_view<WCHAR> text, ui::text_format & fmt, vec2d maxsize, ui::wrapping_mode wrap,
+			std::basic_string_view<WCHAR> text, ui::text_format &fmt, vec2d maxsize, ui::wrapping_mode wrap,
 			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 		) {
 			auto res = std::make_unique<formatted_text>();
@@ -808,7 +813,7 @@ namespace codepad::os::direct2d {
 		/// Calls \p ID2D1DeviceContext::DrawText to render the given text.
 		void _draw_text_impl(
 			std::basic_string_view<WCHAR> text, rectd layout,
-			ui::text_format & format, ui::wrapping_mode wrap,
+			ui::text_format &format, ui::wrapping_mode wrap,
 			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
 			_details::com_wrapper<ID2D1Brush> brush
 		) {
@@ -836,7 +841,9 @@ namespace codepad::os::direct2d {
 			return factory;
 		}
 		/// Creates a \p ID2DBitmap1 from a \p IDXGISwapChain1.
-		_details::com_wrapper<ID2D1Bitmap1> _create_bitmap_from_swap_chain(IDXGISwapChain1 * chain) {
+		_details::com_wrapper<ID2D1Bitmap1> _create_bitmap_from_swap_chain(
+			IDXGISwapChain1 *chain, vec2d scaling_factor
+		) {
 			_details::com_wrapper<IDXGISurface> surface;
 			_details::com_wrapper<ID2D1Bitmap1> bitmap;
 			com_check(chain->GetBuffer(0, IID_PPV_ARGS(surface.get_ref())));
@@ -845,7 +852,8 @@ namespace codepad::os::direct2d {
 				D2D1::BitmapProperties1(
 					D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
 					D2D1::PixelFormat(pixel_format, D2D1_ALPHA_MODE_PREMULTIPLIED),
-					96.0f, 96.0f // TODO dpi
+					static_cast<FLOAT>(scaling_factor.x * USER_DEFAULT_SCREEN_DPI),
+					static_cast<FLOAT>(scaling_factor.y * USER_DEFAULT_SCREEN_DPI)
 				),
 				bitmap.get_ref()
 			));
@@ -853,7 +861,7 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Creates a corresponding \p ID2D1HwndRenderTarget.
-		void _new_window(ui::window_base & w) override {
+		void _new_window(ui::window_base &w) override {
 			window &wnd = _details::cast_window(w);
 			std::any &data = _get_window_data(wnd);
 			_window_data actual_data;
@@ -877,19 +885,31 @@ namespace codepad::os::direct2d {
 				nullptr, nullptr, actual_data.swap_chain.get_ref()
 			));
 			// set data
-			actual_data.target = _create_bitmap_from_swap_chain(actual_data.swap_chain.get());
+			actual_data.target = _create_bitmap_from_swap_chain(
+				actual_data.swap_chain.get(), wnd.get_scaling_factor()
+			);
 			data.emplace<_window_data>(actual_data);
-			// listen to size_changed
-			wnd.size_changed += [this, pwnd = &wnd](ui::size_changed_info&) {
+			// resize buffer when the window size has changed
+			wnd.size_changed += [this, pwnd = &wnd](ui::window_base::size_changed_info&) {
 				auto &data = _window_data::get(*pwnd);
-				data.target.reset(); // gotta release 'em all!
+				data.target.reset(); // must release bitmap before resizing
 				com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
-				data.target = _create_bitmap_from_swap_chain(data.swap_chain.get()); // recreate bitmap
+				// recreate bitmap
+				data.target = _create_bitmap_from_swap_chain(data.swap_chain.get(), pwnd->get_scaling_factor());
+				InvalidateRect(pwnd->get_native_handle(), nullptr, true);
+			};
+			// reallocate buffer when the window scaling has changed
+			wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window_base::scaling_factor_changed_info &p) {
+				auto &data = _window_data::get(*pwnd);
+				data.target.reset(); // must release bitmap before resizing
+				com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
+				// recreate bitmap
+				data.target = _create_bitmap_from_swap_chain(data.swap_chain.get(), p.new_value);
 				InvalidateRect(pwnd->get_native_handle(), nullptr, true);
 			};
 		}
 		/// Releases all resources.
-		void _delete_window(ui::window_base & w) override {
+		void _delete_window(ui::window_base &w) override {
 			_get_window_data(w).reset();
 		}
 	};

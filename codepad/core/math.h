@@ -303,8 +303,8 @@ namespace codepad {
 			return rect(x, x + w, y, y + h);
 		}
 		/// Constructs a rectangle given the position of its top-left corner and its bottom-right corner.
-		inline static constexpr rect from_corners(vec2<T> topleft, vec2<T> bottomright) {
-			return rect(topleft.x, bottomright.x, topleft.y, bottomright.y);
+		inline static constexpr rect from_corners(vec2<T> min_corner, vec2<T> max_corner) {
+			return rect(min_corner.x, max_corner.x, min_corner.y, max_corner.y);
 		}
 	};
 	/// Rectangles with coordinates of type \p double.
@@ -358,7 +358,7 @@ namespace codepad {
 		}
 
 	private:
-		inline static void _dot(T ax, T ay, T az, T bx, T by, T bz, T & rx, T & ry, T & rz) {
+		inline static void _dot(T ax, T ay, T az, T bx, T by, T bz, T &rx, T &ry, T &rz) {
 			rx = ay * bz - az * by;
 			ry = az * bx - ax * bz;
 			rz = ax * by - ay * bx;
@@ -400,7 +400,7 @@ namespace codepad {
 		}
 
 		/// Addition.
-		matrix &operator+=(const matrix & rhs) {
+		matrix &operator+=(const matrix &rhs) {
 			for (std::size_t y = 0; y < H; ++y) {
 				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] += rhs[y][x];
@@ -409,12 +409,12 @@ namespace codepad {
 			return *this;
 		}
 		/// Addition.
-		friend matrix operator+(matrix lhs, const matrix & rhs) {
+		friend matrix operator+(matrix lhs, const matrix &rhs) {
 			return lhs += rhs;
 		}
 
 		/// Subtraction.
-		matrix &operator-=(const matrix & rhs) {
+		matrix &operator-=(const matrix &rhs) {
 			for (std::size_t y = 0; y < H; ++y) {
 				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] -= rhs[y][x];
@@ -423,12 +423,12 @@ namespace codepad {
 			return *this;
 		}
 		/// Subtraction.
-		friend matrix operator-(matrix lhs, const matrix & rhs) {
+		friend matrix operator-(matrix lhs, const matrix &rhs) {
 			return lhs -= rhs;
 		}
 
 		/// In-place matrix multiplication, only for square matrices.
-		std::enable_if_t<W == H, matrix&> operator*=(const matrix & rhs) {
+		std::enable_if_t<W == H, matrix&> operator*=(const matrix &rhs) {
 			matrix res;
 			for (std::size_t y = 0; y < H; ++y) {
 				for (std::size_t x = 0; x < W; ++x) {
@@ -543,7 +543,7 @@ namespace codepad {
 	};
 	/// Matrix multiplication.
 	template <typename T, std::size_t M, std::size_t N, std::size_t P> inline matrix<T, P, M> operator*(
-		const matrix<T, N, M> & lhs, const matrix<T, P, N> & rhs
+		const matrix<T, N, M> &lhs, const matrix<T, P, N> &rhs
 		) {
 		matrix<T, P, M> result;
 		for (std::size_t y = 0; y < M; ++y) {
@@ -556,7 +556,7 @@ namespace codepad {
 		return result;
 	}
 	/// Multiplication of 2x2 matrices with \ref vec2 "vec2s".
-	template <typename T> inline vec2<T> operator*(const matrix<T, 2, 2> & lhs, vec2<T> rhs) {
+	template <typename T> inline vec2<T> operator*(const matrix<T, 2, 2> &lhs, vec2<T> rhs) {
 		return vec2<T>(lhs[0][0] * rhs.x + lhs[0][1] * rhs.y, lhs[1][0] * rhs.x + lhs[1][1] * rhs.y);
 	}
 	/// 2x2 matrices whose elements are of type \p float.

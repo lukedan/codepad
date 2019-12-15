@@ -99,7 +99,7 @@ namespace codepad::ui {
 			}
 
 			if (auto visuals_from = val.template parse_optional_member<str_view_t>(u8"inherit_visuals_from")) {
-				if (auto * ancestor = get_manager().get_class_arrangements().get(visuals_from.value())) {
+				if (auto *ancestor = get_manager().get_class_arrangements().get(visuals_from.value())) {
 					value.visual_parameters = ancestor->configuration.default_parameters.visual_parameters;
 				} else {
 					val.template log<log_level::error>(CP_HERE) << "invalid visual inheritance";
@@ -216,7 +216,7 @@ namespace codepad::ui {
 			return true;
 		}
 		/// Parses an \ref class_hotkey_group from an JSON array.
-		inline static bool parse_class_hotkey(class_hotkey_group & gp, const array_t & arr) {
+		inline static bool parse_class_hotkey(class_hotkey_group &gp, const array_t &arr) {
 			for (auto &&cls : arr) {
 				if (auto obj = cls.template try_cast<object_t>()) {
 					std::vector<key_gesture> gs;

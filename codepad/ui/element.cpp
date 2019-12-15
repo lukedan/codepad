@@ -58,7 +58,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void element::_on_mouse_down(mouse_button_info & p) {
+	void element::_on_mouse_down(mouse_button_info &p) {
 		if (p.button == mouse_button::primary) {
 			if (is_visible(visibility::focus) && !p.focus_set()) {
 				p.mark_focus_set();
@@ -126,28 +126,9 @@ namespace codepad::ui {
 
 	window_base *element::get_window() {
 		element *cur = this;
-		while (cur->_parent != nullptr) {
-			cur = cur->_parent;
+		while (cur->parent() != nullptr) {
+			cur = cur->parent();
 		}
 		return dynamic_cast<window_base*>(cur);
-	}
-
-
-	void decoration::set_layout(rectd r) {
-		_layout = r;
-		if (_wnd) {
-			_wnd->invalidate_visual();
-		}
-	}
-
-	decoration::~decoration() {
-		if (_wnd) {
-			_wnd->_on_decoration_destroyed(*this);
-		}
-	}
-
-	void decoration::set_class(const str_t &cls) {
-		_class = cls;
-		// TODO
 	}
 }

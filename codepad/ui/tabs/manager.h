@@ -389,7 +389,6 @@ namespace codepad::ui::tabs {
 		info_event<>::token _capture_lost_token; ///< Used to listen to capture lost events and stop dragging.
 		// drag ui
 		window_base *_drag_tab_window = nullptr; ///< The window used to display the tab that's being dragged.
-		decoration *_dragdec = nullptr;
 		drag_destination_selector *_drag_dest_selector = nullptr; ///< The \ref drag_destination_selector.
 		// drag parameters
 		/// The offset from the top left corner of the \ref tab_button to the mouse cursor.
@@ -417,7 +416,7 @@ namespace codepad::ui::tabs {
 					auto &tabs = hst.get_tabs().items();
 					std::vector<element*> ts(tabs.begin(), tabs.end());
 					for (element *e : ts) {
-						if (tab * t = dynamic_cast<tab*>(e)) {
+						if (tab *t = dynamic_cast<tab*>(e)) {
 							t->_on_close_requested();
 						}
 					}
@@ -464,7 +463,6 @@ namespace codepad::ui::tabs {
 			logger::get().log_debug(CP_HERE) << "tab host 0x" << &hst << " disposed";
 			if (_drag && _drag_destination == &hst) {
 				logger::get().log_debug(CP_HERE) << "resetting drag destination";
-				_try_dispose_preview();
 				_try_detach_destination_selector();
 				_drag_destination = nullptr;
 				_dragging_in_host = false;
@@ -527,13 +525,6 @@ namespace codepad::ui::tabs {
 			wnd->show_and_activate();
 		}
 
-		/// Disposes \ref _dragdec if it isn't \p nullptr.
-		void _try_dispose_preview() {
-			if (_dragdec) {
-				// TODO dispose it
-				_dragdec = nullptr;
-			}
-		}
 		/// Detaches \ref _drag_dest_selector from its parent if it has one.
 		void _try_detach_destination_selector() {
 			if (_drag_dest_selector->parent() != nullptr) {
@@ -719,8 +710,6 @@ namespace codepad::ui::tabs {
 			_drag_tab_window->children().clear();
 			_manager.get_scheduler().mark_for_disposal(*_drag_tab_window);
 			_drag_tab_window = nullptr;
-			// dispose preview
-			_try_dispose_preview();
 			// unregister events
 			_drag->get_button().mouse_up -= _stop_drag_token;
 			_drag->get_button().lost_capture -= _capture_lost_token;

@@ -289,9 +289,11 @@ namespace codepad::ui {
 
 		/// Sets the visibility of this element.
 		void set_visibility(visibility v) {
-			value_update_info<visibility> info(get_visibility());
-			_params.visibility = v;
-			_on_visibility_changed(info);
+			if (v != get_visibility()) {
+				_visibility_changed_info info(get_visibility());
+				_params.visibility = v;
+				_on_visibility_changed(info);
+			}
 		}
 		/// Returns the current visibility of this element.
 		visibility get_visibility() const {
@@ -365,6 +367,9 @@ namespace codepad::ui {
 	protected:
 		rectd _layout; ///< The absolute layout of the element in the window.
 
+		/// Contains information about a change in visibility.
+		using _visibility_changed_info = value_update_info<visibility, value_update_info_contents::old_value>;
+
 		/// Called when the mouse starts to be over the element.
 		/// Updates \ref _mouse_over and invokes \ref mouse_enter.
 		/// Derived classes should override this function instead of registering for the event.
@@ -391,7 +396,7 @@ namespace codepad::ui {
 		}
 		/// Called when the mouse moves over the element. Invokes \ref mouse_move.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_move(mouse_move_info & p) {
+		virtual void _on_mouse_move(mouse_move_info &p) {
 			mouse_move.invoke(p);
 		}
 		/// Called when a mouse button is pressed when the mouse is over this element.
@@ -400,27 +405,27 @@ namespace codepad::ui {
 		virtual void _on_mouse_down(mouse_button_info&);
 		/// Called when a mouse button is released when the mouse is over this element. Invokes \ref mouse_up.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_up(mouse_button_info & p) {
+		virtual void _on_mouse_up(mouse_button_info &p) {
 			mouse_up.invoke(p);
 		}
 		/// Called when the user scrolls the mouse over the element. Invokes \ref mouse_scroll.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_mouse_scroll(mouse_scroll_info & p) {
+		virtual void _on_mouse_scroll(mouse_scroll_info &p) {
 			mouse_scroll.invoke(p);
 		}
 		/// Called when a key is pressed when the element has the focus. Invokes \ref key_down.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_key_down(key_info & p) {
+		virtual void _on_key_down(key_info &p) {
 			key_down.invoke(p);
 		}
 		/// Called when a key is released when the element has the focus. Invokes \ref key_up.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_key_up(key_info & p) {
+		virtual void _on_key_up(key_info &p) {
 			key_up.invoke(p);
 		}
 		/// Called when the users types characters when the element has the focus. Invokes \ref keyboard_text.
 		/// Derived classes should override this function instead of registering for the event.
-		virtual void _on_keyboard_text(text_info & p) {
+		virtual void _on_keyboard_text(text_info &p) {
 			keyboard_text.invoke(p);
 		}
 		/// Called when the state of the ongoing composition has changed. Derived classes can override this
@@ -445,7 +450,7 @@ namespace codepad::ui {
 			invalidate_visual();
 		}
 		/// Called when the visibility of this element has changed.
-		virtual void _on_visibility_changed(value_update_info<visibility> & p) {
+		virtual void _on_visibility_changed(_visibility_changed_info &p) {
 			visibility changed = p.old_value ^ get_visibility();
 			if ((changed & visibility::layout) != visibility::none) {
 				invalidate_layout();
@@ -630,7 +635,7 @@ namespace codepad::ui {
 		///
 		/// \param cls The class of the element.
 		/// \param metrics The element's metrics configuration.
-		virtual void _initialize(str_view_t cls, const element_configuration & config);
+		virtual void _initialize(str_view_t cls, const element_configuration &config);
 		/// Called after the logical parent of this element (which is a composite element) has been fully constructed,
 		/// i.e., it and all of its children (including this element) has been constructed and properly initialized.
 		/// If this element does not have a logical parent, this function will not be called. The order in which this
@@ -652,54 +657,6 @@ namespace codepad::ui {
 
 		// stray friend declaration
 		friend animation_path::builder::getter_components::member_component<&element::_params>;
-	};
-
-	/// A decoration that is rendered above all elements. The user cannot interact with the decoration in any way.
-	/// If the state of the decoration contains the bit visual::predefined_states::corpse, then the decoration will
-	/// be automatically disposed when inactive if it's registered to a window. Decorations can be created with
-	/// <tt>new decoration()</tt>. When deleted, the decoration will automatically be unregistered from the window
-	/// it's currently registered to.'
-	class decoration {
-		friend class window_base;
-	public:
-		/// Initializes this decoration with the corresponding \ref manager.
-		explicit decoration(manager &man) : _manager(man) {
-		}
-		/// No move construction.
-		decoration(decoration&&) = delete;
-		/// Copy constructor. The decoration will have the same class, state, manager, etc. of the original
-		/// decoration, only that it won't be registered to any window.
-		decoration(const decoration &src) :
-			_class(src._class), _layout(src._layout), _manager(src._manager) {
-		}
-		/// Destructor. If \ref _wnd is not \p nullptr, notifies the window of its disposal.
-		~decoration();
-
-		/// Sets the layout of the decoration in the window.
-		void set_layout(rectd);
-		/// Returns the layout of the decoration.
-		rectd get_layout() const {
-			return _layout;
-		}
-
-		/// Sets the class used to render this decoration.
-		void set_class(const str_t&);
-		/// Returns the class used to render the decoration.
-		const str_t &get_class() const {
-			return _class;
-		}
-
-		/// Returns the \ref window_base that the decoration is currently registered to.
-		window_base *get_window() const {
-			return _wnd;
-		}
-	protected:
-		str_t _class; ///< The decoration's class.
-		rectd _layout; ///< The layout of the decoration.
-		/// A token used to accelerate the insertion and removal of decorations.
-		std::list<decoration*>::const_iterator _tok;
-		window_base *_wnd = nullptr; ///< The window that the decoration is currently registered to.
-		manager &_manager; ///< The \ref manager of this decoration.
 	};
 
 

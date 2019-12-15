@@ -83,7 +83,7 @@ namespace codepad::ui {
 					logger::get().log_warning(CP_HERE) << "invalid children for non-panel type: " << type;
 				} else {
 					for (const child &c : children) {
-						if (element * celem = c.construct(ctx)) {
+						if (element *celem = c.construct(ctx)) {
 							pnl->children().add(*celem);
 						}
 					}

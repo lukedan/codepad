@@ -469,7 +469,7 @@ namespace codepad::editors::code {
 		}
 		/// Renders the text using the given renderer, at the position specified in the \ref text_rendering.
 		/// Additional transformations may be necessary to 
-		void render(ui::renderer_base & r, const text_rendering &text) {
+		void render(ui::renderer_base &r, const text_rendering &text) {
 			r.draw_formatted_text(
 				*text.text, vec2d(text.topleft.x, text.topleft.y + text.baseline_correction),
 				ui::generic_brush_parameters(ui::brush_parameters::solid_color(text.color))
@@ -658,8 +658,8 @@ namespace codepad::editors::code {
 			}
 			/// Tries to start rendering a new caret at the given \ref text_fragment.
 			inline static std::optional<_single_caret_renderer> start_at_fragment(
-				const text_fragment&, const fragment_assembler::text_rendering & r,
-				std::size_t steps, std::size_t posafter, caret_gatherer & rend, caret_set::const_iterator iter
+				const text_fragment&, const fragment_assembler::text_rendering &r,
+				std::size_t steps, std::size_t posafter, caret_gatherer &rend, caret_set::const_iterator iter
 			) {
 				_single_caret_renderer res(iter, r.topleft.x);
 				if (res._range.second + steps < posafter) { // too late
@@ -701,14 +701,14 @@ namespace codepad::editors::code {
 
 			/// Starts rendering a caret halfway at the beginning of the view.
 			inline static _single_caret_renderer jumpstart(
-				const fragment_assembler & ass, caret_set::const_iterator iter
+				const fragment_assembler &ass, caret_set::const_iterator iter
 			) {
 				return _single_caret_renderer(iter, ass.get_horizontal_position());
 			}
 
 			/// Starts rendering a caret halfway when skipping part of a line.
 			inline static _single_caret_renderer jumpstart_at_skip_line(
-				const fragment_assembler & ass, caret_set::const_iterator iter
+				const fragment_assembler &ass, caret_set::const_iterator iter
 			) {
 				vec2d pos = ass.get_position();
 				_single_caret_renderer res(iter, pos.x);
@@ -814,7 +814,7 @@ namespace codepad::editors::code {
 
 			/// Returns the caret layout for a \ref fragment_assembler::basic_rendering.
 			inline static rectd _get_solid_fragment_caret_position(
-				const fragment_assembler::basic_rendering & r, const fragment_assembler & ass
+				const fragment_assembler::basic_rendering &r, const fragment_assembler &ass
 			) {
 				return rectd(
 					r.topleft.x, ass.get_horizontal_position(),
@@ -823,7 +823,7 @@ namespace codepad::editors::code {
 			}
 			/// Returns the caret layout for a \ref fragment_assembler::text_rendering.
 			inline static rectd _get_solid_fragment_caret_position(
-				const fragment_assembler::text_rendering & r, const fragment_assembler & ass
+				const fragment_assembler::text_rendering &r, const fragment_assembler &ass
 			) {
 				return rectd::from_xywh(
 					r.topleft.x, r.topleft.y, r.text->get_layout().width(), ass.get_line_height()
@@ -880,7 +880,7 @@ namespace codepad::editors::code {
 			/// Called right before finishing this caret and selected region. This function appends a caret to
 			/// \ref caret_gatherer::_caret_rects if necessary, appends a final selected rectangle to
 			/// \ref _selected_regions, then moves it to \ref caret_gatherer::_selected_regions.
-			void _terminate_with_caret(std::size_t pos, rectd caret, caret_gatherer & rend) {
+			void _terminate_with_caret(std::size_t pos, rectd caret, caret_gatherer &rend) {
 				if (_range.second != _caret->first.second && pos == _range.second) {
 					// add caret only if the positions match, and the caret is after the selected region which is
 					// nonempty (to avoid rendering the caret twice)

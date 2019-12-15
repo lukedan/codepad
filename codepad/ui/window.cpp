@@ -13,14 +13,6 @@
 using namespace std;
 
 namespace codepad::ui {
-	void window_base::register_decoration(decoration &dec) {
-		assert_true_usage(dec._wnd == nullptr, "the decoration has already been registered to another window");
-		dec._wnd = this;
-		_decos.push_back(&dec);
-		dec._tok = --_decos.end();
-		// TODO start animations
-	}
-
 	void window_base::_on_prerender() {
 		get_manager().get_renderer().begin_drawing(*this);
 		get_manager().get_renderer().clear(colord(0.0, 0.0, 0.0, 0.0));
@@ -39,14 +31,8 @@ namespace codepad::ui {
 	}
 
 	void window_base::_dispose() {
-		// not removed from parent, but still technically removed
+		// here we call _on_removing_element to ensure that the focus has been properly updated
 		get_manager().get_scheduler()._on_removing_element(*this);
-		// special care taken
-		auto i = _decos.begin(), j = i;
-		for (; i != _decos.end(); i = j) {
-			++j;
-			delete *i;
-		}
 		get_manager().get_renderer()._delete_window(*this);
 		panel::_dispose();
 	}
@@ -54,6 +40,11 @@ namespace codepad::ui {
 	void window_base::_on_size_changed(size_changed_info &p) {
 		get_manager().get_scheduler().notify_layout_change(*this);
 		size_changed(p);
+	}
+
+	void window_base::_on_scaling_factor_changed(scaling_factor_changed_info &p) {
+		invalidate_visual();
+		scaling_factor_changed(p);
 	}
 
 	void window_base::_on_key_down(key_info &p) {
@@ -98,13 +89,6 @@ namespace codepad::ui {
 			focus->_on_composition_finished();
 		} else {
 			panel::_on_composition_finished();
-		}
-	}
-
-	void window_base::_custom_render() const {
-		panel::_custom_render();
-		for (decoration *dec : _decos) {
-			/*dec->_vis_config.render(get_manager().get_renderer(), dec->_layout);*/
 		}
 	}
 }

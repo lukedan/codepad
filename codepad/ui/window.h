@@ -19,21 +19,18 @@
 namespace codepad::ui {
 	class scheduler;
 
-	/// Contains information about the resizing of windows.
-	struct size_changed_info {
-		/// Initializes the struct with the given new size.
-		explicit size_changed_info(vec2i v) : new_size(v) {
-		}
-		const vec2i new_size; ///< The new size of the window.
-	};
-	/// Base class of all windows. Defines basic interfaces that all windows should implement. Note that
+	/// Base class of all windows. Defines basic abstract interfaces that all windows should implement. Note that
 	/// \ref show_and_activate() needs to be called manually after its construction for this window to be displayed.
 	class window_base : public panel {
 		friend scheduler;
 		friend element_collection;
 		friend renderer_base;
-		friend decoration;
 	public:
+		/// Contains information about the resizing of a window.
+		using size_changed_info = value_update_info<vec2d, value_update_info_contents::new_value>;
+		/// Contains the new DPI scaling factor of a window.
+		using scaling_factor_changed_info = value_update_info<vec2d, value_update_info_contents::new_value>;
+
 		/// Sets the caption of the window.
 		virtual void set_caption(const str_t&) = 0;
 		/// Retrieves the physical position of the top-left corner of the window's client region in screen
@@ -46,6 +43,8 @@ namespace codepad::ui {
 		virtual vec2d get_client_size() const = 0;
 		/// Sets the logical size the window's client region. The size may not be exact due to rounding errors.
 		virtual void set_client_size(vec2d) = 0;
+		/// Returns the DPI scaling factor of this window.
+		virtual vec2d get_scaling_factor() const = 0;
 
 		/// Brings the window to foreground and activates it.
 		virtual void activate() = 0;
@@ -151,32 +150,20 @@ namespace codepad::ui {
 			return panel::get_current_display_cursor();
 		}
 
-		/// Registers a decoration to this window. When the window is disposed, all decorations registered to
-		/// it will also automatically be disposed.
-		void register_decoration(decoration&);
-		/// Unregisters a decoration from this window.
-		void unregister_decoration(decoration &dec) {
-			assert_true_usage(dec._wnd == this, "the decoration is not registered to this window");
-			_decos.erase(dec._tok);
-			dec._wnd = nullptr;
-			invalidate_visual();
-		}
-
 		info_event<>
 			close_request, ///< Invoked when the user clicks the `close' button.
 			got_window_focus, ///< Invoked when the window gets keyboard focus.
 			lost_window_focus; ///< Invoked when the window loses keyboard focus.
 		info_event<size_changed_info> size_changed; ///< Invoked when the window's size has changed.
+		/// Invoked when the window's scaling factor has been changed.
+		info_event<scaling_factor_changed_info> scaling_factor_changed;
 	protected:
 		std::any _renderer_data; ///< Renderer-specific data associated with this window.
-		/// The list of decorations associated with this window. Since decorations are automatically
-		/// unregistered when disposed, special care must be taken when iterating through the list
-		/// while deleting its entries.
-		std::list<decoration*> _decos;
 		element *_capture = nullptr; ///< The element that captures the mouse.
 
 		/// Updates \ref _cached_mouse_position and \ref _cached_mouse_position_timestamp, and returns a
-		/// corresponding \ref mouse_position object.
+		/// corresponding \ref mouse_position object. Note that the input position is a logical position, and it may
+		/// be necessary to use \ref _physical_to_logical_position() to convert physical positions into logical ones.
 		mouse_position _update_mouse_position(vec2d pos) {
 			mouse_position::_active_window = this;
 			_cached_mouse_position = get_parameters().visual_parameters.transform.inverse_transform_point(
@@ -191,9 +178,6 @@ namespace codepad::ui {
 		void _on_prerender() override;
 		/// Calls \ref renderer_base::end_drawing() to stop drawing.
 		void _on_postrender() override;
-		/// Renders all the window's children, then renders all decorations on top of the rendered result. Also
-		/// removes all corpse decorations whose animations have finished.
-		void _custom_render() const override;
 
 		/// Called when the user clicks the `close' button.
 		virtual void _on_close_request() {
@@ -201,6 +185,8 @@ namespace codepad::ui {
 		}
 		/// Called when the window's size has changed.
 		virtual void _on_size_changed(size_changed_info&);
+		/// Called when the window's scaling factor has been changed.
+		virtual void _on_scaling_factor_changed(scaling_factor_changed_info&);
 
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.
@@ -225,13 +211,6 @@ namespace codepad::ui {
 				_capture->_on_capture_lost();
 				_capture = nullptr;
 			}
-		}
-
-		/// Called in decoration::~decoration() to automatically unregister the decoration.
-		virtual void _on_decoration_destroyed(decoration &d) {
-			assert_true_logical(d._wnd == this, "calling the wrong window");
-			_decos.erase(d._tok);
-			invalidate_visual();
 		}
 
 

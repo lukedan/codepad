@@ -175,7 +175,7 @@ namespace codepad::ui::tabs {
 		/// Initializes additional information of the newly added element, and moves existing tab buttons.
 		void _on_child_added(element &elem, element *before) override {
 			stack_panel::_on_child_added(elem, before);
-			if (auto * btn = dynamic_cast<tab_button*>(&elem)) { // initialize info
+			if (auto *btn = dynamic_cast<tab_button*>(&elem)) { // initialize info
 				tab_manager &man = _get_tab_manager();
 				if (man.is_dragging_tab() && &man.get_dragging_tab()->get_button() == &elem) {
 					// the button is already being dragged
@@ -201,10 +201,10 @@ namespace codepad::ui::tabs {
 			}
 		}
 		/// Unbinds from \ref tab_button::start_drag and resets the additional data of that \ref element..
-		void _on_child_removing(element & elem) override {
+		void _on_child_removing(element &elem) override {
 			stack_panel::_on_child_removing(elem);
 
-			if (auto * btn = dynamic_cast<tab_button*>(&elem)) {
+			if (auto *btn = dynamic_cast<tab_button*>(&elem)) {
 				tab_manager &man = _get_tab_manager();
 				if (man.is_dragging_tab() && &man.get_dragging_tab()->get_button() == &elem) {
 					// the button is being dragged away
@@ -230,7 +230,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Starts animation for affected elements.
-		void _on_child_order_changing(element & elem, element * before) override {
+		void _on_child_order_changing(element &elem, element *before) override {
 			stack_panel::_on_child_order_changing(elem, before);
 
 			// find positions
@@ -305,7 +305,7 @@ namespace codepad::ui::tabs {
 			_droptok = man.end_drag += [this]() {
 				_on_end_drag();
 			};
-			_updatetok = man.drag_move_tab_button += [this](tab_drag_update_info & info) {
+			_updatetok = man.drag_move_tab_button += [this](tab_drag_update_info &info) {
 				_on_drag_update(info);
 			};
 		}
@@ -318,7 +318,7 @@ namespace codepad::ui::tabs {
 			man.drag_move_tab_button -= _updatetok;
 		}
 		/// Called when \ref tab_manager::drag_move_tab_button is invoked.
-		void _on_drag_update(tab_drag_update_info & info) {
+		void _on_drag_update(tab_drag_update_info &info) {
 			// update position in tab list
 			host *host = _get_host();
 			tab_manager &man = _get_tab_manager();
@@ -361,7 +361,7 @@ namespace codepad::ui::tabs {
 		/// Initializes \ref _animation.
 		///
 		/// \todo Use customizable animation controller.
-		void _initialize(str_view_t cls, const ui::element_configuration & config) override {
+		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
 			stack_panel::_initialize(cls, config);
 
 			_animation = std::make_shared<exponential_tab_button_animation_controller>();

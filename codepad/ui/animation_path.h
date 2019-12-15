@@ -279,7 +279,7 @@ namespace codepad::ui {
 
 				/// Tests the equality between two subjects.
 				bool equals(const animation_subject_base &subject) const override {
-					if (auto * ptr = dynamic_cast<const member_access_subject<Input, Output>*>(&subject)) {
+					if (auto *ptr = dynamic_cast<const member_access_subject<Input, Output>*>(&subject)) {
 						return &_object == &ptr->_object && _member.equals(ptr->_member);
 					}
 					return false;
@@ -305,7 +305,7 @@ namespace codepad::ui {
 
 				/// Tests the equality between two subjects.
 				bool equals(const animation_subject_base &subject) const override {
-					if (auto * ptr = dynamic_cast<const element_member_access_subject<Output, Type>*>(&subject)) {
+					if (auto *ptr = dynamic_cast<const element_member_access_subject<Output, Type>*>(&subject)) {
 						return &this->_object == &ptr->_object && this->_member.equals(ptr->_member);
 					}
 					return false;

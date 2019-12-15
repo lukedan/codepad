@@ -158,11 +158,11 @@ namespace codepad::editors {
 				{get_contents_region_name(), _name_cast(_contents)}
 				});
 
-			_vert_scroll->value_changed += [this](value_update_info<double>&) {
+			_vert_scroll->value_changed += [this](ui::scrollbar::value_changed_info&) {
 				vertical_viewport_changed.invoke();
 				invalidate_visual();
 			};
-			_hori_scroll->value_changed += [this](value_update_info<double>&) {
+			_hori_scroll->value_changed += [this](ui::scrollbar::value_changed_info&) {
 				horizontal_viewport_changed.invoke();
 				invalidate_visual();
 			};

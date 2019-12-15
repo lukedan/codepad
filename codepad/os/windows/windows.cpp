@@ -33,6 +33,10 @@ namespace codepad::os {
 		_details::_enable_mem_leak_detection();
 #endif
 
+		// set DPI awareness
+		// TODO will this work under win7?
+		winapi_check(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2));
+
 #ifdef ENABLE_VIRTUAL_TERMINAL_PROCESSING // enable console output coloring
 		HANDLE hstderr = GetStdHandle(STD_ERROR_HANDLE);
 		winapi_check(hstderr != INVALID_HANDLE_VALUE);
@@ -136,7 +140,7 @@ namespace codepad::os {
 	}
 
 	template <typename Inf, typename ...Args> inline void _form_onevent(
-		window & w, void (window:: * handle)(Inf&), Args && ...args
+		window &w, void (window::*handle)(Inf&), Args && ...args
 	) {
 		Inf inf(forward<Args>(args)...);
 		(w.*handle)(inf);
@@ -159,28 +163,48 @@ namespace codepad::os {
 			}*/
 
 			case WM_SIZE:
-			{
-				if (wparam != SIZE_MINIMIZED) {
-					std::size_t w = LOWORD(lparam), h = HIWORD(lparam);
-					form->_layout = rectd(0.0, static_cast<double>(w), 0.0, static_cast<double>(h));
-					size_changed_info p(vec2i(static_cast<int>(w), static_cast<int>(h)));
-					if (p.new_size.x > 0 && p.new_size.y > 0) {
-						form->_on_size_changed(p);
-						form->get_manager().get_scheduler().update_layout_and_visuals();
+				{
+					if (wparam != SIZE_MINIMIZED) {
+						vec2d size(LOWORD(lparam), HIWORD(lparam));
+						size = form->_physical_to_logical_position(size);
+						size_changed_info p(size);
+						if (p.new_value.x > 0 && p.new_value.y > 0) {
+							form->_layout = rectd::from_corners(vec2d(), p.new_value);
+							form->_on_size_changed(p);
+							form->get_manager().get_scheduler().update_layout_and_visuals();
+						}
 					}
+					return 0;
 				}
-				return 0;
-			}
+			case WM_DPICHANGED:
+				{
+					double dpix = LOWORD(wparam), dpiy = HIWORD(wparam);
+					scaling_factor_changed_info p(vec2d(
+						dpix / USER_DEFAULT_SCREEN_DPI, dpiy / USER_DEFAULT_SCREEN_DPI
+					));
+					form->_on_scaling_factor_changed(p);
+					RECT* const advised_window_layout = reinterpret_cast<RECT*>(lparam);
+					SetWindowPos(
+						form->get_native_handle(),
+						nullptr,
+						advised_window_layout->left,
+						advised_window_layout->top,
+						advised_window_layout->right - advised_window_layout->left,
+						advised_window_layout->bottom - advised_window_layout->top,
+						SWP_NOZORDER | SWP_NOACTIVATE
+					);
+					return 0;
+				}
 
 			case WM_SYSKEYDOWN:
-				[[fallthrough]] ; // same processing
+				[[fallthrough]]; // same processing
 			case WM_KEYDOWN:
 				_form_onevent<ui::key_info>(
 					*form, &window::_on_key_down, _details::_key_id_backmapping.v[wparam]
 					);
 				break;
 			case WM_SYSKEYUP:
-				[[fallthrough]] ;
+				[[fallthrough]];
 			case WM_KEYUP:
 				_form_onevent<ui::key_info>(
 					*form, &window::_on_key_up, _details::_key_id_backmapping.v[wparam]
@@ -224,31 +248,31 @@ namespace codepad::os {
 				return 0;
 
 			case WM_MOUSEWHEEL:
-			{
-				POINT p;
-				p.x = GET_X_LPARAM(lparam);
-				p.y = GET_Y_LPARAM(lparam);
-				winapi_check(ScreenToClient(form->_hwnd, &p));
-				_form_onevent<ui::mouse_scroll_info>(
-					*form, &window::_on_mouse_scroll,
-					vec2d(0.0, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)),
-					form->_update_mouse_position(vec2d(p.x, p.y))
-					);
-				return 0;
-			}
+				{
+					POINT p;
+					p.x = GET_X_LPARAM(lparam);
+					p.y = GET_Y_LPARAM(lparam);
+					winapi_check(ScreenToClient(form->_hwnd, &p));
+					_form_onevent<ui::mouse_scroll_info>(
+						*form, &window::_on_mouse_scroll,
+						vec2d(0.0, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)),
+						form->_update_mouse_position(form->_physical_to_logical_position(vec2d(p.x, p.y)))
+						);
+					return 0;
+				}
 			case WM_MOUSEHWHEEL:
-			{
-				POINT p;
-				p.x = GET_X_LPARAM(lparam);
-				p.y = GET_Y_LPARAM(lparam);
-				winapi_check(ScreenToClient(form->_hwnd, &p));
-				_form_onevent<ui::mouse_scroll_info>(
-					*form, &window::_on_mouse_scroll,
-					vec2d(GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), 0.0),
-					form->_update_mouse_position(vec2d(p.x, p.y))
-					);
-				return 0;
-			}
+				{
+					POINT p;
+					p.x = GET_X_LPARAM(lparam);
+					p.y = GET_Y_LPARAM(lparam);
+					winapi_check(ScreenToClient(form->_hwnd, &p));
+					_form_onevent<ui::mouse_scroll_info>(
+						*form, &window::_on_mouse_scroll,
+						vec2d(GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), 0.0),
+						form->_update_mouse_position(form->_physical_to_logical_position(vec2d(p.x, p.y)))
+						);
+					return 0;
+				}
 
 			case WM_MOUSEMOVE:
 				if (!form->is_mouse_over()) {
@@ -256,7 +280,9 @@ namespace codepad::os {
 				}
 				_form_onevent<ui::mouse_move_info>(
 					*form, &window::_on_mouse_move,
-					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
+					form->_update_mouse_position(form->_physical_to_logical_position(
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					))
 					);
 				return 0;
 			case WM_MOUSELEAVE:
@@ -267,43 +293,49 @@ namespace codepad::os {
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_down,
 					mouse_button::primary, _get_modifiers(),
-					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					);
+					form->_update_mouse_position(form->_physical_to_logical_position(
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
+					));
 				return 0;
 			case WM_LBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_up,
 					mouse_button::primary, _get_modifiers(),
-					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					);
+					form->_update_mouse_position(form->_physical_to_logical_position(
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
+					));
 				return 0;
 			case WM_RBUTTONDOWN:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_down,
 					mouse_button::secondary, _get_modifiers(),
-					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					);
+					form->_update_mouse_position(form->_physical_to_logical_position(
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
+					));
 				return 0;
 			case WM_RBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_up,
 					mouse_button::secondary, _get_modifiers(),
-					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					);
+					form->_update_mouse_position(form->_physical_to_logical_position(
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
+					));
 				return 0;
 			case WM_MBUTTONDOWN:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_down,
 					mouse_button::tertiary, _get_modifiers(),
-					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					);
+					form->_update_mouse_position(form->_physical_to_logical_position(
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
+					));
 				return 0;
 			case WM_MBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
 					*form, &window::_on_mouse_up,
 					mouse_button::tertiary, _get_modifiers(),
-					form->_update_mouse_position(vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					);
+					form->_update_mouse_position(form->_physical_to_logical_position(
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
+					));
 				return 0;
 
 			case WM_SETFOCUS:
@@ -318,26 +350,26 @@ namespace codepad::os {
 				return 0;
 
 			case WM_SETCURSOR:
-			{
-				if (!form->is_mouse_over()) {
-					return DefWindowProc(hwnd, msg, wparam, lparam);
+				{
+					if (!form->is_mouse_over()) {
+						return DefWindowProc(hwnd, msg, wparam, lparam);
+					}
+					cursor c = form->get_current_display_cursor();
+					if (c == cursor::not_specified) {
+						return DefWindowProc(hwnd, msg, wparam, lparam);
+					}
+					if (c == cursor::invisible) {
+						SetCursor(nullptr);
+					} else {
+						HANDLE img = LoadImage(
+							nullptr, MAKEINTRESOURCE(_cursor_id_mapping[static_cast<int>(c)]),
+							IMAGE_CURSOR, 0, 0, LR_SHARED | LR_DEFAULTSIZE
+						);
+						winapi_check(img);
+						SetCursor(static_cast<HCURSOR>(img));
+					}
+					return TRUE;
 				}
-				cursor c = form->get_current_display_cursor();
-				if (c == cursor::not_specified) {
-					return DefWindowProc(hwnd, msg, wparam, lparam);
-				}
-				if (c == cursor::invisible) {
-					SetCursor(nullptr);
-				} else {
-					HANDLE img = LoadImage(
-						nullptr, MAKEINTRESOURCE(_cursor_id_mapping[static_cast<int>(c)]),
-						IMAGE_CURSOR, 0, 0, LR_SHARED | LR_DEFAULTSIZE
-					);
-					winapi_check(img);
-					SetCursor(static_cast<HCURSOR>(img));
-				}
-				return TRUE;
-			}
 
 			// ime-related messages
 			case WM_IME_SETCONTEXT:
@@ -348,27 +380,27 @@ namespace codepad::os {
 				window::_ime::get().start_composition(*form);
 				return 0;
 			case WM_IME_COMPOSITION:
-			{
-				window::_ime::get().update_composition(*form);
-				wstring str;
-				if (window::_ime::get().get_composition_string(*form, lparam, str)) {
-					if (!str.empty()) {
-						_form_onevent<ui::composition_info>(
-							*form, &window::_on_composition,
-							_details::wstring_to_utf8(str.c_str())
-							);
+				{
+					window::_ime::get().update_composition(*form);
+					wstring str;
+					if (window::_ime::get().get_composition_string(*form, lparam, str)) {
+						if (!str.empty()) {
+							_form_onevent<ui::composition_info>(
+								*form, &window::_on_composition,
+								_details::wstring_to_utf8(str.c_str())
+								);
+						}
 					}
-				}
-				if (window::_ime::get().get_result(*form, lparam, str)) {
-					if (!str.empty()) {
-						_form_onevent<ui::text_info>(
-							*form, &window::_on_keyboard_text,
-							_details::wstring_to_utf8(str.c_str())
-							);
+					if (window::_ime::get().get_result(*form, lparam, str)) {
+						if (!str.empty()) {
+							_form_onevent<ui::text_info>(
+								*form, &window::_on_keyboard_text,
+								_details::wstring_to_utf8(str.c_str())
+								);
+						}
 					}
+					return 0;
 				}
-			}
-			return 0;
 			case WM_IME_ENDCOMPOSITION:
 				form->_on_composition_finished();
 				window::_ime::get().complete_composition(*form);
@@ -398,14 +430,14 @@ namespace codepad::os {
 #define CP_USE_LEGACY_OPEN_FILE_DIALOG // new open file dialog doesn't work right now
 
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
-	vector<filesystem::path> open_file_dialog(const window_base * parent, file_dialog_type type) {
+	vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
 		const std::size_t file_buffer_size = 1000;
 
 #	ifdef CP_CHECK_LOGICAL_ERRORS
 		auto *wnd = dynamic_cast<const window*>(parent);
 		assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
 #	else
-		const window * wnd = static_cast<const window*>(parent);
+		const window *wnd = static_cast<const window*>(parent);
 #	endif
 		OPENFILENAME ofn;
 		TCHAR file[file_buffer_size];
@@ -518,18 +550,18 @@ namespace codepad::os {
 		com_check(pDialogEventHandler->QueryInterface(riid, ppv));
 		pDialogEventHandler->Release();
 	}
-	vector<filesystem::path> open_file_dialog(const window_base * parent, file_dialog_type type) {
+	vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
 		const COMDLG_FILTERSPEC file_types = {L"All files", L"*.*"};
 
 #	ifdef CP_CHECK_LOGICAL_ERRORS
 		const window *wnd = dynamic_cast<const window*>(parent);
 		assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
 #	else
-		const window * wnd = static_cast<const window*>(parent);
+		const window *wnd = static_cast<const window*>(parent);
 #	endif
 		_details::com_usage uses_com;
-		IFileOpenDialog * dialog = nullptr;
-		IFileDialogEvents * devents = nullptr;
+		IFileOpenDialog *dialog = nullptr;
+		IFileDialogEvents *devents = nullptr;
 		DWORD cookie, options;
 		com_check(CoCreateInstance(
 			CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)

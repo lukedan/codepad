@@ -34,7 +34,7 @@ namespace codepad::editors::code {
 
 		/// Registers \ref _vis_change_tok if a \ref contents_region can be found.
 		void _register_handlers() {
-			if (contents_region * edt = component_helper::get_contents_region(*this)) {
+			if (contents_region *edt = component_helper::get_contents_region(*this)) {
 				_vis_change_tok = (edt->editing_visual_changed += [this]() {
 					// when the content is modified, it is possible that the number of digits is changed,
 					// so we recalculate layout here
@@ -102,7 +102,7 @@ namespace codepad::editors::code {
 
 		/// Returns the scale of the text based on \ref _target_height.
 		double get_scale() const {
-			if (contents_region * con = component_helper::get_contents_region(*this)) {
+			if (contents_region *con = component_helper::get_contents_region(*this)) {
 				return get_target_line_height() / con->get_line_height();
 			}
 			return 1.0;
@@ -137,14 +137,14 @@ namespace codepad::editors::code {
 				shirnk_threshold = 0.5;
 
 			/// Constructor. Sets the associated \ref minimap of this cache.
-			explicit _page_cache(const minimap &p) : _parent(&p) {
+			explicit _page_cache(minimap &p) : _parent(&p) {
 			}
 
 			/// Clears all cached pages, and re-renders the currently visible page immediately. To render this page
 			/// on demand, simply clear \ref pages and call \ref invalidate().
 			void restart() {
 				pages.clear();
-				if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
+				if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
 					std::pair<std::size_t, std::size_t> be = _parent->_get_visible_visual_lines();
 					double slh = edt->get_line_height() * _parent->get_scale();
 					std::size_t
@@ -176,7 +176,7 @@ namespace codepad::editors::code {
 				if (pages.empty()) {
 					restart();
 				} else {
-					if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
+					if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
 						std::pair<std::size_t, std::size_t> be = _parent->_get_visible_visual_lines();
 						std::size_t page_beg = pages.begin()->first;
 						if (be.first >= page_beg && be.second <= _page_end) { // all are visible
@@ -237,7 +237,7 @@ namespace codepad::editors::code {
 			/// The index past the end of the range of lines that has been rendered and stored in \ref pages.
 			std::size_t _page_end = 0;
 			double _width = minimum_width; ///< The width of all pages.
-			const minimap *_parent = nullptr; ///< The associated \ref minimap.
+			minimap *_parent = nullptr; ///< The associated \ref minimap.
 			/// Marks whether this cache is ready for rendering the currently visible portion of the document.
 			bool _ready = false;
 
@@ -247,17 +247,24 @@ namespace codepad::editors::code {
 			/// \param s Index of the first visual line of the page.
 			/// \param pe Index past the last visual line of the page.
 			void _render_page(std::size_t s, std::size_t pe) {
+				ui::window_base *wnd = _parent->get_window();
+				if (wnd == nullptr) { // we need the scale factor from the window
+					return;
+				}
+
 				performance_monitor mon(CP_STRLIT("render_minimap_page"), page_rendering_time_redline);
-				if (contents_region * edt = component_helper::get_contents_region(*_parent)) {
+				if (contents_region *edt = component_helper::get_contents_region(*_parent)) {
 					double lh = edt->get_line_height(), scale = _parent->get_scale();
 
 					ui::renderer_base &r = _parent->get_manager().get_renderer();
-					ui::render_target_data rt = r.create_render_target(vec2d(
-						// add 1 because the starting position was floored instead of rounded
-						_width, std::ceil(lh * scale * static_cast<double>(pe - s)) + 1
-					));
+					ui::render_target_data rt = r.create_render_target(
+						vec2d( // add 1 because the starting position was floored instead of rounded
+							_width, std::ceil(lh * scale * static_cast<double>(pe - s)) + 1
+						),
+						wnd->get_scaling_factor()
+					);
 
-					const view_formatting & fmt = edt->get_formatting();
+					const view_formatting &fmt = edt->get_formatting();
 					std::size_t
 						curvisline = s,
 						firstchar = fmt.get_linebreaks().get_beginning_char_of_visual_line(
@@ -362,7 +369,7 @@ namespace codepad::editors::code {
 		}
 		/// Returns the rectangle marking the \ref contents_region's visible region.
 		rectd _get_viewport_rect() const {
-			if (contents_region * edt = component_helper::get_contents_region(*this)) {
+			if (contents_region *edt = component_helper::get_contents_region(*this)) {
 				double scale = get_scale();
 				return rectd::from_xywh(
 					get_padding().left - edt->get_padding().left * scale,
@@ -435,7 +442,7 @@ namespace codepad::editors::code {
 
 		/// If the user presses ahd holds the primary mouse button on the viewport, starts dragging it; otherwise,
 		/// if the user presses the left mouse button, jumps to the corresponding position.
-		void _on_mouse_down(ui::mouse_button_info & info) override {
+		void _on_mouse_down(ui::mouse_button_info &info) override {
 			element::_on_mouse_down(info);
 			if (info.button == ui::mouse_button::primary) {
 				if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
@@ -455,7 +462,7 @@ namespace codepad::editors::code {
 			}
 		}
 		/// Stops dragging.
-		void _on_mouse_up(ui::mouse_button_info & info) override {
+		void _on_mouse_up(ui::mouse_button_info &info) override {
 			element::_on_mouse_up(info);
 			if (_dragging && info.button == ui::mouse_button::primary) {
 				_dragging = false;
@@ -465,7 +472,7 @@ namespace codepad::editors::code {
 		/// If dragging, updates the position of the viewport.
 		///
 		/// \todo Small glitch when starting to drag the region when it's partially out of the minimap area.
-		void _on_mouse_move(ui::mouse_move_info & info) override {
+		void _on_mouse_move(ui::mouse_move_info &info) override {
 			element::_on_mouse_move(info);
 			if (_dragging) {
 				if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
@@ -484,11 +491,6 @@ namespace codepad::editors::code {
 		void _on_capture_lost() override {
 			element::_on_capture_lost();
 			_dragging = false;
-		}
-
-		/// Initializes \ref _viewport_cfg.
-		void _initialize(str_view_t cls, const ui::element_configuration & config) override {
-			element::_initialize(cls, config);
 		}
 
 		/// Handles \ref _viewport_visuals.

@@ -40,10 +40,10 @@ namespace codepad::editors::code {
 			_doc = std::move(newdoc);
 			_cset.reset();
 			if (_doc) {
-				_begin_edit_tok = (_doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info & info) {
+				_begin_edit_tok = (_doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
 					_on_begin_edit(info);
 					});
-				_end_edit_tok = (_doc->end_edit_interpret += [this](buffer::end_edit_info & info) {
+				_end_edit_tok = (_doc->end_edit_interpret += [this](buffer::end_edit_info &info) {
 					_on_end_edit(info);
 					});
 				/*_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
@@ -171,7 +171,7 @@ namespace codepad::editors::code {
 		}
 		/// Sets the current carets. The provided set of carets must not be empty. This function calculates the
 		/// horizontal positions of all carets, and scrolls the viewport when necessary.
-		void set_carets(const std::vector<caret_selection> & cs) {
+		void set_carets(const std::vector<caret_selection> &cs) {
 			assert_true_usage(!cs.empty(), "must have at least one caret");
 			caret_set set;
 			for (const caret_selection &sel : cs) {
@@ -222,7 +222,7 @@ namespace codepad::editors::code {
 			_on_carets_changed();
 		}
 		/// Extracts a \ref caret_selection_position.
-		caret_selection_position extract_caret_selection_position(const caret_set::entry & et) const override {
+		caret_selection_position extract_caret_selection_position(const caret_set::entry &et) const override {
 			return caret_selection_position(et.first.first, et.first.second, et.second.after_stall);
 		}
 
@@ -232,7 +232,7 @@ namespace codepad::editors::code {
 		///           it should move to, also as a \ref caret_set::entry. It is also responsible of providing the
 		///           additional data associated with the new caret since this function calls \ref set_carets_keepdata
 		///           to update the carets.
-		template <typename GetData> void move_carets_raw(const GetData & gd) {
+		template <typename GetData> void move_carets_raw(const GetData &gd) {
 			caret_set ncs;
 			for (const auto &et : _cset.carets) {
 				ncs.add(gd(et));
@@ -275,14 +275,14 @@ namespace codepad::editors::code {
 		///         they will be set to the same values as the caret ends (the values returned by the function-like
 		///         objects), cancelling all selections.
 		template <typename GetPos, typename SelPos> void move_carets(
-			const GetPos & gp, const SelPos & sp, bool continueselection
+			const GetPos &gp, const SelPos &sp, bool continueselection
 		) {
 			if (continueselection) {
-				move_carets_raw([this, &gp](const caret_set::entry & et) {
+				move_carets_raw([this, &gp](const caret_set::entry &et) {
 					return _complete_caret_entry(gp(et), et.first.second);
 					});
 			} else {
-				move_carets_raw([this, &gp, &sp](const caret_set::entry & et) {
+				move_carets_raw([this, &gp, &sp](const caret_set::entry &et) {
 					if (et.first.first == et.first.second) {
 						auto x = gp(et);
 						return _complete_caret_entry(x, x.first);
@@ -384,7 +384,7 @@ namespace codepad::editors::code {
 		/// Folds the given region.
 		///
 		/// \todo Render carets even if they're in a folded region.
-		void add_folded_region(const view_formatting::fold_region & fr) {
+		void add_folded_region(const view_formatting::fold_region &fr) {
 			_fmt.add_folded_region(fr);
 			_on_folding_changed();
 		}
@@ -443,10 +443,10 @@ namespace codepad::editors::code {
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_left(bool continueselection) {
 			move_carets(
-				[this](const caret_set::entry & et) {
+				[this](const caret_set::entry &et) {
 					return std::make_pair(_move_caret_left(et.first.first), true);
 				},
-				[](const caret_set::entry & et) -> std::pair<std::size_t, bool> {
+				[](const caret_set::entry &et) -> std::pair<std::size_t, bool> {
 					if (et.first.first < et.first.second) {
 						return {et.first.first, et.second.after_stall};
 					}
@@ -461,10 +461,10 @@ namespace codepad::editors::code {
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_right(bool continueselection) {
 			move_carets(
-				[this](const caret_set::entry & et) {
+				[this](const caret_set::entry &et) {
 					return std::make_pair(_move_caret_right(et.first.first), false);
 				},
-				[](const caret_set::entry & et) -> std::pair<std::size_t, bool> {
+				[](const caret_set::entry &et) -> std::pair<std::size_t, bool> {
 					if (et.first.first > et.first.second) {
 						return {et.first.first, et.second.after_stall};
 					}
@@ -511,7 +511,7 @@ namespace codepad::editors::code {
 		/// \param continueselection Indicates whether selected regions should be kept.
 		void move_all_carets_to_line_beginning(bool continueselection) {
 			move_carets(
-				[this](const caret_set::entry & et) {
+				[this](const caret_set::entry &et) {
 					return std::make_pair(
 						_fmt.get_linebreaks().get_beginning_char_of_visual_line(
 							_fmt.get_folding().folded_to_unfolded_line_number(
@@ -627,7 +627,7 @@ namespace codepad::editors::code {
 		}
 
 		/// Casts the obtained \ref components_region_base to the correct type.
-		inline static contents_region *get_from_editor(editor & edt) {
+		inline static contents_region *get_from_editor(editor &edt) {
 			return dynamic_cast<contents_region*>(edt.get_contents_region());
 		}
 
@@ -649,7 +649,7 @@ namespace codepad::editors::code {
 		}
 	protected:
 		/// Extracts a \ref _caret_position from a \ref caret_set::entry.
-		inline static caret_position _extract_position(const caret_set::entry & entry) {
+		inline static caret_position _extract_position(const caret_set::entry &entry) {
 			return caret_position(entry.first.first, entry.second.after_stall);
 		}
 
@@ -718,9 +718,9 @@ namespace codepad::editors::code {
 				double lh = get_line_height();
 				vec2d topleft = get_client_region().xmin_ymin();
 				wnd->set_active_caret_position(rectd::from_xywh(
-					topleft.x + get_padding().left + _get_caret_pos_x_at_visual_line(visline, entry->first.first) -
+					topleft.x + _get_caret_pos_x_at_visual_line(visline, entry->first.first) -
 					edt->get_horizontal_position(),
-					topleft.y + get_padding().top + lh * static_cast<double>(visline) - edt->get_vertical_position(),
+					topleft.y + lh * static_cast<double>(visline) - edt->get_vertical_position(),
 					0.0, lh
 				));
 			}
@@ -753,7 +753,7 @@ namespace codepad::editors::code {
 		/// Called when \ref buffer::begin_edit is triggered. Prepares \ref _cset for adjustments by calculating
 		/// byte positions of each caret. If the source element is not this element, also calls
 		/// \ref interaction_manager::on_edit_operation() since it must not have been called previously.
-		void _on_begin_edit(buffer::begin_edit_info & info) {
+		void _on_begin_edit(buffer::begin_edit_info &info) {
 			if (info.source_element != this) {
 				_interaction_manager.on_edit_operation();
 			}
@@ -809,7 +809,7 @@ namespace codepad::editors::code {
 		/// \ref caret_data::bytepos_second, after an edit has been made.
 		///
 		/// \todo Carets after undo-ing and redo-ing.
-		void _adjust_recalculate_caret_char_positions(buffer::end_edit_info & info) {
+		void _adjust_recalculate_caret_char_positions(buffer::end_edit_info &info) {
 			caret_set newcarets;
 			interpretation::character_position_converter cvt(*_doc);
 			// all byte positions calculated below may not be the exact first byte of the corresponding character,
@@ -911,7 +911,7 @@ namespace codepad::editors::code {
 		// mouse & keyboard interactions
 		/// Calls \ref _update_mouse_selection to update the current selection and mouse position, then
 		/// starts drag-dropping if the mouse has moved far enough from where it's pressed.
-		void _on_mouse_move(ui::mouse_move_info & info) override {
+		void _on_mouse_move(ui::mouse_move_info &info) override {
 			_interaction_manager.on_mouse_move(info);
 			_base::_on_mouse_move(info);
 		}
@@ -920,12 +920,12 @@ namespace codepad::editors::code {
 		/// actions for drag-dropping. Otherwise, if the tertiary mouse button is pressed, starts block selection.
 		///
 		/// \todo Implement block selection.
-		void _on_mouse_down(ui::mouse_button_info & info) override {
+		void _on_mouse_down(ui::mouse_button_info &info) override {
 			_interaction_manager.on_mouse_down(info);
 			_base::_on_mouse_down(info);
 		}
 		/// Calls \ref _on_mouse_lbutton_up if the primary mouse button is released.
-		void _on_mouse_up(ui::mouse_button_info & info) override {
+		void _on_mouse_up(ui::mouse_button_info &info) override {
 			_interaction_manager.on_mouse_up(info);
 			_base::_on_mouse_up(info);
 		}
@@ -953,7 +953,7 @@ namespace codepad::editors::code {
 
 		// construction and destruction
 		/// Sets the element to non-focusable, calls \ref _reset_caret_animation(), and initializes \ref _sel_cfg.
-		void _initialize(str_view_t cls, const ui::element_configuration & config) override {
+		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
 			_base::_initialize(cls, config);
 
 			_interaction_manager.set_contents_region(*this);

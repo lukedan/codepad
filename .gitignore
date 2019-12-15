@@ -1,13 +1,11 @@
 .vs/
 .idea/
 .vscode/
+
 cmake-build-debug/
 cmake-build-release/
+out/
+
 doc/
-Debug/
-Release/
-x64/
-codepad/Debug/
-codepad/Release/
-codepad/x64/
+
 codepad/test_text/

@@ -219,7 +219,7 @@ namespace codepad {
 				}
 			}
 		protected:
-			node * _n = nullptr; ///< Pointer to the \ref binary_tree_node that the user intends to modify.
+			node *_n = nullptr; ///< Pointer to the \ref binary_tree_node that the user intends to modify.
 			MySynth *_synth = nullptr; ///< Pointer to the synthesizer.
 		};
 		/// Template of const and non-const iterators.

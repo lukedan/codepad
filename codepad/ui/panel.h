@@ -216,7 +216,7 @@ namespace codepad::ui {
 			}
 		}
 		/// Calculates the horizontal layout of the given \ref element, given the client area that contains it.
-		inline static void layout_child_horizontal(element & child, double xmin, double xmax) {
+		inline static void layout_child_horizontal(element &child, double xmin, double xmax) {
 			anchor anc = child.get_anchor();
 			thickness margin = child.get_margin();
 			auto wprop = child.get_layout_width();
@@ -228,7 +228,7 @@ namespace codepad::ui {
 			);
 		}
 		/// Calculates the vertical layout of the given \ref element, given the client area that contains it.
-		inline static void layout_child_vertical(element & child, double ymin, double ymax) {
+		inline static void layout_child_vertical(element &child, double ymin, double ymax) {
 			anchor anc = child.get_anchor();
 			thickness margin = child.get_margin();
 			auto hprop = child.get_layout_height();
@@ -242,7 +242,7 @@ namespace codepad::ui {
 		/// Calculates the layout of the given \ref element, given the area that supposedly contains it (usually the
 		/// client region of its parent). This function simply calls \ref layout_child_horizontal() and
 		/// \ref layout_child_vertical().
-		inline static void layout_child(element & child, rectd client) {
+		inline static void layout_child(element &child, rectd client) {
 			layout_child_horizontal(child, client.xmin, client.xmax);
 			layout_child_vertical(child, client.ymin, client.ymax);
 		}
@@ -280,7 +280,7 @@ namespace codepad::ui {
 
 		/// Called when an element has been added to this panel. Invalidates the layout of the newly added element,
 		/// and the visual of the panel itself.
-		virtual void _on_child_added(element & e, element*) {
+		virtual void _on_child_added(element &e, element*) {
 			_on_desired_size_changed(true, true);
 			e.invalidate_layout();
 			invalidate_visual();
@@ -340,7 +340,7 @@ namespace codepad::ui {
 		/// \ref invalidate_layout() on the child otherwise.
 		///
 		/// \sa element::_on_desired_size_changed()
-		void _on_child_desired_size_changed(element & child, bool width, bool height) {
+		void _on_child_desired_size_changed(element &child, bool width, bool height) {
 			if (_is_child_desired_size_relevant(child, width, height)) { // actually affects something
 				if (_parent != nullptr) {
 					_parent->_on_child_desired_size_changed(*this, width, height);
@@ -371,7 +371,7 @@ namespace codepad::ui {
 		}
 		/// Tests for the element that the mouse is over, and calls \ref element::_on_mouse_move(). It also calls
 		/// \ref element::_on_mouse_enter() and \ref element::_on_mouse_leave() automatically when necessary.
-		void _on_mouse_move(mouse_move_info & p) override {
+		void _on_mouse_move(mouse_move_info &p) override {
 			_children_cursor = cursor::not_specified; // reset cursor
 			element *mouseover = _hit_test_for_child(p.new_position);
 			for (element *j : _children.z_ordered()) { // the mouse cannot be over any other element
@@ -389,15 +389,15 @@ namespace codepad::ui {
 			element::_on_mouse_move(p);
 		}
 		/// Sends the message to the topmost element that the mouse is over.
-		void _on_mouse_scroll(mouse_scroll_info & p) override {
-			if (element * mouseover = _hit_test_for_child(p.position)) {
+		void _on_mouse_scroll(mouse_scroll_info &p) override {
+			if (element *mouseover = _hit_test_for_child(p.position)) {
 				mouseover->_on_mouse_scroll(p);
 			}
 			element::_on_mouse_scroll(p);
 		}
 		/// Sends the message to the topmost element that the mouse is over.
-		void _on_mouse_up(mouse_button_info & p) override {
-			if (element * mouseover = _hit_test_for_child(p.position)) {
+		void _on_mouse_up(mouse_button_info &p) override {
+			if (element *mouseover = _hit_test_for_child(p.position)) {
 				mouseover->_on_mouse_up(p);
 			}
 			element::_on_mouse_up(p);
@@ -411,40 +411,40 @@ namespace codepad::ui {
 		void _dispose() override;
 
 		/// Returns \ref element::_parent_data.
-		inline static const std::any &_child_get_parent_data(const element & e) {
+		inline static const std::any &_child_get_parent_data(const element &e) {
 			return e._parent_data;
 		}
 		/// \overload
-		inline static std::any &_child_get_parent_data(element & e) {
+		inline static std::any &_child_get_parent_data(element &e) {
 			return e._parent_data;
 		}
 
 		/// Sets the horizontal layout of a given child.
-		inline static void _child_set_horizontal_layout(element & e, double xmin, double xmax) {
+		inline static void _child_set_horizontal_layout(element &e, double xmin, double xmax) {
 			e._layout.xmin = xmin;
 			e._layout.xmax = xmax;
 		}
 		/// Sets the vertical layout of a given child.
-		inline static void _child_set_vertical_layout(element & e, double ymin, double ymax) {
+		inline static void _child_set_vertical_layout(element &e, double ymin, double ymax) {
 			e._layout.ymin = ymin;
 			e._layout.ymax = ymax;
 		}
 		/// Sets the layout of a given child.
-		inline static void _child_set_layout(element & e, rectd r) {
+		inline static void _child_set_layout(element &e, rectd r) {
 			e._layout = r;
 		}
 		/// Sets the logical parent of a child.
-		inline static void _child_set_logical_parent(element & e, panel * logparent) {
+		inline static void _child_set_logical_parent(element &e, panel *logparent) {
 			e._logical_parent = logparent;
 		}
 
 		/// Calls \ref element::_on_render on a given child.
-		inline static void _child_on_render(element & e) {
+		inline static void _child_on_render(element &e) {
 			e._on_render();
 		}
 
 		/// Returns the total horizontal span of the specified element that is specified in pixels.
-		inline static double _get_horizontal_absolute_span(const element & e) {
+		inline static double _get_horizontal_absolute_span(const element &e) {
 			double cur = 0.0;
 			thickness margin = e.get_margin();
 			anchor anc = e.get_anchor();
@@ -461,7 +461,7 @@ namespace codepad::ui {
 			return cur;
 		}
 		/// Returns the total vertical span of the specified element that is specified in pixels.
-		inline static double _get_vertical_absolute_span(const element & e) {
+		inline static double _get_vertical_absolute_span(const element &e) {
 			double cur = 0.0;
 			thickness margin = e.get_margin();
 			anchor anc = e.get_anchor();
@@ -628,7 +628,7 @@ namespace codepad::ui {
 			void(*CalcDefaultDir)(element&, double, double),
 			double rectd::*MainMin, double rectd::*MainMax,
 			double rectd::*DefMin, double rectd::*DefMax
-		> inline static void _layout_elements_in_impl(rectd client, const std::vector<element*> & elems) {
+		> inline static void _layout_elements_in_impl(rectd client, const std::vector<element*> &elems) {
 			std::vector<_elem_layout_info> layoutinfo;
 			double total_prop = 0.0, total_px = 0.0;
 			for (element *e : elems) {
@@ -678,17 +678,17 @@ namespace codepad::ui {
 		}
 
 		/// Invalidates the children's layout as well.
-		void _on_child_added(element & elem, element * before) override {
+		void _on_child_added(element &elem, element *before) override {
 			_invalidate_children_layout();
 			panel::_on_child_added(elem, before);
 		}
 		/// Invalidates the children's layout as well.
-		void _on_child_removed(element & elem) override {
+		void _on_child_removed(element &elem) override {
 			_invalidate_children_layout();
 			panel::_on_child_removed(elem);
 		}
 		/// Invalidates the children's layout since it is determined by their ordering.
-		void _on_child_order_changed(element & elem, element * before) override {
+		void _on_child_order_changed(element &elem, element *before) override {
 			bool vertical = get_orientation() == orientation::vertical;
 			_on_desired_size_changed(!vertical, vertical);
 			_invalidate_children_layout();
@@ -703,7 +703,7 @@ namespace codepad::ui {
 		}
 
 		/// Handles the orientation attribute.
-		void _set_attribute(str_view_t name, const json::value_storage & value) override {
+		void _set_attribute(str_view_t name, const json::value_storage &value) override {
 			if (name == u8"orientation") {
 				if (auto ori = value.get_value().parse<orientation>()) {
 					set_orientation(ori.value());

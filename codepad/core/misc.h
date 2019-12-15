@@ -36,28 +36,28 @@ namespace codepad {
 
 	/// Bitwise and for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
-		std::is_enum_v<Enum> &&enable_enum_bitwise_operators_v<Enum>, Enum
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
 	> operator&(Enum lhs, Enum rhs) {
 		using _base = std::underlying_type_t<Enum>;
 		return static_cast<Enum>(static_cast<_base>(lhs) & static_cast<_base>(rhs));
 	}
 	/// Bitwise or for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
-		std::is_enum_v<Enum> &&enable_enum_bitwise_operators_v<Enum>, Enum
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
 	> operator|(Enum lhs, Enum rhs) {
 		using _base = std::underlying_type_t<Enum>;
 		return static_cast<Enum>(static_cast<_base>(lhs) | static_cast<_base>(rhs));
 	}
 	/// Bitwise xor for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
-		std::is_enum_v<Enum> &&enable_enum_bitwise_operators_v<Enum>, Enum
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
 	> operator^(Enum lhs, Enum rhs) {
 		using _base = std::underlying_type_t<Enum>;
 		return static_cast<Enum>(static_cast<_base>(lhs) ^ static_cast<_base>(rhs));
 	}
 	/// Bitwise not for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
-		std::is_enum_v<Enum> &&enable_enum_bitwise_operators_v<Enum>, Enum
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
 	> operator~(Enum v) {
 		using _base = std::underlying_type_t<Enum>;
 		return static_cast<Enum>(~static_cast<_base>(v));
@@ -65,20 +65,20 @@ namespace codepad {
 
 	/// Bitwise and for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
-		std::is_enum_v<Enum> &&enable_enum_bitwise_operators_v<Enum>, Enum&
-	> operator&=(Enum & lhs, Enum rhs) {
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
+	> operator&=(Enum &lhs, Enum rhs) {
 		return lhs = lhs & rhs;
 	}
 	/// Bitwise or for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
-		std::is_enum_v<Enum> &&enable_enum_bitwise_operators_v<Enum>, Enum&
-	> operator|=(Enum & lhs, Enum rhs) {
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
+	> operator|=(Enum &lhs, Enum rhs) {
 		return lhs = lhs | rhs;
 	}
 	/// Bitwise xor for enum classes.
 	template <typename Enum> inline constexpr std::enable_if_t<
-		std::is_enum_v<Enum> &&enable_enum_bitwise_operators_v<Enum>, Enum&
-	> operator^=(Enum & lhs, Enum rhs) {
+		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum&
+	> operator^=(Enum &lhs, Enum rhs) {
 		return lhs = lhs ^ rhs;
 	}
 
@@ -393,27 +393,8 @@ namespace codepad {
 		return result;
 	}
 
-	
+
 	/// Initializes the program by calling \ref os::initialize first and then performing several other
 	/// initialization steps.
 	void initialize(int, char**);
 }
-
-#if !defined(_MSC_VER) // windows version in os/windows/windows.cpp
-#	if defined(CP_PLATFORM_UNIX) && defined(__GNUC__)
-#		include <execinfo.h>
-
-		constexpr static int max_frames = 1000;
-
-		void *frames[max_frames];
-		int numframes = backtrace(frames, max_frames);
-		char **symbols = backtrace_symbols(frames, numframes);
-		assert_true_sys(symbols != nullptr, "backtrace_symbols() failed");
-		log_custom("STACKTRACE");
-		for (int i = 0; i < numframes; ++i) {
-			log_custom("    ", symbols[i]);
-		}
-		log_custom("STACKTRACE|END");
-		free(symbols);
-#	endif
-#endif

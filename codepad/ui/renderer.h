@@ -363,11 +363,11 @@ namespace codepad::ui {
 		/// Default virtual destructor.
 		virtual ~renderer_base() = default;
 
-		/// Creates a new render target of the given size.
-		virtual render_target_data create_render_target(vec2d) = 0;
+		/// Creates a new render target of the given size and scaling factor.
+		virtual render_target_data create_render_target(vec2d size, vec2d scaling_factor) = 0;
 
-		/// Loads a \ref bitmap from disk.
-		virtual std::unique_ptr<bitmap> load_bitmap(const std::filesystem::path&) = 0;
+		/// Loads a \ref bitmap from disk. The second parameter specifies the scaling factor of this bitmap.
+		virtual std::unique_ptr<bitmap> load_bitmap(const std::filesystem::path&, vec2d) = 0;
 
 		/// Returns a pointer to the font identified by its name. The font may either be cached and returned
 		/// directly, or loaded on demand.

@@ -263,7 +263,7 @@ namespace codepad::ui {
 		// animations
 		/// Starts an animation that's associated with a particular \ref element. If any playing animation of the
 		/// same elements has the same target (tested using \ref )
-		void start_animation(std::unique_ptr<playing_animation_base> ani, element * elem) {
+		void start_animation(std::unique_ptr<playing_animation_base> ani, element *elem) {
 			auto [entry, inserted] = _element_animations.try_emplace(elem);
 			auto it = entry->second.begin();
 			while (it != entry->second.end()) { // remove animations with the same subject
@@ -280,7 +280,7 @@ namespace codepad::ui {
 		// focus
 		/// Sets the currently focused element. When called, this function also interrupts any ongoing composition.
 		/// The element must belong to a window. This function should not be called recursively.
-		void set_focused_element(element * elem) {
+		void set_focused_element(element *elem) {
 #ifdef CP_CHECK_LOGICAL_ERRORS
 			static bool _in = false;
 
@@ -343,7 +343,7 @@ namespace codepad::ui {
 
 		/// Marks the given element for disposal. The element is only disposed when \ref dispose_marked_elements()
 		/// is called. It is safe to call this multiple times before the element's actually disposed.
-		void mark_for_disposal(element & e) {
+		void mark_for_disposal(element &e) {
 			_del.insert(&e);
 		}
 		/// Disposes all elements that has been marked for disposal. Other elements that are not marked
@@ -483,7 +483,7 @@ namespace codepad::ui {
 
 		/// Finds the focus scope that the given \ref element is in. The element itself is not taken into account.
 		/// Returns \p nullptr if the element is not in any scope (which should only happen for windows).
-		panel *_find_focus_scope(element & e) const {
+		panel *_find_focus_scope(element &e) const {
 			panel *scope = e.parent(); // innermost focus scope
 			for (; scope && !scope->is_focus_scope(); scope = scope->parent()) {
 			}
@@ -494,7 +494,7 @@ namespace codepad::ui {
 		void _on_removing_element(element &e) {
 			panel *scope = _find_focus_scope(e);
 			if (scope) {
-				if (element * sfocus = scope->get_focused_element_in_scope()) {
+				if (element *sfocus = scope->get_focused_element_in_scope()) {
 					for (element *f = sfocus; f && f != scope; f = f->parent()) {
 						if (f == &e) { // focus is removed from the scope
 							scope->_scope_focus = nullptr;

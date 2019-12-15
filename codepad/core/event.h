@@ -10,6 +10,8 @@
 #include <list>
 #include <optional>
 
+#include "misc.h"
+
 namespace codepad {
 	/// Template for event structs. Users can register and unregister handlers.
 	/// The handlers will be invoked in the order in which they're registered.
@@ -125,15 +127,56 @@ namespace codepad {
 	template <> struct info_event<void> : public event_base<> {
 	};
 
-	/// Generic parameters for events in which a value is updated. This struct holds the old value.
+
+	/// The contents of a \ref value_update_info.
+	enum class value_update_info_contents : unsigned char {
+		old_value = 1, ///< The structure contains the old value.
+		new_value = 2, ///< The structure contains the new value.
+		old_and_new_values = old_value | new_value ///< The structure contains both the old value and the new value.
+	};
+	/// Enables bitwise operators for \ref value_update_info_contents.
+	template <> struct enable_enum_bitwise_operators<value_update_info_contents> : public std::true_type {
+	};
+
+	/// Generic parameters for events in which a value is updated.
 	///
 	/// \tparam T The type of the parameter.
-	template <typename T> struct value_update_info {
+	/// \tparam Contents The contents of this struct.
+	template <typename T, value_update_info_contents Contents> struct value_update_info;
+
+	/// Specialization of \ref value_update_info where only the old value is stored in the struct.
+	template <typename T> struct value_update_info<T, value_update_info_contents::old_value> {
+		using value_type = T; ///< The value type.
+		/// The contents of this struct.
+		constexpr static value_update_info_contents contents = value_update_info_contents::old_value;
+
 		/// Constructor.
-		///
-		/// \param ov The old value.
-		value_update_info(T ov) : old_value(std::move(ov)) {
+		explicit value_update_info(T val) : old_value(std::move(val)) {
 		}
 		const T old_value; ///< The old value.
+	};
+	/// Specialization of \ref value_update_info where only the new value is stored in the struct.
+	template <typename T> struct value_update_info<T, value_update_info_contents::new_value> {
+		using value_type = T; ///< The value type.
+		/// The contents of this struct.
+		constexpr static value_update_info_contents contents = value_update_info_contents::new_value;
+
+		/// Constructor.
+		explicit value_update_info(T val) : new_value(std::move(val)) {
+		}
+		const T new_value; ///< The new value.
+	};
+	/// Specialization of \ref value_update_info where both the old and the new values are stored in the struct.
+	template <typename T> struct value_update_info<T, value_update_info_contents::old_and_new_values> {
+		using value_type = T; ///< The value type.
+		/// The contents of this struct.
+		constexpr static value_update_info_contents contents = value_update_info_contents::old_and_new_values;
+
+		/// Constructor.
+		value_update_info(T oldv, T newv) : old_value(std::move(oldv)), new_value(std::move(newv)) {
+		}
+		const T
+			old_value, ///< The old value.
+			new_value; ///< The new value.
 	};
 }

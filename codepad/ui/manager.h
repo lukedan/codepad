@@ -104,7 +104,8 @@ namespace codepad::ui {
 		std::shared_ptr<bitmap> get_texture(const std::filesystem::path &path) {
 			auto it = _textures.find(path);
 			if (it == _textures.end()) {
-				auto loaded = get_renderer().load_bitmap(path);
+				// TODO implement proper assets and image sets
+				auto loaded = get_renderer().load_bitmap(path, vec2d(1.0, 1.0));
 				auto pair = _textures.emplace(path, std::move(loaded));
 				assert_true_logical(pair.second, "failed to register loaded bitmap");
 				it = pair.first;

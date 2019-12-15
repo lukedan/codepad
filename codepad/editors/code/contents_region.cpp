@@ -177,7 +177,7 @@ namespace codepad::editors::code {
 			);
 			fragment_assembler ass(*this);
 			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
-			renderer_base & rend = get_manager().get_renderer();
+			renderer_base &rend = get_manager().get_renderer();
 
 			// actual rendering code
 			while (gen.get_position() < plastchar) {

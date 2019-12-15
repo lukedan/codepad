@@ -27,7 +27,7 @@ namespace codepad::ui {
 
 		/// Initializes the starting position and starts dragging by capturing the mouse.
 		void start(const mouse_position &mouse, element &parent) {
-			if (window_base * wnd = parent.get_window()) { // start only if the element's in a window
+			if (window_base *wnd = parent.get_window()) { // start only if the element's in a window
 				wnd->set_mouse_capture(parent);
 				_start = mouse.get(*wnd);
 				_deadzone = true;
@@ -38,7 +38,7 @@ namespace codepad::ui {
 		/// \return \p true if the mouse has moved out of the deadzone and dragging should start, or \p false if the
 		///         mouse is still in the deadzone.
 		bool update(const mouse_position &mouse, element &parent) {
-			if (window_base * wnd = parent.get_window()) {
+			if (window_base *wnd = parent.get_window()) {
 				double sqrdiff = (mouse.get(*wnd) - _start).length_sqr(), r = _radius.get();
 				if (sqrdiff > r * r) { // start dragging
 					wnd->release_mouse_capture();
@@ -51,7 +51,7 @@ namespace codepad::ui {
 		/// Cancels the drag operation.
 		void on_cancel(element &parent) {
 			assert_true_logical(_deadzone, "please first check is_active() before calling on_cancel()");
-			if (window_base * wnd = parent.get_window()) {
+			if (window_base *wnd = parent.get_window()) {
 				if (wnd->get_mouse_capture()) {
 					wnd->release_mouse_capture();
 				}
@@ -371,6 +371,9 @@ namespace codepad::ui {
 		/// The default thickness of scrollbars.
 		constexpr static double default_thickness = 10.0;
 
+		/// Contains the old value when the value of this \ref scrollbar has changed.
+		using value_changed_info = value_update_info<double, value_update_info_contents::old_value>;
+
 		/// Returns the default desired width of the scroll bar.
 		size_allocation get_desired_width() const override {
 			if (get_orientation() == orientation::vertical) {
@@ -446,7 +449,7 @@ namespace codepad::ui {
 		}
 
 		/// Invoked when the value of the scrollbar is changed.
-		info_event<value_update_info<double>> value_changed;
+		info_event<value_changed_info> value_changed;
 		info_event<> orientation_changed; ///< Invoked when the orientation of this element is changed.
 
 		/// Returns the default class of elements of this type.
