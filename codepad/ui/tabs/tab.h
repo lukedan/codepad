@@ -36,10 +36,7 @@ namespace codepad::ui::tabs {
 			/// Initializes all fields of the struct.
 			explicit drag_start_info(vec2d df) : reference(df) {
 			}
-			/// The offset of the mouse cursor from the top left corner of the \ref tab_button without
-			/// transformations.
-			///
-			/// \sa tab_button::_drag_pos
+			/// The offset of the mouse cursor from the top left corner of the \ref tab_button.
 			const vec2d reference;
 		};
 
@@ -98,8 +95,7 @@ namespace codepad::ui::tabs {
 			switch (p.button) {
 			case mouse_button::primary:
 				if (!_close_btn->is_mouse_over()) {
-					_drag_pos =
-						p.position.get(*parent()) - (get_layout().xmin_ymin() - parent()->get_layout().xmin_ymin());
+					_drag_pos = p.position.get(*this);
 					_drag.start(p.position, *this);
 					click.invoke_noret(p);
 				}

@@ -15,14 +15,6 @@ namespace codepad::ui {
 }
 
 namespace codepad::os {
-	/// Returns if a mouse button is currently pressed.
-	bool is_mouse_button_down(ui::mouse_button);
-
-	/// Returns the position of the mouse in screen coordinates.
-	vec2i get_mouse_position();
-	/// Sets the mouse position in screen coordinates.
-	void set_mouse_position(vec2i);
-
 	/// Specifies the type of a file dialog.
 	enum class file_dialog_type {
 		single_selection, ///< Only one file can be selected.

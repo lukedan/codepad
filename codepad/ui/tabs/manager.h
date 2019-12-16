@@ -105,7 +105,8 @@ namespace codepad::ui::tabs {
 			host *hst = t.get_host();
 			window_base *wnd = t.get_window();
 			if (hst != nullptr && wnd != nullptr) {
-				tglayout = hst->get_layout().translated(wnd->get_position().convert<double>());
+				vec2d windowpos = wnd->client_to_screen(hst->get_layout().xmin_ymin());
+				tglayout = rectd::from_corners(windowpos, windowpos + tglayout.size());
 			}
 			_move_tab_to_new_window(t, tglayout);
 		}
@@ -361,14 +362,15 @@ namespace codepad::ui::tabs {
 			if (hst) {
 				_start_dragging_in_host(*hst);
 			} else {
-				_start_dragging_free();
+				_start_dragging_free(vec2d()); // FIXME we have no means to obtain the correct position of the window
 			}
 
 			/*_manager.get_scheduler().schedule_update_task(_update_drag_token);*/
 		}
 
 		info_event<> end_drag; ///< Invoked when the user finishes dragging a \ref tab_button.
-		info_event<tab_drag_update_info> drag_move_tab_button; ///< Invoked while the user is dragging a \ref tab_button.
+		/// Invoked while the user is dragging a \ref tab_button.
+		info_event<tab_drag_update_info> drag_move_tab_button;
 	protected:
 		std::set<host*> _changed; ///< The set of \ref host "tab_hosts" whose children have changed.
 		std::list<window_base*> _wndlist; ///< The list of windows, ordered according to their z-indices.
@@ -464,13 +466,14 @@ namespace codepad::ui::tabs {
 			if (_drag && _drag_destination == &hst) {
 				logger::get().log_debug(CP_HERE) << "resetting drag destination";
 				_try_detach_destination_selector();
+				// TODO should we switch to dragging free properly instead of simply setting these fields?
 				_drag_destination = nullptr;
 				_dragging_in_host = false;
 			}
 			_manager.get_scheduler().mark_for_disposal(hst);
 		}
 		/// Splits the given \ref host into halves, and returns the resulting \ref split_panel. The original
-		/// \ref host will be removed from its parent.
+		/// \ref host will be detached from its parent.
 		split_panel *_replace_with_split_panel(host &hst) {
 			split_panel *sp = _manager.create_element<split_panel>(), *f = dynamic_cast<split_panel*>(hst.parent());
 			if (f) {
@@ -511,6 +514,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Moves the given \ref tab to a new window with the given layout, detaching it from its original parent.
+		/// Note that the position of the window (and hence \p layout) is in screen coordinates.
 		void _move_tab_to_new_window(tab &t, rectd layout) {
 			host *hst = t.get_host();
 			if (hst != nullptr) {
@@ -528,12 +532,15 @@ namespace codepad::ui::tabs {
 		/// Detaches \ref _drag_dest_selector from its parent if it has one.
 		void _try_detach_destination_selector() {
 			if (_drag_dest_selector->parent() != nullptr) {
-				assert_true_logical(_drag_dest_selector->parent() == _drag_destination, "wrong parent for position selector");
+				assert_true_logical(
+					_drag_dest_selector->parent() == _drag_destination,
+					"wrong parent for position selector"
+				);
 				_drag_destination->_set_drag_dest_selector(nullptr);
 			}
 		}
 
-		/// Iterates through all \ref host "tab_hosts" in a given window, in a dfs-like fashion.
+		/// Iterates through all \ref host "tab_hosts" in a given window, in a DFS-like fashion.
 		///
 		/// \param base The window.
 		/// \param cb A callable object. It can either return \p void, or a \p bool indicating whether to continue.
@@ -563,9 +570,9 @@ namespace codepad::ui::tabs {
 		}
 
 
-		// dragging related functions
+		// dragging-related functions
 		/// Called when starting to drag a tab in a tab button area or when the user drags a tab into the tab button
-		/// area of a \ref host. This function sets \ref _drag_destination and \ref _drag_dest_type, captures the
+		/// area of a \ref host. This function sets \ref _drag_destination and \ref _dragging_in_host, captures the
 		/// mouse, and registers event listeners for mouse movement. The tab should have already been added to the
 		/// host before calling this function.
 		void _start_dragging_in_host(host &h) {
@@ -580,13 +587,17 @@ namespace codepad::ui::tabs {
 			);
 		}
 		/// Called when dragging a tab in a tab button area and the mouse moves. This is called when the mouse moves.
+		/// If the mouse is no longer inside the tab button region, this function calls \ref _exit_dragging_in_host()
+		/// and \ref _start_dragging_free().
 		void _update_dragging_in_host(mouse_move_info &p) {
 			panel &region = *_drag->get_button().parent();
 			vec2d mouse = p.new_position.get(region);
 			if (!rectd::from_corners(vec2d(), region.get_layout().size()).contains(mouse)) {
+				window_base *wnd = _drag->get_window();
+				vec2d button_topleft_screen = wnd->client_to_screen(p.new_position.get(*wnd) - _drag_offset);
 				_exit_dragging_in_host();
 				_drag_destination->remove_tab(*_drag);
-				_start_dragging_free();
+				_start_dragging_free(button_topleft_screen);
 				return;
 			}
 			_update_drag_tab_position(mouse); // update position
@@ -599,16 +610,18 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Called when starting to drag a new tab or when the user drags a tab out of the tab buttons area. This
-		/// function sets \ref _drag_dest_type and starts the global update task.
-		void _start_dragging_free() {
+		/// function updates \ref _drag_destination and \ref _dragging_in_host, sets \ref _drag_tab_window up as the
+		/// visual indicator, and registers for relevant events.
+		///
+		/// \param topleft The position of the tab button's top left corner in screen coordinates. This will be used
+		/// directly for the position of \ref _drag_tab_window.
+		void _start_dragging_free(vec2d topleft) {
 			_drag_destination = nullptr;
 			_dragging_in_host = false;
 			_drag_tab_window->children().add(_drag->get_button());
 			_drag_tab_window->show();
 			_drag_tab_window->set_mouse_capture(_drag->get_button());
-			/*_drag_tab_window->set_position(_drag_tab_window->client_to_screen(
-				p.new_position.get(*_drag_tab_window) - _drag_offset
-			));*/ // TODO obtain the correct position
+			_drag_tab_window->set_position(topleft);
 			_mouse_move_token = (
 				_drag->get_button().mouse_move += [this](mouse_move_info &p) {
 					_update_dragging_free(p);
@@ -673,10 +686,20 @@ namespace codepad::ui::tabs {
 			if (_dragging_in_host) {
 				_exit_dragging_in_host();
 			} else {
+				// these are calculated if the target is a new window
+				// make the new window contain both the tab button and tab contents
+				// FIXME technically this is not accurate
+				rectd translated_host = rectd::bounding_box(
+					_dragrect,
+					rectd::from_corners(-_drag_offset, _drag->get_button().get_layout().size() - _drag_offset)
+				);
+				// correct offset
+				vec2d window_pos = _drag_tab_window->client_to_screen(translated_host.xmin_ymin() + _drag_offset);
+
 				_exit_dragging_free();
 				drag_split_type split = drag_split_type::new_window;
 				if (_drag_destination) {
-					split = _drag_dest_selector->get_drag_destination(); // TODO
+					split = _drag_dest_selector->get_drag_destination();
 				}
 				switch (split) {
 				case drag_split_type::combine:
@@ -684,14 +707,12 @@ namespace codepad::ui::tabs {
 					_drag_destination->activate_tab(*_drag);
 					break;
 				case drag_split_type::new_window:
-				{
-					rectd r = _dragrect;
-					r.ymin = -_drag_offset.y;
-					_move_tab_to_new_window(
-						*_drag, r.translated(os::get_mouse_position().convert<double>()) // TODO fixme wrong position
-					);
-					break;
-				}
+					{
+						_move_tab_to_new_window(
+							*_drag, rectd::from_corners(window_pos, window_pos + translated_host.size())
+						);
+						break;
+					}
 				default: // split
 					assert_true_logical(_drag_destination != nullptr, "invalid split target");
 					_split_tab(

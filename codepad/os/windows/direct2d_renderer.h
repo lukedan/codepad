@@ -356,7 +356,7 @@ namespace codepad::os::direct2d {
 		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) override {
 			auto res = std::make_unique<bitmap>();
 			_details::com_wrapper<IWICBitmapSource> converted;
-			_details::com_wrapper<IWICBitmapSource> img = wic_image_loader::get().load_image(bmp);
+			_details::com_wrapper<IWICBitmapSource> img = _details::wic_image_loader::get().load_image(bmp);
 
 			com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppPBGRA, img.get(), converted.get_ref()));
 			// TODO include scaling factor using one of the overloads

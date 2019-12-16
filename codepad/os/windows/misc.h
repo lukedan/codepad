@@ -148,35 +148,7 @@ namespace codepad::os {
 			res.set_give(ptr);
 			return res;
 		}
-	}
 
-	inline bool is_mouse_button_down(ui::mouse_button mb) {
-		if (mb == ui::mouse_button::primary || mb == ui::mouse_button::secondary) {
-			if (GetSystemMetrics(SM_SWAPBUTTON) != 0) {
-				mb = (mb == ui::mouse_button::primary ? ui::mouse_button::secondary : ui::mouse_button::primary);
-			}
-		}
-		switch (mb) {
-		case ui::mouse_button::primary:
-			return _details::is_key_down_id(VK_LBUTTON);
-		case ui::mouse_button::secondary:
-			return _details::is_key_down_id(VK_RBUTTON);
-		case ui::mouse_button::tertiary:
-			return _details::is_key_down_id(VK_MBUTTON);
-		}
-		return false; // shouldn't happen
-	}
-
-	inline vec2i get_mouse_position() {
-		POINT p;
-		winapi_check(GetCursorPos(&p));
-		return vec2i(p.x, p.y);
-	}
-	inline void set_mouse_position(vec2i p) {
-		winapi_check(SetCursorPos(p.x, p.y));
-	}
-
-	namespace _details {
 		struct com_usage {
 			com_usage() {
 				HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -224,39 +196,40 @@ namespace codepad::os {
 			res.erase(it, res.end());
 			return res;
 		}
-	}
 
-	/// Loads images using WIC.
-	struct wic_image_loader {
-	public:
-		/// Initializes \ref _factory.
-		wic_image_loader() {
-			HRESULT res = CoCreateInstance(
-				CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
-			);
-			if (res == REGDB_E_CLASSNOTREG) { // workaround for missing component in win7
-				res = CoCreateInstance(
-					CLSID_WICImagingFactory1, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
+
+		/// Loads images using WIC.
+		struct wic_image_loader {
+		public:
+			/// Initializes \ref _factory.
+			wic_image_loader() {
+				HRESULT res = CoCreateInstance(
+					CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
 				);
+				if (res == REGDB_E_CLASSNOTREG) { // workaround for missing component in win7
+					res = CoCreateInstance(
+						CLSID_WICImagingFactory1, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
+					);
+				}
+				com_check(res);
 			}
-			com_check(res);
-		}
-		/// Loads an image. The pixel foramt of the image is not certain; use \p WICConvertBitmapSource to convert
-		/// it to the desired format.
-		_details::com_wrapper<IWICBitmapSource> load_image(const std::filesystem::path &filename) {
-			_details::com_wrapper<IWICBitmapDecoder> decoder;
-			_details::com_wrapper<IWICBitmapFrameDecode> frame;
-			com_check(_factory->CreateDecoderFromFilename(
-				filename.c_str(), nullptr,
-				GENERIC_READ, WICDecodeMetadataCacheOnDemand, decoder.get_ref()
-			));
-			com_check(decoder->GetFrame(0, frame.get_ref()));
-			return frame;
-		}
+			/// Loads an image. The pixel foramt of the image is not certain; use \p WICConvertBitmapSource to convert
+			/// it to the desired format.
+			com_wrapper<IWICBitmapSource> load_image(const std::filesystem::path &filename) {
+				com_wrapper<IWICBitmapDecoder> decoder;
+				com_wrapper<IWICBitmapFrameDecode> frame;
+				com_check(_factory->CreateDecoderFromFilename(
+					filename.c_str(), nullptr,
+					GENERIC_READ, WICDecodeMetadataCacheOnDemand, decoder.get_ref()
+				));
+				com_check(decoder->GetFrame(0, frame.get_ref()));
+				return frame;
+			}
 
-		static wic_image_loader &get();
-	protected:
-		_details::com_wrapper<IWICImagingFactory> _factory;
-		_details::com_usage _uses_com;
-	};
+			static wic_image_loader &get();
+		protected:
+			com_wrapper<IWICImagingFactory> _factory;
+			com_usage _uses_com;
+		};
+	}
 }

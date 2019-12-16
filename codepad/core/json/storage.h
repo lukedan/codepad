@@ -286,11 +286,11 @@ namespace codepad::json {
 			} else if constexpr (std::is_same_v<T, str_t> || std::is_same_v<T, str_view_t>) {
 				return std::get<str_t>(*_v);
 			} else if constexpr (std::is_same_v<T, object_t>) {
-				const auto &obj = std::get<value_storage::object>(*_v); // TODO fuck msvc
-				return object_t(&obj);
+				// in older (16.0 or so) versions of MSVC this will fail, in which case just take everything inside
+				// the parentheses out and put them into another temporary variable
+				return object_t(&std::get<value_storage::object>(*_v));
 			} else if constexpr (std::is_same_v<T, array_t>) {
-				const auto &arr = std::get<value_storage::array>(*_v);
-				return array_t(&arr);
+				return array_t(&std::get<value_storage::array>(*_v));
 			} else {
 				if constexpr (std::is_floating_point_v<T>) {
 					if (std::holds_alternative<double>(*_v)) {

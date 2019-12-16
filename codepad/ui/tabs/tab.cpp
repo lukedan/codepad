@@ -27,8 +27,10 @@ namespace codepad::ui::tabs {
 			_on_close_requested();
 		};
 		_btn->start_drag += [this](tab_button::drag_start_info &p) {
-			vec2d diff = p.reference - vec2d(get_layout().xmin, _btn->get_layout().ymin);
-			get_tab_manager().start_dragging_tab(*this, p.reference, get_layout().translated(-diff));
+			// place the tab so that it appears as if this tab is the first tab in the given host
+			// FIXME this doesn't work when the tab buttons are arranged right-to-left or bottom-to-top.
+			vec2d windowpos = p.reference + get_host()->get_tab_buttons_region().get_layout().xmin_ymin();
+			get_tab_manager().start_dragging_tab(*this, p.reference, get_layout().translated(-windowpos));
 		};
 	}
 

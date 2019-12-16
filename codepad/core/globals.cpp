@@ -114,9 +114,11 @@ namespace codepad {
 	}
 	namespace os {
 #ifdef CP_PLATFORM_WINDOWS
-		wic_image_loader &wic_image_loader::get() {
-			static _global_wrapper<wic_image_loader> _v;
-			return _v.object;
+		namespace _details {
+			wic_image_loader &wic_image_loader::get() {
+				static _global_wrapper<wic_image_loader> _v;
+				return _v.object;
+			}
 		}
 		window::_wndclass &window::_wndclass::get() {
 			static _global_wrapper<_wndclass> _v;
