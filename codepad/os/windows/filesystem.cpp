@@ -82,7 +82,7 @@ namespace codepad::os {
 		return static_cast<file::pos_type>(res);
 	}
 
-	void file::write(const void *data, file::pos_type sz) {
+	void file::write(const void *data, pos_type sz) {
 		assert_true_sys(sz <= std::numeric_limits<DWORD>::max(), "too many bytes to write");
 		DWORD res; // no need to init
 		winapi_check(WriteFile(_handle, data, static_cast<DWORD>(sz), &res, nullptr));

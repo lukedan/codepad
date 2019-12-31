@@ -404,7 +404,7 @@ namespace codepad::editors {
 				while (true) {
 					auto &chk = chunks.emplace_back();
 					chk.resize(maximum_bytes_per_chunk);
-					os::file::pos_type res = f.read(maximum_bytes_per_chunk, chk.data());
+					auto res = static_cast<std::size_t>(f.read(maximum_bytes_per_chunk, chk.data()));
 					if (res < maximum_bytes_per_chunk) {
 						if (res > 0) {
 							chk.resize(res);

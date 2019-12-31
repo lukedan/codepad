@@ -25,7 +25,7 @@ namespace codepad::json {
 	// value_t:
 	//   an reference of the immutable underlying value, unless for storage implementation
 	//
-	//   array_t, object_t
+	//   array_type, object_type
 	//   is<T>, get<T>
 	//     T: null_t, bool, number_t, unsigned, signed, double, array_t, object_t, u8string, u8string_view
 	//   log(), try_cast(), cast(), try_parse(), parse() (provided by value_type_base)
@@ -70,7 +70,7 @@ namespace codepad::json {
 
 		/// Uses the parser to parse all elements of the array.
 		template <typename Value> std::optional<std::vector<T>> operator()(const Value &val) const {
-			if (auto arr = val.template cast<typename Value::array_t>()) {
+			if (auto arr = val.template cast<typename Value::array_type>()) {
 				std::vector<T> res;
 				for (auto &&elem : arr.value()) {
 					if (auto elem_val = elem.template parse<T>(parser)) {

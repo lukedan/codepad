@@ -853,7 +853,7 @@ namespace codepad::editors::code {
 		/// Checks if line wrapping needs to be calculated.
 		///
 		/// \todo Recalculate the alignment of cursors.
-		void _check_wrapping_width() {
+		void _check_wrapping_width() { // TODO setting for whether or not word wrapping is enabled
 			double cw = get_client_region().width();
 			if (std::abs(cw - _view_width) > 0.1) { // TODO magik!
 				_view_width = cw;

@@ -9,11 +9,11 @@ namespace codepad::os {
 	namespace _details {
 		void check_init_gtk();
 		struct cursor_set {
-			constexpr static size_t cursor_count = 13;
+			constexpr static std::size_t cursor_count = 13;
 			const static GdkCursorType cursor_ids[cursor_count];
 			cursor_set() {
 				GdkDisplay *disp = gdk_display_get_default();
-				for (size_t i = 0; i < cursor_count; ++i) {
+				for (std::size_t i = 0; i < cursor_count; ++i) {
 					cursors[i] = gdk_cursor_new_for_display(disp, cursor_ids[i]);
 				}
 			}

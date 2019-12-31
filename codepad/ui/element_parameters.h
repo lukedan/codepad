@@ -155,11 +155,11 @@ namespace codepad::json {
 		/// (<tt>{"absolute": [x, y], "relative": [x, y]}</tt>), or a list of two vectors with the relative value in
 		/// the front (<tt>[[relx, rely], [absx, absy]]</tt>), or a single vector indicating the absolute value.
 		template <typename Value> std::optional<ui::relative_vec2d> operator()(const Value &val) const {
-			if (auto arr = val.template try_cast<typename Value::array_t>()) {
+			if (auto arr = val.template try_cast<typename Value::array_type>()) {
 				if (arr->size() >= 2) {
 					if (arr->size() > 2) {
 						val.template log<log_level::warning>(CP_HERE) <<
-						    "redundant members in relative vec2d definition";
+							"redundant members in relative vec2d definition";
 					}
 					if (auto x = arr->at(0).template try_cast<double>()) { // only absolute component
 						if (auto y = arr->at(1).template cast<double>()) {
@@ -175,7 +175,7 @@ namespace codepad::json {
 				} else {
 					val.template log<log_level::error>(CP_HERE) << "not enough entries in relative vec2d definition";
 				}
-			} else if (auto full = val.template try_cast<typename Value::object_t>()) { // full representation
+			} else if (auto full = val.template try_cast<typename Value::object_type>()) { // full representation
 				if (auto abs = full->template parse_member<vec2d>(u8"absolute")) {
 					if (auto rel = full->template parse_member<vec2d>(u8"relative")) {
 						return ui::relative_vec2d(rel.value(), abs.value());
@@ -191,7 +191,7 @@ namespace codepad::json {
 	template <> struct default_parser<ui::relative_double> {
 		/// Parses a \ref ui::relative_double. The format is similar to that of \ref relative_vec2d.
 		template <typename Value> std::optional<ui::relative_double> operator()(const Value &val) const {
-			if (auto full = val.template try_cast<typename Value::object_t>()) { // full representation
+			if (auto full = val.template try_cast<typename Value::object_type>()) { // full representation
 				if (auto abs = full->template parse_member<double>(u8"absolute")) {
 					if (auto rel = full->template parse_member<double>(u8"relative")) {
 						if (full->size() > 2) {
@@ -200,7 +200,7 @@ namespace codepad::json {
 						return ui::relative_double(rel.value(), abs.value());
 					}
 				}
-			} else if (auto arr = val.template try_cast<typename Value::array_t>()) { // a list of two doubles
+			} else if (auto arr = val.template try_cast<typename Value::array_type>()) { // a list of two doubles
 				if (arr->size() >= 2) {
 					if (arr->size() > 2) {
 						val.template log<log_level::warning>(CP_HERE) << "redundant elements in relative double";
@@ -377,19 +377,19 @@ namespace codepad::ui {
 
 			/// Returns the transformation matrix.
 			matd3x3 get_matrix(vec2d unit) const {
-				return std::visit([&unit](auto && trans) {
+				return std::visit([&unit](auto &&trans) {
 					return trans.get_matrix(unit);
 					}, value);
 			}
 			/// Transforms the given point.
 			vec2d transform_point(vec2d pt, vec2d unit) const {
-				return std::visit([&pt, &unit](auto && trans) {
+				return std::visit([&pt, &unit](auto &&trans) {
 					return trans.transform_point(pt, unit);
 					}, value);
 			}
 			/// Inverse transforms the given point.
 			vec2d inverse_transform_point(vec2d pt, vec2d unit) const {
-				return std::visit([&pt, &unit](auto && trans) {
+				return std::visit([&pt, &unit](auto &&trans) {
 					return trans.inverse_transform_point(pt, unit);
 					}, value);
 			}
@@ -440,8 +440,8 @@ namespace codepad::json {
 			if (val.template is<null_t>()) {
 				return ui::transforms::generic::make<ui::transforms::identity>();
 			}
-			std::optional<typename Value::array_t> group;
-			if (auto obj = val.template try_cast<typename Value::object_t>()) {
+			std::optional<typename Value::array_type> group;
+			if (auto obj = val.template try_cast<typename Value::object_type>()) {
 				if (auto offset = obj->template parse_optional_member<ui::relative_vec2d>(u8"translation")) {
 					return ui::transforms::generic::make<ui::transforms::translation>(offset.value());
 				}
@@ -457,9 +457,9 @@ namespace codepad::json {
 							);
 					}
 				}
-				group = obj->template parse_optional_member<typename Value::array_t>(u8"children");
+				group = obj->template parse_optional_member<typename Value::array_type>(u8"children");
 			} else { // try to parse transform collection
-				group = val.template try_cast<typename Value::array_t>();
+				group = val.template try_cast<typename Value::array_type>();
 			}
 			if (group) {
 				ui::transforms::collection res;
@@ -564,7 +564,7 @@ namespace codepad::json {
 	template <> struct default_parser<ui::brushes::solid_color> {
 		/// The parser interface.
 		template <typename Value> std::optional<ui::brushes::solid_color> operator()(const Value &val) const {
-			if (auto obj = val.template cast<typename Value::object_t>()) {
+			if (auto obj = val.template cast<typename Value::object_type>()) {
 				if (auto color = obj->template parse_member<colord>(u8"color")) {
 					return ui::brushes::solid_color(color.value());
 				}
@@ -576,7 +576,7 @@ namespace codepad::json {
 	template <> struct default_parser<ui::brushes::linear_gradient> {
 		/// The parser interface.
 		template <typename Value> std::optional<ui::brushes::linear_gradient> operator()(const Value &val) const {
-			if (auto obj = val.template cast<typename Value::object_t>()) {
+			if (auto obj = val.template cast<typename Value::object_type>()) {
 				if (auto from = obj->template parse_member<ui::relative_vec2d>(u8"from")) {
 					if (auto to = obj->template parse_member<ui::relative_vec2d>(u8"to")) {
 						if (auto stops = obj->template parse_member<ui::gradient_stop_collection>(
@@ -594,7 +594,7 @@ namespace codepad::json {
 	template <> struct default_parser<ui::brushes::radial_gradient> {
 		/// The parser interface.
 		template <typename Value> std::optional<ui::brushes::radial_gradient> operator()(const Value &val) const {
-			if (auto obj = val.template cast<typename Value::object_t>()) {
+			if (auto obj = val.template cast<typename Value::object_type>()) {
 				if (auto center = obj->template parse_member<ui::relative_vec2d>(u8"center")) {
 					if (auto radius = obj->template parse_member<double>(u8"radius")) {
 						if (auto stops = obj->template parse_member<ui::gradient_stop_collection>(
@@ -602,7 +602,7 @@ namespace codepad::json {
 							)) {
 							return ui::brushes::radial_gradient(
 								center.value(), radius.value(), std::move(stops.value())
-								);
+							);
 						}
 					}
 				}
@@ -641,7 +641,7 @@ namespace codepad::ui {
 			if (std::holds_alternative<brushes::none>(value)) {
 				return generic_brush_parameters();
 			}
-			return std::visit([this, &unit](auto && b) {
+			return std::visit([this, &unit](auto &&b) {
 				return generic_brush_parameters(b.get_parameters(unit), transform.get_matrix(unit));
 				}, value);
 		}
@@ -658,7 +658,7 @@ namespace codepad::ui {
 
 		/// The parser interface.
 		template <typename Value> std::optional<generic_brush> operator()(const Value &val) const {
-			if (auto obj = val.template try_cast<typename Value::object_t>()) {
+			if (auto obj = val.template try_cast<typename Value::object_type>()) {
 				generic_brush result;
 				if (auto type = obj->template parse_member<str_view_t>(u8"type")) {
 					if (type.value() == u8"solid") {
@@ -725,7 +725,7 @@ namespace codepad::ui {
 			if (auto brush = val.template parse<generic_brush>(managed_json_parser<generic_brush>(_manager))) {
 				generic_pen result;
 				result.brush = brush.value();
-				if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto obj = val.template cast<typename Value::object_type>()) {
 					result.thickness =
 						obj->template parse_optional_member<double>(u8"thickness").value_or(result.thickness);
 				}
@@ -769,7 +769,7 @@ namespace codepad {
 		template <> struct default_parser<ui::geometries::rectangle> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::rectangle> operator()(const Value &val) const {
-				if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto obj = val.template cast<typename Value::object_type>()) {
 					if (auto top_left = obj->template parse_member<ui::relative_vec2d>(u8"top_left")) {
 						if (auto bottom_right = obj->template parse_member<ui::relative_vec2d>(u8"bottom_right")) {
 							return ui::geometries::rectangle(top_left.value(), bottom_right.value());
@@ -818,7 +818,7 @@ namespace codepad {
 			template <typename Value> std::optional<ui::geometries::rounded_rectangle> operator()(
 				const Value &val
 				) const {
-				if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto obj = val.template cast<typename Value::object_type>()) {
 					if (auto top_left = obj->template parse_member<ui::relative_vec2d>(u8"top_left")) {
 						if (auto bottom_right = obj->template parse_member<ui::relative_vec2d>(u8"bottom_right")) {
 							if (auto rx = obj->template parse_member<ui::relative_double>(u8"radiusx")) {
@@ -866,7 +866,7 @@ namespace codepad {
 		template <> struct default_parser<ui::geometries::ellipse> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::ellipse> operator()(const Value &val) const {
-				if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto obj = val.template cast<typename Value::object_type>()) {
 					if (auto top_left = obj->template parse_member<ui::relative_vec2d>(u8"top_left")) {
 						if (auto bottom_right = obj->template parse_member<ui::relative_vec2d>(u8"bottom_right")) {
 							return ui::geometries::ellipse(top_left.value(), bottom_right.value());
@@ -928,7 +928,7 @@ namespace codepad {
 
 				/// Adds this part to a \ref path_geometry_builder.
 				void add_to(path_geometry_builder &builder, vec2d unit) const {
-					std::visit([&](auto && obj) {
+					std::visit([&](auto &&obj) {
 						obj.add_to(builder, unit);
 						}, value);
 				}
@@ -969,7 +969,7 @@ namespace codepad {
 		template <> struct default_parser<ui::geometries::path::part> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::path::part> operator()(const Value &val) const {
-				if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto obj = val.template cast<typename Value::object_type>()) {
 					if (obj->size() > 0) {
 						if (obj->size() > 1) {
 							val.template log<log_level::warning>(CP_HERE) << "too many fields in subpath part";
@@ -982,7 +982,7 @@ namespace codepad {
 								return res;
 							}
 						} else if (member.name() == u8"arc") {
-							if (auto part_obj = member.value().template cast<typename Value::object_t>()) {
+							if (auto part_obj = member.value().template cast<typename Value::object_type>()) {
 								if (auto to = part_obj->template parse_member<ui::relative_vec2d>(u8"to")) {
 									if (auto it = part_obj->find_member(u8"radius"); it != part_obj->member_end()) {
 										ui::geometries::path::part res;
@@ -1012,7 +1012,7 @@ namespace codepad {
 								}
 							}
 						} else if (member.name() == u8"bezier") {
-							if (auto part_obj = member.value().template cast<typename Value::object_t>()) {
+							if (auto part_obj = member.value().template cast<typename Value::object_type>()) {
 								if (auto to = part_obj->template parse_member<ui::relative_vec2d>(u8"to")) {
 									if (auto c1 = part_obj->template parse_member<ui::relative_vec2d>(
 										u8"control1"
@@ -1047,7 +1047,7 @@ namespace codepad {
 			template <typename Value> std::optional<ui::geometries::path::subpath> operator()(
 				const Value &val
 				) const {
-				if (auto obj = val.template try_cast<typename Value::object_t>()) {
+				if (auto obj = val.template try_cast<typename Value::object_type>()) {
 					if (auto start = obj->template parse_member<ui::relative_vec2d>(u8"start")) {
 						if (auto parts = obj->template parse_member<std::vector<ui::geometries::path::part>>(
 							u8"parts", array_parser<ui::geometries::path::part>()
@@ -1061,11 +1061,11 @@ namespace codepad {
 							}
 						}
 					}
-				} else if (auto arr = val.template try_cast<typename Value::array_t>()) {
+				} else if (auto arr = val.template try_cast<typename Value::array_type>()) {
 					if (arr->size() > 2) {
 						auto beg = arr->begin(), end = arr->end() - 1;
 						if (auto start = beg->template parse<ui::relative_vec2d>()) {
-							if (auto final_obj = end->template cast<typename Value::object_t>()) {
+							if (auto final_obj = end->template cast<typename Value::object_type>()) {
 								if (auto closed = final_obj->template parse_member<bool>(u8"closed")) {
 									ui::geometries::path::subpath res;
 									res.starting_point = start.value();
@@ -1093,7 +1093,7 @@ namespace codepad {
 		template <> struct default_parser<ui::geometries::path> {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::path> operator()(const Value &val) const {
-				if (auto obj = val.template cast<typename Value::object_t>()) {
+				if (auto obj = val.template cast<typename Value::object_type>()) {
 					if (auto subpaths = obj->template parse_member<std::vector<ui::geometries::path::subpath>>(
 						u8"subpaths", array_parser<ui::geometries::path::subpath>()
 						)) {
@@ -1119,7 +1119,7 @@ namespace codepad::ui {
 		/// Draws this geometry in the specified region with the specified brush and pen.
 		void draw(vec2d unit, renderer_base &r) const {
 			r.push_matrix_mult(transform.get_matrix(unit));
-			std::visit([&](auto && obj) {
+			std::visit([&](auto &&obj) {
 				obj.draw(unit, r, fill.get_parameters(unit), stroke.get_parameters(unit));
 				}, value);
 			r.pop_matrix();
@@ -1139,7 +1139,7 @@ namespace codepad::ui {
 
 		/// The parser interface.
 		template <typename Value> std::optional<generic_visual_geometry> operator()(const Value &val) const {
-			if (auto obj = val.template cast<typename Value::object_t>()) {
+			if (auto obj = val.template cast<typename Value::object_type>()) {
 				if (auto type = obj->template parse_member<str_view_t>(u8"type")) {
 					generic_visual_geometry result;
 					if (type.value() == u8"rectangle") {
@@ -1219,7 +1219,7 @@ namespace codepad::ui {
 			auto geom_parser = json::array_parser<
 				generic_visual_geometry, managed_json_parser<generic_visual_geometry>
 			>(managed_json_parser<generic_visual_geometry>(_manager));
-			if (auto obj = val.template try_cast<typename Value::object_t>()) {
+			if (auto obj = val.template try_cast<typename Value::object_type>()) {
 				if (auto geoms = obj->template parse_member<std::vector<generic_visual_geometry>>(
 					u8"geometries", geom_parser
 					)) {
@@ -1230,7 +1230,7 @@ namespace codepad::ui {
 					}
 					return res;
 				}
-			} else if (val.template is<typename Value::array_t>()) {
+			} else if (val.template is<typename Value::array_type>()) {
 				if (auto geoms = val.template parse<std::vector<generic_visual_geometry>>(geom_parser)) {
 					visuals res;
 					res.geometries = std::move(geoms.value());
@@ -1262,7 +1262,7 @@ namespace codepad::json {
 	template <> struct default_parser<ui::element_layout> {
 		/// The parser interface.
 		template <typename ValueType> std::optional<ui::element_layout> operator()(const ValueType &val) const {
-			if (auto obj = val.template cast<typename ValueType::object_t>()) {
+			if (auto obj = val.template cast<typename ValueType::object_type>()) {
 				ui::element_layout result;
 				result.margin =
 					obj->template parse_optional_member<ui::thickness>(u8"margin").value_or(result.margin);
@@ -1319,7 +1319,7 @@ namespace codepad::ui {
 	struct element_parameters {
 		visuals visual_parameters; ///< The \ref visuals.
 		element_layout layout_parameters; ///< The \ref element_layout.
-		visibility visibility = visibility::full; ///< The visibility of this element.
+		visibility element_visibility = visibility::full; ///< The visibility of this element.
 		cursor custom_cursor = cursor::not_specified; ///< The custom cursor of the element.
 	};
 
@@ -1339,7 +1339,6 @@ namespace codepad::ui {
 
 			/// Parses an \ref event_identifier from a string.
 			inline static event_identifier parse_from_string(str_view_t s) {
-				str_view_t::const_iterator sep1 = s.end(), sep2 = s.end();
 				if (auto it = s.begin(); it != s.end()) {
 					for (codepoint cp; it != s.end(); ) {
 						auto begin = it;

@@ -216,7 +216,7 @@ namespace codepad::ui {
 		template <typename Value> std::optional<generic_keyframe_animation_definition::keyframe> operator()(
 			const Value &val
 			) const {
-			if (auto obj = val.template cast<typename Value::object_t>()) {
+			if (auto obj = val.template cast<typename Value::object_type>()) {
 				if (auto it = obj->find_member(u8"to"); it != obj->member_end()) {
 					generic_keyframe_animation_definition::keyframe res;
 					res.target = json::store(it.value());
@@ -251,7 +251,7 @@ namespace codepad::ui {
 
 			managed_json_parser<_keyframe> keyframe_parser{_manager};
 			json::array_parser<_keyframe, managed_json_parser<_keyframe>> keyframe_list_parser{keyframe_parser};
-			if (auto obj = val.template try_cast<typename Value::object_t>()) {
+			if (auto obj = val.template try_cast<typename Value::object_type>()) {
 				generic_keyframe_animation_definition res;
 				if (auto frames = obj->template parse_optional_member<std::vector<_keyframe>>(
 					u8"frames", keyframe_list_parser
@@ -275,7 +275,7 @@ namespace codepad::ui {
 					}
 				}
 				return res;
-			} else if (val.template is<typename Value::array_t>()) {
+			} else if (val.template is<typename Value::array_type>()) {
 				if (auto frames = val.template parse<std::vector<_keyframe>>(keyframe_list_parser)) {
 					generic_keyframe_animation_definition res;
 					res.keyframes = std::move(frames.value());
@@ -331,7 +331,7 @@ namespace codepad::ui {
 		/// Initializes this playing animation.
 		playing_keyframe_animation(
 			const definition_t &def, std::shared_ptr<typed_animation_subject<T>> sub
-		) : _from(sub->get()), _keyframe_start(animation_clock_t::now()), _def(&def), _subject(std::move(sub)) {
+		) : _from(sub->get()), _keyframe_start(animation_clock_t::now()), _subject(std::move(sub)), _def(&def) {
 		}
 
 		/// Updates this animation.

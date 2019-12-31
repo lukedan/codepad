@@ -7,6 +7,4 @@
 /// Includes all OS-specific headers for Linux.
 
 #include "linux/misc.h"
-#include "linux/font.h"
 #include "linux/window.h"
-#include "linux/renderer.h"

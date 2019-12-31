@@ -9,11 +9,16 @@
 #include "core/json/parsing.h"
 #include "core/json/rapidjson.h"
 #include "os/current/all.h"
-#include "os/windows/direct2d_renderer.h"
+#ifdef CP_PLATFORM_WINDOWS
+#   include "os/windows/direct2d_renderer.h"
+#   include "os/windows/cairo_renderer.h"
+#elif defined(CP_PLATFORM_UNIX)
+#   include "os/linux/gtk/cairo_renderer.h"
+#endif
+#include "ui/cairo_renderer_base.h"
 #include "ui/common_elements.h"
 #include "ui/native_commands.h"
 #include "ui/config_parsers.h"
-#include "ui/text_rendering.h"
 #include "ui/tabs/tab.h"
 #include "ui/tabs/manager.h"
 #include "editors/code/components.h"
@@ -35,13 +40,16 @@ int main(int argc, char **argv) {
 	codepad::initialize(argc, argv);
 
 	manager man;
-	man.set_renderer(std::make_unique<direct2d::renderer>());
+#ifdef CP_PLATFORM_WINDOWS
+	/*man.set_renderer(std::make_unique<direct2d::renderer>());*/
+#endif
+	man.set_renderer(std::make_unique<cairo_renderer>());
 
 	{
-		json::rapidjson::document_t doc = json::parse_file<json::rapidjson::document_t>("config/arrangements.json");
+		auto doc = json::parse_file<json::rapidjson::document_t>("config/arrangements.json");
 		auto val = json::parsing::make_value(doc.root());
 		arrangements_parser<decltype(val)> parser(man);
-		parser.parse_arrangements_config(val.get<decltype(val)::object_t>());
+		parser.parse_arrangements_config(val.get<decltype(val)::object_type>());
 	}
 
 	hotkey_json_parser<json::rapidjson::value_t>::parse_config(
@@ -59,7 +67,7 @@ int main(int argc, char **argv) {
 	tmptab->get_host()->activate_tab(*tmptab);
 
 	while (!tabman.empty()) {
-		man.get_scheduler().idle_loop_body();
+		man.get_scheduler().main_iteration();
 	}
 
 	return 0;

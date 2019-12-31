@@ -154,14 +154,6 @@ namespace codepad::os {
 				form->_on_close_request();
 				return 0;
 
-			/*case WM_PAINT:
-			{
-				PAINTSTRUCT ps;
-				winapi_check(BeginPaint(form->_hwnd, &ps));
-				EndPaint(form->_hwnd, &ps);
-				return 0;
-			}*/
-
 			case WM_SIZE:
 				{
 					if (wparam != SIZE_MINIMIZED) {
@@ -610,17 +602,16 @@ namespace codepad::os {
 
 #ifdef CP_LOG_STACKTRACE
 #	ifdef _MSC_VER
-#	pragma comment(lib, "dbghelp.lib")
-#	ifdef UNICODE
-#		define DBGHELP_TRANSLATE_TCHAR
-#	endif
-#	include <DbgHelp.h>
+#		pragma comment(lib, "dbghelp.lib")
+#		ifdef UNICODE
+#			define DBGHELP_TRANSLATE_TCHAR
+#		endif
+#		include <DbgHelp.h>
 namespace codepad {
 	void logger::log_entry::append_stacktrace() {
 		constexpr static DWORD max_frames = 1000;
 		constexpr static std::size_t max_symbol_length = 1000;
 
-		_contents << "\n-- stacktrace --\n";
 		void *frames[max_frames];
 		HANDLE proc = GetCurrentProcess();
 		unsigned char symmem[sizeof(SYMBOL_INFO) + max_symbol_length * sizeof(TCHAR)];
@@ -635,6 +626,8 @@ namespace codepad {
 			"failed to initialize symbols"
 		);
 		WORD numframes = CaptureStackBackTrace(0, max_frames, frames, nullptr);
+
+		_contents << "\n-- stacktrace --\n";
 		for (WORD i = 0; i < numframes; ++i) {
 			auto addr = reinterpret_cast<DWORD64>(frames[i]);
 			string func = "??", file = func, line = func;
@@ -647,8 +640,9 @@ namespace codepad {
 			}
 			_contents << "  " << func << "(0x" << frames[i] << ") @" << file << ":" << line << "\n";
 		}
-		assert_true_sys(SymCleanup(GetCurrentProcess()), "failed to clean up symbols");
 		_contents << "\n-- stacktrace --\n";
+
+		assert_true_sys(SymCleanup(GetCurrentProcess()), "failed to clean up symbols");
 	}
 }
 #	else
@@ -705,7 +699,10 @@ namespace codepad::ui {
 	}*/
 
 
-	bool scheduler::_idle_system(wait_type ty) {
+	bool scheduler::_main_iteration_system_impl(wait_type ty) {
+		call_counter::get().dump();
+		call_counter::get().reset();
+
 		MSG msg;
 		BOOL res;
 		if (ty == wait_type::blocking) {
@@ -714,8 +711,6 @@ namespace codepad::ui {
 		} else {
 			res = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
 		}
-		call_counter::get().dump();
-		call_counter::get().reset();
 		if (res != 0) {
 			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) { // handle hotkeys
 				auto *form = os::window::_get_associated_window(msg.hwnd);
@@ -740,11 +735,11 @@ namespace codepad::ui {
 		assert_true_sys(_timer_handle != 0, "failed to register timer");
 	}
 
-	scheduler::thread_id_t scheduler::_get_thread_id() {
-		return GetCurrentThreadId();
-	}
-
 	void scheduler::_wake_up() {
 		winapi_check(PostThreadMessage(_thread_id, WM_NULL, 0, 0));
+	}
+
+	scheduler::thread_id_t scheduler::_get_thread_id() {
+		return GetCurrentThreadId();
 	}
 }

@@ -40,100 +40,34 @@ namespace codepad::os {
 		}
 
 		/// A wrapper for reference-counted COM objects.
-		template <typename T> struct com_wrapper {
+		template <typename T> struct com_wrapper final :
+			public reference_counted_handle<com_wrapper<T>, T> {
+			friend reference_counted_handle;
 		public:
-			/// Default constructor.
-			com_wrapper() = default;
-			/// Copy constructor.
-			com_wrapper(const com_wrapper &src) : _ptr(src._ptr) {
-				_check_add_ref();
-			}
-			/// Move constructor.
-			com_wrapper(com_wrapper &&src) noexcept : _ptr(src._ptr) {
-				src._ptr = nullptr;
-			}
-			/// Copy assignment.
-			com_wrapper &operator=(const com_wrapper &src) {
-				set_share(src._ptr);
-				return *this;
-			}
-			/// Move assignment.
-			com_wrapper &operator=(com_wrapper &&src) noexcept {
-				set_give(src._ptr);
-				src._ptr = nullptr;
-				return *this;
-			}
-			/// Releases the poitner.
-			~com_wrapper() {
-				_check_release();
-			}
-
 			/// Casting to parent types.
 			template <
 				typename U, typename = std::enable_if_t<std::is_base_of_v<U, T>, void>
 			> operator com_wrapper<U>() {
-				auto ptr = static_cast<U*>(_ptr);
+				auto ptr = static_cast<U*>(_handle);
 				com_wrapper<U> res;
 				res.set_share(ptr);
 				return res;
 			}
 
-			/// Sets the underlying pointer and increment the reference count.
-			com_wrapper &set_share(T *ptr) {
-				_check_release();
-				_ptr = ptr;
-				_check_add_ref();
-				return *this;
-			}
-			/// Sets the underlying pointer without incrementing the reference count.
-			com_wrapper &set_give(T *ptr) {
-				_check_release();
-				_ptr = ptr;
-				return *this;
-			}
-			/// Releases the currently holding object.
-			com_wrapper &reset() {
-				return set_give(nullptr);
-			}
-
-			/// Returns the underlying pointer.
-			T *get() const {
-				return _ptr;
-			}
 			/// Returns a pointer to the underlying pointer. The existing pointer will be released. This is mainly
 			/// useful when creating objects.
 			T **get_ref() {
 				_check_release();
-				_ptr = nullptr;
-				return &_ptr;
-			}
-			/// Convenience operator.
-			T *operator->() const {
-				return get();
-			}
-
-			/// Returns whether this wrapper holds no objects.
-			bool empty() const {
-				return _ptr == nullptr;
-			}
-			/// Returns whether this brush has any content.
-			explicit operator bool() const {
-				return !empty();
+				return &_handle;
 			}
 		protected:
-			T *_ptr = nullptr; ///< The pointer.
-
-			/// Checks and releases \ref _ptr.
-			void _check_release() {
-				if (_ptr) {
-					_ptr->Release();
-				}
+			/// Releases \ref _ptr.
+			void _do_release() {
+				_handle->Release();
 			}
-			/// Checks and increments the reference count of \ref _ptr.
-			void _check_add_ref() {
-				if (_ptr) {
-					_ptr->AddRef();
-				}
+			/// Increments the reference count of \ref _ptr.
+			void _do_add_ref() {
+				_handle->AddRef();
 			}
 		};
 		/// Creates a new \ref com_wrapper, and calls \ref com_wrapper::set_share() to share the given pointer.

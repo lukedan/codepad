@@ -13,6 +13,10 @@
 #include <functional>
 #include <thread>
 
+#ifdef CP_PLATFORM_UNIX
+#	include <pthread.h>
+#endif
+
 #include "../core/profiling.h"
 #include "element.h"
 #include "panel.h"
@@ -36,7 +40,7 @@ namespace codepad::ui {
 #ifdef CP_PLATFORM_WINDOWS
 		using thread_id_t = std::uint32_t; ///< The type for thread IDs.
 #elif defined(CP_PLATFORM_UNIX)
-		// TODO
+		using thread_id_t = pthread_t;
 #endif
 
 		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
@@ -256,7 +260,7 @@ namespace codepad::ui {
 		}
 		/// Returns the amount of time that has passed since the last
 		/// time \ref update_scheduled_elements has been called, in seconds.
-		double update_delta_time() const {
+		[[nodiscard]] double update_delta_time() const {
 			return _upd_dt;
 		}
 
@@ -337,7 +341,7 @@ namespace codepad::ui {
 #endif
 		}
 		/// Returns the focused element.
-		element *get_focused_element() const {
+		[[nodiscard]] element *get_focused_element() const {
 			return _focus;
 		}
 
@@ -377,7 +381,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns \ref _update_wait_threshold.
-		std::chrono::high_resolution_clock::duration get_update_waiting_threshold() const {
+		[[nodiscard]] std::chrono::high_resolution_clock::duration get_update_waiting_threshold() const {
 			return _update_wait_threshold;
 		}
 		/// Sets the minimum time to wait instead of 
@@ -401,7 +405,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns whether \ref update() needs to be called right now.
-		bool needs_update() const {
+		[[nodiscard]] bool needs_update() const {
 			return
 				_active_update_tasks > 0 || !_temp_tasks.empty() || // tasks
 				!_del.empty() || // element disposal
@@ -414,19 +418,23 @@ namespace codepad::ui {
 				!_dirty.empty(); // visual
 		}
 
-		/// If any internal update is necessary, calls \ref update(), then calls \ref _idle_system() with
+		/// If any internal update is necessary, calls \ref update(), then calls \ref _main_iteration_system() with
 		/// \ref wait_type::non_blocking until no more messages can be processed. Otherwise, waits and handles a
-		/// single message from the system by calling \ref _idle_system() with \ref wait_type::blocking.
-		void idle_loop_body() {
+		/// single message from the system by calling \ref _main_iteration_system() with \ref wait_type::blocking.
+		void main_iteration() {
 			if (needs_update()) {
 				// if updating is necessary, first perform this update, then process pending messages
 				update();
 				// limit the maximum number of messages processed at once
-				for (std::size_t i = 0; i < maximum_messages_per_update && _idle_system(wait_type::non_blocking); ++i) {
+				for (
+					std::size_t i = 0;
+					i < maximum_messages_per_update && _main_iteration_system(wait_type::non_blocking);
+					++i
+				) {
 				}
 			} else {
 				_set_timer(_next_update - std::chrono::high_resolution_clock::now()); // set up the timer
-				_idle_system(wait_type::blocking); // wait for the next event or the timer
+				_main_iteration_system(wait_type::blocking); // wait for the next event or the timer
 				// reset last update time so that the large blocking gap is not counted
 				_last_update = std::chrono::high_resolution_clock::now();
 			}
@@ -443,7 +451,7 @@ namespace codepad::ui {
 			return _hotkeys;
 		}
 		/// \overload
-		const hotkey_listener &get_hotkey_listener() const {
+		[[nodiscard]] const hotkey_listener &get_hotkey_listener() const {
 			return _hotkeys;
 		}
 	protected:
@@ -542,19 +550,25 @@ namespace codepad::ui {
 			_next_update = std::chrono::high_resolution_clock::now();
 		}
 
+		/// Simple wrapper around \ref _main_iteration_system_impl() that performs some additional common tasks.
+		bool _main_iteration_system(wait_type type) {
+			return _main_iteration_system_impl(type);
+		}
+
 		// platform-dependent functions
 		/// Handles one message from the system message queue. This function is platform-dependent.
 		///
 		/// \return Whether a message has been handled.
-		bool _idle_system(wait_type);
+		bool _main_iteration_system_impl(wait_type);
 		/// Sets a timer that will be activated after the given amount of time. When the timer is expired, this
 		/// program will regain control and thus can update stuff. If this is called when a timer has previously
 		/// been set, it may or may not be cancelled. This function is platform-dependent.
 		void _set_timer(std::chrono::high_resolution_clock::duration);
-		/// Returns the current thread ID.
-		static thread_id_t _get_thread_id();
 		/// Wakes the main thread up from the idle state. This function can be called from other threads as long as
 		/// this \ref scheduler object has finished construction.
 		void _wake_up();
+
+		/// Returns the current thread ID.
+		static thread_id_t _get_thread_id();
 	};
 }

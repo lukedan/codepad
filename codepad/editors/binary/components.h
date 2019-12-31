@@ -4,7 +4,6 @@
 /// Additional built-in components of the binary editor.
 
 #include "contents_region.h"
-#include "../../ui/text_rendering.h"
 
 namespace codepad::editors::binary {
 	/// Used to display the offset for each line in the binary editor.

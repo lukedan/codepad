@@ -18,83 +18,6 @@
 namespace codepad::ui {
 	class window_base;
 
-	/// Basic interface of an bitmap.
-	class bitmap {
-	public:
-		/// Default virtual destructor.
-		virtual ~bitmap() = default;
-
-		/// Returns the size of this bitmap.
-		virtual vec2d get_size() const = 0;
-	};
-	/// Basic interface of an off-screen render target.
-	class render_target {
-	public:
-		/// Default virtual destructor.
-		virtual ~render_target() = default;
-	};
-
-	/// Stores a \ref bitmap and potentially the associated \ref render_target.
-	struct render_target_data {
-		/// Default constructor.
-		render_target_data() = default;
-		/// Initializes all fields of this struct.
-		render_target_data(std::unique_ptr<render_target> rt, std::unique_ptr<bitmap> bmp) :
-			render_target(std::move(rt)), bitmap(std::move(bmp)) {
-		}
-
-		std::unique_ptr<render_target> render_target; ///< The \ref render_target.
-		std::unique_ptr<bitmap> bitmap; ///< The \ref bitmap.
-	};
-
-	/// Basic interface of the formatting of text, with determined font, size, style, and weight.
-	class text_format {
-	public:
-		/// Default virtual destructor.
-		virtual ~text_format() = default;
-	};
-	/// A piece of text whose format has been calculated and cached to speed up rendering and measuring operations.
-	class formatted_text {
-	public:
-		/// Stores the result of hit test operations.
-		struct hit_test_result {
-			/// Default constructor.
-			hit_test_result() = default;
-			/// Initializes all fields of this struct.
-			hit_test_result(std::size_t c, rectd layout, bool r) : character(c), character_layout(layout), rear(r) {
-			}
-
-			std::size_t character = 0; ///< The character index that the given point is on.
-			rectd character_layout; ///< The layout of \ref character.
-			bool rear = false; ///< Indicates if the position is after \ref character.
-		};
-		/// Stores the metrics of a single line.
-		struct line_metrics {
-			/// Default constructor.
-			line_metrics() = default;
-			/// Initializes all fields of this struct.
-			line_metrics(double h, double b) : height(h), baseline(b) {
-			}
-
-			double
-				height = 0.0, ///< The height of this line.
-				baseline = 0.0; ///< The distance from the top of the line to the baseline.
-		};
-
-		/// Default virtual destructor.
-		virtual ~formatted_text() = default;
-
-		/// Returns the region occupied by the text in the layout region.
-		virtual rectd get_layout() const = 0;
-		/// Returns the metrics of all lines.
-		virtual std::vector<line_metrics> get_line_metrics() const = 0;
-
-		/// Retrieves information about the character that is below the given point.
-		virtual hit_test_result hit_test(vec2d) const = 0;
-		/// Returns the space that the character at the given position occupies.
-		virtual rectd get_character_placement(std::size_t) const = 0;
-	};
-
 	/// Determines the style of rendered text.
 	enum class font_style : unsigned char {
 		normal, ///< Normal text.
@@ -148,7 +71,7 @@ namespace codepad::ui {
 	/// Determines how text is wrapped when it overflows the given boundary.
 	enum class wrapping_mode : unsigned char {
 		none, ///< Don't wrap.
-		wrap ///< Wrap, but in a unspecified manner.
+		wrap ///< Wrap, but in an unspecified manner.
 	};
 	/// Controls the horizontal alignment of text.
 	///
@@ -175,6 +98,103 @@ namespace codepad::ui {
 		minor, ///< The arc is less than 180 degrees.
 		major ///< The arc is greater than 180 degrees.
 	};
+
+
+	/// Basic interface of an bitmap.
+	class bitmap {
+	public:
+		/// Default virtual destructor.
+		virtual ~bitmap() = default;
+
+		/// Returns the logical size of this bitmap.
+		virtual vec2d get_size() const = 0;
+	};
+	/// Basic interface of an off-screen render target.
+	class render_target {
+	public:
+		/// Default virtual destructor.
+		virtual ~render_target() = default;
+	};
+
+	/// Stores a \ref bitmap and potentially the associated \ref render_target.
+	struct render_target_data {
+		/// Default constructor.
+		render_target_data() = default;
+		/// Initializes all fields of this struct.
+		render_target_data(std::unique_ptr<render_target> rt, std::unique_ptr<bitmap> bmp) :
+			target(std::move(rt)), target_bitmap(std::move(bmp)) {
+		}
+
+		std::unique_ptr<render_target> target; ///< The \ref render_target.
+		std::unique_ptr<bitmap> target_bitmap; ///< The \ref bitmap.
+	};
+
+	/// The parameters used to identify a font.
+	struct font_parameters {
+		/// Default constructor.
+		font_parameters() = default;
+		/// Initializes all fields of this struct.
+		font_parameters(
+			str_t f, double sz, font_style st = font_style::normal,
+			font_weight w = font_weight::normal, font_stretch width = font_stretch::normal
+		) : family(std::move(f)), size(sz), style(st), weight(w), stretch(width) {
+		}
+
+		str_t family; ///< The font family.
+		double size = 10.0; ///< The font size.
+		font_style style = font_style::normal; ///< The font style.
+		font_weight weight = font_weight::normal; ///< The font weight.
+		font_stretch stretch = font_stretch::normal; ///< The stretch of the font.
+	};
+
+	/// Basic interface of the formatting of text, with determined font, size, style, and weight.
+	class text_format {
+	public:
+		/// Default virtual destructor.
+		virtual ~text_format() = default;
+	};
+	/// Stores the result of hit test operations.
+	struct caret_hit_test_result {
+		/// Default constructor.
+		caret_hit_test_result() = default;
+		/// Initializes all fields of this struct.
+		caret_hit_test_result(std::size_t c, rectd layout, bool r) : character(c), character_layout(layout), rear(r) {
+		}
+
+		std::size_t character = 0; ///< The character index that the given point is on.
+		rectd character_layout; ///< The layout of \ref character.
+		bool rear = false; ///< Indicates if the position is after \ref character.
+	};
+	/// A piece of text whose format has been calculated and cached to speed up rendering and measuring operations.
+	class formatted_text {
+	public:
+		/// Stores the metrics of a single line.
+		struct line_metrics {
+			/// Default constructor.
+			line_metrics() = default;
+			/// Initializes all fields of this struct.
+			line_metrics(double h, double b) : height(h), baseline(b) {
+			}
+
+			double
+				height = 0.0, ///< The height of this line.
+				baseline = 0.0; ///< The distance from the top of the line to the baseline.
+		};
+
+		/// Default virtual destructor.
+		virtual ~formatted_text() = default;
+
+		/// Returns the region occupied by the text in the layout region.
+		virtual rectd get_layout() const = 0;
+		/// Returns the metrics of all lines.
+		virtual std::vector<line_metrics> get_line_metrics() const = 0;
+
+		/// Retrieves information about the character that is below the given point.
+		virtual caret_hit_test_result hit_test(vec2d) const = 0;
+		/// Returns the space that the character at the given position occupies.
+		virtual rectd get_character_placement(std::size_t) const = 0;
+	};
+
 	/// Basic interface used to construct path geometries. There should be only one instance of this object for a
 	/// renderer at any time.
 	class path_geometry_builder {
@@ -231,13 +251,13 @@ namespace codepad::json {
 		template <typename ValueType> std::optional<ui::gradient_stop> operator()(const ValueType &val) const {
 			std::optional<double> pos;
 			std::optional<colord> color;
-			if (auto object = val.template try_cast<typename ValueType::object_t>()) {
+			if (auto object = val.template try_cast<typename ValueType::object_type>()) {
 				if (object->size() > 2) {
 					val.template log<log_level::warning>(CP_HERE) << "redundant fields in gradient stop definition";
 				}
 				pos = object->template parse_member<double>(u8"position");
 				color = object->template parse_member<colord>(u8"color");
-			} else if (auto arr = val.template try_cast<typename ValueType::array_t>()) {
+			} else if (auto arr = val.template try_cast<typename ValueType::array_type>()) {
 				if (arr->size() >= 2) {
 					if (arr->size() > 2) {
 						val.template log<log_level::warning>(CP_HERE) <<
@@ -369,8 +389,7 @@ namespace codepad::ui {
 		/// Loads a \ref bitmap from disk. The second parameter specifies the scaling factor of this bitmap.
 		virtual std::unique_ptr<bitmap> load_bitmap(const std::filesystem::path&, vec2d) = 0;
 
-		/// Returns a pointer to the font identified by its name. The font may either be cached and returned
-		/// directly, or loaded on demand.
+		/// Returns a pointer to the font identified by its name.
 		virtual std::unique_ptr<text_format> create_text_format(
 			str_view_t, double, font_style, font_weight, font_stretch
 		) = 0;
@@ -382,6 +401,10 @@ namespace codepad::ui {
 		/// Finishes drawing to the last render target on which \ref begin_drawing() has been called.
 		virtual void end_drawing() = 0;
 
+		/// Clears the current surface using the given color.
+		virtual void clear(colord) = 0;
+
+		// transform
 		/// Pushes a new matrix onto the stack for subsequent drawing operations.
 		virtual void push_matrix(matd3x3) = 0;
 		/// Multiplies the current matrix with the given matrix and pushes it onto the stack for subsequent drawing
@@ -392,10 +415,8 @@ namespace codepad::ui {
 		/// Pops a matrix from the stack.
 		virtual void pop_matrix() = 0;
 
-		/// Clears the current surface using the given color.
-		virtual void clear(colord) = 0;
-
-		/// Starts to build a path.
+		// geometry drawing & building
+		/// Starts to build a path. Other drawing functions should *not* be used until the path has been finished.
 		virtual path_geometry_builder &start_path() = 0;
 
 		/// Draws a ellipse.
@@ -415,6 +436,7 @@ namespace codepad::ui {
 		/// Finishes building the current path and draws it. The path will then be discarded.
 		virtual void end_and_draw_path(const generic_brush_parameters&, const generic_pen_parameters&) = 0;
 
+		// clipping
 		/// Pushes an ellipse clip.
 		virtual void push_ellipse_clip(vec2d center, double radiusx, double radiusy) = 0;
 		/// Pushes a rectangle clip.
@@ -426,6 +448,7 @@ namespace codepad::ui {
 		/// Pops a previously pushed clip.
 		virtual void pop_clip() = 0;
 
+		// text related
 		/// Calculates the format of the given text using the given parameters, to speed up operations such as size
 		/// querying and hit testing.
 		virtual std::unique_ptr<formatted_text> format_text(

@@ -30,8 +30,8 @@ namespace codepad::json::rapidjson {
 		friend array_t;
 		friend document_t;
 	public:
-		using object_t = object_t; ///< The object type.
-		using array_t = array_t; ///< The array type.
+		using object_type = object_t; ///< The object type.
+		using array_type = array_t; ///< The array type.
 
 		/// Default constructor.
 		value_t() = default;
@@ -40,9 +40,9 @@ namespace codepad::json::rapidjson {
 		template <typename T> bool is() const {
 			if constexpr (std::is_same_v<T, null_t>) {
 				return _val->IsNull();
-			} else if constexpr (std::is_same_v<T, object_t>) {
+			} else if constexpr (std::is_same_v<T, object_type>) {
 				return _val->IsObject();
-			} else if constexpr (std::is_same_v<T, array_t>) {
+			} else if constexpr (std::is_same_v<T, array_type>) {
 				return _val->IsArray();
 			} else if constexpr (std::is_same_v<T, str_t> || std::is_same_v<T, str_view_t>) {
 				return _val->IsString();
@@ -220,10 +220,10 @@ namespace codepad::json::rapidjson {
 	template <typename T> T value_t::get() const {
 		if constexpr (std::is_same_v<T, null_t>) {
 			return null_t();
-		} else if constexpr (std::is_same_v<T, object_t>) {
-			return object_t(_val);
-		} else if constexpr (std::is_same_v<T, array_t>) {
-			return array_t(_val);
+		} else if constexpr (std::is_same_v<T, object_type>) {
+			return object_type(_val);
+		} else if constexpr (std::is_same_v<T, array_type>) {
+			return array_type(_val);
 		} else if constexpr (std::is_same_v<T, str_t>) {
 			return str_t(get_string_view(*_val));
 		} else if constexpr (std::is_same_v<T, str_view_t>) {

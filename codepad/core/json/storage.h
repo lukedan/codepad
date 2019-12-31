@@ -45,7 +45,7 @@ namespace codepad::json {
 		storage value; ///< The value.
 	};
 	/// Constructs a \ref value_storage that holds a value of type \p T, initialized by the given arguments.
-	template <typename T, typename ...Args> inline value_storage make_value_storage(Args && ...args) {
+	template <typename T, typename ...Args> inline value_storage make_value_storage(Args &&...args) {
 		return value_storage(std::in_place_type<T>, std::forward<Args>(args)...);
 	}
 
@@ -71,19 +71,19 @@ namespace codepad::json {
 		if (v.template is<str_view_t>()) {
 			return make_value_storage<str_t>(v.template get<str_view_t>());
 		}
-		if (v.template is<typename Value::object_t>()) {
+		if (v.template is<typename Value::object_type>()) {
 			value_storage val(std::in_place_type<value_storage::object>);
 			auto &dict = std::get<value_storage::object>(val.value);
-			auto &&obj = v.template get<typename Value::object_t>();
+			auto &&obj = v.template get<typename Value::object_type>();
 			for (auto it = obj.member_begin(); it != obj.member_end(); ++it) {
 				dict.emplace(it.name(), store(it.value()));
 			}
 			return val;
 		}
-		if (v.template is<typename Value::array_t>()) {
+		if (v.template is<typename Value::array_type>()) {
 			value_storage val(std::in_place_type<value_storage::array>);
 			auto &list = std::get<value_storage::array>(val.value);
-			for (auto &&n : v.template get<typename Value::array_t>()) {
+			for (auto &&n : v.template get<typename Value::array_type>()) {
 				list.emplace_back(store(n));
 			}
 			return val;
@@ -99,8 +99,8 @@ namespace codepad::json {
 			friend object_t;
 			friend array_t;
 		public:
-			using object_t = object_t; ///< The object type.
-			using array_t = array_t; ///< The array type.
+			using object_type = object_t; ///< The object type.
+			using array_type = array_t; ///< The array type.
 
 			/// Default constructor.
 			value_t() = default;
@@ -116,9 +116,9 @@ namespace codepad::json {
 					return std::holds_alternative<bool>(*_v);
 				} else if constexpr (std::is_same_v<T, str_t> || std::is_same_v<T, str_view_t>) {
 					return std::holds_alternative<str_t>(*_v);
-				} else if constexpr (std::is_same_v<T, object_t>) {
+				} else if constexpr (std::is_same_v<T, object_type>) {
 					return std::holds_alternative<value_storage::object>(*_v);
-				} else if constexpr (std::is_same_v<T, array_t>) {
+				} else if constexpr (std::is_same_v<T, array_type>) {
 					return std::holds_alternative<value_storage::array>(*_v);
 				} else if constexpr (std::is_floating_point_v<T>) {
 					return
@@ -285,12 +285,12 @@ namespace codepad::json {
 				return std::get<bool>(*_v);
 			} else if constexpr (std::is_same_v<T, str_t> || std::is_same_v<T, str_view_t>) {
 				return std::get<str_t>(*_v);
-			} else if constexpr (std::is_same_v<T, object_t>) {
+			} else if constexpr (std::is_same_v<T, object_type>) {
 				// in older (16.0 or so) versions of MSVC this will fail, in which case just take everything inside
 				// the parentheses out and put them into another temporary variable
-				return object_t(&std::get<value_storage::object>(*_v));
-			} else if constexpr (std::is_same_v<T, array_t>) {
-				return array_t(&std::get<value_storage::array>(*_v));
+				return object_type(&std::get<value_storage::object>(*_v));
+			} else if constexpr (std::is_same_v<T, array_type>) {
+				return array_type(&std::get<value_storage::array>(*_v));
 			} else {
 				if constexpr (std::is_floating_point_v<T>) {
 					if (std::holds_alternative<double>(*_v)) {

@@ -27,9 +27,9 @@ namespace codepad::json {
 				friend object_t<ValueType>;
 				friend array_t<ValueType>;
 			public:
-				using value_t = ValueType; ///< The type of JSON values.
-				using array_t = typename value_t::array_t; ///< The type of JSON arrays.
-				using object_t = typename value_t::object_t; ///< The type of JSON objects.
+				using value_type = ValueType; ///< The type of JSON values.
+				using array_type = typename value_type::array_type; ///< The type of JSON arrays.
+				using object_type = typename value_type::object_type; ///< The type of JSON objects.
 
 				using identifier_t = std::variant<std::size_t, str_t>; ///< Used to identify this object in the parent.
 
@@ -93,8 +93,8 @@ namespace codepad::json {
 			friend array_t<ValueType>;
 			friend value_t make_value<ValueType>(ValueType);
 		public:
-			using object_t = object_t<ValueType>; ///< The type of JSON objects.
-			using array_t = array_t<ValueType>; ///< The type of JSON arrays.
+			using object_type = object_t<ValueType>; ///< The type of JSON objects.
+			using array_type = array_t<ValueType>; ///< The type of JSON arrays.
 
 			/// Default constructor.
 			value_t() = default;
@@ -134,7 +134,7 @@ namespace codepad::json {
 			struct iterator {
 				friend object_t;
 			public:
-				using base_iterator_t = typename ValueType::object_t::iterator; ///< The underlying iterator type.
+				using base_iterator_t = typename ValueType::object_type::iterator; ///< The underlying iterator type.
 				/// Difference type.
 				using difference_type = typename std::iterator_traits<base_iterator_t>::difference_type;
 				/// Iterator category.
@@ -220,7 +220,7 @@ namespace codepad::json {
 				return _object.size();
 			}
 		protected:
-			using _value_object_t = typename ValueType::object_t; ///< The underlying object type.
+			using _value_object_t = typename ValueType::object_type; ///< The underlying object type.
 			using _context_node_t = _details::context_node<ValueType>; ///< Nodes that provide context information.
 
 			/// Initializes all fields of this struct.
@@ -239,7 +239,7 @@ namespace codepad::json {
 			struct iterator {
 				friend array_t;
 			public:
-				using base_iterator_t = typename ValueType::array_t::iterator; ///< The underlying iterator type.
+				using base_iterator_t = typename ValueType::array_type::iterator; ///< The underlying iterator type.
 				/// Difference type.
 				using difference_type = typename std::iterator_traits<base_iterator_t>::difference_type;
 				/// Iterator category.
@@ -392,29 +392,29 @@ namespace codepad::json {
 			using _context_node_t = _details::context_node<ValueType>; ///< Nodes that provide context information.
 
 			/// Initializes all fields of this struct.
-			array_t(typename ValueType::array_t arr, std::shared_ptr<_context_node_t> node) :
+			array_t(typename ValueType::array_type arr, std::shared_ptr<_context_node_t> node) :
 				_array(std::move(arr)), _node(std::move(node)) {
 			}
 
-			typename ValueType::array_t _array; ///< The value.
+			typename ValueType::array_type _array; ///< The value.
 			std::shared_ptr<_context_node_t> _node; ///< The associated \ref _context_node_t.
 		};
 
 		template <typename ValueType> template <typename T> bool value_t<ValueType>::is() const {
-			if constexpr (std::is_same_v<T, object_t>) {
-				return _value.template is<typename ValueType::object_t>();
-			} else if constexpr (std::is_same_v<T, array_t>) {
-				return _value.template is<typename ValueType::array_t>();
+			if constexpr (std::is_same_v<T, object_type>) {
+				return _value.template is<typename ValueType::object_type>();
+			} else if constexpr (std::is_same_v<T, array_type>) {
+				return _value.template is<typename ValueType::array_type>();
 			} else {
 				return _value.template is<T>();
 			}
 		}
 
 		template <typename ValueType> template <typename T> T value_t<ValueType>::get() const {
-			if constexpr (std::is_same_v<T, object_t>) {
-				return object_t(_value.template get<typename ValueType::object_t>(), _node);
-			} else if constexpr (std::is_same_v<T, array_t>) {
-				return array_t(_value.template get<typename ValueType::array_t>(), _node);
+			if constexpr (std::is_same_v<T, object_type>) {
+				return object_type(_value.template get<typename ValueType::object_type>(), _node);
+			} else if constexpr (std::is_same_v<T, array_type>) {
+				return array_type(_value.template get<typename ValueType::array_type>(), _node);
 			} else {
 				return _value.template get<T>();
 			}

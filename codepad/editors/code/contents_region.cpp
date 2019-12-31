@@ -14,6 +14,7 @@ using namespace codepad::os;
 
 namespace codepad::editors::code {
 	/// \todo Also consider folded regions.
+	/// \todo Word wrapping not implemented.
 	vector<size_t> contents_region::_recalculate_wrapping_region(size_t, size_t) const {
 		/*
 		vector<size_t> poss;
@@ -63,7 +64,7 @@ namespace codepad::editors::code {
 				}
 				return ass.get_horizontal_position();
 			}
-			visit([&ass](auto && frag) {
+			visit([&ass](auto &&frag) {
 				ass.append(frag);
 				}, res.result);
 		}
@@ -89,11 +90,11 @@ namespace codepad::editors::code {
 				return caret_position(oldpos, false);
 			}
 			caret_position respos;
-			bool has_result = visit([this, &iter, &ass, &res, &respos, x](auto && frag) -> bool {
+			bool has_result = visit([this, &iter, &ass, &res, &respos, x](auto &&frag) -> bool {
 				auto &&rendering = ass.append(frag);
 				if (ass.get_horizontal_position() > x) {
 					if constexpr (is_same_v<decay_t<decltype(frag)>, text_fragment>) {
-						formatted_text::hit_test_result htres = rendering.text->hit_test(vec2d(
+						caret_hit_test_result htres = rendering.text->hit_test(vec2d(
 							x - rendering.topleft.x, 0.5 * get_line_height()
 						));
 						respos.position = iter.get_position() - res.steps;
@@ -183,7 +184,7 @@ namespace codepad::editors::code {
 			while (gen.get_position() < plastchar) {
 				fragment_generation_result frag = gen.generate_and_update();
 				// render the fragment
-				std::visit([this, &frag, &gen, &ass, &caretrend](auto && specfrag) {
+				std::visit([this, &frag, &gen, &ass, &caretrend](auto &&specfrag) {
 					auto &&rendering = ass.append(specfrag);
 					ass.render(get_manager().get_renderer(), rendering);
 					caretrend.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());

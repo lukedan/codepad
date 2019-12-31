@@ -34,12 +34,12 @@ namespace codepad::ui {
 			std::optional<std::size_t> index; ///< The index, if this component is a list.
 
 			/// Returns \p true if \ref type is the same as the input or if \ref type is empty.
-			bool is_type_or_empty(str_view_t ty) const {
+			[[nodiscard]] bool is_type_or_empty(str_view_t ty) const {
 				return type.empty() || type == ty;
 			}
 			/// Returns \p true if \ref property matches the given property name, \ref type is empty or matches the
 			/// given type name, and \ref index is empty.
-			bool is_similar(str_view_t ty, str_view_t prop) const {
+			[[nodiscard]] bool is_similar(str_view_t ty, str_view_t prop) const {
 				return is_type_or_empty(ty) && prop == property && !index.has_value();
 			}
 		};
@@ -243,7 +243,7 @@ namespace codepad::ui {
 				}
 
 				/// Used to determine if two \ref member_access objects are equivalent.
-				virtual bool equals(const member_access<Source>&) const = 0;
+				[[nodiscard]] virtual bool equals(const member_access<Source>&) const = 0;
 			};
 
 			/// \ref member_access with type information of the member.
@@ -278,7 +278,7 @@ namespace codepad::ui {
 				}
 
 				/// Tests the equality between two subjects.
-				bool equals(const animation_subject_base &subject) const override {
+				[[nodiscard]] bool equals(const animation_subject_base &subject) const override {
 					if (auto *ptr = dynamic_cast<const member_access_subject<Input, Output>*>(&subject)) {
 						return &_object == &ptr->_object && _member.equals(ptr->_member);
 					}
@@ -304,7 +304,7 @@ namespace codepad::ui {
 				void set(Output) override;
 
 				/// Tests the equality between two subjects.
-				bool equals(const animation_subject_base &subject) const override {
+				[[nodiscard]] bool equals(const animation_subject_base &subject) const override {
 					if (auto *ptr = dynamic_cast<const element_member_access_subject<Output, Type>*>(&subject)) {
 						return &this->_object == &ptr->_object && this->_member.equals(ptr->_member);
 					}
@@ -331,17 +331,11 @@ namespace codepad::ui {
 				}
 				/// Sets the value, calling \ref scheduler::invalidate_layout() or
 				/// \ref scheduler::invalidate_visual() if necessary.
-				void set(Target t) override {
-					*_second.get_typed(*_first.get_typed(_source)) = std::move(t);
-					if constexpr (Type == element_property_type::affects_layout) {
-						_source.get_manager().get_scheduler().invalidate_layout(_source);
-					}
-					_source.get_manager().get_scheduler().invalidate_visual(_source);
-				}
+				void set(Target) override;
 
 				/// Checks if \ref _first, \ref _second, and \ref _source are the same if the other object is also
 				/// of this type. Otherwise returns \p false.
-				bool equals(const animation_subject_base &other) const override {
+				[[nodiscard]] bool equals(const animation_subject_base &other) const override {
 					auto *o = dynamic_cast<const custom_element_member_subject<Type, Intermediate, Target>*>(&other);
 					if (o) {
 						return o->_first.equals(_first) && o->_second.equals(_second) && &o->_source == &_source;
@@ -510,7 +504,7 @@ namespace codepad::ui {
 						input_type *input
 					) {
 						if (input) {
-							if (output_type *out = dynamic_cast<output_type*>(input)) {
+							if (auto *out = dynamic_cast<output_type*>(input)) {
 								return out;
 							}
 							logger::get().log_warning(CP_HERE) <<

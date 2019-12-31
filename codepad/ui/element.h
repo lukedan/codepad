@@ -38,6 +38,7 @@ namespace codepad::ui {
 		std::size_t _timestamp = 0; ///< The timestamp of the corresponding mouse event.
 
 		static window_base *_active_window; ///< The window that currently has valid mouse position data.
+		static std::size_t _global_timestamp; ///< The global timestamp of the latest mouse position.
 
 		/// Initializes \ref _timestamp.
 		explicit mouse_position(std::size_t ts) : _timestamp(ts) {
@@ -67,7 +68,7 @@ namespace codepad::ui {
 		const mouse_position position;
 
 		/// Returns \p true if the scroll has been handled by an element.
-		bool handled() const {
+		[[nodiscard]] bool handled() const {
 			return _handled;
 		}
 		/// Marks this event as handled.
@@ -91,12 +92,12 @@ namespace codepad::ui {
 		const mouse_position position; ///< The position of the mouse when the event took place.
 
 		/// Packs \ref button and \ref modifiers as a \ref mouse_gesture.
-		mouse_gesture get_gesture() const {
+		[[nodiscard]] mouse_gesture get_gesture() const {
 			return mouse_gesture(button, modifiers);
 		}
 
 		/// Returns \p true if the click has caused the focused element to change.
-		bool focus_set() const {
+		[[nodiscard]] bool focus_set() const {
 			return _focus_set;
 		}
 		/// Marks that the focused element has changed.
@@ -162,27 +163,27 @@ namespace codepad::ui {
 		virtual ~element() = default;
 
 		/// Returns the parent element.
-		panel *parent() const {
+		[[nodiscard]] panel *parent() const {
 			return _parent;
 		}
 		/// Returns the element's logical parent.
-		panel *logical_parent() const {
+		[[nodiscard]] panel *logical_parent() const {
 			return _logical_parent;
 		}
 
 		/// Returns the current layout of this element.
-		rectd get_layout() const {
+		[[nodiscard]] rectd get_layout() const {
 			return _layout;
 		}
 		/// Calculates and returns the current client region, i.e.,
 		/// the layout with padding subtracted from it, of the element.
-		rectd get_client_region() const {
+		[[nodiscard]] rectd get_client_region() const {
 			return get_padding().shrink(_layout);
 		}
 		/// Returns the width value used for layout calculation. If the current width allocation type is
 		/// \ref size_allocation_type::automatic, the result will be that of \ref get_desired_width; otherwise the
 		/// user-defined width will be returned.
-		size_allocation get_layout_width() const {
+		[[nodiscard]] size_allocation get_layout_width() const {
 			size_allocation_type type = get_width_allocation();
 			if (type == size_allocation_type::automatic) {
 				return get_desired_width();
@@ -192,7 +193,7 @@ namespace codepad::ui {
 		/// Returns the height value used for layout calculation.
 		///
 		/// \sa get_layout_width
-		size_allocation get_layout_height() const {
+		[[nodiscard]] size_allocation get_layout_height() const {
 			size_allocation_type type = get_height_allocation();
 			if (type == size_allocation_type::automatic) {
 				return get_desired_height();
@@ -201,30 +202,30 @@ namespace codepad::ui {
 		}
 
 		/// Returns the margin metric of this element.
-		thickness get_margin() const {
+		[[nodiscard]] thickness get_margin() const {
 			return _params.layout_parameters.margin;
 		}
 		/// Returns the padding metric of this element.
-		thickness get_padding() const {
+		[[nodiscard]] thickness get_padding() const {
 			return _params.layout_parameters.padding;
 		}
 		/// Returns the size metric of this element. Note that this is not the element's actual size, and this value
 		/// may or may not be used in layout calculation.
 		///
 		/// \sa get_actual_size()
-		vec2d get_size() const {
+		[[nodiscard]] vec2d get_size() const {
 			return _params.layout_parameters.size;
 		}
 		/// Returns the anchor metric of this element.
-		anchor get_anchor() const {
+		[[nodiscard]] anchor get_anchor() const {
 			return _params.layout_parameters.elem_anchor;
 		}
 		/// Returns the width allocation metric of this element.
-		size_allocation_type get_width_allocation() const {
+		[[nodiscard]] size_allocation_type get_width_allocation() const {
 			return _params.layout_parameters.width_alloc;
 		}
 		/// Returns the height allocation metric of this element.
-		size_allocation_type get_height_allocation() const {
+		[[nodiscard]] size_allocation_type get_height_allocation() const {
 			return _params.layout_parameters.height_alloc;
 		}
 
@@ -233,7 +234,7 @@ namespace codepad::ui {
 		///
 		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
 		///         indicates whether the value is specified in pixels.
-		virtual size_allocation get_desired_width() const {
+		[[nodiscard]] virtual size_allocation get_desired_width() const {
 			return size_allocation(1.0, false);
 		}
 		/// Returns the desired height of the element. Derived elements can override this to change the default
@@ -241,30 +242,30 @@ namespace codepad::ui {
 		///
 		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
 		///         indicates whether the value is specified in pixels.
-		virtual size_allocation get_desired_height() const {
+		[[nodiscard]] virtual size_allocation get_desired_height() const {
 			return size_allocation(1.0, false);
 		}
 
 		/// Used to test if a given point lies in the element.
 		/// Derived classes can override this function to create elements with more complex shapes.
-		virtual bool hit_test(vec2d p) const {
+		[[nodiscard]] virtual bool hit_test(vec2d p) const {
 			return p.x > 0.0 && p.x < _layout.width() && p.y > 0.0 && p.y < _layout.height();
 		}
 
 
 		/// Returns the default cursor of the element. Derived classes can override this function to change
 		/// the default behavior.
-		virtual cursor get_default_cursor() const {
+		[[nodiscard]] virtual cursor get_default_cursor() const {
 			return cursor::normal;
 		}
 		/// Returns the custom cursor displayed when the mouse is over this element.
-		cursor get_custom_cursor() const {
+		[[nodiscard]] cursor get_custom_cursor() const {
 			return _params.custom_cursor;
 		}
 		/// Returns the cursor displayed when the mouse is over this element.
 		/// This function returns the cusrom cursor if there is one,
 		/// or the result returned by \ref get_default_cursor.
-		virtual cursor get_current_display_cursor() const {
+		[[nodiscard]] virtual cursor get_current_display_cursor() const {
 			cursor overriden = get_custom_cursor();
 			if (overriden == cursor::not_specified) {
 				return get_default_cursor();
@@ -276,14 +277,14 @@ namespace codepad::ui {
 		/// one.
 		window_base *get_window();
 		/// Returns the \ref manager of this element. Use this instead of directly accessing \ref _manager.
-		manager &get_manager() const {
+		[[nodiscard]] manager &get_manager() const {
 			return *_manager;
 		}
 
 		/// Sets the z-index of the element.
 		void set_zindex(int);
 		/// Returns the z-index of the element.
-		int get_zindex() const {
+		[[nodiscard]] int get_zindex() const {
 			return _zindex;
 		}
 
@@ -291,26 +292,26 @@ namespace codepad::ui {
 		void set_visibility(visibility v) {
 			if (v != get_visibility()) {
 				_visibility_changed_info info(get_visibility());
-				_params.visibility = v;
+				_params.element_visibility = v;
 				_on_visibility_changed(info);
 			}
 		}
 		/// Returns the current visibility of this element.
-		visibility get_visibility() const {
-			return _params.visibility;
+		[[nodiscard]] visibility get_visibility() const {
+			return _params.element_visibility;
 		}
 		/// Tests if the visiblity of this element have all the given visiblity flags set.
-		bool is_visible(visibility vis) const {
+		[[nodiscard]] bool is_visible(visibility vis) const {
 			return (get_visibility() & vis) == vis;
 		}
 
 		/// Returns if the mouse is hovering over this element.
-		bool is_mouse_over() const {
+		[[nodiscard]] bool is_mouse_over() const {
 			return _mouse_over;
 		}
 
 		/// Returns the current generic parameters of this element.
-		const element_parameters &get_parameters() const {
+		[[nodiscard]] const element_parameters &get_parameters() const {
 			return _params;
 		}
 

@@ -283,11 +283,11 @@ namespace codepad::editors::code {
 						);
 					fragment_assembler ass(*edt);
 
-					r.begin_drawing(*rt.render_target);
+					r.begin_drawing(*rt.target);
 					r.push_matrix_mult(matd3x3::scale(vec2d(0.0, 0.0), scale));
 					while (gen.get_position() < plastchar) {
 						fragment_generation_result tok = gen.generate_and_update();
-						std::visit([&ass, &r](auto && frag) {
+						std::visit([&ass, &r](auto &&frag) {
 							auto &&rendering = ass.append(frag);
 							ass.render(r, rendering);
 							}, tok.result);
@@ -336,7 +336,7 @@ namespace codepad::editors::code {
 				ui::renderer_base &r = get_manager().get_renderer();
 				r.push_rectangle_clip(rectd::from_xywh(0.0, 0.0, get_layout().width(), get_layout().height()));
 				for (auto i = ibeg; i != iend; ++i) {
-					auto &bmp = *i->second.bitmap;
+					auto &bmp = *i->second.target_bitmap;
 					vec2d topleft(get_padding().left, std::floor(top + slh * static_cast<double>(i->first)));
 					r.draw_rectangle(
 						rectd::from_corners(topleft, topleft + bmp.get_size()),
@@ -525,6 +525,7 @@ namespace codepad::editors::code {
 		double _dragoffset = 0.0;
 		bool _dragging = false; ///< Indicates whether the visible region indicator is being dragged.
 
+		// TODO convert this into a setting
 		static double _target_height; ///< The desired font height of minimaps.
 	};
 }

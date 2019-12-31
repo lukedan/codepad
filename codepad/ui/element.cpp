@@ -25,6 +25,7 @@ namespace codepad::ui {
 					"there must be one window with fresh mouse position"
 				);
 				// TODO transforms not taken into account: should they? definitely inconsistent right now
+				//      see window::_update_mouse_position
 				fresh_pos = wnd->screen_to_client(_active_window->client_to_screen(get(*_active_window)));
 			} else { // TODO non-recursive version?
 				fresh_pos = e._params.visual_parameters.transform.inverse_transform_point(

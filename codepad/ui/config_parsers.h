@@ -16,13 +16,11 @@ namespace codepad::ui {
 	class manager;
 
 	/// Parses visuals from JSON objects.
-	///
-	/// \todo Warn invalid config entries.
 	template <typename ValueType> class arrangements_parser {
 	public:
 		using value_t = ValueType; ///< The type that holds JSON values.
-		using object_t = typename ValueType::object_t; ///< The type that holds JSON objects.
-		using array_t = typename ValueType::array_t; ///< The type that holds JSON arrays.
+		using object_t = typename ValueType::object_type; ///< The type that holds JSON objects.
+		using array_t = typename ValueType::array_type; ///< The type that holds JSON arrays.
 
 		/// Initializes the class with the given \ref manager.
 		explicit arrangements_parser(manager &man) : _manager(man) {
@@ -111,8 +109,8 @@ namespace codepad::ui {
 				value.visual_parameters = std::move(vis.value());
 			}
 
-			value.visibility =
-				val.template parse_optional_member<visibility>(u8"visibility").value_or(value.visibility);
+			value.element_visibility =
+				val.template parse_optional_member<visibility>(u8"visibility").value_or(value.element_visibility);
 			value.custom_cursor =
 				val.template parse_optional_member<cursor>(u8"cursor").value_or(value.custom_cursor);
 		}
@@ -180,8 +178,8 @@ namespace codepad::ui {
 		constexpr static char key_delim = '+'; ///< The delimiter for keys.
 
 		using value_t = ValueType; ///< The type for JSON values.
-		using object_t = typename ValueType::object_t; ///< The type for JSON objects.
-		using array_t = typename ValueType::array_t; ///< The type for JSON arrays.
+		using object_t = typename ValueType::object_type; ///< The type for JSON objects.
+		using array_t = typename ValueType::array_type; ///< The type for JSON arrays.
 
 		/// Parses a JSON object for a list of \ref key_gesture "key_gestures" and the corresponding command.
 		inline static bool parse_hotkey_entry(

@@ -66,9 +66,6 @@ namespace codepad::os::direct2d {
 		friend render_target;
 		friend renderer;
 	public:
-		/// Default constructor.
-		bitmap() = default;
-
 		/// Returns the size of the bitmap.
 		vec2d get_size() const override {
 			D2D1_SIZE_F sz = _bitmap->GetSize();
@@ -130,13 +127,13 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Invokes \p IDWriteTextLayout::HitTestPoint().
-		hit_test_result hit_test(vec2d pos) const override {
+		ui::caret_hit_test_result hit_test(vec2d pos) const override {
 			BOOL trailing, inside;
 			DWRITE_HIT_TEST_METRICS metrics;
 			com_check(_text->HitTestPoint(
 				static_cast<FLOAT>(pos.x), static_cast<FLOAT>(pos.y), &trailing, &inside, &metrics
 			));
-			return hit_test_result(
+			return ui::caret_hit_test_result(
 				static_cast<std::size_t>(metrics.textPosition),
 				rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height),
 				trailing != 0
@@ -197,7 +194,7 @@ namespace codepad::os::direct2d {
 			_sink->AddArc(D2D1::ArcSegment(
 				_last_point,
 				D2D1::SizeF(static_cast<FLOAT>(radius.x), static_cast<FLOAT>(radius.y)),
-				static_cast<FLOAT>(rotation),
+				static_cast<FLOAT>(rotation) * (180.0f / 3.14159f), // in degrees
 				dir == ui::sweep_direction::clockwise ?
 				D2D1_SWEEP_DIRECTION_CLOCKWISE :
 				D2D1_SWEEP_DIRECTION_COUNTER_CLOCKWISE,
@@ -225,7 +222,9 @@ namespace codepad::os::direct2d {
 			}
 			com_check(_sink->Close());
 			_sink.reset();
-			return std::move(_geom);
+			_details::com_wrapper<ID2D1PathGeometry> result;
+			std::swap(result, _geom);
+			return result;
 		}
 
 		/// Called before any actual stroke is added to ensure that \ref _stroking is \p true.
@@ -239,35 +238,32 @@ namespace codepad::os::direct2d {
 
 
 	namespace _details { // cast objects to types specific to the direct2d renderer
-		/// Casts a \ref ui::window_base to a \ref window.
-		inline static window &cast_window(ui::window_base &w) {
-			auto *wnd = dynamic_cast<window*>(&w);
-			assert_true_usage(wnd, "invalid window type");
-			return *wnd;
+		/// Underlying implementation of various <tt>cast_*</tt> functions.
+		template <typename To, typename From> inline To &cast_object(From &f) {
+#ifdef CP_CHECK_LOGICAL_ERRORS
+			To *res = dynamic_cast<To*>(&f);
+			assert_true_logical(res, "invalid object type");
+			return *res;
+#else
+			return *static_cast<To*>(&f);
+#endif
 		}
+
 		/// Casts a \ref ui::render_target to a \ref render_target.
-		inline static render_target &cast_render_target(ui::render_target &t) {
-			auto *rt = dynamic_cast<render_target*>(&t);
-			assert_true_usage(rt, "invalid render target type");
-			return *rt;
+		inline render_target &cast_render_target(ui::render_target &t) {
+			return cast_object<render_target>(t);
 		}
 		/// Casts a \ref ui::bitmap to a \ref bitmap.
-		inline static bitmap &cast_bitmap(ui::bitmap &b) {
-			auto *bmp = dynamic_cast<bitmap*>(&b);
-			assert_true_usage(bmp, "invalid bitmap type");
-			return *bmp;
+		inline bitmap &cast_bitmap(ui::bitmap &b) {
+			return cast_object<bitmap>(b);
 		}
 		/// Casts a \ref ui::text_format to a \ref text_format.
-		inline static text_format &cast_text_format(ui::text_format &b) {
-			auto *fmt = dynamic_cast<text_format*>(&b);
-			assert_true_usage(fmt, "invalid text format type");
-			return *fmt;
+		inline text_format &cast_text_format(ui::text_format &b) {
+			return cast_object<text_format>(b);
 		}
 		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
-		inline static formatted_text &cast_formatted_text(ui::formatted_text &t) {
-			auto *ft = dynamic_cast<formatted_text*>(&t);
-			assert_true_usage(ft, "invalid formatted text type");
-			return *ft;
+		inline formatted_text &cast_formatted_text(ui::formatted_text &t) {
+			return cast_object<formatted_text>(t);
 		}
 	}
 
@@ -359,8 +355,17 @@ namespace codepad::os::direct2d {
 			_details::com_wrapper<IWICBitmapSource> img = _details::wic_image_loader::get().load_image(bmp);
 
 			com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppPBGRA, img.get(), converted.get_ref()));
-			// TODO include scaling factor using one of the overloads
-			com_check(_d2d_device_context->CreateBitmapFromWicBitmap(converted.get(), res->_bitmap.get_ref()));
+			com_check(_d2d_device_context->CreateBitmapFromWicBitmap(
+				converted.get(),
+				D2D1::BitmapProperties1(
+					D2D1_BITMAP_OPTIONS_NONE,
+					D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_UNKNOWN),
+					static_cast<FLOAT>(scaling_factor.x * USER_DEFAULT_SCREEN_DPI),
+					static_cast<FLOAT>(scaling_factor.y * USER_DEFAULT_SCREEN_DPI),
+					nullptr
+				),
+				res->_bitmap.get_ref())
+			);
 			return res;
 		}
 
@@ -386,7 +391,7 @@ namespace codepad::os::direct2d {
 
 		/// Starts drawing to the given window.
 		void begin_drawing(ui::window_base &w) override {
-			auto &data = _window_data::get(_details::cast_window(w));
+			auto &data = _window_data::get(w);
 			_begin_draw_impl(data.target.get(), w.get_scaling_factor() * USER_DEFAULT_SCREEN_DPI);
 			_present_chains.emplace(data.swap_chain.get());
 		}
@@ -593,7 +598,7 @@ namespace codepad::os::direct2d {
 			_details::com_wrapper<ID2D1Bitmap1> target; ///< The target bitmap.
 
 			/// Returns the \ref _window_data associated with the given window.
-			inline static _window_data &get(window &wnd) {
+			inline static _window_data &get(ui::window_base &wnd) {
 				_window_data *d = std::any_cast<_window_data>(&_get_window_data(wnd));
 				assert_true_usage(d, "window has no associated data");
 				return *d;
@@ -602,12 +607,15 @@ namespace codepad::os::direct2d {
 		/// Stores information about a currently active render target.
 		struct _render_target_stackframe {
 			/// Initializes \ref target, and pushes an identity matrix onto the stack.
-			_render_target_stackframe(ID2D1Image *t) : target(t) {
-				matrices.push(D2D1::IdentityMatrix());
+			explicit _render_target_stackframe(ID2D1Image *t) : target(t) {
+				matrices.emplace(D2D1::IdentityMatrix());
 			}
 
-			ID2D1Image *target = nullptr; ///< The render target.
 			std::stack<D2D1_MATRIX_3X2_F> matrices; ///< The stack of matrices.
+			/// The render target. Here we're using raw pointers to skip a few \p AddRef() and \p Release() calls
+			/// since the target must be alive during the entire duration of rendering (if it doesn't, then it's the
+			/// user's fault and we'll just let it crash).
+			ID2D1Image *target = nullptr;
 		};
 
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of render targets.
@@ -781,7 +789,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Creates a \p ID2D1Brush from the given \ref ui::brush specification.
 		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::generic_brush_parameters &b) {
-			auto brush = std::visit([this](auto && brush) {
+			auto brush = std::visit([this](auto &&brush) {
 				return _details::com_wrapper<ID2D1Brush>(_create_brush(brush));
 				}, b.value);
 			if (brush) {
@@ -896,7 +904,6 @@ namespace codepad::os::direct2d {
 				com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 				// recreate bitmap
 				data.target = _create_bitmap_from_swap_chain(data.swap_chain.get(), pwnd->get_scaling_factor());
-				InvalidateRect(pwnd->get_native_handle(), nullptr, true);
 			};
 			// reallocate buffer when the window scaling has changed
 			wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window_base::scaling_factor_changed_info &p) {
@@ -905,7 +912,6 @@ namespace codepad::os::direct2d {
 				com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 				// recreate bitmap
 				data.target = _create_bitmap_from_swap_chain(data.swap_chain.get(), p.new_value);
-				InvalidateRect(pwnd->get_native_handle(), nullptr, true);
 			};
 		}
 		/// Releases all resources.

@@ -131,7 +131,7 @@ namespace codepad::ui {
 			}*/
 		}
 		/// Returns the element that currently captures the mouse, or \p nullptr.
-		virtual element *get_mouse_capture() const {
+		[[nodiscard]] virtual element *get_mouse_capture() const {
 			return _capture;
 		}
 		/// Releases the mouse capture. Derived classes should override this function to notify the system.
@@ -143,7 +143,7 @@ namespace codepad::ui {
 		}
 		/// If the mouse is captured, returns the mouse cursor of \ref _capture; otherwise falls back to
 		/// the default behavior.
-		cursor get_current_display_cursor() const override {
+		[[nodiscard]] cursor get_current_display_cursor() const override {
 			if (_capture) {
 				return _capture->get_current_display_cursor();
 			}
@@ -166,10 +166,14 @@ namespace codepad::ui {
 		/// be necessary to use \ref _physical_to_logical_position() to convert physical positions into logical ones.
 		mouse_position _update_mouse_position(vec2d pos) {
 			mouse_position::_active_window = this;
+			++mouse_position::_global_timestamp;
 			_cached_mouse_position = get_parameters().visual_parameters.transform.inverse_transform_point(
 				pos - get_layout().xmin_ymin(), get_layout().size()
 			);
-			++_cached_mouse_position_timestamp;
+			logger::get().log_debug(CP_HERE) <<
+				"update mouse position: window " << this <<
+				" timetstamp " << _cached_mouse_position_timestamp << "->" << mouse_position::_global_timestamp;
+			_cached_mouse_position_timestamp = mouse_position::_global_timestamp;
 			return mouse_position(_cached_mouse_position_timestamp);
 		}
 

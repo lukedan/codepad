@@ -138,6 +138,7 @@ namespace codepad::os {
 		void set_show_icon(bool show) override {
 			_set_window_style_bit(!show, WS_EX_TOOLWINDOW, GWL_EXSTYLE);
 		}
+
 		bool hit_test_full_client(vec2d v) const override {
 			RECT r;
 			winapi_check(GetWindowRect(_hwnd, &r));
@@ -377,4 +378,13 @@ namespace codepad::os {
 			window_base::_dispose();
 		}
 	};
+
+	namespace _details {
+		/// Casts a \ref ui::window_base to a \ref window.
+		inline window &cast_window(ui::window_base &w) {
+			auto *wnd = dynamic_cast<window*>(&w);
+			assert_true_usage(wnd, "invalid window type");
+			return *wnd;
+		}
+	}
 }

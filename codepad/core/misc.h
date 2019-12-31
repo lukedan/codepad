@@ -394,6 +394,90 @@ namespace codepad {
 	}
 
 
+	/// CRTP base for a RAII wrapper of a reference-counted handle.
+	template <typename Derived, typename T> struct reference_counted_handle {
+	public:
+		/// Default constructor.
+		reference_counted_handle() = default;
+		/// Copy constructor.
+		reference_counted_handle(const reference_counted_handle &src) : _handle(src._handle) {
+			_check_add_ref();
+		}
+		/// Move constructor.
+		reference_counted_handle(reference_counted_handle &&src) noexcept : _handle(src._handle) {
+			src._handle = nullptr;
+		}
+		/// Copy assignment.
+		reference_counted_handle &operator=(const reference_counted_handle &src) {
+			set_share(src._handle);
+			return *this;
+		}
+		/// Move assignment.
+		reference_counted_handle &operator=(reference_counted_handle &&src) noexcept {
+			set_give(src._handle);
+			src._handle = nullptr;
+			return *this;
+		}
+		/// Calls \ref _remove_ref() if necessary.
+		~reference_counted_handle() {
+			_check_release();
+		}
+
+		/// Sets the underlying pointer and increment the reference count.
+		reference_counted_handle &set_share(T *ptr) {
+			_check_release();
+			_handle = ptr;
+			_check_add_ref();
+			return *this;
+		}
+		/// Sets the underlying pointer without incrementing the reference count.
+		reference_counted_handle &set_give(T *ptr) {
+			_check_release();
+			_handle = ptr;
+			return *this;
+		}
+		/// Releases the currently holding object.
+		reference_counted_handle &reset() {
+			return set_give(nullptr);
+		}
+
+		/// Returns the underlying pointer.
+		T *get() const {
+			return _handle;
+		}
+		/// Convenience operator.
+		T *operator->() const {
+			return get();
+		}
+
+		/// Returns whether this wrapper holds no objects.
+		bool empty() const {
+			return _handle == nullptr;
+		}
+		/// Returns whether this brush has any content.
+		explicit operator bool() const {
+			return !empty();
+		}
+	protected:
+		T *_handle = nullptr; ///< The underlying handle.
+
+		/// Adds a reference to the handle by calling \p _do_add_ref() if necessary.
+		void _check_add_ref() {
+			if (_handle) {
+				static_cast<Derived*>(this)->_do_add_ref();
+			}
+		}
+		/// Removes a reference to the handle by calling \p _do_release() if necessary. This function also resets
+		/// \ref _handle.
+		void _check_release() {
+			if (_handle) {
+				static_cast<Derived*>(this)->_do_release();
+				_handle = nullptr;
+			}
+		}
+	};
+
+
 	/// Initializes the program by calling \ref os::initialize first and then performing several other
 	/// initialization steps.
 	void initialize(int, char**);

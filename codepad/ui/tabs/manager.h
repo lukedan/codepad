@@ -160,161 +160,6 @@ namespace codepad::ui::tabs {
 				std::swap(_changed, tmp_changes);
 			}
 		}
-		/*
-		/// Updates the tab that's currently being dragged.
-		///
-		/// \todo Updating so frequently seems unnecessary.
-		/// \todo Needs major improvements.
-		void update_drag() {
-			if (_drag) {
-				vec2d mouse = os::get_mouse_position().convert<double>();
-				if (_drag_dest_type == drag_destination_type::combine_in_host) { // dragging tab_button in a tab list
-					rectd rgn = _drag_destination->get_tab_buttons_region().get_layout();
-					vec2d mpos = _drag_destination->get_window()->screen_to_client(mouse);
-					if (!rgn.contains(mpos)) { // moved out of the region
-						_drag_destination->remove_tab(*_drag);
-						_drag_dest_type = drag_destination_type::new_window;
-						_drag_destination = nullptr;
-
-						_drag_tab_window->children().add(_drag->get_button());
-						_drag_tab_window->show();
-					} else { // update tab position
-						_update_drag_tab_position(mpos);
-					}
-				}
-				// these are used to find the host with the nearest center point
-				// however, since no "hovering popup" mechanism is implemented yet, this is of little use right now
-				host *mindp = nullptr;
-				vec2d minpos;
-				double minsql = 0.0;
-				if (_drag_dest_type != drag_destination_type::combine_in_host) { // find best host to target
-					for (window_base *wnd : _wndlist) { // iterate through all windows according to their z-order
-						bool goon = true;
-						vec2d mpos = wnd->screen_to_client(mouse);
-						if (wnd->hit_test_full_client(mouse)) {
-							_enumerate_hosts(wnd, [&](host &hst) {
-								rectd rgn = hst.get_tab_buttons_region().get_layout();
-								if (rgn.contains(mpos)) { // switch to combine_in_host
-									_drag_dest_type = drag_destination_type::combine_in_host;
-
-									_drag_tab_window->children().clear();
-									_drag_tab_window->hide();
-									_try_dispose_preview();
-									_try_detach_destination_selector();
-
-									// change destination and add _drag to it
-									_drag_destination = &hst;
-									_drag_destination->add_tab(*_drag);
-									_drag_destination->activate_tab(*_drag);
-									// update position
-									_update_drag_tab_position(mpos);
-									wnd->activate();
-
-									// should no longer go on
-									goon = false;
-									return false;
-								}
-								if (hst.get_layout().contains(mpos)) { // see if this host is closer
-									vec2d cdiff = mpos - hst.get_layout().center();
-									double dsql = cdiff.length_sqr();
-									if (!mindp || minsql > dsql) { // yes it is
-										minpos = mpos;
-										mindp = &hst;
-										minsql = dsql;
-									}
-								}
-								return true;
-								});
-							if (!goon) {
-								break;
-							}
-							break; // remove this line to take into account all overlapping windows
-						}
-					}
-				}
-				if (_drag_dest_type != drag_destination_type::combine_in_host) { // check nearest host
-					if (mindp) { // mouse is over a host
-						if (_drag_destination != mindp) {
-							_try_dispose_preview();
-							// move selector to new host
-							if (_drag_destination) {
-								_drag_destination->_set_drag_dest_selector(nullptr);
-							}
-							mindp->_set_drag_dest_selector(_drag_dest_selector);
-						}
-						drag_destination_type newdtype = _drag_dest_selector->get_drag_destination(minpos);
-						assert_true_logical(
-							newdtype != drag_destination_type::combine_in_host, "invalid destination type"
-						);
-						if (newdtype != _drag_dest_type || _drag_destination != mindp) { // update preview type
-							_try_dispose_preview();
-							_drag_dest_type = newdtype;
-							_drag_destination = mindp;
-							if (_drag_dest_type != drag_destination_type::new_window) { // insert new preview
-								_dragdec = new decoration(_manager);
-								_dragdec->set_class(CP_STRLIT("drag_preview"));
-								_dragdec->set_layout(_get_preview_layout(*_drag_destination, _drag_dest_type));
-								_drag_destination->get_window()->register_decoration(*_dragdec);
-							}
-						}
-					} else { // new_window is the only choice
-						// dispose everything
-						_try_dispose_preview();
-						_try_detach_destination_selector();
-						_drag_destination = nullptr;
-						_drag_dest_type = drag_destination_type::new_window;
-					}
-					_drag_tab_window->set_position(mouse - _drag_offset);
-				}
-
-				if (true) { // stop & move tab to destination
-					_drag_tab_window->children().clear();
-					_manager.get_scheduler().mark_for_disposal(*_drag_tab_window);
-					_drag_tab_window = nullptr;
-					// dispose preview and detach selector
-					_try_dispose_preview();
-					_try_detach_destination_selector();
-
-					switch (_drag_dest_type) {
-					case drag_destination_type::new_window:
-					{
-						rectd r = _dragrect;
-						r.ymin = -_drag_offset.y;
-						_move_tab_to_new_window(
-							*_drag, r.translated(os::get_mouse_position().convert<double>())
-						);
-					}
-					break;
-					case drag_destination_type::combine_in_host:
-						/*_drag->_btn->invalidate_layout();*//*
-						// the tab is already added to _drag_destination
-						break;
-					case drag_destination_type::combine:
-						_drag_destination->add_tab(*_drag);
-						_drag_destination->activate_tab(*_drag);
-						break;
-					default: // split tab
-						assert_true_logical(_drag_destination != nullptr, "invalid split target");
-						_split_tab(
-							*_drag_destination, *_drag,
-							_drag_dest_type == drag_destination_type::new_panel_top ||
-							_drag_dest_type == drag_destination_type::new_panel_bottom ?
-							orientation::vertical : orientation::horizontal,
-							_drag_dest_type == drag_destination_type::new_panel_left ||
-							_drag_dest_type == drag_destination_type::new_panel_top
-						);
-						break;
-					}
-					// the mouse button is not down anymore
-					// TODO notify mouse up
-					_drag = nullptr;
-					end_drag.invoke();
-				} else { // keep updating
-					_manager.get_scheduler().schedule_update_task(_update_drag_token);
-				}
-			}
-		}
-		*/
 
 		/// Returns \p true if the user's currently dragging a \ref tab.
 		bool is_dragging_tab() const {
@@ -364,8 +209,6 @@ namespace codepad::ui::tabs {
 			} else {
 				_start_dragging_free(vec2d()); // FIXME we have no means to obtain the correct position of the window
 			}
-
-			/*_manager.get_scheduler().schedule_update_task(_update_drag_token);*/
 		}
 
 		info_event<> end_drag; ///< Invoked when the user finishes dragging a \ref tab_button.
@@ -592,6 +435,7 @@ namespace codepad::ui::tabs {
 		void _update_dragging_in_host(mouse_move_info &p) {
 			panel &region = *_drag->get_button().parent();
 			vec2d mouse = p.new_position.get(region);
+			// TODO this way of testing if the mouse is still inside is not reliable
 			if (!rectd::from_corners(vec2d(), region.get_layout().size()).contains(mouse)) {
 				window_base *wnd = _drag->get_window();
 				vec2d button_topleft_screen = wnd->client_to_screen(p.new_position.get(*wnd) - _drag_offset);

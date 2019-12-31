@@ -23,7 +23,7 @@ namespace codepad {
 			/// Parses \ref vec2d. The object must be of the following format: <tt>[x, y]</tt>
 			template <typename Value> std::optional<vec2d> operator()(const Value &val) const {
 				std::optional<double> x, y;
-				if (auto arr = val.template try_cast<typename Value::array_t>()) {
+				if (auto arr = val.template try_cast<typename Value::array_type>()) {
 					if (arr->size() >= 2) {
 						if (arr->size() > 2) {
 							val.template log<log_level::warning>(CP_HERE) << u8"too many elements in vec2";
@@ -33,7 +33,7 @@ namespace codepad {
 					} else {
 						val.template log<log_level::error>(CP_HERE) << u8"too few elements in vec2";
 					}
-				} else if (auto obj = val.template try_cast<typename Value::object_t>()) {
+				} else if (auto obj = val.template try_cast<typename Value::object_type>()) {
 					if (obj->size() > 2) {
 						val.template log<log_level::warning>(CP_HERE) << u8"redundant fields in vec2 definition";
 					}
@@ -54,7 +54,7 @@ namespace codepad {
 			/// Parses \ref colord. The object can take the following formats: <tt>["hsl", h, s, l(, a)]</tt> for
 			/// HSL format colors, and <tt>[r, g, b(, a)]</tt> for RGB format colors.
 			template <typename Value> std::optional<colord> operator()(const Value &val) const {
-				if (auto arr = val.template cast<typename Value::array_t>()) { // must be an array
+				if (auto arr = val.template cast<typename Value::array_type>()) { // must be an array
 					if (arr->size() >= 3) {
 						colord result;
 						if (arr->size() > 3) {
@@ -430,7 +430,7 @@ namespace codepad {
 			/// <tt>[left, top, right, bottom]</tt> or a single number specifying the value for all four
 			/// directions.
 			template <typename Value> std::optional<ui::thickness> operator()(const Value &val) const {
-				if (auto arr = val.template try_cast<typename Value::array_t>()) {
+				if (auto arr = val.template try_cast<typename Value::array_type>()) {
 					if (arr->size() >= 4) {
 						if (arr->size() > 4) {
 							val.template log<log_level::error>(CP_HERE) <<
@@ -523,12 +523,18 @@ namespace codepad {
 					if (percentage || _details::ends_with(str.value(), "*")) { // proportion
 						res.is_pixels = false;
 					}
+					// it's not safe to use std::strtod here since it requires that the input string be null-terminated
+#ifdef __GNUC__
+					// FIXME hack because libstdc++ maintainer doesn't know how to implement from_chars
+					res.value = std::stod(str_t(str.value()));
+#else
 					std::from_chars(str->data(), str->data() + str->size(), res.value); // result ignored
+#endif
 					if (percentage) {
 						res.value *= 0.01;
 					}
 					return res;
-				} else if (auto full = val.template try_cast<typename Value::object_t>()) {
+				} else if (auto full = val.template try_cast<typename Value::object_type>()) {
 					// full object representation
 					auto value = full->template parse_member<double>(u8"value");
 					auto is_pixels = full->template parse_member<bool>(u8"is_pixels");

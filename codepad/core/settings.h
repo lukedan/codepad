@@ -186,7 +186,7 @@ namespace codepad {
 
 			/// Constructs this \ref retriever_parser using the given setting, key, and parser.
 			retriever_parser(settings &s, std::vector<str_t> k, value_parser p) :
-				parser(std::move(p)), _key(std::move(k)), _main(*this, nullptr, ""), _parent(s) {
+				parser(std::move(p)), _main(*this, nullptr, ""), _key(std::move(k)), _parent(s) {
 			}
 
 			/// Retrieves the \ref profile_value for the given profile name.

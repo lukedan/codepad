@@ -9,7 +9,6 @@
 #include "element.h"
 #include "panel.h"
 #include "manager.h"
-#include "text_rendering.h"
 #include "window.h"
 #include "animation_path.h"
 #include "../core/misc.h"
@@ -76,24 +75,6 @@ namespace codepad::ui {
 
 		/// Returns the \ref settings::retriever_parser of the deadzone's radius.
 		static settings::retriever_parser<double> &_get_radius_setting();
-	};
-
-	/// The parameters used to identify a font.
-	struct font_parameters {
-		/// Default constructor.
-		font_parameters() = default;
-		/// Initializes all fields of this struct.
-		font_parameters(
-			str_t f, double sz, font_style st = font_style::normal,
-			font_weight w = font_weight::normal, font_stretch width = font_stretch::normal
-		) : family(std::move(f)), size(sz), style(st), weight(w), stretch(width) {
-		}
-
-		str_t family; ///< The font family.
-		double size = 10.0; ///< The font size.
-		font_style style = font_style::normal; ///< The font style.
-		font_weight weight = font_weight::normal; ///< The font weight.
-		font_stretch stretch = font_stretch::normal; ///< The stretch of the font.
 	};
 
 	/// A label that displays plain text. Non-focusable by default.

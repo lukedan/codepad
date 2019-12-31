@@ -620,7 +620,7 @@ namespace codepad::ui::animation_path {
 				return get_visibility_property<_wrapper<element_property_type::affects_layout>::type>(
 					++begin, end, getter_components::pair(
 						getter_components::member_component<&element::_params>(),
-						getter_components::member_component<&element_parameters::visibility>()
+						getter_components::member_component<&element_parameters::element_visibility>()
 					));
 			}
 			return member_information<element>();

@@ -34,22 +34,22 @@ namespace codepad::os {
 
 	namespace input {
 		namespace _details {
-			inline GdkModifierType get_modifier_bit_of_button(mouse_button btn) {
+			inline GdkModifierType get_modifier_bit_of_button(ui::mouse_button btn) {
 				switch (btn) {
-				case mouse_button::primary:
+				case ui::mouse_button::primary:
 					return GDK_BUTTON1_MASK;
-				case mouse_button::secondary:
+				case ui::mouse_button::secondary:
 					return GDK_BUTTON2_MASK;
-				case mouse_button::tertiary:
+				case ui::mouse_button::tertiary:
 					return GDK_BUTTON3_MASK;
 				}
 				assert_true_logical(false, "invalid mouse button");
 				return GDK_BUTTON1_MASK;
 			}
 
-			constexpr static size_t max_keysym_mapping = 4;
+			constexpr static std::size_t max_keysym_mapping = 4;
 			/// \todo Complete the list of KeySyms.
-			const guint keysym_mapping[total_num_keys][max_keysym_mapping] = {
+			const guint keysym_mapping[ui::total_num_keys][max_keysym_mapping] = {
 				{GDK_KEY_Cancel},
 				{}, // xbutton_1
 				{}, // xbutton_2
@@ -111,23 +111,23 @@ namespace codepad::os {
 				{GDK_KEY_Alt_L},
 				{GDK_KEY_Alt_R}
 			};
-			key get_mapped_key(guint ks) {
-				static std::unordered_map<guint, key> _mapping;
+			ui::key get_mapped_key(guint ks) {
+				static std::unordered_map<guint, ui::key> _mapping;
 				static bool _mapped = false;
 
 				if (!_mapped) {
-					for (size_t i = 0; i < total_num_keys; ++i) {
+					for (std::size_t i = 0; i < ui::total_num_keys; ++i) {
 						if (
-							i == static_cast<size_t>(key::shift) ||
-								i == static_cast<size_t>(key::control) ||
-								i == static_cast<size_t>(key::alt)
+							i == static_cast<std::size_t>(ui::key::shift) ||
+								i == static_cast<std::size_t>(ui::key::control) ||
+								i == static_cast<std::size_t>(ui::key::alt)
 							) {
 							// shift, control, and alt are not mapped because they are only used when
 							// testing if either key (left and right) is pressed
 							continue;
 						}
-						for (size_t j = 0; j < max_keysym_mapping && keysym_mapping[i][j] != 0; ++j) {
-							_mapping[keysym_mapping[i][j]] = static_cast<key>(i);
+						for (std::size_t j = 0; j < max_keysym_mapping && keysym_mapping[i][j] != 0; ++j) {
+							_mapping[keysym_mapping[i][j]] = static_cast<ui::key>(i);
 						}
 					}
 					_mapped = true;
@@ -136,23 +136,8 @@ namespace codepad::os {
 				return _mapping[ks];
 			}
 		}
-
-		bool is_mouse_button_down(mouse_button mb) {
-			GdkDevice *pointer = gdk_seat_get_pointer(
-				gdk_display_get_default_seat(gdk_display_get_default())
-			);
-			GdkModifierType mod{};
-			gdk_device_get_state(pointer, gdk_get_default_root_window(), nullptr, &mod);
-			return (mod & _details::get_modifier_bit_of_button(mb)) != 0;
-		}
-		vec2i get_mouse_position() {
-			gint x, y;
-			gdk_device_get_position(gdk_seat_get_pointer(
-				gdk_display_get_default_seat(gdk_display_get_default())
-			), nullptr, &x, &y);
-			return vec2i(x, y);
-		}
 	}
+
 
 	template <typename W, typename T, typename ...Args> inline void _invoke_event(
 		window *w, void (W::*func)(T&), Args &&...args
@@ -161,97 +146,107 @@ namespace codepad::os {
 		(w->*func)(info);
 	};
 
-	inline input::mouse_button _get_button_from_code(guint code) {
+	inline ui::mouse_button _get_button_from_code(guint code) {
 		switch (code) {
 		case GDK_BUTTON_PRIMARY:
-			return input::mouse_button::primary;
+			return ui::mouse_button::primary;
 		case GDK_BUTTON_SECONDARY:
-			return input::mouse_button::secondary;
+			return ui::mouse_button::secondary;
 		case GDK_BUTTON_MIDDLE:
-			return input::mouse_button::tertiary;
+			return ui::mouse_button::tertiary;
 		default: // unrecognized button
-			return input::mouse_button::primary;
+			return ui::mouse_button::primary;
 		}
 	}
 
-	inline input::key _get_key_of_event(GdkEvent *event) {
+	inline ui::key _get_key_of_event(GdkEvent *event) {
 		return input::_details::get_mapped_key(event->key.keyval);
 	}
-	template <typename Ev> inline modifier_keys _get_modifiers(const Ev &event) {
-		modifier_keys result = modifier_keys::none;
+
+	template <typename Ev> inline ui::modifier_keys _get_modifiers(const Ev &event) {
+		ui::modifier_keys result = ui::modifier_keys::none;
 		if (event.state & GDK_CONTROL_MASK) {
-			result |= modifier_keys::control;
+			result |= ui::modifier_keys::control;
 		}
 		if (event.state & GDK_SHIFT_MASK) {
-			result |= modifier_keys::shift;
+			result |= ui::modifier_keys::shift;
 		}
 		if (event.state & GDK_MOD1_MASK) { // normally alt
-			result |= modifier_keys::alt;
+			result |= ui::modifier_keys::alt;
 		}
 		if (event.state & GDK_HYPER_MASK) { // whatever
-			result |= modifier_keys::super;
+			result |= ui::modifier_keys::super;
 		}
 		return result;
 	}
+
 
 	gboolean window::_on_delete_event(GtkWidget*, GdkEvent*, window *wnd) {
 		wnd->_on_close_request();
 		return true;
 	}
+
 	gboolean window::_on_motion_notify_event(GtkWidget*, GdkEvent *ev, window *wnd) {
 		if (!wnd->is_mouse_over()) {
 			wnd->_on_mouse_enter();
 		}
 		_form_onevent<ui::mouse_move_info>(
-			*wnd, &window::_on_mouse_move, vec2d(ev->motion.x, ev->motion.y)
+			*wnd, &window::_on_mouse_move, wnd->_update_mouse_position(vec2d(ev->motion.x, ev->motion.y))
 		);
 		// update cursor
-		cursor c = wnd->get_current_display_cursor();
-		if (c == cursor::not_specified) {
-			c = cursor::normal;
+		ui::cursor c = wnd->get_current_display_cursor();
+		if (c == ui::cursor::not_specified) {
+			c = ui::cursor::normal;
 		}
 		gdk_window_set_cursor(
 			ev->any.window, _details::cursor_set::get().cursors[static_cast<int>(c)]
 		);
 		return true;
 	}
+
 	gboolean window::_on_button_press_event(GtkWidget*, GdkEvent *ev, window *wnd) {
-		logger::get().log_verbose(CP_HERE, "mouse down");
 		if (ev->button.type == GDK_BUTTON_PRESS) {
 			_form_onevent<ui::mouse_button_info>(
 				*wnd, &window::_on_mouse_down,
-				_get_button_from_code(ev->button.button), _get_modifiers(ev->button), vec2d(ev->button.x, ev->button.y)
+				_get_button_from_code(ev->button.button), _get_modifiers(ev->button),
+				wnd->_update_mouse_position(vec2d(ev->button.x, ev->button.y))
 			);
 		}
 		// returning false here will cause this handler to be executed twice
 		return true;
 	}
+
 	gboolean window::_on_button_release_event(GtkWidget*, GdkEvent *ev, window *wnd) {
-		logger::get().log_verbose(CP_HERE, "mouse up");
 		_form_onevent<ui::mouse_button_info>(
 			*wnd, &window::_on_mouse_up,
-			_get_button_from_code(ev->button.button), _get_modifiers(ev->button), vec2d(ev->button.x, ev->button.y)
+			_get_button_from_code(ev->button.button), _get_modifiers(ev->button),
+			wnd->_update_mouse_position(vec2d(ev->button.x, ev->button.y))
 		);
 		return true;
 	}
+
 	gboolean window::_on_key_press_event(GtkWidget*, GdkEvent *event, window *wnd) {
-		input::key k = _get_key_of_event(event);
-		if (!wnd->hotkey_manager.on_key_down(key_gesture(k, _get_modifiers(event->key)))) {
+		ui::key k = _get_key_of_event(event);
+		if (!wnd->get_manager().get_scheduler().get_hotkey_listener().on_key_down(
+			ui::key_gesture(k, _get_modifiers(event->key))
+		)) {
 			if (!gtk_im_context_filter_keypress(wnd->_imctx, &event->key)) {
 				_form_onevent<ui::key_info>(*wnd, &window::_on_key_down, k);
 			}
 		}
 		return true;
 	}
+
 	gboolean window::_on_key_release_event(GtkWidget*, GdkEvent *event, window *wnd) {
-		input::key k = _get_key_of_event(event);
+		ui::key k = _get_key_of_event(event);
 		if (!gtk_im_context_filter_keypress(wnd->_imctx, &event->key)) {
 			_form_onevent<ui::key_info>(*wnd, &window::_on_key_up, k);
 		}
 		return true;
 	}
 
-	vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
+
+	vector<filesystem::path> open_file_dialog(const ui::window_base *parent, file_dialog_type type) {
 #ifdef CP_DETECT_LOGICAL_ERRORS
 		auto wnd = dynamic_cast<const window*>(parent);
 		assert_true_logical(wnd != nullptr, "invalid window type");
@@ -279,7 +274,7 @@ namespace codepad::os {
 		return paths;
 	}
 
-	texture load_image(renderer_base &renderer, const filesystem::path &path) {
+	/*texture load_image(renderer_base &renderer, const filesystem::path &path) {
 		GError *err = nullptr;
 		GdkPixbuf *buf = gdk_pixbuf_new_from_file(path.c_str(), &err);
 		if (err) {
@@ -288,16 +283,16 @@ namespace codepad::os {
 		}
 		assert_true_usage(gdk_pixbuf_get_bits_per_sample(buf) == 8, "invalid bits per sample");
 		auto
-			width = static_cast<size_t>(gdk_pixbuf_get_width(buf)),
-			height = static_cast<size_t>(gdk_pixbuf_get_height(buf));
+			width = static_cast<std::size_t>(gdk_pixbuf_get_width(buf)),
+			height = static_cast<std::size_t>(gdk_pixbuf_get_height(buf));
 		void *buffer = std::malloc(4 * width * height);
 		auto *target = static_cast<unsigned char*>(buffer);
 		auto has_alpha = static_cast<bool>(gdk_pixbuf_get_has_alpha(buf));
 		const guchar *src = gdk_pixbuf_get_pixels(buf);
 		int stride = gdk_pixbuf_get_rowstride(buf);
-		for (size_t y = 0; y < height; ++y, src += stride) {
+		for (std::size_t y = 0; y < height; ++y, src += stride) {
 			const guchar *source = src;
-			for (size_t x = 0; x < width; ++x, target += 4) {
+			for (std::size_t x = 0; x < width; ++x, target += 4) {
 				target[0] = source[0];
 				target[1] = source[1];
 				target[2] = source[2];
@@ -314,5 +309,36 @@ namespace codepad::os {
 		std::free(buffer);
 		g_object_unref(buf);
 		return tex;
+	}*/
+}
+
+
+namespace codepad::ui {
+	bool scheduler::_main_iteration_system_impl(wait_type type) {
+		if (type == wait_type::non_blocking) {
+			if (gtk_events_pending()) {
+				gtk_main_iteration_do(false);
+				return true;
+			}
+			return false;
+		}
+		gtk_main_iteration_do(true);
+		// FIXME an event may or may not have been processed
+		//       however the scheduler doesn't really care in this case
+		return true;
+	}
+
+	/// A function that returns false. This is used as GLib sources, to create events that only happens once.
+	gboolean _glib_call_once(gpointer) {
+		return false;
+	}
+
+	void scheduler::_set_timer(std::chrono::high_resolution_clock::duration duration) {
+		guint ms = std::chrono::duration_cast<std::chrono::duration<guint, std::milli>>(duration).count();
+		g_timeout_add(ms, _glib_call_once, nullptr);
+	}
+
+	void scheduler::_wake_up() {
+		g_idle_add(_glib_call_once, nullptr);
 	}
 }

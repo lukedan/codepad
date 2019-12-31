@@ -35,6 +35,8 @@ namespace codepad {
 	std::unique_ptr<logger> logger::_current;
 
 	window_base *mouse_position::_active_window = nullptr;
+	// this is set to 1 so that no window thinks it has up-to-date mouse position initially
+	std::size_t mouse_position::_global_timestamp = 1;
 
 	/*std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;*/
 
@@ -143,10 +145,6 @@ namespace codepad {
 			return _v.object;
 		}
 #	endif
-		freetype_font::_font_config &freetype_font::_font_config::get() {
-			static _global_wrapper<_font_config> _v;
-			return _v.object;
-		}
 #endif
 	}
 	namespace editors {

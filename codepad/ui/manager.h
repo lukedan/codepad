@@ -245,6 +245,17 @@ namespace codepad::ui {
 			}
 			e.get_manager().get_scheduler().invalidate_visual(e);
 		}
+
+
+		template<
+			element_property_type Type, typename Intermediate, typename Target
+		> void custom_element_member_subject<Type, Intermediate, Target>::set(Target t) {
+			*_second.get_typed(*_first.get_typed(_source)) = std::move(t);
+			if constexpr (Type == element_property_type::affects_layout) {
+				_source.get_manager().get_scheduler().invalidate_layout(_source);
+			}
+			_source.get_manager().get_scheduler().invalidate_visual(_source);
+		}
 	}
 
 
@@ -253,7 +264,7 @@ namespace codepad::ui {
 	> std::optional<brushes::bitmap_pattern> managed_json_parser<brushes::bitmap_pattern>::operator()(
 		const Value &val
 		) const {
-		if (auto obj = val.template cast<typename Value::object_t>()) {
+		if (auto obj = val.template cast<typename Value::object_type>()) {
 			if (auto image = obj->template parse_member<str_view_t>(u8"image")) {
 				return brushes::bitmap_pattern(_manager.get_texture(image.value()));
 			}

@@ -73,6 +73,8 @@ namespace codepad::os {
 		using difference_type =
 #if defined(CP_PLATFORM_WINDOWS)
 			LONGLONG;
+#elif defined(CP_PLATFORM_UNIX)
+			off_t;
 #endif
 
 		/// The value of an empty handle.
@@ -136,6 +138,8 @@ namespace codepad::os {
 		/// Returns the position of the file pointer.
 		pos_type tell() const;
 		/// Moves the file pointer.
+		///
+		/// \return The position of the file pointer after this operation, relative to the beginning of the file.
 		pos_type seek(seek_mode, difference_type);
 
 		/// Returns the native handle.
