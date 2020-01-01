@@ -682,21 +682,18 @@
 							"anchor": "lr"
 						},
 						"extras": {
-							"text_brush": {
-								"type": "solid",
-								"color": [ 0.8, 0.8, 0.8, 1.0 ]
-							}
+							"text_color": [ 0.8, 0.8, 0.8, 1.0 ]
 						},
 						"animations": {
 							"main.mouse_enter": {
-								"text_brush.(solid_color_brush.color)": {
+								"text_color": {
 									"to": [ 1.0, 1.0, 1.0, 1.0 ],
 									"duration": 0.1,
 									"transition": "linear"
 								}
 							},
 							"main.mouse_leave": {
-								"text_brush.(solid_color_brush.color)": {
+								"text_color": {
 									"to": [ 0.8, 0.8, 0.8, 1.0 ],
 									"duration": 0.1,
 									"transition": "linear"

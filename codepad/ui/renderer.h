@@ -147,12 +147,6 @@ namespace codepad::ui {
 		font_stretch stretch = font_stretch::normal; ///< The stretch of the font.
 	};
 
-	/// Basic interface of the formatting of text, with determined font, size, style, and weight.
-	class text_format {
-	public:
-		/// Default virtual destructor.
-		virtual ~text_format() = default;
-	};
 	/// Stores the result of hit test operations.
 	struct caret_hit_test_result {
 		/// Default constructor.
@@ -165,22 +159,21 @@ namespace codepad::ui {
 		rectd character_layout; ///< The layout of \ref character.
 		bool rear = false; ///< Indicates if the position is after \ref character.
 	};
-	/// A piece of text whose format has been calculated and cached to speed up rendering and measuring operations.
+	/// Stores the metrics of a single line.
+	struct line_metrics {
+		/// Default constructor.
+		line_metrics() = default;
+		/// Initializes all fields of this struct.
+		line_metrics(double h, double b) : height(h), baseline(b) {
+		}
+
+		double
+			height = 0.0, ///< The height of this line.
+			baseline = 0.0; ///< The distance from the top of the line to the baseline.
+	};
+	/// A piece of text, possibly containing text with various different formats.
 	class formatted_text {
 	public:
-		/// Stores the metrics of a single line.
-		struct line_metrics {
-			/// Default constructor.
-			line_metrics() = default;
-			/// Initializes all fields of this struct.
-			line_metrics(double h, double b) : height(h), baseline(b) {
-			}
-
-			double
-				height = 0.0, ///< The height of this line.
-				baseline = 0.0; ///< The distance from the top of the line to the baseline.
-		};
-
 		/// Default virtual destructor.
 		virtual ~formatted_text() = default;
 
@@ -191,7 +184,42 @@ namespace codepad::ui {
 
 		/// Retrieves information about the character that is below the given point.
 		virtual caret_hit_test_result hit_test(vec2d) const = 0;
-		/// Returns the space that the character at the given position occupies.
+		/// Returns the space occupied by the character at the given position.
+		virtual rectd get_character_placement(std::size_t) const = 0;
+
+		/// Sets the color of the specified range of text.
+		virtual void set_text_color(colord, std::size_t, std::size_t) = 0;
+		/// Sets the font family of the specified range of text.
+		virtual void set_font_family(str_view_t, std::size_t, std::size_t) = 0;
+		/// Sets the font size of the specified range of text.
+		virtual void set_font_size(double, std::size_t, std::size_t) = 0;
+		/// Sets the font style of the specified range of text.
+		virtual void set_font_style(font_style, std::size_t, std::size_t) = 0;
+		/// Sets the font weight of the specified range of text.
+		virtual void set_font_weight(font_weight, std::size_t, std::size_t) = 0;
+		/// Sets the font stretch of the specified range of text.
+		virtual void set_font_stretch(font_stretch, std::size_t, std::size_t) = 0;
+	};
+
+	/// Represents a family of similar fonts.
+	class font_family {
+	public:
+		/// Default virtual destructor.
+		virtual ~font_family() = default;
+	};
+
+	/// Represents a single line of text with the same font parameters. This is mainly used for code editors.
+	class plain_text {
+	public:
+		/// Default virtual destructor.
+		virtual ~plain_text() = default;
+
+		/// Returns the total width of this text clip.
+		virtual double get_width() const = 0;
+
+		/// Retrieves information about the character that is below the given horizontal position.
+		virtual caret_hit_test_result hit_test(double) const = 0;
+		/// Returns the space occupied by the character at the given position.
 		virtual rectd get_character_placement(std::size_t) const = 0;
 	};
 
@@ -389,10 +417,8 @@ namespace codepad::ui {
 		/// Loads a \ref bitmap from disk. The second parameter specifies the scaling factor of this bitmap.
 		virtual std::unique_ptr<bitmap> load_bitmap(const std::filesystem::path&, vec2d) = 0;
 
-		/// Returns a pointer to the font identified by its name.
-		virtual std::unique_ptr<text_format> create_text_format(
-			str_view_t, double, font_style, font_weight, font_stretch
-		) = 0;
+		/// Returns a font family identified by its name.
+		virtual std::unique_ptr<font_family> find_font_family(str_view_t) = 0;
 
 		/// Starts drawing to the given window.
 		virtual void begin_drawing(window_base&) = 0;
@@ -448,41 +474,33 @@ namespace codepad::ui {
 		/// Pops a previously pushed clip.
 		virtual void pop_clip() = 0;
 
-		// text related
-		/// Calculates the format of the given text using the given parameters, to speed up operations such as size
-		/// querying and hit testing.
-		virtual std::unique_ptr<formatted_text> format_text(
-			str_view_t, text_format&, vec2d, wrapping_mode, horizontal_text_alignment, vertical_text_alignment
+		// formatted text related
+		/// Creates a new \ref formatted_text from the given parameters, using the given font parameters and color
+		/// for the entire clip of text.
+		virtual std::unique_ptr<formatted_text> create_formatted_text(
+			str_view_t, const font_parameters&, colord, vec2d, wrapping_mode,
+			horizontal_text_alignment, vertical_text_alignment
 		) = 0;
 		/// \ref format_text() that accepts a UTF-32 string.
-		virtual std::unique_ptr<formatted_text> format_text(
-			std::basic_string_view<codepoint>, text_format&, vec2d, wrapping_mode,
+		virtual std::unique_ptr<formatted_text> create_formatted_text(
+			std::basic_string_view<codepoint>, const font_parameters&, colord, vec2d, wrapping_mode,
 			horizontal_text_alignment, vertical_text_alignment
 		) = 0;
 		/// Draws the given \ref formatted_text at the given position using the given brush. The position indicates
 		/// the top left corner of the layout box.
-		virtual void draw_formatted_text(formatted_text&, vec2d, const generic_brush_parameters&) = 0;
-		/// Shorthand for a combination of \ref format_text() and \ref draw_formatted_text(). Implementations may
-		/// override this to reduce intermediate steps.
-		virtual void draw_text(
-			str_view_t text, rectd layout,
-			text_format &format, wrapping_mode wrap,
-			horizontal_text_alignment halign, vertical_text_alignment valign,
-			const generic_brush_parameters &brush
-		) {
-			auto fmt = format_text(text, format, layout.size(), wrap, halign, valign);
-			draw_formatted_text(*fmt, layout.xmin_ymin(), brush);
-		}
-		/// \ref draw_text() that accepts a UTF-32 string.
-		virtual void draw_text(
-			std::basic_string_view<codepoint> text, rectd layout,
-			text_format &format, wrapping_mode wrap,
-			horizontal_text_alignment halign, vertical_text_alignment valign,
-			const generic_brush_parameters &brush
-		) {
-			auto fmt = format_text(text, format, layout.size(), wrap, halign, valign);
-			draw_formatted_text(*fmt, layout.xmin_ymin(), brush);
-		}
+		virtual void draw_formatted_text(formatted_text&, vec2d) = 0;
+
+		// plain text related
+		/// Creates a new \ref plain_text from the given parameters.
+		virtual std::unique_ptr<plain_text> create_plain_text(
+			str_view_t, font_family&, double, font_style, font_weight, font_stretch
+		) = 0;
+		/// \ref create_plain_text() that accepts a UTF-32 string.
+		virtual std::unique_ptr<plain_text> create_plain_text(
+			std::basic_string_view<codepoint>, font_family&, double, font_style, font_weight, font_stretch
+		) = 0;
+		/// Draws the given \ref plain_text at the given position, using the given color.
+		virtual void draw_plain_text(plain_text&, vec2d, colord) = 0;
 	protected:
 		/// Called to register the creation of a window.
 		virtual void _new_window(window_base&) = 0;

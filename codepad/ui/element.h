@@ -662,15 +662,24 @@ namespace codepad::ui {
 
 
 	template <
+		animation_path::builder::element_property_type Type
+	> inline void animation_subject_information::_element_subject_callback(element &e) {
+		e.invalidate_visual();
+		if constexpr (Type == animation_path::builder::element_property_type::affects_layout) {
+			e.invalidate_layout();
+		}
+	}
+
+	template <
 		typename Intermediate
-	> inline animation_subject_information animation_subject_information::from_element_custom(
+	> inline animation_subject_information animation_subject_information::from_element_custom_with_callback(
 		animation_path::builder::member_information<Intermediate> member,
 		std::unique_ptr<animation_path::builder::typed_member_access<element, Intermediate>> median,
-		element &elem, animation_path::builder::element_property_type type
+		element &elem, std::function<void(element&)> callback
 	) {
 		animation_subject_information res;
 		res.parser = std::move(member.parser);
-		res.subject = member.member->create_for_element(elem, *median, type);
+		res.subject = member.member->create_for_element_with_callback(elem, *median, std::move(callback));
 		res.subject_data = std::make_any<std::tuple<
 			std::shared_ptr<animation_path::builder::member_access<element>>,
 			std::shared_ptr<animation_path::builder::member_access<Intermediate>>
@@ -680,8 +689,8 @@ namespace codepad::ui {
 
 	template <
 		auto Member
-	> inline animation_subject_information animation_subject_information::from_member(
-		element &elem, animation_path::builder::element_property_type type,
+	> inline animation_subject_information animation_subject_information::from_member_with_callback(
+		element &elem, std::function<void(element&)> callback,
 		animation_path::component_list::const_iterator begin, animation_path::component_list::const_iterator end
 	) {
 		using member_component = animation_path::builder::getter_components::member_component<Member>;
@@ -698,10 +707,25 @@ namespace codepad::ui {
 					member_component()
 				)
 			);
-			return animation_subject_information::from_element_custom(
-				std::move(inner), std::move(outer), elem, type
+			return animation_subject_information::from_element_custom_with_callback(
+				std::move(inner), std::move(outer), elem, std::move(callback)
 			);
 		}
 		return animation_subject_information();
+	}
+
+	template <
+		auto Member
+	> inline animation_subject_information animation_subject_information::from_member(
+		element &elem, animation_path::builder::element_property_type type,
+		animation_path::component_list::const_iterator begin, animation_path::component_list::const_iterator end
+	) {
+		return from_member_with_callback<Member>(
+			elem,
+			type == animation_path::builder::element_property_type::visual_only ?
+			&_element_subject_callback<animation_path::builder::element_property_type::visual_only> :
+			&_element_subject_callback<animation_path::builder::element_property_type::affects_layout>,
+			std::move(begin), std::move(end)
+		);
 	}
 }

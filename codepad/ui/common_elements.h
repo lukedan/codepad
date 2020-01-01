@@ -101,14 +101,14 @@ namespace codepad::ui {
 			_on_text_layout_changed();
 		}
 
-		/// Returns the brush.
-		const generic_brush &get_brush() const {
-			return _text_brush;
+		/// Returns the color of the text.
+		colord get_text_color() const {
+			return _text_color;
 		}
-		/// Sets the brush.
-		void set_brush(generic_brush b) {
-			_text_brush = std::move(b);
-			invalidate_visual();
+		/// Sets the color of the text.
+		void set_text_color(colord c) {
+			_text_color = c;
+			_on_text_color_changed();
 		}
 
 		/// Returns the font parameters.
@@ -127,7 +127,7 @@ namespace codepad::ui {
 		}
 	protected:
 		str_t _text; ///< The text.
-		generic_brush _text_brush; ///< The brush.
+		colord _text_color; ///< The color of the text.
 		font_parameters _font; ///< The font.
 		mutable std::unique_ptr<formatted_text> _cached_fmt; ///< The cached formatted text.
 
@@ -142,23 +142,25 @@ namespace codepad::ui {
 
 			rectd client = get_client_region();
 			vec2d offset = client.xmin_ymin() - get_layout().xmin_ymin();
-			generic_brush_parameters brush = _text_brush.get_parameters(client.size());
-			brush.transform *= matd3x3::translate(offset);
-			get_manager().get_renderer().draw_formatted_text(*_cached_fmt, offset, brush);
+			get_manager().get_renderer().draw_formatted_text(*_cached_fmt, offset);
 		}
 
 		/// Ensures that \ref _cached_fmt is valid.
 		void _check_cache_format() const {
 			if (!_cached_fmt) {
 				rectd client = get_client_region();
-				auto fmt = get_manager().get_renderer().create_text_format(
-					_font.family, _font.size, _font.style, _font.weight, _font.stretch
-				);
-				_cached_fmt = get_manager().get_renderer().format_text(
-					get_text(), *fmt, client.size(), wrapping_mode::none,
+				_cached_fmt = get_manager().get_renderer().create_formatted_text(
+					get_text(), _font, _text_color, client.size(), wrapping_mode::none,
 					horizontal_text_alignment::front, vertical_text_alignment::top
 				);
 			}
+		}
+		/// Called when the color of the text has changed.
+		virtual void _on_text_color_changed() {
+			if (_cached_fmt) {
+				_cached_fmt->set_text_color(_text_color, 0, std::numeric_limits<std::size_t>::max());
+			}
+			invalidate_visual();
 		}
 		/// Called when the layout of the text has potentially changed.
 		virtual void _on_text_layout_changed() {
@@ -168,11 +170,9 @@ namespace codepad::ui {
 
 		/// Handles the parsing of \ref _text_brush.
 		void _set_attribute(str_view_t name, const json::value_storage &v) override {
-			if (name == u8"text_brush") {
-				if (auto brush = v.get_value().parse<generic_brush>(
-					managed_json_parser<generic_brush>(get_manager())
-					)) {
-					_text_brush = brush.value();
+			if (name == u8"text_color") {
+				if (auto color = v.get_value().parse<colord>()) {
+					set_text_color(color.value());
 				}
 				return;
 			}
@@ -182,9 +182,11 @@ namespace codepad::ui {
 		animation_subject_information _parse_animation_path(
 			const animation_path::component_list &components
 		) override {
-			if (!components.empty() && components[0].is_similar(u8"label", u8"text_brush")) {
-				return animation_subject_information::from_member<&label::_text_brush>(
-					*this, animation_path::builder::element_property_type::visual_only,
+			if (!components.empty() && components[0].is_similar(u8"label", u8"text_color")) {
+				return animation_subject_information::from_member_with_callback<&label::_text_color>(
+					*this, [](element &e) {
+						dynamic_cast<label&>(e)._on_text_color_changed();
+					},
 					++components.begin(), components.end()
 				);
 			}

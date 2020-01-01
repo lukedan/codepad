@@ -40,10 +40,31 @@ int main(int argc, char **argv) {
 	codepad::initialize(argc, argv);
 
 	manager man;
+
+	{ // select renderer
+		const char *default_graphics_backend =
 #ifdef CP_PLATFORM_WINDOWS
-	/*man.set_renderer(std::make_unique<direct2d::renderer>());*/
+			"direct2d";
+#elif defined(CP_PLATFORM_UNIX)
+			"cairo";
 #endif
-	man.set_renderer(std::make_unique<cairo_renderer>());
+		auto parser = settings::get().create_retriever_parser<str_view_t>(
+			{ "graphics_backend" }, settings::basic_parsers::basic_type_with_default<str_view_t>(default_graphics_backend)
+			);
+		str_view_t renderer = parser.get_main_profile().get_value();
+		logger::get().log_debug(CP_HERE) << "using renderer: " << renderer;
+#ifdef CP_PLATFORM_WINDOWS
+		if (renderer == "direct2d") {
+			man.set_renderer(std::make_unique<direct2d::renderer>());
+		}
+#endif
+#ifdef CP_USE_CAIRO
+		if (renderer == "cairo") {
+			man.set_renderer(std::make_unique<cairo_renderer>());
+		}
+#endif
+		assert_true_usage(man.has_renderer(), "unrecognized renderer");
+	}
 
 	{
 		auto doc = json::parse_file<json::rapidjson::document_t>("config/arrangements.json");

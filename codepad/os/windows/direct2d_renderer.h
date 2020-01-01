@@ -26,7 +26,7 @@ namespace codepad::os::direct2d {
 		using namespace os::_details; // import stuff from common win32
 
 		/// Converts a \ref matd3x3 to a \p D2D1_MATRIX_3X2_F.
-		inline static D2D1_MATRIX_3X2_F cast_matrix(matd3x3 m) {
+		inline D2D1_MATRIX_3X2_F cast_matrix(matd3x3 m) {
 			// the resulting matrix is transposed
 			D2D1_MATRIX_3X2_F mat;
 			mat.m11 = static_cast<FLOAT>(m[0][0]);
@@ -38,7 +38,7 @@ namespace codepad::os::direct2d {
 			return mat;
 		}
 		/// Converts a \ref colord to a \p D2D1_COLOR_F.
-		inline static D2D1_COLOR_F cast_color(colord c) {
+		inline D2D1_COLOR_F cast_color(colord c) {
 			return D2D1::ColorF(
 				static_cast<FLOAT>(c.r),
 				static_cast<FLOAT>(c.g),
@@ -47,7 +47,7 @@ namespace codepad::os::direct2d {
 			);
 		}
 		/// Converts a \ref rectd to a \p D2D1_RECT_F.
-		inline static D2D1_RECT_F cast_rect(rectd r) {
+		inline D2D1_RECT_F cast_rect(rectd r) {
 			return D2D1::RectF(
 				static_cast<FLOAT>(r.xmin),
 				static_cast<FLOAT>(r.ymin),
@@ -56,8 +56,74 @@ namespace codepad::os::direct2d {
 			);
 		}
 		/// Converts a \ref vec2d to a \p D2D1_POINT_2F.
-		inline static D2D1_POINT_2F cast_point(vec2d pt) {
+		inline D2D1_POINT_2F cast_point(vec2d pt) {
 			return D2D1::Point2F(static_cast<FLOAT>(pt.x), static_cast<FLOAT>(pt.y));
+		}
+
+		/// Constructs a \p DWRITE_TEXT_RANGE.
+		inline DWRITE_TEXT_RANGE make_text_range(std::size_t beg, std::size_t len) {
+			DWRITE_TEXT_RANGE result;
+			result.startPosition = static_cast<UINT32>(beg);
+			// this works for size_t::max() as well since both types are unsigned
+			result.length = static_cast<UINT32>(len);
+			return result;
+		}
+
+		/// Casts a \ref ui::font_style to a \p DWRITE_FONT_STYLE.
+		inline DWRITE_FONT_STYLE cast_font_style(ui::font_style style) {
+			switch (style) {
+			case ui::font_style::normal:
+				return DWRITE_FONT_STYLE_NORMAL;
+			case ui::font_style::italic:
+				return DWRITE_FONT_STYLE_ITALIC;
+			case ui::font_style::oblique:
+				return DWRITE_FONT_STYLE_OBLIQUE;
+			}
+			return DWRITE_FONT_STYLE_NORMAL; // should not be here
+		}
+		/// Casts a \ref ui::font_weight to a \p DWRITE_FONT_WEIGHT.
+		inline DWRITE_FONT_WEIGHT cast_font_weight(ui::font_weight weight) {
+			// TODO
+			return DWRITE_FONT_WEIGHT_REGULAR;
+		}
+		/// Casts a \ref ui::font_stretch to a \p DWRITE_FONT_STRETCH.
+		inline DWRITE_FONT_STRETCH cast_font_stretch(ui::font_stretch stretch) {
+			// TODO
+			return DWRITE_FONT_STRETCH_NORMAL;
+		}
+		/// Casts a \ref ui::horizontal_text_alignment to a \p DWRITE_TEXT_ALIGNMENT.
+		inline DWRITE_TEXT_ALIGNMENT cast_horizontal_text_alignment(ui::horizontal_text_alignment align) {
+			switch (align) {
+			case ui::horizontal_text_alignment::center:
+				return DWRITE_TEXT_ALIGNMENT_CENTER;
+			case ui::horizontal_text_alignment::front:
+				return DWRITE_TEXT_ALIGNMENT_LEADING;
+			case ui::horizontal_text_alignment::rear:
+				return DWRITE_TEXT_ALIGNMENT_TRAILING;
+			}
+			return DWRITE_TEXT_ALIGNMENT_LEADING; // should not be here
+		}
+		/// Casts a \ref ui::vertical_text_alignment to a \p DWRITE_PARAGRAPH_ALIGNMENT.
+		inline DWRITE_PARAGRAPH_ALIGNMENT cast_vertical_text_alignment(ui::vertical_text_alignment align) {
+			switch (align) {
+			case ui::vertical_text_alignment::top:
+				return DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+			case ui::vertical_text_alignment::center:
+				return DWRITE_PARAGRAPH_ALIGNMENT_CENTER;
+			case ui::vertical_text_alignment::bottom:
+				return DWRITE_PARAGRAPH_ALIGNMENT_FAR;
+			}
+			return DWRITE_PARAGRAPH_ALIGNMENT_NEAR; // should not be here
+		}
+		/// Casts a \ref ui::wrapping_mode to a \p DWRITE_WORD_WRAPPING.
+		inline DWRITE_WORD_WRAPPING cast_wrapping_mode(ui::wrapping_mode wrap) {
+			switch (wrap) {
+			case ui::wrapping_mode::none:
+				return DWRITE_WORD_WRAPPING_NO_WRAP;
+			case ui::wrapping_mode::wrap:
+				return DWRITE_WORD_WRAPPING_WRAP;
+			}
+			return DWRITE_WORD_WRAPPING_NO_WRAP; // should not be here
 		}
 	}
 
@@ -83,17 +149,13 @@ namespace codepad::os::direct2d {
 		_details::com_wrapper<ID3D11Texture2D> _texture; ///< The texture.
 	};
 
-	/// Wrapper around an \p IDWriteTextFormat.
-	class text_format : public ui::text_format {
-		friend renderer;
-	protected:
-		_details::com_wrapper<IDWriteTextFormat> _fmt; ///< The \p IDWriteTextFormat handle.
-	};
-
 	/// Wrapper around an \p IDWriteTextLayout.
 	class formatted_text : public ui::formatted_text {
 		friend renderer;
 	public:
+		/// Default constructor.
+		formatted_text() = default;
+
 		/// Returns the layout of the text.
 		rectd get_layout() const override {
 			DWRITE_TEXT_METRICS metrics;
@@ -103,7 +165,7 @@ namespace codepad::os::direct2d {
 			);
 		}
 		/// Returns the metrics of each line.
-		std::vector<line_metrics> get_line_metrics() const override {
+		std::vector<ui::line_metrics> get_line_metrics() const override {
 			constexpr std::size_t small_buffer_size = 5;
 
 			DWRITE_LINE_METRICS small_buffer[small_buffer_size], *bufptr = small_buffer;
@@ -118,7 +180,7 @@ namespace codepad::os::direct2d {
 			} else {
 				com_check(res);
 			}
-			std::vector<line_metrics> resvec;
+			std::vector<ui::line_metrics> resvec;
 			resvec.reserve(ressize);
 			for (std::size_t i = 0; i < ressize; ++i) {
 				resvec.emplace_back(bufptr[i].height, bufptr[i].baseline);
@@ -146,8 +208,72 @@ namespace codepad::os::direct2d {
 			com_check(_text->HitTestTextPosition(static_cast<UINT32>(pos), false, &px, &py, &metrics));
 			return rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
 		}
+
+		/// Calls \p IDWriteTextLayout::SetDrawingEffect().
+		void set_text_color(colord, std::size_t, std::size_t) override;
+		/// Calls \p IDWriteTextLayout::SetFontFamilyName().
+		void set_font_family(str_view_t family, std::size_t beg, std::size_t len) override {
+			com_check(_text->SetFontFamilyName(
+				_details::utf8_to_wstring(family).c_str(), _details::make_text_range(beg, len)
+			));
+		}
+		/// Calls \p IDWriteTextLayout::SetFontSize().
+		void set_font_size(double size, std::size_t beg, std::size_t len) override {
+			com_check(_text->SetFontSize(static_cast<FLOAT>(size), _details::make_text_range(beg, len)));
+		}
+		/// Calls \p IDWriteTextLayout::SetFontStyle().
+		void set_font_style(ui::font_style style, std::size_t beg, std::size_t len) override {
+			com_check(_text->SetFontStyle(
+				_details::cast_font_style(style), _details::make_text_range(beg, len)
+			));
+		}
+		/// Calls \p IDWriteTextLayout::SetFontStyle().
+		void set_font_weight(ui::font_weight weight, std::size_t beg, std::size_t len) override {
+			com_check(_text->SetFontWeight(
+				_details::cast_font_weight(weight), _details::make_text_range(beg, len)
+			));
+		}
+		/// Calls \p IDWriteTextLayout::SetFontStretch().
+		void set_font_stretch(ui::font_stretch stretch, std::size_t beg, std::size_t len) override {
+			com_check(_text->SetFontStretch(
+				_details::cast_font_stretch(stretch), _details::make_text_range(beg, len)
+			));
+		}
 	protected:
+		/// Initializes \ref _rend.
+		explicit formatted_text(renderer &r) : _rend(&r) {
+		}
+
 		_details::com_wrapper<IDWriteTextLayout> _text; ///< The \p IDWriteTextLayout handle.
+		renderer *_rend = nullptr; ///< The renderer.
+	};
+
+	/// Encapsules a \p IDWriteFontFamily.
+	class font_family : public ui::font_family {
+		friend renderer;
+	protected:
+		_details::com_wrapper<IDWriteFontFamily> _family;
+	};
+
+	/// Stores a piece of analyzed text.
+	class plain_text : public ui::plain_text {
+	public:
+		/// Returns the width of this piece of text.
+		double get_width() const override {
+			// TODO
+			return 0.0;
+		}
+
+		/// Performs hit testing.
+		ui::caret_hit_test_result hit_test(double) const override {
+			// TODO
+			return ui::caret_hit_test_result();
+		}
+		/// Returns the position of the given character.
+		rectd get_character_placement(std::size_t) const override {
+			// TODO
+			return rectd();
+		}
 	};
 
 	/// Encapsules a \p ID2D1PathGeometry and a \p ID2D1GeometrySink.
@@ -257,10 +383,6 @@ namespace codepad::os::direct2d {
 		inline bitmap &cast_bitmap(ui::bitmap &b) {
 			return cast_object<bitmap>(b);
 		}
-		/// Casts a \ref ui::text_format to a \ref text_format.
-		inline text_format &cast_text_format(ui::text_format &b) {
-			return cast_object<text_format>(b);
-		}
 		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
 		inline formatted_text &cast_formatted_text(ui::formatted_text &t) {
 			return cast_object<formatted_text>(t);
@@ -270,6 +392,7 @@ namespace codepad::os::direct2d {
 
 	/// The Direct2D renderer backend.
 	class renderer : public ui::renderer_base {
+		friend formatted_text;
 	public:
 		constexpr static DXGI_FORMAT pixel_format = DXGI_FORMAT_B8G8R8A8_UNORM; ///< The default pixel format.
 
@@ -306,6 +429,10 @@ namespace codepad::os::direct2d {
 				D2D1_DEVICE_CONTEXT_OPTIONS_NONE, _d2d_device_context.get_ref()
 			));
 			_d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+			// create brush for text
+			com_check(_d2d_device_context->CreateSolidColorBrush(
+				_details::cast_color(colord()), _text_brush.get_ref()
+			));
 
 			com_check(DWriteCreateFactory(
 				DWRITE_FACTORY_TYPE_SHARED,
@@ -370,22 +497,19 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Creates a \p IDWriteTextFormat.
-		std::unique_ptr<ui::text_format> create_text_format(
-			str_view_t family, double size, ui::font_style style, ui::font_weight weight, ui::font_stretch stretch
-		) override {
-			auto res = std::make_unique<text_format>();
-			auto u16family = os::_details::utf8_to_wstring(family);
+		std::unique_ptr<ui::font_family> find_font_family(str_view_t family) override {
+			_details::com_wrapper<IDWriteFontCollection> fonts;
+			com_check(_dwrite_factory->GetSystemFontCollection(fonts.get_ref(), false)); // no need to hurry
 
-			com_check(_dwrite_factory->CreateTextFormat(
-				u16family.c_str(),
-				nullptr,
-				DWRITE_FONT_WEIGHT_NORMAL, // TODO
-				_cast(style),
-				DWRITE_FONT_STRETCH_NORMAL, // TODO
-				static_cast<FLOAT>(size),
-				L"", // TODO is this ok?
-				res->_fmt.get_ref()
-			));
+			UINT32 index = 0;
+			BOOL exist = false;
+			com_check(fonts->FindFamilyName(os::_details::utf8_to_wstring(family).c_str(), &index, &exist));
+			if (!exist) {
+				return nullptr;
+			}
+
+			auto res = std::make_unique<font_family>();
+			com_check(fonts->GetFontFamily(index, res->_family.get_ref()));
 			return res;
 		}
 
@@ -523,73 +647,59 @@ namespace codepad::os::direct2d {
 			_d2d_device_context->PopLayer();
 		}
 
-		/// Calls \ref _format_text_impl().
-		std::unique_ptr<ui::formatted_text> format_text(
-			str_view_t text, ui::text_format &fmt, vec2d maxsize, ui::wrapping_mode wrap,
+		/// Calls \ref _create_formatted_text_impl().
+		std::unique_ptr<ui::formatted_text> create_formatted_text(
+			str_view_t text, const ui::font_parameters &params, colord c, vec2d maxsize, ui::wrapping_mode wrap,
 			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 		) override {
 			auto converted = _details::utf8_to_wstring(text);
-			return _format_text_impl(converted, fmt, maxsize, wrap, halign, valign);
+			return _create_formatted_text_impl(converted, params, c, maxsize, wrap, halign, valign);
 		}
-		/// Calls \ref _format_text_impl().
-		std::unique_ptr<ui::formatted_text> format_text(
-			std::basic_string_view<codepoint> text, ui::text_format &fmt, vec2d maxsize, ui::wrapping_mode wrap,
+		/// Calls \ref _create_formatted_text_impl().
+		std::unique_ptr<ui::formatted_text> create_formatted_text(
+			std::basic_string_view<codepoint> text, const ui::font_parameters &params, colord c,
+			vec2d maxsize, ui::wrapping_mode wrap,
 			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 		) override {
 			std::basic_string<std::byte> bytestr;
 			for (codepoint cp : text) {
 				bytestr += encodings::utf16<>::encode_codepoint(cp);
 			}
-			return _format_text_impl(
+			return _create_formatted_text_impl(
 				std::basic_string_view<WCHAR>(reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2),
-				fmt, maxsize, wrap, halign, valign
+				params, c, maxsize, wrap, halign, valign
 			);
 		}
 		/// Calls \p ID2D1DeviceContext::DrawTextLayout to render the given \ref formatted_text.
-		void draw_formatted_text(
-			ui::formatted_text &text, vec2d topleft, const ui::generic_brush_parameters &brush
-		) override {
-			if (auto brushobj = _create_brush(brush)) {
-				auto ctext = _details::cast_formatted_text(text);
-				_d2d_device_context->DrawTextLayout(
-					_details::cast_point(topleft),
-					ctext._text.get(),
-					brushobj.get(),
-					D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT
-				);
-			}
+		void draw_formatted_text(ui::formatted_text &text, vec2d topleft) override {
+			auto ctext = _details::cast_formatted_text(text);
+			/*_text_brush->SetColor(_details::cast_color(colord(1.0, 1.0, 1.0, 1.0)));*/
+			_text_brush->SetColor(_details::cast_color(colord(0.0, 0.0, 0.0, 1.0)));
+			_d2d_device_context->DrawTextLayout(
+				_details::cast_point(topleft),
+				ctext._text.get(),
+				_text_brush.get(),
+				D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT
+			);
 		}
-		/// Calls \ref _draw_text_impl().
-		void draw_text(
-			str_view_t text, rectd layout,
-			ui::text_format &format, ui::wrapping_mode wrap,
-			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
-			const ui::generic_brush_parameters &brush
+
+		///
+		std::unique_ptr<ui::plain_text> create_plain_text(
+			str_view_t, ui::font_family&, double, ui::font_style, ui::font_weight, ui::font_stretch
 		) override {
-			if (auto brushobj = _create_brush(brush)) {
-				auto u16text = _details::utf8_to_wstring(text);
-				_draw_text_impl(u16text, layout, format, wrap, halign, valign, std::move(brushobj));
-			}
+			// TODO
+			return std::make_unique<plain_text>();
 		}
-		/// Calls \ref _draw_text_impl().
-		void draw_text(
-			std::basic_string_view<codepoint> text, rectd layout,
-			ui::text_format &format, ui::wrapping_mode wrap,
-			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
-			const ui::generic_brush_parameters &brush
+		///
+		std::unique_ptr<ui::plain_text> create_plain_text(
+			std::basic_string_view<codepoint>, ui::font_family&, double, ui::font_style, ui::font_weight, ui::font_stretch
 		) override {
-			if (auto brushobj = _create_brush(brush)) {
-				std::basic_string<std::byte> bytestr;
-				for (codepoint cp : text) {
-					bytestr += encodings::utf16<>::encode_codepoint(cp);
-				}
-				_draw_text_impl(
-					std::basic_string_view<WCHAR>(
-						reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2
-						),
-					layout, format, wrap, halign, valign, std::move(brushobj)
-				);
-			}
+			// TODO
+			return std::make_unique<plain_text>();
+		}
+		///
+		void draw_plain_text(ui::plain_text&, vec2d, colord) override {
+			// TODO
 		}
 	protected:
 		/// Stores window-specific data.
@@ -629,52 +739,7 @@ namespace codepad::os::direct2d {
 		_details::com_wrapper<IDXGIAdapter> _dxgi_adapter; ///< The DXGI adapter.
 		_details::com_wrapper<IDWriteFactory> _dwrite_factory; ///< The DirectWrite factory.
 
-		/// Casts a \ref font_style to a \p DWRITE_FONT_STYLE.
-		inline static DWRITE_FONT_STYLE _cast(ui::font_style style) {
-			switch (style) {
-			case ui::font_style::normal:
-				return DWRITE_FONT_STYLE_NORMAL;
-			case ui::font_style::italic:
-				return DWRITE_FONT_STYLE_ITALIC;
-			case ui::font_style::oblique:
-				return DWRITE_FONT_STYLE_OBLIQUE;
-			}
-			return DWRITE_FONT_STYLE_NORMAL; // should not be here
-		}
-		/// Casts a \ref horizontal_text_alignment to a \p DWRITE_TEXT_ALIGNMENT.
-		inline static DWRITE_TEXT_ALIGNMENT _cast(ui::horizontal_text_alignment align) {
-			switch (align) {
-			case ui::horizontal_text_alignment::center:
-				return DWRITE_TEXT_ALIGNMENT_CENTER;
-			case ui::horizontal_text_alignment::front:
-				return DWRITE_TEXT_ALIGNMENT_LEADING;
-			case ui::horizontal_text_alignment::rear:
-				return DWRITE_TEXT_ALIGNMENT_TRAILING;
-			}
-			return DWRITE_TEXT_ALIGNMENT_LEADING; // should not be here
-		}
-		/// Casts a \ref vertical_text_alignment to a \p DWRITE_PARAGRAPH_ALIGNMENT.
-		inline static DWRITE_PARAGRAPH_ALIGNMENT _cast(ui::vertical_text_alignment align) {
-			switch (align) {
-			case ui::vertical_text_alignment::top:
-				return DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
-			case ui::vertical_text_alignment::center:
-				return DWRITE_PARAGRAPH_ALIGNMENT_CENTER;
-			case ui::vertical_text_alignment::bottom:
-				return DWRITE_PARAGRAPH_ALIGNMENT_FAR;
-			}
-			return DWRITE_PARAGRAPH_ALIGNMENT_NEAR; // should not be here
-		}
-		/// Casts a \ref wrapping_mode to a \p DWRITE_WORD_WRAPPING.
-		inline static DWRITE_WORD_WRAPPING _cast(ui::wrapping_mode wrap) {
-			switch (wrap) {
-			case ui::wrapping_mode::none:
-				return DWRITE_WORD_WRAPPING_NO_WRAP;
-			case ui::wrapping_mode::wrap:
-				return DWRITE_WORD_WRAPPING_WRAP;
-			}
-			return DWRITE_WORD_WRAPPING_NO_WRAP; // should not be here
-		}
+		_details::com_wrapper<ID2D1SolidColorBrush> _text_brush; ///< The brush used for rendering text.
 
 		/// Starts drawing to a \p ID2D1RenderTarget.
 		void _begin_draw_impl(ID2D1Image *target, vec2d dpi) {
@@ -799,45 +864,35 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Creates an \p IDWriteTextLayout.
-		std::unique_ptr<ui::formatted_text> _format_text_impl(
-			std::basic_string_view<WCHAR> text, ui::text_format &fmt, vec2d maxsize, ui::wrapping_mode wrap,
+		std::unique_ptr<ui::formatted_text> _create_formatted_text_impl(
+			std::basic_string_view<WCHAR> text, const ui::font_parameters &fmt, colord c,
+			vec2d maxsize, ui::wrapping_mode wrap,
 			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 		) {
-			auto res = std::make_unique<formatted_text>();
-			auto &cfmt = _details::cast_text_format(fmt);
-
-			cfmt._fmt->SetWordWrapping(_cast(wrap));
-			cfmt._fmt->SetTextAlignment(_cast(halign));
-			cfmt._fmt->SetParagraphAlignment(_cast(valign));
-
+			// use new to access protedted constructor
+			auto res = std::unique_ptr<formatted_text>(new formatted_text(*this));
+			_details::com_wrapper<IDWriteTextFormat> format;
+			com_check(_dwrite_factory->CreateTextFormat(
+				_details::utf8_to_wstring(fmt.family).c_str(),
+				nullptr,
+				_details::cast_font_weight(fmt.weight),
+				_details::cast_font_style(fmt.style),
+				_details::cast_font_stretch(fmt.stretch),
+				static_cast<FLOAT>(fmt.size),
+				L"", // FIXME is this good practice?
+				format.get_ref()
+			));
+			com_check(format->SetWordWrapping(_details::cast_wrapping_mode(wrap)));
+			com_check(format->SetTextAlignment(_details::cast_horizontal_text_alignment(halign)));
+			com_check(format->SetParagraphAlignment(_details::cast_vertical_text_alignment(valign)));
 			com_check(_dwrite_factory->CreateTextLayout(
 				text.data(), static_cast<UINT32>(text.size()),
-				cfmt._fmt.get(),
+				format.get(),
 				static_cast<FLOAT>(maxsize.x), static_cast<FLOAT>(maxsize.y),
 				res->_text.get_ref()
 			));
+			res->set_text_color(c, 0, std::numeric_limits<std::size_t>::max());
 			return res;
-		}
-		/// Calls \p ID2D1DeviceContext::DrawText to render the given text.
-		void _draw_text_impl(
-			std::basic_string_view<WCHAR> text, rectd layout,
-			ui::text_format &format, ui::wrapping_mode wrap,
-			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
-			_details::com_wrapper<ID2D1Brush> brush
-		) {
-			auto cfmt = _details::cast_text_format(format);
-
-			cfmt._fmt->SetWordWrapping(_cast(wrap));
-			cfmt._fmt->SetTextAlignment(_cast(halign));
-			cfmt._fmt->SetParagraphAlignment(_cast(valign));
-
-			_d2d_device_context->DrawText(
-				text.data(), static_cast<UINT32>(text.size()),
-				cfmt._fmt.get(),
-				_details::cast_rect(layout),
-				brush.get(),
-				D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT
-			);
 		}
 
 		/// Returns the \p IDXGIFactory associated with \ref _dxgi_device.
@@ -919,4 +974,11 @@ namespace codepad::os::direct2d {
 			_get_window_data(w).reset();
 		}
 	};
+
+
+	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
+		_details::com_wrapper<ID2D1SolidColorBrush> brush;
+		_rend->_d2d_device_context->CreateSolidColorBrush(_details::cast_color(c), brush.get_ref());
+		com_check(_text->SetDrawingEffect(brush.get(), _details::make_text_range(beg, len)));
+	}
 }

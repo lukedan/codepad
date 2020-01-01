@@ -170,9 +170,6 @@ namespace codepad::ui {
 			_cached_mouse_position = get_parameters().visual_parameters.transform.inverse_transform_point(
 				pos - get_layout().xmin_ymin(), get_layout().size()
 			);
-			logger::get().log_debug(CP_HERE) <<
-				"update mouse position: window " << this <<
-				" timetstamp " << _cached_mouse_position_timestamp << "->" << mouse_position::_global_timestamp;
 			_cached_mouse_position_timestamp = mouse_position::_global_timestamp;
 			return mouse_position(_cached_mouse_position_timestamp);
 		}

@@ -118,8 +118,12 @@ namespace codepad::ui {
 		void set_renderer(std::unique_ptr<renderer_base> r) {
 			_renderer = std::move(r);
 		}
+		/// Returns whether there's a renderer available. Normally, users can assume that one is present.
+		[[nodiscard]] bool has_renderer() const {
+			return _renderer != nullptr;
+		}
 		/// Returns the current renderer. \ref _renderer must have been set with \ref set_renderer().
-		renderer_base &get_renderer() {
+		[[nodiscard]] renderer_base &get_renderer() {
 			return *_renderer;
 		}
 
@@ -244,17 +248,6 @@ namespace codepad::ui {
 				e.get_manager().get_scheduler().invalidate_layout(e);
 			}
 			e.get_manager().get_scheduler().invalidate_visual(e);
-		}
-
-
-		template<
-			element_property_type Type, typename Intermediate, typename Target
-		> void custom_element_member_subject<Type, Intermediate, Target>::set(Target t) {
-			*_second.get_typed(*_first.get_typed(_source)) = std::move(t);
-			if constexpr (Type == element_property_type::affects_layout) {
-				_source.get_manager().get_scheduler().invalidate_layout(_source);
-			}
-			_source.get_manager().get_scheduler().invalidate_visual(_source);
 		}
 	}
 

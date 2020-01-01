@@ -232,12 +232,12 @@ namespace codepad::ui {
 					return nullptr;
 				}
 				/// Creates an \ref animation_subject_base given an \ref element and the \ref typed_member_access
-				/// used to retrieve the actual source that's a member of the \ref element. Returns \p nullptr if
-				/// this object does not support this operation. The created subject may reference this
-				/// \ref member_access or the intermediate \ref typed_member_access via a reference, so these objects
-				/// must outlive the subject.
-				virtual std::unique_ptr<animation_subject_base> create_for_element(
-					element&, typed_member_access<element, Source>&, element_property_type
+				/// used to retrieve the actual source that's a member of the \ref element. The given callback will
+				/// be called whenever a new value has been set. Returns \p nullptr if this object does not support
+				/// this operation. The created subject may reference this \ref member_access or the intermediate
+				/// \ref typed_member_access via a reference, so these objects must outlive the subject.
+				virtual std::unique_ptr<animation_subject_base> create_for_element_with_callback(
+					element&, typed_member_access<element, Source>&, std::function<void(element&)>
 				) const {
 					return nullptr;
 				}
@@ -312,17 +312,22 @@ namespace codepad::ui {
 				}
 			};
 
-			/// Animation subjects created by a \ref component_member_access.
+			/// Animation subjects created by a \ref component_member_access. The subject is accessed through two
+			/// layers: one custom layer that retrieves a member from an element, and one predefined layer that
+			/// retrieves properties from that member. An optional callback is called whenever the value has been
+			/// set.
 			template <
-				element_property_type Type, typename Intermediate, typename Target
+				typename Intermediate, typename Target
 			> class custom_element_member_subject : public typed_animation_subject<Target> {
 			public:
 				/// Initializes all fields of this struct.
 				custom_element_member_subject(
 					const typed_member_access<element, Intermediate> &first,
 					const typed_member_access<Intermediate, Target> &second,
-					element &obj
-				) : typed_animation_subject<Target>(), _first(first), _second(second), _source(obj) {
+					element &obj, std::function<void(element&)> cb
+				) :
+					typed_animation_subject<Target>(),
+					_first(first), _second(second), _source(obj), _callback(std::move(cb)) {
 				}
 
 				/// Returns the value.
@@ -331,18 +336,24 @@ namespace codepad::ui {
 				}
 				/// Sets the value, calling \ref scheduler::invalidate_layout() or
 				/// \ref scheduler::invalidate_visual() if necessary.
-				void set(Target) override;
+				void set(Target t) override {
+					*_second.get_typed(*_first.get_typed(_source)) = std::move(t);
+					if (_callback) {
+						_callback(_source);
+					}
+				}
 
 				/// Checks if \ref _first, \ref _second, and \ref _source are the same if the other object is also
 				/// of this type. Otherwise returns \p false.
 				[[nodiscard]] bool equals(const animation_subject_base &other) const override {
-					auto *o = dynamic_cast<const custom_element_member_subject<Type, Intermediate, Target>*>(&other);
+					auto *o = dynamic_cast<const custom_element_member_subject<Intermediate, Target>*>(&other);
 					if (o) {
 						return o->_first.equals(_first) && o->_second.equals(_second) && &o->_source == &_source;
 					}
 					return false;
 				}
 			protected:
+				std::function<void(element&)> _callback; ///< The callback that's invoked whenever the value is set.
 				const typed_member_access<element, Intermediate> &_first; ///< The first part of the getter.
 				const typed_member_access<Intermediate, Target> &_second; ///< The second part of the getter.
 				element &_source; ///< The source \ref element.
@@ -369,20 +380,12 @@ namespace codepad::ui {
 					return std::make_unique<member_access_subject<input_type, output_type>>(*this, input);
 				}
 				/// Creates a \ref custom_element_member_subject.
-				std::unique_ptr<animation_subject_base> create_for_element(
-					element &elem, typed_member_access<element, input_type> &middle, element_property_type type
+				std::unique_ptr<animation_subject_base> create_for_element_with_callback(
+					element &elem, typed_member_access<element, input_type> &middle, std::function<void(element&)> callback
 				) const override {
-					switch (type) {
-					case element_property_type::visual_only:
-						return std::make_unique<custom_element_member_subject<
-							element_property_type::visual_only, input_type, output_type
-						>>(middle, *this, elem);
-					case element_property_type::affects_layout:
-						return std::make_unique<custom_element_member_subject<
-							element_property_type::affects_layout, input_type, output_type
-						>>(middle, *this, elem);
-					}
-					return nullptr;
+					return std::make_unique<custom_element_member_subject<input_type, output_type>>(
+						middle, *this, elem, std::move(callback)
+						);
 				}
 
 				/// Checks if the other \ref member_access is also a \ref component_member_access, and if so, checks
@@ -577,6 +580,12 @@ namespace codepad::ui {
 		std::unique_ptr<animation_value_parser_base> parser; ///< Used to parse animations from JSON.
 		std::any subject_data; ///< Data that need to live as long as \ref subject.
 
+	private:
+		/// The callback used by \ref from_element_custom() to invalidate the visual or layout of an element.
+		template <
+			animation_path::builder::element_property_type Type
+		> inline static void _element_subject_callback(element&);
+	public:
 		/// Creates a \ref animation_subject_information from a
 		/// \ref animation_path::builder::member_information<element> by calling
 		/// \ref animation_path::member_access::create_for_source().
@@ -590,14 +599,23 @@ namespace codepad::ui {
 			res.subject_data.emplace<std::shared_ptr<animation_path::builder::member_access<element>>>(ptr);
 			return res;
 		}
-		/// Similar to \ref from_element(), but calls \ref animation_path::member_access::create_for_element().
-		template <typename Intermediate> inline static animation_subject_information from_element_custom(
+		/// Similar to \ref from_element(), but calls
+		/// \ref animation_path::member_access::create_for_element_with_callback().
+		template <
+			typename Intermediate
+		> inline static animation_subject_information from_element_custom_with_callback(
 			animation_path::builder::member_information<Intermediate>,
 			std::unique_ptr<animation_path::builder::typed_member_access<element, Intermediate>>,
-			element&, animation_path::builder::element_property_type
+			element&, std::function<void(element&)>
 		);
 
-		/// Creates a \ref animation_subject_information by combing a \ref 
+		/// Creates a \ref animation_subject_information that retrieves a property using indirect means.
+		template <auto Member> inline static animation_subject_information from_member_with_callback(
+			element&, std::function<void(element&)>,
+			animation_path::component_list::const_iterator, animation_path::component_list::const_iterator
+		);
+		/// Similar to \ref from_member_with_callback(), but replaces the callback with a simple enumeration
+		/// that only invalidates the layout or visuals of the element.
 		template <auto Member> inline static animation_subject_information from_member(
 			element&, animation_path::builder::element_property_type,
 			animation_path::component_list::const_iterator, animation_path::component_list::const_iterator

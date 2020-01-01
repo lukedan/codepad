@@ -471,8 +471,7 @@ namespace codepad::editors::code {
 		/// Additional transformations may be necessary to 
 		void render(ui::renderer_base &r, const text_rendering &text) {
 			r.draw_formatted_text(
-				*text.text, vec2d(text.topleft.x, text.topleft.y + text.baseline_correction),
-				ui::generic_brush_parameters(ui::brush_parameters::solid_color(text.color))
+				*text.text, vec2d(text.topleft.x, text.topleft.y + text.baseline_correction)
 			);
 		}
 	protected:
@@ -492,15 +491,12 @@ namespace codepad::editors::code {
 		template <typename Char> text_rendering _append_text(
 			std::basic_string_view<Char> text, ui::font_parameters font, colord color
 		) {
-			std::unique_ptr<ui::text_format> format = _renderer->create_text_format(
-				font.family, font.size, font.style, font.weight, font.stretch
-			);
-			std::unique_ptr<ui::formatted_text> fmttext = _renderer->format_text(
-				text, *format,
+			std::unique_ptr<ui::formatted_text> fmttext = _renderer->create_formatted_text(
+				text, font, color,
 				vec2d(), ui::wrapping_mode::none,
 				ui::horizontal_text_alignment::front, ui::vertical_text_alignment::top
 			);
-			std::vector<ui::formatted_text::line_metrics> lines = fmttext->get_line_metrics();
+			std::vector<ui::line_metrics> lines = fmttext->get_line_metrics();
 			vec2d pos = get_position();
 			advance_horizontal_position(fmttext->get_layout().xmax);
 			return text_rendering(std::move(fmttext), pos, _baseline - lines[0].baseline, color);
