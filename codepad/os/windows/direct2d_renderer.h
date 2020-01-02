@@ -19,6 +19,7 @@
 
 namespace codepad::os::direct2d {
 	class render_target;
+	class font_family;
 	class renderer;
 
 	/// Miscellaneous helper functions.
@@ -171,7 +172,7 @@ namespace codepad::os::direct2d {
 			DWRITE_LINE_METRICS small_buffer[small_buffer_size], *bufptr = small_buffer;
 			std::vector<DWRITE_LINE_METRICS> large_buffer;
 			UINT32 linecount;
-			HRESULT res = _text->GetLineMetrics(small_buffer, small_buffer_size, &linecount); // TODO bottleneck
+			HRESULT res = _text->GetLineMetrics(small_buffer, small_buffer_size, &linecount);
 			auto ressize = static_cast<std::size_t>(linecount);
 			if (res == E_NOT_SUFFICIENT_BUFFER) {
 				large_buffer.resize(ressize);
@@ -248,31 +249,197 @@ namespace codepad::os::direct2d {
 		renderer *_rend = nullptr; ///< The renderer.
 	};
 
+	/// Encapsules a \p IDWriteFontFace.
+	class font : public ui::font {
+		friend renderer;
+		friend font_family;
+	public:
+		/// Returns \p DWRITE_FONT_METRICS::ascent.
+		double get_ascent_em() const override {
+			DWRITE_FONT_METRICS metrics;
+			_font->GetMetrics(&metrics);
+			return metrics.ascent / static_cast<double>(metrics.designUnitsPerEm);
+		}
+		/// Returns the sum of \p DWRITE_FONT_METRICS::ascent, \p DWRITE_FONT_METRICS::descent, and
+		/// \p DWRITE_FONT_METRICS::lineGap.
+		double get_line_height_em() const override {
+			DWRITE_FONT_METRICS metrics;
+			_font->GetMetrics(&metrics);
+			return
+				(metrics.ascent + metrics.descent + metrics.lineGap) /
+				static_cast<double>(metrics.designUnitsPerEm);
+		}
+	protected:
+		_details::com_wrapper<IDWriteFontFace> _font; ///< The \p IDWriteFontFace.
+	};
+
 	/// Encapsules a \p IDWriteFontFamily.
 	class font_family : public ui::font_family {
 		friend renderer;
+	public:
+		/// Returns the first font matching the given descriptions.
+		std::unique_ptr<ui::font> get_matching_font(
+			ui::font_style style, ui::font_weight weight, ui::font_stretch stretch
+		) const override {
+			auto result = std::make_unique<font>();
+			_details::com_wrapper<IDWriteFont> font;
+			com_check(_family->GetFirstMatchingFont(
+				_details::cast_font_weight(weight),
+				_details::cast_font_stretch(stretch),
+				_details::cast_font_style(style),
+				font.get_ref()
+			));
+			com_check(font->CreateFontFace(result->_font.get_ref()));
+			return result;
+		}
 	protected:
-		_details::com_wrapper<IDWriteFontFamily> _family;
+		_details::com_wrapper<IDWriteFontFamily> _family; ///< The \p IDWriteFontFamily.
 	};
 
-	/// Stores a piece of analyzed text.
+	/// Stores a piece of text analyzed using \p IDWriteTextAnalyzer.
 	class plain_text : public ui::plain_text {
+		friend renderer;
 	public:
 		/// Returns the width of this piece of text.
 		double get_width() const override {
-			// TODO
-			return 0.0;
+			_maybe_calculate_glyph_positions();
+			return _cached_glyph_positions.back();
 		}
 
 		/// Performs hit testing.
-		ui::caret_hit_test_result hit_test(double) const override {
-			// TODO
-			return ui::caret_hit_test_result();
+		ui::caret_hit_test_result hit_test(double xpos) const override {
+			_maybe_calculate_glyph_positions();
+			_maybe_calculate_glyph_backmapping();
+
+			ui::caret_hit_test_result result;
+
+			// find glyph index
+			auto glyphit = std::upper_bound(_cached_glyph_positions.begin(), _cached_glyph_positions.end(), xpos);
+			if (glyphit != _cached_glyph_positions.begin()) {
+				--glyphit;
+			}
+			std::size_t glyphid = glyphit - _cached_glyph_positions.begin();
+
+			if (glyphid < _glyph_count) {
+				// find sub-glyph position
+				double ratio = (xpos - _cached_glyph_positions[glyphid]) / _glyph_advances[glyphid];
+				std::size_t firstchar = _cached_glyph_to_char_mapping_starting[glyphid];
+				std::size_t nchars = _cached_glyph_to_char_mapping_starting[glyphid + 1] - firstchar;
+				assert_true_logical(nchars > 0, "glyph without corresponding character");
+				ratio *= nchars;
+				std::size_t offset = std::min(static_cast<std::size_t>(ratio), nchars - 1);
+
+				result.character = _cached_glyph_to_char_mapping[firstchar + offset];
+				result.rear = ratio - offset > 0.5;
+				result.character_layout = _get_character_placement_impl(glyphid, offset);
+			} else { // past the end
+				result.character = _char_count;
+				result.rear = false;
+				result.character_layout = _get_character_placement_impl(glyphid, 0);
+			}
+
+			return result;
 		}
 		/// Returns the position of the given character.
-		rectd get_character_placement(std::size_t) const override {
-			// TODO
-			return rectd();
+		rectd get_character_placement(std::size_t pos) const override {
+			_maybe_calculate_glyph_positions();
+			_maybe_calculate_glyph_backmapping();
+
+			std::size_t glyphid = _glyph_count, offset = 0;
+			if (pos < _char_count) {
+				glyphid = _cluster_map[pos];
+				std::size_t beg = _cached_glyph_to_char_mapping_starting[glyphid];
+				for (; _cached_glyph_to_char_mapping[beg + offset] != pos; ++offset) {
+				}
+			}
+			return _get_character_placement_impl(glyphid, offset);
+		}
+	protected:
+		/// Fills \ref _cached_glyph_positions if necessary.
+		void _maybe_calculate_glyph_positions() const {
+			if (_cached_glyph_positions.empty()) {
+				_cached_glyph_positions.reserve(_glyph_count + 1);
+				double pos = 0.0;
+				for (std::size_t i = 0; i < _glyph_count; ++i) {
+					_cached_glyph_positions.emplace_back(pos);
+					pos += static_cast<double>(_glyph_advances[i]);
+				}
+				_cached_glyph_positions.emplace_back(pos);
+			}
+		}
+		/// If necessary, calculates \ref _cached_glyph_to_char_mapping and
+		/// \ref _cached_glyph_to_char_mapping_starting.
+		void _maybe_calculate_glyph_backmapping() const {
+			if (_cached_glyph_to_char_mapping_starting.empty()) {
+				// compute inverse map
+				_cached_glyph_to_char_mapping.resize(_glyph_count);
+				for (std::size_t i = 0; i < _glyph_count; ++i) {
+					_cached_glyph_to_char_mapping[i] = i;
+				}
+				std::sort(
+					_cached_glyph_to_char_mapping.begin(), _cached_glyph_to_char_mapping.end(),
+					[this](std::size_t lhs, std::size_t rhs) {
+						UINT16 lglyph = _cluster_map[lhs], rglyph = _cluster_map[rhs];
+						if (lglyph != rglyph) {
+							return lglyph < rglyph;
+						}
+						return lhs < rhs;
+					}
+				);
+
+				// compute starting indices
+				_cached_glyph_to_char_mapping_starting.reserve(_glyph_count + 1);
+				std::size_t pos = 0;
+				for (std::size_t i = 0; i < _glyph_count; ++i) {
+					_cached_glyph_to_char_mapping_starting.emplace_back(pos);
+					while (pos < _glyph_count && _cluster_map[_cached_glyph_to_char_mapping[pos]] == i) {
+						++pos;
+					}
+				}
+				_cached_glyph_to_char_mapping_starting.emplace_back(pos);
+			}
+		}
+
+		/// The positions of the left borders of all glyphs. This array has one additional element at the back that is the
+		/// total width of this clip.
+		mutable std::vector<double> _cached_glyph_positions;
+		/// A one-to-many mapping from glyphs to character indices. This should be used with
+		/// \ref _cached_glyph_to_char_mapping_starting.
+		mutable std::vector<std::size_t> _cached_glyph_to_char_mapping;
+		/// The starting index in \ref _cached_glyph_to_char_mapping of characters corresponding to each glyph. This
+		/// array has one additional element at the back that is the total number of characters.
+		mutable std::vector<std::size_t> _cached_glyph_to_char_mapping_starting;
+
+		std::unique_ptr<UINT16[]> _cluster_map; ///< Mapping from character ranges to glyph ranges.
+		std::unique_ptr<UINT16[]> _glyphs; ///< The list of glyph indices.
+		std::unique_ptr<FLOAT[]> _glyph_advances; ///< The horizontal advancement width of each glyph.
+		std::unique_ptr<DWRITE_GLYPH_OFFSET[]> _glyph_offsets; ///< The offset of each glyph.
+		_details::com_wrapper<IDWriteFontFace> _font_face; ///< Cached font face.
+		double _font_size = 0.0; ///< Cached font size.
+		std::size_t
+			_char_count = 0, ///< The total number of characters.
+			_glyph_count = 0; ///< The actual number of glyphs.
+
+		/// Returns the placement of the specified character.
+		rectd _get_character_placement_impl(std::size_t glyphid, std::size_t charoffset) const {
+			// horizontal
+			double left = _cached_glyph_positions[glyphid], width = 0.0;
+			if (glyphid < _glyph_count) {
+				std::size_t count =
+					_cached_glyph_to_char_mapping_starting[glyphid + 1] -
+					_cached_glyph_to_char_mapping_starting[glyphid];
+				width = _glyph_advances[glyphid] / count;
+				left += width * charoffset;
+			}
+
+			// vertical
+			DWRITE_FONT_METRICS metrics;
+			_font_face->GetMetrics(&metrics);
+
+			return rectd::from_xywh(
+				left, 0.0,
+				width, (metrics.ascent + metrics.descent) / static_cast<double>(metrics.designUnitsPerEm)
+			);
 		}
 	};
 
@@ -293,7 +460,7 @@ namespace codepad::os::direct2d {
 				_sink->EndFigure(D2D1_FIGURE_END_OPEN);
 			}
 			_last_point = _details::cast_point(pos);
-			_sink->BeginFigure(_last_point, D2D1_FIGURE_BEGIN_FILLED); // TODO no additional information
+			_sink->BeginFigure(_last_point, D2D1_FIGURE_BEGIN_FILLED); // FIXME no additional information
 			_stroking = true;
 		}
 
@@ -356,7 +523,7 @@ namespace codepad::os::direct2d {
 		/// Called before any actual stroke is added to ensure that \ref _stroking is \p true.
 		void _on_stroke() {
 			if (!_stroking) {
-				_sink->BeginFigure(_last_point, D2D1_FIGURE_BEGIN_FILLED); // TODO no additional information
+				_sink->BeginFigure(_last_point, D2D1_FIGURE_BEGIN_FILLED); // FIXME no additional information
 				_stroking = true;
 			}
 		}
@@ -386,6 +553,18 @@ namespace codepad::os::direct2d {
 		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
 		inline formatted_text &cast_formatted_text(ui::formatted_text &t) {
 			return cast_object<formatted_text>(t);
+		}
+		/// Casts a \ref ui::font to a \ref font.
+		inline font &cast_font(ui::font &f) {
+			return cast_object<font>(f);
+		}
+		/// Casts a \ref ui::font_family to a \ref font_family.
+		inline font_family &cast_font_family(ui::font_family &f) {
+			return cast_object<font_family>(f);
+		}
+		/// Casts a \ref ui::plain_text to a \ref plain_text.
+		inline plain_text &cast_plain_text(ui::plain_text &f) {
+			return cast_object<plain_text>(f);
 		}
 	}
 
@@ -439,6 +618,7 @@ namespace codepad::os::direct2d {
 				__uuidof(IDWriteFactory),
 				reinterpret_cast<IUnknown**>(_dwrite_factory.get_ref())
 			));
+			com_check(_dwrite_factory->CreateTextAnalyzer(_dwrite_text_analyzer.get_ref()));
 		}
 
 		/// Creates a render target of the given size.
@@ -683,23 +863,60 @@ namespace codepad::os::direct2d {
 			);
 		}
 
-		///
+		/// Calls \ref _create_plain_text_impl to shape the given text.
 		std::unique_ptr<ui::plain_text> create_plain_text(
-			str_view_t, ui::font_family&, double, ui::font_style, ui::font_weight, ui::font_stretch
+			str_view_t text, ui::font &font, double size
 		) override {
-			// TODO
-			return std::make_unique<plain_text>();
+			auto utf16 = _details::utf8_to_wstring(text);
+			return _create_plain_text_impl(utf16, font, size);
 		}
-		///
+		/// Calls \ref _create_plain_text_impl to shape the given text.
 		std::unique_ptr<ui::plain_text> create_plain_text(
-			std::basic_string_view<codepoint>, ui::font_family&, double, ui::font_style, ui::font_weight, ui::font_stretch
+			std::basic_string_view<codepoint> text, ui::font &font, double size
 		) override {
-			// TODO
-			return std::make_unique<plain_text>();
+			std::basic_string<std::byte> bytestr;
+			for (codepoint cp : text) {
+				bytestr += encodings::utf16<>::encode_codepoint(cp);
+			}
+			return _create_plain_text_impl(
+				std::basic_string_view<WCHAR>(reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2),
+				font, size
+			);
 		}
-		///
-		void draw_plain_text(ui::plain_text&, vec2d, colord) override {
-			// TODO
+		/// Calls \p ID2D1DeviceContext::DrawGlyphRun to render the text clip.
+		void draw_plain_text(ui::plain_text &t, vec2d pos, colord color) override {
+			auto &text = _details::cast_plain_text(t);
+
+			// gather glyph run information
+			DWRITE_GLYPH_RUN run;
+			run.fontFace = text._font_face.get();
+			run.fontEmSize = static_cast<FLOAT>(text._font_size);
+			run.glyphCount = static_cast<UINT32>(text._glyph_count);
+			run.glyphIndices = text._glyphs.get();
+			run.glyphAdvances = text._glyph_advances.get();
+			run.glyphOffsets = text._glyph_offsets.get();
+			run.isSideways = false;
+			run.bidiLevel = 0;
+
+			// calculate baseline position
+			DWRITE_FONT_METRICS metrics;
+			text._font_face->GetMetrics(&metrics);
+			pos.y += text._font_size * (metrics.ascent / static_cast<double>(metrics.designUnitsPerEm));
+
+			// determine if & how to apply pixel snapping
+			D2D1_MATRIX_3X2_F trans;
+			_d2d_device_context->GetTransform(&trans);
+			if (
+				_about_equal(trans.m11, 1.0f, 1e-2f) && _about_equal(trans.m12, 0.0f, 1e-2f) &&
+				_about_equal(trans.m21, 0.0f, 1e-2f) && _about_equal(trans.m22, 1.0f, 1e-2f)
+				) { // approximately no rotation, scaling, & shearing, apply pixel snapping
+				double ypos = static_cast<double>(trans.dy) + pos.y;
+				pos.y += std::round(ypos) - ypos;
+			}
+
+			_text_brush->SetColor(_details::cast_color(color)); // text color
+			// TODO code does not have cleartype antialiasing, but minimap does
+			_d2d_device_context->DrawGlyphRun(_details::cast_point(pos), &run, _text_brush.get());
 		}
 	protected:
 		/// Stores window-specific data.
@@ -731,6 +948,7 @@ namespace codepad::os::direct2d {
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of render targets.
 		std::set<IDXGISwapChain*> _present_chains; ///< The DXGI swap chains to call \p Present() on.
 		path_geometry_builder _path_builder; ///< The path builder.
+
 		_details::com_wrapper<ID2D1Factory1> _d2d_factory; ///< The Direct2D factory.
 		_details::com_wrapper<ID2D1Device> _d2d_device; ///< The Direct2D device.
 		_details::com_wrapper<ID2D1DeviceContext> _d2d_device_context; ///< The Direct2D device context.
@@ -740,6 +958,15 @@ namespace codepad::os::direct2d {
 		_details::com_wrapper<IDWriteFactory> _dwrite_factory; ///< The DirectWrite factory.
 
 		_details::com_wrapper<ID2D1SolidColorBrush> _text_brush; ///< The brush used for rendering text.
+		/// The text analyzer used for fast text rendering.
+		_details::com_wrapper<IDWriteTextAnalyzer> _dwrite_text_analyzer;
+
+
+		/// Approximate floating-point comparison.
+		template <typename Real> inline static bool _about_equal(Real v1, Real v2, Real eps = 1e-6f) {
+			return std::abs(v2 - v1) < eps;
+		}
+
 
 		/// Starts drawing to a \p ID2D1RenderTarget.
 		void _begin_draw_impl(ID2D1Image *target, vec2d dpi) {
@@ -775,6 +1002,7 @@ namespace codepad::os::direct2d {
 				D2D1::IdentityMatrix(), 1.0f, nullptr, D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE
 			), nullptr);
 		}
+
 
 		/// Creates a brush based on \ref ui::brush_parameters::solid_color.
 		_details::com_wrapper<ID2D1SolidColorBrush> _create_brush(
@@ -863,8 +1091,9 @@ namespace codepad::os::direct2d {
 			return brush;
 		}
 
+
 		/// Creates an \p IDWriteTextLayout.
-		std::unique_ptr<ui::formatted_text> _create_formatted_text_impl(
+		std::unique_ptr<formatted_text> _create_formatted_text_impl(
 			std::basic_string_view<WCHAR> text, const ui::font_parameters &fmt, colord c,
 			vec2d maxsize, ui::wrapping_mode wrap,
 			ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
@@ -894,6 +1123,101 @@ namespace codepad::os::direct2d {
 			res->set_text_color(c, 0, std::numeric_limits<std::size_t>::max());
 			return res;
 		}
+		std::unique_ptr<plain_text> _create_plain_text_impl(
+			std::basic_string_view<WCHAR> text, ui::font &f, double size
+		) {
+			auto result = std::make_unique<plain_text>();
+			result->_font_face = _details::cast_font(f)._font;
+
+			// script & font features
+			DWRITE_SCRIPT_ANALYSIS script;
+			script.script = 215; // 215 for latin script
+			script.shapes = DWRITE_SCRIPT_SHAPES_DEFAULT;
+
+			// TODO more features & customizable?
+			DWRITE_FONT_FEATURE features[] = {
+				{ DWRITE_FONT_FEATURE_TAG_KERNING, 1 },
+			{ DWRITE_FONT_FEATURE_TAG_REQUIRED_LIGATURES, 1 }, // rlig
+			{ DWRITE_FONT_FEATURE_TAG_STANDARD_LIGATURES, 1 }, // liga
+			{ DWRITE_FONT_FEATURE_TAG_CONTEXTUAL_LIGATURES, 1 }, // clig
+			{ DWRITE_FONT_FEATURE_TAG_CONTEXTUAL_ALTERNATES, 1 } // calt
+			};
+
+			DWRITE_TYPOGRAPHIC_FEATURES feature_list;
+			feature_list.features = features;
+			feature_list.featureCount = static_cast<UINT32>(std::size(features));
+			const DWRITE_TYPOGRAPHIC_FEATURES *pfeature_list = &feature_list;
+			UINT32 feature_range_length = static_cast<UINT32>(text.size());
+
+			// get glyphs
+			std::unique_ptr<DWRITE_SHAPING_TEXT_PROPERTIES[]> text_props;
+			std::unique_ptr<DWRITE_SHAPING_GLYPH_PROPERTIES[]> glyph_props;
+			UINT32 glyph_count = 0;
+
+			result->_cluster_map = std::make_unique<UINT16[]>(text.size());
+			text_props = std::make_unique<DWRITE_SHAPING_TEXT_PROPERTIES[]>(text.size());
+
+			for (std::size_t length = text.size(); ; length *= 2) {
+				// resize buffers
+				result->_glyphs = std::make_unique<UINT16[]>(length);
+				glyph_props = std::make_unique<DWRITE_SHAPING_GLYPH_PROPERTIES[]>(length);
+
+				HRESULT res = _dwrite_text_analyzer->GetGlyphs(
+					text.data(), text.size(), result->_font_face.get(), false, false,
+					&script, nullptr, nullptr, &pfeature_list, &feature_range_length, 1,
+					static_cast<UINT32>(length),
+					result->_cluster_map.get(), text_props.get(), result->_glyphs.get(), glyph_props.get(),
+					&glyph_count
+				);
+				if (res == S_OK) {
+					break;
+				}
+				if (res != E_NOT_SUFFICIENT_BUFFER) {
+					com_check(res); // doomed to fail
+				}
+			}
+			result->_glyph_count = static_cast<std::size_t>(glyph_count);
+
+			// get glyph placements
+			result->_glyph_advances = std::make_unique<FLOAT[]>(result->_glyph_count);
+			result->_glyph_offsets = std::make_unique<DWRITE_GLYPH_OFFSET[]>(result->_glyph_count);
+
+			com_check(_dwrite_text_analyzer->GetGlyphPlacements(
+				text.data(), result->_cluster_map.get(), text_props.get(), text.size(),
+				result->_glyphs.get(), glyph_props.get(), glyph_count,
+				result->_font_face.get(), static_cast<FLOAT>(size), false, false,
+				&script, nullptr, &pfeature_list, &feature_range_length, 1,
+				result->_glyph_advances.get(), result->_glyph_offsets.get()
+			));
+
+			result->_font_size = size;
+
+			// since directwrite treats a surrogate pair (one codepoint) as two characters, here we find all
+			// surrogate pairs, remove duplicate entries in the cluster map, and correct the number of characters
+			result->_char_count = text.size();
+			for (std::size_t i = 0, reduced = 0; i < text.size(); ++i, ++reduced) {
+				// if the last unit starts a surrogate pair, then the codepoint is invalid; however this means that
+				// there's no duplicate stuff so nothing needs to be done
+				if (i + 1 < text.size()) {
+					if (
+						(static_cast<std::uint16_t>(text[i]) & encodings::utf16<>::mask_pair) ==
+						encodings::utf16<>::patt_pair
+						) {
+						assert_true_sys(
+							result->_cluster_map[i] == result->_cluster_map[i + 1],
+							"different glyphs for surrogate pair"
+						);
+
+						++i;
+						--result->_char_count;
+					}
+				}
+				result->_cluster_map[reduced] = result->_cluster_map[i];
+			}
+
+			return result;
+		}
+
 
 		/// Returns the \p IDXGIFactory associated with \ref _dxgi_device.
 		_details::com_wrapper<IDXGIFactory2> _get_dxgi_factory() {

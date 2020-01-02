@@ -1,5 +1,6 @@
 {
-	"code_editor": {
+	"editor": {
+		"font_family": "Fira Code",
 		"interaction_modes": [
 			"prepare_drag",
 			"single_selection"

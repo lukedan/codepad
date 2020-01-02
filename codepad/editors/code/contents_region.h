@@ -26,14 +26,6 @@ namespace codepad::editors::code {
 	/// \todo Extract caret movement code to somewhere else.
 	class contents_region : public interactive_contents_region_base<caret_set> {
 	public:
-		constexpr static double
-			/// The scrolling speed coefficient when the user drags the selection out of the element.
-			move_speed_scale = 15.0,
-			/// The minimum distance the mouse have to move to start dragging text.
-			///
-			/// \todo Use system default.
-			dragdrop_distance = 5.0;
-
 		/// Sets the \ref interpretation displayed by the contents_region.
 		void set_document(std::shared_ptr<interpretation> newdoc) {
 			_unbind_document_events();
@@ -65,14 +57,18 @@ namespace codepad::editors::code {
 			return _fmt.get_linebreaks().num_visual_lines() - _fmt.get_folding().folded_linebreaks();
 		}
 
+		/// Sets the font family given its name.
+		void set_font_family_by_name(str_view_t name) {
+			set_font_family(get_manager().get_renderer().find_font_family(name));
+		}
 		/// Sets the font family.
-		void set_font_family(str_t f) {
+		void set_font_family(std::unique_ptr<ui::font_family> f) {
 			_font_family = std::move(f);
 			_on_editing_visual_changed();
 		}
 		/// Returns the font family.
-		const str_t &get_font_family() const {
-			return _font_family;
+		const ui::font_family *get_font_family() const {
+			return _font_family.get();
 		}
 
 		/// Sets the font size.
@@ -448,9 +444,9 @@ namespace codepad::editors::code {
 				},
 				[](const caret_set::entry &et) -> std::pair<std::size_t, bool> {
 					if (et.first.first < et.first.second) {
-						return {et.first.first, et.second.after_stall};
+						return { et.first.first, et.second.after_stall };
 					}
-					return {et.first.second, true};
+					return { et.first.second, true };
 				},
 					continueselection
 					);
@@ -466,9 +462,9 @@ namespace codepad::editors::code {
 				},
 				[](const caret_set::entry &et) -> std::pair<std::size_t, bool> {
 					if (et.first.first > et.first.second) {
-						return {et.first.first, et.second.after_stall};
+						return { et.first.first, et.second.after_stall };
 					}
-					return {et.first.second, false};
+					return { et.first.second, false };
 				},
 					continueselection
 					);
@@ -665,9 +661,9 @@ namespace codepad::editors::code {
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
 		/// Used to format invalid codepoints.
-		invalid_codepoint_formatter _invalid_cp_fmt{format_invalid_codepoint};
+		invalid_codepoint_formatter _invalid_cp_fmt{ format_invalid_codepoint };
 		ui::visuals _caret_visuals; ///< The visuals of carets.
-		str_t _font_family{"Fira Code"}; ///< The font family used to display code.
+		std::unique_ptr<ui::font_family> _font_family; ///< The font family used to display code.
 		double
 			_font_size = 12.0, ///< The font size.
 			_tab_width = 30.0, ///< The maximum width of a tab character.
@@ -703,6 +699,7 @@ namespace codepad::editors::code {
 		/// \param line The visual line that the caret is on.
 		/// \param position The position of the caret in the whole document.
 		double _get_caret_pos_x_at_visual_line(std::size_t line, std::size_t position) const;
+		// TODO this function should also take into account the inter-character position of the caret
 
 		/// Called when the vertical position of the document is changed or when the carets have been moved,
 		/// to update the caret position used by IMs.
@@ -818,7 +815,7 @@ namespace codepad::editors::code {
 			if (info.source_element == this && info.type == edit_type::normal) {
 				for (const buffer::modification_position &pos : info.positions) {
 					std::size_t bp = pos.position + pos.added_range, cp = cvt.byte_to_character(bp);
-					caret_set::entry et({cp, cp}, _get_caret_data(caret_position(cp, false)));
+					caret_set::entry et({ cp, cp }, _get_caret_data(caret_position(cp, false)));
 					newcarets.add(et);
 				}
 			} else {
@@ -842,7 +839,7 @@ namespace codepad::editors::code {
 						}
 					}
 					caret_set::entry et(
-						{cp1, cp2}, _get_caret_data(caret_position(cp1, pair.second.after_stall))
+						{ cp1, cp2 }, _get_caret_data(caret_position(cp1, pair.second.after_stall))
 					);
 					newcarets.add(et);
 				}
@@ -957,7 +954,13 @@ namespace codepad::editors::code {
 			_base::_initialize(cls, config);
 
 			_interaction_manager.set_contents_region(*this);
+
 			std::vector<str_t> profile; // TODO custom profile
+
+			set_font_family_by_name(
+				editor::get_font_family_setting().get_profile(profile.begin(), profile.end()).get_value()
+			);
+
 			auto &modes = editor::get_interaction_modes_setting().get_profile(
 				profile.begin(), profile.end()
 			).get_value();
@@ -1049,9 +1052,9 @@ namespace codepad::editors::code {
 		inline std::pair<editor*, contents_region*> get_core_components(const ui::element &elem) {
 			editor *edt = editor::get_encapsulating(elem);
 			if (edt) {
-				return {edt, contents_region::get_from_editor(*edt)};
+				return { edt, contents_region::get_from_editor(*edt) };
 			}
-			return {nullptr, nullptr};
+			return { nullptr, nullptr };
 		}
 
 		/// Returns the \ref contents_region that corresponds to the given \ref ui::element.

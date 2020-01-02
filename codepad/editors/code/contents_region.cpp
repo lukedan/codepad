@@ -94,9 +94,7 @@ namespace codepad::editors::code {
 				auto &&rendering = ass.append(frag);
 				if (ass.get_horizontal_position() > x) {
 					if constexpr (is_same_v<decay_t<decltype(frag)>, text_fragment>) {
-						caret_hit_test_result htres = rendering.text->hit_test(vec2d(
-							x - rendering.topleft.x, 0.5 * get_line_height()
-						));
+						caret_hit_test_result htres = rendering.text->hit_test(x - rendering.topleft.x);
 						respos.position = iter.get_position() - res.steps;
 						respos.position += htres.rear ? htres.character + 1 : htres.character;
 						respos.at_back = true;

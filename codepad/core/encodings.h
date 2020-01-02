@@ -72,15 +72,15 @@ namespace codepad {
 		public:
 			constexpr static std::byte
 				mask_1{0x80}, ///< Mask for detecting single-byte codepoints.
-				sig_1{0x00}, ///< Expected masked value of single-byte codepoints.
+				patt_1{0x00}, ///< Expected masked value of single-byte codepoints.
 				mask_2{0xE0}, ///< Mask for detecting bytes leading double-byte codepoints.
-				sig_2{0xC0}, ///< Expected masked value of bytes leading double-byte codepoints.
+				patt_2{0xC0}, ///< Expected masked value of bytes leading double-byte codepoints.
 				mask_3{0xF0}, ///< Mask for detecting triple-byte codepoints.
-				sig_3{0xE0}, ///< Expected masked value of bytes leading triple-byte codepoints.
+				patt_3{0xE0}, ///< Expected masked value of bytes leading triple-byte codepoints.
 				mask_4{0xF8}, ///< Mask for detecting quadruple-byte codepoints.
-				sig_4{0xF0}, ///< Expected masked value of bytes leading quadruple-byte codepoints.
+				patt_4{0xF0}, ///< Expected masked value of bytes leading quadruple-byte codepoints.
 				mask_cont{0xC0}, ///< Mask for detecting continuation bytes.
-				sig_cont{0x80}; ///< Expected masked value of continuation bytes.
+				patt_cont{0x80}; ///< Expected masked value of continuation bytes.
 
 			/// Returns `UTF-8'.
 			inline static str_view_t get_name() {
@@ -99,42 +99,42 @@ namespace codepad {
 				It1 &i, const It2 &end, codepoint &v
 			) {
 				std::byte fb = _get(i);
-				if ((fb & mask_1) == sig_1) {
+				if ((fb & mask_1) == patt_1) {
 					v = static_cast<codepoint>(fb & ~mask_1);
-				} else if ((fb & mask_2) == sig_2) {
-					if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+				} else if ((fb & mask_2) == patt_2) {
+					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
 					v = static_cast<codepoint>(fb & ~mask_2) << 6;
 					v |= static_cast<codepoint>(_get(i) & ~mask_cont);
-				} else if ((fb & mask_3) == sig_3) {
-					if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+				} else if ((fb & mask_3) == patt_3) {
+					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
 					v = static_cast<codepoint>(fb & ~mask_3) << 12;
 					v |= static_cast<codepoint>(_get(i) & ~mask_cont) << 6;
-					if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						--i;
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
 					v |= static_cast<codepoint>(_get(i) & ~mask_cont);
-				} else if ((fb & mask_4) == sig_4) {
-					if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+				} else if ((fb & mask_4) == patt_4) {
+					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
 					v = static_cast<codepoint>(fb & ~mask_4) << 18;
 					v |= static_cast<codepoint>(_get(i) & ~mask_cont) << 12;
-					if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						--i;
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
 					v |= static_cast<codepoint>(_get(i) & mask_cont) << 6;
-					if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						--i;
 						--i;
 						v = static_cast<codepoint>(fb);
@@ -154,28 +154,28 @@ namespace codepad {
 			/// \p i initially points to, and \p i will be moved to point to the next byte.
 			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
 				std::byte fb = _get(i);
-				if ((fb & mask_1) != sig_1) {
-					if ((fb & mask_2) == sig_2) {
-						if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+				if ((fb & mask_1) != patt_1) {
+					if ((fb & mask_2) == patt_2) {
+						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							return false;
 						}
-					} else if ((fb & mask_3) == sig_3) {
-						if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+					} else if ((fb & mask_3) == patt_3) {
+						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							return false;
 						}
-						if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							--i;
 							return false;
 						}
-					} else if ((fb & mask_4) == sig_4) {
-						if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+					} else if ((fb & mask_4) == patt_4) {
+						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							return false;
 						}
-						if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							--i;
 							return false;
 						}
-						if (++i == end || (_get(i) & mask_cont) != sig_cont) {
+						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							--i;
 							--i;
 							return false;
@@ -195,22 +195,22 @@ namespace codepad {
 				}
 				if (c < 0x800) {
 					return {
-						(static_cast<std::byte>(c >> 6) & ~mask_2) | sig_2,
-						(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
+						(static_cast<std::byte>(c >> 6) & ~mask_2) | patt_2,
+						(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
 					};
 				}
 				if (c < 0x10000) {
 					return {
-						(static_cast<std::byte>(c >> 12) & ~mask_3) | sig_3,
-						(static_cast<std::byte>(c >> 6) & ~mask_cont) | sig_cont,
-						(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
+						(static_cast<std::byte>(c >> 12) & ~mask_3) | patt_3,
+						(static_cast<std::byte>(c >> 6) & ~mask_cont) | patt_cont,
+						(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
 					};
 				}
 				return {
-					(static_cast<std::byte>(c >> 18) & ~mask_4) | sig_4,
-					(static_cast<std::byte>(c >> 12) & ~mask_cont) | sig_cont,
-					(static_cast<std::byte>(c >> 6) & ~mask_cont) | sig_cont,
-					(static_cast<std::byte>(c) & ~mask_cont) | sig_cont
+					(static_cast<std::byte>(c >> 18) & ~mask_4) | patt_4,
+					(static_cast<std::byte>(c >> 12) & ~mask_cont) | patt_cont,
+					(static_cast<std::byte>(c >> 6) & ~mask_cont) | patt_cont,
+					(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
 				};
 			}
 		protected:
@@ -224,6 +224,11 @@ namespace codepad {
 		/// UTF-16 encoding.
 		template <endianness Endianness = system_endianness> class utf16 {
 		public:
+			constexpr static std::uint16_t
+				mask_pair = 0xDC00, ///< Mask for detecting surrogate pairs.
+				patt_pair = 0xD800, ///< Expected masked value of the first unit of the surrogate pair.
+				patt_pair_second = 0xDC00; ///< Expected masked value of the second unit of the surrogate pair.
+
 			/// Returns either `UTF-16 LE' or `UTF-16 BE', depending on the Endianness.
 			inline static str_view_t get_name() {
 				if constexpr (Endianness == endianness::little_endian) {
@@ -245,7 +250,7 @@ namespace codepad {
 					v = word;
 					return false;
 				}
-				if ((word & 0xDC00) == 0xD800) {
+				if ((word & mask_pair) == patt_pair) {
 					if (i == end) {
 						v = word;
 						return false;
@@ -256,7 +261,7 @@ namespace codepad {
 						v = word;
 						return false;
 					}
-					if ((w2 & 0xDC00) != 0xDC00) {
+					if ((w2 & mask_pair) != patt_pair_second) {
 						--i;
 						--i;
 						v = word;
@@ -265,7 +270,7 @@ namespace codepad {
 					v = (static_cast<codepoint>(word & 0x03FF) << 10) | (w2 & 0x03FF);
 				} else {
 					v = word;
-					if ((word & 0xDC00) == 0xDC00) {
+					if ((word & mask_pair) == patt_pair_second) {
 						return false;
 					}
 				}

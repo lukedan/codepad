@@ -353,11 +353,11 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			text_rendering() = default;
 			/// Initializes all fields of this struct.
-			text_rendering(std::unique_ptr<ui::formatted_text> t, vec2d pos, double basecorr, colord c) :
+			text_rendering(std::unique_ptr<ui::plain_text> t, vec2d pos, double basecorr, colord c) :
 				text(std::move(t)), topleft(pos), baseline_correction(basecorr), color(c) {
 			}
 
-			std::unique_ptr<ui::formatted_text> text; ///< The formatted text.
+			std::unique_ptr<ui::plain_text> text; ///< The formatted text.
 			vec2d topleft; ///< The top-left position of this fragment, without \ref baseline_correction.
 			/// The offset to add to the result of \ref get_vertical_position() to align the baseline of all text.
 			double baseline_correction = 0.0;
@@ -376,7 +376,7 @@ namespace codepad::editors::code {
 
 		/// Initializes the renderer, font, and spacing.
 		fragment_assembler(
-			ui::renderer_base &r, str_view_t ff, double sz, double lh, double base, double tabw,
+			ui::renderer_base &r, const ui::font_family &ff, double sz, double lh, double base, double tabw,
 			invalid_codepoint_formatter fmt, colord invclr
 		) :
 			_renderer(&r), _font_family(ff), _invalid_cp_fmt(std::move(fmt)), _invalid_cp_color(invclr),
@@ -384,7 +384,7 @@ namespace codepad::editors::code {
 		}
 		/// Initializes this struct using the given \ref contents_region.
 		fragment_assembler(const contents_region &rgn) : fragment_assembler(
-			rgn.get_manager().get_renderer(), rgn.get_font_family(), rgn.get_font_size(),
+			rgn.get_manager().get_renderer(), *rgn.get_font_family(), rgn.get_font_size(),
 			rgn.get_line_height(), rgn.get_baseline(), rgn.get_tab_width(),
 			rgn.get_invalid_codepoint_formatter(), rgn.get_invalid_codepoint_color() // TODO custom color
 		) {
@@ -430,9 +430,11 @@ namespace codepad::editors::code {
 		}
 		/// Appends a \ref text_fragment to the rendered document by calling \ref _append_text().
 		text_rendering append(const text_fragment &frag) {
-			return _append_text(std::basic_string_view<codepoint>(frag.text), ui::font_parameters(
-				str_t(_font_family), _font_size, frag.theme.style, frag.theme.weight, ui::font_stretch::normal
-			), frag.theme.color);
+			// TODO custom font stretch?
+			auto font = _font_family.get_matching_font(
+				frag.theme.style, frag.theme.weight, ui::font_stretch::normal
+			);
+			return _append_text(std::basic_string_view<codepoint>(frag.text), *font, _font_size, frag.theme.color);
 		}
 		/// Appends a \ref tab_fragment to the rendered document.
 		basic_rendering append(const tab_fragment&) {
@@ -443,9 +445,11 @@ namespace codepad::editors::code {
 		/// Appends a \ref invalid_codepoint_fragment to the rendered document.
 		text_rendering append(const invalid_codepoint_fragment &frag) {
 			str_t textrepr = _invalid_cp_fmt(frag.value);
-			return _append_text(str_view_t(textrepr), ui::font_parameters(
-				str_t(_font_family), _font_size, ui::font_style::italic, ui::font_weight::normal, ui::font_stretch::normal
-			), _invalid_cp_color); // TODO customizable font params
+			// TODO custom style
+			auto font = _font_family.get_matching_font(
+				ui::font_style::italic, ui::font_weight::normal, ui::font_stretch::normal
+			);
+			return _append_text(str_view_t(textrepr), *font, _font_size, _invalid_cp_color);
 		}
 		/// Appends a \ref linebreak_fragment to the rendered document by simply moving the current position.
 		basic_rendering append(const linebreak_fragment&) {
@@ -461,7 +465,10 @@ namespace codepad::editors::code {
 		}
 		/// Appends a \ref text_gizmo_fragment to the rendered document by calling \ref _append_text().
 		text_rendering append(const text_gizmo_fragment &frag) {
-			return _append_text(str_view_t(frag.contents), frag.font, frag.color);
+			auto font = _renderer->find_font_family(frag.font.family)->get_matching_font(
+				frag.font.style, frag.font.weight, frag.font.stretch
+			);
+			return _append_text(str_view_t(frag.contents), *font, frag.font.size, frag.color);
 		}
 
 		/// Does nothing. Defined to complete the basic interface.
@@ -470,13 +477,13 @@ namespace codepad::editors::code {
 		/// Renders the text using the given renderer, at the position specified in the \ref text_rendering.
 		/// Additional transformations may be necessary to 
 		void render(ui::renderer_base &r, const text_rendering &text) {
-			r.draw_formatted_text(
-				*text.text, vec2d(text.topleft.x, text.topleft.y + text.baseline_correction)
+			r.draw_plain_text(
+				*text.text, vec2d(text.topleft.x, text.topleft.y + text.baseline_correction), text.color
 			);
 		}
 	protected:
 		ui::renderer_base *_renderer = nullptr; ///< The renderer.
-		str_view_t _font_family; ///< The font family.
+		const ui::font_family &_font_family; ///< The font family.
 		invalid_codepoint_formatter _invalid_cp_fmt; ///< Used to format and display invalid codepoints.
 		colord _invalid_cp_color; ///< The color of invalid codepoints.
 		double
@@ -487,19 +494,16 @@ namespace codepad::editors::code {
 			_line_top = 0.0, ///< The top of the current line.
 			_xpos = 0.0; ///< The horizontal position, relative to the left side of the document.
 
-		/// Appends a clip of text
+		/// Appends a clip of text to the ending of the document.
 		template <typename Char> text_rendering _append_text(
-			std::basic_string_view<Char> text, ui::font_parameters font, colord color
+			std::basic_string_view<Char> text, ui::font &font, double size, colord color
 		) {
-			std::unique_ptr<ui::formatted_text> fmttext = _renderer->create_formatted_text(
-				text, font, color,
-				vec2d(), ui::wrapping_mode::none,
-				ui::horizontal_text_alignment::front, ui::vertical_text_alignment::top
+			std::unique_ptr<ui::plain_text> fmttext = _renderer->create_plain_text(
+				text, font, size
 			);
-			std::vector<ui::line_metrics> lines = fmttext->get_line_metrics();
 			vec2d pos = get_position();
-			advance_horizontal_position(fmttext->get_layout().xmax);
-			return text_rendering(std::move(fmttext), pos, _baseline - lines[0].baseline, color);
+			advance_horizontal_position(fmttext->get_width());
+			return text_rendering(std::move(fmttext), pos, _baseline - font.get_ascent_em() * size, color);
 		}
 	};
 
@@ -822,7 +826,7 @@ namespace codepad::editors::code {
 				const fragment_assembler::text_rendering &r, const fragment_assembler &ass
 			) {
 				return rectd::from_xywh(
-					r.topleft.x, r.topleft.y, r.text->get_layout().width(), ass.get_line_height()
+					r.topleft.x, r.topleft.y, r.text->get_width(), ass.get_line_height()
 				);
 			}
 

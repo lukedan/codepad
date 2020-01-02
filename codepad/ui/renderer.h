@@ -201,11 +201,26 @@ namespace codepad::ui {
 		virtual void set_font_stretch(font_stretch, std::size_t, std::size_t) = 0;
 	};
 
+	/// A font in a font family.
+	class font {
+	public:
+		/// Default virtual destructor.
+		virtual ~font() = default;
+
+		/// Returns the distance between the top of the line and the baseline in em units.
+		virtual double get_ascent_em() const = 0;
+		/// Returns the recommended height of a line in em units.
+		virtual double get_line_height_em() const = 0;
+	};
+
 	/// Represents a family of similar fonts.
 	class font_family {
 	public:
 		/// Default virtual destructor.
 		virtual ~font_family() = default;
+
+		/// Returns a font in this family matching the given description.
+		virtual std::unique_ptr<font> get_matching_font(font_style, font_weight, font_stretch) const = 0;
 	};
 
 	/// Represents a single line of text with the same font parameters. This is mainly used for code editors.
@@ -492,13 +507,9 @@ namespace codepad::ui {
 
 		// plain text related
 		/// Creates a new \ref plain_text from the given parameters.
-		virtual std::unique_ptr<plain_text> create_plain_text(
-			str_view_t, font_family&, double, font_style, font_weight, font_stretch
-		) = 0;
+		virtual std::unique_ptr<plain_text> create_plain_text(str_view_t, font&, double) = 0;
 		/// \ref create_plain_text() that accepts a UTF-32 string.
-		virtual std::unique_ptr<plain_text> create_plain_text(
-			std::basic_string_view<codepoint>, font_family&, double, font_style, font_weight, font_stretch
-		) = 0;
+		virtual std::unique_ptr<plain_text> create_plain_text(std::basic_string_view<codepoint>, font&, double) = 0;
 		/// Draws the given \ref plain_text at the given position, using the given color.
 		virtual void draw_plain_text(plain_text&, vec2d, colord) = 0;
 	protected:

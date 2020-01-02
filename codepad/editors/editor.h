@@ -95,8 +95,10 @@ namespace codepad::editors {
 
 		/// Retrieves the setting entry that determines the font size.
 		static settings::retriever_parser<double> &get_font_size_setting();
+		/// Retrieves the setting entry that determines the font family.
+		static settings::retriever_parser<str_view_t> &get_font_family_setting();
 		/// Retrieves the setting entry that determines the list of interaction modes used in code editors.
-		static settings::retriever_parser<std::vector<str_t>> &get_interaction_modes_setting();
+		static settings::retriever_parser<std::vector<str_view_t>> &get_interaction_modes_setting();
 
 		/// Returns the \ref editor that's the logical parent of the given \ref ui::element.
 		inline static editor *get_encapsulating(const ui::element &e) {
