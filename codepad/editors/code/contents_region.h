@@ -949,18 +949,20 @@ namespace codepad::editors::code {
 		void _custom_render() const override;
 
 		// construction and destruction
-		/// Sets the element to non-focusable, calls \ref _reset_caret_animation(), and initializes \ref _sel_cfg.
+		/// Loads font and interaction settings.
 		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
 			_base::_initialize(cls, config);
-
-			_interaction_manager.set_contents_region(*this);
 
 			std::vector<str_t> profile; // TODO custom profile
 
 			set_font_family_by_name(
 				editor::get_font_family_setting().get_profile(profile.begin(), profile.end()).get_value()
 			);
+			set_font_size_and_line_height(
+				editor::get_font_size_setting().get_profile(profile.begin(), profile.end()).get_value()
+			);
 
+			_interaction_manager.set_contents_region(*this);
 			auto &modes = editor::get_interaction_modes_setting().get_profile(
 				profile.begin(), profile.end()
 			).get_value();

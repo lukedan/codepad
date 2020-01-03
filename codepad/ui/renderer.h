@@ -211,6 +211,17 @@ namespace codepad::ui {
 		virtual double get_ascent_em() const = 0;
 		/// Returns the recommended height of a line in em units.
 		virtual double get_line_height_em() const = 0;
+
+		/// Returns the width of the given character.
+		virtual double get_character_width_em(codepoint) const = 0;
+		/// Returns the maximum width of all given characters.
+		virtual double get_maximum_character_width_em(std::basic_string_view<codepoint> str) const {
+			double res = std::numeric_limits<double>::min();
+			for (codepoint cp : str) {
+				res = std::max(res, get_character_width_em(cp));
+			}
+			return res;
+		}
 	};
 
 	/// Represents a family of similar fonts.
@@ -455,6 +466,8 @@ namespace codepad::ui {
 		virtual void push_matrix_mult(matd3x3) = 0;
 		/// Pops a matrix from the stack.
 		virtual void pop_matrix() = 0;
+		/// Returns the current transformation matrix.
+		virtual matd3x3 get_matrix() const = 0;
 
 		// geometry drawing & building
 		/// Starts to build a path. Other drawing functions should *not* be used until the path has been finished.

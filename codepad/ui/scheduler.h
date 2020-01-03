@@ -148,6 +148,9 @@ namespace codepad::ui {
 			std::set<window_base*> ss;
 			for (auto i : _dirty) {
 				window_base *wnd = i->get_window();
+				if (!wnd) {
+					wnd = dynamic_cast<window_base*>(i);
+				}
 				if (wnd) {
 					ss.insert(wnd);
 				}

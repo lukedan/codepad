@@ -13,7 +13,9 @@ namespace codepad::editors::binary {
 		ui::size_allocation get_desired_width() const override {
 			if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
 				std::size_t chars = _get_label_length(rgn->get_buffer()->length());
-				double maxw = 0.0;/*rgn->get_font()->get_max_width_charset(U"0123456789ABCDEF");*/
+				double maxw = rgn->get_font()->get_maximum_character_width_em(
+					reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
+				) * rgn->get_font_size();
 				return ui::size_allocation(get_padding().width() + chars * maxw, true);
 			}
 			return ui::size_allocation(0, true);
@@ -73,27 +75,31 @@ namespace codepad::editors::binary {
 		/// Renders the offsets.
 		void _custom_render() const override {
 			element::_custom_render();
-			/*if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
+			// TODO clipping
+			if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
 				// position of the first line relative to the window
 				double
-					top = rgn->get_client_region().ymin - edt->get_vertical_position(),
+					top = edt->get_vertical_position() - rgn->get_padding().top,
 					left = get_client_region().xmin;
 				std::size_t
 					firstline = static_cast<std::size_t>(
-						std::max(0.0, (get_layout().ymin - top) / rgn->get_line_height())
+						std::max(0.0, top / rgn->get_line_height())
 						),
 					chars = _get_label_length(rgn->get_buffer()->length()),
 					offset = firstline * rgn->get_bytes_per_row();
+				auto &renderer = get_manager().get_renderer();
 				for (
-					double ypos = top + firstline * rgn->get_line_height();
-					ypos < get_layout().ymax && offset < rgn->get_buffer()->length();
+					double ypos = firstline * rgn->get_line_height() - top;
+					ypos < get_layout().height() && offset < rgn->get_buffer()->length();
 					ypos += rgn->get_line_height(), offset += rgn->get_bytes_per_row()
 					) {
-					get_manager().get_renderer().draw_text(
-						_to_hex(offset, chars), *rgn->get_font(), vec2d(get_padding().left, ypos), colord(), rend
+					auto text = renderer.create_plain_text(
+						_to_hex(offset, chars), *rgn->get_font(), rgn->get_font_size()
 					);
+					// TODO custom color
+					renderer.draw_plain_text(*text, vec2d(get_padding().left, ypos), colord());
 				}
-			}*/
+			}
 		}
 	};
 }

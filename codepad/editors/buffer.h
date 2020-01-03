@@ -174,8 +174,6 @@ namespace codepad::editors {
 		/// A single modification made to the buffer at a single location. A sequence of bytes (optionally empty)
 		/// starting from a certain position is removed, then another sequence of bytes (also optionally empty) is
 		/// inserted at the same position.
-		///
-		/// \todo Maybe replace the bools with bit fields when C++20 drops?
 		struct modification {
 			/// Returns a \ref modification_position containing position information about this modification.
 			modification_position get_position_info() const {

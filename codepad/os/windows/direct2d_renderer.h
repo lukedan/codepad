@@ -256,20 +256,27 @@ namespace codepad::os::direct2d {
 	public:
 		/// Returns \p DWRITE_FONT_METRICS::ascent.
 		double get_ascent_em() const override {
-			DWRITE_FONT_METRICS metrics;
-			_font->GetMetrics(&metrics);
-			return metrics.ascent / static_cast<double>(metrics.designUnitsPerEm);
+			return _metrics.ascent / static_cast<double>(_metrics.designUnitsPerEm);
 		}
 		/// Returns the sum of \p DWRITE_FONT_METRICS::ascent, \p DWRITE_FONT_METRICS::descent, and
 		/// \p DWRITE_FONT_METRICS::lineGap.
 		double get_line_height_em() const override {
-			DWRITE_FONT_METRICS metrics;
-			_font->GetMetrics(&metrics);
 			return
-				(metrics.ascent + metrics.descent + metrics.lineGap) /
-				static_cast<double>(metrics.designUnitsPerEm);
+				(_metrics.ascent + _metrics.descent + _metrics.lineGap) /
+				static_cast<double>(_metrics.designUnitsPerEm);
+		}
+
+		/// Returns the width of the character.
+		double get_character_width_em(codepoint cp) const override {
+			UINT32 cp_u32 = cp;
+			UINT16 glyph;
+			DWRITE_GLYPH_METRICS gmetrics;
+			com_check(_font->GetGlyphIndices(&cp_u32, 1, &glyph));
+			com_check(_font->GetDesignGlyphMetrics(&glyph, 1, &gmetrics, false));
+			return gmetrics.advanceWidth / static_cast<double>(_metrics.designUnitsPerEm);
 		}
 	protected:
+		DWRITE_FONT_METRICS _metrics; ///< The metrics of this font.
 		_details::com_wrapper<IDWriteFontFace> _font; ///< The \p IDWriteFontFace.
 	};
 
@@ -290,6 +297,7 @@ namespace codepad::os::direct2d {
 				font.get_ref()
 			));
 			com_check(font->CreateFontFace(result->_font.get_ref()));
+			result->_font->GetMetrics(&result->_metrics);
 			return result;
 		}
 	protected:
@@ -726,20 +734,23 @@ namespace codepad::os::direct2d {
 
 		/// Pushes a matrix onto the stack.
 		void push_matrix(matd3x3 m) override {
-			_render_stack.top().matrices.push(_details::cast_matrix(m));
+			_render_stack.top().matrices.push(m);
 			_update_transform();
 		}
 		/// Multiplies the current matrix with the given matrix and pushes it onto the stack.
 		void push_matrix_mult(matd3x3 m) override {
-			D2D1_MATRIX_3X2_F mat = _details::cast_matrix(m);
 			_render_target_stackframe &frame = _render_stack.top();
-			frame.matrices.push(mat * frame.matrices.top());
+			frame.matrices.push(m * frame.matrices.top());
 			_update_transform();
 		}
 		/// Pops a matrix from the stack.
 		void pop_matrix() override {
 			_render_stack.top().matrices.pop();
 			_update_transform();
+		}
+		/// Returns the current transformation matrix.
+		matd3x3 get_matrix() const override {
+			return _render_stack.top().matrices.top();
 		}
 
 		/// Clears the current surface using the given color.
@@ -883,7 +894,8 @@ namespace codepad::os::direct2d {
 				font, size
 			);
 		}
-		/// Calls \p ID2D1DeviceContext::DrawGlyphRun to render the text clip.
+		/// Calls \p ID2D1DeviceContext::DrawGlyphRun to render the text clip. Any pushed layer will disable subpixel
+		/// antialiasing for this text.
 		void draw_plain_text(ui::plain_text &t, vec2d pos, colord color) override {
 			auto &text = _details::cast_plain_text(t);
 
@@ -904,18 +916,13 @@ namespace codepad::os::direct2d {
 			pos.y += text._font_size * (metrics.ascent / static_cast<double>(metrics.designUnitsPerEm));
 
 			// determine if & how to apply pixel snapping
-			D2D1_MATRIX_3X2_F trans;
-			_d2d_device_context->GetTransform(&trans);
-			if (
-				_about_equal(trans.m11, 1.0f, 1e-2f) && _about_equal(trans.m12, 0.0f, 1e-2f) &&
-				_about_equal(trans.m21, 0.0f, 1e-2f) && _about_equal(trans.m22, 1.0f, 1e-2f)
-				) { // approximately no rotation, scaling, & shearing, apply pixel snapping
-				double ypos = static_cast<double>(trans.dy) + pos.y;
+			matd3x3 trans = _render_stack.top().matrices.top();
+			if (!trans.has_rotation_or_nonrigid()) {
+				double ypos = trans[1][2] + pos.y;
 				pos.y += std::round(ypos) - ypos;
 			}
 
 			_text_brush->SetColor(_details::cast_color(color)); // text color
-			// TODO code does not have cleartype antialiasing, but minimap does
 			_d2d_device_context->DrawGlyphRun(_details::cast_point(pos), &run, _text_brush.get());
 		}
 	protected:
@@ -935,10 +942,10 @@ namespace codepad::os::direct2d {
 		struct _render_target_stackframe {
 			/// Initializes \ref target, and pushes an identity matrix onto the stack.
 			explicit _render_target_stackframe(ID2D1Image *t) : target(t) {
-				matrices.emplace(D2D1::IdentityMatrix());
+				matrices.emplace(matd3x3::identity());
 			}
 
-			std::stack<D2D1_MATRIX_3X2_F> matrices; ///< The stack of matrices.
+			std::stack<matd3x3> matrices; ///< The stack of matrices.
 			/// The render target. Here we're using raw pointers to skip a few \p AddRef() and \p Release() calls
 			/// since the target must be alive during the entire duration of rendering (if it doesn't, then it's the
 			/// user's fault and we'll just let it crash).
@@ -962,12 +969,6 @@ namespace codepad::os::direct2d {
 		_details::com_wrapper<IDWriteTextAnalyzer> _dwrite_text_analyzer;
 
 
-		/// Approximate floating-point comparison.
-		template <typename Real> inline static bool _about_equal(Real v1, Real v2, Real eps = 1e-6f) {
-			return std::abs(v2 - v1) < eps;
-		}
-
-
 		/// Starts drawing to a \p ID2D1RenderTarget.
 		void _begin_draw_impl(ID2D1Image *target, vec2d dpi) {
 			_d2d_device_context->SetTarget(target);
@@ -980,7 +981,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Updates the transform of \ref _d2d_device_context.
 		void _update_transform() {
-			_d2d_device_context->SetTransform(_render_stack.top().matrices.top());
+			_d2d_device_context->SetTransform(_details::cast_matrix(_render_stack.top().matrices.top()));
 		}
 		/// Draws the given geometry.
 		void _draw_geometry(

@@ -231,9 +231,7 @@ namespace codepad::ui {
 		struct identity {
 			/// Returns the identity matrix.
 			matd3x3 get_matrix(vec2d) const {
-				matd3x3 res;
-				res.set_identity();
-				return res;
+				return matd3x3::identity();
 			}
 			/// Returns the original point.
 			vec2d transform_point(vec2d pt, vec2d) const {
@@ -406,8 +404,7 @@ namespace codepad::ui {
 
 
 		inline matd3x3 collection::get_matrix(vec2d unit) const {
-			matd3x3 res;
-			res.set_identity();
+			matd3x3 res = matd3x3::identity();
 			for (const generic &g : components) {
 				res = g.get_matrix(unit) * res;
 			}
@@ -1004,7 +1001,7 @@ namespace codepad {
 											ui::arc_type::major : ui::arc_type::minor;
 										if (
 											auto rot = part_obj->template parse_optional_member<double>(u8"rotation")
-										) {
+											) {
 											arc.rotation = rot.value();
 										}
 										return res;
@@ -1016,10 +1013,10 @@ namespace codepad {
 								if (auto to = part_obj->template parse_member<ui::relative_vec2d>(u8"to")) {
 									if (auto c1 = part_obj->template parse_member<ui::relative_vec2d>(
 										u8"control1"
-									)) {
+										)) {
 										if (auto c2 = part_obj->template parse_member<ui::relative_vec2d>(
 											u8"control2"
-										)) {
+											)) {
 											ui::geometries::path::part res;
 											auto &bezier = res.value.emplace<ui::geometries::path::cubic_bezier>();
 											bezier.to = to.value();
@@ -1220,16 +1217,16 @@ namespace codepad::ui {
 				generic_visual_geometry, managed_json_parser<generic_visual_geometry>
 			>(managed_json_parser<generic_visual_geometry>(_manager));
 			if (auto obj = val.template try_cast<typename Value::object_type>()) {
-				if (auto geoms = obj->template parse_member<std::vector<generic_visual_geometry>>(
+				visuals res;
+				if (auto geoms = obj->template parse_optional_member<std::vector<generic_visual_geometry>>(
 					u8"geometries", geom_parser
 					)) {
-					visuals res;
 					res.geometries = std::move(geoms.value());
-					if (auto trans = obj->template parse_optional_member<transforms::generic>(u8"transform")) {
-						res.transform = std::move(trans.value());
-					}
-					return res;
 				}
+				if (auto trans = obj->template parse_optional_member<transforms::generic>(u8"transform")) {
+					res.transform = std::move(trans.value());
+				}
+				return res;
 			} else if (val.template is<typename Value::array_type>()) {
 				if (auto geoms = val.template parse<std::vector<generic_visual_geometry>>(geom_parser)) {
 					visuals res;

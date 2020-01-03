@@ -52,9 +52,9 @@ namespace codepad::editors::binary {
 			_buf = std::move(buf);
 			_carets.reset();
 			if (_buf) {
-				_mod_tok = (_buf->end_edit += [this](buffer::end_edit_info&) {
-					_on_content_modified();
-				});
+				_mod_tok = (_buf->end_edit += [this](buffer::end_edit_info &info) {
+					_on_end_edit(info);
+					});
 			}
 			_on_content_modified();
 		}
@@ -100,7 +100,6 @@ namespace codepad::editors::binary {
 		/// Sets whether the \ref contents_region is currently in insert mode.
 		void set_insert_mode(bool v) {
 			_insert = v;
-			_reset_caret_animation();
 		}
 		/// Toggles insert mode.
 		void toggle_insert_mode() {
@@ -111,8 +110,7 @@ namespace codepad::editors::binary {
 		///
 		/// \todo Add customizable line height.
 		double get_line_height() const {
-			/*return _font ? _font->height() : 0.0;*/
-			return 0.0;
+			return _font->get_line_height_em() * get_font_size();
 		}
 		/// Returns the number of lines.
 		std::size_t get_num_lines() const {
@@ -179,18 +177,32 @@ namespace codepad::editors::binary {
 			}
 		}
 
-		/*/// Returns the \ref ui::font for rendering characters.
-		const std::shared_ptr<const ui::font> &get_font() const {
+		/// Returns the \ref ui::font for rendering characters.
+		const std::unique_ptr<ui::font> &get_font() const {
 			return _font;
 		}
 		/// Sets the \ref ui::font for rendering characters.
-		void set_font(std::shared_ptr<const ui::font> f) {
-			_font = f;
-			_cached_max_byte_width = _font->get_max_width_charset(U"0123456789ABCDEF") * 2;
-			if (!_update_bytes_per_row()) {
-				_on_content_visual_changed();
-			}
-		}*/
+		void set_font(std::unique_ptr<ui::font> f) {
+			_font = std::move(f);
+			_on_font_parameters_changed();
+		}
+		/// Sets the \ref ui::font for rendering characters given the font's name.
+		void set_font_by_name(str_view_t name) {
+			auto family = get_manager().get_renderer().find_font_family(name);
+			set_font(
+				family->get_matching_font(ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal)
+			);
+		}
+
+		/// Returns the current font size.
+		double get_font_size() const {
+			return _font_size;
+		}
+		/// Sets the font size.
+		void set_font_size(double size) {
+			_font_size = size;
+			_on_font_parameters_changed();
+		}
 
 		/// Sets the number of lines to scroll per `tick'.
 		void set_num_lines_per_scroll(double v) {
@@ -237,7 +249,10 @@ namespace codepad::editors::binary {
 		/// of this \ref ui::element.
 		caret_position hit_test_for_caret(vec2d pos) const override {
 			if (auto *edt = editor::get_encapsulating(*this)) {
-				return hit_test_for_caret_document(pos + edt->get_position());
+				return hit_test_for_caret_document(vec2d(
+					pos.x + edt->get_horizontal_position() + get_padding().left,
+					pos.y + edt->get_vertical_position() + get_padding().top
+				));
 			}
 			return caret_position();
 		}
@@ -314,11 +329,13 @@ namespace codepad::editors::binary {
 
 		caret_set _carets; ///< The set of carets.
 		interaction_manager<caret_set> _interaction_manager; ///< Manages certain mouse and keyboard interactions.
+		std::unique_ptr<ui::font> _font; ///< The font used to display all bytes.
 		std::shared_ptr<buffer> _buf; ///< The buffer that's being edited.
 		info_event<buffer::end_edit_info>::token _mod_tok; ///< Used to listen to \ref buffer::
 		double
 			_cached_max_byte_width = 0.0, ///< The width of a character.
 			_blank_width = 5.0, ///< The distance between two consecutive bytes.
+			_font_size = 11.0, ///< Font size.
 			_lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
 		std::size_t
 			/// The number of bytes per row. Only used when \ref _wrap is \ref wrap_mode::fixed.
@@ -354,13 +371,13 @@ namespace codepad::editors::binary {
 		/// Returns the line and column that the given byte is on.
 		std::pair<std::size_t, std::size_t> _get_line_and_column_of_byte(std::size_t byte) const {
 			std::size_t bpr = get_bytes_per_row(), line = byte / bpr;
-			return {line, byte - line * bpr};
+			return { line, byte - line * bpr };
 		}
 
 		// rendering
 		/// Returns the region that a given caret occupies, relative to the top left of the document.
 		rectd _get_caret_rect(caret_position cpos) const {
-			auto[line, col] = _get_line_and_column_of_byte(cpos.position);
+			auto [line, col] = _get_line_and_column_of_byte(cpos.position);
 			if (col == 0) { // at "line ending"
 				if (cpos.at_back || line == 0) { // at the beginning of the next line
 					return rectd::from_xywh(_get_column_offset(0), _get_line_offset(line), 0.0, get_line_height());
@@ -388,8 +405,8 @@ namespace codepad::editors::binary {
 				return {};
 			}
 			std::vector<rectd> res;
-			auto[bline, bcol] = _get_line_and_column_of_byte(beg);
-			auto[eline, ecol] = _get_line_and_column_of_byte(end);
+			auto [bline, bcol] = _get_line_and_column_of_byte(beg);
+			auto [eline, ecol] = _get_line_and_column_of_byte(end);
 			if (ecol == 0 && eline != 0) { // move end to the end of the last line if it's at the beginning
 				--eline;
 				ecol = get_bytes_per_row();
@@ -416,7 +433,7 @@ namespace codepad::editors::binary {
 		/// Renders all visible bytes.
 		void _custom_render() const override {
 			interactive_contents_region_base::_custom_render();
-			/*
+
 			if (auto *edt = editor::get_encapsulating(*this)) {
 				std::size_t
 					firstline = _get_line_at_position(edt->get_vertical_position()),
@@ -432,17 +449,14 @@ namespace codepad::editors::binary {
 					);
 				double
 					lineh = get_line_height(),
-					bottom = get_client_region().ymax;
+					bottom = get_layout().height();
 				vec2d
 					edtpos = edt->get_position(),
-					topleft = get_layout().xmin_ymin() + vec2d(
-						// from left of view to left of the first byte
-						_get_column_offset(firstbyte),
-						// from top of view to top of the first line
-						_get_line_offset(firstline)
-					) - edtpos;
+					topleft = vec2d(_get_column_offset(firstbyte), _get_line_offset(firstline)) - edtpos;
+				auto &renderer = get_manager().get_renderer();
+
+				// TODO clipping
 				// render bytes
-				ui::atlas::batch_renderer rend(_font->get_manager().get_atlas());
 				for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
 					// render a single line
 					std::size_t pos = line * get_bytes_per_row() + firstbyte;
@@ -456,15 +470,14 @@ namespace codepad::editors::binary {
 						i < lastbyte && it != _buf->end();
 						++i, ++it, x += _cached_max_byte_width + _blank_width
 						) {
+						auto text = renderer.create_plain_text(_get_hex_byte(*it), *_font, _font_size);
 						// TODO customizable color
-						ui::text_renderer::render_plain_text(
-							_get_hex_byte(*it), *_font, vec2d(x, topleft.y), colord(), rend
-						);
+						renderer.draw_plain_text(*text, vec2d(x, topleft.y), colord());
 					}
 				}
 				// render carets
 				caret_set extcarets;
-				caret_set *cset = &_carets;
+				const caret_set *cset = &_carets;
 				std::vector<caret_selection_position> tmpcarets = _interaction_manager.get_temporary_carets();
 				if (!tmpcarets.empty()) { // merge & use temporary caret set
 					extcarets = _carets;
@@ -475,7 +488,7 @@ namespace codepad::editors::binary {
 					}
 					cset = &extcarets;
 				}
-				auto it = cset->carets.lower_bound({firstline * get_bytes_per_row() + firstbyte, 0});
+				auto it = cset->carets.lower_bound({ firstline * get_bytes_per_row() + firstbyte, 0 });
 				if (it != cset->carets.begin()) {
 					--it;
 				}
@@ -493,17 +506,24 @@ namespace codepad::editors::binary {
 					caret_rects.emplace_back(_get_caret_rect(_extract_position(*it)));
 					selection_rects.emplace_back(_get_selection_rects(it->first, clampmin, clampmax));
 				}
-				vec2d renderoffset = get_layout().xmin_ymin() - edtpos;
+				// TODO proper visuals
 				for (const rectd &r : caret_rects) {
-					_caret_cfg.render(get_manager().get_renderer(), r.translated(renderoffset));
+					renderer.draw_rectangle(
+						r.translated(-edtpos),
+						ui::generic_brush_parameters(),
+						ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord())))
+					);
 				}
 				for (const auto &v : selection_rects) {
 					for (const rectd &r : v) {
-						_selection_cfg.render(get_manager().get_renderer(), r.translated(renderoffset));
+						renderer.draw_rectangle(
+							r.translated(-edtpos),
+							ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 0.2))),
+							ui::generic_pen_parameters()
+						);
 					}
 				}
 			}
-			*/
 		}
 
 		// formatting
@@ -580,48 +600,45 @@ namespace codepad::editors::binary {
 			_on_carets_changed();
 		}
 
-		/// Called when \ref _buf has been modified. Calls \ref _on_content_visual_changed().
+		/// Updates cached bytes per row, and invalidates the visuals of this element.
+		void _on_font_parameters_changed() {
+			_cached_max_byte_width = get_font_size() * 2.0 * _font->get_maximum_character_width_em(
+				reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
+			);
+			if (!_update_bytes_per_row()) {
+				_on_content_visual_changed();
+			}
+		}
+		/// Called when \ref _buf has been modified, this function re-adjusts caret positions and invokes
+		/// \ref _on_content_modified().
+		void _on_end_edit(buffer::end_edit_info &info) {
+			// TODO fixup carets
+
+			_on_content_modified();
+		}
+		/// Called when the buffer has been modified.
 		void _on_content_modified() {
-			_on_content_visual_changed();
 			content_modified.invoke();
+			_on_content_visual_changed();
 		}
 		/// Called when \ref content_visual_changed should be invoked.
 		void _on_content_visual_changed() {
-			invalidate_visual();
 			content_visual_changed.invoke();
+			invalidate_visual();
 		}
 		/// Called when the set of carets has changed. This can occur when the user calls \p set_caret, or when
 		/// the current selection is being edited by the user. This function resets the caret animation, invokes
 		/// \ref carets_changed, and calls \ref invalidate_visual.
 		void _on_carets_changed() {
-			_reset_caret_animation();
 			carets_changed.invoke();
 			invalidate_visual();
 		}
 
 		// visual
-		/// Sets the correct class of \ref _caret_cfg, resets the animation of carets, and schedules this element for
-		/// updating.
-		void _reset_caret_animation() {
-			// TODO
-		}
-		/// Updates the value of \ref _misc_region_state, and updates \ref _caret_cfg and \ref _selection_cfg
-		/// accordingly.
-		void _update_misc_region_state() {
-			// TODO
-		}
-
 		/// Registers handlers used to update \ref _misc_region_state.
 		void _on_logical_parent_constructed() override {
 			element::_on_logical_parent_constructed();
 			auto *edt = editor::get_encapsulating(*this);
-
-			edt->got_focus += [this]() {
-				_update_misc_region_state();
-			};
-			edt->lost_focus += [this]() {
-				_update_misc_region_state();
-			};
 
 			edt->horizontal_viewport_changed += [this]() {
 				_interaction_manager.on_viewport_changed();
@@ -632,19 +649,25 @@ namespace codepad::editors::binary {
 		}
 
 		// misc
-		/// Sets the element to non-focusable, calls \ref _reset_caret_animation(), and initializes
-		/// \ref _selection_cfg.
+		/// Loads font and interaction settings.
 		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
 			element::_initialize(cls, config);
 
+			std::vector<str_t> profile; // TODO custom profile
+
+			set_font_by_name(
+				editor::get_font_family_setting().get_profile(profile.begin(), profile.end()).get_value()
+			);
+			set_font_size(
+				editor::get_font_size_setting().get_profile(profile.begin(), profile.end()).get_value()
+			);
+
 			// initialize _interaction_manager
+			// TODO use separate settings
 			_interaction_manager.set_contents_region(*this);
-			// TODO
+			// TODO add registry
 			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_prepare_drag_mode_activator<caret_set>());
 			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_single_selection_mode_activator<caret_set>());
-
-			_reset_caret_animation();
-			// TODO
 		}
 		/// Sets the current document to empty to unbind event listeners.
 		void _dispose() override {
@@ -660,9 +683,9 @@ namespace codepad::editors::binary {
 		inline std::pair<editor*, contents_region*> get_core_components(const ui::element &elem) {
 			editor *edt = editor::get_encapsulating(elem);
 			if (edt) {
-				return {edt, contents_region::get_from_editor(*edt)};
+				return { edt, contents_region::get_from_editor(*edt) };
 			}
-			return {nullptr, nullptr};
+			return { nullptr, nullptr };
 		}
 
 		/// Returns the \ref contents_region that corresponds to the given \ref ui::element.

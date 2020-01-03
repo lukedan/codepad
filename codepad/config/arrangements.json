@@ -1000,7 +1000,7 @@
 						"layout": {
 							"width": "1*",
 							"height": "100%",
-							"padding": [ 20.0, 20.0, 20.0, 20.0 ]
+							"padding": [ 2.0, 0.0, 0.0, 0.0 ]
 						},
 						"animations": {
 							"carets_changed": {
@@ -1177,7 +1177,7 @@
 						"layout": {
 							"width": "1*",
 							"height": "100%",
-							"padding": [ 20.0, 0.0, 0.0, 0.0 ]
+							"padding": [ 2.0, 20.0, 0.0, 20.0 ]
 						}
 					}
 				]

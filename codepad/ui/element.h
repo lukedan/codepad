@@ -274,8 +274,8 @@ namespace codepad::ui {
 		}
 
 		/// Returns the window that contains the element, or \p nullptr if the element's not currently attached to
-		/// one.
-		window_base *get_window();
+		/// one. For windows themselves, this function returns \p nullptr.
+		window_base *get_window() const;
 		/// Returns the \ref manager of this element. Use this instead of directly accessing \ref _manager.
 		[[nodiscard]] manager &get_manager() const {
 			return *_manager;

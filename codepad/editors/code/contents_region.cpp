@@ -133,8 +133,11 @@ namespace codepad::editors::code {
 		interactive_contents_region_base::_custom_render();
 
 		performance_monitor mon(CP_STRLIT("render_contents"));
+
+		auto &renderer = get_manager().get_renderer();
 		double lh = get_line_height();
 		pair<std::size_t, std::size_t> be = get_visible_visual_lines();
+		
 		caret_set extcarets;
 		const caret_set *used = &_cset;
 		std::vector<caret_selection_position> tempcarets = _interaction_manager.get_temporary_carets();
@@ -148,15 +151,17 @@ namespace codepad::editors::code {
 			used = &extcarets;
 		}
 
-		get_manager().get_renderer().push_rectangle_clip(
-			rectd::from_xywh(0.0, 0.0, get_layout().width(), get_layout().height())
-		);
-		get_manager().get_renderer().push_matrix_mult(matd3x3::translate(vec2d(
-			get_padding().left,
-			get_padding().top - editor::get_encapsulating(*this)->get_vertical_position() +
-			static_cast<double>(be.first) * lh
-		)));
-		{ // matrix pushed
+		// render to a buffer first, because pushing clips with directwrite causes antialiasing to revert back to
+		// grayscale
+		auto buffer = renderer.create_render_target(get_layout().size(), get_window()->get_scaling_factor());
+		{
+			renderer.begin_drawing(*buffer.target);
+			renderer.push_matrix_mult(matd3x3::translate(vec2d(
+				get_padding().left,
+				get_padding().top - editor::get_encapsulating(*this)->get_vertical_position() +
+				static_cast<double>(be.first) * lh
+			)));
+
 			// parameters
 			auto flineinfo = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 				_fmt.get_folding().folded_to_unfolded_line_number(be.first)
@@ -176,9 +181,8 @@ namespace codepad::editors::code {
 			);
 			fragment_assembler ass(*this);
 			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
-			renderer_base &rend = get_manager().get_renderer();
 
-			// actual rendering code
+			// render text & gather information for carets
 			while (gen.get_position() < plastchar) {
 				fragment_generation_result frag = gen.generate_and_update();
 				// render the fragment
@@ -206,20 +210,37 @@ namespace codepad::editors::code {
 
 			caretrend.finish(gen.get_position());
 			// render carets
-			// TODO
+			// TODO customizable brush & renderer
 			rounded_selection_renderer rcrend;
 			for (const auto &selrgn : caretrend.get_selection_rects()) {
 				rcrend.render(
-					rend, selrgn,
+					renderer, selrgn,
 					ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.2, 0.2, 1.0, 0.3))),
 					ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(0.0, 0.0, 0.0, 1.0))))
 				);
 			}
 			for (const rectd &rgn : caretrend.get_caret_rects()) {
-				_caret_visuals.render(rgn, rend);
+				_caret_visuals.render(rgn, renderer);
 			}
+
+			renderer.pop_matrix();
+			renderer.end_drawing();
 		}
-		get_manager().get_renderer().pop_matrix();
-		get_manager().get_renderer().pop_clip();
+
+		// draw the buffer
+		matd3x3 trans = renderer.get_matrix();
+		vec2d origin;
+		if (!trans.has_rotation_or_nonrigid()) { // snap to pixel
+			origin = vec2d(trans[0][2], trans[1][2]);
+			origin.x -= std::round(origin.x);
+			origin.y -= std::round(origin.y);
+		}
+		renderer.push_matrix_mult(matd3x3::translate(-origin));
+		renderer.draw_rectangle(
+			rectd::from_corners(vec2d(), get_layout().size()),
+			ui::generic_brush_parameters(ui::brush_parameters::bitmap_pattern(buffer.target_bitmap.get())),
+			ui::generic_pen_parameters()
+		);
+		renderer.pop_matrix();
 	}
 }

@@ -7,10 +7,18 @@
 /// Basic mathmatics.
 
 #include <cmath>
+#include <type_traits>
 
 #include "assert.h"
 
 namespace codepad {
+	/// Tests if the difference between the two floating point numbers are below the given threshold.
+	template <typename Real> inline std::enable_if_t<std::is_floating_point_v<Real>, bool> approximately_equals(
+		Real lhs, Real rhs, Real eps = 1e-6f
+	) {
+		return std::abs(lhs - rhs) < eps;
+	}
+
 	/// Represents vectors, points, sizes, etc.
 	///
 	/// \tparam T The type of \ref x and \ref y components.
@@ -328,7 +336,7 @@ namespace codepad {
 		row elem[H]{}; ///< Elements of the matrix.
 
 		/// Sets all elements to zero.
-		void set_zero() {
+		constexpr void set_zero() {
 			for (std::size_t y = 0; y < H; ++y) {
 				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] = 0;
@@ -336,12 +344,18 @@ namespace codepad {
 			}
 		}
 		/// Sets all elements on the diagonal line to 1, and all other elements to 0.
-		void set_identity() {
+		constexpr void set_identity() {
 			for (std::size_t y = 0; y < H; ++y) {
 				for (std::size_t x = 0; x < W; ++x) {
 					elem[y][x] = static_cast<T>(x == y ? 1 : 0);
 				}
 			}
+		}
+		/// Returns an identity matarix.
+		inline static constexpr matrix identity() {
+			matrix m;
+			m.set_identity();
+			return m;
 		}
 
 		/// Converts all values to another type.
@@ -539,6 +553,20 @@ namespace codepad {
 		/// Returns a matrix that scales vectors around \p center by \p uniscale.
 		inline static std::enable_if_t<W == 3 && H == 3, matrix> scale(vec2<T> center, T uniscale) {
 			return scale(center, vec2<T>(uniscale, uniscale));
+		}
+
+
+		/// Checks if the matrix has any rotation or non-rigid (scale, skew) components. If this function returns
+		/// \p false, then the matrix is a pure translation matrix.
+		constexpr std::enable_if_t<H == W, bool> has_rotation_or_nonrigid(T eps = 1e-2f) const {
+			for (std::size_t y = 0; y < H - 1; ++y) {
+				for (std::size_t x = 0; x < W - 1; ++x) {
+					if (!approximately_equals<T>(elem[y][x], x == y ? 1 : 0, eps)) {
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 	};
 	/// Matrix multiplication.

@@ -125,11 +125,14 @@ namespace codepad::ui {
 		}
 	}
 
-	window_base *element::get_window() {
-		element *cur = this;
-		while (cur->parent() != nullptr) {
-			cur = cur->parent();
+	window_base *element::get_window() const {
+		element *cur = parent();
+		if (cur) {
+			while (cur->parent() != nullptr) {
+				cur = cur->parent();
+			}
+			return dynamic_cast<window_base*>(cur);
 		}
-		return dynamic_cast<window_base*>(cur);
+		return nullptr;
 	}
 }
