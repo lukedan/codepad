@@ -919,7 +919,13 @@ namespace codepad::os::direct2d {
 			matd3x3 trans = _render_stack.top().matrices.top();
 			if (!trans.has_rotation_or_nonrigid()) {
 				double ypos = trans[1][2] + pos.y;
-				pos.y += std::round(ypos) - ypos;
+				// get scaling
+				FLOAT dpix_unused, dpiy;
+				_render_stack.top().target->GetDpi(&dpix_unused, &dpiy);
+				double scaley = dpiy / static_cast<double>(USER_DEFAULT_SCREEN_DPI);
+				// snap to physical pixels
+				ypos *= scaley;
+				pos.y += (std::round(ypos) - ypos) / scaley;
 			}
 
 			_text_brush->SetColor(_details::cast_color(color)); // text color
@@ -941,7 +947,7 @@ namespace codepad::os::direct2d {
 		/// Stores information about a currently active render target.
 		struct _render_target_stackframe {
 			/// Initializes \ref target, and pushes an identity matrix onto the stack.
-			explicit _render_target_stackframe(ID2D1Image *t) : target(t) {
+			explicit _render_target_stackframe(ID2D1Bitmap1 *t) : target(t) {
 				matrices.emplace(matd3x3::identity());
 			}
 
@@ -949,7 +955,7 @@ namespace codepad::os::direct2d {
 			/// The render target. Here we're using raw pointers to skip a few \p AddRef() and \p Release() calls
 			/// since the target must be alive during the entire duration of rendering (if it doesn't, then it's the
 			/// user's fault and we'll just let it crash).
-			ID2D1Image *target = nullptr;
+			ID2D1Bitmap1 *target = nullptr;
 		};
 
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of render targets.
@@ -970,7 +976,7 @@ namespace codepad::os::direct2d {
 
 
 		/// Starts drawing to a \p ID2D1RenderTarget.
-		void _begin_draw_impl(ID2D1Image *target, vec2d dpi) {
+		void _begin_draw_impl(ID2D1Bitmap1 *target, vec2d dpi) {
 			_d2d_device_context->SetTarget(target);
 			_d2d_device_context->SetDpi(static_cast<FLOAT>(dpi.x), static_cast<FLOAT>(dpi.y));
 			if (_render_stack.empty()) {

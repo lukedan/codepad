@@ -314,6 +314,10 @@ namespace codepad {
 		inline static constexpr rect from_corners(vec2<T> min_corner, vec2<T> max_corner) {
 			return rect(min_corner.x, max_corner.x, min_corner.y, max_corner.y);
 		}
+		/// Constructs a rectangle given the position of its top-left corner and its size.
+		inline static constexpr rect from_corner_and_size(vec2<T> min_corner, vec2<T> size) {
+			return rect(min_corner.x, min_corner.x + size.x, min_corner.y, min_corner.y + size.y);
+		}
 	};
 	/// Rectangles with coordinates of type \p double.
 	using rectd = rect<double>;

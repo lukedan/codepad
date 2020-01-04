@@ -1,3 +1,6 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 #pragma once
 
 #include "../../os/misc.h"
@@ -106,7 +109,7 @@ namespace codepad::ui::tabs {
 			window_base *wnd = t.get_window();
 			if (hst != nullptr && wnd != nullptr) {
 				vec2d windowpos = wnd->client_to_screen(hst->get_layout().xmin_ymin());
-				tglayout = rectd::from_corners(windowpos, windowpos + tglayout.size());
+				tglayout = rectd::from_corner_and_size(windowpos, tglayout.size());
 			}
 			_move_tab_to_new_window(t, tglayout);
 		}
@@ -535,7 +538,7 @@ namespace codepad::ui::tabs {
 				// FIXME technically this is not accurate
 				rectd translated_host = rectd::bounding_box(
 					_dragrect,
-					rectd::from_corners(-_drag_offset, _drag->get_button().get_layout().size() - _drag_offset)
+					rectd::from_corner_and_size(-_drag_offset, _drag->get_button().get_layout().size())
 				);
 				// correct offset
 				vec2d window_pos = _drag_tab_window->client_to_screen(translated_host.xmin_ymin() + _drag_offset);
@@ -553,7 +556,7 @@ namespace codepad::ui::tabs {
 				case drag_split_type::new_window:
 					{
 						_move_tab_to_new_window(
-							*_drag, rectd::from_corners(window_pos, window_pos + translated_host.size())
+							*_drag, rectd::from_corner_and_size(window_pos, translated_host.size())
 						);
 						break;
 					}

@@ -97,6 +97,7 @@ set(INTERPLATFORM_SOURCES
 	"${SOURCE_PATH}/core/math.h"
 	"${SOURCE_PATH}/core/misc.h"
 	"${SOURCE_PATH}/core/profiling.h"
+	"${SOURCE_PATH}/core/setting_entries.cpp"
 	"${SOURCE_PATH}/core/settings.h"
 
 	"${SOURCE_PATH}/editors/binary/components.h"
@@ -119,7 +120,6 @@ set(INTERPLATFORM_SOURCES
 	"${SOURCE_PATH}/editors/buffer_manager.h"
 	"${SOURCE_PATH}/editors/caret_set.h"
 	"${SOURCE_PATH}/editors/editor.h"
-	"${SOURCE_PATH}/editors/generic_settings.cpp"
 	"${SOURCE_PATH}/editors/interaction_modes.h"
 
 	"${SOURCE_PATH}/os/current/all.h"

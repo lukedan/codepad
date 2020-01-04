@@ -163,10 +163,10 @@ namespace codepad {
 					return ui::visibility::none;
 				} else if (auto str = val.template try_cast<str_view_t>()) {
 					return get_bitset_from_string<ui::visibility>({
-						{u8'v', ui::visibility::visual},
-						{u8'i', ui::visibility::interact},
-						{u8'l', ui::visibility::layout},
-						{u8'f', ui::visibility::focus}
+						{ u8'v', ui::visibility::visual },
+						{ u8'i', ui::visibility::interact },
+						{ u8'l', ui::visibility::layout },
+						{ u8'f', ui::visibility::focus }
 						}, str.value());
 				} else {
 					val.template log<log_level::error>(CP_HERE) << "invalid visibility format";
@@ -592,10 +592,10 @@ namespace codepad {
 			template <typename Value> std::optional<ui::anchor> operator()(const Value &obj) const {
 				if (auto str = obj.template cast<str_view_t>()) {
 					return get_bitset_from_string<ui::anchor>({
-						{CP_STRLIT('l'), ui::anchor::left},
-						{CP_STRLIT('t'), ui::anchor::top},
-						{CP_STRLIT('r'), ui::anchor::right},
-						{CP_STRLIT('b'), ui::anchor::bottom}
+						{ CP_STRLIT('l'), ui::anchor::left },
+						{ CP_STRLIT('t'), ui::anchor::top },
+						{ CP_STRLIT('r'), ui::anchor::right },
+						{ CP_STRLIT('b'), ui::anchor::bottom }
 						}, str.value());
 				}
 				return std::nullopt;
@@ -649,6 +649,69 @@ namespace codepad {
 			template <typename Value> std::optional<T> operator()(const Value &v) const {
 				return json::default_parser<T>{}(v);
 			}
+		};
+
+
+		/// A temporary \ref render_target, with pixel snapping. The transform of the current render target must not
+		/// change after this is created until the text has been drawn onto the original render target when this is
+		/// disposed or when using \ref finish(). This is mainly used to work around the fact that pushing clips
+		/// (layers) in Direct2D disables subpixel antialiasing.
+		class pixel_snapped_render_target {
+		public:
+			/// Constructs this struct with the renderer, the target area where text is to be drawn, and the scaling
+			/// factor of the current render target. This function computes the offset required for pixel snapping,
+			/// and starts rendering to the temporary render target.
+			pixel_snapped_render_target(renderer_base &r, rectd target_area, vec2d scaling) : _renderer(r) {
+				_target = r.create_render_target(target_area.size(), scaling);
+				vec2d corner = target_area.xmin_ymin();
+				matd3x3 transform = r.get_matrix(), snap_transform = matd3x3::identity();
+				if (!transform.has_rotation_or_nonrigid()) {
+					vec2d trans_corner = corner + vec2d(transform[0][2], transform[1][2]);
+					trans_corner.x *= scaling.x;
+					trans_corner.y *= scaling.y;
+					vec2d offset = vec2d(std::round(trans_corner.x), std::round(trans_corner.y)) - trans_corner;
+					offset.x /= scaling.x;
+					offset.y /= scaling.y;
+					
+					_snapped_position = corner + offset;
+					snap_transform = matd3x3::translate(-offset);
+				}
+
+				_renderer.begin_drawing(*_target.target);
+				_renderer.push_matrix(snap_transform);
+			}
+			/// Calls \ref finish().
+			~pixel_snapped_render_target() {
+				finish();
+			}
+
+			/// If this buffer is still valid, finishes rendering to the buffer and draws it onto the last render
+			/// target.
+			void finish() {
+				if (_target.target_bitmap) {
+					_renderer.pop_matrix();
+					_renderer.end_drawing();
+
+					_renderer.push_matrix_mult(matd3x3::translate(_snapped_position));
+					_renderer.draw_rectangle(
+						rectd::from_corners(vec2d(), _target.target_bitmap->get_size()),
+						ui::generic_brush_parameters(
+							ui::brush_parameters::bitmap_pattern(_target.target_bitmap.get())
+						),
+						ui::generic_pen_parameters()
+					);
+					_renderer.pop_matrix();
+
+					_target.target.reset();
+					_target.target_bitmap.reset();
+				}
+			}
+		protected:
+			/// The position where the temporary buffer should be drawn onto in the original render target, with
+			/// pixel snapping.
+			vec2d _snapped_position;
+			render_target_data _target; ///< The temporary render target.
+			renderer_base &_renderer; ///< The renderer.
 		};
 	}
 }

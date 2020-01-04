@@ -409,7 +409,7 @@ namespace codepad::editors {
 				}
 			}
 		};
-		/// Triggers \ref mouse_selection_mode.
+		/// Triggers \ref mouse_single_selection_mode.
 		template <typename CaretSet> class mouse_single_selection_mode_activator :
 			public interaction_mode_activator<CaretSet> {
 		public:

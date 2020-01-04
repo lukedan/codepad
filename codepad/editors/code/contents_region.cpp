@@ -151,11 +151,11 @@ namespace codepad::editors::code {
 			used = &extcarets;
 		}
 
-		// render to a buffer first, because pushing clips with directwrite causes antialiasing to revert back to
-		// grayscale
-		auto buffer = renderer.create_render_target(get_layout().size(), get_window()->get_scaling_factor());
-		{
-			renderer.begin_drawing(*buffer.target);
+		{ // render to a pixel-snapped buffer to avoid cleartype issues
+			pixel_snapped_render_target target(
+				renderer, rectd::from_corners(vec2d(), get_layout().size()), get_window()->get_scaling_factor()
+			);
+
 			renderer.push_matrix_mult(matd3x3::translate(vec2d(
 				get_padding().left,
 				get_padding().top - editor::get_encapsulating(*this)->get_vertical_position() +
@@ -224,23 +224,6 @@ namespace codepad::editors::code {
 			}
 
 			renderer.pop_matrix();
-			renderer.end_drawing();
 		}
-
-		// draw the buffer
-		matd3x3 trans = renderer.get_matrix();
-		vec2d origin;
-		if (!trans.has_rotation_or_nonrigid()) { // snap to pixel
-			origin = vec2d(trans[0][2], trans[1][2]);
-			origin.x -= std::round(origin.x);
-			origin.y -= std::round(origin.y);
-		}
-		renderer.push_matrix_mult(matd3x3::translate(-origin));
-		renderer.draw_rectangle(
-			rectd::from_corners(vec2d(), get_layout().size()),
-			ui::generic_brush_parameters(ui::brush_parameters::bitmap_pattern(buffer.target_bitmap.get())),
-			ui::generic_pen_parameters()
-		);
-		renderer.pop_matrix();
 	}
 }

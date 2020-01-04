@@ -1,10 +1,11 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "editor.h"
-
 /// \file
-/// Generic settings that apply to all types of editors.
+/// Global definitions of getters for setting entries.
+
+#include "settings.h"
+#include "../editors/editor.h"
 
 using namespace std;
 

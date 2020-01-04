@@ -277,6 +277,9 @@ namespace codepad::editors::binary {
 			return 0;
 		}
 
+		/// Returns the \ref interaction_mode_registry of binary editors.
+		static interaction_mode_registry<caret_set> &get_interaction_mode_registry();
+
 		/// Casts the obtained \ref components_region_base to the correct type.
 		inline static contents_region *get_from_editor(editor &edt) {
 			return dynamic_cast<contents_region*>(edt.get_contents_region());
@@ -455,72 +458,83 @@ namespace codepad::editors::binary {
 					topleft = vec2d(_get_column_offset(firstbyte), _get_line_offset(firstline)) - edtpos;
 				auto &renderer = get_manager().get_renderer();
 
-				// TODO clipping
-				// render bytes
-				for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
-					// render a single line
-					std::size_t pos = line * get_bytes_per_row() + firstbyte;
-					if (pos >= _buf->length()) {
-						break;
-					}
-					auto it = _buf->at(pos);
-					double x = topleft.x;
-					for (
-						std::size_t i = firstbyte;
-						i < lastbyte && it != _buf->end();
-						++i, ++it, x += _cached_max_byte_width + _blank_width
-						) {
-						auto text = renderer.create_plain_text(_get_hex_byte(*it), *_font, _font_size);
-						// TODO customizable color
-						renderer.draw_plain_text(*text, vec2d(x, topleft.y), colord());
-					}
-				}
-				// render carets
-				caret_set extcarets;
-				const caret_set *cset = &_carets;
-				std::vector<caret_selection_position> tmpcarets = _interaction_manager.get_temporary_carets();
-				if (!tmpcarets.empty()) { // merge & use temporary caret set
-					extcarets = _carets;
-					for (const auto &caret : tmpcarets) {
-						extcarets.add(caret_set::entry(
-							caret_selection(caret.caret, caret.selection), caret_data(caret.caret_at_back))
-						);
-					}
-					cset = &extcarets;
-				}
-				auto it = cset->carets.lower_bound({ firstline * get_bytes_per_row() + firstbyte, 0 });
-				if (it != cset->carets.begin()) {
-					--it;
-				}
-				std::size_t
-					clampmin = firstline * get_bytes_per_row(),
-					clampmax = (
-						_get_line_at_position(edt->get_vertical_position() + get_layout().height()) + 1
-						) * get_bytes_per_row();
-				std::vector<rectd> caret_rects;
-				std::vector<std::vector<rectd>> selection_rects;
-				for (; it != cset->carets.end(); ++it) {
-					if (it->first.first > clampmax && it->first.second > clampmax) { // out of visible scope
-						break;
-					}
-					caret_rects.emplace_back(_get_caret_rect(_extract_position(*it)));
-					selection_rects.emplace_back(_get_selection_rects(it->first, clampmin, clampmax));
-				}
-				// TODO proper visuals
-				for (const rectd &r : caret_rects) {
-					renderer.draw_rectangle(
-						r.translated(-edtpos),
-						ui::generic_brush_parameters(),
-						ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord())))
+				{
+					ui::pixel_snapped_render_target buffer(
+						renderer,
+						rectd::from_corners(vec2d(), get_layout().size()),
+						get_window()->get_scaling_factor()
 					);
-				}
-				for (const auto &v : selection_rects) {
-					for (const rectd &r : v) {
+
+					// render bytes
+					for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
+						// render a single line
+						std::size_t pos = line * get_bytes_per_row() + firstbyte;
+						if (pos >= _buf->length()) {
+							break;
+						}
+						auto it = _buf->at(pos);
+						double x = topleft.x;
+						for (
+							std::size_t i = firstbyte;
+							i < lastbyte && it != _buf->end();
+							++i, ++it, x += _cached_max_byte_width + _blank_width
+							) {
+							auto text = renderer.create_plain_text(_get_hex_byte(*it), *_font, _font_size);
+							// TODO customizable color
+							renderer.draw_plain_text(
+								*text,
+								vec2d(x + 0.5 * (_cached_max_byte_width - text->get_width()), topleft.y),
+								colord()
+							);
+						}
+					}
+					// render carets
+					caret_set extcarets;
+					const caret_set *cset = &_carets;
+					std::vector<caret_selection_position> tmpcarets = _interaction_manager.get_temporary_carets();
+					if (!tmpcarets.empty()) { // merge & use temporary caret set
+						extcarets = _carets;
+						for (const auto &caret : tmpcarets) {
+							extcarets.add(caret_set::entry(
+								caret_selection(caret.caret, caret.selection), caret_data(caret.caret_at_back))
+							);
+						}
+						cset = &extcarets;
+					}
+					auto it = cset->carets.lower_bound({ firstline * get_bytes_per_row() + firstbyte, 0 });
+					if (it != cset->carets.begin()) {
+						--it;
+					}
+					std::size_t
+						clampmin = firstline * get_bytes_per_row(),
+						clampmax = (
+							_get_line_at_position(edt->get_vertical_position() + get_layout().height()) + 1
+							) * get_bytes_per_row();
+					std::vector<rectd> caret_rects;
+					std::vector<std::vector<rectd>> selection_rects;
+					for (; it != cset->carets.end(); ++it) {
+						if (it->first.first > clampmax && it->first.second > clampmax) { // out of visible scope
+							break;
+						}
+						caret_rects.emplace_back(_get_caret_rect(_extract_position(*it)));
+						selection_rects.emplace_back(_get_selection_rects(it->first, clampmin, clampmax));
+					}
+					// TODO proper visuals
+					for (const rectd &r : caret_rects) {
 						renderer.draw_rectangle(
 							r.translated(-edtpos),
-							ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 0.2))),
-							ui::generic_pen_parameters()
+							ui::generic_brush_parameters(),
+							ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord())))
 						);
+					}
+					for (const auto &v : selection_rects) {
+						for (const rectd &r : v) {
+							renderer.draw_rectangle(
+								r.translated(-edtpos),
+								ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 0.2))),
+								ui::generic_pen_parameters()
+							);
+						}
 					}
 				}
 			}
@@ -653,7 +667,7 @@ namespace codepad::editors::binary {
 		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
 			element::_initialize(cls, config);
 
-			std::vector<str_t> profile; // TODO custom profile
+			std::vector<str_t> profile{ "binary" };
 
 			set_font_by_name(
 				editor::get_font_family_setting().get_profile(profile.begin(), profile.end()).get_value()
@@ -663,11 +677,15 @@ namespace codepad::editors::binary {
 			);
 
 			// initialize _interaction_manager
-			// TODO use separate settings
 			_interaction_manager.set_contents_region(*this);
-			// TODO add registry
-			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_prepare_drag_mode_activator<caret_set>());
-			_interaction_manager.activators().emplace_back(new interaction_modes::mouse_single_selection_mode_activator<caret_set>());
+			auto &modes = editor::get_interaction_modes_setting().get_profile(
+				profile.begin(), profile.end()
+			).get_value();
+			for (auto &&mode_name : modes) {
+				if (auto mode = get_interaction_mode_registry().try_create(mode_name)) {
+					_interaction_manager.activators().emplace_back(std::move(mode));
+				}
+			}
 		}
 		/// Sets the current document to empty to unbind event listeners.
 		void _dispose() override {

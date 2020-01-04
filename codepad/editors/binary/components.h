@@ -1,3 +1,6 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 #pragma once
 
 /// \file
@@ -75,12 +78,12 @@ namespace codepad::editors::binary {
 		/// Renders the offsets.
 		void _custom_render() const override {
 			element::_custom_render();
-			// TODO clipping
 			if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
 				// position of the first line relative to the window
 				double
 					top = edt->get_vertical_position() - rgn->get_padding().top,
-					left = get_client_region().xmin;
+					left = get_client_region().xmin,
+					right = get_layout().width() - get_padding().right;
 				std::size_t
 					firstline = static_cast<std::size_t>(
 						std::max(0.0, top / rgn->get_line_height())
@@ -88,16 +91,25 @@ namespace codepad::editors::binary {
 					chars = _get_label_length(rgn->get_buffer()->length()),
 					offset = firstline * rgn->get_bytes_per_row();
 				auto &renderer = get_manager().get_renderer();
-				for (
-					double ypos = firstline * rgn->get_line_height() - top;
-					ypos < get_layout().height() && offset < rgn->get_buffer()->length();
-					ypos += rgn->get_line_height(), offset += rgn->get_bytes_per_row()
-					) {
-					auto text = renderer.create_plain_text(
-						_to_hex(offset, chars), *rgn->get_font(), rgn->get_font_size()
+
+				{
+					ui::pixel_snapped_render_target buffer(
+						renderer,
+						rectd::from_corners(vec2d(), get_layout().size()),
+						get_window()->get_scaling_factor()
 					);
-					// TODO custom color
-					renderer.draw_plain_text(*text, vec2d(get_padding().left, ypos), colord());
+
+					for (
+						double ypos = firstline * rgn->get_line_height() - top;
+						ypos < get_layout().height() && offset < rgn->get_buffer()->length();
+						ypos += rgn->get_line_height(), offset += rgn->get_bytes_per_row()
+						) {
+						auto text = renderer.create_plain_text(
+							_to_hex(offset, chars), *rgn->get_font(), rgn->get_font_size()
+						);
+						// TODO custom color
+						renderer.draw_plain_text(*text, vec2d(right - text->get_width(), ypos), colord());
+					}
 				}
 			}
 		}

@@ -249,7 +249,7 @@ namespace codepad::os {
 				return false;
 			}
 
-			void _update_caret_position(window &wnd) { // TODO dpi scaling
+			void _update_caret_position(window &wnd) {
 				recti scaled_caret = rectd::from_corners(
 					wnd._logical_to_physical_position(_caretrgn.xmin_ymin()),
 					wnd._logical_to_physical_position(_caretrgn.xmax_ymax())

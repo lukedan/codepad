@@ -83,18 +83,26 @@ namespace codepad::editors::code {
 				);
 				double baseline_correction = edt->get_baseline() - font->get_ascent_em() * edt->get_font_size();
 
-				for (std::size_t curi = fline; curi < eline; ++curi, cury += lh) {
-					std::size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
-					auto lineinfo = fmt.get_linebreaks().get_line_info(line);
-					if (lineinfo.first.entry == edt->get_document()->get_linebreaks().end()) {
-						break; // when after the end of the document
-					}
-					if (lineinfo.first.first_char >= lineinfo.second.prev_chars) { // ignore soft linebreaks
-						str_t curlbl = std::to_string(1 + line - lineinfo.second.prev_softbreaks);
-						auto text = renderer.create_plain_text(curlbl, *font, edt->get_font_size());
-						double w = text->get_width();
-						// TODO customizable color
-						renderer.draw_plain_text(*text, vec2d(width - w, cury + baseline_correction), colord());
+				{
+					ui::pixel_snapped_render_target buffer(
+						renderer,
+						rectd::from_corners(vec2d(), get_layout().size()),
+						get_window()->get_scaling_factor()
+					);
+
+					for (std::size_t curi = fline; curi < eline; ++curi, cury += lh) {
+						std::size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
+						auto lineinfo = fmt.get_linebreaks().get_line_info(line);
+						if (lineinfo.first.entry == edt->get_document()->get_linebreaks().end()) {
+							break; // when after the end of the document
+						}
+						if (lineinfo.first.first_char >= lineinfo.second.prev_chars) { // ignore soft linebreaks
+							str_t curlbl = std::to_string(1 + line - lineinfo.second.prev_softbreaks);
+							auto text = renderer.create_plain_text(curlbl, *font, edt->get_font_size());
+							double w = text->get_width();
+							// TODO customizable color
+							renderer.draw_plain_text(*text, vec2d(width - w, cury + baseline_correction), colord());
+						}
 					}
 				}
 			}
@@ -347,12 +355,12 @@ namespace codepad::editors::code {
 				}
 
 				ui::renderer_base &r = get_manager().get_renderer();
-				r.push_rectangle_clip(rectd::from_xywh(0.0, 0.0, get_layout().width(), get_layout().height()));
+				r.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
 				for (auto i = ibeg; i != iend; ++i) {
 					auto &bmp = *i->second.target_bitmap;
 					vec2d topleft(get_padding().left, std::floor(top + slh * static_cast<double>(i->first)));
 					r.draw_rectangle(
-						rectd::from_corners(topleft, topleft + bmp.get_size()),
+						rectd::from_corner_and_size(topleft, bmp.get_size()),
 						ui::generic_brush_parameters(
 							ui::brush_parameters::bitmap_pattern(&bmp), matd3x3::translate(topleft)
 						),

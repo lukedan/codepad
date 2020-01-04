@@ -21,6 +21,7 @@
 #include "../editors/code/components.h"
 #include "../editors/code/contents_region.h"
 #include "../editors/code/view_caching.h"
+#include "../editors/binary/contents_region.h"
 
 using namespace std;
 
@@ -105,15 +106,20 @@ namespace codepad {
 		T object; ///< The actual global object.
 	};
 
+
 	// all singleton getters
 	call_counter &call_counter::get() {
 		static _global_wrapper<call_counter> _v;
 		return _v.object;
 	}
+
+
 	settings &settings::get() {
 		static _global_wrapper<settings> _v;
 		return _v.object;
 	}
+
+
 	namespace os {
 #ifdef CP_PLATFORM_WINDOWS
 		namespace _details {
@@ -122,14 +128,19 @@ namespace codepad {
 				return _v.object;
 			}
 		}
+
+
 		window::_wndclass &window::_wndclass::get() {
 			static _global_wrapper<_wndclass> _v;
 			return _v.object;
 		}
+
 		window::_ime &window::_ime::get() {
 			static _global_wrapper<_ime> _v;
 			return _v.object;
 		}
+
+
 #endif
 #ifdef CP_PLATFORM_UNIX
 #	ifdef CP_USE_GTK
@@ -152,12 +163,43 @@ namespace codepad {
 			static _global_wrapper<buffer_manager> _v;
 			return _v.object;
 		}
+
+
 		namespace code {
 			encoding_manager &encoding_manager::get() {
 				static _global_wrapper<encoding_manager> _v;
 				return _v.object;
 			}
 
+
+			interaction_mode_registry<caret_set> &contents_region::get_interaction_mode_registry() {
+				static _global_wrapper<interaction_mode_registry<caret_set>> _v;
+				static bool _initialized = false;
+
+				if (!_initialized) {
+					_v.object.mapping.emplace(
+						u8"prepare_drag", []() {
+							return std::make_unique<
+								interaction_modes::mouse_prepare_drag_mode_activator<caret_set>
+							>();
+						}
+					);
+					_v.object.mapping.emplace(
+						u8"single_selection", []() {
+							return std::make_unique<
+								interaction_modes::mouse_single_selection_mode_activator<caret_set>
+							>();
+						}
+					);
+					_initialized = true;
+				}
+
+				return _v.object;
+			}
+		}
+
+
+		namespace binary {
 			interaction_mode_registry<caret_set> &contents_region::get_interaction_mode_registry() {
 				static _global_wrapper<interaction_mode_registry<caret_set>> _v;
 				static bool _initialized = false;
