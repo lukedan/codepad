@@ -467,7 +467,7 @@ namespace codepad::ui::tabs {
 			_dragging_in_host = false;
 			_drag_tab_window->children().add(_drag->get_button());
 			_drag_tab_window->show();
-			_drag_tab_window->set_mouse_capture(_drag->get_button());
+			/*_drag_tab_window->set_mouse_capture(_drag->get_button());*/ // TODO fix for linux
 			_drag_tab_window->set_position(topleft);
 			_mouse_move_token = (
 				_drag->get_button().mouse_move += [this](mouse_move_info &p) {

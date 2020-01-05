@@ -344,11 +344,11 @@ namespace codepad::ui {
 			}
 			/// Transforms the given point.
 			vec2d transform_point(vec2d pt, vec2d) const {
-				return matrix.transform(pt);
+				return matrix.transform_position(pt);
 			}
 			/// Inverse transforms the given point.
 			vec2d inverse_transform_point(vec2d pt, vec2d) const {
-				return matrix.inverse().transform(pt);
+				return matrix.inverse().transform_position(pt);
 			}
 
 			matd3x3 matrix; ///< The matrix.

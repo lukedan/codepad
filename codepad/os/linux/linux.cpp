@@ -13,6 +13,33 @@
 #ifdef CP_LOG_STACKTRACE
 #	include <execinfo.h>
 namespace codepad {
+	/// Attempts to demangle and output the given stacktrace entry.
+	void _write_demangled_stacktrace_entry(std::ostream &out, char *str) {
+		char *func_begin = nullptr, *func_end = nullptr, *end = str;
+		for (; *end; ++end) {
+			if (*end == '(') {
+				func_begin = end + 1;
+			} else if (*end == '+') {
+				func_end = end;
+			}
+		}
+		if (func_begin && func_end && func_begin < func_end) { // function name found, can demangle
+			int st;
+			*func_end = '\0';
+			char *result = abi::__cxa_demangle(func_begin, nullptr, nullptr, &st);
+			*func_end = '+';
+			if (st == 0) {
+				out <<
+					std::string_view(str, static_cast<std::size_t>(func_begin - str)) <<
+					result <<
+					std::string_view(func_end, static_cast<std::size_t>(end - func_end));
+				std::free(result);
+				return;
+			}
+		}
+		out << str;
+	}
+
 	void logger::log_entry::append_stacktrace() {
 		const int buffer_size = 200;
 		void *buffer[buffer_size];
@@ -22,7 +49,9 @@ namespace codepad {
 
 		_contents << "\n-- stacktrace --\n";
 		for (int i = 0; i < count; ++i) {
-			_contents << "  " << symbols[i] << "\n";
+			_contents << "  ";
+			_write_demangled_stacktrace_entry(_contents, symbols[i]);
+			_contents << "\n";
 		}
 		_contents << "\n-- stacktrace --\n";
 

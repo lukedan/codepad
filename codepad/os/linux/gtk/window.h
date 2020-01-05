@@ -41,8 +41,17 @@ namespace codepad::os {
 			return vec2d(w, h);
 		}
 		void set_client_size(vec2d sz) override {
+			GtkWindow *wnd = GTK_WINDOW(_wnd);
+			gboolean resizable = gtk_window_get_resizable(wnd);
+			// with resizable set to false it's not even possible to resize the window programmatically
+			gtk_window_set_resizable(wnd, true);
 			// TODO scaling
-			gtk_window_resize(GTK_WINDOW(_wnd), static_cast<gint>(sz.x), static_cast<gint>(sz.y));
+			gint x = static_cast<gint>(sz.x), y = static_cast<gint>(sz.y);
+			gtk_window_resize(wnd, x, y);
+			// TODO somehow if we call gtk_window_set_resizable(wnd, false) AFTER resizing, resizing doesn't work
+			//      is this because the window hasn't been realized yet?
+			//      also calling gtk_window_set_default_size() doesn't help
+			gtk_window_set_resizable(wnd, resizable);
 		}
 		/// Gets and returns the scaling factor by calling \p gtk_widget_get_scale_factor().
 		vec2d get_scaling_factor() const override {

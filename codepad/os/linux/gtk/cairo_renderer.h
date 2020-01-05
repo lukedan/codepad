@@ -19,7 +19,7 @@ namespace codepad::os {
 		}
 
 		/// Creates a Cairo surface using \p gdk_window_create_similar_image_surface();
-		ui::cairo::_details::cairo_object_ref<cairo_surface_t> _create_surface_for_window(
+		ui::cairo::_details::gtk_object_ref<cairo_surface_t> _create_surface_for_window(
 			ui::window_base &w
 		) override {
 			GdkWindow *wnd = gtk_widget_get_window(_details::cast_window(w).get_native_handle());
@@ -30,9 +30,10 @@ namespace codepad::os {
 				width = gdk_window_get_width(wnd) * scale;
 				height = gdk_window_get_height(wnd) * scale;
 			} // otherwise if wnd is nullptr, it means that the window has not been realized yet
-			return ui::cairo::_details::make_cairo_object_ref_give(gdk_window_create_similar_image_surface(
-				wnd, CAIRO_FORMAT_ARGB32, width, height, scale
-			));
+			return ui::cairo::_details::make_gtk_object_ref_give(
+				gdk_window_create_similar_image_surface(
+					wnd, CAIRO_FORMAT_ARGB32, width, height, scale
+				));
 		}
 		/// Draws the rendered image onto the given context.
 		inline static gboolean _refresh_window_contents(GtkWidget*, cairo_t *cr, window *wnd) {

@@ -107,7 +107,7 @@ namespace codepad::ui {
 		virtual ~bitmap() = default;
 
 		/// Returns the logical size of this bitmap.
-		virtual vec2d get_size() const = 0;
+		[[nodiscard]] virtual vec2d get_size() const = 0;
 	};
 	/// Basic interface of an off-screen render target.
 	class render_target {
@@ -178,14 +178,14 @@ namespace codepad::ui {
 		virtual ~formatted_text() = default;
 
 		/// Returns the region occupied by the text in the layout region.
-		virtual rectd get_layout() const = 0;
+		[[nodiscard]] virtual rectd get_layout() const = 0;
 		/// Returns the metrics of all lines.
-		virtual std::vector<line_metrics> get_line_metrics() const = 0;
+		[[nodiscard]] virtual std::vector<line_metrics> get_line_metrics() const = 0;
 
 		/// Retrieves information about the character that is below the given point.
-		virtual caret_hit_test_result hit_test(vec2d) const = 0;
+		[[nodiscard]] virtual caret_hit_test_result hit_test(vec2d) const = 0;
 		/// Returns the space occupied by the character at the given position.
-		virtual rectd get_character_placement(std::size_t) const = 0;
+		[[nodiscard]] virtual rectd get_character_placement(std::size_t) const = 0;
 
 		/// Sets the color of the specified range of text.
 		virtual void set_text_color(colord, std::size_t, std::size_t) = 0;
@@ -208,14 +208,14 @@ namespace codepad::ui {
 		virtual ~font() = default;
 
 		/// Returns the distance between the top of the line and the baseline in em units.
-		virtual double get_ascent_em() const = 0;
+		[[nodiscard]] virtual double get_ascent_em() const = 0;
 		/// Returns the recommended height of a line in em units.
-		virtual double get_line_height_em() const = 0;
+		[[nodiscard]] virtual double get_line_height_em() const = 0;
 
 		/// Returns the width of the given character.
-		virtual double get_character_width_em(codepoint) const = 0;
+		[[nodiscard]] virtual double get_character_width_em(codepoint) const = 0;
 		/// Returns the maximum width of all given characters.
-		virtual double get_maximum_character_width_em(std::basic_string_view<codepoint> str) const {
+		[[nodiscard]] virtual double get_maximum_character_width_em(std::basic_string_view<codepoint> str) const {
 			double res = std::numeric_limits<double>::min();
 			for (codepoint cp : str) {
 				res = std::max(res, get_character_width_em(cp));
@@ -231,7 +231,9 @@ namespace codepad::ui {
 		virtual ~font_family() = default;
 
 		/// Returns a font in this family matching the given description.
-		virtual std::unique_ptr<font> get_matching_font(font_style, font_weight, font_stretch) const = 0;
+		[[nodiscard]] virtual std::unique_ptr<font> get_matching_font(
+			font_style, font_weight, font_stretch
+		) const = 0;
 	};
 
 	/// Represents a single line of text with the same font parameters. This is mainly used for code editors.
@@ -241,12 +243,12 @@ namespace codepad::ui {
 		virtual ~plain_text() = default;
 
 		/// Returns the total width of this text clip.
-		virtual double get_width() const = 0;
+		[[nodiscard]] virtual double get_width() const = 0;
 
 		/// Retrieves information about the character that is below the given horizontal position.
-		virtual caret_hit_test_result hit_test(double) const = 0;
+		[[nodiscard]] virtual caret_hit_test_result hit_test(double) const = 0;
 		/// Returns the space occupied by the character at the given position.
-		virtual rectd get_character_placement(std::size_t) const = 0;
+		[[nodiscard]] virtual rectd get_character_placement(std::size_t) const = 0;
 	};
 
 	/// Basic interface used to construct path geometries. There should be only one instance of this object for a
@@ -371,7 +373,7 @@ namespace codepad::ui {
 			}
 
 			vec2d center; ///< The center of the circles.
-			double radius; ///< The radius of the circle.
+			double radius = 0.0; ///< The radius of the circle.
 			const gradient_stop_collection *gradients = nullptr; ///< The list of gradient stops.
 		};
 		/// Defines a bitmap brush.
@@ -467,7 +469,7 @@ namespace codepad::ui {
 		/// Pops a matrix from the stack.
 		virtual void pop_matrix() = 0;
 		/// Returns the current transformation matrix.
-		virtual matd3x3 get_matrix() const = 0;
+		[[nodiscard]] virtual matd3x3 get_matrix() const = 0;
 
 		// geometry drawing & building
 		/// Starts to build a path. Other drawing functions should *not* be used until the path has been finished.
@@ -509,7 +511,7 @@ namespace codepad::ui {
 			str_view_t, const font_parameters&, colord, vec2d, wrapping_mode,
 			horizontal_text_alignment, vertical_text_alignment
 		) = 0;
-		/// \ref format_text() that accepts a UTF-32 string.
+		/// \ref create_formatted_text() that accepts a UTF-32 string.
 		virtual std::unique_ptr<formatted_text> create_formatted_text(
 			std::basic_string_view<codepoint>, const font_parameters&, colord, vec2d, wrapping_mode,
 			horizontal_text_alignment, vertical_text_alignment

@@ -382,6 +382,16 @@ namespace codepad {
 			rz = ax * by - ay * bx;
 		}
 	public:
+		/// Returns the transpose of this matrix.
+		constexpr matrix<T, H, W> transpose() const {
+			matrix<T, H, W> res;
+			for (std::size_t y = 0; y < H; ++y) {
+				for (std::size_t x = 0; x < W; ++x) {
+					res[x][y] = elem[y][x];
+				}
+			}
+			return res;
+		}
 		/// Calculates the inverse matrix of a 3x3 matrix.
 		///
 		/// \todo Necessary for nxn matrices?
@@ -490,7 +500,7 @@ namespace codepad {
 		}
 
 		/// Given a \ref vec2 (x, y), returns the vector obtained by multiplying this matrix with (x, y, 1).
-		std::enable_if_t<W == 3 && H == 3, vec2<T>> transform(vec2<T> v) const {
+		std::enable_if_t<W == 3 && H == 3, vec2<T>> transform_position(vec2<T> v) const {
 			return vec2<T>(
 				elem[0][0] * v.x + elem[0][1] * v.y + elem[0][2],
 				elem[1][0] * v.x + elem[1][1] * v.y + elem[1][2]

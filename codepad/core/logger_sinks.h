@@ -68,7 +68,8 @@ namespace codepad::logger_sinks {
 		) override {
 			_color(_colors.time);
 			std::cout <<
-				std::setiosflags(std::ios::fixed) << std::setw(_time_width) << std::setprecision(2) << time.count();
+				std::setiosflags(std::ios::fixed) << std::setw(static_cast<int>(_time_width)) <<
+				std::setprecision(2) << time.count();
 
 			std::size_t w = std::max(_get_console_width(), _time_width) - _time_width;
 
@@ -152,7 +153,7 @@ namespace codepad::logger_sinks {
 		/// Prints the left border.
 		void _print_left(color_scheme::entry scheme, str_view_t text = " ") {
 			_color(scheme);
-			std::cout << std::setw(_time_width) << text;
+			std::cout << std::setw(static_cast<int>(_time_width)) << text;
 		}
 		/// Prints the message with a fixed width.
 		void _print_w(str_view_t msg, color_scheme::entry scheme, color_scheme::entry banner, std::size_t w) {
@@ -189,8 +190,8 @@ namespace codepad::logger_sinks {
 			const std::chrono::duration<double> &time, const code_position &pos, log_level level, str_view_t text
 		) override {
 			_fout <<
-				std::setiosflags(std::ios::fixed) << std::setw(_time_width) << std::setprecision(2) <<
-				time.count() << "  " <<
+				std::setiosflags(std::ios::fixed) << std::setw(static_cast<int>(_time_width)) <<
+				std::setprecision(2) << time.count() << "  " <<
 				_get_level_label(level) << "  " << pos.file << " : " << pos.line << " @ " << pos.function << "\n";
 			_fout << text << "\n";
 		}

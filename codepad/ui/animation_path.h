@@ -327,7 +327,7 @@ namespace codepad::ui {
 					element &obj, std::function<void(element&)> cb
 				) :
 					typed_animation_subject<Target>(),
-					_first(first), _second(second), _source(obj), _callback(std::move(cb)) {
+					_callback(std::move(cb)), _first(first), _second(second), _source(obj) {
 				}
 
 				/// Returns the value.
