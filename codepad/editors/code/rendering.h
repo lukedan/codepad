@@ -22,11 +22,13 @@ namespace codepad::editors::code {
 		/// Default constructor.
 		text_fragment() = default;
 		/// Initializes all fields of this struct.
-		text_fragment(std::basic_string<codepoint> txt, text_theme_specification t) : text(txt), theme(t) {
+		text_fragment(std::basic_string<codepoint> txt, colord c, std::shared_ptr<ui::font> f) :
+			text(txt), color(c), font(std::move(f)) {
 		}
 
 		std::basic_string<codepoint> text; ///< The text.
-		text_theme_specification theme; ///< The theme of this character.
+		colord color; ///< The color of this clip of text.
+		std::shared_ptr<ui::font> font; ///< The font used to render this text.
 	};
 	/// A fragment that contains a single tab character.
 	struct tab_fragment {
@@ -166,8 +168,11 @@ namespace codepad::editors::code {
 		/// Constructs this \ref fragment_generator with the given \ref interpretation and starting position, and the
 		/// \ref fragment_generator_component_hub from all other arguments.
 		template <typename ...Args> fragment_generator(
-			const interpretation &interp, std::size_t begpos, Args &&...args
-		) : _pos(begpos), _interp(interp), _components(std::forward<Args>(args)...) {
+			const interpretation &interp,
+			const std::vector<std::unique_ptr<ui::font_family>> &fonts,
+			std::size_t begpos,
+			Args &&...args
+		) : _components(std::forward<Args>(args)...), _pos(begpos), _interp(interp), _font_set(fonts) {
 			reposition(_pos);
 		}
 
@@ -192,17 +197,20 @@ namespace codepad::editors::code {
 					maxsteps = std::min(maxsteps, _theme_it.forecast(_pos)); // integrate theme information
 					res.steps = 0;
 					text_fragment &frag = res.result.emplace<text_fragment>();
-					frag.theme = _theme_it.current_theme;
+					frag.color = _theme_it.current_theme.color;
+					std::size_t fontid = _select_font(_char_it.codepoint().get_codepoint());
+					frag.font = _cached_fonts[fontid];
 					do {
 						frag.text.push_back(_char_it.codepoint().get_codepoint());
 						_char_it.next();
 						++res.steps;
 					} while (
-						res.steps < maxsteps &&
-						!_char_it.codepoint().ended() &&
+						res.steps < maxsteps && !_char_it.codepoint().ended() &&
+						// invalid codepoints, linebreaks, and tabs are handled elsewhere
 						_char_it.codepoint().is_codepoint_valid() &&
-						!_char_it.is_linebreak() &&
-						_char_it.codepoint().get_codepoint() != '\t'
+						!_char_it.is_linebreak() && _char_it.codepoint().get_codepoint() != '\t' &&
+						// make sure the whole clip uses the same font
+						_select_font(_char_it.codepoint().get_codepoint()) == fontid
 						);
 				}
 			} else { // only update _char_it
@@ -215,12 +223,16 @@ namespace codepad::editors::code {
 			// update everything else
 			std::size_t oldpos = _pos;
 			_pos += res.steps;
-			_theme_it.move_forward(_pos);
+			text_theme_member changed = _theme_it.move_forward(_pos);
+			if ((changed & (text_theme_member::style | text_theme_member::weight)) != text_theme_member::none) {
+				_cached_fonts.clear();
+			}
 			_components.update(oldpos, res.steps);
 			return res;
 		}
 		/// Resets the current position.
 		void reposition(std::size_t pos) {
+			_cached_fonts.clear(); // clear cached fonts
 			_pos = pos;
 			_char_it = _interp.at_character(_pos);
 			_theme_it = text_theme_data::char_iterator(_interp.get_text_theme(), _pos);
@@ -233,19 +245,37 @@ namespace codepad::editors::code {
 			return _pos;
 		}
 	protected:
-		/// Forwards the arguments in the given tuple to other constructors.
-		template <std::size_t ...Indices, typename MyArgs> fragment_generator(
-			std::index_sequence<Indices...>, MyArgs && tuple
-		) : fragment_generator(std::get<Indices>(std::forward<MyArgs>(tuple))...) {
-		}
+		Hub _components; ///< Extra components.
+
+		/// The list of fonts cached for the current font paremeters specified by \ref _theme_it.
+		std::vector<std::shared_ptr<ui::font>> _cached_fonts;
 
 		/// Iterator to the current character in the \ref interpretation.
 		interpretation::character_iterator _char_it;
 		/// Iterator to the current entry in the \ref text_theme_data that determines the theme of the text.
 		text_theme_data::char_iterator _theme_it;
+
 		std::size_t _pos = 0; ///< The position of character \ref _char_it points to.
 		const interpretation &_interp; ///< The associated \ref interpretation.
-		Hub _components; ///< Extra components.
+		/// The list of fonts. Fonts in the back are backups for those in the front.
+		const std::vector<std::unique_ptr<ui::font_family>> &_font_set;
+
+
+		/// Selects a font for the given codepoint.
+		std::size_t _select_font(codepoint cp) {
+			for (std::size_t i = 0; i < _font_set.size(); ++i) {
+				if (_cached_fonts.size() <= i) { // the font has not been cached yet
+					// TODO custom font stretch
+					_cached_fonts.emplace_back(_font_set[i]->get_matching_font(
+						_theme_it.current_theme.style, _theme_it.current_theme.weight, ui::font_stretch::normal
+					));
+				}
+				if (_cached_fonts[i]->has_character(cp)) {
+					return i;
+				}
+			}
+			return 0; // if none of the fonts have the characer, use replacement glyph from the first font
+		}
 	};
 
 
@@ -384,7 +414,7 @@ namespace codepad::editors::code {
 		}
 		/// Initializes this struct using the given \ref contents_region.
 		fragment_assembler(const contents_region &rgn) : fragment_assembler(
-			rgn.get_manager().get_renderer(), *rgn.get_font_family(), rgn.get_font_size(),
+			rgn.get_manager().get_renderer(), *rgn.get_font_families()[0], rgn.get_font_size(),
 			rgn.get_line_height(), rgn.get_baseline(), rgn.get_tab_width(),
 			rgn.get_invalid_codepoint_formatter(), rgn.get_invalid_codepoint_color() // TODO custom color
 		) {
@@ -430,11 +460,7 @@ namespace codepad::editors::code {
 		}
 		/// Appends a \ref text_fragment to the rendered document by calling \ref _append_text().
 		text_rendering append(const text_fragment &frag) {
-			// TODO custom font stretch?
-			auto font = _font_family.get_matching_font(
-				frag.theme.style, frag.theme.weight, ui::font_stretch::normal
-			);
-			return _append_text(std::basic_string_view<codepoint>(frag.text), *font, _font_size, frag.theme.color);
+			return _append_text(std::basic_string_view<codepoint>(frag.text), *frag.font, _font_size, frag.color);
 		}
 		/// Appends a \ref tab_fragment to the rendered document.
 		basic_rendering append(const tab_fragment&) {

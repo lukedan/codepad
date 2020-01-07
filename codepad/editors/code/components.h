@@ -20,7 +20,7 @@ namespace codepad::editors::code {
 				for (; ln > 0; ++w, ln /= 10) {
 				}
 				// TODO customizable font parameters
-				auto font = edt->get_font_family()->get_matching_font(
+				auto font = edt->get_font_families()[0]->get_matching_font(
 					ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal
 				);
 				double maxw = edt->get_font_size() * font->get_maximum_character_width_em(
@@ -78,7 +78,7 @@ namespace codepad::editors::code {
 				double cury = static_cast<double>(fline) * lh - ybeg, width = client.width() + get_padding().left;
 
 				auto &renderer = get_manager().get_renderer();
-				auto font = edt->get_font_family()->get_matching_font(
+				auto font = edt->get_font_families()[0]->get_matching_font(
 					ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal
 				);
 				double baseline_correction = edt->get_baseline() - font->get_ascent_em() * edt->get_font_size();
@@ -298,7 +298,7 @@ namespace codepad::editors::code {
 					fragment_generator<fragment_generator_component_hub<
 						soft_linebreak_inserter, folded_region_skipper
 						>> gen(
-							*edt->get_document(), firstchar,
+							*edt->get_document(), edt->get_font_families(), firstchar,
 							soft_linebreak_inserter(fmt.get_linebreaks(), firstchar),
 							folded_region_skipper(fmt.get_folding(), firstchar)
 						);

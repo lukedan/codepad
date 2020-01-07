@@ -1,6 +1,12 @@
 {
 	"editor": {
+		"font_size": 12,
 		"font_family": "Fira Code",
+		"backup_fonts": [
+			"SimSun",
+			"MingLiu-ExtB",
+			"Segoe UI Emoji"
+		],
 		"interaction_modes": [
 			"prepare_drag",
 			"single_selection"

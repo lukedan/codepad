@@ -9,9 +9,11 @@
 #include <stack>
 
 #include <d2d1_1.h>
+#include <d2d1_3.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <dwrite.h>
+#include <dwrite_3.h>
 
 #include "../../ui/renderer.h"
 #include "window.h"
@@ -30,6 +32,18 @@ namespace codepad::os::direct2d {
 		inline D2D1_MATRIX_3X2_F cast_matrix(matd3x3 m) {
 			// the resulting matrix is transposed
 			D2D1_MATRIX_3X2_F mat;
+			mat.m11 = static_cast<FLOAT>(m[0][0]);
+			mat.m12 = static_cast<FLOAT>(m[1][0]);
+			mat.m21 = static_cast<FLOAT>(m[0][1]);
+			mat.m22 = static_cast<FLOAT>(m[1][1]);
+			mat.dx = static_cast<FLOAT>(m[0][2]);
+			mat.dy = static_cast<FLOAT>(m[1][2]);
+			return mat;
+		}
+		/// Converts a \ref matd3x3 to a \p DWRITE_MATRIX.
+		inline DWRITE_MATRIX cast_dwrite_matrix(matd3x3 m) {
+			// the resulting matrix is transposed
+			DWRITE_MATRIX mat;
 			mat.m11 = static_cast<FLOAT>(m[0][0]);
 			mat.m12 = static_cast<FLOAT>(m[1][0]);
 			mat.m21 = static_cast<FLOAT>(m[0][1]);
@@ -266,18 +280,26 @@ namespace codepad::os::direct2d {
 				static_cast<double>(_metrics.designUnitsPerEm);
 		}
 
+		/// Calls \p IDWriteFont::HasCharacter to determine if the font contains a glyph for the given character.
+		bool has_character(codepoint cp) const override {
+			BOOL result;
+			com_check(_font->HasCharacter(cp, &result));
+			return result;
+		}
+
 		/// Returns the width of the character.
 		double get_character_width_em(codepoint cp) const override {
 			UINT32 cp_u32 = cp;
 			UINT16 glyph;
 			DWRITE_GLYPH_METRICS gmetrics;
-			com_check(_font->GetGlyphIndices(&cp_u32, 1, &glyph));
-			com_check(_font->GetDesignGlyphMetrics(&glyph, 1, &gmetrics, false));
+			com_check(_font_face->GetGlyphIndices(&cp_u32, 1, &glyph));
+			com_check(_font_face->GetDesignGlyphMetrics(&glyph, 1, &gmetrics, false));
 			return gmetrics.advanceWidth / static_cast<double>(_metrics.designUnitsPerEm);
 		}
 	protected:
 		DWRITE_FONT_METRICS _metrics; ///< The metrics of this font.
-		_details::com_wrapper<IDWriteFontFace> _font; ///< The \p IDWriteFontFace.
+		_details::com_wrapper<IDWriteFont> _font; ///< The \p IDWriteFont.
+		_details::com_wrapper<IDWriteFontFace> _font_face; ///< The \p IDWriteFontFace.
 	};
 
 	/// Encapsules a \p IDWriteFontFamily.
@@ -289,15 +311,14 @@ namespace codepad::os::direct2d {
 			ui::font_style style, ui::font_weight weight, ui::font_stretch stretch
 		) const override {
 			auto result = std::make_unique<font>();
-			_details::com_wrapper<IDWriteFont> font;
 			com_check(_family->GetFirstMatchingFont(
 				_details::cast_font_weight(weight),
 				_details::cast_font_stretch(stretch),
 				_details::cast_font_style(style),
-				font.get_ref()
+				result->_font.get_ref()
 			));
-			com_check(font->CreateFontFace(result->_font.get_ref()));
-			result->_font->GetMetrics(&result->_metrics);
+			com_check(result->_font->CreateFontFace(result->_font_face.get_ref()));
+			result->_font_face->GetMetrics(&result->_metrics);
 			return result;
 		}
 	protected:
@@ -623,7 +644,7 @@ namespace codepad::os::direct2d {
 
 			com_check(DWriteCreateFactory(
 				DWRITE_FACTORY_TYPE_SHARED,
-				__uuidof(IDWriteFactory),
+				__uuidof(IDWriteFactory4),
 				reinterpret_cast<IUnknown**>(_dwrite_factory.get_ref())
 			));
 			com_check(_dwrite_factory->CreateTextAnalyzer(_dwrite_text_analyzer.get_ref()));
@@ -915,21 +936,96 @@ namespace codepad::os::direct2d {
 			text._font_face->GetMetrics(&metrics);
 			pos.y += text._font_size * (metrics.ascent / static_cast<double>(metrics.designUnitsPerEm));
 
-			// determine if & how to apply pixel snapping
-			matd3x3 trans = _render_stack.top().matrices.top();
-			if (!trans.has_rotation_or_nonrigid()) {
-				double ypos = trans[1][2] + pos.y;
-				// get scaling
-				FLOAT dpix_unused, dpiy;
-				_render_stack.top().target->GetDpi(&dpix_unused, &dpiy);
-				double scaley = dpiy / static_cast<double>(USER_DEFAULT_SCREEN_DPI);
-				// snap to physical pixels
-				ypos *= scaley;
-				pos.y += (std::round(ypos) - ypos) / scaley;
-			}
+			// get scaling
+			FLOAT dpix, dpiy;
+			_render_stack.top().target->GetDpi(&dpix, &dpiy);
+			vec2d scale = vec2d(dpix, dpiy) / USER_DEFAULT_SCREEN_DPI;
 
-			_text_brush->SetColor(_details::cast_color(color)); // text color
-			_d2d_device_context->DrawGlyphRun(_details::cast_point(pos), &run, _text_brush.get());
+			matd3x3 trans = _render_stack.top().matrices.top();
+
+			// check for colored glyphs
+			// https://github.com/microsoft/Windows-universal-samples/blob/master/Samples/DWriteColorGlyph/cpp/CustomTextRenderer.cpp
+			_details::com_wrapper<IDWriteColorGlyphRunEnumerator1> color_glyphs;
+			DWRITE_MATRIX matrix = _details::cast_dwrite_matrix(matd3x3::scale(vec2d(), scale) * trans);
+			HRESULT has_color = _dwrite_factory->TranslateColorGlyphRun(
+				_details::cast_point(pos), &run, nullptr,
+				DWRITE_GLYPH_IMAGE_FORMATS_TRUETYPE |
+				DWRITE_GLYPH_IMAGE_FORMATS_CFF |
+				DWRITE_GLYPH_IMAGE_FORMATS_COLR |
+				DWRITE_GLYPH_IMAGE_FORMATS_SVG |
+				DWRITE_GLYPH_IMAGE_FORMATS_PNG |
+				DWRITE_GLYPH_IMAGE_FORMATS_JPEG |
+				DWRITE_GLYPH_IMAGE_FORMATS_TIFF |
+				DWRITE_GLYPH_IMAGE_FORMATS_PREMULTIPLIED_B8G8R8A8,
+				DWRITE_MEASURING_MODE_NATURAL, &matrix, 0,
+				color_glyphs.get_ref()
+			);
+
+			if (has_color == DWRITE_E_NOCOLOR) { // no color information, draw original glyph run
+				// determine if & how to apply pixel snapping
+				if (!trans.has_rotation_or_nonrigid()) {
+					double ypos = trans[1][2] + pos.y;
+					// snap to physical pixels
+					ypos *= scale.y;
+					pos.y += (std::round(ypos) - ypos) / scale.y;
+				}
+
+				_text_brush->SetColor(_details::cast_color(color)); // text color
+				_d2d_device_context->DrawGlyphRun(_details::cast_point(pos), &run, _text_brush.get());
+
+			} else { // draw color glyphs
+				com_check(has_color);
+				while (true) {
+					BOOL have_more = false;
+					com_check(color_glyphs->MoveNext(&have_more));
+					if (!have_more) {
+						break;
+					}
+
+					const DWRITE_COLOR_GLYPH_RUN1 *run;
+					com_check(color_glyphs->GetCurrentRun(&run));
+					D2D1_POINT_2F baseline_origin = D2D1::Point2F(run->baselineOriginX, run->baselineOriginY);
+					switch (run->glyphImageFormat) {
+					case DWRITE_GLYPH_IMAGE_FORMATS_PNG:
+						[[fallthrough]];
+					case DWRITE_GLYPH_IMAGE_FORMATS_JPEG:
+						[[fallthrough]];
+					case DWRITE_GLYPH_IMAGE_FORMATS_TIFF:
+						[[fallthrough]];
+					case DWRITE_GLYPH_IMAGE_FORMATS_PREMULTIPLIED_B8G8R8A8:
+						_d2d_device_context->DrawColorBitmapGlyphRun(
+							run->glyphImageFormat, baseline_origin, &run->glyphRun
+						);
+						break;
+
+					case DWRITE_GLYPH_IMAGE_FORMATS_SVG:
+						{
+							auto brush = _create_brush(ui::brush_parameters::solid_color(color));
+							_d2d_device_context->DrawSvgGlyphRun(baseline_origin, &run->glyphRun, brush.get());
+						}
+						break;
+
+					case DWRITE_GLYPH_IMAGE_FORMATS_TRUETYPE:
+						[[fallthrough]];
+					case DWRITE_GLYPH_IMAGE_FORMATS_CFF:
+						[[fallthrough]];
+					case DWRITE_GLYPH_IMAGE_FORMATS_COLR:
+						[[fallthrough]];
+					default: // draw as solid color glyph run by default, as in the example code
+						{
+							colord run_color = color;
+							if (run->paletteIndex != 0xFFFF) {
+								run_color = colord(
+									run->runColor.r, run->runColor.g, run->runColor.b, run->runColor.a
+								);
+							}
+							auto brush = _create_brush(ui::brush_parameters::solid_color(run_color));
+							_d2d_device_context->DrawGlyphRun(baseline_origin, &run->glyphRun, brush.get());
+						}
+						break;
+					}
+				}
+			}
 		}
 	protected:
 		/// Stores window-specific data.
@@ -962,13 +1058,13 @@ namespace codepad::os::direct2d {
 		std::set<IDXGISwapChain*> _present_chains; ///< The DXGI swap chains to call \p Present() on.
 		path_geometry_builder _path_builder; ///< The path builder.
 
-		_details::com_wrapper<ID2D1Factory1> _d2d_factory; ///< The Direct2D factory.
-		_details::com_wrapper<ID2D1Device> _d2d_device; ///< The Direct2D device.
-		_details::com_wrapper<ID2D1DeviceContext> _d2d_device_context; ///< The Direct2D device context.
+		_details::com_wrapper<ID2D1Factory5> _d2d_factory; ///< The Direct2D factory.
+		_details::com_wrapper<ID2D1Device4> _d2d_device; ///< The Direct2D device.
+		_details::com_wrapper<ID2D1DeviceContext4> _d2d_device_context; ///< The Direct2D device context.
 		_details::com_wrapper<ID3D11Device> _d3d_device; ///< The Direct3D device.
 		_details::com_wrapper<IDXGIDevice> _dxgi_device; ///< The DXGI device.
 		_details::com_wrapper<IDXGIAdapter> _dxgi_adapter; ///< The DXGI adapter.
-		_details::com_wrapper<IDWriteFactory> _dwrite_factory; ///< The DirectWrite factory.
+		_details::com_wrapper<IDWriteFactory4> _dwrite_factory; ///< The DirectWrite factory.
 
 		_details::com_wrapper<ID2D1SolidColorBrush> _text_brush; ///< The brush used for rendering text.
 		/// The text analyzer used for fast text rendering.
@@ -1134,7 +1230,7 @@ namespace codepad::os::direct2d {
 			std::basic_string_view<WCHAR> text, ui::font &f, double size
 		) {
 			auto result = std::make_unique<plain_text>();
-			result->_font_face = _details::cast_font(f)._font;
+			result->_font_face = _details::cast_font(f)._font_face;
 
 			// script & font features
 			DWRITE_SCRIPT_ANALYSIS script;

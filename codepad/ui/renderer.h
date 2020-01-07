@@ -212,6 +212,9 @@ namespace codepad::ui {
 		/// Returns the recommended height of a line in em units.
 		[[nodiscard]] virtual double get_line_height_em() const = 0;
 
+		/// Returns whether this font contains a glyph for the given codepoint.
+		[[nodiscard]] virtual bool has_character(codepoint) const = 0;
+
 		/// Returns the width of the given character.
 		[[nodiscard]] virtual double get_character_width_em(codepoint) const = 0;
 		/// Returns the maximum width of all given characters.

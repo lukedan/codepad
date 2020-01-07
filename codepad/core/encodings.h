@@ -72,14 +72,15 @@ namespace codepad {
 		public:
 			constexpr static std::byte
 				mask_1{0x80}, ///< Mask for detecting single-byte codepoints.
-				patt_1{0x00}, ///< Expected masked value of single-byte codepoints.
 				mask_2{0xE0}, ///< Mask for detecting bytes leading double-byte codepoints.
-				patt_2{0xC0}, ///< Expected masked value of bytes leading double-byte codepoints.
 				mask_3{0xF0}, ///< Mask for detecting triple-byte codepoints.
-				patt_3{0xE0}, ///< Expected masked value of bytes leading triple-byte codepoints.
 				mask_4{0xF8}, ///< Mask for detecting quadruple-byte codepoints.
-				patt_4{0xF0}, ///< Expected masked value of bytes leading quadruple-byte codepoints.
 				mask_cont{0xC0}, ///< Mask for detecting continuation bytes.
+
+				patt_1{0x00}, ///< Expected masked value of single-byte codepoints.
+				patt_2{0xC0}, ///< Expected masked value of bytes leading double-byte codepoints.
+				patt_3{0xE0}, ///< Expected masked value of bytes leading triple-byte codepoints.
+				patt_4{0xF0}, ///< Expected masked value of bytes leading quadruple-byte codepoints.
 				patt_cont{0x80}; ///< Expected masked value of continuation bytes.
 
 			/// Returns `UTF-8'.
@@ -133,7 +134,7 @@ namespace codepad {
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
-					v |= static_cast<codepoint>(_get(i) & mask_cont) << 6;
+					v |= static_cast<codepoint>(_get(i) & ~mask_cont) << 6;
 					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						--i;
 						--i;

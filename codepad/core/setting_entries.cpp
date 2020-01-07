@@ -6,6 +6,8 @@
 
 #include "settings.h"
 #include "../editors/editor.h"
+#include "../editors/code/contents_region.h"
+#include "../editors/binary/contents_region.h"
 
 using namespace std;
 
@@ -20,7 +22,7 @@ namespace codepad::editors {
 	settings::retriever_parser<str_view_t> &editor::get_font_family_setting() {
 		static settings::retriever_parser<str_view_t> _setting = settings::get().create_retriever_parser<str_view_t>(
 			{ u8"editor", u8"font_family" },
-			settings::basic_parsers::basic_type_with_default<str_view_t>("Fira Code")
+			settings::basic_parsers::basic_type_with_default<str_view_t>("Courier New")
 			);
 		return _setting;
 	}
@@ -34,5 +36,19 @@ namespace codepad::editors {
 				)
 				);
 		return _setting;
+	}
+
+
+	namespace code {
+		settings::retriever_parser<std::vector<str_view_t>> &contents_region::get_backup_fonts_setting() {
+			static settings::retriever_parser<std::vector<str_view_t>> _setting =
+				settings::get().create_retriever_parser<std::vector<str_view_t>>(
+					{ u8"editor", u8"backup_fonts" },
+					settings::basic_parsers::basic_type_with_default<std::vector<str_view_t>>(
+						std::vector<str_view_t>(), json::array_parser<str_view_t>()
+						)
+					);
+			return _setting;
+		}
 	}
 }

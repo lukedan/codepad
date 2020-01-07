@@ -93,6 +93,24 @@ namespace codepad::editors::code {
 	protected:
 		std::map<std::size_t, T> _changes; ///< The underlying \p std::map that stores the position-value pairs.
 	};
+
+	/// Bitfield indicating specific parameters of the text's theme.
+	enum class text_theme_member : unsigned char {
+		none = 0,
+		color = 1,
+		style = 2,
+		weight = 4,
+
+		all = color | style | weight
+	};
+}
+namespace codepad {
+	/// Enables bitwise operators for \ref editors::code::text_theme_member.
+	template <> struct enable_enum_bitwise_operators<editors::code::text_theme_member> : public std::true_type {
+	};
+}
+
+namespace codepad::editors::code {
 	/// Records the text's theme across the entire buffer.
 	struct text_theme_data {
 		text_theme_parameter_info<colord> color; ///< Records the text's color across the ehtire buffer.
@@ -122,10 +140,20 @@ namespace codepad::editors::code {
 
 			/// Moves the given \ref char_iterator to the given position. The position must be after where this
 			/// \ref char_iterator was at.
-			void move_forward(std::size_t pos) {
-				_move_iter_forward(_next_color, _data->color, current_theme.color, pos);
-				_move_iter_forward(_next_style, _data->style, current_theme.style, pos);
-				_move_iter_forward(_next_weight, _data->weight, current_theme.weight, pos);
+			///
+			/// \return All members that have potentially changed.
+			text_theme_member move_forward(std::size_t pos) {
+				text_theme_member result = text_theme_member::none;
+				if (_move_iter_forward(_next_color, _data->color, current_theme.color, pos)) {
+					result |= text_theme_member::color;
+				}
+				if (_move_iter_forward(_next_style, _data->style, current_theme.style, pos)) {
+					result |= text_theme_member::style;
+				}
+				if (_move_iter_forward(_next_weight, _data->weight, current_theme.weight, pos)) {
+					result |= text_theme_member::weight;
+				}
+				return result;
 			}
 			/// Returns the number of characters to the next change of any parameter, given the current position.
 			std::size_t forecast(std::size_t pos) const {
@@ -152,7 +180,8 @@ namespace codepad::editors::code {
 			/// \param spec The set of position-value pairs.
 			/// \param val The value at the position.
 			/// \param cp The new position in the text.
-			template <typename T> inline static void _move_iter_forward(
+			/// \return \p true if the iterator has been moved.
+			template <typename T> inline static bool _move_iter_forward(
 				typename text_theme_parameter_info<T>::const_iterator &it,
 				const text_theme_parameter_info<T> &spec, T &val, std::size_t pos
 			) {
@@ -164,7 +193,9 @@ namespace codepad::editors::code {
 						val = it->second;
 						++it;
 					}
+					return true;
 				}
+				return false;
 			}
 
 			/// \ref forecast() for a single parameter.

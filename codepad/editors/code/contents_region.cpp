@@ -48,7 +48,7 @@ namespace codepad::editors::code {
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
 		fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> iter(
-			*_doc, linebeg,
+			*get_document(), get_font_families(), linebeg,
 			soft_linebreak_inserter(_fmt.get_linebreaks(), linebeg),
 			folded_region_skipper(_fmt.get_folding(), linebeg)
 		);
@@ -77,7 +77,7 @@ namespace codepad::editors::code {
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
 		fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> iter(
-			*_doc, linebeg,
+			*get_document(), get_font_families(), linebeg,
 			soft_linebreak_inserter(_fmt.get_linebreaks(), linebeg),
 			folded_region_skipper(_fmt.get_folding(), linebeg)
 		);
@@ -175,7 +175,7 @@ namespace codepad::editors::code {
 
 			// rendering facilities
 			fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> gen(
-				*_doc, firstchar,
+				*get_document(), get_font_families(), firstchar,
 				soft_linebreak_inserter(_fmt.get_linebreaks(), firstchar),
 				folded_region_skipper(_fmt.get_folding(), firstchar)
 			);

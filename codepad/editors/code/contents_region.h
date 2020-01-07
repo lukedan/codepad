@@ -58,17 +58,21 @@ namespace codepad::editors::code {
 		}
 
 		/// Sets the font family given its name.
-		void set_font_family_by_name(str_view_t name) {
-			set_font_family(get_manager().get_renderer().find_font_family(name));
+		void set_font_families_by_name(const std::vector<str_view_t> &names) {
+			std::vector<std::unique_ptr<ui::font_family>> fonts;
+			for (str_view_t name : names) {
+				fonts.emplace_back(get_manager().get_renderer().find_font_family(name));
+			}
+			set_font_families(std::move(fonts));
 		}
-		/// Sets the font family.
-		void set_font_family(std::unique_ptr<ui::font_family> f) {
-			_font_family = std::move(f);
+		/// Sets the set of font families.
+		void set_font_families(std::vector<std::unique_ptr<ui::font_family>> fs) {
+			_font_families = std::move(fs);
 			_on_editing_visual_changed();
 		}
-		/// Returns the font family.
-		const ui::font_family *get_font_family() const {
-			return _font_family.get();
+		/// Returns the set of font families.
+		const std::vector<std::unique_ptr<ui::font_family>> &get_font_families() const {
+			return _font_families;
 		}
 
 		/// Sets the font size.
@@ -603,6 +607,9 @@ namespace codepad::editors::code {
 			/// Invoked when the input mode changes from insert to overwrite or the other way around.
 			edit_mode_changed;
 
+		/// Retrieves the setting entry that determines the font families.
+		static settings::retriever_parser<std::vector<str_view_t>> &get_backup_fonts_setting();
+
 		/// Returns the \ref interaction_mode_registry of code editors.
 		static interaction_mode_registry<caret_set> &get_interaction_mode_registry();
 
@@ -663,7 +670,9 @@ namespace codepad::editors::code {
 		/// Used to format invalid codepoints.
 		invalid_codepoint_formatter _invalid_cp_fmt{ format_invalid_codepoint };
 		ui::visuals _caret_visuals; ///< The visuals of carets.
-		std::unique_ptr<ui::font_family> _font_family; ///< The font family used to display code.
+		/// The set of font family used to display code. Font families in the back are backups for font families in
+		/// front.
+		std::vector<std::unique_ptr<ui::font_family>> _font_families;
 		double
 			_font_size = 12.0, ///< The font size.
 			_tab_width = 30.0, ///< The maximum width of a tab character.
@@ -955,9 +964,22 @@ namespace codepad::editors::code {
 
 			std::vector<str_t> profile; // TODO custom profile
 
-			set_font_family_by_name(
+			auto &renderer = get_manager().get_renderer();
+			std::vector<std::unique_ptr<ui::font_family>> families;
+			families.emplace_back(renderer.find_font_family(
 				editor::get_font_family_setting().get_profile(profile.begin(), profile.end()).get_value()
-			);
+			));
+			auto backups = get_backup_fonts_setting().get_profile(profile.begin(), profile.end()).get_value();
+			for (str_view_t f : backups) {
+				auto family = renderer.find_font_family(f);
+				if (family) {
+					families.emplace_back(std::move(family));
+				} else {
+					logger::get().log_info(CP_HERE) << "font family not found: " << f;
+				}
+			}
+			set_font_families(std::move(families));
+
 			set_font_size_and_line_height(
 				editor::get_font_size_setting().get_profile(profile.begin(), profile.end()).get_value()
 			);
