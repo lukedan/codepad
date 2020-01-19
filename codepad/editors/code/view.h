@@ -687,8 +687,8 @@ namespace codepad::editors::code {
 			std::size_t lastpos = 0;
 			for (auto it = _t.begin(); it != _t.end(); ) {
 				std::size_t
-					begbyte = patcher.patch<buffer::position_patcher::strategy::back>(it->bytepos_first),
-					endbyte = patcher.patch<buffer::position_patcher::strategy::front>(it->bytepos_second);
+					begbyte = patcher.patch_next<buffer::position_patcher::strategy::back>(it->bytepos_first),
+					endbyte = patcher.patch_next<buffer::position_patcher::strategy::front>(it->bytepos_second);
 				if (begbyte < endbyte) {
 					std::size_t begchar = cvt.byte_to_character(begbyte), endchar = cvt.byte_to_character(endbyte);
 					if (begchar < endchar) {

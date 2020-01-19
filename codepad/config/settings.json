@@ -1,4 +1,7 @@
 {
+	"native_plugins": [
+		"command_pack"
+	],
 	"editor": {
 		"font_size": 12,
 		"font_family": "Fira Code",

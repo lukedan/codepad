@@ -982,10 +982,12 @@ namespace codepad::os::direct2d {
 						break;
 					}
 
-					const DWRITE_COLOR_GLYPH_RUN1 *run;
-					com_check(color_glyphs->GetCurrentRun(&run));
-					D2D1_POINT_2F baseline_origin = D2D1::Point2F(run->baselineOriginX, run->baselineOriginY);
-					switch (run->glyphImageFormat) {
+					const DWRITE_COLOR_GLYPH_RUN1 *colored_run;
+					com_check(color_glyphs->GetCurrentRun(&colored_run));
+					D2D1_POINT_2F baseline_origin = D2D1::Point2F(
+						colored_run->baselineOriginX, colored_run->baselineOriginY
+					);
+					switch (colored_run->glyphImageFormat) {
 					case DWRITE_GLYPH_IMAGE_FORMATS_PNG:
 						[[fallthrough]];
 					case DWRITE_GLYPH_IMAGE_FORMATS_JPEG:
@@ -994,14 +996,16 @@ namespace codepad::os::direct2d {
 						[[fallthrough]];
 					case DWRITE_GLYPH_IMAGE_FORMATS_PREMULTIPLIED_B8G8R8A8:
 						_d2d_device_context->DrawColorBitmapGlyphRun(
-							run->glyphImageFormat, baseline_origin, &run->glyphRun
+							colored_run->glyphImageFormat, baseline_origin, &colored_run->glyphRun
 						);
 						break;
 
 					case DWRITE_GLYPH_IMAGE_FORMATS_SVG:
 						{
 							auto brush = _create_brush(ui::brush_parameters::solid_color(color));
-							_d2d_device_context->DrawSvgGlyphRun(baseline_origin, &run->glyphRun, brush.get());
+							_d2d_device_context->DrawSvgGlyphRun(
+								baseline_origin, &colored_run->glyphRun, brush.get()
+							);
 						}
 						break;
 
@@ -1014,13 +1018,16 @@ namespace codepad::os::direct2d {
 					default: // draw as solid color glyph run by default, as in the example code
 						{
 							colord run_color = color;
-							if (run->paletteIndex != 0xFFFF) {
+							if (colored_run->paletteIndex != 0xFFFF) {
 								run_color = colord(
-									run->runColor.r, run->runColor.g, run->runColor.b, run->runColor.a
+									colored_run->runColor.r,
+									colored_run->runColor.g,
+									colored_run->runColor.b,
+									colored_run->runColor.a
 								);
 							}
 							auto brush = _create_brush(ui::brush_parameters::solid_color(run_color));
-							_d2d_device_context->DrawGlyphRun(baseline_origin, &run->glyphRun, brush.get());
+							_d2d_device_context->DrawGlyphRun(baseline_origin, &colored_run->glyphRun, brush.get());
 						}
 						break;
 					}
@@ -1266,7 +1273,7 @@ namespace codepad::os::direct2d {
 				glyph_props = std::make_unique<DWRITE_SHAPING_GLYPH_PROPERTIES[]>(length);
 
 				HRESULT res = _dwrite_text_analyzer->GetGlyphs(
-					text.data(), text.size(), result->_font_face.get(), false, false,
+					text.data(), static_cast<UINT32>(text.size()), result->_font_face.get(), false, false,
 					&script, nullptr, nullptr, &pfeature_list, &feature_range_length, 1,
 					static_cast<UINT32>(length),
 					result->_cluster_map.get(), text_props.get(), result->_glyphs.get(), glyph_props.get(),
@@ -1286,7 +1293,7 @@ namespace codepad::os::direct2d {
 			result->_glyph_offsets = std::make_unique<DWRITE_GLYPH_OFFSET[]>(result->_glyph_count);
 
 			com_check(_dwrite_text_analyzer->GetGlyphPlacements(
-				text.data(), result->_cluster_map.get(), text_props.get(), text.size(),
+				text.data(), result->_cluster_map.get(), text_props.get(), static_cast<UINT32>(text.size()),
 				result->_glyphs.get(), glyph_props.get(), glyph_count,
 				result->_font_face.get(), static_cast<FLOAT>(size), false, false,
 				&script, nullptr, &pfeature_list, &feature_range_length, 1,
@@ -1403,7 +1410,7 @@ namespace codepad::os::direct2d {
 	};
 
 
-	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
+	inline void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
 		_details::com_wrapper<ID2D1SolidColorBrush> brush;
 		_rend->_d2d_device_context->CreateSolidColorBrush(_details::cast_color(c), brush.get_ref());
 		com_check(_text->SetDrawingEffect(brush.get(), _details::make_text_range(beg, len)));

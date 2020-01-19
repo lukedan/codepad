@@ -196,8 +196,8 @@ namespace codepad::editors {
 		public:
 			/// Indicates how the position should be adjusted if it lies in a removed region.
 			enum class strategy {
-				front, ///< Moves the position to the front of the removed region.
-				back, ///< Moves the position to the back of the added region.
+				front, ///< Moves the position to the front of the removed/added region.
+				back, ///< Moves the position to the back of the removed/added region.
 				try_keep ///< Tries to keep the position stationary.
 			};
 
@@ -214,7 +214,7 @@ namespace codepad::editors {
 
 			/// Returns the patched position. Modifications with no removed content receive special treatment: a
 			/// position is patched if it lies exactly at the position.
-			template <strategy Strat> std::size_t patch(std::size_t pos) {
+			template <strategy Strat> std::size_t patch_next(std::size_t pos) {
 				pos += _diff;
 				while (
 					_next != _pos.end() &&

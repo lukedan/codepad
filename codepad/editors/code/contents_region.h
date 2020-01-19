@@ -608,7 +608,7 @@ namespace codepad::editors::code {
 			edit_mode_changed;
 
 		/// Retrieves the setting entry that determines the font families.
-		static settings::retriever_parser<std::vector<str_view_t>> &get_backup_fonts_setting();
+		static settings::retriever_parser<std::vector<str_t>> &get_backup_fonts_setting(settings&);
 
 		/// Returns the \ref interaction_mode_registry of code editors.
 		static interaction_mode_registry<caret_set> &get_interaction_mode_registry();
@@ -832,18 +832,18 @@ namespace codepad::editors::code {
 				for (auto &pair : _cset.carets) {
 					std::size_t bp1 = pair.second.bytepos_first, bp2 = pair.second.bytepos_second, cp1, cp2;
 					if (bp1 == bp2) {
-						bp1 = bp2 = patcher.patch<buffer::position_patcher::strategy::back>(bp1);
+						bp1 = bp2 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp1);
 						cp1 = cp2 = cvt.byte_to_character(bp1);
 					} else {
 						if (bp1 < bp2) {
-							bp1 = patcher.patch<buffer::position_patcher::strategy::back>(bp1);
+							bp1 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp1);
 							cp1 = cvt.byte_to_character(bp1);
-							bp2 = patcher.patch<buffer::position_patcher::strategy::back>(bp2);
+							bp2 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp2);
 							cp2 = cvt.byte_to_character(bp2);
 						} else {
-							bp2 = patcher.patch<buffer::position_patcher::strategy::back>(bp2);
+							bp2 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp2);
 							cp2 = cvt.byte_to_character(bp2);
-							bp1 = patcher.patch<buffer::position_patcher::strategy::back>(bp1);
+							bp1 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp1);
 							cp1 = cvt.byte_to_character(bp1);
 						}
 					}
@@ -965,12 +965,13 @@ namespace codepad::editors::code {
 			std::vector<str_t> profile; // TODO custom profile
 
 			auto &renderer = get_manager().get_renderer();
+			auto &set = get_manager().get_settings();
 			std::vector<std::unique_ptr<ui::font_family>> families;
 			families.emplace_back(renderer.find_font_family(
-				editor::get_font_family_setting().get_profile(profile.begin(), profile.end()).get_value()
+				editor::get_font_family_setting(set).get_profile(profile.begin(), profile.end()).get_value()
 			));
-			auto backups = get_backup_fonts_setting().get_profile(profile.begin(), profile.end()).get_value();
-			for (str_view_t f : backups) {
+			auto &backups = get_backup_fonts_setting(set).get_profile(profile.begin(), profile.end()).get_value();
+			for (const auto &f : backups) {
 				auto family = renderer.find_font_family(f);
 				if (family) {
 					families.emplace_back(std::move(family));
@@ -981,14 +982,14 @@ namespace codepad::editors::code {
 			set_font_families(std::move(families));
 
 			set_font_size_and_line_height(
-				editor::get_font_size_setting().get_profile(profile.begin(), profile.end()).get_value()
+				editor::get_font_size_setting(set).get_profile(profile.begin(), profile.end()).get_value()
 			);
 
 			_interaction_manager.set_contents_region(*this);
-			auto &modes = editor::get_interaction_modes_setting().get_profile(
+			auto &modes = editor::get_interaction_modes_setting(set).get_profile(
 				profile.begin(), profile.end()
 			).get_value();
-			for (auto &&mode_name : modes) {
+			for (const auto &mode_name : modes) {
 				if (auto mode = get_interaction_mode_registry().try_create(mode_name)) {
 					_interaction_manager.activators().emplace_back(std::move(mode));
 				}

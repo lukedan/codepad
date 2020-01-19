@@ -6,6 +6,8 @@
 #include "core/event.h"
 #include "core/bst.h"
 #include "core/logger_sinks.h"
+#include "core/plugin_interface.h"
+#include "core/plugins.h"
 #include "core/json/parsing.h"
 #include "core/json/rapidjson.h"
 #include "os/current/all.h"
@@ -35,11 +37,35 @@ int main(int argc, char **argv) {
 	global_log->sinks.emplace_back(std::make_unique<logger_sinks::file_sink>("codepad.log"));
 	logger::set_current(std::move(global_log));
 
-	settings::get().load("config/settings.json");
-
 	codepad::initialize(argc, argv);
 
-	manager man;
+	settings sett;
+	global_settings = &sett;
+
+	manager man(sett);
+	global_manager = &man;
+
+	sett.load("config/settings.json");
+
+	{ // load plugins
+		auto parser = sett.create_retriever_parser<std::vector<str_view_t>>(
+			{ "native_plugins" },
+			settings::basic_parsers::basic_type_with_default<std::vector<str_view_t>>(
+				{}, json::array_parser<str_view_t>()
+				)
+			);
+		auto value = parser.get_main_profile().get_value();
+		for (str_view_t p : value) {
+			auto plugin = std::make_unique<native_plugin>(std::filesystem::path(p));
+			if (!plugin->valid()) {
+				logger::get().log_warning(CP_HERE) << "failed to load plugin " << p;
+				plugin->diagnose();
+				continue;
+			}
+			plugin_manager::get().attach(std::move(plugin)).enable();
+			logger::get().log_info(CP_HERE) << "plugin loaded: " << p;
+		}
+	}
 
 	{ // select renderer
 		const char *default_graphics_backend =
@@ -48,8 +74,9 @@ int main(int argc, char **argv) {
 #elif defined(CP_PLATFORM_UNIX)
 			"cairo";
 #endif
-		auto parser = settings::get().create_retriever_parser<str_view_t>(
-			{ "graphics_backend" }, settings::basic_parsers::basic_type_with_default<str_view_t>(default_graphics_backend)
+		auto parser = sett.create_retriever_parser<str_view_t>(
+			{ "graphics_backend" },
+			settings::basic_parsers::basic_type_with_default<str_view_t>(default_graphics_backend)
 			);
 		str_view_t renderer = parser.get_main_profile().get_value();
 		logger::get().log_debug(CP_HERE) << "using renderer: " << renderer;

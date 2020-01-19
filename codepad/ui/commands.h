@@ -14,13 +14,14 @@
 namespace codepad::ui {
 	/// Registry for all commands. Maps strings to functions that take
 	/// pointers to \ref codepad::ui::element "elements" as arguments.
-	class command_registry {
+	class APIGEN_EXPORT_RECURSIVE command_registry {
 	public:
 		/// Registers a command.
 		///
 		/// \param name The name used to identify this command.
 		/// \param func The corresponding function.
-		/// \return \p false if a command of the same name has already been registered.
+		/// \return \p false if a command of the same name has already been registered, in which case the new
+		///         command will be discarded.
 		bool register_command(str_t name, std::function<void(element*)> func) {
 			return _cmds.emplace(std::move(name), std::move(func)).second;
 		}

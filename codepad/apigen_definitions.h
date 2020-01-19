@@ -6,8 +6,15 @@
 #	define APIGEN_ANNOTATE(X)
 #endif
 
-#define APIGEN_STR_EXPAND(X) #X
-#define APIGEN_STR(X) APIGEN_STR_EXPAND(X)
+#define APIGEN_STR(X) #X
+#define APIGEN_EXPAND_STR(X) APIGEN_STR(X)
+
+
+/// A marker for parameters that are moved instead of being simple references.
+#define APIGEN_MOVED
+/// A marker for parameters that are temporary objects (i.e., that will be immediately disposed of after the function
+/// returns).
+#define APIGEN_TEMPORARY
 
 
 #define APIGEN_ANNOTATION_PREFIX                "apigen_"
@@ -32,8 +39,8 @@
 #ifndef APIGEN_API_CLASS_NAME
 #	define APIGEN_API_CLASS_NAME _apigen_api_impls
 #endif
-#define APIGEN_API_CLASS_NAME_STR APIGEN_STR(APIGEN_API_CLASS_NAME)
-class APIGEN_API_CLASS_NAME;
+#define APIGEN_API_CLASS_NAME_STR APIGEN_EXPAND_STR(APIGEN_API_CLASS_NAME)
+struct APIGEN_API_CLASS_NAME;
 #define APIGEN_ENABLE_PRIVATE_EXPORT friend ::APIGEN_API_CLASS_NAME
 
 
@@ -47,13 +54,13 @@ class APIGEN_API_CLASS_NAME;
 
 #define APIGEN_PRIVATE_EXPORT            APIGEN_EXPORT APIGEN_ANNOTATE(APIGEN_ANNOTATION_PRIVATE_EXPORT)
 
-#define APIGEN_RENAME(NAME)              APIGEN_ANNOTATE(APIGEN_ANNOTATION_RENAME_PREFIX APIGEN_STR(NAME))
+#define APIGEN_RENAME(NAME)              APIGEN_ANNOTATE(APIGEN_ANNOTATION_RENAME_PREFIX APIGEN_EXPAND_STR(NAME))
 #define APIGEN_ADOPT_NAME                APIGEN_ANNOTATE(APIGEN_ANNOTATION_ADOPT_NAME)
 
 #define APIGEN_CUSTOM_EXPORT(ALT_TYPE, CONVERT_TO_ALT, CONVERT_FROM_ALT) \
 	APIGEN_ANNOTATE(                                                     \
 		APIGEN_ANNOTATION_CUSTOM_EXPORT_PREFIX                           \
-		APIGEN_STR(ALT_TYPE) ","                                         \
-		APIGEN_STR(CONVERT_TO_ALT) ","                                   \
-		APIGEN_STR(CONVERT_FROM_ALT)                                     \
+		APIGEN_EXPAND_STR(ALT_TYPE) ","                                  \
+		APIGEN_EXPAND_STR(CONVERT_TO_ALT) ","                            \
+		APIGEN_EXPAND_STR(CONVERT_FROM_ALT)                              \
 	)

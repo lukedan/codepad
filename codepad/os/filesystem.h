@@ -6,6 +6,8 @@
 /// \file
 /// Generic filesystem related enums and classes.
 
+#include <filesystem>
+
 #ifdef CP_PLATFORM_WINDOWS
 #	include <Windows.h>
 #elif defined(CP_PLATFORM_UNIX)
@@ -115,7 +117,7 @@ namespace codepad::os {
 		/// If there is a currently open file, closes it and resets the \ref file to empty.
 		void close() {
 			if (valid()) {
-				_close_impl();
+				_close_impl(_handle);
 				_handle = empty_handle;
 			}
 		}
@@ -157,8 +159,8 @@ namespace codepad::os {
 		/// Opens the given file with the specified \ref access_rights and \ref open_mode,
 		/// and returns the resulting file handle. If the operation fails, returns \ref empty_handle.
 		static native_handle_t _open_impl(const std::filesystem::path&, access_rights, open_mode);
-		/// Closes the file. Assumes that it's valid.
-		void _close_impl();
+		/// Closes the given file. The handle must not be empty.
+		static void _close_impl(native_handle_t);
 		/// Returns the size of the opened file. Assumes that it's valid.
 		pos_type _get_size_impl() const;
 	};

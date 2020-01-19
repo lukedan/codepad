@@ -699,10 +699,12 @@ namespace codepad::ui {
 	}*/
 
 
-	bool scheduler::_main_iteration_system_impl(wait_type ty) {
-		call_counter::get().dump();
-		call_counter::get().reset();
+	double manager::get_drag_deadzone_radius() {
+		return std::abs(GetSystemMetrics(SM_CXDRAG));
+	}
 
+
+	bool scheduler::_main_iteration_system_impl(wait_type ty) {
 		MSG msg;
 		BOOL res;
 		if (ty == wait_type::blocking) {

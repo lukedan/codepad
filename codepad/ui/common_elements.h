@@ -20,8 +20,11 @@ namespace codepad::ui {
 	/// captured when the mouse is in the deadzone.
 	class drag_deadzone {
 	public:
-		/// Initializes \ref _radius.
-		drag_deadzone() : _radius(_get_radius_setting().get_main_profile()) {
+		/// Default constructor.
+		drag_deadzone() : drag_deadzone(manager::get_drag_deadzone_radius()) {
+		}
+		/// Initializes \ref radius.
+		explicit drag_deadzone(double r) : radius(r) {
 		}
 
 		/// Initializes the starting position and starts dragging by capturing the mouse.
@@ -38,8 +41,8 @@ namespace codepad::ui {
 		///         mouse is still in the deadzone.
 		bool update(const mouse_position &mouse, element &parent) {
 			if (window_base *wnd = parent.get_window()) {
-				double sqrdiff = (mouse.get(*wnd) - _start).length_sqr(), r = _radius.get();
-				if (sqrdiff > r * r) { // start dragging
+				double sqrdiff = (mouse.get(*wnd) - _start).length_sqr();
+				if (sqrdiff > radius * radius) { // start dragging
 					wnd->release_mouse_capture();
 					_deadzone = false;
 					return true;
@@ -66,15 +69,13 @@ namespace codepad::ui {
 		bool is_active() const {
 			return _deadzone;
 		}
+
+		double radius = 0.0; ///< The radius of the deadzone.
 	protected:
-		settings::getter<double> _radius; ///< Used to retrieve the radius of the deadzone.
 		/// The starting position relative to the window. This is to ensure that the size of the deadzone stays
 		/// consistent when the element itself is transformed.
 		vec2d _start;
 		bool _deadzone = false; ///< \p true if the user is dragging and is in the deadzone.
-
-		/// Returns the \ref settings::retriever_parser of the deadzone's radius.
-		static settings::retriever_parser<double> &_get_radius_setting();
 	};
 
 	/// A label that displays plain text. Non-focusable by default.

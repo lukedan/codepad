@@ -11,6 +11,8 @@
 #include <chrono>
 #include <functional>
 
+#include "../apigen_definitions.h"
+#include "../core/settings.h"
 #include "element.h"
 #include "window.h"
 #include "renderer.h"
@@ -20,7 +22,7 @@
 
 namespace codepad::ui {
 	/// This manages various UI-related registries and resources, acting as the core of all UI code.
-	class manager {
+	class APIGEN_EXPORT_RECURSIVE manager {
 		friend class window_base;
 	public:
 		/// Wrapper of an \ref element's constructor. The element's constructor takes a string that indicates the
@@ -30,7 +32,7 @@ namespace codepad::ui {
 
 		/// Constructor, registers predefined element states, transition functions, element types, and commands. Also
 		/// bridges the \ref hotkey_listener and \ref command_registry.
-		manager();
+		explicit manager(settings&);
 		/// Destructor. Calls \ref scheduler::dispose_marked_elements().
 		~manager() {
 			_scheduler.dispose_marked_elements();
@@ -176,6 +178,11 @@ namespace codepad::ui {
 			return _commands;
 		}
 
+		/// Returns the \ref settings object associated with this manager.
+		settings &get_settings() const {
+			return _settings;
+		}
+
 		/// Reloadss all visual configuration, including arrangements and the color scheme.
 		template <typename ValueType> void reload_visuals(const ValueType &value) {
 			_color_scheme.clear();
@@ -183,6 +190,11 @@ namespace codepad::ui {
 
 			arrangements_parser<ValueType> parser(*this);
 		}
+
+
+		/// Returns the radius of the zone where a drag operation is ready but does not start. This function is
+		/// platform-specific.
+		static double get_drag_deadzone_radius();
 	protected:
 		class_arrangements_registry _class_arrangements; ///< All class arrangements.
 		class_hotkeys_registry _class_hotkeys; ///< All class hotkeys.
@@ -199,6 +211,7 @@ namespace codepad::ui {
 
 		scheduler _scheduler; ///< The \ref scheduler.
 		std::unique_ptr<renderer_base> _renderer; ///< The renderer.
+		settings &_settings; ///< The settings associated with this \ref manager.
 	};
 
 

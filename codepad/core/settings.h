@@ -104,39 +104,48 @@ namespace codepad {
 			/// entry does not exist or when parsing fails. This fail state should be encoded either in this function
 			/// or in the desired type \p T of this setting.
 			using value_parser = std::function<T(std::optional<json::storage::value_t>)>;
+			/// Stores the key and parser for a \ref retriever_parser.
+			struct context {
+				/// Default constructor.
+				context() = default;
+				/// Initializes all fields of this struct.
+				context(std::vector<str_t> k, value_parser p) : key(std::move(k)), parser(std::move(p)) {
+				}
+
+				std::vector<str_t> key; ///< The key.
+				value_parser parser; ///< The parser.
+			};
 			/// The value for a specific \ref profile.
 			class profile_value {
 			public:
 				/// Initializes this \ref profile_value with the corresponding \ref retriever_parser.
-				profile_value(retriever_parser &b, profile_value *p, str_t key) :
-					_key(std::move(key)), _parent(p), _base(b) {
+				profile_value(std::shared_ptr<context> ctx, settings &s, profile_value *p, str_t prof_key) :
+					_profile_key(std::move(prof_key)), _context(std::move(ctx)), _parent(p), _settings(s) {
 				}
 
 				/// Returns the value, re-parsing it if necessary.
 				const T &get_value() {
-					settings &value = _base._parent;
-					if (_timestamp != value._timestamp) {
-						assert_true_logical(
-							(this != &_base.get_main_profile()) == (_parent != nullptr), "invalid parent"
-						);
+					if (_timestamp != _settings._timestamp) {
 						std::optional<json::storage::value_t> jsonval;
 						if (_parent) { // not the main profile
 							// gather the (reversed) key
 							std::vector<str_view_t> key;
 							for (const profile_value *current = this; current->_parent; current = current->_parent) {
-								key.emplace_back(current->_key);
+								key.emplace_back(current->_profile_key);
 							}
-							profile &prof = value.find_deepest_profile(key.rbegin(), key.rend());
-							jsonval = prof.retrieve(_base._key.begin(), _base._key.end());
+							profile &prof = _settings.find_deepest_profile(key.rbegin(), key.rend());
+							jsonval = prof.retrieve(_context->key.begin(), _context->key.end());
 						} else { // just a small optimization to skip key collection & profile searching
-							jsonval = value.get_main_profile().retrieve(_base._key.begin(), _base._key.end());
+							jsonval = _settings.get_main_profile().retrieve(
+								_context->key.begin(), _context->key.end()
+							);
 						}
-						T newval = _base.parser(jsonval);
+						T newval = _context->parser(jsonval);
 						if (newval != _value) {
 							_value = std::move(newval);
 						}
 						// update timestamp
-						_timestamp = value._timestamp;
+						_timestamp = _settings._timestamp;
 					}
 					return _value;
 				}
@@ -147,7 +156,7 @@ namespace codepad {
 					if (it != _children.end()) {
 						return **it;
 					}
-					auto res = _children.emplace(std::make_unique<profile_value>(_base, this, str_t(key)));
+					auto res = _children.emplace(std::make_unique<profile_value>(_context, _settings, this, str_t(key)));
 					assert_true_logical(res.second, "insertion should succeed");
 					return **res.first;
 				}
@@ -160,7 +169,7 @@ namespace codepad {
 					/// Overload for \p std::unique_ptr to \ref profile_value.
 					inline static str_view_t get_key(const std::unique_ptr<profile_value> &ptr) {
 						assert_true_logical(ptr != nullptr, "empty pointer to settings profile value");
-						return ptr->_key;
+						return ptr->_profile_key;
 					}
 					/// Overload for other string types.
 					template <typename Str> inline static const Str &get_key(const Str &str) {
@@ -174,24 +183,27 @@ namespace codepad {
 					}
 				};
 
-				str_t _key; ///< The key of this profile, relative to its parent.
+				str_t _profile_key; ///< The key of this profile, relative to its parent.
 				/// Getters for children profiles.
 				std::set<std::unique_ptr<profile_value>, _profile_value_ptr_compare<>> _children;
 				T _value; ///< The value.
 				/// The timestamp. This is set to 0 so that a fresh value will always be fetched after construction.
 				std::size_t _timestamp = 0;
-				profile_value *_parent; ///< The parent \ref profile_value.
-				retriever_parser &_base; ///< The associated \ref retriever_parser.
+				std::shared_ptr<context> _context; ///< The context of this value.
+				profile_value *_parent = nullptr; ///< The parent \ref profile_value.
+				settings &_settings; ///< The associated \ref settings.
 			};
 
+			/// Default constructor.
+			retriever_parser() = default;
 			/// Constructs this \ref retriever_parser using the given setting, key, and parser.
-			retriever_parser(settings &s, std::vector<str_t> k, value_parser p) :
-				parser(std::move(p)), _main(*this, nullptr, ""), _key(std::move(k)), _parent(s) {
+			retriever_parser(settings &s, std::shared_ptr<context> ctx) : _context(std::move(ctx)), _parent(&s) {
+				_main = std::make_unique<profile_value>(_context, *_parent, nullptr, "");
 			}
 
 			/// Retrieves the \ref profile_value for the given profile name.
 			template <typename It> profile_value &get_profile(It begin, It end) {
-				profile_value *current = &_main;
+				profile_value *current = _main.get();
 				for (std::decay_t<It> it = begin; it != end; ++it) {
 					current = &current->get_child_profile(*it);
 				}
@@ -199,16 +211,12 @@ namespace codepad {
 			}
 			/// Returns the main \ref profile_value.
 			profile_value &get_main_profile() {
-				return _main;
+				return *_main;
 			}
-
-			/// Used to parse the value. Note that the result should *not* hold onto any resource that belong to the
-			/// input JSON value (e.g., string views).
-			value_parser parser;
 		protected:
-			profile_value _main; ///< The value corresponding to the main profile.
-			std::vector<str_t> _key; ///< The key of this setting.
-			settings &_parent; ///< The associated \ref settings object.
+			std::shared_ptr<context> _context; ///< The context of this \ref retriever_parser.
+			std::unique_ptr<profile_value> _main; ///< The value corresponding to the main profile.
+			settings *_parent = nullptr; ///< The associated \ref settings object.
 		};
 
 		/// A thin wrapper around a \ref retriever_parser::profile_value.
@@ -262,6 +270,17 @@ namespace codepad {
 		};
 
 
+		/// Default constructor.
+		settings() = default;
+		/// No move construction.
+		settings(settings&&) = delete;
+		/// No copy construction.
+		settings(const settings&) = delete;
+		/// No move assignment.
+		settings &operator=(settings&&) = delete;
+		/// No copy assignment.
+		settings &operator=(const settings&) = delete;
+
 		/// Finds the profile corresponding to the given key. Returns \p nullptr if no such profile is found.
 		template <typename It> profile *find_profile_exact(It begin, It end) {
 			profile *current = &get_main_profile();
@@ -297,9 +316,18 @@ namespace codepad {
 
 		/// Returns a \ref retriever_parser for the given setting.
 		template <typename T> retriever_parser<T> create_retriever_parser(
-			std::vector<str_t> key, typename retriever_parser<T>::value_parser parser
+			std::shared_ptr<typename retriever_parser<T>::context> ctx
 		) {
-			return retriever_parser<T>(*this, std::move(key), std::move(parser));
+			return retriever_parser<T>(*this, std::move(ctx));
+		}
+		/// Returns a \ref retriever_parser for the given setting. Use the other overload that accepts a
+		/// \ref retriever_parser<T>::context whenever possible.
+		template <typename T> retriever_parser<T> create_retriever_parser(
+			std::vector<str_t> key, typename retriever_parser<T>::value_parser p
+		) {
+			return create_retriever_parser<T>(std::make_shared<typename retriever_parser<T>::context>(
+				std::move(key), std::move(p)
+				));
 		}
 
 		/// Updates the value of all settings.
@@ -313,9 +341,6 @@ namespace codepad {
 		void load(const std::filesystem::path &path) {
 			set(json::store(json::parse_file<json::rapidjson::document_t>(path).root()));
 		}
-
-		/// Returns the global \ref settings object.
-		static settings &get();
 
 		/// Invoked whenever the settings have been changed. Objects that are eager to detect settings changes can
 		/// register for this event.

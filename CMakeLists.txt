@@ -7,7 +7,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 # options
 
 # plugin interface
-set(ENABLE_PLUGINS NO CACHE BOOL "Whether to generate and build the plugin interface.")
+set(ENABLE_PLUGINS YES CACHE BOOL "Whether to generate and build the plugin interface.")
 set(APIGEN_PATH "./apigen" CACHE FILEPATH "Path to the apigen executable.")
 
 # graphics backend
@@ -96,6 +96,9 @@ set(INTERPLATFORM_SOURCES
 	"${SOURCE_PATH}/core/logging.h"
 	"${SOURCE_PATH}/core/math.h"
 	"${SOURCE_PATH}/core/misc.h"
+	"${SOURCE_PATH}/core/plugin_interface.h"
+	"${SOURCE_PATH}/core/plugins.cpp"
+	"${SOURCE_PATH}/core/plugins.h"
 	"${SOURCE_PATH}/core/profiling.h"
 	"${SOURCE_PATH}/core/setting_entries.cpp"
 	"${SOURCE_PATH}/core/settings.h"
@@ -125,6 +128,7 @@ set(INTERPLATFORM_SOURCES
 	"${SOURCE_PATH}/os/current/all.h"
 	"${SOURCE_PATH}/os/current/misc.h"
 	"${SOURCE_PATH}/os/current/window.h"
+	"${SOURCE_PATH}/os/dynamic_library.h"
 	"${SOURCE_PATH}/os/filesystem.h"
 	"${SOURCE_PATH}/os/misc.h"
 
@@ -169,6 +173,7 @@ set(INTERPLATFORM_SOURCES
 set(WINDOWS_SOURCES
 	"${SOURCE_PATH}/os/windows/cairo_renderer.h"
 	"${SOURCE_PATH}/os/windows/direct2d_renderer.h"
+	"${SOURCE_PATH}/os/windows/dynamic_library.cpp"
 	"${SOURCE_PATH}/os/windows/filesystem.cpp"
 	"${SOURCE_PATH}/os/windows/misc.h"
 	"${SOURCE_PATH}/os/windows/window.h"
@@ -284,16 +289,29 @@ if(${ENABLE_PLUGINS})
 				"to apigen or use -DENABLE_PLUGINS=NO to build codepad without plugin support.")
 	endif()
 
+	target_compile_definitions(codepad
+		PRIVATE CP_ENABLE_PLUGINS)
+
 	get_target_property(APIGEN_INCLUDES codepad INCLUDE_DIRECTORIES)
 	list(TRANSFORM APIGEN_INCLUDES PREPEND "-I")
 	get_target_property(APIGEN_DEFINES codepad COMPILE_DEFINITIONS)
 	list(TRANSFORM APIGEN_DEFINES PREPEND "-D")
 	get_target_property(APIGEN_COMPILE_OPTIONS codepad COMPILE_OPTIONS)
 
+	set(API_HEADER_NAME api_header.h)
+	set(HOST_HEADER_NAME host.h)
+	set(SIZES_ALIGNMENTS_HEADER_NAME sizes_alignments.h)
+
+	set(API_STRUCT_NAME codepad_api)
+	set(API_STRUCT_INIT_NAME codepad_api_init)
+
 	set(EXPORT_FILE_PATH "${SOURCE_PATH}/api_export.h")
+
 	set(APIGEN_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/apigen_out")
-	set(API_HEADER_PATH "${APIGEN_OUT_DIR}/api_header.h")
-	set(HOST_HEADER_PATH "${APIGEN_OUT_DIR}/host.h")
+
+	set(API_HEADER_PATH "${APIGEN_OUT_DIR}/${API_HEADER_NAME}")
+	set(HOST_HEADER_PATH "${APIGEN_OUT_DIR}/${HOST_HEADER_NAME}")
+	set(SIZES_ALIGNMENTS_PATH "${APIGEN_OUT_DIR}/${SIZES_ALIGNMENTS_HEADER_NAME}")
 	set(HOST_SOURCE_PATH "${APIGEN_OUT_DIR}/host.cpp")
 	set(COLLECTOR_PATH "${APIGEN_OUT_DIR}/collect.cpp")
 
@@ -308,6 +326,8 @@ if(${ENABLE_PLUGINS})
 			"-host_source_file=${HOST_SOURCE_PATH}"
 			"-collect_source_file=${COLLECTOR_PATH}"
 			"-additional_host_include=${EXPORT_FILE_PATH}"
+			-api_struct_name=${API_STRUCT_NAME}
+			-api_initializer_name=${API_STRUCT_INIT_NAME}
 			--
 			-std=c++17
 			${APIGEN_INCLUDES}
@@ -323,7 +343,9 @@ if(${ENABLE_PLUGINS})
 	target_include_directories(codepad
 		PRIVATE "${APIGEN_OUT_DIR}")
 	target_compile_definitions(codepad
-		PRIVATE CP_ENABLE_PLUGINS)
+		PRIVATE
+			CP_API_STRUCT=${API_STRUCT_NAME}
+			CP_API_STRUCT_INIT=${API_STRUCT_INIT_NAME})
 
 	# collect executable
 	add_executable(collect)
@@ -333,7 +355,48 @@ if(${ENABLE_PLUGINS})
 		PRIVATE $<TARGET_PROPERTY:codepad,INCLUDE_DIRECTORIES>)
 	target_compile_definitions(collect
 		PRIVATE $<TARGET_PROPERTY:codepad,COMPILE_DEFINITIONS>)
+	target_link_libraries(collect
+		PRIVATE $<TARGET_PROPERTY:codepad,LINK_LIBRARIES>)
 	target_sources(collect
 		PRIVATE "${COLLECTOR_PATH}")
-	# TODO
+
+	# add all source files except main.cpp to collect
+	set(CODEPAD_COLLECT_SOURCES ${CODEPAD_SOURCES})
+	list(REMOVE_ITEM CODEPAD_COLLECT_SOURCES "${SOURCE_PATH}/main.cpp")
+	target_sources(collect
+		PRIVATE ${CODEPAD_COLLECT_SOURCES} "${HOST_SOURCE_PATH}")
+
+	if(WIN32)
+		# add necessary compile options on windows
+		if(CMAKE_COMPILER_IS_GNUCXX)
+			target_compile_options(collect
+				PRIVATE -Wa,-mbig-obj)
+		elseif(MSVC)
+			target_compile_options(collect
+				PRIVATE /bigobj)
+		endif()
+	endif()
+
+	# run collect & generate sizes_alignments.h
+	add_custom_command(
+		OUTPUT "${SIZES_ALIGNMENTS_PATH}"
+		COMMAND $<TARGET_FILE:collect> > "${SIZES_ALIGNMENTS_PATH}"
+		DEPENDS collect ${CODEPAD_SOURCES} "${EXPORT_FILE_PATH}"
+		COMMENT "Invoking collect..."
+		VERBATIM)
+
+	# set include paths
+	target_compile_definitions(codepad
+		PRIVATE
+			"CP_APIGEN_SIZES_ALIGNMENTS_H=<${SIZES_ALIGNMENTS_HEADER_NAME}>"
+			"CP_APIGEN_API_H=<${API_HEADER_NAME}>"
+			"CP_APIGEN_HOST_H=<${HOST_HEADER_NAME}>")
+
+	# dependency target for plugins
+	add_custom_target(codepad_api_header
+		DEPENDS "${API_HEADER_PATH}" "${SIZES_ALIGNMENTS_PATH}")
+
+	# import plugin targets
+	include(plugins/command_pack/CMakeLists.txt)
+	add_dependencies(codepad command_pack)
 endif()

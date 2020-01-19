@@ -82,7 +82,6 @@ namespace codepad::editors::binary {
 				// position of the first line relative to the window
 				double
 					top = edt->get_vertical_position() - rgn->get_padding().top,
-					left = get_client_region().xmin,
 					right = get_layout().width() - get_padding().right;
 				std::size_t
 					firstline = static_cast<std::size_t>(

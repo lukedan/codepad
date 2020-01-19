@@ -9,6 +9,7 @@
 #include <string>
 
 #include "misc.h"
+#include "plugins.h"
 #include "settings.h"
 #include "../os/current/all.h"
 #include "../ui/commands.h"
@@ -35,6 +36,7 @@ namespace codepad {
 
 	std::unique_ptr<logger> logger::_current;
 
+	// TODO probably put these into ui::manager as well
 	window_base *mouse_position::_active_window = nullptr;
 	// this is set to 1 so that no window thinks it has up-to-date mouse position initially
 	std::size_t mouse_position::_global_timestamp = 1;
@@ -108,14 +110,8 @@ namespace codepad {
 
 
 	// all singleton getters
-	call_counter &call_counter::get() {
-		static _global_wrapper<call_counter> _v;
-		return _v.object;
-	}
-
-
-	settings &settings::get() {
-		static _global_wrapper<settings> _v;
+	plugin_manager &plugin_manager::get() {
+		static _global_wrapper<plugin_manager> _v;
 		return _v.object;
 	}
 

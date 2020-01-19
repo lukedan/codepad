@@ -6,7 +6,7 @@
 /// \file
 /// Filesystem implementation for the windows platform.
 
-#include "../windows.h"
+#include "misc.h"
 
 namespace codepad::os {
 	const file::native_handle_t file::empty_handle = INVALID_HANDLE_VALUE;
@@ -65,8 +65,8 @@ namespace codepad::os {
 		return res;
 	}
 
-	void file::_close_impl() {
-		winapi_check(CloseHandle(_handle));
+	void file::_close_impl(native_handle_t handle) {
+		winapi_check(CloseHandle(handle));
 	}
 
 	file::pos_type file::_get_size_impl() const {

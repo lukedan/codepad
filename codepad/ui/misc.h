@@ -525,7 +525,7 @@ namespace codepad {
 					}
 					// it's not safe to use std::strtod here since it requires that the input string be null-terminated
 #ifdef __GNUC__
-					// FIXME hack because libstdc++ maintainer doesn't know how to implement from_chars
+					// TODO libstdc++ doesn't implement from_chars
 					res.value = std::stod(str_t(str.value()));
 #else
 					std::from_chars(str->data(), str->data() + str->size(), res.value); // result ignored

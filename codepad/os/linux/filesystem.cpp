@@ -78,8 +78,8 @@ namespace codepad::os {
 		return res;
 	}
 
-	void file::_close_impl() {
-		assert_true_sys(::close(_handle) == 0, "failed to close the file");
+	void file::_close_impl(native_handle_t handle) {
+		assert_true_sys(::close(handle) == 0, "failed to close the file");
 	}
 
 	file::pos_type file::_get_size_impl() const {

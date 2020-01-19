@@ -287,7 +287,7 @@ namespace codepad::ui::tabs {
 				if (_sep_dragging) {
 					rectd client = get_client_region();
 					double position =
-						get_orientation() == orientation::vertical ? // TODO FIXME
+						get_orientation() == orientation::vertical ? // TODO what is this todo for?
 						(p.new_position.get(*this).y - _sep_offset) /
 						(client.height() - _sep->get_layout().height()) :
 						(p.new_position.get(*this).x - _sep_offset) /

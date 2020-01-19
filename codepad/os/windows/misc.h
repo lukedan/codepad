@@ -42,7 +42,7 @@ namespace codepad::os {
 		/// A wrapper for reference-counted COM objects.
 		template <typename T> struct com_wrapper final :
 			public reference_counted_handle<com_wrapper<T>, T> {
-			friend reference_counted_handle;
+			friend reference_counted_handle<com_wrapper<T>, T>;
 		public:
 			/// Casting to parent types.
 			template <

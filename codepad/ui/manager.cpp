@@ -24,7 +24,7 @@ using namespace std::chrono;
 using namespace codepad::os;
 
 namespace codepad::ui {
-	manager::manager() {
+	manager::manager(settings &s) : _settings(s) {
 		// TODO use reflection in C++23 (?) for everything below
 		register_transition_function(CP_STRLIT("linear"), transition_functions::linear);
 		register_transition_function(CP_STRLIT("smoothstep"), transition_functions::smoothstep);

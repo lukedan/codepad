@@ -7,14 +7,6 @@
 /// Implementation of certain methods of commonly used elements.
 
 namespace codepad::ui {
-	settings::retriever_parser<double> &drag_deadzone::_get_radius_setting() {
-		static settings::retriever_parser<double> _setting = settings::get().create_retriever_parser<double>(
-			{u8"drag_deadzone_radius"}, settings::basic_parsers::basic_type_with_default<double>(5.0)
-		); // TODO use system default
-		return _setting;
-	}
-
-
 	scrollbar &scrollbar_drag_button::_get_bar() const {
 		return *dynamic_cast<scrollbar*>(logical_parent());
 	}

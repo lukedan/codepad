@@ -107,9 +107,6 @@ namespace codepad {
 			}
 			_has_calls = false;
 		}
-
-		/// Returns the global static \ref call_counter object.
-		static call_counter &get();
 	protected:
 		std::unordered_map<code_position, std::size_t> _counters; ///< The counters.
 		bool _has_calls = false; ///< Records if any calls have been registered.

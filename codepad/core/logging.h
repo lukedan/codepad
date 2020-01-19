@@ -122,6 +122,8 @@ namespace codepad {
 		explicit logger(std::vector<std::unique_ptr<log_sink>> sinks) :
 			sinks(std::move(sinks)), _creation(std::chrono::high_resolution_clock::now()) {
 		}
+		logger(const logger&) = delete; // HACK apigen
+		logger &operator=(const logger&) = delete; // HACK apigen
 
 		/// Creates a new \ref log_entry with the specified \ref log_level.
 		template <log_level Level> log_entry log(code_position cp) {

@@ -626,7 +626,25 @@ namespace codepad::editors::binary {
 		/// Called when \ref _buf has been modified, this function re-adjusts caret positions and invokes
 		/// \ref _on_content_modified().
 		void _on_end_edit(buffer::end_edit_info &info) {
-			// TODO fixup carets
+			// fixup carets
+			buffer::position_patcher patcher(info.positions);
+			caret_set newcarets;
+			if (info.source_element == this && info.type == edit_type::normal) {
+
+			} else {
+				for (const auto &cp : _carets.carets) {
+					caret_selection newpos;
+					if (cp.first.first < cp.first.second) {
+						newpos.first = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.first);
+						newpos.second = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.second);
+					} else {
+						newpos.first = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.first);
+						newpos.second = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.second);
+					}
+					newcarets.add(caret_set::entry(newpos, cp.second));
+				}
+			}
+			set_carets(std::move(newcarets));
 
 			_on_content_modified();
 		}
@@ -669,16 +687,17 @@ namespace codepad::editors::binary {
 
 			std::vector<str_t> profile{ "binary" };
 
+			auto &set = get_manager().get_settings();
 			set_font_by_name(
-				editor::get_font_family_setting().get_profile(profile.begin(), profile.end()).get_value()
+				editor::get_font_family_setting(set).get_profile(profile.begin(), profile.end()).get_value()
 			);
 			set_font_size(
-				editor::get_font_size_setting().get_profile(profile.begin(), profile.end()).get_value()
+				editor::get_font_size_setting(set).get_profile(profile.begin(), profile.end()).get_value()
 			);
 
 			// initialize _interaction_manager
 			_interaction_manager.set_contents_region(*this);
-			auto &modes = editor::get_interaction_modes_setting().get_profile(
+			auto &modes = editor::get_interaction_modes_setting(set).get_profile(
 				profile.begin(), profile.end()
 			).get_value();
 			for (auto &&mode_name : modes) {
