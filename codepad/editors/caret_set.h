@@ -117,8 +117,7 @@ namespace codepad::editors {
 
 		container carets; ///< The carets.
 
-		/// Calls \ref add_caret to add a caret to this set. Note that this operation may invalidate
-		/// \ref caret_data::bytepos_first and \ref caret_data::bytepos_second.
+		/// Calls \ref _add_impl() to add a caret to this set.
 		///
 		/// \param p The new caret to be added. The caret may be merged with overlapping carets.
 		/// \param merged Indicates whether any merging has taken place.
@@ -137,14 +136,13 @@ namespace codepad::editors {
 			Derived::_reset_impl(static_cast<Derived&>(*this));
 		}
 
-		/// Adds a caret to the given container, merging it with existing ones when necessary. Note that this
-		/// operation may invalidate \ref caret_data::bytepos_first and \ref caret_data::bytepos_second.
+		/// Adds a caret to the given container, merging it with existing ones when necessary.
 		///
 		/// \param cont The container.
 		/// \param et The caret to be added to the container.
 		/// \param merged Indicates whether the caret has been merged with existing ones.
 		/// \return An iterator of the container to the inserted caret.
-		inline static iterator add_caret(container &cont, entry et, bool &merged) {
+		inline static iterator add_caret_to(container &cont, entry et, bool &merged) {
 			merged = false;
 			auto minmaxv = std::minmax({et.first.first, et.first.second});
 			auto beg = cont.lower_bound(caret_selection(minmaxv.first, minmaxv.first));
@@ -166,9 +164,9 @@ namespace codepad::editors {
 			return cont.insert(et).first;
 		}
 		/// \overload
-		inline static iterator add_caret(container &cont, entry et) {
+		inline static iterator add_caret_to(container &cont, entry et) {
 			bool dummy;
-			return add_caret(cont, et, dummy);
+			return add_caret_to(cont, et, dummy);
 		}
 
 		/// Tests if the given position belongs to a selected region. Carets that have no selected regions
@@ -240,7 +238,7 @@ namespace codepad::editors {
 	protected:
 		/// Implementation of \ref add(). The derived class can declare a method with the same name to override this.
 		inline static iterator _add_impl(caret_set_base &set, entry p, bool &merged) {
-			return add_caret(set.carets, p, merged);
+			return add_caret_to(set.carets, p, merged);
 		}
 		/// Implementation of \ref reset(). The derived class can declare a method with the same name to override
 		/// this.

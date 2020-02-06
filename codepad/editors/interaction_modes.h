@@ -23,7 +23,7 @@ namespace codepad::editors {
 		virtual const CaretSet &get_carets() const = 0;
 		/// Removes the given caret.
 		virtual void remove_caret(typename CaretSet::const_iterator) = 0;
-		/// Returns the part of the \p CaretSet::entry that corresponds to a \ref caret-selection_position.
+		/// Returns the part of the \p CaretSet::entry that corresponds to a \ref caret_selection_position.
 		virtual caret_selection_position extract_caret_selection_position(const typename CaretSet::entry&) const = 0;
 	protected:
 		/// Called when temporary carets have been changed.
@@ -147,7 +147,7 @@ namespace codepad::editors {
 			return _cached_position;
 		}
 
-		/// Sets the \ref contents_region_proxy for this \ref interaction_manager.
+		/// Sets the \ref interactive_contents_region_base for this \ref interaction_manager.
 		void set_contents_region(interactive_contents_region_base<CaretSet> &rgn) {
 			_contents_region = &rgn;
 		}
@@ -223,8 +223,8 @@ namespace codepad::editors {
 		std::unique_ptr<mode_t> _active; ///< The currently active \ref interaction_mode.
 		interactive_contents_region_base<CaretSet> *_contents_region = nullptr; ///< The \ref contents_region_base.
 
-		/// Dispatches an event. If \ref _active is \p nullptr, then the \ref ActivatorPtr of each entry in
-		/// \ref _activators will be called. Otherwise, \ref ModePtr of \ref _active will be called, and \ref _active
+		/// Dispatches an event. If \ref _active is \p nullptr, then the \p ActivatorPtr of each entry in
+		/// \ref _activators will be called. Otherwise, \p ModePtr of \ref _active will be called, and \ref _active
 		/// will be disposed if necessary.
 		template <auto ActivatorPtr, auto ModePtr, typename ...Args> void _dispatch_event(Args &&...args) {
 			if (_active) {

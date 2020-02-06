@@ -10,30 +10,30 @@
 #include "../misc.h"
 
 namespace codepad::os {
-	template <typename T> inline void winapi_check(T v) {
-#ifdef CP_CHECK_SYSTEM_ERRORS
-		if (!v) {
-			logger::get().log_error(CP_HERE) << "WinAPI error code " << GetLastError();
-			assert_true_sys(false, "WinAPI error");
-		}
-#endif
-	}
-	inline void gdi_check(DWORD v) {
-		assert_true_sys(v != GDI_ERROR, "GDI error");
-	}
-	inline void gdi_check(HGDIOBJ v) {
-		assert_true_sys(v != HGDI_ERROR, "GDI error");
-	}
-	inline void com_check(HRESULT v) {
-#ifdef CP_CHECK_SYSTEM_ERRORS
-		if (v != S_OK) {
-			logger::get().log_error(CP_HERE) << "COM error code " << v;
-			assert_true_sys(false, "COM error");
-		}
-#endif
-	}
-
 	namespace _details {
+		template <typename T> inline void winapi_check(T v) {
+#ifdef CP_CHECK_SYSTEM_ERRORS
+			if (!v) {
+				logger::get().log_error(CP_HERE) << "WinAPI error code " << GetLastError();
+				assert_true_sys(false, "WinAPI error");
+			}
+#endif
+		}
+		inline void gdi_check(DWORD v) {
+			assert_true_sys(v != GDI_ERROR, "GDI error");
+		}
+		inline void gdi_check(HGDIOBJ v) {
+			assert_true_sys(v != HGDI_ERROR, "GDI error");
+		}
+		inline void com_check(HRESULT v) {
+#ifdef CP_CHECK_SYSTEM_ERRORS
+			if (v != S_OK) {
+				logger::get().log_error(CP_HERE) << "COM error code " << v;
+				assert_true_sys(false, "COM error");
+			}
+#endif
+		}
+
 		extern const int _key_id_mapping[ui::total_num_keys];
 		inline bool is_key_down_id(int vk) {
 			return (GetAsyncKeyState(vk) & 0x8000) != 0;
@@ -61,11 +61,11 @@ namespace codepad::os {
 				return &_handle;
 			}
 		protected:
-			/// Releases \ref _ptr.
+			/// Releases \ref _handle.
 			void _do_release() {
 				_handle->Release();
 			}
-			/// Increments the reference count of \ref _ptr.
+			/// Increments the reference count of \ref _handle.
 			void _do_add_ref() {
 				_handle->AddRef();
 			}
@@ -87,7 +87,7 @@ namespace codepad::os {
 			com_usage() {
 				HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 				if (hr != S_FALSE) {
-					com_check(hr);
+					_details::com_check(hr);
 				}
 			}
 			com_usage(const com_usage&) = delete;
@@ -145,18 +145,18 @@ namespace codepad::os {
 						CLSID_WICImagingFactory1, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
 					);
 				}
-				com_check(res);
+				_details::com_check(res);
 			}
 			/// Loads an image. The pixel foramt of the image is not certain; use \p WICConvertBitmapSource to convert
 			/// it to the desired format.
 			com_wrapper<IWICBitmapSource> load_image(const std::filesystem::path &filename) {
 				com_wrapper<IWICBitmapDecoder> decoder;
 				com_wrapper<IWICBitmapFrameDecode> frame;
-				com_check(_factory->CreateDecoderFromFilename(
+				_details::com_check(_factory->CreateDecoderFromFilename(
 					filename.c_str(), nullptr,
 					GENERIC_READ, WICDecodeMetadataCacheOnDemand, decoder.get_ref()
 				));
-				com_check(decoder->GetFrame(0, frame.get_ref()));
+				_details::com_check(decoder->GetFrame(0, frame.get_ref()));
 				return frame;
 			}
 

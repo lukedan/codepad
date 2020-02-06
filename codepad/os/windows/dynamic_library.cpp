@@ -24,7 +24,7 @@ namespace codepad::os {
 	}
 
 	void dynamic_library::_unload_impl(native_handle_t handle) {
-		winapi_check(FreeLibrary(handle));
+		_details::winapi_check(FreeLibrary(handle));
 	}
 
 	dynamic_library::symbol_t dynamic_library::find_symbol_raw(const str_t &name) const {

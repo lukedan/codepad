@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Structs and classes used to store carets for \ref codepad::editors::code::editor.
+/// Structs and classes used to store carets for \ref codepad::editors::code::contents_region.
 
 #include "../caret_set.h"
 

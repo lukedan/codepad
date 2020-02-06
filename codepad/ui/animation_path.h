@@ -15,7 +15,7 @@
 namespace codepad::ui {
 	class element;
 
-	/// Used to parse strings into \ref typed_animation_target_base.
+	/// Used to parse a string into \ref builder::member_information.
 	namespace animation_path {
 		/// A component in an animation path.
 		struct component {
@@ -216,7 +216,7 @@ namespace codepad::ui {
 				affects_layout ///< The property affects the element's layout.
 			};
 
-			/// Used to access members given an object and to create \ref animation_subject instances.
+			/// Used to access members given an object and to create \ref animation_subject_base instances.
 			template <typename Source> class member_access {
 			public:
 				/// Default virtual destructor.
@@ -291,7 +291,7 @@ namespace codepad::ui {
 			};
 
 			/// A \ref member_access_subject whose input is an \ref element. This struct calls
-			/// \ref mamager::invalidate_layout() and \ref manager::invalidate_visuals() appropriately.
+			/// \ref scheduler::invalidate_layout() and \ref scheduler::invalidate_visual() appropriately.
 			template <typename Output, element_property_type Type> class element_member_access_subject :
 				public member_access_subject<element, Output> {
 			public:
@@ -299,8 +299,8 @@ namespace codepad::ui {
 					member_access_subject<element, Output>(m, obj) {
 				}
 
-				/// Calls \ref member_access_subject::set(), then calls \ref manager::invalidate_layout() and/or
-				/// \ref manager::invalidate_visuals().
+				/// Calls \ref member_access_subject::set(), then calls \ref scheduler::invalidate_layout() and/or
+				/// \ref scheduler::invalidate_visual().
 				void set(Output) override;
 
 				/// Tests the equality between two subjects.
@@ -581,14 +581,14 @@ namespace codepad::ui {
 		std::any subject_data; ///< Data that need to live as long as \ref subject.
 
 	private:
-		/// The callback used by \ref from_element_custom() to invalidate the visual or layout of an element.
+		/// The callback used by \ref from_member() to invalidate the visual or layout of an element.
 		template <
 			animation_path::builder::element_property_type Type
 		> inline static void _element_subject_callback(element&);
 	public:
 		/// Creates a \ref animation_subject_information from a
 		/// \ref animation_path::builder::member_information<element> by calling
-		/// \ref animation_path::member_access::create_for_source().
+		/// \ref animation_path::builder::member_access::create_for_source().
 		inline static animation_subject_information from_element(
 			animation_path::builder::member_information<element> member, element &elem
 		) {
@@ -600,7 +600,7 @@ namespace codepad::ui {
 			return res;
 		}
 		/// Similar to \ref from_element(), but calls
-		/// \ref animation_path::member_access::create_for_element_with_callback().
+		/// \ref animation_path::builder::member_access::create_for_element_with_callback().
 		template <
 			typename Intermediate
 		> inline static animation_subject_information from_element_custom_with_callback(

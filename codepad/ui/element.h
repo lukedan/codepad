@@ -469,23 +469,19 @@ namespace codepad::ui {
 			lost_capture.invoke();
 		}
 
-		/// Called when the \ref manager updates all elements that have been registered. Updates can be scheduled for
-		/// various reasons, so derived classes should check for additional conditions when performing updates.
-		/// \ref _config is updated here by default, and \ref invalidate_visual is called when necessary.
+		/// Called when the \ref manager updates all elements that have been registered.
 		virtual void _on_update() {
 		}
 
 		/// Called when the element is about to be rendered.
-		/// Pushes a clip that prevents anything to be drawn outside of its layout.
 		virtual void _on_prerender();
-		/// Called when the element is rendered. Renders all visual geometries.
+		/// Called when the element is rendered. Renders all \ref visuals::geometries of \ref _params.
 		/// Derived classes should override this function to perform custom rendering.
 		virtual void _custom_render() const;
-		/// Called after the element has been rendered. Pops the clip pushed in \ref _on_prerender.
+		/// Called after the element has been rendered.
 		virtual void _on_postrender();
-		/// Renders the element if the element does not have \ref manager::predefined_states::render_invisible state.
-		/// This function first calls \ref _on_prerender, then updates \ref _state and renders the background, calls
-		/// \ref _custom_render, and finally calls \ref _on_postrender.
+		/// Renders the element if the element is visible for \ref visibility::visual. This function first calls
+		/// \ref _on_prerender(), then calls \ref _custom_render(), and finally calls \ref _on_postrender().
 		void _on_render();
 
 		/// Called by the element itself when its desired size has changed. It should be left for the parent to
@@ -618,7 +614,7 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Parses a segmented animation path and returns a corresponding \ref animation_path::bootstrapper. The
+		/// Parses a segmented animation path and returns a corresponding \ref animation_subject_information. The
 		/// default behavior is to simply call \ref animation_path::builder::get_common_element_property().
 		virtual animation_subject_information _parse_animation_path(
 			const animation_path::component_list &components
@@ -629,13 +625,13 @@ namespace codepad::ui {
 		}
 
 
-		/// Called immediately after the element is created to initialize it. Initializes \ref _config with the given
-		/// class. All derived classes should call \p base::_initialize <em>before</em> performing any other
-		/// initialization. It is primarily intended to avoid pitfalls associated with virtual function calls in
-		/// constructors to have this function.
+		/// Called immediately after the element is created to initialize it. Initializes \ref _params and
+		/// \ref _hotkeys with the given element class. All derived classes should call \p base::_initialize
+		/// <em>before</em> performing any other initialization. This functino is primarily used to avoid pitfalls
+		/// associated with virtual function calls in constructors to have this function.
 		///
 		/// \param cls The class of the element.
-		/// \param metrics The element's metrics configuration.
+		/// \param config The element's visual and layout configuration.
 		virtual void _initialize(str_view_t cls, const element_configuration &config);
 		/// Called after the logical parent of this element (which is a composite element) has been fully constructed,
 		/// i.e., it and all of its children (including this element) has been constructed and properly initialized.

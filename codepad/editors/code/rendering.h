@@ -782,7 +782,7 @@ namespace codepad::editors::code {
 				return false;
 			}
 			/// Handles a generic solid fragment. This includes the \ref image_gizmo_fragment, the
-			/// \ref text_giamo_fragment, the \ref tab_fragment, and the \ref invalid_codepoint_fragment.
+			/// \ref text_gizmo_fragment, the \ref tab_fragment, and the \ref invalid_codepoint_fragment.
 			template <typename Frag, typename Rendering> bool handle_fragment(
 				const Frag&, const Rendering &r, std::size_t steps, std::size_t posafter, caret_gatherer &rend
 			) {
@@ -793,13 +793,11 @@ namespace codepad::editors::code {
 
 			/// Called when the rest of the current line and possibly part of the next line are skipped.
 			///
-			/// \param steps The number of characters skipped.
 			/// \param posafter The text position after skipping.
+			/// \param stall Indicates whether the last skipped fragment is a stall.
 			/// \param x The right boundary of the last rendered fragment.
 			/// \param ymin The top boundary of the last line.
 			/// \param ymax The bottom boundary of the last line.
-			/// \param lineheight The height of a line.
-			/// \param stall Indicates whether the last skipped fragment is a stall.
 			/// \param rend The \ref caret_gatherer.
 			bool handle_line_skip(
 				std::size_t posafter, bool stall, double x, double ymin, double ymax, caret_gatherer &rend

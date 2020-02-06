@@ -418,7 +418,7 @@ namespace codepad {
 			src._handle = nullptr;
 			return *this;
 		}
-		/// Calls \ref _remove_ref() if necessary.
+		/// Calls \ref _check_release().
 		~reference_counted_handle() {
 			_check_release();
 		}

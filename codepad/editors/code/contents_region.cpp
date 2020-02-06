@@ -125,8 +125,7 @@ namespace codepad::editors::code {
 		// fixup carets
 		_adjust_recalculate_caret_char_positions(info);
 
-		content_modified.invoke();
-		_on_content_visual_changed();
+		_on_content_modified();
 	}
 
 	void contents_region::_custom_render() const {

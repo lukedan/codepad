@@ -252,7 +252,7 @@ namespace codepad::ui {
 			return u8"panel";
 		}
 	protected:
-		/// Calls \ref manager::invalidate_children_layout() to mark the layout of all children for update.
+		/// Calls \ref scheduler::invalidate_children_layout() to mark the layout of all children for updating.
 		void _invalidate_children_layout();
 
 		/// Called when an element is about to be added to this panel. Derived classes can override this function to
@@ -318,7 +318,7 @@ namespace codepad::ui {
 		}
 
 		/// Called to update the layout of all children. This is called automatically in \ref _on_layout_changed(),
-		/// or it can also be explicitly scheduled by using \ref element::notify_layout_change().
+		/// which in turn can also be explicitly scheduled by using \ref scheduler::notify_layout_change().
 		virtual void _on_update_children_layout() {
 			rectd client = get_client_region();
 			for (auto *elem : _children.items()) {
@@ -548,7 +548,6 @@ namespace codepad::ui {
 
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel with the given
 		/// orientation and client area. All elements must be children of the given \ref panel.
-		/// \ref element::notify_layout_change() is called automatically.
 		template <bool Vertical> inline static void layout_elements_in(
 			rectd client, const std::vector<element*> &elems
 		) {

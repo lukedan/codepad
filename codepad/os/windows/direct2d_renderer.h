@@ -174,7 +174,7 @@ namespace codepad::os::direct2d {
 		/// Returns the layout of the text.
 		rectd get_layout() const override {
 			DWRITE_TEXT_METRICS metrics;
-			com_check(_text->GetMetrics(&metrics));
+			_details::com_check(_text->GetMetrics(&metrics));
 			return rectd::from_xywh(
 				metrics.left, metrics.top, metrics.widthIncludingTrailingWhitespace, metrics.height
 			);
@@ -191,9 +191,9 @@ namespace codepad::os::direct2d {
 			if (res == E_NOT_SUFFICIENT_BUFFER) {
 				large_buffer.resize(ressize);
 				bufptr = large_buffer.data();
-				com_check(_text->GetLineMetrics(bufptr, linecount, &linecount));
+				_details::com_check(_text->GetLineMetrics(bufptr, linecount, &linecount));
 			} else {
-				com_check(res);
+				_details::com_check(res);
 			}
 			std::vector<ui::line_metrics> resvec;
 			resvec.reserve(ressize);
@@ -207,7 +207,7 @@ namespace codepad::os::direct2d {
 		ui::caret_hit_test_result hit_test(vec2d pos) const override {
 			BOOL trailing, inside;
 			DWRITE_HIT_TEST_METRICS metrics;
-			com_check(_text->HitTestPoint(
+			_details::com_check(_text->HitTestPoint(
 				static_cast<FLOAT>(pos.x), static_cast<FLOAT>(pos.y), &trailing, &inside, &metrics
 			));
 			return ui::caret_hit_test_result(
@@ -220,7 +220,7 @@ namespace codepad::os::direct2d {
 		rectd get_character_placement(std::size_t pos) const override {
 			FLOAT px, py;
 			DWRITE_HIT_TEST_METRICS metrics;
-			com_check(_text->HitTestTextPosition(static_cast<UINT32>(pos), false, &px, &py, &metrics));
+			_details::com_check(_text->HitTestTextPosition(static_cast<UINT32>(pos), false, &px, &py, &metrics));
 			return rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
 		}
 
@@ -228,29 +228,29 @@ namespace codepad::os::direct2d {
 		void set_text_color(colord, std::size_t, std::size_t) override;
 		/// Calls \p IDWriteTextLayout::SetFontFamilyName().
 		void set_font_family(str_view_t family, std::size_t beg, std::size_t len) override {
-			com_check(_text->SetFontFamilyName(
+			_details::com_check(_text->SetFontFamilyName(
 				_details::utf8_to_wstring(family).c_str(), _details::make_text_range(beg, len)
 			));
 		}
 		/// Calls \p IDWriteTextLayout::SetFontSize().
 		void set_font_size(double size, std::size_t beg, std::size_t len) override {
-			com_check(_text->SetFontSize(static_cast<FLOAT>(size), _details::make_text_range(beg, len)));
+			_details::com_check(_text->SetFontSize(static_cast<FLOAT>(size), _details::make_text_range(beg, len)));
 		}
 		/// Calls \p IDWriteTextLayout::SetFontStyle().
 		void set_font_style(ui::font_style style, std::size_t beg, std::size_t len) override {
-			com_check(_text->SetFontStyle(
+			_details::com_check(_text->SetFontStyle(
 				_details::cast_font_style(style), _details::make_text_range(beg, len)
 			));
 		}
 		/// Calls \p IDWriteTextLayout::SetFontStyle().
 		void set_font_weight(ui::font_weight weight, std::size_t beg, std::size_t len) override {
-			com_check(_text->SetFontWeight(
+			_details::com_check(_text->SetFontWeight(
 				_details::cast_font_weight(weight), _details::make_text_range(beg, len)
 			));
 		}
 		/// Calls \p IDWriteTextLayout::SetFontStretch().
 		void set_font_stretch(ui::font_stretch stretch, std::size_t beg, std::size_t len) override {
-			com_check(_text->SetFontStretch(
+			_details::com_check(_text->SetFontStretch(
 				_details::cast_font_stretch(stretch), _details::make_text_range(beg, len)
 			));
 		}
@@ -283,7 +283,7 @@ namespace codepad::os::direct2d {
 		/// Calls \p IDWriteFont::HasCharacter to determine if the font contains a glyph for the given character.
 		bool has_character(codepoint cp) const override {
 			BOOL result;
-			com_check(_font->HasCharacter(cp, &result));
+			_details::com_check(_font->HasCharacter(cp, &result));
 			return result;
 		}
 
@@ -292,8 +292,8 @@ namespace codepad::os::direct2d {
 			UINT32 cp_u32 = cp;
 			UINT16 glyph;
 			DWRITE_GLYPH_METRICS gmetrics;
-			com_check(_font_face->GetGlyphIndices(&cp_u32, 1, &glyph));
-			com_check(_font_face->GetDesignGlyphMetrics(&glyph, 1, &gmetrics, false));
+			_details::com_check(_font_face->GetGlyphIndices(&cp_u32, 1, &glyph));
+			_details::com_check(_font_face->GetDesignGlyphMetrics(&glyph, 1, &gmetrics, false));
 			return gmetrics.advanceWidth / static_cast<double>(_metrics.designUnitsPerEm);
 		}
 	protected:
@@ -311,13 +311,13 @@ namespace codepad::os::direct2d {
 			ui::font_style style, ui::font_weight weight, ui::font_stretch stretch
 		) const override {
 			auto result = std::make_unique<font>();
-			com_check(_family->GetFirstMatchingFont(
+			_details::com_check(_family->GetFirstMatchingFont(
 				_details::cast_font_weight(weight),
 				_details::cast_font_stretch(stretch),
 				_details::cast_font_style(style),
 				result->_font.get_ref()
 			));
-			com_check(result->_font->CreateFontFace(result->_font_face.get_ref()));
+			_details::com_check(result->_font->CreateFontFace(result->_font_face.get_ref()));
 			result->_font_face->GetMetrics(&result->_metrics);
 			return result;
 		}
@@ -533,8 +533,8 @@ namespace codepad::os::direct2d {
 
 		/// Initializes \ref _geom.
 		void _start(ID2D1Factory *factory) {
-			com_check(factory->CreatePathGeometry(_geom.get_ref()));
-			com_check(_geom->Open(_sink.get_ref()));
+			_details::com_check(factory->CreatePathGeometry(_geom.get_ref()));
+			_details::com_check(_geom->Open(_sink.get_ref()));
 			_stroking = false;
 		}
 		/// Ends the path, releases \ref _sink, and returns the geometry.
@@ -542,7 +542,7 @@ namespace codepad::os::direct2d {
 			if (_stroking) {
 				_sink->EndFigure(D2D1_FIGURE_END_OPEN);
 			}
-			com_check(_sink->Close());
+			_details::com_check(_sink->Close());
 			_sink.reset();
 			_details::com_wrapper<ID2D1PathGeometry> result;
 			std::swap(result, _geom);
@@ -616,7 +616,7 @@ namespace codepad::os::direct2d {
 				D3D_FEATURE_LEVEL_9_1
 			};
 			D3D_FEATURE_LEVEL created_feature_level;
-			com_check(D3D11CreateDevice(
+			_details::com_check(D3D11CreateDevice(
 				nullptr,
 				D3D_DRIVER_TYPE_HARDWARE,
 				nullptr,
@@ -629,25 +629,25 @@ namespace codepad::os::direct2d {
 				nullptr
 			));
 			logger::get().log_debug(CP_HERE) << "D3D feature level: " << created_feature_level;
-			com_check(_d3d_device->QueryInterface(_dxgi_device.get_ref()));
+			_details::com_check(_d3d_device->QueryInterface(_dxgi_device.get_ref()));
 
-			com_check(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, _d2d_factory.get_ref()));
-			com_check(_d2d_factory->CreateDevice(_dxgi_device.get(), _d2d_device.get_ref()));
-			com_check(_d2d_device->CreateDeviceContext(
+			_details::com_check(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, _d2d_factory.get_ref()));
+			_details::com_check(_d2d_factory->CreateDevice(_dxgi_device.get(), _d2d_device.get_ref()));
+			_details::com_check(_d2d_device->CreateDeviceContext(
 				D2D1_DEVICE_CONTEXT_OPTIONS_NONE, _d2d_device_context.get_ref()
 			));
 			_d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 			// create brush for text
-			com_check(_d2d_device_context->CreateSolidColorBrush(
+			_details::com_check(_d2d_device_context->CreateSolidColorBrush(
 				_details::cast_color(colord()), _text_brush.get_ref()
 			));
 
-			com_check(DWriteCreateFactory(
+			_details::com_check(DWriteCreateFactory(
 				DWRITE_FACTORY_TYPE_SHARED,
 				__uuidof(IDWriteFactory4),
 				reinterpret_cast<IUnknown**>(_dwrite_factory.get_ref())
 			));
-			com_check(_dwrite_factory->CreateTextAnalyzer(_dwrite_text_analyzer.get_ref()));
+			_details::com_check(_dwrite_factory->CreateTextAnalyzer(_dwrite_text_analyzer.get_ref()));
 		}
 
 		/// Creates a render target of the given size.
@@ -668,9 +668,9 @@ namespace codepad::os::direct2d {
 			texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 			texture_desc.CPUAccessFlags = 0;
 			texture_desc.MiscFlags = 0;
-			com_check(_d3d_device->CreateTexture2D(&texture_desc, nullptr, resrt->_texture.get_ref()));
-			com_check(resrt->_texture->QueryInterface(surface.get_ref()));
-			com_check(_d2d_device_context->CreateBitmapFromDxgiSurface(
+			_details::com_check(_d3d_device->CreateTexture2D(&texture_desc, nullptr, resrt->_texture.get_ref()));
+			_details::com_check(resrt->_texture->QueryInterface(surface.get_ref()));
+			_details::com_check(_d2d_device_context->CreateBitmapFromDxgiSurface(
 				surface.get(),
 				D2D1::BitmapProperties1(
 					D2D1_BITMAP_OPTIONS_TARGET,
@@ -690,8 +690,8 @@ namespace codepad::os::direct2d {
 			_details::com_wrapper<IWICBitmapSource> converted;
 			_details::com_wrapper<IWICBitmapSource> img = _details::wic_image_loader::get().load_image(bmp);
 
-			com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppPBGRA, img.get(), converted.get_ref()));
-			com_check(_d2d_device_context->CreateBitmapFromWicBitmap(
+			_details::com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppPBGRA, img.get(), converted.get_ref()));
+			_details::com_check(_d2d_device_context->CreateBitmapFromWicBitmap(
 				converted.get(),
 				D2D1::BitmapProperties1(
 					D2D1_BITMAP_OPTIONS_NONE,
@@ -708,17 +708,17 @@ namespace codepad::os::direct2d {
 		/// Creates a \p IDWriteTextFormat.
 		std::unique_ptr<ui::font_family> find_font_family(str_view_t family) override {
 			_details::com_wrapper<IDWriteFontCollection> fonts;
-			com_check(_dwrite_factory->GetSystemFontCollection(fonts.get_ref(), false)); // no need to hurry
+			_details::com_check(_dwrite_factory->GetSystemFontCollection(fonts.get_ref(), false)); // no need to hurry
 
 			UINT32 index = 0;
 			BOOL exist = false;
-			com_check(fonts->FindFamilyName(os::_details::utf8_to_wstring(family).c_str(), &index, &exist));
+			_details::com_check(fonts->FindFamilyName(os::_details::utf8_to_wstring(family).c_str(), &index, &exist));
 			if (!exist) {
 				return nullptr;
 			}
 
 			auto res = std::make_unique<font_family>();
-			com_check(fonts->GetFontFamily(index, res->_family.get_ref()));
+			_details::com_check(fonts->GetFontFamily(index, res->_family.get_ref()));
 			return res;
 		}
 
@@ -741,10 +741,10 @@ namespace codepad::os::direct2d {
 			assert_true_usage(_render_stack.top().matrices.size() == 1, "push_matrix/pop_matrix calls mismatch");
 			_render_stack.pop();
 			if (_render_stack.empty()) {
-				com_check(_d2d_device_context->EndDraw());
+				_details::com_check(_d2d_device_context->EndDraw());
 				_d2d_device_context->SetTarget(nullptr); // so that windows can be resized normally
 				for (IDXGISwapChain *chain : _present_chains) {
-					com_check(chain->Present(0, 0));
+					_details::com_check(chain->Present(0, 0));
 				}
 				_present_chains.clear();
 			} else {
@@ -791,7 +791,7 @@ namespace codepad::os::direct2d {
 			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
 		) override {
 			_details::com_wrapper<ID2D1EllipseGeometry> geom;
-			com_check(_d2d_factory->CreateEllipseGeometry(
+			_details::com_check(_d2d_factory->CreateEllipseGeometry(
 				D2D1::Ellipse(
 					_details::cast_point(center), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
 				),
@@ -804,7 +804,7 @@ namespace codepad::os::direct2d {
 			rectd rect, const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
 		) override {
 			_details::com_wrapper<ID2D1RectangleGeometry> geom;
-			com_check(_d2d_factory->CreateRectangleGeometry(_details::cast_rect(rect), geom.get_ref()));
+			_details::com_check(_d2d_factory->CreateRectangleGeometry(_details::cast_rect(rect), geom.get_ref()));
 			_draw_geometry(std::move(geom), brush, pen);
 		}
 		/// Draws a \p ID2D1RoundedRectangleGeometry.
@@ -813,7 +813,7 @@ namespace codepad::os::direct2d {
 			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
 		) override {
 			_details::com_wrapper<ID2D1RoundedRectangleGeometry> geom;
-			com_check(_d2d_factory->CreateRoundedRectangleGeometry(
+			_details::com_check(_d2d_factory->CreateRoundedRectangleGeometry(
 				D2D1::RoundedRect(
 					_details::cast_rect(region), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
 				),
@@ -831,7 +831,7 @@ namespace codepad::os::direct2d {
 		/// Creates a \p ID2D1EllipseGeometry and pushes it as a clip.
 		void push_ellipse_clip(vec2d center, double radiusx, double radiusy) override {
 			_details::com_wrapper<ID2D1EllipseGeometry> geom;
-			com_check(_d2d_factory->CreateEllipseGeometry(D2D1::Ellipse(
+			_details::com_check(_d2d_factory->CreateEllipseGeometry(D2D1::Ellipse(
 				_details::cast_point(center), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
 			), geom.get_ref()));
 			_push_layer(std::move(geom));
@@ -839,13 +839,13 @@ namespace codepad::os::direct2d {
 		/// Creates a \p ID2D1RectangleGeometry and pushes it as a clip.
 		void push_rectangle_clip(rectd rect) override {
 			_details::com_wrapper<ID2D1RectangleGeometry> geom;
-			com_check(_d2d_factory->CreateRectangleGeometry(_details::cast_rect(rect), geom.get_ref()));
+			_details::com_check(_d2d_factory->CreateRectangleGeometry(_details::cast_rect(rect), geom.get_ref()));
 			_push_layer(std::move(geom));
 		}
 		/// Creates a \p ID2D1RoundedRectangleGeometry and pushes it as a clip.
 		void push_rounded_rectangle_clip(rectd rect, double radiusx, double radiusy) override {
 			_details::com_wrapper<ID2D1RoundedRectangleGeometry> geom;
-			com_check(_d2d_factory->CreateRoundedRectangleGeometry(D2D1::RoundedRect(
+			_details::com_check(_d2d_factory->CreateRoundedRectangleGeometry(D2D1::RoundedRect(
 				_details::cast_rect(rect), static_cast<FLOAT>(radiusx), static_cast<FLOAT>(radiusy)
 			), geom.get_ref()));
 			_push_layer(std::move(geom));
@@ -974,16 +974,16 @@ namespace codepad::os::direct2d {
 				_d2d_device_context->DrawGlyphRun(_details::cast_point(pos), &run, _text_brush.get());
 
 			} else { // draw color glyphs
-				com_check(has_color);
+				_details::com_check(has_color);
 				while (true) {
 					BOOL have_more = false;
-					com_check(color_glyphs->MoveNext(&have_more));
+					_details::com_check(color_glyphs->MoveNext(&have_more));
 					if (!have_more) {
 						break;
 					}
 
 					const DWRITE_COLOR_GLYPH_RUN1 *colored_run;
-					com_check(color_glyphs->GetCurrentRun(&colored_run));
+					_details::com_check(color_glyphs->GetCurrentRun(&colored_run));
 					D2D1_POINT_2F baseline_origin = D2D1::Point2F(
 						colored_run->baselineOriginX, colored_run->baselineOriginY
 					);
@@ -1119,7 +1119,7 @@ namespace codepad::os::direct2d {
 			const ui::brush_parameters::solid_color &brush_def
 		) {
 			_details::com_wrapper<ID2D1SolidColorBrush> brush;
-			com_check(_d2d_device_context->CreateSolidColorBrush(
+			_details::com_check(_d2d_device_context->CreateSolidColorBrush(
 				_details::cast_color(brush_def.color), brush.get_ref()
 			));
 			return brush;
@@ -1133,7 +1133,7 @@ namespace codepad::os::direct2d {
 			for (const auto &s : stops_def) {
 				stops.emplace_back(D2D1::GradientStop(static_cast<FLOAT>(s.position), _details::cast_color(s.color)));
 			}
-			com_check(_d2d_device_context->CreateGradientStopCollection(
+			_details::com_check(_d2d_device_context->CreateGradientStopCollection(
 				stops.data(), static_cast<UINT32>(stops.size()), D2D1_GAMMA_2_2, D2D1_EXTEND_MODE_CLAMP,
 				gradients.get_ref()
 			)); // TODO clamp mode
@@ -1145,7 +1145,7 @@ namespace codepad::os::direct2d {
 		) {
 			_details::com_wrapper<ID2D1LinearGradientBrush> brush;
 			if (brush_def.gradients) {
-				com_check(_d2d_device_context->CreateLinearGradientBrush(
+				_details::com_check(_d2d_device_context->CreateLinearGradientBrush(
 					D2D1::LinearGradientBrushProperties(
 						_details::cast_point(brush_def.from), _details::cast_point(brush_def.to)
 					),
@@ -1161,7 +1161,7 @@ namespace codepad::os::direct2d {
 		) {
 			_details::com_wrapper<ID2D1RadialGradientBrush> brush;
 			if (brush_def.gradients) {
-				com_check(_d2d_device_context->CreateRadialGradientBrush(
+				_details::com_check(_d2d_device_context->CreateRadialGradientBrush(
 					D2D1::RadialGradientBrushProperties(
 						_details::cast_point(brush_def.center), D2D1::Point2F(),
 						static_cast<FLOAT>(brush_def.radius), static_cast<FLOAT>(brush_def.radius)
@@ -1178,7 +1178,7 @@ namespace codepad::os::direct2d {
 		) {
 			_details::com_wrapper<ID2D1BitmapBrush> brush;
 			if (brush_def.image) {
-				com_check(_d2d_device_context->CreateBitmapBrush(
+				_details::com_check(_d2d_device_context->CreateBitmapBrush(
 					_details::cast_bitmap(*brush_def.image)._bitmap.get(),
 					D2D1::BitmapBrushProperties(), // TODO extend modes
 					brush.get_ref()
@@ -1190,7 +1190,7 @@ namespace codepad::os::direct2d {
 		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::brush_parameters::none&) {
 			return _details::com_wrapper<ID2D1Brush>();
 		}
-		/// Creates a \p ID2D1Brush from the given \ref ui::brush specification.
+		/// Creates a \p ID2D1Brush from the given \ref ui::generic_brush_parameters specification.
 		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::generic_brush_parameters &b) {
 			auto brush = std::visit([this](auto &&brush) {
 				return _details::com_wrapper<ID2D1Brush>(_create_brush(brush));
@@ -1211,7 +1211,7 @@ namespace codepad::os::direct2d {
 			// use new to access protedted constructor
 			auto res = std::unique_ptr<formatted_text>(new formatted_text(*this));
 			_details::com_wrapper<IDWriteTextFormat> format;
-			com_check(_dwrite_factory->CreateTextFormat(
+			_details::com_check(_dwrite_factory->CreateTextFormat(
 				_details::utf8_to_wstring(fmt.family).c_str(),
 				nullptr,
 				_details::cast_font_weight(fmt.weight),
@@ -1221,10 +1221,10 @@ namespace codepad::os::direct2d {
 				L"", // FIXME is this good practice?
 				format.get_ref()
 			));
-			com_check(format->SetWordWrapping(_details::cast_wrapping_mode(wrap)));
-			com_check(format->SetTextAlignment(_details::cast_horizontal_text_alignment(halign)));
-			com_check(format->SetParagraphAlignment(_details::cast_vertical_text_alignment(valign)));
-			com_check(_dwrite_factory->CreateTextLayout(
+			_details::com_check(format->SetWordWrapping(_details::cast_wrapping_mode(wrap)));
+			_details::com_check(format->SetTextAlignment(_details::cast_horizontal_text_alignment(halign)));
+			_details::com_check(format->SetParagraphAlignment(_details::cast_vertical_text_alignment(valign)));
+			_details::com_check(_dwrite_factory->CreateTextLayout(
 				text.data(), static_cast<UINT32>(text.size()),
 				format.get(),
 				static_cast<FLOAT>(maxsize.x), static_cast<FLOAT>(maxsize.y),
@@ -1283,7 +1283,7 @@ namespace codepad::os::direct2d {
 					break;
 				}
 				if (res != E_NOT_SUFFICIENT_BUFFER) {
-					com_check(res); // doomed to fail
+					_details::com_check(res); // doomed to fail
 				}
 			}
 			result->_glyph_count = static_cast<std::size_t>(glyph_count);
@@ -1292,7 +1292,7 @@ namespace codepad::os::direct2d {
 			result->_glyph_advances = std::make_unique<FLOAT[]>(result->_glyph_count);
 			result->_glyph_offsets = std::make_unique<DWRITE_GLYPH_OFFSET[]>(result->_glyph_count);
 
-			com_check(_dwrite_text_analyzer->GetGlyphPlacements(
+			_details::com_check(_dwrite_text_analyzer->GetGlyphPlacements(
 				text.data(), result->_cluster_map.get(), text_props.get(), static_cast<UINT32>(text.size()),
 				result->_glyphs.get(), glyph_props.get(), glyph_count,
 				result->_font_face.get(), static_cast<FLOAT>(size), false, false,
@@ -1332,9 +1332,9 @@ namespace codepad::os::direct2d {
 		/// Returns the \p IDXGIFactory associated with \ref _dxgi_device.
 		_details::com_wrapper<IDXGIFactory2> _get_dxgi_factory() {
 			_details::com_wrapper<IDXGIAdapter> adapter;
-			com_check(_dxgi_device->GetAdapter(adapter.get_ref()));
+			_details::com_check(_dxgi_device->GetAdapter(adapter.get_ref()));
 			_details::com_wrapper<IDXGIFactory2> factory;
-			com_check(adapter->GetParent(IID_PPV_ARGS(factory.get_ref())));
+			_details::com_check(adapter->GetParent(IID_PPV_ARGS(factory.get_ref())));
 			return factory;
 		}
 		/// Creates a \p ID2DBitmap1 from a \p IDXGISwapChain1.
@@ -1343,8 +1343,8 @@ namespace codepad::os::direct2d {
 		) {
 			_details::com_wrapper<IDXGISurface> surface;
 			_details::com_wrapper<ID2D1Bitmap1> bitmap;
-			com_check(chain->GetBuffer(0, IID_PPV_ARGS(surface.get_ref())));
-			com_check(_d2d_device_context->CreateBitmapFromDxgiSurface(
+			_details::com_check(chain->GetBuffer(0, IID_PPV_ARGS(surface.get_ref())));
+			_details::com_check(_d2d_device_context->CreateBitmapFromDxgiSurface(
 				surface.get(),
 				D2D1::BitmapProperties1(
 					D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
@@ -1377,7 +1377,7 @@ namespace codepad::os::direct2d {
 			swapchain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
 			swapchain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 			swapchain_desc.Flags = 0;
-			com_check(_get_dxgi_factory()->CreateSwapChainForHwnd(
+			_details::com_check(_get_dxgi_factory()->CreateSwapChainForHwnd(
 				_d3d_device.get(), wnd.get_native_handle(), &swapchain_desc,
 				nullptr, nullptr, actual_data.swap_chain.get_ref()
 			));
@@ -1390,7 +1390,7 @@ namespace codepad::os::direct2d {
 			wnd.size_changed += [this, pwnd = &wnd](ui::window_base::size_changed_info&) {
 				auto &data = _window_data::get(*pwnd);
 				data.target.reset(); // must release bitmap before resizing
-				com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
+				_details::com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 				// recreate bitmap
 				data.target = _create_bitmap_from_swap_chain(data.swap_chain.get(), pwnd->get_scaling_factor());
 			};
@@ -1398,7 +1398,7 @@ namespace codepad::os::direct2d {
 			wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window_base::scaling_factor_changed_info &p) {
 				auto &data = _window_data::get(*pwnd);
 				data.target.reset(); // must release bitmap before resizing
-				com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
+				_details::com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 				// recreate bitmap
 				data.target = _create_bitmap_from_swap_chain(data.swap_chain.get(), p.new_value);
 			};
@@ -1413,6 +1413,6 @@ namespace codepad::os::direct2d {
 	inline void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
 		_details::com_wrapper<ID2D1SolidColorBrush> brush;
 		_rend->_d2d_device_context->CreateSolidColorBrush(_details::cast_color(c), brush.get_ref());
-		com_check(_text->SetDrawingEffect(brush.get(), _details::make_text_range(beg, len)));
+		_details::com_check(_text->SetDrawingEffect(brush.get(), _details::make_text_range(beg, len)));
 	}
 }

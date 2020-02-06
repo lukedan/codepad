@@ -4,7 +4,7 @@
 #include "caret_set.h"
 
 /// \file
-/// Implementation of certain methods of \ref caret_set.
+/// Implementation of certain methods of \ref codepad::editors::code::caret_set.
 
 #include "interpretation.h"
 

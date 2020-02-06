@@ -16,12 +16,7 @@
 #include "misc.h"
 
 namespace codepad::os {
-	class software_renderer;
-	class opengl_renderer;
-
 	class window : public ui::window_base {
-		friend class software_renderer;
-		friend class opengl_renderer;
 		friend ui::element;
 		friend ui::scheduler;
 	public:
@@ -32,7 +27,7 @@ namespace codepad::os {
 		explicit window(const str_t &clsname, window *parent = nullptr) {
 			auto u16str = _details::utf8_to_wstring(clsname.c_str());
 			_wndclass::get();
-			winapi_check(_hwnd = CreateWindowEx(
+			_details::winapi_check(_hwnd = CreateWindowEx(
 				WS_EX_ACCEPTFILES, reinterpret_cast<LPCTSTR>(static_cast<std::size_t>(_wndclass::get().atom)),
 				reinterpret_cast<LPCTSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
 				CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
@@ -42,29 +37,29 @@ namespace codepad::os {
 
 		void set_caption(const str_t &cap) override {
 			auto u16str = _details::utf8_to_wstring(cap.c_str());
-			winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
+			_details::winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
 		}
 		vec2d get_position() const override {
 			POINT tl;
 			tl.x = tl.y = 0;
-			winapi_check(ClientToScreen(_hwnd, &tl));
+			_details::winapi_check(ClientToScreen(_hwnd, &tl));
 			return vec2d(static_cast<double>(tl.x), static_cast<double>(tl.y));
 		}
 		void set_position(vec2d pos) override {
 			RECT r;
 			POINT tl;
 			tl.x = tl.y = 0;
-			winapi_check(GetWindowRect(_hwnd, &r));
-			winapi_check(ClientToScreen(_hwnd, &tl));
+			_details::winapi_check(GetWindowRect(_hwnd, &r));
+			_details::winapi_check(ClientToScreen(_hwnd, &tl));
 			tl.x -= r.left;
 			tl.y -= r.top;
-			winapi_check(SetWindowPos(
+			_details::winapi_check(SetWindowPos(
 				_hwnd, nullptr, static_cast<int>(pos.x) - tl.x, static_cast<int>(pos.y) - tl.y, 0, 0, SWP_NOSIZE
 			));
 		}
 		vec2d get_client_size() const override {
 			RECT r;
-			winapi_check(GetClientRect(_hwnd, &r));
+			_details::winapi_check(GetClientRect(_hwnd, &r));
 			return _physical_to_logical_position(vec2d(
 				static_cast<double>(r.right), static_cast<double>(r.bottom)
 			));
@@ -72,9 +67,9 @@ namespace codepad::os {
 		void set_client_size(vec2d sz) override {
 			sz = _logical_to_physical_position(sz);
 			RECT wndrgn, cln;
-			winapi_check(GetWindowRect(_hwnd, &wndrgn));
-			winapi_check(GetClientRect(_hwnd, &cln));
-			winapi_check(SetWindowPos(
+			_details::winapi_check(GetWindowRect(_hwnd, &wndrgn));
+			_details::winapi_check(GetClientRect(_hwnd, &cln));
+			_details::winapi_check(SetWindowPos(
 				_hwnd, nullptr, 0, 0,
 				wndrgn.right - wndrgn.left - cln.right + static_cast<int>(std::round(sz.x)),
 				wndrgn.bottom - wndrgn.top - cln.bottom + static_cast<int>(std::round(sz.y)),
@@ -87,7 +82,7 @@ namespace codepad::os {
 		}
 
 		void activate() override {
-			winapi_check(SetWindowPos(_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
+			_details::winapi_check(SetWindowPos(_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
 		}
 		void prompt_ready() override {
 			FLASHWINFO fwi;
@@ -130,7 +125,7 @@ namespace codepad::os {
 		}
 		/// Calls \p SetWindowPos() to set whether this window is above other normal windows.
 		void set_topmost(bool topmost) override {
-			winapi_check(SetWindowPos(
+			_details::winapi_check(SetWindowPos(
 				_hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
 			));
 		}
@@ -141,7 +136,7 @@ namespace codepad::os {
 
 		bool hit_test_full_client(vec2d v) const override {
 			RECT r;
-			winapi_check(GetWindowRect(_hwnd, &r));
+			_details::winapi_check(GetWindowRect(_hwnd, &r));
 			return r.left <= v.x && r.right > v.x && r.top <= v.y && r.bottom > v.y;
 		}
 
@@ -149,7 +144,7 @@ namespace codepad::os {
 			POINT p;
 			p.x = static_cast<int>(std::round(v.x));
 			p.y = static_cast<int>(std::round(v.y));
-			winapi_check(ScreenToClient(_hwnd, &p));
+			_details::winapi_check(ScreenToClient(_hwnd, &p));
 			return _physical_to_logical_position(vec2d(
 				static_cast<double>(p.x), static_cast<double>(p.y)
 			));
@@ -159,7 +154,7 @@ namespace codepad::os {
 			POINT p;
 			p.x = static_cast<int>(std::round(v.x));
 			p.y = static_cast<int>(std::round(v.y));
-			winapi_check(ClientToScreen(_hwnd, &p));
+			_details::winapi_check(ClientToScreen(_hwnd, &p));
 			return vec2d(static_cast<double>(p.x), static_cast<double>(p.y));
 		}
 
@@ -169,7 +164,7 @@ namespace codepad::os {
 		}
 		void release_mouse_capture() override {
 			window_base::release_mouse_capture();
-			winapi_check(ReleaseCapture());
+			_details::winapi_check(ReleaseCapture());
 		}
 
 		void set_active_caret_position(rectd pos) override {
@@ -262,7 +257,7 @@ namespace codepad::os {
 					rgn.dwStyle = CFS_CANDIDATEPOS;
 					rgn.ptCurrentPos.x = scaled_caret.xmin;
 					rgn.ptCurrentPos.y = scaled_caret.ymax;
-					winapi_check(ImmSetCandidateWindow(context, &rgn));
+					_details::winapi_check(ImmSetCandidateWindow(context, &rgn));
 
 					rgn.dwStyle = CFS_EXCLUDE;
 					rgn.ptCurrentPos.x = scaled_caret.xmin;
@@ -271,14 +266,16 @@ namespace codepad::os {
 					rgn.rcArea.right = scaled_caret.xmax;
 					rgn.rcArea.top = scaled_caret.ymin;
 					rgn.rcArea.bottom = scaled_caret.ymax;
-					winapi_check(ImmSetCandidateWindow(context, &rgn));
+					_details::winapi_check(ImmSetCandidateWindow(context, &rgn));
 
-					winapi_check(ImmReleaseContext(wnd._hwnd, context));
+					_details::winapi_check(ImmReleaseContext(wnd._hwnd, context));
 				}
 
 				if (_compositing) {
-					winapi_check(CreateCaret(wnd._hwnd, nullptr, scaled_caret.width(), scaled_caret.height()));
-					winapi_check(SetCaretPos(scaled_caret.xmin, scaled_caret.ymin));
+					_details::winapi_check(
+						CreateCaret(wnd._hwnd, nullptr, scaled_caret.width(), scaled_caret.height())
+					);
+					_details::winapi_check(SetCaretPos(scaled_caret.xmin, scaled_caret.ymin));
 				}
 			}
 
@@ -287,8 +284,8 @@ namespace codepad::os {
 					DestroyCaret();
 					HIMC context = ImmGetContext(wnd._hwnd);
 					if (context) {
-						winapi_check(ImmNotifyIME(context, NI_COMPOSITIONSTR, signal, 0));
-						winapi_check(ImmReleaseContext(wnd._hwnd, context));
+						_details::winapi_check(ImmNotifyIME(context, NI_COMPOSITIONSTR, signal, 0));
+						_details::winapi_check(ImmReleaseContext(wnd._hwnd, context));
 					}
 					_compositing = false;
 				}
@@ -302,7 +299,7 @@ namespace codepad::os {
 		inline static window *_get_associated_window(HWND hwnd) {
 			if (hwnd) {
 				DWORD atom;
-				winapi_check(atom = GetClassLong(hwnd, GCW_ATOM));
+				_details::winapi_check(atom = GetClassLong(hwnd, GCW_ATOM));
 				if (atom == _wndclass::get().atom) { // the correct class
 					return reinterpret_cast<window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 				}
@@ -316,7 +313,7 @@ namespace codepad::os {
 		struct _wndclass {
 			_wndclass();
 			~_wndclass() {
-				winapi_check(UnregisterClass(reinterpret_cast<LPCTSTR>(atom), GetModuleHandle(nullptr)));
+				_details::winapi_check(UnregisterClass(reinterpret_cast<LPCTSTR>(atom), GetModuleHandle(nullptr)));
 			}
 
 			ATOM atom;
@@ -337,7 +334,7 @@ namespace codepad::os {
 		void _set_window_style_bit(bool v, LONG bit, int type) {
 			LONG old = GetWindowLong(_hwnd, type);
 			SetWindowLong(_hwnd, type, v ? old | bit : old & ~bit);
-			winapi_check(SetWindowPos(
+			_details::winapi_check(SetWindowPos(
 				_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
 			));
 		}
@@ -349,7 +346,7 @@ namespace codepad::os {
 			tme.dwFlags = TME_HOVER | TME_LEAVE;
 			tme.dwHoverTime = HOVER_DEFAULT;
 			tme.hwndTrack = _hwnd;
-			winapi_check(TrackMouseEvent(&tme));
+			_details::winapi_check(TrackMouseEvent(&tme));
 		}
 
 		void _on_mouse_enter() override {
@@ -374,7 +371,7 @@ namespace codepad::os {
 			_cached_scaling = vec2d(scaling, scaling);
 		}
 		void _dispose() override {
-			winapi_check(DestroyWindow(_hwnd));
+			_details::winapi_check(DestroyWindow(_hwnd));
 			window_base::_dispose();
 		}
 	};

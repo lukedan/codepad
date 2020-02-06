@@ -4,8 +4,8 @@
 #pragma once
 
 /// \file
-/// Functions only exposed to plugins. This function should not be included anywhere besides <cc>main.cpp</cc> and
-/// <cc>api_export.h</cc>.
+/// Functions only exposed to plugins. This function should not be included anywhere besides <tt>main.cpp</tt> and
+/// <tt>api_export.h</tt>.
 
 #include "settings.h"
 #include "../ui/manager.h"

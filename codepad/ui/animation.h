@@ -51,7 +51,7 @@ namespace codepad::ui {
 		}
 	}
 
-	/// Type of the transition function used to control the process of a \ref animated_property. This function
+	/// Type of the transition function used to control the process of a \ref playing_animation_base. This function
 	/// accepts a double in the range of [0, 1] and return a double in the same range. The input indicates the
 	/// current process of the animation, and the output is used to linearly interpolate the current value between
 	/// the starting value and the destination value.
@@ -308,7 +308,7 @@ namespace codepad::ui {
 	template <typename T> class typed_animation_value_parser : public animation_value_parser_base {
 	public:
 		/// Tries to parse the given JSON value into a specific value. By default this function simply calls
-		/// \ref json::object_parsers::try_parse().
+		/// \ref json::storage::value_t::parse().
 		virtual bool try_parse(const json::value_storage&, manager&, T&) const;
 
 		/// Parses a \ref keyframe_animation_definition.
@@ -318,7 +318,7 @@ namespace codepad::ui {
 	};
 
 
-	/// An ongoing \ref keygrame_animation_definition
+	/// An ongoing \ref keyframe_animation_definition.
 	template <typename T, typename Lerp> class playing_keyframe_animation : public playing_animation_base {
 	public:
 		/// The maximum number of key frames to advance per update. This is to prevent repeating key frames with zero
@@ -336,7 +336,7 @@ namespace codepad::ui {
 		/// Updates this animation.
 		///
 		/// \param now The time of now.
-		/// \return The time before this \ref state needs to be updated again.
+		/// \return The time before this \ref playing_keyframe_animation needs to be updated again.
 		std::optional<animation_duration_t> update(animation_time_point_t now) override {
 			for (std::size_t i = 0; i < maximum_frames_per_update; ++i) { // go through the frames
 				if (_cur_frame >= _def->keyframes.size()) { // animation has finished
@@ -379,9 +379,10 @@ namespace codepad::ui {
 		}
 	protected:
 		T _from; ///< The value of the last key frame, or the original value.
-		animation_time_point_t _keyframe_start; ///< Time when the last \ref keyframe was reached.
+		/// Time when the last \ref keyframe_animation_definition::keyframe was reached.
+		animation_time_point_t _keyframe_start;
 		std::size_t
-			_cur_frame = 0, ///< The index of the current \ref keyframe.
+			_cur_frame = 0, ///< The index of the current \ref keyframe_animation_definition::keyframe.
 			_repeated = 0; ///< The number of times that this animation has been repeated.
 		std::shared_ptr<typed_animation_subject<T>> _subject; ///< The subject of this animation.
 		const definition_t *_def = nullptr; ///< The definition of this animation.

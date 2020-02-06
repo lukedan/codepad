@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Contains classes used to format a view of a \ref codepad::editors::code::document.
+/// Contains classes used to format a view of a \ref codepad::editors::code::interpretation.
 
 #include "interpretation.h"
 
@@ -866,7 +866,7 @@ namespace codepad::editors::code {
 			_fr.prepare_for_edit(interp);
 		}
 		/// Fixup this \ref view_formatting after the underlying \ref buffer has been modified by calling
-		/// \ref folding_registry::fixup_positions.
+		/// \ref folding_registry::fixup_after_edit().
 		void fixup_after_edit(buffer::end_edit_info &info, const interpretation &interp) {
 			_fr.fixup_after_edit(info, interp);
 		}

@@ -169,7 +169,7 @@ namespace codepad::ui {
 			_on_desired_size_changed(true, true);
 		}
 
-		/// Handles the parsing of \ref _text_brush.
+		/// Handles the parsing of text color.
 		void _set_attribute(str_view_t name, const json::value_storage &v) override {
 			if (name == u8"text_color") {
 				if (auto color = v.get_value().parse<colord>()) {
@@ -179,7 +179,7 @@ namespace codepad::ui {
 			}
 			element::_set_attribute(name, v);
 		}
-		/// Handles animations related to \ref _text_brush.
+		/// Handles animations related to text color.
 		animation_subject_information _parse_animation_path(
 			const animation_path::component_list &components
 		) override {

@@ -432,7 +432,6 @@ namespace codepad::editors::code {
 		///
 		/// \param beg The position of the first codepoint that will be erased.
 		/// \param end The position past the last codepoint that will be erased.
-		/// \param lines The structure of inserted text.
 		void erase_codepoints(std::size_t beg, std::size_t end) {
 			line_column_info
 				begp = get_line_and_column_of_codepoint(beg),
@@ -559,7 +558,7 @@ namespace codepad::editors::code {
 			return _lines;
 		}
 
-		/// Adds a new codepoint to the back of this \ref analyzer.
+		/// Adds a new codepoint to the back of this \ref linebreak_analyzer.
 		void put(codepoint c) {
 			if (_last == U'\r') { // linebreak starting at the last codepoint
 				if (c == U'\n') { // \r\n
@@ -577,7 +576,7 @@ namespace codepad::editors::code {
 			}
 			_last = c;
 		}
-		/// Finish analysis. Must be called before using the return value of \ref result() or \ref get_result().
+		/// Finish analysis. Must be called before using the return value of \ref result().
 		void finish() {
 			if (_last == U'\r') {
 				_lines.emplace_back(_ncps - 1, line_ending::r);

@@ -189,7 +189,7 @@ namespace codepad::json {
 	};
 	/// Parser for \ref ui::relative_double.
 	template <> struct default_parser<ui::relative_double> {
-		/// Parses a \ref ui::relative_double. The format is similar to that of \ref relative_vec2d.
+		/// Parses a \ref ui::relative_double. The format is similar to that of \ref ui::relative_vec2d.
 		template <typename Value> std::optional<ui::relative_double> operator()(const Value &val) const {
 			if (auto full = val.template try_cast<typename Value::object_type>()) { // full representation
 				if (auto abs = full->template parse_member<double>(u8"absolute")) {
@@ -427,7 +427,7 @@ namespace codepad::ui {
 	}
 }
 namespace codepad::json {
-	/// Parser for \ref ui::transform::generic.
+	/// Parser for \ref ui::transforms::generic.
 	template <> struct default_parser<ui::transforms::generic> {
 		/// Parses a generic transform. The value can either be:
 		///  - A list, whcih is interpreted as a transform collection.
@@ -1255,7 +1255,7 @@ namespace codepad::ui {
 	};
 }
 namespace codepad::json {
-	/// Parser for \ref element_layout.
+	/// Parser for \ref ui::element_layout.
 	template <> struct default_parser<ui::element_layout> {
 		/// The parser interface.
 		template <typename ValueType> std::optional<ui::element_layout> operator()(const ValueType &val) const {

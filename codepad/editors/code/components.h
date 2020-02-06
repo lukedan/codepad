@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Additional components of a \ref codepad::editors::code::editor.
+/// Additional components of a \ref codepad::editors::code::contents_region.
 
 #include "contents_region.h"
 #include "rendering.h"
@@ -36,16 +36,19 @@ namespace codepad::editors::code {
 			return CP_STRLIT("line_number_display");
 		}
 	protected:
-		info_event<>::token _vis_change_tok; ///< The token used to listen to \ref contents_region::editing_visual_changed.
+		bool _events_registered = false; ///< Indicates whether the events has been registered.
 
-		/// Registers \ref _vis_change_tok if a \ref contents_region can be found.
+		/// Registers events if a \ref contents_region can be found.
 		void _register_handlers() {
-			if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				_vis_change_tok = (edt->editing_visual_changed += [this]() {
-					// when the content is modified, it is possible that the number of digits is changed,
-					// so we recalculate layout here
-					_on_desired_size_changed(true, false);
-					});
+			if (!_events_registered) {
+				if (contents_region *edt = component_helper::get_contents_region(*this)) {
+					_events_registered = true;
+					edt->editing_visual_changed += [this]() {
+						// when the content is modified, it is possible that the number of digits is changed,
+						// so we recalculate layout here
+						_on_desired_size_changed(true, false);
+					};
+				}
 			}
 		}
 		/// Registers for \ref contents_region::content_modified.
@@ -56,9 +59,7 @@ namespace codepad::editors::code {
 		/// Calls \ref _register_handlers() if necessary.
 		void _on_logical_parent_constructed() override {
 			element::_on_logical_parent_constructed();
-			if (!_vis_change_tok.valid()) {
-				_register_handlers();
-			}
+			_register_handlers();
 		}
 
 		/// Renders all visible line numbers.
@@ -252,7 +253,7 @@ namespace codepad::editors::code {
 			}
 
 			/// The cached pages. The keys are the indices of each page's first line, and the values are
-			/// corresponding \ref os::frame_buffer "framebuffers".
+			/// corresponding \ref ui::render_target_data.
 			std::map<std::size_t, ui::render_target_data> pages;
 		protected:
 			/// The index past the end of the range of lines that has been rendered and stored in \ref pages.
@@ -430,24 +431,26 @@ namespace codepad::editors::code {
 
 		/// Registers event handlers to update the minimap and viewport indicator automatically.
 		void _register_handlers() {
-			if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
-				_vis_tok = (edt->editing_visual_changed += [this]() {
-					_on_editor_visual_changed();
-					});
-				box->vertical_viewport_changed += [this]() {
-					_on_viewport_changed();
-				};
+			if (!_events_registered) {
+				if (auto &&[box, edt] = component_helper::get_core_components(*this); edt) {
+					_events_registered = true;
+					edt->editing_visual_changed += [this]() {
+						_on_editor_visual_changed();
+					};
+					box->vertical_viewport_changed += [this]() {
+						_on_viewport_changed();
+					};
+				}
 			}
 		}
 		/// Calls \ref _register_handlers().
 		void _on_added_to_parent() override {
 			element::_on_added_to_parent();
+			_register_handlers();
 		}
 		/// Calls \ref _register_handlers() if necessary.
 		void _on_logical_parent_constructed() override {
-			if (!_vis_tok.valid()) {
-				_register_handlers();
-			}
+			_register_handlers();
 		}
 
 		/// Marks \ref _pgcache for update when the viewport has changed, to determine if more pages need to
@@ -541,10 +544,11 @@ namespace codepad::editors::code {
 
 		_page_cache _pgcache{ *this }; ///< Caches rendered pages.
 		ui::visuals _viewport_visuals; ///< The visuals for the viewport.
-		info_event<>::token _vis_tok; ///< Used to listen to \ref contents_region::editing_visual_changed.
 		/// The offset of the mouse relative to the top border of the visible region indicator.
 		double _dragoffset = 0.0;
-		bool _dragging = false; ///< Indicates whether the visible region indicator is being dragged.
+		bool
+			_dragging = false, ///< Indicates whether the visible region indicator is being dragged.
+			_events_registered = false; ///< Indicates whether the event handlers have been registered.
 
 		// TODO convert this into a setting
 		static double _target_height; ///< The desired font height of minimaps.

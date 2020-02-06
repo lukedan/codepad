@@ -108,7 +108,7 @@ namespace codepad::os {
 		}
 
 		/// Opens the given file with the specified \ref access_rights and \ref open_mode.
-		/// If there is a previously opened file, calls close() first.
+		/// If there is a previously opened file, calls \ref close() first.
 		/// If the operation fails, the \ref file remains empty.
 		void open(const std::filesystem::path &path, access_rights acc, open_mode mode) {
 			close();

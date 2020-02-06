@@ -33,7 +33,7 @@ namespace codepad::ui::tabs {
 	/// Used to select the destimation of a \ref tab that's being dragged.
 	class drag_destination_selector : public panel {
 	public:
-		/// Returns the current \ref drag_destination_type.
+		/// Returns the current \ref drag_split_type.
 		drag_split_type get_drag_destination() const {
 			return _dest;
 		}
@@ -70,15 +70,15 @@ namespace codepad::ui::tabs {
 		}
 	protected:
 		element
-			/// Element indicating that the result should be \ref drag_destination_type::new_panel_left.
+			/// Element indicating that the result should be \ref drag_split_type::split_left.
 			*_split_left = nullptr,
-			/// Element indicating that the result should be \ref drag_destination_type::new_panel_right.
+			/// Element indicating that the result should be \ref drag_split_type::split_right.
 			*_split_right = nullptr,
-			/// Element indicating that the result should be \ref drag_destination_type::new_panel_top.
+			/// Element indicating that the result should be \ref drag_split_type::split_top.
 			*_split_up = nullptr,
-			/// Element indicating that the result should be \ref drag_destination_type::new_panel_bottom.
+			/// Element indicating that the result should be \ref drag_split_type::split_bottom.
 			*_split_down = nullptr,
-			/// Element indicating that the result should be \ref drag_destination_type::combine.
+			/// Element indicating that the result should be \ref drag_split_type::combine.
 			*_combine = nullptr;
 		/// The current drag destination.
 		drag_split_type _dest = drag_split_type::new_window;
@@ -252,7 +252,7 @@ namespace codepad::ui::tabs {
 			}
 		}
 		/// Called when a \ref tab has been removed from \ref _tab_contents_region, to remove the associated
-		/// \ref tab_button and the corresponding entry in \ref _tabs.
+		/// \ref tab_button from \ref _tab_buttons_region.
 		void _on_tab_removed(tab&);
 
 		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.

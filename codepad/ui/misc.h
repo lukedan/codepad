@@ -122,7 +122,7 @@ namespace codepad {
 	namespace json {
 		/// Parser for \ref ui::orientation.
 		template <> struct default_parser<ui::orientation> {
-			/// Parses \ref orientation.
+			/// Parses \ref ui::orientation.
 			template <typename Value> std::optional<ui::orientation> operator()(const Value &obj) const {
 				if (auto opt_str = obj.template cast<str_view_t>()) {
 					str_view_t str = opt_str.value();
@@ -151,7 +151,7 @@ namespace codepad {
 			full = visual | interact | layout | focus ///< Visible in all aspects.
 		};
 	}
-	/// Enables bitwise operators for \ref modifier_keys.
+	/// Enables bitwise operators for \ref ui::visibility.
 	template <> struct enable_enum_bitwise_operators<ui::visibility> : public std::true_type {
 	};
 	namespace json {

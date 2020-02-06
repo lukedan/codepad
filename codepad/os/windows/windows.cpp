@@ -35,14 +35,14 @@ namespace codepad::os {
 
 		// set DPI awareness
 		// TODO will this work under win7?
-		winapi_check(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2));
+		_details::winapi_check(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2));
 
 #ifdef ENABLE_VIRTUAL_TERMINAL_PROCESSING // enable console output coloring
 		HANDLE hstderr = GetStdHandle(STD_ERROR_HANDLE);
-		winapi_check(hstderr != INVALID_HANDLE_VALUE);
+		_details::winapi_check(hstderr != INVALID_HANDLE_VALUE);
 		DWORD mode;
-		winapi_check(GetConsoleMode(hstderr, &mode));
-		winapi_check(SetConsoleMode(hstderr, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING));
+		_details::winapi_check(GetConsoleMode(hstderr, &mode));
+		_details::winapi_check(SetConsoleMode(hstderr, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING));
 #endif
 	}
 
@@ -244,7 +244,7 @@ namespace codepad::os {
 					POINT p;
 					p.x = GET_X_LPARAM(lparam);
 					p.y = GET_Y_LPARAM(lparam);
-					winapi_check(ScreenToClient(form->_hwnd, &p));
+					_details::winapi_check(ScreenToClient(form->_hwnd, &p));
 					_form_onevent<ui::mouse_scroll_info>(
 						*form, &window::_on_mouse_scroll,
 						vec2d(0.0, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)),
@@ -257,7 +257,7 @@ namespace codepad::os {
 					POINT p;
 					p.x = GET_X_LPARAM(lparam);
 					p.y = GET_Y_LPARAM(lparam);
-					winapi_check(ScreenToClient(form->_hwnd, &p));
+					_details::winapi_check(ScreenToClient(form->_hwnd, &p));
 					_form_onevent<ui::mouse_scroll_info>(
 						*form, &window::_on_mouse_scroll,
 						vec2d(GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), 0.0),
@@ -357,7 +357,7 @@ namespace codepad::os {
 							nullptr, MAKEINTRESOURCE(_cursor_id_mapping[static_cast<int>(c)]),
 							IMAGE_CURSOR, 0, 0, LR_SHARED | LR_DEFAULTSIZE
 						);
-						winapi_check(img);
+						_details::winapi_check(img);
 						SetCursor(static_cast<HCURSOR>(img));
 					}
 					return TRUE;
@@ -411,11 +411,11 @@ namespace codepad::os {
 		memset(&wcex, 0, sizeof(wcex));
 		wcex.style = CS_OWNDC;
 		wcex.hInstance = GetModuleHandle(nullptr);
-		winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
+		_details::winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
 		wcex.cbSize = sizeof(wcex);
 		wcex.lpfnWndProc = _wndproc;
 		wcex.lpszClassName = L"Codepad";
-		winapi_check(atom = RegisterClassEx(&wcex));
+		_details::winapi_check(atom = RegisterClassEx(&wcex));
 	}
 
 
@@ -539,7 +539,7 @@ namespace codepad::os {
 	void create_dialog_event_handler(REFIID riid, void **ppv) {
 		*ppv = nullptr;
 		dialog_event_handler *pDialogEventHandler = new (std::nothrow) dialog_event_handler();
-		com_check(pDialogEventHandler->QueryInterface(riid, ppv));
+		_details::com_check(pDialogEventHandler->QueryInterface(riid, ppv));
 		pDialogEventHandler->Release();
 	}
 	vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
@@ -555,39 +555,39 @@ namespace codepad::os {
 		IFileOpenDialog *dialog = nullptr;
 		IFileDialogEvents *devents = nullptr;
 		DWORD cookie, options;
-		com_check(CoCreateInstance(
+		_details::com_check(CoCreateInstance(
 			CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)
 		));
 		create_dialog_event_handler(IID_PPV_ARGS(&devents));
-		com_check(dialog->Advise(devents, &cookie));
-		com_check(dialog->GetOptions(&options));
+		_details::com_check(dialog->Advise(devents, &cookie));
+		_details::com_check(dialog->GetOptions(&options));
 		options |= FOS_FORCEFILESYSTEM;
 		if (type == file_dialog_type::multiple_selection) {
 			options |= FOS_ALLOWMULTISELECT;
 		} else {
 			options &= ~FOS_ALLOWMULTISELECT;
 		}
-		com_check(dialog->SetOptions(options));
-		com_check(dialog->SetFileTypes(1, &file_types));
-		com_check(dialog->SetFileTypeIndex(1));
+		_details::com_check(dialog->SetOptions(options));
+		_details::com_check(dialog->SetFileTypes(1, &file_types));
+		_details::com_check(dialog->SetFileTypeIndex(1));
 		// TODO bug here: program hangs
 		// also no problem if parent is nullptr
 		HRESULT res = dialog->Show(wnd ? wnd->get_native_handle() : nullptr);
 		if (res == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
 			return {};
 		}
-		com_check(res);
+		_details::com_check(res);
 		IShellItemArray *files = nullptr;
 		DWORD count;
-		com_check(dialog->GetResults(&files));
-		com_check(files->GetCount(&count));
+		_details::com_check(dialog->GetResults(&files));
+		_details::com_check(files->GetCount(&count));
 		vector<filesystem::path> result;
 		result.reserve(count);
 		for (DWORD i = 0; i < count; ++i) {
 			IShellItem *item;
-			com_check(files->GetItemAt(i, &item));
+			_details::com_check(files->GetItemAt(i, &item));
 			LPWSTR path = nullptr;
-			com_check(item->GetDisplayName(SIGDN_FILESYSPATH, &path));
+			_details::com_check(item->GetDisplayName(SIGDN_FILESYSPATH, &path));
 			result.push_back(filesystem::path(path));
 			CoTaskMemFree(path);
 		}
@@ -658,9 +658,9 @@ namespace codepad {
 namespace codepad::logger_sinks {
 	std::size_t console_sink::_get_console_width() {
 		HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-		winapi_check(out != INVALID_HANDLE_VALUE);
+		_details::winapi_check(out != INVALID_HANDLE_VALUE);
 		CONSOLE_SCREEN_BUFFER_INFO info;
-		winapi_check(GetConsoleScreenBufferInfo(out, &info));
+		_details::winapi_check(GetConsoleScreenBufferInfo(out, &info));
 		return static_cast<std::size_t>(info.srWindow.Right - info.srWindow.Left + 1);
 	}
 }
@@ -670,25 +670,25 @@ namespace codepad::ui {
 	/*font_parameters font_manager::get_default_ui_font_parameters() {
 		NONCLIENTMETRICS ncmetrics;
 		ncmetrics.cbSize = sizeof(ncmetrics);
-		winapi_check(SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(ncmetrics), &ncmetrics, 0));
+		_details::winapi_check(SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(ncmetrics), &ncmetrics, 0));
 
 		const LOGFONT &logfnt = ncmetrics.lfMenuFont;
 		HFONT fnt = CreateFontIndirect(&logfnt);
-		winapi_check(fnt);
+		_details::winapi_check(fnt);
 		HDC dc = GetDC(nullptr);
-		winapi_check(dc);
+		_details::winapi_check(dc);
 		HGDIOBJ original = SelectObject(dc, fnt);
-		gdi_check(original);
+		_details::gdi_check(original);
 
 		TEXTMETRIC metrics;
-		winapi_check(GetTextMetrics(dc, &metrics));
+		_details::winapi_check(GetTextMetrics(dc, &metrics));
 		POINT pts[2];
 		pts[0].y = 0;
 		pts[1].y = metrics.tmHeight - metrics.tmInternalLeading;
-		winapi_check(LPtoDP(dc, pts, 2));
+		_details::winapi_check(LPtoDP(dc, pts, 2));
 
-		gdi_check(SelectObject(dc, original));
-		winapi_check(DeleteObject(fnt));
+		_details::gdi_check(SelectObject(dc, original));
+		_details::winapi_check(DeleteObject(fnt));
 
 		return font_parameters(
 			os::_details::wstring_to_utf8(logfnt.lfFaceName),
@@ -738,7 +738,7 @@ namespace codepad::ui {
 	}
 
 	void scheduler::_wake_up() {
-		winapi_check(PostThreadMessage(_thread_id, WM_NULL, 0, 0));
+		_details::winapi_check(PostThreadMessage(_thread_id, WM_NULL, 0, 0));
 	}
 
 	scheduler::thread_id_t scheduler::_get_thread_id() {

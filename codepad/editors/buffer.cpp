@@ -4,7 +4,7 @@
 #include "buffer.h"
 
 /// \file
-/// Implementation of certain functions related to the \ref buffer class.
+/// Implementation of certain functions related to the \ref codepad::editors::buffer class.
 
 #include "buffer_manager.h"
 

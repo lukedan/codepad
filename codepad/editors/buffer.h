@@ -26,7 +26,7 @@ namespace codepad::editors {
 	/// A \p std::vector whose elements are of type \p std::byte.
 	using byte_array = std::vector<std::byte>;
 
-	/// Indicates the specific type of a \ref edit.
+	/// Indicates the specific type of a \ref buffer::edit.
 	enum class edit_type : unsigned char {
 		normal, ///< A normal edit made by the user through an editor.
 		undo, ///< This edit is made to revert a previous edit.

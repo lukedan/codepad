@@ -38,7 +38,7 @@ namespace codepad::ui {
 			_scheduler.dispose_marked_elements();
 		}
 
-		/// Similar to \ref register_element_type(const str_t&, element_constructor) but for built-in classes.
+		/// Similar to \ref register_element_type(str_t, element_constructor) but for built-in classes.
 		template <typename Elem> void register_element_type() {
 			register_element_type(str_t(Elem::get_default_class()), []() {
 				return new Elem();
@@ -65,7 +65,7 @@ namespace codepad::ui {
 			return elem;
 		}
 		/// Calls \ref create_element_custom() to create an \ref element of the specified type and class, and with
-		/// the default \ref element_metrics of that class.
+		/// the default \ref element_configuration of that class.
 		///
 		/// \sa create_element_custom()
 		element *create_element(str_view_t type, str_view_t cls) {

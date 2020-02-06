@@ -220,8 +220,8 @@ namespace codepad::ui {
 				func();
 			}
 		}
-		/// Updates all elements that are scheduled to be updated by \ref schedule_visual_config_update(),
-		/// \ref schedule_metrics_config_update(), and \ref schedule_element_update().
+		/// Updates all animations and all elements that have been scheduled to update using
+		/// \ref schedule_element_update().
 		void update_scheduled_elements() {
 			performance_monitor mon("update_elements");
 
@@ -269,7 +269,8 @@ namespace codepad::ui {
 
 		// animations
 		/// Starts an animation that's associated with a particular \ref element. If any playing animation of the
-		/// same elements has the same target (tested using \ref )
+		/// same elements has the same target (tested using \ref animation_subject_base::equals()), the old animation
+		/// will be terminated.
 		void start_animation(std::unique_ptr<playing_animation_base> ani, element *elem) {
 			auto [entry, inserted] = _element_animations.try_emplace(elem);
 			auto it = entry->second.begin();

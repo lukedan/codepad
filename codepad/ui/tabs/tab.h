@@ -22,10 +22,6 @@ namespace codepad::ui::tabs {
 		friend tab_manager;
 		friend host;
 	public:
-		/// The minimum distance the mouse cursor have to move before dragging starts.
-		///
-		/// \todo Combine different declarations and use system default.
-		constexpr static double drag_pivot = 5.0;
 		/// The default padding.
 		///
 		/// \todo Make this customizable.

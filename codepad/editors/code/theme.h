@@ -179,7 +179,7 @@ namespace codepad::editors::code {
 			/// \param it The iterator.
 			/// \param spec The set of position-value pairs.
 			/// \param val The value at the position.
-			/// \param cp The new position in the text.
+			/// \param pos The new position in the text.
 			/// \return \p true if the iterator has been moved.
 			template <typename T> inline static bool _move_iter_forward(
 				typename text_theme_parameter_info<T>::const_iterator &it,

@@ -162,8 +162,7 @@ namespace codepad::ui {
 		element *_capture = nullptr; ///< The element that captures the mouse.
 
 		/// Updates \ref _cached_mouse_position and \ref _cached_mouse_position_timestamp, and returns a
-		/// corresponding \ref mouse_position object. Note that the input position is a logical position, and it may
-		/// be necessary to use \ref _physical_to_logical_position() to convert physical positions into logical ones.
+		/// corresponding \ref mouse_position object. Note that the input position is in device independent units.
 		mouse_position _update_mouse_position(vec2d pos) {
 			mouse_position::_active_window = this;
 			++mouse_position::_global_timestamp;

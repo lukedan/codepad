@@ -82,7 +82,7 @@ namespace codepad::editors {
 			_vert_scroll->make_range_visible(rgn.ymin, rgn.ymax);
 		}
 
-		/// Returns the associated \ref contents_region.
+		/// Returns the associated \ref contents_region_base.
 		contents_region_base *get_contents_region() const {
 			return _contents;
 		}
@@ -126,7 +126,7 @@ namespace codepad::editors {
 		ui::scrollbar
 			*_vert_scroll = nullptr, ///< The vertical \ref ui::scrollbar.
 			*_hori_scroll = nullptr; ///< The horizontal \ref ui::scrollbar.
-		contents_region_base *_contents = nullptr; ///< The associated \ref contents_region.
+		contents_region_base *_contents = nullptr; ///< The associated \ref contents_region_base.
 
 		/// Resets the parameters of \ref _vert_scroll and \ref _hori_scroll.
 		void _reset_scrollbars() {
@@ -145,12 +145,12 @@ namespace codepad::editors {
 			);
 			info.mark_handled();
 		}
-		/// Invokes \ref content_region_base::on_text_input().
+		/// Invokes \ref contents_region_base::on_text_input().
 		void _on_keyboard_text(ui::text_info &info) override {
 			_contents->on_text_input(info.content);
 		}
 
-		/// Initializes \ref hori_scroll, \ref _vert_scroll and \ref _contents.
+		/// Initializes \ref _hori_scroll, \ref _vert_scroll and \ref _contents.
 		void _initialize(str_view_t cls, const ui::element_configuration &config) override {
 			panel::_initialize(cls, config);
 

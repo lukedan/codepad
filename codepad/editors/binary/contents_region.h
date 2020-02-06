@@ -280,7 +280,7 @@ namespace codepad::editors::binary {
 		/// Returns the \ref interaction_mode_registry of binary editors.
 		static interaction_mode_registry<caret_set> &get_interaction_mode_registry();
 
-		/// Casts the obtained \ref components_region_base to the correct type.
+		/// Returns the \ref contents_region contained by the given \ref editor.
 		inline static contents_region *get_from_editor(editor &edt) {
 			return dynamic_cast<contents_region*>(edt.get_contents_region());
 		}
@@ -334,7 +334,7 @@ namespace codepad::editors::binary {
 		interaction_manager<caret_set> _interaction_manager; ///< Manages certain mouse and keyboard interactions.
 		std::unique_ptr<ui::font> _font; ///< The font used to display all bytes.
 		std::shared_ptr<buffer> _buf; ///< The buffer that's being edited.
-		info_event<buffer::end_edit_info>::token _mod_tok; ///< Used to listen to \ref buffer::
+		info_event<buffer::end_edit_info>::token _mod_tok; ///< Used to listen to \ref buffer::end_edit.
 		double
 			_cached_max_byte_width = 0.0, ///< The width of a character.
 			_blank_width = 5.0, ///< The distance between two consecutive bytes.
@@ -667,11 +667,11 @@ namespace codepad::editors::binary {
 		}
 
 		// visual
-		/// Registers handlers used to update \ref _misc_region_state.
+		/// Registers handlers used to forward viewport update events to \ref _interaction_manager.
 		void _on_logical_parent_constructed() override {
 			element::_on_logical_parent_constructed();
-			auto *edt = editor::get_encapsulating(*this);
 
+			auto *edt = editor::get_encapsulating(*this);
 			edt->horizontal_viewport_changed += [this]() {
 				_interaction_manager.on_viewport_changed();
 			};

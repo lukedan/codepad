@@ -93,7 +93,7 @@ namespace codepad::ui::tabs {
 		/// \ref split_panel, and moves the given tab into the other \ref host.
 		///
 		/// \param t The \ref tab.
-		/// \param vertical The orientation in which this \ref host should split.
+		/// \param orient The orientation in which this \ref host should split.
 		/// \param newfirst If \p true, \p t will be placed in the top/left \ref host while other remaining
 		///                 tabs will be put in the bottom/right \ref host.
 		void split_tab(tab &t, orientation orient, bool newfirst) {
@@ -178,7 +178,6 @@ namespace codepad::ui::tabs {
 		/// \param t The tab to be dragged.
 		/// \param diff The offset from the top left corner of the \ref tab_button to the mouse cursor.
 		/// \param layout The layout of the \ref tab's main region.
-		/// \param stop A callable object that returns \p true when the tab should be released.
 		void start_dragging_tab(tab &t, vec2d diff, rectd layout) {
 			assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 
@@ -593,7 +592,6 @@ namespace codepad::ui::tabs {
 		///
 		/// \param pos The position of the mouse cursor, relative to the area that contains all
 		///            \ref tab_button "tab_buttons"
-		/// \param maxw The width of the area that contains all \ref tab_button "tab_buttons".
 		void _update_drag_tab_position(vec2d pos) {
 			drag_move_tab_button.invoke_noret(pos - _drag_offset);
 		}

@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Code of the editing component of a \ref codepad::editors::code::editor.
+/// The code editing component of a \ref codepad::editors::editor.
 
 #include <memory>
 
@@ -45,7 +45,7 @@ namespace codepad::editors::code {
 			} else { // empty document, only used when the contents_region's being disposed
 				_fmt = view_formatting();
 			}
-			_on_switch_document();
+			_on_content_modified();
 		}
 		/// Returns the \ref interpretation currently bound to this contents_region.
 		const std::shared_ptr<interpretation> &get_document() const {
@@ -354,7 +354,7 @@ namespace codepad::editors::code {
 			}
 			_doc->on_insert(_cset, encoded, this);
 		}
-		/// Checks if there are editing actions available for undo-ing, and calls \ref undo if there is.
+		/// Checks if there are editing actions available for undo-ing, and calls \ref buffer::undo() if there is.
 		///
 		/// \return \p true if an action has been reverted.
 		bool try_undo() {
@@ -365,7 +365,7 @@ namespace codepad::editors::code {
 			}
 			return false;
 		}
-		/// Checks if there are editing actions available for redo-ing, and calls \ref redo if there is.
+		/// Checks if there are editing actions available for redo-ing, and calls \ref buffer::redo() if there is.
 		///
 		/// \return \p true if an action has been restored.
 		bool try_redo() {
@@ -591,9 +591,10 @@ namespace codepad::editors::code {
 
 		info_event<>
 			/// Invoked when the visual of \ref _doc has changed, e.g., when it is modified, when the
-			/// \ref document to which \ref _doc points is changed, or when the theme of \ref _doc is changed.
+			/// \ref interpretation to which \ref _doc points is changed, when the font has been changed, or when the
+			/// theme of \ref _doc is changed.
 			content_visual_changed,
-			content_modified, ///< Invoked when the \ref document is modified or changed by \ref set_document.
+			content_modified, ///< Invoked when the \ref interpretation is modified or changed by \ref set_document.
 			/// Invoked when the set of carets is changed. Note that this does not necessarily mean that the result
 			/// of \ref get_carets will change.
 			carets_changed,
@@ -629,7 +630,7 @@ namespace codepad::editors::code {
 			return colord(1.0, 0.2, 0.2, 1.0);
 		}
 
-		/// Casts the obtained \ref components_region_base to the correct type.
+		/// Retrieves the \ref contents_region attached to the given \ref editor.
 		inline static contents_region *get_from_editor(editor &edt) {
 			return dynamic_cast<contents_region*>(edt.get_contents_region());
 		}
@@ -651,7 +652,7 @@ namespace codepad::editors::code {
 			return CP_STRLIT("code_selection");
 		}
 	protected:
-		/// Extracts a \ref _caret_position from a \ref caret_set::entry.
+		/// Extracts a \ref caret_position from a \ref caret_set::entry.
 		inline static caret_position _extract_position(const caret_set::entry &entry) {
 			return caret_position(entry.first.first, entry.second.after_stall);
 		}
@@ -703,7 +704,7 @@ namespace codepad::editors::code {
 		caret_position _hit_test_at_visual_line(std::size_t line, double x) const;
 		/// Returns the horizontal position of a caret. Note that the returned position does not include the left
 		/// padding. This function is used when the line of the caret has been previously obtained to avoid repeated
-		/// calls to \ref _get_line_of_caret.
+		/// calls to \ref _get_visual_line_of_caret().
 		///
 		/// \param line The visual line that the caret is on.
 		/// \param position The position of the caret in the whole document.
@@ -769,15 +770,15 @@ namespace codepad::editors::code {
 		/// Called when \ref buffer::end_edit is triggered. Performs necessary adjustments to the view, invokes
 		/// \ref content_modified, then calls \ref _on_content_visual_changed.
 		void _on_end_edit(buffer::end_edit_info&);
-		/// Called when the associated \ref document has been changed to another. Invokes \ref content_modified
-		/// and calls \ref _on_content_visual_changed.
-		void _on_switch_document() {
+		/// Called when the associated \ref interpretation has been changed to another or when the contents have been
+		/// modified. Invokes \ref content_modified and calls \ref _on_content_visual_changed().
+		void _on_content_modified() {
 			content_modified.invoke();
 			_on_content_visual_changed();
 		}
-		/// Called when the visual of the \ref document has changed, e.g., when it has been modified, swapped, or
-		/// when its \ref document::_theme "theme" has changed. Invokes \ref content_visual_changed and calls
-		/// \ref _on_editing_visual_changed.
+		/// Called when the visual of the \ref interpretation has changed, e.g., when it has been modified, swapped,
+		/// or when its \ref interpretation::_theme has changed. Invokes \ref content_visual_changed and calls
+		/// \ref _on_editing_visual_changed().
 		void _on_content_visual_changed() {
 			content_visual_changed.invoke();
 			_on_editing_visual_changed();
@@ -915,32 +916,27 @@ namespace codepad::editors::code {
 		}
 
 		// mouse & keyboard interactions
-		/// Calls \ref _update_mouse_selection to update the current selection and mouse position, then
-		/// starts drag-dropping if the mouse has moved far enough from where it's pressed.
+		/// Calls \ref interaction_manager::on_mouse_move().
 		void _on_mouse_move(ui::mouse_move_info &info) override {
 			_interaction_manager.on_mouse_move(info);
 			_base::_on_mouse_move(info);
 		}
-		/// If the primary mouse button is pressed, and the mouse is not in a selected region, then starts editing
-		/// the current selected region. If the mouse is inside a selected region, starts monitoring the user's
-		/// actions for drag-dropping. Otherwise, if the tertiary mouse button is pressed, starts block selection.
-		///
-		/// \todo Implement block selection.
+		/// Calls \ref interaction_manager::on_mouse_down().
 		void _on_mouse_down(ui::mouse_button_info &info) override {
 			_interaction_manager.on_mouse_down(info);
 			_base::_on_mouse_down(info);
 		}
-		/// Calls \ref _on_mouse_lbutton_up if the primary mouse button is released.
+		/// Calls \ref interaction_manager::on_mouse_up().
 		void _on_mouse_up(ui::mouse_button_info &info) override {
 			_interaction_manager.on_mouse_up(info);
 			_base::_on_mouse_up(info);
 		}
-		/// Calls \ref _on_mouse_lbutton_up.
+		/// Calls \ref interaction_manager::on_capture_lost().
 		void _on_capture_lost() override {
 			_interaction_manager.on_capture_lost();
 			_base::_on_capture_lost();
 		}
-		/// Updates mouse selection.
+		/// Calls \ref interaction_manager::on_update().
 		void _on_update() override {
 			_interaction_manager.on_update();
 			_base::_on_update();
@@ -1050,11 +1046,11 @@ namespace codepad::editors::code {
 			return _base::_parse_animation_path(components);
 		}
 
-		/// Registers handlers of events of the \ref editor.
+		/// Registers event handlers used to forward viewport update events to \ref _interaction_manager.
 		void _on_logical_parent_constructed() override {
 			_base::_on_logical_parent_constructed();
-			auto *edt = editor::get_encapsulating(*this);
 
+			auto *edt = editor::get_encapsulating(*this);
 			edt->horizontal_viewport_changed += [this]() {
 				_interaction_manager.on_viewport_changed();
 			};

@@ -467,7 +467,7 @@ namespace codepad::ui {
 		/// Multiplies the current matrix with the given matrix and pushes it onto the stack for subsequent drawing
 		/// operations. Note that this matrix is multiplied as the right hand side, i.e., M * M' * v, where M is the
 		/// current matrix, M' is the given matrix, and v is the vector being transformed. Thus, this transform is
-		/// applied \emph before previous transforms.
+		/// applied *before* previous transforms.
 		virtual void push_matrix_mult(matd3x3) = 0;
 		/// Pops a matrix from the stack.
 		virtual void pop_matrix() = 0;

@@ -31,17 +31,19 @@ namespace codepad::editors::binary {
 	protected:
 		bool _events_registered = false; ///< Marks if event handlers have been registered.
 
-		/// Registers \ref _vis_change_tok if a \ref contents_region can be found.
+		/// Registers events if a \ref contents_region can be found.
 		void _register_handlers() {
-			if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
-				_events_registered = true;
-				rgn->content_modified += [this]() {
-					// when the content is modified, it is possible that the number of digits is changed
-					_on_desired_size_changed(true, false);
-				};
-				edt->vertical_viewport_changed += [this]() {
-					get_manager().get_scheduler().invalidate_visual(*this);
-				};
+			if (!_events_registered) {
+				if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
+					_events_registered = true;
+					rgn->content_modified += [this]() {
+						// when the content is modified, it is possible that the number of digits is changed
+						_on_desired_size_changed(true, false);
+					};
+					edt->vertical_viewport_changed += [this]() {
+						get_manager().get_scheduler().invalidate_visual(*this);
+					};
+				}
 			}
 		}
 		/// Calls \ref _register_handlers().
@@ -52,9 +54,7 @@ namespace codepad::editors::binary {
 		/// Calls \ref _register_handlers() if necessary.
 		void _on_logical_parent_constructed() override {
 			element::_on_logical_parent_constructed();
-			if (!_events_registered) {
-				_register_handlers();
-			}
+			_register_handlers();
 		}
 
 		/// Returns the label length that corresponds to the given buffer size.

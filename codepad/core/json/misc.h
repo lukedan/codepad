@@ -52,8 +52,8 @@ namespace codepad::json {
 	struct null_t {
 	};
 
-	/// The basic parser type that simply uses \ref try_cast() to parse the object. It is recommended to specialize
-	/// this type to provide concrete parsing functionalities for user-defined types.
+	/// The basic parser type that simply uses \p value_t::cast() to parse the object. It is recommended to
+	/// specialize this type to provide concrete parsing functionalities for user-defined types.
 	template <typename T> struct default_parser {
 		/// The basic parsing function that simply calls \p cast().
 		template <typename Value> std::optional<T> operator()(const Value &v) const {
