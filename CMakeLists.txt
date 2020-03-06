@@ -80,7 +80,7 @@ endif()
 
 
 # source files
-set(SOURCE_PATH "${CMAKE_CURRENT_LIST_DIR}/codepad")
+set(SOURCE_PATH "${CMAKE_CURRENT_LIST_DIR}/src")
 set(INTERPLATFORM_SOURCES
 	"${SOURCE_PATH}/core/json/misc.h"
 	"${SOURCE_PATH}/core/json/parsing.h"
@@ -111,9 +111,9 @@ set(INTERPLATFORM_SOURCES
 	"${SOURCE_PATH}/editors/code/components.h"
 	"${SOURCE_PATH}/editors/code/contents_region.cpp"
 	"${SOURCE_PATH}/editors/code/contents_region.h"
+	"${SOURCE_PATH}/editors/code/fragment_generation.h"
 	"${SOURCE_PATH}/editors/code/interpretation.h"
 	"${SOURCE_PATH}/editors/code/linebreak_registry.h"
-	"${SOURCE_PATH}/editors/code/rendering.h"
 	"${SOURCE_PATH}/editors/code/theme.h"
 	"${SOURCE_PATH}/editors/code/view.h"
 	"${SOURCE_PATH}/editors/code/view_caching.h"
@@ -121,6 +121,7 @@ set(INTERPLATFORM_SOURCES
 	"${SOURCE_PATH}/editors/buffer.cpp"
 	"${SOURCE_PATH}/editors/buffer.h"
 	"${SOURCE_PATH}/editors/buffer_manager.h"
+	"${SOURCE_PATH}/editors/caret_rendering.h"
 	"${SOURCE_PATH}/editors/caret_set.h"
 	"${SOURCE_PATH}/editors/editor.h"
 	"${SOURCE_PATH}/editors/interaction_modes.h"
@@ -192,7 +193,7 @@ set(UNIX_SOURCES
 add_executable(codepad)
 
 target_compile_features(codepad
-	PRIVATE cxx_std_17)
+	PRIVATE cxx_std_20)
 target_sources(codepad
 	PRIVATE ${INTERPLATFORM_SOURCES})
 target_compile_definitions(codepad
@@ -329,7 +330,7 @@ if(${ENABLE_PLUGINS})
 			-api_struct_name=${API_STRUCT_NAME}
 			-api_initializer_name=${API_STRUCT_INIT_NAME}
 			--
-			-std=c++17
+			-std=c++2a
 			${APIGEN_INCLUDES}
 			${APIGEN_DEFINES}
 			${APIGEN_COMPILE_OPTIONS}
@@ -350,7 +351,7 @@ if(${ENABLE_PLUGINS})
 	# collect executable
 	add_executable(collect)
 	target_compile_features(collect
-		PRIVATE cxx_std_17)
+		PRIVATE cxx_std_20)
 	target_include_directories(collect
 		PRIVATE $<TARGET_PROPERTY:codepad,INCLUDE_DIRECTORIES>)
 	target_compile_definitions(collect
