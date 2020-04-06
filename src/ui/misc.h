@@ -162,7 +162,7 @@ namespace codepad {
 				if (val.template is<json::null_t>()) {
 					return ui::visibility::none;
 				} else if (auto str = val.template try_cast<std::u8string_view>()) {
-					return get_bitset_from_string<ui::visibility>({
+					return get_bitset_from_string_with_negate<ui::visibility, ui::visibility::full>({
 						{ u8'v', ui::visibility::visual },
 						{ u8'i', ui::visibility::interact },
 						{ u8'l', ui::visibility::layout },

@@ -143,6 +143,50 @@ namespace codepad::ui {
 	}
 
 
+	void panel::layout_on_direction(
+		double &clientmin, double &clientmax,
+		bool anchormin, bool pixelsize, bool anchormax,
+		double marginmin, double size, double marginmax
+	) {
+		double totalspace = clientmax - clientmin, totalprop = 0.0;
+		if (anchormax) {
+			totalspace -= marginmax;
+		} else {
+			totalprop += marginmax;
+		}
+		if (pixelsize) {
+			totalspace -= size;
+		} else {
+			totalprop += size;
+		}
+		if (anchormin) {
+			totalspace -= marginmin;
+		} else {
+			totalprop += marginmin;
+		}
+		double propmult = totalspace / totalprop;
+		// size in pixels are prioritized so that zero-size proportion parts are ignored when possible
+		if (anchormin && anchormax) {
+			if (pixelsize) {
+				double midpos = 0.5 * (clientmin + clientmax);
+				clientmin = midpos - 0.5 * size;
+				clientmax = midpos + 0.5 * size;
+			} else {
+				clientmin += marginmin;
+				clientmax -= marginmax;
+			}
+		} else if (anchormin) {
+			clientmin += marginmin;
+			clientmax = clientmin + (pixelsize ? size : size * propmult);
+		} else if (anchormax) {
+			clientmax -= marginmax;
+			clientmin = clientmax - (pixelsize ? size : size * propmult);
+		} else {
+			clientmin += marginmin * propmult;
+			clientmax -= marginmax * propmult;
+		}
+	}
+
 	void panel::_invalidate_children_layout() {
 		get_manager().get_scheduler().invalidate_children_layout(*this);
 	}

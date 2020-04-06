@@ -80,113 +80,44 @@ endif()
 
 
 # source files
-set(SOURCE_PATH "${CMAKE_CURRENT_LIST_DIR}/src")
 set(INTERPLATFORM_SOURCES
-	"${SOURCE_PATH}/core/json/misc.h"
-	"${SOURCE_PATH}/core/json/parsing.h"
-	"${SOURCE_PATH}/core/json/rapidjson.h"
-	"${SOURCE_PATH}/core/json/storage.h"
+	"src/core/globals.cpp"
+	"src/core/logger_sinks.cpp"
+	"src/core/plugins.cpp"
+	"src/core/setting_entries.cpp"
+	"src/core/settings.cpp"
 
-	"${SOURCE_PATH}/core/assert.h"
-	"${SOURCE_PATH}/core/bst.h"
-	"${SOURCE_PATH}/core/encodings.h"
-	"${SOURCE_PATH}/core/event.h"
-	"${SOURCE_PATH}/core/globals.cpp"
-	"${SOURCE_PATH}/core/logger_sinks.h"
-	"${SOURCE_PATH}/core/logging.h"
-	"${SOURCE_PATH}/core/math.h"
-	"${SOURCE_PATH}/core/misc.h"
-	"${SOURCE_PATH}/core/plugin_interface.h"
-	"${SOURCE_PATH}/core/plugins.cpp"
-	"${SOURCE_PATH}/core/plugins.h"
-	"${SOURCE_PATH}/core/profiling.h"
-	"${SOURCE_PATH}/core/setting_entries.cpp"
-	"${SOURCE_PATH}/core/settings.h"
+	"src/editors/binary/components.cpp"
+	"src/editors/binary/contents_region.cpp"
 
-	"${SOURCE_PATH}/editors/binary/components.h"
-	"${SOURCE_PATH}/editors/binary/contents_region.h"
+	"src/editors/code/caret_set.cpp"
+	"src/editors/code/contents_region.cpp"
 
-	"${SOURCE_PATH}/editors/code/caret_set.cpp"
-	"${SOURCE_PATH}/editors/code/caret_set.h"
-	"${SOURCE_PATH}/editors/code/components.h"
-	"${SOURCE_PATH}/editors/code/contents_region.cpp"
-	"${SOURCE_PATH}/editors/code/contents_region.h"
-	"${SOURCE_PATH}/editors/code/fragment_generation.h"
-	"${SOURCE_PATH}/editors/code/interpretation.h"
-	"${SOURCE_PATH}/editors/code/linebreak_registry.h"
-	"${SOURCE_PATH}/editors/code/theme.h"
-	"${SOURCE_PATH}/editors/code/view.h"
-	"${SOURCE_PATH}/editors/code/view_caching.h"
+	"src/editors/buffer.cpp"
 
-	"${SOURCE_PATH}/editors/buffer.cpp"
-	"${SOURCE_PATH}/editors/buffer.h"
-	"${SOURCE_PATH}/editors/buffer_manager.h"
-	"${SOURCE_PATH}/editors/caret_rendering.h"
-	"${SOURCE_PATH}/editors/caret_set.h"
-	"${SOURCE_PATH}/editors/editor.h"
-	"${SOURCE_PATH}/editors/interaction_modes.h"
+	"src/ui/tabs/host.cpp"
+	"src/ui/tabs/tab.cpp"
 
-	"${SOURCE_PATH}/os/current/all.h"
-	"${SOURCE_PATH}/os/current/misc.h"
-	"${SOURCE_PATH}/os/current/window.h"
-	"${SOURCE_PATH}/os/dynamic_library.h"
-	"${SOURCE_PATH}/os/filesystem.h"
-	"${SOURCE_PATH}/os/misc.h"
+	"src/ui/animation_path.cpp"
+	"src/ui/arrangements.cpp"
+	"src/ui/common_elements.cpp"
+	"src/ui/element.cpp"
+	"src/ui/manager.cpp"
+	"src/ui/native_commands.cpp"
+	"src/ui/panel.cpp"
+	"src/ui/renderer.cpp"
+	"src/ui/window.cpp"
 
-	"${SOURCE_PATH}/ui/tabs/animated_tab_button_panel.h"
-	"${SOURCE_PATH}/ui/tabs/host.cpp"
-	"${SOURCE_PATH}/ui/tabs/host.h"
-	"${SOURCE_PATH}/ui/tabs/manager.h"
-	"${SOURCE_PATH}/ui/tabs/split_panel.h"
-	"${SOURCE_PATH}/ui/tabs/tab.cpp"
-	"${SOURCE_PATH}/ui/tabs/tab.h"
-
-	"${SOURCE_PATH}/ui/animation.h"
-	"${SOURCE_PATH}/ui/animation_path.cpp"
-	"${SOURCE_PATH}/ui/animation_path.h"
-	"${SOURCE_PATH}/ui/arrangements.cpp"
-	"${SOURCE_PATH}/ui/arrangements.h"
-	"${SOURCE_PATH}/ui/cairo_renderer_base.h"
-	"${SOURCE_PATH}/ui/commands.h"
-	"${SOURCE_PATH}/ui/common_elements.cpp"
-	"${SOURCE_PATH}/ui/common_elements.h"
-	"${SOURCE_PATH}/ui/config_parsers.h"
-	"${SOURCE_PATH}/ui/element.cpp"
-	"${SOURCE_PATH}/ui/element.h"
-	"${SOURCE_PATH}/ui/element_classes.h"
-	"${SOURCE_PATH}/ui/element_parameters.h"
-	"${SOURCE_PATH}/ui/hotkey_registry.h"
-	"${SOURCE_PATH}/ui/manager.cpp"
-	"${SOURCE_PATH}/ui/manager.h"
-	"${SOURCE_PATH}/ui/misc.h"
-	"${SOURCE_PATH}/ui/native_commands.cpp"
-	"${SOURCE_PATH}/ui/native_commands.h"
-	"${SOURCE_PATH}/ui/panel.cpp"
-	"${SOURCE_PATH}/ui/panel.h"
-	"${SOURCE_PATH}/ui/renderer.cpp"
-	"${SOURCE_PATH}/ui/renderer.h"
-	"${SOURCE_PATH}/ui/scheduler.h"
-	"${SOURCE_PATH}/ui/window.cpp"
-	"${SOURCE_PATH}/ui/window.h"
-
-	"${SOURCE_PATH}/main.cpp")
+	"src/main.cpp")
 
 set(WINDOWS_SOURCES
-	"${SOURCE_PATH}/os/windows/cairo_renderer.h"
-	"${SOURCE_PATH}/os/windows/direct2d_renderer.h"
-	"${SOURCE_PATH}/os/windows/dynamic_library.cpp"
-	"${SOURCE_PATH}/os/windows/filesystem.cpp"
-	"${SOURCE_PATH}/os/windows/misc.h"
-	"${SOURCE_PATH}/os/windows/window.h"
-	"${SOURCE_PATH}/os/windows/windows.cpp"
-	"${SOURCE_PATH}/os/windows.h")
+	"src/os/windows/dynamic_library.cpp"
+	"src/os/windows/filesystem.cpp"
+	"src/os/windows/windows.cpp")
 
 set(UNIX_SOURCES
-	"${SOURCE_PATH}/os/linux/filesystem.cpp"
-	"${SOURCE_PATH}/os/linux/linux.cpp"
-	"${SOURCE_PATH}/os/linux/misc.h"
-	"${SOURCE_PATH}/os/linux/window.h"
-	"${SOURCE_PATH}/os/linux.h")
+	"src/os/linux/filesystem.cpp"
+	"src/os/linux/linux.cpp")
 
 
 # main executable
@@ -254,10 +185,7 @@ elseif(UNIX)
 	if(USE_GTK)
 		target_sources(codepad
 			PRIVATE
-				"${SOURCE_PATH}/os/linux/gtk/cairo_renderer.h"
-				"${SOURCE_PATH}/os/linux/gtk/linux.cpp"
-				"${SOURCE_PATH}/os/linux/gtk/misc.h"
-				"${SOURCE_PATH}/os/linux/gtk/window.h")
+				"src/os/linux/gtk/linux.cpp")
 		target_compile_definitions(codepad
 			PRIVATE CP_USE_GTK)
 		target_link_libraries(codepad
@@ -265,9 +193,7 @@ elseif(UNIX)
 	else()
 		target_sources(codepad
 			PRIVATE
-				"${SOURCE_PATH}/os/linux/x11/linux.cpp"
-				"${SOURCE_PATH}/os/linux/x11/misc.h"
-				"${SOURCE_PATH}/os/linux/x11/window.h")
+				"src/os/linux/x11/linux.cpp")
 		target_link_libraries(codepad
 			PRIVATE ${X11_LIBRARIES})
 	endif()
@@ -306,7 +232,7 @@ if(${ENABLE_PLUGINS})
 	set(API_STRUCT_NAME codepad_api)
 	set(API_STRUCT_INIT_NAME codepad_api_init)
 
-	set(EXPORT_FILE_PATH "${SOURCE_PATH}/api_export.h")
+	set(EXPORT_FILE_PATH "src/api_export.h")
 
 	set(APIGEN_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/apigen_out")
 
@@ -363,7 +289,7 @@ if(${ENABLE_PLUGINS})
 
 	# add all source files except main.cpp to collect
 	set(CODEPAD_COLLECT_SOURCES ${CODEPAD_SOURCES})
-	list(REMOVE_ITEM CODEPAD_COLLECT_SOURCES "${SOURCE_PATH}/main.cpp")
+	list(REMOVE_ITEM CODEPAD_COLLECT_SOURCES "src/main.cpp")
 	target_sources(collect
 		PRIVATE ${CODEPAD_COLLECT_SOURCES} "${HOST_SOURCE_PATH}")
 

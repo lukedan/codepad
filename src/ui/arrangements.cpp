@@ -30,6 +30,16 @@ namespace codepad::ui {
 		std::any subject_data; ///< Data used by \ref subject.
 	};
 
+	element *class_arrangements::construction_context::find_by_name(std::u8string_view id, element &self) {
+		if (id.empty()) {
+			return &self;
+		}
+		if (auto it = name_mapping.find(id); it != name_mapping.end()) {
+			return it->second;
+		}
+		return nullptr;
+	}
+
 	void class_arrangements::construction_context::register_triggers_for(
 		element &elem, const element_configuration &config
 	) {
@@ -134,6 +144,20 @@ namespace codepad::ui {
 		// call finish construction handlers
 		for (auto &created : ctx.all_created) {
 			created.second->_on_logical_parent_constructed();
+		}
+	}
+
+	void class_arrangements::construct_children(
+		panel &logparent, std::initializer_list<notify_mapping::value_type> args
+	) const {
+		notify_mapping mapping(std::move(args));
+		construct_children(logparent, mapping);
+		if (!mapping.empty()) {
+			auto entry = logger::get().log_warning(CP_HERE);
+			entry << "there are unmatched names with roles:";
+			for (auto &pair : mapping) {
+				entry << "\n  " << pair.first;
+			}
 		}
 	}
 }

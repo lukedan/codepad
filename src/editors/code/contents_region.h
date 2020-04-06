@@ -327,23 +327,7 @@ namespace codepad::editors::code {
 
 		// edit operations
 		/// Inserts the input text at each caret.
-		void on_text_input(std::u8string_view text) override {
-			_interaction_manager.on_edit_operation();
-			// encode added content
-			byte_string str;
-			const std::byte
-				*it = reinterpret_cast<const std::byte*>(text.data()),
-				*end = it + text.size();
-			while (it != end) {
-				codepoint cp;
-				if (encodings::utf8::next_codepoint(it, end, cp)) {
-					str.append(_doc->get_encoding()->encode_codepoint(cp));
-				} else {
-					logger::get().log_warning(CP_HERE) << "skipped invalid byte sequence in input";
-				}
-			}
-			_doc->on_insert(_cset, str, this);
-		}
+		void on_text_input(std::u8string_view) override;
 		/// Calls \ref interpretation::on_backspace() with the current set of carets.
 		void on_backspace() {
 			_interaction_manager.on_edit_operation();

@@ -497,7 +497,7 @@ namespace codepad::editors::code {
 				std::vector<_precomp_mod_positions> pos = _precomp_mod_backspace(carets);
 				buffer::scoped_normal_modifier mod(*_buf, src);
 				for (const _precomp_mod_positions &modpos : pos) {
-					mod.modify(modpos.begin, modpos.length, byte_string());
+					mod.get_modifier().modify(modpos.begin, modpos.length, byte_string());
 				}
 			}
 		}
@@ -513,7 +513,7 @@ namespace codepad::editors::code {
 				std::vector<_precomp_mod_positions> pos = _precomp_mod_delete(carets);
 				buffer::scoped_normal_modifier mod(*_buf, src);
 				for (const _precomp_mod_positions &modpos : pos) {
-					mod.modify(modpos.begin, modpos.length, byte_string());
+					mod.get_modifier().modify(modpos.begin, modpos.length, byte_string());
 				}
 			}
 		}
@@ -523,7 +523,7 @@ namespace codepad::editors::code {
 			std::vector<_precomp_mod_positions> pos = _precomp_mod_insert(carets);
 			buffer::scoped_normal_modifier mod(*_buf, src);
 			for (const _precomp_mod_positions &modpos : pos) {
-				mod.modify(modpos.begin, modpos.length, contents);
+				mod.get_modifier().modify(modpos.begin, modpos.length, contents);
 			}
 		}
 

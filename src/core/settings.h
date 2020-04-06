@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Implementation of the settings system.
+/// Definition of the settings system.
 
 #include <variant>
 #include <vector>
@@ -35,26 +35,7 @@ namespace codepad {
 			}
 
 			/// Tries to find a child profile.
-			profile *find_child(std::u8string_view name) {
-				// return the already separated profile
-				if (auto it = _children.find(name); it != _children.end()) {
-					return it->second.get();
-				}
-				// try to find & separate the profile
-				std::u8string key;
-				key.reserve(name.length() + 2);
-				key += '[';
-				key += name;
-				key += ']';
-				if (auto fmem = _value.find_member(key); fmem != _value.member_end()) { // yes
-					if (auto obj = fmem.value().cast<json::storage::object_t>()) {
-						auto result = _children.emplace(std::u8string(name), std::make_unique<profile>(this, obj.value()));
-						assert_true_logical(result.second, "map insert should have succeeded");
-						return result.first->second.get();
-					}
-				}
-				return nullptr; // nope
-			}
+			profile *find_child(std::u8string_view);
 
 			/// Retrieves a setting in this profile given its path. Note that parent profiles are not searched. To
 			/// also search in parent profiles, use \ref retrieve().
@@ -302,17 +283,7 @@ namespace codepad {
 			return *current;
 		}
 		/// Returns the main profile.
-		profile &get_main_profile() {
-			if (!_main_profile) {
-				if (!_storage.get_value().is<json::storage::object_t>()) {
-					_storage.value.emplace<json::value_storage::object>();
-				}
-				_main_profile = std::make_unique<profile>(
-					nullptr, _storage.get_value().get<json::storage::object_t>()
-					);
-			}
-			return *_main_profile;
-		}
+		profile &get_main_profile();
 
 		/// Returns a \ref retriever_parser for the given setting.
 		template <typename T> retriever_parser<T> create_retriever_parser(
@@ -331,16 +302,9 @@ namespace codepad {
 		}
 
 		/// Updates the value of all settings.
-		void set(json::value_storage val) {
-			++_timestamp;
-			_main_profile = nullptr;
-			_storage = std::move(val);
-			changed.invoke();
-		}
+		void set(json::value_storage);
 		/// Loads all settings from the given file.
-		void load(const std::filesystem::path &path) {
-			set(json::store(json::parse_file<json::rapidjson::document_t>(path).root()));
-		}
+		void load(const std::filesystem::path&);
 
 		/// Invoked whenever the settings have been changed. Objects that are eager to detect settings changes can
 		/// register for this event.

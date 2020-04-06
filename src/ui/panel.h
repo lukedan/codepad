@@ -163,58 +163,21 @@ namespace codepad::ui {
 		/// with the given parameters. If all of \p anchormin, \p pixelsize, and \p anchormax are \p true, all sizes
 		/// are taken into account and the extra space is distributed evenly before and after the element.
 		///
-		/// \param anchormin \p true if the element is anchored towards the `negative' (left or top) direction.
-		/// \param pixelsize \p true if the size of the element is specified in pixels.
-		/// \param anchormax \p true if the element is anchored towards the `positive' (right or bottom) direction.
 		/// \param clientmin Passes the minimum (left or top) boundary of the client region, and will contain the
 		///                  minimum boundary of the element's layout as a return value.
 		/// \param clientmax Passes the maximum (right or bottom) boundary of the client region, and will contain the
 		///                  maximum boundary of the element's layout as a return value.
+		/// \param anchormin \p true if the element is anchored towards the `negative' (left or top) direction.
+		/// \param pixelsize \p true if the size of the element is specified in pixels.
+		/// \param anchormax \p true if the element is anchored towards the `positive' (right or bottom) direction.
 		/// \param marginmin The element's margin at the `negative' border.
 		/// \param size The size of the element in the direction.
 		/// \param marginmax The element's margin at the `positive' border.
-		inline static void layout_on_direction(
-			bool anchormin, bool pixelsize, bool anchormax, double &clientmin, double &clientmax,
+		static void layout_on_direction(
+			double &clientmin, double &clientmax,
+			bool anchormin, bool pixelsize, bool anchormax,
 			double marginmin, double size, double marginmax
-		) {
-			double totalspace = clientmax - clientmin, totalprop = 0.0;
-			if (anchormax) {
-				totalspace -= marginmax;
-			} else {
-				totalprop += marginmax;
-			}
-			if (pixelsize) {
-				totalspace -= size;
-			} else {
-				totalprop += size;
-			}
-			if (anchormin) {
-				totalspace -= marginmin;
-			} else {
-				totalprop += marginmin;
-			}
-			double propmult = totalspace / totalprop;
-			// size in pixels are prioritized so that zero-size proportion parts are ignored when possible
-			if (anchormin && anchormax) {
-				if (pixelsize) {
-					double midpos = 0.5 * (clientmin + clientmax);
-					clientmin = midpos - 0.5 * size;
-					clientmax = midpos + 0.5 * size;
-				} else {
-					clientmin += marginmin;
-					clientmax -= marginmax;
-				}
-			} else if (anchormin) {
-				clientmin += marginmin;
-				clientmax = clientmin + (pixelsize ? size : size * propmult);
-			} else if (anchormax) {
-				clientmax -= marginmax;
-				clientmin = clientmax - (pixelsize ? size : size * propmult);
-			} else {
-				clientmin += marginmin * propmult;
-				clientmax -= marginmax * propmult;
-			}
-		}
+		);
 		/// Calculates the horizontal layout of the given \ref element, given the client area that contains it.
 		inline static void layout_child_horizontal(element &child, double xmin, double xmax) {
 			anchor anc = child.get_anchor();
@@ -223,8 +186,9 @@ namespace codepad::ui {
 			child._layout.xmin = xmin;
 			child._layout.xmax = xmax;
 			layout_on_direction(
+				child._layout.xmin, child._layout.xmax,
 				(anc & anchor::left) != anchor::none, wprop.is_pixels, (anc & anchor::right) != anchor::none,
-				child._layout.xmin, child._layout.xmax, margin.left, wprop.value, margin.right
+				margin.left, wprop.value, margin.right
 			);
 		}
 		/// Calculates the vertical layout of the given \ref element, given the client area that contains it.
@@ -235,8 +199,9 @@ namespace codepad::ui {
 			child._layout.ymin = ymin;
 			child._layout.ymax = ymax;
 			layout_on_direction(
+				child._layout.ymin, child._layout.ymax,
 				(anc & anchor::top) != anchor::none, hprop.is_pixels, (anc & anchor::bottom) != anchor::none,
-				child._layout.ymin, child._layout.ymax, margin.top, hprop.value, margin.bottom
+				margin.top, hprop.value, margin.bottom
 			);
 		}
 		/// Calculates the layout of the given \ref element, given the area that supposedly contains it (usually the
@@ -491,7 +456,7 @@ namespace codepad::ui {
 			};
 		}
 
-		element_collection _children{*this}; ///< The collection of its children.
+		element_collection _children{ *this }; ///< The collection of its children.
 		/// Caches the cursor of the child that the mouse is over.
 		cursor _children_cursor = cursor::not_specified;
 		/// The child that's focused in this focus scope, if \ref _is_focus_scope is \p true.

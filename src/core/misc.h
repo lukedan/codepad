@@ -394,6 +394,17 @@ namespace codepad {
 		}
 		return result;
 	}
+	/// Gathers bits from a string and returns the result. Each bit is represented by a character. If the string
+	/// starts with the specified `negate' character, then the result will contain all but the specified bits.
+	template <typename T, T All = T::all, typename C> inline T get_bitset_from_string_with_negate(
+		std::initializer_list<std::pair<C, T>> list, std::basic_string_view<C> str, C negate = static_cast<C>('-')
+	) {
+		if (!str.empty() && str[0] == negate) {
+			str.remove_prefix(1);
+			return All ^ get_bitset_from_string(list, str);
+		}
+		return get_bitset_from_string(list, str);
+	}
 
 
 	/// CRTP base for a RAII wrapper of a reference-counted handle.

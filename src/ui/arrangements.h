@@ -47,15 +47,7 @@ namespace codepad::ui {
 				return name_mapping.try_emplace(name, &e).second;
 			}
 			/// Finds the element with the corresponding name, or returns \p self if the id is empty.
-			element *find_by_name(std::u8string_view id, element &self) {
-				if (id.empty()) {
-					return &self;
-				}
-				if (auto it = name_mapping.find(id); it != name_mapping.end()) {
-					return it->second;
-				}
-				return nullptr;
-			}
+			element *find_by_name(std::u8string_view, element&);
 
 			/// Registers all triggers of the given \ref element_configuration.
 			void register_triggers_for(element&, const element_configuration&);
@@ -93,17 +85,7 @@ namespace codepad::ui {
 		/// \ref notify_mapping instance. This function prints warnings for all names that have not been matched.
 		void construct_children(
 			panel &logparent, std::initializer_list<notify_mapping::value_type> args
-		) const {
-			notify_mapping mapping(std::move(args));
-			construct_children(logparent, mapping);
-			if (!mapping.empty()) {
-				auto entry = logger::get().log_warning(CP_HERE);
-				entry << "there are unmatched names with roles:";
-				for (auto &pair : mapping) {
-					entry << "\n  " << pair.first;
-				}
-			}
-		}
+		) const;
 
 		element_configuration configuration; ///< The configuration of this element.
 		std::vector<child> children; ///< Children of the composite element.

@@ -52,17 +52,7 @@ namespace codepad::editors::binary {
 			return _buf;
 		}
 		/// Sets the \ref buffer that's being edited.
-		void set_buffer(std::shared_ptr<buffer> buf) {
-			_unbind_buffer_events();
-			_buf = std::move(buf);
-			_carets.reset();
-			if (_buf) {
-				_mod_tok = (_buf->end_edit += [this](buffer::end_edit_info &info) {
-					_on_end_edit(info);
-					});
-			}
-			_on_content_modified();
-		}
+		void set_buffer(std::shared_ptr<buffer>);
 
 		/// Returns the current set of carets.
 		const caret_set &get_carets() const override {
@@ -233,57 +223,14 @@ namespace codepad::editors::binary {
 		}
 
 		/// Catches all characters that are valid in hexadecimal, and modifies the contents of the \ref buffer.
-		void on_text_input(std::u8string_view text) override {
-			// first gather the input string
-			std::basic_string<unsigned char> chars;
-			auto it = text.begin();
-			while (it != text.end()) {
-				codepoint current;
-				if (encodings::utf8::next_codepoint(it, text.end(), current)) {
-					if (current == u8' ') { // next codepoint
-						chars.push_back(std::numeric_limits<unsigned char>::max());
-					} else { // possible value
-						unsigned char val = get_character_value(current);
-						if (val < static_cast<unsigned char>(get_radix())) { // is this character valid?
-							chars.push_back(val);
-						}
-					}
-				}
-			}
-
-			// TODO
-		}
+		void on_text_input(std::u8string_view) override;
 
 		/// Returns the \ref caret_position correponding to the given mouse position. The mouse position is relative
 		/// to the top left corner of the document.
-		std::size_t hit_test_for_caret_document(vec2d pos) const {
-			if (_buf) {
-				pos.x = std::max(pos.x - get_padding().left, 0.0);
-				pos.y = std::max(pos.y - get_padding().top, 0.0);
-				std::size_t
-					line = std::min(_get_line_at_position(pos.y), get_num_lines() - 1),
-					col = std::min(static_cast<std::size_t>(
-					(pos.x + 0.5 * get_blank_width()) / (_cached_max_byte_width + get_blank_width())
-						), get_bytes_per_row()),
-					res = line * get_bytes_per_row() + col;
-				if (res >= _buf->length()) {
-					return _buf->length();
-				}
-				return res;
-			}
-			return 0;
-		}
+		std::size_t hit_test_for_caret_document(vec2d) const;
 		/// Similar to \ref hit_test_for_caret_document(), only that the position is relative to the top left corner
 		/// of this \ref ui::element.
-		std::size_t hit_test_for_caret(vec2d pos) const override {
-			if (auto *edt = editor::get_encapsulating(*this)) {
-				return hit_test_for_caret_document(vec2d(
-					pos.x + edt->get_horizontal_position() + get_padding().left,
-					pos.y + edt->get_vertical_position() + get_padding().top
-				));
-			}
-			return 0;
-		}
+		std::size_t hit_test_for_caret(vec2d) const override;
 
 		info_event<>
 			content_modified, ///< Invoked when the \ref buffer is modified or changed by \ref set_buffer.
@@ -293,18 +240,7 @@ namespace codepad::editors::binary {
 
 		/// Converts a character into the corresponding value, i.e., A-Z are treated as 10-35. If the character lies
 		/// out of the range, this function returns \p std::numeric_limits<unsigned char>::max().
-		inline static unsigned char get_character_value(codepoint c1) {
-			if (c1 >= u8'0' && c1 <= u8'9') {
-				return static_cast<unsigned char>(c1 - u8'0');
-			}
-			if (c1 >= u8'a' && c1 <= u8'f') {
-				return static_cast<unsigned char>(c1 - u8'a' + 10);
-			}
-			if (c1 >= u8'A' && c1 <= u8'F') {
-				return static_cast<unsigned char>(c1 - u8'A' + 10);
-			}
-			return std::numeric_limits<unsigned char>::max();
-		}
+		static unsigned char get_character_value(codepoint);
 
 		/// Returns the \ref interaction_mode_registry of binary editors.
 		static interaction_mode_registry<caret_set> &get_interaction_mode_registry();
@@ -406,172 +342,15 @@ namespace codepad::editors::binary {
 
 		// rendering
 		/// Returns the region that a given caret occupies, relative to the top left of the document.
-		rectd _get_caret_rect(std::size_t cpos) const {
-			if (cpos == _buf->length()) { // caret is at the end of the file
-				// in this case, make the caret a vertical line
-				if (cpos == 0) { // empty document
-					return rectd::from_xywh(_get_column_offset(0), _get_line_offset(0), 0.0f, get_line_height());
-				}
-				// otherwise put caret after the last byte
-				auto [line, col] = _get_line_and_column_of_byte(cpos - 1);
-				return rectd::from_xywh(
-					_get_column_offset(col) + _cached_max_byte_width, _get_line_offset(line), 0.0f, get_line_height()
-				);
-			}
-			// otherwise, make the caret cover the entire byte
-			auto [line, col] = _get_line_and_column_of_byte(cpos);
-			return rectd::from_xywh(
-				_get_column_offset(col),
-				_get_line_offset(line),
-				_cached_max_byte_width,
-				get_line_height()
-			);
-		}
+		rectd _get_caret_rect(std::size_t) const;
 		/// Returns the rectangles that a selected region covers. The selection is clamped by the given parameters to
 		/// reduce unnecessary regions. The resulting regions are placed relative to the top left of the document.
 		std::vector<rectd> _get_selection_rects(
 			caret_selection sel, std::size_t clampmin, std::size_t clampmax
-		) const {
-			if (sel.caret == sel.selection) { // no selection for single byte
-				return {};
-			}
-			auto range = sel.get_range();
-			std::size_t
-				beg = std::max(range.first, clampmin),
-				end = std::min({ range.second + 1, _buf->length(), clampmax });
-			if (beg >= end) { // not visible
-				return {};
-			}
-			std::vector<rectd> res;
-			auto [bline, bcol] = _get_line_and_column_of_byte(beg);
-			auto [eline, ecol] = _get_line_and_column_of_byte(end);
-			if (ecol == 0 && eline != 0) { // move end to the end of the last line if it's at the beginning
-				--eline;
-				ecol = get_bytes_per_row();
-			}
-			double
-				y = _get_line_offset(bline),
-				lh = get_line_height();
-			if (bline == eline) { // on the same line
-				res.emplace_back(_get_column_offset(bcol), _get_column_offset(ecol) - get_blank_width(), y, y + lh);
-			} else {
-				double
-					colbeg = _get_column_offset(0),
-					colend = _get_column_offset(get_bytes_per_row()) - get_blank_width();
-				res.emplace_back(_get_column_offset(bcol), colend, y, y + lh);
-				y += lh;
-				for (std::size_t i = bline + 1; i < eline; ++i, y += lh) { // whole lines
-					res.emplace_back(colbeg, colend, y, y + lh);
-				}
-				res.emplace_back(colbeg, _get_column_offset(ecol) - get_blank_width(), y, y + lh);
-			}
-			return res;
-		}
+		) const;
 
 		/// Renders all visible bytes.
-		void _custom_render() const override {
-			interactive_contents_region_base::_custom_render();
-
-			if (auto *edt = editor::get_encapsulating(*this)) {
-				std::size_t
-					firstline = _get_line_at_position(edt->get_vertical_position()),
-					// first byte in a line
-					firstbyte = _get_column_at_position(edt->get_horizontal_position()),
-					// past last byte in a line
-					lastbyte = std::min(
-						get_bytes_per_row(),
-						static_cast<std::size_t>(
-						(edt->get_horizontal_position() + get_layout().width()) /
-							(_cached_max_byte_width + get_blank_width())
-							) + 1
-					);
-				double
-					lineh = get_line_height(),
-					bottom = get_layout().height();
-				vec2d
-					edtpos = edt->get_position(),
-					topleft = vec2d(_get_column_offset(firstbyte), _get_line_offset(firstline)) - edtpos;
-				auto &renderer = get_manager().get_renderer();
-
-				{
-					ui::pixel_snapped_render_target buffer(
-						renderer,
-						rectd::from_corners(vec2d(), get_layout().size()),
-						get_window()->get_scaling_factor()
-					);
-
-					// render bytes
-					for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
-						// render a single line
-						std::size_t pos = line * get_bytes_per_row() + firstbyte;
-						if (pos >= _buf->length()) {
-							break;
-						}
-						auto it = _buf->at(pos);
-						double x = topleft.x;
-						for (
-							std::size_t i = firstbyte;
-							i < lastbyte && it != _buf->end();
-							++i, ++it, x += _cached_max_byte_width + _blank_width
-							) {
-							auto text = renderer.create_plain_text(_get_hex_byte(*it), *_font, _font_size);
-							// TODO customizable color
-							renderer.draw_plain_text(
-								*text,
-								vec2d(x + 0.5 * (_cached_max_byte_width - text->get_width()), topleft.y),
-								colord()
-							);
-						}
-					}
-					// render carets
-					caret_set extcarets;
-					const caret_set *cset = &_carets;
-					std::vector<caret_selection> tmpcarets = _interaction_manager.get_temporary_carets();
-					if (!tmpcarets.empty()) { // merge & use temporary caret set
-						extcarets = _carets;
-						for (const auto &caret : tmpcarets) {
-							extcarets.add(caret_set::entry(caret, caret_data()));
-						}
-						cset = &extcarets;
-					}
-					auto it = cset->carets.lower_bound({ firstline * get_bytes_per_row() + firstbyte, 0 });
-					if (it != cset->carets.begin()) {
-						--it;
-					}
-					std::size_t
-						clampmin = firstline * get_bytes_per_row(),
-						clampmax = (
-							_get_line_at_position(edt->get_vertical_position() + get_layout().height()) + 1
-							) * get_bytes_per_row();
-					std::vector<rectd> caret_rects;
-					std::vector<std::vector<rectd>> selection_rects;
-					for (; it != cset->carets.end(); ++it) {
-						if (it->first.caret > clampmax && it->first.selection > clampmax) { // out of visible scope
-							break;
-						}
-						caret_rects.emplace_back(_get_caret_rect(it->first.caret));
-						selection_rects.emplace_back(_get_selection_rects(it->first, clampmin, clampmax));
-					}
-					// TODO proper visuals
-					for (const rectd &r : caret_rects) {
-						renderer.draw_rectangle(
-							r.translated(-edtpos),
-							ui::generic_brush_parameters(),
-							ui::generic_pen_parameters(ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord())))
-						);
-					}
-					for (const auto &v : selection_rects) {
-						for (const rectd &r : v) {
-							renderer.draw_rectangle(
-								r.translated(-edtpos),
-								ui::generic_brush_parameters(ui::brush_parameters::solid_color(colord(1.0, 1.0, 1.0, 0.2))),
-								ui::generic_pen_parameters()
-							);
-						}
-					}
-				}
-			}
-		}
+		void _custom_render() const override;
 
 		// formatting
 		/// Updates the cached value \ref _cached_bytes_per_row. This function invokes
@@ -579,27 +358,7 @@ namespace codepad::editors::binary {
 		///
 		/// \return Whether the number of bytes per row has changed. This also indicates whether
 		///         \ref _on_content_visual_changed() has been called.
-		bool _update_bytes_per_row() {
-			std::size_t target = _cached_bytes_per_row;
-			if (_wrap == wrap_mode::fixed) {
-				target = _target_bytes_per_row;
-			} else { // automatic
-				std::size_t max = static_cast<std::size_t>(std::max(
-					(get_client_region().width() + _blank_width) / (_cached_max_byte_width + _blank_width), 1.0
-				)); // no need for std::floor
-				if (_wrap == wrap_mode::auto_power2) {
-					target = std::size_t(1) << high_bit_index(max);
-				} else {
-					target = max;
-				}
-			}
-			if (target != _cached_bytes_per_row) {
-				_cached_bytes_per_row = target;
-				_on_content_visual_changed();
-				return true;
-			}
-			return false;
-		}
+		bool _update_bytes_per_row();
 
 		/// Calls \ref _update_bytes_per_row().
 		void _on_layout_changed() override {
@@ -658,29 +417,7 @@ namespace codepad::editors::binary {
 		}
 		/// Called when \ref _buf has been modified, this function re-adjusts caret positions and invokes
 		/// \ref _on_content_modified().
-		void _on_end_edit(buffer::end_edit_info &info) {
-			// fixup carets
-			buffer::position_patcher patcher(info.positions);
-			caret_set newcarets;
-			if (info.source_element == this && info.type == edit_type::normal) {
-
-			} else {
-				for (const auto &cp : _carets.carets) {
-					caret_selection newpos;
-					if (cp.first.caret < cp.first.selection) {
-						newpos.caret = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.caret);
-						newpos.selection = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.selection);
-					} else {
-						newpos.caret = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.caret);
-						newpos.selection = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.selection);
-					}
-					newcarets.add(caret_set::entry(newpos, cp.second));
-				}
-			}
-			set_carets(std::move(newcarets));
-
-			_on_content_modified();
-		}
+		void _on_end_edit(buffer::end_edit_info&);
 		/// Called when the buffer has been modified.
 		void _on_content_modified() {
 			content_modified.invoke();
@@ -701,62 +438,20 @@ namespace codepad::editors::binary {
 
 		// visual
 		/// Registers handlers used to forward viewport update events to \ref _interaction_manager.
-		void _on_logical_parent_constructed() override {
-			element::_on_logical_parent_constructed();
-
-			auto *edt = editor::get_encapsulating(*this);
-			edt->horizontal_viewport_changed += [this]() {
-				_interaction_manager.on_viewport_changed();
-			};
-			edt->vertical_viewport_changed += [this]() {
-				_interaction_manager.on_viewport_changed();
-			};
-		}
+		void _on_logical_parent_constructed() override;
 
 		// misc
 		/// Loads font and interaction settings.
-		void _initialize(std::u8string_view cls, const ui::element_configuration &config) override {
-			element::_initialize(cls, config);
-
-			std::vector<std::u8string> profile{ u8"binary" };
-
-			auto &set = get_manager().get_settings();
-			set_font_by_name(
-				editor::get_font_family_setting(set).get_profile(profile.begin(), profile.end()).get_value()
-			);
-			set_font_size(
-				editor::get_font_size_setting(set).get_profile(profile.begin(), profile.end()).get_value()
-			);
-
-			// initialize _interaction_manager
-			_interaction_manager.set_contents_region(*this);
-			auto &modes = editor::get_interaction_modes_setting(set).get_profile(
-				profile.begin(), profile.end()
-			).get_value();
-			for (auto &&mode_name : modes) {
-				if (auto mode = get_interaction_mode_registry().try_create(mode_name)) {
-					_interaction_manager.activators().emplace_back(std::move(mode));
-				}
-			}
-		}
+		void _initialize(std::u8string_view, const ui::element_configuration&) override;
 		/// Sets the current document to empty to unbind event listeners.
-		void _dispose() override {
-			_unbind_buffer_events();
-			element::_dispose();
-		}
+		void _dispose() override;
 	};
 
 	/// Helper functions used to obtain the \ref contents_region associated with elements.
 	namespace component_helper {
 		/// Returns both the \ref editor and the \ref contents_region. If the returned \ref contents_region is not
 		/// \p nullptr, then the returned \ref editor also won't be \p nullptr.
-		inline std::pair<editor*, contents_region*> get_core_components(const ui::element &elem) {
-			editor *edt = editor::get_encapsulating(elem);
-			if (edt) {
-				return { edt, contents_region::get_from_editor(*edt) };
-			}
-			return { nullptr, nullptr };
-		}
+		std::pair<editor*, contents_region*> get_core_components(const ui::element&);
 
 		/// Returns the \ref contents_region that corresponds to the given \ref ui::element.
 		inline contents_region *get_contents_region(const ui::element &elem) {

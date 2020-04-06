@@ -8,14 +8,28 @@
 
 #include "fragment_generation.h"
 
-using namespace std;
-using namespace codepad::ui;
-using namespace codepad::os;
-
 namespace codepad::editors::code {
+	void contents_region::on_text_input(std::u8string_view text) {
+		_interaction_manager.on_edit_operation();
+		// encode added content
+		byte_string str;
+		const std::byte
+			*it = reinterpret_cast<const std::byte*>(text.data()),
+			*end = it + text.size();
+		while (it != end) {
+			codepoint cp;
+			if (encodings::utf8::next_codepoint(it, end, cp)) {
+				str.append(_doc->get_encoding()->encode_codepoint(cp));
+			} else {
+				logger::get().log_warning(CP_HERE) << "skipped invalid byte sequence in input";
+			}
+		}
+		_doc->on_insert(_cset, str, this);
+	}
+
 	/// \todo Also consider folded regions.
 	/// \todo Word wrapping not implemented.
-	vector<size_t> contents_region::_recalculate_wrapping_region(size_t, size_t) const {
+	std::vector<size_t> contents_region::_recalculate_wrapping_region(size_t, size_t) const {
 		/*
 		vector<size_t> poss;
 		size_t last = 0;
@@ -93,8 +107,8 @@ namespace codepad::editors::code {
 			bool has_result = visit([this, &iter, &ass, &res, &respos, x](auto &&frag) -> bool {
 				auto &&rendering = ass.append(frag);
 				if (ass.get_horizontal_position() > x) {
-					if constexpr (is_same_v<decay_t<decltype(frag)>, text_fragment>) {
-						caret_hit_test_result htres = rendering.text->hit_test(x - rendering.topleft.x);
+					if constexpr (std::is_same_v<std::decay_t<decltype(frag)>, text_fragment>) {
+						ui::caret_hit_test_result htres = rendering.text->hit_test(x - rendering.topleft.x);
 						respos.position = iter.get_position() - res.steps;
 						respos.position += htres.rear ? htres.character + 1 : htres.character;
 						respos.at_back = true;
@@ -135,7 +149,7 @@ namespace codepad::editors::code {
 
 		auto &renderer = get_manager().get_renderer();
 		double lh = get_line_height();
-		pair<std::size_t, std::size_t> be = get_visible_visual_lines();
+		std::pair<std::size_t, std::size_t> be = get_visible_visual_lines();
 		
 		caret_set extcarets;
 		const caret_set *used = &_cset;
@@ -151,7 +165,7 @@ namespace codepad::editors::code {
 		}
 
 		{ // render to a pixel-snapped buffer to avoid cleartype issues
-			pixel_snapped_render_target target(
+			ui::pixel_snapped_render_target target(
 				renderer, rectd::from_corners(vec2d(), get_layout().size()), get_window()->get_scaling_factor()
 			);
 

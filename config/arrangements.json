@@ -23,6 +23,7 @@
 			"margin": 0.0,
 			"anchor": "lrb"
 		},
+		"visibility": "-f",
 		"visuals": {
 			"geometries": [
 				{
@@ -46,6 +47,7 @@
 			{
 				"type": "button",
 				"name": "page_up_button",
+				"visibility": "-f",
 				"layout": {
 					"width": "100%",
 					"height": "100%"
@@ -54,6 +56,7 @@
 			{
 				"type": "scrollbar_drag_button",
 				"name": "drag_button",
+				"visibility": "-f",
 				"layout": {
 					"width": "100%",
 					"height": "100%"
@@ -94,6 +97,7 @@
 			{
 				"type": "button",
 				"name": "page_down_button",
+				"visibility": "-f",
 				"layout": {
 					"width": "100%",
 					"height": "100%"
@@ -832,6 +836,7 @@
 			{
 				"type": "element",
 				"name": "separator",
+				"visibility": "-f",
 				"layout": {
 					"size": [ 5, 5 ],
 					"width_alloc": "px",
@@ -960,7 +965,7 @@
 			{
 				"type": "stack_panel",
 				"name": "components_panel",
-				"visibility": "lvi",
+				"visibility": "-f",
 				"extras": {
 					"orientation": "horizontal"
 				},
@@ -972,6 +977,7 @@
 				"children": [
 					{
 						"type": "line_number_display",
+						"visibility": "-f",
 						"layout": {
 							"padding": [ 10, 0, 5, 0 ]
 						}
@@ -979,7 +985,7 @@
 					{
 						"type": "code_contents_region",
 						"name": "contents_region",
-						"visibility": "lvi",
+						"visibility": "-f",
 						"extras": {
 							"selection_brush": {
 								"type": "solid",
@@ -1094,6 +1100,7 @@
 					},
 					{
 						"type": "minimap",
+						"visibility": "-f",
 						"extras": {
 							"viewport_visuals": {
 								"geometries": [
@@ -1176,6 +1183,7 @@
 			{
 				"type": "stack_panel",
 				"name": "components_panel",
+				"visibility": "-f",
 				"extras": {
 					"orientation": "horizontal"
 				},
@@ -1187,6 +1195,7 @@
 				"children": [
 					{
 						"type": "primary_offset_display",
+						"visibility": "-f",
 						"layout": {
 							"width": "auto",
 							"height": "100%",
@@ -1196,6 +1205,7 @@
 					{
 						"type": "binary_contents_region",
 						"name": "contents_region",
+						"visibility": "-f",
 						"layout": {
 							"width": "1*",
 							"height": "100%",

@@ -321,8 +321,14 @@ namespace codepad::editors {
 			/// Similar to \ref modify_nofixup, but \p pos is obtained before modifications have been made, and is
 			/// automatically adjusted with \ref _diff.
 			void modify(std::size_t pos, std::size_t eraselen, byte_string insert) {
-				pos += _diff;
+				pos += get_fixup_offset();
 				modify_nofixup(pos, eraselen, std::move(insert));
+			}
+
+			/// Returns the offset used for adjusting positions of caret selections, i.e., \ref _diff. Simply add
+			/// this to the beginning and ending positions of the caret selection.
+			std::size_t get_fixup_offset() const {
+				return _diff;
 			}
 
 			/// Reverts a modification made previously. This operation is not recorded, and is intended to be used
@@ -374,13 +380,9 @@ namespace codepad::editors {
 				_mod.end();
 			}
 
-			/// Calls \ref modifier::modify().
-			void modify(std::size_t pos, std::size_t eraselen, byte_string insert) {
-				_mod.modify(pos, eraselen, std::move(insert));
-			}
-			/// Calls \ref modifier::modify_nofixup().
-			void modify_nofixup(std::size_t pos, std::size_t eraselen, byte_string insert) {
-				_mod.modify_nofixup(pos, eraselen, std::move(insert));
+			/// Returns the underlying \ref modifier.
+			modifier &get_modifier() {
+				return _mod;
 			}
 		protected:
 			modifier _mod; ///< The underlying \ref modifier.
