@@ -5,7 +5,6 @@
 /// Global definitions of getters for setting entries.
 
 #include "settings.h"
-#include "../ui/common_elements.h"
 #include "../editors/editor.h"
 #include "../editors/code/contents_region.h"
 #include "../editors/binary/contents_region.h"

@@ -12,8 +12,8 @@
 #include "element.h"
 #include "panel.h"
 #include "native_commands.h"
-#include "tabs/manager.h"
-#include "tabs/animated_tab_button_panel.h"
+#include "elements/tabs/manager.h"
+#include "elements/tabs/animated_tab_button_panel.h"
 #include "../editors/code/contents_region.h"
 #include "../editors/code/components.h"
 #include "../editors/binary/contents_region.h"
@@ -67,5 +67,21 @@ namespace codepad::ui {
 				logger::get().log_warning(CP_HERE) << "invalid command: " << info.command;
 			}
 		};
+	}
+
+	element *manager::create_element_custom(
+		std::u8string_view type, std::u8string_view cls, const element_configuration &config
+	) {
+		auto it = _ctor_map.find(type);
+		if (it == _ctor_map.end()) {
+			return nullptr;
+		}
+		element *elem = it->second(); // the constructor must not use element::_manager
+		elem->_manager = this;
+		elem->_initialize(cls, config);
+#ifdef CP_CHECK_USAGE_ERRORS
+		assert_true_usage(elem->_initialized, "element::_initialize() must be called by derived classes");
+#endif
+		return elem;
 	}
 }

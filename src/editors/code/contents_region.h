@@ -111,15 +111,6 @@ namespace codepad::editors::code {
 			return _tab_width;
 		}
 
-		/// Returns a reference to the selection renderer used for this contents region.
-		std::unique_ptr<selection_renderer> &code_selection_renderer() {
-			return _selection_renderer;
-		}
-		/// \overload
-		const std::unique_ptr<selection_renderer> &code_selection_renderer() const {
-			return _selection_renderer;
-		}
-
 		/// Sets the formatter used to format invalid codepoints.
 		void set_invalid_codepoint_formatter(invalid_codepoint_formatter fmt) {
 			_invalid_cp_fmt = std::move(fmt);
@@ -307,22 +298,6 @@ namespace codepad::editors::code {
 		/// "move_carets(gp, gp, continueselection)".
 		template <typename GetPos> void move_carets(const GetPos &gp, bool continueselection) {
 			return move_carets(gp, gp, continueselection);
-		}
-
-		/// Returns whether the contents_region is currently in insert mode.
-		bool is_insert_mode() const {
-			return _insert;
-		}
-		/// Sets whether the contents_region is currently in insert mode.
-		void set_insert_mode(bool v) {
-			if (v != _insert) {
-				_insert = v;
-				edit_mode_changed.invoke();
-			}
-		}
-		/// Toggles insert mode.
-		void toggle_insert_mode() {
-			set_insert_mode(!is_insert_mode());
 		}
 
 		// edit operations
@@ -598,9 +573,7 @@ namespace codepad::editors::code {
 			/// regions are changed due to edits made from other views.
 			///
 			/// \todo Invoke this when folded regions are changed due to edits made from other views.
-			folding_changed,
-			/// Invoked when the input mode changes from insert to overwrite or the other way around.
-			edit_mode_changed;
+			folding_changed;
 
 		/// Retrieves the setting entry that determines the font families.
 		static settings::retriever_parser<std::vector<std::u8string>> &get_backup_fonts_setting(settings&);
@@ -661,12 +634,7 @@ namespace codepad::editors::code {
 		interaction_manager<caret_set> _interaction_manager; ///< The \ref interaction_manager.
 		caret_set _cset; ///< The set of carets.
 		double _lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
-		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
-		std::unique_ptr<selection_renderer> _selection_renderer; ///< The \ref selection_renderer.
-		ui::visuals _caret_visuals; ///< The visuals of carets.
-		ui::generic_brush _selection_brush; ///< The brush used for the selection.
-		ui::generic_pen _selection_pen; ///< The pen used for the outline of the selection.
 		/// Used to format invalid codepoints.
 		invalid_codepoint_formatter _invalid_cp_fmt{ format_invalid_codepoint };
 		/// The set of font family used to display code. Font families in the back are backups for font families in
@@ -990,84 +958,11 @@ namespace codepad::editors::code {
 			}
 		}
 
-		/// Handles the registration of \p mode_changed_insert and \p mode_changed_overwrite events.
-		bool _register_edit_mode_changed_event(std::u8string_view name, std::function<void()> &callback) {
-			if (name == u8"mode_changed_insert") {
-				edit_mode_changed += [this, cb = std::move(callback)]() {
-					if (is_insert_mode()) {
-						cb();
-					}
-				};
-				return true;
-			}
-			if (name == u8"mode_changed_overwrite") {
-				edit_mode_changed += [this, cb = std::move(callback)]() {
-					if (!is_insert_mode()) {
-						cb();
-					}
-				};
-				return true;
-			}
-			return false;
-		}
 		/// Checks for the \ref carets_changed event.
 		bool _register_event(std::u8string_view name, std::function<void()> callback) override {
 			return
-				_register_edit_mode_changed_event(name, callback) ||
 				_event_helpers::try_register_event(name, u8"carets_changed", carets_changed, callback) ||
 				_base::_register_event(name, std::move(callback));
-		}
-
-		/// Handles the \p caret_visuals attribute.
-		void _set_attribute(std::u8string_view name, const json::value_storage &v) override {
-			if (name == u8"caret_visuals") {
-				if (auto vis = v.get_value().parse<ui::visuals>(
-					ui::managed_json_parser<ui::visuals>(get_manager())
-					)) {
-					_caret_visuals = std::move(vis.value());
-				}
-				return;
-			} else if (name == u8"selection_brush") {
-				if (auto brush = v.get_value().parse<ui::generic_brush>(
-					ui::managed_json_parser<ui::generic_brush>(get_manager())
-					)) {
-					_selection_brush = std::move(brush.value());
-				}
-				return;
-			} else if (name == u8"selection_pen") {
-				if (auto pen = v.get_value().parse<ui::generic_pen>(
-					ui::managed_json_parser<ui::generic_pen>(get_manager())
-					)) {
-					_selection_pen = std::move(pen.value());
-				}
-				return;
-			}
-			_base::_set_attribute(name, v);
-		}
-
-		/// Handles properties related to \ref _caret_visuals.
-		ui::animation_subject_information _parse_animation_path(
-			const ui::animation_path::component_list &components
-		) override {
-			if (!components.empty()) {
-				if (components.front().is_similar(u8"contents_region", u8"caret_visuals")) {
-					return ui::animation_subject_information::from_member<&contents_region::_caret_visuals>(
-						*this, ui::animation_path::builder::element_property_type::visual_only,
-						++components.begin(), components.end()
-						);
-				} else if (components.front().is_similar(u8"contents_region", u8"selection_brush")) {
-					return ui::animation_subject_information::from_member<&contents_region::_selection_brush>(
-						*this, ui::animation_path::builder::element_property_type::visual_only,
-						++components.begin(), components.end()
-						);
-				} else if (components.front().is_similar(u8"contents_region", u8"selection_pen")) {
-					return ui::animation_subject_information::from_member<&contents_region::_selection_pen>(
-						*this, ui::animation_path::builder::element_property_type::visual_only,
-						++components.begin(), components.end()
-						);
-				}
-			}
-			return _base::_parse_animation_path(components);
 		}
 
 		/// Registers event handlers used to forward viewport update events to \ref _interaction_manager.

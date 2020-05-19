@@ -16,6 +16,13 @@
 #include "renderer.h"
 
 namespace codepad {
+	// forward declarations
+	namespace ui {
+		struct mouse_position;
+		class element;
+	}
+
+
 	/// Contains a collection of functions that parse objects from JSON objects.
 	namespace json {
 		/// Parser for \ref vec2d.
@@ -658,7 +665,7 @@ namespace codepad {
 					vec2d offset = vec2d(std::round(trans_corner.x), std::round(trans_corner.y)) - trans_corner;
 					offset.x /= scaling.x;
 					offset.y /= scaling.y;
-					
+
 					_snapped_position = corner + offset;
 					snap_transform = matd3x3::translate(-offset);
 				}
@@ -698,6 +705,43 @@ namespace codepad {
 			vec2d _snapped_position;
 			render_target_data _target; ///< The temporary render target.
 			renderer_base &_renderer; ///< The renderer.
+		};
+
+		/// Used when starting dragging to add a small deadzone where dragging will not yet trigger. The mouse is
+		/// captured when the mouse is in the deadzone.
+		class drag_deadzone {
+		public:
+			/// Default constructor.
+			drag_deadzone();
+			/// Initializes \ref radius.
+			explicit drag_deadzone(double r) : radius(r) {
+			}
+
+			/// Initializes the starting position and starts dragging by capturing the mouse.
+			void start(const mouse_position &mouse, element &parent);
+			/// Updates the mouse position.
+			///
+			/// \return \p true if the mouse has moved out of the deadzone and dragging should start, or \p false if the
+			///         mouse is still in the deadzone.
+			bool update(const mouse_position &mouse, element &parent);
+			/// Cancels the drag operation.
+			void on_cancel(element &parent);
+			/// Cancels the drag operation without releasing the capture (as it has already been lost).
+			void on_capture_lost() {
+				_deadzone = false;
+			}
+
+			/// Returns \p true if the user is trying to drag the associated object but is in the deadzone.
+			bool is_active() const {
+				return _deadzone;
+			}
+
+			double radius = 0.0; ///< The radius of the deadzone.
+		protected:
+			/// The starting position relative to the window. This is to ensure that the size of the deadzone stays
+			/// consistent when the element itself is transformed.
+			vec2d _start;
+			bool _deadzone = false; ///< \p true if the user is dragging and is in the deadzone.
 		};
 	}
 }

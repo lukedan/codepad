@@ -213,8 +213,8 @@ namespace codepad::ui {
 			}
 			return true;
 		}
-		/// Parses an \ref class_hotkey_group from an JSON array.
-		inline static bool parse_class_hotkey(class_hotkey_group &gp, const array_t &arr) {
+		/// Parses an \ref hotkey_group from an JSON array.
+		inline static bool parse_class_hotkey(hotkey_group &gp, const array_t &arr) {
 			for (auto &&cls : arr) {
 				if (auto obj = cls.template try_cast<object_t>()) {
 					std::vector<key_gesture> gs;
@@ -228,17 +228,36 @@ namespace codepad::ui {
 			}
 			return true;
 		}
-		/// Parses a set of \ref class_hotkey_group "element_hotkey_groups" from a given JSON object.
+		/// Parses a set of \ref hotkey_group "element_hotkey_groups" from a given JSON object.
 		template <typename Map> inline static void parse_config(
 			Map &mapping, const object_t &obj
 		) {
 			for (auto i = obj.member_begin(); i != obj.member_end(); ++i) {
-				class_hotkey_group gp;
+				hotkey_group gp;
+				std::optional<array_t> key_array;
 				if (auto arr = i.value().template try_cast<array_t>()) {
-					if (parse_class_hotkey(gp, arr.value())) {
-						mapping.emplace(i.name(), std::move(gp));
+					key_array = arr.value();
+				} else if (auto complex = i.value().template try_cast<object_t>()) {
+					if (auto inherit = complex->find_member(u8"inherit_from"); inherit != complex->member_end()) {
+						if (auto inherit_name = inherit.value().template cast<std::u8string_view>()) {
+							if (auto iter = mapping.find(inherit_name.value()); iter != mapping.end()) {
+								gp = iter->second;
+							} else {
+								inherit.value().log<log_level::error>(CP_HERE) << "invalid inherit group name";
+							}
+						}
 					}
+					if (auto hotkeys = complex->template parse_optional_member<array_t>(u8"hotkeys")) {
+						key_array = hotkeys.value();
+					}
+				} else {
+					i.value().log<log_level::error>(CP_HERE) << "invalid class hotkey group format";
+					continue;
 				}
+				if (key_array) {
+					parse_class_hotkey(gp, key_array.value());
+				}
+				mapping.emplace(i.name(), std::move(gp));
 			}
 		}
 	};

@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "../../os/misc.h"
-#include "../../os/current/window.h"
-#include "../element.h"
-#include "../panel.h"
+#include "../../../os/misc.h"
+#include "../../../os/current/window.h"
+#include "../../element.h"
+#include "../../panel.h"
 #include "split_panel.h"
 #include "tab.h"
 #include "host.h"

@@ -143,6 +143,33 @@ namespace codepad::ui {
 	}
 
 
+	cursor panel::get_current_display_cursor() const {
+		if (_children_cursor != cursor::not_specified) {
+			return _children_cursor;
+		}
+		return element::get_current_display_cursor();
+	}
+	
+	size_allocation panel::get_desired_width() const {
+		double maxw = 0.0;
+		for (const element *e : _children.items()) {
+			if (e->is_visible(visibility::layout)) {
+				maxw = std::max(maxw, _get_horizontal_absolute_span(*e));
+			}
+		}
+		return size_allocation(maxw + get_padding().width(), true);
+	}
+	
+	size_allocation panel::get_desired_height() const {
+		double maxh = 0.0;
+		for (const element *e : _children.items()) {
+			if (e->is_visible(visibility::layout)) {
+				maxh = std::max(maxh, _get_vertical_absolute_span(*e));
+			}
+		}
+		return size_allocation(maxh + get_padding().height(), true);
+	}
+
 	void panel::layout_on_direction(
 		double &clientmin, double &clientmax,
 		bool anchormin, bool pixelsize, bool anchormax,
@@ -187,8 +214,46 @@ namespace codepad::ui {
 		}
 	}
 
+	void panel::layout_child_horizontal(element &child, double xmin, double xmax) {
+		anchor anc = child.get_anchor();
+		thickness margin = child.get_margin();
+		auto wprop = child.get_layout_width();
+		child._layout.xmin = xmin;
+		child._layout.xmax = xmax;
+		layout_on_direction(
+			child._layout.xmin, child._layout.xmax,
+			(anc & anchor::left) != anchor::none, wprop.is_pixels, (anc & anchor::right) != anchor::none,
+			margin.left, wprop.value, margin.right
+		);
+	}
+
+	void panel::layout_child_vertical(element &child, double ymin, double ymax) {
+		anchor anc = child.get_anchor();
+		thickness margin = child.get_margin();
+		auto hprop = child.get_layout_height();
+		child._layout.ymin = ymin;
+		child._layout.ymax = ymax;
+		layout_on_direction(
+			child._layout.ymin, child._layout.ymax,
+			(anc & anchor::top) != anchor::none, hprop.is_pixels, (anc & anchor::bottom) != anchor::none,
+			margin.top, hprop.value, margin.bottom
+		);
+	}
+
 	void panel::_invalidate_children_layout() {
 		get_manager().get_scheduler().invalidate_children_layout(*this);
+	}
+
+	void panel::_on_child_desired_size_changed(element &child, bool width, bool height) {
+		if (_is_child_desired_size_relevant(child, width, height)) { // actually affects something
+			if (_parent != nullptr) {
+				_parent->_on_child_desired_size_changed(*this, width, height);
+			} else {
+				invalidate_layout();
+			}
+		} else {
+			child.invalidate_layout();
+		}
 	}
 
 	void panel::_on_mouse_down(mouse_button_info &p) {
@@ -204,6 +269,24 @@ namespace codepad::ui {
 		}
 	}
 
+	void panel::_on_mouse_move(mouse_move_info &p) {
+		_children_cursor = cursor::not_specified; // reset cursor
+		element *mouseover = _hit_test_for_child(p.new_position);
+		for (element *j : _children.z_ordered()) { // the mouse cannot be over any other element
+			if (mouseover != j && j->is_mouse_over()) {
+				j->_on_mouse_leave();
+			}
+		}
+		if (mouseover) {
+			if (!mouseover->is_mouse_over()) { // just moved onto the element
+				mouseover->_on_mouse_enter();
+			}
+			mouseover->_on_mouse_move(p);
+			_children_cursor = mouseover->get_current_display_cursor(); // get cursor
+		}
+		element::_on_mouse_move(p);
+	}
+
 	element *panel::_hit_test_for_child(const mouse_position &p) const {
 		for (element *elem : _children.z_ordered()) {
 			if (elem->is_visible(visibility::interact)) {
@@ -215,6 +298,14 @@ namespace codepad::ui {
 		return nullptr;
 	}
 
+	void panel::_initialize(std::u8string_view cls, const element_configuration &config) {
+		element::_initialize(cls, config);
+
+		get_manager().get_class_arrangements().get_or_default(cls).construct_children(
+			*this, _get_child_notify_mapping()
+		);
+	}
+
 	void panel::_dispose() {
 		if (_dispose_children) {
 			for (auto i : _children.items()) {
@@ -223,5 +314,39 @@ namespace codepad::ui {
 		}
 		_children.clear();
 		element::_dispose();
+	}
+
+	double panel::_get_horizontal_absolute_span(const element &e) {
+		double cur = 0.0;
+		thickness margin = e.get_margin();
+		anchor anc = e.get_anchor();
+		if ((anc & anchor::left) != anchor::none) {
+			cur += margin.left;
+		}
+		auto sz = e.get_layout_width();
+		if (sz.is_pixels) {
+			cur += sz.value;
+		}
+		if ((anc & anchor::right) != anchor::none) {
+			cur += margin.right;
+		}
+		return cur;
+	}
+
+	double panel::_get_vertical_absolute_span(const element &e) {
+		double cur = 0.0;
+		thickness margin = e.get_margin();
+		anchor anc = e.get_anchor();
+		if ((anc & anchor::top) != anchor::none) {
+			cur += margin.top;
+		}
+		auto sz = e.get_layout_height();
+		if (sz.is_pixels) {
+			cur += sz.value;
+		}
+		if ((anc & anchor::bottom) != anchor::none) {
+			cur += margin.bottom;
+		}
+		return cur;
 	}
 }

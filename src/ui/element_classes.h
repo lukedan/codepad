@@ -13,9 +13,6 @@
 #include "element_parameters.h"
 
 namespace codepad::ui {
-	/// Hotkey groups that are used with elements. Each hotkey corresponds to a command name.
-	using class_hotkey_group = hotkey_group<std::u8string>;
-
 	/// Registry of a certain attribute of each element class.
 	template <typename T> class class_registry {
 	public:
@@ -36,5 +33,5 @@ namespace codepad::ui {
 	/// Registry of the arrangements of each element class.
 	using class_arrangements_registry = class_registry<class_arrangements>;
 	/// Registry of the hotkeys of each element class.
-	using class_hotkeys_registry = class_registry<class_hotkey_group>;
+	using class_hotkeys_registry = class_registry<hotkey_group>;
 }

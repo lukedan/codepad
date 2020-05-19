@@ -6,30 +6,31 @@
 /// \file
 /// Implementation of the split panel.
 
-#include "../element.h"
-#include "../panel.h"
-#include "../manager.h"
+#include "../../element.h"
+#include "../../panel.h"
+#include "../../manager.h"
+#include "../stack_panel.h"
 
 namespace codepad::ui::tabs {
 	/// A panel with two regions separated by a draggable separator.
-	class split_panel : public ui::panel {
+	class split_panel : public panel {
 	public:
 		constexpr static double minimum_panel_size = 30.0; ///< The minimum size that a region can have.
 
 		/// Sets the child that will be placed above or to the left of the separator.
-		void set_child1(ui::element *elem) {
+		void set_child1(element *elem) {
 			_change_child(_c1, elem);
 		}
 		/// Returns the child that's currently above or to the left of the separator.
-		ui::element *get_child1() const {
+		element *get_child1() const {
 			return _c1;
 		}
 		/// Sets the child that will be placed below or to the right of the separator.
-		void set_child2(ui::element *elem) {
+		void set_child2(element *elem) {
 			_change_child(_c2, elem);
 		}
 		/// Returns the child that's currently below or to the right of the separator.
-		ui::element *get_child2() const {
+		element *get_child2() const {
 			return _c2;
 		}
 
@@ -65,11 +66,11 @@ namespace codepad::ui::tabs {
 					get_client_region().width() - _sep->get_layout().width();
 				auto *sp = dynamic_cast<split_panel*>(_c1);
 				if (sp && sp->get_orientation() == get_orientation()) {
-					sp->_maintain_separator_position<false>(totw, oldpos, get_separator_position());
+					sp->_maintain_separator_position(totw, oldpos, get_separator_position(), false);
 				}
 				sp = dynamic_cast<split_panel*>(_c2);
 				if (sp && sp->get_orientation() == get_orientation()) {
-					sp->_maintain_separator_position<true>(totw, oldpos, get_separator_position());
+					sp->_maintain_separator_position(totw, oldpos, get_separator_position(), true);
 				}
 			}
 			_invalidate_children_layout();
@@ -99,7 +100,7 @@ namespace codepad::ui::tabs {
 			return u8"separator";
 		}
 	protected:
-		ui::element
+		element
 			/// The first child, displayed above or to the left of the separator.
 			*_c1 = nullptr,
 			/// The second child, displayed below or to the right of the separator.
@@ -124,13 +125,13 @@ namespace codepad::ui::tabs {
 		/// position of the parent has changed, this function is called to make the element behave as if it is
 		/// independent of its parent, i.e., to keep the global position of the draggable separator uncahnged.
 		///
-		/// \tparam MinChanged \p true if the position of the left/top boundary has changed, and \p false if that of
-		///                    the right/bottom boundary has changed.
 		/// \param ptotw The total width of the parent, not including that of its separator. This value is obtained
 		///             before the layouts are updated.
 		/// \param poldv The original position of the parent's separator.
 		/// \param pnewv The updated position of the parent's separator.
-		template <bool MinChanged> void _maintain_separator_position(double ptotw, double poldv, double pnewv) {
+		/// \param min_changed \p true if the position of the left/top boundary has changed, and \p false if that of
+		///                    the right/bottom boundary has changed.
+		void _maintain_separator_position(double ptotw, double poldv, double pnewv, bool min_changed) {
 			vec2d sepsz = _sep->get_layout().size();
 			double newpos, oldpos = get_separator_position(), padding =
 				get_orientation() == orientation::vertical ?
@@ -142,7 +143,7 @@ namespace codepad::ui::tabs {
 				// the width of this region whose width won't change
 				myfixw;
 			// recalculate separator position
-			if constexpr (MinChanged) {
+			if (min_changed) {
 				// (ptotw * (1 - poldv) - padding) * (1 - oldmv) = (ptotw * (1 - pnewv) - padding) * (1 - newmv)
 				omytotw = ptotw * (1.0 - poldv) - padding;
 				nmytotw = ptotw * (1.0 - pnewv) - padding;
@@ -156,7 +157,7 @@ namespace codepad::ui::tabs {
 				newpos = myfixw / nmytotw;
 			}
 			// the possibly affected child
-			auto *sp = dynamic_cast<split_panel*>(MinChanged ? _c1 : _c2);
+			auto *sp = dynamic_cast<split_panel*>(min_changed ? _c1 : _c2);
 			if (sp && sp->get_orientation() == get_orientation()) {
 				// must also be a split_panel with the same orientation
 				// here we transform the positions so that it's as if this split_panel doesn't exist
@@ -178,12 +179,12 @@ namespace codepad::ui::tabs {
 				//   |----- ^ -------|
 				// note how the space on the right is removed
 				double neww = ptotw - padding - myfixw; // the width of the transformed region to be adjusted
-				if constexpr (MinChanged) {
-					sp->_maintain_separator_position<true>(neww, ptotw * poldv / neww, ptotw * pnewv / neww);
+				if (min_changed) {
+					sp->_maintain_separator_position(neww, ptotw * poldv / neww, ptotw * pnewv / neww, true);
 				} else {
-					sp->_maintain_separator_position<false>(
-						neww, omytotw * (1.0 - oldpos) / neww, nmytotw * (1.0 - newpos) / neww
-						);
+					sp->_maintain_separator_position(
+						neww, omytotw * (1.0 - oldpos) / neww, nmytotw * (1.0 - newpos) / neww, false
+					);
 				}
 			}
 			// update position
@@ -193,9 +194,9 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Changes the given child to the specified value.
-		void _change_child(ui::element *&e, ui::element *newv) {
+		void _change_child(element *&e, element *newv) {
 			if (e) {
-				ui::element *old = e; // because e may be changed in _on_child_removed
+				element *old = e; // because e may be changed in _on_child_removed
 				_children.remove(*old);
 			}
 			e = newv;
@@ -256,16 +257,19 @@ namespace codepad::ui::tabs {
 				panel::_register_event(name, std::move(callback));
 		}
 
+		/// Adds \ref _sep to the mapping.
+		class_arrangements::notify_mapping _get_child_notify_mapping() override {
+			auto mapping = panel::_get_child_notify_mapping();
+			mapping.emplace(get_separator_name(), _name_cast(_sep));
+			return mapping;
+		}
+
 		/// Initializes \ref _sep and adds handlers for certain events.
 		void _initialize(std::u8string_view cls, const element_configuration &config) override {
-			ui::panel::_initialize(cls, config);
+			panel::_initialize(cls, config);
 
-			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_separator_name(), _name_cast(_sep)}
-				});
-
-			_sep->mouse_down += [this](ui::mouse_button_info &p) {
-				if (p.button == ui::mouse_button::primary) {
+			_sep->mouse_down += [this](mouse_button_info &p) {
+				if (p.button == mouse_button::primary) {
 					_sep_dragging = true;
 					_sep_offset =
 						get_orientation() == orientation::vertical ?
@@ -277,13 +281,13 @@ namespace codepad::ui::tabs {
 			_sep->lost_capture += [this]() {
 				_sep_dragging = false;
 			};
-			_sep->mouse_up += [this](ui::mouse_button_info &p) {
-				if (_sep_dragging && p.button == ui::mouse_button::primary) {
+			_sep->mouse_up += [this](mouse_button_info &p) {
+				if (_sep_dragging && p.button == mouse_button::primary) {
 					_sep_dragging = false;
 					get_window()->release_mouse_capture();
 				}
 			};
-			_sep->mouse_move += [this](ui::mouse_move_info &p) {
+			_sep->mouse_move += [this](mouse_move_info &p) {
 				if (_sep_dragging) {
 					rectd client = get_client_region();
 					double position =

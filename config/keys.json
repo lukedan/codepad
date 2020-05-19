@@ -5,147 +5,155 @@
 			"command": "test_command"
 		}
 	],
-	"code_editor": [
-		{
-			"gestures": "left",
-			"command": "contents_region.carets.move_left"
-		},
-		{
-			"gestures": "right",
-			"command": "contents_region.carets.move_right"
-		},
-		{
-			"gestures": "up",
-			"command": "contents_region.carets.move_up"
-		},
-		{
-			"gestures": "down",
-			"command": "contents_region.carets.move_down"
-		},
-
-		{
-			"gestures": "shift+left",
-			"command": "contents_region.carets.move_left_selected"
-		},
-		{
-			"gestures": "shift+right",
-			"command": "contents_region.carets.move_right_selected"
-		},
-		{
-			"gestures": "shift+up",
-			"command": "contents_region.carets.move_up_selected"
-		},
-		{
-			"gestures": "shift+down",
-			"command": "contents_region.carets.move_down_selected"
-		},
-
-		{
-			"gestures": "alt+j",
-			"command": "contents_region.carets.move_left"
-		},
-		{
-			"gestures": "alt+l",
-			"command": "contents_region.carets.move_right"
-		},
-		{
-			"gestures": "alt+i",
-			"command": "contents_region.carets.move_up"
-		},
-		{
-			"gestures": "alt+k",
-			"command": "contents_region.carets.move_down"
-		},
-		{
-			"gestures": "alt+u",
-			"command": "contents_region.carets.move_leftmost_noblank"
-		},
-		{
-			"gestures": "alt+o",
-			"command": "contents_region.carets.move_rightmost"
-		},
-
-		{
-			"gestures": "alt+shift+j",
-			"command": "contents_region.carets.move_left_selected"
-		},
-		{
-			"gestures": "alt+shift+l",
-			"command": "contents_region.carets.move_right_selected"
-		},
-		{
-			"gestures": "alt+shift+i",
-			"command": "contents_region.carets.move_up_selected"
-		},
-		{
-			"gestures": "alt+shift+k",
-			"command": "contents_region.carets.move_down_selected"
-		},
-		{
-			"gestures": "alt+shift+u",
-			"command": "contents_region.carets.move_leftmost_noblank_selected"
-		},
-		{
-			"gestures": "alt+shift+o",
-			"command": "contents_region.carets.move_rightmost_selected"
-		},
-
-		{
-			"gestures": "home",
-			"command": "contents_region.carets.move_leftmost_noblank"
-		},
-		{
-			"gestures": "end",
-			"command": "contents_region.carets.move_rightmost"
-		},
-		{
-			"gestures": "ctrl+home",
-			"command": "contents_region.carets.move_leftmost"
-		},
-		{
-			"gestures": "shift+home",
-			"command": "contents_region.carets.move_leftmost_noblank_selected"
-		},
-		{
-			"gestures": "shift+end",
-			"command": "contents_region.carets.move_rightmost_selected"
-		},
-		{
-			"gestures": "shift+ctrl+home",
-			"command": "contents_region.carets.move_leftmost_selected"
-		},
-
-		{
-			"gestures": "ctrl+z",
-			"command": "contents_region.undo"
-		},
-		{
-			"gestures": "ctrl+y",
-			"command": "contents_region.redo"
-		},
-
-		{
-			"gestures": "ctrl+-",
-			"command": "contents_region.folding.fold_selected"
-		},
-
-		{
-			"gestures": "backspace",
-			"command": "contents_region.delete_before_carets"
-		},
-		{
-			"gestures": "delete",
-			"command": "contents_region.delete_after_carets"
-		},
+	"editor": [
 		{
 			"gestures": "insert",
 			"command": "contents_region.toggle_insert"
-		},
-		{
-			"gestures": "enter",
-			"command": "contents_region.insert_new_line"
 		}
 	],
+	"code_editor": {
+		"inherit_from": "editor",
+		"hotkeys": [
+			{
+				"gestures": "left",
+				"command": "contents_region.carets.move_left"
+			},
+			{
+				"gestures": "right",
+				"command": "contents_region.carets.move_right"
+			},
+			{
+				"gestures": "up",
+				"command": "contents_region.carets.move_up"
+			},
+			{
+				"gestures": "down",
+				"command": "contents_region.carets.move_down"
+			},
+
+			{
+				"gestures": "shift+left",
+				"command": "contents_region.carets.move_left_selected"
+			},
+			{
+				"gestures": "shift+right",
+				"command": "contents_region.carets.move_right_selected"
+			},
+			{
+				"gestures": "shift+up",
+				"command": "contents_region.carets.move_up_selected"
+			},
+			{
+				"gestures": "shift+down",
+				"command": "contents_region.carets.move_down_selected"
+			},
+
+			{
+				"gestures": "alt+j",
+				"command": "contents_region.carets.move_left"
+			},
+			{
+				"gestures": "alt+l",
+				"command": "contents_region.carets.move_right"
+			},
+			{
+				"gestures": "alt+i",
+				"command": "contents_region.carets.move_up"
+			},
+			{
+				"gestures": "alt+k",
+				"command": "contents_region.carets.move_down"
+			},
+			{
+				"gestures": "alt+u",
+				"command": "contents_region.carets.move_leftmost_noblank"
+			},
+			{
+				"gestures": "alt+o",
+				"command": "contents_region.carets.move_rightmost"
+			},
+
+			{
+				"gestures": "alt+shift+j",
+				"command": "contents_region.carets.move_left_selected"
+			},
+			{
+				"gestures": "alt+shift+l",
+				"command": "contents_region.carets.move_right_selected"
+			},
+			{
+				"gestures": "alt+shift+i",
+				"command": "contents_region.carets.move_up_selected"
+			},
+			{
+				"gestures": "alt+shift+k",
+				"command": "contents_region.carets.move_down_selected"
+			},
+			{
+				"gestures": "alt+shift+u",
+				"command": "contents_region.carets.move_leftmost_noblank_selected"
+			},
+			{
+				"gestures": "alt+shift+o",
+				"command": "contents_region.carets.move_rightmost_selected"
+			},
+
+			{
+				"gestures": "home",
+				"command": "contents_region.carets.move_leftmost_noblank"
+			},
+			{
+				"gestures": "end",
+				"command": "contents_region.carets.move_rightmost"
+			},
+			{
+				"gestures": "ctrl+home",
+				"command": "contents_region.carets.move_leftmost"
+			},
+			{
+				"gestures": "shift+home",
+				"command": "contents_region.carets.move_leftmost_noblank_selected"
+			},
+			{
+				"gestures": "shift+end",
+				"command": "contents_region.carets.move_rightmost_selected"
+			},
+			{
+				"gestures": "shift+ctrl+home",
+				"command": "contents_region.carets.move_leftmost_selected"
+			},
+
+			{
+				"gestures": "ctrl+z",
+				"command": "contents_region.undo"
+			},
+			{
+				"gestures": "ctrl+y",
+				"command": "contents_region.redo"
+			},
+
+			{
+				"gestures": "ctrl+-",
+				"command": "contents_region.folding.fold_selected"
+			},
+
+			{
+				"gestures": "backspace",
+				"command": "contents_region.delete_before_carets"
+			},
+			{
+				"gestures": "delete",
+				"command": "contents_region.delete_after_carets"
+			},
+			{
+				"gestures": "enter",
+				"command": "contents_region.insert_new_line"
+			}
+		]
+	},
+	"binary_editor": {
+		"inherit_from": "editor"
+	},
 	"tab": [
 		{
 			"gestures": [ "ctrl+t", "left" ],

@@ -9,6 +9,38 @@
 #include "manager.h"
 
 namespace codepad::ui::tabs {
+	void tab_button::_on_mouse_down(mouse_button_info &p) {
+		switch (p.button) {
+		case mouse_button::primary:
+			if (!_close_btn->is_mouse_over()) {
+				_drag_pos = p.position.get(*this);
+				_drag.start(p.position, *this);
+				click.invoke_noret(p);
+			}
+			break;
+		case mouse_button::tertiary:
+			request_close.invoke();
+			break;
+		}
+		panel::_on_mouse_down(p);
+	}
+
+	class_arrangements::notify_mapping tab_button::_get_child_notify_mapping() {
+		auto mapping = panel::_get_child_notify_mapping();
+		mapping.emplace(get_label_name(), _name_cast(_label));
+		mapping.emplace(get_close_button_name(), _name_cast(_close_btn));
+		return mapping;
+	}
+
+	void tab_button::_initialize(std::u8string_view cls, const element_configuration &config) {
+		panel::_initialize(cls, config);
+
+		_close_btn->click += [this]() {
+			request_close.invoke();
+		};
+	}
+
+
 	host *tab::get_host() const {
 		return dynamic_cast<host*>(logical_parent());
 	}
@@ -32,6 +64,11 @@ namespace codepad::ui::tabs {
 			vec2d windowpos = p.reference + get_host()->get_tab_buttons_region().get_layout().xmin_ymin();
 			get_tab_manager().start_dragging_tab(*this, p.reference, get_layout().translated(-windowpos));
 		};
+	}
+
+	void tab::_dispose() {
+		get_manager().get_scheduler().mark_for_disposal(*_btn);
+		panel::_dispose();
 	}
 
 	void tab::_on_close_requested() {

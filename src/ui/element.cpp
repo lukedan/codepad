@@ -68,6 +68,18 @@ namespace codepad::ui {
 		}
 	}
 
+	void element::_on_layout_changed() {
+		if (
+			std::isnan(get_layout().xmin) || std::isnan(get_layout().xmax) ||
+			std::isnan(get_layout().ymin) || std::isnan(get_layout().ymax)
+			) {
+			logger::get().log_warning(CP_HERE) <<
+				"layout system produced nan on " << demangle(typeid(*this).name());
+		}
+		invalidate_visual();
+		layout_changed.invoke();
+	}
+
 	void element::_on_mouse_down(mouse_button_info &p) {
 		if (p.button == mouse_button::primary) {
 			if (is_visible(visibility::focus) && !p.focus_set()) {
@@ -76,6 +88,16 @@ namespace codepad::ui {
 			}
 		}
 		mouse_down.invoke(p);
+	}
+
+	void element::_on_visibility_changed(_visibility_changed_info &p) {
+		visibility changed = p.old_value ^ get_visibility();
+		if ((changed & visibility::layout) != visibility::none) {
+			invalidate_layout();
+		} else if ((changed & visibility::visual) != visibility::none) {
+			invalidate_visual();
+		}
+		// TODO handle visibility::focus
 	}
 
 	void element::_on_prerender() {

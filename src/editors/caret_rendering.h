@@ -33,6 +33,10 @@ namespace codepad::editors {
 			const ui::generic_brush_parameters &brush,
 			const ui::generic_pen_parameters &pen
 		) const override {
+			if (rects.empty()) {
+				return;
+			}
+
 			auto &builder = rend.start_path();
 
 			double

@@ -51,19 +51,7 @@ namespace codepad::ui {
 		/// Constructs and returns an element of the specified type, class, and \ref element_configuration. If no
 		/// such type exists, \p nullptr is returned. To properly dispose of the element, use
 		/// \ref scheduler::mark_for_disposal().
-		element *create_element_custom(std::u8string_view type, std::u8string_view cls, const element_configuration &config) {
-			auto it = _ctor_map.find(type);
-			if (it == _ctor_map.end()) {
-				return nullptr;
-			}
-			element *elem = it->second(); // the constructor must not use element::_manager
-			elem->_manager = this;
-			elem->_initialize(cls, config);
-#ifdef CP_CHECK_USAGE_ERRORS
-			assert_true_usage(elem->_initialized, "element::_initialize() must be called by derived classes");
-#endif
-			return elem;
-		}
+		element *create_element_custom(std::u8string_view type, std::u8string_view cls, const element_configuration&);
 		/// Calls \ref create_element_custom() to create an \ref element of the specified type and class, and with
 		/// the default \ref element_configuration of that class.
 		///
@@ -138,7 +126,7 @@ namespace codepad::ui {
 		const class_arrangements_registry &get_class_arrangements() const {
 			return _class_arrangements;
 		}
-		/// Returns the registry of \ref class_hotkey_group "element_hotkey_groups" corresponding to all element
+		/// Returns the registry of \ref hotkey_group "hotkey_groups" corresponding to all element
 		/// classes.
 		class_hotkeys_registry &get_class_hotkeys() {
 			return _class_hotkeys;

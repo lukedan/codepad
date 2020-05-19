@@ -10,8 +10,10 @@
 
 #include "../core/settings.h"
 #include "../ui/panel.h"
-#include "../ui/common_elements.h"
+#include "../ui/manager.h"
+#include "../ui/elements/scrollbar.h"
 #include "caret_set.h"
+#include "caret_rendering.h"
 
 namespace codepad::editors {
 	/// The base class of content regions.
@@ -29,9 +31,124 @@ namespace codepad::editors {
 		/// Called when text is being typed into this contents region.
 		virtual void on_text_input(std::u8string_view) = 0;
 
-		/// Invoked when the visual of the contents has changed, e.g., when it is modified, when the document that's
-		/// being edited is changed, or when the font has been changed, etc.
-		info_event<> content_visual_changed;
+		/// Returns whether the contents_region is currently in insert mode.
+		bool is_insert_mode() const {
+			return _insert;
+		}
+		/// Sets whether the contents_region is currently in insert mode.
+		virtual void set_insert_mode(bool v) {
+			if (v != _insert) {
+				_insert = v;
+				edit_mode_changed.invoke();
+			}
+		}
+		/// Toggles insert mode.
+		void toggle_insert_mode() {
+			set_insert_mode(!is_insert_mode());
+		}
+
+		/// Returns a reference to the selection renderer used for this contents region.
+		std::unique_ptr<selection_renderer> &code_selection_renderer() {
+			return _selection_renderer;
+		}
+		/// \overload
+		const std::unique_ptr<selection_renderer> &code_selection_renderer() const {
+			return _selection_renderer;
+		}
+
+		info_event<>
+			/// Invoked when the visual of the contents has changed, e.g., when it is modified, when the document
+			/// that's being edited is changed, or when the font has been changed, etc.
+			content_visual_changed,
+			/// Invoked when the input mode changes from insert to overwrite or the other way around.
+			edit_mode_changed;
+	protected:
+		ui::visuals _caret_visuals; ///< The visuals of carets.
+		ui::generic_brush _selection_brush; ///< The brush used for the selection.
+		ui::generic_pen _selection_pen; ///< The pen used for the outline of the selection.
+		std::unique_ptr<selection_renderer> _selection_renderer; ///< The \ref selection_renderer.
+		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
+
+		/// Handles the registration of \p mode_changed_insert and \p mode_changed_overwrite events.
+		bool _register_edit_mode_changed_event(std::u8string_view name, std::function<void()> &callback) {
+			// not using _event_helpers::try_register_event() here
+			// since it takes a non-const reference to the callback
+			if (name == u8"mode_changed_insert") {
+				edit_mode_changed += [this, cb = std::move(callback)]() {
+					if (is_insert_mode()) {
+						cb();
+					}
+				};
+				return true;
+			}
+			if (name == u8"mode_changed_overwrite") {
+				edit_mode_changed += [this, cb = std::move(callback)]() {
+					if (!is_insert_mode()) {
+						cb();
+					}
+				};
+				return true;
+			}
+			return false;
+		}
+		/// Additionally calls \ref _register_edit_mode_changed_event().
+		bool _register_event(std::u8string_view name, std::function<void()> callback) override {
+			return
+				_register_edit_mode_changed_event(name, callback) ||
+				element::_register_event(name, std::move(callback));
+		}
+
+		/// Handles the visuals of carets and selections.
+		void _set_attribute(std::u8string_view name, const json::value_storage &v) override {
+			if (name == u8"caret_visuals") {
+				if (auto vis = v.get_value().parse<ui::visuals>(
+					ui::managed_json_parser<ui::visuals>(get_manager())
+					)) {
+					_caret_visuals = std::move(vis.value());
+				}
+				return;
+			} else if (name == u8"selection_brush") {
+				if (auto brush = v.get_value().parse<ui::generic_brush>(
+					ui::managed_json_parser<ui::generic_brush>(get_manager())
+					)) {
+					_selection_brush = std::move(brush.value());
+				}
+				return;
+			} else if (name == u8"selection_pen") {
+				if (auto pen = v.get_value().parse<ui::generic_pen>(
+					ui::managed_json_parser<ui::generic_pen>(get_manager())
+					)) {
+					_selection_pen = std::move(pen.value());
+				}
+				return;
+			}
+			element::_set_attribute(name, v);
+		}
+
+		/// Handles properties related to carets and selections.
+		ui::animation_subject_information _parse_animation_path(
+			const ui::animation_path::component_list &components
+		) override {
+			if (!components.empty()) {
+				if (components.front().is_similar(u8"contents_region", u8"caret_visuals")) {
+					return ui::animation_subject_information::from_member<&contents_region_base::_caret_visuals>(
+						*this, ui::animation_path::builder::element_property_type::visual_only,
+						++components.begin(), components.end()
+						);
+				} else if (components.front().is_similar(u8"contents_region", u8"selection_brush")) {
+					return ui::animation_subject_information::from_member<&contents_region_base::_selection_brush>(
+						*this, ui::animation_path::builder::element_property_type::visual_only,
+						++components.begin(), components.end()
+						);
+				} else if (components.front().is_similar(u8"contents_region", u8"selection_pen")) {
+					return ui::animation_subject_information::from_member<&contents_region_base::_selection_pen>(
+						*this, ui::animation_path::builder::element_property_type::visual_only,
+						++components.begin(), components.end()
+						);
+				}
+			}
+			return element::_parse_animation_path(components);
+		}
 	};
 
 	/// The editor region that contains a contents region and other elements.
@@ -141,15 +258,18 @@ namespace codepad::editors {
 			_contents->on_text_input(info.content);
 		}
 
+		/// Adds \ref _vert_scroll, \ref _hori_scroll, and \ref _contents to the mapping.
+		ui::class_arrangements::notify_mapping _get_child_notify_mapping() override {
+			auto mapping = panel::_get_child_notify_mapping();
+			mapping.emplace(get_vertical_scrollbar_name(), _name_cast(_vert_scroll));
+			mapping.emplace(get_horizontal_scrollbar_name(), _name_cast(_hori_scroll));
+			mapping.emplace(get_contents_region_name(), _name_cast(_contents));
+			return mapping;
+		}
+
 		/// Initializes \ref _hori_scroll, \ref _vert_scroll and \ref _contents.
 		void _initialize(std::u8string_view cls, const ui::element_configuration &config) override {
 			panel::_initialize(cls, config);
-
-			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_vertical_scrollbar_name(), _name_cast(_vert_scroll)},
-				{get_horizontal_scrollbar_name(), _name_cast(_hori_scroll)},
-				{get_contents_region_name(), _name_cast(_contents)}
-				});
 
 			_vert_scroll->value_changed += [this](ui::scrollbar::value_changed_info&) {
 				vertical_viewport_changed.invoke();

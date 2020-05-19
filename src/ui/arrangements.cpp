@@ -112,7 +112,7 @@ namespace codepad::ui {
 	}
 
 
-	void class_arrangements::construct_children(panel &logparent, notify_mapping &names) const {
+	std::size_t class_arrangements::construct_children(panel &logparent, notify_mapping names) const {
 		construction_context ctx(logparent);
 		ctx.register_name(name, logparent);
 		for (const child &c : children) {
@@ -145,19 +145,6 @@ namespace codepad::ui {
 		for (auto &created : ctx.all_created) {
 			created.second->_on_logical_parent_constructed();
 		}
-	}
-
-	void class_arrangements::construct_children(
-		panel &logparent, std::initializer_list<notify_mapping::value_type> args
-	) const {
-		notify_mapping mapping(std::move(args));
-		construct_children(logparent, mapping);
-		if (!mapping.empty()) {
-			auto entry = logger::get().log_warning(CP_HERE);
-			entry << "there are unmatched names with roles:";
-			for (auto &pair : mapping) {
-				entry << "\n  " << pair.first;
-			}
-		}
+		return names.size();
 	}
 }

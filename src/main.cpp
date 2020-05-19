@@ -3,11 +3,11 @@
 
 #include <iostream>
 
-#include "core/event.h"
-#include "core/bst.h"
+#include "core/logging.h"
 #include "core/logger_sinks.h"
 #include "core/plugin_interface.h"
 #include "core/plugins.h"
+#include "core/settings.h"
 #include "core/json/parsing.h"
 #include "core/json/rapidjson.h"
 #include "os/current/all.h"
@@ -18,18 +18,15 @@
 #   include "os/linux/gtk/cairo_renderer.h"
 #endif
 #include "ui/cairo_renderer_base.h"
-#include "ui/common_elements.h"
 #include "ui/native_commands.h"
 #include "ui/config_parsers.h"
-#include "ui/tabs/tab.h"
-#include "ui/tabs/manager.h"
-#include "editors/code/components.h"
-#include "editors/buffer.h"
+#include "ui/elements/label.h"
+#include "ui/elements/tabs/tab.h"
+#include "ui/elements/tabs/manager.h"
 
 using namespace codepad;
 using namespace codepad::os;
 using namespace codepad::ui;
-using namespace codepad::editors;
 
 int main(int argc, char **argv) {
 	auto global_log = std::make_unique<logger>();

@@ -45,16 +45,16 @@ namespace codepad::ui {
 		std::unordered_map<std::u8string, std::function<void(element*)>> _cmds;
 	};
 
-	/// Holds the information of an element and its corresponding \ref class_hotkey_group.
+	/// Holds the information of an element and its corresponding \ref hotkey_group.
 	/// Used with \ref window_hotkey_manager.
 	struct element_hotkey_group_data {
 		/// Default constructor.
 		element_hotkey_group_data() = default;
 		/// Constructs the struct with the given parameters.
-		element_hotkey_group_data(const class_hotkey_group *hr, element *p) : reg(hr), param(p) {
+		element_hotkey_group_data(const hotkey_group *hr, element *p) : reg(hr), param(p) {
 		}
 
-		const class_hotkey_group *reg = nullptr; ///< The element's corresponding hotkey group.
+		const hotkey_group *reg = nullptr; ///< The element's corresponding hotkey group.
 		element *param = nullptr; ///< An element.
 	};
 	/// Contains information about the user pressing a hotkey.
@@ -70,71 +70,21 @@ namespace codepad::ui {
 	/// active. The elements include the currently focused element and all its parents.
 	class hotkey_listener {
 	public:
-		/// Called when the focus has shifted to reset the set of active
-		/// \ref class_hotkey_group "element_hotkey_groups".
-		///
-		/// \param gp The new set of active hotkey groups.
-		void reset_groups(const std::vector<element_hotkey_group_data> &gp) {
-			std::vector<_hotkey_group_state> hs;
-			// filter out all empty entries
-			for (const element_hotkey_group_data &data : gp) {
-				if (data.reg) {
-					hs.emplace_back(data);
-				}
-			}
-			_reset_groups(std::move(hs));
-		}
+		/// Called when the focus has shifted to reset the set of active \ref hotkey_group "hotkey_groups".
+		void reset_groups(const std::vector<element_hotkey_group_data>&);
 
-		/// Returns the current set of valid user gestures.
-		/// For example, if the user is halfway through a valid hotkey,
-		/// this function returns all gestures that the user has made.
-		/// If the user makes an invalid gesture, the function returns nothing.
+		/// Returns the current set of valid user gestures. For example, if the user is halfway through a valid
+		/// hotkey chain, this function returns all gestures that the user has made. If the user inputs an invalid
+		/// gesture, the current chain will be interrupted and this function will return nothing until another valid
+		/// gesture is nade.
 		const std::vector<key_gesture> &get_chain() const {
 			return _gests;
 		}
 
 		/// Called when a key event is received by a window.
 		///
-		/// \return \p true if the gesture is processed here and should not be processed as a key stroke.
-		bool on_key_down(key_gesture k) {
-			bool
-				first = _gests.empty(),
-				all_emp = true, // true if all updated states are empty, i.e., end of hotkey chain
-				intercept = false;
-			for (_hotkey_group_state &st : _groups) {
-				// updates the hotkey and checks whether it is intercepted
-				// note that it can be intercepted even if the gesture's invalid
-				// in which case the state will be reset
-				intercept = st.on_keypress(k, first) || intercept;
-				if (st.state.is_trigger()) { // reached leaf node, trigger
-					hotkey_info hk(st.state.get_data(), st.group.param);
-					st.state = class_hotkey_group::state(); // reset state
-					for (_hotkey_group_state &j : _groups) {
-						// all state should be empty, otherwise there are conflicts
-						if (!j.state.is_empty()) {
-							logger::get().log_warning(CP_HERE) << "found conflicting hotkey chains";
-							j.state = class_hotkey_group::state(); // clear them
-						}
-					}
-					triggered.invoke(hk); // invoke the event
-					_gests.clear();
-					return true;
-				}
-				if (!st.state.is_empty()) { // check if there's ongoing hotkeys
-					all_emp = false;
-				}
-			}
-			if (all_emp) {
-				if (_gests.size() > 1) {
-					logger::get().log_debug(CP_HERE) << "hotkey chain interrupted";
-					chain_interrupted.invoke();
-				}
-				_gests.clear();
-			} else {
-				_gests.push_back(k);
-			}
-			return intercept;
-		}
+		/// \return \p true if the gesture is accepted and consumed here and should not be processed as a key stroke.
+		bool on_key_down(key_gesture);
 
 		info_event<hotkey_info> triggered; ///< An event invoked whenever the user enters a hotkey.
 		/// An event invoked when the user enters an invalid gesture and breaks the chain.
@@ -149,38 +99,20 @@ namespace codepad::ui {
 			}
 
 			element_hotkey_group_data group; ///< The group to which the state belongs.
-			class_hotkey_group::state state; ///< The state of the group.
+			hotkey_group::state state; ///< The state of the group.
 
 			/// Invoked when the user enters a key gesture to update the state.
 			///
 			/// \param k The key gesture that the user entered.
 			/// \param first Indicates whether this is the start of a hotkey.
 			/// \return \p true if the gesture is intercepted.
-			bool on_keypress(key_gesture k, bool first) {
-				if (!first && state.is_empty()) {
-					// already out of matching gestures
-					return false;
-				}
-				class_hotkey_group::state ns = group.reg->update_state(k, state);
-				if (ns == state) { // no update
-					return false;
-				}
-				state = ns;
-				return true; // intercepted (accepted or rejected)
-			}
+			bool on_keypress(key_gesture k, bool first);
 		};
 
 		std::vector<_hotkey_group_state> _groups; ///< Currently active groups.
 		std::vector<key_gesture> _gests; ///< Gestures entered by the user so far.
 
 		/// Resets the active groups. Breaks the current hotkey if necessary.
-		void _reset_groups(std::vector<_hotkey_group_state> v) {
-			_groups = std::move(v);
-			if (!_gests.empty()) {
-				// the focus has shifted when the user is midway through a hotkey
-				chain_interrupted.invoke();
-				_gests.clear(); // start anew
-			}
-		}
+		void _reset_groups(std::vector<_hotkey_group_state>);
 	};
 }

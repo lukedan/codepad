@@ -13,7 +13,6 @@
 #include "settings.h"
 #include "../os/current/all.h"
 #include "../ui/commands.h"
-#include "../ui/common_elements.h"
 #include "../ui/renderer.h"
 #include "../ui/manager.h"
 #include "../ui/element_classes.h"

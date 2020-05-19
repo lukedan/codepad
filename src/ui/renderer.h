@@ -521,7 +521,7 @@ namespace codepad::ui {
 		) = 0;
 		/// Draws the given \ref formatted_text at the given position using the given brush. The position indicates
 		/// the top left corner of the layout box.
-		virtual void draw_formatted_text(formatted_text&, vec2d) = 0;
+		virtual void draw_formatted_text(const formatted_text&, vec2d) = 0;
 
 		// plain text related
 		/// Creates a new \ref plain_text from the given parameters.
@@ -529,7 +529,7 @@ namespace codepad::ui {
 		/// \ref create_plain_text() that accepts a UTF-32 string.
 		virtual std::unique_ptr<plain_text> create_plain_text(std::basic_string_view<codepoint>, font&, double) = 0;
 		/// Draws the given \ref plain_text at the given position, using the given color.
-		virtual void draw_plain_text(plain_text&, vec2d, colord) = 0;
+		virtual void draw_plain_text(const plain_text&, vec2d, colord) = 0;
 	protected:
 		/// Called to register the creation of a window.
 		virtual void _new_window(window_base&) = 0;

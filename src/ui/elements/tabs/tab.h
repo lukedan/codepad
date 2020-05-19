@@ -6,10 +6,11 @@
 /// \file
 /// Implementation of tabs.
 
-#include "../../core/misc.h"
-#include "../element.h"
-#include "../panel.h"
-#include "../common_elements.h"
+#include "../../../core/misc.h"
+#include "../../element.h"
+#include "../../panel.h"
+#include "../label.h"
+#include "../button.h"
 
 namespace codepad::ui::tabs {
 	class host;
@@ -87,21 +88,7 @@ namespace codepad::ui::tabs {
 		/// Handles mouse button interactions.
 		///
 		/// \todo Make actions customizable.
-		void _on_mouse_down(mouse_button_info &p) override {
-			switch (p.button) {
-			case mouse_button::primary:
-				if (!_close_btn->is_mouse_over()) {
-					_drag_pos = p.position.get(*this);
-					_drag.start(p.position, *this);
-					click.invoke_noret(p);
-				}
-				break;
-			case mouse_button::tertiary:
-				request_close.invoke();
-				break;
-			}
-			panel::_on_mouse_down(p);
-		}
+		void _on_mouse_down(mouse_button_info&) override;
 		/// Updates \ref _drag, and invokes \ref start_drag if necessary.
 		void _on_mouse_move(mouse_move_info &p) override {
 			if (_drag.is_active()) {
@@ -141,19 +128,11 @@ namespace codepad::ui::tabs {
 			tab_unselected.invoke();
 		}
 
+		/// Adds \ref _label and \ref _close_btn to the mapping.
+		class_arrangements::notify_mapping _get_child_notify_mapping() override;
+
 		/// Initializes \ref _close_btn.
-		void _initialize(std::u8string_view cls, const element_configuration &config) override {
-			panel::_initialize(cls, config);
-
-			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_label_name(), _name_cast(_label)},
-				{get_close_button_name(), _name_cast(_close_btn)}
-				});
-
-			_close_btn->click += [this]() {
-				request_close.invoke();
-			};
-		}
+		void _initialize(std::u8string_view cls, const element_configuration&) override;
 	};
 
 	/// A tab that contains other elements.
@@ -205,10 +184,7 @@ namespace codepad::ui::tabs {
 		/// Initializes \ref _btn.
 		void _initialize(std::u8string_view, const element_configuration&) override;
 		/// Marks \ref _btn for disposal.
-		void _dispose() override {
-			get_manager().get_scheduler().mark_for_disposal(*_btn);
-			panel::_dispose();
-		}
+		void _dispose() override;
 
 		/// Registers \ref selected and \ref unselected events.
 		bool _register_event(std::u8string_view name, std::function<void()> callback) override {

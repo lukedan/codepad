@@ -77,15 +77,9 @@ namespace codepad::ui {
 		/// \param logparent The composite element itself, which will be set as the logical parent of all children
 		///                  elements. All children elements will be added to \ref panel::_children.
 		/// \param names A mapping between names and notify functions, used by the composite element to properly
-		///              acknowledge and register them. Successfully constructed entries are removed from the list,
-		///              so that elements with duplicate names can be detected, and the composite element can later
-		///              check what items remain to determine which ones of its children are missing.
-		void construct_children(panel &logparent, notify_mapping &names) const;
-		/// Overload of \ref construct_children(panel&, notify_mapping&) const that doesn't require an actual
-		/// \ref notify_mapping instance. This function prints warnings for all names that have not been matched.
-		void construct_children(
-			panel &logparent, std::initializer_list<notify_mapping::value_type> args
-		) const;
+		///              acknowledge and register them.
+		/// \return The number of items in \p names that do not have associated elements.
+		std::size_t construct_children(panel &logparent, notify_mapping names) const;
 
 		element_configuration configuration; ///< The configuration of this element.
 		std::vector<child> children; ///< Children of the composite element.

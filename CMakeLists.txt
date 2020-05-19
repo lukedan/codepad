@@ -79,54 +79,47 @@ if(UNIX)
 endif()
 
 
-# source files
-set(INTERPLATFORM_SOURCES
-	"src/core/globals.cpp"
-	"src/core/logger_sinks.cpp"
-	"src/core/plugins.cpp"
-	"src/core/setting_entries.cpp"
-	"src/core/settings.cpp"
-
-	"src/editors/binary/components.cpp"
-	"src/editors/binary/contents_region.cpp"
-
-	"src/editors/code/caret_set.cpp"
-	"src/editors/code/contents_region.cpp"
-
-	"src/editors/buffer.cpp"
-
-	"src/ui/tabs/host.cpp"
-	"src/ui/tabs/tab.cpp"
-
-	"src/ui/animation_path.cpp"
-	"src/ui/arrangements.cpp"
-	"src/ui/common_elements.cpp"
-	"src/ui/element.cpp"
-	"src/ui/manager.cpp"
-	"src/ui/native_commands.cpp"
-	"src/ui/panel.cpp"
-	"src/ui/renderer.cpp"
-	"src/ui/window.cpp"
-
-	"src/main.cpp")
-
-set(WINDOWS_SOURCES
-	"src/os/windows/dynamic_library.cpp"
-	"src/os/windows/filesystem.cpp"
-	"src/os/windows/windows.cpp")
-
-set(UNIX_SOURCES
-	"src/os/linux/filesystem.cpp"
-	"src/os/linux/linux.cpp")
-
-
 # main executable
 add_executable(codepad)
 
 target_compile_features(codepad
 	PRIVATE cxx_std_20)
 target_sources(codepad
-	PRIVATE ${INTERPLATFORM_SOURCES})
+	PRIVATE
+		"src/core/globals.cpp"
+		"src/core/logger_sinks.cpp"
+		"src/core/plugins.cpp"
+		"src/core/profiling.cpp"
+		"src/core/setting_entries.cpp"
+		"src/core/settings.cpp"
+
+		"src/editors/binary/components.cpp"
+		"src/editors/binary/contents_region.cpp"
+
+		"src/editors/code/caret_set.cpp"
+		"src/editors/code/contents_region.cpp"
+
+		"src/editors/buffer.cpp"
+
+		"src/ui/elements/tabs/host.cpp"
+		"src/ui/elements/tabs/tab.cpp"
+
+		
+
+		"src/ui/animation_path.cpp"
+		"src/ui/arrangements.cpp"
+		"src/ui/commands.cpp"
+		"src/ui/element.cpp"
+		"src/ui/element_parameters.cpp" 
+		"src/ui/hotkey_registry.cpp"
+		"src/ui/manager.cpp"
+		"src/ui/native_commands.cpp"
+		"src/ui/panel.cpp"
+		"src/ui/renderer.cpp"
+		"src/ui/scheduler.cpp"
+		"src/ui/window.cpp"
+
+		"src/main.cpp" "src/ui/misc.cpp" "src/ui/elements/scrollbar.cpp" "src/ui/elements/label.cpp" "src/ui/elements/button.cpp")
 target_compile_definitions(codepad
 	PRIVATE UNICODE _UNICODE)
 if(ENABLE_BACKTRACE)
@@ -138,7 +131,7 @@ endif()
 # set warning level
 if(MSVC)
 	target_compile_options(codepad
-		PRIVATE /W4)
+		PRIVATE /W4 /permissive-)
 elseif(CMAKE_COMPILER_IS_GNUCXX)
 	target_compile_options(codepad
 		PRIVATE -Wall -Wextra -Wconversion)
@@ -154,10 +147,16 @@ if(USE_CAIRO)
 	target_link_libraries(codepad
 		PRIVATE Cairo::Cairo)
 endif()
-# platform dependent stuff
+# platform dependent sources & settings
 if(WIN32)
 	target_sources(codepad
-		PRIVATE ${WINDOWS_SOURCES})
+		PRIVATE
+			"src/os/windows/direct2d_renderer.cpp"
+			"src/os/windows/dynamic_library.cpp"
+			"src/os/windows/filesystem.cpp"
+			"src/os/windows/misc.cpp"
+			"src/os/windows/window.cpp"
+			"src/os/windows/windows.cpp")
 	target_compile_definitions(codepad
 		PRIVATE CP_PLATFORM_WINDOWS NOMINMAX OEMRESOURCE)
 	target_link_libraries(codepad
@@ -169,10 +168,15 @@ if(WIN32)
 	elseif(MSVC)
 		target_compile_options(codepad
 			PRIVATE /bigobj)
+		# debug slow compilation times
+#		target_compile_options(codepad
+#			PRIVATE /Bt /d1reportTime /d2cgsummary)
 	endif()
 elseif(UNIX)
 	target_sources(codepad
-		PRIVATE ${UNIX_SOURCES})
+		PRIVATE
+			"src/os/linux/filesystem.cpp"
+			"src/os/linux/linux.cpp")
 	target_compile_definitions(codepad
 		PRIVATE CP_PLATFORM_UNIX)
 	target_link_libraries(codepad

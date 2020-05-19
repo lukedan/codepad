@@ -1,10 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "common_elements.h"
+#include "scrollbar.h"
 
 /// \file
-/// Implementation of certain methods of commonly used elements.
+/// Implementation of the scrollbar.
+
+#include "../manager.h"
 
 namespace codepad::ui {
 	scrollbar &scrollbar_drag_button::_get_bar() const {
@@ -33,5 +35,28 @@ namespace codepad::ui {
 				) - _doffset);
 		}
 		button::_on_mouse_move(p);
+	}
+
+
+	class_arrangements::notify_mapping scrollbar::_get_child_notify_mapping() {
+		auto mapping = panel::_get_child_notify_mapping();
+		mapping.emplace(get_drag_button_name(), _name_cast(_drag));
+		mapping.emplace(get_page_up_button_name(), _name_cast(_pgup));
+		mapping.emplace(get_page_down_button_name(), _name_cast(_pgdn));
+		return mapping;
+	}
+
+	void scrollbar::_initialize(std::u8string_view cls, const element_configuration &config) {
+		panel::_initialize(cls, config);
+
+		_pgup->set_trigger_type(button::trigger_type::mouse_down);
+		_pgup->click += [this]() {
+			set_value(get_value() - get_visible_range());
+		};
+
+		_pgdn->set_trigger_type(button::trigger_type::mouse_down);
+		_pgdn->click += [this]() {
+			set_value(get_value() + get_visible_range());
+		};
 	}
 }

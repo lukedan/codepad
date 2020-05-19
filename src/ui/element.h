@@ -350,7 +350,7 @@ namespace codepad::ui {
 		}
 	private:
 		element_parameters _params; ///< The parameters of this element.
-		const class_hotkey_group *_hotkeys = nullptr; ///< The hotkey group of this element.
+		const hotkey_group *_hotkeys = nullptr; ///< The hotkey group of this element.
 		int _zindex = zindex::normal; ///< The z-index of the element.
 
 		panel
@@ -451,15 +451,7 @@ namespace codepad::ui {
 			invalidate_visual();
 		}
 		/// Called when the visibility of this element has changed.
-		virtual void _on_visibility_changed(_visibility_changed_info &p) {
-			visibility changed = p.old_value ^ get_visibility();
-			if ((changed & visibility::layout) != visibility::none) {
-				invalidate_layout();
-			} else if ((changed & visibility::visual) != visibility::none) {
-				invalidate_visual();
-			}
-			// TODO handle visibility::focus
-		}
+		virtual void _on_visibility_changed(_visibility_changed_info&);
 
 		/// Called when the element has lost the capture it previously got. This can happen when the capture is
 		/// broken by an external event or when the element or one of its ancestors is removed from the window. This
@@ -493,17 +485,7 @@ namespace codepad::ui {
 		/// Called by \ref manager when the layout has changed. Calls \ref invalidate_visual. Derived classes can
 		/// override this to update layout-dependent properties. For panels, override
 		/// \ref panel::_on_update_children_layout() instead when re-calculating the layout of its children.
-		virtual void _on_layout_changed() {
-			if (
-				std::isnan(get_layout().xmin) || std::isnan(get_layout().xmax) ||
-				std::isnan(get_layout().ymin) || std::isnan(get_layout().ymax)
-				) {
-				logger::get().log_warning(CP_HERE) <<
-					"layout system produced nan on " << demangle(typeid(*this).name());
-			}
-			invalidate_visual();
-			layout_changed.invoke();
-		}
+		virtual void _on_layout_changed();
 
 
 		/// Helper pseudo-namespace that contains utility functions to handle event registrations.

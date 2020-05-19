@@ -6,7 +6,7 @@
 #include <wincodec.h>
 
 #include "../../core/misc.h"
-#include "../../ui/renderer.h"
+#include "../../ui/hotkey_registry.h"
 #include "../misc.h"
 
 namespace codepad::os {
@@ -34,21 +34,17 @@ namespace codepad::os {
 #endif
 		}
 
-		extern const int _key_id_mapping[ui::total_num_keys];
-		inline bool is_key_down_id(int vk) {
-			return (GetAsyncKeyState(vk) & 0x8000) != 0;
-		}
-
 		/// A wrapper for reference-counted COM objects.
-		template <typename T> struct com_wrapper final :
-			public reference_counted_handle<com_wrapper<T>, T> {
-			friend reference_counted_handle<com_wrapper<T>, T>;
+		template <typename T> struct com_wrapper final : public reference_counted_handle<com_wrapper<T>, T> {
+		private:
+			using _handle_base = reference_counted_handle<com_wrapper<T>, T>;
+			friend _handle_base;
 		public:
 			/// Casting to parent types.
 			template <
 				typename U, typename = std::enable_if_t<std::is_base_of_v<U, T>, void>
 			> operator com_wrapper<U>() {
-				auto ptr = static_cast<U*>(_handle);
+				auto ptr = static_cast<U*>(this->_handle);
 				com_wrapper<U> res;
 				res.set_share(ptr);
 				return res;
@@ -57,17 +53,17 @@ namespace codepad::os {
 			/// Returns a pointer to the underlying pointer. The existing pointer will be released. This is mainly
 			/// useful when creating objects.
 			T **get_ref() {
-				_check_release();
-				return &_handle;
+				_handle_base::_check_release();
+				return &this->_handle;
 			}
 		protected:
 			/// Releases \ref _handle.
 			void _do_release() {
-				_handle->Release();
+				this->_handle->Release();
 			}
 			/// Increments the reference count of \ref _handle.
 			void _do_add_ref() {
-				_handle->AddRef();
+				this->_handle->AddRef();
 			}
 		};
 		/// Creates a new \ref com_wrapper, and calls \ref com_wrapper::set_share() to share the given pointer.
@@ -100,73 +96,44 @@ namespace codepad::os {
 		};
 
 		/// Converts the given null-terminated UTF-16 string to UTF-8 with the \p WideCharToMultiByte function.
-		inline std::u8string wstring_to_utf8(LPCWSTR str) {
-			int len = WideCharToMultiByte(CP_UTF8, 0, str, -1, nullptr, 0, nullptr, nullptr);
-			assert_true_sys(len != 0, "failed to convert utf16 string to utf8");
-			std::u8string res;
-			res.resize(static_cast<std::size_t>(len));
-			assert_true_sys(
-				WideCharToMultiByte(
-					CP_UTF8, 0, str, -1, reinterpret_cast<char*>(res.data()), len, nullptr, nullptr
-				) == len,
-				"failed to convert utf16 string to utf8"
-			);
-			// remove duplicate null terminator that WideCharToMultiByte introduces when cchWideChar is -1
-			res.pop_back();
-			return res;
-		}
+		std::u8string wstring_to_utf8(LPCWSTR);
 		/// Converts the given UTF-8 string to UTF-16 with the \p MultiByteToWideChar function.
-		inline std::basic_string<WCHAR> utf8_to_wstring(std::u8string_view str) {
-			if (str.size() == 0) { // MultiByteToWideChar doesn't deal with zero-length strings
-				return L"";
-			}
-			int chars = MultiByteToWideChar(
-				CP_UTF8, 0, reinterpret_cast<const char*>(str.data()), static_cast<int>(str.length()), nullptr, 0
-			);
-			assert_true_sys(chars != 0, "failed to convert utf8 string to utf16");
-			std::basic_string<WCHAR> res;
-			// here we assume that by "character" the documentation means a single uint16
-			res.resize(static_cast<std::size_t>(chars));
-			assert_true_sys(MultiByteToWideChar(
-				CP_UTF8, 0, reinterpret_cast<const char*>(str.data()), static_cast<int>(str.length()),
-				res.data(), chars
-			) == chars, "failed to convert utf8 string to utf16");
-			return res;
-		}
+		std::basic_string<WCHAR> utf8_to_wstring(std::u8string_view);
 
 
 		/// Loads images using WIC.
 		struct wic_image_loader {
 		public:
 			/// Initializes \ref _factory.
-			wic_image_loader() {
-				HRESULT res = CoCreateInstance(
-					CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
-				);
-				if (res == REGDB_E_CLASSNOTREG) { // workaround for missing component in win7
-					res = CoCreateInstance(
-						CLSID_WICImagingFactory1, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(_factory.get_ref())
-					);
-				}
-				_details::com_check(res);
-			}
+			wic_image_loader();
 			/// Loads an image. The pixel foramt of the image is not certain; use \p WICConvertBitmapSource to
 			/// convert it to the desired format.
-			com_wrapper<IWICBitmapSource> load_image(const std::filesystem::path &filename) {
-				com_wrapper<IWICBitmapDecoder> decoder;
-				com_wrapper<IWICBitmapFrameDecode> frame;
-				_details::com_check(_factory->CreateDecoderFromFilename(
-					filename.c_str(), nullptr,
-					GENERIC_READ, WICDecodeMetadataCacheOnDemand, decoder.get_ref()
-				));
-				_details::com_check(decoder->GetFrame(0, frame.get_ref()));
-				return frame;
-			}
+			com_wrapper<IWICBitmapSource> load_image(const std::filesystem::path&);
 
 			static wic_image_loader &get();
 		protected:
 			com_wrapper<IWICImagingFactory> _factory;
 			com_usage _uses_com;
 		};
+
+
+		/// Mapping from virtual key codes to \ref ui::key.
+		struct key_id_mapping_t {
+			/// Initializer.
+			key_id_mapping_t() {
+				for (int i = 0; i < static_cast<int>(ui::total_num_keys); ++i) {
+					value[forward[i]] = static_cast<ui::key>(i);
+				}
+			}
+			ui::key value[255]{}; ///< All key values.
+
+			static const int forward[ui::total_num_keys]; ///< Forward mapping from \ref ui::key to virtual key codes.
+			static key_id_mapping_t backward; ///< The static object.
+		};
+
+		/// Determines if the given key is held down by calling \p GetKeyState().
+		bool get_key_state(int key);
+		/// Gets the set of modifier keys that are held down.
+		ui::modifier_keys get_modifiers();
 	}
 }

@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Classes and structs used to determine the layout and visual parameters of an \ref codepad::ui::element.
+/// Classes and structs used to define the layout and visual parameters of a \ref codepad::ui::element.
 
 #include <map>
 #include <vector>
@@ -401,29 +401,6 @@ namespace codepad::ui {
 
 			value_type value; ///< The value of this transformation.
 		};
-
-
-		inline matd3x3 collection::get_matrix(vec2d unit) const {
-			matd3x3 res = matd3x3::identity();
-			for (const generic &g : components) {
-				res = g.get_matrix(unit) * res;
-			}
-			return res;
-		}
-
-		inline vec2d collection::transform_point(vec2d pt, vec2d unit) const {
-			for (const generic &g : components) {
-				pt = g.transform_point(pt, unit);
-			}
-			return pt;
-		}
-
-		inline vec2d collection::inverse_transform_point(vec2d pt, vec2d unit) const {
-			for (auto it = components.rbegin(); it != components.rend(); ++it) {
-				pt = it->inverse_transform_point(pt, unit);
-			}
-			return pt;
-		}
 	}
 }
 namespace codepad::json {
@@ -1335,19 +1312,7 @@ namespace codepad::ui {
 			}
 
 			/// Parses an \ref event_identifier from a string.
-			inline static event_identifier parse_from_string(std::u8string_view s) {
-				if (auto it = s.begin(); it != s.end()) {
-					for (codepoint cp; it != s.end(); ) {
-						auto begin = it;
-						if (encodings::utf8::next_codepoint(it, s.end(), cp)) {
-							if (cp == U'.') { // separator, only consider the first one
-								return event_identifier(std::u8string(s.begin(), begin), std::u8string(it, s.end()));
-							}
-						}
-					}
-				}
-				return event_identifier(std::u8string(s));
-			}
+			static event_identifier parse_from_string(std::u8string_view);
 
 			std::u8string
 				/// The subject that owns and invokes this event. This may be empty if the subject is the element

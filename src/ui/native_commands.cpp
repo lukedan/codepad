@@ -9,7 +9,7 @@
 #include <algorithm>
 
 #include "commands.h"
-#include "tabs/manager.h"
+#include "elements/tabs/manager.h"
 #include "../editors/buffer_manager.h"
 #include "../editors/code/contents_region.h"
 #include "../editors/code/components.h"
@@ -123,7 +123,7 @@ namespace codepad::ui::native_commands {
 
 		reg.register_command(
 			u8"contents_region.toggle_insert", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->toggle_insert_mode();
+				e->get_contents_region()->toggle_insert_mode();
 			})
 		);
 
@@ -235,6 +235,7 @@ namespace codepad::ui::native_commands {
 						th->get_manager().create_element(u8"editor", u8"binary_editor")
 					);
 					auto *contents = dynamic_cast<binary::contents_region*>(editor->get_contents_region());
+					contents->code_selection_renderer() = std::make_unique<rounded_selection_renderer>();
 					contents->set_buffer(std::move(ctx));
 					tb->children().add(*editor);
 					last = tb;

@@ -88,19 +88,6 @@ namespace codepad::editors::binary {
 			return caret_selection(et.first.caret, et.first.selection);
 		}
 
-		/// Returns whether the \ref contents_region is currently in insert mode.
-		bool is_insert_mode() const {
-			return _insert;
-		}
-		/// Sets whether the \ref contents_region is currently in insert mode.
-		void set_insert_mode(bool v) {
-			_insert = v;
-		}
-		/// Toggles insert mode.
-		void toggle_insert_mode() {
-			set_insert_mode(!is_insert_mode());
-		}
-
 		/// Returns the height of a line.
 		///
 		/// \todo Add customizable line height.
@@ -268,28 +255,7 @@ namespace codepad::editors::binary {
 		}
 	protected:
 		/// Returns the hexadecimal representation of the given byte.
-		inline static std::u8string_view _get_hex_byte(std::byte b) {
-			static const char8_t _lut[256][3]{
-				u8"00", u8"01", u8"02", u8"03", u8"04", u8"05", u8"06", u8"07", u8"08", u8"09", u8"0A", u8"0B", u8"0C", u8"0D", u8"0E", u8"0F",
-				u8"10", u8"11", u8"12", u8"13", u8"14", u8"15", u8"16", u8"17", u8"18", u8"19", u8"1A", u8"1B", u8"1C", u8"1D", u8"1E", u8"1F",
-				u8"20", u8"21", u8"22", u8"23", u8"24", u8"25", u8"26", u8"27", u8"28", u8"29", u8"2A", u8"2B", u8"2C", u8"2D", u8"2E", u8"2F",
-				u8"30", u8"31", u8"32", u8"33", u8"34", u8"35", u8"36", u8"37", u8"38", u8"39", u8"3A", u8"3B", u8"3C", u8"3D", u8"3E", u8"3F",
-				u8"40", u8"41", u8"42", u8"43", u8"44", u8"45", u8"46", u8"47", u8"48", u8"49", u8"4A", u8"4B", u8"4C", u8"4D", u8"4E", u8"4F",
-				u8"50", u8"51", u8"52", u8"53", u8"54", u8"55", u8"56", u8"57", u8"58", u8"59", u8"5A", u8"5B", u8"5C", u8"5D", u8"5E", u8"5F",
-				u8"60", u8"61", u8"62", u8"63", u8"64", u8"65", u8"66", u8"67", u8"68", u8"69", u8"6A", u8"6B", u8"6C", u8"6D", u8"6E", u8"6F",
-				u8"70", u8"71", u8"72", u8"73", u8"74", u8"75", u8"76", u8"77", u8"78", u8"79", u8"7A", u8"7B", u8"7C", u8"7D", u8"7E", u8"7F",
-				u8"80", u8"81", u8"82", u8"83", u8"84", u8"85", u8"86", u8"87", u8"88", u8"89", u8"8A", u8"8B", u8"8C", u8"8D", u8"8E", u8"8F",
-				u8"90", u8"91", u8"92", u8"93", u8"94", u8"95", u8"96", u8"97", u8"98", u8"99", u8"9A", u8"9B", u8"9C", u8"9D", u8"9E", u8"9F",
-				u8"A0", u8"A1", u8"A2", u8"A3", u8"A4", u8"A5", u8"A6", u8"A7", u8"A8", u8"A9", u8"AA", u8"AB", u8"AC", u8"AD", u8"AE", u8"AF",
-				u8"B0", u8"B1", u8"B2", u8"B3", u8"B4", u8"B5", u8"B6", u8"B7", u8"B8", u8"B9", u8"BA", u8"BB", u8"BC", u8"BD", u8"BE", u8"BF",
-				u8"C0", u8"C1", u8"C2", u8"C3", u8"C4", u8"C5", u8"C6", u8"C7", u8"C8", u8"C9", u8"CA", u8"CB", u8"CC", u8"CD", u8"CE", u8"CF",
-				u8"D0", u8"D1", u8"D2", u8"D3", u8"D4", u8"D5", u8"D6", u8"D7", u8"D8", u8"D9", u8"DA", u8"DB", u8"DC", u8"DD", u8"DE", u8"DF",
-				u8"E0", u8"E1", u8"E2", u8"E3", u8"E4", u8"E5", u8"E6", u8"E7", u8"E8", u8"E9", u8"EA", u8"EB", u8"EC", u8"ED", u8"EE", u8"EF",
-				u8"F0", u8"F1", u8"F2", u8"F3", u8"F4", u8"F5", u8"F6", u8"F7", u8"F8", u8"F9", u8"FA", u8"FB", u8"FC", u8"FD", u8"FE", u8"FF"
-			};
-
-			return std::u8string_view(_lut[static_cast<unsigned char>(b)], 2);
-		}
+		static std::u8string_view _get_hex_byte(std::byte);
 
 		caret_set _carets; ///< The set of carets.
 		interaction_manager<caret_set> _interaction_manager; ///< Manages certain mouse and keyboard interactions.
@@ -308,8 +274,6 @@ namespace codepad::editors::binary {
 			_target_bytes_per_row = 16,
 			_cached_bytes_per_row = 16; ///< The cached actual number of bytes per row.
 		wrap_mode _wrap = wrap_mode::auto_fill; ///< Indicates how the bytes should be wrapped.
-		/// Indicates whether this \ref contents_region is in `insert' mode or in `overwrite' mode.
-		bool _insert = true;
 
 		// position conversion
 		/// Returns the line index at the given position, relative to the top of this document, i.e., without

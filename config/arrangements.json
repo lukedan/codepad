@@ -1206,10 +1206,102 @@
 						"type": "binary_contents_region",
 						"name": "contents_region",
 						"visibility": "-f",
+						"extras": {
+							"selection_brush": {
+								"type": "solid",
+								"color": [ 0.2, 0.5, 1.0, 0.2 ]
+							},
+							"selection_pen": {
+								"type": "solid",
+								"color": [ 0.0, 0.0, 0.0, 1.0 ]
+							},
+							"caret_visuals": {
+								"geometries": [
+									{
+										"type": "rectangle",
+										"top_left": [
+											[ 0.0, 1.0 ],
+											[ 0.0, -2.0 ]
+										],
+										"bottom_right": [
+											[ 1.0, 1.0 ],
+											[ 0.0, 0.0 ]
+										],
+										"fill": [ 1.0, 1.0, 1.0, 1.0 ]
+									}
+								]
+							}
+						},
 						"layout": {
 							"width": "1*",
 							"height": "100%",
 							"padding": [ 2.0, 20.0, 0.0, 20.0 ]
+						},
+						"animations": {
+							"carets_changed": {
+								"caret_visuals.geometries[0].fill.(solid_color_brush.color).a": {
+									"frames": [
+										{
+											"to": 1.0,
+											"duration": 0.0
+										},
+										{
+											"to": 1.0,
+											"duration": 0.3
+										},
+										{
+											"to": 0.8,
+											"duration": 0.05
+										},
+										{
+											"to": 0.6,
+											"duration": 0.05
+										},
+										{
+											"to": 0.4,
+											"duration": 0.05
+										},
+										{
+											"to": 0.2,
+											"duration": 0.05
+										},
+										{
+											"to": 0.1,
+											"duration": 0.05
+										},
+										{
+											"to": 0.0,
+											"duration": 0.05
+										},
+										{
+											"to": 1.0,
+											"duration": 0.4
+										}
+									],
+									"repeat": 10
+								}
+							},
+
+							"mode_changed_insert": {
+								"caret_visuals.geometries[0].(rectangle.top_left)": {
+									"to": [
+										[ 0.0, 1.0 ],
+										[ 0.0, -2.0 ]
+									],
+									"duration": 0.1,
+									"transition": "convex_quadratic"
+								}
+							},
+							"mode_changed_overwrite": {
+								"caret_visuals.geometries[0].(rectangle.top_left)": {
+									"to": [
+										[ 0.0, 0.0 ],
+										[ 0.0, 0.0 ]
+									],
+									"duration": 0.1,
+									"transition": "convex_quadratic"
+								}
+							}
 						}
 					}
 				]

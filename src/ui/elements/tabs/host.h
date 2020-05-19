@@ -6,9 +6,9 @@
 /// \file
 /// Implementation of tab hosts.
 
-#include "../element.h"
-#include "../panel.h"
-#include "../manager.h"
+#include "../../element.h"
+#include "../../panel.h"
+#include "../../manager.h"
 #include "tab.h"
 
 namespace codepad::ui::tabs {
@@ -83,36 +83,15 @@ namespace codepad::ui::tabs {
 		/// The current drag destination.
 		drag_split_type _dest = drag_split_type::new_window;
 
+		/// Adds \ref _split_left, \ref _split_right, \ref _split_up, \ref _split_down, and \ref _combine to the
+		/// mapping.
+		class_arrangements::notify_mapping _get_child_notify_mapping() override;
+
 		/// Initializes all destination indicators.
-		void _initialize(std::u8string_view cls, const element_configuration &config) override {
-			panel::_initialize(cls, config);
-
-			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_split_left_indicator_name(), _name_cast(_split_left)},
-				{get_split_right_indicator_name(), _name_cast(_split_right)},
-				{get_split_up_indicator_name(), _name_cast(_split_up)},
-				{get_split_down_indicator_name(), _name_cast(_split_down)},
-				{get_combine_indicator_name(), _name_cast(_combine)},
-				});
-
-			set_zindex(zindex::overlay);
-
-			_setup_indicator(*_split_left, drag_split_type::split_left);
-			_setup_indicator(*_split_right, drag_split_type::split_right);
-			_setup_indicator(*_split_up, drag_split_type::split_top);
-			_setup_indicator(*_split_down, drag_split_type::split_bottom);
-			_setup_indicator(*_combine, drag_split_type::combine);
-		}
+		void _initialize(std::u8string_view cls, const element_configuration&) override;
 
 		/// Initializes the given destination indicator.
-		void _setup_indicator(element &elem, drag_split_type type) {
-			elem.mouse_enter += [this, type]() {
-				_dest = type;
-			};
-			elem.mouse_leave += [this]() {
-				_dest = drag_split_type::new_window;
-			};
-		}
+		void _setup_indicator(element&, drag_split_type);
 	};
 
 	/// An element for displaying multiple tabs. It contains a ``tabs'' region for displaying the
@@ -124,17 +103,7 @@ namespace codepad::ui::tabs {
 	public:
 		/// Adds a \ref tab to the end of the tab list. If there were no tabs in the tab list prior to this
 		/// operation, the newly added tab will be automatically activated.
-		void add_tab(tab &t) {
-			_child_set_logical_parent(t, this);
-			_child_set_logical_parent(*t._btn, this);
-			_tab_contents_region->children().add(t);
-			_tab_buttons_region->children().add(*t._btn);
-
-			t.set_visibility(visibility::none);
-			if (get_tab_count() == 1) {
-				switch_tab(&t);
-			}
-		}
+		void add_tab(tab&);
 		/// Removes a \ref tab from this host by simply removing it from \ref _children. The rest are handled by
 		/// \ref _on_child_removing.
 		void remove_tab(tab &t) {
@@ -142,20 +111,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Switches the currently visible tab without changing the focus.
-		void switch_tab(tab *t) {
-			assert_true_logical(t == nullptr || t->logical_parent() == this, "the tab doesn't belong to this host");
-			if (_active_tab) {
-				_active_tab->set_visibility(visibility::none);
-				_active_tab->_btn->set_zindex(0); // TODO a bit hacky
-				_active_tab->_on_unselected();
-			}
-			_active_tab = t;
-			if (_active_tab) {
-				_active_tab->set_visibility(visibility::full);
-				_active_tab->_btn->set_zindex(1);
-				_active_tab->_on_selected();
-			}
-		}
+		void switch_tab(tab*);
 		/// Switches the currently visible tab and sets the focus to that tab.
 		void activate_tab(tab &t) {
 			switch_tab(&t);
@@ -214,71 +170,22 @@ namespace codepad::ui::tabs {
 		drag_destination_selector *_dsel = nullptr;
 
 		/// Sets the associated \ref drag_destination_selector.
-		void _set_drag_dest_selector(drag_destination_selector *sel) {
-			if (_dsel == sel) {
-				return;
-			}
-			if (_dsel) {
-				_children.remove(*_dsel);
-			}
-			_dsel = sel;
-			if (_dsel) {
-				_children.add(*_dsel);
-			}
-		}
+		void _set_drag_dest_selector(drag_destination_selector*);
 
 		/// Called when a \ref tab's being removed from \ref _tab_contents_region to change the currently active tab
 		/// if necessary.
 		///
-		/// \todo Select a better tab when the active tab is disposed.
-		void _on_tab_removing(tab &t) {
-			if (&t == _active_tab) { // change active tab
-				if (_tab_contents_region->children().size() == 1) {
-					switch_tab(nullptr);
-				} else {
-					auto it = _tab_contents_region->children().items().begin();
-					for (; it != _tab_contents_region->children().items().end() && *it != &t; ++it) {
-					}
-					assert_true_logical(
-						it != _tab_contents_region->children().items().end(),
-						"removed tab in incorrect host"
-					);
-					auto original = it;
-					if (++it == _tab_contents_region->children().items().end()) {
-						it = --original;
-					}
-					switch_tab(dynamic_cast<tab*>(*it));
-				}
-			}
-		}
+		/// \todo Select a better tab when the active tab is removed.
+		void _on_tab_removing(tab&);
 		/// Called when a \ref tab has been removed from \ref _tab_contents_region, to remove the associated
 		/// \ref tab_button from \ref _tab_buttons_region.
 		void _on_tab_removed(tab&);
 
+		/// Adds \ref _tab_buttons_region and \ref _tab_contents_region to the mapping.
+		class_arrangements::notify_mapping _get_child_notify_mapping() override;
+
 		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.
-		void _initialize(std::u8string_view cls, const element_configuration &config) override {
-			panel::_initialize(cls, config);
-
-			get_manager().get_class_arrangements().get_or_default(cls).construct_children(*this, {
-				{get_tab_buttons_region_name(), _name_cast(_tab_buttons_region)},
-				{get_tab_contents_region_name(), _name_cast(_tab_contents_region)}
-				});
-
-			_tab_contents_region->children().changing += [this](element_collection::change_info &p) {
-				if (p.change_type == element_collection::change_info::type::remove) {
-					tab *t = dynamic_cast<tab*>(&p.subject);
-					assert_true_logical(t != nullptr, "corrupted element tree");
-					_on_tab_removing(*t);
-				}
-			};
-			_tab_contents_region->children().changed += [this](element_collection::change_info &p) {
-				if (p.change_type == element_collection::change_info::type::remove) {
-					tab *t = dynamic_cast<tab*>(&p.subject);
-					assert_true_logical(t != nullptr, "corrupted element tree");
-					_on_tab_removed(*t);
-				}
-			};
-		}
+		void _initialize(std::u8string_view cls, const element_configuration&) override;
 	private:
 		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.
 	};
