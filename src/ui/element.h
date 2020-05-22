@@ -20,6 +20,7 @@
 #include "hotkey_registry.h"
 #include "element_classes.h"
 #include "renderer.h"
+#include "property.h"
 
 namespace codepad::ui {
 	class panel;
@@ -153,11 +154,6 @@ namespace codepad::ui {
 		friend panel;
 		friend class_arrangements;
 		friend mouse_position;
-		friend animation_path::builder::member_information<element>
-			animation_path::builder::get_common_element_property(
-				animation_path::component_list::const_iterator,
-				animation_path::component_list::const_iterator
-			);
 	public:
 		/// Default virtual destrucor.
 		virtual ~element() = default;
@@ -183,50 +179,48 @@ namespace codepad::ui {
 		/// Returns the width value used for layout calculation. If the current width allocation type is
 		/// \ref size_allocation_type::automatic, the result will be that of \ref get_desired_width; otherwise the
 		/// user-defined width will be returned.
-		[[nodiscard]] size_allocation get_layout_width() const {
-			size_allocation_type type = get_width_allocation();
-			if (type == size_allocation_type::automatic) {
-				return get_desired_width();
-			}
-			return size_allocation(get_size().x, type == size_allocation_type::fixed);
-		}
+		[[nodiscard]] size_allocation get_layout_width() const;
 		/// Returns the height value used for layout calculation.
 		///
 		/// \sa get_layout_width
-		[[nodiscard]] size_allocation get_layout_height() const {
-			size_allocation_type type = get_height_allocation();
-			if (type == size_allocation_type::automatic) {
-				return get_desired_height();
-			}
-			return size_allocation(get_size().y, type == size_allocation_type::fixed);
-		}
+		[[nodiscard]] size_allocation get_layout_height() const;
 
 		/// Returns the margin metric of this element.
 		[[nodiscard]] thickness get_margin() const {
-			return _params.layout_parameters.margin;
+			return _layout_params.margin;
 		}
 		/// Returns the padding metric of this element.
 		[[nodiscard]] thickness get_padding() const {
-			return _params.layout_parameters.padding;
+			return _layout_params.padding;
 		}
 		/// Returns the size metric of this element. Note that this is not the element's actual size, and this value
 		/// may or may not be used in layout calculation.
 		///
 		/// \sa get_actual_size()
 		[[nodiscard]] vec2d get_size() const {
-			return _params.layout_parameters.size;
+			return _layout_params.size;
 		}
 		/// Returns the anchor metric of this element.
 		[[nodiscard]] anchor get_anchor() const {
-			return _params.layout_parameters.elem_anchor;
+			return _layout_params.elem_anchor;
 		}
 		/// Returns the width allocation metric of this element.
 		[[nodiscard]] size_allocation_type get_width_allocation() const {
-			return _params.layout_parameters.width_alloc;
+			return _layout_params.width_alloc;
 		}
 		/// Returns the height allocation metric of this element.
 		[[nodiscard]] size_allocation_type get_height_allocation() const {
-			return _params.layout_parameters.height_alloc;
+			return _layout_params.height_alloc;
+		}
+
+		/// Returns the layout parameters for this \ref element.
+		[[nodiscard]] const element_layout &get_layout_parameters() const {
+			return _layout_params;
+		}
+
+		/// Returns the visual parameters for this \ref element.
+		[[nodiscard]] const visuals &get_visual_parameters() const {
+			return _visual_params;
 		}
 
 		/// Returns the desired width of the element. Derived elements can override this to change the default
@@ -260,7 +254,7 @@ namespace codepad::ui {
 		}
 		/// Returns the custom cursor displayed when the mouse is over this element.
 		[[nodiscard]] cursor get_custom_cursor() const {
-			return _params.custom_cursor;
+			return _custom_cursor;
 		}
 		/// Returns the cursor displayed when the mouse is over this element.
 		/// This function returns the cusrom cursor if there is one,
@@ -292,13 +286,13 @@ namespace codepad::ui {
 		void set_visibility(visibility v) {
 			if (v != get_visibility()) {
 				_visibility_changed_info info(get_visibility());
-				_params.element_visibility = v;
+				_visibility = v;
 				_on_visibility_changed(info);
 			}
 		}
 		/// Returns the current visibility of this element.
 		[[nodiscard]] visibility get_visibility() const {
-			return _params.element_visibility;
+			return _visibility;
 		}
 		/// Tests if the visiblity of this element have all the given visiblity flags set.
 		[[nodiscard]] bool is_visible(visibility vis) const {
@@ -308,11 +302,6 @@ namespace codepad::ui {
 		/// Returns if the mouse is hovering over this element.
 		[[nodiscard]] bool is_mouse_over() const {
 			return _mouse_over;
-		}
-
-		/// Returns the current generic parameters of this element.
-		[[nodiscard]] const element_parameters &get_parameters() const {
-			return _params;
 		}
 
 
@@ -325,6 +314,10 @@ namespace codepad::ui {
 		///
 		/// \sa manager::invalid_layout()
 		void invalidate_layout();
+
+
+		/// Returns all properties of this element.
+		[[nodiscard]] virtual const property_mapping &get_properties() const;
 
 
 		info_event<>
@@ -344,14 +337,20 @@ namespace codepad::ui {
 			key_up; ///< Triggered when a key is released when the element has the focus.
 		info_event<text_info> keyboard_text; ///< Triggered as the user types when the element has the focus.
 
+		/// Returns the properties of basic elements.
+		[[nodiscard]] static const property_mapping &get_properties_static();
 		/// Returns the default class of elements of this type.
-		inline static std::u8string_view get_default_class() {
+		[[nodiscard]] inline static std::u8string_view get_default_class() {
 			return u8"element";
 		}
 	private:
-		element_parameters _params; ///< The parameters of this element.
-		const hotkey_group *_hotkeys = nullptr; ///< The hotkey group of this element.
+		visuals _visual_params; ///< The visual parameters of this \ref element.
+		element_layout _layout_params; ///< The layout parameters of this \ref element.
+		visibility _visibility = visibility::full; ///< The visibility of this \ref element.
+		cursor _custom_cursor = cursor::not_specified; ///< The custom cursor for this \ref element.
 		int _zindex = zindex::normal; ///< The z-index of the element.
+
+		const hotkey_group *_hotkeys = nullptr; ///< The hotkey group of this element.
 
 		panel
 			*_parent = nullptr, ///< Pointer to the element's parent.
@@ -576,46 +575,16 @@ namespace codepad::ui {
 			}
 		};
 		/// Registers the callback for the event with the given name. This is used mainly for storyboard animations.
-		virtual bool _register_event(std::u8string_view name, std::function<void()> callback) {
-			return
-				_event_helpers::try_register_event(name, u8"mouse_enter", mouse_enter, callback) ||
-				_event_helpers::try_register_event(name, u8"mouse_leave", mouse_leave, callback) ||
-				_event_helpers::try_register_event(name, u8"got_focus", got_focus, callback) ||
-				_event_helpers::try_register_event(name, u8"lost_focus", lost_focus, callback) ||
-				_event_helpers::try_register_all_mouse_button_events<true>(name, mouse_down, callback) ||
-				_event_helpers::try_register_all_mouse_button_events<false>(name, mouse_up, callback);
-		}
-
-		/// Sets a custom attribute for this element.
-		virtual void _set_attribute(std::u8string_view name, const json::value_storage &v) {
-			if (name == u8"z_index") {
-				if (auto z = v.get_value().cast<std::int32_t>()) {
-					set_zindex(z.value());
-				}
-				return;
-			}
-			logger::get().log_warning(CP_HERE) << "unknown attribute: " << name;
-		}
-
-		/// Parses a segmented animation path and returns a corresponding \ref animation_subject_information. The
-		/// default behavior is to simply call \ref animation_path::builder::get_common_element_property().
-		virtual animation_subject_information _parse_animation_path(
-			const animation_path::component_list &components
-		) {
-			return animation_subject_information::from_element(
-				animation_path::builder::get_common_element_property(components.begin(), components.end()), *this
-			);
-		}
+		virtual bool _register_event(std::u8string_view name, std::function<void()>);
 
 
 		/// Called immediately after the element is created to initialize it. Initializes \ref _params and
-		/// \ref _hotkeys with the given element class. All derived classes should call \p base::_initialize
+		/// \ref _hotkeys with the given element class. All derived classes should call \p base::_initialize()
 		/// <em>before</em> performing any other initialization. This functino is primarily used to avoid pitfalls
 		/// associated with virtual function calls in constructors to have this function.
 		///
 		/// \param cls The class of the element.
-		/// \param config The element's visual and layout configuration.
-		virtual void _initialize(std::u8string_view cls, const element_configuration &config);
+		virtual void _initialize(std::u8string_view cls);
 		/// Called after the logical parent of this element (which is a composite element) has been fully constructed,
 		/// i.e., it and all of its children (including this element) has been constructed and properly initialized.
 		/// If this element does not have a logical parent, this function will not be called. The order in which this
@@ -634,31 +603,21 @@ namespace codepad::ui {
 #ifdef CP_CHECK_USAGE_ERRORS
 		bool _initialized = false; ///< Indicates wheter the element has been properly initialized and disposed.
 #endif
-
-		// stray friend declaration
-		friend animation_path::builder::getter_components::member_component<&element::_params>;
 	};
 
 
 	template <
-		animation_path::builder::element_property_type Type
-	> inline void animation_subject_information::_element_subject_callback(element &e) {
-		e.invalidate_visual();
-		if constexpr (Type == animation_path::builder::element_property_type::affects_layout) {
-			e.invalidate_layout();
-		}
-	}
-
-	template <
 		typename Intermediate
-	> inline animation_subject_information animation_subject_information::from_element_custom_with_callback(
+	> inline animation_subject_information animation_subject_information::from_element_indirect_with_callback(
 		animation_path::builder::member_information<Intermediate> member,
-		std::unique_ptr<animation_path::builder::typed_member_access<element, Intermediate>> median,
-		element &elem, std::function<void(element&)> callback
+		std::unique_ptr<animation_path::builder::direct_typed_member_access<element, Intermediate>> median,
+		element &elem, std::function<void()> callback
 	) {
 		animation_subject_information res;
 		res.parser = std::move(member.parser);
-		res.subject = member.member->create_for_element_with_callback(elem, *median, std::move(callback));
+		res.subject = member.member->create_for_element_indirect_with_post_modify_callback(
+			elem, *median, std::move(callback)
+		);
 		res.subject_data = std::make_any<std::tuple<
 			std::shared_ptr<animation_path::builder::member_access<element>>,
 			std::shared_ptr<animation_path::builder::member_access<Intermediate>>
@@ -669,7 +628,7 @@ namespace codepad::ui {
 	template <
 		auto Member
 	> inline animation_subject_information animation_subject_information::from_member_with_callback(
-		element &elem, std::function<void(element&)> callback,
+		element &elem, std::function<void()> callback,
 		animation_path::component_list::const_iterator begin, animation_path::component_list::const_iterator end
 	) {
 		using member_component = animation_path::builder::getter_components::member_component<Member>;
@@ -679,32 +638,62 @@ namespace codepad::ui {
 		auto inner = animation_path::builder::get_member_subject<output>(begin, end);
 		if (inner.member && inner.parser) {
 			std::unique_ptr<
-				animation_path::builder::typed_member_access<element, output>
+				animation_path::builder::direct_typed_member_access<element, output>
 			> outer = animation_path::builder::make_component_member_access(
 				animation_path::builder::getter_components::pair(
 					animation_path::builder::getter_components::dynamic_cast_component<element, input>(),
 					member_component()
 				)
 			);
-			return animation_subject_information::from_element_custom_with_callback(
+			return animation_subject_information::from_element_indirect_with_callback(
 				std::move(inner), std::move(outer), elem, std::move(callback)
 			);
 		}
 		return animation_subject_information();
 	}
 
-	template <
-		auto Member
-	> inline animation_subject_information animation_subject_information::from_member(
-		element &elem, animation_path::builder::element_property_type type,
-		animation_path::component_list::const_iterator begin, animation_path::component_list::const_iterator end
-	) {
-		return from_member_with_callback<Member>(
-			elem,
-			type == animation_path::builder::element_property_type::visual_only ?
-			&_element_subject_callback<animation_path::builder::element_property_type::visual_only> :
-			&_element_subject_callback<animation_path::builder::element_property_type::affects_layout>,
-			std::move(begin), std::move(end)
-		);
+
+	template <auto MemberPtr> void member_pointer_property<MemberPtr>::set_value(
+		element &e, const json::value_storage &v
+	) const {
+		if (owner_type *ptr = _get_owner_from(e)) {
+			if (auto value = typed_animation_value_parser<value_type>::parse_static(v, e.get_manager())) {
+				ptr->*MemberPtr = value.value();
+				if (modify_callback) {
+					modify_callback(*ptr);
+				}
+			} else {
+				logger::get().log_warning(CP_HERE) << "failed to parse value";
+			}
+		}
+	}
+
+	template <auto MemberPtr> inline typename member_pointer_property<MemberPtr>::owner_type*
+		member_pointer_property<MemberPtr>::_get_owner_from(element &e) {
+
+		owner_type *ptr = dynamic_cast<owner_type*>(&e);
+		if (ptr == nullptr) {
+			logger::get().log_warning(CP_HERE) <<
+				"element type mismatch for property: expected " << demangle(typeid(owner_type).name()) <<
+				", got " << demangle(typeid(e).name());
+		}
+		return ptr;
+	}
+
+
+	template <typename Elem, typename T> inline void getter_setter_property<Elem, T>::set_value(
+		element &elem, const json::value_storage &raw
+	) const {
+		if (auto *ptr = dynamic_cast<Elem*>(&elem)) {
+			if (auto value = typed_animation_value_parser<T>::parse_static(raw, elem.get_manager())) {
+				setter(*ptr, value.value());
+			} else {
+				logger::get().log_warning(CP_HERE) << "failed to parse value for " << demangle(typeid(T).name());
+			}
+		} else {
+			logger::get().log_warning(CP_HERE) <<
+				"element type mismatch for property: expected " << demangle(typeid(Elem).name()) <<
+				", got " << demangle(typeid(elem).name());
+		}
 	}
 }

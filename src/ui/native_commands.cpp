@@ -12,7 +12,8 @@
 #include "elements/tabs/manager.h"
 #include "../editors/buffer_manager.h"
 #include "../editors/code/contents_region.h"
-#include "../editors/code/components.h"
+#include "../editors/code/minimap.h"
+#include "../editors/code/line_number_display.h"
 #include "../editors/binary/contents_region.h"
 
 using namespace std;

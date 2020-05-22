@@ -9,6 +9,24 @@
 #include "../manager.h"
 
 namespace codepad::ui {
+	const property_mapping &label::get_properties() const {
+		return get_properties_static();
+	}
+
+	const property_mapping &label::get_properties_static() {
+		static property_mapping mapping;
+		if (mapping.empty()) {
+			mapping = element::get_properties_static();
+			mapping.emplace(u8"text_color", std::make_shared<member_pointer_property<&label::_text_color>>(
+				[](label &lbl) {
+					lbl._on_text_color_changed();
+				}
+			));
+		}
+
+		return mapping;
+	}
+
 	void label::_custom_render() const {
 		element::_custom_render();
 

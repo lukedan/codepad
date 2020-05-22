@@ -110,7 +110,13 @@ namespace codepad::ui {
 	template <typename T> class typed_animation_subject : public animation_subject_base {
 	public:
 		/// Returns the current value.
-		virtual const T &get() const = 0;
+		///
+		/// This function returns an object because this is only used by \ref playing_keyframe_animation, where the
+		/// return value is immediately copied to one of its members. This makes the implementation of getter/setter
+		/// subjects much easier, since getter/setter functions can return both const references or objects, but
+		/// const references can be easily converted to objects by copying. This eliminates a lot of complexities in
+		/// the templates.
+		virtual T get() const = 0;
 		/// Sets the current value.
 		virtual void set(T) = 0;
 	};
@@ -307,9 +313,14 @@ namespace codepad::ui {
 	/// Value parser for a specific type.
 	template <typename T> class typed_animation_value_parser : public animation_value_parser_base {
 	public:
-		/// Tries to parse the given JSON value into a specific value. By default this function simply calls
-		/// \ref json::storage::value_t::parse().
-		virtual bool try_parse(const json::value_storage&, manager&, T&) const;
+		/// Tries to parse the given JSON value into a specific value. This function simply calls
+		/// \ref json::storage::value_t::parse() for most types, but handles special cases such as images.
+		static std::optional<T> parse_static(const json::value_storage&, manager&);
+
+		/// Simply invokes \ref parse_static().
+		virtual std::optional<T> try_parse(const json::value_storage &value, manager &m) const {
+			return parse_static(value, m);
+		}
 
 		/// Parses a \ref keyframe_animation_definition.
 		std::unique_ptr<animation_definition_base> parse_keyframe_animation(

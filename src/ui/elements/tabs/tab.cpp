@@ -32,8 +32,8 @@ namespace codepad::ui::tabs {
 		return mapping;
 	}
 
-	void tab_button::_initialize(std::u8string_view cls, const element_configuration &config) {
-		panel::_initialize(cls, config);
+	void tab_button::_initialize(std::u8string_view cls) {
+		panel::_initialize(cls);
 
 		_close_btn->click += [this]() {
 			request_close.invoke();
@@ -45,8 +45,8 @@ namespace codepad::ui::tabs {
 		return dynamic_cast<host*>(logical_parent());
 	}
 
-	void tab::_initialize(std::u8string_view cls, const element_configuration &config) {
-		panel::_initialize(cls, config);
+	void tab::_initialize(std::u8string_view cls) {
+		panel::_initialize(cls);
 
 		_is_focus_scope = true;
 

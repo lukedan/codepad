@@ -88,7 +88,7 @@ namespace codepad::ui::tabs {
 		class_arrangements::notify_mapping _get_child_notify_mapping() override;
 
 		/// Initializes all destination indicators.
-		void _initialize(std::u8string_view cls, const element_configuration&) override;
+		void _initialize(std::u8string_view cls) override;
 
 		/// Initializes the given destination indicator.
 		void _setup_indicator(element&, drag_split_type);
@@ -185,7 +185,7 @@ namespace codepad::ui::tabs {
 		class_arrangements::notify_mapping _get_child_notify_mapping() override;
 
 		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.
-		void _initialize(std::u8string_view cls, const element_configuration&) override;
+		void _initialize(std::u8string_view cls) override;
 	private:
 		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.
 	};

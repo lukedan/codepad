@@ -298,8 +298,8 @@ namespace codepad::ui {
 		return nullptr;
 	}
 
-	void panel::_initialize(std::u8string_view cls, const element_configuration &config) {
-		element::_initialize(cls, config);
+	void panel::_initialize(std::u8string_view cls) {
+		element::_initialize(cls);
 
 		get_manager().get_class_arrangements().get_or_default(cls).construct_children(
 			*this, _get_child_notify_mapping()

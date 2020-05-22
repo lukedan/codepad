@@ -166,7 +166,7 @@ namespace codepad::ui {
 
 
 		/// Registers the window to \ref renderer_base.
-		void _initialize(std::u8string_view, const element_configuration&) override;
+		void _initialize(std::u8string_view) override;
 		/// Deletes all decorations, releases the focus, and unregisters the window from \ref renderer_base.
 		void _dispose() override;
 

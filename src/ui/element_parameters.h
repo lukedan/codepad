@@ -1333,9 +1333,7 @@ namespace codepad::ui {
 			std::vector<animation_parameters> animations; ///< The animations to play.
 		};
 
-		element_parameters default_parameters; ///< The default parameters for elements of this class.
 		std::vector<event_trigger> event_triggers; ///< The list of event triggers.
-		/// Additional attributes that are dependent of the element's type.
-		std::map<std::u8string, json::value_storage> additional_attributes;
+		std::map<std::u8string, json::value_storage> attributes; ///< Attributes of this element.
 	};
 }

@@ -302,7 +302,7 @@ namespace codepad::ui {
 		element *_hit_test_for_child(const mouse_position&) const;
 
 		/// Calls \ref class_arrangements::construct_children() to construct children elements.
-		void _initialize(std::u8string_view cls, const element_configuration&) override;
+		void _initialize(std::u8string_view cls) override;
 		/// For each child, removes it from \ref _children, and marks it for disposal if \ref _dispose_children is
 		/// \p true.
 		void _dispose() override;

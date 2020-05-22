@@ -204,7 +204,7 @@ namespace codepad::os {
 			window_base::_on_scaling_factor_changed(p);
 		}
 
-		void _initialize(std::u8string_view cls, const ui::element_configuration&) override;
+		void _initialize(std::u8string_view cls) override;
 		void _dispose() override;
 	};
 

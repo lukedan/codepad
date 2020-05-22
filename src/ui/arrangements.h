@@ -50,9 +50,7 @@ namespace codepad::ui {
 			element *find_by_name(std::u8string_view, element&);
 
 			/// Registers all triggers of the given \ref element_configuration.
-			void register_triggers_for(element&, const element_configuration&);
-			/// Sets additional attributes for the given \ref element.
-			static void set_additional_attributes_for(element&, const element_configuration&);
+			void register_all_triggers_for(element&, const element_configuration&);
 		};
 		/// Stores information about a child element.
 		struct child {
@@ -80,6 +78,13 @@ namespace codepad::ui {
 		///              acknowledge and register them.
 		/// \return The number of items in \p names that do not have associated elements.
 		std::size_t construct_children(panel &logparent, notify_mapping names) const;
+
+		/// Registers an trigger on the \p trigger element that will affect \p affected.
+		static void register_trigger_for(
+			element &trigger, element &affected, const element_configuration::event_trigger&
+		);
+		/// Sets all attributes of the given element.
+		static void set_attributes_of(element&, const std::map<std::u8string, json::value_storage>&);
 
 		element_configuration configuration; ///< The configuration of this element.
 		std::vector<child> children; ///< Children of the composite element.

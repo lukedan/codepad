@@ -377,8 +377,8 @@ namespace codepad::editors::binary {
 		};
 	}
 
-	void contents_region::_initialize(std::u8string_view cls, const ui::element_configuration &config) {
-		element::_initialize(cls, config);
+	void contents_region::_initialize(std::u8string_view cls) {
+		element::_initialize(cls);
 
 		std::vector<std::u8string> profile{ u8"binary" };
 

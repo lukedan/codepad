@@ -40,18 +40,29 @@ namespace codepad::ui {
 
 		/// Similar to \ref register_element_type(std::u8string, element_constructor) but for built-in classes.
 		template <typename Elem> void register_element_type() {
-			register_element_type(std::u8string(Elem::get_default_class()), []() {
-				return new Elem();
-				});
+			register_element_type(
+				std::u8string(Elem::get_default_class()),
+				[]() {
+					return new Elem();
+				}
+			);
 		}
 		/// Registers a new element type for creation.
-		void register_element_type(std::u8string type, element_constructor constructor) {
-			_ctor_map.emplace(std::move(type), std::move(constructor));
+		void register_element_type(std::u8string type, element_constructor ctor) {
+			_element_registry.emplace(std::move(type), std::move(ctor));
 		}
-		/// Constructs and returns an element of the specified type, class, and \ref element_configuration. If no
-		/// such type exists, \p nullptr is returned. To properly dispose of the element, use
-		/// \ref scheduler::mark_for_disposal().
-		element *create_element_custom(std::u8string_view type, std::u8string_view cls, const element_configuration&);
+
+		/// Constructs and returns an element of the specified type, class, and \ref element_configuration. This
+		/// function does not handle event triggers and animations.
+		element *create_element_custom_no_event_or_attribute(
+			std::u8string_view type, std::u8string_view cls
+		);
+		/// Constructs an element by calling \ref create_element_custom_no_event_or_attribute(), then registers
+		/// triggers and sets attributes of the element if the element is not derived from \ref panel. The events are
+		/// registered before attributes are set so that they can be invoked accordingly.
+		element *create_element_custom(
+			std::u8string_view type, std::u8string_view cls, const element_configuration&
+		);
 		/// Calls \ref create_element_custom() to create an \ref element of the specified type and class, and with
 		/// the default \ref element_configuration of that class.
 		///
@@ -190,7 +201,7 @@ namespace codepad::ui {
 
 		command_registry _commands; ///< All commands.
 		/// Registry of constructors of all element types.
-		std::map<std::u8string, element_constructor, std::less<>> _ctor_map;
+		std::map<std::u8string, element_constructor, std::less<>> _element_registry;
 		/// Mapping from names to transition functions.
 		std::map<std::u8string, transition_function, std::less<>> _transfunc_map;
 
@@ -203,21 +214,16 @@ namespace codepad::ui {
 	};
 
 
-	template <typename T> inline bool typed_animation_value_parser<T>::try_parse( // TODO use std::optional
-		const json::value_storage &value, [[maybe_unused]] manager &m, T &res
-	) const {
+	template <typename T> inline std::optional<T> typed_animation_value_parser<T>::parse_static(
+		const json::value_storage &value, [[maybe_unused]] manager &m
+	) {
 		if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) { // load textures
 			if (auto path = value.get_value().cast<std::u8string_view>()) {
-				res = m.get_texture(path.value());
-				return res != nullptr;
+				return m.get_texture(path.value());
 			}
-			return false;
+			return std::nullopt;
 		} else { // parse everything else directly
-			if (auto v = value.get_value().parse<T>()) {
-				res = std::move(v.value());
-				return true;
-			}
-			return false;
+			return value.get_value().parse<T>(managed_json_parser<T>(m));
 		}
 	}
 
@@ -229,27 +235,13 @@ namespace codepad::ui {
 		using animation = keyframe_animation_definition<T, default_lerp<T>>;
 		std::vector<typename animation::keyframe> keyframes;
 		for (auto &&kf : def.keyframes) {
-			T target;
-			if (!try_parse(kf.target, m, target)) {
+			if (auto target = try_parse(kf.target, m)) {
+				keyframes.emplace_back(target.value(), kf.duration, kf.transition_func);
+			} else {
 				logger::get().log_warning(CP_HERE) << "failed to parse keyframe target";
 			}
-			keyframes.emplace_back(target, kf.duration, kf.transition_func);
 		}
 		return std::make_unique<animation>(std::move(keyframes), def.repeat_times);
-	}
-
-
-	namespace animation_path::builder {
-		template <
-			typename Output, element_property_type Type
-		> void element_member_access_subject<Output, Type>::set(Output val) {
-			member_access_subject<element, Output>::set(std::move(val));
-			element &e = this->_object;
-			if constexpr (Type == element_property_type::affects_layout) {
-				e.get_manager().get_scheduler().invalidate_layout(e);
-			}
-			e.get_manager().get_scheduler().invalidate_visual(e);
-		}
 	}
 
 

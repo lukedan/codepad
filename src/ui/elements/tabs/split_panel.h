@@ -265,8 +265,8 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Initializes \ref _sep and adds handlers for certain events.
-		void _initialize(std::u8string_view cls, const element_configuration &config) override {
-			panel::_initialize(cls, config);
+		void _initialize(std::u8string_view cls) override {
+			panel::_initialize(cls);
 
 			_sep->mouse_down += [this](mouse_button_info &p) {
 				if (p.button == mouse_button::primary) {

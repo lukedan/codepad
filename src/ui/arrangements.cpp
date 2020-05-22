@@ -40,51 +40,24 @@ namespace codepad::ui {
 		return nullptr;
 	}
 
-	void class_arrangements::construction_context::register_triggers_for(
+	void class_arrangements::construction_context::register_all_triggers_for(
 		element &elem, const element_configuration &config
 	) {
-		for (auto &trig : config.event_triggers) {
+		for (const auto &trig : config.event_triggers) {
 			element *subj = find_by_name(trig.identifier.subject, elem);
 			if (subj == nullptr) {
 				logger::get().log_warning(CP_HERE) << "cannot find element with name: " << trig.identifier.subject;
 				continue;
 			}
-			std::vector<_animation_starter> anis;
-			for (auto &ani : trig.animations) {
-				animation_subject_information subject = elem._parse_animation_path(ani.subject);
-				if (subject.parser == nullptr || subject.subject == nullptr) {
-					// TODO maybe print the path
-					logger::get().log_warning(CP_HERE) << "failed to parse animation path";
-					continue;
-				}
-				auto &&definition = subject.parser->parse_keyframe_animation(ani.definition, elem.get_manager());
-				anis.emplace_back(
-					std::move(subject.subject), std::move(definition), std::move(subject.subject_data)
-				);
-			}
-			if (!subj->_register_event(trig.identifier.name, [target = &elem, animations = std::move(anis)]() {
-				for (auto &ani : animations) {
-					target->get_manager().get_scheduler().start_animation(
-						ani.definition->start(ani.subject), target
-					);
-				}
-			})) {
-				logger::get().log_warning(CP_HERE) << "unknown event name: " << trig.identifier.name;
-			}
-		}
-	}
-
-	void class_arrangements::construction_context::set_additional_attributes_for(
-		element &elem, const element_configuration &config
-	) {
-		for (auto &&attr : config.additional_attributes) {
-			elem._set_attribute(attr.first, attr.second);
+			register_trigger_for(*subj, elem, trig);
 		}
 	}
 
 
 	element *class_arrangements::child::construct(construction_context &ctx) const {
-		element *e = ctx.logical_parent.get_manager().create_element_custom(type, element_class, configuration);
+		element *e = ctx.logical_parent.get_manager().create_element_custom_no_event_or_attribute(
+			type, element_class
+		);
 		if (e) {
 			e->_logical_parent = &ctx.logical_parent;
 			if (!children.empty()) { // construct children
@@ -112,6 +85,63 @@ namespace codepad::ui {
 	}
 
 
+	void class_arrangements::register_trigger_for(
+		element &trigger, element &affected, const element_configuration::event_trigger &ev
+	) {
+		const auto &properties = affected.get_properties();
+		std::vector<_animation_starter> anis;
+		for (auto &ani : ev.animations) {
+			if (ani.subject.empty()) {
+				logger::get().log_warning(CP_HERE) << "empty animation path";
+				continue;
+			}
+			if (!ani.subject.front().type.empty()) {
+				logger::get().log_warning(CP_HERE) << "type at the very start of the animation path is ignored";
+			}
+			auto it = properties.find(ani.subject.front().property);
+			if (it == properties.end()) {
+				logger::get().log_warning(CP_HERE) <<
+					"property not found: " << 
+					animation_path::to_string(ani.subject.begin(), ani.subject.end());
+				continue;
+			}
+			animation_subject_information subject = it->second->parse_animation_path(affected, ani.subject);
+			if (subject.parser == nullptr || subject.subject == nullptr) {
+				logger::get().log_warning(CP_HERE) <<
+					"failed to parse animation path: " <<
+					animation_path::to_string(ani.subject.begin(), ani.subject.end());
+				continue;
+			}
+			auto &&definition = subject.parser->parse_keyframe_animation(ani.definition, affected.get_manager());
+			anis.emplace_back(
+				std::move(subject.subject), std::move(definition), std::move(subject.subject_data)
+			);
+		}
+		if (!trigger._register_event(ev.identifier.name, [target = &affected, animations = std::move(anis)]() {
+			for (auto &ani : animations) {
+				target->get_manager().get_scheduler().start_animation(
+					ani.definition->start(ani.subject), target
+				);
+			}
+		})) {
+			logger::get().log_warning(CP_HERE) << "unknown event name: " << ev.identifier.name;
+		}
+	}
+
+	void class_arrangements::set_attributes_of(
+		element &elem, const std::map<std::u8string, json::value_storage> &attrs
+	) {
+		auto &properties = elem.get_properties();
+		for (const auto &[name, attr] : attrs) {
+			auto it = properties.find(name);
+			if (it != properties.end()) {
+				it->second->set_value(elem, attr);
+			} else {
+				logger::get().log_warning(CP_HERE) << "unknown attribute name: " << name;
+			}
+		}
+	}
+
 	std::size_t class_arrangements::construct_children(panel &logparent, notify_mapping names) const {
 		construction_context ctx(logparent);
 		ctx.register_name(name, logparent);
@@ -121,15 +151,15 @@ namespace codepad::ui {
 			}
 		}
 		// triggers
-		ctx.register_triggers_for(logparent, configuration);
+		ctx.register_all_triggers_for(logparent, configuration);
 		for (auto &&created : ctx.all_created) {
-			ctx.register_triggers_for(*created.second, created.first->configuration);
+			ctx.register_all_triggers_for(*created.second, created.first->configuration);
 		}
 		// additional attributes
 		// these are set after triggers are registered to enable elements to correctly react to attributes being set
-		construction_context::set_additional_attributes_for(logparent, configuration);
+		set_attributes_of(logparent, configuration.attributes);
 		for (auto &&created : ctx.all_created) {
-			construction_context::set_additional_attributes_for(*created.second, created.first->configuration);
+			set_attributes_of(*created.second, created.first->configuration.attributes);
 		}
 		// construction notification
 		for (auto &created : ctx.all_created) {

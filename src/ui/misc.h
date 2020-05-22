@@ -20,6 +20,7 @@ namespace codepad {
 	namespace ui {
 		struct mouse_position;
 		class element;
+		class manager;
 	}
 
 
@@ -638,6 +639,10 @@ namespace codepad {
 		/// A JSON parser that loads resources from the specified \ref manager. The default implementation does not rely
 		/// upon a \ref manager and simply defaults to \ref json::default_parser.
 		template <typename T> struct managed_json_parser {
+			/// Initializes this struct with a dummy parameter.
+			explicit managed_json_parser(manager&) {
+			}
+
 			/// The parser interface.
 			template <typename Value> std::optional<T> operator()(const Value &v) const {
 				return json::default_parser<T>{}(v);

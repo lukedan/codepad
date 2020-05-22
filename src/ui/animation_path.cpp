@@ -14,8 +14,29 @@
 using namespace std;
 
 namespace codepad::ui::animation_path {
+	std::u8string to_string(component_list::const_iterator begin, component_list::const_iterator end) {
+		std::stringstream ss;
+		bool first = true;
+		for (auto it = begin; it != end; ++it) {
+			if (first) {
+				first = false;
+			} else {
+				ss << ".";
+			}
+			if (it->type.empty()) {
+				ss << reinterpret_cast<const char*>(it->property.c_str());
+			} else {
+				ss << "(" << reinterpret_cast<const char*>(it->type.c_str()) << "." << reinterpret_cast<const char*>(it->property.c_str()) << ")";
+			}
+			if (it->index) {
+				ss << "[" << it->index.value() << "]";
+			}
+		}
+		return std::u8string(reinterpret_cast<const char8_t*>(ss.str().c_str()));
+	}
+
 	namespace builder {
-		/// Member access for basic element properties.
+		/*/// Member access for basic element properties.
 		template <typename Comp, element_property_type Type> class element_property_member_access :
 			public component_member_access<Comp> {
 		public:
@@ -36,7 +57,7 @@ namespace codepad::ui::animation_path {
 			}
 
 			// TODO equality?
-		};
+		};*/
 
 		/// Checks that \ref component::type is either empty or the specified type.
 		inline void check_type(const component &comp, std::u8string_view target) {
@@ -157,6 +178,12 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
+#define CP_APB_CURRENT_TYPE int, int
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
 #define CP_APB_CURRENT_TYPE double, double
 		CP_APB_START_GETTER
 			CP_APB_MAY_TERMINATE_EARLY;
@@ -183,6 +210,12 @@ namespace codepad::ui::animation_path {
 #undef CP_APB_CURRENT_TYPE
 
 #define CP_APB_CURRENT_TYPE visibility, visibility
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
+#define CP_APB_CURRENT_TYPE orientation, orientation
 		CP_APB_START_GETTER
 			CP_APB_MAY_TERMINATE_EARLY;
 		CP_APB_END_GETTER
@@ -582,7 +615,7 @@ namespace codepad::ui::animation_path {
 #undef CP_APB_CURRENT_TYPE
 
 
-		template <element_property_type Type> struct _wrapper {
+		/*template <element_property_type Type> struct _wrapper {
 			template <typename Comp> using type = element_property_member_access<Comp, Type>;
 		};
 
@@ -624,6 +657,6 @@ namespace codepad::ui::animation_path {
 					));
 			}
 			return member_information<element>();
-		}
+		}*/
 	}
 }

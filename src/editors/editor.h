@@ -56,6 +56,12 @@ namespace codepad::editors {
 			return _selection_renderer;
 		}
 
+		/// Returns the list of properties.
+		const ui::property_mapping &get_properties() const override;
+
+		/// Adds the \p caret_visuals, \p selection_brush, and \p selection_pen properties.
+		static const ui::property_mapping &get_properties_static();
+
 		info_event<>
 			/// Invoked when the visual of the contents has changed, e.g., when it is modified, when the document
 			/// that's being edited is changed, or when the font has been changed, etc.
@@ -96,58 +102,6 @@ namespace codepad::editors {
 			return
 				_register_edit_mode_changed_event(name, callback) ||
 				element::_register_event(name, std::move(callback));
-		}
-
-		/// Handles the visuals of carets and selections.
-		void _set_attribute(std::u8string_view name, const json::value_storage &v) override {
-			if (name == u8"caret_visuals") {
-				if (auto vis = v.get_value().parse<ui::visuals>(
-					ui::managed_json_parser<ui::visuals>(get_manager())
-					)) {
-					_caret_visuals = std::move(vis.value());
-				}
-				return;
-			} else if (name == u8"selection_brush") {
-				if (auto brush = v.get_value().parse<ui::generic_brush>(
-					ui::managed_json_parser<ui::generic_brush>(get_manager())
-					)) {
-					_selection_brush = std::move(brush.value());
-				}
-				return;
-			} else if (name == u8"selection_pen") {
-				if (auto pen = v.get_value().parse<ui::generic_pen>(
-					ui::managed_json_parser<ui::generic_pen>(get_manager())
-					)) {
-					_selection_pen = std::move(pen.value());
-				}
-				return;
-			}
-			element::_set_attribute(name, v);
-		}
-
-		/// Handles properties related to carets and selections.
-		ui::animation_subject_information _parse_animation_path(
-			const ui::animation_path::component_list &components
-		) override {
-			if (!components.empty()) {
-				if (components.front().is_similar(u8"contents_region", u8"caret_visuals")) {
-					return ui::animation_subject_information::from_member<&contents_region_base::_caret_visuals>(
-						*this, ui::animation_path::builder::element_property_type::visual_only,
-						++components.begin(), components.end()
-						);
-				} else if (components.front().is_similar(u8"contents_region", u8"selection_brush")) {
-					return ui::animation_subject_information::from_member<&contents_region_base::_selection_brush>(
-						*this, ui::animation_path::builder::element_property_type::visual_only,
-						++components.begin(), components.end()
-						);
-				} else if (components.front().is_similar(u8"contents_region", u8"selection_pen")) {
-					return ui::animation_subject_information::from_member<&contents_region_base::_selection_pen>(
-						*this, ui::animation_path::builder::element_property_type::visual_only,
-						++components.begin(), components.end()
-						);
-				}
-			}
-			return element::_parse_animation_path(components);
 		}
 	};
 
@@ -268,8 +222,8 @@ namespace codepad::editors {
 		}
 
 		/// Initializes \ref _hori_scroll, \ref _vert_scroll and \ref _contents.
-		void _initialize(std::u8string_view cls, const ui::element_configuration &config) override {
-			panel::_initialize(cls, config);
+		void _initialize(std::u8string_view cls) override {
+			panel::_initialize(cls);
 
 			_vert_scroll->value_changed += [this](ui::scrollbar::value_changed_info&) {
 				vertical_viewport_changed.invoke();

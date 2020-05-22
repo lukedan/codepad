@@ -58,7 +58,7 @@ namespace codepad::ui {
 	mouse_position window_base::_update_mouse_position(vec2d pos) {
 		mouse_position::_active_window = this;
 		++mouse_position::_global_timestamp;
-		_cached_mouse_position = get_parameters().visual_parameters.transform.inverse_transform_point(
+		_cached_mouse_position = get_visual_parameters().transform.inverse_transform_point(
 			pos - get_layout().xmin_ymin(), get_layout().size()
 		);
 		_cached_mouse_position_timestamp = mouse_position::_global_timestamp;
@@ -76,8 +76,8 @@ namespace codepad::ui {
 		get_manager().get_renderer().end_drawing();
 	}
 
-	void window_base::_initialize(std::u8string_view cls, const element_configuration &metrics) {
-		panel::_initialize(cls, metrics);
+	void window_base::_initialize(std::u8string_view cls) {
+		panel::_initialize(cls);
 		_is_focus_scope = true;
 		get_manager().get_renderer()._new_window(*this);
 	}

@@ -45,185 +45,19 @@ namespace codepad::ui {
 		};
 		using component_list = std::vector<component>; ///< A list of components.
 
-		/// The parser.
-		class parser {
-		public:
-			// type = name
-			// property = name
-			// index = '[' number ']'
-			//
-			// typed_property = type '.' property
-			// typed_component = '(' typed_property ')' | '(' typed_property index ')' |
-			//                   '(' typed_property ')' index
-			// untyped_component = property | property index
-			// component = typed_component | untyped_component
-			//
-			// path = component | path '.' component
-			/// The result of parsing a part of the path.
-			enum class result {
-				completed, ///< Success.
-				not_found, ///< The path does not match the format at all.
-				error ///< The path matches partially but is not complete.
-			};
+		/// Converts the given animation path into a string.
+		std::u8string to_string(component_list::const_iterator begin, component_list::const_iterator end);
 
-			/// Splits an animation target path into components. See the comment in <tt>namespace parsing</tt>.
-			inline static result parse(std::u8string_view path, component_list &list) {
-				if (path.empty()) {
-					return result::not_found;
-				}
-				auto it = path.begin();
-				list.emplace_back();
-				result res = _parse_component(it, path.end(), list.back());
-				if (res != result::completed) {
-					return result::error;
-				}
-				while (it != path.end()) {
-					if (*(it++) != '.') {
-						return result::error; // technically completed, but it's a single path
-					}
-					list.emplace_back();
-					res = _parse_component(it, path.end(), list.back());
-					if (res != result::completed) {
-						return result::error;
-					}
-				}
-				return result::completed;
-			}
-		protected:
-			/// Parses a string that contains only a to z, 0 to 9, or underscores.
-			inline static result _parse_string(std::u8string_view::const_iterator &it, std::u8string_view::const_iterator end) {
-				std::size_t nchars = 0;
-				while (it != end) {
-					if (*it != '_' && !(*it >= 'a' && *it <= 'z') && !(*it >= 'A' && *it <= 'Z')) {
-						break;
-					}
-					++nchars;
-					++it;
-				}
-				return nchars > 0 ? result::completed : result::not_found;
-			}
-			/// Parses an index.
-			inline static result _parse_index(
-				std::u8string_view::const_iterator &it, std::u8string_view::const_iterator end, std::size_t &v
-			) {
-				if (it == end || *it != '[') {
-					return result::not_found;
-				}
-				++it;
-				if (it == end || !(*it >= '0' && *it <= '9')) {
-					return result::error;
-				}
-				v = *(it++) - '0';
-				while (it != end) {
-					if (*it == ']') {
-						++it;
-						return result::completed;
-					}
-					if (!(*it >= '0' && *it <= '9')) {
-						return result::error;
-					}
-					v = v * 10 + (*(it++) - '0');
-				}
-				return result::error; // no closing bracket
-			}
-
-			/// Parses a typed component.
-			inline static result parse_typed_component(
-				std::u8string_view::const_iterator &it, std::u8string_view::const_iterator end, component &v
-			) {
-				if (it == end || *it != '(') {
-					return result::not_found;
-				}
-				// type
-				auto beg = ++it;
-				if (_parse_string(it, end) != result::completed) {
-					return result::error;
-				}
-				v.type = std::u8string(&*beg, it - beg);
-				// dot
-				if (it == end || *it != '.') {
-					return result::error;
-				}
-				// property
-				beg = ++it;
-				if (_parse_string(it, end) != result::completed) {
-					return result::error;
-				}
-				v.property = std::u8string(&*beg, it - beg);
-				// index & closing parenthesis
-				bool closed = false;
-				if (it != end && *it == ')') {
-					++it;
-					closed = true;
-				}
-				std::size_t id = 0;
-				result res = _parse_index(it, end, id);
-				if (res == result::error) {
-					return result::error;
-				}
-				if (res == result::completed) {
-					v.index.emplace(id);
-				}
-				if (it != end && *it == ')') {
-					if (closed) {
-						return result::error;
-					}
-					++it;
-					closed = true;
-				}
-				return closed ? result::completed : result::error;
-			}
-
-			/// Parses a typed component.
-			inline static result _parse_untyped_component(
-				std::u8string_view::const_iterator &it, std::u8string_view::const_iterator end, component &v
-			) {
-				auto beg = it;
-				if (_parse_string(it, end) != result::completed) {
-					return result::not_found;
-				}
-				v.property = std::u8string_view(&*beg, it - beg);
-				std::size_t id;
-				result res = _parse_index(it, end, id);
-				if (res == result::error) {
-					return result::error;
-				}
-				if (res == result::completed) {
-					v.index.emplace(id);
-				}
-				return result::completed;
-			}
-
-			/// Parses a component.
-			inline static result _parse_component(
-				std::u8string_view::const_iterator &it, std::u8string_view::const_iterator end, component &v
-			) {
-				result res = parse_typed_component(it, end, v);
-				if (res != result::not_found) {
-					return res;
-				}
-				return _parse_untyped_component(it, end, v);
-			}
-		};
 
 		/// Builds a \ref typed_animation_subject from a \ref component_list.
 		namespace builder {
-			template <typename, typename> class typed_member_access;
-
-			/// Indicates the effects an element's property has on its visuals and layout.
-			enum class element_property_type {
-				visual_only, ///< The property only affects the element's visuals.
-				affects_layout ///< The property affects the element's layout.
-			};
+			template <typename, typename> class direct_typed_member_access;
 
 			/// Used to access members given an object and to create \ref animation_subject_base instances.
 			template <typename Source> class member_access {
 			public:
 				/// Default virtual destructor.
 				virtual ~member_access() = default;
-
-				/// Returns a pointer to the member given the object.
-				virtual void *get(Source&) const = 0;
 
 				/// Creates an \ref animation_subject_base given the source object. Returns \p nullptr if this object
 				/// does not support this operation. The created subject may reference this \ref member_access via a
@@ -233,11 +67,11 @@ namespace codepad::ui {
 				}
 				/// Creates an \ref animation_subject_base given an \ref element and the \ref typed_member_access
 				/// used to retrieve the actual source that's a member of the \ref element. The given callback will
-				/// be called whenever a new value has been set. Returns \p nullptr if this object does not support
+				/// be called after a new value has been set. Returns \p nullptr if this object does not support
 				/// this operation. The created subject may reference this \ref member_access or the intermediate
 				/// \ref typed_member_access via a reference, so these objects must outlive the subject.
-				virtual std::unique_ptr<animation_subject_base> create_for_element_with_callback(
-					element&, typed_member_access<element, Source>&, std::function<void(element&)>
+				virtual std::unique_ptr<animation_subject_base> create_for_element_indirect_with_post_modify_callback(
+					element&, direct_typed_member_access<element, Source>&, std::function<void()>
 				) const {
 					return nullptr;
 				}
@@ -249,13 +83,27 @@ namespace codepad::ui {
 			/// \ref member_access with type information of the member.
 			template <typename Source, typename Member> class typed_member_access : public member_access<Source> {
 			public:
-				/// Returns the result of \ref get_typed().
-				void *get(Source &v) const override {
-					return get_typed(v);
+				/// Returns a const reference to the typed member given the object.
+				virtual Member get_typed(Source&) const = 0;
+				/// Sets the typed member given its value.
+				virtual void set_typed(Source&, Member) const = 0;
+			};
+
+			/// \ref typed_member_access of objects with fixed memory locations through pointers.
+			template <typename Source, typename Member> class direct_typed_member_access :
+				public typed_member_access<Source, Member> {
+			public:
+				/// Returns the result of \ref get_direct().
+				Member get_typed(Source &src) const override {
+					return *get_direct(src);
+				}
+				/// Sets the value through \ref get_direct().
+				void set_typed(Source &src, Member val) const override {
+					*get_direct(src) = std::move(val);
 				}
 
-				/// Returns a poionter to the typed member given the object.
-				virtual Member *get_typed(Source&) const = 0;
+				/// Returns a pointer to the object to be accessed.
+				virtual Member *get_direct(Source&) const = 0;
 			};
 
 
@@ -269,12 +117,12 @@ namespace codepad::ui {
 				}
 
 				/// Retrieves the value through \ref _member.
-				const Output &get() const override {
-					return *_member.get_typed(_object);
+				Output get() const override {
+					return _member.get_typed(_object);
 				}
 				/// Sets the value through \ref _member.
 				void set(Output v) override {
-					*_member.get_typed(_object) = std::move(v);
+					_member.set_typed(_object, std::move(v));
 				}
 
 				/// Tests the equality between two subjects.
@@ -290,28 +138,6 @@ namespace codepad::ui {
 				Input &_object; ///< The object that the subject belong to.
 			};
 
-			/// A \ref member_access_subject whose input is an \ref element. This struct calls
-			/// \ref scheduler::invalidate_layout() and \ref scheduler::invalidate_visual() appropriately.
-			template <typename Output, element_property_type Type> class element_member_access_subject :
-				public member_access_subject<element, Output> {
-			public:
-				element_member_access_subject(const typed_member_access<element, Output> &m, element &obj) :
-					member_access_subject<element, Output>(m, obj) {
-				}
-
-				/// Calls \ref member_access_subject::set(), then calls \ref scheduler::invalidate_layout() and/or
-				/// \ref scheduler::invalidate_visual().
-				void set(Output) override;
-
-				/// Tests the equality between two subjects.
-				[[nodiscard]] bool equals(const animation_subject_base &subject) const override {
-					if (auto *ptr = dynamic_cast<const element_member_access_subject<Output, Type>*>(&subject)) {
-						return &this->_object == &ptr->_object && this->_member.equals(ptr->_member);
-					}
-					return false;
-				}
-			};
-
 			/// Animation subjects created by a \ref component_member_access. The subject is accessed through two
 			/// layers: one custom layer that retrieves a member from an element, and one predefined layer that
 			/// retrieves properties from that member. An optional callback is called whenever the value has been
@@ -322,24 +148,24 @@ namespace codepad::ui {
 			public:
 				/// Initializes all fields of this struct.
 				custom_element_member_subject(
-					const typed_member_access<element, Intermediate> &first,
-					const typed_member_access<Intermediate, Target> &second,
-					element &obj, std::function<void(element&)> cb
+					const direct_typed_member_access<element, Intermediate> &first,
+					const direct_typed_member_access<Intermediate, Target> &second,
+					element &obj, std::function<void()> cb
 				) :
 					typed_animation_subject<Target>(),
 					_callback(std::move(cb)), _first(first), _second(second), _source(obj) {
 				}
 
 				/// Returns the value.
-				const Target &get() const override {
-					return *_second.get_typed(*_first.get_typed(_source));
+				Target get() const override {
+					return *_second.get_direct(*_first.get_direct(_source));
 				}
 				/// Sets the value, calling \ref scheduler::invalidate_layout() or
 				/// \ref scheduler::invalidate_visual() if necessary.
 				void set(Target t) override {
-					*_second.get_typed(*_first.get_typed(_source)) = std::move(t);
+					*_second.get_direct(*_first.get_direct(_source)) = std::move(t);
 					if (_callback) {
-						_callback(_source);
+						_callback();
 					}
 				}
 
@@ -353,15 +179,16 @@ namespace codepad::ui {
 					return false;
 				}
 			protected:
-				std::function<void(element&)> _callback; ///< The callback that's invoked whenever the value is set.
-				const typed_member_access<element, Intermediate> &_first; ///< The first part of the getter.
-				const typed_member_access<Intermediate, Target> &_second; ///< The second part of the getter.
+				std::function<void()> _callback; ///< The callback that's invoked whenever the value is set.
+				const direct_typed_member_access<element, Intermediate> &_first; ///< The first part of the getter.
+				const direct_typed_member_access<Intermediate, Target> &_second; ///< The second part of the getter.
 				element &_source; ///< The source \ref element.
 			};
 
+
 			/// Generic member access through a getter component.
 			template <typename Comp> class component_member_access :
-				public typed_member_access<typename Comp::input_type, typename Comp::output_type> {
+				public direct_typed_member_access<typename Comp::input_type, typename Comp::output_type> {
 			public:
 				using input_type = typename Comp::input_type; ///< The input type.
 				using output_type = typename Comp::output_type; ///< The output type.
@@ -371,7 +198,7 @@ namespace codepad::ui {
 				}
 
 				/// Retrieves the member through \ref _component.
-				output_type *get_typed(input_type &input) const override {
+				output_type *get_direct(input_type &input) const override {
 					return _component.get(&input);
 				}
 
@@ -380,12 +207,17 @@ namespace codepad::ui {
 					return std::make_unique<member_access_subject<input_type, output_type>>(*this, input);
 				}
 				/// Creates a \ref custom_element_member_subject.
-				std::unique_ptr<animation_subject_base> create_for_element_with_callback(
-					element &elem, typed_member_access<element, input_type> &middle, std::function<void(element&)> callback
+				std::unique_ptr<animation_subject_base> create_for_element_indirect_with_post_modify_callback(
+					element &elem, direct_typed_member_access<element, input_type> &middle,
+					std::function<void()> callback
 				) const override {
-					return std::make_unique<custom_element_member_subject<input_type, output_type>>(
-						middle, *this, elem, std::move(callback)
-						);
+					if constexpr (std::is_same_v<input_type, element>) {
+						return nullptr; // use create_for_source() instead
+					} else {
+						return std::make_unique<custom_element_member_subject<input_type, output_type>>(
+							middle, *this, elem, std::move(callback)
+							);
+					}
 				}
 
 				/// Checks if the other \ref member_access is also a \ref component_member_access, and if so, checks
@@ -405,6 +237,48 @@ namespace codepad::ui {
 			> make_component_member_access(Comp comp) {
 				return std::make_unique<component_member_access<std::decay_t<Comp>>>(std::move(comp));
 			}
+
+
+			/// A \ref typed_member_access that uses a getter and a setter to retrieve and set the value.
+			template <typename Source, typename Target> class getter_setter_member_access :
+				public typed_member_access<Source, Target> {
+			public:
+				/// Initializes \ref _getter and \ref _setter.
+				getter_setter_member_access(
+					std::function<Target(Source&)> get, std::function<void(Source&, Target)> set,
+					std::u8string_view id
+				) : _getter(std::move(get)), _setter(std::move(set)), _identifier(id) {
+				}
+
+				/// Invokes \ref _getter.
+				Target get_typed(Source &src) const override {
+					return _getter(src);
+				}
+				/// Invokes \ref _setter.
+				void set_typed(Source &src, Target value) const override {
+					_setter(src, std::move(value));
+				}
+
+				/// Creates a \ref member_access_subject.
+				std::unique_ptr<animation_subject_base> create_for_source(Source &input) const override {
+					return std::make_unique<member_access_subject<Source, Target>>(*this, input);
+				}
+
+				/// Checks if the other \ref member_access is also a \ref getter_setter_member_access, and if so,
+				/// checks if the identifiers are the same.
+				bool equals(const member_access<Source> &other) const override {
+					if (auto *acc = dynamic_cast<const getter_setter_member_access<Source, Target>*>(&other)) {
+						return _identifier == acc->_identifier;
+					}
+					return false;
+				}
+			protected:
+				std::function<Target(Source&)> _getter; ///< The getter.
+				std::function<void(Source&, Target)> _setter; ///< The setter.
+				/// The identifier of this member access object. Since we can't directly compare \ref _getter and
+				/// \ref _setter, this identifier here is used to test the equality of objects.
+				std::u8string_view _identifier;
+			};
 
 
 			/// Contains information about a member of an object.
@@ -567,10 +441,6 @@ namespace codepad::ui {
 			template <typename T> member_information<T> get_member_subject(
 				component_list::const_iterator, component_list::const_iterator
 			);
-			/// Dispatches the call given the visual property.
-			member_information<element> get_common_element_property(
-				component_list::const_iterator, component_list::const_iterator
-			);
 		}
 	}
 
@@ -580,12 +450,6 @@ namespace codepad::ui {
 		std::unique_ptr<animation_value_parser_base> parser; ///< Used to parse animations from JSON.
 		std::any subject_data; ///< Data that need to live as long as \ref subject.
 
-	private:
-		/// The callback used by \ref from_member() to invalidate the visual or layout of an element.
-		template <
-			animation_path::builder::element_property_type Type
-		> inline static void _element_subject_callback(element&);
-	public:
 		/// Creates a \ref animation_subject_information from a
 		/// \ref animation_path::builder::member_information<element> by calling
 		/// \ref animation_path::builder::member_access::create_for_source().
@@ -595,30 +459,41 @@ namespace codepad::ui {
 			animation_subject_information res;
 			res.parser = std::move(member.parser);
 			res.subject = member.member->create_for_source(elem);
-			std::shared_ptr<animation_path::builder::member_access<element>> ptr(std::move(member.member));
-			res.subject_data.emplace<std::shared_ptr<animation_path::builder::member_access<element>>>(ptr);
+			res.subject_data.emplace<std::shared_ptr<animation_path::builder::member_access<element>>>(
+				std::move(member.member)
+			);
 			return res;
 		}
+
 		/// Similar to \ref from_element(), but calls
-		/// \ref animation_path::builder::member_access::create_for_element_with_callback().
+		/// \ref animation_path::builder::member_access::create_for_element_indirect_with_post_modify_callback().
 		template <
 			typename Intermediate
-		> inline static animation_subject_information from_element_custom_with_callback(
+		> static animation_subject_information from_element_indirect_with_callback(
 			animation_path::builder::member_information<Intermediate>,
-			std::unique_ptr<animation_path::builder::typed_member_access<element, Intermediate>>,
-			element&, std::function<void(element&)>
+			std::unique_ptr<animation_path::builder::direct_typed_member_access<element, Intermediate>>,
+			element&, std::function<void()>
+		);
+		/// Creates a \ref animation_subject_information that retrieves a property using indirect means.
+		template <auto Member> static animation_subject_information from_member_with_callback(
+			element&, std::function<void()>,
+			animation_path::component_list::const_iterator, animation_path::component_list::const_iterator
 		);
 
-		/// Creates a \ref animation_subject_information that retrieves a property using indirect means.
-		template <auto Member> inline static animation_subject_information from_member_with_callback(
-			element&, std::function<void(element&)>,
-			animation_path::component_list::const_iterator, animation_path::component_list::const_iterator
-		);
-		/// Similar to \ref from_member_with_callback(), but replaces the callback with a simple enumeration
-		/// that only invalidates the layout or visuals of the element.
-		template <auto Member> inline static animation_subject_information from_member(
-			element&, animation_path::builder::element_property_type,
-			animation_path::component_list::const_iterator, animation_path::component_list::const_iterator
-		);
+		template <typename Target> static animation_subject_information from_getter_setter(
+			element &elem, std::u8string_view id,
+			std::function<Target(element&)> getter, std::function<void(element&, Target)> setter
+		) {
+			animation_subject_information res;
+			res.parser = std::make_unique<typed_animation_value_parser<Target>>();
+			auto access = std::make_unique<animation_path::builder::getter_setter_member_access<element, Target>>(
+				std::move(getter), std::move(setter), id
+			);
+			res.subject = access->create_for_source(elem);
+			res.subject_data.emplace<
+				std::shared_ptr<animation_path::builder::getter_setter_member_access<element, Target>>
+			>(std::move(access));
+			return res;
+		}
 	};
 }

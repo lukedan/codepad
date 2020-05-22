@@ -412,9 +412,9 @@ namespace codepad::os {
 		_details::winapi_check(TrackMouseEvent(&tme));
 	}
 
-	void window::_initialize(std::u8string_view cls, const ui::element_configuration &config) {
+	void window::_initialize(std::u8string_view cls) {
 		SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-		window_base::_initialize(cls, config);
+		window_base::_initialize(cls);
 
 		// update cached dpi, because the WM_DPICHANGED message is not sent after creating the window
 		// FIXME this function only returns one value which we now use for both x and y

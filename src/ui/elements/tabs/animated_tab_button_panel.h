@@ -362,8 +362,8 @@ namespace codepad::ui::tabs {
 		/// Initializes \ref _animation.
 		///
 		/// \todo Use customizable animation controller.
-		void _initialize(std::u8string_view cls, const ui::element_configuration &config) override {
-			stack_panel::_initialize(cls, config);
+		void _initialize(std::u8string_view cls) override {
+			stack_panel::_initialize(cls);
 
 			_animation = std::make_shared<exponential_tab_button_animation_controller>();
 		}

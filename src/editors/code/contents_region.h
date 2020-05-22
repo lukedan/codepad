@@ -921,8 +921,8 @@ namespace codepad::editors::code {
 
 		// construction and destruction
 		/// Loads font and interaction settings.
-		void _initialize(std::u8string_view cls, const ui::element_configuration &config) override {
-			_base::_initialize(cls, config);
+		void _initialize(std::u8string_view cls) override {
+			_base::_initialize(cls);
 
 			std::vector<std::u8string> profile; // TODO custom profile
 

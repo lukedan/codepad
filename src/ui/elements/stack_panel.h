@@ -20,6 +20,7 @@ namespace codepad::ui {
 		void set_orientation(orientation o) {
 			if (o != _orientation) {
 				_orientation = o;
+				_on_orientation_changed();
 			}
 		}
 
@@ -80,6 +81,11 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Returns \ref get_properties_static().
+		const property_mapping &get_properties() const override;
+
+		/// Adds the additional orientation property.
+		[[nodiscard]] static const property_mapping &get_properties_static();
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
 			return u8"stack_panel";
@@ -205,17 +211,6 @@ namespace codepad::ui {
 		virtual void _on_orientation_changed() {
 			_on_desired_size_changed(true, true);
 			_invalidate_children_layout();
-		}
-
-		/// Handles the orientation attribute.
-		void _set_attribute(std::u8string_view name, const json::value_storage &value) override {
-			if (name == u8"orientation") {
-				if (auto ori = value.get_value().parse<orientation>()) {
-					set_orientation(ori.value());
-				}
-				return;
-			}
-			panel::_set_attribute(name, value);
 		}
 	};
 }

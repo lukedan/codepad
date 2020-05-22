@@ -132,7 +132,7 @@ namespace codepad::ui::tabs {
 		class_arrangements::notify_mapping _get_child_notify_mapping() override;
 
 		/// Initializes \ref _close_btn.
-		void _initialize(std::u8string_view cls, const element_configuration&) override;
+		void _initialize(std::u8string_view cls) override;
 	};
 
 	/// A tab that contains other elements.
@@ -182,7 +182,7 @@ namespace codepad::ui::tabs {
 		virtual void _on_close_requested();
 
 		/// Initializes \ref _btn.
-		void _initialize(std::u8string_view, const element_configuration&) override;
+		void _initialize(std::u8string_view) override;
 		/// Marks \ref _btn for disposal.
 		void _dispose() override;
 

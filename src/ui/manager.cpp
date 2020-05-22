@@ -15,7 +15,8 @@
 #include "elements/tabs/manager.h"
 #include "elements/tabs/animated_tab_button_panel.h"
 #include "../editors/code/contents_region.h"
-#include "../editors/code/components.h"
+#include "../editors/code/minimap.h"
+#include "../editors/code/line_number_display.h"
 #include "../editors/binary/contents_region.h"
 #include "../editors/binary/components.h"
 
@@ -69,19 +70,41 @@ namespace codepad::ui {
 		};
 	}
 
-	element *manager::create_element_custom(
-		std::u8string_view type, std::u8string_view cls, const element_configuration &config
+	element *manager::create_element_custom_no_event_or_attribute(
+		std::u8string_view type, std::u8string_view cls
 	) {
-		auto it = _ctor_map.find(type);
-		if (it == _ctor_map.end()) {
+		auto it = _element_registry.find(type);
+		if (it == _element_registry.end()) {
 			return nullptr;
 		}
 		element *elem = it->second(); // the constructor must not use element::_manager
 		elem->_manager = this;
-		elem->_initialize(cls, config);
+		elem->_initialize(cls);
 #ifdef CP_CHECK_USAGE_ERRORS
 		assert_true_usage(elem->_initialized, "element::_initialize() must be called by derived classes");
 #endif
+		return elem;
+	}
+
+	element *manager::create_element_custom(
+		std::u8string_view type, std::u8string_view cls, const element_configuration &config
+	) {
+		element *elem = create_element_custom_no_event_or_attribute(type, cls);
+		if (elem) {
+			if (dynamic_cast<panel*>(elem) == nullptr) { // only register stuff for non-panels
+				// register event triggers
+				for (const auto &trigger : config.event_triggers) {
+					if (!trigger.identifier.subject.empty()) {
+						logger::get().log_warning(CP_HERE) <<
+							"subjects can only be specified for events in composite elements: " <<
+							cls << "::" << trigger.identifier.subject << "." << trigger.identifier.name;
+					}
+					class_arrangements::register_trigger_for(*elem, *elem, trigger);
+				}
+				// set attributes
+				class_arrangements::set_attributes_of(*elem, config.attributes);
+			}
+		}
 		return elem;
 	}
 }

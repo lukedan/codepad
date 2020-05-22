@@ -128,9 +128,15 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Returns the list of properties.
+		const property_mapping &get_properties() const override;
+
 		/// Invoked when the value of the scrollbar is changed.
 		info_event<value_changed_info> value_changed;
 		info_event<> orientation_changed; ///< Invoked when the orientation of this element is changed.
+
+		/// Adds the \p orientation property.
+		static const property_mapping &get_properties_static();
 
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
@@ -163,46 +169,7 @@ namespace codepad::ui {
 		bool _drag_button_extended = false;
 
 		/// Calculates the layout of the three buttons.
-		void _on_update_children_layout() override {
-			rectd cln = get_client_region();
-			double min, max, mid1, mid2;
-			if (get_orientation() == orientation::vertical) {
-				min = cln.ymin;
-				max = cln.ymax;
-			} else {
-				min = cln.xmin;
-				max = cln.xmax;
-			}
-			double
-				totsize = max - min,
-				btnlen = totsize * _visible_range / _total_range;
-			_drag_button_extended = btnlen < _drag->get_minimum_length();
-			if (_drag_button_extended) {
-				btnlen = _drag->get_minimum_length();
-				double percentage = _value / (_total_range - _visible_range);
-				mid1 = min + (totsize - btnlen) * percentage;
-				mid2 = mid1 + btnlen;
-			} else {
-				double ratio = totsize / _total_range;
-				mid1 = min + ratio * _value;
-				mid2 = mid1 + ratio * _visible_range;
-			}
-			if (get_orientation() == orientation::vertical) {
-				panel::layout_child_horizontal(*_drag, cln.xmin, cln.xmax);
-				panel::layout_child_horizontal(*_pgup, cln.xmin, cln.xmax);
-				panel::layout_child_horizontal(*_pgdn, cln.xmin, cln.xmax);
-				_child_set_vertical_layout(*_drag, mid1, mid2);
-				_child_set_vertical_layout(*_pgup, min, mid1);
-				_child_set_vertical_layout(*_pgdn, mid2, max);
-			} else {
-				panel::layout_child_vertical(*_drag, cln.ymin, cln.ymax);
-				panel::layout_child_vertical(*_pgup, cln.ymin, cln.ymax);
-				panel::layout_child_vertical(*_pgdn, cln.ymin, cln.ymax);
-				_child_set_horizontal_layout(*_drag, mid1, mid2);
-				_child_set_horizontal_layout(*_pgup, min, mid1);
-				_child_set_horizontal_layout(*_pgdn, mid2, max);
-			}
-		}
+		void _on_update_children_layout() override;
 		/// Called when \ref _drag is being dragged by the user. Calculate the new value of this \ref scrollbar.
 		///
 		/// \param newmin The new top or left boundary of \ref _drag relative to this element.
@@ -226,16 +193,6 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Sets the orientation of this element if requested.
-		void _set_attribute(std::u8string_view name, const json::value_storage &value) override {
-			if (name == u8"orientation") {
-				if (auto ori = value.get_value().parse<orientation>()) {
-					set_orientation(ori.value());
-				}
-				return;
-			}
-			panel::_set_attribute(name, value);
-		}
 		/// Handles the \p set_horizontal and \p set_vertical events.
 		bool _register_event(std::u8string_view name, std::function<void()> callback) override {
 			return
@@ -250,7 +207,7 @@ namespace codepad::ui {
 		class_arrangements::notify_mapping _get_child_notify_mapping() override;
 
 		/// Initializes the three buttons and adds them as children.
-		void _initialize(std::u8string_view cls, const element_configuration&) override;
+		void _initialize(std::u8string_view cls) override;
 
 		/// Called after the orientation has been changed. Invalidates the layout of all components.
 		virtual void _on_orientation_changed() {

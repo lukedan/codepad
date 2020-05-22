@@ -19,8 +19,8 @@ namespace codepad::ui::tabs {
 		return mapping;
 	}
 
-	void drag_destination_selector::_initialize(std::u8string_view cls, const element_configuration &config) {
-		panel::_initialize(cls, config);
+	void drag_destination_selector::_initialize(std::u8string_view cls) {
+		panel::_initialize(cls);
 
 		set_zindex(zindex::overlay);
 
@@ -114,8 +114,8 @@ namespace codepad::ui::tabs {
 		return mapping;
 	}
 
-	void host::_initialize(std::u8string_view cls, const element_configuration &config) {
-		panel::_initialize(cls, config);
+	void host::_initialize(std::u8string_view cls) {
+		panel::_initialize(cls);
 
 		_tab_contents_region->children().changing += [this](element_collection::change_info &p) {
 			if (p.change_type == element_collection::change_info::type::remove) {

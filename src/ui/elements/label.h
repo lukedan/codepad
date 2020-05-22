@@ -53,6 +53,11 @@ namespace codepad::ui {
 			_on_text_layout_changed();
 		}
 
+		/// Returns the list of properties.
+		const property_mapping &get_properties() const override;
+
+		/// Adds the \p text_color property.
+		static const property_mapping &get_properties_static();
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
 			return u8"label";
@@ -84,31 +89,6 @@ namespace codepad::ui {
 		virtual void _on_text_layout_changed() {
 			_cached_fmt.reset();
 			_on_desired_size_changed(true, true);
-		}
-
-		/// Handles the parsing of text color.
-		void _set_attribute(std::u8string_view name, const json::value_storage &v) override {
-			if (name == u8"text_color") {
-				if (auto color = v.get_value().parse<colord>()) {
-					set_text_color(color.value());
-				}
-				return;
-			}
-			element::_set_attribute(name, v);
-		}
-		/// Handles animations related to text color.
-		animation_subject_information _parse_animation_path(
-			const animation_path::component_list &components
-		) override {
-			if (!components.empty() && components[0].is_similar(u8"label", u8"text_color")) {
-				return animation_subject_information::from_member_with_callback<&label::_text_color>(
-					*this, [](element &e) {
-						dynamic_cast<label&>(e)._on_text_color_changed();
-					},
-					++components.begin(), components.end()
-						);
-			}
-			return element::_parse_animation_path(components);
 		}
 	};
 }

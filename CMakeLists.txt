@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.15)
 project(codepad)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
@@ -18,6 +18,9 @@ endif()
 
 # backtrace
 set(ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing backtraces.")
+
+
+cmake_policy(SET CMP0092 NEW)
 
 
 # packages
@@ -98,28 +101,36 @@ target_sources(codepad
 
 		"src/editors/code/caret_set.cpp"
 		"src/editors/code/contents_region.cpp"
+		"src/editors/code/line_number_display.cpp"
+		"src/editors/code/minimap.cpp"
 
 		"src/editors/buffer.cpp"
+		"src/editors/editor.cpp"
 
 		"src/ui/elements/tabs/host.cpp"
 		"src/ui/elements/tabs/tab.cpp"
 
-		
+		"src/ui/elements/button.cpp"
+		"src/ui/elements/label.cpp"
+		"src/ui/elements/scrollbar.cpp"
+		"src/ui/elements/stack_panel.cpp"
 
 		"src/ui/animation_path.cpp"
+		"src/ui/animation_path_parser.cpp"
 		"src/ui/arrangements.cpp"
 		"src/ui/commands.cpp"
 		"src/ui/element.cpp"
 		"src/ui/element_parameters.cpp" 
 		"src/ui/hotkey_registry.cpp"
 		"src/ui/manager.cpp"
+		"src/ui/misc.cpp"
 		"src/ui/native_commands.cpp"
 		"src/ui/panel.cpp"
 		"src/ui/renderer.cpp"
 		"src/ui/scheduler.cpp"
 		"src/ui/window.cpp"
 
-		"src/main.cpp" "src/ui/misc.cpp" "src/ui/elements/scrollbar.cpp" "src/ui/elements/label.cpp" "src/ui/elements/button.cpp")
+		"src/main.cpp")
 target_compile_definitions(codepad
 	PRIVATE UNICODE _UNICODE)
 if(ENABLE_BACKTRACE)

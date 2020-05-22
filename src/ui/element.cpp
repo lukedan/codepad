@@ -27,17 +27,17 @@ namespace codepad::ui {
 
 				fresh_pos = get(*_active_window);
 				// transform from "panel" window to window itself
-				fresh_pos = _active_window->get_parameters().visual_parameters.transform.transform_point(
+				fresh_pos = _active_window->get_visual_parameters().transform.transform_point(
 					fresh_pos, _active_window->get_layout().size()
 				);
 				// transform to the current window
 				fresh_pos = wnd->screen_to_client(_active_window->client_to_screen(fresh_pos));
 				// transform from window itself to "panel" window
-				fresh_pos = wnd->get_parameters().visual_parameters.transform.inverse_transform_point(
+				fresh_pos = wnd->get_visual_parameters().transform.inverse_transform_point(
 					fresh_pos - wnd->get_layout().xmin_ymin(), wnd->get_layout().size()
 				);
 			} else { // TODO non-recursive version?
-				fresh_pos = e._params.visual_parameters.transform.inverse_transform_point(
+				fresh_pos = e.get_visual_parameters().transform.inverse_transform_point(
 					get(*e.parent()) - (e.get_layout().xmin_ymin() - e.parent()->get_layout().xmin_ymin()),
 					e.get_layout().size()
 				);
@@ -49,12 +49,88 @@ namespace codepad::ui {
 	}
 
 
+	size_allocation element::get_layout_width() const {
+		size_allocation_type type = get_width_allocation();
+		if (type == size_allocation_type::automatic) {
+			return get_desired_width();
+		}
+		return size_allocation(get_size().x, type == size_allocation_type::fixed);
+	}
+
+	size_allocation element::get_layout_height() const {
+		size_allocation_type type = get_height_allocation();
+		if (type == size_allocation_type::automatic) {
+			return get_desired_height();
+		}
+		return size_allocation(get_size().y, type == size_allocation_type::fixed);
+	}
+
+	void element::set_zindex(int v) {
+		if (_parent) {
+			_parent->_children.set_zindex(*this, v);
+		} else {
+			_zindex = v;
+		}
+	}
+
+	window_base *element::get_window() const {
+		element *cur = parent();
+		if (cur) {
+			while (cur->parent() != nullptr) {
+				cur = cur->parent();
+			}
+			return dynamic_cast<window_base*>(cur);
+		}
+		return nullptr;
+	}
+
 	void element::invalidate_visual() {
 		get_manager().get_scheduler().invalidate_visual(*this);
 	}
 
 	void element::invalidate_layout() {
 		get_manager().get_scheduler().invalidate_layout(*this);
+	}
+
+	const property_mapping &element::get_properties() const {
+		return get_properties_static();
+	}
+
+	const property_mapping &element::get_properties_static() {
+		static property_mapping mapping;
+		if (mapping.empty()) {
+			mapping.emplace(u8"layout", std::make_shared<member_pointer_property<&element::_layout_params>>(
+				[](element &e) {
+					e.invalidate_layout();
+				}
+			));
+			mapping.emplace(u8"visuals", std::make_shared<member_pointer_property<&element::_visual_params>>(
+				[](element &e) {
+					e.invalidate_visual();
+				}
+			));
+			mapping.emplace(u8"cursor", std::make_shared<member_pointer_property<&element::_custom_cursor>>());
+			mapping.emplace(u8"visibility", std::make_shared<getter_setter_property<element, visibility>>(
+				u8"visibility",
+				[](element &e) {
+					return e.get_visibility();
+				},
+				[](element &e, visibility vis) {
+					e.set_visibility(vis);
+				}
+				));
+			mapping.emplace(u8"z_index", std::make_shared<getter_setter_property<element, int>>(
+				u8"z_index",
+				[](element &e) {
+					return e.get_zindex();
+				},
+				[](element &e, int z) {
+					e.set_zindex(z);
+				}
+				));
+		}
+
+		return mapping;
 	}
 
 	void element::_on_desired_size_changed(bool width, bool height) {
@@ -106,14 +182,14 @@ namespace codepad::ui {
 			offset -= parent()->get_layout().xmin_ymin();
 		}
 		get_manager().get_renderer().push_matrix_mult(
-			matd3x3::translate(offset) * _params.visual_parameters.transform.get_matrix(get_layout().size())
+			matd3x3::translate(offset) * get_visual_parameters().transform.get_matrix(get_layout().size())
 		);
 		/*get_manager().get_renderer().push_clip(_layout.fit_grid_enlarge<int>());*/ // TODO clips?
 	}
 
 	void element::_custom_render() const {
 		vec2d unit = get_layout().size();
-		for (const generic_visual_geometry &g : _params.visual_parameters.geometries) {
+		for (const generic_visual_geometry &g : get_visual_parameters().geometries) {
 			g.draw(unit, get_manager().get_renderer());
 		}
 	}
@@ -131,11 +207,20 @@ namespace codepad::ui {
 		}
 	}
 
-	void element::_initialize(std::u8string_view cls, const element_configuration &config) {
+	bool element::_register_event(std::u8string_view name, std::function<void()> callback) {
+		return
+			_event_helpers::try_register_event(name, u8"mouse_enter", mouse_enter, callback) ||
+			_event_helpers::try_register_event(name, u8"mouse_leave", mouse_leave, callback) ||
+			_event_helpers::try_register_event(name, u8"got_focus", got_focus, callback) ||
+			_event_helpers::try_register_event(name, u8"lost_focus", lost_focus, callback) ||
+			_event_helpers::try_register_all_mouse_button_events<true>(name, mouse_down, callback) ||
+			_event_helpers::try_register_all_mouse_button_events<false>(name, mouse_up, callback);
+	}
+
+	void element::_initialize(std::u8string_view cls) {
 #ifdef CP_CHECK_USAGE_ERRORS
 		_initialized = true;
 #endif
-		_params = config.default_parameters;
 		_hotkeys = get_manager().get_class_hotkeys().get(cls);
 	}
 
@@ -146,24 +231,5 @@ namespace codepad::ui {
 #ifdef CP_CHECK_USAGE_ERRORS
 		_initialized = false;
 #endif
-	}
-
-	void element::set_zindex(int v) {
-		if (_parent) {
-			_parent->_children.set_zindex(*this, v);
-		} else {
-			_zindex = v;
-		}
-	}
-
-	window_base *element::get_window() const {
-		element *cur = parent();
-		if (cur) {
-			while (cur->parent() != nullptr) {
-				cur = cur->parent();
-			}
-			return dynamic_cast<window_base*>(cur);
-		}
-		return nullptr;
 	}
 }

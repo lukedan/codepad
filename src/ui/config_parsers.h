@@ -11,6 +11,7 @@
 #include "hotkey_registry.h"
 #include "element_classes.h"
 #include "element.h"
+#include "animation_path_parser.h"
 
 namespace codepad::ui {
 	class manager;
@@ -39,11 +40,9 @@ namespace codepad::ui {
 		/// specified states already exists in \p value, it is kept if the inheritance is not overriden with
 		/// \p inherit_from.
 		void parse_configuration(const object_t &val, element_configuration &value) {
-			parse_parameters(val, value.default_parameters);
-
-			if (auto extraobj = val.template parse_optional_member<object_t>(u8"extras")) {
-				for (auto it = extraobj->member_begin(); it != extraobj->member_end(); ++it) {
-					value.additional_attributes.emplace(it.name(), json::store(it.value()));
+			if (auto attrobj = val.template parse_optional_member<object_t>(u8"attributes")) {
+				for (auto it = attrobj->member_begin(); it != attrobj->member_end(); ++it) {
+					value.attributes.emplace(it.name(), json::store(it.value()));
 				}
 			}
 
@@ -83,7 +82,7 @@ namespace codepad::ui {
 				}
 			}
 		}
-		/// Parses a \ref element_parameters from the given JSON object.
+		/*/// Parses a \ref element_parameters from the given JSON object.
 		void parse_parameters(const object_t &val, element_parameters &value) {
 			if (auto layout_from = val.template parse_optional_member<std::u8string_view>(u8"inherit_layout_from")) {
 				if (auto *ancestor = get_manager().get_class_arrangements().get(layout_from.value())) {
@@ -113,7 +112,7 @@ namespace codepad::ui {
 				val.template parse_optional_member<visibility>(u8"visibility").value_or(value.element_visibility);
 			value.custom_cursor =
 				val.template parse_optional_member<cursor>(u8"cursor").value_or(value.custom_cursor);
-		}
+		}*/
 		/// Parses additional attributes of a \ref class_arrangements::child from the given JSON object.
 		void parse_additional_arrangement_attributes(
 			const object_t &val, class_arrangements::child &child

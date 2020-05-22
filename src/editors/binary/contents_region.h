@@ -406,7 +406,7 @@ namespace codepad::editors::binary {
 
 		// misc
 		/// Loads font and interaction settings.
-		void _initialize(std::u8string_view, const ui::element_configuration&) override;
+		void _initialize(std::u8string_view) override;
 		/// Sets the current document to empty to unbind event listeners.
 		void _dispose() override;
 	};
