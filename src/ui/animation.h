@@ -233,7 +233,7 @@ namespace codepad::ui {
 						)) {
 						res.transition_func = trans.value();
 					}
-					return std::move(res);
+					return res;
 				}
 			}
 			return std::nullopt;

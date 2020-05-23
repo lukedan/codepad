@@ -24,7 +24,7 @@ namespace codepad::os {
 		) override {
 			GdkWindow *wnd = gtk_widget_get_window(_details::cast_window(w).get_native_handle());
 			gint scale = 1;
-			int width = 0, height = 0;
+			int width = 1, height = 1;
 			if (wnd) {
 				scale = gdk_window_get_scale_factor(wnd);
 				width = gdk_window_get_width(wnd) * scale;
@@ -33,7 +33,8 @@ namespace codepad::os {
 			return ui::cairo::_details::make_gtk_object_ref_give(
 				gdk_window_create_similar_image_surface(
 					wnd, CAIRO_FORMAT_ARGB32, width, height, scale
-				));
+				)
+			);
 		}
 		/// Draws the rendered image onto the given context.
 		inline static gboolean _refresh_window_contents(GtkWidget*, cairo_t *cr, window *wnd) {

@@ -443,7 +443,7 @@ namespace codepad::editors::code {
 		}
 		/// Increases the vertical position by the given number times the line height.
 		void advance_vertical_position(std::size_t lines) {
-			set_vertical_position(get_vertical_position() + lines * get_line_height());
+			set_vertical_position(get_vertical_position() + static_cast<double>(lines) * get_line_height());
 		}
 		/// Returns the top position of the current line.
 		double get_vertical_position() const {

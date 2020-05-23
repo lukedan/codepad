@@ -10,8 +10,6 @@
 
 #include "manager.h"
 
-using namespace std;
-
 namespace codepad::ui {
 	void window_base::set_mouse_capture(element &elem) {
 		logger::get().log_debug(CP_HERE) <<
@@ -62,7 +60,7 @@ namespace codepad::ui {
 			pos - get_layout().xmin_ymin(), get_layout().size()
 		);
 		_cached_mouse_position_timestamp = mouse_position::_global_timestamp;
-		return mouse_position(_cached_mouse_position_timestamp);
+		return mouse_position();
 	}
 
 	void window_base::_on_prerender() {

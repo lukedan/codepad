@@ -12,6 +12,9 @@
 
 #	include <cairo.h>
 
+#	include <pango/pango.h>
+#	include <pango/pangocairo.h>
+
 #	include "../core/math.h"
 #	include "renderer.h"
 #	include "window.h"
@@ -181,7 +184,7 @@ namespace codepad::ui::cairo {
 		}
 	};
 
-	///
+	/// Wraps around a \p PangoLayout.
 	class formatted_text : public ui::formatted_text {
 		friend renderer_base;
 	public:
@@ -267,6 +270,12 @@ namespace codepad::ui::cairo {
 		[[nodiscard]] double get_line_height_em() const override {
 			// TODO
 			return 0.0;
+		}
+
+		///
+		[[nodiscard]] bool has_character(codepoint) const override {
+			// TODO
+			return false;
 		}
 
 		///
@@ -386,8 +395,8 @@ namespace codepad::ui::cairo {
 			return *rt;
 		}
 		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
-		inline formatted_text &cast_formatted_text(ui::formatted_text &t) {
-			auto *rt = dynamic_cast<formatted_text*>(&t);
+		inline const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
+			auto *rt = dynamic_cast<const formatted_text*>(&t);
 			assert_true_usage(rt, "invalid formatted text type");
 			return *rt;
 		}
@@ -607,13 +616,13 @@ namespace codepad::ui::cairo {
 				text += encodings::utf8::encode_codepoint(cp);
 			}
 			return _create_formatted_text_impl(
-				std::u8string_view(reinterpret_cast<const char*>(text.c_str()), text.size()),
+				std::u8string_view(reinterpret_cast<const char8_t*>(text.c_str()), text.size()),
 				font, c, size, wrap, halign, valign
 			);
 		}
 		/// Draws the given \ref formatted_text at the given position using the given brush. The position indicates
 		/// the top left corner of the layout box.
-		void draw_formatted_text(ui::formatted_text &ft, vec2d pos) override {
+		void draw_formatted_text(const ui::formatted_text &ft, vec2d pos) override {
 			auto text = _details::cast_formatted_text(ft);
 			cairo_t *context = _render_stack.top().context;
 
@@ -637,7 +646,7 @@ namespace codepad::ui::cairo {
 			return std::make_unique<plain_text>();
 		}
 		///
-		void draw_plain_text(ui::plain_text&, vec2d, colord) override {
+		void draw_plain_text(const ui::plain_text&, vec2d, colord) override {
 			// TODO
 		}
 	protected:
@@ -842,11 +851,11 @@ namespace codepad::ui::cairo {
 			auto result = std::make_unique<formatted_text>();
 			result->_layout.set_give(pango_layout_new(_pango_context.get()));
 
-			pango_layout_set_text(result->_layout.get(), text.data(), static_cast<int>(text.size()));
+			pango_layout_set_text(result->_layout.get(), reinterpret_cast<const char*>(text.data()), static_cast<int>(text.size()));
 
 			{ // set font
 				PangoFontDescription *desc = pango_font_description_new();
-				pango_font_description_set_family(desc, font.family.c_str());
+				pango_font_description_set_family(desc, reinterpret_cast<const char*>(font.family.c_str()));
 				pango_font_description_set_style(desc, _details::cast_font_style(font.style));
 				pango_font_description_set_weight(desc, _details::cast_font_weight(font.weight));
 				pango_font_description_set_stretch(desc, _details::cast_font_stretch(font.stretch));

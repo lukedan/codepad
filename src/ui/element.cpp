@@ -11,11 +11,9 @@
 #include "panel.h"
 #include "manager.h"
 
-using namespace codepad::os;
-
 namespace codepad::ui {
 	vec2d mouse_position::get(element &e) const {
-		if (e._cached_mouse_position_timestamp != _timestamp) {
+		if (e._cached_mouse_position_timestamp != _global_timestamp) {
 			vec2d fresh_pos;
 			if (e.parent() == nullptr) {
 				window_base *wnd = dynamic_cast<window_base*>(&e);
@@ -43,7 +41,7 @@ namespace codepad::ui {
 				);
 			}
 			e._cached_mouse_position = fresh_pos;
-			e._cached_mouse_position_timestamp = _timestamp;
+			e._cached_mouse_position_timestamp = _global_timestamp;
 		}
 		return e._cached_mouse_position;
 	}

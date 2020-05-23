@@ -13,7 +13,7 @@ namespace codepad::editors::binary {
 			double maxw = rgn->get_font()->get_maximum_character_width_em(
 				reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
 			) * rgn->get_font_size();
-			return ui::size_allocation(get_padding().width() + chars * maxw, true);
+			return ui::size_allocation(get_padding().width() + static_cast<double>(chars) * maxw, true);
 		}
 		return ui::size_allocation(0, true);
 	}
@@ -69,7 +69,7 @@ namespace codepad::editors::binary {
 				);
 
 				for (
-					double ypos = firstline * rgn->get_line_height() - top;
+					double ypos = static_cast<double>(firstline) * rgn->get_line_height() - top;
 					ypos < get_layout().height() && offset < rgn->get_buffer()->length();
 					ypos += rgn->get_line_height(), offset += rgn->get_bytes_per_row()
 					) {

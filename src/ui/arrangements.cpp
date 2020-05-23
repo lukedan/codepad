@@ -10,8 +10,6 @@
 #include "panel.h"
 #include "manager.h"
 
-using namespace std;
-
 namespace codepad::ui {
 	/// Data relavent to the starting of animations. Shared pointers are used to allow for duplication.
 	struct _animation_starter {

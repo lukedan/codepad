@@ -16,159 +16,154 @@
 #include "../editors/code/line_number_display.h"
 #include "../editors/binary/contents_region.h"
 
-using namespace std;
-
-using namespace codepad::os;
-using namespace codepad::ui::tabs;
-using namespace codepad::editors;
-
 namespace codepad::ui::native_commands {
 	void register_all(command_registry &reg) {
 		reg.register_command(
-			u8"contents_region.carets.move_left", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_left(false);
+			u8"contents_region.carets.move_left", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_left(false);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_left_selected", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_left(true);
+			u8"contents_region.carets.move_left_selected", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_left(true);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_right", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_right(false);
+			u8"contents_region.carets.move_right", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_right(false);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_right_selected", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_right(true);
+			u8"contents_region.carets.move_right_selected", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_right(true);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_up", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_up(false);
+			u8"contents_region.carets.move_up", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_up(false);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_up_selected", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_up(true);
+			u8"contents_region.carets.move_up_selected", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_up(true);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_down", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_down(false);
+			u8"contents_region.carets.move_down", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_down(false);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_down_selected", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_down(true);
+			u8"contents_region.carets.move_down_selected", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_down(true);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_leftmost", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning(false);
+			u8"contents_region.carets.move_leftmost", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning(false);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_leftmost_selected", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning(true);
+			u8"contents_region.carets.move_leftmost_selected", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning(true);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_leftmost_noblank", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning_advanced(false);
+			u8"contents_region.carets.move_leftmost_noblank", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning_advanced(false);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_leftmost_noblank_selected", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning_advanced(true);
+			u8"contents_region.carets.move_leftmost_noblank_selected",
+			convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning_advanced(true);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_rightmost", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_to_line_ending(false);
+			u8"contents_region.carets.move_rightmost", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_ending(false);
 			})
 		);
 		reg.register_command(
-			u8"contents_region.carets.move_rightmost_selected", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->move_all_carets_to_line_ending(true);
+			u8"contents_region.carets.move_rightmost_selected", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_ending(true);
 			})
 		);
 
 		reg.register_command(
-			u8"contents_region.folding.fold_selected", convert_type<editor>([](editor *e) {
-				auto *edt = code::contents_region::get_from_editor(*e);
+			u8"contents_region.folding.fold_selected", convert_type<editors::editor>([](editors::editor *e) {
+				auto *edt = editors::code::contents_region::get_from_editor(*e);
 				for (auto caret : edt->get_carets().carets) {
 					if (caret.first.caret != caret.first.selection) {
-						edt->add_folded_region(minmax(caret.first.caret, caret.first.selection));
+						edt->add_folded_region(std::minmax(caret.first.caret, caret.first.selection));
 					}
 				}
 			})
 		);
 
 		reg.register_command(
-			u8"contents_region.delete_before_carets", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->on_backspace();
+			u8"contents_region.delete_before_carets", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->on_backspace();
 			})
 		);
 		reg.register_command(
-			u8"contents_region.delete_after_carets", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->on_delete();
+			u8"contents_region.delete_after_carets", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->on_delete();
 			})
 		);
 		reg.register_command(
-			u8"contents_region.insert_new_line", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->on_return();
+			u8"contents_region.insert_new_line", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->on_return();
 			})
 		);
 
 		reg.register_command(
-			u8"contents_region.toggle_insert", convert_type<editor>([](editor *e) {
+			u8"contents_region.toggle_insert", convert_type<editors::editor>([](editors::editor *e) {
 				e->get_contents_region()->toggle_insert_mode();
 			})
 		);
 
 		reg.register_command(
-			u8"contents_region.undo", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->try_undo();
+			u8"contents_region.undo", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->try_undo();
 			})
 		);
 		reg.register_command(
-			u8"contents_region.redo", convert_type<editor>([](editor *e) {
-				code::contents_region::get_from_editor(*e)->try_redo();
+			u8"contents_region.redo", convert_type<editors::editor>([](editors::editor *e) {
+				editors::code::contents_region::get_from_editor(*e)->try_redo();
 			})
 		);
 
 
 		reg.register_command(
-			u8"tab.request_close", convert_type<tab>([](tab *t) {
+			u8"tab.request_close", convert_type<tabs::tab>([](tabs::tab *t) {
 				t->request_close();
 			})
 		);
 
 		reg.register_command(
-			u8"tab.split_left", convert_type<tab>([](tab *t) {
+			u8"tab.split_left", convert_type<tabs::tab>([](tabs::tab *t) {
 				t->get_tab_manager().split_tab(*t, orientation::horizontal, true);
 			})
 		);
 		reg.register_command(
-			u8"tab.split_right", convert_type<tab>([](tab *t) {
+			u8"tab.split_right", convert_type<tabs::tab>([](tabs::tab *t) {
 				t->get_tab_manager().split_tab(*t, orientation::horizontal, false);
 			})
 		);
 		reg.register_command(
-			u8"tab.split_up", convert_type<tab>([](tab *t) {
+			u8"tab.split_up", convert_type<tabs::tab>([](tabs::tab *t) {
 				t->get_tab_manager().split_tab(*t, orientation::vertical, true);
 			})
 		);
 		reg.register_command(
-			u8"tab.split_down", convert_type<tab>([](tab *t) {
+			u8"tab.split_down", convert_type<tabs::tab>([](tabs::tab *t) {
 				t->get_tab_manager().split_tab(*t, orientation::vertical, false);
 			})
 		);
 
 		reg.register_command(
-			u8"tab.move_to_new_window", convert_type<tab>([](tab *t) {
+			u8"tab.move_to_new_window", convert_type<tabs::tab>([](tabs::tab *t) {
 				t->get_tab_manager().move_tab_to_new_window(*t);
 			})
 		);
@@ -176,22 +171,24 @@ namespace codepad::ui::native_commands {
 
 		// TODO options to not use the default encoding
 		reg.register_command(
-			u8"open_file_dialog", convert_type<host>([](host *th) {
-				auto files = file_dialog::show_open_dialog(th->get_window(), file_dialog::type::multiple_selection);
-				tab *last = nullptr;
+			u8"open_file_dialog", convert_type<tabs::host>([](tabs::host *th) {
+				auto files = os::file_dialog::show_open_dialog(
+					th->get_window(), os::file_dialog::type::multiple_selection
+				);
+				tabs::tab *last = nullptr;
 				for (const auto &path : files) {
-					auto ctx = buffer_manager::get().open_file(path);
-					auto interp = buffer_manager::get().open_interpretation(
-						ctx, code::encoding_manager::get().get_default()
+					auto ctx = editors::buffer_manager::get().open_file(path);
+					auto interp = editors::buffer_manager::get().open_interpretation(
+						ctx, editors::code::encoding_manager::get().get_default()
 					);
 
-					tab *tb = th->get_tab_manager().new_tab_in(th);
+					tabs::tab *tb = th->get_tab_manager().new_tab_in(th);
 					tb->set_label(path.filename().u8string());
 					auto *editor = dynamic_cast<editors::editor*>(
 						th->get_manager().create_element(u8"editor", u8"code_editor")
 					);
-					auto *contents = dynamic_cast<code::contents_region*>(editor->get_contents_region());
-					contents->code_selection_renderer() = std::make_unique<rounded_selection_renderer>();
+					auto *contents = dynamic_cast<editors::code::contents_region*>(editor->get_contents_region());
+					contents->code_selection_renderer() = std::make_unique<editors::rounded_selection_renderer>();
 					contents->set_document(interp);
 					tb->children().add(*editor);
 					last = tb;
@@ -204,19 +201,19 @@ namespace codepad::ui::native_commands {
 
 		// TODO options to not use the default encoding
 		reg.register_command(
-			u8"new_file", convert_type<host>([](host *th) {
-				auto buf = buffer_manager::get().new_file();
-				auto interp = buffer_manager::get().open_interpretation(
-					buf, code::encoding_manager::get().get_default()
+			u8"new_file", convert_type<tabs::host>([](tabs::host *th) {
+				auto buf = editors::buffer_manager::get().new_file();
+				auto interp = editors::buffer_manager::get().open_interpretation(
+					buf, editors::code::encoding_manager::get().get_default()
 				);
 
-				tab *tb = th->get_tab_manager().new_tab_in(th);
+				tabs::tab *tb = th->get_tab_manager().new_tab_in(th);
 				tb->set_label(u8"New file");
 				auto *editor = dynamic_cast<editors::editor*>(
 					th->get_manager().create_element(u8"editor", u8"code_editor")
 				);
-				auto *contents = dynamic_cast<code::contents_region*>(editor->get_contents_region());
-				contents->code_selection_renderer() = std::make_unique<rounded_selection_renderer>();
+				auto *contents = dynamic_cast<editors::code::contents_region*>(editor->get_contents_region());
+				contents->code_selection_renderer() = std::make_unique<editors::rounded_selection_renderer>();
 				contents->set_document(interp);
 				tb->children().add(*editor);
 				th->activate_tab(*tb);
@@ -224,19 +221,21 @@ namespace codepad::ui::native_commands {
 		);
 
 		reg.register_command(
-			u8"open_binary_file_dialog", convert_type<host>([](host *th) {
-				auto files = file_dialog::show_open_dialog(th->get_window(), file_dialog::type::multiple_selection);
-				tab *last = nullptr;
+			u8"open_binary_file_dialog", convert_type<tabs::host>([](tabs::host *th) {
+				auto files = os::file_dialog::show_open_dialog(
+					th->get_window(), os::file_dialog::type::multiple_selection
+				);
+				tabs::tab *last = nullptr;
 				for (const auto &path : files) {
-					auto ctx = buffer_manager::get().open_file(path);
+					auto ctx = editors::buffer_manager::get().open_file(path);
 
-					tab *tb = th->get_tab_manager().new_tab_in(th);
+					tabs::tab *tb = th->get_tab_manager().new_tab_in(th);
 					tb->set_label(path.filename().u8string());
 					auto *editor = dynamic_cast<editors::editor*>(
 						th->get_manager().create_element(u8"editor", u8"binary_editor")
 					);
-					auto *contents = dynamic_cast<binary::contents_region*>(editor->get_contents_region());
-					contents->code_selection_renderer() = std::make_unique<rounded_selection_renderer>();
+					auto *contents = dynamic_cast<editors::binary::contents_region*>(editor->get_contents_region());
+					contents->code_selection_renderer() = std::make_unique<editors::rounded_selection_renderer>();
 					contents->set_buffer(std::move(ctx));
 					tb->children().add(*editor);
 					last = tb;

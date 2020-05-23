@@ -6,19 +6,19 @@
 /// \file
 /// Plugin manager.
 
-#ifdef CP_ENABLE_PLUGINS
+#include <map>
+#include <memory>
+#include <filesystem>
 
-#	include <map>
-#	include <memory>
-#	include <filesystem>
+#include "misc.h"
+#include "assert.h"
+#include "logging.h"
+#include "../apigen_definitions.h"
+#include "../os/dynamic_library.h"
 
-#	include "misc.h"
-#	include "assert.h"
-#	include "logging.h"
-#	include "../apigen_definitions.h"
-#	include "../os/dynamic_library.h"
-
+#ifdef CP_ENABLE_APIGEN
 struct CP_API_STRUCT;
+#endif
 
 namespace codepad {
 	class plugin_manager;
@@ -91,17 +91,19 @@ namespace codepad {
 		static plugin_manager &get();
 	protected:
 		std::map<std::u8string, std::unique_ptr<plugin>, std::less<>> _plugins; ///< All loaded plugins.
+#ifdef CP_ENABLE_APIGEN
 		/// The table of API function pointers. This is a raw pointer because we don't include apigen host header in
 		/// this file, thus \p CP_API_STRUCT is an incomplete type.
 		CP_API_STRUCT *_api_table;
+#endif
 	};
 
-	/// A dynamic library plugin. This is the most basic type of plugin that supports all other types of plugins.
-	class APIGEN_EXPORT_RECURSIVE native_plugin : public plugin {
+	/// A basic dynamic library plugin.
+	class native_plugin : public plugin {
 	public:
 		/// Function pointer type used to initialize the plugin.
-		using initialize_func_t = void (*)(const CP_API_STRUCT*);
-		using get_name_func_t = const char *(*)(); ///< Function pointer used to retrieve the name of a plugin.
+		using initialize_func_t = void (*)();
+		using get_name_func_t = const char8_t *(*)(); ///< Function pointer used to retrieve the name of a plugin.
 		using enable_func_t = void (*)(); ///< Function pointer used to enable the plugin.
 		using disable_func_t = void (*)(); ///< Function pointer used to disable the plugin.
 
@@ -109,10 +111,10 @@ namespace codepad {
 		/// successfully loaded.
 		explicit native_plugin(const std::filesystem::path &path) : _lib(path) {
 			if (_lib.valid()) {
-				_init = _lib.find_symbol<initialize_func_t>("initialize");
-				_get_name = _lib.find_symbol<get_name_func_t>("get_name");
-				_enable = _lib.find_symbol<enable_func_t>("enable");
-				_disable = _lib.find_symbol<disable_func_t>("disable");
+				_init = _lib.find_symbol<initialize_func_t>(u8"initialize");
+				_get_name = _lib.find_symbol<get_name_func_t>(u8"get_name");
+				_enable = _lib.find_symbol<enable_func_t>(u8"enable");
+				_disable = _lib.find_symbol<disable_func_t>(u8"disable");
 			}
 		}
 
@@ -167,6 +169,78 @@ namespace codepad {
 		enable_func_t _enable = nullptr; ///< Used to enable the plugin.
 		disable_func_t _disable = nullptr; ///< Used to disable the plugin.
 	};
-}
 
+#ifdef CP_ENABLE_APIGEN
+	/// A dynamic library plugin written using \p apigen.
+	class APIGEN_EXPORT_RECURSIVE apigen_plugin : public plugin {
+	public:
+		/// Function pointer type used to initialize the plugin.
+		using initialize_func_t = void (*)(const CP_API_STRUCT*);
+		using get_name_func_t = const char8_t *(*)(); ///< Function pointer used to retrieve the name of a plugin.
+		using enable_func_t = void (*)(); ///< Function pointer used to enable the plugin.
+		using disable_func_t = void (*)(); ///< Function pointer used to disable the plugin.
+
+		/// Loads the dynamic library. It's recommended to call \ref valid() afterwards to check if it has been
+		/// successfully loaded.
+		explicit apigen_plugin(const std::filesystem::path &path) : _lib(path) {
+			if (_lib.valid()) {
+				_init = _lib.find_symbol<initialize_func_t>(u8"initialize");
+				_get_name = _lib.find_symbol<get_name_func_t>(u8"get_name");
+				_enable = _lib.find_symbol<enable_func_t>(u8"enable");
+				_disable = _lib.find_symbol<disable_func_t>(u8"disable");
+			}
+		}
+
+		/// Returns whether the dynamic library has been successfully loaded and all required symbols have been
+		/// found.
+		bool valid() const {
+			return
+				_lib.valid() &&
+				_init != nullptr && _get_name != nullptr &&
+				_enable != nullptr && _disable != nullptr;
+		}
+		/// Logs the reason why this plugin is not valid.
+		void diagnose() const {
+			if (!_lib.valid()) {
+				logger::get().log_warning(CP_HERE) << "failed to load dynamic library";
+			} else {
+				if (_init == nullptr) {
+					logger::get().log_warning(CP_HERE) << "initialize() symbol not found in dynamic library";
+				}
+				if (_get_name == nullptr) {
+					logger::get().log_warning(CP_HERE) << "get_name() symbol not found in dynamic library";
+				}
+				if (_enable == nullptr) {
+					logger::get().log_warning(CP_HERE) << "enable() symbol not found in dynamic library";
+				}
+				if (_disable == nullptr) {
+					logger::get().log_warning(CP_HERE) << "disable() symbol not found in dynamic library";
+				}
+			}
+		}
+
+		/// Invokes \ref _init.
+		void initialize(plugin_manager&) override;
+		/// Invokes \ref _get_name.
+		std::u8string get_name() const override {
+			return _get_name();
+		}
+		/// Invokes \ref _enable.
+		void enable() override {
+			plugin::enable();
+			_enable();
+		}
+		/// Invokes \ref _disable.
+		void disable() override {
+			plugin::disable();
+			_disable();
+		}
+	protected:
+		os::dynamic_library _lib; ///< Reference to the dynamic library.
+		initialize_func_t _init = nullptr; ///< The initialize function.
+		get_name_func_t _get_name = nullptr; ///< Used to get the name of the plugin.
+		enable_func_t _enable = nullptr; ///< Used to enable the plugin.
+		disable_func_t _disable = nullptr; ///< Used to disable the plugin.
+	};
 #endif
+}

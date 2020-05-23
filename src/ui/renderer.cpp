@@ -8,10 +8,8 @@
 
 #include "window.h"
 
-using namespace std;
-
 namespace codepad::ui {
-	any &renderer_base::_get_window_data(window_base &wnd) {
+	std::any &renderer_base::_get_window_data(window_base &wnd) {
 		return wnd._renderer_data;
 	}
 }

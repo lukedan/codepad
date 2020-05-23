@@ -9,8 +9,6 @@
 #include "../editors/code/contents_region.h"
 #include "../editors/binary/contents_region.h"
 
-using namespace std;
-
 namespace codepad {
 	/// A setting that handles the case of multiple \ref settings objects. Note that actually using mutliple
 	/// \ref setting objects can degrade performance.
@@ -64,10 +62,14 @@ namespace codepad {
 			return _setting.get(set);
 		}
 
-		settings::retriever_parser<vector<std::u8string>> &editor::get_interaction_modes_setting(settings &set) {
-			static setting<vector<std::u8string>> _setting(
+		settings::retriever_parser<std::vector<std::u8string>> &editor::get_interaction_modes_setting(
+			settings &set
+		) {
+			static setting<std::vector<std::u8string>> _setting(
 				{ u8"editor", u8"interaction_modes" },
-				settings::basic_parsers::basic_type_with_default(vector<std::u8string>(), json::array_parser<std::u8string>())
+				settings::basic_parsers::basic_type_with_default(
+					std::vector<std::u8string>(), json::array_parser<std::u8string>()
+				)
 			);
 			return _setting.get(set);
 		}
@@ -75,11 +77,11 @@ namespace codepad {
 
 		namespace code {
 			settings::retriever_parser<std::vector<std::u8string>> &contents_region::get_backup_fonts_setting(settings &set) {
-				static setting<vector<std::u8string>> _setting(
+				static setting<std::vector<std::u8string>> _setting(
 					{ u8"editor", u8"backup_fonts" },
 					settings::basic_parsers::basic_type_with_default<std::vector<std::u8string>>(
 						std::vector<std::u8string>(), json::array_parser<std::u8string>()
-						)
+					)
 				);
 				return _setting.get(set);
 			}

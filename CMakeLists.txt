@@ -7,7 +7,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 # options
 
 # plugin interface
-set(ENABLE_PLUGINS YES CACHE BOOL "Whether to generate and build the plugin interface.")
+set(ENABLE_APIGEN NO CACHE BOOL "Whether to generate and build the plugin interface using apigen.")
 set(APIGEN_PATH "./apigen" CACHE FILEPATH "Path to the apigen executable.")
 
 # graphics backend
@@ -118,6 +118,7 @@ target_sources(codepad
 		"src/ui/animation_path.cpp"
 		"src/ui/animation_path_parser.cpp"
 		"src/ui/arrangements.cpp"
+		"src/ui/cairo_renderer_base.cpp"
 		"src/ui/commands.cpp"
 		"src/ui/element.cpp"
 		"src/ui/element_parameters.cpp" 
@@ -223,16 +224,16 @@ endif()
 
 
 # codegen
-if(${ENABLE_PLUGINS})
+if(${ENABLE_APIGEN})
 	if(NOT EXISTS "${APIGEN_PATH}")
 		message(
 			FATAL_ERROR
 				"Build cannot continue because a valid apigen executable is not found. Either specify a valid path "
-				"to apigen or use -DENABLE_PLUGINS=NO to build codepad without plugin support.")
+				"to apigen or use -DENABLE_APIGEN=NO to build codepad without plugin support.")
 	endif()
 
 	target_compile_definitions(codepad
-		PRIVATE CP_ENABLE_PLUGINS)
+		PRIVATE CP_ENABLE_APIGEN)
 
 	get_target_property(APIGEN_INCLUDES codepad INCLUDE_DIRECTORIES)
 	list(TRANSFORM APIGEN_INCLUDES PREPEND "-I")

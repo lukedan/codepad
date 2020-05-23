@@ -12,6 +12,7 @@
 
 #ifdef CP_LOG_STACKTRACE
 #	include <execinfo.h>
+#	include <cxxabi.h>
 namespace codepad {
 	/// Attempts to demangle and output the given stacktrace entry.
 	void _write_demangled_stacktrace_entry(std::ostream &out, char *str) {

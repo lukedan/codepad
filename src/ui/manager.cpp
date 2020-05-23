@@ -20,10 +20,6 @@
 #include "../editors/binary/contents_region.h"
 #include "../editors/binary/components.h"
 
-using namespace std;
-using namespace std::chrono;
-using namespace codepad::os;
-
 namespace codepad::ui {
 	manager::manager(settings &s) : _settings(s) {
 		// TODO use reflection in C++23 (?) for everything below
@@ -42,7 +38,7 @@ namespace codepad::ui {
 		register_element_type<button>();
 		register_element_type<scrollbar>();
 		register_element_type<scrollbar_drag_button>();
-		register_element_type<window>();
+		register_element_type<os::window>();
 
 		register_element_type<tabs::split_panel>();
 		register_element_type<tabs::tab_button>();

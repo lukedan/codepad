@@ -516,8 +516,10 @@ namespace codepad {
 					}
 					// it's not safe to use std::strtod here since it requires that the input string be null-terminated
 #ifdef __GNUC__
-					// TODO libstdc++ doesn't implement from_chars
-					res.value = std::stod(std::u8string(str.value()));
+					{ // TODO libstdc++ doesn't implement from_chars
+						std::u8string str_cstr(str.value());
+						res.value = std::stod(reinterpret_cast<const char*>(str_cstr.c_str()));
+					}
 #else
 					{
 						const char *str_data = reinterpret_cast<const char*>(str->data());

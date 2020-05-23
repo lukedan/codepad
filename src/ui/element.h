@@ -36,14 +36,11 @@ namespace codepad::ui {
 		/// Returns the mouse position relative to the specified \ref element.
 		vec2d get(element&) const;
 	protected:
-		std::size_t _timestamp = 0; ///< The timestamp of the corresponding mouse event.
-
 		static window_base *_active_window; ///< The window that currently has valid mouse position data.
 		static std::size_t _global_timestamp; ///< The global timestamp of the latest mouse position.
 
-		/// Initializes \ref _timestamp.
-		explicit mouse_position(std::size_t ts) : _timestamp(ts) {
-		}
+		/// Private constructor; only windows can create \ref mouse_position objects.
+		mouse_position() = default;
 	};
 
 	/// Contains information about mouse movement.

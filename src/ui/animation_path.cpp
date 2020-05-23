@@ -11,8 +11,6 @@
 #include "element.h"
 #include "manager.h"
 
-using namespace std;
-
 namespace codepad::ui::animation_path {
 	std::u8string to_string(component_list::const_iterator begin, component_list::const_iterator end) {
 		std::stringstream ss;
@@ -92,12 +90,12 @@ namespace codepad::ui::animation_path {
 
 #define CP_APB_SUBJECT_INFO_T member_information<typename Comp::input_type>
 
-#define CP_APB_MAY_TERMINATE_EARLY                                                            \
-	if (begin == end) {                                                                       \
-		CP_APB_SUBJECT_INFO_T res;                                                            \
-		res.member = make_unique<MemberAccess<Comp>>(comp);                                   \
-		res.parser = make_unique<typed_animation_value_parser<typename Comp::output_type>>(); \
-		return res;                                                                           \
+#define CP_APB_MAY_TERMINATE_EARLY                                                                 \
+	if (begin == end) {                                                                            \
+		CP_APB_SUBJECT_INFO_T res;                                                                 \
+		res.member = std::make_unique<MemberAccess<Comp>>(comp);                                   \
+		res.parser = std::make_unique<typed_animation_value_parser<typename Comp::output_type>>(); \
+		return res;                                                                                \
 	}
 
 #define CP_APB_MUST_NOT_TERMINATE_EARLY                                              \
@@ -222,7 +220,7 @@ namespace codepad::ui::animation_path {
 #undef CP_APB_CURRENT_TYPE
 
 		// other basic types
-#define CP_APB_CURRENT_TYPE shared_ptr<bitmap>, bitmap
+#define CP_APB_CURRENT_TYPE std::shared_ptr<bitmap>, bitmap
 		CP_APB_START_GETTER
 			CP_APB_MAY_TERMINATE_EARLY;
 		CP_APB_END_GETTER
@@ -337,7 +335,7 @@ namespace codepad::ui::animation_path {
 						),
 						getter_components::array_component<transforms::generic>(begin->index.value())
 					);
-					return CP_APB_GETTER_NAME(transform)<MemberAccess, decay_t<decltype(nextcomp)>, Count + 1>(
+					return CP_APB_GETTER_NAME(transform)<MemberAccess, std::decay_t<decltype(nextcomp)>, Count + 1>(
 						++begin, end, nextcomp
 						);
 				}
@@ -370,9 +368,9 @@ namespace codepad::ui::animation_path {
 					),
 					getter_components::variant_component<transforms::generic::value_type, transforms::collection>()
 				);
-				return CP_APB_GETTER_NAME(transform_collection)<MemberAccess, decay_t<decltype(nextcomp)>, Count>(
-					begin, end, nextcomp
-					);
+				return CP_APB_GETTER_NAME(transform_collection)<
+					MemberAccess, std::decay_t<decltype(nextcomp)>, Count
+				>(begin, end, nextcomp);
 			}
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE

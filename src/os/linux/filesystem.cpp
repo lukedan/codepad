@@ -14,8 +14,6 @@
 
 #include "../../core/misc.h"
 
-using namespace std;
-
 namespace codepad::os {
 	const file::native_handle_t file::empty_handle = -1;
 
@@ -61,7 +59,7 @@ namespace codepad::os {
 
 
 	file::native_handle_t file::_open_impl(
-		const filesystem::path &path, access_rights acc, open_mode mode
+		const std::filesystem::path &path, access_rights acc, open_mode mode
 	) {
 		if ((mode & open_mode::create) == open_mode::zero) { // file mustn't exist
 			if (::access(path.c_str(), F_OK) == 0) { // file exists

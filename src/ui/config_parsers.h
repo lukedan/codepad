@@ -242,7 +242,7 @@ namespace codepad::ui {
 							if (auto iter = mapping.find(inherit_name.value()); iter != mapping.end()) {
 								gp = iter->second;
 							} else {
-								inherit.value().log<log_level::error>(CP_HERE) << "invalid inherit group name";
+								inherit.value().template log<log_level::error>(CP_HERE) << "invalid inherit group name";
 							}
 						}
 					}
@@ -250,7 +250,7 @@ namespace codepad::ui {
 						key_array = hotkeys.value();
 					}
 				} else {
-					i.value().log<log_level::error>(CP_HERE) << "invalid class hotkey group format";
+					i.value().template log<log_level::error>(CP_HERE) << "invalid class hotkey group format";
 					continue;
 				}
 				if (key_array) {

@@ -7,8 +7,6 @@
 
 #include "../../../core/misc.h"
 
-using namespace std;
-
 namespace codepad::os {
 	void initialize(int argc, char **argv) {
 		gtk_init(&argc, &argv);
@@ -246,7 +244,9 @@ namespace codepad::os {
 	}
 
 
-	vector<filesystem::path> open_file_dialog(const ui::window_base *parent, file_dialog_type type) {
+	std::vector<std::filesystem::path> file_dialog::show_open_dialog(
+		const ui::window_base *parent, file_dialog::type type
+	) {
 #ifdef CP_DETECT_LOGICAL_ERRORS
 		auto wnd = dynamic_cast<const window*>(parent);
 		assert_true_logical(wnd != nullptr, "invalid window type");
@@ -258,10 +258,10 @@ namespace codepad::os {
 			"_Cancel", GTK_RESPONSE_CANCEL, "_Open", GTK_RESPONSE_ACCEPT, NULL
 		);
 		gtk_file_chooser_set_select_multiple(
-			GTK_FILE_CHOOSER(dialog), type == file_dialog_type::multiple_selection
+			GTK_FILE_CHOOSER(dialog), type == file_dialog::type::multiple_selection
 		);
 		gint res = gtk_dialog_run(GTK_DIALOG(dialog));
-		vector<filesystem::path> paths;
+		std::vector<std::filesystem::path> paths;
 		if (res == GTK_RESPONSE_ACCEPT) {
 			GSList *list = gtk_file_chooser_get_filenames(GTK_FILE_CHOOSER(dialog));
 			for (GSList *iter = list; iter; iter = iter->next) {
@@ -314,6 +314,11 @@ namespace codepad::os {
 
 
 namespace codepad::ui {
+	double manager::get_drag_deadzone_radius() {
+		return 5.0; // TODO
+	}
+
+
 	bool scheduler::_main_iteration_system_impl(wait_type type) {
 		if (type == wait_type::non_blocking) {
 			if (gtk_events_pending()) {
@@ -332,7 +337,6 @@ namespace codepad::ui {
 	gboolean _glib_call_once(gpointer) {
 		return false;
 	}
-
 	void scheduler::_set_timer(std::chrono::high_resolution_clock::duration duration) {
 		guint ms = std::chrono::duration_cast<std::chrono::duration<guint, std::milli>>(duration).count();
 		g_timeout_add(ms, _glib_call_once, nullptr);

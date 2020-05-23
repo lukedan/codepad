@@ -11,11 +11,6 @@
 #include "../../core/logger_sinks.h"
 #include "../windows.h"
 
-using namespace std;
-
-using namespace codepad::ui;
-using namespace codepad::os;
-
 #ifdef _MSC_VER
 #	define CP_CAN_DETECT_MEMORY_LEAKS
 #	define _CRTDBG_MAP_ALLOC
@@ -53,7 +48,7 @@ namespace codepad::os {
 #define CP_USE_LEGACY_OPEN_FILE_DIALOG // new open file dialog doesn't work right now
 
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
-	vector<filesystem::path> file_dialog::show_open_dialog(const window_base *parent, type type) {
+	std::vector<std::filesystem::path> file_dialog::show_open_dialog(const ui::window_base *parent, type type) {
 		const std::size_t file_buffer_size = 1000;
 
 #	ifdef CP_CHECK_LOGICAL_ERRORS
@@ -86,10 +81,10 @@ namespace codepad::os {
 				ofn.lpstrFile[ofn.nFileOffset - 1] != '\0' ||
 				type == type::single_selection
 				) {
-				return { filesystem::path(ofn.lpstrFile) };
+				return { std::filesystem::path(ofn.lpstrFile) };
 			}
-			filesystem::path wd = filesystem::path(ofn.lpstrFile);
-			vector<filesystem::path> paths;
+			std::filesystem::path wd(ofn.lpstrFile);
+			std::vector<std::filesystem::path> paths;
 			const TCHAR *cur = ofn.lpstrFile + ofn.nFileOffset;
 			for (; *cur != 0; ++cur) {
 				paths.push_back(wd / cur);
@@ -317,14 +312,14 @@ namespace codepad {
 		_contents << "\n-- stacktrace --\n";
 		for (WORD i = 0; i < numframes; ++i) {
 			auto addr = reinterpret_cast<DWORD64>(frames[i]);
-			u8string func = u8"??", file = func;
-			string line = "??"; // FIXME this is really ugly
+			std::u8string func = u8"??", file = func;
+			std::string line = "??"; // FIXME this is really ugly
 			if (SymFromAddr(proc, addr, nullptr, syminfo)) {
 				func = os::_details::wstring_to_utf8(syminfo->Name);
 			}
 			if (SymGetLineFromAddr64(proc, addr, &line_disp, &lineinfo)) {
 				file = os::_details::wstring_to_utf8(lineinfo.FileName);
-				line = to_string(lineinfo.LineNumber);
+				line = std::to_string(lineinfo.LineNumber);
 			}
 			*this << "  " << func << "(0x" << frames[i] << ") @" << file << ":" << line << "\n";
 		}
@@ -346,9 +341,9 @@ namespace codepad {
 namespace codepad::logger_sinks {
 	std::size_t console_sink::_get_console_width() {
 		HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-		_details::winapi_check(out != INVALID_HANDLE_VALUE);
+		os::_details::winapi_check(out != INVALID_HANDLE_VALUE);
 		CONSOLE_SCREEN_BUFFER_INFO info;
-		_details::winapi_check(GetConsoleScreenBufferInfo(out, &info));
+		os::_details::winapi_check(GetConsoleScreenBufferInfo(out, &info));
 		return static_cast<std::size_t>(info.srWindow.Right - info.srWindow.Left + 1);
 	}
 }
@@ -405,7 +400,7 @@ namespace codepad::ui {
 			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) { // handle hotkeys
 				auto *form = os::window::_get_associated_window(msg.hwnd);
 				if (form && _hotkeys.on_key_down(key_gesture(
-					_details::key_id_mapping_t::backward.value[msg.wParam], _details::get_modifiers()
+					os::_details::key_id_mapping_t::backward.value[msg.wParam], os::_details::get_modifiers()
 				))) {
 					return true;
 				}
@@ -426,7 +421,7 @@ namespace codepad::ui {
 	}
 
 	void scheduler::_wake_up() {
-		_details::winapi_check(PostThreadMessage(_thread_id, WM_NULL, 0, 0));
+		os::_details::winapi_check(PostThreadMessage(_thread_id, WM_NULL, 0, 0));
 	}
 
 	scheduler::thread_id_t scheduler::_get_thread_id() {

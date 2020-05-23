@@ -23,22 +23,15 @@
 #include "../editors/code/view_caching.h"
 #include "../editors/binary/contents_region.h"
 
-using namespace std;
-
-using namespace codepad::os;
-using namespace codepad::ui;
-using namespace codepad::editors;
-using namespace codepad::editors::code;
-
 namespace codepad {
-	double minimap::_target_height = 2.0;
+	double editors::code::minimap::_target_height = 2.0;
 
 	std::unique_ptr<logger> logger::_current;
 
 	// TODO probably put these into ui::manager as well
-	window_base *mouse_position::_active_window = nullptr;
+	ui::window_base *ui::mouse_position::_active_window = nullptr;
 	// this is set to 1 so that no window thinks it has up-to-date mouse position initially
-	std::size_t mouse_position::_global_timestamp = 1;
+	std::size_t ui::mouse_position::_global_timestamp = 1;
 
 	/*std::optional<document_formatting_cache::_in_effect_params> document_formatting_cache::_eff;*/
 
@@ -50,8 +43,8 @@ namespace codepad {
 
 
 	/// Type names of initializing global objects are pushed onto this stack to make dependency clear.
-	stack<u8string> _global_init_stk;
-	u8string _cur_global_dispose; ///< Type name of the global object that's currently being destructed.
+	std::stack<std::u8string> _global_init_stk;
+	std::u8string _cur_global_dispose; ///< Type name of the global object that's currently being destructed.
 
 	/// Wrapper struct for a global variable.
 	/// Logs the beginning and ending of the creation and destruction of the underlying object,
@@ -66,9 +59,10 @@ namespace codepad {
 		/// \param args Arguments that are forwarded to the construction of the underlying object.
 		template <typename ...Args> explicit _global_wrapper(Args &&...args) : object(forward<Args>(args)...) {
 			// logging is not performed for logger since it may lead to recursive initialization
-			if constexpr (!is_same_v<T, logger>) {
+			if constexpr (!std::is_same_v<T, logger>) {
 				logger::get().log_debug(CP_HERE) <<
-					u8string((_global_init_stk.size() - 1) * 2, u8' ') << "finish init: " << _global_init_stk.top();
+					std::u8string((_global_init_stk.size() - 1) * 2, u8' ') <<
+					"finish init: " << _global_init_stk.top();
 			}
 			_global_init_stk.pop();
 		}
@@ -84,16 +78,16 @@ namespace codepad {
 			/// Constructor. Logs the beginning of the object's construction and
 			/// pushes the type name onto \ref _global_init_stk.
 			_init_marker() {
-				u8string tname = demangle(typeid(T).name());
-				if constexpr (!is_same_v<T, logger>) { // logging is not performed for logger
+				std::u8string tname = demangle(typeid(T).name());
+				if constexpr (!std::is_same_v<T, logger>) { // logging is not performed for logger
 					logger::get().log_debug(CP_HERE) <<
-						u8string(_global_init_stk.size() * 2, u8' ') << "begin init: " << tname;
+						std::u8string(_global_init_stk.size() * 2, u8' ') << "begin init: " << tname;
 				}
 				_global_init_stk.emplace(move(tname));
 			}
 			/// Destructor. Logs when the object has been destructed.
 			~_init_marker() {
-				if constexpr (!is_same_v<T, logger>) { // logging is not performed for logger
+				if constexpr (!std::is_same_v<T, logger>) { // logging is not performed for logger
 					logger::get().log_debug(CP_HERE) << "disposed: " << _cur_global_dispose;
 				}
 				_cur_global_dispose.clear();

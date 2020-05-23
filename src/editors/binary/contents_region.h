@@ -121,8 +121,8 @@ namespace codepad::editors::binary {
 		/// Returns the horizontal viewport range.
 		double get_horizontal_scroll_range() const override {
 			return
-				get_bytes_per_row() * (_cached_max_byte_width + get_blank_width()) - get_blank_width() +
-				get_padding().width();
+				static_cast<double>(get_bytes_per_row()) * (_cached_max_byte_width + get_blank_width()) +
+				get_padding().width() - get_blank_width();
 		}
 
 		/// Returns the current \ref wrap_mode.
@@ -283,7 +283,7 @@ namespace codepad::editors::binary {
 		}
 		/// Returns the vertical offset of the top of the given line, relative to the top of the document.
 		double _get_line_offset(std::size_t line) const {
-			return get_padding().top + get_line_height() * line;
+			return get_padding().top + get_line_height() * static_cast<double>(line);
 		}
 
 		/// Returns the index of the first visible byte at the given horizontal position.
@@ -295,7 +295,7 @@ namespace codepad::editors::binary {
 		}
 		/// Returns the horizontal offset of the left of the given column, relative to the left of the document.
 		double _get_column_offset(std::size_t x) const {
-			return get_padding().left + (_cached_max_byte_width + get_blank_width()) * x;
+			return get_padding().left + (_cached_max_byte_width + get_blank_width()) * static_cast<double>(x);
 		}
 
 		/// Returns the line and column that the given byte is on.

@@ -16,9 +16,9 @@ namespace codepad {
 		return std::u8string(reinterpret_cast<const char8_t*>(s));
 #elif defined(__GNUC__)
 		int st;
-		char *result = abi::__cxa_demangle(s.c_str(), nullptr, nullptr, &st);
+		char *result = abi::__cxa_demangle(s, nullptr, nullptr, &st);
 		assert_true_sys(st == 0, "demangling failed");
-		std::u8string res(result);
+		std::u8string res(reinterpret_cast<const char8_t*>(result));
 		std::free(result);
 		return res;
 #endif

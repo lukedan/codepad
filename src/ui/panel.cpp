@@ -10,8 +10,6 @@
 #include "scheduler.h"
 #include "window.h"
 
-using namespace codepad::os;
-
 namespace codepad::ui {
 	element_collection::~element_collection() {
 		assert_true_logical(_children.empty(), "clear() not called in panel::_dispose()");

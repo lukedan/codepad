@@ -12,8 +12,6 @@
 
 namespace codepad::os {
 	class window : public ui::window_base {
-		friend class opengl_renderer;
-		friend class software_renderer;
 		friend class ui::element;
 	public:
 		using native_handle_t = GtkWidget*;
@@ -24,7 +22,7 @@ namespace codepad::os {
 		}
 
 		void set_caption(const std::u8string &cap) override {
-			gtk_window_set_title(GTK_WINDOW(_wnd), cap.c_str());
+			gtk_window_set_title(GTK_WINDOW(_wnd), reinterpret_cast<const gchar*>(cap.c_str()));
 		}
 		vec2d get_position() const override {
 			gint x, y;
@@ -41,17 +39,12 @@ namespace codepad::os {
 			return vec2d(w, h);
 		}
 		void set_client_size(vec2d sz) override {
-			GtkWindow *wnd = GTK_WINDOW(_wnd);
-			gboolean resizable = gtk_window_get_resizable(wnd);
-			// with resizable set to false it's not even possible to resize the window programmatically
-			gtk_window_set_resizable(wnd, true);
 			// TODO scaling
 			gint x = static_cast<gint>(sz.x), y = static_cast<gint>(sz.y);
-			gtk_window_resize(wnd, x, y);
-			// TODO somehow if we call gtk_window_set_resizable(wnd, false) AFTER resizing, resizing doesn't work
-			//      is this because the window hasn't been realized yet?
-			//      also calling gtk_window_set_default_size() doesn't help
-			gtk_window_set_resizable(wnd, resizable);
+			gtk_window_resize(GTK_WINDOW(_wnd), x, y);
+			// this is because gtk_window_set_resizable(wnd, false) causes all gtk_window_resize() calls to become
+			// ineffective, and we have to use this to control the window's size
+			gtk_widget_set_size_request(_wnd, x, y);
 		}
 		/// Gets and returns the scaling factor by calling \p gtk_widget_get_scale_factor().
 		vec2d get_scaling_factor() const override {
@@ -66,11 +59,11 @@ namespace codepad::os {
 			gtk_window_set_urgency_hint(GTK_WINDOW(_wnd), true);
 		}
 
-		/// Shows the window by calling \p gtk_widget_show().
+		/// Shows the window by calling \p gtk_widget_show_now().
 		void show() override {
-			// FIXME if we don't use show_now, calling set_capture() directly afterwards will often fail
-			//       but show_now may break things like mouse position
-			gtk_widget_show(_wnd);
+			// here we use show_now to avoid other calls failing due to the window being not ready
+			// this however means that some events may get processed in the mean time which may have implications
+			gtk_widget_show_now(_wnd);
 		}
 		// use default implementation of show_and_activate()
 		/// Hides the window by calling \p gtk_widget_hide().
@@ -238,7 +231,7 @@ namespace codepad::os {
 		}
 
 		inline static void _on_im_commit(GtkIMContext*, gchar *str, window *wnd) {
-			ui::text_info inf(str);
+			ui::text_info inf(reinterpret_cast<const char8_t*>(str));
 			wnd->_on_keyboard_text(inf);
 		}
 		/// \todo Also notify of attributes and cursor position.
@@ -259,7 +252,7 @@ namespace codepad::os {
 				pango_attr_iterator_destroy(iter);
 			}
 			_form_onevent<ui::composition_info>(
-				*wnd, &window::_on_composition, str
+				*wnd, &window::_on_composition, reinterpret_cast<const char8_t*>(str)
 			);
 			g_free(str);
 			pango_attr_list_unref(attrs);
@@ -272,8 +265,8 @@ namespace codepad::os {
 			g_signal_connect(obj, name, reinterpret_cast<GCallback>(callback), this);
 		}
 
-		void _initialize(std::u8string_view cls, const ui::element_configuration &config) override {
-			window_base::_initialize(cls, config);
+		void _initialize(std::u8string_view cls) override {
+			window_base::_initialize(cls);
 
 			// set gravity to static so that coordinates are relative to the client region
 			gtk_window_set_gravity(GTK_WINDOW(_wnd), GDK_GRAVITY_STATIC);
