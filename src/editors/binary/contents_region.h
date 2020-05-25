@@ -175,7 +175,7 @@ namespace codepad::editors::binary {
 			_on_font_parameters_changed();
 		}
 		/// Sets the \ref ui::font for rendering characters given the font's name.
-		void set_font_by_name(std::u8string_view name) {
+		void set_font_by_name(const std::u8string &name) {
 			auto family = get_manager().get_renderer().find_font_family(name);
 			set_font(
 				family->get_matching_font(ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal)

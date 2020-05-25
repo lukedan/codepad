@@ -19,7 +19,7 @@ endif()
 # backtrace
 set(ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing backtraces.")
 
-
+# don't add /W3 for MSVC
 cmake_policy(SET CMP0092 NEW)
 
 
@@ -27,52 +27,52 @@ cmake_policy(SET CMP0092 NEW)
 find_package(RapidJSON CONFIG REQUIRED)
 
 if(USE_CAIRO)
+	find_package(Freetype REQUIRED)
+	find_package(Fontconfig REQUIRED)
 	if(WIN32)
-		# on windows, manually find cairo since there's no pkgconfig
-		# https://github.com/Microsoft/vcpkg/issues/2563
-		find_library(CAIRO_LIB_DEBUG cairod)
-		find_library(CAIRO_LIB_RELEASE cairo)
-		# TODO are these necessary?
-		find_library(CAIRO_GOBJECT_LIB_DEBUG cairo-gobjectd)
-		find_library(CAIRO_GOBJECT_LIB_RELEASE cairo-gobject)
+		find_package(unofficial-cairo CONFIG REQUIRED)
+		add_library(Cairo::Cairo INTERFACE IMPORTED)
+		target_link_libraries(Cairo::Cairo INTERFACE unofficial::cairo::cairo unofficial::cairo::cairo-gobject)
 
-		find_path(CAIRO_INCLUDE_DIRS cairo/cairo.h)
+		# the cairo renderer depends on Pango for text shaping
+		# pango include dir
+		find_path(Pango_INCLUDE_DIR
+			NAMES pango/pango.h
+			PATHS ${Pango_PKGCONF_INCLUDE_DIRS}
+			PATH_SUFFIXES pango-1.0)
+		# pango libs
+		find_library(Pango_LIBRARY
+			NAMES pango-1.0
+			PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
+		find_library(PangoCairo_LIBRARY
+			NAMES pangocairo-1.0
+			PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
+		# create target
+		add_library(Pango::Pango INTERFACE IMPORTED)
 
-		if(
-			CAIRO_LIB_DEBUG AND CAIRO_LIB_RELEASE AND
-			CAIRO_GOBJECT_LIB_DEBUG AND CAIRO_GOBJECT_LIB_RELEASE AND
-			CAIRO_INCLUDE_DIRS)
+		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
+		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
 
-			if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-				set(CAIRO_LIBRARIES "${CAIRO_LIB_DEBUG}")
-			else()
-				set(CAIRO_LIBRARIES "${CAIRO_LIB_RELEASE}")
-			endif()
-			set(Cairo_FOUND YES)
-		endif()
+		find_package(harfbuzz REQUIRED)
+		find_package(unofficial-glib CONFIG REQUIRED)
+		target_link_libraries(Pango::Pango INTERFACE harfbuzz::harfbuzz unofficial::glib::gobject)
 	else()
-		find_package(Cairo)
-	endif()
+		find_package(Cairo REQUIRED)
+		add_library(Cairo::Cairo INTERFACE IMPORTED)
+		target_include_directories(Cairo::Cairo INTERFACE ${CAIRO_INCLUDE_DIRS})
+		target_link_libraries(Cairo::Cairo INTERFACE ${CAIRO_LIBRARIES})
 
-	if(Cairo_FOUND)
-		# export targets
-		if(NOT TARGET Cairo::Cairo)
-			add_library(Cairo::Cairo INTERFACE IMPORTED)
+		find_package(PkgConfig REQUIRED)
+		pkg_check_modules(harfbuzz REQUIRED IMPORTED_TARGET harfbuzz)
 
-			set_property(TARGET Cairo::Cairo PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CAIRO_INCLUDE_DIRS})
-			set_property(TARGET Cairo::Cairo PROPERTY INTERFACE_LINK_LIBRARIES ${CAIRO_LIBRARIES})
-		endif()
-
-		# TODO the cairo renderer depends on Pango for text shaping
-		# find_package(Pango REQUIRED)
-	else()
-		message("USE_CAIRO is set to true, but Cairo has not been found.")
-		set(USE_CAIRO NO)
+		find_package(Pango REQUIRED)
+		add_library(Pango::Pango INTERFACE IMPORTED)
+		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
+		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY} PkgConfig::harfbuzz)
 	endif()
 endif()
 
 if(UNIX)
-	find_package(Freetype REQUIRED)
 	find_package(Fontconfig REQUIRED)
 	if(USE_GTK)
 		find_package(GTK3 REQUIRED)
@@ -157,7 +157,7 @@ if(USE_CAIRO)
 	target_compile_definitions(codepad
 		PRIVATE CP_USE_CAIRO)
 	target_link_libraries(codepad
-		PRIVATE Cairo::Cairo)
+		PRIVATE Cairo::Cairo Pango::Pango Freetype::Freetype Fontconfig::Fontconfig)
 endif()
 # platform dependent sources & settings
 if(WIN32)
@@ -180,19 +180,20 @@ if(WIN32)
 	elseif(MSVC)
 		target_compile_options(codepad
 			PRIVATE /bigobj)
-		# debug slow compilation times
+		# uncomment to debug slow compilation times
 #		target_compile_options(codepad
 #			PRIVATE /Bt /d1reportTime /d2cgsummary)
 	endif()
 elseif(UNIX)
 	target_sources(codepad
 		PRIVATE
+			"src/os/linux/dynamic_library.cpp"
 			"src/os/linux/filesystem.cpp"
 			"src/os/linux/linux.cpp")
 	target_compile_definitions(codepad
 		PRIVATE CP_PLATFORM_UNIX)
 	target_link_libraries(codepad
-		PRIVATE pthread) # TODO why link pthread?
+		PRIVATE dl pthread) # TODO why link pthread?
 	if(ENABLE_BACKTRACE)
 		target_link_options(codepad
 			PRIVATE -rdynamic) # enables detailed stacktrace

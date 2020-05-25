@@ -35,11 +35,13 @@ namespace codepad::os {
 		}
 
 		/// A wrapper for reference-counted COM objects.
-		template <typename T> struct com_wrapper final : public reference_counted_handle<com_wrapper<T>, T> {
+		template <typename T> struct com_wrapper final : public reference_counted_handle<com_wrapper<T>, T*> {
 		private:
-			using _handle_base = reference_counted_handle<com_wrapper<T>, T>;
+			using _handle_base = reference_counted_handle<com_wrapper<T>, T*>;
 			friend _handle_base;
 		public:
+			constexpr static T *empty_handle = nullptr; ///< The empty handle.
+
 			/// Casting to parent types.
 			template <
 				typename U, typename = std::enable_if_t<std::is_base_of_v<U, T>, void>

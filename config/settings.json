@@ -1,10 +1,11 @@
 {
+	"graphics_backend": "cairo",
 	"native_plugins": [
 		"command_pack"
 	],
 	"editor": {
 		"font_size": 12,
-		"font_family": "Fira Code",
+		"font_family": "Cascadia Code",
 		"backup_fonts": [
 			"SimSun",
 			"MingLiu-ExtB",

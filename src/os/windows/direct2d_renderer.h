@@ -66,7 +66,7 @@ namespace codepad::os::direct2d {
 		/// Calls \p IDWriteTextLayout::SetDrawingEffect().
 		void set_text_color(colord, std::size_t, std::size_t) override;
 		/// Calls \p IDWriteTextLayout::SetFontFamilyName().
-		void set_font_family(std::u8string_view, std::size_t beg, std::size_t len) override;
+		void set_font_family(const std::u8string&, std::size_t beg, std::size_t len) override;
 		/// Calls \p IDWriteTextLayout::SetFontSize().
 		void set_font_size(double, std::size_t beg, std::size_t len) override;
 		/// Calls \p IDWriteTextLayout::SetFontStyle().
@@ -156,7 +156,7 @@ namespace codepad::os::direct2d {
 		/// \ref _cached_glyph_to_char_mapping_starting.
 		void _maybe_calculate_glyph_backmapping() const;
 
-		/// The positions of the left borders of all glyphs. This array has one additional element at the back that is the
+		/// The positions of the left borders of all glyphs. This array has one additional element at the back - the
 		/// total width of this clip.
 		mutable std::vector<double> _cached_glyph_positions;
 		/// A one-to-many mapping from glyphs to character indices. This should be used with
@@ -227,7 +227,7 @@ namespace codepad::os::direct2d {
 		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path&, vec2d scaling_factor) override;
 
 		/// Creates a \p IDWriteTextFormat.
-		std::unique_ptr<ui::font_family> find_font_family(std::u8string_view) override;
+		std::unique_ptr<ui::font_family> find_font_family(const std::u8string&) override;
 
 		/// Starts drawing to the given window.
 		void begin_drawing(ui::window_base&) override;

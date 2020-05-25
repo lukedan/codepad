@@ -397,6 +397,8 @@ namespace codepad::editors {
 
 			performance_monitor mon(u8"load file", performance_monitor::log_condition::always);
 
+			logger::get().log_debug(CP_HERE) << "opening file " << filename;
+
 			// read version
 			os::file f(filename, os::access_rights::read, os::open_mode::open);
 			if (f.valid()) {

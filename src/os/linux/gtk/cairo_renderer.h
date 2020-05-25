@@ -43,7 +43,7 @@ namespace codepad::os {
 			cairo_paint(cr);
 			return true;
 		}
-		/// In addition to regular initialization, also listens to
+		/// In addition to regular initialization, also listens to the \p draw signal.
 		void _new_window(ui::window_base &w) override {
 			renderer_base::_new_window(w);
 

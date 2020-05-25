@@ -23,13 +23,13 @@ namespace codepad::os {
 			}
 		}
 
-		// TODO if you drag the window to the corner of the screen so that it's only partially visible, resize it, then
-		//      drag it back, the resulting surface will incorrectly have a smaller size
+		// TODO if you drag the window to the corner of the screen so that it's only partially visible, resize it,
+		//      then drag it back, the resulting surface will incorrectly have a smaller size
 		/// Creates a Win32 surface.
-		ui::cairo::_details::cairo_object_ref<cairo_surface_t> _create_surface_for_window(
+		ui::cairo::_details::gtk_object_ref<cairo_surface_t> _create_surface_for_window(
 			ui::window_base &w
 		) override {
-			return ui::cairo::_details::make_cairo_object_ref_give(cairo_win32_surface_create_with_format(
+			return ui::cairo::_details::make_gtk_object_ref_give(cairo_win32_surface_create_with_format(
 				GetDC(_details::cast_window(w).get_native_handle()), CAIRO_FORMAT_ARGB32
 			));
 		}

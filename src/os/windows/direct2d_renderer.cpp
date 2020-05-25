@@ -218,7 +218,7 @@ namespace codepad::os::direct2d {
 		_details::com_check(_text->SetDrawingEffect(brush.get(), _details::make_text_range(beg, len)));
 	}
 
-	void formatted_text::set_font_family(std::u8string_view family, std::size_t beg, std::size_t len) {
+	void formatted_text::set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) {
 		_details::com_check(_text->SetFontFamilyName(
 			_details::utf8_to_wstring(family).c_str(), _details::make_text_range(beg, len)
 		));
@@ -549,7 +549,7 @@ namespace codepad::os::direct2d {
 		return res;
 	}
 
-	std::unique_ptr<ui::font_family> renderer::find_font_family(std::u8string_view family) {
+	std::unique_ptr<ui::font_family> renderer::find_font_family(const std::u8string &family) {
 		_details::com_wrapper<IDWriteFontCollection> fonts;
 		_details::com_check(_dwrite_factory->GetSystemFontCollection(fonts.get_ref(), false)); // no need to hurry
 

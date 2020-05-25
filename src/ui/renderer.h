@@ -190,7 +190,7 @@ namespace codepad::ui {
 		/// Sets the color of the specified range of text.
 		virtual void set_text_color(colord, std::size_t, std::size_t) = 0;
 		/// Sets the font family of the specified range of text.
-		virtual void set_font_family(std::u8string_view, std::size_t, std::size_t) = 0;
+		virtual void set_font_family(const std::u8string&, std::size_t, std::size_t) = 0;
 		/// Sets the font size of the specified range of text.
 		virtual void set_font_size(double, std::size_t, std::size_t) = 0;
 		/// Sets the font style of the specified range of text.
@@ -449,7 +449,7 @@ namespace codepad::ui {
 		virtual std::unique_ptr<bitmap> load_bitmap(const std::filesystem::path&, vec2d) = 0;
 
 		/// Returns a font family identified by its name.
-		virtual std::unique_ptr<font_family> find_font_family(std::u8string_view) = 0;
+		virtual std::unique_ptr<font_family> find_font_family(const std::u8string&) = 0;
 
 		/// Starts drawing to the given window.
 		virtual void begin_drawing(window_base&) = 0;
@@ -525,9 +525,11 @@ namespace codepad::ui {
 
 		// plain text related
 		/// Creates a new \ref plain_text from the given parameters.
-		virtual std::unique_ptr<plain_text> create_plain_text(std::u8string_view, font&, double) = 0;
+		virtual std::unique_ptr<plain_text> create_plain_text(std::u8string_view, font&, double font_size) = 0;
 		/// \ref create_plain_text() that accepts a UTF-32 string.
-		virtual std::unique_ptr<plain_text> create_plain_text(std::basic_string_view<codepoint>, font&, double) = 0;
+		virtual std::unique_ptr<plain_text> create_plain_text(
+			std::basic_string_view<codepoint>, font&, double font_size
+		) = 0;
 		/// Draws the given \ref plain_text at the given position, using the given color.
 		virtual void draw_plain_text(const plain_text&, vec2d, colord) = 0;
 	protected:

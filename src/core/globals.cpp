@@ -103,12 +103,10 @@ namespace codepad {
 
 
 	// all singleton getters
-#ifdef CP_ENABLE_PLUGINS
 	plugin_manager &plugin_manager::get() {
 		static _global_wrapper<plugin_manager> _v;
 		return _v.object;
 	}
-#endif
 
 
 	namespace os {

@@ -61,8 +61,10 @@ namespace codepad::os {
 	file::native_handle_t file::_open_impl(
 		const std::filesystem::path &path, access_rights acc, open_mode mode
 	) {
-		if ((mode & open_mode::create) == open_mode::zero) { // file mustn't exist
+		if (mode == open_mode::create) { // file mustn't exist
 			if (::access(path.c_str(), F_OK) == 0) { // file exists
+				logger::get().log_warning(CP_HERE) <<
+					"open_mode::create specified for file, but file already exists";
 				return empty_handle;
 			}
 		}

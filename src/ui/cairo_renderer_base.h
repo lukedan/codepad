@@ -15,14 +15,35 @@
 #	include <pango/pango.h>
 #	include <pango/pangocairo.h>
 
+#	include <harfbuzz/hb.h>
+
+#	include <ft2build.h>
+#	include FT_FREETYPE_H
+
+#	include <fontconfig/fontconfig.h>
+
 #	include "../core/math.h"
 #	include "renderer.h"
 #	include "window.h"
 
 namespace codepad::ui::cairo {
+	class font;
+	class font_family;
 	class renderer_base;
 
 	namespace _details {
+		/// Checks the given Freetype return value.
+		inline void ft_check(FT_Error err) {
+			if (err != FT_Err_Ok) {
+				// TODO for some reason FT_Error_String is not defined on Ubuntu 18.04
+				/*
+				logger::get().log_error(CP_HERE) <<
+					"Freetype error " << err << ": " << FT_Error_String(err);
+				*/
+				assert_true_sys(false, "Freetype error");
+			}
+		}
+
 		/// Converts a \ref matd3x3 to a \p cairo_matrix_t.
 		inline static cairo_matrix_t cast_matrix(matd3x3 m) {
 			cairo_matrix_t result;
@@ -37,19 +58,27 @@ namespace codepad::ui::cairo {
 
 		/// Reference-counted handle of a GTK-related object.
 		template <typename T> struct gtk_object_ref final :
-			public reference_counted_handle<gtk_object_ref<T>, T> {
-			friend reference_counted_handle<gtk_object_ref<T>, T>;
+			public reference_counted_handle<gtk_object_ref<T>, T*> {
+			friend reference_counted_handle<gtk_object_ref<T>, T*>;
+		public:
+			constexpr static T *empty_handle = nullptr; ///< The empty handle.
 		protected:
 			/// Adds a reference to the handle if necessary.
 			void _do_add_ref() {
-				if constexpr (std::is_same_v<T, cairo_t>) {
+				if constexpr (std::is_same_v<T, cairo_t>) { // cairo
 					cairo_reference(this->_handle);
 				} else if constexpr (std::is_same_v<T, cairo_surface_t>) {
 					cairo_surface_reference(this->_handle);
 				} else if constexpr (std::is_same_v<T, cairo_pattern_t>) {
 					cairo_pattern_reference(this->_handle);
-				} else if constexpr (std::is_same_v<T, PangoAttrList>) {
+				} else if constexpr (std::is_same_v<T, cairo_font_face_t>) {
+					cairo_font_face_reference(this->_handle);
+				} else if constexpr (std::is_same_v<T, PangoAttrList>) { // pango
 					pango_attr_list_ref(this->_handle);
+				} else if constexpr (std::is_same_v<T, FcPattern>) { // fontconfig
+					FcPatternReference(this->_handle);
+				} else if constexpr (std::is_same_v<T, hb_buffer_t>) { // harfbuzz
+					hb_buffer_reference(this->_handle);
 				} else {
 					logger::get().log_error(CP_HERE) <<
 						"add ref operation not implemented for " << demangle(typeid(T).name());
@@ -58,14 +87,20 @@ namespace codepad::ui::cairo {
 			}
 			/// Removes a reference to the handle if necessary.
 			void _do_release() {
-				if constexpr (std::is_same_v<T, cairo_t>) {
+				if constexpr (std::is_same_v<T, cairo_t>) { // cairo
 					cairo_destroy(this->_handle);
 				} else if constexpr (std::is_same_v<T, cairo_surface_t>) {
 					cairo_surface_destroy(this->_handle);
 				} else if constexpr (std::is_same_v<T, cairo_pattern_t>) {
 					cairo_pattern_destroy(this->_handle);
-				} else if constexpr (std::is_same_v<T, PangoAttrList>) {
+				} else if constexpr (std::is_same_v<T, cairo_font_face_t>) {
+					cairo_font_face_destroy(this->_handle);
+				} else if constexpr (std::is_same_v<T, PangoAttrList>) { // pango
 					pango_attr_list_unref(this->_handle);
+				} else if constexpr (std::is_same_v<T, FcPattern>) { // fontconfig
+					FcPatternDestroy(this->_handle);
+				} else if constexpr (std::is_same_v<T, hb_buffer_t>) { // harfbuzz
+					hb_buffer_destroy(this->_handle);
 				} else {
 					logger::get().log_error(CP_HERE) <<
 						"release operation for not implemented for " << demangle(typeid(T).name());
@@ -89,8 +124,11 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Reference-counted handle of a GLib object.
-		template <typename T> struct glib_object_ref final : public reference_counted_handle<glib_object_ref<T>, T> {
-			friend reference_counted_handle<glib_object_ref<T>, T>;
+		template <typename T> struct glib_object_ref final :
+			public reference_counted_handle<glib_object_ref<T>, T*> {
+			friend reference_counted_handle<glib_object_ref<T>, T*>;
+		public:
+			constexpr static T *empty_handle = nullptr; ///< The empty handle.
 		protected:
 			/// Calls \p g_object_ref().
 			void _do_add_ref() {
@@ -103,16 +141,46 @@ namespace codepad::ui::cairo {
 		};
 		/// Creates a new \ref glib_object_ref, and calls \ref glib_object_ref::set_share() to share the given
 		/// pointer.
-		template <typename T> inline glib_object_ref<T> make_glib_object_ref_share(T *ptr) {
+		template <typename T> inline glib_object_ref<T> make_glib_object_ref_share(T ptr) {
 			glib_object_ref<T> res;
 			res.set_share(ptr);
 			return res;
 		}
 		/// Creates a new \ref glib_object_ref, and calls \ref glib_object_ref::set_give() to give the given
 		/// pointer to it.
-		template <typename T> inline glib_object_ref<T> make_glib_object_ref_give(T *ptr) {
+		template <typename T> inline glib_object_ref<T> make_glib_object_ref_give(T ptr) {
 			glib_object_ref<T> res;
 			res.set_give(ptr);
+			return res;
+		}
+
+		/// Holds a \p FT_Face.
+		struct freetype_face_ref final : public reference_counted_handle<freetype_face_ref, FT_Face> {
+			friend reference_counted_handle<freetype_face_ref, FT_Face>;
+		public:
+			constexpr static FT_Face empty_handle = nullptr; ///< The empty handle.
+		protected:
+			/// Calls \p FT_Reference_Face().
+			void _do_add_ref() {
+				ft_check(FT_Reference_Face(this->_handle));
+			}
+			/// Calls \p FT_Done_Face().
+			void _do_release() {
+				ft_check(FT_Done_Face(this->_handle));
+			}
+		};
+		/// Creates a new \ref freetype_face_ref, and calls \ref freetype_face_ref::set_share() to share the given
+		/// pointer.
+		inline freetype_face_ref make_freetype_face_ref_share(FT_Face face) {
+			freetype_face_ref res;
+			res.set_share(face);
+			return res;
+		}
+		/// Creates a new \ref freetype_face_ref, and calls \ref freetype_face_ref::set_give() to give the pointer
+		/// to it.
+		inline freetype_face_ref make_freetype_face_ref_give(FT_Face face) {
+			freetype_face_ref res;
+			res.set_give(face);
 			return res;
 		}
 
@@ -146,15 +214,37 @@ namespace codepad::ui::cairo {
 			}
 			return PANGO_STYLE_NORMAL;
 		}
+		/// Converts a \ref font_style to a Fontconfig font slant.
+		inline int cast_font_style_fontconfig(font_style style) {
+			switch (style) {
+			case font_style::normal:
+				return FC_SLANT_ROMAN;
+			case font_style::italic:
+				return FC_SLANT_ITALIC;
+			case font_style::oblique:
+				return FC_SLANT_OBLIQUE;
+			}
+			return FC_SLANT_ROMAN;
+		}
 		/// Converts a \ref font_weight to a \p PangoWeight.
 		inline PangoWeight cast_font_weight(font_weight weight) {
 			// TODO
 			return PANGO_WEIGHT_NORMAL;
 		}
+		/// Converts a \ref font_weight to a Fontconfig weight.
+		inline int cast_font_weight_fontconfig(font_weight weight) {
+			// TODO
+			return FC_WEIGHT_NORMAL;
+		}
 		/// Converts a \ref font_stretch to a \p PangoStretch.
 		inline PangoStretch cast_font_stretch(font_stretch stretch) {
 			// TODO
 			return PANGO_STRETCH_NORMAL;
+		}
+		/// Converts a \ref font_stretch to a Fontconfig width.
+		inline int cast_font_stretch_fontconfig(font_stretch stretch) {
+			// TODO
+			return FC_WIDTH_NORMAL;
 		}
 	}
 
@@ -189,16 +279,7 @@ namespace codepad::ui::cairo {
 		friend renderer_base;
 	public:
 		/// Returns the layout of the text.
-		rectd get_layout() const override {
-			PangoRectangle layout;
-			pango_layout_get_extents(_layout.get(), nullptr, &layout);
-			return rectd::from_xywh(
-				layout.x / static_cast<double>(PANGO_SCALE),
-				layout.y / static_cast<double>(PANGO_SCALE),
-				layout.width / static_cast<double>(PANGO_SCALE),
-				layout.height / static_cast<double>(PANGO_SCALE)
-			);
-		}
+		rectd get_layout() const override;
 		/// Returns the metrics of each line.
 		std::vector<line_metrics> get_line_metrics() const override {
 			return std::vector<line_metrics>(1);
@@ -217,93 +298,93 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Sets the color of the specified range of text.
-		void set_text_color(colord c, std::size_t beg, std::size_t len) override {
-			PangoAttribute
-				*attr_rgb = pango_attr_foreground_new(
-					_details::cast_color_component(c.r),
-					_details::cast_color_component(c.g),
-					_details::cast_color_component(c.b)
-				),
-				*attr_a = pango_attr_foreground_alpha_new(_details::cast_color_component(c.a));
-			// TODO these indices are in bytes
-			attr_rgb->start_index = attr_a->start_index = static_cast<guint>(beg);
-			attr_rgb->end_index = attr_a->end_index = static_cast<guint>(beg + len);
-			PangoAttrList *list = pango_layout_get_attributes(_layout.get());
-			pango_attr_list_insert(list, attr_rgb);
-			pango_attr_list_insert(list, attr_a);
-		}
+		void set_text_color(colord, std::size_t beg, std::size_t len) override;
 		/// Sets the font family of the specified range of text.
-		void set_font_family(std::u8string_view, std::size_t, std::size_t) override {
-			// TODO
-		}
+		void set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) override;
 		/// Sets the font size of the specified range of text.
-		void set_font_size(double, std::size_t, std::size_t) override {
-			// TODO
-		}
+		void set_font_size(double, std::size_t beg, std::size_t len) override;
 		/// Sets the font style of the specified range of text.
-		void set_font_style(font_style, std::size_t, std::size_t) override {
-			// TODO
-		}
+		void set_font_style(font_style, std::size_t beg, std::size_t len) override;
 		/// Sets the font weight of the specified range of text.
-		void set_font_weight(font_weight, std::size_t, std::size_t) override {
-			// TODO
-		}
+		void set_font_weight(font_weight, std::size_t beg, std::size_t len) override;
 		/// Sets the font stretch of the specified range of text.
-		void set_font_stretch(font_stretch, std::size_t, std::size_t) override {
-			// TODO
-		}
+		void set_font_stretch(font_stretch, std::size_t beg, std::size_t len) override;
 	protected:
+		std::vector<std::size_t> _bytepos; ///< Positions of each character's starting byte.
 		_details::glib_object_ref<PangoLayout> _layout; ///< The underlying \p PangoLayout object.
+
+		/// Converts character indices to byte positions.
+		std::pair<guint, guint> _char_to_byte(std::size_t beg, std::size_t len) const;
 	};
 
-	///
+	/// A freetype font.
 	class font : public ui::font {
 		friend renderer_base;
 		friend font_family;
 	public:
-		///
+		/// Returns the ascender of the font.
 		[[nodiscard]] double get_ascent_em() const override {
-			// TODO
-			return 0.0;
+			// TODO these fields are only relevant for scalable font formats
+			return _into_em(static_cast<double>(_face->ascender));
 		}
-		///
+		/// Returns the distance between consecutive baselines.
 		[[nodiscard]] double get_line_height_em() const override {
-			// TODO
-			return 0.0;
+			// TODO these fields are only relevant for scalable font formats
+			return _into_em(static_cast<double>(_face->ascender));
 		}
 
-		///
-		[[nodiscard]] bool has_character(codepoint) const override {
-			// TODO
-			return false;
+		/// If \p FT_Get_Char_Index() returns 0, then the character does not have a corresponding glyph in this font.
+		[[nodiscard]] bool has_character(codepoint cp) const override {
+			return FT_Get_Char_Index(_face.get(), static_cast<FT_ULong>(cp)) != 0;
 		}
 
-		///
-		[[nodiscard]] double get_character_width_em(codepoint) const override {
-			// TODO
-			return 0.0;
+		/// Loads the corresponding glyph, and returns its horizontal advance.
+		[[nodiscard]] double get_character_width_em(codepoint cp) const override {
+			_details::ft_check(FT_Load_Char(
+				_face.get(), static_cast<FT_ULong>(cp),
+				FT_LOAD_NO_SCALE | FT_LOAD_IGNORE_TRANSFORM | FT_LOAD_LINEAR_DESIGN
+			));
+			return _into_em(static_cast<double>(_face->glyph->linearHoriAdvance));
+		}
+	protected:
+		_details::freetype_face_ref _face; ///< The Freetype font face.
+
+		/// Initializes \ref _face directly.
+		explicit font(_details::freetype_face_ref f) : _face(std::move(f)) {
+		}
+
+		/// Converts lengths from font units into EM.
+		[[nodiscard]] double _into_em(double len) const {
+			return len / static_cast<double>(_face->units_per_EM);
 		}
 	};
 
-	///
+	/// Holds a Fontconfig pattern.
 	class font_family : public ui::font_family {
 		friend renderer_base;
 	public:
 		/// Returns a font in this family matching the given description.
 		[[nodiscard]] std::unique_ptr<ui::font> get_matching_font(
 			font_style, font_weight, font_stretch
-		) const override {
-			return std::make_unique<font>();
+		) const override;
+	protected:
+		renderer_base &_renderer; ///< The \ref renderer_base that created this \ref font_family.
+		_details::gtk_object_ref<FcPattern> _pattern; ///< The Fontconfig pattern.
+
+		/// Initializes all fields of this struct.
+		font_family(renderer_base &r, _details::gtk_object_ref<FcPattern> patt) :
+			_renderer(r), _pattern(std::move(patt)) {
 		}
 	};
 
-	///
+	/// Holds a \p hb_buffer_t.
 	class plain_text : public ui::plain_text {
 		friend renderer_base;
 	public:
 		/// Returns the total width of this text clip.
 		[[nodiscard]] double get_width() const override {
-			return 0.0;
+			_maybe_calculate_glyph_positions();
+			return _cached_glyph_positions.back();
 		}
 
 		/// Retrieves information about the character that is below the given horizontal position.
@@ -313,6 +394,29 @@ namespace codepad::ui::cairo {
 		/// Returns the space occupied by the character at the given position.
 		[[nodiscard]] rectd get_character_placement(std::size_t) const override {
 			return rectd();
+		}
+	protected:
+		/// Fills \ref _cached_glyph_positions if necessary.
+		void _maybe_calculate_glyph_positions() const;
+		/// Fills \ref _cached_cluster_map if necessary.
+		void _maybe_calculate_cluster_map() const;
+
+		/// Mapping from character indices to glyph indices.
+		mutable std::vector<std::size_t> _cached_cluster_map;
+		/// The positions of the left borders of all glyphs. This array has one additional element at the back - the
+		/// total width of this clip.
+		mutable std::vector<double> _cached_glyph_positions;
+
+		_details::gtk_object_ref<hb_buffer_t> _buffer; ///< The harfbuzz buffer.
+		_details::freetype_face_ref _font; ///< The font.
+		std::size_t _num_characters = 0; ///< The number of characters in this clip of text.
+		double _font_size = 0.0; ///< Font size.
+
+		/// Directly initializes \ref _buffer.
+		explicit plain_text(
+			_details::gtk_object_ref<hb_buffer_t> buf, _details::freetype_face_ref fnt,
+			std::size_t nchars, double font_size
+		) : _buffer(std::move(buf)), _font(std::move(fnt)), _num_characters(nchars), _font_size(font_size) {
 		}
 	};
 
@@ -338,45 +442,7 @@ namespace codepad::ui::cairo {
 			cairo_curve_to(_context, control1.x, control1.y, control2.x, control2.y, to.x, to.y);
 		}
 		/// Adds an arc (part of a circle).
-		void add_arc(vec2d to, vec2d radius, double rotation, ui::sweep_direction dir, ui::arc_type type) override {
-			cairo_matrix_t old_matrix;
-			cairo_get_matrix(_context, &old_matrix);
-
-			matd3x3
-				scale = matd3x3::scale(vec2d(), radius),
-				rotate = matd3x3::rotate_clockwise(vec2d(), rotation);
-			matd3x3 inverse_transform =
-				matd3x3::scale(vec2d(), vec2d(1.0 / radius.x, 1.0 / radius.y)) * rotate.transpose();
-			cairo_matrix_t trans = _details::cast_matrix(rotate * scale), full_trans;
-			cairo_matrix_multiply(&full_trans, &old_matrix, &trans);
-			cairo_transform(_context, &full_trans);
-
-			vec2d current_point;
-			cairo_get_current_point(_context, &current_point.x, &current_point.y);
-			vec2d trans_to = inverse_transform.transform_position(to);
-
-			// find the center
-			vec2d offset = trans_to - current_point;
-			vec2d center = current_point + 0.5 * offset;
-			if ((dir == ui::sweep_direction::clockwise) == (type == ui::arc_type::major)) {
-				offset = vec2d(-offset.y, offset.x);
-			} else {
-				offset = vec2d(offset.y, -offset.x);
-			}
-			double sqrlen = offset.length_sqr();
-			offset *= std::sqrt((1.0 - 0.25 * sqrlen) / sqrlen);
-			center += offset;
-
-			vec2d off1 = current_point - center, off2 = trans_to - center;
-			double angle1 = std::atan2(off1.y, off1.x), angle2 = std::atan2(off2.y, off2.x);
-			if (dir == ui::sweep_direction::clockwise) {
-				cairo_arc(_context, center.x, center.y, 1.0, angle1, angle2);
-			} else {
-				cairo_arc_negative(_context, center.x, center.y, 1.0, angle1, angle2);
-			}
-
-			cairo_set_matrix(_context, &old_matrix); // restore transformation
-		}
+		void add_arc(vec2d to, vec2d radius, double rotation, ui::sweep_direction, ui::arc_type) override;
 	protected:
 		cairo_t *_context = nullptr; ///< The Cairo context.
 	};
@@ -400,6 +466,18 @@ namespace codepad::ui::cairo {
 			assert_true_usage(rt, "invalid formatted text type");
 			return *rt;
 		}
+		/// Casts a \ref ui::font to a \ref font.
+		inline font &cast_font(ui::font &t) {
+			auto *rt = dynamic_cast<font*>(&t);
+			assert_true_usage(rt, "invalid formatted text type");
+			return *rt;
+		}
+		/// Casts a \ref ui::plain_text to a \ref plain_text.
+		inline const plain_text &cast_plain_text(const ui::plain_text &t) {
+			auto *rt = dynamic_cast<const plain_text*>(&t);
+			assert_true_usage(rt, "invalid formatted text type");
+			return *rt;
+		}
 	}
 
 	/// Platform-independent base class for Cairo renderers.
@@ -407,45 +485,32 @@ namespace codepad::ui::cairo {
 	/// \todo There are (possibly intended) memory leaks when using this renderer.
 	/// \todo Are we using hardware acceleration by implementing it like this? (probably not)
 	class renderer_base : public ui::renderer_base {
+		friend font_family;
 	public:
 		/// Initializes the Pango context.
 		renderer_base() {
 			_pango_context.set_give(pango_font_map_create_context(pango_cairo_font_map_get_default()));
+
+			_font_config = FcInitLoadConfigAndFonts();
+			assert_true_sys(_font_config != nullptr, "Fontconfig error");
+
+			_details::ft_check(FT_Init_FreeType(&_freetype));
 		}
 		/// Calls \p cairo_debug_reset_static_data() to clean up.
 		~renderer_base() {
+			_details::ft_check(FT_Done_FreeType(_freetype));
+			_pango_context.reset();
+
+			// without this pango would still be using some fonts which will cause the cairo check to fail
+			pango_cairo_font_map_set_default(nullptr);
 			cairo_debug_reset_static_data();
+
+			// finally, unload fontconfig
+			FcFini();
 		}
 
 		/// Creates a new image surface as a render target.
-		render_target_data create_render_target(vec2d size, vec2d scaling_factor) override {
-			auto resrt = std::make_unique<render_target>();
-			auto resbmp = std::make_unique<bitmap>();
-
-			// create surface
-			resbmp->_size = size;
-			resbmp->_surface = _details::make_gtk_object_ref_give(
-				cairo_image_surface_create(
-					CAIRO_FORMAT_ARGB32,
-					static_cast<int>(std::ceil(size.x * scaling_factor.x)),
-					static_cast<int>(std::ceil(size.y * scaling_factor.y))
-				));
-			assert_true_sys(
-				cairo_surface_status(resbmp->_surface.get()) == CAIRO_STATUS_SUCCESS,
-				"failed to create cairo surface"
-			);
-			// set dpi scaling
-			cairo_surface_set_device_scale(resbmp->_surface.get(), scaling_factor.x, scaling_factor.y);
-
-			// create context
-			resrt->_context = _details::make_gtk_object_ref_give(cairo_create(resbmp->_surface.get()));
-			assert_true_sys(
-				cairo_status(resrt->_context.get()) == CAIRO_STATUS_SUCCESS,
-				"failed to create cairo context"
-			);
-
-			return render_target_data(std::move(resrt), std::move(resbmp));
-		}
+		render_target_data create_render_target(vec2d size, vec2d scaling_factor) override;
 
 		/// Loads a \ref bitmap from disk as an image surface.
 		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) override {
@@ -457,10 +522,7 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Creates a new \ref text_format.
-		std::unique_ptr<ui::font_family> find_font_family(std::u8string_view family) override {
-			// TODO
-			return std::make_unique<font_family>();
-		}
+		std::unique_ptr<ui::font_family> find_font_family(const std::u8string&) override;
 
 		/// Starts drawing to the given window.
 		void begin_drawing(ui::window_base &w) override {
@@ -481,19 +543,7 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Clears the current surface.
-		void clear(colord color) override {
-			cairo_t *context = _render_stack.top().context;
-			cairo_save(context);
-			{
-				// reset state
-				cairo_reset_clip(context);
-				cairo_set_operator(context, CAIRO_OPERATOR_SOURCE);
-				// clear
-				cairo_set_source_rgba(context, color.r, color.g, color.b, color.a);
-				cairo_paint(context);
-			}
-			cairo_restore(context);
-		}
+		void clear(colord) override;
 
 		/// Pushes a matrix onto the stack.
 		void push_matrix(matd3x3 m) override {
@@ -633,22 +683,14 @@ namespace codepad::ui::cairo {
 			cairo_new_path(context);
 		}
 
-		///
-		std::unique_ptr<ui::plain_text> create_plain_text(std::u8string_view, ui::font&, double) override {
-			// TODO
-			return std::make_unique<plain_text>();
-		}
-		///
+		/// \overload
+		std::unique_ptr<ui::plain_text> create_plain_text(std::u8string_view, ui::font&, double) override;
+		/// Creates a new \ref plain_text object for the given text and font.
 		std::unique_ptr<ui::plain_text> create_plain_text(
 			std::basic_string_view<codepoint>, ui::font&, double
-		) override {
-			// TODO
-			return std::make_unique<plain_text>();
-		}
-		///
-		void draw_plain_text(const ui::plain_text&, vec2d, colord) override {
-			// TODO
-		}
+		) override;
+		/// Renders the given fragment of text.
+		void draw_plain_text(const ui::plain_text&, vec2d, colord) override;
 	protected:
 		/// Holds the \p cairo_t associated with a window.
 		struct _window_data {
@@ -691,27 +733,12 @@ namespace codepad::ui::cairo {
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of currently active render targets.
 		path_geometry_builder _path_builder; ///< The \ref path_geometry_builder.
 		_details::glib_object_ref<PangoContext> _pango_context; ///< The Pango context.
+		FcConfig *_font_config = nullptr; ///< Fontconfig.
+		FT_Library _freetype = nullptr; ///< The Freetype library.
 
 
 		/// Draws the current path using the given brush and pen.
-		inline static void _draw_path(
-			cairo_t *context,
-			const ui::generic_brush_parameters &brush,
-			const ui::generic_pen_parameters &pen
-		) {
-			if (_details::gtk_object_ref<cairo_pattern_t> brush_patt = _create_pattern(brush)) {
-				cairo_set_source(context, brush_patt.get());
-				cairo_fill_preserve(context);
-			}
-			if (_details::gtk_object_ref<cairo_pattern_t> pen_patt = _create_pattern(pen.brush)) {
-				cairo_set_source(context, pen_patt.get());
-				cairo_set_line_width(context, pen.thickness);
-				cairo_stroke_preserve(context);
-			}
-			cairo_new_path(context); // clear current path
-			// release the source pattern
-			cairo_set_source_rgb(context, 1.0, 0.4, 0.7);
-		}
+		static void _draw_path(cairo_t*, const ui::generic_brush_parameters&, const ui::generic_pen_parameters&);
 		/// Saves the current cairo context status onto the stack by calling \p cairo_save(), then calls
 		/// \p cairo_clip() to update the clip region.
 		inline static void _push_clip(cairo_t *context) {
@@ -721,179 +748,48 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Creates a new solid color pattern.
-		inline static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::solid_color &brush
-		) {
-			return _details::make_gtk_object_ref_give(
-				cairo_pattern_create_rgba(
-					brush.color.r, brush.color.g, brush.color.b, brush.color.a
-				));
-		}
+		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+			const ui::brush_parameters::solid_color&
+		);
 		/// Adds gradient stops to a gradient pattern.
-		inline static void _add_gradient_stops(cairo_pattern_t *patt, const gradient_stop_collection &gradients) {
-			for (const gradient_stop &stop : gradients) {
-				cairo_pattern_add_color_stop_rgba(
-					patt, stop.position, stop.color.r, stop.color.g, stop.color.b, stop.color.a
-				);
-			}
-		}
+		static void _add_gradient_stops(cairo_pattern_t*, const gradient_stop_collection&);
 		/// Creates a new linear gradient pattern.
-		inline static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::linear_gradient &brush
-		) {
-			if (brush.gradients) {
-				auto patt = _details::make_gtk_object_ref_give(
-					cairo_pattern_create_linear(
-						brush.from.x, brush.from.y, brush.to.x, brush.to.y
-					));
-				_add_gradient_stops(patt.get(), *brush.gradients);
-				return patt;
-			}
-			return _details::gtk_object_ref<cairo_pattern_t>();
-		}
+		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+			const ui::brush_parameters::linear_gradient&
+		);
 		/// Creates a new radial gradient pattern.
-		inline static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::radial_gradient &brush
-		) {
-			if (brush.gradients) {
-				auto patt = _details::make_gtk_object_ref_give(
-					cairo_pattern_create_radial(
-						brush.center.x, brush.center.y, 0.0, brush.center.x, brush.center.y, brush.radius
-					));
-				_add_gradient_stops(patt.get(), *brush.gradients);
-				return patt;
-			}
-			return _details::gtk_object_ref<cairo_pattern_t>();
-		}
+		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+			const ui::brush_parameters::radial_gradient&
+		);
 		/// Creates a new bitmap gradient pattern.
-		inline static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::bitmap_pattern &brush
-		) {
-			if (brush.image) {
-				return _details::make_gtk_object_ref_give(
-					cairo_pattern_create_for_surface(
-						_details::cast_bitmap(*brush.image)._surface.get()
-					));
-			}
-			return _details::gtk_object_ref<cairo_pattern_t>();
-		}
+		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+			const ui::brush_parameters::bitmap_pattern&
+		);
 		/// Returns an empty \ref _details::gtk_object_ref.
-		inline static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
 			const ui::brush_parameters::none&
-		) {
-			return _details::gtk_object_ref<cairo_pattern_t>();
-		}
+		);
 		/// Creates a new \p cairo_pattern_t given the parameters of the brush.
-		inline static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const generic_brush_parameters &b
-		) {
-			auto pattern = std::visit([](auto &&brush) {
-				return _create_pattern(brush);
-				}, b.value);
-			if (pattern) {
-				cairo_matrix_t mat = _details::cast_matrix(b.transform);
-				cairo_pattern_set_matrix(pattern.get(), &mat);
-			}
-			return pattern;
-		}
+		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+			const generic_brush_parameters&
+		);
 
 
 		/// Changes the current path into a ellipse.
-		void _make_ellipse_geometry(vec2d center, double rx, double ry) {
-			_render_target_stackframe &stackframe = _render_stack.top();
-			cairo_t *context = stackframe.context;
-
-			cairo_matrix_t mat = _details::cast_matrix(
-				stackframe.matrices.top() * matd3x3::scale(center, vec2d(rx, ry))
-			); // apply this scale transform before all else (in local space)
-			cairo_set_matrix(context, &mat);
-			cairo_arc(context, center.x, center.y, 1.0, 0.0, 6.2831853); // 2 pi, but slightly less
-			cairo_close_path(context);
-
-			stackframe.update_transform(); // restore transform
-		}
+		void _make_ellipse_geometry(vec2d center, double rx, double ry);
 		/// Changes the current path into a rounded rectangle.
-		void _make_rounded_rectangle_geometry(rectd rgn, double rx, double ry) {
-			_render_target_stackframe &stackframe = _render_stack.top();
-			cairo_t *context = stackframe.context;
-
-			if (rx < 1e-4 || ry < 1e-4) { // radius too small or negative, append rectangle directly
-				cairo_rectangle(context, rgn.xmin, rgn.ymin, rgn.width(), rgn.height());
-				return;
-			}
-
-			cairo_matrix_t mat = _details::cast_matrix(
-				stackframe.matrices.top() * matd3x3::scale(vec2d(), vec2d(rx, ry))
-			); // apply scale transform locally
-			// adjust region
-			rgn.xmin = rgn.xmin / rx + 1.0;
-			rgn.xmax = rgn.xmax / rx - 1.0;
-			rgn.ymin = rgn.ymin / ry + 1.0;
-			rgn.ymax = rgn.ymax / ry - 1.0;
-			rgn.make_valid_average();
-
-			cairo_set_matrix(context, &mat);
-			cairo_arc(context, rgn.xmin, rgn.ymin, 1.0, -1.57079632, 0.0);
-			cairo_arc(context, rgn.xmax, rgn.ymin, 1.0, 0.0, 1.57079632);
-			cairo_arc(context, rgn.xmax, rgn.ymax, 1.0, 1.57079632, 3.14159265);
-			cairo_arc(context, rgn.xmin, rgn.ymax, 1.0, 3.14159265, 4.71238898);
-			cairo_close_path(context);
-
-			stackframe.update_transform();
-		}
+		void _make_rounded_rectangle_geometry(rectd, double rx, double ry);
 
 
 		/// Creates a new \ref formatted_text object.
-		std::unique_ptr<formatted_text> _create_formatted_text_impl(
-			std::u8string_view text, const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
-			horizontal_text_alignment halign, vertical_text_alignment
-		) {
-			auto result = std::make_unique<formatted_text>();
-			result->_layout.set_give(pango_layout_new(_pango_context.get()));
-
-			pango_layout_set_text(result->_layout.get(), reinterpret_cast<const char*>(text.data()), static_cast<int>(text.size()));
-
-			{ // set font
-				PangoFontDescription *desc = pango_font_description_new();
-				pango_font_description_set_family(desc, reinterpret_cast<const char*>(font.family.c_str()));
-				pango_font_description_set_style(desc, _details::cast_font_style(font.style));
-				pango_font_description_set_weight(desc, _details::cast_font_weight(font.weight));
-				pango_font_description_set_stretch(desc, _details::cast_font_stretch(font.stretch));
-				pango_font_description_set_size(desc, static_cast<gint>(std::round(font.size * PANGO_SCALE)));
-				pango_layout_set_font_description(result->_layout.get(), desc);
-				pango_font_description_free(desc);
-			}
-
-			pango_layout_set_ellipsize(result->_layout.get(), PANGO_ELLIPSIZE_NONE);
-
-			// horizontal wrapping
-			if (wrap == wrapping_mode::none) {
-				// FIXME alignment won't work for this case
-				pango_layout_set_width(result->_layout.get(), -1); // disable wrapping
-			} else {
-				pango_layout_set_width(result->_layout.get(), PANGO_PIXELS(size.x));
-				pango_layout_set_wrap(result->_layout.get(), PANGO_WRAP_WORD_CHAR);
-			}
-			pango_layout_set_alignment(result->_layout.get(), _details::cast_horizontal_alignment(halign));
-
-			pango_layout_set_height(result->_layout.get(), PANGO_PIXELS(size.y));
-			// TODO vertical alignment
-
-			{ // set color
-				auto attr_list = _details::make_gtk_object_ref_give(pango_attr_list_new());
-				pango_attr_list_insert(attr_list.get(), pango_attr_foreground_new(
-					_details::cast_color_component(c.r),
-					_details::cast_color_component(c.g),
-					_details::cast_color_component(c.b)
-				));
-				pango_attr_list_insert(
-					attr_list.get(), pango_attr_foreground_alpha_new(_details::cast_color_component(c.a))
-				);
-				pango_layout_set_attributes(result->_layout.get(), attr_list.get());
-			}
-
-			return result;
-		}
+		[[nodiscard]] std::unique_ptr<formatted_text> _create_formatted_text_impl(
+			std::u8string_view text, const font_parameters&, colord, vec2d size, wrapping_mode,
+			horizontal_text_alignment, vertical_text_alignment
+		);
+		/// Creates a new \ref plain_text from the given \p hb_buffer_t.
+		[[nodiscard]] std::unique_ptr<ui::plain_text> _create_plain_text_impl(
+			_details::gtk_object_ref<hb_buffer_t>, ui::font&, double
+		);
 
 
 		/// Called to finalize drawing to the current rendering target.
@@ -910,28 +806,7 @@ namespace codepad::ui::cairo {
 			return result;
 		}
 		/// Creates a Cairo surface for the window, and listens to specific events to resize the surface as needed.
-		void _new_window(window_base &wnd) override {
-			std::any &data = _get_window_data(wnd);
-			_window_data actual_data;
-
-			// set data
-			actual_data.context = _create_context_for_window(wnd, wnd.get_scaling_factor());
-			data.emplace<_window_data>(actual_data);
-			// resize buffer when the window size has changed
-			wnd.size_changed += [this, pwnd = &wnd](ui::window_base::size_changed_info&) {
-				auto &data = _window_data::get(*pwnd);
-				data.context.reset();
-				data.context = _create_context_for_window(*pwnd, pwnd->get_scaling_factor());
-				pwnd->invalidate_visual();
-			};
-			// reallocate buffer when the window scaling has changed
-			wnd.scaling_factor_changed += [this, pwnd = &wnd](window_base::scaling_factor_changed_info &p) {
-				auto &data = _window_data::get(*pwnd);
-				data.context.reset();
-				data.context = _create_context_for_window(*pwnd, p.new_value);
-				pwnd->invalidate_visual();
-			};
-		}
+		void _new_window(window_base&) override;
 		/// Releases all resources.
 		void _delete_window(window_base &w) override {
 			_get_window_data(w).reset();

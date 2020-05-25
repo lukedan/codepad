@@ -44,7 +44,6 @@ int main(int argc, char **argv) {
 
 	sett.load("config/settings.json");
 
-#ifdef CP_ENABLE_PLUGINS
 	{ // load plugins
 		auto parser = sett.create_retriever_parser<std::vector<std::u8string_view>>(
 			{ u8"native_plugins" },
@@ -64,7 +63,6 @@ int main(int argc, char **argv) {
 			logger::get().log_info(CP_HERE) << "plugin loaded: " << p;
 		}
 	}
-#endif
 
 	{ // select renderer
 		std::u8string_view default_graphics_backend =

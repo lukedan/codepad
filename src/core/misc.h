@@ -437,53 +437,53 @@ namespace codepad {
 		}
 
 		/// Sets the underlying pointer and increment the reference count.
-		reference_counted_handle &set_share(T *ptr) {
+		reference_counted_handle &set_share(T handle) {
 			_check_release();
-			_handle = ptr;
+			_handle = handle;
 			_check_add_ref();
 			return *this;
 		}
 		/// Sets the underlying pointer without incrementing the reference count.
-		reference_counted_handle &set_give(T *ptr) {
+		reference_counted_handle &set_give(T handle) {
 			_check_release();
-			_handle = ptr;
+			_handle = handle;
 			return *this;
 		}
 		/// Releases the currently holding object.
 		reference_counted_handle &reset() {
-			return set_give(nullptr);
+			return set_give(Derived::empty_handle);
 		}
 
 		/// Returns the underlying pointer.
-		T *get() const {
+		T get() const {
 			return _handle;
 		}
 		/// Convenience operator.
-		T *operator->() const {
+		T operator->() const {
 			return get();
 		}
 
 		/// Returns whether this wrapper holds no objects.
 		bool empty() const {
-			return _handle == nullptr;
+			return _handle == Derived::empty_handle;
 		}
 		/// Returns whether this brush has any content.
 		explicit operator bool() const {
 			return !empty();
 		}
 	protected:
-		T *_handle = nullptr; ///< The underlying handle.
+		T _handle{}; ///< The underlying handle.
 
 		/// Adds a reference to the handle by calling \p _do_add_ref() if necessary.
 		void _check_add_ref() {
-			if (_handle) {
+			if (!empty()) {
 				static_cast<Derived*>(this)->_do_add_ref();
 			}
 		}
 		/// Removes a reference to the handle by calling \p _do_release() if necessary. This function also resets
 		/// \ref _handle.
 		void _check_release() {
-			if (_handle) {
+			if (!empty()) {
 				static_cast<Derived*>(this)->_do_release();
 				_handle = nullptr;
 			}

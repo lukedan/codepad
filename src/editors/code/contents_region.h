@@ -59,9 +59,9 @@ namespace codepad::editors::code {
 		}
 
 		/// Sets the font family given its name.
-		void set_font_families_by_name(const std::vector<std::u8string_view> &names) {
+		void set_font_families_by_name(const std::vector<std::u8string> &names) {
 			std::vector<std::unique_ptr<ui::font_family>> fonts;
-			for (std::u8string_view name : names) {
+			for (const std::u8string &name : names) {
 				fonts.emplace_back(get_manager().get_renderer().find_font_family(name));
 			}
 			set_font_families(std::move(fonts));

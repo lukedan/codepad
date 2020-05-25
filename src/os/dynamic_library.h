@@ -13,6 +13,7 @@
 #endif
 
 #include "../core/encodings.h"
+#include "../core/assert.h"
 
 namespace codepad::os {
 	/// A reference to a dynamic library.
@@ -23,12 +24,14 @@ namespace codepad::os {
 #if defined(CP_PLATFORM_WINDOWS)
 			HMODULE;
 #elif defined(CP_PLATFORM_UNIX)
+			void*;
 #endif
 		/// The type of the returned symbol.
 		using symbol_t =
 #if defined(CP_PLATFORM_WINDOWS)
 			FARPROC;
 #elif defined(CP_PLATFORM_UNIX)
+			void*;
 #endif
 
 		const static native_handle_t empty_handle; ///< Empty handle.
@@ -65,7 +68,7 @@ namespace codepad::os {
 		}
 		/// Unloads the current library if necessary.
 		void unload() {
-			if (!valid()) {
+			if (valid()) {
 				_unload_impl(_handle);
 				_handle = empty_handle;
 			}
@@ -73,6 +76,7 @@ namespace codepad::os {
 
 		/// Finds the symbol, then casts it to the desired type and returns it.
 		template <typename FuncPtr> FuncPtr find_symbol(const std::u8string &name) const {
+			assert_true_usage(valid(), "check validity first before operating on dynamic library");
 			return reinterpret_cast<FuncPtr>(find_symbol_raw(name));
 		}
 		/// Finds and returns the symbol without casting it.
