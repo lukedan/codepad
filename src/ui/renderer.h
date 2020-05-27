@@ -409,7 +409,7 @@ namespace codepad::ui {
 			transform.set_identity();
 		}
 		/// Initializes \ref value with a specific type of brush.
-		template <typename Brush> explicit generic_brush_parameters(Brush b) :
+		template <typename Brush> generic_brush_parameters(Brush b) :
 			value(std::in_place_type<Brush>, std::move(b)) {
 			transform.set_identity();
 		}

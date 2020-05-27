@@ -13,6 +13,44 @@
 #	include <harfbuzz/hb-ft.h>
 
 namespace codepad::ui::cairo {
+	namespace _details {
+		/// Casts a \ref ui::bitmap to a \ref bitmap.
+		bitmap &cast_bitmap(ui::bitmap &b) {
+			auto *bmp = dynamic_cast<bitmap*>(&b);
+			assert_true_usage(bmp, "invalid bitmap type");
+			return *bmp;
+		}
+
+		/// Casts a \ref ui::render_target to a \ref render_target.
+		render_target &cast_render_target(ui::render_target &r) {
+			auto *rt = dynamic_cast<render_target*>(&r);
+			assert_true_usage(rt, "invalid render target type");
+			return *rt;
+		}
+
+		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
+		const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
+			auto *rt = dynamic_cast<const formatted_text*>(&t);
+			assert_true_usage(rt, "invalid formatted text type");
+			return *rt;
+		}
+
+		/// Casts a \ref ui::font to a \ref font.
+		font &cast_font(ui::font &t) {
+			auto *rt = dynamic_cast<font*>(&t);
+			assert_true_usage(rt, "invalid formatted text type");
+			return *rt;
+		}
+
+		/// Casts a \ref ui::plain_text to a \ref plain_text.
+		const plain_text &cast_plain_text(const ui::plain_text &t) {
+			auto *rt = dynamic_cast<const plain_text*>(&t);
+			assert_true_usage(rt, "invalid formatted text type");
+			return *rt;
+		}
+	}
+
+
 	rectd formatted_text::get_layout() const {
 		PangoRectangle layout;
 		pango_layout_get_extents(_layout.get(), nullptr, &layout);
@@ -169,6 +207,7 @@ namespace codepad::ui::cairo {
 	void path_geometry_builder::add_arc(
 		vec2d to, vec2d radius, double rotation, ui::sweep_direction dir, ui::arc_type type
 	) {
+		// if any radius component is zero, it will cause divide by zeroes in later calculations
 		if (approximately_equals(radius.x, 0.0) || approximately_equals(radius.y, 0.0)) {
 			// TODO this is a very inaccurate approximation
 			cairo_line_to(_context, to.x, to.y);
@@ -252,6 +291,23 @@ namespace codepad::ui::cairo {
 		return std::unique_ptr<font_family>(new font_family(*this, std::move(pattern)));
 	}
 
+	void renderer_base::begin_drawing(ui::window_base &w) {
+		auto &data = _window_data::get(w);
+		_render_stack.emplace(data.context.get(), &w);
+	}
+
+	void renderer_base::begin_drawing(ui::render_target &generic_rt) {
+		auto &rt = _details::cast_render_target(generic_rt);
+		_render_stack.emplace(rt._context.get());
+	}
+
+	void renderer_base::end_drawing() {
+		assert_true_usage(!_render_stack.empty(), "begin_drawing/end_drawing calls mismatch");
+		assert_true_usage(_render_stack.top().matrices.size() == 1, "push_matrix/pop_matrix calls mismatch");
+		_finish_drawing_to_target();
+		_render_stack.pop();
+	}
+
 	void renderer_base::clear(colord color) {
 		cairo_t *context = _render_stack.top().context;
 		cairo_save(context);
@@ -264,6 +320,17 @@ namespace codepad::ui::cairo {
 			cairo_paint(context);
 		}
 		cairo_restore(context);
+	}
+
+	void renderer_base::draw_formatted_text(const ui::formatted_text &ft, vec2d pos) {
+		auto text = _details::cast_formatted_text(ft);
+		cairo_t *context = _render_stack.top().context;
+
+		pango_cairo_update_context(context, _pango_context.get());
+		pango_layout_context_changed(text._layout.get());
+		cairo_move_to(context, pos.x, pos.y);
+		pango_cairo_show_layout(context, text._layout.get());
+		cairo_new_path(context);
 	}
 
 	std::unique_ptr<ui::plain_text> renderer_base::create_plain_text(
@@ -310,6 +377,7 @@ namespace codepad::ui::cairo {
 		std::vector<cairo_glyph_t> glyphs;
 		glyphs.reserve(static_cast<std::size_t>(num_glyphs));
 		vec2d pen_pos = pos;
+		pen_pos.y += text._ascender;
 		for (unsigned int i = 0; i < num_glyphs; ++i) {
 			cairo_glyph_t &glyph = glyphs.emplace_back();
 			glyph.index = glyph_infos[i].codepoint;
@@ -319,7 +387,10 @@ namespace codepad::ui::cairo {
 		}
 
 		cairo_set_source_rgba(context, c.r, c.g, c.b, c.a);
-		cairo_show_glyphs(context, glyphs.data(), glyphs.size());
+		// TODO cairo_show_glyphs
+		/*cairo_show_glyphs(context, glyphs.data(), glyphs.size());*/
+		cairo_glyph_path(context, glyphs.data(), glyphs.size());
+		cairo_fill(context);
 	}
 
 	void renderer_base::_draw_path(
@@ -411,7 +482,7 @@ namespace codepad::ui::cairo {
 			return _create_pattern(brush);
 			}, b.value);
 		if (pattern) {
-			cairo_matrix_t mat = _details::cast_matrix(b.transform);
+			cairo_matrix_t mat = _details::cast_matrix(b.transform.inverse());
 			cairo_pattern_set_matrix(pattern.get(), &mat);
 		}
 		return pattern;
@@ -541,7 +612,9 @@ namespace codepad::ui::cairo {
 		hb_shape(hb_font, buf.get(), nullptr, 0); // TODO features?
 
 		hb_font_destroy(hb_font);
-		return std::unique_ptr<plain_text>(new plain_text(std::move(buf), fnt._face, num_chars, font_size));
+		return std::unique_ptr<plain_text>(new plain_text(
+			std::move(buf), fnt._face, fnt._face->size->metrics, num_chars, font_size
+		));
 	}
 
 	void renderer_base::_new_window(window_base &wnd) {

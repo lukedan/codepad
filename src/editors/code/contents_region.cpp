@@ -164,7 +164,7 @@ namespace codepad::editors::code {
 			used = &extcarets;
 		}
 
-		{ // render to a pixel-snapped buffer to avoid cleartype issues
+		{ // render to a pixel-snapped buffer to avoid subpixel antialiasing being disabled by clips
 			ui::pixel_snapped_render_target target(
 				renderer, rectd::from_corners(vec2d(), get_layout().size()), get_window()->get_scaling_factor()
 			);

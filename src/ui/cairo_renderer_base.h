@@ -82,7 +82,7 @@ namespace codepad::ui::cairo {
 				} else {
 					logger::get().log_error(CP_HERE) <<
 						"add ref operation not implemented for " << demangle(typeid(T).name());
-					abort();
+					std::abort();
 				}
 			}
 			/// Removes a reference to the handle if necessary.
@@ -104,7 +104,7 @@ namespace codepad::ui::cairo {
 				} else {
 					logger::get().log_error(CP_HERE) <<
 						"release operation for not implemented for " << demangle(typeid(T).name());
-					abort();
+					std::abort();
 				}
 			}
 		};
@@ -353,9 +353,10 @@ namespace codepad::ui::cairo {
 		explicit font(_details::freetype_face_ref f) : _face(std::move(f)) {
 		}
 
-		/// Converts lengths from font units into EM.
+		/// Converts lengths from font design units into EM units. Since the default DPI on windows and ubuntu is 96,
+		/// here we also scale the length accordingly.
 		[[nodiscard]] double _into_em(double len) const {
-			return len / static_cast<double>(_face->units_per_EM);
+			return len * 96.0 / (72.0 * static_cast<double>(_face->units_per_EM));
 		}
 	};
 
@@ -410,13 +411,17 @@ namespace codepad::ui::cairo {
 		_details::gtk_object_ref<hb_buffer_t> _buffer; ///< The harfbuzz buffer.
 		_details::freetype_face_ref _font; ///< The font.
 		std::size_t _num_characters = 0; ///< The number of characters in this clip of text.
-		double _font_size = 0.0; ///< Font size.
+		double _font_size = 0.0; ///< Originally required font size.
+		double _x_scale = 0.0; ///< Used to convert horizontal width from font units into pixels.
+		double _ascender = 0.0; ///< Ascender in pixels.
 
 		/// Directly initializes \ref _buffer.
 		explicit plain_text(
 			_details::gtk_object_ref<hb_buffer_t> buf, _details::freetype_face_ref fnt,
-			std::size_t nchars, double font_size
+			const FT_Size_Metrics &size_info, std::size_t nchars, double font_size
 		) : _buffer(std::move(buf)), _font(std::move(fnt)), _num_characters(nchars), _font_size(font_size) {
+			_x_scale = size_info.x_scale / 64.0;
+			_ascender = size_info.ascender / 64.0;
 		}
 	};
 
@@ -447,39 +452,6 @@ namespace codepad::ui::cairo {
 		cairo_t *_context = nullptr; ///< The Cairo context.
 	};
 
-	namespace _details {
-		/// Casts a \ref ui::bitmap to a \ref bitmap.
-		inline bitmap &cast_bitmap(ui::bitmap &b) {
-			auto *bmp = dynamic_cast<bitmap*>(&b);
-			assert_true_usage(bmp, "invalid bitmap type");
-			return *bmp;
-		}
-		/// Casts a \ref ui::render_target to a \ref render_target.
-		inline render_target &cast_render_target(ui::render_target &r) {
-			auto *rt = dynamic_cast<render_target*>(&r);
-			assert_true_usage(rt, "invalid render target type");
-			return *rt;
-		}
-		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
-		inline const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
-			auto *rt = dynamic_cast<const formatted_text*>(&t);
-			assert_true_usage(rt, "invalid formatted text type");
-			return *rt;
-		}
-		/// Casts a \ref ui::font to a \ref font.
-		inline font &cast_font(ui::font &t) {
-			auto *rt = dynamic_cast<font*>(&t);
-			assert_true_usage(rt, "invalid formatted text type");
-			return *rt;
-		}
-		/// Casts a \ref ui::plain_text to a \ref plain_text.
-		inline const plain_text &cast_plain_text(const ui::plain_text &t) {
-			auto *rt = dynamic_cast<const plain_text*>(&t);
-			assert_true_usage(rt, "invalid formatted text type");
-			return *rt;
-		}
-	}
-
 	/// Platform-independent base class for Cairo renderers.
 	///
 	/// \todo There are (possibly intended) memory leaks when using this renderer.
@@ -490,10 +462,7 @@ namespace codepad::ui::cairo {
 		/// Initializes the Pango context.
 		renderer_base() {
 			_pango_context.set_give(pango_font_map_create_context(pango_cairo_font_map_get_default()));
-
-			_font_config = FcInitLoadConfigAndFonts();
-			assert_true_sys(_font_config != nullptr, "Fontconfig error");
-
+			assert_true_sys(FcInit(), "failed to initialize Fontconfig");
 			_details::ft_check(FT_Init_FreeType(&_freetype));
 		}
 		/// Calls \p cairo_debug_reset_static_data() to clean up.
@@ -525,22 +494,11 @@ namespace codepad::ui::cairo {
 		std::unique_ptr<ui::font_family> find_font_family(const std::u8string&) override;
 
 		/// Starts drawing to the given window.
-		void begin_drawing(ui::window_base &w) override {
-			auto &data = _window_data::get(w);
-			_render_stack.emplace(data.context.get(), &w);
-		}
+		void begin_drawing(ui::window_base&) override;
 		/// Starts drawing to the given \ref render_target.
-		void begin_drawing(ui::render_target &generic_rt) override {
-			auto &rt = _details::cast_render_target(generic_rt);
-			_render_stack.emplace(rt._context.get());
-		}
+		void begin_drawing(ui::render_target&) override;
 		/// Finishes drawing.
-		void end_drawing() override {
-			assert_true_usage(!_render_stack.empty(), "begin_drawing/end_drawing calls mismatch");
-			assert_true_usage(_render_stack.top().matrices.size() == 1, "push_matrix/pop_matrix calls mismatch");
-			_finish_drawing_to_target();
-			_render_stack.pop();
-		}
+		void end_drawing() override;
 
 		/// Clears the current surface.
 		void clear(colord) override;
@@ -552,7 +510,7 @@ namespace codepad::ui::cairo {
 		}
 		/// Multiplies the current matrix with the given matrix and pushes it onto the stack.
 		void push_matrix_mult(matd3x3 m) override {
-			_render_stack.top().matrices.push(m * _render_stack.top().matrices.top());
+			_render_stack.top().matrices.push(_render_stack.top().matrices.top() * m);
 			_render_stack.top().update_transform();
 		}
 		/// Pops a matrix from the stack.
@@ -672,16 +630,7 @@ namespace codepad::ui::cairo {
 		}
 		/// Draws the given \ref formatted_text at the given position using the given brush. The position indicates
 		/// the top left corner of the layout box.
-		void draw_formatted_text(const ui::formatted_text &ft, vec2d pos) override {
-			auto text = _details::cast_formatted_text(ft);
-			cairo_t *context = _render_stack.top().context;
-
-			pango_cairo_update_context(context, _pango_context.get());
-			pango_layout_context_changed(text._layout.get());
-			cairo_move_to(context, pos.x, pos.y);
-			pango_cairo_show_layout(context, text._layout.get());
-			cairo_new_path(context);
-		}
+		void draw_formatted_text(const ui::formatted_text&, vec2d pos) override;
 
 		/// \overload
 		std::unique_ptr<ui::plain_text> create_plain_text(std::u8string_view, ui::font&, double) override;
@@ -733,7 +682,6 @@ namespace codepad::ui::cairo {
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of currently active render targets.
 		path_geometry_builder _path_builder; ///< The \ref path_geometry_builder.
 		_details::glib_object_ref<PangoContext> _pango_context; ///< The Pango context.
-		FcConfig *_font_config = nullptr; ///< Fontconfig.
 		FT_Library _freetype = nullptr; ///< The Freetype library.
 
 
