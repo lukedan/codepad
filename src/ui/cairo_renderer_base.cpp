@@ -14,6 +14,87 @@
 
 namespace codepad::ui::cairo {
 	namespace _details {
+		/// Converts a \ref matd3x3 to a \p cairo_matrix_t.
+		cairo_matrix_t cast_matrix(matd3x3 m) {
+			cairo_matrix_t result;
+			result.xx = m[0][0];
+			result.xy = m[0][1];
+			result.x0 = m[0][2];
+			result.yx = m[1][0];
+			result.yy = m[1][1];
+			result.y0 = m[1][2];
+			return result;
+		}
+
+		/// Converts a component of a color to a \p guint16.
+		guint16 cast_color_component(double c) {
+			return static_cast<guint16>(std::round(c * std::numeric_limits<guint16>::max()));
+		}
+
+		/// Converts a \ref horizontal_text_alignment to a \p PangoAlignment.
+		PangoAlignment cast_horizontal_alignment(horizontal_text_alignment align) {
+			switch (align) {
+			// FIXME front & rear does not have exactly the same semantics as left & right
+			case horizontal_text_alignment::front:
+				return PANGO_ALIGN_LEFT;
+			case horizontal_text_alignment::rear:
+				return PANGO_ALIGN_RIGHT;
+			case horizontal_text_alignment::center:
+				return PANGO_ALIGN_CENTER;
+			}
+			return PANGO_ALIGN_LEFT;
+		}
+
+		/// Converts a \ref font_style to a \p PangoStyle.
+		PangoStyle cast_font_style(font_style style) {
+			switch (style) {
+			case font_style::normal:
+				return PANGO_STYLE_NORMAL;
+			case font_style::italic:
+				return PANGO_STYLE_ITALIC;
+			case font_style::oblique:
+				return PANGO_STYLE_OBLIQUE;
+			}
+			return PANGO_STYLE_NORMAL;
+		}
+
+		/// Converts a \ref font_style to a Fontconfig font slant.
+		int cast_font_style_fontconfig(font_style style) {
+			switch (style) {
+			case font_style::normal:
+				return FC_SLANT_ROMAN;
+			case font_style::italic:
+				return FC_SLANT_ITALIC;
+			case font_style::oblique:
+				return FC_SLANT_OBLIQUE;
+			}
+			return FC_SLANT_ROMAN;
+		}
+
+		/// Converts a \ref font_weight to a \p PangoWeight.
+		PangoWeight cast_font_weight(font_weight weight) {
+			// TODO
+			return PANGO_WEIGHT_NORMAL;
+		}
+
+		/// Converts a \ref font_weight to a Fontconfig weight.
+		int cast_font_weight_fontconfig(font_weight weight) {
+			// TODO
+			return FC_WEIGHT_NORMAL;
+		}
+
+		/// Converts a \ref font_stretch to a \p PangoStretch.
+		PangoStretch cast_font_stretch(font_stretch stretch) {
+			// TODO
+			return PANGO_STRETCH_NORMAL;
+		}
+
+		/// Converts a \ref font_stretch to a Fontconfig width.
+		int cast_font_stretch_fontconfig(font_stretch stretch) {
+			// TODO
+			return FC_WIDTH_NORMAL;
+		}
+
 		/// Casts a \ref ui::bitmap to a \ref bitmap.
 		bitmap &cast_bitmap(ui::bitmap &b) {
 			auto *bmp = dynamic_cast<bitmap*>(&b);
@@ -162,45 +243,87 @@ namespace codepad::ui::cairo {
 	}
 
 
-	void plain_text::_maybe_calculate_glyph_positions() const {
-		if (_cached_glyph_positions.empty()) {
-			unsigned int num_glyphs = 0;
-			hb_glyph_position_t *glyphs = hb_buffer_get_glyph_positions(_buffer.get(), &num_glyphs);
-			_cached_glyph_positions.reserve(num_glyphs + 1);
-			_cached_glyph_positions.emplace_back(0.0);
-			for (unsigned int i = 0; i < num_glyphs; ++i) {
-				_cached_glyph_positions.emplace_back(
-					_cached_glyph_positions.back() + glyphs[i].x_advance / 64.0
-				);
+	caret_hit_test_result plain_text::hit_test(double x) const {
+		_maybe_calculate_block_map();
+
+		x = std::max(x, 0.0);
+		auto block_iter = std::lower_bound(
+			_cached_block_positions.begin(), _cached_block_positions.end(), x
+		);
+		if (block_iter != _cached_block_positions.begin()) {
+			--block_iter;
+		}
+		std::size_t block_id = block_iter - _cached_block_positions.begin();
+
+		caret_hit_test_result res;
+		if (block_id + 1 < _cached_block_positions.size()) {
+			double part_width = _get_part_width(block_id);
+			double offset = (x - _cached_block_positions[block_id]) / part_width;
+			std::size_t block_offset = static_cast<std::size_t>(offset);
+			double left = _cached_block_positions[block_id] + block_offset * part_width;
+
+			res.character = _cached_first_char_of_block[block_id] + block_offset;
+			res.rear = (offset - block_offset) > 0.5;
+			res.character_layout = rectd::from_xywh(left, 0.0, part_width, _height);
+		} else { // end of the clip
+			res.character = _num_characters;
+			res.rear = false;
+			res.character_layout = rectd::from_xywh(_cached_block_positions.back(), 0.0, 0.0, _height);
+		}
+		return res;
+	}
+
+	rectd plain_text::get_character_placement(std::size_t i) const {
+		_maybe_calculate_block_map();
+
+		if (i >= _num_characters) {
+			return rectd::from_xywh(_cached_block_positions.back(), 0.0, 0.0, _height);
+		}
+
+		auto block_it = std::upper_bound(_cached_first_char_of_block.begin(), _cached_first_char_of_block.end(), i);
+		if (block_it == _cached_first_char_of_block.begin()) {
+			// this means that the first few characters have no corresponding glyphs
+			return rectd(0.0, 0.0, 0.0, _height);
+		}
+		--block_it;
+		std::size_t block_id = block_it - _cached_first_char_of_block.begin();
+		double part_width = _get_part_width(block_id);
+		double left = _cached_block_positions[block_id] + part_width * (i - _cached_first_char_of_block[block_id]);
+		return rectd::from_xywh(left, 0.0, part_width, _height);
+	}
+
+	void plain_text::_maybe_calculate_block_map() const {
+		if (_cached_block_positions.empty()) {
+			unsigned int num_glyphs_u = 0;
+			hb_glyph_info_t *glyphs = hb_buffer_get_glyph_infos(_buffer.get(), &num_glyphs_u);
+			hb_glyph_position_t *positions = hb_buffer_get_glyph_positions(_buffer.get(), &num_glyphs_u);
+			auto num_glyphs = static_cast<std::size_t>(num_glyphs_u);
+
+			_cached_first_char_of_block.reserve(num_glyphs);
+			_cached_block_positions.reserve(num_glyphs + 1);
+
+			double pos = 0.0;
+			std::size_t last_char = std::numeric_limits<std::size_t>::max();
+			for (std::size_t i = 0; i < num_glyphs; ++i) {
+				auto cur_char = static_cast<std::size_t>(glyphs[i].cluster);
+				if (cur_char != last_char) {
+					_cached_first_char_of_block.emplace_back(cur_char);
+					_cached_block_positions.emplace_back(pos);
+					last_char = cur_char;
+				}
+				pos += positions[i].x_advance / 64.0;
 			}
+
+			// final element
+			_cached_first_char_of_block.emplace_back(_num_characters);
+			_cached_block_positions.emplace_back(pos);
 		}
 	}
 
-	void plain_text::_maybe_calculate_cluster_map() const {
-		if (_cached_cluster_map.empty()) {
-			unsigned int num_glyphs = 0;
-			hb_glyph_info_t *glyphs = hb_buffer_get_glyph_infos(_buffer.get(), &num_glyphs);
-			_cached_cluster_map.resize(_num_characters, 0);
-			{
-				uint32_t prev_cluster = 0;
-				for (unsigned int i = 0; i < num_glyphs; ++i) {
-					if (glyphs[i].cluster != prev_cluster) {
-						_cached_cluster_map[glyphs[i].cluster] = i;
-						prev_cluster = glyphs[i].cluster;
-					}
-				}
-			}
-			{
-				std::size_t prev_cluster_id = 0;
-				for (std::size_t &cluster : _cached_cluster_map) {
-					if (cluster != 0) {
-						prev_cluster_id = cluster;
-					} else {
-						cluster = prev_cluster_id;
-					}
-				}
-			}
-		}
+	double plain_text::_get_part_width(std::size_t block) const {
+		return
+			(_cached_block_positions[block + 1] - _cached_block_positions[block]) /
+			static_cast<double>(_cached_first_char_of_block[block + 1] - _cached_first_char_of_block[block]);
 	}
 
 
@@ -253,6 +376,12 @@ namespace codepad::ui::cairo {
 		}
 
 		cairo_set_matrix(_context, &old_matrix); // restore transformation
+	}
+
+
+	void renderer_base::_render_target_stackframe::update_transform() {
+		cairo_matrix_t mat = _details::cast_matrix(matrices.top());
+		cairo_set_matrix(context, &mat);
 	}
 
 
@@ -387,10 +516,8 @@ namespace codepad::ui::cairo {
 		}
 
 		cairo_set_source_rgba(context, c.r, c.g, c.b, c.a);
-		// TODO cairo_show_glyphs
-		/*cairo_show_glyphs(context, glyphs.data(), glyphs.size());*/
-		cairo_glyph_path(context, glyphs.data(), glyphs.size());
-		cairo_fill(context);
+		// TODO the text flickers, seems that wrong font sizes are used for certain glyphs
+		cairo_show_glyphs(context, glyphs.data(), glyphs.size());
 	}
 
 	void renderer_base::_draw_path(
@@ -605,7 +732,7 @@ namespace codepad::ui::cairo {
 		hb_buffer_set_language(buf.get(), hb_language_from_string("en", -1));
 
 		_details::ft_check(FT_Set_Char_Size(
-			fnt._face.get(), 0, static_cast<FT_F26Dot6>(std::round(64.0 * font_size)), 0, 0
+			fnt._face.get(), 0, static_cast<FT_F26Dot6>(std::round(64.0 * font_size)), 96, 96
 		));
 		hb_font_t *hb_font = hb_ft_font_create(fnt._face.get(), nullptr);
 
@@ -613,7 +740,7 @@ namespace codepad::ui::cairo {
 
 		hb_font_destroy(hb_font);
 		return std::unique_ptr<plain_text>(new plain_text(
-			std::move(buf), fnt._face, fnt._face->size->metrics, num_chars, font_size
+			std::move(buf), fnt, fnt._face->size->metrics, num_chars, font_size
 		));
 	}
 

@@ -326,8 +326,8 @@ namespace codepad::os::direct2d {
 	void plain_text::_maybe_calculate_glyph_backmapping() const {
 		if (_cached_glyph_to_char_mapping_starting.empty()) {
 			// compute inverse map
-			_cached_glyph_to_char_mapping.resize(_glyph_count);
-			for (std::size_t i = 0; i < _glyph_count; ++i) {
+			_cached_glyph_to_char_mapping.resize(_char_count);
+			for (std::size_t i = 0; i < _char_count; ++i) {
 				_cached_glyph_to_char_mapping[i] = i;
 			}
 			std::sort(
@@ -346,7 +346,7 @@ namespace codepad::os::direct2d {
 			std::size_t pos = 0;
 			for (std::size_t i = 0; i < _glyph_count; ++i) {
 				_cached_glyph_to_char_mapping_starting.emplace_back(pos);
-				while (pos < _glyph_count && _cluster_map[_cached_glyph_to_char_mapping[pos]] == i) {
+				while (pos < _char_count && _cluster_map[_cached_glyph_to_char_mapping[pos]] == i) {
 					++pos;
 				}
 			}
@@ -371,7 +371,7 @@ namespace codepad::os::direct2d {
 
 		return rectd::from_xywh(
 			left, 0.0,
-			width, (metrics.ascent + metrics.descent) / static_cast<double>(metrics.designUnitsPerEm)
+			width, _font_size * (metrics.ascent + metrics.descent) / static_cast<double>(metrics.designUnitsPerEm)
 		);
 	}
 

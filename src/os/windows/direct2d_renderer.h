@@ -136,6 +136,8 @@ namespace codepad::os::direct2d {
 	};
 
 	/// Stores a piece of text analyzed using \p IDWriteTextAnalyzer.
+	///
+	/// \todo This is a mess.
 	class plain_text : public ui::plain_text {
 		friend renderer;
 	public:

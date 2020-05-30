@@ -30,6 +30,7 @@ namespace codepad::ui::cairo {
 	class font;
 	class font_family;
 	class renderer_base;
+	class plain_text;
 
 	namespace _details {
 		/// Checks the given Freetype return value.
@@ -42,18 +43,6 @@ namespace codepad::ui::cairo {
 				*/
 				assert_true_sys(false, "Freetype error");
 			}
-		}
-
-		/// Converts a \ref matd3x3 to a \p cairo_matrix_t.
-		inline static cairo_matrix_t cast_matrix(matd3x3 m) {
-			cairo_matrix_t result;
-			result.xx = m[0][0];
-			result.xy = m[0][1];
-			result.x0 = m[0][2];
-			result.yx = m[1][0];
-			result.yy = m[1][1];
-			result.y0 = m[1][2];
-			return result;
 		}
 
 		/// Reference-counted handle of a GTK-related object.
@@ -183,69 +172,6 @@ namespace codepad::ui::cairo {
 			res.set_give(face);
 			return res;
 		}
-
-		/// Converts a component of a color to a \p guint16.
-		inline guint16 cast_color_component(double c) {
-			return static_cast<guint16>(std::round(c * std::numeric_limits<guint16>::max()));
-		}
-
-		/// Converts a \ref horizontal_text_alignment to a \p PangoAlignment.
-		inline PangoAlignment cast_horizontal_alignment(horizontal_text_alignment align) {
-			switch (align) {
-			// FIXME front & rear does not have exactly the same semantics as left & right
-			case horizontal_text_alignment::front:
-				return PANGO_ALIGN_LEFT;
-			case horizontal_text_alignment::rear:
-				return PANGO_ALIGN_RIGHT;
-			case horizontal_text_alignment::center:
-				return PANGO_ALIGN_CENTER;
-			}
-			return PANGO_ALIGN_LEFT;
-		}
-		/// Converts a \ref font_style to a \p PangoStyle.
-		inline PangoStyle cast_font_style(font_style style) {
-			switch (style) {
-			case font_style::normal:
-				return PANGO_STYLE_NORMAL;
-			case font_style::italic:
-				return PANGO_STYLE_ITALIC;
-			case font_style::oblique:
-				return PANGO_STYLE_OBLIQUE;
-			}
-			return PANGO_STYLE_NORMAL;
-		}
-		/// Converts a \ref font_style to a Fontconfig font slant.
-		inline int cast_font_style_fontconfig(font_style style) {
-			switch (style) {
-			case font_style::normal:
-				return FC_SLANT_ROMAN;
-			case font_style::italic:
-				return FC_SLANT_ITALIC;
-			case font_style::oblique:
-				return FC_SLANT_OBLIQUE;
-			}
-			return FC_SLANT_ROMAN;
-		}
-		/// Converts a \ref font_weight to a \p PangoWeight.
-		inline PangoWeight cast_font_weight(font_weight weight) {
-			// TODO
-			return PANGO_WEIGHT_NORMAL;
-		}
-		/// Converts a \ref font_weight to a Fontconfig weight.
-		inline int cast_font_weight_fontconfig(font_weight weight) {
-			// TODO
-			return FC_WEIGHT_NORMAL;
-		}
-		/// Converts a \ref font_stretch to a \p PangoStretch.
-		inline PangoStretch cast_font_stretch(font_stretch stretch) {
-			// TODO
-			return PANGO_STRETCH_NORMAL;
-		}
-		/// Converts a \ref font_stretch to a Fontconfig width.
-		inline int cast_font_stretch_fontconfig(font_stretch stretch) {
-			// TODO
-			return FC_WIDTH_NORMAL;
-		}
 	}
 
 	/// A Cairo surface used as a source.
@@ -321,15 +247,16 @@ namespace codepad::ui::cairo {
 	class font : public ui::font {
 		friend renderer_base;
 		friend font_family;
+		friend plain_text;
 	public:
 		/// Returns the ascender of the font.
 		[[nodiscard]] double get_ascent_em() const override {
-			// TODO these fields are only relevant for scalable font formats
+			// FIXME these fields are only relevant for scalable font formats
 			return _into_em(static_cast<double>(_face->ascender));
 		}
 		/// Returns the distance between consecutive baselines.
 		[[nodiscard]] double get_line_height_em() const override {
-			// TODO these fields are only relevant for scalable font formats
+			// FIXME these fields are only relevant for scalable font formats
 			return _into_em(static_cast<double>(_face->ascender));
 		}
 
@@ -360,6 +287,8 @@ namespace codepad::ui::cairo {
 		}
 	};
 
+	// TODO binary editor performance is completely fucked because harfbuzz fonts are created on demand, which causes
+	//      caches to be rebuilt every time i guess
 	/// Holds a Fontconfig pattern.
 	class font_family : public ui::font_family {
 		friend renderer_base;
@@ -384,45 +313,49 @@ namespace codepad::ui::cairo {
 	public:
 		/// Returns the total width of this text clip.
 		[[nodiscard]] double get_width() const override {
-			_maybe_calculate_glyph_positions();
-			return _cached_glyph_positions.back();
+			_maybe_calculate_block_map();
+			return _cached_block_positions.back();
 		}
 
 		/// Retrieves information about the character that is below the given horizontal position.
-		[[nodiscard]] caret_hit_test_result hit_test(double) const override {
-			return caret_hit_test_result();
-		}
+		[[nodiscard]] caret_hit_test_result hit_test(double x) const override;
 		/// Returns the space occupied by the character at the given position.
-		[[nodiscard]] rectd get_character_placement(std::size_t) const override {
-			return rectd();
-		}
+		[[nodiscard]] rectd get_character_placement(std::size_t i) const override;
 	protected:
-		/// Fills \ref _cached_glyph_positions if necessary.
-		void _maybe_calculate_glyph_positions() const;
-		/// Fills \ref _cached_cluster_map if necessary.
-		void _maybe_calculate_cluster_map() const;
+		/// Fills \ref _cached_first_char_of_block and \ref _cached_block_positions if necessary.
+		void _maybe_calculate_block_map() const;
 
-		/// Mapping from character indices to glyph indices.
-		mutable std::vector<std::size_t> _cached_cluster_map;
-		/// The positions of the left borders of all glyphs. This array has one additional element at the back - the
-		/// total width of this clip.
-		mutable std::vector<double> _cached_glyph_positions;
+		/// Mapping from blocks to the index of the first character in every block. This array has one additional
+		/// element at the end that is the total number of characters.
+		mutable std::vector<std::size_t> _cached_first_char_of_block;
+		/// The positions of the left borders of all blocks. A block is a consecutive set of glyphs that share the
+		/// same cluster value. This array has one additional element at the end that is the total width of the
+		/// text clip.
+		mutable std::vector<double> _cached_block_positions;
 
 		_details::gtk_object_ref<hb_buffer_t> _buffer; ///< The harfbuzz buffer.
 		_details::freetype_face_ref _font; ///< The font.
 		std::size_t _num_characters = 0; ///< The number of characters in this clip of text.
-		double _font_size = 0.0; ///< Originally required font size.
-		double _x_scale = 0.0; ///< Used to convert horizontal width from font units into pixels.
-		double _ascender = 0.0; ///< Ascender in pixels.
+		double
+			_font_size = 0.0, ///< Originally required font size.
+			_x_scale = 0.0, ///< Used to convert horizontal width from font units into device-independent pixels.
+			_ascender = 0.0, ///< Ascender in device-independent pixels.
+			_height = 0.0; ///< Font height in device-independent pixels.
+
 
 		/// Directly initializes \ref _buffer.
-		explicit plain_text(
-			_details::gtk_object_ref<hb_buffer_t> buf, _details::freetype_face_ref fnt,
+		plain_text(
+			_details::gtk_object_ref<hb_buffer_t> buf, const font &fnt,
 			const FT_Size_Metrics &size_info, std::size_t nchars, double font_size
-		) : _buffer(std::move(buf)), _font(std::move(fnt)), _num_characters(nchars), _font_size(font_size) {
+		) : _buffer(std::move(buf)), _font(fnt._face), _num_characters(nchars), _font_size(font_size) {
 			_x_scale = size_info.x_scale / 64.0;
 			_ascender = size_info.ascender / 64.0;
+			_height = fnt._into_em(_font->height) * font_size;
 		}
+
+		/// Returns the width of a character at the specified block. This function assumes that
+		/// \ref _cached_first_char_of_block and \ref _cached_block_positions has been calculated.
+		[[nodiscard]] double _get_part_width(std::size_t block) const;
 	};
 
 	/// Allows for the user to build a path for a \p cairo_t.
@@ -462,6 +395,9 @@ namespace codepad::ui::cairo {
 		/// Initializes the Pango context.
 		renderer_base() {
 			_pango_context.set_give(pango_font_map_create_context(pango_cairo_font_map_get_default()));
+			// FIXME on windows, only fonts installed system-wide can be discovered
+			//       fonts that are installed for one user cannot be found
+			//       https://gitlab.freedesktop.org/fontconfig/fontconfig/-/issues/144
 			assert_true_sys(FcInit(), "failed to initialize Fontconfig");
 			_details::ft_check(FT_Init_FreeType(&_freetype));
 		}
@@ -667,10 +603,7 @@ namespace codepad::ui::cairo {
 			}
 
 			/// Updates the transform matrix of the context.
-			void update_transform() {
-				cairo_matrix_t mat = _details::cast_matrix(matrices.top());
-				cairo_set_matrix(context, &mat);
-			}
+			void update_transform();
 
 			std::stack<matd3x3> matrices; ///< The stack of matrices.
 			/// The cairo context. Here we're using raw pointers for the same reason as in

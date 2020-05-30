@@ -201,7 +201,8 @@ namespace codepad::ui {
 		virtual void set_font_stretch(font_stretch, std::size_t, std::size_t) = 0;
 	};
 
-	/// A font in a font family.
+	/// A font in a font family. The "EM unit" used here is slightly different from the Wikipedia definition:
+	/// multiplying the EM unit by font size gives the length in device-independent pixels.
 	class font {
 	public:
 		/// Default virtual destructor.
