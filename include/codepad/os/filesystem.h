@@ -80,7 +80,12 @@ namespace codepad::os {
 #endif
 
 		/// The value of an empty handle.
-		const static native_handle_t empty_handle;
+		constexpr static native_handle_t empty_handle =
+#if defined(CP_PLATFORM_WINDOWS)
+			INVALID_HANDLE_VALUE;
+#elif defined(CP_PLATFORM_UNIX)
+			-1;
+#endif
 
 		/// Initializes the \ref file to empty.
 		file() = default;

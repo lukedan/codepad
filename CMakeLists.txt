@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.15)
 project(codepad)
 
+cmake_policy(SET CMP0092 NEW) # don't add /W3 for MSVC
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 
 # options
-
 # plugin interface
 set(ENABLE_APIGEN NO CACHE BOOL "Whether to generate and build the plugin interface using apigen.")
 set(APIGEN_PATH "./apigen" CACHE FILEPATH "Path to the apigen executable.")
@@ -19,78 +20,15 @@ endif()
 # backtrace
 set(ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing backtraces.")
 
-# don't add /W3 for MSVC
-cmake_policy(SET CMP0092 NEW)
 
-
-# packages
-find_package(RapidJSON CONFIG REQUIRED)
-
-if(USE_CAIRO)
-	find_package(Freetype REQUIRED)
-	find_package(Fontconfig REQUIRED)
-	if(WIN32)
-		find_package(unofficial-cairo CONFIG REQUIRED)
-		add_library(Cairo::Cairo INTERFACE IMPORTED)
-		target_link_libraries(Cairo::Cairo INTERFACE unofficial::cairo::cairo unofficial::cairo::cairo-gobject)
-
-		# the cairo renderer depends on Pango for text shaping
-		# pango include dir
-		find_path(Pango_INCLUDE_DIR
-			NAMES pango/pango.h
-			PATHS ${Pango_PKGCONF_INCLUDE_DIRS}
-			PATH_SUFFIXES pango-1.0)
-		# pango libs
-		find_library(Pango_LIBRARY
-			NAMES pango-1.0
-			PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
-		find_library(PangoCairo_LIBRARY
-			NAMES pangocairo-1.0
-			PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
-		# create target
-		add_library(Pango::Pango INTERFACE IMPORTED)
-
-		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
-		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
-
-		find_package(harfbuzz REQUIRED)
-		find_package(unofficial-glib CONFIG REQUIRED)
-		target_link_libraries(Pango::Pango INTERFACE harfbuzz::harfbuzz unofficial::glib::gobject)
-	else()
-		find_package(Cairo REQUIRED)
-		add_library(Cairo::Cairo INTERFACE IMPORTED)
-		target_include_directories(Cairo::Cairo INTERFACE ${CAIRO_INCLUDE_DIRS})
-		target_link_libraries(Cairo::Cairo INTERFACE ${CAIRO_LIBRARIES})
-
-		find_package(PkgConfig REQUIRED)
-		pkg_check_modules(harfbuzz REQUIRED IMPORTED_TARGET harfbuzz)
-
-		find_package(Pango REQUIRED)
-		add_library(Pango::Pango INTERFACE IMPORTED)
-		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
-		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY} PkgConfig::harfbuzz)
-	endif()
-endif()
-
-if(UNIX)
-	find_package(Fontconfig REQUIRED)
-	if(USE_GTK)
-		find_package(GTK3 REQUIRED)
-	else()
-		find_package(X11 REQUIRED)
-	endif()
-endif()
-
-
-# main executable
+# main shared library
 add_executable(codepad)
-
-target_compile_features(codepad
-	PRIVATE cxx_std_20)
+target_compile_features(codepad PUBLIC cxx_std_20)
 target_sources(codepad
 	PRIVATE
 		"src/core/globals.cpp"
 		"src/core/logger_sinks.cpp"
+		"src/core/logging.cpp"
 		"src/core/plugins.cpp"
 		"src/core/profiling.cpp"
 		"src/core/setting_entries.cpp"
@@ -125,20 +63,30 @@ target_sources(codepad
 		"src/ui/hotkey_registry.cpp"
 		"src/ui/manager.cpp"
 		"src/ui/misc.cpp"
-		"src/ui/native_commands.cpp"
+		
 		"src/ui/panel.cpp"
 		"src/ui/renderer.cpp"
 		"src/ui/scheduler.cpp"
 		"src/ui/window.cpp"
-
+		
 		"src/main.cpp")
+
+target_include_directories(codepad PUBLIC "include/")
+
+# compile definitions
 target_compile_definitions(codepad
-	PRIVATE UNICODE _UNICODE)
+	PUBLIC UNICODE _UNICODE)
 if(ENABLE_BACKTRACE)
 	target_compile_definitions(codepad
-		PRIVATE CP_LOG_STACKTRACE)
+		PUBLIC CP_LOG_STACKTRACE)
+endif()
+if(USE_CAIRO)
+	target_compile_definitions(codepad
+		PUBLIC CP_USE_CAIRO)
 endif()
 
+# enable export so that plugins can link to the executable
+set_target_properties(codepad PROPERTIES ENABLE_EXPORTS YES)
 
 # set warning level
 if(MSVC)
@@ -149,16 +97,11 @@ elseif(CMAKE_COMPILER_IS_GNUCXX)
 		PRIVATE -Wall -Wextra -Wconversion)
 endif()
 
-
 # libraries
+find_package(RapidJSON CONFIG REQUIRED)
 target_include_directories(codepad
-	PRIVATE ${RAPIDJSON_INCLUDE_DIRS})
-if(USE_CAIRO)
-	target_compile_definitions(codepad
-		PRIVATE CP_USE_CAIRO)
-	target_link_libraries(codepad
-		PRIVATE Cairo::Cairo Pango::Pango Freetype::Freetype Fontconfig::Fontconfig)
-endif()
+	PUBLIC ${RAPIDJSON_INCLUDE_DIRS})
+
 # platform dependent sources & settings
 if(WIN32)
 	target_sources(codepad
@@ -170,9 +113,10 @@ if(WIN32)
 			"src/os/windows/window.cpp"
 			"src/os/windows/windows.cpp")
 	target_compile_definitions(codepad
-		PRIVATE CP_PLATFORM_WINDOWS NOMINMAX OEMRESOURCE)
+		PUBLIC CP_PLATFORM_WINDOWS NOMINMAX OEMRESOURCE)
 	target_link_libraries(codepad
 		PRIVATE gdi32 dwrite d3d11 d2d1 shlwapi Dwmapi imm32 windowscodecs)
+	set_target_properties(codepad PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS YES)
 
 	if(CMAKE_COMPILER_IS_GNUCXX)
 		target_compile_options(codepad
@@ -184,6 +128,40 @@ if(WIN32)
 #		target_compile_options(codepad
 #			PRIVATE /Bt /d1reportTime /d2cgsummary)
 	endif()
+
+	# finding cairo and dependencies on windows is quite different from finding cairo on linux
+	if(USE_CAIRO)
+		find_package(Freetype REQUIRED)
+		find_package(Fontconfig REQUIRED)
+		find_package(harfbuzz REQUIRED)
+		find_package(unofficial-glib CONFIG REQUIRED)
+		find_package(unofficial-cairo CONFIG REQUIRED)
+
+		# the cairo renderer depends on Pango for text shaping
+		# pango include dir
+		find_path(Pango_INCLUDE_DIR
+			NAMES pango/pango.h
+			PATHS ${Pango_PKGCONF_INCLUDE_DIRS}
+			PATH_SUFFIXES pango-1.0)
+		# pango libs
+		find_library(Pango_LIBRARY
+			NAMES pango-1.0
+			PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
+		find_library(PangoCairo_LIBRARY
+			NAMES pangocairo-1.0
+			PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
+		# create target
+		add_library(Pango::Pango INTERFACE IMPORTED)
+		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
+		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
+
+		target_link_libraries(codepad
+			PRIVATE
+				unofficial::cairo::cairo unofficial::cairo::cairo-gobject
+				Pango::Pango harfbuzz::harfbuzz
+				Freetype::Freetype Fontconfig::Fontconfig
+				unofficial::glib::gobject)
+	endif()
 elseif(UNIX)
 	target_sources(codepad
 		PRIVATE
@@ -191,7 +169,7 @@ elseif(UNIX)
 			"src/os/linux/filesystem.cpp"
 			"src/os/linux/linux.cpp")
 	target_compile_definitions(codepad
-		PRIVATE CP_PLATFORM_UNIX)
+		PUBLIC CP_PLATFORM_UNIX)
 	target_link_libraries(codepad
 		PRIVATE dl pthread) # TODO why link pthread?
 	if(ENABLE_BACKTRACE)
@@ -204,24 +182,53 @@ elseif(UNIX)
 			PRIVATE
 				"src/os/linux/gtk/linux.cpp")
 		target_compile_definitions(codepad
-			PRIVATE CP_USE_GTK)
+			PUBLIC CP_USE_GTK)
+		find_package(GTK3 REQUIRED)
 		target_link_libraries(codepad
 			PRIVATE Gtk3::Gtk)
 	else()
 		target_sources(codepad
 			PRIVATE
 				"src/os/linux/x11/linux.cpp")
+		find_package(X11 REQUIRED)
 		target_link_libraries(codepad
 			PRIVATE ${X11_LIBRARIES})
+	endif()
+
+	if(USE_CAIRO)
+		find_package(Freetype REQUIRED)
+		find_package(Fontconfig REQUIRED)
+		find_package(Cairo REQUIRED)
+		find_package(Pango REQUIRED)
+
+		# FIXME simply find_package does not work on ubuntu 18.04
+		find_package(PkgConfig REQUIRED)
+		pkg_check_modules(harfbuzz REQUIRED IMPORTED_TARGET harfbuzz)
+
+		add_library(Cairo::Cairo INTERFACE IMPORTED)
+		target_include_directories(Cairo::Cairo INTERFACE ${CAIRO_INCLUDE_DIRS})
+		target_link_libraries(Cairo::Cairo INTERFACE ${CAIRO_LIBRARIES})
+
+		add_library(Pango::Pango INTERFACE IMPORTED)
+		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
+		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
+
+		target_link_libraries(codepad
+			PRIVATE
+				Cairo::Cairo Pango::Pango PkgConfig::harfbuzz Freetype::Freetype Fontconfig::Fontconfig)
 	endif()
 else()
 	message(FATAL_ERROR "unrecognized platform")
 endif()
 
-if(CMAKE_COMPILER_IS_GNUCXX) # TODO rid of this after filesystem support is complete
+if(CMAKE_COMPILER_IS_GNUCXX) # gcc needs this for filesystem to work
 	target_link_libraries(codepad
 		PRIVATE stdc++fs)
 endif()
+
+
+# import plugin targets
+add_subdirectory("plugins/command_pack/")
 
 
 # codegen
@@ -339,8 +346,4 @@ if(${ENABLE_APIGEN})
 	# dependency target for plugins
 	add_custom_target(codepad_api_header
 		DEPENDS "${API_HEADER_PATH}" "${SIZES_ALIGNMENTS_PATH}")
-
-	# import plugin targets
-	include(plugins/command_pack/CMakeLists.txt)
-	add_dependencies(codepad command_pack)
 endif()

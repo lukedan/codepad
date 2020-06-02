@@ -4,12 +4,12 @@
 /// \file
 /// Implementation of dynamic library loader on Windows.
 
-#include "../dynamic_library.h"
+#include "codepad/os/dynamic_library.h"
 
 #include <Windows.h>
 
-#include "misc.h"
-#include "../../core/logging.h"
+#include "codepad/os/windows/misc.h"
+#include "codepad/core/logging.h"
 
 namespace codepad::os {
 	const dynamic_library::native_handle_t dynamic_library::empty_handle = nullptr;

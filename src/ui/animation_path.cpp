@@ -1,15 +1,15 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "animation_path.h"
+#include "codepad/ui/animation_path.h"
 
 /// \file
 /// Implementation of certain methods used when controlling the animations of elements.
 ///
 /// \todo Use reflection.
 
-#include "element.h"
-#include "manager.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/manager.h"
 
 namespace codepad::ui::animation_path {
 	std::u8string to_string(component_list::const_iterator begin, component_list::const_iterator end) {
@@ -34,29 +34,6 @@ namespace codepad::ui::animation_path {
 	}
 
 	namespace builder {
-		/*/// Member access for basic element properties.
-		template <typename Comp, element_property_type Type> class element_property_member_access :
-			public component_member_access<Comp> {
-		public:
-			using input_type = typename Comp::input_type; ///< The input type.
-			using output_type = typename Comp::output_type; ///< The output type.
-
-			/// Forwarding constructor.
-			explicit element_property_member_access(Comp comp) : component_member_access<Comp>(std::move(comp)) {
-			}
-
-			/// Creates a \ref animation_subject_base for the given \ref element.
-			std::unique_ptr<animation_subject_base> create_for_source(input_type &elem) const override {
-				if constexpr (std::is_same_v<input_type, element>) { // only support elements
-					return std::make_unique<element_member_access_subject<output_type, Type>>(*this, elem);
-				} else {
-					return nullptr;
-				}
-			}
-
-			// TODO equality?
-		};*/
-
 		/// Checks that \ref component::type is either empty or the specified type.
 		inline void check_type(const component &comp, std::u8string_view target) {
 			if (!comp.is_type_or_empty(target)) {
@@ -329,15 +306,15 @@ namespace codepad::ui::animation_path {
 
 			if constexpr (Count < 1) {
 				if (begin->property == u8"children" && begin->index.has_value()) {
-					auto &&nextcomp = getter_components::pair(
+					auto nextcomp = getter_components::pair(
 						getter_components::pair(
 							comp, getter_components::member_component<&transforms::collection::components>()
 						),
 						getter_components::array_component<transforms::generic>(begin->index.value())
 					);
-					return CP_APB_GETTER_NAME(transform)<MemberAccess, std::decay_t<decltype(nextcomp)>, Count + 1>(
-						++begin, end, nextcomp
-						);
+					return CP_APB_GETTER_NAME(transform)<
+						MemberAccess, std::decay_t<decltype(nextcomp)>, Count + 1
+					>(++begin, end, nextcomp);
 				}
 			}
 		CP_APB_END_GETTER
@@ -360,7 +337,7 @@ namespace codepad::ui::animation_path {
 			CP_APB_TRY_FORWARD_VARIANT(transforms::translation, translation_transform);
 			CP_APB_TRY_FORWARD_VARIANT(transforms::scale, scale_transform);
 			CP_APB_TRY_FORWARD_VARIANT(transforms::rotation, rotation_transform);
-			if (begin->type == u8"transform_collection") {
+			/*if (begin->type == u8"transform_collection") {
 				CP_APB_NO_INDEX;
 				auto &&nextcomp = getter_components::pair(
 					getter_components::pair(
@@ -371,7 +348,7 @@ namespace codepad::ui::animation_path {
 				return CP_APB_GETTER_NAME(transform_collection)<
 					MemberAccess, std::decay_t<decltype(nextcomp)>, Count
 				>(begin, end, nextcomp);
-			}
+			}*/
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
@@ -611,50 +588,5 @@ namespace codepad::ui::animation_path {
 			CP_APB_TRY_FORWARD_MEMBER(height_alloc, size_allocation_type);
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
-
-
-		/*template <element_property_type Type> struct _wrapper {
-			template <typename Comp> using type = element_property_member_access<Comp, Type>;
-		};
-
-		member_information<element> get_common_element_property(
-			component_list::const_iterator begin, component_list::const_iterator end
-		) {
-			using Comp = getter_components::member_component<&element::_params>;
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			check_type(*begin, u8"element");
-
-			if (begin->property == u8"visuals") {
-				return get_visuals_property<_wrapper<element_property_type::visual_only>::type>(
-					++begin, end, getter_components::pair(
-						getter_components::member_component<&element::_params>(),
-						getter_components::member_component<&element_parameters::visual_parameters>()
-					));
-			}
-			if (begin->property == u8"layout") {
-				return get_element_layout_property<_wrapper<element_property_type::affects_layout>::type>(
-					++begin, end, getter_components::pair(
-						getter_components::member_component<&element::_params>(),
-						getter_components::member_component<&element_parameters::layout_parameters>()
-					));
-			}
-			if (begin->property == u8"cursor") {
-				CP_APB_NO_INDEX;
-				return get_cursor_property<component_member_access>(
-					++begin, end, getter_components::pair(
-						getter_components::member_component<&element::_params>(),
-						getter_components::member_component<&element_parameters::custom_cursor>()
-					));
-			}
-			if (begin->property == u8"visibility") {
-				CP_APB_NO_INDEX;
-				return get_visibility_property<_wrapper<element_property_type::affects_layout>::type>(
-					++begin, end, getter_components::pair(
-						getter_components::member_component<&element::_params>(),
-						getter_components::member_component<&element_parameters::element_visibility>()
-					));
-			}
-			return member_information<element>();
-		}*/
 	}
 }

@@ -8,8 +8,10 @@
 #include <Shlwapi.h>
 #include <processthreadsapi.h>
 
-#include "../../core/logger_sinks.h"
-#include "../windows.h"
+#include "codepad/core/logger_sinks.h"
+#include "codepad/ui/manager.h"
+#include "codepad/os/windows/misc.h"
+#include "codepad/os/windows/window.h"
 
 #ifdef _MSC_VER
 #	define CP_CAN_DETECT_MEMORY_LEAKS

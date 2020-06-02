@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "host.h"
+#include "codepad/ui/elements/tabs/host.h"
 
 /// \file
 /// Implementation of certain functions related to tab hosts.
 
-#include "manager.h"
+#include "codepad/ui/elements/tabs/manager.h"
 
 namespace codepad::ui::tabs {
 	class_arrangements::notify_mapping drag_destination_selector::_get_child_notify_mapping() {

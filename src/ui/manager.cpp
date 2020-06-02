@@ -1,26 +1,27 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "manager.h"
+#include "codepad/ui/manager.h"
 
 /// \file
 /// Implementation of certain methods of codepad::ui::manager.
 
 #include <deque>
 
-#include "window.h"
-#include "element.h"
-#include "panel.h"
-#include "native_commands.h"
-#include "elements/tabs/manager.h"
-#include "elements/tabs/animated_tab_button_panel.h"
-#include "../editors/code/contents_region.h"
-#include "../editors/code/minimap.h"
-#include "../editors/code/line_number_display.h"
-#include "../editors/binary/contents_region.h"
-#include "../editors/binary/components.h"
+#include "codepad/ui/window.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
+#include "codepad/ui/elements/tabs/manager.h"
+#include "codepad/ui/elements/tabs/animated_tab_button_panel.h"
+#include "codepad/editors/code/contents_region.h"
+#include "codepad/editors/code/minimap.h"
+#include "codepad/editors/code/line_number_display.h"
+#include "codepad/editors/binary/contents_region.h"
+#include "codepad/editors/binary/components.h"
 
 namespace codepad::ui {
+	manager *manager::_global = nullptr;
+
 	manager::manager(settings &s) : _settings(s) {
 		// TODO use reflection in C++23 (?) for everything below
 		register_transition_function(u8"linear", transition_functions::linear);
@@ -55,7 +56,6 @@ namespace codepad::ui {
 		register_element_type<editors::binary::primary_offset_display>();
 
 
-		native_commands::register_all(_commands);
 		_scheduler.get_hotkey_listener().triggered += [this](hotkey_info &info) {
 			const auto *cmd = _commands.try_find_command(info.command);
 			if (cmd) {
@@ -102,5 +102,13 @@ namespace codepad::ui {
 			}
 		}
 		return elem;
+	}
+
+	void manager::set_global(manager &m) {
+		_global = &m;
+	}
+
+	manager &manager::get() {
+		return *_global;
 	}
 }

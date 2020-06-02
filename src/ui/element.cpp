@@ -1,15 +1,15 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "element.h"
+#include "codepad/ui/element.h"
 
 /// \file
 /// Implementation of certain methods related to ui::element.
 
-#include "../os/misc.h"
-#include "window.h"
-#include "panel.h"
-#include "manager.h"
+#include "codepad/os/misc.h"
+#include "codepad/ui/window.h"
+#include "codepad/ui/panel.h"
+#include "codepad/ui/manager.h"
 
 namespace codepad::ui {
 	vec2d mouse_position::get(element &e) const {

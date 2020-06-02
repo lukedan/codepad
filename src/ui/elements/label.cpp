@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "label.h"
+#include "codepad/ui/elements/label.h"
 
 /// \file
 /// Implementation of labels.
 
-#include "../manager.h"
+#include "codepad/ui/manager.h"
 
 namespace codepad::ui {
 	const property_mapping &label::get_properties() const {

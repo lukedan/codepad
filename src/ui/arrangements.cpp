@@ -1,14 +1,14 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "arrangements.h"
+#include "codepad/ui/arrangements.h"
 
 /// \file
 /// Implementation of certain methods related to arrangement configurations.
 
-#include "element.h"
-#include "panel.h"
-#include "manager.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
+#include "codepad/ui/manager.h"
 
 namespace codepad::ui {
 	/// Data relavent to the starting of animations. Shared pointers are used to allow for duplication.

@@ -39,6 +39,8 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Called to update the mouse position.
+		///
+		/// \todo Find a better way to tell the window behind.
 		void update(mouse_move_info &p) {
 			_on_mouse_move(p);
 		}

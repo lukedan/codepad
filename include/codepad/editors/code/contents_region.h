@@ -8,8 +8,8 @@
 
 #include <memory>
 
-#include "../../core/bst.h"
-#include "../../core/settings.h"
+#include "codepad/core/bst.h"
+#include "codepad/core/settings.h"
 #include "../caret_rendering.h"
 #include "../editor.h"
 #include "../interaction_modes.h"

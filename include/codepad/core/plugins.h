@@ -33,6 +33,12 @@ namespace codepad {
 		/// Attaches this plugin to the given \ref plugin_manager and loads the plugin. During the lifetime of this
 		/// plugin, this function will be called exactly once.
 		virtual void initialize(plugin_manager&) = 0;
+		/// Finalizes the plugin. \ref disable() will (should) be called first if the plugin is currently enabled.
+		virtual void finalize() {
+			if (_enabled) {
+				disable();
+			}
+		}
 
 		/// Returns the name of this plugin. Call this only after this plugin has been initialized.
 		virtual std::u8string get_name() const = 0;
@@ -76,16 +82,15 @@ namespace codepad {
 		}
 		/// Attaches the given plugin to this manager and initialize it. If a plugin with the given name already
 		/// exists, the plugin in the argument will be destroyed, and the existing plugin will be returned.
-		plugin &attach(std::unique_ptr<plugin> p) {
-			p->initialize(*this);
-			auto [it, inserted] = _plugins.try_emplace(p->get_name(), std::move(p));
-			if (!inserted) {
-				// TODO decide whether to replace the old plugin
-				logger::get().log_warning(CP_HERE) <<
-					"plugin " << it->first << " already exists, the newly created one is destroyed";
-			}
-			return *it->second;
+		plugin &attach(std::unique_ptr<plugin>);
+
+		/// Returns all loaded plugins.
+		const std::map<std::u8string, std::unique_ptr<plugin>, std::less<>> &get_loaded_plugins() const {
+			return _plugins;
 		}
+
+		/// Finalizes all plugins, without unloading them.
+		void finalize_all();
 
 		/// Returns the global plugin manager.
 		static plugin_manager &get();
@@ -103,6 +108,7 @@ namespace codepad {
 	public:
 		/// Function pointer type used to initialize the plugin.
 		using initialize_func_t = void (*)();
+		using finalize_func_t = void (*)(); ///< Function pointer used to finalize the plugin.
 		using get_name_func_t = const char8_t *(*)(); ///< Function pointer used to retrieve the name of a plugin.
 		using enable_func_t = void (*)(); ///< Function pointer used to enable the plugin.
 		using disable_func_t = void (*)(); ///< Function pointer used to disable the plugin.
@@ -112,6 +118,7 @@ namespace codepad {
 		explicit native_plugin(const std::filesystem::path &path) : _lib(path) {
 			if (_lib.valid()) {
 				_init = _lib.find_symbol<initialize_func_t>(u8"initialize");
+				_finalize = _lib.find_symbol<finalize_func_t>(u8"finalize");
 				_get_name = _lib.find_symbol<get_name_func_t>(u8"get_name");
 				_enable = _lib.find_symbol<enable_func_t>(u8"enable");
 				_disable = _lib.find_symbol<disable_func_t>(u8"disable");
@@ -123,7 +130,7 @@ namespace codepad {
 		bool valid() const {
 			return
 				_lib.valid() &&
-				_init != nullptr && _get_name != nullptr &&
+				_init != nullptr && _finalize != nullptr && _get_name != nullptr &&
 				_enable != nullptr && _disable != nullptr;
 		}
 		/// Logs the reason why this plugin is not valid.
@@ -133,6 +140,9 @@ namespace codepad {
 			} else {
 				if (_init == nullptr) {
 					logger::get().log_warning(CP_HERE) << "initialize() symbol not found in dynamic library";
+				}
+				if (_finalize == nullptr) {
+					logger::get().log_warning(CP_HERE) << "finalize() symbol not found in dynamic library";
 				}
 				if (_get_name == nullptr) {
 					logger::get().log_warning(CP_HERE) << "get_name() symbol not found in dynamic library";
@@ -148,10 +158,17 @@ namespace codepad {
 
 		/// Invokes \ref _init.
 		void initialize(plugin_manager&) override;
+		/// Invokes \ref _finalize.
+		void finalize() override {
+			plugin::finalize();
+			_finalize();
+		}
+
 		/// Invokes \ref _get_name.
 		std::u8string get_name() const override {
 			return _get_name();
 		}
+
 		/// Invokes \ref _enable.
 		void enable() override {
 			plugin::enable();
@@ -165,6 +182,7 @@ namespace codepad {
 	protected:
 		os::dynamic_library _lib; ///< Reference to the dynamic library.
 		initialize_func_t _init = nullptr; ///< The initialize function.
+		finalize_func_t _finalize = nullptr; ///< Used to finalize the plugin.
 		get_name_func_t _get_name = nullptr; ///< Used to get the name of the plugin.
 		enable_func_t _enable = nullptr; ///< Used to enable the plugin.
 		disable_func_t _disable = nullptr; ///< Used to disable the plugin.

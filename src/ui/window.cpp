@@ -1,14 +1,14 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "window.h"
+#include "codepad/ui/window.h"
 
 /// \file
 /// Implementation of certain functions of \ref codepad::ui::window_base.
 
 #include <vector>
 
-#include "manager.h"
+#include "codepad/ui/manager.h"
 
 namespace codepad::ui {
 	void window_base::set_mouse_capture(element &elem) {

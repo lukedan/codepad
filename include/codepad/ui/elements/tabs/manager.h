@@ -30,13 +30,12 @@ namespace codepad::ui::tabs {
 			_update_hosts_token = _manager.get_scheduler().register_update_task([this]() {
 				update_changed_hosts();
 				});
-
-			_drag_dest_selector = _manager.create_element<drag_destination_selector>();
 		}
 		/// Disposes \ref _drag_dest_selector, and unregisters update tasks.
 		~tab_manager() {
-			_manager.get_scheduler().mark_for_disposal(*_drag_dest_selector);
-
+			assert_true_logical(
+				_drag == nullptr, "dragging operation still in progress during tab manager disposal"
+			);
 			_manager.get_scheduler().unregister_update_task(_update_hosts_token);
 		}
 
@@ -75,18 +74,6 @@ namespace codepad::ui::tabs {
 		/// Returns \p true if there are no more \ref tab instances.
 		bool empty() const {
 			return window_count() == 0 && _drag == nullptr;
-		}
-
-		/// Sets the current \ref drag_destination_selector used among all \ref host "tab_hosts".
-		void set_drag_destination_selector(drag_destination_selector *sel) {
-			if (_drag_dest_selector) {
-				_manager.get_scheduler().mark_for_disposal(*_drag_dest_selector);
-			}
-			_drag_dest_selector = sel;
-		}
-		/// Returns the current \ref drag_destination_selector used among all \ref host "tab_hosts".
-		drag_destination_selector *get_drag_destination_selector() const {
-			return _drag_dest_selector;
 		}
 
 		/// Splits the \ref host the given \ref tab is in into two \ref host "tab_hosts" in a
@@ -181,9 +168,9 @@ namespace codepad::ui::tabs {
 		void start_dragging_tab(tab &t, vec2d diff, rectd layout) {
 			assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 
-			_drag_tab_window = dynamic_cast<window_base*>(
-				_manager.create_element(u8"window", u8"tabs.drag_ghost_window")
-				);
+			_drag_tab_window = dynamic_cast<window_base*>(_manager.create_element(
+				u8"window", u8"tabs.drag_ghost_window"
+			));
 			assert_true_logical(_drag_tab_window, "failed to create transparent window for dragging");
 			_drag_tab_window->set_display_caption_bar(false);
 			_drag_tab_window->set_display_border(false);
@@ -191,6 +178,11 @@ namespace codepad::ui::tabs {
 			_drag_tab_window->set_show_icon(false);
 			_drag_tab_window->set_topmost(true);
 			_drag_tab_window->set_client_size(t.get_button().get_layout().size());
+
+			assert_true_logical(_drag_dest_selector == nullptr, "overlapping drag operations");
+			_drag_dest_selector = dynamic_cast<drag_destination_selector*>(_manager.create_element(
+				u8"drag_destination_selector", u8"drag_destination_selector"
+			));
 
 			_drag = &t;
 			_drag_offset = diff;
@@ -585,6 +577,8 @@ namespace codepad::ui::tabs {
 
 			_drag = nullptr;
 			_drag_destination = nullptr;
+			_manager.get_scheduler().mark_for_disposal(*_drag_dest_selector);
+			_drag_dest_selector = nullptr;
 			end_drag.invoke();
 
 			// TODO maybe notify the tab of mouse up

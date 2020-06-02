@@ -1,14 +1,14 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "panel.h"
+#include "codepad/ui/panel.h"
 
 /// \file
 /// Implementation of certain methods of codepad::ui::element_collection.
 
-#include "manager.h"
-#include "scheduler.h"
-#include "window.h"
+#include "codepad/ui/manager.h"
+#include "codepad/ui/scheduler.h"
+#include "codepad/ui/window.h"
 
 namespace codepad::ui {
 	element_collection::~element_collection() {

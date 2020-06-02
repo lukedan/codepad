@@ -1,7 +1,7 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "element_parameters.h"
+#include "codepad/ui/element_parameters.h"
 
 /// \file
 /// Implementation of classes and structs used to define the layout and visual parameters of a

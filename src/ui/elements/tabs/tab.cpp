@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "tab.h"
+#include "codepad/ui/elements/tabs/tab.h"
 
 /// \file
 /// Implementation of certain functions related to tabs.
 
-#include "manager.h"
+#include "codepad/ui/elements/tabs/manager.h"
 
 namespace codepad::ui::tabs {
 	void tab_button::_on_mouse_down(mouse_button_info &p) {

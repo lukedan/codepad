@@ -18,7 +18,8 @@
 #	define PLUGIN_EXPORT
 #endif
 
-#define PLUGIN_INITIALIZE(API_STRUCT_NAME) PLUGIN_EXPORT void initialize(const PLUGIN_API_STRUCT *API_STRUCT_NAME)
+#define PLUGIN_INITIALIZE PLUGIN_EXPORT void initialize
 #define PLUGIN_GET_NAME PLUGIN_EXPORT const char *get_name
 #define PLUGIN_ENABLE PLUGIN_EXPORT void enable
 #define PLUGIN_DISABLE PLUGIN_EXPORT void disable
+#define PLUGIN_FINALIZE PLUGIN_EXPORT void finalize

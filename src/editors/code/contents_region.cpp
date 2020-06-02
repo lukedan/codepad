@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "contents_region.h"
+#include "codepad/editors/code/contents_region.h"
 
 /// \file
 /// Implementation of certain methods of \ref codepad::editors::code::contents_region.
 
-#include "fragment_generation.h"
+#include "codepad/editors/code/fragment_generation.h"
 
 namespace codepad::editors::code {
 	void contents_region::on_text_input(std::u8string_view text) {

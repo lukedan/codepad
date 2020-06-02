@@ -171,16 +171,18 @@ namespace codepad {
 
 		/// Gets the current global \ref logger.
 		inline static logger &get() {
-			return *_current;
+			return *_get_ptr();
 		}
 		/// Sets the current \ref logger.
 		inline static void set_current(std::unique_ptr<logger> c) {
-			_current = std::move(c);
+			_get_ptr() = std::move(c);
 		}
 
 		std::vector<std::unique_ptr<log_sink>> sinks; ///< Sinks that accept log entries.
 	protected:
-		static std::unique_ptr<logger> _current; ///< The currently active logger.
+		/// Returns a reference to the pointer to the global logger object. Here the object is managed automatically
+		/// since static objects may still log when cleaning up after \p main() returns.
+		static std::unique_ptr<logger> &_get_ptr();
 
 		std::chrono::high_resolution_clock::time_point _creation; ///< The time of this logger's creation.
 	};

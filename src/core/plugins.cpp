@@ -4,7 +4,7 @@
 /// \file
 /// Implementation of the plugin manager.
 
-#include "plugins.h"
+#include "codepad/core/plugins.h"
 
 #ifdef CP_ENABLE_APIGEN
 #	include CP_APIGEN_API_H
@@ -23,6 +23,23 @@ namespace codepad {
 #ifdef CP_ENABLE_APIGEN
 		delete _api_table;
 #endif
+	}
+
+	plugin &plugin_manager::attach(std::unique_ptr<plugin> p) {
+		p->initialize(*this);
+		auto [it, inserted] = _plugins.try_emplace(p->get_name(), std::move(p));
+		if (!inserted) {
+			// TODO decide whether to replace the old plugin
+			logger::get().log_warning(CP_HERE) <<
+				"plugin " << it->first << " already exists, the newly created one is destroyed";
+		}
+		return *it->second;
+	}
+
+	void plugin_manager::finalize_all() {
+		for (auto &[name, plug] : _plugins) {
+			plug->finalize();
+		}
 	}
 
 

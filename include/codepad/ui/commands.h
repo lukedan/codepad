@@ -19,17 +19,24 @@ namespace codepad::ui {
 		/// Registers a command.
 		///
 		/// \param name The name used to identify this command.
-		/// \param func The corresponding function.
+		/// \param func The corresponding function. This will not be modified if there's already a command with the
+		///             same name in this registry, otherwise the function is moved into this registry.
 		/// \return \p false if a command of the same name has already been registered, in which case the new
 		///         command will be discarded.
-		bool register_command(std::u8string name, std::function<void(element*)> func) {
-			return _cmds.emplace(std::move(name), std::move(func)).second;
+		bool register_command(const std::u8string &name, std::function<void(element*)> &func) {
+			return _cmds.try_emplace(name, std::move(func)).second;
 		}
-		/// Unregisters a command. The command must have been registered.
-		void unregister_command(const std::u8string &name) {
+		/// Unregisters a command.
+		///
+		/// \return The function associated with this command, or \p nullptr if no such command is found.
+		std::function<void(element*)> unregister_command(const std::u8string &name) {
 			auto it = _cmds.find(name);
-			assert_true_usage(it != _cmds.end(), "unregistering inexistent command");
+			if (it == _cmds.end()) {
+				return nullptr;
+			}
+			std::function<void(element*)> func = std::move(it->second);
 			_cmds.erase(it);
+			return func;
 		}
 		/// Finds the command with the given name. The command must have been registered.
 		const std::function<void(element*)> &find_command(const std::u8string &name) {
@@ -39,6 +46,23 @@ namespace codepad::ui {
 		const std::function<void(element*)> *try_find_command(const std::u8string &name) {
 			auto it = _cmds.find(name);
 			return it == _cmds.end() ? nullptr : &it->second;
+		}
+
+		/// Wraps a function that accepts a certain type of element into a function that accepts a \ref element.
+		template <typename Elem> [[nodiscard]] inline static std::function<void(element*)> convert_type(
+			std::function<void(Elem*)> f
+		) {
+			static_assert(std::is_base_of_v<element, Elem>, "invalid element type");
+			return[func = std::move(f)](element *e) {
+				Elem *te = dynamic_cast<Elem*>(e);
+				if (e != nullptr && te == nullptr) { // not the right type
+					logger::get().log_warning(CP_HERE) <<
+						"callback with invalid element type " << demangle(typeid(*e).name()) <<
+						", expected " << demangle(typeid(Elem).name());
+					return;
+				}
+				func(te);
+			};
 		}
 	protected:
 		/// The map that stores all registered commands.

@@ -1,16 +1,14 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "../filesystem.h"
+#include "codepad/os/filesystem.h"
 
 /// \file
 /// Filesystem implementation for the windows platform.
 
-#include "misc.h"
+#include "codepad/os/windows/misc.h"
 
 namespace codepad::os {
-	const file::native_handle_t file::empty_handle = INVALID_HANDLE_VALUE;
-
 	/// Transforms the given \ref access_rights into flags used by \p CreateFile().
 	inline DWORD _interpret_access_rights(access_rights acc) {
 		return

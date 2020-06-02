@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "misc.h"
+#include "codepad/ui/misc.h"
 
 /// \file
 /// Implementation of miscellaneous functionalities.
 
-#include "manager.h"
+#include "codepad/ui/manager.h"
 
 namespace codepad::ui {
 	drag_deadzone::drag_deadzone() : drag_deadzone(manager::get_drag_deadzone_radius()) {

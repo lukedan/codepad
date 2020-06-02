@@ -10,8 +10,8 @@
 #include <algorithm>
 #include <compare>
 
-#include "../core/misc.h"
-#include "../core/assert.h"
+#include "codepad/core/misc.h"
+#include "codepad/core/assert.h"
 
 namespace codepad::editors {
 	/// A caret and the associated selected region. The first element is the position of the caret,

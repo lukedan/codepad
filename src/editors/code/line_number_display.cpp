@@ -1,7 +1,7 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "line_number_display.h"
+#include "codepad/editors/code/line_number_display.h"
 
 /// \file
 /// Implementation of the line number display.

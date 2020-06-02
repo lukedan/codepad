@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "caret_set.h"
+#include "codepad/editors/code/caret_set.h"
 
 /// \file
 /// Implementation of certain methods of \ref codepad::editors::code::caret_set.
 
-#include "interpretation.h"
+#include "codepad/editors/code/interpretation.h"
 
 namespace codepad::editors::code {
 	void caret_set::calculate_byte_positions(const interpretation &interp) {

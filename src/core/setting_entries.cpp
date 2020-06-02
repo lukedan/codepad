@@ -4,10 +4,10 @@
 /// \file
 /// Global definitions of getters for setting entries.
 
-#include "settings.h"
-#include "../editors/editor.h"
-#include "../editors/code/contents_region.h"
-#include "../editors/binary/contents_region.h"
+#include "codepad/core/settings.h"
+#include "codepad/editors/editor.h"
+#include "codepad/editors/code/contents_region.h"
+#include "codepad/editors/binary/contents_region.h"
 
 namespace codepad {
 	/// A setting that handles the case of multiple \ref settings objects. Note that actually using mutliple

@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "button.h"
+#include "codepad/ui/elements/button.h"
 
 /// \file
 /// Implementation of buttons.
 
-#include "../window.h"
+#include "codepad/ui/window.h"
 
 namespace codepad::ui {
 	void button::_on_mouse_down(mouse_button_info &p) {

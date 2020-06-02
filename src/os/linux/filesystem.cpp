@@ -15,8 +15,6 @@
 #include "../../core/misc.h"
 
 namespace codepad::os {
-	const file::native_handle_t file::empty_handle = -1;
-
 	/// Transforms the given \ref access_rights into flags used by \p open().
 	inline int _interpret_access_rights(access_rights acc) {
 		switch (acc) {

@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "stack_panel.h"
+#include "codepad/ui/elements/stack_panel.h"
 
 /// \file
 /// Implementation of stack panels.
 
-#include "../manager.h"
+#include "codepad/ui/manager.h"
 
 namespace codepad::ui {
 	const property_mapping &stack_panel::get_properties() const {

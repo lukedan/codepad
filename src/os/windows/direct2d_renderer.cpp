@@ -1,7 +1,7 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "direct2d_renderer.h"
+#include "codepad/os/windows/direct2d_renderer.h"
 
 /// \file
 /// Implementation of the Direct2D renderer.
@@ -696,7 +696,7 @@ namespace codepad::os::direct2d {
 
 	void renderer::draw_formatted_text(const ui::formatted_text &text, vec2d topleft) {
 		auto ctext = _details::cast_formatted_text(text);
-		/*_text_brush->SetColor(_details::cast_color(colord(1.0, 1.0, 1.0, 1.0)));*/
+		// don't really need this since _create_formatted_text_impl already covers all text, but just in case
 		_text_brush->SetColor(_details::cast_color(colord(0.0, 0.0, 0.0, 1.0)));
 		_d2d_device_context->DrawTextLayout(
 			_details::cast_point(topleft),

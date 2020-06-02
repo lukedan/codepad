@@ -8,25 +8,22 @@
 #include <stack>
 #include <string>
 
-#include "misc.h"
-#include "plugins.h"
-#include "settings.h"
-#include "../os/current/all.h"
-#include "../ui/commands.h"
-#include "../ui/renderer.h"
-#include "../ui/manager.h"
-#include "../ui/element_classes.h"
-#include "../ui/native_commands.h"
-#include "../editors/buffer_manager.h"
-#include "../editors/code/minimap.h"
-#include "../editors/code/contents_region.h"
-#include "../editors/code/view_caching.h"
-#include "../editors/binary/contents_region.h"
+#include "codepad/core/misc.h"
+#include "codepad/core/plugins.h"
+#include "codepad/core/settings.h"
+#include "codepad/os/current/all.h"
+#include "codepad/ui/commands.h"
+#include "codepad/ui/renderer.h"
+#include "codepad/ui/manager.h"
+#include "codepad/ui/element_classes.h"
+#include "codepad/editors/buffer_manager.h"
+#include "codepad/editors/code/minimap.h"
+#include "codepad/editors/code/contents_region.h"
+#include "codepad/editors/code/view_caching.h"
+#include "codepad/editors/binary/contents_region.h"
 
 namespace codepad {
 	double editors::code::minimap::_target_height = 2.0;
-
-	std::unique_ptr<logger> logger::_current;
 
 	// TODO probably put these into ui::manager as well
 	ui::window_base *ui::mouse_position::_active_window = nullptr;
