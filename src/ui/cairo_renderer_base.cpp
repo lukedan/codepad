@@ -385,7 +385,7 @@ namespace codepad::ui::cairo {
 	}
 
 
-	render_target_data renderer_base::create_render_target(vec2d size, vec2d scaling_factor) {
+	render_target_data renderer_base::create_render_target(vec2d size, vec2d scaling_factor, colord clear) {
 		auto resrt = std::make_unique<render_target>();
 		auto resbmp = std::make_unique<bitmap>();
 
@@ -410,6 +410,9 @@ namespace codepad::ui::cairo {
 			cairo_status(resrt->_context.get()) == CAIRO_STATUS_SUCCESS,
 			"failed to create cairo context"
 		);
+		// clear it
+		cairo_set_source_rgba(resrt->_context.get(), clear.r, clear.g, clear.b, clear.a);
+		cairo_paint(resrt->_context.get());
 
 		return render_target_data(std::move(resrt), std::move(resbmp));
 	}

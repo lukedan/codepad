@@ -51,100 +51,104 @@ private:
 
 std::deque<command_stub> commands;
 
+cp::editors::code::contents_region &get_code_contents_region_from(cp::editors::editor &e) {
+	return *cp::editors::code::contents_region::get_from_editor(e);
+}
+
 extern "C" {
 	PLUGIN_INITIALIZE() {
 		commands.emplace_back(
 			u8"contents_region.carets.move_left",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_left(false);
+				get_code_contents_region_from(*e).move_all_carets_left(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_left_selected",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_left(true);
+				get_code_contents_region_from(*e).move_all_carets_left(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_right",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_right(false);
+				get_code_contents_region_from(*e).move_all_carets_right(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_right_selected",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_right(true);
+				get_code_contents_region_from(*e).move_all_carets_right(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_up",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_up(false);
+				get_code_contents_region_from(*e).move_all_carets_up(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_up_selected",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_up(true);
+				get_code_contents_region_from(*e).move_all_carets_up(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_down",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_down(false);
+				get_code_contents_region_from(*e).move_all_carets_down(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_down_selected",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_down(true);
+				get_code_contents_region_from(*e).move_all_carets_down(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_leftmost",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning(false);
+				get_code_contents_region_from(*e).move_all_carets_to_line_beginning(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_leftmost_selected",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning(true);
+				get_code_contents_region_from(*e).move_all_carets_to_line_beginning(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_leftmost_noblank",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning_advanced(false);
+				get_code_contents_region_from(*e).move_all_carets_to_line_beginning_advanced(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_leftmost_noblank_selected",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_beginning_advanced(true);
+				get_code_contents_region_from(*e).move_all_carets_to_line_beginning_advanced(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_rightmost",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_ending(false);
+				get_code_contents_region_from(*e).move_all_carets_to_line_ending(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_rightmost_selected",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->move_all_carets_to_line_ending(true);
+				get_code_contents_region_from(*e).move_all_carets_to_line_ending(true);
 				})
 		);
 
 		commands.emplace_back(
 			u8"contents_region.folding.fold_selected",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				auto *edt = cp::editors::code::contents_region::get_from_editor(*e);
-				for (auto caret : edt->get_carets().carets) {
+				auto &edt = get_code_contents_region_from(*e);
+				for (auto caret : edt.get_carets().carets) {
 					if (caret.first.caret != caret.first.selection) {
-						edt->add_folded_region(std::minmax(caret.first.caret, caret.first.selection));
+						edt.add_folded_region(std::minmax(caret.first.caret, caret.first.selection));
 					}
 				}
 				})
@@ -153,19 +157,19 @@ extern "C" {
 		commands.emplace_back(
 			u8"contents_region.delete_before_carets",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->on_backspace();
+				get_code_contents_region_from(*e).on_backspace();
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.delete_after_carets",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->on_delete();
+				get_code_contents_region_from(*e).on_delete();
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.insert_new_line",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->on_return();
+				get_code_contents_region_from(*e).on_return();
 				})
 		);
 
@@ -179,13 +183,13 @@ extern "C" {
 		commands.emplace_back(
 			u8"contents_region.undo",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->try_undo();
+				get_code_contents_region_from(*e).try_undo();
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.redo",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				cp::editors::code::contents_region::get_from_editor(*e)->try_redo();
+				get_code_contents_region_from(*e).try_redo();
 				})
 		);
 

@@ -90,7 +90,8 @@ namespace codepad::editors::code {
 				vec2d( // add 1 because the starting position was floored instead of rounded
 					_width, std::ceil(lh * scale * static_cast<double>(pe - s)) + 1
 				),
-				wnd->get_scaling_factor()
+				wnd->get_scaling_factor(),
+				colord(1.0, 1.0, 1.0, 0.0)
 			);
 
 			const view_formatting &fmt = edt->get_formatting();

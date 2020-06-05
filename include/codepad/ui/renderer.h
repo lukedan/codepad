@@ -443,8 +443,10 @@ namespace codepad::ui {
 		/// Default virtual destructor.
 		virtual ~renderer_base() = default;
 
-		/// Creates a new render target of the given size and scaling factor.
-		virtual render_target_data create_render_target(vec2d size, vec2d scaling_factor) = 0;
+		/// Creates a new render target of the given size, scaling factor, and clear color.
+		virtual render_target_data create_render_target(
+			vec2d size, vec2d scaling_factor, colord clear
+		) = 0;
 
 		/// Loads a \ref bitmap from disk. The second parameter specifies the scaling factor of this bitmap.
 		virtual std::unique_ptr<bitmap> load_bitmap(const std::filesystem::path&, vec2d) = 0;

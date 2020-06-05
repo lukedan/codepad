@@ -46,6 +46,7 @@ target_sources(codepad
 		"src/editors/editor.cpp"
 
 		"src/ui/elements/tabs/host.cpp"
+		"src/ui/elements/tabs/manager.cpp"
 		"src/ui/elements/tabs/tab.cpp"
 
 		"src/ui/elements/button.cpp"

@@ -496,7 +496,7 @@ namespace codepad::os::direct2d {
 		_details::com_check(_dwrite_factory->CreateTextAnalyzer(_dwrite_text_analyzer.get_ref()));
 	}
 
-	ui::render_target_data renderer::create_render_target(vec2d size, vec2d scaling_factor) {
+	ui::render_target_data renderer::create_render_target(vec2d size, vec2d scaling_factor, colord c) {
 		auto resrt = std::make_unique<render_target>();
 		auto resbmp = std::make_unique<bitmap>();
 		_details::com_wrapper<IDXGISurface> surface;
@@ -526,6 +526,11 @@ namespace codepad::os::direct2d {
 			resrt->_bitmap.get_ref()
 		));
 		resbmp->_bitmap = resrt->_bitmap;
+		{ // manually clear the bitmap
+			begin_drawing(*resrt);
+			clear(c);
+			end_drawing();
+		}
 		return ui::render_target_data(std::move(resrt), std::move(resbmp));
 	}
 
@@ -533,7 +538,6 @@ namespace codepad::os::direct2d {
 		auto res = std::make_unique<bitmap>();
 		_details::com_wrapper<IWICBitmapSource> converted;
 		_details::com_wrapper<IWICBitmapSource> img = _details::wic_image_loader::get().load_image(bmp);
-
 		_details::com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppPBGRA, img.get(), converted.get_ref()));
 		_details::com_check(_d2d_device_context->CreateBitmapFromWicBitmap(
 			converted.get(),
@@ -872,10 +876,20 @@ namespace codepad::os::direct2d {
 	}
 
 	void renderer::_push_layer(_details::com_wrapper<ID2D1Geometry> clip) {
-		_d2d_device_context->PushLayer(D2D1::LayerParameters(
+		// since the layer is initialized from the background, we temporarily change the blending mode to copy so
+		// that everything blends correctly
+		// also the mode is set here instead of during PopLayer() as per the documentation at:
+		// https://docs.microsoft.com/en-us/windows/win32/direct2d/direct2d-layers-overview#blend-modes
+		_d2d_device_context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_COPY);
+		_d2d_device_context->PushLayer(D2D1::LayerParameters1(
+			D2D1::InfiniteRect(), clip.get(), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+			D2D1::IdentityMatrix(), 1.0f, nullptr, D2D1_LAYER_OPTIONS1_INITIALIZE_FROM_BACKGROUND
+		), nullptr);
+		/*_d2d_device_context->PushLayer(D2D1::LayerParameters(
 			D2D1::InfiniteRect(), clip.get(), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
 			D2D1::IdentityMatrix(), 1.0f, nullptr, D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE
-		), nullptr);
+		), nullptr);*/
+		_d2d_device_context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_SOURCE_OVER);
 	}
 
 	_details::com_wrapper<ID2D1SolidColorBrush> renderer::_create_brush(

@@ -662,7 +662,7 @@ namespace codepad {
 			/// factor of the current render target. This function computes the offset required for pixel snapping,
 			/// and starts rendering to the temporary render target.
 			pixel_snapped_render_target(renderer_base &r, rectd target_area, vec2d scaling) : _renderer(r) {
-				_target = r.create_render_target(target_area.size(), scaling);
+				_target = r.create_render_target(target_area.size(), scaling, colord(1.0, 1.0, 1.0, 0.0));
 				vec2d corner = target_area.xmin_ymin();
 				matd3x3 transform = r.get_matrix(), snap_transform = matd3x3::identity();
 				if (!transform.has_rotation_or_nonrigid()) {

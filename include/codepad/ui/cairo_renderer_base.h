@@ -414,8 +414,8 @@ namespace codepad::ui::cairo {
 			FcFini();
 		}
 
-		/// Creates a new image surface as a render target.
-		render_target_data create_render_target(vec2d size, vec2d scaling_factor) override;
+		/// Creates a new image surface as a render target and clears it.
+		render_target_data create_render_target(vec2d size, vec2d scaling_factor, colord clear) override;
 
 		/// Loads a \ref bitmap from disk as an image surface.
 		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) override {

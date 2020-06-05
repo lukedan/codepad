@@ -222,8 +222,8 @@ namespace codepad::os::direct2d {
 		/// Initializes \ref _d2d_factory.
 		renderer();
 
-		/// Creates a render target of the given size.
-		ui::render_target_data create_render_target(vec2d size, vec2d scaling_factor) override;
+		/// Creates a render target of the given size and scaling factor, and clears it.
+		ui::render_target_data create_render_target(vec2d size, vec2d scaling_factor, colord clear) override;
 
 		/// Loads a \ref bitmap from disk.
 		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path&, vec2d scaling_factor) override;
