@@ -81,6 +81,9 @@ namespace codepad::ui {
 
 
 	/// A property that is accessed through a getter function and a setter function.
+	///
+	/// \tparam Elem Element type. Should be \ref element or a class derived from \ref element.
+	/// \tparam T Value type of this property
 	template <typename Elem, typename T> class getter_setter_property : public property {
 	public:
 		/// Initializes all fields of this struct.

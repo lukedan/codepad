@@ -18,6 +18,31 @@
 			}
 		}
 	},
+	"label": {
+		"attributes": {
+			"font": {
+				"family": "Comic Sans MS",
+				"size": 20,
+				"style": "italic"
+			}
+		},
+		"animations": {
+			"mouse_enter": {
+				"font.size": {
+					"to": 30,
+					"duration": 0.5,
+					"transition": "convex_quadratic"
+				}
+			},
+			"mouse_leave": {
+				"font.size": {
+					"to": 20,
+					"duration": 0.5,
+					"transition": "convex_quadratic"
+				}
+			}
+		}
+	},
 
 	"scrollbar": {
 		"attributes": {
@@ -640,7 +665,7 @@
 						"attributes": {
 							"layout": {
 								"width": "100%",
-								"height": "30px",
+								"height": "auto",
 								"margin": 0.0,
 								"anchor": "lr"
 							}
@@ -665,7 +690,9 @@
 		"attributes": {
 			"layout": {
 				"width": "auto",
-				"height": "100%"
+				"height": "auto",
+				"anchor": "lrb",
+				"margin": [ 0.0, 1.0, 0.0, 0.0 ]
 			},
 			"visuals": {
 				"geometries": [
@@ -708,7 +735,7 @@
 				"type": "stack_panel",
 				"attributes": {
 					"layout": {
-						"height": "100%",
+						"height": "auto",
 						"padding": 5.0
 					}
 				},
@@ -726,6 +753,11 @@
 						},
 						"animations": {
 							"main.mouse_enter": {
+								"font.size": {
+									"to": 30,
+									"duration": 0.5,
+									"transition": "convex_quadratic"
+								},
 								"text_color": {
 									"to": [ 1.0, 1.0, 1.0, 1.0 ],
 									"duration": 0.1,
@@ -733,6 +765,11 @@
 								}
 							},
 							"main.mouse_leave": {
+								"font.size": {
+									"to": 20,
+									"duration": 0.5,
+									"transition": "convex_quadratic"
+								},
 								"text_color": {
 									"to": [ 0.8, 0.8, 0.8, 1.0 ],
 									"duration": 0.1,

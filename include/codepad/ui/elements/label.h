@@ -56,7 +56,7 @@ namespace codepad::ui {
 		/// Returns the list of properties.
 		const property_mapping &get_properties() const override;
 
-		/// Adds the \p text_color property.
+		/// Adds the \p text_color and \p font properties.
 		static const property_mapping &get_properties_static();
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
@@ -89,6 +89,7 @@ namespace codepad::ui {
 		virtual void _on_text_layout_changed() {
 			_cached_fmt.reset();
 			_on_desired_size_changed(true, true);
+			invalidate_visual();
 		}
 	};
 }

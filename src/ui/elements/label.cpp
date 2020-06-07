@@ -22,6 +22,11 @@ namespace codepad::ui {
 					lbl._on_text_color_changed();
 				}
 			));
+			mapping.emplace(u8"font", std::make_shared<member_pointer_property<&label::_font>>(
+				[](label &lbl) {
+					lbl._on_text_layout_changed();
+				}
+			));
 		}
 
 		return mapping;

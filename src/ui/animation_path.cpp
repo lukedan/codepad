@@ -10,6 +10,7 @@
 
 #include "codepad/ui/element.h"
 #include "codepad/ui/manager.h"
+#include "codepad/ui/renderer.h"
 
 namespace codepad::ui::animation_path {
 	std::u8string to_string(component_list::const_iterator begin, component_list::const_iterator end) {
@@ -146,6 +147,7 @@ namespace codepad::ui::animation_path {
 	CP_APB_EXPAND_CALL(CP_APB_DO_TRY_FORWARD_ARRAY, CP_APB_CURRENT_TYPE, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME)
 
 
+
 		// primitive types
 #define CP_APB_CURRENT_TYPE bool, bool
 		CP_APB_START_GETTER
@@ -164,6 +166,13 @@ namespace codepad::ui::animation_path {
 			CP_APB_MAY_TERMINATE_EARLY;
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
+
+#define CP_APB_CURRENT_TYPE std::u8string, string
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
 
 		// enums
 #define CP_APB_CURRENT_TYPE anchor, anchor
@@ -195,6 +204,25 @@ namespace codepad::ui::animation_path {
 			CP_APB_MAY_TERMINATE_EARLY;
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
+
+#define CP_APB_CURRENT_TYPE font_style, font_style
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
+#define CP_APB_CURRENT_TYPE font_weight, font_weight
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
+#define CP_APB_CURRENT_TYPE font_stretch, font_stretch
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
 
 		// other basic types
 #define CP_APB_CURRENT_TYPE std::shared_ptr<bitmap>, bitmap
@@ -256,6 +284,20 @@ namespace codepad::ui::animation_path {
 			CP_APB_TRY_FORWARD_MEMBER(absolute, vec2d);
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
+
+#define CP_APB_CURRENT_TYPE font_parameters, font_param
+		CP_APB_START_GETTER
+			CP_APB_MUST_NOT_TERMINATE_EARLY;
+			CP_APB_CHECK_TYPE;
+
+			CP_APB_TRY_FORWARD_MEMBER(family, string);
+			CP_APB_TRY_FORWARD_MEMBER(size, double);
+			CP_APB_TRY_FORWARD_MEMBER(style, font_style);
+			CP_APB_TRY_FORWARD_MEMBER(weight, font_weight);
+			CP_APB_TRY_FORWARD_MEMBER(stretch, font_stretch);
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
 
 		// transforms
 #define CP_APB_CURRENT_TYPE transforms::generic, transform
@@ -352,6 +394,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
+
 		// brushes
 #define CP_APB_CURRENT_TYPE gradient_stop, gradient_stop
 		CP_APB_START_GETTER
@@ -442,6 +485,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_DEFINE_PROPERTY_GETTER
 #undef CP_APB_CURRENT_TYPE
 
+
 		// geometries
 #define CP_APB_CURRENT_TYPE geometries::rectangle, rectangle
 		CP_APB_START_GETTER
@@ -474,6 +518,7 @@ namespace codepad::ui::animation_path {
 			CP_APB_TRY_FORWARD_MEMBER(bottom_right, rel_vec2d);
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
+
 
 		// path
 #define CP_APB_CURRENT_TYPE geometries::path::segment, segment
