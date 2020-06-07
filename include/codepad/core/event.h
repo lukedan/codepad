@@ -35,7 +35,7 @@ namespace codepad {
 
 			/// Returns whether this token represents a registered event handler. Note that this may not be accurate
 			/// if the event itself has been disposed.
-			bool valid() const {
+			bool is_valid() const {
 				return _text_tok.has_value();
 			}
 		protected:

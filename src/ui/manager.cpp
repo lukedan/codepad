@@ -20,8 +20,6 @@
 #include "codepad/editors/binary/components.h"
 
 namespace codepad::ui {
-	manager *manager::_global = nullptr;
-
 	manager::manager(settings &s) : _settings(s) {
 		// TODO use reflection in C++23 (?) for everything below
 		register_transition_function(u8"linear", transition_functions::linear);
@@ -102,13 +100,5 @@ namespace codepad::ui {
 			}
 		}
 		return elem;
-	}
-
-	void manager::set_global(manager &m) {
-		_global = &m;
-	}
-
-	manager &manager::get() {
-		return *_global;
 	}
 }

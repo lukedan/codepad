@@ -1,19 +1,23 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
+/// \file
+/// Implementation of commonly used commands.
+
 #include <deque>
 
-#include "plugin_defs.h"
+#include <plugin_defs.h>
 
-#include "codepad/ui/element.h"
-#include "codepad/ui/manager.h"
-#include "codepad/ui/commands.h"
-#include "codepad/ui/elements/tabs/host.h"
-#include "codepad/ui/elements/tabs/manager.h"
-#include "codepad/editors/editor.h"
-#include "codepad/editors/buffer_manager.h"
-#include "codepad/editors/code/contents_region.h"
-#include "codepad/editors/binary/contents_region.h"
+#include <codepad/core/plugins.h>
+#include <codepad/ui/element.h>
+#include <codepad/ui/manager.h>
+#include <codepad/ui/commands.h>
+#include <codepad/ui/elements/tabs/host.h>
+#include <codepad/ui/elements/tabs/manager.h>
+#include <codepad/editors/editor.h>
+#include <codepad/editors/buffer_manager.h>
+#include <codepad/editors/code/contents_region.h>
+#include <codepad/editors/binary/contents_region.h>
 
 namespace cp = ::codepad;
 
@@ -50,13 +54,16 @@ private:
 };
 
 std::deque<command_stub> commands;
+const cp::plugin_context *context = nullptr;
 
 cp::editors::code::contents_region &get_code_contents_region_from(cp::editors::editor &e) {
 	return *cp::editors::code::contents_region::get_from_editor(e);
 }
 
 extern "C" {
-	PLUGIN_INITIALIZE() {
+	PLUGIN_INITIALIZE(ctx) {
+		context = &ctx;
+
 		commands.emplace_back(
 			u8"contents_region.carets.move_left",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
@@ -321,6 +328,7 @@ extern "C" {
 
 	PLUGIN_FINALIZE() {
 		commands.clear();
+		context = nullptr;
 	}
 
 	PLUGIN_GET_NAME() {
@@ -328,14 +336,14 @@ extern "C" {
 	}
 
 	PLUGIN_ENABLE() {
-		auto &registry = cp::ui::manager::get().get_command_registry();
+		auto &registry = context->ui_man->get_command_registry();
 		for (command_stub &stub : commands) {
 			stub.register_command(registry);
 		}
 	}
 
 	PLUGIN_DISABLE() {
-		auto &registry = cp::ui::manager::get().get_command_registry();
+		auto &registry = context->ui_man->get_command_registry();
 		for (command_stub &stub : commands) {
 			stub.unregister_command(registry);
 		}

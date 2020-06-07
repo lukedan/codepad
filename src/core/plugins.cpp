@@ -25,26 +25,44 @@ namespace codepad {
 #endif
 	}
 
-	plugin &plugin_manager::attach(std::unique_ptr<plugin> p) {
-		p->initialize(*this);
+	void plugin_manager::attach(std::shared_ptr<plugin> p) {
+		assert_true_usage(context != nullptr, "context should be set before loading plugins");
+		p->initialize(*context);
 		auto [it, inserted] = _plugins.try_emplace(p->get_name(), std::move(p));
 		if (!inserted) {
-			// TODO decide whether to replace the old plugin
 			logger::get().log_warning(CP_HERE) <<
-				"plugin " << it->first << " already exists, the newly created one is destroyed";
+				"plugin " << it->first << " already exists";
+		} else {
+			logger::get().log_info(CP_HERE) << "plugin attached: " << it->second->get_name();
 		}
-		return *it->second;
+	}
+
+	void plugin_manager::detach(mapping_type::const_iterator it) {
+		std::u8string name = it->second->get_name();
+		if (it->second->is_enabled()) {
+			it->second->disable();
+		}
+		it->second->finalize();
+		logger::get().log_info(CP_HERE) << "plugin detached: " << name;
+		_plugins.erase(it);
 	}
 
 	void plugin_manager::finalize_all() {
 		for (auto &[name, plug] : _plugins) {
-			plug->finalize();
+			if (plug->is_enabled()) {
+				plug->disable();
+			}
+		}
+		while (!_plugins.empty()) {
+			auto it = _plugins.begin();
+			it->second->finalize();
+			_plugins.erase(it);
 		}
 	}
 
 
-	void native_plugin::initialize(plugin_manager&) {
-		_init();
+	void native_plugin::initialize(const plugin_context &ctx) {
+		_init(ctx);
 	}
 
 

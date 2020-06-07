@@ -230,6 +230,7 @@ endif()
 
 # import plugin targets
 add_subdirectory("plugins/command_pack/")
+add_subdirectory("plugins/python_plugin_host_pybind11/")
 
 
 # codegen

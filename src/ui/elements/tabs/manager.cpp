@@ -276,7 +276,7 @@ namespace codepad::ui::tabs {
 	}
 
 	void tab_manager::_update_dragging_free(mouse_move_info &p) {
-			// find the tab host that the mouse is currently over
+		// find the tab host that the mouse is currently over
 		host *target = nullptr;
 		for (window_base *wnd : _wndlist) {
 			if (wnd->hit_test(p.new_position.get(*wnd))) { // hit

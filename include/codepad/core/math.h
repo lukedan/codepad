@@ -183,11 +183,11 @@ namespace codepad {
 		}
 
 		/// Returns true if both \ref xmax > \ref xmin and \ref ymax > \ref ymin.
-		constexpr bool positive_area() const {
+		constexpr bool has_positive_area() const {
 			return xmax > xmin && ymax > ymin;
 		}
 		/// Returns true if both \ref xmax >= \ref xmin and \ref ymax >= \ref ymin.
-		constexpr bool nonnegative_area() const {
+		constexpr bool has_nonnegative_area() const {
 			return xmax >= xmin && ymax >= ymin;
 		}
 

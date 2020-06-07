@@ -1,7 +1,8 @@
 {
-	"graphics_backend": "cairo",
+	"graphics_backend": "direct2d",
 	"native_plugins": [
-		"command_pack"
+		"command_pack",
+		"python_plugin_host_pybind11"
 	],
 	"editor": {
 		"font_size": 12,

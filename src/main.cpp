@@ -37,17 +37,18 @@ int main(int argc, char **argv) {
 	// call initialize
 	codepad::initialize(argc, argv);
 
-	{ // this scope here is used to ensure the order of destruction of settings, manager, and tab_manager.
-		// create settings and ui manager
+	{ // this scope here is used to ensure the order of destruction of singletons
+		// create settings, plugin manager, ui manager, tab manager
 		settings sett;
+		plugin_manager plugman;
 		manager man(sett);
-		manager::set_global(man);
+		tabs::tab_manager tabman(man);
+
+		plugin_context context{ &sett, &plugman, &man, &tabman };
+		plugman.context = &context;
 
 		// load settings
 		sett.load("config/settings.json");
-
-		// create tab manager
-		tabs::tab_manager tabman(man);
 
 		{ // load plugins
 			auto parser = sett.create_retriever_parser<std::vector<std::u8string_view>>(
@@ -58,14 +59,15 @@ int main(int argc, char **argv) {
 				);
 			auto value = parser.get_main_profile().get_value();
 			for (std::u8string_view p : value) {
-				auto plugin = std::make_unique<native_plugin>(std::filesystem::path(p));
+				auto plugin = std::make_shared<native_plugin>(std::filesystem::path(p));
 				if (!plugin->valid()) {
 					logger::get().log_warning(CP_HERE) << "failed to load plugin " << p;
 					plugin->diagnose();
 					continue;
 				}
-				plugin_manager::get().attach(std::move(plugin)).enable();
-				logger::get().log_info(CP_HERE) << "plugin loaded: " << p;
+				native_plugin &plug_ref = *plugin;
+				plugman.attach(std::move(plugin));
+				plug_ref.enable();
 			}
 		}
 
@@ -95,7 +97,9 @@ int main(int argc, char **argv) {
 			assert_true_usage(man.has_renderer(), "unrecognized renderer");
 		}
 
-		{ // parse visual arrangements
+		// parse visual arrangements
+		// this is done after the renderer is created because this may require loading textures
+		{
 			auto doc = json::parse_file<json::rapidjson::document_t>("config/arrangements.json");
 			auto val = json::parsing::make_value(doc.root());
 			arrangements_parser<decltype(val)> parser(man);
@@ -126,7 +130,7 @@ int main(int argc, char **argv) {
 
 		// cleanup
 		// finalize all plugins
-		plugin_manager::get().finalize_all();
+		plugman.finalize_all();
 	}
 	return 0;
 }

@@ -194,13 +194,7 @@ namespace codepad::ui {
 		/// Returns the radius of the zone where a drag operation is ready but does not start. This function is
 		/// platform-specific.
 		static double get_drag_deadzone_radius();
-		/// Sets the global \ref manager.
-		static void set_global(manager&);
-		/// Returns the global \ref manager object.
-		[[nodiscard]] static manager &get();
 	protected:
-		static manager *_global; ///< Pointer to the global \ref manager.
-
 		class_arrangements_registry _class_arrangements; ///< All class arrangements.
 		class_hotkeys_registry _class_hotkeys; ///< All class hotkeys.
 		std::map<std::u8string, colord, std::less<>> _color_scheme; ///< The color scheme.

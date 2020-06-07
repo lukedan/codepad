@@ -91,12 +91,12 @@ namespace codepad {
 				if constexpr (
 					std::is_same_v<std::decay_t<T>, std::u8string> ||
 					std::is_same_v<std::decay_t<T>, std::u8string_view>
-					) {
+				) {
 					_contents << std::string_view(reinterpret_cast<const char*>(contents.data()), contents.size());
 				} else if constexpr (
 					std::is_same_v<std::decay_t<T>, const char8_t*> ||
 					std::is_same_v<std::decay_t<T>, char8_t*>
-					) {
+				) {
 					_contents << reinterpret_cast<const char*>(contents);
 				} else {
 					_contents << std::forward<T>(contents);
@@ -146,6 +146,10 @@ namespace codepad {
 		/// Creates a new \ref log_entry with the specified \ref log_level.
 		template <log_level Level> log_entry log(code_position cp) {
 			return log_entry(*this, std::move(cp), Level);
+		}
+		/// Non-template version of \ref log().
+		log_entry log(log_level lvl, code_position cp) {
+			return log_entry(*this, std::move(cp), lvl);
 		}
 		/// Invokes \ref log() with \ref log_level::error.
 		log_entry log_error(code_position cp) {
