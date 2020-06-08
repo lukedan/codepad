@@ -37,18 +37,6 @@ namespace codepad {
 		/// The parser interface.
 		static std::optional<ui::modifier_keys> parse(std::u8string_view);
 	};
-	namespace json {
-		/// Parser for \ref ui::modifier_keys.
-		template <> struct default_parser<ui::modifier_keys> {
-			/// The parser interface.
-			template <typename Value> std::optional<ui::modifier_keys> operator()(const Value &val) const {
-				if (auto str = val.template cast<std::u8string_view>()) {
-					return enum_parser<ui::modifier_keys>::parse(str.value());
-				}
-				return std::nullopt;
-			}
-		};
-	}
 
 	namespace ui {
 		/// Contains functions related to gestures.

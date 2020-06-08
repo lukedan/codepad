@@ -9,6 +9,7 @@
 #include <cmath>
 #include <type_traits>
 
+#include "json/misc.h"
 #include "assert.h"
 
 namespace codepad {
@@ -123,6 +124,15 @@ namespace codepad {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
+
+	namespace json {
+		/// Parser for \ref vec2d.
+		template <> struct default_parser<vec2d> {
+			/// Parses \ref vec2d. The object must be of the following format: <tt>[x, y]</tt>
+			template <typename Value> std::optional<vec2d> operator()(const Value&) const;
+		};
+	}
+
 
 	/// Represnts a rectangular area.
 	///

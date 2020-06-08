@@ -7,6 +7,7 @@
 /// Implementation of stack panels.
 
 #include "codepad/ui/manager.h"
+#include "codepad/ui/json_parsers.h"
 
 namespace codepad::ui {
 	const property_mapping &stack_panel::get_properties() const {

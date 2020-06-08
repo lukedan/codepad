@@ -690,9 +690,7 @@
 		"attributes": {
 			"layout": {
 				"width": "auto",
-				"height": "auto",
-				"anchor": "lrb",
-				"margin": [ 0.0, 1.0, 0.0, 0.0 ]
+				"height": "auto"
 			},
 			"visuals": {
 				"geometries": [
@@ -1299,7 +1297,7 @@
 							"layout": {
 								"width": "1*",
 								"height": "100%",
-								"padding": [ 2.0, 20.0, 0.0, 20.0 ]
+								"padding": [ 2.0, 0.0, 0.0, 0.0 ]
 							},
 							"selection_brush": {
 								"type": "solid",

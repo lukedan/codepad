@@ -7,6 +7,7 @@
 /// Implementation of labels.
 
 #include "codepad/ui/manager.h"
+#include "codepad/ui/json_parsers.h"
 
 namespace codepad::ui {
 	const property_mapping &label::get_properties() const {

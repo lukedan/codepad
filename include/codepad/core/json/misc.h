@@ -8,7 +8,9 @@
 
 #include <fstream>
 #include <filesystem>
+#include <chrono>
 
+#include "../misc.h"
 #include "../encodings.h"
 #include "../assert.h"
 #include "../profiling.h"
@@ -52,14 +54,32 @@ namespace codepad::json {
 	struct null_t {
 	};
 
+
 	/// The basic parser type that simply uses \p value_t::cast() to parse the object. It is recommended to
 	/// specialize this type to provide concrete parsing functionalities for user-defined types.
 	template <typename T> struct default_parser {
-		/// The basic parsing function that simply calls \p cast().
+		/// The basic parsing function that simply calls \p cast(). For enums, this function invokes \ref enum_parser::parse
 		template <typename Value> std::optional<T> operator()(const Value &v) const {
-			return v.template cast<T>();
+			if constexpr (std::is_enum_v<T>) {
+				if (auto str = v.template cast<std::u8string_view>()) {
+					return enum_parser<T>::parse(str.value());
+				}
+				return std::nullopt;
+			} else {
+				return v.template cast<T>();
+			}
 		}
 	};
+
+	/// Parser for \p std::chrono::duration.
+	template <typename Rep, typename Period> struct default_parser<std::chrono::duration<Rep, Period>> {
+		/// Parses a duration from a number. If the object is a number, it is treated as the number of seconds.
+		///
+		/// \todo Also accept string representations.
+		template <typename Value> std::optional<std::chrono::duration<Rep, Period>> operator()(const Value&) const;
+	};
+
+
 	/// The parser that parses an array of objects.
 	template <typename T, typename Parser = default_parser<T>> struct array_parser {
 		/// Default constructor.
@@ -84,6 +104,7 @@ namespace codepad::json {
 
 		Parser parser; ///< The parser for individual objects.
 	};
+
 
 	/// Indicates the result of converting a member of a JSON object.
 	enum class convert_member_result : unsigned char {

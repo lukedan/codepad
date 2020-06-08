@@ -18,6 +18,7 @@
 #endif
 #include "codepad/ui/cairo_renderer_base.h"
 #include "codepad/ui/config_parsers.h"
+#include "codepad/ui/json_parsers.h"
 #include "codepad/ui/elements/label.h"
 #include "codepad/ui/elements/tabs/tab.h"
 #include "codepad/ui/elements/tabs/manager.h"

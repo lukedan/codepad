@@ -61,6 +61,7 @@ target_sources(codepad
 		"src/ui/commands.cpp"
 		"src/ui/element.cpp"
 		"src/ui/element_parameters.cpp" 
+		"src/ui/enum_parsers.cpp"
 		"src/ui/hotkey_registry.cpp"
 		"src/ui/manager.cpp"
 		"src/ui/misc.cpp"

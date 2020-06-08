@@ -12,6 +12,7 @@
 #include <variant>
 #include <any>
 
+#include "../core/color.h"
 #include "../core/math.h"
 #include "../core/json/misc.h"
 
@@ -30,18 +31,7 @@ namespace codepad {
 		/// Parser for \ref ui::cursor.
 		template <> struct default_parser<ui::font_style> {
 			/// Parses a \ref ui::cursor.
-			template <typename Value> std::optional<ui::font_style> operator()(const Value &val) const {
-				if (auto str = val.template cast<std::u8string_view>()) {
-					if (str.value() == u8"normal") {
-						return ui::font_style::normal;
-					} else if (str.value() == u8"italic") {
-						return ui::font_style::italic;
-					} else if (str.value() == u8"oblique") {
-						return ui::font_style::oblique;
-					}
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::font_style> operator()(const Value&) const;
 		};
 	}
 
@@ -70,14 +60,7 @@ namespace codepad {
 		/// Parser for \ref ui::cursor.
 		template <> struct default_parser<ui::font_weight> {
 			/// Parses a \ref ui::cursor.
-			template <typename Value> std::optional<ui::font_weight> operator()(const Value &val) const {
-				if (auto str = val.template cast<std::u8string_view>()) {
-					if (str.value() == u8"normal") {
-						return ui::font_weight::normal;
-					}
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::font_weight> operator()(const Value&) const;
 		};
 	}
 
@@ -111,14 +94,7 @@ namespace codepad {
 		/// Parser for \ref ui::cursor.
 		template <> struct default_parser<ui::font_stretch> {
 			/// Parses a \ref ui::cursor.
-			template <typename Value> std::optional<ui::font_stretch> operator()(const Value &val) const {
-				if (auto str = val.template cast<std::u8string_view>()) {
-					if (str.value() == u8"normal") {
-						return ui::font_stretch::normal;
-					}
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::font_stretch> operator()(const Value&) const;
 		};
 	}
 
@@ -205,37 +181,9 @@ namespace codepad {
 	namespace json {
 		/// Parser for \ref ui::font_parameters.
 		template <> struct default_parser<ui::font_parameters> {
-			/// Parses a \ref ui::relative_vec2d. The node can either be its full representation
-			/// (<tt>{"absolute": [x, y], "relative": [x, y]}</tt>), or a list of two vectors with the relative value in
-			/// the front (<tt>[[relx, rely], [absx, absy]]</tt>), or a single vector indicating the absolute value.
-			template <typename Value> std::optional<ui::font_parameters> operator()(const Value &val) const {
-				if (auto full = val.template try_cast<typename Value::object_type>()) { // full representation
-					ui::font_parameters params;
-					if (auto family = full->template parse_optional_member<std::u8string>(u8"family")) {
-						params.family = std::move(family.value());
-					}
-					if (auto size = full->template parse_optional_member<double>(u8"size")) {
-						params.size = size.value();
-					}
-					if (auto style = full->template parse_optional_member<ui::font_style>(u8"style")) {
-						params.style = style.value();
-					}
-					if (auto weight = full->template parse_optional_member<ui::font_weight>(u8"weight")) {
-						params.weight = weight.value();
-					}
-					if (auto stretch = full->template parse_optional_member<ui::font_stretch>(u8"stretch")) {
-						params.stretch = stretch.value();
-					}
-					return params;
-				} else if (auto family = val.template try_cast<std::u8string>()) {
-					ui::font_parameters params;
-					params.family = std::move(family.value());
-					return params;
-				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid font parameter format";
-				}
-				return std::nullopt;
-			}
+			/// Parses a \ref ui::font_parameters. The node can either be its full representation, or a single string
+			/// that's treated as the family name.
+			template <typename Value> std::optional<ui::font_parameters> operator()(const Value&) const;
 		};
 	}
 
@@ -401,35 +349,7 @@ namespace codepad {
 		/// Parser for \ref ui::gradient_stop.
 		template <> struct default_parser<ui::gradient_stop> {
 			/// The main parser interface.
-			template <typename ValueType> std::optional<ui::gradient_stop> operator()(const ValueType &val) const {
-				std::optional<double> pos;
-				std::optional<colord> color;
-				if (auto object = val.template try_cast<typename ValueType::object_type>()) {
-					if (object->size() > 2) {
-						val.template log<log_level::warning>(CP_HERE) << "redundant fields in gradient stop definition";
-					}
-					pos = object->template parse_member<double>(u8"position");
-					color = object->template parse_member<colord>(u8"color");
-				} else if (auto arr = val.template try_cast<typename ValueType::array_type>()) {
-					if (arr->size() >= 2) {
-						if (arr->size() > 2) {
-							val.template log<log_level::warning>(CP_HERE) <<
-								"redundant data in gradient stop definition";
-						}
-						pos = arr->at(0).template parse<double>();
-						color = arr->at(1).template parse<colord>();
-					} else {
-						val.template log<log_level::error>(CP_HERE) <<
-							"not enough information in gradient stop definition";
-					}
-				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid gradient stop format";
-				}
-				if (pos && color) {
-					return ui::gradient_stop(color.value(), pos.value());
-				}
-				return std::nullopt;
-			}
+			template <typename ValueType> std::optional<ui::gradient_stop> operator()(const ValueType&) const;
 		};
 	}
 

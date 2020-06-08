@@ -26,98 +26,6 @@ namespace codepad {
 
 	/// Contains a collection of functions that parse objects from JSON objects.
 	namespace json {
-		/// Parser for \ref vec2d.
-		template <> struct default_parser<vec2d> {
-			/// Parses \ref vec2d. The object must be of the following format: <tt>[x, y]</tt>
-			template <typename Value> std::optional<vec2d> operator()(const Value &val) const {
-				std::optional<double> x, y;
-				if (auto arr = val.template try_cast<typename Value::array_type>()) {
-					if (arr->size() >= 2) {
-						if (arr->size() > 2) {
-							val.template log<log_level::warning>(CP_HERE) << u8"too many elements in vec2";
-						}
-						x = arr->at(0).template parse<double>();
-						y = arr->at(1).template parse<double>();
-					} else {
-						val.template log<log_level::error>(CP_HERE) << u8"too few elements in vec2";
-					}
-				} else if (auto obj = val.template try_cast<typename Value::object_type>()) {
-					if (obj->size() > 2) {
-						val.template log<log_level::warning>(CP_HERE) << u8"redundant fields in vec2 definition";
-					}
-					x = obj->template parse_member<double>(u8"x");
-					y = obj->template parse_member<double>(u8"y");
-				} else {
-					val.template log<log_level::error>(CP_HERE) << u8"invalid vec2 format";
-				}
-				if (x && y) {
-					return vec2d(x.value(), y.value());
-				}
-				return std::nullopt;
-			}
-		};
-
-		/// Parser for \ref colord.
-		template <> struct default_parser<colord> {
-			/// Parses \ref colord. The object can take the following formats: <tt>["hsl", h, s, l(, a)]</tt> for
-			/// HSL format colors, and <tt>[r, g, b(, a)]</tt> for RGB format colors.
-			template <typename Value> std::optional<colord> operator()(const Value &val) const {
-				if (auto arr = val.template cast<typename Value::array_type>()) { // must be an array
-					if (arr->size() >= 3) {
-						colord result;
-						if (arr->size() > 3) {
-							if (auto format = arr->at(0).template try_cast<std::u8string_view>()) {
-								if (format.value() == u8"hsl") {
-									auto
-										h = arr->at(1).template cast<double>(),
-										s = arr->at(2).template cast<double>(),
-										l = arr->at(3).template cast<double>();
-									result = colord::from_hsl(h.value(), s.value(), l.value());
-									if (arr->size() > 4) {
-										result.a = arr->at(3).template cast<double>().value_or(1.0);
-										if (arr->size() > 5) {
-											val.template log<log_level::error>(CP_HERE) <<
-												"redundant fields in color definition";
-										}
-									}
-									return result;
-								}
-							} else {
-								result.a = arr->at(3).template cast<double>().value_or(1.0);
-							}
-							if (arr->size() > 4) {
-								val.template log<log_level::error>(CP_HERE) <<
-									"redundant fields in color definition";
-							}
-						}
-						result.r = arr->at(0).template cast<double>().value_or(0.0);
-						result.g = arr->at(1).template cast<double>().value_or(0.0);
-						result.b = arr->at(2).template cast<double>().value_or(0.0);
-						return result;
-					} else {
-						val.template log<log_level::error>(CP_HERE) << "too few elements in color definition";
-					}
-				}
-				return std::nullopt;
-			}
-		};
-
-		/// Parser for \p std::chrono::duration.
-		template <typename Rep, typename Period> struct default_parser<std::chrono::duration<Rep, Period>> {
-			/// Parses a duration from a number. If the object is a number, it is treated as the number of seconds.
-			///
-			/// \todo Also accept string representations.
-			template <typename Value> std::optional<std::chrono::duration<Rep, Period>> operator()(
-				const Value &val
-				) const {
-				if (auto secs = val.template cast<double>()) {
-					return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(
-						std::chrono::duration<double>(secs.value())
-						);
-				}
-				return std::nullopt;
-			}
-		};
 	}
 
 	namespace ui {
@@ -131,19 +39,7 @@ namespace codepad {
 		/// Parser for \ref ui::orientation.
 		template <> struct default_parser<ui::orientation> {
 			/// Parses \ref ui::orientation.
-			template <typename Value> std::optional<ui::orientation> operator()(const Value &obj) const {
-				if (auto opt_str = obj.template cast<std::u8string_view>()) {
-					std::u8string_view str = opt_str.value();
-					if (str == u8"h" || str == u8"hori" || str == u8"horizontal") {
-						return ui::orientation::horizontal;
-					} else if (str == u8"v" || str == u8"vert" || str == u8"vertical") {
-						return ui::orientation::vertical;
-					} else {
-						obj.template log<log_level::error>(CP_HERE) << "invalid orientation string";
-					}
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::orientation> operator()(const Value&) const;
 		};
 	}
 
@@ -166,21 +62,7 @@ namespace codepad {
 		/// Parser for \ref ui::visibility.
 		template <> struct default_parser<ui::visibility> {
 			/// Parses \ref ui::visibility. Each character in the string corresponds to a bit of the value.
-			template <typename Value> std::optional<ui::visibility> operator()(const Value &val) const {
-				if (val.template is<json::null_t>()) {
-					return ui::visibility::none;
-				} else if (auto str = val.template try_cast<std::u8string_view>()) {
-					return get_bitset_from_string_with_negate<ui::visibility, ui::visibility::full>({
-						{ u8'v', ui::visibility::visual },
-						{ u8'i', ui::visibility::interact },
-						{ u8'l', ui::visibility::layout },
-						{ u8'f', ui::visibility::focus }
-						}, str.value());
-				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid visibility format";
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::visibility> operator()(const Value&) const;
 		};
 	}
 
@@ -208,38 +90,7 @@ namespace codepad {
 		/// Parser for \ref ui::cursor.
 		template <> struct default_parser<ui::cursor> {
 			/// Parses a \ref ui::cursor.
-			template <typename Value> std::optional<ui::cursor> operator()(const Value &val) const {
-				if (auto str = val.template cast<std::u8string_view>()) {
-					if (str.value() == u8"normal") {
-						return ui::cursor::normal;
-					} else if (str.value() == u8"busy") {
-						return ui::cursor::busy;
-					} else if (str.value() == u8"crosshair") {
-						return ui::cursor::crosshair;
-					} else if (str.value() == u8"hand") {
-						return ui::cursor::hand;
-					} else if (str.value() == u8"help") {
-						return ui::cursor::help;
-					} else if (str.value() == u8"text_beam") {
-						return ui::cursor::text_beam;
-					} else if (str.value() == u8"denied") {
-						return ui::cursor::denied;
-					} else if (str.value() == u8"arrow_all") {
-						return ui::cursor::arrow_all;
-					} else if (str.value() == u8"arrow_northeast_southwest") {
-						return ui::cursor::arrow_northeast_southwest;
-					} else if (str.value() == u8"arrow_north_south") {
-						return ui::cursor::arrow_north_south;
-					} else if (str.value() == u8"arrow_northwest_southeast") {
-						return ui::cursor::arrow_northwest_southeast;
-					} else if (str.value() == u8"arrow_east_west") {
-						return ui::cursor::arrow_east_west;
-					} else if (str.value() == u8"invisible") {
-						return ui::cursor::invisible;
-					}
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::cursor> operator()(const Value&) const;
 		};
 	}
 
@@ -254,16 +105,7 @@ namespace codepad {
 	/// Parser for \ref ui::mouse_button.
 	template <> struct enum_parser<ui::mouse_button> {
 		/// The parser interface.
-		inline static std::optional<ui::mouse_button> parse(std::u8string_view text) {
-			if (text == u8"primary" || text == u8"m1") {
-				return ui::mouse_button::primary;
-			} else if (text == u8"secondary" || text == u8"m2") {
-				return ui::mouse_button::secondary;
-			} else if (text == u8"tertiary" || text == u8"middle") {
-				return ui::mouse_button::tertiary;
-			}
-			return std::nullopt;
-		}
+		static std::optional<ui::mouse_button> parse(std::u8string_view);
 	};
 	namespace ui {
 		/// Represents a key on the keyboard.
@@ -332,65 +174,8 @@ namespace codepad {
 	/// Parser for \ref ui::key.
 	template <> struct enum_parser<ui::key> {
 		/// The parser interface.
-		inline static std::optional<ui::key> parse(std::u8string_view str) {
-			// TODO caseless comparison
-			if (str.length() == 1) {
-				if (str[0] >= 'a' && str[0] <= 'z') {
-					return static_cast<ui::key>(
-						static_cast<std::size_t>(ui::key::a) + (str[0] - 'a')
-						);
-				}
-				switch (str[0]) {
-				case ' ':
-					return ui::key::space;
-				case '+':
-					return ui::key::add;
-				case '-':
-					return ui::key::subtract;
-				case '*':
-					return ui::key::multiply;
-				case '/':
-					return ui::key::divide;
-				}
-			}
-			if (str == u8"left") {
-				return ui::key::left;
-			} else if (str == u8"right") {
-				return ui::key::right;
-			} else if (str == u8"up") {
-				return ui::key::up;
-			} else if (str == u8"down") {
-				return ui::key::down;
-			} else if (str == u8"space") {
-				return ui::key::space;
-			} else if (str == u8"insert") {
-				return ui::key::insert;
-			} else if (str == u8"delete") {
-				return ui::key::del;
-			} else if (str == u8"backspace") {
-				return ui::key::backspace;
-			} else if (str == u8"home") {
-				return ui::key::home;
-			} else if (str == u8"end") {
-				return ui::key::end;
-			} else if (str == u8"enter") {
-				return ui::key::enter;
-			}
-			return std::nullopt;
-		}
+		static std::optional<ui::key> parse(std::u8string_view);
 	};
-	namespace json {
-		/// Parser for \ref ui::key.
-		template <> struct default_parser<ui::key> {
-			/// The parser interface.
-			template <typename Value> std::optional<ui::key> operator()(const Value &val) const {
-				if (auto str = val.template cast<std::u8string_view>()) {
-					return enum_parser<ui::key>::parse(str.value());
-				}
-				return std::nullopt;
-			}
-		};
-	}
 
 	namespace ui {
 		/// Represents a margin, a padding, etc.
@@ -437,31 +222,7 @@ namespace codepad {
 			/// Parses \ref ui::thickness. The object can take the following formats:
 			/// <tt>[left, top, right, bottom]</tt> or a single number specifying the value for all four
 			/// directions.
-			template <typename Value> std::optional<ui::thickness> operator()(const Value &val) const {
-				if (auto arr = val.template try_cast<typename Value::array_type>()) {
-					if (arr->size() >= 4) {
-						if (arr->size() > 4) {
-							val.template log<log_level::error>(CP_HERE) <<
-								"redundant elements in thickness definition";
-						}
-						auto
-							l = arr->at(0).template cast<double>(),
-							t = arr->at(1).template cast<double>(),
-							r = arr->at(2).template cast<double>(),
-							b = arr->at(3).template cast<double>();
-						if (l && t && r && b) {
-							return ui::thickness(l.value(), t.value(), r.value(), b.value());
-						}
-					} else {
-						val.template log<log_level::error>(CP_HERE) << "too few elements in thickness";
-					}
-				} else if (auto v = val.template try_cast<double>()) {
-					return ui::thickness(v.value());
-				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid thickness format";
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::thickness> operator()(const Value&) const;
 		};
 	}
 
@@ -504,47 +265,7 @@ namespace codepad {
 			/// fields, a single number in pixels, or a string that optionally ends with `*', `%', or `px', the former
 			/// two of which indicates that the value is a proportion. If the string ends with `%', the value is
 			/// additionally divided by 100, thus using `%' and `*' mixedly is not recommended.
-			template <typename Value> std::optional<ui::size_allocation> operator()(const Value &val) const {
-				if (auto pixels = val.template try_cast<double>()) { // number in pixels
-					return ui::size_allocation::pixels(pixels.value());
-				} else if (auto str = val.template try_cast<std::u8string_view>()) {
-					ui::size_allocation res(0.0, true); // in pixels if no suffix is present
-					// the value is additionally divided by 100 if it's a percentage
-					bool percentage = str->ends_with(u8"%");
-					if (percentage || str->ends_with(u8"*")) { // proportion
-						res.is_pixels = false;
-					}
-					// it's not safe to use std::strtod here since it requires that the input string be null-terminated
-#ifdef __GNUC__
-					{ // TODO libstdc++ doesn't implement from_chars
-						std::u8string str_cstr(str.value());
-						res.value = std::stod(reinterpret_cast<const char*>(str_cstr.c_str()));
-					}
-#else
-					{
-						const char *str_data = reinterpret_cast<const char*>(str->data());
-						std::from_chars(str_data, str_data + str->size(), res.value); // result ignored
-					}
-#endif
-					if (percentage) {
-						res.value *= 0.01;
-					}
-					return res;
-				} else if (auto full = val.template try_cast<typename Value::object_type>()) {
-					// full object representation
-					auto value = full->template parse_member<double>(u8"value");
-					auto is_pixels = full->template parse_member<bool>(u8"is_pixels");
-					if (value && is_pixels) {
-						if (full->size() > 2) {
-							full->template log<log_level::error>(CP_HERE) << "redundant fields in size allocation";
-						}
-						return ui::size_allocation(value.value(), is_pixels.value());
-					}
-				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid size allocation format";
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::size_allocation> operator()(const Value&) const;
 		};
 	}
 
@@ -585,17 +306,7 @@ namespace codepad {
 			/// Parses \ref ui::anchor. The object can be a string that contains any combination of characters `l',
 			/// `t', `r', and `b', standing for \ref ui::anchor::left, \ref ui::anchor::top, \ref ui::anchor::right,
 			/// and \ref ui::anchor::bottom, respectively.
-			template <typename Value> std::optional<ui::anchor> operator()(const Value &obj) const {
-				if (auto str = obj.template cast<std::u8string_view>()) {
-					return get_bitset_from_string<ui::anchor>({
-						{ u8'l', ui::anchor::left },
-						{ u8't', ui::anchor::top },
-						{ u8'r', ui::anchor::right },
-						{ u8'b', ui::anchor::bottom }
-						}, str.value());
-				}
-				return std::nullopt;
-			}
+			template <typename Value> std::optional<ui::anchor> operator()(const Value&) const;
 		};
 	}
 
@@ -611,31 +322,8 @@ namespace codepad {
 	/// Parser for \ref ui::size_allocation_type.
 	template <> struct enum_parser<ui::size_allocation_type> {
 		/// The parser interface.
-		inline static std::optional<ui::size_allocation_type> parse(std::u8string_view str) {
-			// TODO caseless comparison
-			if (str == u8"fixed" || str == u8"pixels" || str == u8"px") {
-				return ui::size_allocation_type::fixed;
-			} else if (str == u8"proportion" || str == u8"prop" || str == u8"*") {
-				return ui::size_allocation_type::proportion;
-			} else if (str == u8"automatic" || str == u8"auto") {
-				return ui::size_allocation_type::automatic;
-			}
-			return std::nullopt;
-		}
+		static std::optional<ui::size_allocation_type> parse(std::u8string_view);
 	};
-	namespace json {
-		/// Parser for \ref ui::size_allocation_type.
-		template <> struct default_parser<ui::size_allocation_type> {
-			/// Parses \ref ui::size_allocation_type. Checks if the given object (which must be a string) is one of
-			/// the constants and returns the corresponding value.
-			template <typename Value> std::optional<ui::size_allocation_type> operator()(const Value &obj) const {
-				if (auto str = obj.template cast<std::u8string_view>()) {
-					return enum_parser<ui::size_allocation_type>::parse(str.value());
-				}
-				return std::nullopt;
-			}
-		};
-	}
 
 	namespace ui {
 		/// A JSON parser that loads resources from the specified \ref manager. The default implementation does not rely

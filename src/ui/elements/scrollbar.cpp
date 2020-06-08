@@ -7,6 +7,7 @@
 /// Implementation of the scrollbar.
 
 #include "codepad/ui/manager.h"
+#include "codepad/ui/json_parsers.h"
 
 namespace codepad::ui {
 	const property_mapping &scrollbar::get_properties() const {

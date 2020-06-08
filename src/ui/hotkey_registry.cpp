@@ -7,20 +7,6 @@
 /// Implementation of the hotkey registry.
 
 namespace codepad {
-	std::optional<ui::modifier_keys> enum_parser<ui::modifier_keys>::parse(std::u8string_view str) {
-		// TODO caseless comparison
-		if (str == u8"ctrl") {
-			return ui::modifier_keys::control;
-		} else if (str == u8"alt") {
-			return ui::modifier_keys::alt;
-		} else if (str == u8"shift") {
-			return ui::modifier_keys::shift;
-		} else if (str == u8"super") {
-			return ui::modifier_keys::super;
-		}
-		return std::nullopt;
-	}
-
 	namespace ui {
 		namespace gestures {
 			std::pair<modifier_keys, std::u8string_view> split(std::u8string_view text) {

@@ -11,6 +11,7 @@
 #include "codepad/ui/element.h"
 #include "codepad/ui/manager.h"
 #include "codepad/ui/renderer.h"
+#include "codepad/ui/json_parsers.h"
 
 namespace codepad::ui::animation_path {
 	std::u8string to_string(component_list::const_iterator begin, component_list::const_iterator end) {

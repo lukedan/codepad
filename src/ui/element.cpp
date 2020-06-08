@@ -10,6 +10,7 @@
 #include "codepad/ui/window.h"
 #include "codepad/ui/panel.h"
 #include "codepad/ui/manager.h"
+#include "codepad/ui/json_parsers.h"
 
 namespace codepad::ui {
 	vec2d mouse_position::get(element &e) const {
