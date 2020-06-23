@@ -53,7 +53,7 @@ namespace codepad::ui {
 		if (type == size_allocation_type::automatic) {
 			return get_desired_width();
 		}
-		return size_allocation(get_size().x, type == size_allocation_type::fixed);
+		return size_allocation(_layout_params.size.x, type == size_allocation_type::fixed);
 	}
 
 	size_allocation element::get_layout_height() const {
@@ -61,7 +61,7 @@ namespace codepad::ui {
 		if (type == size_allocation_type::automatic) {
 			return get_desired_height();
 		}
-		return size_allocation(get_size().y, type == size_allocation_type::fixed);
+		return size_allocation(_layout_params.size.y, type == size_allocation_type::fixed);
 	}
 
 	void element::set_zindex(int v) {
@@ -100,7 +100,7 @@ namespace codepad::ui {
 		if (mapping.empty()) {
 			mapping.emplace(u8"layout", std::make_shared<member_pointer_property<&element::_layout_params>>(
 				[](element &e) {
-					e.invalidate_layout();
+					e._on_layout_parameters_changed();
 				}
 			));
 			mapping.emplace(u8"visuals", std::make_shared<member_pointer_property<&element::_visual_params>>(
@@ -163,6 +163,13 @@ namespace codepad::ui {
 			}
 		}
 		mouse_down.invoke(p);
+	}
+
+	void element::_on_layout_parameters_changed() {
+		if (parent()) {
+			parent()->_on_child_layout_parameters_changed(*this);
+		}
+		invalidate_layout();
 	}
 
 	void element::_on_visibility_changed(_visibility_changed_info &p) {

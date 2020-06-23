@@ -11,6 +11,8 @@
 #include "codepad/ui/window.h"
 #include "codepad/ui/element.h"
 #include "codepad/ui/panel.h"
+#include "codepad/ui/elements/label.h"
+#include "codepad/ui/elements/text_edit.h"
 #include "codepad/ui/elements/tabs/manager.h"
 #include "codepad/ui/elements/tabs/animated_tab_button_panel.h"
 #include "codepad/editors/code/contents_region.h"
@@ -37,6 +39,7 @@ namespace codepad::ui {
 		register_element_type<button>();
 		register_element_type<scrollbar>();
 		register_element_type<scrollbar_drag_button>();
+		register_element_type<text_edit>();
 		register_element_type<os::window>();
 
 		register_element_type<tabs::split_panel>();

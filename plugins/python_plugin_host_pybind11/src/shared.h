@@ -9,7 +9,7 @@
 #include <codepad/core/plugins.h>
 
 extern const codepad::plugin_context *context;
-extern std::vector<std::shared_ptr<codepad::plugin>> python_plugins;
+extern codepad::plugin *this_plugin;
 
 // type casters
 // https://pybind11.readthedocs.io/en/stable/advanced/cast/custom.html
@@ -71,3 +71,22 @@ namespace pybind11::detail {
 		}
 	};
 }
+
+#define TRY_OVERLOAD(RETURN_TYPE, CLASS_NAME, FUNC_NAME, ...)                                        \
+	try {                                                                                            \
+		PYBIND11_OVERLOAD(RETURN_TYPE, CLASS_NAME, FUNC_NAME, __VA_ARGS__);                          \
+	} catch (const ::pybind11::error_already_set &_err) {                                            \
+		::codepad::logger::get().log_error(CP_HERE) << _err.what() << ::codepad::logger::stacktrace; \
+	}
+
+#define TRY_OVERLOAD_PURE(RETURN_TYPE, CLASS_NAME, FUNC_NAME, ...)                                   \
+	try {                                                                                            \
+		PYBIND11_OVERLOAD_PURE(RETURN_TYPE, CLASS_NAME, FUNC_NAME, __VA_ARGS__);                     \
+	} catch (const ::pybind11::error_already_set &_err) {                                            \
+		::codepad::logger::get().log_error(CP_HERE) << _err.what() << ::codepad::logger::stacktrace; \
+	}
+
+/// Registers all core codepad classes.
+void register_core_classes(pybind11::module&);
+/// Registers all ui codepad classes.
+void register_ui_classes(pybind11::module&);

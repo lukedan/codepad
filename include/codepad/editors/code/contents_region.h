@@ -565,7 +565,7 @@ namespace codepad::editors::code {
 			content_visual_changed,
 			content_modified, ///< Invoked when the \ref interpretation is modified or changed by \ref set_document.
 			/// Invoked when the set of carets is changed. Note that this does not necessarily mean that the result
-			/// of \ref get_carets will change.
+			/// of \ref get_carets will change due to temporary carets.
 			carets_changed,
 			/// Invoked when visuals particular to this view is changed, like folding or word wrapping.
 			editing_visual_changed,
@@ -606,18 +606,6 @@ namespace codepad::editors::code {
 		/// Returns the default class used by elements of type \ref contents_region.
 		inline static std::u8string_view get_default_class() {
 			return u8"code_contents_region";
-		}
-		/// Returns the class used by carets under `insert' mode.
-		inline static std::u8string_view get_insert_caret_class() {
-			return u8"code_insert_caret";
-		}
-		/// Returns the class used by carets under `overwrite' mode.
-		inline static std::u8string_view get_overwrite_caret_class() {
-			return u8"code_overwrite_caret";
-		}
-		/// Returns the class used by selected regions.
-		inline static std::u8string_view get_contents_region_selection_class() {
-			return u8"code_selection";
 		}
 	protected:
 		/// Extracts a \ref caret_position from a \ref caret_set::entry.

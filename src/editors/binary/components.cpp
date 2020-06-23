@@ -13,9 +13,9 @@ namespace codepad::editors::binary {
 			double maxw = rgn->get_font()->get_maximum_character_width_em(
 				reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
 			) * rgn->get_font_size();
-			return ui::size_allocation(get_padding().width() + static_cast<double>(chars) * maxw, true);
+			return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(chars) * maxw);
 		}
-		return ui::size_allocation(0, true);
+		return ui::size_allocation::pixels(0.0);
 	}
 
 	void primary_offset_display::_register_handlers() {

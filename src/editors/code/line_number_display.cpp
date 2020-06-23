@@ -19,9 +19,9 @@ namespace codepad::editors::code {
 			double maxw = edt->get_font_size() * font->get_maximum_character_width_em(
 				reinterpret_cast<const codepoint*>(U"0123456789")
 			);
-			return ui::size_allocation(get_padding().width() + static_cast<double>(w) * maxw, true);
+			return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(w) * maxw);
 		}
-		return ui::size_allocation(0, true);
+		return ui::size_allocation::pixels(0.0);
 	}
 
 	void line_number_display::_register_handlers() {

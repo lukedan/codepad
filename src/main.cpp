@@ -19,9 +19,12 @@
 #include "codepad/ui/cairo_renderer_base.h"
 #include "codepad/ui/config_parsers.h"
 #include "codepad/ui/json_parsers.h"
-#include "codepad/ui/elements/label.h"
 #include "codepad/ui/elements/tabs/tab.h"
 #include "codepad/ui/elements/tabs/manager.h"
+
+#include "codepad/ui/elements/stack_panel.h"
+#include "codepad/ui/elements/label.h"
+#include "codepad/ui/elements/text_edit.h"
 
 using namespace codepad;
 using namespace codepad::os;
@@ -38,10 +41,11 @@ int main(int argc, char **argv) {
 	// call initialize
 	codepad::initialize(argc, argv);
 
+	settings sett;
+	plugin_manager plugman;
+
 	{ // this scope here is used to ensure the order of destruction of singletons
 		// create settings, plugin manager, ui manager, tab manager
-		settings sett;
-		plugin_manager plugman;
 		manager man(sett);
 		tabs::tab_manager tabman(man);
 
@@ -115,11 +119,20 @@ int main(int argc, char **argv) {
 
 
 		// create welcome page
+		auto *stack = man.create_element<stack_panel>();
+		stack->set_orientation(orientation::vertical);
+
+		auto *text = man.create_element<text_edit>();
+		text->set_text(u8"sample text");
+		stack->children().add(*text);
+
 		auto *lbl = man.create_element<label>();
 		lbl->set_text(u8"Ctrl+O to open a file");
+		stack->children().add(*lbl);
+
 		tabs::tab *tmptab = tabman.new_tab();
 		tmptab->set_label(u8"Welcome");
-		tmptab->children().add(*lbl);
+		tmptab->children().add(*stack);
 		tmptab->get_host()->activate_tab(*tmptab);
 
 
@@ -129,9 +142,9 @@ int main(int argc, char **argv) {
 		}
 
 
-		// cleanup
-		// finalize all plugins
-		plugman.finalize_all();
+		// disable & finalize plugins before disposing of managers
+		plugman.shutdown();
 	}
+
 	return 0;
 }

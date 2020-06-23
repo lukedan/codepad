@@ -61,9 +61,10 @@ cp::editors::code::contents_region &get_code_contents_region_from(cp::editors::e
 }
 
 extern "C" {
-	PLUGIN_INITIALIZE(ctx) {
+	PLUGIN_INITIALIZE(ctx, ) {
 		context = &ctx;
 
+		// do not capture anything in these lambdas - there's no reason to
 		commands.emplace_back(
 			u8"contents_region.carets.move_left",
 			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
@@ -327,7 +328,6 @@ extern "C" {
 	}
 
 	PLUGIN_FINALIZE() {
-		commands.clear();
 		context = nullptr;
 	}
 

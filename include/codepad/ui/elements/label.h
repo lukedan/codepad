@@ -15,12 +15,12 @@ namespace codepad::ui {
 		/// Returns the combined width of the text and the padding in pixels.
 		size_allocation get_desired_width() const override {
 			_check_cache_format();
-			return size_allocation(_cached_fmt->get_layout().width(), true);
+			return size_allocation::pixels(_cached_fmt->get_layout().width());
 		}
 		/// Returns the combined height of the text and the padding in pixels.
 		size_allocation get_desired_height() const override {
 			_check_cache_format();
-			return size_allocation(_cached_fmt->get_layout().height(), true);
+			return size_allocation::pixels(_cached_fmt->get_layout().height());
 		}
 
 		/// Returns the text.
@@ -30,7 +30,7 @@ namespace codepad::ui {
 		/// Sets the text.
 		void set_text(std::u8string t) {
 			_text = std::move(t);
-			_on_text_layout_changed();
+			_on_text_changed();
 		}
 
 		/// Returns the color of the text.
@@ -90,6 +90,10 @@ namespace codepad::ui {
 			_cached_fmt.reset();
 			_on_desired_size_changed(true, true);
 			invalidate_visual();
+		}
+		/// Called when the text has been changed. Invokes \ref _on_text_layout_changed().
+		virtual void _on_text_changed() {
+			_on_text_layout_changed();
 		}
 	};
 }

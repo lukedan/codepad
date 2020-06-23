@@ -190,13 +190,6 @@ namespace codepad::ui {
 		[[nodiscard]] thickness get_padding() const {
 			return _layout_params.padding;
 		}
-		/// Returns the size metric of this element. Note that this is not the element's actual size, and this value
-		/// may or may not be used in layout calculation.
-		///
-		/// \sa get_actual_size()
-		[[nodiscard]] vec2d get_size() const {
-			return _layout_params.size;
-		}
 		/// Returns the anchor metric of this element.
 		[[nodiscard]] anchor get_anchor() const {
 			return _layout_params.elem_anchor;
@@ -226,7 +219,7 @@ namespace codepad::ui {
 		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
 		///         indicates whether the value is specified in pixels.
 		[[nodiscard]] virtual size_allocation get_desired_width() const {
-			return size_allocation(1.0, false);
+			return size_allocation::proportion(1.0);
 		}
 		/// Returns the desired height of the element. Derived elements can override this to change the default
 		/// behavior, which simply makes the element fill all available space vertically.
@@ -234,7 +227,7 @@ namespace codepad::ui {
 		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
 		///         indicates whether the value is specified in pixels.
 		[[nodiscard]] virtual size_allocation get_desired_height() const {
-			return size_allocation(1.0, false);
+			return size_allocation::proportion(1.0);
 		}
 
 		/// Used to test if a given point lies in the element.
@@ -441,6 +434,11 @@ namespace codepad::ui {
 		/// \ref panel::_on_child_removing() and \ref element_collection::changing.
 		virtual void _on_removing_from_parent() {
 		}
+
+		/// Called whenever \ref _layout_params is changed. Note that this does not necessarily mean that the layout
+		/// of the element will change, nor will this function be called in all situations that changes the layout
+		/// (e.g., when size allocation is set to automatic and the desired size changes).
+		virtual void _on_layout_parameters_changed();
 
 		/// Called when the padding of the element has changed. Calls \ref invalidate_visual.
 		virtual void _on_padding_changed() {

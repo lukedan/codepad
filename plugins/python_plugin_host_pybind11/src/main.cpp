@@ -19,7 +19,7 @@ namespace py = ::pybind11;
 namespace cp = ::codepad;
 
 const cp::plugin_context *context = nullptr;
-std::vector<std::shared_ptr<codepad::plugin>> python_plugins;
+cp::plugin *this_plugin = nullptr;
 
 const char *python_import_module = R"py(
 def load_module(mod_name, p):
@@ -39,29 +39,30 @@ void import_module(std::u8string_view module_name, const std::filesystem::path &
 		locals["path"] = py::cast(path.c_str());
 		py::eval<py::eval_statements>(python_import_module, py::globals(), locals);
 	} catch (const py::error_already_set &err) {
-		cp::logger::get().log_warning(CP_HERE) << err.what();
+		cp::logger::get().log_error(CP_HERE) << err.what() << cp::logger::stacktrace;
 	}
 }
 
+PYBIND11_EMBEDDED_MODULE(pycodepad, m) {
+	register_core_classes(m);
+
+	py::module ui = m.def_submodule("ui");
+	register_ui_classes(ui);
+}
+
 extern "C" {
-	PLUGIN_INITIALIZE(ctx) {
+	PLUGIN_INITIALIZE(ctx, this_plug) {
 		context = &ctx;
+		this_plugin = &this_plug;
 		py::initialize_interpreter();
 
 		import_module(u8"test_module", "test.py");
 	}
 
 	PLUGIN_FINALIZE() {
-		// disable & finalize all python plugins before shutting down the interpreter
-		for (auto &plug : python_plugins) {
-			auto it = context->plugin_man->get_loaded_plugins().find(plug->get_name());
-			if (it != context->plugin_man->get_loaded_plugins().end()) {
-				context->plugin_man->detach(it);
-			}
-		}
-
 		py::finalize_interpreter();
 		context = nullptr;
+		this_plugin = nullptr;
 	}
 
 	PLUGIN_GET_NAME() {

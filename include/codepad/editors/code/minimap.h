@@ -19,7 +19,7 @@ namespace codepad::editors::code {
 
 		/// Returns the default width, which is proportional to that of the \ref contents_region.
 		ui::size_allocation get_desired_width() const override {
-			return ui::size_allocation(get_scale(), false);
+			return ui::size_allocation::proportion(get_scale());
 		}
 
 		/// Returns the scale of the text based on \ref _target_height.

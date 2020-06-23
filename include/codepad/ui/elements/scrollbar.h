@@ -57,16 +57,16 @@ namespace codepad::ui {
 		/// Returns the default desired width of the scroll bar.
 		size_allocation get_desired_width() const override {
 			if (get_orientation() == orientation::vertical) {
-				return size_allocation(default_thickness, true);
+				return size_allocation::pixels(default_thickness);
 			}
-			return size_allocation(1.0, false);
+			return size_allocation::proportion(1.0);
 		}
 		/// Returns the default desired height of the scroll bar.
 		size_allocation get_desired_height() const override {
 			if (get_orientation() != orientation::vertical) {
-				return size_allocation(default_thickness, true);
+				return size_allocation::pixels(default_thickness);
 			}
-			return size_allocation(1.0, false);
+			return size_allocation::proportion(1.0);
 		}
 
 		/// Sets the current value of the scroll bar.

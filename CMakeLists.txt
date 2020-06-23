@@ -51,8 +51,10 @@ target_sources(codepad
 
 		"src/ui/elements/button.cpp"
 		"src/ui/elements/label.cpp"
+		"src/ui/elements/scroll_viewport.cpp"
 		"src/ui/elements/scrollbar.cpp"
 		"src/ui/elements/stack_panel.cpp"
+		"src/ui/elements/text_edit.cpp"
 
 		"src/ui/animation_path.cpp"
 		"src/ui/animation_path_parser.cpp"

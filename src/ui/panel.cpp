@@ -147,25 +147,39 @@ namespace codepad::ui {
 		}
 		return element::get_current_display_cursor();
 	}
-	
+
 	size_allocation panel::get_desired_width() const {
+		bool has_value = false;
 		double maxw = 0.0;
 		for (const element *e : _children.items()) {
 			if (e->is_visible(visibility::layout)) {
-				maxw = std::max(maxw, _get_horizontal_absolute_span(*e));
+				if (auto span = _get_horizontal_absolute_span(*e)) {
+					has_value = true;
+					maxw = std::max(maxw, span.value());
+				}
 			}
 		}
-		return size_allocation(maxw + get_padding().width(), true);
+		if (has_value) {
+			return size_allocation::pixels(maxw + get_padding().width());
+		}
+		return size_allocation::proportion(1.0);
 	}
-	
+
 	size_allocation panel::get_desired_height() const {
+		bool has_value = false;
 		double maxh = 0.0;
 		for (const element *e : _children.items()) {
 			if (e->is_visible(visibility::layout)) {
-				maxh = std::max(maxh, _get_vertical_absolute_span(*e));
+				if (auto span = _get_vertical_absolute_span(*e)) {
+					has_value = true;
+					maxh = std::max(maxh, span.value());
+				}
 			}
 		}
-		return size_allocation(maxh + get_padding().height(), true);
+		if (has_value) {
+			return size_allocation::pixels(maxh + get_padding().height());
+		}
+		return size_allocation::proportion(1.0);
 	}
 
 	void panel::layout_on_direction(
@@ -314,37 +328,103 @@ namespace codepad::ui {
 		element::_dispose();
 	}
 
-	double panel::_get_horizontal_absolute_span(const element &e) {
+	/// Implementation of \ref panel::_get_horizontal_absolute_span() and \ref panel::_get_vertical_absolute_span().
+	template <
+		anchor AnchorBefore, double thickness::*MarginBefore,
+		size_allocation(element::*Size)() const,
+		anchor AnchorAfter, double thickness::*MarginAfter
+	> std::optional<double> _get_absolute_span(const element &e) {
+		bool has_value = false;
 		double cur = 0.0;
 		thickness margin = e.get_margin();
 		anchor anc = e.get_anchor();
-		if ((anc & anchor::left) != anchor::none) {
-			cur += margin.left;
+		if ((anc & AnchorBefore) != anchor::none) {
+			has_value = true;
+			cur += margin.*MarginBefore;
 		}
-		auto sz = e.get_layout_width();
-		if (sz.is_pixels) {
-			cur += sz.value;
+		auto size = (e.*Size)();
+		if (size.is_pixels) {
+			has_value = true;
+			cur += size.value;
 		}
-		if ((anc & anchor::right) != anchor::none) {
-			cur += margin.right;
+		if ((anc & AnchorAfter) != anchor::none) {
+			has_value = true;
+			cur += margin.*MarginAfter;
 		}
-		return cur;
+		if (has_value) {
+			return cur;
+		}
+		return std::nullopt;
+	}
+	std::optional<double> panel::_get_horizontal_absolute_span(const element &e) {
+		return _get_absolute_span<
+			anchor::left, &thickness::left,
+			&element::get_layout_width,
+			anchor::right, &thickness::right
+		>(e);
 	}
 
-	double panel::_get_vertical_absolute_span(const element &e) {
-		double cur = 0.0;
-		thickness margin = e.get_margin();
-		anchor anc = e.get_anchor();
-		if ((anc & anchor::top) != anchor::none) {
-			cur += margin.top;
+	std::optional<double> panel::_get_vertical_absolute_span(const element &e) {
+		return _get_absolute_span<
+			anchor::top, &thickness::top,
+			&element::get_layout_height,
+			anchor::bottom, &thickness::bottom
+		>(e);
+	}
+
+	/// Implementation of \ref panel::_get_max_horizontal_absolute_span() and
+	/// \ref panel::_get_max_vertical_absolute_span()
+	template <std::optional<double>(*GetSpan)(const element&)> std::optional<double> _get_max_absolute_span(
+		const element_collection &children
+	) {
+		bool has_value = false;
+		double val = 0.0;
+		for (element *e : children.items()) {
+			if (e->is_visible(visibility::layout)) {
+				if (auto span = GetSpan(*e)) {
+					has_value = true;
+					val = std::max(val, span.value());
+				}
+			}
 		}
-		auto sz = e.get_layout_height();
-		if (sz.is_pixels) {
-			cur += sz.value;
+		if (has_value) {
+			return val;
 		}
-		if ((anc & anchor::bottom) != anchor::none) {
-			cur += margin.bottom;
+		return std::nullopt;
+	}
+	std::optional<double> panel::_get_max_horizontal_absolute_span(const element_collection &children) {
+		return _get_max_absolute_span<_get_horizontal_absolute_span>(children);
+	}
+
+	std::optional<double> panel::_get_max_vertical_absolute_span(const element_collection &children) {
+		return _get_max_absolute_span<_get_horizontal_absolute_span>(children);
+	}
+
+	/// Implementation of \ref panel::_get_total_horizontal_absolute_span() and
+	/// \ref panel::_get_total_vertical_absolute_span()
+	template <std::optional<double>(*GetSpan)(const element&)> std::optional<double> _get_total_absolute_span(
+		const element_collection &children
+	) {
+		bool has_value = false;
+		double val = 0.0;
+		for (element *e : children.items()) {
+			if (e->is_visible(visibility::layout)) {
+				if (auto span = GetSpan(*e)) {
+					has_value = true;
+					val += span.value();
+				}
+			}
 		}
-		return cur;
+		if (has_value) {
+			return val;
+		}
+		return std::nullopt;
+	}
+	std::optional<double> panel::_get_total_horizontal_absolute_span(const element_collection &children) {
+		return _get_total_absolute_span<_get_horizontal_absolute_span>(children);
+	}
+
+	std::optional<double> panel::_get_total_vertical_absolute_span(const element_collection &children) {
+		return _get_total_absolute_span<_get_vertical_absolute_span>(children);
 	}
 }

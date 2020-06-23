@@ -28,6 +28,15 @@ namespace codepad::ui {
 					lbl._on_text_layout_changed();
 				}
 			));
+			mapping.emplace(u8"text", std::make_shared<getter_setter_property<label, std::u8string>>(
+				u8"text",
+				[](label &lbl) {
+					return lbl.get_text();
+				},
+				[](label &lbl, std::u8string text) {
+					lbl.set_text(std::move(text));
+				}
+			));
 		}
 
 		return mapping;

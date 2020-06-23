@@ -27,32 +27,13 @@ namespace codepad::ui {
 		/// Returns the minimum width that can contain all elements in pixels, plus padding. More specifically, the
 		/// return value is the padding plus the sum of all horizontal sizes specified in pixels, ignoring those
 		/// specified as proportions, if the panel is in a horizontal state; or the padding plus the maximum
-		/// horizontal size specified in pixels otherwise.
-		size_allocation get_desired_width() const override {
-			double val = 0.0;
-			for (element *e : _children.items()) {
-				if (e->is_visible(visibility::layout)) {
-					double span = _get_horizontal_absolute_span(*e);
-					val = get_orientation() == orientation::vertical ? std::max(val, span) : val + span;
-				}
-			}
-			return size_allocation(val + get_padding().width(), true);
-		}
-		/// Returns the minimum height that can contain all elements in pixels, plus padding. All heights specified
-		/// in proportions are ignored.
-		///
-		/// \sa get_desired_width
-		size_allocation get_desired_height() const override {
-			double val = 0.0;
-			for (element *e : _children.items()) {
-				if (e->is_visible(visibility::layout)) {
-					double span = _get_vertical_absolute_span(*e);
-					val = get_orientation() == orientation::vertical ? val + span : std::max(val, span);
-				}
-			}
-			return size_allocation(val + get_padding().height(), true);
-		}
+		/// horizontal size specified in pixels otherwise. If all values are in proportions, returns 1.0 in
+		/// proportion.
+		size_allocation get_desired_width() const override;
+		/// Similar to \ref get_desired_width(), but for height.
+		size_allocation get_desired_height() const override;
 
+		// TODO change to using orientation instead of bools
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel with the given
 		/// orientation and client area. All elements must be children of the given \ref panel.
 		template <bool Vertical> inline static void layout_elements_in(

@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
 /// \file
-/// Module definitions for the Python interface.
+/// Implementation of the \ref register_core_classes() function.
 
 #include <pybind11/pybind11.h>
 #include <pybind11/embed.h>
@@ -86,24 +86,35 @@ class py_plugin : public cp::plugin {
 public:
 	/// Wrapper around pure \ref codepad::plugin::initialize().
 	void initialize(const cp::plugin_context &ctx) override {
-		PYBIND11_OVERLOAD_PURE(void, cp::plugin, initialize, ctx);
+		add_dependency(*this_plugin);
+		TRY_OVERLOAD_PURE(void, cp::plugin, initialize, ctx);
+	}
+	/// Wrapper around \ref codepad::plugin::finalize().
+	void finalize() override {
+		TRY_OVERLOAD(void, cp::plugin, finalize, );
 	}
 	/// Wrapper around pure \ref codepad::plugin::get_name().
 	std::u8string get_name() const override {
-		PYBIND11_OVERLOAD_PURE(std::u8string, cp::plugin, get_name, );
+		TRY_OVERLOAD_PURE(std::u8string, cp::plugin, get_name, );
+		return u8"";
 	}
 
 	/// Wrapper around pure \ref codepad::plugin::_on_enabled().
 	void _on_enabled() override {
-		PYBIND11_OVERLOAD_PURE(void, cp::plugin, _on_enabled, );
+		TRY_OVERLOAD_PURE(void, cp::plugin, _on_enabled, );
 	}
-	/// Wrapper around pure \ref codepad::plugin::_on_disabled().
+		/// Wrapper around pure \ref codepad::plugin::_on_disabled().
 	void _on_disabled() override {
-		PYBIND11_OVERLOAD_PURE(void, cp::plugin, _on_disabled, );
+		TRY_OVERLOAD_PURE(void, cp::plugin, _on_disabled, );
+	}
+private:
+	/// This is a managed plugin.
+	bool _is_managed() const override {
+		return true;
 	}
 };
 
-PYBIND11_EMBEDDED_MODULE(pycodepad, m) {
+void register_core_classes(pybind11::module &m) {
 	m.doc() = "Python binding for codepad generated using pybind11";
 
 	register_info_event_and_token<void>(m, "info_event_token", "info_event");
@@ -196,17 +207,18 @@ PYBIND11_EMBEDDED_MODULE(pycodepad, m) {
 		.def("enable", &cp::plugin::enable)
 		.def("disable", &cp::plugin::disable)
 		.def_property_readonly("name", &cp::plugin::get_name)
-		.def_property_readonly("is_enabled", &cp::plugin::is_enabled);
+		.def_property_readonly("is_enabled", &cp::plugin::is_enabled)
+		.def_property_readonly("num_dependents", &cp::plugin::get_num_dependents);
 	{
-		auto plugin_manager = py::class_<cp::plugin_manager>(m, "plugin_manager")
-			.def("get_loaded_plugins", &cp::plugin_manager::get_loaded_plugins, py::return_value_policy::reference);
-		plugin_manager.def(
-			"attach",
-			[](cp::plugin_manager &plug_man, std::shared_ptr<cp::plugin> plug) {
-				plug_man.attach(plug);
-				python_plugins.emplace_back(std::move(plug));
-			}
-		);
-		// TODO detach, and remember to remove the plugin from the list
+		auto plugin_manager = py::class_<cp::plugin_manager>(m, "plugin_manager");
+		plugin_manager
+			.def("attach", &cp::plugin_manager::attach)
+			.def("detach", &cp::plugin_manager::detach)
+			.def("find_plugin", &cp::plugin_manager::find_plugin);
+
+		py::class_<cp::plugin_manager::handle>(plugin_manager, "handle")
+			.def(py::init<>())
+			.def_property_readonly("valid", &cp::plugin_manager::handle::valid)
+			.def_property_readonly("name", &cp::plugin_manager::handle::get_name);
 	}
 }

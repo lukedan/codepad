@@ -24,10 +24,6 @@ namespace codepad {
 	}
 
 
-	/// Contains a collection of functions that parse objects from JSON objects.
-	namespace json {
-	}
-
 	namespace ui {
 		/// Orientation.
 		enum class orientation : unsigned char {
@@ -241,7 +237,8 @@ namespace codepad {
 		struct size_allocation {
 			/// Default constructor.
 			size_allocation() = default;
-			/// Initializes all fields of this struct.
+			/// Initializes all fields of this struct. Use \ref pixels() or \ref proportion() instead of this
+			/// whenever possible.
 			size_allocation(double v, bool px) : value(v), is_pixels(px) {
 			}
 

@@ -520,7 +520,7 @@ namespace codepad::ui::cairo {
 
 		cairo_set_source_rgba(context, c.r, c.g, c.b, c.a);
 		// TODO the text flickers, seems that wrong font sizes are used for certain glyphs
-		cairo_show_glyphs(context, glyphs.data(), glyphs.size());
+		cairo_show_glyphs(context, glyphs.data(), static_cast<int>(glyphs.size()));
 	}
 
 	void renderer_base::_draw_path(

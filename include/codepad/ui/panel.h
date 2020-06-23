@@ -107,9 +107,11 @@ namespace codepad::ui {
 		/// Otherwise just returns element::get_current_display_cursor().
 		cursor get_current_display_cursor() const override;
 
-		/// Returns the maximum width of its children specified in pixels, plus padding.
+		/// Returns the maximum width of its children specified in pixels, plus padding. If no child of this \ref panel has
+		/// its size or margin specified in pixels, returns a proportion of 1.
 		size_allocation get_desired_width() const override;
-		/// Returns the maximum height of its children specified in pixels, plus padding.
+		/// Returns the maximum height of its children specified in pixels, plus padding. If no child of this \ref panel
+		/// has its size or margin specified in pixels, returns a proportion of 1.
 		size_allocation get_desired_height() const override;
 
 		/// Sets whether it should mark all its children for disposal when it's being disposed.
@@ -261,7 +263,13 @@ namespace codepad::ui {
 		/// \ref invalidate_layout() on the child otherwise.
 		///
 		/// \sa element::_on_desired_size_changed()
-		void _on_child_desired_size_changed(element &child, bool width, bool height);
+		/// \sa _on_child_layout_parameters_changed()
+		virtual void _on_child_desired_size_changed(element &child, bool width, bool height);
+		/// Invoked by any child in \ref element::_on_layout_parameters_changed().
+		///
+		/// \sa _on_child_desired_size_changed()
+		virtual void _on_child_layout_parameters_changed(element&) {
+		}
 		/// Invalidate all children's layout.
 		void _on_layout_changed() override {
 			_on_update_children_layout();
@@ -346,12 +354,26 @@ namespace codepad::ui {
 			e._on_render();
 		}
 
+
+		// utility function used to obtain pixel sizes.
 		/// Returns the total horizontal span of the given element that is specified in pixels, i.e., excluding
-		/// all widths specified in proportions.
-		static double _get_horizontal_absolute_span(const element&);
-		/// Returns the total vertical span of the given element that is specified in pixels, i.e., excluding
-		/// all heights specified in proportions.
-		static double _get_vertical_absolute_span(const element&);
+		/// all widths specified in proportions. Returns \p std::nullopt if all sizes are proportional.
+		static std::optional<double> _get_horizontal_absolute_span(const element&);
+		/// Similar to \ref _get_horizontal_absolute_span(), but for the height.
+		static std::optional<double> _get_vertical_absolute_span(const element&);
+
+		/// Returns the maximum horizontal span returned by \ref _get_horizontal_absolute_span(). This function takes
+		/// element visibility (more specifically, \ref visibility::layout) into account.
+		static std::optional<double> _get_max_horizontal_absolute_span(const element_collection&);
+		/// Similar to \ref _get_max_horizontal_absolute_span().
+		static std::optional<double> _get_max_vertical_absolute_span(const element_collection&);
+
+		/// Returns the total horizontal span returned by \ref _get_horizontal_absolute_span(). This function takes
+		/// element visibility (more specifically, \ref visibility::layout) into account.
+		static std::optional<double> _get_total_horizontal_absolute_span(const element_collection&);
+		/// Similar to \ref _get_total_horizontal_absolute_span().
+		static std::optional<double> _get_total_vertical_absolute_span(const element_collection&);
+
 
 		/// Used by composite elements to automatically check and cast a component pointer to the correct type, and
 		/// assign it to the given pointer.
