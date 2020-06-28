@@ -227,6 +227,10 @@ namespace codepad {
 			[[nodiscard]] virtual caret_hit_test_result hit_test(vec2d) const = 0;
 			/// Returns the space occupied by the character at the given position.
 			[[nodiscard]] virtual rectd get_character_placement(std::size_t) const = 0;
+			/// Returns the positions occupied by the given range of text.
+			[[nodiscard]] virtual std::vector<rectd> get_character_range_placement(
+				std::size_t beg, std::size_t len
+			) const = 0;
 
 			/// Sets the color of the specified range of text.
 			virtual void set_text_color(colord, std::size_t, std::size_t) = 0;

@@ -201,6 +201,8 @@ namespace codepad::ui::cairo {
 	};
 
 	/// Wraps around a \p PangoLayout.
+	///
+	/// \todo \n characters are not shown properly.
 	class formatted_text : public ui::formatted_text {
 		friend renderer_base;
 	public:
@@ -212,16 +214,13 @@ namespace codepad::ui::cairo {
 			// TODO
 		}
 
-		///
-		caret_hit_test_result hit_test(vec2d pos) const override {
-			// TODO
-			return caret_hit_test_result(0, rectd(), false);
-		}
-		///
-		rectd get_character_placement(std::size_t pos) const override {
-			// TODO
-			return rectd();
-		}
+		/// Invokes \p pango_layout_xy_to_index().
+		caret_hit_test_result hit_test(vec2d) const override;
+		/// Invokes \p pango_layout_index_to_pos().
+		rectd get_character_placement(std::size_t) const override;
+		/// For each line in the text, calls \p pango_layout_line_get_x_ranges() to compute the range of the
+		/// selection.
+		std::vector<rectd> get_character_range_placement(std::size_t beg, std::size_t len) const override;
 
 		/// Sets the color of the specified range of text.
 		void set_text_color(colord, std::size_t beg, std::size_t len) override;
@@ -236,7 +235,9 @@ namespace codepad::ui::cairo {
 		/// Sets the font stretch of the specified range of text.
 		void set_font_stretch(font_stretch, std::size_t beg, std::size_t len) override;
 	protected:
-		std::vector<std::size_t> _bytepos; ///< Positions of each character's starting byte.
+		/// Positions of each character's starting byte. This includes one extra element at the end equal to the
+		/// total byte length of the text.
+		std::vector<std::size_t> _bytepos;
 		_details::glib_object_ref<PangoLayout> _layout; ///< The underlying \p PangoLayout object.
 
 		/// Converts character indices to byte positions.
@@ -564,8 +565,7 @@ namespace codepad::ui::cairo {
 				font, c, size, wrap, halign, valign
 			);
 		}
-		/// Draws the given \ref formatted_text at the given position using the given brush. The position indicates
-		/// the top left corner of the layout box.
+		/// Draws the given \ref formatted_text at the given position.
 		void draw_formatted_text(const ui::formatted_text&, vec2d pos) override;
 
 		/// \overload

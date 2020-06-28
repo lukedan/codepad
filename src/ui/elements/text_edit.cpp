@@ -22,6 +22,14 @@ namespace codepad::ui {
 					edit.invalidate_visual();
 				}
 			));
+			mapping.emplace(
+				u8"selection_visuals",
+				std::make_shared<member_pointer_property<&text_edit::_selection_visuals>>(
+					[](text_edit &edit) {
+						edit.invalidate_visual();
+					}
+					)
+			);
 		}
 
 		return mapping;
@@ -51,7 +59,7 @@ namespace codepad::ui {
 
 	void text_edit::_on_mouse_up(mouse_button_info &info) {
 		label::_on_mouse_up(info);
-		if (info.button == mouse_button::primary) {
+		if (info.button == mouse_button::primary && _selecting) {
 			_selecting = false;
 			get_window()->release_mouse_capture();
 		}
@@ -141,6 +149,12 @@ namespace codepad::ui {
 		// label::_on_prerender() calls _check_cache_format(), so no need to call again here
 		rectd cursor = _cached_fmt->get_character_placement(_caret);
 		_caret_visuals.render(cursor, get_manager().get_renderer());
-		// TODO
+		if (_caret != _selection_end) { // render selection
+			auto [sel_min, sel_max] = std::minmax(_caret, _selection_end);
+			std::vector<rectd> rs = _cached_fmt->get_character_range_placement(sel_min, sel_max - sel_min);
+			for (rectd r : rs) {
+				_selection_visuals.render(r, get_manager().get_renderer());
+			}
+		}
 	}
 }

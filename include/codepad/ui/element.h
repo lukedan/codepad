@@ -27,6 +27,7 @@ namespace codepad::ui {
 	class manager;
 	class scheduler;
 	class window_base;
+	class element_collection;
 
 	/// Used to transform mouse position between the coordinate systems of a hierarchy of elements. This struct does
 	/// not take into account factors like hit testing, visibility, etc.
@@ -50,7 +51,7 @@ namespace codepad::ui {
 		explicit mouse_move_info(mouse_position m) : new_position(m) {
 		}
 
-		/// The position that the mouse has moved to, relative to the top-left corner of the window's client area.
+		/// The position that the mouse has moved to.
 		const mouse_position new_position;
 	};
 	/// Contains information about mouse scrolling.
@@ -61,8 +62,7 @@ namespace codepad::ui {
 		}
 
 		const vec2d delta; ///< The offset of the mouse scroll.
-		/// The position of the mouse when the scroll took place, relative to the top-left corner of the window's
-		/// client area.
+		/// The position of the mouse when the scroll took place.
 		const mouse_position position;
 
 		/// Returns \p true if the scroll has been handled by an element.
@@ -120,7 +120,7 @@ namespace codepad::ui {
 		}
 		const std::u8string content; ///< The content that the user has entered.
 	};
-	/// Contains information about the ongoing composition.
+	/// Contains information about the ongoing composition when the user is using an input method.
 	///
 	/// \todo Add composition underline.
 	struct composition_info {
@@ -144,8 +144,8 @@ namespace codepad::ui {
 	/// The base class of elements of the user interface.
 	class APIGEN_EXPORT_RECURSIVE APIGEN_EXPORT_BASE element {
 		APIGEN_ENABLE_PRIVATE_EXPORT;
-		friend class element_collection;
-		friend class window_base;
+		friend element_collection;
+		friend window_base;
 		friend manager;
 		friend scheduler;
 		friend panel;
@@ -164,12 +164,13 @@ namespace codepad::ui {
 			return _logical_parent;
 		}
 
-		/// Returns the current layout of this element.
+		/// Returns the current layout of this element, with respect to the window this element is in, and ignoring
+		/// all transformations of all elements.
 		[[nodiscard]] rectd get_layout() const {
 			return _layout;
 		}
-		/// Calculates and returns the current client region, i.e.,
-		/// the layout with padding subtracted from it, of the element.
+		/// Calculates and returns the current client region, i.e., the layout of the element with padding subtracted
+		/// from it.
 		[[nodiscard]] rectd get_client_region() const {
 			return get_padding().shrink(_layout);
 		}
@@ -179,7 +180,7 @@ namespace codepad::ui {
 		[[nodiscard]] size_allocation get_layout_width() const;
 		/// Returns the height value used for layout calculation.
 		///
-		/// \sa get_layout_width
+		/// \sa get_layout_width()
 		[[nodiscard]] size_allocation get_layout_height() const;
 
 		/// Returns the margin metric of this element.
@@ -215,17 +216,11 @@ namespace codepad::ui {
 
 		/// Returns the desired width of the element. Derived elements can override this to change the default
 		/// behavior, which simply makes the element fill all available space horizontally.
-		///
-		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
-		///         indicates whether the value is specified in pixels.
 		[[nodiscard]] virtual size_allocation get_desired_width() const {
 			return size_allocation::proportion(1.0);
 		}
 		/// Returns the desired height of the element. Derived elements can override this to change the default
 		/// behavior, which simply makes the element fill all available space vertically.
-		///
-		/// \return A \p std::pair<double, bool>, in which the first element is the value and the second element
-		///         indicates whether the value is specified in pixels.
 		[[nodiscard]] virtual size_allocation get_desired_height() const {
 			return size_allocation::proportion(1.0);
 		}
@@ -246,9 +241,8 @@ namespace codepad::ui {
 		[[nodiscard]] cursor get_custom_cursor() const {
 			return _custom_cursor;
 		}
-		/// Returns the cursor displayed when the mouse is over this element.
-		/// This function returns the cusrom cursor if there is one,
-		/// or the result returned by \ref get_default_cursor.
+		/// Returns the cursor displayed when the mouse is over this element. By default this function returns the
+		/// cusrom cursor if there is one, or the result returned by \ref get_default_cursor() otherwise.
 		[[nodiscard]] virtual cursor get_current_display_cursor() const {
 			cursor overriden = get_custom_cursor();
 			if (overriden == cursor::not_specified) {
@@ -260,7 +254,7 @@ namespace codepad::ui {
 		/// Returns the window that contains the element, or \p nullptr if the element's not currently attached to
 		/// one. For windows themselves, this function returns \p nullptr.
 		window_base *get_window() const;
-		/// Returns the \ref manager of this element. Use this instead of directly accessing \ref _manager.
+		/// Returns the \ref manager of this element.
 		[[nodiscard]] manager &get_manager() const {
 			return *_manager;
 		}

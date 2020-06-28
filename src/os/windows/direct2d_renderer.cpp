@@ -212,6 +212,33 @@ namespace codepad::os::direct2d {
 		return rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
 	}
 
+	std::vector<rectd> formatted_text::get_character_range_placement(std::size_t beg, std::size_t len) const {
+		constexpr std::size_t static_buffer_size = 20;
+		static DWRITE_HIT_TEST_METRICS static_buffer[static_buffer_size];
+
+		UINT32 count = 0;
+		HRESULT hres = _text->HitTestTextRange(beg, len, 0.0f, 0.0f, static_buffer, static_buffer_size, &count);
+		const DWRITE_HIT_TEST_METRICS *result_ptr = static_buffer;
+		std::vector<DWRITE_HIT_TEST_METRICS> buffer;
+		if (hres == E_NOT_SUFFICIENT_BUFFER) {
+			buffer.resize(count);
+			_details::com_check(_text->HitTestTextRange(beg, len, 0.0f, 0.0f, buffer.data(), count, &count));
+			result_ptr = buffer.data();
+		} else {
+			_details::com_check(hres);
+		}
+
+		// move into result vector
+		std::vector<rectd> result;
+		result.reserve(count);
+		for (UINT32 i = 0; i < count; ++i) {
+			result.emplace_back(rectd::from_xywh(
+				result_ptr[i].left, result_ptr[i].top, result_ptr[i].width, result_ptr[i].height
+			));
+		}
+		return result;
+	}
+
 	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
 		_details::com_wrapper<ID2D1SolidColorBrush> brush;
 		_rend->_d2d_device_context->CreateSolidColorBrush(_details::cast_color(c), brush.get_ref());

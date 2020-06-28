@@ -180,6 +180,25 @@
 						}
 					}
 				]
+			},
+			"selection_visuals": {
+				"geometries": [
+					{
+						"type": "rectangle",
+						"top_left": [
+							[ 0.0, 0.0 ],
+							[ 0.0, 0.0 ]
+						],
+						"bottom_right": [
+							[ 1.0, 1.0 ],
+							[ 0.0, 0.0 ]
+						],
+						"fill": {
+							"type": "solid",
+							"color": [ 0.2, 0.5, 1.0, 0.2 ]
+						}
+					}
+				]
 			}
 		}
 	},

@@ -43,7 +43,9 @@ namespace codepad::ui {
 			return u8"text_edit";
 		}
 	protected:
-		visuals _caret_visuals; ///< The \ref visuals of the caret.
+		visuals
+			_caret_visuals, ///< The \ref visuals of the caret.
+			_selection_visuals; ///< Visuals for individual rectangles in the selection.
 		std::size_t
 			_caret = 0, ///< Caret position.
 			_selection_end = 0; ///< The other end of the selection.

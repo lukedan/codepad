@@ -129,18 +129,76 @@ namespace codepad::ui::cairo {
 			assert_true_usage(rt, "invalid formatted text type");
 			return *rt;
 		}
+
+		/// Casts a \p PangoRectangle **in pango units** to a \ref rectd.
+		rectd cast_rect_back(const PangoRectangle &rect) {
+			return rectd::from_xywh(
+				pango_units_to_double(rect.x),
+				pango_units_to_double(rect.y),
+				pango_units_to_double(rect.width),
+				pango_units_to_double(rect.height)
+			);
+		}
 	}
 
 
 	rectd formatted_text::get_layout() const {
 		PangoRectangle layout;
 		pango_layout_get_extents(_layout.get(), nullptr, &layout);
-		return rectd::from_xywh(
-			layout.x / static_cast<double>(PANGO_SCALE),
-			layout.y / static_cast<double>(PANGO_SCALE),
-			layout.width / static_cast<double>(PANGO_SCALE),
-			layout.height / static_cast<double>(PANGO_SCALE)
+		return _details::cast_rect_back(layout);
+	}
+
+	caret_hit_test_result formatted_text::hit_test(vec2d pos) const {
+		int index = 0, trailing = 0;
+		PangoRectangle rect;
+		pango_layout_xy_to_index(
+			_layout.get(),
+			pango_units_from_double(pos.x), pango_units_from_double(pos.y),
+			&index, &trailing
 		);
+		pango_layout_index_to_pos(_layout.get(), index, &rect);
+
+		caret_hit_test_result result;
+		result.character = std::lower_bound(_bytepos.begin(), _bytepos.end(), index) - _bytepos.begin();
+		result.character_layout = _details::cast_rect_back(rect);
+		result.rear = (trailing != 0);
+		return result;
+	}
+
+	rectd formatted_text::get_character_placement(std::size_t pos) const {
+		PangoRectangle rect;
+		pango_layout_index_to_pos(_layout.get(), _bytepos[std::min(pos, _bytepos.size() - 1)], &rect);
+		if (rect.width < 0) {
+			rect.x += rect.width;
+			rect.width = -rect.width;
+		}
+		return _details::cast_rect_back(rect);
+	}
+
+	std::vector<rectd> formatted_text::get_character_range_placement(std::size_t beg, std::size_t len) const {
+		PangoLayoutIter *iter = pango_layout_get_iter(_layout.get());
+		int beg_index = static_cast<int>(_bytepos[beg]), end_index = static_cast<int>(_bytepos[beg + len]);
+		std::vector<rectd> result;
+		do {
+			PangoLayoutLine *line = pango_layout_iter_get_line_readonly(iter);
+			int *ranges = nullptr;
+			int num_ranges = 0;
+			pango_layout_line_get_x_ranges(line, beg_index, end_index, &ranges, &num_ranges);
+			if (ranges) {
+				int ymin_pu = 0, ymax_pu = 0;
+				pango_layout_iter_get_line_yrange(iter, &ymin_pu, &ymax_pu);
+				double ymin = pango_units_to_double(ymin_pu), ymax = pango_units_to_double(ymax_pu);
+
+				int *iter = ranges;
+				for (int i = 0; i < num_ranges; ++i, iter += 2) {
+					int beg = iter[0], end = iter[1];
+					result.emplace_back(pango_units_to_double(beg), pango_units_to_double(end), ymin, ymax);
+				}
+				g_free(ranges);
+			}
+		} while (pango_layout_iter_next_line(iter));
+		pango_layout_iter_free(iter);
+		return result;
 	}
 
 	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
@@ -168,7 +226,7 @@ namespace codepad::ui::cairo {
 	}
 
 	void formatted_text::set_font_size(double size, std::size_t beg, std::size_t len) {
-		PangoAttribute *attr = pango_attr_size_new(static_cast<int>(std::round(size * PANGO_SCALE)));
+		PangoAttribute *attr = pango_attr_size_new(pango_units_from_double(size));
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
 		attr->end_index = byte_end;
@@ -678,24 +736,29 @@ namespace codepad::ui::cairo {
 			pango_font_description_set_style(desc, _details::cast_font_style(font.style));
 			pango_font_description_set_weight(desc, _details::cast_font_weight(font.weight));
 			pango_font_description_set_stretch(desc, _details::cast_font_stretch(font.stretch));
-			pango_font_description_set_size(desc, static_cast<gint>(std::round(font.size * PANGO_SCALE)));
+			pango_font_description_set_size(desc, pango_units_from_double(font.size));
 			pango_layout_set_font_description(result->_layout.get(), desc);
 			pango_font_description_free(desc);
 		}
 
 		pango_layout_set_ellipsize(result->_layout.get(), PANGO_ELLIPSIZE_NONE);
+		pango_layout_set_single_paragraph_mode(result->_layout.get(), false);
 
 		// horizontal wrapping
 		if (wrap == wrapping_mode::none) {
 			// FIXME alignment won't work for this case
 			pango_layout_set_width(result->_layout.get(), -1); // disable wrapping
 		} else {
-			pango_layout_set_width(result->_layout.get(), PANGO_PIXELS(size.x));
+			pango_layout_set_width(result->_layout.get(), pango_units_from_double(size.x));
 			pango_layout_set_wrap(result->_layout.get(), PANGO_WRAP_WORD_CHAR);
 		}
 		pango_layout_set_alignment(result->_layout.get(), _details::cast_horizontal_alignment(halign));
 
-		pango_layout_set_height(result->_layout.get(), PANGO_PIXELS(size.y));
+		// "The behavior is undefined if a height other than -1 is set and ellipsization mode is set to
+		// PANGO_ELLIPSIZE_NONE, and may change in the future."
+		// https://developer.gnome.org/pango/stable/pango-Layout-Objects.html#pango-layout-set-height
+		pango_layout_set_height(result->_layout.get(), -1);
+		/*pango_layout_set_height(result->_layout.get(), pango_units_from_double(size.y));*/
 		// TODO vertical alignment
 
 		{ // set color

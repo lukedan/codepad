@@ -62,6 +62,8 @@ namespace codepad::os::direct2d {
 		ui::caret_hit_test_result hit_test(vec2d) const override;
 		/// Invokes \p IDWriteTextLayout::HitTestTextPosition().
 		rectd get_character_placement(std::size_t) const override;
+		/// Invokes \p IDWriteTextLayout::HitTestTextRange().
+		std::vector<rectd> get_character_range_placement(std::size_t beg, std::size_t len) const override;
 
 		/// Calls \p IDWriteTextLayout::SetDrawingEffect().
 		void set_text_color(colord, std::size_t, std::size_t) override;
