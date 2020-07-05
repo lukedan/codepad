@@ -12,6 +12,7 @@
 #include <codepad/ui/element.h>
 #include <codepad/ui/manager.h>
 #include <codepad/ui/commands.h>
+#include <codepad/ui/elements/text_edit.h>
 #include <codepad/ui/elements/tabs/host.h>
 #include <codepad/ui/elements/tabs/manager.h>
 #include <codepad/editors/editor.h>
@@ -66,94 +67,133 @@ extern "C" {
 
 		// do not capture anything in these lambdas - there's no reason to
 		commands.emplace_back(
+			u8"text_edit.move_caret_left",
+			cp::ui::command_registry::convert_type<cp::ui::text_edit>([](cp::ui::text_edit &e) {
+				e.move_caret_left(false);
+				})
+		);
+		commands.emplace_back(
+			u8"text_edit.move_caret_left_selected",
+			cp::ui::command_registry::convert_type<cp::ui::text_edit>([](cp::ui::text_edit &e) {
+				e.move_caret_left(true);
+				})
+		);
+		commands.emplace_back(
+			u8"text_edit.move_caret_right",
+			cp::ui::command_registry::convert_type<cp::ui::text_edit>([](cp::ui::text_edit &e) {
+				e.move_caret_right(false);
+				})
+		);
+		commands.emplace_back(
+			u8"text_edit.move_caret_right_selected",
+			cp::ui::command_registry::convert_type<cp::ui::text_edit>([](cp::ui::text_edit &e) {
+				e.move_caret_right(true);
+				})
+		);
+
+		commands.emplace_back(
+			u8"text_edit.delete_before",
+			cp::ui::command_registry::convert_type<cp::ui::text_edit>([](cp::ui::text_edit &e) {
+				e.delete_character_before_caret();
+				})
+		);
+		commands.emplace_back(
+			u8"text_edit.delete_after",
+			cp::ui::command_registry::convert_type<cp::ui::text_edit>([](cp::ui::text_edit &e) {
+				e.delete_character_after_caret();
+				})
+		);
+
+
+		commands.emplace_back(
 			u8"contents_region.carets.move_left",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_left(false);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_left(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_left_selected",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_left(true);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_left(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_right",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_right(false);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_right(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_right_selected",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_right(true);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_right(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_up",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_up(false);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_up(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_up_selected",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_up(true);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_up(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_down",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_down(false);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_down(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_down_selected",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_down(true);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_down(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_leftmost",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_to_line_beginning(false);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_to_line_beginning(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_leftmost_selected",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_to_line_beginning(true);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_to_line_beginning(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_leftmost_noblank",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_to_line_beginning_advanced(false);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_to_line_beginning_advanced(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_leftmost_noblank_selected",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_to_line_beginning_advanced(true);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_to_line_beginning_advanced(true);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_rightmost",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_to_line_ending(false);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_to_line_ending(false);
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.carets.move_rightmost_selected",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).move_all_carets_to_line_ending(true);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).move_all_carets_to_line_ending(true);
 				})
 		);
 
 		commands.emplace_back(
 			u8"contents_region.folding.fold_selected",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				auto &edt = get_code_contents_region_from(*e);
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				auto &edt = get_code_contents_region_from(e);
 				for (auto caret : edt.get_carets().carets) {
 					if (caret.first.caret != caret.first.selection) {
 						edt.add_folded_region(std::minmax(caret.first.caret, caret.first.selection));
@@ -164,80 +204,80 @@ extern "C" {
 
 		commands.emplace_back(
 			u8"contents_region.delete_before_carets",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).on_backspace();
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).on_backspace();
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.delete_after_carets",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).on_delete();
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).on_delete();
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.insert_new_line",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).on_return();
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).on_return();
 				})
 		);
 
 		commands.emplace_back(
 			u8"contents_region.toggle_insert",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				e->get_contents_region()->toggle_insert_mode();
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				e.get_contents_region()->toggle_insert_mode();
 				})
 		);
 
 		commands.emplace_back(
 			u8"contents_region.undo",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).try_undo();
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).try_undo();
 				})
 		);
 		commands.emplace_back(
 			u8"contents_region.redo",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor *e) {
-				get_code_contents_region_from(*e).try_redo();
+			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
+				get_code_contents_region_from(e).try_redo();
 				})
 		);
 
 
 		commands.emplace_back(
 			u8"tab.request_close",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab *t) {
-				t->request_close();
+			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab &t) {
+				t.request_close();
 				})
 		);
 
 		commands.emplace_back(
 			u8"tab.split_left",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab *t) {
-				t->get_tab_manager().split_tab(*t, cp::ui::orientation::horizontal, true);
+			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab &t) {
+				t.get_tab_manager().split_tab(t, cp::ui::orientation::horizontal, true);
 				})
 		);
 		commands.emplace_back(
 			u8"tab.split_right",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab *t) {
-				t->get_tab_manager().split_tab(*t, cp::ui::orientation::horizontal, false);
+			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab &t) {
+				t.get_tab_manager().split_tab(t, cp::ui::orientation::horizontal, false);
 				})
 		);
 		commands.emplace_back(
 			u8"tab.split_up",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab *t) {
-				t->get_tab_manager().split_tab(*t, cp::ui::orientation::vertical, true);
+			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab &t) {
+				t.get_tab_manager().split_tab(t, cp::ui::orientation::vertical, true);
 				})
 		);
 		commands.emplace_back(
 			u8"tab.split_down",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab *t) {
-				t->get_tab_manager().split_tab(*t, cp::ui::orientation::vertical, false);
+			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab &t) {
+				t.get_tab_manager().split_tab(t, cp::ui::orientation::vertical, false);
 				})
 		);
 
 		commands.emplace_back(
 			u8"tab.move_to_new_window",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab *t) {
-				t->get_tab_manager().move_tab_to_new_window(*t);
+			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>([](cp::ui::tabs::tab &t) {
+				t.get_tab_manager().move_tab_to_new_window(t);
 				})
 		);
 
@@ -245,9 +285,9 @@ extern "C" {
 		// TODO options to not use the default encoding
 		commands.emplace_back(
 			u8"open_file_dialog",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::host>([](cp::ui::tabs::host *th) {
+			cp::ui::command_registry::convert_type<cp::ui::tabs::host>([](cp::ui::tabs::host &th) {
 				auto files = cp::os::file_dialog::show_open_dialog(
-					th->get_window(), cp::os::file_dialog::type::multiple_selection
+					th.get_window(), cp::os::file_dialog::type::multiple_selection
 				);
 				cp::ui::tabs::tab *last = nullptr;
 				for (const auto &path : files) {
@@ -256,10 +296,10 @@ extern "C" {
 						ctx, cp::editors::code::encoding_manager::get().get_default()
 					);
 
-					cp::ui::tabs::tab *tb = th->get_tab_manager().new_tab_in(th);
+					cp::ui::tabs::tab *tb = th.get_tab_manager().new_tab_in(&th);
 					tb->set_label(path.filename().u8string());
 					auto *editor = dynamic_cast<cp::editors::editor*>(
-						th->get_manager().create_element(u8"editor", u8"code_editor")
+						th.get_manager().create_element(u8"editor", u8"code_editor")
 					);
 					auto *contents =
 						dynamic_cast<cp::editors::code::contents_region*>(editor->get_contents_region());
@@ -270,7 +310,7 @@ extern "C" {
 					last = tb;
 				}
 				if (last) {
-					th->activate_tab(*last);
+					th.activate_tab(*last);
 				}
 				})
 		);
@@ -278,39 +318,39 @@ extern "C" {
 		// TODO options to not use the default encoding
 		commands.emplace_back(
 			u8"new_file",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::host>([](cp::ui::tabs::host *th) {
+			cp::ui::command_registry::convert_type<cp::ui::tabs::host>([](cp::ui::tabs::host &th) {
 				auto buf = cp::editors::buffer_manager::get().new_file();
 				auto interp = cp::editors::buffer_manager::get().open_interpretation(
 					buf, cp::editors::code::encoding_manager::get().get_default()
 				);
 
-				cp::ui::tabs::tab *tb = th->get_tab_manager().new_tab_in(th);
+				cp::ui::tabs::tab *tb = th.get_tab_manager().new_tab_in(&th);
 				tb->set_label(u8"New file");
 				auto *editor = dynamic_cast<cp::editors::editor*>(
-					th->get_manager().create_element(u8"editor", u8"code_editor")
+					th.get_manager().create_element(u8"editor", u8"code_editor")
 				);
 				auto *contents = dynamic_cast<cp::editors::code::contents_region*>(editor->get_contents_region());
 				contents->code_selection_renderer() = std::make_unique<cp::editors::rounded_selection_renderer>();
 				contents->set_document(interp);
 				tb->children().add(*editor);
-				th->activate_tab(*tb);
+				th.activate_tab(*tb);
 				})
 		);
 
 		commands.emplace_back(
 			u8"open_binary_file_dialog",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::host>([](cp::ui::tabs::host *th) {
+			cp::ui::command_registry::convert_type<cp::ui::tabs::host>([](cp::ui::tabs::host &th) {
 				auto files = cp::os::file_dialog::show_open_dialog(
-					th->get_window(), cp::os::file_dialog::type::multiple_selection
+					th.get_window(), cp::os::file_dialog::type::multiple_selection
 				);
 				cp::ui::tabs::tab *last = nullptr;
 				for (const auto &path : files) {
 					auto ctx = cp::editors::buffer_manager::get().open_file(path);
 
-					cp::ui::tabs::tab *tb = th->get_tab_manager().new_tab_in(th);
+					cp::ui::tabs::tab *tb = th.get_tab_manager().new_tab_in(&th);
 					tb->set_label(path.filename().u8string());
 					auto *editor = dynamic_cast<cp::editors::editor*>(
-						th->get_manager().create_element(u8"editor", u8"binary_editor")
+						th.get_manager().create_element(u8"editor", u8"binary_editor")
 					);
 					auto *contents =
 						dynamic_cast<cp::editors::binary::contents_region*>(editor->get_contents_region());
@@ -321,7 +361,7 @@ extern "C" {
 					last = tb;
 				}
 				if (last) {
-					th->activate_tab(*last);
+					th.activate_tab(*last);
 				}
 				})
 		);

@@ -209,9 +209,11 @@ namespace codepad::ui::cairo {
 		/// Returns the layout of the text.
 		rectd get_layout() const override;
 		/// Returns the metrics of each line.
-		std::vector<line_metrics> get_line_metrics() const override {
-			return std::vector<line_metrics>(1);
-			// TODO
+		std::vector<line_metrics> get_line_metrics() const override;
+
+		/// Returns the length of \ref _bytepos minus 1.
+		std::size_t get_num_characters() const override {
+			return _bytepos.size() - 1;
 		}
 
 		/// Invokes \p pango_layout_xy_to_index().
@@ -236,7 +238,7 @@ namespace codepad::ui::cairo {
 		void set_font_stretch(font_stretch, std::size_t beg, std::size_t len) override;
 	protected:
 		/// Positions of each character's starting byte. This includes one extra element at the end equal to the
-		/// total byte length of the text.
+		/// total byte length of the text. Moreover, this considers <tt>\r\n</tt> codepoints as a single character.
 		std::vector<std::size_t> _bytepos;
 		_details::glib_object_ref<PangoLayout> _layout; ///< The underlying \p PangoLayout object.
 

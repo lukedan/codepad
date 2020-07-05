@@ -25,7 +25,16 @@ namespace codepad::editors::binary {
 	public:
 		using position = std::size_t; ///< The position of a caret is identified by a single \p std::size_t.
 		/// The selection is a pair of positions, i.e., no additional data associated with the caret.
-		using selection = caret_selection;
+		using selection = ui::caret_selection;
+
+		/// Wrapper around \ref caret_selection_position::set_caret_position().
+		inline static void set_caret_position(selection &s, position pos) {
+			s.caret = pos;
+		}
+		/// Wrapper around \ref caret_selection_position::get_caret_position().
+		inline static position get_caret_position(selection s) {
+			return s.caret;
+		}
 	};
 
 	/// The radix used when displaying and editing binary data.
@@ -67,9 +76,9 @@ namespace codepad::editors::binary {
 		}
 
 		/// Adds the given caret to the \ref contents_region.
-		void add_caret(caret_selection caret) override {
+		void add_caret(ui::caret_selection caret) override {
 			_carets.add(caret_set::entry(
-				caret_selection(caret.caret, caret.selection), caret_data()
+				ui::caret_selection(caret.caret, caret.selection), caret_data()
 			));
 			_on_carets_changed();
 		}
@@ -82,10 +91,6 @@ namespace codepad::editors::binary {
 		void clear_carets() override {
 			_carets.carets.clear();
 			_on_carets_changed();
-		}
-		/// Extracts a \ref caret_selection_position.
-		caret_selection extract_caret_selection(const caret_set::entry &et) const override {
-			return caret_selection(et.first.caret, et.first.selection);
 		}
 
 		/// Returns the height of a line.
@@ -310,7 +315,7 @@ namespace codepad::editors::binary {
 		/// Returns the rectangles that a selected region covers. The selection is clamped by the given parameters to
 		/// reduce unnecessary regions. The resulting regions are placed relative to the top left of the document.
 		std::vector<rectd> _get_selection_rects(
-			caret_selection sel, std::size_t clampmin, std::size_t clampmax
+			ui::caret_selection sel, std::size_t clampmin, std::size_t clampmax
 		) const;
 
 		/// Renders all visible bytes.

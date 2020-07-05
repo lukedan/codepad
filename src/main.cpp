@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 		stack->set_orientation(orientation::vertical);
 
 		auto *text = man.create_element<text_edit>();
-		text->set_text(u8"sample text");
+		text->set_text(u8"this line ends with \\r\\n\r\nthis line ends with \\r\rsample text");
 		stack->children().add(*text);
 
 		auto *lbl = man.create_element<label>();

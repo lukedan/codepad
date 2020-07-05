@@ -1,10 +1,4 @@
 {
-	"window": [
-		{
-			"gestures": [ "ctrl+space", "ctrl+space", "ctrl+space" ],
-			"command": "test_command"
-		}
-	],
 	"editor": [
 		{
 			"gestures": "insert",
@@ -194,6 +188,34 @@
 		{
 			"gestures": "ctrl+n",
 			"command": "new_file"
+		}
+	],
+
+	"text_edit": [
+		{
+			"gestures": "left",
+			"command": "text_edit.move_caret_left"
+		},
+		{
+			"gestures": "shift+left",
+			"command": "text_edit.move_caret_left_selected"
+		},
+		{
+			"gestures": "right",
+			"command": "text_edit.move_caret_right"
+		},
+		{
+			"gestures": "shift+right",
+			"command": "text_edit.move_caret_right_selected"
+		},
+
+		{
+			"gestures": "backspace",
+			"command": "text_edit.delete_before"
+		},
+		{
+			"gestures": "delete",
+			"command": "text_edit.delete_after"
 		}
 	]
 }

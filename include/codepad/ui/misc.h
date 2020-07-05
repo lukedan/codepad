@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <charconv>
 #include <chrono>
+#include <compare>
 
 #include "../core/misc.h"
 #include "../core/json/misc.h"
@@ -413,8 +414,8 @@ namespace codepad {
 			void start(const mouse_position &mouse, element &parent);
 			/// Updates the mouse position.
 			///
-			/// \return \p true if the mouse has moved out of the deadzone and dragging should start, or \p false if the
-			///         mouse is still in the deadzone.
+			/// \return \p true if the mouse has moved out of the deadzone and dragging should start, or \p false if
+			///         the mouse is still in the deadzone.
 			bool update(const mouse_position &mouse, element &parent);
 			/// Cancels the drag operation.
 			void on_cancel(element &parent);
@@ -434,6 +435,37 @@ namespace codepad {
 			/// consistent when the element itself is transformed.
 			vec2d _start;
 			bool _deadzone = false; ///< \p true if the user is dragging and is in the deadzone.
+		};
+
+
+		/// A caret and the associated selected region.
+		struct caret_selection {
+		public:
+			/// Default constructor.
+			caret_selection() = default;
+			/// Sets the caret position, and sets the selection to empty.
+			explicit caret_selection(std::size_t pos) : caret(pos), selection(pos) {
+			}
+			/// Initializes all fields of this struct.
+			caret_selection(std::size_t c, std::size_t s) : caret(c), selection(s) {
+			}
+
+			/// Returns the range covered by this selection. Basically calls \p std::minmax().
+			std::pair<std::size_t, std::size_t> get_range() const {
+				return std::minmax({ caret, selection });
+			}
+
+			/// Returns whether there is a selection, i.e., \ref caret != \ref selection.
+			bool has_selection() const {
+				return caret != selection;
+			}
+
+			/// Default comparisons. \ref caret will always be compared first.
+			friend std::strong_ordering operator<=>(const caret_selection&, const caret_selection&) = default;
+
+			std::size_t
+				caret = 0, ///< The caret.
+				selection = 0; ///< The other end of the selection region.
 		};
 	}
 }

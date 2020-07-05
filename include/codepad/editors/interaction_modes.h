@@ -31,8 +31,6 @@ namespace codepad::editors {
 		virtual void remove_caret(typename CaretSet::const_iterator) = 0;
 		/// Clears all carets from the contents region.
 		virtual void clear_carets() = 0;
-		/// Returns the part of the \p CaretSet::entry that corresponds to a \ref caret_selection_position.
-		virtual typename CaretSet::selection extract_caret_selection(const typename CaretSet::entry&) const = 0;
 	protected:
 		/// Called when temporary carets have been changed.
 		virtual void _on_temporary_carets_changed() = 0;
@@ -369,15 +367,15 @@ namespace codepad::editors {
 			/// Updates the caret.
 			bool on_mouse_move(ui::mouse_move_info &info) override {
 				mouse_navigation_mode<CaretSet>::on_mouse_move(info);
-				if (this->_manager.get_mouse_position() != _selection.get_caret_position()) {
-					_selection.set_caret_position(this->_manager.get_mouse_position());
+				if (this->_manager.get_mouse_position() != CaretSet::get_caret_position(_selection)) {
+					CaretSet::set_caret_position(_selection, this->_manager.get_mouse_position());
 					interaction_mode<CaretSet>::_on_temporary_carets_changed();
 				}
 				return true;
 			}
 			/// Updates the caret.
 			bool on_viewport_changed() override {
-				_selection.set_caret_position(this->_manager.get_mouse_position());
+				CaretSet::set_caret_position(_selection, this->_manager.get_mouse_position());
 				return true;
 			}
 			/// Releases capture and exits this mode if \ref _trigger_button is released.
@@ -434,10 +432,7 @@ namespace codepad::editors {
 						logger::get().log_error(CP_HERE) << "empty caret set when starting mouse interaction";
 						return nullptr;
 					}
-					typename CaretSet::selection caret_sel(
-						man.get_mouse_position(),
-						man.get_contents_region().extract_caret_selection(*it).selection
-					);
+					typename CaretSet::selection caret_sel(man.get_mouse_position(), it->first.selection);
 					man.get_contents_region().remove_caret(it);
 					return std::make_unique<mouse_single_selection_mode<CaretSet>>(
 						man, edit_gesture.primary, caret_sel

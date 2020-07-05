@@ -545,7 +545,7 @@ namespace codepad::editors::code {
 			const caret_set::container &set, std::size_t pos, const fragment_assembler &ass, bool stall
 		) : _carets(set), _assembler(&ass) {
 			// find the first candidate caret to render
-			auto first = _carets.lower_bound(caret_selection(pos, 0));
+			auto first = _carets.lower_bound(ui::caret_selection(pos, 0));
 			if (first != _carets.begin()) {
 				auto prev = first;
 				--prev;
@@ -664,11 +664,15 @@ namespace codepad::editors::code {
 		}
 	protected:
 		/// Returns \p true if \p at_stall is \p true and the caret should start before the stall.
-		inline static bool _should_start_before_stall(caret_selection caret, const caret_data &data, bool at_stall) {
+		inline static bool _should_start_before_stall(
+			ui::caret_selection caret, const caret_data &data, bool at_stall
+		) {
 			return at_stall && caret.selection > caret.caret && !data.after_stall;
 		}
 		/// Returns \p true if \p at_stall is \p true and the caret should end before the stall.
-		inline static bool _should_end_before_stall(caret_selection caret, const caret_data &data, bool at_stall) {
+		inline static bool _should_end_before_stall(
+			ui::caret_selection caret, const caret_data &data, bool at_stall
+		) {
 			return at_stall && (caret.selection > caret.caret || !data.after_stall);
 		}
 

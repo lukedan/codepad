@@ -158,7 +158,7 @@ namespace codepad::editors::code {
 			extcarets = _cset;
 			for (const auto &caret : tempcarets) {
 				extcarets.add(caret_set::entry(
-					caret_selection(caret.caret, caret.selection), caret_data(0.0, caret.caret_at_back)
+					caret.get_caret_selection(), caret_data(0.0, caret.caret_at_back)
 				));
 			}
 			used = &extcarets;

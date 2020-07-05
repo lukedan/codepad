@@ -172,10 +172,10 @@ namespace codepad::editors::code {
 		}
 		/// Sets the current carets. The provided set of carets must not be empty. This function calculates the
 		/// horizontal positions of all carets, and scrolls the viewport when necessary.
-		void set_carets(const std::vector<caret_selection> &cs) {
+		void set_carets(const std::vector<ui::caret_selection> &cs) {
 			assert_true_usage(!cs.empty(), "must have at least one caret");
 			caret_set set;
-			for (const caret_selection &sel : cs) {
+			for (const ui::caret_selection &sel : cs) {
 				caret_set::entry et(sel, caret_data());
 				et.second.alignment = get_horizontal_caret_position(_extract_position(et));
 				set.add(et);
@@ -206,7 +206,7 @@ namespace codepad::editors::code {
 		/// Adds the given caret to this \ref contents_region.
 		void add_caret(caret_selection_position c) override {
 			auto it = _cset.add(caret_set::entry(
-				caret_selection(c.caret, c.selection), caret_data(0.0, c.caret_at_back)
+				ui::caret_selection(c.caret, c.selection), caret_data(0.0, c.caret_at_back)
 			));
 			// the added caret may be merged, so alignment is calculated later
 			it->second.alignment = get_horizontal_caret_position(_extract_position(*it));
@@ -221,10 +221,6 @@ namespace codepad::editors::code {
 		void clear_carets() override {
 			_cset.carets.clear();
 			_on_carets_changed();
-		}
-		/// Extracts a \ref caret_selection_position.
-		caret_selection_position extract_caret_selection(const caret_set::entry &et) const override {
-			return caret_selection_position(et.first.caret, et.first.selection, et.second.after_stall);
 		}
 
 		/// Moves all carets. The caller needs to give very precise instructions on how to move them.
@@ -242,29 +238,34 @@ namespace codepad::editors::code {
 		}
 	protected:
 		/// Used by \ref move_carets to interpret and organize the return values of the function-like objects.
-		/// This version takes a \ref caret_position -like \p std::pair, calculates the horizontal position of
-		/// the caret, and returns the result. \ref caret_position itself is not used because it would be hard
-		/// for \ref move_carets to determine the new position.
-		caret_set::entry _complete_caret_entry(std::pair<std::size_t, bool> fst, std::size_t scnd) {
-			return caret_set::entry(
-				caret_selection(fst.first, scnd), _get_caret_data(caret_position(fst.first, fst.second))
-			);
+		/// This version takes a \ref caret_position, calculates the horizontal position of the caret, and
+		/// returns the result. \ref caret_position itself is not used because it would be hard for
+		/// \ref move_carets to determine the new position.
+		caret_set::entry _complete_caret_entry(caret_position fst, std::size_t scnd) {
+			return caret_set::entry(ui::caret_selection(fst.position, scnd), _get_caret_data(fst));
 		}
 		/// Used by \ref move_carets to interpret and organize the return values of the function-like objects.
 		/// This version takes a position and a \ref caret_data, and returns the combined result.
 		caret_set::entry _complete_caret_entry(std::pair<std::size_t, caret_data> fst, std::size_t scnd) {
-			return caret_set::entry(caret_selection(fst.first, scnd), fst.second);
+			return caret_set::entry(ui::caret_selection(fst.first, scnd), fst.second);
+		}
+
+		/// Extracts the character position from the given \ref caret_position object.
+		std::size_t _get_caret_position(caret_position p) {
+			return p.position;
+		}
+		/// Returns the first position component.
+		std::size_t _get_caret_position(const std::pair<std::size_t, caret_data> &data) {
+			return data.first;
 		}
 	public:
 		/// Moves all carets to specified positions.
 		///
 		/// \param gp A function-like object that takes a \ref caret_set::entry as input and returns either: 1) a
-		///           <tt>std::pair<std::size_t, bool></tt>, containing the new position and a boolean value
-		///           indicating whether to treat the caret as if it were on the next line had it been at a soft
-		///           linebreak, or 2) a <tt>std::pair<std::size_t, caret_data></tt>, containing the new position
-		///           and related data. This object is used when \p continueselection is \p true, or when the
-		///           selection is empty (i.e., <tt>caret_selection::first == caret_selection::second</tt>). That is,
-		///           this object focuses on moving only the caret and does not care about the selection.
+		///           \ref caret_position, or 2) a <tt>std::pair<std::size_t, caret_data></tt>, containing the new
+		///           position and related data. This object is used when \p continueselection is \p true, or when
+		///           the selection is empty (i.e., <tt>caret_selection::first == caret_selection::second</tt>).
+		///           That is, this object focuses on moving only the caret and does not care about the selection.
 		/// \param sp Similar to \p gp, except that this object is used when \p continueselection is false and the
 		///           selection is not empty. In other words, this object is used when the selection should be
 		///           cancelled.
@@ -281,24 +282,178 @@ namespace codepad::editors::code {
 			if (continueselection) {
 				move_carets_raw([this, &gp](const caret_set::entry &et) {
 					return _complete_caret_entry(gp(et), et.first.selection);
-					});
+				});
 			} else {
 				move_carets_raw([this, &gp, &sp](const caret_set::entry &et) {
 					if (et.first.caret == et.first.selection) {
 						auto x = gp(et);
-						return _complete_caret_entry(x, x.first);
+						return _complete_caret_entry(x, _get_caret_position(x));
 					}
 					auto x = sp(et);
-					return _complete_caret_entry(x, x.first);
-					});
+					return _complete_caret_entry(x, _get_caret_position(x));
+				});
 			}
 		}
-		/// Moves all carets to specified positions, treating selections and non-selections the same. This function
-		/// is a shorthand for \ref move_carets(const GetPos&, const SelPos&, bool)
+		/// Moves all carets to specified positions, treating selections and non-selections the same way. This
+		/// function is a shorthand for \ref move_carets(const GetPos&, const SelPos&, bool)
 		/// "move_carets(gp, gp, continueselection)".
 		template <typename GetPos> void move_carets(const GetPos &gp, bool continueselection) {
 			return move_carets(gp, gp, continueselection);
 		}
+
+
+		/// Moves all carets one character to the left. If \p continueselection is \p false, then all carets that have
+		/// selected regions will be placed at the front of the selection.
+		///
+		/// \param continueselection Indicates whether selected regions should be kept.
+		void move_all_carets_left(bool continueselection) {
+			move_carets(
+				[this](const caret_set::entry &et) {
+					return caret_position(_get_previous_caret_position(et.first.caret), true);
+				},
+				[](const caret_set::entry &et) {
+					if (et.first.caret < et.first.selection) {
+						return _extract_position(et);
+					}
+					return caret_position(et.first.selection, true);
+				},
+					continueselection
+					);
+		}
+		/// Moves all carets one character to the right. If \p continueselection is \p false, then all carets that have
+		/// selected regions will be placed at the back of the selection.
+		///
+		/// \param continueselection Indicates whether selected regions should be kept.
+		void move_all_carets_right(bool continueselection) {
+			move_carets(
+				[this](const caret_set::entry &et) {
+					return caret_position(_get_next_caret_position(et.first.caret), false);
+				},
+				[](const caret_set::entry &et) {
+					if (et.first.caret > et.first.selection) {
+						return _extract_position(et);
+					}
+					return caret_position(et.first.selection, false);
+				},
+					continueselection
+					);
+		}
+		/// Moves all carets vertically by a given number of lines.
+		void move_all_carets_vertically(int offset, bool continue_selection) {
+			move_carets(
+				[this, offset](const caret_set::entry &et) {
+					auto res = _move_caret_vertically(
+						_get_visual_line_of_caret(_extract_position(et)), offset, et.second.alignment
+					);
+					return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
+				},
+				[this, offset](const caret_set::entry &et) {
+					std::size_t ml;
+					double bl;
+					// decide which end of the selection to move
+					if ((et.first.caret > et.first.selection) == (offset > 0)) { // caret
+						ml = _get_visual_line_of_caret(_extract_position(et));
+						bl = et.second.alignment;
+					} else { // non-caret
+						caret_position sel_end(et.first.selection, et.first.caret > et.first.selection);
+						ml = _get_visual_line_of_caret(sel_end);
+						bl = get_horizontal_caret_position(sel_end);
+					}
+					auto res = _move_caret_vertically(ml, offset, bl);
+					return std::make_pair(res.position, caret_data(bl, res.at_back));
+				},
+					continue_selection
+					);
+		}
+		/// Moves all carets one line up.
+		void move_all_carets_up(bool continue_selection) {
+			move_all_carets_vertically(-1, continue_selection);
+		}
+		/// Moves all carets one line down.
+		void move_all_carets_down(bool continue_selection) {
+			move_all_carets_vertically(1, continue_selection);
+		}
+		/// Moves all carets to the beginning of the lines they're at.
+		///
+		/// \param continueselection Indicates whether selected regions should be kept.
+		void move_all_carets_to_line_beginning(bool continueselection) {
+			move_carets(
+				[this](const caret_set::entry &et) {
+					std::size_t begin_pos =
+						_fmt.get_linebreaks().get_beginning_char_of_visual_line(
+							_fmt.get_folding().folded_to_unfolded_line_number(
+								_get_visual_line_of_caret(_extract_position(et))
+							)
+						).first;
+					return caret_position(begin_pos, true);
+				},
+				continueselection
+					);
+		}
+		/// Moves all carets to the beginning of the lines they're at, with folding and word wrapping enabled,
+		/// skipping all spaces in the front of the line.
+		///
+		/// \param continueselection Indicates whether selected regions should be kept.
+		void move_all_carets_to_line_beginning_advanced(bool continueselection) {
+			move_carets(
+				[this](const caret_set::entry &et) {
+					std::size_t
+						visline = _get_visual_line_of_caret(_extract_position(et)),
+						unfolded = _fmt.get_folding().folded_to_unfolded_line_number(visline);
+					auto linfo = _fmt.get_linebreaks().get_line_info(unfolded);
+					std::size_t begp = std::max(linfo.first.first_char, linfo.second.prev_chars), exbegp = begp;
+					if (linfo.first.first_char >= linfo.second.prev_chars) {
+						std::size_t nextsb =
+							linfo.second.entry == _fmt.get_linebreaks().end() ?
+							std::numeric_limits<std::size_t>::max() :
+							linfo.second.prev_chars + linfo.second.entry->length;
+						for (
+							auto cit = _doc->at_character(begp);
+							!cit.is_linebreak() && (
+								cit.codepoint().get_codepoint() == ' ' || cit.codepoint().get_codepoint() == '\t'
+								) && exbegp < nextsb;
+							cit.next(), ++exbegp
+							) {
+						}
+						auto finfo = _fmt.get_folding().find_region_containing_open(exbegp);
+						if (finfo.entry != _fmt.get_folding().end()) {
+							exbegp = finfo.prev_chars + finfo.entry->gap;
+						}
+						if (nextsb <= exbegp) {
+							exbegp = begp;
+						}
+					}
+					return caret_position(et.first.caret == exbegp ? begp : exbegp, true);
+				},
+				continueselection
+					);
+		}
+		/// Moves all carets to the end of the lines they're at, with folding and word wrapping enabled.
+		///
+		/// \param continueselection Indicates whether selected regions should be kept.
+		void move_all_carets_to_line_ending(bool continueselection) {
+			move_carets(
+				[this](caret_set::entry cp) {
+					return std::make_pair(
+						_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
+							_fmt.get_folding().folded_to_unfolded_line_number(
+								_get_visual_line_of_caret(_extract_position(cp)) + 1
+							) - 1
+						).first, caret_data(std::numeric_limits<double>::max(), false)
+					);
+				},
+				continueselection
+					);
+		}
+		/// Cancels all selected regions.
+		void cancel_all_selections() {
+			caret_set ns;
+			for (const auto &caret : _cset.carets) {
+				ns.add(caret_set::entry(ui::caret_selection(caret.first.caret), caret.second));
+			}
+			set_carets_keepdata(std::move(ns));
+		}
+
 
 		// edit operations
 		/// Inserts the input text at each caret.
@@ -406,157 +561,6 @@ namespace codepad::editors::code {
 			return _get_caret_pos_x_at_visual_line(_get_visual_line_of_caret(pos), pos.position);
 		}
 
-		/// Moves all carets one character to the left. If \p continueselection is \p false, then all carets that have
-		/// selected regions will be placed at the front of the selection.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_left(bool continueselection) {
-			move_carets(
-				[this](const caret_set::entry &et) {
-					return std::make_pair(_move_caret_left(et.first.caret), true);
-				},
-				[](const caret_set::entry &et) -> std::pair<std::size_t, bool> {
-					if (et.first.caret < et.first.selection) {
-						return { et.first.caret, et.second.after_stall };
-					}
-					return { et.first.selection, true };
-				},
-					continueselection
-					);
-		}
-		/// Moves all carets one character to the right. If \p continueselection is \p false, then all carets that have
-		/// selected regions will be placed at the back of the selection.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_right(bool continueselection) {
-			move_carets(
-				[this](const caret_set::entry &et) {
-					return std::make_pair(_move_caret_right(et.first.caret), false);
-				},
-				[](const caret_set::entry &et) -> std::pair<std::size_t, bool> {
-					if (et.first.caret > et.first.selection) {
-						return { et.first.caret, et.second.after_stall };
-					}
-					return { et.first.selection, false };
-				},
-					continueselection
-					);
-		}
-		/// Moves all carets vertically by a given number of lines.
-		void move_all_carets_vertically(int offset, bool continue_selection) {
-			move_carets(
-				[this, offset](const caret_set::entry &et) {
-					auto res = _move_caret_vertically(
-						_get_visual_line_of_caret(_extract_position(et)), offset, et.second.alignment
-					);
-					return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
-				},
-				[this, offset](const caret_set::entry &et) {
-					std::size_t ml;
-					double bl;
-					if ((et.first.caret > et.first.selection) == (offset > 0)) { // move the caret end of the selection
-						ml = _get_visual_line_of_caret(_extract_position(et));
-						bl = et.second.alignment;
-					} else { // move the non-caret end of the selection
-						ml = _get_visual_line_of_caret(caret_position(et.first.selection));
-						bl = get_horizontal_caret_position(caret_position(et.first.selection));
-					}
-					auto res = _move_caret_vertically(ml, offset, bl);
-					return std::make_pair(res.position, caret_data(bl, res.at_back));
-				},
-					continue_selection
-					);
-		}
-		/// Moves all carets one line up.
-		void move_all_carets_up(bool continue_selection) {
-			move_all_carets_vertically(-1, continue_selection);
-		}
-		/// Moves all carets one line down.
-		void move_all_carets_down(bool continue_selection) {
-			move_all_carets_vertically(1, continue_selection);
-		}
-		/// Moves all carets to the beginning of the lines they're at.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_to_line_beginning(bool continueselection) {
-			move_carets(
-				[this](const caret_set::entry &et) {
-					return std::make_pair(
-						_fmt.get_linebreaks().get_beginning_char_of_visual_line(
-							_fmt.get_folding().folded_to_unfolded_line_number(
-								_get_visual_line_of_caret(_extract_position(et))
-							)
-						).first, true
-					);
-				},
-				continueselection
-					);
-		}
-		/// Moves all carets to the beginning of the lines they're at, with folding and word wrapping enabled,
-		/// skipping all spaces in the front of the line.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_to_line_beginning_advanced(bool continueselection) {
-			move_carets(
-				[this](const caret_set::entry &et) {
-					std::size_t
-						visline = _get_visual_line_of_caret(_extract_position(et)),
-						unfolded = _fmt.get_folding().folded_to_unfolded_line_number(visline);
-					auto linfo = _fmt.get_linebreaks().get_line_info(unfolded);
-					std::size_t begp = std::max(linfo.first.first_char, linfo.second.prev_chars), exbegp = begp;
-					if (linfo.first.first_char >= linfo.second.prev_chars) {
-						std::size_t nextsb =
-							linfo.second.entry == _fmt.get_linebreaks().end() ?
-							std::numeric_limits<std::size_t>::max() :
-							linfo.second.prev_chars + linfo.second.entry->length;
-						for (
-							auto cit = _doc->at_character(begp);
-							!cit.is_linebreak() && (
-								cit.codepoint().get_codepoint() == ' ' || cit.codepoint().get_codepoint() == '\t'
-								) && exbegp < nextsb;
-							cit.next(), ++exbegp
-							) {
-						}
-						auto finfo = _fmt.get_folding().find_region_containing_open(exbegp);
-						if (finfo.entry != _fmt.get_folding().end()) {
-							exbegp = finfo.prev_chars + finfo.entry->gap;
-						}
-						if (nextsb <= exbegp) {
-							exbegp = begp;
-						}
-					}
-					return std::make_pair(et.first.caret == exbegp ? begp : exbegp, true);
-				},
-				continueselection
-					);
-		}
-		/// Moves all carets to the end of the lines they're at, with folding and word wrapping enabled.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_to_line_ending(bool continueselection) {
-			move_carets(
-				[this](caret_set::entry cp) {
-					return std::make_pair(
-						_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
-							_fmt.get_folding().folded_to_unfolded_line_number(
-								_get_visual_line_of_caret(_extract_position(cp)) + 1
-							) - 1
-						).first, caret_data(std::numeric_limits<double>::max(), false)
-					);
-				},
-				continueselection
-					);
-		}
-		/// Cancels all selected regions.
-		void cancel_all_selections() {
-			caret_set ns;
-			for (const auto &caret : _cset.carets) {
-				ns.add(caret_set::entry(
-					caret_selection(caret.first.caret, caret.first.caret), caret.second)
-				);
-			}
-			set_carets_keepdata(std::move(ns));
-		}
 
 		info_event<>
 			/// Invoked when the visual of \ref _doc has changed, e.g., when it is modified, when the
@@ -831,7 +835,7 @@ namespace codepad::editors::code {
 		}
 
 		/// Moves the given position one character to the left, skipping any folded regions.
-		std::size_t _move_caret_left(std::size_t cp) {
+		std::size_t _get_previous_caret_position(std::size_t cp) {
 			auto res = _fmt.get_folding().find_region_containing_or_first_before_open(cp);
 			auto &it = res.entry;
 			if (it != _fmt.get_folding().end()) {
@@ -843,7 +847,7 @@ namespace codepad::editors::code {
 			return cp > 0 ? cp - 1 : 0;
 		}
 		/// Moves the given position one character to the right, skipping any folded regions.
-		std::size_t _move_caret_right(std::size_t cp) {
+		std::size_t _get_next_caret_position(std::size_t cp) {
 			auto res = _fmt.get_folding().find_region_containing_or_first_after_open(cp);
 			auto &it = res.entry;
 			if (it != _fmt.get_folding().end()) {

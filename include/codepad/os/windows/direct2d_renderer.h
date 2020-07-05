@@ -58,6 +58,12 @@ namespace codepad::os::direct2d {
 		/// Returns the metrics of each line.
 		std::vector<ui::line_metrics> get_line_metrics() const override;
 
+		/// Returns the total number of characters.
+		std::size_t get_num_characters() const override {
+			// TODO
+			return 0;
+		}
+
 		/// Invokes \p IDWriteTextLayout::HitTestPoint().
 		ui::caret_hit_test_result hit_test(vec2d) const override;
 		/// Invokes \p IDWriteTextLayout::HitTestTextPosition().

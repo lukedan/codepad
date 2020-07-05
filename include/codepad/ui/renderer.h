@@ -205,9 +205,21 @@ namespace codepad {
 			/// Default constructor.
 			line_metrics() = default;
 			/// Initializes all fields of this struct.
-			line_metrics(double h, double b) : height(h), baseline(b) {
+			line_metrics(std::size_t non_lb_chars, std::size_t lb_chars, double h, double b) :
+				non_linebreak_characters(non_lb_chars), linebreak_characters(lb_chars), height(h), baseline(b) {
 			}
 
+			/// Returns the sum of \ref non_linebreak_characters and \ref linebreak_characters.
+			std::size_t get_total_num_characters() const {
+				return non_linebreak_characters + linebreak_characters;
+			}
+
+			std::size_t
+				/// The number of characters in this line, excluding line break characters.
+				non_linebreak_characters = 0,
+				/// The number of characters contained by the line break at the end of this line. This could be 1 or
+				/// 2, or 0 for wrapped lines.
+				linebreak_characters = 0;
 			double
 				height = 0.0, ///< The height of this line.
 				baseline = 0.0; ///< The distance from the top of the line to the baseline.
@@ -222,6 +234,9 @@ namespace codepad {
 			[[nodiscard]] virtual rectd get_layout() const = 0;
 			/// Returns the metrics of all lines.
 			[[nodiscard]] virtual std::vector<line_metrics> get_line_metrics() const = 0;
+
+			/// Returns the number of characters in this text clip.
+			[[nodiscard]] virtual std::size_t get_num_characters() const = 0;
 
 			/// Retrieves information about the character that is below the given point.
 			[[nodiscard]] virtual caret_hit_test_result hit_test(vec2d) const = 0;

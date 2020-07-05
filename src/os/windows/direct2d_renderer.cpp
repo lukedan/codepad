@@ -187,7 +187,10 @@ namespace codepad::os::direct2d {
 		std::vector<ui::line_metrics> resvec;
 		resvec.reserve(ressize);
 		for (std::size_t i = 0; i < ressize; ++i) {
-			resvec.emplace_back(bufptr[i].height, bufptr[i].baseline);
+			resvec.emplace_back(
+				bufptr[i].length - bufptr[i].newlineLength, bufptr[i].newlineLength,
+				bufptr[i].height, bufptr[i].baseline
+			);
 		}
 		return resvec;
 	}

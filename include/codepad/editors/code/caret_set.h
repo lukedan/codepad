@@ -20,7 +20,7 @@ namespace codepad::editors::code {
 		/// Default constructor.
 		caret_position() = default;
 		/// Initializes all fields of this struct.
-		explicit caret_position(std::size_t pos, bool back = false) : position(pos), at_back(back) {
+		explicit caret_position(std::size_t pos, bool back) : position(pos), at_back(back) {
 		}
 
 		/// Equality. This may be inaccurate when both \ref position "positions" are the same.
@@ -56,7 +56,7 @@ namespace codepad::editors::code {
 		/// of the second line.
 		bool at_back = false;
 	};
-	/// Contains information about a \ref caret_selection and relative position info.
+	/// Contains information about a \ref ui::caret_selection and relative position info.
 	struct caret_selection_position {
 		/// Default constructor.
 		caret_selection_position() = default;
@@ -71,6 +71,11 @@ namespace codepad::editors::code {
 		/// Initializes all fields of this struct.
 		caret_selection_position(std::size_t c, std::size_t s, bool back = false) :
 			caret(c), selection(s), caret_at_back(back) {
+		}
+
+		/// Extracts the part of this object that corresponds to a \ref ui::caret_selection.
+		ui::caret_selection get_caret_selection() const {
+			return ui::caret_selection(caret, selection);
 		}
 
 		/// Sets the value of the part of this struct that corresponds to a \ref caret_position.
@@ -89,7 +94,7 @@ namespace codepad::editors::code {
 		bool caret_at_back = false; ///< \sa caret_position::at_back
 	};
 
-	/// The data associated with a \ref caret_selection.
+	/// The data associated with a \ref ui::caret_selection.
 	struct caret_data {
 		/// Default constructor.
 		caret_data() = default;
@@ -103,8 +108,8 @@ namespace codepad::editors::code {
 		bool after_stall = false;
 
 		std::size_t
-			bytepos_first = 0, ///< The position, in bytes, of the first element of a \ref caret_selection.
-			bytepos_second = 0; ///< The position, in bytes, of the second element of a \ref caret_selection.
+			bytepos_first = 0, ///< The position, in bytes, of the first element of a \ref ui::caret_selection.
+			bytepos_second = 0; ///< The position, in bytes, of the second element of a \ref ui::caret_selection.
 	};
 
 	/// Stores carets for a \ref contents_region.
@@ -128,6 +133,15 @@ namespace codepad::editors::code {
 		/// a \p std::size_t, and \ref position::at_back is discarded.
 		template <typename Cmp = std::less_equal<>> bool is_in_selection(position pos) const {
 			return _base::is_in_selection<Cmp>(pos.position);
+		}
+
+		/// Wrapper around \ref caret_selection_position::set_caret_position().
+		inline static void set_caret_position(selection &s, position pos) {
+			s.set_caret_position(pos);
+		}
+		/// Wrapper around \ref caret_selection_position::get_caret_position().
+		inline static position get_caret_position(selection s) {
+			return s.get_caret_position();
 		}
 	protected:
 		/// Sets \ref bytepos_valid to \p false before adding the caret.

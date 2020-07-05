@@ -176,7 +176,7 @@ namespace codepad::editors::binary {
 	}
 
 	std::vector<rectd> contents_region::_get_selection_rects(
-		caret_selection sel, std::size_t clampmin, std::size_t clampmax
+		ui::caret_selection sel, std::size_t clampmin, std::size_t clampmax
 	) const {
 		if (sel.caret == sel.selection) { // no selection for single byte
 			return {};
@@ -271,7 +271,7 @@ namespace codepad::editors::binary {
 				// render carets
 				caret_set extcarets;
 				const caret_set *cset = &_carets;
-				std::vector<caret_selection> tmpcarets = _interaction_manager.get_temporary_carets();
+				std::vector<ui::caret_selection> tmpcarets = _interaction_manager.get_temporary_carets();
 				if (!tmpcarets.empty()) { // merge & use temporary caret set
 					extcarets = _carets;
 					for (const auto &caret : tmpcarets) {
@@ -347,7 +347,7 @@ namespace codepad::editors::binary {
 			}
 		} else {
 			for (const auto &cp : _carets.carets) {
-				caret_selection newpos;
+				ui::caret_selection newpos;
 				if (cp.first.caret < cp.first.selection) {
 					newpos.caret = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.caret);
 					newpos.selection =

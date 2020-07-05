@@ -148,6 +148,20 @@ namespace codepad::ui::cairo {
 		return _details::cast_rect_back(layout);
 	}
 
+	std::vector<line_metrics> formatted_text::get_line_metrics() const {
+		PangoLayoutIter *iter = pango_layout_get_iter(_layout.get());
+		std::vector<line_metrics> result;
+		do {
+			int ymin_pu = 0, ymax_pu = 0;
+			pango_layout_iter_get_line_yrange(iter, &ymin_pu, &ymax_pu);
+			double height = pango_units_to_double(ymax_pu - ymin_pu);
+			int baseline = pango_layout_iter_get_baseline(iter);
+			double baseline1 = pango_units_to_double(baseline - ymin_pu);
+		} while (pango_layout_iter_next_line(iter));
+		pango_layout_iter_free(iter);
+		return result;
+	}
+
 	caret_hit_test_result formatted_text::hit_test(vec2d pos) const {
 		int index = 0, trailing = 0;
 		PangoRectangle rect;
@@ -553,11 +567,19 @@ namespace codepad::ui::cairo {
 		const plain_text &text = _details::cast_plain_text(generic_text);
 
 		cairo_t *context = _render_stack.top().context;
+
+		// TODO this prevents the text from flickering, but is this the correct way to do it?
+		double sx, sy;
+		cairo_surface_get_device_scale(cairo_get_target(context), &sx, &sy);
+		_details::ft_check(FT_Set_Char_Size(
+			text._font.get(), 0, static_cast<FT_F26Dot6>(std::round(64.0 * text._font_size)), 96 * sx, 96 * sy
+		));
+
 		auto cairo_fnt = _details::make_gtk_object_ref_give(
 			cairo_ft_font_face_create_for_ft_face(text._font.get(), 0)
 		);
 		cairo_set_font_face(context, cairo_fnt.get());
-		cairo_set_font_size(context, text._font_size);
+		cairo_set_font_size(context, text._font_size * (96.0 / 72.0));
 
 		// gather glyphs
 		unsigned int num_glyphs = 0;
@@ -754,12 +776,12 @@ namespace codepad::ui::cairo {
 		}
 		pango_layout_set_alignment(result->_layout.get(), _details::cast_horizontal_alignment(halign));
 
+		// TODO vertical alignment
 		// "The behavior is undefined if a height other than -1 is set and ellipsization mode is set to
 		// PANGO_ELLIPSIZE_NONE, and may change in the future."
 		// https://developer.gnome.org/pango/stable/pango-Layout-Objects.html#pango-layout-set-height
 		pango_layout_set_height(result->_layout.get(), -1);
 		/*pango_layout_set_height(result->_layout.get(), pango_units_from_double(size.y));*/
-		// TODO vertical alignment
 
 		{ // set color
 			auto attr_list = _details::make_gtk_object_ref_give(pango_attr_list_new());

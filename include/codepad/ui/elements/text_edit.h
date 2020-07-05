@@ -21,14 +21,40 @@ namespace codepad::ui {
 			return cursor::text_beam;
 		}
 
-		/// Returns the position of the caret.
-		std::size_t get_caret() const {
+		/// Returns the caret.
+		caret_selection get_caret_selection() const {
 			return _caret;
 		}
-		/// Returns the position of the non-caret end of the selection.
-		std::size_t get_selection() const {
-			return _selection_end;
+		/// Sets the current caret.
+		void set_caret_selection(caret_selection sel) {
+			_check_cache_line_metrics();
+			sel.caret = std::min(sel.caret, _cached_line_beginnings.back());
+			sel.selection = std::min(sel.selection, _cached_line_beginnings.back());
+			_caret = sel;
+			_on_caret_changed();
 		}
+
+		/// Modifies the text by removing the characters in the specified range and adding the given string in its
+		/// place. Note that the character range does not take into account CRLF new line characters, i.e., a CRLF
+		/// will be treated as two characters.
+		///
+		/// \return Iterator to the very beginning of the newly inserted text, and a boolean indicating whether all
+		///         erased codepoints are valid.
+		std::pair<std::u8string::iterator, bool> modify(
+			std::size_t del_begin, std::size_t del_len, std::u8string_view add
+		);
+
+		/// Moves the caret one character to the left. If there's a selection and \p continue_selection is \p false,
+		/// the selection is cancelled and the cursor is moved to the very end of the selected region.
+		void move_caret_left(bool continue_selection);
+		/// Moves the caret one character to the right. If there's a selection and \p continue_selection is \p false,
+		/// the selection is cancelled and the cursor is moved to the very end of the selected region.
+		void move_caret_right(bool continue_selection);
+
+		/// Deletes the character before the caret, or the selection if there is one.
+		void delete_character_before_caret();
+		/// Deletes the character after the caret, or the selection if there is one.
+		void delete_character_after_caret();
 
 		/// Returns the list of properties.
 		const property_mapping &get_properties() const override;
@@ -46,9 +72,11 @@ namespace codepad::ui {
 		visuals
 			_caret_visuals, ///< The \ref visuals of the caret.
 			_selection_visuals; ///< Visuals for individual rectangles in the selection.
-		std::size_t
-			_caret = 0, ///< Caret position.
-			_selection_end = 0; ///< The other end of the selection.
+		std::vector<line_metrics> _cached_line_metrics; ///< Cached metrics of each line.
+		/// Cached indices of the first characters of all lines. This contains one more element at the end which is
+		/// the total number of characters.
+		std::vector<std::size_t> _cached_line_beginnings;
+		caret_selection _caret; ///< The caret and the associated selection.
 		bool _selecting = false; ///< Whether the user is dragging with the mouse to select text.
 
 		/// Updates the selection if the user is selecting text.
@@ -67,9 +95,23 @@ namespace codepad::ui {
 		void _on_text_layout_changed() override;
 		/// Invokes \ref _update_window_caret_position().
 		void _on_layout_changed() override;
+		/// Additionally resets \ref _cached_line_metrics and \ref _cached_line_beginnings.
+		void _on_text_changed() override;
 		/// Called when \ref _caret or \ref _selection_end is changed. Calls \ref invalidate_visuals(), invokes
 		/// \ref carets_changed, and updates caret position if this \ref text_edit is focused.
 		void _on_caret_changed();
+
+		/// FOR TESTING.
+		void _on_key_down(key_info &p) override {
+			label::_on_key_down(p);
+			if (p.key_pressed == key::control) {
+				logger::get().log_debug(CP_HERE) << "set red";
+				_check_cache_format();
+				auto [smin, smax] = _caret.get_range();
+				_cached_fmt->set_text_color(colord(1.0, 0.0, 0.0, 1.0), smin, smax - smin);
+				invalidate_visual();
+			}
+		}
 
 		/// Returns the character position that the given position is over. The position is assumed to be relative to
 		/// this element.
@@ -77,6 +119,19 @@ namespace codepad::ui {
 
 		/// Updates the caret position used for IMEs if this element is focused.
 		void _update_window_caret_position() const;
+
+		/// Computes \ref _cached_line_metrics if it hasn't been cached.
+		void _check_cache_line_metrics();
+
+		/// Returns the line that the given character is on.
+		std::size_t _get_line_of_character(std::size_t);
+
+		/// Returns the previous caret position. This is mainly used to handle lines ending with CRLF. If the input
+		/// position is 0, this function returns 0.
+		std::size_t _get_previous_caret_position(std::size_t);
+		/// Returns the next caret position. This is mainly used to handle lines ending with CRLF. If the input
+		/// position is at the end of the text, this function returns it unchanged.
+		std::size_t _get_next_caret_position(std::size_t);
 
 		/// Renders the caret and the selection.
 		void _custom_render() const override;

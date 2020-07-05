@@ -50,7 +50,7 @@ namespace codepad::ui {
 
 		/// Wraps a function that accepts a certain type of element into a function that accepts a \ref element.
 		template <typename Elem> [[nodiscard]] inline static std::function<void(element*)> convert_type(
-			std::function<void(Elem*)> f
+			std::function<void(Elem&)> f
 		) {
 			static_assert(std::is_base_of_v<element, Elem>, "invalid element type");
 			return[func = std::move(f)](element *e) {
@@ -61,7 +61,7 @@ namespace codepad::ui {
 						", expected " << demangle(typeid(Elem).name());
 					return;
 				}
-				func(te);
+				func(*te);
 			};
 		}
 	protected:
