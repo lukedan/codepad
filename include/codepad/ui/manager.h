@@ -38,7 +38,11 @@ namespace codepad::ui {
 			_scheduler.dispose_marked_elements();
 		}
 
-		/// Similar to \ref register_element_type(std::u8string, element_constructor) but for built-in classes.
+		/// Registers a new element type for creation.
+		void register_element_type(std::u8string type, element_constructor ctor) {
+			_element_registry.emplace(std::move(type), std::move(ctor));
+		}
+		/// Overload of \ref register_element_type() that uses \p Elem::get_default_class() as the type name.
 		template <typename Elem> void register_element_type() {
 			register_element_type(
 				std::u8string(Elem::get_default_class()),
@@ -47,9 +51,18 @@ namespace codepad::ui {
 				}
 			);
 		}
-		/// Registers a new element type for creation.
-		void register_element_type(std::u8string type, element_constructor ctor) {
-			_element_registry.emplace(std::move(type), std::move(ctor));
+		/// Unregisters the given element type, returning \p false if no such type has been registered.
+		bool unregister_element_type(std::u8string_view type) {
+			auto it = _element_registry.find(type);
+			if (it != _element_registry.end()) {
+				_element_registry.erase(it);
+				return true;
+			}
+			return false;
+		}
+		/// Overload of \ref unregister_element_type() that uses \p Elem::get_default_class() as the type name.
+		template <typename Elem> bool unregister_element_type() {
+			return unregister_element_type(Elem::get_default_class());
 		}
 
 		/// Constructs and returns an element of the specified type, class, and \ref element_configuration. This

@@ -89,4 +89,44 @@ namespace codepad {
 		}
 		return std::nullopt;
 	}
+
+
+	std::optional<ui::font_style> enum_parser<ui::font_style>::parse(std::u8string_view str) {
+		if (str == u8"normal") {
+			return ui::font_style::normal;
+		} else if (str == u8"italic") {
+			return ui::font_style::italic;
+		} else if (str == u8"oblique") {
+			return ui::font_style::oblique;
+		}
+		return std::nullopt;
+	}
+
+
+	std::optional<ui::horizontal_text_alignment> enum_parser<ui::horizontal_text_alignment>::parse(
+		std::u8string_view str
+	) {
+		if (str == u8"front") {
+			return ui::horizontal_text_alignment::front;
+		} else if (str == u8"center") {
+			return ui::horizontal_text_alignment::center;
+		} else if (str == u8"rear") {
+			return ui::horizontal_text_alignment::rear;
+		}
+		return std::nullopt;
+	}
+
+
+	std::optional<ui::vertical_text_alignment> enum_parser<ui::vertical_text_alignment>::parse(
+		std::u8string_view str
+	) {
+		if (str == u8"top") {
+			return ui::vertical_text_alignment::top;
+		} else if (str == u8"center") {
+			return ui::vertical_text_alignment::center;
+		} else if (str == u8"bottom") {
+			return ui::vertical_text_alignment::bottom;
+		}
+		return std::nullopt;
+	}
 }

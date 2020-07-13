@@ -6,6 +6,8 @@
 /// \file
 /// Implementation of the contents region of the binary editor.
 
+#include "codepad/editors/manager.h"
+
 namespace codepad::editors::binary {
 	void contents_region::set_buffer(std::shared_ptr<buffer> buf) {
 		_unbind_buffer_events();
@@ -396,7 +398,7 @@ namespace codepad::editors::binary {
 			profile.begin(), profile.end()
 		).get_value();
 		for (auto &&mode_name : modes) {
-			if (auto mode = get_interaction_mode_registry().try_create(mode_name)) {
+			if (auto mode = manager::get().binary_interactions.try_create(mode_name)) {
 				_interaction_manager.activators().emplace_back(std::move(mode));
 			}
 		}

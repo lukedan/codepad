@@ -27,13 +27,11 @@ namespace codepad {
 			oblique ///< Artificially slant text.
 		};
 	}
-	namespace json {
-		/// Parser for \ref ui::cursor.
-		template <> struct default_parser<ui::font_style> {
-			/// Parses a \ref ui::cursor.
-			template <typename Value> std::optional<ui::font_style> operator()(const Value&) const;
-		};
-	}
+	/// Parser for \ref ui::font_style.
+	template <> struct enum_parser<ui::font_style> {
+		/// The parser interface.
+		static std::optional<ui::font_style> parse(std::u8string_view);
+	};
 
 	namespace ui {
 		//              fc   dwrite
@@ -57,9 +55,10 @@ namespace codepad {
 		};
 	}
 	namespace json {
-		/// Parser for \ref ui::cursor.
+		// TODO use enum_parser
+		/// Parser for \ref ui::font_weight.
 		template <> struct default_parser<ui::font_weight> {
-			/// Parses a \ref ui::cursor.
+			/// Parses a \ref ui::font_weight.
 			template <typename Value> std::optional<ui::font_weight> operator()(const Value&) const;
 		};
 	}
@@ -91,9 +90,10 @@ namespace codepad {
 		};
 	}
 	namespace json {
-		/// Parser for \ref ui::cursor.
+		// TODO use enum_parser
+		/// Parser for \ref ui::font_stretch.
 		template <> struct default_parser<ui::font_stretch> {
-			/// Parses a \ref ui::cursor.
+			/// Parses a \ref ui::font_stretch.
 			template <typename Value> std::optional<ui::font_stretch> operator()(const Value&) const;
 		};
 	}
@@ -104,6 +104,7 @@ namespace codepad {
 			none, ///< Don't wrap.
 			wrap ///< Wrap, but in an unspecified manner.
 		};
+
 		/// Controls the horizontal alignment of text.
 		///
 		/// \todo Justified alignment?
@@ -112,13 +113,28 @@ namespace codepad {
 			center, ///< Center alignment.
 			rear ///< The rear of the text is aligned with the rear end of the layout box.
 		};
+	}
+	/// Parser for \ref ui::horizontal_text_alignment.
+	template <> struct enum_parser<ui::horizontal_text_alignment> {
+		/// The parser interface.
+		static std::optional<ui::horizontal_text_alignment> parse(std::u8string_view);
+	};
+
+	namespace ui {
 		/// Controls the vertical alignment of text.
 		enum class vertical_text_alignment : unsigned char {
 			top, ///< Top.
 			center, ///< Center.
 			bottom ///< Bottom.
 		};
+	}
+	/// Parser for \ref ui::vertical_text_alignment.
+	template <> struct enum_parser<ui::vertical_text_alignment> {
+		/// The parser interface.
+		static std::optional<ui::vertical_text_alignment> parse(std::u8string_view);
+	};
 
+	namespace ui {
 		/// Clockwise or counter-clockwise direction.
 		enum class sweep_direction : unsigned char {
 			clockwise, ///< Clockwise.
@@ -240,12 +256,19 @@ namespace codepad {
 
 			/// Retrieves information about the character that is below the given point.
 			[[nodiscard]] virtual caret_hit_test_result hit_test(vec2d) const = 0;
+			/// Retrieves information about the character on the given line at the given horizontal position.
+			[[nodiscard]] virtual caret_hit_test_result hit_test_at_line(std::size_t, double) const = 0;
 			/// Returns the space occupied by the character at the given position.
 			[[nodiscard]] virtual rectd get_character_placement(std::size_t) const = 0;
 			/// Returns the positions occupied by the given range of text.
 			[[nodiscard]] virtual std::vector<rectd> get_character_range_placement(
 				std::size_t beg, std::size_t len
 			) const = 0;
+
+			/// Returns the size used for layout calculation and wrapping.
+			virtual vec2d get_layout_size() const = 0;
+			/// Returns the size used for layout calculation and wrapping.
+			virtual void set_layout_size(vec2d) = 0;
 
 			/// Sets the color of the specified range of text.
 			virtual void set_text_color(colord, std::size_t, std::size_t) = 0;

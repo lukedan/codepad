@@ -218,11 +218,22 @@ namespace codepad::ui::cairo {
 
 		/// Invokes \p pango_layout_xy_to_index().
 		caret_hit_test_result hit_test(vec2d) const override;
+		/// Uses \p pango_layout_line_x_to_index() to perform hit testing at the given line.
+		caret_hit_test_result hit_test_at_line(std::size_t, double) const override;
 		/// Invokes \p pango_layout_index_to_pos().
 		rectd get_character_placement(std::size_t) const override;
 		/// For each line in the text, calls \p pango_layout_line_get_x_ranges() to compute the range of the
 		/// selection.
 		std::vector<rectd> get_character_range_placement(std::size_t beg, std::size_t len) const override;
+
+		/// Returns \ref _layout_size.
+		vec2d get_layout_size() const override {
+			return _layout_size;
+		}
+		/// Sets \ref _layout_size.
+		void set_layout_size(vec2d size) override {
+			_layout_size = size;
+		}
 
 		/// Sets the color of the specified range of text.
 		void set_text_color(colord, std::size_t beg, std::size_t len) override;
@@ -238,12 +249,22 @@ namespace codepad::ui::cairo {
 		void set_font_stretch(font_stretch, std::size_t beg, std::size_t len) override;
 	protected:
 		/// Positions of each character's starting byte. This includes one extra element at the end equal to the
-		/// total byte length of the text. Moreover, this considers <tt>\r\n</tt> codepoints as a single character.
+		/// total byte length of the text.
 		std::vector<std::size_t> _bytepos;
+		vec2d _layout_size; ///< The size of the virtual layout box.
 		_details::glib_object_ref<PangoLayout> _layout; ///< The underlying \p PangoLayout object.
+		vertical_text_alignment _valign = vertical_text_alignment::center; ///< Vertical text alignment.
+
+		/// Initializes \ref _layout_size and \ref _valign.
+		formatted_text(vec2d size, vertical_text_alignment valign) : _layout_size(size), _valign(valign) {
+		}
+
+		/// Returns the offset of the text inside the layout rectangle.
+		[[nodiscard]] vec2d _get_offset() const;
 
 		/// Converts character indices to byte positions.
-		std::pair<guint, guint> _char_to_byte(std::size_t beg, std::size_t len) const;
+		[[nodiscard]] std::pair<guint, guint> _char_to_byte(std::size_t beg, std::size_t len) const;
+		[[nodiscard]] std::size_t _byte_to_char(std::size_t) const;
 	};
 
 	/// A freetype font.

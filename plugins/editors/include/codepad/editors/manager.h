@@ -4,13 +4,17 @@
 #pragma once
 
 /// \file
-/// Declaration and implementation of manager class for \ref codepad::editors::buffer.
+/// Declaration and implementation of manager classes.
 
 #include <stack>
 
-#include "../os/filesystem.h"
+#include <codepad/os/filesystem.h>
+
 #include "buffer.h"
 #include "code/interpretation.h"
+#include "code/caret_set.h"
+#include "code/interpretation.h"
+#include "binary/contents_region.h"
 
 namespace codepad::editors {
 	/// Used to identify a \ref buffer in certain events.
@@ -41,7 +45,7 @@ namespace codepad::editors {
 				return ptr;
 			}
 			// create new one
-			auto res = std::make_shared<buffer>(path);
+			auto res = std::make_shared<buffer>(path, this);
 			ins.first->second.buf = res;
 			/*res->_tags.resize(_tag_alloc_max);*/ // allocate space for tags
 			buffer_created.invoke_noret(*res);
@@ -51,10 +55,10 @@ namespace codepad::editors {
 		std::shared_ptr<buffer> new_file() {
 			std::shared_ptr<buffer> ctx;
 			if (_noname_alloc.empty()) {
-				ctx = std::make_shared<buffer>(_noname_map.size());
+				ctx = std::make_shared<buffer>(_noname_map.size(), this);
 				_noname_map.emplace_back(ctx);
 			} else {
-				ctx = std::make_shared<buffer>(_noname_alloc.top());
+				ctx = std::make_shared<buffer>(_noname_alloc.top(), this);
 				_noname_map[_noname_alloc.top()] = _buffer_data(ctx);
 				_noname_alloc.pop();
 			}
@@ -83,18 +87,6 @@ namespace codepad::editors {
 			auto ptr = std::make_shared<code::interpretation>(buf, encoding);
 			it->second = ptr;
 			return ptr;
-		}
-		/// Finds the \ref code::buffer_encoding with the specified name, then calls
-		/// \ref open_interpretation(const std::shared_ptr<buffer>&, const code::buffer_encoding&) and returns its
-		/// result. If no such encoding is found, an empty \p std::shared_ptr is returned.
-		std::shared_ptr<code::interpretation> open_interpretation(
-			const std::shared_ptr<buffer> &buf, const std::u8string &encname
-		) {
-			const code::buffer_encoding *enc = code::encoding_manager::get().get_encoding(encname);
-			if (enc == nullptr) {
-				return std::shared_ptr<code::interpretation>();
-			}
-			return open_interpretation(buf, *enc);
 		}
 
 		// TODO
@@ -152,9 +144,6 @@ namespace codepad::editors {
 			buffer_created,
 			/// Invoked when a buffer is about to be disposed. Handlers should be careful not to modify the buffer.
 			buffer_disposing;
-
-		/// Returns the global \ref buffer_manager.
-		static buffer_manager &get();
 	protected:
 		/// Stores a \p std::weak_ptr to a \ref buffer, and pointers to all its
 		/// \ref code::interpretation "interpretations".
@@ -232,5 +221,50 @@ namespace codepad::editors {
 				target = _buffer_data(); // keep _buffer_data::buf valid
 			}
 		}
+	};
+
+	/// Manages everything related to editors. Essentially a hub for \ref buffer_manager, \ref encoding_manager,
+	class manager {
+	public:
+		/// Constructor. Registers interaction modes for interaction mode registries.
+		manager() {
+			code_interactions.mapping.emplace(
+				u8"prepare_drag", []() {
+					return std::make_unique<
+						interaction_modes::mouse_prepare_drag_mode_activator<code::caret_set>
+					>();
+				}
+			);
+			code_interactions.mapping.emplace(
+				u8"single_selection", []() {
+					return std::make_unique<
+						interaction_modes::mouse_single_selection_mode_activator<code::caret_set>
+					>();
+				}
+			);
+
+			binary_interactions.mapping.emplace(
+				u8"prepare_drag", []() {
+					return std::make_unique<
+						interaction_modes::mouse_prepare_drag_mode_activator<binary::caret_set>
+					>();
+				}
+			);
+			binary_interactions.mapping.emplace(
+				u8"single_selection", []() {
+					return std::make_unique<
+						interaction_modes::mouse_single_selection_mode_activator<binary::caret_set>
+					>();
+				}
+			);
+		}
+
+		buffer_manager buffers; ///< Main manager of all buffers.
+		code::encoding_manager encodings; ///< Manager of all encodings.
+		interaction_mode_registry<code::caret_set> code_interactions; ///< \ref interaction_manager for code editors.
+		interaction_mode_registry<binary::caret_set> binary_interactions; ///< \ref interaction_manager for binary editors.
+
+		/// Returns the \ref manager associated with this plugin.
+		static manager &get();
 	};
 }

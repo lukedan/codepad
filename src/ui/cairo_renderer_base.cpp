@@ -145,7 +145,7 @@ namespace codepad::ui::cairo {
 	rectd formatted_text::get_layout() const {
 		PangoRectangle layout;
 		pango_layout_get_extents(_layout.get(), nullptr, &layout);
-		return _details::cast_rect_back(layout);
+		return _details::cast_rect_back(layout).translated(_get_offset());
 	}
 
 	std::vector<line_metrics> formatted_text::get_line_metrics() const {
@@ -157,12 +157,15 @@ namespace codepad::ui::cairo {
 			double height = pango_units_to_double(ymax_pu - ymin_pu);
 			int baseline = pango_layout_iter_get_baseline(iter);
 			double baseline1 = pango_units_to_double(baseline - ymin_pu);
+			// TODO gather results
+			// make sure to consider the offset
 		} while (pango_layout_iter_next_line(iter));
 		pango_layout_iter_free(iter);
 		return result;
 	}
 
 	caret_hit_test_result formatted_text::hit_test(vec2d pos) const {
+		pos -= _get_offset();
 		int index = 0, trailing = 0;
 		PangoRectangle rect;
 		pango_layout_xy_to_index(
@@ -173,20 +176,38 @@ namespace codepad::ui::cairo {
 		pango_layout_index_to_pos(_layout.get(), index, &rect);
 
 		caret_hit_test_result result;
-		result.character = std::lower_bound(_bytepos.begin(), _bytepos.end(), index) - _bytepos.begin();
-		result.character_layout = _details::cast_rect_back(rect);
+		result.character = _byte_to_char(static_cast<std::size_t>(index));
+		result.character_layout = _details::cast_rect_back(rect).made_positive_swap();
 		result.rear = (trailing != 0);
 		return result;
+	}
+
+	caret_hit_test_result formatted_text::hit_test_at_line(std::size_t line, double x) const {
+		x -= _get_offset().x;
+		caret_hit_test_result res;
+		PangoLayoutLine *pango_line = pango_layout_get_line_readonly(_layout.get(), static_cast<int>(line));
+		int byte_index = 0;
+		if (pango_line == nullptr) {
+			byte_index = static_cast<int>(_bytepos.back());
+			res.character = _bytepos.size() - 1;
+			res.rear = true;
+		} else {
+			int trailing = 0;
+			// TODO the x offset is from the left edge of the line
+			pango_layout_line_x_to_index(pango_line, pango_units_from_double(x), &byte_index, &trailing);
+			res.character = _byte_to_char(static_cast<std::size_t>(byte_index));
+			res.rear = trailing != 0;
+		}
+		PangoRectangle rect;
+		pango_layout_index_to_pos(_layout.get(), byte_index, &rect);
+		res.character_layout = _details::cast_rect_back(rect).made_positive_swap();
+		return res;
 	}
 
 	rectd formatted_text::get_character_placement(std::size_t pos) const {
 		PangoRectangle rect;
 		pango_layout_index_to_pos(_layout.get(), _bytepos[std::min(pos, _bytepos.size() - 1)], &rect);
-		if (rect.width < 0) {
-			rect.x += rect.width;
-			rect.width = -rect.width;
-		}
-		return _details::cast_rect_back(rect);
+		return _details::cast_rect_back(rect).made_positive_swap().translated(_get_offset());
 	}
 
 	std::vector<rectd> formatted_text::get_character_range_placement(std::size_t beg, std::size_t len) const {
@@ -206,12 +227,18 @@ namespace codepad::ui::cairo {
 				int *iter = ranges;
 				for (int i = 0; i < num_ranges; ++i, iter += 2) {
 					int beg = iter[0], end = iter[1];
+					// TODO this includes some space before the line
 					result.emplace_back(pango_units_to_double(beg), pango_units_to_double(end), ymin, ymax);
 				}
 				g_free(ranges);
 			}
 		} while (pango_layout_iter_next_line(iter));
 		pango_layout_iter_free(iter);
+		// offset all regions
+		vec2d offset = _get_offset();
+		for (rectd &r : result) {
+			r = r.translated(offset);
+		}
 		return result;
 	}
 
@@ -271,10 +298,40 @@ namespace codepad::ui::cairo {
 		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
 	}
 
+	vec2d formatted_text::_get_offset() const {
+		PangoAlignment halign = pango_layout_get_alignment(_layout.get());
+		if (_valign == vertical_text_alignment::top && halign == PANGO_ALIGN_LEFT) {
+			return vec2d();
+		}
+		// get layout extents
+		PangoRectangle layout_pango;
+		pango_layout_get_extents(_layout.get(), nullptr, &layout_pango);
+		rectd layout = _details::cast_rect_back(layout_pango);
+		// compute offset
+		vec2d offset = _layout_size - layout.xmax_ymax();
+		// x
+		if (halign == PANGO_ALIGN_LEFT) {
+			offset.x = 0.0;
+		} else if (halign == PANGO_ALIGN_CENTER) {
+			offset.x *= 0.5;
+		}
+		// y
+		if (_valign == vertical_text_alignment::top) {
+			offset.y = 0.0;
+		} else if (_valign == vertical_text_alignment::center) {
+			offset.y *= 0.5;
+		}
+		return offset;
+	}
+
 	std::pair<guint, guint> formatted_text::_char_to_byte(std::size_t beg, std::size_t len) const {
 		beg = std::min(beg, _bytepos.size() - 1);
 		std::size_t end = std::min(beg + len, _bytepos.size() - 1);
 		return { static_cast<guint>(_bytepos[beg]), static_cast<guint>(_bytepos[end]) };
+	}
+
+	std::size_t formatted_text::_byte_to_char(std::size_t c) const {
+		return std::lower_bound(_bytepos.begin(), _bytepos.end(), c) - _bytepos.begin();
 	}
 
 
@@ -729,7 +786,7 @@ namespace codepad::ui::cairo {
 		rgn.xmax = rgn.xmax / rx - 1.0;
 		rgn.ymin = rgn.ymin / ry + 1.0;
 		rgn.ymax = rgn.ymax / ry - 1.0;
-		rgn.make_valid_average();
+		rgn = rgn.made_positive_average();
 
 		cairo_set_matrix(context, &mat);
 		cairo_arc(context, rgn.xmin, rgn.ymin, 1.0, -1.57079632, 0.0);
@@ -743,9 +800,9 @@ namespace codepad::ui::cairo {
 
 	std::unique_ptr<formatted_text> renderer_base::_create_formatted_text_impl(
 		std::u8string_view text, const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
-		horizontal_text_alignment halign, vertical_text_alignment
+		horizontal_text_alignment halign, vertical_text_alignment valign
 	) {
-		auto result = std::make_unique<formatted_text>();
+		auto result = std::unique_ptr<formatted_text>(new formatted_text(size, valign));
 		result->_layout.set_give(pango_layout_new(_pango_context.get()));
 
 		pango_layout_set_text(

@@ -15,11 +15,6 @@
 #include "codepad/ui/elements/text_edit.h"
 #include "codepad/ui/elements/tabs/manager.h"
 #include "codepad/ui/elements/tabs/animated_tab_button_panel.h"
-#include "codepad/editors/code/contents_region.h"
-#include "codepad/editors/code/minimap.h"
-#include "codepad/editors/code/line_number_display.h"
-#include "codepad/editors/binary/contents_region.h"
-#include "codepad/editors/binary/components.h"
 
 namespace codepad::ui {
 	manager::manager(settings &s) : _settings(s) {
@@ -48,13 +43,6 @@ namespace codepad::ui {
 		register_element_type<tabs::drag_destination_selector>();
 		register_element_type<tabs::host>();
 		register_element_type<tabs::animated_tab_buttons_panel>();
-
-		register_element_type<editors::editor>();
-		register_element_type<editors::code::contents_region>();
-		register_element_type<editors::code::line_number_display>();
-		register_element_type<editors::code::minimap>();
-		register_element_type<editors::binary::contents_region>();
-		register_element_type<editors::binary::primary_offset_display>();
 
 
 		_scheduler.get_hotkey_listener().triggered += [this](hotkey_info &info) {

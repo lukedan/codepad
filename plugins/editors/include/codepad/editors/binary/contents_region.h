@@ -9,7 +9,8 @@
 #include <algorithm>
 #include <string_view>
 
-#include "../../ui/element.h"
+#include <codepad/ui/element.h>
+
 #include "../buffer.h"
 #include "../caret_set.h"
 #include "../interaction_modes.h"
@@ -233,9 +234,6 @@ namespace codepad::editors::binary {
 		/// Converts a character into the corresponding value, i.e., A-Z are treated as 10-35. If the character lies
 		/// out of the range, this function returns \p std::numeric_limits<unsigned char>::max().
 		static unsigned char get_character_value(codepoint);
-
-		/// Returns the \ref interaction_mode_registry of binary editors.
-		static interaction_mode_registry<caret_set> &get_interaction_mode_registry();
 
 		/// Returns the \ref contents_region contained by the given \ref editor.
 		inline static contents_region *get_from_editor(editor &edt) {

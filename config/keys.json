@@ -60,11 +60,11 @@
 			},
 			{
 				"gestures": "alt+u",
-				"command": "contents_region.carets.move_leftmost_noblank"
+				"command": "contents_region.carets.move_to_line_beginning_noblank"
 			},
 			{
 				"gestures": "alt+o",
-				"command": "contents_region.carets.move_rightmost"
+				"command": "contents_region.carets.move_to_line_ending"
 			},
 
 			{
@@ -85,36 +85,36 @@
 			},
 			{
 				"gestures": "alt+shift+u",
-				"command": "contents_region.carets.move_leftmost_noblank_selected"
+				"command": "contents_region.carets.move_to_line_beginning_noblank_selected"
 			},
 			{
 				"gestures": "alt+shift+o",
-				"command": "contents_region.carets.move_rightmost_selected"
+				"command": "contents_region.carets.move_to_line_ending_selected"
 			},
 
 			{
 				"gestures": "home",
-				"command": "contents_region.carets.move_leftmost_noblank"
+				"command": "contents_region.carets.move_to_line_beginning_noblank"
 			},
 			{
 				"gestures": "end",
-				"command": "contents_region.carets.move_rightmost"
+				"command": "contents_region.carets.move_to_line_ending"
 			},
 			{
 				"gestures": "ctrl+home",
-				"command": "contents_region.carets.move_leftmost"
+				"command": "contents_region.carets.move_to_line_beginning"
 			},
 			{
 				"gestures": "shift+home",
-				"command": "contents_region.carets.move_leftmost_noblank_selected"
+				"command": "contents_region.carets.move_to_line_beginning_noblank_selected"
 			},
 			{
 				"gestures": "shift+end",
-				"command": "contents_region.carets.move_rightmost_selected"
+				"command": "contents_region.carets.move_to_line_ending_selected"
 			},
 			{
 				"gestures": "shift+ctrl+home",
-				"command": "contents_region.carets.move_leftmost_selected"
+				"command": "contents_region.carets.move_to_line_beginning_selected"
 			},
 
 			{
@@ -207,6 +207,23 @@
 		{
 			"gestures": "shift+right",
 			"command": "text_edit.move_caret_right_selected"
+		},
+
+		{
+			"gestures": "home",
+			"command": "text_edit.move_caret_to_line_beginning"
+		},
+		{
+			"gestures": "shift+home",
+			"command": "text_edit.move_caret_to_line_beginning_selected"
+		},
+		{
+			"gestures": "end",
+			"command": "text_edit.move_caret_to_line_ending"
+		},
+		{
+			"gestures": "shift+end",
+			"command": "text_edit.move_caret_to_line_ending_selected"
 		},
 
 		{

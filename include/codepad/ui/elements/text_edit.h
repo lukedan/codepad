@@ -27,12 +27,68 @@ namespace codepad::ui {
 		}
 		/// Sets the current caret.
 		void set_caret_selection(caret_selection sel) {
-			_check_cache_line_metrics();
+			_check_cache_line_info();
 			sel.caret = std::min(sel.caret, _cached_line_beginnings.back());
 			sel.selection = std::min(sel.selection, _cached_line_beginnings.back());
 			_caret = sel;
 			_on_caret_changed();
 		}
+
+	private:
+		/// Invoked by \ref move_caret_raw() to update the position of the caret when only the position is given.
+		/// This function updates the caret alignment using this new position.
+		void _update_caret(std::size_t new_pos) {
+			_caret.caret = new_pos;
+			// TODO actually update alignment
+		}
+		/// Invoked by \ref move_caret_raw() to update the position and alignment of the caret.
+		void _update_caret(std::pair<std::size_t, double> new_pos_align) {
+			_caret.caret = new_pos_align.first;
+			// TODO set alignment
+		}
+	public:
+		/// Moves the caret. The two function object parameters \p move and \p cancel_sel either return a single
+		/// \p std::size_t, which is the new position, or a \p std::pair<std::size_t, double>, which is the new
+		/// position and the new alignment (the virtual horizontal position of the caret that will be used when
+		/// moving the caret vertically).
+		///
+		/// \param move A function that returns the position of the caret after it has been moved without cancelling
+		///             the selection.
+		/// \param cancel_sel A function that returns the new position of the caret after cancelling the selection.
+		/// \param continue_selection If \p true, will keep the selection end of the caret and move the caret end as
+		///                           if there's no selection.
+		template <typename MoveCaret, typename CancelSelection> void move_caret_raw(
+			const MoveCaret &move, const CancelSelection &cancel_sel, bool continue_selection
+		) {
+			if (continue_selection || !_caret.has_selection()) {
+				_update_caret(move());
+			} else {
+				_update_caret(cancel_sel());
+			}
+			if (!continue_selection) {
+				_caret.selection = _caret.caret;
+			}
+			_on_caret_changed();
+		}
+		/// \ref move_caret_raw() where \p move and \p cancel_sel are the same.
+		template <typename MoveCaret> void move_caret_raw(const MoveCaret &mc, bool continue_selection) {
+			move_caret_raw(mc, mc, continue_selection);
+		}
+
+		/// Moves the caret one character to the left. If there's a selection and \p continue_selection is \p false,
+		/// the selection is cancelled and the cursor is moved to the very end of the selected region.
+		void move_caret_left(bool continue_selection);
+		/// Moves the caret one character to the right. If there's a selection and \p continue_selection is \p false,
+		/// the selection is cancelled and the cursor is moved to the very end of the selected region.
+		void move_caret_right(bool continue_selection);
+		/// Moves the caret one character to the beginning of the line. If there's a selection and
+		/// \p continue_selection is \p false, the selection is cancelled and the cursor is moved to the very end of
+		/// the selected region.
+		void move_caret_to_line_beginning(bool continue_selection);
+		/// Moves the caret one character to the end of the line. If there's a selection and \p continue_selection is
+		/// \p false, the selection is cancelled and the cursor is moved to the very end of the selected region.
+		void move_caret_to_line_ending(bool continue_selection);
+
 
 		/// Modifies the text by removing the characters in the specified range and adding the given string in its
 		/// place. Note that the character range does not take into account CRLF new line characters, i.e., a CRLF
@@ -44,17 +100,11 @@ namespace codepad::ui {
 			std::size_t del_begin, std::size_t del_len, std::u8string_view add
 		);
 
-		/// Moves the caret one character to the left. If there's a selection and \p continue_selection is \p false,
-		/// the selection is cancelled and the cursor is moved to the very end of the selected region.
-		void move_caret_left(bool continue_selection);
-		/// Moves the caret one character to the right. If there's a selection and \p continue_selection is \p false,
-		/// the selection is cancelled and the cursor is moved to the very end of the selected region.
-		void move_caret_right(bool continue_selection);
-
 		/// Deletes the character before the caret, or the selection if there is one.
 		void delete_character_before_caret();
 		/// Deletes the character after the caret, or the selection if there is one.
 		void delete_character_after_caret();
+
 
 		/// Returns the list of properties.
 		const property_mapping &get_properties() const override;
@@ -121,7 +171,7 @@ namespace codepad::ui {
 		void _update_window_caret_position() const;
 
 		/// Computes \ref _cached_line_metrics if it hasn't been cached.
-		void _check_cache_line_metrics();
+		void _check_cache_line_info();
 
 		/// Returns the line that the given character is on.
 		std::size_t _get_line_of_character(std::size_t);

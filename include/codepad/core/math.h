@@ -214,35 +214,50 @@ namespace codepad {
 			return v.x > xmin && v.x < xmax && v.y > ymin && v.y < ymax;
 		}
 
-		/// Adjusts \ref xmin and \ref ymin so that nonnegative_area() returns \p true. This version uses the smaller
-		/// value.
-		void make_valid_min() {
-			if (xmin > xmax) {
-				xmin = xmax;
+		/// Returns this rectangle adjusted so that \ref xmax > \ref xmin and \ref ymax > \ref ymin. If a condition
+		/// is not met, the average value is assigned to the bounds.
+		[[nodiscard]] constexpr rect made_positive_average() const {
+			rect res = *this;
+			if (res.xmin > res.xmax) {
+				res.xmin = res.xmax = 0.5 * (res.xmin + res.xmax);
 			}
-			if (ymin > ymax) {
-				ymin = ymax;
+			if (res.ymin > res.ymax) {
+				res.ymin = res.ymax = 0.5 * (res.ymin + res.ymax);
 			}
+			return res;
 		}
-		/// Adjusts \ref xmax and \ref ymax so that nonnegative_area() returns \p true. This version uses the larger
-		/// value.
-		void make_valid_max() {
-			if (xmin > xmax) {
-				xmax = xmin;
+		/// Similar to \ref make_positive_average() but uses the minimum bound of the range.
+		[[nodiscard]] constexpr rect made_positive_min() const {
+			rect res = *this;
+			if (res.xmin > res.xmax) {
+				res.xmin = res.xmax;
 			}
-			if (ymin > ymax) {
-				ymax = ymin;
+			if (res.ymin > res.ymax) {
+				res.ymin = res.ymax;
 			}
+			return res;
 		}
-		/// Adjusts \ref xmax and \ref ymax so that nonnegative_area() returns \p true. This version uses the average
-		/// value.
-		void make_valid_average() {
-			if (xmin > xmax) {
-				xmin = xmax = 0.5 * (xmin + xmax);
+		/// Similar to \ref make_positive_average() but uses the maximum bound of the range.
+		[[nodiscard]] constexpr rect made_positive_max() const {
+			rect res = *this;
+			if (res.xmin > res.xmax) {
+				res.xmax = res.xmin;
 			}
-			if (ymin > ymax) {
-				ymin = ymax = 0.5 * (ymin + ymax);
+			if (res.ymin > res.ymax) {
+				res.ymax = res.ymin;
 			}
+			return res;
+		}
+		/// Similar to \ref make_positive_average() but swaps the endpoints of the range.
+		[[nodiscard]] constexpr rect made_positive_swap() const {
+			rect res = *this;
+			if (res.xmin > res.xmax) {
+				res.xmax = res.xmin;
+			}
+			if (res.ymin > res.ymax) {
+				res.ymax = res.ymin;
+			}
+			return res;
 		}
 
 		/// Converts all coordinates to another type.

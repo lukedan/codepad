@@ -12,10 +12,10 @@
 #include <algorithm>
 #include <fstream>
 
-#include "../core/bst.h"
-#include "../core/profiling.h"
-#include "../ui/element.h"
-#include "../os/filesystem.h"
+#include <codepad/core/bst.h>
+#include <codepad/core/profiling.h>
+#include <codepad/ui/element.h>
+#include <codepad/os/filesystem.h>
 
 namespace codepad::editors {
 	class buffer_manager;
@@ -389,81 +389,11 @@ namespace codepad::editors {
 		};
 
 		/// Constructs this \ref buffer with the given buffer index.
-		explicit buffer(std::size_t id) : _fileid(std::in_place_type<std::size_t>, id) {
+		buffer(std::size_t id, buffer_manager *man) :
+			_fileid(std::in_place_type<std::size_t>, id), _bufman(man) {
 		}
 		/// Constructs this \ref buffer with the given file name, and loads that file's contents.
-		explicit buffer(const std::filesystem::path &filename) :
-			_fileid(std::in_place_type<std::filesystem::path>, filename) {
-
-			performance_monitor mon(u8"load file", performance_monitor::log_condition::always);
-
-			logger::get().log_debug(CP_HERE) << "opening file " << filename;
-
-			// read version
-			os::file f(filename, os::access_rights::read, os::open_mode::open);
-			if (f.valid()) {
-				std::vector<chunk_data> chunks;
-				while (true) {
-					auto &chk = chunks.emplace_back();
-					chk.resize(maximum_bytes_per_chunk);
-					auto res = static_cast<std::size_t>(f.read(maximum_bytes_per_chunk, chk.data()));
-					if (res < maximum_bytes_per_chunk) {
-						if (res > 0) {
-							chk.resize(res);
-						} else {
-							chunks.pop_back();
-						}
-						break;
-					}
-				}
-				_t.insert_range_before_move(_t.end(), chunks.begin(), chunks.end());
-			} // TODO failed to open file
-
-			/*// STL version
-			std::ifstream fin(filename, std::ios::binary);
-			if (fin) {
-				std::vector<chunk_data> chunks;
-				while (!fin.eof()) {
-					auto &chk = chunks.emplace_back();
-					chk.resize(maximum_bytes_per_chunk);
-					fin.read(reinterpret_cast<char*>(chk.data()), maximum_bytes_per_chunk);
-				}
-				if (auto tail = static_cast<std::size_t>(fin.gcount()); tail > 0) {
-					chunks.back().resize(tail);
-				} else {
-					chunks.pop_back();
-				}
-				if (!fin.bad()) {
-					_t.insert_range_before_move(_t.end(), chunks.begin(), chunks.end());
-				} // TODO failed to read file
-			} // TODO failed to open file*/
-
-			/*
-			// memory-mapped version
-			// about 30% faster than STL version
-			os::file f(filename, os::access_rights::read, os::open_mode::open);
-			if (f.valid()) {
-				os::file_mapping mp(f, os::access_rights::read);
-				if (mp.valid()) {
-					const std::byte
-						*ptr = static_cast<const std::byte*>(mp.get_mapped_pointer()),
-						*end = ptr + f.get_size();
-					std::vector<chunk_data> chunks;
-					for (
-						const std::byte *next = ptr + maximum_bytes_per_chunk;
-						next < end;
-						ptr = next, next += maximum_bytes_per_chunk
-						) {
-						chunks.emplace_back(ptr, next);
-					}
-					chunks.emplace_back(ptr, end);
-					_t.insert_range_before_move(_t.end(), chunks.begin(), chunks.end());
-				}
-				// TODO failed to map file
-			}
-			// TODO failed to open file
-			*/
-		}
+		buffer(const std::filesystem::path&, buffer_manager*);
 		~buffer();
 
 		/// Returns an iterator to the first byte of the buffer.
@@ -590,6 +520,11 @@ namespace codepad::editors {
 			_t.clear();
 		}
 
+		/// Returns the associated \ref buffer_manager.
+		buffer_manager *get_manager() const {
+			return _bufman;
+		}
+
 		info_event<begin_edit_info> begin_edit; ///< Invoked when this \ref buffer is about to be modified.
 		info_event<end_edit_info> end_edit; ///< Invoked when this \ref buffer has been modified.
 	protected:
@@ -597,31 +532,7 @@ namespace codepad::editors {
 		using _byte_index_finder = sum_synthesizer::index_finder<node_data::length_property>;
 
 		/// Erases a subsequence from the buffer.
-		void _erase(const_iterator beg, const_iterator end) {
-			if (beg._it == _t.end()) {
-				return;
-			}
-			if (beg._it == end._it) { // same chunk
-				_t.get_modifier_for(beg._it.get_node())->erase(beg._s, end._s);
-				_try_merge_small_nodes(beg._it);
-				return;
-			}
-			// erase full chunks
-			if (beg._s == beg._it->begin()) { // the first chunk is fully deleted
-				_t.erase(beg._it, end._it);
-			} else {
-				_t.erase(beg._it.get_node()->next(), end._it.get_node());
-				// erase the part in the first chunk
-				_t.get_modifier_for(beg._it.get_node())->erase(beg._s, beg._it->end());
-			}
-			if (end._it != _t.end()) {
-				// erase the part in the last chunk
-				_t.get_modifier_for(end._it.get_node())->erase(end._it->begin(), end._s);
-				_try_merge_small_nodes(end._it);
-			} else if (!_t.empty()) {
-				_try_merge_small_nodes(--_t.end());
-			}
-		}
+		void _erase(const_iterator beg, const_iterator end);
 		/// Inserts an array of bytes at the given position.
 		template <typename It1, typename It2> void _insert(
 			const_iterator pos, const It1 &beg, const It2 &end
@@ -712,6 +623,7 @@ namespace codepad::editors {
 		std::vector<edit> _history; ///< Records undoable or redoable edits made to this \ref buffer.
 		/// Used to identify this buffer. Also stores the path to the associated file, if one exists.
 		std::variant<std::size_t, std::filesystem::path> _fileid;
+		buffer_manager *_bufman = nullptr; ///< The \ref buffer_manager for this \ref buffer.
 		std::size_t _curedit = 0; ///< The index of the edit that's to be redone next should the need arise.
 	};
 }

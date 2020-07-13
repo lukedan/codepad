@@ -582,9 +582,6 @@ namespace codepad::editors::code {
 		/// Retrieves the setting entry that determines the font families.
 		static settings::retriever_parser<std::vector<std::u8string>> &get_backup_fonts_setting(settings&);
 
-		/// Returns the \ref interaction_mode_registry of code editors.
-		static interaction_mode_registry<caret_set> &get_interaction_mode_registry();
-
 		/// The default formatter for invalid codepoints.
 		inline static std::u8string format_invalid_codepoint(codepoint value) {
 			constexpr static std::size_t _buffer_size = 20;
@@ -913,42 +910,7 @@ namespace codepad::editors::code {
 
 		// construction and destruction
 		/// Loads font and interaction settings.
-		void _initialize(std::u8string_view cls) override {
-			_base::_initialize(cls);
-
-			std::vector<std::u8string> profile; // TODO custom profile
-
-			auto &renderer = get_manager().get_renderer();
-			auto &set = get_manager().get_settings();
-			std::vector<std::unique_ptr<ui::font_family>> families;
-			families.emplace_back(renderer.find_font_family(
-				editor::get_font_family_setting(set).get_profile(profile.begin(), profile.end()).get_value()
-			));
-			auto &backups = get_backup_fonts_setting(set).get_profile(profile.begin(), profile.end()).get_value();
-			for (const auto &f : backups) {
-				auto family = renderer.find_font_family(f);
-				if (family) {
-					families.emplace_back(std::move(family));
-				} else {
-					logger::get().log_info(CP_HERE) << "font family not found: " << f;
-				}
-			}
-			set_font_families(std::move(families));
-
-			set_font_size_and_line_height(
-				editor::get_font_size_setting(set).get_profile(profile.begin(), profile.end()).get_value()
-			);
-
-			_interaction_manager.set_contents_region(*this);
-			auto &modes = editor::get_interaction_modes_setting(set).get_profile(
-				profile.begin(), profile.end()
-			).get_value();
-			for (const auto &mode_name : modes) {
-				if (auto mode = get_interaction_mode_registry().try_create(mode_name)) {
-					_interaction_manager.activators().emplace_back(std::move(mode));
-				}
-			}
-		}
+		void _initialize(std::u8string_view) override;
 
 		/// Checks for the \ref carets_changed event.
 		bool _register_event(std::u8string_view name, std::function<void()> callback) override {

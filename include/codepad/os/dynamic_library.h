@@ -38,9 +38,6 @@ namespace codepad::os {
 
 		/// Default constructor.
 		dynamic_library() = default;
-		/// Loads the library at the given path.
-		explicit dynamic_library(const std::filesystem::path &path) : _handle(_load_impl(path)) {
-		}
 		/// Move constructor.
 		dynamic_library(dynamic_library &&src) : _handle(src._handle) {
 			src._handle = empty_handle;
@@ -61,14 +58,18 @@ namespace codepad::os {
 			unload();
 		}
 
-		/// Loads a new library, unloading the previous one if necessary.
-		void load(const std::filesystem::path &path) {
-			unload();
-			_handle = _load_impl(path);
+		/// Tries to load a dynamic library.
+		inline static std::optional<dynamic_library> load(const std::filesystem::path &path) {
+			native_handle_t handle = _load_impl(path);
+			if (handle == empty_handle) {
+				return std::nullopt;
+			}
+			return dynamic_library(handle);
 		}
+
 		/// Unloads the current library if necessary.
 		void unload() {
-			if (valid()) {
+			if (!empty()) {
 				_unload_impl(_handle);
 				_handle = empty_handle;
 			}
@@ -76,10 +77,9 @@ namespace codepad::os {
 
 		/// Finds the symbol, then casts it to the desired type and returns it.
 		template <typename FuncPtr> FuncPtr find_symbol(const std::u8string &name) const {
-			assert_true_usage(valid(), "check validity first before operating on dynamic library");
 			return reinterpret_cast<FuncPtr>(find_symbol_raw(name));
 		}
-		/// Finds and returns the symbol without casting it.
+		/// Finds and returns the symbol without checking if the handle is valid or casting the result.
 		symbol_t find_symbol_raw(const std::u8string&) const;
 
 		/// Returns the native handle.
@@ -88,11 +88,15 @@ namespace codepad::os {
 		}
 
 		/// Returns whether the handle is empty.
-		bool valid() const {
-			return _handle != empty_handle;
+		bool empty() const {
+			return _handle == empty_handle;
 		}
 	protected:
 		native_handle_t _handle = empty_handle; ///< The handle.
+
+		/// Initializes this dynamic library directly using the handle.
+		explicit dynamic_library(native_handle_t h) : _handle(h) {
+		}
 
 		/// Loads the library at the given path. If the loading failed, this function should return
 		/// \ref empty_handle.

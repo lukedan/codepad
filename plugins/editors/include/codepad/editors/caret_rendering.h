@@ -6,8 +6,8 @@
 /// \file
 /// Structs used to render carets and selection regions.
 
-#include "../core/math.h"
-#include "../ui/renderer.h"
+#include <codepad/core/math.h>
+#include <codepad/ui/renderer.h>
 
 namespace codepad::editors {
 	/// Basic interface for rendering selected regions.

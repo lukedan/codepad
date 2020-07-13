@@ -18,8 +18,8 @@
 #	define PLUGIN_EXPORT
 #endif
 
-#define PLUGIN_INITIALIZE(CONTEXT, THIS) \
-	PLUGIN_EXPORT void initialize(const ::codepad::plugin_context &CONTEXT, ::codepad::plugin &THIS)
+#define PLUGIN_INITIALIZE(CONTEXT, THIS_PLUGIN) \
+	PLUGIN_EXPORT void initialize(const ::codepad::plugin_context &CONTEXT, ::codepad::plugin &THIS_PLUGIN)
 #define PLUGIN_GET_NAME PLUGIN_EXPORT const char *get_name
 #define PLUGIN_ENABLE PLUGIN_EXPORT void enable
 #define PLUGIN_DISABLE PLUGIN_EXPORT void disable

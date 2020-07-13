@@ -21,7 +21,7 @@ endif()
 set(ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing backtraces.")
 
 
-# main shared library
+# main executable
 add_executable(codepad)
 target_compile_features(codepad PUBLIC cxx_std_20)
 target_sources(codepad
@@ -31,19 +31,8 @@ target_sources(codepad
 		"src/core/logging.cpp"
 		"src/core/plugins.cpp"
 		"src/core/profiling.cpp"
-		"src/core/setting_entries.cpp"
+		
 		"src/core/settings.cpp"
-
-		"src/editors/binary/components.cpp"
-		"src/editors/binary/contents_region.cpp"
-
-		"src/editors/code/caret_set.cpp"
-		"src/editors/code/contents_region.cpp"
-		"src/editors/code/line_number_display.cpp"
-		"src/editors/code/minimap.cpp"
-
-		"src/editors/buffer.cpp"
-		"src/editors/editor.cpp"
 
 		"src/ui/elements/tabs/host.cpp"
 		"src/ui/elements/tabs/manager.cpp"
@@ -232,6 +221,7 @@ endif()
 
 
 # import plugin targets
+add_subdirectory("plugins/editors/")
 add_subdirectory("plugins/command_pack/")
 add_subdirectory("plugins/python_plugin_host_pybind11/")
 

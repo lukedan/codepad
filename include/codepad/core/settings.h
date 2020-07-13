@@ -314,4 +314,40 @@ namespace codepad {
 		std::unique_ptr<profile> _main_profile; ///< The main profile.
 		std::size_t _timestamp = 1; ///< The version of loaded settings.
 	};
+
+	/// A utility class used to access settings that handles the case of multiple \ref settings objects. Note that
+	/// actually using mutliple \ref setting objects can degrade performance.
+	template <typename T> struct setting {
+	public:
+		using parser_type = typename settings::retriever_parser<T>::value_parser; ///< Parser type.
+
+		/// Initializes this setting given the key and the parser.
+		setting(std::vector<std::u8string> k, parser_type p) :
+			_context(std::make_shared<typename settings::retriever_parser<T>::context>(std::move(k), std::move(p))) {
+		}
+
+		/// Returns the \ref settings::retriever_parser associated with the given \ref settings object.
+		settings::retriever_parser<T> &get(settings &s) {
+			if (&s != _settings) { // slow path
+				if (_settings) { // put the current retriever back onto the shelf
+					_slow_map.emplace(_settings, std::move(_retriever));
+				}
+				_settings = &s;
+				auto it = _slow_map.find(_settings);
+				if (it == _slow_map.end()) { // create new retriever
+					_retriever = _settings->create_retriever_parser<T>(_context);
+				} else { // take the retriever out & erase the entry
+					_retriever = std::move(it->second);
+					_slow_map.erase(it);
+				}
+			}
+			return _retriever;
+		}
+	private:
+		std::shared_ptr<typename settings::retriever_parser<T>::context> _context; ///< The context of this setting.
+		/// A mapping for \ref settings objects that are not currently active.
+		std::map<settings*, settings::retriever_parser<T>> _slow_map;
+		settings::retriever_parser<T> _retriever; ///< The \ref settings::retriever_parser.
+		settings *_settings = nullptr; ///< The current \ref settings object.
+	};
 }

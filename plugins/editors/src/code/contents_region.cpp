@@ -6,9 +6,20 @@
 /// \file
 /// Implementation of certain methods of \ref codepad::editors::code::contents_region.
 
+#include "codepad/editors/manager.h"
 #include "codepad/editors/code/fragment_generation.h"
 
 namespace codepad::editors::code {
+	settings::retriever_parser<std::vector<std::u8string>> &contents_region::get_backup_fonts_setting(settings &set) {
+		static setting<std::vector<std::u8string>> _setting(
+			{ u8"editor", u8"backup_fonts" },
+			settings::basic_parsers::basic_type_with_default<std::vector<std::u8string>>(
+				std::vector<std::u8string>(), json::array_parser<std::u8string>()
+				)
+		);
+		return _setting.get(set);
+	}
+
 	void contents_region::on_text_input(std::u8string_view text) {
 		_interaction_manager.on_edit_operation();
 		// encode added content
@@ -150,7 +161,7 @@ namespace codepad::editors::code {
 		auto &renderer = get_manager().get_renderer();
 		double lh = get_line_height();
 		std::pair<std::size_t, std::size_t> be = get_visible_visual_lines();
-		
+
 		caret_set extcarets;
 		const caret_set *used = &_cset;
 		std::vector<caret_selection_position> tempcarets = _interaction_manager.get_temporary_carets();
@@ -234,6 +245,43 @@ namespace codepad::editors::code {
 			}
 
 			renderer.pop_matrix();
+		}
+	}
+
+	void contents_region::_initialize(std::u8string_view cls) {
+		_base::_initialize(cls);
+
+		std::vector<std::u8string> profile; // TODO custom profile
+
+		auto &renderer = get_manager().get_renderer();
+		auto &set = get_manager().get_settings();
+		std::vector<std::unique_ptr<ui::font_family>> families;
+		families.emplace_back(renderer.find_font_family(
+			editor::get_font_family_setting(set).get_profile(profile.begin(), profile.end()).get_value()
+		));
+		auto &backups = get_backup_fonts_setting(set).get_profile(profile.begin(), profile.end()).get_value();
+		for (const auto &f : backups) {
+			auto family = renderer.find_font_family(f);
+			if (family) {
+				families.emplace_back(std::move(family));
+			} else {
+				logger::get().log_info(CP_HERE) << "font family not found: " << f;
+			}
+		}
+		set_font_families(std::move(families));
+
+		set_font_size_and_line_height(
+			editor::get_font_size_setting(set).get_profile(profile.begin(), profile.end()).get_value()
+		);
+
+		_interaction_manager.set_contents_region(*this);
+		auto &modes = editor::get_interaction_modes_setting(set).get_profile(
+			profile.begin(), profile.end()
+		).get_value();
+		for (const auto &mode_name : modes) {
+			if (auto mode = manager::get().code_interactions.try_create(mode_name)) {
+				_interaction_manager.activators().emplace_back(std::move(mode));
+			}
 		}
 	}
 }

@@ -43,4 +43,31 @@ namespace codepad::editors {
 
 		return mapping;
 	}
+
+	settings::retriever_parser<double> &editor::get_font_size_setting(settings &set) {
+		static setting<double> _setting(
+			{ u8"editor", u8"font_size" }, settings::basic_parsers::basic_type_with_default<double>(12.0)
+		);
+		return _setting.get(set);
+	}
+
+	settings::retriever_parser<std::u8string> &editor::get_font_family_setting(settings &set) {
+		static setting<std::u8string> _setting(
+			{ u8"editor", u8"font_family" },
+			settings::basic_parsers::basic_type_with_default<std::u8string>(u8"Courier New")
+		);
+		return _setting.get(set);
+	}
+
+	settings::retriever_parser<std::vector<std::u8string>> &editor::get_interaction_modes_setting(
+		settings &set
+	) {
+		static setting<std::vector<std::u8string>> _setting(
+			{ u8"editor", u8"interaction_modes" },
+			settings::basic_parsers::basic_type_with_default(
+				std::vector<std::u8string>(), json::array_parser<std::u8string>()
+			)
+		);
+		return _setting.get(set);
+	}
 }

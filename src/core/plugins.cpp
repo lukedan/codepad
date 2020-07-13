@@ -135,36 +135,43 @@ namespace codepad {
 	}
 
 
-	native_plugin::native_plugin(const std::filesystem::path &path) : _lib(path) {
-		if (_lib.valid()) {
-			_init = _lib.find_symbol<initialize_func_t>(u8"initialize");
-			_finalize = _lib.find_symbol<finalize_func_t>(u8"finalize");
-			_get_name = _lib.find_symbol<get_name_func_t>(u8"get_name");
-			_enable = _lib.find_symbol<enable_func_t>(u8"enable");
-			_disable = _lib.find_symbol<disable_func_t>(u8"disable");
+	std::shared_ptr<native_plugin> native_plugin::load(const std::filesystem::path &path) {
+		if (auto lib = os::dynamic_library::load(path)) {
+			return load(std::move(lib.value()));
 		}
+		logger::get().log_warning(CP_HERE) << "failed to load dynamic library";
+		return nullptr;
 	}
 
-	void native_plugin::diagnose() const {
-		if (!_lib.valid()) {
-			logger::get().log_warning(CP_HERE) << "failed to load dynamic library";
-		} else {
-			if (_init == nullptr) {
-				logger::get().log_warning(CP_HERE) << "initialize() symbol not found in dynamic library";
-			}
-			if (_finalize == nullptr) {
-				logger::get().log_warning(CP_HERE) << "finalize() symbol not found in dynamic library";
-			}
-			if (_get_name == nullptr) {
-				logger::get().log_warning(CP_HERE) << "get_name() symbol not found in dynamic library";
-			}
-			if (_enable == nullptr) {
-				logger::get().log_warning(CP_HERE) << "enable() symbol not found in dynamic library";
-			}
-			if (_disable == nullptr) {
-				logger::get().log_warning(CP_HERE) << "disable() symbol not found in dynamic library";
-			}
+	/// Finds the symbol in the dynamic library, logging if one is not found.
+	template <typename T> T _try_load_symbol(const os::dynamic_library &lib, const std::u8string &name) {
+		T symbol = lib.find_symbol<T>(name);
+		if (symbol == nullptr) {
+			logger::get().log_warning(CP_HERE) << name << ": symbol not found in dynamic library";
 		}
+		return symbol;
+	}
+	std::shared_ptr<native_plugin> native_plugin::load(os::dynamic_library lib) {
+		assert_true_usage(!lib.empty(), "loading plugin from empty dynamic library");
+		auto init_func = _try_load_symbol<initialize_func_t>(lib, u8"initialize");
+		auto finalize_func = _try_load_symbol<finalize_func_t>(lib, u8"finalize");
+		auto get_name_func = _try_load_symbol<get_name_func_t>(lib, u8"get_name");
+		auto enable_func = _try_load_symbol<enable_func_t>(lib, u8"enable");
+		auto disable_func = _try_load_symbol<disable_func_t>(lib, u8"disable");
+		if (
+			init_func != nullptr && finalize_func != nullptr && get_name_func != nullptr &&
+			enable_func != nullptr && disable_func != nullptr
+		) {
+			auto result = std::make_shared<native_plugin>();
+			result->_lib = std::move(lib);
+			result->_init = init_func;
+			result->_finalize = finalize_func;
+			result->_get_name = get_name_func;
+			result->_enable = enable_func;
+			result->_disable = disable_func;
+			return result;
+		}
+		return nullptr;
 	}
 
 	void native_plugin::initialize(const plugin_context &ctx) {

@@ -108,8 +108,11 @@ namespace codepad::os {
 	}
 
 	file_mapping &file_mapping::operator=(file_mapping &&rhs) {
-		std::swap(_ptr, rhs._ptr);
-		std::swap(_handle, rhs._handle);
+		unmap();
+		_ptr = rhs._ptr;
+		_handle = rhs._handle;
+		rhs._ptr = nullptr;
+		rhs._handle = nullptr;
 		return *this;
 	}
 
@@ -139,7 +142,7 @@ namespace codepad::os {
 	}
 
 	std::size_t file_mapping::get_mapped_size() const {
-		if (valid()) {
+		if (!is_empty_handle()) {
 			MEMORY_BASIC_INFORMATION info;
 			_details::winapi_check(VirtualQuery(_ptr, &info, sizeof(info)));
 			return info.RegionSize;

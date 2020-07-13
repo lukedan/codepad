@@ -6,6 +6,7 @@
 /// \file
 /// Generic filesystem related enums and classes.
 
+#include <optional>
 #include <filesystem>
 
 #ifdef CP_PLATFORM_WINDOWS
@@ -89,11 +90,6 @@ namespace codepad::os {
 
 		/// Initializes the \ref file to empty.
 		file() = default;
-		/// Opens the given file with the specified \ref access_rights and \ref open_mode.
-		/// If the operation fails, the \ref file remains empty.
-		file(const std::filesystem::path &path, access_rights acc, open_mode mode) :
-			_handle(_open_impl(path, acc, mode)) {
-		}
 		/// Move constructor.
 		file(file &&rhs) noexcept : _handle(rhs._handle) {
 			rhs._handle = empty_handle;
@@ -102,7 +98,9 @@ namespace codepad::os {
 		file(const file&) = delete;
 		/// Move assignment.
 		file &operator=(file &&rhs) noexcept {
-			std::swap(_handle, rhs._handle);
+			close();
+			_handle = rhs._handle;
+			rhs._handle = empty_handle;
 			return *this;
 		}
 		/// No copy assignment.
@@ -112,16 +110,18 @@ namespace codepad::os {
 			close();
 		}
 
-		/// Opens the given file with the specified \ref access_rights and \ref open_mode.
-		/// If there is a previously opened file, calls \ref close() first.
-		/// If the operation fails, the \ref file remains empty.
-		void open(const std::filesystem::path &path, access_rights acc, open_mode mode) {
-			close();
-			_handle = _open_impl(path, acc, mode);
+		/// Tries to open the given file with the specified \ref access_rights and \ref open_mode.
+		inline static std::optional<file> open(const std::filesystem::path &path, access_rights acc, open_mode mode) {
+			native_handle_t h = _open_impl(path, acc, mode);
+			if (h == empty_handle) {
+				return std::nullopt;
+			}
+			return file(h);
 		}
+
 		/// If there is a currently open file, closes it and resets the \ref file to empty.
 		void close() {
-			if (valid()) {
+			if (!is_empty_handle()) {
 				_close_impl(_handle);
 				_handle = empty_handle;
 			}
@@ -129,7 +129,7 @@ namespace codepad::os {
 
 		/// Gets and returns the size of the opened file. Returns 0 if the file is empty.
 		pos_type get_size() const {
-			if (valid()) {
+			if (!is_empty_handle()) {
 				return _get_size_impl();
 			}
 			return 0;
@@ -154,12 +154,16 @@ namespace codepad::os {
 			return _handle;
 		}
 
-		/// Returns whether the \ref file is non-empty.
-		bool valid() const {
-			return _handle != empty_handle;
+		/// Returns \p true if the \ref file does not refer a file.
+		bool is_empty_handle() const {
+			return _handle == empty_handle;
 		}
 	protected:
 		native_handle_t _handle = empty_handle; ///< The underlying native handle.
+
+		/// Initializes this object directly using the handle.
+		explicit file(native_handle_t h) : _handle(h) {
+		}
 
 		/// Opens the given file with the specified \ref access_rights and \ref open_mode,
 		/// and returns the resulting file handle. If the operation fails, returns \ref empty_handle.
@@ -175,12 +179,6 @@ namespace codepad::os {
 	public:
 		/// Initializes the \ref file_mapping to empty.
 		file_mapping() = default;
-		/// Maps the given \ref file with the specified \ref access_rights.
-		/// If the operation fails, the \ref file_mapping remains empty.
-		file_mapping(const file &f, access_rights acc) {
-			assert_true_usage(f.valid(), "cannot map an invalid file");
-			_map_impl(f, acc);
-		}
 		/// Move constructor.
 		file_mapping(file_mapping&&);
 		/// No copy constructor.
@@ -194,16 +192,19 @@ namespace codepad::os {
 			unmap();
 		}
 
-		/// Maps the given \ref file with the specified \ref access_rights.
-		/// If there is a previously mapped file, calls unmap() first.
-		/// If the operation fails, the \ref file_mapping remains empty.
-		void map(const file &f, access_rights acc) {
-			unmap();
-			_map_impl(f, acc);
+		/// Tries to map the given \ref file with the specified \ref access_rights.
+		inline static std::optional<file_mapping> map(const file &f, access_rights acc) {
+			file_mapping result;
+			result._map_impl(f, acc);
+			if (!result.is_empty_handle()) {
+				return result;
+			}
+			return std::nullopt;
 		}
+
 		/// If there is a mapped file, unmaps it and resets the \ref file_mapping to empty.
 		void unmap() {
-			if (valid()) {
+			if (!is_empty_handle()) {
 				_unmap_impl();
 				_ptr = nullptr;
 			}
@@ -219,9 +220,9 @@ namespace codepad::os {
 			return _ptr;
 		}
 
-		/// Returns whether the \ref file_mapping is non-empty.
-		bool valid() const {
-			return _ptr != nullptr;
+		/// Returns \p true if the \ref file_mapping does not refer a file.
+		bool is_empty_handle() const {
+			return _ptr == nullptr;
 		}
 	protected:
 		void *_ptr = nullptr; ///< Pointer to the mapped memory region.

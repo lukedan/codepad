@@ -6,7 +6,7 @@
 /// \file
 /// Classes used to record and manage font color, style, etc. in a \ref codepad::editors::code::interpretation.
 
-#include "../../ui/renderer.h"
+#include <codepad/ui/renderer.h>
 
 namespace codepad::editors::code {
 	/// Specifies the theme of the text.

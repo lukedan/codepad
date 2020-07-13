@@ -36,27 +36,49 @@ namespace codepad::ui {
 	}
 
 	void text_edit::move_caret_left(bool continue_sel) {
-		if (continue_sel || !_caret.has_selection()) {
-			_caret.caret = _get_previous_caret_position(_caret.caret);
-		} else {
-			_caret.caret = std::min(_caret.caret, _caret.selection);
-		}
-		if (!continue_sel) { // cancel selection
-			_caret.selection = _caret.caret;
-		}
-		_on_caret_changed();
+		move_caret_raw(
+			[this]() {
+				return _get_previous_caret_position(_caret.caret);
+			},
+			[this]() {
+				return std::min(_caret.caret, _caret.selection);
+			},
+				continue_sel
+				);
 	}
 
 	void text_edit::move_caret_right(bool continue_sel) {
-		if (continue_sel || !_caret.has_selection()) {
-			_caret.caret = _get_next_caret_position(_caret.caret);
-		} else {
-			_caret.caret = std::max(_caret.caret, _caret.selection);
-		}
-		if (!continue_sel) { // cancel selection
-			_caret.selection = _caret.caret;
-		}
-		_on_caret_changed();
+		move_caret_raw(
+			[this]() {
+				return _get_next_caret_position(_caret.caret);
+			},
+			[this]() {
+				return std::max(_caret.caret, _caret.selection);
+			},
+				continue_sel
+				);
+	}
+
+	void text_edit::move_caret_to_line_beginning(bool continue_sel) {
+		move_caret_raw(
+			[this]() {
+				_check_cache_line_info();
+				std::size_t line = _get_line_of_character(_caret.caret);
+				return _cached_line_beginnings[line];
+			},
+			continue_sel
+				);
+	}
+
+	void text_edit::move_caret_to_line_ending(bool continue_sel) {
+		move_caret_raw(
+			[this]() {
+				_check_cache_line_info();
+				std::size_t line = _get_line_of_character(_caret.caret);
+				return _cached_line_beginnings[line] + _cached_line_metrics[line].non_linebreak_characters;
+			},
+			continue_sel
+				);
 	}
 
 	void text_edit::delete_character_before_caret() {
@@ -217,7 +239,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void text_edit::_check_cache_line_metrics() {
+	void text_edit::_check_cache_line_info() {
 		if (_cached_line_metrics.empty()) {
 			_check_cache_format();
 			_cached_line_metrics = _cached_fmt->get_line_metrics();
@@ -233,7 +255,7 @@ namespace codepad::ui {
 	}
 
 	std::size_t text_edit::_get_line_of_character(std::size_t pos) {
-		auto it = std::upper_bound(_cached_line_beginnings.begin(), _cached_line_beginnings.end(), pos);
+		auto it = std::upper_bound(_cached_line_beginnings.begin(), _cached_line_beginnings.end() - 1, pos);
 		return (it - _cached_line_beginnings.begin()) - 1;
 	}
 
@@ -241,7 +263,7 @@ namespace codepad::ui {
 		if (pos == 0) {
 			return 0;
 		}
-		_check_cache_line_metrics();
+		_check_cache_line_info();
 		std::size_t line = _get_line_of_character(pos);
 		if (pos > _cached_line_beginnings[line]) {
 			return pos - 1;
@@ -250,7 +272,7 @@ namespace codepad::ui {
 	}
 
 	std::size_t text_edit::_get_next_caret_position(std::size_t pos) {
-		_check_cache_line_metrics();
+		_check_cache_line_info();
 		if (pos >= _cached_line_beginnings.back()) {
 			return pos;
 		}

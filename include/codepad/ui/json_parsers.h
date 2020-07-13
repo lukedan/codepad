@@ -590,22 +590,6 @@ namespace codepad::json {
 	}
 
 
-	template <typename Value> std::optional<ui::font_style> default_parser<ui::font_style>::operator()(
-		const Value &val
-	) const {
-		if (auto str = val.template cast<std::u8string_view>()) {
-			if (str.value() == u8"normal") {
-				return ui::font_style::normal;
-			} else if (str.value() == u8"italic") {
-				return ui::font_style::italic;
-			} else if (str.value() == u8"oblique") {
-				return ui::font_style::oblique;
-			}
-		}
-		return std::nullopt;
-	}
-
-
 	template <typename Value> std::optional<ui::font_weight> default_parser<ui::font_weight>::operator()(
 		const Value &val
 	) const {

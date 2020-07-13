@@ -53,10 +53,30 @@ namespace codepad::ui {
 			_on_text_layout_changed();
 		}
 
+		/// Returns \ref _halign.
+		horizontal_text_alignment get_horizontal_alignment() const {
+			return _halign;
+		}
+		/// Sets \ref _halign and invokes \ref _on_text_layout_changed().
+		void set_horizontal_alignment(horizontal_text_alignment align) {
+			_halign = align;
+			_on_text_layout_changed();
+		}
+
+		/// Returns \ref _valign.
+		vertical_text_alignment get_vertical_alignment() const {
+			return _valign;
+		}
+		/// Sets \ref _valign and invokes \ref _on_text_layout_changed().
+		void set_vertical_alignment(vertical_text_alignment align) {
+			_valign = align;
+			_on_text_layout_changed();
+		}
+
 		/// Returns the list of properties.
 		const property_mapping &get_properties() const override;
 
-		/// Adds the \p text_color and \p font properties.
+		/// Adds the \p text_color, \p font, \p horizontal_alignment, \p vertical_alignment, and \p text properties.
 		static const property_mapping &get_properties_static();
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
@@ -67,6 +87,8 @@ namespace codepad::ui {
 		colord _text_color; ///< The color of the text.
 		font_parameters _font; ///< The font.
 		mutable std::unique_ptr<formatted_text> _cached_fmt; ///< The cached formatted text.
+		horizontal_text_alignment _halign = horizontal_text_alignment::front; ///< Horizontal text alignment.
+		vertical_text_alignment _valign = vertical_text_alignment::top; ///< Vertical text alignment.
 
 		/// Calls \ref _check_cache_format().
 		void _on_prerender() override {
@@ -94,6 +116,14 @@ namespace codepad::ui {
 		/// Called when the text has been changed. Invokes \ref _on_text_layout_changed().
 		virtual void _on_text_changed() {
 			_on_text_layout_changed();
+		}
+
+		/// Updates the layout size of the cached \ref formatted_text.
+		void _on_layout_changed() override {
+			element::_on_layout_changed();
+			if (_cached_fmt) {
+				_cached_fmt->set_layout_size(get_client_region().size());
+			}
 		}
 	};
 }

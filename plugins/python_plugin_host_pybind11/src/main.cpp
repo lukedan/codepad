@@ -10,7 +10,7 @@
 
 namespace py = ::pybind11;
 
-#include <codepad/core/plugins.h>
+#include<codepad/core/plugins.h>
 
 #include <plugin_defs.h>
 

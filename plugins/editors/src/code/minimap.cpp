@@ -8,6 +8,8 @@
 /// Implementation of the minimap.
 
 namespace codepad::editors::code {
+	double editors::code::minimap::_target_height = 2.0; // TODO turn this into a setting
+
 	void minimap::_page_cache::restart() {
 		pages.clear();
 		if (contents_region *edt = component_helper::get_contents_region(*_parent)) {

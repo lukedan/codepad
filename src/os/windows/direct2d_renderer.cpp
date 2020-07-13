@@ -242,6 +242,15 @@ namespace codepad::os::direct2d {
 		return result;
 	}
 
+	vec2d formatted_text::get_layout_size() const {
+		return vec2d(_text->GetMaxWidth(), _text->GetMaxHeight());
+	}
+
+	void formatted_text::set_layout_size(vec2d sz) {
+		_details::com_check(_text->SetMaxWidth(static_cast<FLOAT>(sz.x)));
+		_details::com_check(_text->SetMaxHeight(static_cast<FLOAT>(sz.y)));
+	}
+
 	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
 		_details::com_wrapper<ID2D1SolidColorBrush> brush;
 		_rend->_d2d_device_context->CreateSolidColorBrush(_details::cast_color(c), brush.get_ref());

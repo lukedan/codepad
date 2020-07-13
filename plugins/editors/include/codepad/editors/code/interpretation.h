@@ -8,7 +8,8 @@
 
 #include <map>
 
-#include "../../core/encodings.h"
+#include <codepad/core/encodings.h>
+
 #include "../buffer.h"
 #include "linebreak_registry.h"
 #include "theme.h"
@@ -112,9 +113,6 @@ namespace codepad::editors::code {
 		const std::map<std::u8string, std::unique_ptr<buffer_encoding>, std::less<>> &get_all_encodings() const {
 			return _map;
 		}
-
-		/// Returns the global \ref encoding_manager object.
-		static encoding_manager &get();
 	protected:
 		/// The mapping between encoding names and \ref buffer_encoding instances.
 		std::map<std::u8string, std::unique_ptr<buffer_encoding>, std::less<>> _map;

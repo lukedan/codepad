@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <filesystem>
+#include <any>
 
 #include "misc.h"
 #include "assert.h"
@@ -67,6 +68,9 @@ namespace codepad {
 				assert_true_usage(valid(), "plugin handle must be valid for get_name()");
 				return _it.value()->first;
 			}
+
+			/// Returns \ref plugin::plugin_data, or \p nullptr if the types mismatch.
+			template <typename T> T *get_data() const;
 		private:
 			std::optional<mapping_type::const_iterator> _it; ///< Iterator to this plugin in the manager.
 
@@ -156,6 +160,13 @@ namespace codepad {
 		void add_dependency(plugin&);
 		/// \overload
 		void add_dependency(plugin_manager::handle);
+
+		/// Static data associated with this plugin. This should be initialized in \p initialize() and disposed
+		/// either automatically or in \p finalize(). Other plugins can access this via
+		/// \ref plugin_manager::handle::get_data(), and it's advised that they only access this once for better
+		/// performance (unless this object changes frequently, in which case it can be wrapped in another object
+		/// to avoid the need of doing so as well).
+		std::any plugin_data;
 	protected:
 		/// Called in \ref enable().
 		virtual void _on_enabled() = 0;
@@ -175,6 +186,12 @@ namespace codepad {
 		}
 	};
 
+	template <typename T> T *plugin_manager::handle::get_data() const {
+		assert_true_usage(valid(), "plugin handle must be valid for get_data()");
+		return std::any_cast<T>(&_it.value()->second->plugin_data);
+	}
+
+
 	/// A basic dynamic library plugin.
 	class native_plugin : public plugin {
 	public:
@@ -185,20 +202,10 @@ namespace codepad {
 		using enable_func_t = void (*)(); ///< Function pointer used to enable the plugin.
 		using disable_func_t = void (*)(); ///< Function pointer used to disable the plugin.
 
-		/// Loads the dynamic library. It's recommended to call \ref valid() afterwards to check if it has been
-		/// successfully loaded.
-		explicit native_plugin(const std::filesystem::path&);
-
-		/// Returns whether the dynamic library has been successfully loaded and all required symbols have been
-		/// found.
-		bool valid() const {
-			return
-				_lib.valid() &&
-				_init != nullptr && _finalize != nullptr && _get_name != nullptr &&
-				_enable != nullptr && _disable != nullptr;
-		}
-		/// Logs the reason why this plugin is not valid.
-		void diagnose() const;
+		/// Loads the dynamic library as a plugin. Returns \p nullptr if loading fails.
+		static std::shared_ptr<native_plugin> load(const std::filesystem::path&);
+		/// \overload
+		static std::shared_ptr<native_plugin> load(os::dynamic_library);
 
 		/// Invokes \ref _init.
 		void initialize(const plugin_context&) override;

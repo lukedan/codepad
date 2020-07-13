@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
 	settings sett;
 	plugin_manager plugman;
 
-	{ // this scope here is used to ensure the order of destruction of singletons
+	{ // this scope here is used to ensure the order of destruction of managers
 		// create settings, plugin manager, ui manager, tab manager
 		manager man(sett);
 		tabs::tab_manager tabman(man);
@@ -64,15 +64,14 @@ int main(int argc, char **argv) {
 				);
 			auto value = parser.get_main_profile().get_value();
 			for (std::u8string_view p : value) {
-				auto plugin = std::make_shared<native_plugin>(std::filesystem::path(p));
-				if (!plugin->valid()) {
+				if (auto plugin = native_plugin::load(std::filesystem::path(p))) {
+					native_plugin &plug_ref = *plugin;
+					plugman.attach(std::move(plugin));
+					plug_ref.enable();
+				} else {
 					logger::get().log_warning(CP_HERE) << "failed to load plugin " << p;
-					plugin->diagnose();
 					continue;
 				}
-				native_plugin &plug_ref = *plugin;
-				plugman.attach(std::move(plugin));
-				plug_ref.enable();
 			}
 		}
 
@@ -141,8 +140,9 @@ int main(int argc, char **argv) {
 			man.get_scheduler().main_iteration();
 		}
 
-
-		// disable & finalize plugins before disposing of managers
+		// destroy all elements before shutting down so that elements referring to the plugins are destroyed
+		man.get_scheduler().dispose_marked_elements();
+		// disable & finalize plugins before disposing of managers because their disposal may rely on them
 		plugman.shutdown();
 	}
 

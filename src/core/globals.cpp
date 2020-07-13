@@ -16,15 +16,8 @@
 #include "codepad/ui/renderer.h"
 #include "codepad/ui/manager.h"
 #include "codepad/ui/element_classes.h"
-#include "codepad/editors/buffer_manager.h"
-#include "codepad/editors/code/minimap.h"
-#include "codepad/editors/code/contents_region.h"
-#include "codepad/editors/code/view_caching.h"
-#include "codepad/editors/binary/contents_region.h"
 
 namespace codepad {
-	double editors::code::minimap::_target_height = 2.0;
-
 	// TODO probably put these into ui::manager as well
 	ui::window_base *ui::mouse_position::_active_window = nullptr;
 	// this is set to 1 so that no window thinks it has up-to-date mouse position initially
@@ -137,73 +130,5 @@ namespace codepad {
 		}
 #	endif
 #endif
-	}
-	namespace editors {
-		buffer_manager &buffer_manager::get() {
-			static _global_wrapper<buffer_manager> _v;
-			return _v.object;
-		}
-
-
-		namespace code {
-			encoding_manager &encoding_manager::get() {
-				static _global_wrapper<encoding_manager> _v;
-				return _v.object;
-			}
-
-
-			interaction_mode_registry<caret_set> &contents_region::get_interaction_mode_registry() {
-				static _global_wrapper<interaction_mode_registry<caret_set>> _v;
-				static bool _initialized = false;
-
-				if (!_initialized) {
-					_v.object.mapping.emplace(
-						u8"prepare_drag", []() {
-							return std::make_unique<
-								interaction_modes::mouse_prepare_drag_mode_activator<caret_set>
-							>();
-						}
-					);
-					_v.object.mapping.emplace(
-						u8"single_selection", []() {
-							return std::make_unique<
-								interaction_modes::mouse_single_selection_mode_activator<caret_set>
-							>();
-						}
-					);
-					_initialized = true;
-				}
-
-				return _v.object;
-			}
-		}
-
-
-		namespace binary {
-			interaction_mode_registry<caret_set> &contents_region::get_interaction_mode_registry() {
-				static _global_wrapper<interaction_mode_registry<caret_set>> _v;
-				static bool _initialized = false;
-
-				if (!_initialized) {
-					_v.object.mapping.emplace(
-						u8"prepare_drag", []() {
-							return std::make_unique<
-								interaction_modes::mouse_prepare_drag_mode_activator<caret_set>
-							>();
-						}
-					);
-					_v.object.mapping.emplace(
-						u8"single_selection", []() {
-							return std::make_unique<
-								interaction_modes::mouse_single_selection_mode_activator<caret_set>
-							>();
-						}
-					);
-					_initialized = true;
-				}
-
-				return _v.object;
-			}
-		}
 	}
 }

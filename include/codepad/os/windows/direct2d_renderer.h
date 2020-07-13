@@ -66,10 +66,21 @@ namespace codepad::os::direct2d {
 
 		/// Invokes \p IDWriteTextLayout::HitTestPoint().
 		ui::caret_hit_test_result hit_test(vec2d) const override;
+		/// Since DirectWrite does not provide this functionality directly, this function just finds the correct
+		/// vertical position and returns the results of \p IDWriteTextLayout::HitTestPoint().
+		ui::caret_hit_test_result hit_test_at_line(std::size_t, double) const override {
+			// TODO
+			return ui::caret_hit_test_result();
+		}
 		/// Invokes \p IDWriteTextLayout::HitTestTextPosition().
 		rectd get_character_placement(std::size_t) const override;
 		/// Invokes \p IDWriteTextLayout::HitTestTextRange().
 		std::vector<rectd> get_character_range_placement(std::size_t beg, std::size_t len) const override;
+
+		/// Returns the result of \p IDWriteTextLayout::GetMaxWidth() and \p IDWriteTextLayout::GetMaxHeight().
+		vec2d get_layout_size() const override;
+		/// Invokes \p IDWriteTextLayout::SetMaxWidth() and \p IDWriteTextLayout::SetMaxHeight().
+		void set_layout_size(vec2d) override;
 
 		/// Calls \p IDWriteTextLayout::SetDrawingEffect().
 		void set_text_color(colord, std::size_t, std::size_t) override;

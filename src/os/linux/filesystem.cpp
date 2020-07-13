@@ -116,8 +116,11 @@ namespace codepad::os {
 	}
 
 	file_mapping &file_mapping::operator=(file_mapping &&rhs) {
-		std::swap(_ptr, rhs._ptr);
-		std::swap(_len, rhs._len);
+		unmap();
+		_ptr = rhs._ptr;
+		_len = rhs._len;
+		rhs._ptr = nullptr;
+		rhs._len = 0;
 		return *this;
 	}
 

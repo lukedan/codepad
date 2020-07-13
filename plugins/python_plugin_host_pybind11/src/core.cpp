@@ -174,9 +174,10 @@ void register_core_classes(pybind11::module &m) {
 		// methods
 		.def("contains", &cp::rectd::contains)
 		.def("fully_contains", &cp::rectd::fully_contains)
-		.def("make_valid_min", &cp::rectd::make_valid_min)
-		.def("make_valid_max", &cp::rectd::make_valid_max)
-		.def("make_valid_average", &cp::rectd::make_valid_average)
+		.def("made_positive_average", &cp::rectd::made_positive_average)
+		.def("made_positive_min", &cp::rectd::made_positive_min)
+		.def("made_positive_max", &cp::rectd::made_positive_max)
+		.def("made_positive_swap", &cp::rectd::made_positive_swap)
 		.def("translated", &cp::rectd::translated)
 		.def("scaled", &cp::rectd::scaled)
 		.def("coordinates_scaled", &cp::rectd::coordinates_scaled)

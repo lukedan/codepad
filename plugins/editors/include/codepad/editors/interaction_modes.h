@@ -6,8 +6,9 @@
 /// \file
 /// Abstraction of modes of interaction that applies to a variety of kinds of editors.
 
-#include "../ui/element.h"
-#include "../ui/manager.h"
+#include <codepad/ui/element.h>
+#include <codepad/ui/manager.h>
+
 #include "caret_set.h"
 #include "editor.h"
 
@@ -295,7 +296,7 @@ namespace codepad::editors {
 			bool on_mouse_move(ui::mouse_move_info &info) override {
 				contents_region_base &elem = this->_manager.get_contents_region();
 				rectd r = ui::thickness(_padding).shrink(rectd::from_corners(vec2d(), elem.get_layout().size()));
-				r.make_valid_average();
+				r = r.made_positive_average();
 				// find anchor point
 				_scrolling = false;
 				vec2d anchor = info.new_position.get(elem);
