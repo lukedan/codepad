@@ -223,7 +223,7 @@ namespace codepad::editors::code {
 						_dragging = true;
 					} else {
 						double ch = get_client_region().height();
-						box->set_vertical_position(std::min(
+						box->set_target_vertical_position(std::min(
 							(info.position.get(*this).y - get_padding().top + _get_y_offset()) / get_scale() - 0.5 * ch,
 							static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - ch
 						) + edt->get_padding().top);
@@ -253,7 +253,7 @@ namespace codepad::editors::code {
 						toth =
 						static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - client.height(),
 						totch = std::min(client.height() * (1.0 - scale), toth * scale);
-					box->set_vertical_position(toth * yp / totch + edt->get_padding().top);
+					box->set_vertical_position_immediate(toth * yp / totch + edt->get_padding().top);
 				}
 			}
 		}

@@ -493,6 +493,11 @@ namespace codepad::os {
 		}
 	}
 
+	window::_ime &window::_ime::get() {
+		static _ime object;
+		return object;
+	}
+
 
 	window::_wndclass::_wndclass() {
 		WNDCLASSEX wcex;
@@ -504,5 +509,10 @@ namespace codepad::os {
 		wcex.lpfnWndProc = _wndproc;
 		wcex.lpszClassName = L"Codepad";
 		_details::winapi_check(atom = RegisterClassEx(&wcex));
+	}
+
+	window::_wndclass &window::_wndclass::get() {
+		static _wndclass object;
+		return object;
 	}
 }

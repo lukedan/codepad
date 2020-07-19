@@ -112,30 +112,45 @@ namespace codepad::editors {
 	///       of. If no such uses are desired then users must take caution, otherwise this needs to be fixed.
 	class editor : public ui::panel {
 	public:
-		/// Sets the vertical position of this \ref editor.
-		void set_vertical_position(double p) {
-			_vert_scroll->set_value(p);
+		/// Sets the target vertical position of this \ref editor.
+		void set_target_vertical_position(double p) {
+			_vert_scroll->set_target_value(p);
+		}
+		/// Changes the vertical position of this \ref editor immediately.
+		void set_vertical_position_immediate(double p) {
+			_vert_scroll->set_values_immediate(p);
 		}
 		/// Returns the vertical position of this \ref editor.
 		double get_vertical_position() const {
-			return _vert_scroll->get_value();
+			return _vert_scroll->get_actual_value();
 		}
+
 		/// Sets the horizontal position of this \ref editor.
-		void set_horizontal_position(double p) {
-			_hori_scroll->set_value(p);
+		void set_target_horizontal_position(double p) {
+			_hori_scroll->set_target_value(p);
+		}
+		/// Changes the horizontal position of this \ref editor immediately.
+		void set_horizontal_position_immediate(double p) {
+			_hori_scroll->set_values_immediate(p);
 		}
 		/// Returns the horizontal position of this \ref editor.
 		double get_horizontal_position() const {
-			return _hori_scroll->get_value();
+			return _hori_scroll->get_actual_value();
 		}
+
 		/// Returns the combined results of \ref get_vertical_position() and \ref get_horizontal_position().
 		vec2d get_position() const {
 			return vec2d(get_horizontal_position(), get_vertical_position());
 		}
-		/// A combination of \ref set_horizontal_position() and \ref set_vertical_position().
-		void set_position(vec2d pos) {
-			set_horizontal_position(pos.x);
-			set_vertical_position(pos.y);
+		/// A combination of \ref set_target_horizontal_position() and \ref set_target_vertical_position().
+		void set_target_position(vec2d pos) {
+			set_target_horizontal_position(pos.x);
+			set_target_vertical_position(pos.y);
+		}
+		/// A combination of \ref set_horizontal_position_immediate() and \ref set_vertical_position_immediate().
+		void set_position_immediate(vec2d pos) {
+			set_horizontal_position_immediate(pos.x);
+			set_vertical_position_immediate(pos.y);
 		}
 
 		/// Adjusts horizontal and vertical positions so that the given region is visible.
@@ -199,11 +214,11 @@ namespace codepad::editors {
 
 		/// Scrolls the viewport of the \ref editor.
 		void _on_mouse_scroll(ui::mouse_scroll_info &info) override {
-			_vert_scroll->set_value(
-				_vert_scroll->get_value() - _contents->get_vertical_scroll_delta() * info.delta.y
+			_vert_scroll->set_target_value(
+				_vert_scroll->get_target_value() - _contents->get_vertical_scroll_delta() * info.delta.y
 			);
-			_hori_scroll->set_value(
-				_hori_scroll->get_value() + _contents->get_horizontal_scroll_delta() * info.delta.x
+			_hori_scroll->set_target_value(
+				_hori_scroll->get_target_value() + _contents->get_horizontal_scroll_delta() * info.delta.x
 			);
 			info.mark_handled();
 		}
@@ -225,11 +240,11 @@ namespace codepad::editors {
 		void _initialize(std::u8string_view cls) override {
 			panel::_initialize(cls);
 
-			_vert_scroll->value_changed += [this](ui::scrollbar::value_changed_info&) {
+			_vert_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
 				vertical_viewport_changed.invoke();
 				invalidate_visual();
 			};
-			_hori_scroll->value_changed += [this](ui::scrollbar::value_changed_info&) {
+			_hori_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
 				horizontal_viewport_changed.invoke();
 				invalidate_visual();
 			};

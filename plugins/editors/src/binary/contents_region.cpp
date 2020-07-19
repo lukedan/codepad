@@ -303,7 +303,7 @@ namespace codepad::editors::binary {
 					}
 				}
 				for (const rectd &r : caret_rects) {
-					_caret_visuals.render(r.translated(-edtpos), renderer);
+					_caret_visuals.render(r, renderer);
 				}
 				vec2d unit = get_layout().size();
 				for (auto &v : selection_rects) {

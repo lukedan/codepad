@@ -162,6 +162,8 @@
 				"size": 20,
 				"style": "italic"
 			},
+			"horizontal_alignment": "center",
+			"vertical_alignment": "center",
 			"caret_visuals": {
 				"geometries": [
 					{

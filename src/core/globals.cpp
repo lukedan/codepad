@@ -93,29 +93,8 @@ namespace codepad {
 
 
 	// all singleton getters
-	namespace os {
-#ifdef CP_PLATFORM_WINDOWS
-		namespace _details {
-			wic_image_loader &wic_image_loader::get() {
-				static _global_wrapper<wic_image_loader> _v;
-				return _v.object;
-			}
-		}
-
-
-		window::_wndclass &window::_wndclass::get() {
-			static _global_wrapper<_wndclass> _v;
-			return _v.object;
-		}
-
-		window::_ime &window::_ime::get() {
-			static _global_wrapper<_ime> _v;
-			return _v.object;
-		}
-
-
-#endif
 #ifdef CP_PLATFORM_UNIX
+	namespace os {
 #	ifdef CP_USE_GTK
 		namespace _details {
 			cursor_set &cursor_set::get() {
@@ -129,6 +108,6 @@ namespace codepad {
 			return _v.object;
 		}
 #	endif
-#endif
 	}
+#endif
 }

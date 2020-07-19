@@ -1,4 +1,4 @@
-// Copyright (c) the Codepad contributors. All rights reserved.
+﻿// Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
 #include <iostream>
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 		stack->set_orientation(orientation::vertical);
 
 		auto *text = man.create_element<text_edit>();
-		text->set_text(u8"this line ends with \\r\\n\r\nthis line ends with \\r\rsample text");
+		text->set_text(u8"this line ends with \\r\\n\r\nthis line ends with \\r\rsample text\nعندما يريد العالم أن ‪يتكلّم ‬ ،\n فهو يتحدّث بلغة يونيكود. تسجّل الآن \nلحضور المؤتمر الدولي العاشر ليونيكود (Unicode \nConference)، الذي سيعقد في 10-12 آذار 1997 بمدينة مَايِنْتْس، ألمانيا.\n و سيجمع المؤتمر بين خبراء من كافة قطاعات \nالصناعة على الشبكة العالمية انترنيت ويونيكود،\n حيث ستتم، على الصعيدين الدولي والمحلي على حد\n سواء مناقشة سبل استخدام يونكود في النظم القائمة\n وفيما يخص التطبيقات الحاسوبية،\n الخطوط، تصميم النصوص والحوسبة متعددة اللغات.");
 		stack->children().add(*text);
 
 		auto *lbl = man.create_element<label>();
