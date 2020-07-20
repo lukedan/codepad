@@ -26,6 +26,10 @@ The Cairo renderer, if enabled, requires the following packages:
 
 - GTK 3
 
+#### Native Plugins
+
+- The `python_plugin_host_pybind11` plugin depends on `pybind11`.
+
 ## Building on Windows
 
 The recommended building configuration for windows is:

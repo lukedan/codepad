@@ -108,7 +108,7 @@ if(WIN32)
 	target_compile_definitions(codepad
 		PUBLIC CP_PLATFORM_WINDOWS NOMINMAX OEMRESOURCE)
 	target_link_libraries(codepad
-		PRIVATE gdi32 dwrite d3d11 d2d1 shlwapi Dwmapi imm32 windowscodecs)
+		PBULIC gdi32 dwrite d3d11 d2d1 shlwapi Dwmapi imm32 windowscodecs)
 	set_target_properties(codepad PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS YES)
 
 	if(CMAKE_COMPILER_IS_GNUCXX)
@@ -149,7 +149,7 @@ if(WIN32)
 		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
 
 		target_link_libraries(codepad
-			PRIVATE
+			PUBLIC
 				unofficial::cairo::cairo unofficial::cairo::cairo-gobject
 				Pango::Pango harfbuzz::harfbuzz
 				Freetype::Freetype Fontconfig::Fontconfig
@@ -164,7 +164,7 @@ elseif(UNIX)
 	target_compile_definitions(codepad
 		PUBLIC CP_PLATFORM_UNIX)
 	target_link_libraries(codepad
-		PRIVATE dl pthread) # TODO why link pthread?
+		PUBLIC dl pthread) # TODO why link pthread?
 	if(ENABLE_BACKTRACE)
 		target_link_options(codepad
 			PRIVATE -rdynamic) # enables detailed stacktrace
@@ -173,19 +173,20 @@ elseif(UNIX)
 	if(USE_GTK)
 		target_sources(codepad
 			PRIVATE
-				"src/os/linux/gtk/linux.cpp")
+				"src/os/linux/gtk/linux.cpp"
+				"src/os/linux/gtk/misc.cpp")
 		target_compile_definitions(codepad
 			PUBLIC CP_USE_GTK)
 		find_package(GTK3 REQUIRED)
 		target_link_libraries(codepad
-			PRIVATE Gtk3::Gtk)
+			PUBLIC Gtk3::Gtk)
 	else()
 		target_sources(codepad
 			PRIVATE
 				"src/os/linux/x11/linux.cpp")
 		find_package(X11 REQUIRED)
 		target_link_libraries(codepad
-			PRIVATE ${X11_LIBRARIES})
+			PUBLIC ${X11_LIBRARIES})
 	endif()
 
 	if(USE_CAIRO)
@@ -207,7 +208,7 @@ elseif(UNIX)
 		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
 
 		target_link_libraries(codepad
-			PRIVATE
+			PUBLIC
 				Cairo::Cairo Pango::Pango PkgConfig::harfbuzz Freetype::Freetype Fontconfig::Fontconfig)
 	endif()
 else()
@@ -216,7 +217,7 @@ endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX) # gcc needs this for filesystem to work
 	target_link_libraries(codepad
-		PRIVATE stdc++fs)
+		PUBLIC stdc++fs)
 endif()
 
 
@@ -236,7 +237,7 @@ if(${ENABLE_APIGEN})
 	endif()
 
 	target_compile_definitions(codepad
-		PRIVATE CP_ENABLE_APIGEN)
+		PUBLIC CP_ENABLE_APIGEN)
 
 	get_target_property(APIGEN_INCLUDES codepad INCLUDE_DIRECTORIES)
 	list(TRANSFORM APIGEN_INCLUDES PREPEND "-I")

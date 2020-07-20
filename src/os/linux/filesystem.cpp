@@ -1,7 +1,7 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "../filesystem.h"
+#include "codepad/os/filesystem.h"
 
 /// \file
 /// Filesystem implementation for the linux platform.
@@ -12,7 +12,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "../../core/misc.h"
+#include "codepad/core/misc.h"
 
 namespace codepad::os {
 	/// Transforms the given \ref access_rights into flags used by \p open().

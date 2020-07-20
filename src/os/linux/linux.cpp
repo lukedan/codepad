@@ -7,8 +7,8 @@
 
 #include <pthread.h>
 
-#include "../../core/logger_sinks.h"
-#include "../../ui/scheduler.h"
+#include "codepad/core/logger_sinks.h"
+#include "codepad/ui/scheduler.h"
 
 #ifdef CP_LOG_STACKTRACE
 #	include <execinfo.h>

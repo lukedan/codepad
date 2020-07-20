@@ -1,50 +1,22 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "../../linux.h"
-
 #include <vector>
 
-#include "../../../core/misc.h"
+#include <gtk/gtk.h>
+
+#include "codepad/core/misc.h"
+#include "codepad/ui/misc.h"
+#include "codepad/os/linux/gtk/misc.h"
+#include "codepad/os/linux/gtk/window.h"
 
 namespace codepad::os {
 	void initialize(int argc, char **argv) {
 		gtk_init(&argc, &argv);
 	}
 
-	namespace _details {
-		const GdkCursorType cursor_set::cursor_ids[cursor_count] = {
-			GDK_LEFT_PTR,
-			GDK_WATCH,
-			GDK_CROSSHAIR,
-			GDK_HAND1,
-			GDK_QUESTION_ARROW,
-			GDK_XTERM,
-			GDK_X_CURSOR,
-			GDK_CROSS,
-			GDK_TOP_LEFT_CORNER,
-			GDK_SB_V_DOUBLE_ARROW,
-			GDK_TOP_RIGHT_CORNER,
-			GDK_SB_H_DOUBLE_ARROW,
-			GDK_BLANK_CURSOR
-		};
-	}
-
 	namespace input {
 		namespace _details {
-			inline GdkModifierType get_modifier_bit_of_button(ui::mouse_button btn) {
-				switch (btn) {
-				case ui::mouse_button::primary:
-					return GDK_BUTTON1_MASK;
-				case ui::mouse_button::secondary:
-					return GDK_BUTTON2_MASK;
-				case ui::mouse_button::tertiary:
-					return GDK_BUTTON3_MASK;
-				}
-				assert_true_logical(false, "invalid mouse button");
-				return GDK_BUTTON1_MASK;
-			}
-
 			constexpr static std::size_t max_keysym_mapping = 4;
 			/// \todo Complete the list of KeySyms.
 			const guint keysym_mapping[ui::total_num_keys][max_keysym_mapping] = {
@@ -117,9 +89,9 @@ namespace codepad::os {
 					for (std::size_t i = 0; i < ui::total_num_keys; ++i) {
 						if (
 							i == static_cast<std::size_t>(ui::key::shift) ||
-								i == static_cast<std::size_t>(ui::key::control) ||
-								i == static_cast<std::size_t>(ui::key::alt)
-							) {
+							i == static_cast<std::size_t>(ui::key::control) ||
+							i == static_cast<std::size_t>(ui::key::alt)
+						) {
 							// shift, control, and alt are not mapped because they are only used when
 							// testing if either key (left and right) is pressed
 							continue;

@@ -95,14 +95,7 @@ namespace codepad {
 	// all singleton getters
 #ifdef CP_PLATFORM_UNIX
 	namespace os {
-#	ifdef CP_USE_GTK
-		namespace _details {
-			cursor_set &cursor_set::get() {
-				static _global_wrapper<cursor_set> _v;
-				return _v.object;
-			}
-		}
-#	else
+#	ifndef CP_USE_GTK
 		_details::xlib_link &_details::xlib_link::get() {
 			static _global_wrapper<xlib_link> _v;
 			return _v.object;

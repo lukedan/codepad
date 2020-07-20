@@ -5,8 +5,9 @@ target_sources(python_plugin_host_pybind11
 target_link_libraries(python_plugin_host_pybind11 PRIVATE codepad)
 target_include_directories(python_plugin_host_pybind11 PRIVATE "../common/include")
 set_target_properties(python_plugin_host_pybind11
-	PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+	PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+		LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 find_package(pybind11 CONFIG REQUIRED)
-target_link_libraries(python_plugin_host_pybind11
-	PRIVATE pybind11::embed pybind11::module pybind11::pybind11)
+target_link_libraries(python_plugin_host_pybind11 PRIVATE pybind11::embed)

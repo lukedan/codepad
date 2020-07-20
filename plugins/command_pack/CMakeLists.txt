@@ -4,4 +4,6 @@ target_sources(command_pack PRIVATE "src/main.cpp")
 target_link_libraries(command_pack PRIVATE codepad editors)
 target_include_directories(command_pack PRIVATE "../common/include/")
 set_target_properties(command_pack
-	PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+	PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+		LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")

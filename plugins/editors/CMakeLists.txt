@@ -19,5 +19,5 @@ target_include_directories(editors
 	PRIVATE "../common/include/")
 set_target_properties(editors
 	PROPERTIES
-		WINDOWS_EXPORT_ALL_SYMBOLS YES
-		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+		LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")

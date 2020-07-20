@@ -410,7 +410,7 @@ namespace codepad::json {
 		return std::nullopt;
 	}
 
-	template <typename ValueType> inline static void default_parser<ui::element_layout>::_parse_size_component(
+	template <typename ValueType> void default_parser<ui::element_layout>::_parse_size_component(
 		const ValueType &val, double &v, ui::size_allocation_type &ty
 	) {
 		if (auto str = val.template try_cast<std::u8string_view>()) {
