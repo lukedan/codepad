@@ -317,7 +317,7 @@ namespace codepad::editors {
 				// calculate speed
 				_speed = info.new_position.get(elem) - anchor; // TODO further manipulate _speed
 				if (_scrolling) { // schedule update
-					elem.get_manager().get_scheduler().schedule_element_update(elem);
+					/*elem.get_manager().get_scheduler().schedule_element_update(elem);*/
 				}
 				return true;
 			}
@@ -326,10 +326,10 @@ namespace codepad::editors {
 				if (_scrolling) {
 					contents_region_base &contents = this->_manager.get_contents_region();
 					auto *edt = editor::get_encapsulating(contents);
-					edt->set_position_immediate(
+					/*edt->set_position_immediate(
 						edt->get_position() + _speed * contents.get_manager().get_scheduler().update_delta_time()
-					);
-					contents.get_manager().get_scheduler().schedule_element_update(contents);
+					);*/
+					/*contents.get_manager().get_scheduler().schedule_element_update(contents);*/
 				}
 				return true;
 			}

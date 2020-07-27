@@ -13,121 +13,20 @@
 #include "manager.h"
 
 namespace codepad::ui::tabs {
-	/// Pure virtual class that controls the animation of \ref tab_button "tab_buttons".
-	class tab_button_animation_controller {
-	public:
-		/// Default virtual destructor.
-		virtual ~tab_button_animation_controller() = default;
-
-		/// Retrieves or calculates the offset from additional data about a \ref tab_button.
-		virtual double get_offset(const std::any&) const = 0;
-		/// Sets the offset for a \ref tab_button.
-		virtual void set_offset(std::any&, double) const = 0;
-		/// Adds the given amount to the offset of the given element.
-		virtual void adjust_offset(std::any &data, double off) const {
-			set_offset(data, get_offset(data) + off);
-		}
-
-		/// Initializes additional data for a \ref tab_button.
-		virtual std::any initialize_tab() const = 0;
-		/// Updates a \ref tab_button, given the time since last update.
-		///
-		/// \return Whether the animation needs futher updates.
-		virtual bool update_tab(std::any&, double) const = 0;
-	};
-
-	/// Tab button animation controller in which updating the position only requires the offset.
-	class simple_tab_button_animation_controller : public tab_button_animation_controller {
-	public:
-		/// Retrieves the offset.
-		double get_offset(const std::any &v) const override {
-			return std::any_cast<double>(v);
-		}
-		/// Sets the offset.
-		void set_offset(std::any &obj, double v) const override {
-			obj.emplace<double>(v);
-		}
-
-		/// Returns a \p double initialized to 0.
-		std::any initialize_tab() const override {
-			return std::make_any<double>(0.0);
-		}
-		/// Updates the offset by calling \ref _update_tab_impl().
-		bool update_tab(std::any &v, double dt) const override {
-			return _update_tab_impl(*std::any_cast<double>(&v), dt);
-		}
-	protected:
-		/// Updates the current value based on the delta time given.
-		virtual bool _update_tab_impl(double&, double) const = 0;
-	};
-	/// Tab button animation controller with no animation.
-	class trivial_tab_button_animation_controller : public simple_tab_button_animation_controller {
-	protected:
-		/// Updates the given value.
-		bool _update_tab_impl(double &v, double) const override {
-			v = 0.0;
-			return false;
-		}
-	};
-	/// Tab button animation controller in which the position of the element changes exponentially.
-	class exponential_tab_button_animation_controller : public simple_tab_button_animation_controller {
-	public:
-		/// Returns a reference to \ref _time_scale.
-		double &time_scale() {
-			return _time_scale;
-		}
-		/// \overload
-		double time_scale() const {
-			return _time_scale;
-		}
-	protected:
-		double _time_scale = 20.0; ///< The scale factor for time values.
-
-		/// Updates the given value.
-		bool _update_tab_impl(double &v, double dt) const override {
-			if (std::abs(v) < 0.1) {
-				v = 0.0;
-				return false;
-			}
-			v *= std::exp(-dt * _time_scale);
-			return true;
-		}
-	};
-	/// Tab button animation controller in which the position of the element changes exponentially.
-	class linear_tab_button_animation_controller : public simple_tab_button_animation_controller {
-	public:
-		/// Returns a reference to \ref _speed.
-		double &speed() {
-			return _speed;
-		}
-		/// \overload
-		double speed() const {
-			return _speed;
-		}
-	protected:
-		double _speed = 1000.0; ///< The speed of movement.
-
-		/// Updates the given value.
-		bool _update_tab_impl(double &v, double dt) const override {
-			double dx = _speed * dt;
-			if (std::abs(v) < dx) {
-				v = 0.0;
-				return false;
-			}
-			if (v > 0.0) {
-				v -= dx;
-			} else {
-				v += dx;
-			}
-			return true;
-		}
-	};
-
-
 	/// A panel that adds animations to \ref tab_button "tab buttons" when they're moved around. This only works when
 	/// the tab buttons have fixed sizes and margins in the direction they're laid out.
 	class animated_tab_buttons_panel : public stack_panel {
 	public:
+		/// Returns the duration of tab button animations.
+		double get_animation_duration() const {
+			return _animation_duration;
+		}
+
+		/// Returns the transition function used for the animation.
+		const std::function<double(double)> &get_transition_function() const {
+			return _transition;
+		}
+
 		/// Returns the default class of elements of type \ref tab.
 		inline static std::u8string_view get_default_class() {
 			return u8"animated_tab_buttons_panel";
@@ -138,19 +37,60 @@ namespace codepad::ui::tabs {
 			/// Default constructor.
 			_child_data() = default;
 			/// Initializes all fields of this struct.
-			explicit _child_data(info_event<tab_button::drag_start_info>::token tok, std::any d) :
-				token(tok), data(std::move(d)) {
+			explicit _child_data(info_event<tab_button::drag_start_info>::token tok) : token(tok) {
+			}
+
+			/// Starts the animation for this specific tab button. Since this struct does not store any reference to
+			/// the element, it must be passed in as the argument.
+			void set_offset(animated_tab_buttons_panel &pnl, element &e, double offset) {
+				if (!task.empty()) {
+					e.get_manager().get_scheduler().cancel_task(task);
+				}
+				current_offset = offset;
+				if (
+					pnl._get_tab_manager().is_dragging_tab() &&
+					&pnl._get_tab_manager().get_dragging_tab()->get_button() == &e
+				) {
+					// the tab is being dragged, do not start animation
+					e.invalidate_layout();
+				} else {
+					starting_offset = current_offset;
+					start = scheduler::clock_t::now();
+					task = e.get_manager().get_scheduler().register_task(
+						scheduler::clock_t::now(), &e,
+						[this, panel = &pnl](element *e) -> std::optional<scheduler::clock_t::time_point> {
+							e->invalidate_layout();
+							double dur = std::chrono::duration<double>(scheduler::clock_t::now() - start).count();
+							logger::get().log_debug(CP_HERE) << "time " << dur << "\n";
+							if (dur > panel->get_animation_duration()) {
+								current_offset = 0.0;
+								task = scheduler::task_token();
+								return std::nullopt;
+							}
+							double progress = dur / panel->get_animation_duration();
+							double position = panel->get_transition_function()(progress);
+							current_offset = starting_offset * (1.0 - position);
+							return scheduler::clock_t::now();
+						}
+					);
+				}
 			}
 
 			/// The token used to listen to \ref tab_button::start_drag.
 			info_event<tab_button::drag_start_info>::token token;
-			std::any data; ///< Animation related data.
+			scheduler::task_token task; ///< The task used to update the animation.
+			scheduler::clock_t::time_point start; ///< The start of the current animation.
+			double
+				starting_offset = 0.0, ///< The starting offset of the tab button from its original position.
+				current_offset = 0.0; ///< Current offset of the tab button.
 		};
 
-		std::shared_ptr<tab_button_animation_controller> _animation; ///< Controls the animation of tabs.
-		info_event<>::token _droptok; ///< Used to handle \ref tab_manager::end_drag.
+		info_event<tab_drag_ended_info>::token _droptok; ///< Used to handle \ref tab_manager::drag_ended.
 		/// Used to handle \ref tab_manager::drag_move_tab_button.
 		info_event<tab_drag_update_info>::token _updatetok;
+		/// The transition function.
+		std::function<double(double)> _transition = transition_functions::convex_quadratic;
+		double _animation_duration = 0.1; ///< Duration of tab button animations.
 
 		/// Returns the \ref host that owns this panel.
 		host *_get_host() const {
@@ -174,7 +114,7 @@ namespace codepad::ui::tabs {
 			if (span) {
 				return span.value();
 			}
-			logger::get().log_warning(CP_HERE) << "tab buttons should have concrete pixel size";
+			logger::get().log_warning(CP_HERE) << "tab buttons should have concrete pixel sizes";
 			return 0.0;
 		}
 
@@ -190,7 +130,7 @@ namespace codepad::ui::tabs {
 				auto tok = btn->start_drag += [this](tab_button::drag_start_info&) {
 					_on_start_drag();
 				};
-				_child_get_parent_data(elem).emplace<_child_data>(tok, _animation->initialize_tab());
+				_child_get_parent_data(elem).emplace<_child_data>(tok);
 			}
 
 			// update positions for all elements after elem
@@ -202,7 +142,8 @@ namespace codepad::ui::tabs {
 			if (it != _children.items().end()) {
 				double size = _get_absolute_span(elem);
 				for (; it != _children.items().end(); ++it) {
-					_animation->adjust_offset(_get_data(**it)->data, -size);
+					auto *data = _get_data(**it);
+					data->set_offset(*this, **it, data->current_offset - size);
 				}
 			}
 		}
@@ -229,10 +170,10 @@ namespace codepad::ui::tabs {
 			if (it != _children.items().end()) {
 				double size = _get_absolute_span(elem);
 				for (; it != _children.items().end(); ++it) {
-					_animation->adjust_offset(_get_data(**it)->data, size);
+					auto *data = _get_data(**it);
+					data->set_offset(*this, **it, data->current_offset + size);
 				}
 			}
-			get_manager().get_scheduler().schedule_element_update(*this);
 		}
 
 		/// Starts animation for affected elements.
@@ -256,17 +197,19 @@ namespace codepad::ui::tabs {
 			// add offset
 			if (move_to_begin) {
 				for (auto it = beforeit; it != elemit; ++it) {
-					_animation->adjust_offset(_get_data(**it)->data, -offset);
+					auto *data = _get_data(**it);
+					data->set_offset(*this, **it, data->current_offset - offset);
 					elemoffset += _get_absolute_span(**it);
 				}
 			} else {
 				for (auto it = ++elemit; it != beforeit; ++it) {
-					_animation->adjust_offset(_get_data(**it)->data, offset);
+					auto *data = _get_data(**it);
+					data->set_offset(*this, **it, data->current_offset + offset);
 					elemoffset -= _get_absolute_span(**it);
 				}
 			}
-			_animation->adjust_offset(_get_data(elem)->data, elemoffset);
-			get_manager().get_scheduler().schedule_element_update(*this);
+			auto *data = _get_data(elem);
+			data->set_offset(*this, elem, data->current_offset + elemoffset);
 		}
 
 		/// Updates the layout of all children like \ref stack_panel, but adds the offset to it.
@@ -274,7 +217,7 @@ namespace codepad::ui::tabs {
 			stack_panel::_on_update_children_layout();
 
 			for (element *e : _children.items()) {
-				double off = _animation->get_offset(_get_data(*e)->data);
+				double off = _get_data(*e)->current_offset;
 				rectd layout = e->get_layout();
 				if (get_orientation() == orientation::vertical) {
 					_child_set_vertical_layout(*e, layout.ymin + off, layout.ymax + off);
@@ -284,31 +227,15 @@ namespace codepad::ui::tabs {
 			}
 		}
 
-		/// Updates animations.
-		void _on_update() override {
-			stack_panel::_on_update();
-
-			tab_manager &man = _get_tab_manager();
-			double dt = get_manager().get_scheduler().update_delta_time();
-			bool stopped = true;
-			for (element *e : _children.items()) {
-				if (!man.is_dragging_tab() || &man.get_dragging_tab()->get_button() != e) {
-					if (_animation->update_tab(_get_data(*e)->data, dt)) {
-						stopped = false;
-					}
-				}
-			}
-			_invalidate_children_layout();
-			if (!stopped) {
-				get_manager().get_scheduler().schedule_element_update(*this);
-			}
-		}
-
 		/// Called when the user starts dragging a \ref tab_button in this panel, or when a \ref tab_button that's
 		/// being dragged enters this panel.
 		void _on_start_drag() {
 			tab_manager &man = _get_tab_manager();
-			_droptok = man.end_drag += [this]() {
+			_droptok = man.drag_ended += [this](tab_drag_ended_info &info) {
+				// animation
+				tabs::tab_button &button = info.dragging_tab->get_button();
+				auto *data = _get_data(button);
+				data->set_offset(*this, button, data->current_offset);
 				_on_end_drag();
 			};
 			_updatetok = man.drag_move_tab_button += [this](tab_drag_update_info &info) {
@@ -318,9 +245,9 @@ namespace codepad::ui::tabs {
 		/// Called when the user stops dragging a tab or when the tab is dragged away from this panel, to start
 		/// animations and unregister handlers.
 		void _on_end_drag() {
-			get_manager().get_scheduler().schedule_element_update(*this);
+			// unregister events
 			tab_manager &man = _get_tab_manager();
-			man.end_drag -= _droptok;
+			man.drag_ended -= _droptok;
 			man.drag_move_tab_button -= _updatetok;
 		}
 		/// Called when \ref tab_manager::drag_move_tab_button is invoked.
@@ -360,17 +287,9 @@ namespace codepad::ui::tabs {
 				*man.get_dragging_tab(),
 				beforeit == host->get_tabs().items().end() ? nullptr : dynamic_cast<tab*>(*beforeit)
 			);
-			_animation->set_offset(_get_data(dragbtn)->data, curpos - accu);
-			_invalidate_children_layout(); // invalid children layout no matter what
-		}
-
-		/// Initializes \ref _animation.
-		///
-		/// \todo Use customizable animation controller.
-		void _initialize(std::u8string_view cls) override {
-			stack_panel::_initialize(cls);
-
-			_animation = std::make_shared<exponential_tab_button_animation_controller>();
+			auto *data = _get_data(dragbtn);
+			data->set_offset(*this, dragbtn, curpos - accu);
+			/*_invalidate_children_layout(); // invalid children layout no matter what*/
 		}
 	};
 }

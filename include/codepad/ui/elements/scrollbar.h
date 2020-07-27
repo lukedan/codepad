@@ -46,7 +46,7 @@ namespace codepad::ui {
 	enum class scrollbar_smoothing : unsigned char {
 		none, ///< No smoothing.
 		exponential, ///< Exponential smoothing.
-		convex_quadratic ///< Constant duration with a convex quadratic curve.
+		convex_polynomial ///< Convex polynomial curve. Speed will be used as the power of the polynomial.
 	};
 
 	/// A scroll bar.
@@ -89,11 +89,14 @@ namespace codepad::ui {
 		}
 		/// Sets the actual and target values to the given value immediately.
 		void set_values_immediate(double v) {
-			set_target_value(v);
-			if (get_smoothing() != scrollbar_smoothing::none) {
-				// if there's no smoothing then _initiate_smooth_scrolling() does this for us
-				_update_actual_value(v);
+			// first cancel any ongoing smooth scrolling task
+			if (!_smooth_update_token.empty()) {
+				get_manager().get_scheduler().cancel_task(_smooth_update_token);
 			}
+			// update value
+			value_changed_info info(_actual_value);
+			_actual_value = _target_value = _clamp_value(v);
+			_on_actual_value_changed(info);
 		}
 
 		/// Sets the parameters of the scroll bar.
@@ -152,8 +155,11 @@ namespace codepad::ui {
 			return _smoothing;
 		}
 		/// Sets the type of smooth scrolling used.
-		void set_smoothing(scrollbar_smoothing smoothing) const {
-
+		void set_smoothing(scrollbar_smoothing smoothing) {
+			if (smoothing != _smoothing) {
+				_smoothing = smoothing;
+				_on_smoothing_changed();
+			}
 		}
 
 		/// Returns the list of properties.
@@ -190,7 +196,8 @@ namespace codepad::ui {
 			_target_value = 0.0, ///< Target value.
 			_visible_range = 0.1, ///< The length of the visible range.
 
-			/// The duration of smooth scroll operations. This is only used by some smooth scrolling modes.
+			// TODO properties
+			/// The duration of smooth scroll operations.
 			_smooth_duration = 0.1,
 			/// The speed of smooth scroll operations. This can be interpreted differently by different modes.
 			_smooth_speed = 3.0;
@@ -200,8 +207,12 @@ namespace codepad::ui {
 			*_pgup = nullptr, ///< The `page up' button.
 			*_pgdn = nullptr; ///< The `page down' button.
 		// TODO property for this
-		scrollbar_smoothing _smoothing = scrollbar_smoothing::convex_quadratic; ///< Smoothing.
-		double _smooth_elapsed = 0.0; ///< Elapsed time since the last smooth scrolling operation.
+		scrollbar_smoothing _smoothing = scrollbar_smoothing::convex_polynomial; ///< Smoothing.
+		/// The starting time of the current smooth scrolling operation.
+		scheduler::clock_t::time_point _smooth_begin;
+		double _smooth_begin_pos = 0.0; ///< Starting position of the current smooth scrolling operation.
+		/// When a smooth scrolling task is currently active, this will hold the token for that task.
+		scheduler::task_token _smooth_update_token;
 		/// Marks if the length of \ref _drag is currently extended so that it's easier to interact with.
 		bool _drag_button_extended = false;
 
@@ -266,43 +277,31 @@ namespace codepad::ui {
 			_on_actual_value_changed(info);
 		}
 		/// Updates smooth scrolling.
-		void _on_update() override {
-			panel::_on_update();
+		///
+		/// \return \p true if the scrolling operation has finished.
+		bool _update_smooth_scrolling() {
+			double time = std::chrono::duration<double>(scheduler::clock_t::now() - _smooth_begin).count();
+			if (time >= _smooth_duration) {
+				// this is done before updating the value so that new tasks are cancelled correctly even if some
+				// handler of actual_value_changed changes the target value again
+				_smooth_update_token = scheduler::task_token();
+				_update_actual_value(get_actual_value());
+				return true;
+			}
+			// position: 0.0 for start, 1.0 for end
+			double progress = time / _smooth_duration, position = 1.0;
 			switch (get_smoothing()) {
 			case scrollbar_smoothing::exponential:
-				{
-					double dt = get_manager().get_scheduler().update_delta_time();
-					double diff = get_actual_value() - get_target_value();
-					diff *= std::exp(-dt * _smooth_speed);
-					_update_actual_value(get_target_value() + diff);
-					if (std::abs(diff) > 1e-4) {
-						get_manager().get_scheduler().schedule_element_update(*this); // keep updating
-					}
-				}
+				position = 1.0 - std::exp(_smooth_speed * progress);
 				break;
-			case scrollbar_smoothing::convex_quadratic:
-				{
-					double dt = get_manager().get_scheduler().update_delta_time();
-					// here dt's normalized so that all durations are in 0-1
-					double new_elapsed = _smooth_elapsed + dt / _smooth_duration;
-					if (new_elapsed >= 1.0) {
-						// end scrolling
-						_update_actual_value(get_target_value());
-					} else {
-						double perc =
-							std::pow(1.0 - new_elapsed, _smooth_speed) /
-							std::pow(1.0 - _smooth_elapsed, _smooth_speed);
-						double diff = get_actual_value() - get_target_value();
-						diff *= perc;
-						_update_actual_value(get_target_value() + diff);
-						get_manager().get_scheduler().schedule_element_update(*this);
-					}
-					_smooth_elapsed = new_elapsed;
-				}
+			case scrollbar_smoothing::convex_polynomial:
+				position = 1.0 - std::pow(1.0 - progress, _smooth_speed);
 				break;
 			case scrollbar_smoothing::none: // otherwise nothing to do
 				break;
 			}
+			_update_actual_value(_smooth_begin_pos + (get_target_value() - _smooth_begin_pos) * position);
+			return false;
 		}
 		/// Initiates smooth scrolling.
 		void _initiate_smooth_scrolling() {
@@ -313,9 +312,20 @@ namespace codepad::ui {
 				break;
 			case scrollbar_smoothing::exponential:
 				[[fallthrough]];
-			case scrollbar_smoothing::convex_quadratic:
-				_smooth_elapsed = 0.0;
-				get_manager().get_scheduler().schedule_element_update(*this);
+			case scrollbar_smoothing::convex_polynomial:
+				_smooth_begin = scheduler::clock_t::now();
+				_smooth_begin_pos = get_actual_value();
+				if (!_smooth_update_token.empty()) {
+					get_manager().get_scheduler().cancel_task(_smooth_update_token);
+				}
+				_smooth_update_token = get_manager().get_scheduler().register_task(
+					scheduler::clock_t::now(), this, [this](element*) -> std::optional<scheduler::clock_t::time_point> {
+						if (_update_smooth_scrolling()) {
+							return std::nullopt;
+						}
+						return scheduler::clock_t::now();
+					}
+				);
 				break;
 			}
 		}

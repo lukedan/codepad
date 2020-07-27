@@ -371,11 +371,12 @@ namespace codepad::ui::tabs {
 		_drag->get_button().mouse_up -= _stop_drag_token;
 		_drag->get_button().lost_capture -= _capture_lost_token;
 
+		tab *dragged_tab = _drag;
 		_drag = nullptr;
 		_drag_destination = nullptr;
 		_manager.get_scheduler().mark_for_disposal(*_drag_dest_selector);
 		_drag_dest_selector = nullptr;
-		end_drag.invoke();
+		drag_ended.invoke_noret(dragged_tab);
 
 		// TODO maybe notify the tab of mouse up
 	}

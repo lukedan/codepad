@@ -12,12 +12,14 @@
 #include <chrono>
 #include <functional>
 #include <thread>
+#include <list>
 
 #ifdef CP_PLATFORM_UNIX
 #	include <pthread.h>
 #endif
 
 #include "../core/profiling.h"
+#include "../core/intrusive_priority_queue.h"
 #include "element.h"
 #include "panel.h"
 #include "window.h"
@@ -31,49 +33,89 @@ namespace codepad::ui {
 	public:
 		constexpr static std::chrono::duration<double>
 			/// Maximum expected time for all layout operations during a single frame.
-			relayout_time_redline{0.01},
+			relayout_time_redline{ 0.01 },
 			/// Maximum expected time for all rendering operations during a single frame.
-			render_time_redline{0.04};
+			render_time_redline{ 0.04 };
 		/// The maximum number of system messages that can be processed between two updates.
 		constexpr static std::size_t maximum_messages_per_update = 20;
 
+		using clock_t = std::chrono::high_resolution_clock;
 #ifdef CP_PLATFORM_WINDOWS
 		using thread_id_t = std::uint32_t; ///< The type for thread IDs.
 #elif defined(CP_PLATFORM_UNIX)
 		using thread_id_t = pthread_t;
 #endif
-
 		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
 		enum class wait_type {
 			blocking, ///< This operation may stall.
 			non_blocking ///< This operation returns immediately.
 		};
-		/// Stores a task that can be executed every update.
-		struct update_task {
-			/// A token that through whcih the associated \ref update_task can be scheduled.
-			struct token {
-				friend scheduler;
-			public:
-				/// Default constructor.
-				token() = default;
-			protected:
-				using _iterator_t = std::list<update_task>::iterator; ///< Type of the iterator.
+		/// Function type for element update tasks. The return value is either empty if this task should only be
+		/// executed once, or a time point when this task will be executed again.
+		using task_function = std::function<std::optional<clock_t::time_point>(element*)>;
 
-				/// Constructs this token with the corresponding iterator.
-				explicit token(_iterator_t it) : _it(it) {
-				}
-				_iterator_t _it; ///< Iterator to the task node.
-			};
-
+	protected:
+		/// Stores information about a task, including the function to execute and the position of it in the priority
+		/// queue.
+		struct _task_info {
 			/// Default constructor.
-			update_task() = default;
-			/// Initializes this task with the corresponding function.
-			explicit update_task(std::function<void()> t) : task(std::move(t)) {
+			_task_info() = default;
+			/// Initializes \ref task and \ref scheduled.
+			_task_info(
+				clock_t::time_point time, task_function f,
+				std::map<element*, std::list<_task_info>>::iterator it
+			) : task(std::move(f)), scheduled(time), iter(it) {
 			}
 
-			std::function<void()> task; ///< The function to be executed.
-			bool needs_update = false; ///< Marks if \ref task needs to be executed next update.
+			task_function task; ///< The function to execute.
+			clock_t::time_point scheduled; ///< The scheduled time of execution.
+			std::size_t queue_index = 0; ///< The index of this task in the priority queue.
+			/// Iterator to the entry about this element in \ref _tasks.
+			std::map<element*, std::list<_task_info>>::iterator iter;
 		};
+		/// An entry in the priority queue that references the related \ref _task_info.
+		struct _task_ref {
+			/// Default constructor.
+			_task_ref() = default;
+			/// Initializes \ref info.
+			explicit _task_ref(std::list<_task_info>::iterator i) : info(i) {
+			}
+
+			std::list<_task_info>::iterator info; ///< The associated \ref _task_info.
+
+			/// Updates \ref _task_info::queue_index.
+			void _on_position_changed(std::size_t new_pos) {
+				info->queue_index = new_pos;
+			}
+		};
+		/// Compares \ref _task_info::scheduled so that the earliest scheduled task is considered largest.
+		struct _task_compare {
+			/// Compares \ref _task_info::scheduled.
+			bool operator()(const _task_ref &lhs, const _task_ref &rhs) const {
+				return lhs.info->scheduled > rhs.info->scheduled;
+			}
+		};
+	public:
+		/// A token that can be used to cancel tasks.
+		struct task_token {
+			friend scheduler;
+		public:
+			/// Default constructor.
+			task_token() = default;
+
+			/// Returns \p true if this refers to an actual task. Note that the tokens are not cleared when a task is
+			/// removed either after finishing execution or manually.
+			bool empty() const {
+				return _task == nullptr;
+			}
+		private:
+			/// Initializes \ref _task.
+			explicit task_token(_task_info &t) : _task(&t) {
+			}
+
+			_task_info *_task = nullptr; ///< Pointer to the \ref _task_info.
+		};
+
 
 		/// Constructor. Initializes \ref _thread_id.
 		scheduler() : _thread_id(_get_thread_id()) {
@@ -111,45 +153,20 @@ namespace codepad::ui {
 		void update_invalid_visuals();
 
 		// update tasks
-		/// Schedules the given element to be updated next frame.
-		void schedule_element_update(element &e) {
-			_upd.insert(&e);
-		}
-		/// Registers a task to be executed periodically and on demand.
-		update_task::token register_update_task(std::function<void()> f) {
-			_regular_tasks.emplace_back(std::move(f));
-			return update_task::token(--_regular_tasks.end());
-		}
-		/// Unregisters a \ref update_task. This function should *not* be called during the execution of an
-		/// \ref update_task. Instead, add a temporary update task to do it, and it'll immediately be executed.
-		void unregister_update_task(update_task::token tok) {
-			if (tok._it->needs_update) {
-				--_active_update_tasks;
-			}
-			_regular_tasks.erase(tok._it);
-		}
-		/// Schedules the \ref update_task represented by the given token to be executed once next update. The task
-		/// is executed once per update even if this function is called multiple times between two updates.
-		void schedule_update_task(update_task::token tok) {
-			if (!tok._it->needs_update) {
-				tok._it->needs_update = true;
-				++_active_update_tasks;
-			}
-		}
-		/// Schedules the given \p std::function to be executed once next update. These are executed immediately
-		/// after regular update tasks.
-		void schedule_temporary_update_task(std::function<void()> f) {
-			_temp_tasks.emplace_back(std::move(f));
+		/// Registers a new update task.
+		task_token register_task(clock_t::time_point scheduled, element *e, task_function func) {
+			auto [it, inserted] = _tasks.emplace(e, std::list<_task_info>());
+			_task_info &task = it->second.emplace_back(scheduled, std::move(func), it);
+			_task_queue.emplace(--it->second.end());
+			return task_token(task);
 		}
 		/// Executes temporary and non-temporary update tasks.
 		void update_tasks();
-		/// Updates all animations and all elements that have been scheduled to update using
-		/// \ref schedule_element_update().
-		void update_scheduled_elements();
-		/// Returns the amount of time that has passed since the last
-		/// time \ref update_scheduled_elements has been called, in seconds.
-		[[nodiscard]] double update_delta_time() const {
-			return _upd_dt;
+		/// Cancels the given task.
+		void cancel_task(task_token &tok) {
+			assert_true_usage(!tok.empty(), "empty task token");
+			_cancel_task(tok._task);
+			tok = task_token();
 		}
 
 		// animations
@@ -170,18 +187,18 @@ namespace codepad::ui {
 		/// Marks the given element for disposal. The element is only disposed when \ref dispose_marked_elements()
 		/// is called. It is safe to call this multiple times before the element's actually disposed.
 		void mark_for_disposal(element &e) {
-			_del.insert(&e);
+			_to_delete.insert(&e);
 		}
 		/// Disposes all elements that has been marked for disposal. Other elements that are not marked
 		/// previously but are marked for disposal during the process are also disposed.
 		void dispose_marked_elements();
 
 		/// Returns \ref _update_wait_threshold.
-		[[nodiscard]] std::chrono::high_resolution_clock::duration get_update_waiting_threshold() const {
+		[[nodiscard]] clock_t::duration get_update_waiting_threshold() const {
 			return _update_wait_threshold;
 		}
 		/// Sets the minimum time to wait instead of 
-		void set_update_waiting_threshold(std::chrono::high_resolution_clock::duration d) {
+		void set_update_waiting_threshold(clock_t::duration d) {
 			_update_wait_threshold = d;
 		}
 
@@ -194,22 +211,16 @@ namespace codepad::ui {
 		/// and \ref update_layout_and_visuals().
 		void update() {
 			performance_monitor mon(u8"Update");
-			update_tasks();
 			dispose_marked_elements();
-			update_scheduled_elements();
+			update_tasks();
 			update_layout_and_visuals();
 		}
 
 		/// Returns whether \ref update() needs to be called right now.
 		[[nodiscard]] bool needs_update() const {
 			return
-				_active_update_tasks > 0 || !_temp_tasks.empty() || // tasks
-				!_del.empty() || // element disposal
-				( // animations
-					!_element_animations.empty() &&
-					_next_update <= std::chrono::high_resolution_clock::now() + _update_wait_threshold
-					) ||
-				!_upd.empty() || // element update
+				_next_update() <= clock_t::now() + _update_wait_threshold || // tasks
+				!_to_delete.empty() || // element disposal
 				!_children_layout_scheduled.empty() || !_layout_notify.empty() || // layout
 				!_dirty.empty(); // visual
 		}
@@ -233,6 +244,7 @@ namespace codepad::ui {
 		[[nodiscard]] const hotkey_listener &get_hotkey_listener() const {
 			return _hotkeys;
 		}
+
 	protected:
 		hotkey_listener _hotkeys; ///< Handles hotkeys.
 
@@ -242,28 +254,20 @@ namespace codepad::ui {
 		std::set<panel*> _children_layout_scheduled;
 
 		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
-		std::set<element*> _del; ///< Stores all elements that are to be disposed of.
-		std::set<element*> _upd; ///< Stores all elements that are to be updated.
-		/// Stores all playing animations of elements.
-		std::map<element*, std::list<std::unique_ptr<playing_animation_base>>> _element_animations;
+		std::set<element*> _to_delete; ///< Stores all elements that are to be disposed of.
 
-		std::list<update_task> _regular_tasks; ///< The list of registered update tasks.
-		std::vector<std::function<void()>> _temp_tasks; ///< The list of temporary tasks.
+		/// Keeps track of all tasks and their respective associated elements. 
+		std::map<element*, std::list<_task_info>> _tasks;
+		/// Used to keep track the tasks to execute first.
+		intrusive_priority_queue<_task_ref, _task_compare> _task_queue;
 
-		std::chrono::high_resolution_clock::time_point
-			/// The time point when elements were last updated.
-			_last_update,
-			/// The time point of the next time when updating will be necessary.
-			_next_update;
 		/// If the next update is more than this amount of time away, then set the timer and yield control to reduce
 		/// resource consumption.
-		std::chrono::high_resolution_clock::duration _update_wait_threshold{std::chrono::milliseconds(5)};
+		clock_t::duration _update_wait_threshold{ std::chrono::microseconds(100) };
 
 		thread_id_t _thread_id; ///< The thread ID of the thread that this scheduler is running on.
 
-		double _upd_dt = 0.0; ///< The duration since elements were last updated.
 		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
-		std::size_t _active_update_tasks = 0; ///< The number of active update tasks.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 
 		std::thread::id _tid;
@@ -275,9 +279,26 @@ namespace codepad::ui {
 		/// the innermost focus scopes, the global focus, and the capture state of the window.
 		void _on_removing_element(element&);
 
-		/// Forces all configurations to update right now.
-		void _reset_update_estimate() {
-			_next_update = std::chrono::high_resolution_clock::now();
+		/// Cancels the given task.
+		void _cancel_task(_task_info *tsk) {
+			std::map<element*, std::list<_task_info>>::iterator it = tsk->iter;
+			std::size_t queue_index = tsk->queue_index;
+			it->second.erase(_task_queue.get_container()[queue_index].info);
+			if (it->second.empty()) {
+				_tasks.erase(it);
+			}
+			if (queue_index > 0) {
+				_task_queue.erase(queue_index);
+			} else {
+				_task_queue.pop();
+			}
+		}
+		/// Returns the earliest scheduled task in \ref _task_queue.
+		clock_t::time_point _next_update() const {
+			if (_task_queue.empty()) {
+				return clock_t::time_point::max();
+			}
+			return _task_queue.top().info->scheduled;
 		}
 
 		/// Simple wrapper around \ref _main_iteration_system_impl() that performs some additional common tasks.
@@ -293,7 +314,7 @@ namespace codepad::ui {
 		/// Sets a timer that will be activated after the given amount of time. When the timer is expired, this
 		/// program will regain control and thus can update stuff. If this is called when a timer has previously
 		/// been set, it may or may not be cancelled. This function is platform-dependent.
-		void _set_timer(std::chrono::high_resolution_clock::duration);
+		void _set_timer(clock_t::duration);
 		/// Wakes the main thread up from the idle state. This function can be called from other threads as long as
 		/// this \ref scheduler object has finished construction.
 		void _wake_up();

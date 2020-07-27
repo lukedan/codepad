@@ -65,34 +65,19 @@ namespace codepad::ui {
 	}
 
 	void scheduler::update_tasks() {
-		// non-temporary
-		if (_active_update_tasks > 0) {
-			std::vector<std::function<void()>*> execs;
-			execs.reserve(_active_update_tasks); // should be just right
-			for (auto &task : _regular_tasks) {
-				if (task.needs_update) {
-					execs.emplace_back(&task.task);
-					task.needs_update = false;
-				}
+		clock_t::time_point execute_before = clock_t::now();
+		while (!_task_queue.empty() && execute_before >= _task_queue.top().info->scheduled) {
+			const auto &ref = _task_queue.top();
+			if (auto repeat = ref.info->task(ref.info->iter->first)) { // change scheduled time
+				ref.info->scheduled = repeat.value();
+				_task_queue.on_key_decreased(0);
+			} else { // erase the task
+				_cancel_task(&(*ref.info));
 			}
-			assert_true_logical(execs.size() == _active_update_tasks, "wrong number of update tasks");
-			_active_update_tasks = 0;
-			// TODO maybe add an indicator and check in unregister_update_task for tasks removed while this is
-			//      running?
-			for (auto *f : execs) {
-				(*f)();
-			}
-		}
-
-		// temporary
-		std::vector<std::function<void()>> lst;
-		std::swap(lst, _temp_tasks);
-		for (auto &func : lst) {
-			func();
 		}
 	}
 
-	void scheduler::update_scheduled_elements() {
+	/*void scheduler::update_scheduled_elements() {
 		performance_monitor mon(u8"update_elements");
 
 		auto aninow = animation_clock_t::now();
@@ -118,7 +103,7 @@ namespace codepad::ui {
 			_next_update = aninow + wait_time;
 		}
 
-		auto nnow = std::chrono::high_resolution_clock::now();
+		auto nnow = clock_t::now();
 		_upd_dt = std::chrono::duration<double>(nnow - _last_update).count();
 		_last_update = nnow;
 
@@ -131,10 +116,10 @@ namespace codepad::ui {
 				i->_on_update();
 			}
 		}
-	}
+	}*/
 
 	void scheduler::start_animation(std::unique_ptr<playing_animation_base> ani, element *elem) {
-		auto [entry, inserted] = _element_animations.try_emplace(elem);
+		/*auto [entry, inserted] = _element_animations.try_emplace(elem);
 		auto it = entry->second.begin();
 		while (it != entry->second.end()) { // remove animations with the same subject
 			if ((*it)->get_subject().equals(ani->get_subject())) {
@@ -143,8 +128,7 @@ namespace codepad::ui {
 				++it;
 			}
 		}
-		entry->second.emplace_back(std::move(ani));
-		_reset_update_estimate();
+		entry->second.emplace_back(std::move(ani));*/
 	}
 
 	void scheduler::set_focused_element(element *elem) {
@@ -208,9 +192,9 @@ namespace codepad::ui {
 
 	void scheduler::dispose_marked_elements() {
 		performance_monitor mon(u8"dispose_elements");
-		while (!_del.empty()) { // as long as there are new batches to dispose of
+		while (!_to_delete.empty()) { // as long as there are new batches to dispose of
 			std::set<element*> batch;
-			std::swap(batch, _del);
+			std::swap(batch, _to_delete);
 			// dispose the current batch
 			// new batches may be produced during this process
 			for (element *elem : batch) {
@@ -223,11 +207,17 @@ namespace codepad::ui {
 				if (pnl) {
 					_children_layout_scheduled.erase(pnl);
 				}
+				// remove all tasks related to the element
+				if (auto it = _tasks.find(elem); it != _tasks.end()) {
+					for (const auto &info : it->second) {
+						_task_queue.erase(info.queue_index);
+					}
+					_tasks.erase(it);
+				}
+				// remove it from other lists
 				_layout_notify.erase(elem);
-				_element_animations.erase(elem);
 				_dirty.erase(elem);
-				_del.erase(elem);
-				_upd.erase(elem);
+				_to_delete.erase(elem);
 				// delete it
 				delete elem;
 			}
@@ -246,10 +236,8 @@ namespace codepad::ui {
 			) {
 			}
 		} else {
-			_set_timer(_next_update - std::chrono::high_resolution_clock::now()); // set up the timer
+			_set_timer(_next_update() - clock_t::now()); // set up the timer
 			_main_iteration_system(wait_type::blocking); // wait for the next event or the timer
-			// reset last update time so that the large blocking gap is not counted
-			_last_update = std::chrono::high_resolution_clock::now();
 		}
 	}
 

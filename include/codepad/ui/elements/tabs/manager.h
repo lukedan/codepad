@@ -22,6 +22,13 @@ namespace codepad::ui::tabs {
 		}
 		const vec2d position; /// New position of the top-left corner of the \ref tab_button.
 	};
+	/// Contains related information when the user stops dragging a tab.
+	struct tab_drag_ended_info {
+		/// Initializes \ref dragging_tab.
+		explicit tab_drag_ended_info(tab *t) : dragging_tab(t) {
+		}
+		const tab *dragging_tab; ///< The tab that the user was dragging.
+	};
 
 	/// Manages all \ref tab "tabs" and \ref host "tab_hosts".
 	class tab_manager {
@@ -30,16 +37,12 @@ namespace codepad::ui::tabs {
 	public:
 		/// Constructor. Initializes \ref _drag_dest_selector and update tasks.
 		tab_manager(ui::manager &man) : _manager(man) {
-			_update_hosts_token = _manager.get_scheduler().register_update_task([this]() {
-				update_changed_hosts();
-				});
 		}
 		/// Disposes \ref _drag_dest_selector, and unregisters update tasks.
 		~tab_manager() {
 			assert_true_logical(
 				_drag == nullptr, "dragging operation still in progress during tab manager disposal"
 			);
-			_manager.get_scheduler().unregister_update_task(_update_hosts_token);
 		}
 
 		/// Creates a new \ref tab in a \ref host in the last focused \ref window_base. If there are no windows,
@@ -96,14 +99,12 @@ namespace codepad::ui::tabs {
 		/// \param layout The layout of the \ref tab's main region.
 		void start_dragging_tab(tab &t, vec2d diff, rectd layout);
 
-		info_event<> end_drag; ///< Invoked when the user finishes dragging a \ref tab_button.
+		info_event<tab_drag_ended_info> drag_ended; ///< Invoked when the user finishes dragging a \ref tab_button.
 		/// Invoked while the user is dragging a \ref tab_button.
 		info_event<tab_drag_update_info> drag_move_tab_button;
 	protected:
 		std::set<host*> _changed; ///< The set of \ref host "tab_hosts" whose children have changed.
 		std::list<window_base*> _wndlist; ///< The list of windows, ordered according to their z-indices.
-		/// Token of the task that updates changed tab hosts.
-		scheduler::update_task::token _update_hosts_token;
 
 		// drag destination
 		tab *_drag = nullptr; ///< The \ref tab that's currently being dragged.
@@ -258,7 +259,7 @@ namespace codepad::ui::tabs {
 		/// update it afterwards, and schedules \ref update_changed_hosts() to be called.
 		void _on_tab_detached(host &host, tab&) {
 			_changed.insert(&host);
-			_manager.get_scheduler().schedule_update_task(_update_hosts_token);
+			update_changed_hosts();
 		}
 	};
 }

@@ -414,7 +414,7 @@ namespace codepad::ui {
 		return false;
 	}
 
-	void scheduler::_set_timer(std::chrono::high_resolution_clock::duration duration) {
+	void scheduler::_set_timer(clock_t::duration duration) {
 		thread_local static UINT_PTR _timer_handle = 0;
 
 		UINT timeout = std::chrono::duration_cast<std::chrono::duration<UINT, std::milli>>(duration).count();

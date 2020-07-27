@@ -108,7 +108,7 @@ if(WIN32)
 	target_compile_definitions(codepad
 		PUBLIC CP_PLATFORM_WINDOWS NOMINMAX OEMRESOURCE)
 	target_link_libraries(codepad
-		PBULIC gdi32 dwrite d3d11 d2d1 shlwapi Dwmapi imm32 windowscodecs)
+		PUBLIC gdi32 dwrite d3d11 d2d1 shlwapi Dwmapi imm32 windowscodecs)
 	set_target_properties(codepad PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS YES)
 
 	if(CMAKE_COMPILER_IS_GNUCXX)

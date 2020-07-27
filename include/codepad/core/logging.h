@@ -112,7 +112,7 @@ namespace codepad {
 			void _flush() {
 				if (_parent) {
 					auto message = _contents.str();
-					auto dur = std::chrono::high_resolution_clock::now() - _parent->get_creation_time();
+					auto dur = clock_t::now() - _parent->get_creation_time();
 					for (auto &&sink : _parent->sinks) {
 						sink->on_message(
 							dur, _pos, _level,
@@ -138,7 +138,7 @@ namespace codepad {
 		}
 		/// Initializes the list of sinks.
 		explicit logger(std::vector<std::unique_ptr<log_sink>> sinks) :
-			sinks(std::move(sinks)), _creation(std::chrono::high_resolution_clock::now()) {
+			sinks(std::move(sinks)), _creation(clock_t::now()) {
 		}
 		logger(const logger&) = delete; // HACK apigen
 		logger &operator=(const logger&) = delete; // HACK apigen
@@ -169,7 +169,7 @@ namespace codepad {
 		}
 
 		/// Returns the time of this logger's creation.
-		std::chrono::high_resolution_clock::time_point get_creation_time() const {
+		clock_t::time_point get_creation_time() const {
 			return _creation;
 		}
 
@@ -188,6 +188,6 @@ namespace codepad {
 		/// since static objects may still log when cleaning up after \p main() returns.
 		static std::unique_ptr<logger> &_get_ptr();
 
-		std::chrono::high_resolution_clock::time_point _creation; ///< The time of this logger's creation.
+		clock_t::time_point _creation; ///< The time of this logger's creation.
 	};
 }

@@ -309,7 +309,7 @@ namespace codepad::ui {
 	gboolean _glib_call_once(gpointer) {
 		return false;
 	}
-	void scheduler::_set_timer(std::chrono::high_resolution_clock::duration duration) {
+	void scheduler::_set_timer(clock_t::duration duration) {
 		guint ms = std::chrono::duration_cast<std::chrono::duration<guint, std::milli>>(duration).count();
 		g_timeout_add(ms, _glib_call_once, nullptr);
 	}
