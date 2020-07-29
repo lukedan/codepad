@@ -838,7 +838,6 @@ namespace codepad::ui::cairo {
 		// PANGO_ELLIPSIZE_NONE, and may change in the future."
 		// https://developer.gnome.org/pango/stable/pango-Layout-Objects.html#pango-layout-set-height
 		pango_layout_set_height(result->_layout.get(), -1);
-		/*pango_layout_set_height(result->_layout.get(), pango_units_from_double(size.y));*/
 
 		{ // set color
 			auto attr_list = _details::make_gtk_object_ref_give(pango_attr_list_new());

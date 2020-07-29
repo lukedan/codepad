@@ -117,9 +117,7 @@ namespace codepad::ui {
 		}
 		if (!trigger._register_event(ev.identifier.name, [target = &affected, animations = std::move(anis)]() {
 			for (auto &ani : animations) {
-				target->get_manager().get_scheduler().start_animation(
-					ani.definition->start(ani.subject), target
-				);
+				target->_start_animation(ani.definition->start(ani.subject));
 			}
 		})) {
 			logger::get().log_warning(CP_HERE) << "unknown event name: " << ev.identifier.name;

@@ -82,37 +82,7 @@ namespace codepad::ui {
 				}
 			}
 		}
-		/*/// Parses a \ref element_parameters from the given JSON object.
-		void parse_parameters(const object_t &val, element_parameters &value) {
-			if (auto layout_from = val.template parse_optional_member<std::u8string_view>(u8"inherit_layout_from")) {
-				if (auto *ancestor = get_manager().get_class_arrangements().get(layout_from.value())) {
-					value.layout_parameters = ancestor->configuration.default_parameters.layout_parameters;
-				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid layout inheritance";
-				}
-			}
-			if (auto layout = val.template parse_optional_member<element_layout>(u8"layout")) {
-				value.layout_parameters = layout.value();
-			}
 
-			if (auto visuals_from = val.template parse_optional_member<std::u8string_view>(u8"inherit_visuals_from")) {
-				if (auto *ancestor = get_manager().get_class_arrangements().get(visuals_from.value())) {
-					value.visual_parameters = ancestor->configuration.default_parameters.visual_parameters;
-				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid visual inheritance";
-				}
-			}
-			if (auto vis = val.template parse_optional_member<visuals>(
-				u8"visuals", managed_json_parser<visuals>(get_manager())
-				)) {
-				value.visual_parameters = std::move(vis.value());
-			}
-
-			value.element_visibility =
-				val.template parse_optional_member<visibility>(u8"visibility").value_or(value.element_visibility);
-			value.custom_cursor =
-				val.template parse_optional_member<cursor>(u8"cursor").value_or(value.custom_cursor);
-		}*/
 		/// Parses additional attributes of a \ref class_arrangements::child from the given JSON object.
 		void parse_additional_arrangement_attributes(
 			const object_t &val, class_arrangements::child &child

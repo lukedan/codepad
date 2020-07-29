@@ -6,7 +6,18 @@
 /// \file
 /// Implementation of the scheduler.
 
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
+#include "codepad/ui/window.h"
+
 namespace codepad::ui {
+	void scheduler::invalidate_layout(element &e) {
+		// TODO maybe optimize for panels
+		if (e.parent() != nullptr) {
+			invalidate_children_layout(*e.parent());
+		}
+	}
+
 	void scheduler::update_invalid_layout() {
 		if (_children_layout_scheduled.empty() && _layout_notify.empty()) {
 			return;
@@ -75,60 +86,6 @@ namespace codepad::ui {
 				_cancel_task(&(*ref.info));
 			}
 		}
-	}
-
-	/*void scheduler::update_scheduled_elements() {
-		performance_monitor mon(u8"update_elements");
-
-		auto aninow = animation_clock_t::now();
-
-		if (aninow >= _next_update) { // only update when necessary
-			animation_duration_t wait_time = animation_duration_t::max();
-			for (auto elemit = _element_animations.begin(); elemit != _element_animations.end(); ) {
-				for (auto aniit = elemit->second.begin(); aniit != elemit->second.end(); ) {
-					if (auto nexttime = (*aniit)->update(aninow)) {
-						wait_time = std::min(wait_time, nexttime.value());
-						++aniit;
-					} else { // animation has ended, remove it from the list
-						aniit = elemit->second.erase(aniit);
-					}
-				}
-				// erase the entry from _element_animations if there's no animation playing
-				if (elemit->second.empty()) {
-					elemit = _element_animations.erase(elemit);
-				} else {
-					++elemit;
-				}
-			}
-			_next_update = aninow + wait_time;
-		}
-
-		auto nnow = clock_t::now();
-		_upd_dt = std::chrono::duration<double>(nnow - _last_update).count();
-		_last_update = nnow;
-
-		// from schedule_element_update()
-		// TODO remove this?
-		if (!_upd.empty()) {
-			std::set<element*> list; // the new list
-			swap(list, _upd);
-			for (auto i : list) {
-				i->_on_update();
-			}
-		}
-	}*/
-
-	void scheduler::start_animation(std::unique_ptr<playing_animation_base> ani, element *elem) {
-		/*auto [entry, inserted] = _element_animations.try_emplace(elem);
-		auto it = entry->second.begin();
-		while (it != entry->second.end()) { // remove animations with the same subject
-			if ((*it)->get_subject().equals(ani->get_subject())) {
-				it = entry->second.erase(it);
-			} else {
-				++it;
-			}
-		}
-		entry->second.emplace_back(std::move(ani));*/
 	}
 
 	void scheduler::set_focused_element(element *elem) {

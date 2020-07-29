@@ -891,11 +891,6 @@ namespace codepad::editors::code {
 			_interaction_manager.on_capture_lost();
 			_base::_on_capture_lost();
 		}
-		/// Calls \ref interaction_manager::on_update().
-		void _on_update() override {
-			_interaction_manager.on_update();
-			_base::_on_update();
-		}
 
 		// visual & layout
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.

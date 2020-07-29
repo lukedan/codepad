@@ -132,6 +132,37 @@ namespace codepad::ui {
 		return mapping;
 	}
 
+	void element::_start_animation(std::unique_ptr<playing_animation_base> ani) {
+		{ // remove animations with the same subject
+			auto it = _animations.begin();
+			while (it != _animations.end()) {
+				if (it->animation->get_subject().equals(ani->get_subject())) {
+					get_manager().get_scheduler().cancel_task(it->task);
+					it = _animations.erase(it);
+				} else {
+					++it;
+				}
+			}
+		}
+		// start the animation
+		_animations.emplace_back();
+		std::list<_animation_info>::iterator it = --_animations.end();
+		it->animation = std::move(ani);
+		it->task = get_manager().get_scheduler().register_task(
+			scheduler::clock_t::now(), this,
+			[it](element *elem) -> std::optional<scheduler::clock_t::time_point> {
+			auto now = scheduler::clock_t::now();
+			if (auto next_update = it->animation->update(now)) {
+				return now + next_update.value();
+			} else {
+				// erase entry in _animations
+				elem->_animations.erase(it);
+				return std::nullopt;
+			}
+			}
+		);
+	}
+
 	void element::_on_desired_size_changed(bool width, bool height) {
 		if (
 			(width && get_width_allocation() == size_allocation_type::automatic) ||

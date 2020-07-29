@@ -34,16 +34,19 @@ namespace codepad {
 		void push(const Elem &e) {
 			_arr.push_back(e);
 			_adjust_element_up(_arr.size() - 1);
+			_verify_integrity();
 		}
 		/// \overload
 		void push(Elem &&e) {
 			_arr.push_back(std::move(e));
 			_adjust_element_up(_arr.size() - 1);
+			_verify_integrity();
 		}
 		/// Adds a new item into the queue.
 		template <typename ...Args> Elem &emplace(Args &&...args) {
 			_arr.emplace_back(std::forward<Args>(args)...);
 			std::size_t i = _adjust_element_up(_arr.size() - 1);
+			_verify_integrity();
 			return _arr[i];
 		}
 		/// Removes the top item from the queue.
@@ -53,6 +56,7 @@ namespace codepad {
 			if (_arr.size() > 0) {
 				_adjust_element_down(0);
 			}
+			_verify_integrity();
 		}
 
 		/// Erases the given element.
@@ -65,6 +69,7 @@ namespace codepad {
 					_adjust_element_up(index);
 				}
 			}
+			_verify_integrity();
 		}
 		/// \overload
 		void erase(typename Container::const_iterator it) {
@@ -74,6 +79,7 @@ namespace codepad {
 		/// Invokes \ref _adjust_element_down().
 		void on_key_decreased(std::size_t index) {
 			_adjust_element_down(index);
+			_verify_integrity();
 		}
 		/// \overload
 		void on_key_decreased(typename Container::const_iterator it) {
@@ -127,7 +133,6 @@ namespace codepad {
 				index = parent;
 			}
 			_notify_index_change(index);
-			_verify_integrity();
 			return index;
 		}
 		/// Moves the element up the heap until it's in the correct place.
@@ -152,7 +157,6 @@ namespace codepad {
 				index = next;
 			}
 			_notify_index_change(index);
-			_verify_integrity();
 			return index;
 		}
 

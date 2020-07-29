@@ -21,11 +21,13 @@
 #include "element_classes.h"
 #include "renderer.h"
 #include "property.h"
+#include "scheduler.h"
 
 namespace codepad::ui {
 	class panel;
 	class manager;
 	class scheduler;
+	struct task_token;
 	class window_base;
 	class element_collection;
 
@@ -328,6 +330,12 @@ namespace codepad::ui {
 			return u8"element";
 		}
 	private:
+		/// Information about an ongoing animation.
+		struct _animation_info {
+			std::unique_ptr<playing_animation_base> animation; ///< The actual animation.
+			scheduler::task_token task; ///< The task related to this animation.
+		};
+
 		visuals _visual_params; ///< The visual parameters of this \ref element.
 		element_layout _layout_params; ///< The layout parameters of this \ref element.
 		visibility _visibility = visibility::full; ///< The visibility of this \ref element.
@@ -347,7 +355,12 @@ namespace codepad::ui {
 		vec2d _cached_mouse_position; ///< Cached mouse position relative to this elemnt.
 		/// The timestamp used to check if \ref _cached_mouse_position is valid.
 		std::size_t _cached_mouse_position_timestamp = 0;
-		bool _mouse_over = false; ///< Indicates if the mouse is hoverihg this element.
+		bool _mouse_over = false; ///< Indicates if the mouse is hovering over this element.
+
+		std::list<_animation_info> _animations; ///< A list of playing animations.
+
+		/// Starts an animation.
+		void _start_animation(std::unique_ptr<playing_animation_base>);
 	protected:
 		rectd _layout; ///< The absolute layout of the element in the window.
 
@@ -447,10 +460,6 @@ namespace codepad::ui {
 		/// this handler.
 		virtual void _on_capture_lost() {
 			lost_capture.invoke();
-		}
-
-		/// Called when the \ref manager updates all elements that have been registered.
-		virtual void _on_update() {
 		}
 
 		/// Called when the element is about to be rendered.

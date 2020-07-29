@@ -354,11 +354,6 @@ namespace codepad::editors::binary {
 			_interaction_manager.on_capture_lost();
 			element::_on_capture_lost();
 		}
-		/// Forwards the event to \ref _interaction_manager.
-		void _on_update() override {
-			_interaction_manager.on_update();
-			element::_on_update();
-		}
 
 		// callbacks
 		/// Unbinds all events from the \ref buffer, if necessary.

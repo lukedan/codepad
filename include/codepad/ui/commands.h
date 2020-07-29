@@ -8,10 +8,12 @@
 
 #include <vector>
 
+#include "../core/event.h"
 #include "hotkey_registry.h"
-#include "element.h"
 
 namespace codepad::ui {
+	class element;
+
 	/// Registry for all commands. Maps strings to functions that take
 	/// pointers to \ref codepad::ui::element "elements" as arguments.
 	class APIGEN_EXPORT_RECURSIVE command_registry {

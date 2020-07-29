@@ -20,11 +20,15 @@
 
 #include "../core/profiling.h"
 #include "../core/intrusive_priority_queue.h"
-#include "element.h"
-#include "panel.h"
-#include "window.h"
+#include "commands.h"
+#include "animation.h"
 
 namespace codepad::ui {
+	class element;
+	class element_collection;
+	class panel;
+	class window_base;
+
 	/// Schedules the updating and rendering of all elements. There should at most be one active object of this type
 	/// per thread.
 	class scheduler {
@@ -116,18 +120,12 @@ namespace codepad::ui {
 			_task_info *_task = nullptr; ///< Pointer to the \ref _task_info.
 		};
 
-
 		/// Constructor. Initializes \ref _thread_id.
 		scheduler() : _thread_id(_get_thread_id()) {
 		}
 
 		/// Invalidates the layout of an element. Its parent will be notified to recalculate its layout.
-		void invalidate_layout(element &e) {
-			// TODO maybe optimize for panels
-			if (e.parent() != nullptr) {
-				invalidate_children_layout(*e.parent());
-			}
-		}
+		void invalidate_layout(element&);
 		/// Invalidates the layout of all children of a \ref panel.
 		void invalidate_children_layout(panel &p) {
 			_children_layout_scheduled.emplace(&p);
@@ -154,6 +152,8 @@ namespace codepad::ui {
 
 		// update tasks
 		/// Registers a new update task.
+		///
+		/// \todo Should I mark this nodiscard?
 		task_token register_task(clock_t::time_point scheduled, element *e, task_function func) {
 			auto [it, inserted] = _tasks.emplace(e, std::list<_task_info>());
 			_task_info &task = it->second.emplace_back(scheduled, std::move(func), it);
@@ -168,12 +168,6 @@ namespace codepad::ui {
 			_cancel_task(tok._task);
 			tok = task_token();
 		}
-
-		// animations
-		/// Starts an animation that's associated with a particular \ref element. If any playing animation of the
-		/// same element has the same target (tested using \ref animation_subject_base::equals()), the old animation
-		/// will be terminated.
-		void start_animation(std::unique_ptr<playing_animation_base>, element*);
 
 		// focus
 		/// Sets the currently focused element. When called, this function also interrupts any ongoing composition.

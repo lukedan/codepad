@@ -66,10 +66,6 @@ namespace codepad::editors {
 		virtual bool on_capture_lost() {
 			return true;
 		}
-		/// Called when the element is being updated.
-		virtual bool on_update() {
-			return true;
-		}
 
 		/// Called when an edit operation is about to take place, where the carets will likely be used.
 		virtual bool on_edit_operation() {
@@ -192,10 +188,6 @@ namespace codepad::editors {
 		void on_capture_lost() {
 			_dispatch_event<&mode_activator_t::on_capture_lost, &mode_t::on_capture_lost>();
 		}
-		/// Called when the element is being updated.
-		void on_update() {
-			_dispatch_event<nullptr, &mode_t::on_update>();
-		}
 
 		/// Called when an edit operation is about to take place, where the carets will likely be used.
 		void on_edit_operation() {
@@ -291,6 +283,12 @@ namespace codepad::editors {
 			/// Initializes the base class with the given \ref manager_t.
 			mouse_navigation_mode(manager_t &man) : interaction_mode<CaretSet>(man) {
 			}
+			/// Unregisters \ref _scroll_task.
+			~mouse_navigation_mode() {
+				if (!_scroll_task.empty()) {
+					this->_manager.get_contents_region().get_manager().get_scheduler().cancel_task(_scroll_task);
+				}
+			}
 
 			/// Updates \ref _speed. This function always returns \p true.
 			bool on_mouse_move(ui::mouse_move_info &info) override {
@@ -298,47 +296,54 @@ namespace codepad::editors {
 				rectd r = ui::thickness(_padding).shrink(rectd::from_corners(vec2d(), elem.get_layout().size()));
 				r = r.made_positive_average();
 				// find anchor point
-				_scrolling = false;
+				bool scrolling = false;
 				vec2d anchor = info.new_position.get(elem);
 				if (anchor.x < r.xmin) {
 					anchor.x = r.xmin;
-					_scrolling = true;
+					scrolling = true;
 				} else if (anchor.x > r.xmax) {
 					anchor.x = r.xmax;
-					_scrolling = true;
+					scrolling = true;
 				}
 				if (anchor.y < r.ymin) {
 					anchor.y = r.ymin;
-					_scrolling = true;
+					scrolling = true;
 				} else if (anchor.y > r.ymax) {
 					anchor.y = r.ymax;
-					_scrolling = true;
+					scrolling = true;
 				}
-				// calculate speed
-				_speed = info.new_position.get(elem) - anchor; // TODO further manipulate _speed
-				if (_scrolling) { // schedule update
-					/*elem.get_manager().get_scheduler().schedule_element_update(elem);*/
-				}
-				return true;
-			}
-			/// Updates the position of the contents region. This function always returns \p true.
-			bool on_update() override {
-				if (_scrolling) {
-					contents_region_base &contents = this->_manager.get_contents_region();
-					auto *edt = editor::get_encapsulating(contents);
-					/*edt->set_position_immediate(
-						edt->get_position() + _speed * contents.get_manager().get_scheduler().update_delta_time()
-					);*/
-					/*contents.get_manager().get_scheduler().schedule_element_update(contents);*/
+				if (scrolling) {
+					// calculate speed
+					_speed = info.new_position.get(elem) - anchor; // TODO further manipulate _speed
+					if (_scroll_task.empty()) { // schedule update
+						auto now = ui::scheduler::clock_t::now();
+						_last_scroll_update = now;
+						_scroll_task = elem.get_manager().get_scheduler().register_task(
+							now, &elem,
+							[this](ui::element *e) -> std::optional<ui::scheduler::clock_t::time_point> {
+								auto now = ui::scheduler::clock_t::now();
+								double delta_time = std::chrono::duration<double>(now - _last_scroll_update).count();
+								auto *edt = editor::get_encapsulating(*e);
+								edt->set_position_immediate(edt->get_position() + _speed * delta_time);
+								_last_scroll_update = now;
+								return now;
+							}
+						);
+					}
+				} else {
+					if (!_scroll_task.empty()) {
+						elem.get_manager().get_scheduler().cancel_task(_scroll_task);
+					}
 				}
 				return true;
 			}
 		protected:
 			vec2d _speed; ///< The speed of scrolling.
+			ui::scheduler::task_token _scroll_task; ///< The task used to update smooth mouse scrolling.
+			ui::scheduler::clock_t::time_point _last_scroll_update; ///< The time of the last scroll update.
 			/// The inner padding. This allows the screen to start scrolling even if the mouse is still inside the
 			/// \ref ui::element.
 			double _padding = default_padding_value;
-			bool _scrolling = false; ///< Whether the viewport is currently scrolling.
 		};
 
 		/// The mode that allows the user to edit a single selected region using the mouse.
@@ -400,7 +405,7 @@ namespace codepad::editors {
 
 			/// Returns \ref _selection.
 			std::vector<typename CaretSet::selection> get_temporary_carets() const override {
-				return {_selection};
+				return { _selection };
 			}
 		protected:
 			typename CaretSet::selection _selection; ///< The selection being edited.
@@ -451,9 +456,9 @@ namespace codepad::editors {
 
 			ui::mouse_gesture
 				/// The mouse gesture used for multiple selection.
-				multiple_select_gesture{ui::mouse_button::primary, ui::modifier_keys::control},
+				multiple_select_gesture{ ui::mouse_button::primary, ui::modifier_keys::control },
 				/// The mouse gesture used for editing existing selected regions.
-				edit_gesture{ui::mouse_button::primary, ui::modifier_keys::shift};
+				edit_gesture{ ui::mouse_button::primary, ui::modifier_keys::shift };
 		};
 
 		/// Mode where the user is about to start dragging text with the mouse.

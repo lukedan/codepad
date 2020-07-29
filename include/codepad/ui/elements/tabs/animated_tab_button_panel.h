@@ -61,7 +61,6 @@ namespace codepad::ui::tabs {
 						[this, panel = &pnl](element *e) -> std::optional<scheduler::clock_t::time_point> {
 							e->invalidate_layout();
 							double dur = std::chrono::duration<double>(scheduler::clock_t::now() - start).count();
-							logger::get().log_debug(CP_HERE) << "time " << dur << "\n";
 							if (dur > panel->get_animation_duration()) {
 								current_offset = 0.0;
 								task = scheduler::task_token();
@@ -289,7 +288,6 @@ namespace codepad::ui::tabs {
 			);
 			auto *data = _get_data(dragbtn);
 			data->set_offset(*this, dragbtn, curpos - accu);
-			/*_invalidate_children_layout(); // invalid children layout no matter what*/
 		}
 	};
 }
