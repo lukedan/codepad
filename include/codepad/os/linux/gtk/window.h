@@ -152,9 +152,13 @@ namespace codepad::os {
 
 		void set_mouse_capture(ui::element &elem) override {
 			window_base::set_mouse_capture(elem);
+			// here owner_events is set to false so that all events are sent to this particular window instead of only
+			// to windows in the application
+			//
+			// TODO tab buttons are still freaking out when dragged
 			GdkGrabStatus status = gdk_seat_grab(
 				gdk_display_get_default_seat(gdk_display_get_default()),
-				gtk_widget_get_window(_wnd), GDK_SEAT_CAPABILITY_ALL_POINTING, true,
+				gtk_widget_get_window(_wnd), GDK_SEAT_CAPABILITY_ALL_POINTING, false,
 				nullptr, nullptr, nullptr, nullptr
 			);
 			if (status != GDK_GRAB_SUCCESS) {
@@ -228,7 +232,7 @@ namespace codepad::os {
 		inline static gboolean _on_scroll_event(GtkWidget*, GdkEvent *event, window *wnd) {
 			_form_onevent<ui::mouse_scroll_info>(
 				*wnd, &window::_on_mouse_scroll,
-				vec2d(event->scroll.delta_x, event->scroll.delta_y),
+				-vec2d(event->scroll.delta_x, event->scroll.delta_y),
 				wnd->_update_mouse_position(vec2d(event->scroll.x, event->scroll.y))
 			);
 			return true;
@@ -269,43 +273,7 @@ namespace codepad::os {
 			g_signal_connect(obj, name, reinterpret_cast<GCallback>(callback), this);
 		}
 
-		void _initialize(std::u8string_view cls) override {
-			window_base::_initialize(cls);
-
-			// set gravity to static so that coordinates are relative to the client region
-			gtk_window_set_gravity(GTK_WINDOW(_wnd), GDK_GRAVITY_STATIC);
-			gtk_widget_set_app_paintable(_wnd, true);
-			gtk_widget_add_events(
-				_wnd,
-				GDK_POINTER_MOTION_MASK |
-					GDK_LEAVE_NOTIFY_MASK |
-					GDK_BUTTON_PRESS_MASK |
-					GDK_BUTTON_RELEASE_MASK |
-					GDK_SCROLL_MASK |
-					GDK_FOCUS_CHANGE_MASK
-			);
-
-			// connect signals
-			_connect_signal(_wnd, "delete_event", _on_delete_event);
-			_connect_signal(_wnd, "leave-notify-event", _on_leave_notify_event);
-			_connect_signal(_wnd, "motion-notify-event", _on_motion_notify_event);
-			_connect_signal(_wnd, "size-allocate", _on_size_allocate);
-			_connect_signal(_wnd, "button-press-event", _on_button_press_event);
-			_connect_signal(_wnd, "button-release-event", _on_button_release_event);
-			_connect_signal(_wnd, "focus-in-event", _on_focus_in_event);
-			_connect_signal(_wnd, "focus-out-event", _on_focus_out_event);
-			_connect_signal(_wnd, "key-press-event", _on_key_press_event);
-			_connect_signal(_wnd, "key-release-event", _on_key_release_event);
-			_connect_signal(_wnd, "scroll-event", _on_scroll_event);
-			_connect_signal(_wnd, "grab-broken-event", _on_grab_broken_event);
-
-			// setup IM context
-			_imctx = gtk_im_multicontext_new();
-			_connect_signal(_imctx, "commit", _on_im_commit);
-			_connect_signal(_imctx, "preedit-changed", _on_im_preedit_changed);
-			_connect_signal(_imctx, "preedit-end", _on_im_preedit_end);
-			gtk_im_context_set_client_window(_imctx, gtk_widget_get_window(_wnd));
-		}
+		void _initialize(std::u8string_view) override;
 		void _dispose() override {
 			window_base::_dispose();
 

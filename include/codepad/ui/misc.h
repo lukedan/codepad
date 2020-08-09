@@ -175,6 +175,84 @@ namespace codepad {
 	};
 
 	namespace ui {
+		/// The type of a line ending.
+		enum class line_ending : unsigned char {
+			none, ///< Unspecified or invalid. Sometimes also used to indicate EOF or soft linebreaks.
+			r, ///< \p \\r.
+			n, ///< \p \\n, usually used in Linux.
+			rn ///< \p \\r\\n, usually used in Windows.
+		};
+		/// Returns the length, in codepoints, of the string representation of a \ref line_ending.
+		inline std::size_t get_line_ending_length(line_ending le) {
+			switch (le) {
+			case line_ending::none:
+				return 0;
+			case line_ending::n:
+				[[fallthrough]];
+			case line_ending::r:
+				return 1;
+			case line_ending::rn:
+				return 2;
+			}
+			return 0;
+		}
+		/// Returns the string representation of the given \ref line_ending.
+		inline std::u32string_view line_ending_to_string(line_ending le) {
+			switch (le) {
+			case line_ending::r:
+				return U"\r";
+			case line_ending::n:
+				return U"\n";
+			case line_ending::rn:
+				return U"\r\n";
+			default:
+				return U"";
+			}
+		}
+
+		/// Used to analyze a sequence of codepoints and find linebreaks.
+		struct linebreak_analyzer {
+		public:
+			/// Initializes \ref new_line_callback.
+			explicit linebreak_analyzer(std::function<void(std::size_t, line_ending)> callback) :
+				new_line_callback(std::move(callback)) {
+			}
+
+			/// Adds a new codepoint to the back of this \ref linebreak_analyzer.
+			void put(codepoint c) {
+				if (_last == U'\r') { // linebreak starting at the last codepoint
+					if (c == U'\n') { // \r\n
+						new_line_callback(_ncps - 1, line_ending::rn);
+						_ncps = 0;
+					} else { // \r
+						new_line_callback(_ncps - 1, line_ending::r);
+						_ncps = 1;
+					}
+				} else if (c == U'\n') { // \n
+					new_line_callback(_ncps, line_ending::n);
+					_ncps = 0;
+				} else { // normal character, or \r (handled later)
+					++_ncps;
+				}
+				_last = c;
+			}
+			/// Finish analysis. Must be called before using the return value of \ref result().
+			void finish() {
+				if (_last == U'\r') {
+					new_line_callback(_ncps - 1, line_ending::r);
+					_ncps = 0;
+				}
+				new_line_callback(_ncps, line_ending::none);
+			}
+
+			/// The callback that will be invoked when a new line is encountered.
+			std::function<void(std::size_t, line_ending)> new_line_callback;
+		protected:
+			std::size_t _ncps = 0; ///< The number of codepoints in the current line.
+			codepoint _last = 0; ///< The last codepoint.
+		};
+
+
 		/// Represents a margin, a padding, etc.
 		struct thickness {
 			/// Constructs the struct with the same value for all four sides.

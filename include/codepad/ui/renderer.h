@@ -209,12 +209,19 @@ namespace codepad {
 			/// Default constructor.
 			caret_hit_test_result() = default;
 			/// Initializes all fields of this struct.
-			caret_hit_test_result(std::size_t c, rectd layout, bool r) : character(c), character_layout(layout), rear(r) {
+			caret_hit_test_result(std::size_t c, rectd layout, bool rtl, bool r) :
+				character(c), character_layout(layout), right_to_left(rtl), rear(r) {
 			}
 
 			std::size_t character = 0; ///< The character index that the given point is on.
-			rectd character_layout; ///< The layout of \ref character.
-			bool rear = false; ///< Indicates if the position is after \ref character.
+			/// The layout of \ref character. If \ref right_to_left is \p true, this rectangle will be inverted on
+			/// the x axis.
+			rectd character_layout;
+			bool
+				right_to_left = false, ///< Indicates whether this character is laid out right-to-left.
+				/// Indicates if the logical position is after \ref character. Note that it's different from the
+				/// visual position of the caret which is affected by \ref right_to_left.
+				rear = false;
 		};
 		/// Stores the metrics of a single line.
 		struct line_metrics {
@@ -323,7 +330,8 @@ namespace codepad {
 			) const = 0;
 		};
 
-		/// Represents a single line of text with the same font parameters. This is mainly used for code editors.
+		/// Represents a single line of text with the same font parameters. This is mainly used for code editors and
+		/// is always laid out left-to-right.
 		class plain_text {
 		public:
 			/// Default virtual destructor.

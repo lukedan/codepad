@@ -201,10 +201,14 @@ namespace codepad::os::direct2d {
 		_details::com_check(_text->HitTestPoint(
 			static_cast<FLOAT>(pos.x), static_cast<FLOAT>(pos.y), &trailing, &inside, &metrics
 		));
+		rectd placement = rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
+		if (metrics.bidiLevel % 2 == 1) {
+			std::swap(placement.xmin, placement.xmax);
+		}
 		return ui::caret_hit_test_result(
 			static_cast<std::size_t>(metrics.textPosition),
-			rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height),
-			trailing != 0
+			placement,
+			metrics.bidiLevel % 2 == 1, trailing != 0
 		);
 	}
 
@@ -212,7 +216,11 @@ namespace codepad::os::direct2d {
 		FLOAT px, py;
 		DWRITE_HIT_TEST_METRICS metrics;
 		_details::com_check(_text->HitTestTextPosition(static_cast<UINT32>(pos), false, &px, &py, &metrics));
-		return rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
+		rectd result = rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
+		if (metrics.bidiLevel % 2 != 0) {
+			std::swap(result.xmin, result.xmax);
+		}
+		return result;
 	}
 
 	std::vector<rectd> formatted_text::get_character_range_placement(std::size_t beg, std::size_t len) const {
@@ -318,6 +326,7 @@ namespace codepad::os::direct2d {
 		if (glyphid < _glyph_count) {
 			// find sub-glyph position
 			double ratio = (xpos - _cached_glyph_positions[glyphid]) / _glyph_advances[glyphid];
+			// TODO not working with certain text such as arabic
 			std::size_t firstchar = _cached_glyph_to_char_mapping_starting[glyphid];
 			std::size_t nchars = _cached_glyph_to_char_mapping_starting[glyphid + 1] - firstchar;
 			assert_true_logical(nchars > 0, "glyph without corresponding character");

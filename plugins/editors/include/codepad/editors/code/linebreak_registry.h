@@ -9,40 +9,6 @@
 #include "../buffer.h"
 
 namespace codepad::editors::code {
-	/// The type of a line ending.
-	enum class line_ending : unsigned char {
-		none, ///< Unspecified or invalid. Sometimes also used to indicate EOF or soft linebreaks.
-		r, ///< \p \\r, usually used in MacOS.
-		n, ///< \p \\n, usually used in Linux.
-		rn ///< \p \\r\\n, usually used in Windows.
-	};
-	/// Returns the length, in codepoints, of the string representation of a \ref line_ending.
-	inline std::size_t get_line_ending_length(line_ending le) {
-		switch (le) {
-		case line_ending::none:
-			return 0;
-		case line_ending::n:
-			[[fallthrough]];
-		case line_ending::r:
-			return 1;
-		case line_ending::rn:
-			return 2;
-		}
-		return 0;
-	}
-	/// Returns the string representation of the given \ref line_ending.
-	inline std::u32string_view line_ending_to_string(line_ending le) {
-		switch (le) {
-		case line_ending::r:
-			return U"\r";
-		case line_ending::n:
-			return U"\n";
-		case line_ending::rn:
-			return U"\r\n";
-		default:
-			return U"";
-		}
-	}
 
 	/// A registry of all the lines in the file. This is mainly used to accelerate operations
 	/// such as finding the i-th line, and to handle multi-codepoint linebreaks.
@@ -54,12 +20,12 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			line_info() = default;
 			/// Constructor that initializes all the fields of the struct.
-			line_info(std::size_t d, line_ending t) : nonbreak_chars(d), ending(t) {
+			line_info(std::size_t d, ui::line_ending t) : nonbreak_chars(d), ending(t) {
 			}
 
 			std::size_t nonbreak_chars = 0; ///< The number of codepoints in this line, excluding the linebreak.
 			/// The type of the line ending. This will be line_ending::none for the last line.
-			line_ending ending = line_ending::none;
+			ui::line_ending ending = ui::line_ending::none;
 		};
 		/// Stores additional data of a node in the tree.
 		struct line_synth_data {
@@ -71,14 +37,14 @@ namespace codepad::editors::code {
 				/// Returns the sum of line_info::nonbreak_chars and the corresponding length
 				/// of line_info::ending.
 				inline static std::size_t get(const node_type &n) {
-					return n.value.nonbreak_chars + get_line_ending_length(n.value.ending);
+					return n.value.nonbreak_chars + ui::get_line_ending_length(n.value.ending);
 				}
 			};
 			/// Used to obtain the number of linebreaks that follows the line.
 			struct get_node_linebreak_num {
 				/// Returns 0 if the line is the last line of the buffer, 1 otherwise.
 				inline static std::size_t get(const node_type &n) {
-					return n.value.ending == line_ending::none ? 0 : 1;
+					return n.value.ending == ui::line_ending::none ? 0 : 1;
 				}
 			};
 			/// Used to obtain the number of characters in a line. The linebreak counts as one character even
@@ -198,9 +164,9 @@ namespace codepad::editors::code {
 			std::vector<line_info> lines; ///< The information of all invidual lines.
 
 			/// Appends a line to this struct.
-			void append_line(std::size_t nonbreak_chars, line_ending ending) {
+			void append_line(std::size_t nonbreak_chars, ui::line_ending ending) {
 				total_chars += nonbreak_chars;
-				if (ending != line_ending::none) {
+				if (ending != ui::line_ending::none) {
 					++total_chars;
 				}
 				lines.emplace_back(nonbreak_chars, ending);
@@ -319,7 +285,7 @@ namespace codepad::editors::code {
 		/// \param lines Lines of the text clip.
 		void insert_chars(iterator at, std::size_t offset, const std::vector<line_info> &lines) {
 			assert_true_logical(!(at == _t.end() && offset != 0), "invalid insert position");
-			assert_true_logical(!lines.empty() && lines.back().ending == line_ending::none, "invalid text");
+			assert_true_logical(!lines.empty() && lines.back().ending == ui::line_ending::none, "invalid text");
 			if (at == _t.end()) {
 				assert_true_logical(!_t.empty(), "corrupted line_ending_registry");
 				--at;
@@ -345,14 +311,14 @@ namespace codepad::editors::code {
 		/// Called when a range of codepoints has been inserted to the buffer.
 		void insert_codepoints(iterator at, std::size_t offset, const std::vector<line_info> &lines) {
 			if (at != _t.end() && offset > at->nonbreak_chars) { // break \r\n
-				assert_true_logical(at->ending == line_ending::rn, "invalid begin padding");
+				assert_true_logical(at->ending == ui::line_ending::rn, "invalid begin padding");
 				std::size_t n = at->nonbreak_chars;
 				{
 					auto mod = _t.get_modifier_for(at.get_node());
 					mod->nonbreak_chars = 0;
-					mod->ending = line_ending::n;
+					mod->ending = ui::line_ending::n;
 				}
-				_t.emplace_before(at, n, line_ending::r);
+				_t.emplace_before(at, n, ui::line_ending::r);
 				offset = 0;
 			}
 			insert_chars(at, offset, lines);
@@ -381,14 +347,14 @@ namespace codepad::editors::code {
 			}
 			text_clip_info stats;
 			if (beg == end) {
-				stats.append_line(endoff - begoff, line_ending::none);
+				stats.append_line(endoff - begoff, ui::line_ending::none);
 			} else {
 				stats.append_line(beg->nonbreak_chars - begoff, beg->ending);
 				iterator it = beg;
 				for (++it; it != end; ++it) {
 					stats.append_line(it->nonbreak_chars, it->ending);
 				}
-				stats.append_line(endoff, line_ending::none);
+				stats.append_line(endoff, ui::line_ending::none);
 				_t.erase(beg, end);
 			}
 			_t.get_modifier_for(end.get_node())->nonbreak_chars += begoff - endoff;
@@ -413,17 +379,17 @@ namespace codepad::editors::code {
 				return;
 			}
 			if (beg->nonbreak_chars < begcpoff) { // break \r\n
-				assert_true_logical(beg->ending == line_ending::rn, "invalid begin padding");
-				_t.get_modifier_for(beg.get_node())->ending = line_ending::r;
+				assert_true_logical(beg->ending == ui::line_ending::rn, "invalid begin padding");
+				_t.get_modifier_for(beg.get_node())->ending = ui::line_ending::r;
 				++beg;
 				begcpoff = 0;
 			}
 			if (end != _t.end() && end->nonbreak_chars < endcpoff) { // break \r\n
-				assert_true_logical(end->ending == line_ending::rn, "invalid end padding");
+				assert_true_logical(end->ending == ui::line_ending::rn, "invalid end padding");
 				{
 					auto mod = _t.get_modifier_for(end.get_node());
 					endcpoff = mod->nonbreak_chars = (beg == end ? begcpoff : 0);
-					mod->ending = line_ending::n;
+					mod->ending = ui::line_ending::n;
 				}
 			}
 			erase_chars(beg, begcpoff, end, endcpoff);
@@ -526,16 +492,16 @@ namespace codepad::editors::code {
 		/// \return Whether the merge operation took place.
 		bool _try_merge_rn_linebreak(iterator it) {
 			if (it != _t.begin() && it != _t.end()) {
-				if (it->nonbreak_chars == 0 && it->ending == line_ending::n) {
+				if (it->nonbreak_chars == 0 && it->ending == ui::line_ending::n) {
 					auto prev = it;
 					--prev;
-					if (prev->ending == line_ending::r) { // bingo!
+					if (prev->ending == ui::line_ending::r) { // bingo!
 						std::size_t nc = prev->nonbreak_chars;
 						_t.erase(prev);
 						{
 							auto mod = _t.get_modifier_for(it.get_node());
 							mod->nonbreak_chars = nc;
-							mod->ending = line_ending::rn;
+							mod->ending = ui::line_ending::rn;
 						}
 						return true;
 					}
@@ -543,55 +509,5 @@ namespace codepad::editors::code {
 			}
 			return false;
 		}
-	};
-
-	/// Used to analyze a sequence of codepoints and find linebreaks.
-	struct linebreak_analyzer {
-	public:
-		/// Returns the resulting lines. \ref finish() must be called before this is used. The returned
-		/// \p std::vector can be safely moved elsewhere.
-		std::vector<linebreak_registry::line_info> &result() {
-			return _lines;
-		}
-		/// Const version of \ref result().
-		const std::vector<linebreak_registry::line_info> &result() const {
-			return _lines;
-		}
-
-		/// Adds a new codepoint to the back of this \ref linebreak_analyzer.
-		void put(codepoint c) {
-			if (_last == U'\r') { // linebreak starting at the last codepoint
-				if (c == U'\n') { // \r\n
-					_lines.emplace_back(_ncps - 1, line_ending::rn);
-					_ncps = 0;
-				} else { // \r
-					_lines.emplace_back(_ncps - 1, line_ending::r);
-					_ncps = 1;
-				}
-			} else if (c == U'\n') { // \n
-				_lines.emplace_back(_ncps, line_ending::n);
-				_ncps = 0;
-			} else { // normal character, or \r (handled later)
-				++_ncps;
-			}
-			_last = c;
-		}
-		/// Finish analysis. Must be called before using the return value of \ref result().
-		void finish() {
-			if (_last == U'\r') {
-				_lines.emplace_back(_ncps - 1, line_ending::r);
-				_ncps = 0;
-			}
-			_lines.emplace_back(_ncps, line_ending::none);
-		}
-		/// Shorthand for calling \ref put() with \p c and then calling \ref finish().
-		void finish_with(codepoint c) {
-			put(c);
-			finish();
-		}
-	protected:
-		std::vector<linebreak_registry::line_info> _lines; ///< Lines that are the result of this analysis.
-		std::size_t _ncps = 0; ///< The number of codepoints in the current line.
-		codepoint _last = 0; ///< The last codepoint.
 	};
 }

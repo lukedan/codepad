@@ -48,10 +48,10 @@ namespace codepad::editors::code {
 		/// Default constructor.
 		linebreak_fragment() = default;
 		/// Initializes all fields of this struct.
-		explicit linebreak_fragment(line_ending le) : type(le) {
+		explicit linebreak_fragment(ui::line_ending le) : type(le) {
 		}
 
-		line_ending type = line_ending::none; ///< The type of this linebreak.
+		ui::line_ending type = ui::line_ending::none; ///< The type of this linebreak.
 	};
 
 	/// Indicates that the next fragment to be rendered is an image.
@@ -296,7 +296,7 @@ namespace codepad::editors::code {
 				if (position == nextpos) {
 					_prev_chars += _cur_softbreak->length;
 					++_cur_softbreak;
-					return fragment_generation_result(linebreak_fragment(line_ending::none), 0);
+					return fragment_generation_result(linebreak_fragment(ui::line_ending::none), 0);
 				}
 				return fragment_generation_result(no_fragment(), nextpos - position);
 			}
@@ -780,7 +780,7 @@ namespace codepad::editors::code {
 				);
 				if (_handle_solid_fragment(pos, steps, posafter, rend)) { // not over, to the next line
 					// for soft linebreaks, do not add space after the line
-					_append_line_selection(frag.type == line_ending::none ? pos.xmin : pos.xmax, pos.ymin, pos.ymax);
+					_append_line_selection(frag.type == ui::line_ending::none ? pos.xmin : pos.xmax, pos.ymin, pos.ymax);
 					_region_left = 0.0;
 					return true;
 				}

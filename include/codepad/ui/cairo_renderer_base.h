@@ -248,9 +248,26 @@ namespace codepad::ui::cairo {
 		/// Sets the font stretch of the specified range of text.
 		void set_font_stretch(font_stretch, std::size_t beg, std::size_t len) override;
 	protected:
+		/// Contains length information about a single line.
+		struct _line_position {
+			/// Default constructor.
+			_line_position() = default;
+			/// Initializes all fields.
+			_line_position(std::size_t before, std::size_t after) :
+				end_pos_before_break(before), end_pos_after_break(after) {
+			}
+
+			std::size_t
+				/// The position after the last character on this line before the line break.
+				end_pos_before_break = 0,
+				/// The position after the last character on this line after the line break.
+				end_pos_after_break = 0;
+		};
+
 		/// Positions of each character's starting byte. This includes one extra element at the end equal to the
 		/// total byte length of the text.
 		std::vector<std::size_t> _bytepos;
+		std::vector<_line_position> _line_positions;
 		vec2d _layout_size; ///< The size of the virtual layout box.
 		_details::glib_object_ref<PangoLayout> _layout; ///< The underlying \p PangoLayout object.
 		vertical_text_alignment _valign = vertical_text_alignment::center; ///< Vertical text alignment.
@@ -445,7 +462,7 @@ namespace codepad::ui::cairo {
 		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) override {
 			auto res = std::make_unique<bitmap>();
 
-			// TODO
+			// TODO this may be platform-dependent
 
 			return res;
 		}

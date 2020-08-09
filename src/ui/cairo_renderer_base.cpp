@@ -151,21 +151,32 @@ namespace codepad::ui::cairo {
 	std::vector<line_metrics> formatted_text::get_line_metrics() const {
 		PangoLayoutIter *iter = pango_layout_get_iter(_layout.get());
 		std::vector<line_metrics> result;
+		auto pos_it = _line_positions.begin();
+		std::size_t prev_pos = 0;
 		do {
 			int ymin_pu = 0, ymax_pu = 0;
 			pango_layout_iter_get_line_yrange(iter, &ymin_pu, &ymax_pu);
 			double height = pango_units_to_double(ymax_pu - ymin_pu);
-			int baseline = pango_layout_iter_get_baseline(iter);
-			double baseline1 = pango_units_to_double(baseline - ymin_pu);
-			// TODO gather results
-			// make sure to consider the offset
+			double baseline = pango_units_to_double(pango_layout_iter_get_baseline(iter) - ymin_pu);
+			// gather results
+			auto &line_info = result.emplace_back();
+			line_info.height = height;
+			line_info.baseline = baseline;
+
+			assert_true_logical(pos_it != _line_positions.end(), "not enough entries in line lengths");
+			line_info.non_linebreak_characters = pos_it->end_pos_before_break - prev_pos;
+			line_info.linebreak_characters = pos_it->end_pos_after_break - pos_it->end_pos_before_break;
+
+			prev_pos = pos_it->end_pos_after_break;
+			++pos_it;
 		} while (pango_layout_iter_next_line(iter));
 		pango_layout_iter_free(iter);
 		return result;
 	}
 
 	caret_hit_test_result formatted_text::hit_test(vec2d pos) const {
-		pos -= _get_offset();
+		vec2d offset = _get_offset();
+		pos -= offset;
 		int index = 0, trailing = 0;
 		PangoRectangle rect;
 		pango_layout_xy_to_index(
@@ -175,15 +186,17 @@ namespace codepad::ui::cairo {
 		);
 		pango_layout_index_to_pos(_layout.get(), index, &rect);
 
-		caret_hit_test_result result;
-		result.character = _byte_to_char(static_cast<std::size_t>(index));
-		result.character_layout = _details::cast_rect_back(rect).made_positive_swap();
-		result.rear = (trailing != 0);
-		return result;
+		return caret_hit_test_result(
+			_byte_to_char(static_cast<std::size_t>(index)),
+			_details::cast_rect_back(rect).translated(offset),
+			rect.width < 0,
+			trailing != 0
+		);
 	}
 
 	caret_hit_test_result formatted_text::hit_test_at_line(std::size_t line, double x) const {
-		x -= _get_offset().x;
+		vec2d offset = _get_offset();
+		x -= offset.x;
 		caret_hit_test_result res;
 		PangoLayoutLine *pango_line = pango_layout_get_line_readonly(_layout.get(), static_cast<int>(line));
 		int byte_index = 0;
@@ -200,40 +213,73 @@ namespace codepad::ui::cairo {
 		}
 		PangoRectangle rect;
 		pango_layout_index_to_pos(_layout.get(), byte_index, &rect);
-		res.character_layout = _details::cast_rect_back(rect).made_positive_swap();
+		res.character_layout = _details::cast_rect_back(rect).translated(offset);
+		res.right_to_left = rect.width < 0;
 		return res;
 	}
 
 	rectd formatted_text::get_character_placement(std::size_t pos) const {
 		PangoRectangle rect;
 		pango_layout_index_to_pos(_layout.get(), _bytepos[std::min(pos, _bytepos.size() - 1)], &rect);
-		return _details::cast_rect_back(rect).made_positive_swap().translated(_get_offset());
+		return _details::cast_rect_back(rect).translated(_get_offset());
 	}
 
 	std::vector<rectd> formatted_text::get_character_range_placement(std::size_t beg, std::size_t len) const {
-		PangoLayoutIter *iter = pango_layout_get_iter(_layout.get());
-		int beg_index = static_cast<int>(_bytepos[beg]), end_index = static_cast<int>(_bytepos[beg + len]);
+		std::size_t end = beg + len;
+		std::size_t first_line = std::lower_bound(
+			_line_positions.begin(), _line_positions.end(), beg,
+			[](const _line_position &line, std::size_t pos) {
+				return line.end_pos_after_break < pos;
+			}
+		) - _line_positions.begin();
+
+		PangoLayoutIter *pango_iter = pango_layout_get_iter(_layout.get());
+		for (std::size_t i = 0; i < first_line; ++i) {
+			assert_true_logical(pango_layout_iter_next_line(pango_iter), "not enough pango lines");
+		}
+		std::vector<_line_position>::const_iterator line_iter = _line_positions.begin() + first_line;
+
+		std::size_t line_begin = first_line == 0 ? 0 : _line_positions[first_line - 1].end_pos_after_break;
 		std::vector<rectd> result;
-		do {
-			PangoLayoutLine *line = pango_layout_iter_get_line_readonly(iter);
+		while (true) {
+			PangoLayoutLine *pango_line = pango_layout_iter_get_line_readonly(pango_iter);
 			int *ranges = nullptr;
 			int num_ranges = 0;
-			pango_layout_line_get_x_ranges(line, beg_index, end_index, &ranges, &num_ranges);
+			pango_layout_line_get_x_ranges(
+				pango_line,
+				static_cast<int>(_bytepos[std::max(beg, line_begin)]),
+				// FIXME this will not add the extra space after the line representing the line break
+				//       however pango does not seem to add it even if this is after the break
+				//       so maybe we need to add it manually
+				static_cast<int>(_bytepos[std::min(end, line_iter->end_pos_before_break)]),
+				&ranges, &num_ranges
+			);
 			if (ranges) {
 				int ymin_pu = 0, ymax_pu = 0;
-				pango_layout_iter_get_line_yrange(iter, &ymin_pu, &ymax_pu);
+				pango_layout_iter_get_line_yrange(pango_iter, &ymin_pu, &ymax_pu);
 				double ymin = pango_units_to_double(ymin_pu), ymax = pango_units_to_double(ymax_pu);
 
 				int *iter = ranges;
 				for (int i = 0; i < num_ranges; ++i, iter += 2) {
 					int beg = iter[0], end = iter[1];
-					// TODO this includes some space before the line
 					result.emplace_back(pango_units_to_double(beg), pango_units_to_double(end), ymin, ymax);
 				}
 				g_free(ranges);
 			}
-		} while (pango_layout_iter_next_line(iter));
-		pango_layout_iter_free(iter);
+
+			if (end < line_iter->end_pos_after_break) {
+				break;
+			}
+			line_begin = line_iter->end_pos_after_break;
+			++line_iter;
+			if (line_iter == _line_positions.end()) {
+				break;
+			}
+			assert_true_logical(pango_layout_iter_next_line(pango_iter), "not enough pango lines");
+		}
+
+		pango_layout_iter_free(pango_iter);
+
 		// offset all regions
 		vec2d offset = _get_offset();
 		for (rectd &r : result) {
@@ -852,12 +898,35 @@ namespace codepad::ui::cairo {
 			pango_layout_set_attributes(result->_layout.get(), attr_list.get());
 		}
 
-		// compute _bytepos
+		// compute _bytepos and _line_positions
 		result->_bytepos.emplace_back(0); // first character
+		linebreak_analyzer line_analyzer(
+			[&result](std::size_t len, line_ending ending) {
+				std::size_t begin_pos =
+					result->_line_positions.empty() ? 0 : result->_line_positions.back().end_pos_after_break;
+				formatted_text::_line_position &entry = result->_line_positions.emplace_back();
+				entry.end_pos_before_break = begin_pos + len;
+				entry.end_pos_after_break = entry.end_pos_before_break + get_line_ending_length(ending);
+			}
+		);
 		for (auto it = text.begin(); it != text.end(); ) {
-			encodings::utf8::next_codepoint(it, text.end());
+			codepoint cp;
+			if (!encodings::utf8::next_codepoint(it, text.end(), cp)) {
+				cp = 0;
+			}
+			line_analyzer.put(cp);
 			result->_bytepos.emplace_back(it - text.begin());
 		}
+		line_analyzer.finish();
+		assert_true_sys(
+			result->_line_positions.back().end_pos_after_break ==
+			pango_layout_get_character_count(result->_layout.get()),
+			"character count inconsistent with pango"
+		);
+		assert_true_sys(
+			result->_line_positions.size() == pango_layout_get_line_count(result->_layout.get()),
+			"line count inconsistent with pango"
+		);
 
 		return result;
 	}

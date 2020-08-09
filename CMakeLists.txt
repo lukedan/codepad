@@ -174,7 +174,8 @@ elseif(UNIX)
 		target_sources(codepad
 			PRIVATE
 				"src/os/linux/gtk/linux.cpp"
-				"src/os/linux/gtk/misc.cpp")
+				"src/os/linux/gtk/misc.cpp"
+				"src/os/linux/gtk/window.cpp")
 		target_compile_definitions(codepad
 			PUBLIC CP_USE_GTK)
 		find_package(GTK3 REQUIRED)

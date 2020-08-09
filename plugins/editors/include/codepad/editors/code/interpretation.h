@@ -251,7 +251,7 @@ namespace codepad::editors::code {
 				return _col == _lbit->nonbreak_chars;
 			}
 			/// Returns the type of the current line's linebreak.
-			line_ending get_linebreak() const {
+			ui::line_ending get_linebreak() const {
 				return _lbit->ending;
 			}
 			/// Returns the column where this iterator's at.
@@ -393,7 +393,13 @@ namespace codepad::editors::code {
 			performance_monitor mon(u8"full_decode", performance_monitor::log_condition::always);
 
 			std::vector<chunk_data> chunks;
-			linebreak_analyzer lines;
+			// TODO maybe get rid of this intermediate buffer and add the lines to _lbs directly
+			std::vector<linebreak_registry::line_info> lines;
+			ui::linebreak_analyzer line_analyzer(
+				[&lines](std::size_t len, ui::line_ending ending) {
+					lines.emplace_back(len, ending);
+				}
+			);
 			std::size_t
 				chkbegbytes = 0, chkbegcps = 0, curcp = 0,
 				splitcp = maximum_codepoints_per_chunk; // where to split the next chunk
@@ -411,16 +417,16 @@ namespace codepad::editors::code {
 				if (!_encoding->next_codepoint(cur, _buf->end(), curc)) { // invalid codepoint?
 					curc = 0; // disable linebreak detection
 				}
-				lines.put(curc);
+				line_analyzer.put(curc);
 			}
 			// process the last chunk
-			lines.finish();
+			line_analyzer.finish();
 			if (_buf->length() > chkbegbytes) {
 				chunks.emplace_back(_buf->length() - chkbegbytes, curcp - chkbegcps);
 			}
 			// insert into the tree
 			_chks.insert_range_before_move(_chks.end(), chunks.begin(), chunks.end());
-			_lbs.insert_chars(_lbs.begin(), 0, lines.result());
+			_lbs.insert_chars(_lbs.begin(), 0, lines);
 		}
 		/// No copy construction.
 		interpretation(const interpretation&) = delete;
@@ -444,7 +450,7 @@ namespace codepad::editors::code {
 		}
 		/// Returns a \ref character_iterator pointing at the specified character.
 		character_iterator at_character(std::size_t pos) const {
-			auto[colinfo, cp] = _lbs.get_line_and_column_and_codepoint_of_char(pos);
+			auto [colinfo, cp] = _lbs.get_line_and_column_and_codepoint_of_char(pos);
 			return character_iterator(at_codepoint(cp), colinfo.line_iterator, colinfo.position_in_line);
 		}
 
@@ -474,11 +480,11 @@ namespace codepad::editors::code {
 			return _theme;
 		}
 		/// Returns the default line ending for this \ref interpretation.
-		line_ending get_default_line_ending() const {
+		ui::line_ending get_default_line_ending() const {
 			return _line_ending;
 		}
 		/// Sets the default line ending for this \ref interpretation. Note that this does not affect existing text.
-		void set_default_line_ending(line_ending end) {
+		void set_default_line_ending(ui::line_ending end) {
 			_line_ending = end;
 		}
 
@@ -543,7 +549,12 @@ namespace codepad::editors::code {
 			buffer::const_iterator it = _buf->begin();
 			auto chk = _chks.begin();
 			std::size_t bytesbefore = 0;
-			linebreak_analyzer linebreaks;
+			std::vector<linebreak_registry::line_info> lines;
+			ui::linebreak_analyzer linebreaks(
+				[&lines](std::size_t len, ui::line_ending ending) {
+					lines.emplace_back(len, ending);
+				}
+			);
 			while (it != _buf->end() && chk != _chks.end()) {
 				codepoint cp;
 				if (!_encoding->next_codepoint(it, _buf->end(), cp)) {
@@ -580,10 +591,10 @@ namespace codepad::editors::code {
 			}
 			linebreaks.finish();
 
-			auto explineit = linebreaks.result().begin();
+			auto explineit = lines.begin();
 			auto gotlineit = _lbs.begin();
 			std::size_t line = 0;
-			while (explineit != linebreaks.result().end() && gotlineit != _lbs.end()) {
+			while (explineit != lines.end() && gotlineit != _lbs.end()) {
 				if (gotlineit->nonbreak_chars != explineit->nonbreak_chars) {
 					error = true;
 					logger::get().log_error(CP_HERE) <<
@@ -602,11 +613,11 @@ namespace codepad::editors::code {
 				++gotlineit;
 				++line;
 			}
-			if (_lbs.num_linebreaks() + 1 != linebreaks.result().size()) {
+			if (_lbs.num_linebreaks() + 1 != lines.size()) {
 				error = true;
 				logger::get().log_error(CP_HERE) <<
 					"number of lines mismatch: got " << _lbs.num_linebreaks() + 1 <<
-					", expected " << linebreaks.result().size();
+					", expected " << lines.size();
 			}
 
 			return !error;
@@ -625,7 +636,7 @@ namespace codepad::editors::code {
 		const std::shared_ptr<buffer> _buf; ///< The underlying \ref buffer.
 		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
 		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
-		line_ending _line_ending = line_ending::n; ///< The default line ending for this \ref interpretation.
+		ui::line_ending _line_ending = ui::line_ending::n; ///< The default line ending for this \ref interpretation.
 		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
 
 		/// Used to find the number of bytes before a specified codepoint.
@@ -814,14 +825,20 @@ namespace codepad::editors::code {
 				buffer::const_iterator bit = _buf->at(lastbyte);
 				_debug_log_post_edit_fixup("    starting from codepoint ", lastcp, ", byte ", lastbyte);
 
-				linebreak_analyzer lines;
+				// TODO maybe get rid of the buffer and insert into _lbr directly
+				std::vector<linebreak_registry::line_info> lines;
+				ui::linebreak_analyzer line_analyzer(
+					[&lines](std::size_t len, ui::line_ending ending) {
+						lines.emplace_back(len, ending);
+					}
+				);
 				codepoint cp = 0;
 				// find first modified codepoint
 				for (; bit != _buf->end() && bit.get_position() <= modit->position; ++cppos) {
 					if (!_encoding->next_codepoint(bit, _buf->end(), cp)) {
 						cp = 0;
 					}
-					lines.put(cp);
+					line_analyzer.put(cp);
 				}
 				std::vector<chunk_data> chks;
 				std::size_t
@@ -838,7 +855,7 @@ namespace codepad::editors::code {
 					if (!_encoding->next_codepoint(bit, _buf->end(), cp)) {
 						cp = 0;
 					}
-					lines.put(cp);
+					line_analyzer.put(cp);
 				}
 
 				// find the next old codepoint boundary
@@ -869,7 +886,7 @@ namespace codepad::editors::code {
 						if (!_encoding->next_codepoint(bit, _buf->end(), cp)) {
 							cp = 0;
 						}
-						lines.put(cp);
+						line_analyzer.put(cp);
 					}
 					if (bit.get_position() == tgpos) { // boundary found, stop
 						break;
@@ -879,7 +896,7 @@ namespace codepad::editors::code {
 					_debug_log_post_edit_fixup("      no luck, targeting byte ", tgpos, ", codepoint ", endcp);
 				}
 				// handle last chunk
-				lines.finish();
+				line_analyzer.finish();
 				std::size_t bytepos = bit.get_position();
 				if (bytepos != lastbyte) {
 					chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
@@ -902,7 +919,7 @@ namespace codepad::editors::code {
 				lastchk = chkit;
 				// lines
 				_lbs.erase_codepoints(firstcp, endcp);
-				_lbs.insert_codepoints(firstcp, lines.result());
+				_lbs.insert_codepoints(firstcp, lines);
 
 				modit = nextmodit;
 			}

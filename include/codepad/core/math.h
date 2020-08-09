@@ -252,10 +252,10 @@ namespace codepad {
 		[[nodiscard]] constexpr rect made_positive_swap() const {
 			rect res = *this;
 			if (res.xmin > res.xmax) {
-				res.xmax = res.xmin;
+				std::swap(res.xmin, res.xmax);
 			}
 			if (res.ymin > res.ymax) {
-				res.ymax = res.ymin;
+				std::swap(res.ymin, res.ymax);
 			}
 			return res;
 		}
