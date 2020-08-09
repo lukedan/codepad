@@ -310,6 +310,18 @@ namespace codepad::os::direct2d {
 	}
 
 
+	// - one-to-one mapping
+	//   - glyph to char: 1 2 3
+	//   - char to glyph: 1 2 3
+	// - one char to many glyphos
+	//   - glyph to char: 1 2 2 2 3
+	//   - char to glyph: 1 2     5
+	// - many chars to one glyph
+	//   - glyph to char: 1 2     5
+	//   - char to glyph: 1 2 2 2 3
+	// - many chars to many glhphs
+	//   - glyph to char: 1 2 2 2 4
+	//   - char to glyph: 1 2 2   5
 	ui::caret_hit_test_result plain_text::hit_test(double xpos) const {
 		_maybe_calculate_glyph_positions();
 		_maybe_calculate_glyph_backmapping();
@@ -324,22 +336,21 @@ namespace codepad::os::direct2d {
 		std::size_t glyphid = glyphit - _cached_glyph_positions.begin();
 
 		if (glyphid < _glyph_count) {
-			// find sub-glyph position
-			double ratio = (xpos - _cached_glyph_positions[glyphid]) / _glyph_advances[glyphid];
-			// TODO not working with certain text such as arabic
-			std::size_t firstchar = _cached_glyph_to_char_mapping_starting[glyphid];
-			std::size_t nchars = _cached_glyph_to_char_mapping_starting[glyphid + 1] - firstchar;
-			assert_true_logical(nchars > 0, "glyph without corresponding character");
-			ratio *= nchars;
-			std::size_t offset = std::min(static_cast<std::size_t>(ratio), nchars - 1);
+			_cluster_analysis cluster = _analyze_at_glyph(glyphid);
+			// divide the cluster evenly among the characters
+			double tot_len =
+				_cached_glyph_positions[cluster.past_last_glyph()] - _cached_glyph_positions[cluster.first_glyph];
+			double ratio = (xpos - _cached_glyph_positions[cluster.first_glyph]) / tot_len;
+			ratio *= cluster.num_chars;
+			std::size_t offset = std::min(static_cast<std::size_t>(ratio), cluster.num_chars - 1);
 
-			result.character = _cached_glyph_to_char_mapping[firstchar + offset];
+			result.character = cluster.first_char + offset;
 			result.rear = ratio - offset > 0.5;
-			result.character_layout = _get_character_placement_impl(glyphid, offset);
+			result.character_layout = _get_character_placement_impl(cluster, offset);
 		} else { // past the end
 			result.character = _char_count;
 			result.rear = false;
-			result.character_layout = _get_character_placement_impl(glyphid, 0);
+			result.character_layout = _get_character_placement_impl(_analyze_at_glyph(_glyph_count), 0);
 		}
 
 		return result;
@@ -352,11 +363,9 @@ namespace codepad::os::direct2d {
 		std::size_t glyphid = _glyph_count, offset = 0;
 		if (pos < _char_count) {
 			glyphid = _cluster_map[pos];
-			std::size_t beg = _cached_glyph_to_char_mapping_starting[glyphid];
-			for (; _cached_glyph_to_char_mapping[beg + offset] != pos; ++offset) {
-			}
+			offset = pos - _cached_glyph_to_char_mapping[glyphid];
 		}
-		return _get_character_placement_impl(glyphid, offset);
+		return _get_character_placement_impl(_analyze_at_glyph(glyphid), offset);
 	}
 
 	void plain_text::_maybe_calculate_glyph_positions() const {
@@ -372,44 +381,54 @@ namespace codepad::os::direct2d {
 	}
 
 	void plain_text::_maybe_calculate_glyph_backmapping() const {
-		if (_cached_glyph_to_char_mapping_starting.empty()) {
+		if (_cached_glyph_to_char_mapping.empty()) {
 			// compute inverse map
-			_cached_glyph_to_char_mapping.resize(_char_count);
-			for (std::size_t i = 0; i < _char_count; ++i) {
-				_cached_glyph_to_char_mapping[i] = i;
+			_cached_glyph_to_char_mapping.resize(_glyph_count, 0);
+			// fill in 'keys' in reverse so the smaller values override the larger ones
+			for (std::size_t i = _char_count; i > 0; ) {
+				--i;
+				_cached_glyph_to_char_mapping[_cluster_map[i]] = i;
 			}
-			std::sort(
-				_cached_glyph_to_char_mapping.begin(), _cached_glyph_to_char_mapping.end(),
-				[this](std::size_t lhs, std::size_t rhs) {
-					UINT16 lglyph = _cluster_map[lhs], rglyph = _cluster_map[rhs];
-					if (lglyph != rglyph) {
-						return lglyph < rglyph;
-					}
-					return lhs < rhs;
-				}
-			);
-
-			// compute starting indices
-			_cached_glyph_to_char_mapping_starting.reserve(_glyph_count + 1);
-			std::size_t pos = 0;
-			for (std::size_t i = 0; i < _glyph_count; ++i) {
-				_cached_glyph_to_char_mapping_starting.emplace_back(pos);
-				while (pos < _char_count && _cluster_map[_cached_glyph_to_char_mapping[pos]] == i) {
-					++pos;
-				}
+			for (std::size_t i = 1; i < _glyph_count; ++i) { // extrapolate into the gaps
+				_cached_glyph_to_char_mapping[i] = std::max(
+					_cached_glyph_to_char_mapping[i - 1], _cached_glyph_to_char_mapping[i]
+				);
 			}
-			_cached_glyph_to_char_mapping_starting.emplace_back(pos);
+			_cached_glyph_to_char_mapping.emplace_back(_char_count);
 		}
 	}
 
-	rectd plain_text::_get_character_placement_impl(std::size_t glyphid, std::size_t charoffset) const {
-		// horizontal
-		double left = _cached_glyph_positions[glyphid], width = 0.0;
+	plain_text::_cluster_analysis plain_text::_analyze_at_glyph(std::size_t glyphid) const {
+		_cluster_analysis result;
 		if (glyphid < _glyph_count) {
-			std::size_t count =
-				_cached_glyph_to_char_mapping_starting[glyphid + 1] -
-				_cached_glyph_to_char_mapping_starting[glyphid];
-			width = _glyph_advances[glyphid] / count;
+			_maybe_calculate_glyph_backmapping();
+			result.first_char = _cached_glyph_to_char_mapping[glyphid];
+			result.first_glyph = _cluster_map[result.first_char];
+			for (
+				std::size_t c = result.first_char;
+				c < _char_count && _cluster_map[c] == result.first_glyph;
+				++c, ++result.num_chars
+			) {
+			}
+			for (
+				std::size_t g = result.first_glyph;
+				g < _glyph_count && _cluster_map[g] == result.first_glyph;
+				++g, ++result.num_glyphs
+			) {
+			}
+		} else {
+			result.first_char = _char_count;
+			result.first_glyph = _glyph_count;
+		}
+		return result;
+	}
+
+	rectd plain_text::_get_character_placement_impl(_cluster_analysis anal, std::size_t charoffset) const {
+		// horizontal
+		double left = _cached_glyph_positions[anal.first_glyph], width = 0.0;
+		if (anal.first_glyph < _glyph_count) {
+			double total_width = _cached_glyph_positions[anal.past_last_glyph()] - left;
+			width = total_width / anal.num_chars;
 			left += width * charoffset;
 		}
 
@@ -1072,10 +1091,10 @@ namespace codepad::os::direct2d {
 		// TODO more features & customizable?
 		DWRITE_FONT_FEATURE features[] = {
 			{ DWRITE_FONT_FEATURE_TAG_KERNING, 1 },
-		{ DWRITE_FONT_FEATURE_TAG_REQUIRED_LIGATURES, 1 }, // rlig
-		{ DWRITE_FONT_FEATURE_TAG_STANDARD_LIGATURES, 1 }, // liga
-		{ DWRITE_FONT_FEATURE_TAG_CONTEXTUAL_LIGATURES, 1 }, // clig
-		{ DWRITE_FONT_FEATURE_TAG_CONTEXTUAL_ALTERNATES, 1 } // calt
+			{ DWRITE_FONT_FEATURE_TAG_REQUIRED_LIGATURES, 1 }, // rlig
+			{ DWRITE_FONT_FEATURE_TAG_STANDARD_LIGATURES, 1 }, // liga
+			{ DWRITE_FONT_FEATURE_TAG_CONTEXTUAL_LIGATURES, 1 }, // clig
+			{ DWRITE_FONT_FEATURE_TAG_CONTEXTUAL_ALTERNATES, 1 } // calt
 		};
 
 		DWRITE_TYPOGRAPHIC_FEATURES feature_list;
@@ -1129,15 +1148,17 @@ namespace codepad::os::direct2d {
 
 		// since directwrite treats a surrogate pair (one codepoint) as two characters, here we find all
 		// surrogate pairs, remove duplicate entries in the cluster map, and correct the number of characters
+		// TODO this has not been thoroughly tested
 		result->_char_count = text.size();
 		for (std::size_t i = 0, reduced = 0; i < text.size(); ++i, ++reduced) {
-			// if the last unit starts a surrogate pair, then the codepoint is invalid; however this means that
-			// there's no duplicate stuff so nothing needs to be done
+			// if the last unit in the text starts a surrogate pair, then the codepoint is invalid; however this
+			// means that there's no duplicate stuff so nothing needs to be done
 			if (i + 1 < text.size()) {
-				if (
+				if ( // check that the current unit starts a surrogate pair
 					(static_cast<std::uint16_t>(text[i]) & encodings::utf16<>::mask_pair) ==
 					encodings::utf16<>::patt_pair
-					) {
+				) {
+					// TODO do we check if the next unit is also part of the surrogate pair?
 					assert_true_sys(
 						result->_cluster_map[i] == result->_cluster_map[i + 1],
 						"different glyphs for surrogate pair"
@@ -1148,6 +1169,17 @@ namespace codepad::os::direct2d {
 				}
 			}
 			result->_cluster_map[reduced] = result->_cluster_map[i];
+		}
+
+		// make the cluster map monotonic
+		if (result->_char_count > 0) {
+			for (std::size_t i = result->_char_count - 1; i > 0; ) {
+				--i;
+				if (result->_cluster_map[i + 1] < result->_cluster_map[i]) {
+					logger::get().log_warning(CP_HERE) << "non-monotonic cluster map encountered at position " << i;
+					result->_cluster_map[i] = result->_cluster_map[i + 1];
+				}
+			}
 		}
 
 		return result;

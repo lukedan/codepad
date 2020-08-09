@@ -171,23 +171,32 @@ namespace codepad::os::direct2d {
 		/// Returns the position of the given character.
 		rectd get_character_placement(std::size_t) const override;
 	protected:
-		/// Fills \ref _cached_glyph_positions if necessary.
-		void _maybe_calculate_glyph_positions() const;
-		/// If necessary, calculates \ref _cached_glyph_to_char_mapping and
-		/// \ref _cached_glyph_to_char_mapping_starting.
-		void _maybe_calculate_glyph_backmapping() const;
+		/// Stores the results of analyzing a text cluster.
+		struct _cluster_analysis {
+			std::size_t
+				first_char = 0, ///< The first character in the cluster.
+				num_chars = 0, ///< The number of characters in the cluster.
+				first_glyph = 0, ///< The first glyph in the cluster.
+				num_glyphs = 0; ///< The number of glyphs in the cluster.
 
-		/// The positions of the left borders of all glyphs. This array has one additional element at the back - the
-		/// total width of this clip.
+			/// Returns the sum of \ref first_glyph and \ref num_glyphs.
+			[[nodiscard]] std::size_t past_last_glyph() const {
+				return first_glyph + num_glyphs;
+			}
+			/// Returns the sum of \ref first_char and \ref num_chars.
+			[[nodiscard]] std::size_t past_last_char() const {
+				return first_char + num_chars;
+			}
+		};
+
+		/// The positions of the left borders of all glyphs. This array has one additional element at the back which
+		/// is the total width of this clip.
 		mutable std::vector<double> _cached_glyph_positions;
-		/// A one-to-many mapping from glyphs to character indices. This should be used with
-		/// \ref _cached_glyph_to_char_mapping_starting.
+		/// A many-to-one mapping from glyphs to character indices. This array has one additional element at the end
+		/// that is the total number of characters.
 		mutable std::vector<std::size_t> _cached_glyph_to_char_mapping;
-		/// The starting index in \ref _cached_glyph_to_char_mapping of characters corresponding to each glyph. This
-		/// array has one additional element at the back that is the total number of characters.
-		mutable std::vector<std::size_t> _cached_glyph_to_char_mapping_starting;
 
-		std::unique_ptr<UINT16[]> _cluster_map; ///< Mapping from character ranges to glyph ranges.
+		std::unique_ptr<UINT16[]> _cluster_map; ///< `Mapping from character ranges to glyph ranges.'
 		std::unique_ptr<UINT16[]> _glyphs; ///< The list of glyph indices.
 		std::unique_ptr<FLOAT[]> _glyph_advances; ///< The horizontal advancement width of each glyph.
 		std::unique_ptr<DWRITE_GLYPH_OFFSET[]> _glyph_offsets; ///< The offset of each glyph.
@@ -197,8 +206,16 @@ namespace codepad::os::direct2d {
 			_char_count = 0, ///< The total number of characters.
 			_glyph_count = 0; ///< The actual number of glyphs.
 
+		/// Fills \ref _cached_glyph_positions if necessary.
+		void _maybe_calculate_glyph_positions() const;
+		/// If necessary, calculates \ref _cached_glyph_to_char_mapping and
+		/// \ref _cached_glyph_to_char_mapping_starting.
+		void _maybe_calculate_glyph_backmapping() const;
+
+		/// Returns information about the cluster that contains the given glyph.
+		[[nodiscard]] _cluster_analysis _analyze_at_glyph(std::size_t glyphid) const;
 		/// Returns the placement of the specified character.
-		rectd _get_character_placement_impl(std::size_t glyphid, std::size_t charoffset) const;
+		[[nodiscard]] rectd _get_character_placement_impl(_cluster_analysis, std::size_t charoffset) const;
 	};
 
 	/// Encapsules a \p ID2D1PathGeometry and a \p ID2D1GeometrySink.

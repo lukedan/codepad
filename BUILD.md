@@ -32,12 +32,16 @@ The Cairo renderer, if enabled, requires the following packages:
 
 ## Building on Windows
 
-The recommended building configuration for windows is:
+The recommended building configuration on Windows is:
 
 - Visual Studio 2019.
 - `vcpkg` for dependency installation, especially if you want to build with Cairo renderer support. Refer to `vcpkg` documentation for how to make the packages visible to CMake.
 
 Building with MinGW-w32 has not been thoroughly tested and can be tricky.
+
+## Running `codepad`
+
+`codepad` uses configuration files in the `config` folder. Currently this dependency is hard-coded in [`main.cpp`](src/main.cpp), and the `config` folder must be in the working directory of the executable. `codepad` also loads plugins specified in [`settings.json`](config/settings.json) that are shared libraries, and due to how shared library loading works on different platforms, the system may fail to find the library files. Thus, you may need to manually modify the list items to match the relative paths of the library files in the build output folder.
 
 ## Building the documentation
 

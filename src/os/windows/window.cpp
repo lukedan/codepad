@@ -318,6 +318,9 @@ namespace codepad::os {
 
 			case WM_CANCELMODE:
 				form->_on_lost_window_capture();
+				// MSDN says DefWindowProc releases mouse capture but does not say if we should too
+				// if we don't it seems that this message can be sent again and again so we might as well
+				_details::winapi_check(ReleaseCapture());
 				return 0;
 
 			case WM_SETCURSOR:
