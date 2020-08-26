@@ -21,18 +21,21 @@ namespace codepad::editors {
 			std::vector<chunk_data> chunks;
 			while (true) {
 				auto &chk = chunks.emplace_back();
-				chk.resize(maximum_bytes_per_chunk);
-				auto res = static_cast<std::size_t>(f->read(maximum_bytes_per_chunk, chk.data()));
+				chk.data.resize(maximum_bytes_per_chunk);
+				auto res = static_cast<std::size_t>(f->read(maximum_bytes_per_chunk, chk.data.data()));
 				if (res < maximum_bytes_per_chunk) {
 					if (res > 0) {
-						chk.resize(res);
+						chk.data.resize(res);
 					} else {
 						chunks.pop_back();
 					}
 					break;
 				}
 			}
-			_t.insert_range_before_move(_t.end(), chunks.begin(), chunks.end());
+			// TODO build the tree directly
+			for (chunk_data &cd : chunks) {
+				_t.emplace_before(_t.cend(), std::move(cd));
+			}
 		} // TODO failed to open file
 
 		/*// STL version
@@ -88,28 +91,30 @@ namespace codepad::editors {
 	}
 
 	void buffer::_erase(const_iterator beg, const_iterator end) {
-		if (beg._it == _t.end()) {
+		if (beg._it == _t.cend()) {
 			return;
 		}
 		if (beg._it == end._it) { // same chunk
-			_t.get_modifier_for(beg._it.get_node())->erase(beg._s, end._s);
+			_t.mutable_tree().get_modifier_for(beg._it.get_node())->data.erase(beg._s, end._s);
 			_try_merge_small_nodes(beg._it);
 			return;
 		}
 		// erase full chunks
-		if (beg._s == beg._it->begin()) { // the first chunk is fully deleted
+		if (beg._s == beg._it->data.begin()) { // the first chunk is fully deleted
 			_t.erase(beg._it, end._it);
 		} else {
-			_t.erase(beg._it.get_node()->next(), end._it.get_node());
+			tree_type::const_iterator erase_beg = beg._it;
+			++erase_beg;
+			_t.erase(erase_beg, end._it);
 			// erase the part in the first chunk
-			_t.get_modifier_for(beg._it.get_node())->erase(beg._s, beg._it->end());
+			_t.mutable_tree().get_modifier_for(beg._it.get_node())->data.erase(beg._s, beg._it->data.end());
 		}
-		if (end._it != _t.end()) {
+		if (end._it != _t.cend()) {
 			// erase the part in the last chunk
-			_t.get_modifier_for(end._it.get_node())->erase(end._it->begin(), end._s);
+			_t.mutable_tree().get_modifier_for(end._it.get_node())->data.erase(end._it->data.begin(), end._s);
 			_try_merge_small_nodes(end._it);
 		} else if (!_t.empty()) {
-			_try_merge_small_nodes(--_t.end());
+			_try_merge_small_nodes(--_t.cend());
 		}
 	}
 }

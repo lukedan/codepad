@@ -8,9 +8,6 @@
 
 #include <codepad/core/plugins.h>
 
-extern const codepad::plugin_context *context;
-extern codepad::plugin *this_plugin;
-
 // type casters
 // https://pybind11.readthedocs.io/en/stable/advanced/cast/custom.html
 namespace pybind11::detail {
@@ -86,7 +83,12 @@ namespace pybind11::detail {
 		::codepad::logger::get().log_error(CP_HERE) << _err.what() << ::codepad::logger::stacktrace; \
 	}
 
-/// Registers all core codepad classes.
-void register_core_classes(pybind11::module&);
-/// Registers all ui codepad classes.
-void register_ui_classes(pybind11::module&);
+namespace python_plugin_host_pybind11 {
+	extern const codepad::plugin_context *context;
+	extern codepad::plugin *this_plugin;
+
+	/// Registers all core codepad classes.
+	void register_core_classes(pybind11::module&);
+	/// Registers all ui codepad classes.
+	void register_ui_classes(pybind11::module&);
+}

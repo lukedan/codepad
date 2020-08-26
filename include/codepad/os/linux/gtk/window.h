@@ -229,14 +229,7 @@ namespace codepad::os {
 		}
 		static gboolean _on_key_press_event(GtkWidget*, GdkEvent*, window*);
 		static gboolean _on_key_release_event(GtkWidget*, GdkEvent*, window*);
-		inline static gboolean _on_scroll_event(GtkWidget*, GdkEvent *event, window *wnd) {
-			_form_onevent<ui::mouse_scroll_info>(
-				*wnd, &window::_on_mouse_scroll,
-				-vec2d(event->scroll.delta_x, event->scroll.delta_y),
-				wnd->_update_mouse_position(vec2d(event->scroll.x, event->scroll.y))
-			);
-			return true;
-		}
+		static gboolean _on_scroll_event(GtkWidget*, GdkEvent*, window*);
 
 		inline static void _on_im_commit(GtkIMContext*, gchar *str, window *wnd) {
 			ui::text_info inf(reinterpret_cast<const char8_t*>(str));

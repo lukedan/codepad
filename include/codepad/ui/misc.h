@@ -304,10 +304,10 @@ namespace codepad {
 	/// Specialization for ui::thickness since it doesn't support arithmetic operators.
 	template <> inline ui::thickness lerp<ui::thickness>(ui::thickness from, ui::thickness to, double perc) {
 		return ui::thickness(
-			lerp(from.left, to.left, perc),
-			lerp(from.top, to.top, perc),
-			lerp(from.right, to.right, perc),
-			lerp(from.bottom, to.bottom, perc)
+			std::lerp(from.left, to.left, perc),
+			std::lerp(from.top, to.top, perc),
+			std::lerp(from.right, to.right, perc),
+			std::lerp(from.bottom, to.bottom, perc)
 		);
 	}
 

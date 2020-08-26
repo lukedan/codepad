@@ -196,7 +196,7 @@ namespace codepad::ui {
 
 	void window_base::_on_mouse_scroll(mouse_scroll_info &p) {
 		if (_capture != nullptr) {
-			for (element *e = _capture; !p.handled() && e != this; e = e->parent()) {
+			for (element *e = _capture; e != this; e = e->parent()) {
 				assert_true_logical(e, "corrupted element tree");
 				e->_on_mouse_scroll(p);
 			}

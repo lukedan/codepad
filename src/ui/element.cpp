@@ -188,7 +188,7 @@ namespace codepad::ui {
 
 	void element::_on_mouse_down(mouse_button_info &p) {
 		if (p.button == mouse_button::primary) {
-			if (is_visible(visibility::focus) && !p.focus_set()) {
+			if (is_visible(visibility::focus) && !p.is_focus_set()) {
 				p.mark_focus_set();
 				get_manager().get_scheduler().set_focused_element(this);
 			}

@@ -60,24 +60,49 @@ namespace codepad::ui {
 	struct mouse_scroll_info {
 	public:
 		/// Constructor.
-		mouse_scroll_info(vec2d d, mouse_position pos) : delta(d), position(pos) {
+		mouse_scroll_info(vec2d d, mouse_position pos, bool smooth) :
+			raw_delta(d), position(pos), is_smooth(smooth), _remaining_delta(d) {
 		}
 
-		const vec2d delta; ///< The offset of the mouse scroll.
+		/// The original offset of the mouse scroll.
+		const vec2d raw_delta;
 		/// The position of the mouse when the scroll took place.
 		const mouse_position position;
+		const bool is_smooth = false; ///< Whether this scroll operation is smooth scrolling.
 
-		/// Returns \p true if the scroll has been handled by an element.
-		[[nodiscard]] bool handled() const {
-			return _handled;
+		/// Returns the delta that has not been consumed by \ref consume().
+		vec2d delta() const {
+			return _remaining_delta;
 		}
-		/// Marks this event as handled.
-		void mark_handled() {
-			assert_true_usage(!_handled, "event is being marked as handled twice");
-			_handled = true;
+		/// Consumes the delta by the given amount. Warns if too much is consumed.
+		void consume(vec2d v) {
+			consume_horizontal(v.x);
+			consume_vertical(v.y);
+		}
+		/// Consumes the horizontal delta by the given amount. Warns if too much is consumed.
+		void consume_horizontal(double val) {
+			_consume_impl(_remaining_delta.x, val, u8"x");
+		}
+		/// Consumes the vertical delta by the given amount. Warns if too much is consumed.
+		void consume_vertical(double val) {
+			_consume_impl(_remaining_delta.y, val, u8"y");
 		}
 	protected:
-		bool _handled = false; ///< Marks if the event has been handled by an element.
+		vec2d _remaining_delta; ///< The amount of delta that has not been consumed.
+
+		/// Implementation of \ref consume() for one axis.
+		void _consume_impl(double &current, double amount, std::u8string_view name) {
+			double new_value = current + amount;
+			double product = new_value * current;
+			if (product < 0.0) {
+				if (product < -1e-6) {
+					logger::get().log_warning(CP_HERE) <<
+						"consuming too much scroll delta on the " << name << "axis" << logger::stacktrace;
+				}
+				new_value = 0.0;
+			}
+			current = new_value;
+		}
 	};
 	/// Contains information about mouse clicks.
 	struct mouse_button_info {
@@ -97,7 +122,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns \p true if the click has caused the focused element to change.
-		[[nodiscard]] bool focus_set() const {
+		[[nodiscard]] bool is_focus_set() const {
 			return _focus_set;
 		}
 		/// Marks that the focused element has changed.

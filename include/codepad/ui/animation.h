@@ -148,13 +148,6 @@ namespace codepad::ui {
 			constexpr static bool value = std::is_same_v<decltype(test(0)), std::true_type>;
 		};
 	};
-	/// Returns the target value without interpolating.
-	struct no_lerp {
-		/// Returns \p to.
-		template <typename T> T operator()(T, T to, double) const {
-			return to;
-		}
-	};
 
 
 	/// Defines a keyframe animation. Key frames contain target values, durations, and transition functions.

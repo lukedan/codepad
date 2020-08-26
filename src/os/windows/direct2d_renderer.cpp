@@ -224,16 +224,20 @@ namespace codepad::os::direct2d {
 	}
 
 	std::vector<rectd> formatted_text::get_character_range_placement(std::size_t beg, std::size_t len) const {
-		constexpr std::size_t static_buffer_size = 20;
+		constexpr UINT32 static_buffer_size = 20;
 		static DWRITE_HIT_TEST_METRICS static_buffer[static_buffer_size];
 
 		UINT32 count = 0;
-		HRESULT hres = _text->HitTestTextRange(beg, len, 0.0f, 0.0f, static_buffer, static_buffer_size, &count);
+		HRESULT hres = _text->HitTestTextRange(
+			static_cast<UINT32>(beg), static_cast<UINT32>(len), 0.0f, 0.0f, static_buffer, static_buffer_size, &count
+		);
 		const DWRITE_HIT_TEST_METRICS *result_ptr = static_buffer;
 		std::vector<DWRITE_HIT_TEST_METRICS> buffer;
 		if (hres == E_NOT_SUFFICIENT_BUFFER) {
 			buffer.resize(count);
-			_details::com_check(_text->HitTestTextRange(beg, len, 0.0f, 0.0f, buffer.data(), count, &count));
+			_details::com_check(_text->HitTestTextRange(
+				static_cast<UINT32>(beg), static_cast<UINT32>(len), 0.0f, 0.0f, buffer.data(), count, &count
+			));
 			result_ptr = buffer.data();
 		} else {
 			_details::com_check(hres);

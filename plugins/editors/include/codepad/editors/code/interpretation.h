@@ -303,7 +303,7 @@ namespace codepad::editors::code {
 					_firstcp = pos;
 					_chkcp = 0;
 					_codepoint_pos_converter finder;
-					_cpchk = _interp._chks.find_custom(finder, pos);
+					_cpchk = _interp._chks.find(finder, pos);
 					_firstcp -= pos;
 					_firstbyte = finder.total_bytes;
 					_byteit = _interp.get_buffer()->at(_firstbyte);
@@ -327,7 +327,7 @@ namespace codepad::editors::code {
 					_firstbyte = pos;
 					_chkcp = 0;
 					_byte_pos_converter finder;
-					_cpchk = _interp._chks.find_custom(finder, pos);
+					_cpchk = _interp._chks.find(finder, pos);
 					_firstbyte -= pos;
 					_firstcp = finder.total_codepoints;
 					_byteit = _interp.get_buffer()->at(_firstbyte);
@@ -441,7 +441,7 @@ namespace codepad::editors::code {
 		/// Returns a \ref codepoint_iterator pointing at the specified codepoint.
 		codepoint_iterator at_codepoint(std::size_t pos) const {
 			_codepoint_pos_converter finder;
-			_chks.find_custom(finder, pos);
+			_chks.find(finder, pos);
 			codepoint_iterator res(_buf->at(finder.total_bytes), *this);
 			for (std::size_t i = 0; i < pos; ++i) {
 				res.next();
@@ -532,13 +532,17 @@ namespace codepad::editors::code {
 		}
 
 
-		/// Checks the integrity of this \ref interpretation by re-interpreting the underlying \ref buffer. This
-		/// function is mainly intended to be used for debugging.
+		/// Checks the integrity of this \ref interpretation by re-interpreting the underlying \ref buffer, and the
+		/// underlying buffer by invoking \ref buffer::check_integrity(). Used for testing and debugging.
 		///
-		/// \return Indicates whether the data in \ref _lbs and \ref _chks are valid and correct.
+		/// \return Indicates whether the data in \ref _lbs and \ref _chks are valid and correct. Note that the
+		///         underlying trees assert if they're corrupted instead of returning \p false.
 		bool check_integrity() const {
+			_buf->check_integrity();
+
 			bool error = false;
 
+			_chks.check_integrity();
 			for (const chunk_data &chk : _chks) {
 				if (chk.num_codepoints == 0 || chk.num_bytes == 0) {
 					error = true;
@@ -816,7 +820,7 @@ namespace codepad::editors::code {
 					std::size_t chkpos = suspect;
 					// if a modification starts at the beginning of a chunk, then the codepoint barrier is invalid
 					_byte_pos_converter<std::less_equal> finder;
-					lastchk = _chks.find_custom(finder, chkpos);
+					lastchk = _chks.find(finder, chkpos);
 					lastcp = finder.total_codepoints;
 					lastbyte = suspect - chkpos;
 				}
@@ -861,7 +865,7 @@ namespace codepad::editors::code {
 				// find the next old codepoint boundary
 				std::size_t tgckpos = modremend; // position of the next old codepoint boundary
 				_byte_pos_converter posfinder;
-				tree_type::const_iterator chkit = _chks.find_custom(posfinder, tgckpos);
+				tree_type::const_iterator chkit = _chks.find(posfinder, tgckpos);
 				std::size_t
 					endcp = posfinder.total_codepoints, // (one after) the last codepoint to remove from old _lbs
 					tgpos = modaddend - tgckpos; // adjust position to that after the edit

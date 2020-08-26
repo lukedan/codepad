@@ -172,14 +172,14 @@ namespace codepad::os {
 			case WM_KEYDOWN:
 				_form_onevent<ui::key_info>(
 					*form, &window::_on_key_down, _details::key_id_mapping_t::backward.value[wparam]
-					);
+				);
 				break;
 			case WM_SYSKEYUP:
 				[[fallthrough]];
 			case WM_KEYUP:
 				_form_onevent<ui::key_info>(
 					*form, &window::_on_key_up, _details::key_id_mapping_t::backward.value[wparam]
-					);
+				);
 				break;
 
 			case WM_UNICHAR:
@@ -193,7 +193,7 @@ namespace codepad::os {
 					} else {
 						content = reinterpret_cast<const char8_t*>(
 							encodings::utf8::encode_codepoint(static_cast<codepoint>(wparam)).c_str()
-							);
+						);
 					}
 					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, content);
 				}
@@ -224,11 +224,17 @@ namespace codepad::os {
 					p.x = GET_X_LPARAM(lparam);
 					p.y = GET_Y_LPARAM(lparam);
 					_details::winapi_check(ScreenToClient(form->_hwnd, &p));
+					int wheel_delta = GET_WHEEL_DELTA_WPARAM(wparam);
 					_form_onevent<ui::mouse_scroll_info>(
 						*form, &window::_on_mouse_scroll,
-						vec2d(0.0, GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA)),
-						form->_update_mouse_position(form->_physical_to_logical_position(vec2d(p.x, p.y)))
-						);
+						// here the sign is inverted so that we add the value
+						// to obtain the new position instead of subtracting
+						vec2d(0.0, -wheel_delta / static_cast<double>(WHEEL_DELTA)),
+						form->_update_mouse_position(form->_physical_to_logical_position(vec2d(p.x, p.y))),
+						// FIXME here and in WM_MOUSEHWHEEL this is used to determine if the scroll event is smooth
+						//       scrolling, which may cause false positives, but we aren't aware of a better way
+						wheel_delta % WHEEL_DELTA != 0
+					);
 					return 0;
 				}
 			case WM_MOUSEHWHEEL:
@@ -237,11 +243,13 @@ namespace codepad::os {
 					p.x = GET_X_LPARAM(lparam);
 					p.y = GET_Y_LPARAM(lparam);
 					_details::winapi_check(ScreenToClient(form->_hwnd, &p));
+					int wheel_delta = GET_WHEEL_DELTA_WPARAM(wparam);
 					_form_onevent<ui::mouse_scroll_info>(
 						*form, &window::_on_mouse_scroll,
-						vec2d(GET_WHEEL_DELTA_WPARAM(wparam) / static_cast<double>(WHEEL_DELTA), 0.0),
-						form->_update_mouse_position(form->_physical_to_logical_position(vec2d(p.x, p.y)))
-						);
+						vec2d(wheel_delta / -static_cast<double>(WHEEL_DELTA), 0.0),
+						form->_update_mouse_position(form->_physical_to_logical_position(vec2d(p.x, p.y))),
+						wheel_delta % WHEEL_DELTA != 0
+					);
 					return 0;
 				}
 
@@ -254,7 +262,7 @@ namespace codepad::os {
 					form->_update_mouse_position(form->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 					))
-					);
+				);
 				return 0;
 			case WM_MOUSELEAVE:
 				form->_on_mouse_leave();
@@ -266,7 +274,8 @@ namespace codepad::os {
 					ui::mouse_button::primary, _details::get_modifiers(),
 					form->_update_mouse_position(form->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					));
+					)
+				);
 				return 0;
 			case WM_LBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
@@ -274,7 +283,8 @@ namespace codepad::os {
 					ui::mouse_button::primary, _details::get_modifiers(),
 					form->_update_mouse_position(form->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					));
+					)
+				);
 				return 0;
 			case WM_RBUTTONDOWN:
 				_form_onevent<ui::mouse_button_info>(
@@ -282,7 +292,8 @@ namespace codepad::os {
 					ui::mouse_button::secondary, _details::get_modifiers(),
 					form->_update_mouse_position(form->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					));
+					)
+				);
 				return 0;
 			case WM_RBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
@@ -290,7 +301,8 @@ namespace codepad::os {
 					ui::mouse_button::secondary, _details::get_modifiers(),
 					form->_update_mouse_position(form->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					));
+					)
+				);
 				return 0;
 			case WM_MBUTTONDOWN:
 				_form_onevent<ui::mouse_button_info>(
@@ -298,7 +310,8 @@ namespace codepad::os {
 					ui::mouse_button::tertiary, _details::get_modifiers(),
 					form->_update_mouse_position(form->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					));
+					)
+				);
 				return 0;
 			case WM_MBUTTONUP:
 				_form_onevent<ui::mouse_button_info>(
@@ -306,7 +319,8 @@ namespace codepad::os {
 					ui::mouse_button::tertiary, _details::get_modifiers(),
 					form->_update_mouse_position(form->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
-					));
+					)
+				);
 				return 0;
 
 			case WM_SETFOCUS:

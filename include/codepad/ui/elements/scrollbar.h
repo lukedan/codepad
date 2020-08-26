@@ -99,6 +99,30 @@ namespace codepad::ui {
 			_on_actual_value_changed(info);
 		}
 
+		/// Handles the given scroll event, consuming the delta based on the orientation of this scrollbar.
+		///
+		/// \param info Info struct of the scroll event. Depending on the orientation of this \ref scrollbar,
+		///             \ref mouse_scroll_info::consume_horizontal() or \ref mouse_scroll_info::consume_vertical()
+		///             will be called.
+		/// \param delta_scale Scale applied to the delta.
+		void handle_scroll_event(mouse_scroll_info &info, double delta_scale = 1.0) {
+			double
+				delta = get_orientation() == orientation::horizontal ? info.delta().x : info.delta().y,
+				from_value = info.is_smooth ? get_actual_value() : get_target_value();
+			double new_target = _clamp_value(from_value + delta * delta_scale);
+			if (info.is_smooth) {
+				set_values_immediate(new_target);
+			} else {
+				set_target_value(new_target);
+			}
+			double allowed_delta = (new_target - from_value) / delta_scale;
+			if (get_orientation() == orientation::horizontal) {
+				info.consume_horizontal(allowed_delta);
+			} else {
+				info.consume_vertical(allowed_delta);
+			}
+		}
+
 		/// Sets the parameters of the scroll bar.
 		///
 		/// \param tot The total length of the region.

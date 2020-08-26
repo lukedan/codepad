@@ -66,7 +66,7 @@ namespace codepad::os::_details {
 	}
 
 	wic_image_loader &wic_image_loader::get() {
-		wic_image_loader object;
+		static wic_image_loader object;
 		return object;
 	}
 

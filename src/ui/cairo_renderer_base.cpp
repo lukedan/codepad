@@ -220,7 +220,9 @@ namespace codepad::ui::cairo {
 
 	rectd formatted_text::get_character_placement(std::size_t pos) const {
 		PangoRectangle rect;
-		pango_layout_index_to_pos(_layout.get(), _bytepos[std::min(pos, _bytepos.size() - 1)], &rect);
+		pango_layout_index_to_pos(
+			_layout.get(), static_cast<int>(_bytepos[std::min(pos, _bytepos.size() - 1)]), &rect
+		);
 		return _details::cast_rect_back(rect).translated(_get_offset());
 	}
 
@@ -261,8 +263,10 @@ namespace codepad::ui::cairo {
 
 				int *iter = ranges;
 				for (int i = 0; i < num_ranges; ++i, iter += 2) {
-					int beg = iter[0], end = iter[1];
-					result.emplace_back(pango_units_to_double(beg), pango_units_to_double(end), ymin, ymax);
+					int line_beg = iter[0], line_end = iter[1];
+					result.emplace_back(
+						pango_units_to_double(line_beg), pango_units_to_double(line_end), ymin, ymax
+					);
 				}
 				g_free(ranges);
 			}

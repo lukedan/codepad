@@ -68,42 +68,43 @@ namespace codepad::logger_sinks {
 		) override;
 
 		/// Returns the current color scheme.
-		color_scheme &output_color_scheme() {
+		[[nodiscard]] color_scheme &output_color_scheme() {
 			return _colors;
 		}
 		/// \overload
-		const color_scheme &output_color_scheme() const {
+		[[nodiscard]] const color_scheme &output_color_scheme() const {
 			return _colors;
 		}
 
 		/// Returns the width of displayed time.
-		std::size_t &time_display_width() {
+		[[nodiscard]] std::size_t &time_display_width() {
 			return _time_width;
 		}
 		/// \overload
-		std::size_t time_display_width() const {
+		[[nodiscard]] std::size_t time_display_width() const {
 			return _time_width;
 		}
 	protected:
 		color_scheme _colors; ///< The color scheme.
 		std::size_t _time_width = 8; ///< The width of displayed time.
+		bool _is_printing = false; ///< Whether we're currently in \ref on_message().
 
 		/// Returns the color that correspond to the given \ref log_level.
-		color_scheme::entry _entry_color(log_level);
+		[[nodiscard]] color_scheme::entry _entry_color(log_level) const;
 
 		/// Changes the foreground color.
-		void _color_fg(color);
+		static void _color_fg(color);
 		/// Changes the background color.
-		void _color_bg(color);
+		static void _color_bg(color);
 		/// Changes output color by calling \ref _color_fg() and \ref _color_bg().
-		void _color(color_scheme::entry);
+		static void _color(color_scheme::entry);
 		/// Resets terminal colors.
-		void _color_reset();
+		static void _color_reset();
 
 		/// Prints the left border.
-		void _print_left(color_scheme::entry, std::u8string_view = u8" ");
+		void _print_left(color_scheme::entry, std::u8string_view = u8" ") const;
 		/// Prints the message with a fixed width.
-		void _print_w(std::u8string_view, color_scheme::entry scheme, color_scheme::entry banner, std::size_t);
+		void _print_w(std::u8string_view, color_scheme::entry scheme, color_scheme::entry banner, std::size_t) const;
 
 		/// Returns the width of the console window. This function is platform-specific.
 		static std::size_t _get_console_width();
@@ -126,7 +127,7 @@ namespace codepad::logger_sinks {
 			return _time_width;
 		}
 		/// \overload
-		std::size_t time_output_width() const {
+		[[nodiscard]] std::size_t time_output_width() const {
 			return _time_width;
 		}
 	protected:

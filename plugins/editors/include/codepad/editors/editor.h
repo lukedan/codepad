@@ -214,13 +214,8 @@ namespace codepad::editors {
 
 		/// Scrolls the viewport of the \ref editor.
 		void _on_mouse_scroll(ui::mouse_scroll_info &info) override {
-			_vert_scroll->set_target_value(
-				_vert_scroll->get_target_value() - _contents->get_vertical_scroll_delta() * info.delta.y
-			);
-			_hori_scroll->set_target_value(
-				_hori_scroll->get_target_value() + _contents->get_horizontal_scroll_delta() * info.delta.x
-			);
-			info.mark_handled();
+			_vert_scroll->handle_scroll_event(info, _contents->get_vertical_scroll_delta());
+			_hori_scroll->handle_scroll_event(info, _contents->get_horizontal_scroll_delta());
 		}
 		/// Invokes \ref contents_region_base::on_text_input().
 		void _on_keyboard_text(ui::text_info &info) override {

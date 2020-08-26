@@ -10,6 +10,17 @@ namespace codepad::logger_sinks {
 	void console_sink::on_message(
 		const std::chrono::duration<double> &time, const code_position &pos, log_level level, std::u8string_view text
 	) {
+		// _get_console_width may fail which may invoke on_message() recursively
+		// this is to avoid blowing the stack
+		if (_is_printing) {
+			_print_w(
+				std::u8string_view(reinterpret_cast<const char8_t*>(text.data()), text.size()),
+				_colors.code_position, _colors.time, std::numeric_limits<std::size_t>::max()
+			);
+			return;
+		}
+
+		_is_printing = true;
 		_color(_colors.time);
 		std::cout <<
 			std::setiosflags(std::ios::fixed) << std::setw(static_cast<int>(_time_width)) <<
@@ -43,9 +54,10 @@ namespace codepad::logger_sinks {
 		}
 		_print_left(_entry_color(level), msg);
 		_print_w(text, _colors.message, _entry_color(level), w);
+		_is_printing = false;
 	}
 
-	console_sink::color_scheme::entry console_sink::_entry_color(log_level level) {
+	console_sink::color_scheme::entry console_sink::_entry_color(log_level level) const {
 		switch (level) {
 		case log_level::debug:
 			return _colors.debug_banner;
@@ -76,7 +88,7 @@ namespace codepad::logger_sinks {
 		std::cout << "\033[0m\033[K";
 	}
 
-	void console_sink::_print_left(color_scheme::entry scheme, std::u8string_view text) {
+	void console_sink::_print_left(color_scheme::entry scheme, std::u8string_view text) const {
 		_color(scheme);
 		std::cout <<
 			std::setw(static_cast<int>(_time_width)) <<
@@ -85,18 +97,18 @@ namespace codepad::logger_sinks {
 
 	void console_sink::_print_w(
 		std::u8string_view msg, color_scheme::entry scheme, color_scheme::entry banner, std::size_t w
-	) {
+	) const {
 		_color(scheme);
 		std::size_t cl = 0;
-		for (auto it = msg.begin(); it != msg.end(); ++it) {
-			if (*it == '\n' || cl == w) {
+		for (char8_t c : msg) {
+			if (c == '\n' || cl == w) {
 				std::cout << "\n";
 				_print_left(banner);
 				_color(scheme);
 				cl = 0;
 			}
-			if (*it != '\n') {
-				std::cout << static_cast<char>(*it);
+			if (c != '\n') {
+				std::cout << static_cast<char>(c);
 				++cl;
 			}
 		}

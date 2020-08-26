@@ -198,19 +198,19 @@ namespace codepad::editors::code {
 		/// Returns the number of codepoints before the character at the given index.
 		std::size_t position_char_to_codepoint(std::size_t c) const {
 			_pos_char_to_cp selector;
-			_t.find_custom(selector, c);
+			_t.find(selector, c);
 			return selector.total_codepoints + c;
 		}
 		/// Returns a \ref linebreak_info containing information about the given line.
 		linebreak_info get_line_info(std::size_t l) const {
 			_line_beg_char_accum_finder selector;
-			auto it = _t.find_custom(selector, l);
+			auto it = _t.find(selector, l);
 			return linebreak_info(it, selector.total);
 		}
 		/// Returns the position of the first codepoint of the given line.
 		std::size_t get_beginning_codepoint_of_line(std::size_t l) const {
 			_line_beg_codepoint_accum_finder selector;
-			_t.find_custom(selector, l);
+			_t.find(selector, l);
 			return selector.total;
 		}
 
@@ -224,21 +224,21 @@ namespace codepad::editors::code {
 		}
 		/// Returns an iterator to the specified line.
 		iterator at_line(std::size_t line) const {
-			return _t.find_custom(_line_beg_finder(), line);
+			return _t.find(_line_beg_finder(), line);
 		}
 
 		/// Returns a \ref line_column_info containing information about the codepoint at the given index. If the
 		/// codepoint is at the end of the buffer (i.e., EOF), the returned iterator will still be end() - 1.
 		line_column_info get_line_and_column_of_codepoint(std::size_t cp) const {
 			_get_line<line_synth_data::num_codepoints_property> selector;
-			iterator it = _t.find_custom(selector, cp);
+			iterator it = _t.find(selector, cp);
 			return line_column_info(it, selector.total_lines, cp);
 		}
 		/// Returns a \ref line_column_info containing information about the character at the given index. If the
 		/// character is at the end of the buffer (i.e., EOF), the returned iterator will still be end() - 1.
 		line_column_info get_line_and_column_of_char(std::size_t c) const {
 			_get_line<line_synth_data::num_chars_property> selector;
-			iterator it = _t.find_custom(selector, c);
+			iterator it = _t.find(selector, c);
 			return line_column_info(it, selector.total_lines, c);
 		}
 		/// Returns a \ref line_column_info containing information about the character at the given index,
@@ -246,7 +246,7 @@ namespace codepad::editors::code {
 		/// of the buffer (i.e., EOF), the returned iterator will still be end() - 1.
 		std::pair<line_column_info, std::size_t> get_line_and_column_and_codepoint_of_char(std::size_t c) const {
 			_pos_char_to_cp selector;
-			iterator it = _t.find_custom(selector, c);
+			iterator it = _t.find(selector, c);
 			return {line_column_info(it, selector.total_lines, c), selector.total_codepoints + c};
 		}
 		/// Returns a \ref line_column_info containing information about the codepoint at the given index, and the
@@ -256,7 +256,7 @@ namespace codepad::editors::code {
 		/// \sa get_line_and_column_of_codepoint()
 		std::pair<line_column_info, std::size_t> get_line_and_column_and_char_of_codepoint(std::size_t cp) const {
 			_pos_cp_to_char selector;
-			iterator it = _t.find_custom(selector, cp);
+			iterator it = _t.find(selector, cp);
 			return {
 				line_column_info(it, selector.total_lines, cp),
 				selector.total_chars + std::min(cp, it->nonbreak_chars)

@@ -2,7 +2,7 @@ add_library(python_plugin_host_pybind11 SHARED)
 
 target_sources(python_plugin_host_pybind11
 	PRIVATE "src/main.cpp" "src/core.cpp" "src/ui.cpp")
-target_link_libraries(python_plugin_host_pybind11 PRIVATE codepad)
+target_link_libraries(python_plugin_host_pybind11 PRIVATE codepad_core)
 target_include_directories(python_plugin_host_pybind11 PRIVATE "../common/include")
 set_target_properties(python_plugin_host_pybind11
 	PROPERTIES

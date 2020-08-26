@@ -21,10 +21,10 @@ endif()
 set(ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing backtraces.")
 
 
-# main executable
-add_executable(codepad)
-target_compile_features(codepad PUBLIC cxx_std_20)
-target_sources(codepad
+# main library
+add_library(codepad_core SHARED)
+target_compile_features(codepad_core PUBLIC cxx_std_20)
+target_sources(codepad_core
 	PRIVATE
 		"src/core/globals.cpp"
 		"src/core/logger_sinks.cpp"
@@ -60,44 +60,42 @@ target_sources(codepad
 		"src/ui/panel.cpp"
 		"src/ui/renderer.cpp"
 		"src/ui/scheduler.cpp"
-		"src/ui/window.cpp"
-		
-		"src/main.cpp")
+		"src/ui/window.cpp")
 
-target_include_directories(codepad PUBLIC "include/")
+target_include_directories(codepad_core PUBLIC "include/")
 
 # compile definitions
-target_compile_definitions(codepad
+target_compile_definitions(codepad_core
 	PUBLIC UNICODE _UNICODE)
 if(ENABLE_BACKTRACE)
-	target_compile_definitions(codepad
+	target_compile_definitions(codepad_core
 		PUBLIC CP_LOG_STACKTRACE)
 endif()
 if(USE_CAIRO)
-	target_compile_definitions(codepad
+	target_compile_definitions(codepad_core
 		PUBLIC CP_USE_CAIRO)
 endif()
 
 # enable export so that plugins can link to the executable
-set_target_properties(codepad PROPERTIES ENABLE_EXPORTS YES)
+set_target_properties(codepad_core PROPERTIES ENABLE_EXPORTS YES)
 
 # set warning level
 if(MSVC)
-	target_compile_options(codepad
+	target_compile_options(codepad_core
 		PRIVATE /W4 /permissive-)
 elseif(CMAKE_COMPILER_IS_GNUCXX)
-	target_compile_options(codepad
+	target_compile_options(codepad_core
 		PRIVATE -Wall -Wextra -Wconversion)
 endif()
 
 # libraries
 find_package(RapidJSON CONFIG REQUIRED)
-target_include_directories(codepad
+target_include_directories(codepad_core
 	PUBLIC ${RAPIDJSON_INCLUDE_DIRS})
 
 # platform dependent sources & settings
 if(WIN32)
-	target_sources(codepad
+	target_sources(codepad_core
 		PRIVATE
 			"src/os/windows/direct2d_renderer.cpp"
 			"src/os/windows/dynamic_library.cpp"
@@ -105,20 +103,20 @@ if(WIN32)
 			"src/os/windows/misc.cpp"
 			"src/os/windows/window.cpp"
 			"src/os/windows/windows.cpp")
-	target_compile_definitions(codepad
+	target_compile_definitions(codepad_core
 		PUBLIC CP_PLATFORM_WINDOWS NOMINMAX OEMRESOURCE)
-	target_link_libraries(codepad
+	target_link_libraries(codepad_core
 		PUBLIC gdi32 dwrite d3d11 d2d1 shlwapi Dwmapi imm32 windowscodecs)
-	set_target_properties(codepad PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS YES)
+	set_target_properties(codepad_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS YES)
 
 	if(CMAKE_COMPILER_IS_GNUCXX)
-		target_compile_options(codepad
+		target_compile_options(codepad_core
 			PRIVATE -Wa,-mbig-obj)
 	elseif(MSVC)
-		target_compile_options(codepad
+		target_compile_options(codepad_core
 			PRIVATE /bigobj)
 		# uncomment to debug slow compilation times
-#		target_compile_options(codepad
+#		target_compile_options(codepad_core
 #			PRIVATE /Bt /d1reportTime /d2cgsummary)
 	endif()
 
@@ -148,7 +146,7 @@ if(WIN32)
 		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
 		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
 
-		target_link_libraries(codepad
+		target_link_libraries(codepad_core
 			PUBLIC
 				unofficial::cairo::cairo unofficial::cairo::cairo-gobject
 				Pango::Pango harfbuzz::harfbuzz
@@ -156,37 +154,37 @@ if(WIN32)
 				unofficial::glib::gobject)
 	endif()
 elseif(UNIX)
-	target_sources(codepad
+	target_sources(codepad_core
 		PRIVATE
 			"src/os/linux/dynamic_library.cpp"
 			"src/os/linux/filesystem.cpp"
 			"src/os/linux/linux.cpp")
-	target_compile_definitions(codepad
+	target_compile_definitions(codepad_core
 		PUBLIC CP_PLATFORM_UNIX)
-	target_link_libraries(codepad
+	target_link_libraries(codepad_core
 		PUBLIC dl pthread) # TODO why link pthread?
 	if(ENABLE_BACKTRACE)
-		target_link_options(codepad
+		target_link_options(codepad_core
 			PRIVATE -rdynamic) # enables detailed stacktrace
 	endif()
 
 	if(USE_GTK)
-		target_sources(codepad
+		target_sources(codepad_core
 			PRIVATE
 				"src/os/linux/gtk/linux.cpp"
 				"src/os/linux/gtk/misc.cpp"
 				"src/os/linux/gtk/window.cpp")
-		target_compile_definitions(codepad
+		target_compile_definitions(codepad_core
 			PUBLIC CP_USE_GTK)
 		find_package(GTK3 REQUIRED)
-		target_link_libraries(codepad
+		target_link_libraries(codepad_core
 			PUBLIC Gtk3::Gtk)
 	else()
-		target_sources(codepad
+		target_sources(codepad_core
 			PRIVATE
 				"src/os/linux/x11/linux.cpp")
 		find_package(X11 REQUIRED)
-		target_link_libraries(codepad
+		target_link_libraries(codepad_core
 			PUBLIC ${X11_LIBRARIES})
 	endif()
 
@@ -208,7 +206,7 @@ elseif(UNIX)
 		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
 		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
 
-		target_link_libraries(codepad
+		target_link_libraries(codepad_core
 			PUBLIC
 				Cairo::Cairo Pango::Pango PkgConfig::harfbuzz Freetype::Freetype Fontconfig::Fontconfig)
 	endif()
@@ -217,15 +215,9 @@ else()
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX) # gcc needs this for filesystem to work
-	target_link_libraries(codepad
+	target_link_libraries(codepad_core
 		PUBLIC stdc++fs)
 endif()
-
-
-# import plugin targets
-add_subdirectory("plugins/editors/")
-add_subdirectory("plugins/command_pack/")
-add_subdirectory("plugins/python_plugin_host_pybind11/")
 
 
 # codegen
@@ -234,17 +226,17 @@ if(${ENABLE_APIGEN})
 		message(
 			FATAL_ERROR
 				"Build cannot continue because a valid apigen executable is not found. Either specify a valid path "
-				"to apigen or use -DENABLE_APIGEN=NO to build codepad without plugin support.")
+				"to apigen or use -DENABLE_APIGEN=NO to build codepad_core without plugin support.")
 	endif()
 
-	target_compile_definitions(codepad
+	target_compile_definitions(codepad_core
 		PUBLIC CP_ENABLE_APIGEN)
 
-	get_target_property(APIGEN_INCLUDES codepad INCLUDE_DIRECTORIES)
+	get_target_property(APIGEN_INCLUDES codepad_core INCLUDE_DIRECTORIES)
 	list(TRANSFORM APIGEN_INCLUDES PREPEND "-I")
-	get_target_property(APIGEN_DEFINES codepad COMPILE_DEFINITIONS)
+	get_target_property(APIGEN_DEFINES codepad_core COMPILE_DEFINITIONS)
 	list(TRANSFORM APIGEN_DEFINES PREPEND "-D")
-	get_target_property(APIGEN_COMPILE_OPTIONS codepad COMPILE_OPTIONS)
+	get_target_property(APIGEN_COMPILE_OPTIONS codepad_core COMPILE_OPTIONS)
 
 	set(API_HEADER_NAME api_header.h)
 	set(HOST_HEADER_NAME host.h)
@@ -263,7 +255,7 @@ if(${ENABLE_APIGEN})
 	set(HOST_SOURCE_PATH "${APIGEN_OUT_DIR}/host.cpp")
 	set(COLLECTOR_PATH "${APIGEN_OUT_DIR}/collect.cpp")
 
-	get_target_property(CODEPAD_SOURCES codepad SOURCES)
+	get_target_property(CODEPAD_SOURCES codepad_core SOURCES)
 
 	add_custom_command(
 		OUTPUT "${API_HEADER_PATH}" "${HOST_HEADER_PATH}" "${HOST_SOURCE_PATH}" "${COLLECTOR_PATH}"
@@ -286,11 +278,11 @@ if(${ENABLE_APIGEN})
 		COMMENT "Invoking apigen..."
 		VERBATIM)
 
-	target_sources(codepad
+	target_sources(codepad_core
 		PRIVATE "${HOST_HEADER_PATH}" "${HOST_SOURCE_PATH}")
-	target_include_directories(codepad
+	target_include_directories(codepad_core
 		PRIVATE "${APIGEN_OUT_DIR}")
-	target_compile_definitions(codepad
+	target_compile_definitions(codepad_core
 		PRIVATE
 			CP_API_STRUCT=${API_STRUCT_NAME}
 			CP_API_STRUCT_INIT=${API_STRUCT_INIT_NAME})
@@ -300,11 +292,11 @@ if(${ENABLE_APIGEN})
 	target_compile_features(collect
 		PRIVATE cxx_std_20)
 	target_include_directories(collect
-		PRIVATE $<TARGET_PROPERTY:codepad,INCLUDE_DIRECTORIES>)
+		PRIVATE $<TARGET_PROPERTY:codepad_core,INCLUDE_DIRECTORIES>)
 	target_compile_definitions(collect
-		PRIVATE $<TARGET_PROPERTY:codepad,COMPILE_DEFINITIONS>)
+		PRIVATE $<TARGET_PROPERTY:codepad_core,COMPILE_DEFINITIONS>)
 	target_link_libraries(collect
-		PRIVATE $<TARGET_PROPERTY:codepad,LINK_LIBRARIES>)
+		PRIVATE $<TARGET_PROPERTY:codepad_core,LINK_LIBRARIES>)
 	target_sources(collect
 		PRIVATE "${COLLECTOR_PATH}")
 
@@ -334,7 +326,7 @@ if(${ENABLE_APIGEN})
 		VERBATIM)
 
 	# set include paths
-	target_compile_definitions(codepad
+	target_compile_definitions(codepad_core
 		PRIVATE
 			"CP_APIGEN_SIZES_ALIGNMENTS_H=<${SIZES_ALIGNMENTS_HEADER_NAME}>"
 			"CP_APIGEN_API_H=<${API_HEADER_NAME}>"
@@ -344,3 +336,22 @@ if(${ENABLE_APIGEN})
 	add_custom_target(codepad_api_header
 		DEPENDS "${API_HEADER_PATH}" "${SIZES_ALIGNMENTS_PATH}")
 endif()
+
+
+# import plugin targets
+add_subdirectory("plugins/editors/")
+add_subdirectory("plugins/command_pack/")
+add_subdirectory("plugins/python_plugin_host_pybind11/")
+
+
+# main executable
+add_executable(codepad)
+target_link_libraries(codepad
+	PRIVATE codepad_core)
+target_sources(codepad
+	PRIVATE
+		"src/main.cpp")
+
+
+# tests
+add_subdirectory("test/")

@@ -18,30 +18,34 @@ namespace py = ::pybind11;
 
 namespace cp = ::codepad;
 
-const cp::plugin_context *context = nullptr;
-cp::plugin *this_plugin = nullptr;
+namespace python_plugin_host_pybind11 {
+	const cp::plugin_context *context = nullptr;
+	cp::plugin *this_plugin = nullptr;
 
-const char *python_import_module = R"py(
-def load_module(mod_name, p):
-	import importlib.util
-	spec = importlib.util.spec_from_file_location(mod_name, p)
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
-	return module
+	const char *python_import_module = R"py(
+	def load_module(mod_name, p):
+		import importlib.util
+		spec = importlib.util.spec_from_file_location(mod_name, p)
+		module = importlib.util.module_from_spec(spec)
+		spec.loader.exec_module(module)
+		return module
 
-load_module(module_name, path)
-)py";
+	load_module(module_name, path)
+	)py";
 
-void import_module(std::u8string_view module_name, const std::filesystem::path &path) {
-	py::dict locals;
-	try {
-		locals["module_name"] = py::cast(module_name);
-		locals["path"] = py::cast(path.c_str());
-		py::eval<py::eval_statements>(python_import_module, py::globals(), locals);
-	} catch (const py::error_already_set &err) {
-		cp::logger::get().log_error(CP_HERE) << err.what() << cp::logger::stacktrace;
+	void import_module(std::u8string_view module_name, const std::filesystem::path &path) {
+		py::dict locals;
+		try {
+			locals["module_name"] = py::cast(module_name);
+			locals["path"] = py::cast(path.c_str());
+			py::eval<py::eval_statements>(python_import_module, py::globals(), locals);
+		} catch (const py::error_already_set &err) {
+			cp::logger::get().log_error(CP_HERE) << err.what() << cp::logger::stacktrace;
+		}
 	}
 }
+
+using namespace python_plugin_host_pybind11;
 
 PYBIND11_EMBEDDED_MODULE(pycodepad, m) {
 	register_core_classes(m);
@@ -56,7 +60,7 @@ extern "C" {
 		this_plugin = &this_plug;
 		py::initialize_interpreter();
 
-		import_module(u8"test_module", "test.py");
+		/*import_module(u8"test_module", "test.py");*/
 	}
 
 	PLUGIN_FINALIZE() {

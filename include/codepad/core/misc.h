@@ -208,14 +208,17 @@ namespace codepad {
 		return res;
 	}
 
-	/// Linear interpolation.
-	///
-	/// \param from Returned if \p perc = 0.
-	/// \param to Returned if \p perc = 1.
-	/// \param perc Determines how close the return value is to \p to.
-	/// \todo C++20: Use std implementation.
-	template <typename T> inline constexpr T lerp(T from, T to, double perc) {
-		return from + (to - from) * perc;
+	/// Custom linear interpolation. For floating-point types, uses \p std::lerp(); for integral types, uses
+	/// \p std::lerp() then rounds the value back to integer; otherwise returns \p from directly.
+	template <typename T> inline constexpr T lerp(T from, [[maybe_unused]] T to, [[maybe_unused]] double perc) {
+		using _value_type = std::decay_t<T>;
+		if constexpr (std::is_floating_point_v<_value_type>) {
+			return std::lerp(from, to, static_cast<_value_type>(perc));
+		} else if constexpr (std::is_integral_v<_value_type>) {
+			return static_cast<T>(std::round(std::lerp(static_cast<double>(from), static_cast<double>(to), perc)));
+		} else {
+			return from;
+		}
 	}
 
 	/// Gathers bits from a string and returns the result. Each bit is represented by a character.

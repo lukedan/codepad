@@ -13,7 +13,7 @@ target_sources(editors
 		"src/buffer.cpp"
 		"src/editor.cpp"
 		"src/main.cpp")
-target_link_libraries(editors PUBLIC codepad)
+target_link_libraries(editors PUBLIC codepad_core)
 target_include_directories(editors
 	PUBLIC "include/"
 	PRIVATE "../common/include/")

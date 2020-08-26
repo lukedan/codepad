@@ -72,6 +72,26 @@ namespace codepad::os {
 		return true;
 	}
 
+	gboolean window::_on_scroll_event(GtkWidget*, GdkEvent *event, window *wnd) {
+		logger::get().log_debug(CP_HERE) <<
+			"scroll direction: " << event->scroll.direction <<
+			"\nx = " << event->scroll.delta_x <<
+			"\ny = " << event->scroll.delta_y;
+		if (event->scroll.is_stop) {
+			logger::get().log_warning(CP_HERE) << "kinetic scrolling ignored";
+		}
+		if (event->scroll.send_event) {
+			logger::get().log_warning(CP_HERE) << "event sent explicitly";
+		}
+		_form_onevent<ui::mouse_scroll_info>(
+			*wnd, &window::_on_mouse_scroll,
+			vec2d(event->scroll.delta_x, event->scroll.delta_y),
+			wnd->_update_mouse_position(vec2d(event->scroll.x, event->scroll.y)),
+			event->scroll.direction == GDK_SCROLL_SMOOTH
+		);
+		return true;
+	}
+
 	void window::_initialize(std::u8string_view cls) {
 		window_base::_initialize(cls);
 

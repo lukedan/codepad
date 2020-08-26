@@ -140,7 +140,7 @@ namespace codepad::editors::code {
 		softbreak_info get_softbreak_before_or_at_char(std::size_t c) const {
 			_get_softbreaks_before selector;
 			std::size_t nc = c;
-			auto it = _t.find_custom(selector, nc);
+			auto it = _t.find(selector, nc);
 			return softbreak_info(it, c - nc, selector.num_softbreaks);
 		}
 		/// Returns the index of the visual line that the given character is on.
@@ -153,7 +153,7 @@ namespace codepad::editors::code {
 		std::pair<std::size_t, std::size_t> get_visual_line_and_column_of_char(std::size_t c) const {
 			auto hard = _reg->get_line_and_column_of_char(c);
 			_get_softbreaks_before selector;
-			_t.find_custom(selector, c);
+			_t.find(selector, c);
 			return {hard.line + selector.num_softbreaks, std::min(c, hard.position_in_line)};
 		}
 		/// Returns the combined result of \ref get_visual_line_and_column_of_char and
@@ -163,7 +163,7 @@ namespace codepad::editors::code {
 			std::size_t nc = c;
 			auto hard = _reg->get_line_and_column_of_char(c);
 			_get_softbreaks_before selector;
-			auto it = _t.find_custom(selector, nc);
+			auto it = _t.find(selector, nc);
 			return {
 				hard.line + selector.num_softbreaks,
 				std::min(nc, hard.position_in_line),
@@ -477,14 +477,14 @@ namespace codepad::editors::code {
 		/// is disabled.
 		std::size_t folded_to_unfolded_line_number(std::size_t line) const {
 			_folded_to_unfolded_line finder;
-			_t.find_custom(finder, line);
+			_t.find(finder, line);
 			return finder.total + line;
 		}
 		/// Given a line index in the document with folding disabled, returns the index of the same line when folding
 		/// is enabled.
 		std::size_t unfolded_to_folded_line_number(std::size_t line) const {
 			_unfolded_to_folded_line finder;
-			auto it = _t.find_custom(finder, line);
+			auto it = _t.find(finder, line);
 			if (it != _t.end()) {
 				line = std::min(line, it->gap_lines);
 			}
@@ -494,14 +494,14 @@ namespace codepad::editors::code {
 		/// removed), returns the corresponding position in the document with folding disabled.
 		std::size_t folded_to_unfolded_caret_pos(std::size_t pos) const {
 			_folded_to_unfolded_pos finder;
-			_t.find_custom(finder, pos);
+			_t.find(finder, pos);
 			return finder.total + pos;
 		}
 		/// Given a caret position in the document with folding disabled, returns the corresponding position in the
 		/// document with folding enabled (i.e., as if all folded regions have been removed).
 		std::size_t unfolded_to_folded_caret_pos(std::size_t pos) const {
 			_unfolded_to_folded_pos finder;
-			auto it = _t.find_custom(finder, pos);
+			auto it = _t.find(finder, pos);
 			if (it != _t.end()) {
 				pos = std::min(pos, it->gap);
 			}
@@ -559,7 +559,7 @@ namespace codepad::editors::code {
 		/// boundary of the result. If no such region is found, returns (\ref end(), 0, 0).
 		fold_region_info find_region_containing_open(std::size_t cp) const {
 			_find_region_open finder;
-			auto it = _t.find_custom(finder, cp);
+			auto it = _t.find(finder, cp);
 			if (it != _t.end() && cp > it->gap) {
 				return fold_region_info(it, finder.total_chars, finder.total_lines);
 			}
@@ -570,7 +570,7 @@ namespace codepad::editors::code {
 		/// the one in front is returned. If no such region is found, returns (\ref end(), 0, 0).
 		fold_region_info find_region_containing_closed(std::size_t cp) const {
 			_find_region_closed finder;
-			auto it = _t.find_custom(finder, cp);
+			auto it = _t.find(finder, cp);
 			if (it != _t.end() && cp >= it->gap) {
 				return fold_region_info(it, finder.total_chars, finder.total_lines);
 			}
@@ -580,7 +580,7 @@ namespace codepad::editors::code {
 		/// position if no such region is found.
 		fold_region_info find_region_containing_or_first_after_open(std::size_t cp) const {
 			_find_region_open finder;
-			auto it = _t.find_custom(finder, cp);
+			auto it = _t.find(finder, cp);
 			return fold_region_info(it, finder.total_chars, finder.total_lines);
 		}
 		/// Similar to \ref find_region_containing_open, but returns the first folded region before the given
@@ -588,7 +588,7 @@ namespace codepad::editors::code {
 		/// returns (\ref end(), 0, 0).
 		fold_region_info find_region_containing_or_first_before_open(std::size_t cp) const {
 			_find_region_closed finder; // doesn't really matter whether it's open or closed
-			auto it = _t.find_custom(finder, cp);
+			auto it = _t.find(finder, cp);
 			if (it == _t.end() || cp <= it->gap) {
 				if (it == _t.begin()) {
 					return fold_region_info(_t.end(), 0, 0);
@@ -603,7 +603,7 @@ namespace codepad::editors::code {
 		/// position if no such region is found.
 		fold_region_info find_region_containing_or_first_after_closed(std::size_t cp) const {
 			_find_region_closed finder;
-			auto it = _t.find_custom(finder, cp);
+			auto it = _t.find(finder, cp);
 			return fold_region_info(it, finder.total_chars, finder.total_lines);
 		}
 		/// Similar to \ref find_region_containing_closed, but returns the first folded region before the given
@@ -611,7 +611,7 @@ namespace codepad::editors::code {
 		/// returns (\ref end(), 0, 0).
 		fold_region_info find_region_containing_or_first_before_closed(std::size_t cp) const {
 			_find_region_closed finder;
-			auto it = _t.find_custom(finder, cp);
+			auto it = _t.find(finder, cp);
 			if (it == _t.end() || cp < it->gap) {
 				if (it == _t.begin()) {
 					return fold_region_info(_t.end(), 0, 0);

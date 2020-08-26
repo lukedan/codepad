@@ -20,15 +20,18 @@
 
 namespace cp = ::codepad;
 
-const cp::plugin_context *_context = nullptr;
-cp::plugin *_this_plugin = nullptr;
-
-std::unique_ptr<cp::editors::manager> _manager;
 namespace codepad::editors {
+	const cp::plugin_context *_context = nullptr;
+	cp::plugin *_this_plugin = nullptr;
+
+	std::unique_ptr<cp::editors::manager> _manager;
+
 	manager &manager::get() {
 		return *_manager;
 	}
 }
+
+using namespace codepad::editors;
 
 extern "C" {
 	PLUGIN_INITIALIZE(ctx, this_plugin) {
