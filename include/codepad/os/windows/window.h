@@ -54,6 +54,11 @@ namespace codepad::os {
 			ShowWindow(_hwnd, SW_HIDE);
 		}
 
+		/// Calls \p InvalidateRect().
+		void invalidate_window_visuals() override {
+			_details::winapi_check(InvalidateRect(_hwnd, nullptr, false));
+		}
+
 		void set_display_maximize_button(bool disp) override {
 			_set_window_style_bit(disp, WS_MAXIMIZE, GWL_STYLE);
 		}

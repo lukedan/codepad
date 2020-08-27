@@ -435,11 +435,11 @@ namespace codepad::ui::cairo {
 	public:
 		/// Initializes the Pango context.
 		renderer_base() {
-			_pango_context.set_give(pango_font_map_create_context(pango_cairo_font_map_get_default()));
 			// FIXME on windows, only fonts installed system-wide can be discovered
 			//       fonts that are installed for one user cannot be found
 			//       https://gitlab.freedesktop.org/fontconfig/fontconfig/-/issues/144
 			assert_true_sys(FcInit(), "failed to initialize Fontconfig");
+			_pango_context.set_give(pango_font_map_create_context(pango_cairo_font_map_get_default()));
 			_details::ft_check(FT_Init_FreeType(&_freetype));
 		}
 		/// Calls \p cairo_debug_reset_static_data() to clean up.
@@ -448,7 +448,6 @@ namespace codepad::ui::cairo {
 			_pango_context.reset();
 
 			// without this pango would still be using some fonts which will cause the cairo check to fail
-			pango_cairo_font_map_set_default(nullptr);
 			cairo_debug_reset_static_data();
 
 			// finally, unload fontconfig
@@ -470,8 +469,6 @@ namespace codepad::ui::cairo {
 		/// Creates a new \ref text_format.
 		std::unique_ptr<ui::font_family> find_font_family(const std::u8string&) override;
 
-		/// Starts drawing to the given window.
-		void begin_drawing(ui::window_base&) override;
 		/// Starts drawing to the given \ref render_target.
 		void begin_drawing(ui::render_target&) override;
 		/// Finishes drawing.
@@ -716,18 +713,6 @@ namespace codepad::ui::cairo {
 		/// Called to finalize drawing to the current rendering target.
 		virtual void _finish_drawing_to_target() = 0;
 
-		/// Creates a new Cairo surface for the given window.
-		virtual _details::gtk_object_ref<cairo_surface_t> _create_surface_for_window(window_base&) = 0;
-		/// Calls \ref _create_surface_for_window() to create a surface for the given window, sets the
-		/// appropriate scaling factor, then creates and returns a Cairo context.
-		_details::gtk_object_ref<cairo_t> _create_context_for_window(window_base &wnd, vec2d scaling) {
-			auto surface = _create_surface_for_window(wnd);
-			cairo_surface_set_device_scale(surface.get(), scaling.x, scaling.y);
-			auto result = _details::make_gtk_object_ref_give(cairo_create(surface.get()));
-			return result;
-		}
-		/// Creates a Cairo surface for the window, and listens to specific events to resize the surface as needed.
-		void _new_window(window_base&) override;
 		/// Releases all resources.
 		void _delete_window(window_base &w) override {
 			_get_window_data(w).reset();

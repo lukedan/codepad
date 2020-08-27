@@ -26,7 +26,8 @@ namespace codepad::os {
 		auto u16str = _details::utf8_to_wstring(clsname.c_str());
 		_wndclass::get();
 		_details::winapi_check(_hwnd = CreateWindowEx(
-			WS_EX_ACCEPTFILES, reinterpret_cast<LPCTSTR>(static_cast<std::size_t>(_wndclass::get().atom)),
+			WS_EX_ACCEPTFILES,
+			reinterpret_cast<LPCTSTR>(static_cast<std::size_t>(_wndclass::get().atom)),
 			reinterpret_cast<LPCTSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
 			CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 			parent ? parent->_hwnd : nullptr, nullptr, GetModuleHandle(nullptr), nullptr
@@ -395,6 +396,11 @@ namespace codepad::os {
 			case WM_INPUTLANGCHANGE:
 				window::_ime::get().on_input_language_changed();
 				break;
+
+			case WM_PAINT:
+				form->_on_render();
+				_details::winapi_check(ValidateRect(hwnd, nullptr));
+				return 0;
 			}
 		}
 		return DefWindowProc(hwnd, msg, wparam, lparam);
@@ -519,7 +525,7 @@ namespace codepad::os {
 	window::_wndclass::_wndclass() {
 		WNDCLASSEX wcex;
 		memset(&wcex, 0, sizeof(wcex));
-		wcex.style = CS_OWNDC;
+		wcex.style = CS_HREDRAW | CS_VREDRAW;
 		wcex.hInstance = GetModuleHandle(nullptr);
 		_details::winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));
 		wcex.cbSize = sizeof(wcex);

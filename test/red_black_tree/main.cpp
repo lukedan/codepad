@@ -7,6 +7,7 @@
 
 #include <csignal>
 #include <random>
+#include <atomic>
 
 #include <codepad/core/logging.h>
 #include <codepad/core/logger_sinks.h>

@@ -62,6 +62,9 @@ namespace codepad::ui {
 		/// Hides the window without closing it.
 		virtual void hide() = 0;
 
+		/// Invoked when any element in this winodw needs redrawing.
+		virtual void invalidate_window_visuals() = 0;
+
 		/// Sets whether the `maximize' button is displayed.
 		virtual void set_display_maximize_button(bool) = 0;
 		/// Sets whether the `minimize' button is displayed.

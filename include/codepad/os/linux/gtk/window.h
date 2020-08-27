@@ -12,7 +12,7 @@
 
 namespace codepad::os {
 	class window : public ui::window_base {
-		friend class ui::element;
+		friend ui::element;
 	public:
 		using native_handle_t = GtkWidget*;
 
@@ -73,6 +73,11 @@ namespace codepad::os {
 		/// Hides the window by calling \p gtk_widget_hide().
 		void hide() override {
 			gtk_widget_hide(_wnd);
+		}
+
+		/// Calls \p gtk_widget_queue_draw().
+		void invalidate_window_visuals() override {
+			gtk_widget_queue_draw(_wnd);
 		}
 
 		/// Calls \p gdk_window_set_functions() to set a hint for the window manager to show or hide the maximize
@@ -230,6 +235,9 @@ namespace codepad::os {
 		static gboolean _on_key_press_event(GtkWidget*, GdkEvent*, window*);
 		static gboolean _on_key_release_event(GtkWidget*, GdkEvent*, window*);
 		static gboolean _on_scroll_event(GtkWidget*, GdkEvent*, window*);
+		/// Event handler of the `draw' signal. Sets \ref _renderer_data to the given \p cairo_t, invokes
+		/// \ref _on_render(), and resets \ref _renderer_data.
+		static gboolean _on_draw_event(GtkWidget*, cairo_t*, window*);
 
 		inline static void _on_im_commit(GtkIMContext*, gchar *str, window *wnd) {
 			ui::text_info inf(reinterpret_cast<const char8_t*>(str));
@@ -276,7 +284,7 @@ namespace codepad::os {
 			gtk_widget_destroy(_wnd);
 		}
 
-		GtkWidget *_wnd = nullptr;
+		GtkWidget *_wnd = nullptr; ///< The \p GtkWindow.
 		GtkIMContext *_imctx = nullptr;
 	};
 

@@ -602,11 +602,6 @@ namespace codepad::ui::cairo {
 		return std::unique_ptr<font_family>(new font_family(*this, std::move(pattern)));
 	}
 
-	void renderer_base::begin_drawing(ui::window_base &w) {
-		auto &data = _window_data::get(w);
-		_render_stack.emplace(data.context.get(), &w);
-	}
-
 	void renderer_base::begin_drawing(ui::render_target &generic_rt) {
 		auto &rt = _details::cast_render_target(generic_rt);
 		_render_stack.emplace(rt._context.get());
@@ -959,29 +954,6 @@ namespace codepad::ui::cairo {
 		return std::unique_ptr<plain_text>(new plain_text(
 			std::move(buf), fnt, fnt._face->size->metrics, num_chars, font_size
 		));
-	}
-
-	void renderer_base::_new_window(window_base &wnd) {
-		std::any &data = _get_window_data(wnd);
-		_window_data actual_data;
-
-		// set data
-		actual_data.context = _create_context_for_window(wnd, wnd.get_scaling_factor());
-		data.emplace<_window_data>(actual_data);
-		// resize buffer when the window size has changed
-		wnd.size_changed += [this, pwnd = &wnd](ui::window_base::size_changed_info&) {
-			auto &data = _window_data::get(*pwnd);
-			data.context.reset();
-			data.context = _create_context_for_window(*pwnd, pwnd->get_scaling_factor());
-			pwnd->invalidate_visual();
-		};
-		// reallocate buffer when the window scaling has changed
-		wnd.scaling_factor_changed += [this, pwnd = &wnd](window_base::scaling_factor_changed_info &p) {
-			auto &data = _window_data::get(*pwnd);
-			data.context.reset();
-			data.context = _create_context_for_window(*pwnd, p.new_value);
-			pwnd->invalidate_visual();
-		};
 	}
 }
 

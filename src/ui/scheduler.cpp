@@ -71,7 +71,7 @@ namespace codepad::ui {
 		}
 		_dirty.clear();
 		for (auto i : ss) {
-			i->_on_render();
+			i->invalidate_window_visuals();
 		}
 	}
 
