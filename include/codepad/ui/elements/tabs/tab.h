@@ -23,11 +23,6 @@ namespace codepad::ui::tabs {
 		friend tab_manager;
 		friend host;
 	public:
-		/// The default padding.
-		///
-		/// \todo Make this customizable.
-		constexpr static thickness content_padding = thickness(5.0);
-
 		/// Contains information about the user starting to drag a \ref tab_button.
 		struct drag_start_info {
 			/// Initializes all fields of the struct.

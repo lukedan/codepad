@@ -8,7 +8,7 @@
 /// \ref codepad::ui::element.
 
 namespace codepad::ui {
-	namespace transforms {
+	namespace transform_parameters {
 		matd3x3 collection::get_matrix(vec2d unit) const {
 			matd3x3 res = matd3x3::identity();
 			for (const generic &g : components) {

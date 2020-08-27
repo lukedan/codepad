@@ -84,25 +84,25 @@ namespace codepad::json {
 
 	template <
 		typename Value
-	> std::optional<ui::transforms::generic> default_parser<ui::transforms::generic>::operator()(
+	> std::optional<ui::transform_parameters::generic> default_parser<ui::transform_parameters::generic>::operator()(
 		const Value &val
 	) const {
 		if (val.template is<null_t>()) {
-			return ui::transforms::generic::make<ui::transforms::identity>();
+			return ui::transform_parameters::generic::make<ui::transform_parameters::identity>();
 		}
 		std::optional<typename Value::array_type> group;
 		if (auto obj = val.template try_cast<typename Value::object_type>()) {
 			if (auto offset = obj->template parse_optional_member<ui::relative_vec2d>(u8"translation")) {
-				return ui::transforms::generic::make<ui::transforms::translation>(offset.value());
+				return ui::transform_parameters::generic::make<ui::transform_parameters::translation>(offset.value());
 			}
 			if (auto scale = obj->template parse_optional_member<vec2d>(u8"scale")) {
 				if (auto center = obj->template parse_member<ui::relative_vec2d>(u8"center")) {
-					return ui::transforms::generic::make<ui::transforms::scale>(center.value(), scale.value());
+					return ui::transform_parameters::generic::make<ui::transform_parameters::scale>(center.value(), scale.value());
 				}
 			}
 			if (auto rotation = obj->template parse_optional_member<double>(u8"rotation")) {
 				if (auto center = obj->template parse_member<ui::relative_vec2d>(u8"center")) {
-					return ui::transforms::generic::make<ui::transforms::rotation>(
+					return ui::transform_parameters::generic::make<ui::transform_parameters::rotation>(
 						center.value(), rotation.value()
 						);
 				}
@@ -112,13 +112,13 @@ namespace codepad::json {
 			group = val.template try_cast<typename Value::array_type>();
 		}
 		if (group) {
-			ui::transforms::collection res;
+			ui::transform_parameters::collection res;
 			for (auto &&trans : group.value()) {
-				if (auto child = trans.template parse<ui::transforms::generic>()) {
+				if (auto child = trans.template parse<ui::transform_parameters::generic>()) {
 					res.components.emplace_back(std::move(child.value()));
 				}
 			}
-			return ui::transforms::generic::make<ui::transforms::collection>(std::move(res));
+			return ui::transform_parameters::generic::make<ui::transform_parameters::collection>(std::move(res));
 		} else {
 			val.template log<log_level::error>(CP_HERE) << "invalid transform format";
 		}
@@ -128,12 +128,12 @@ namespace codepad::json {
 
 	template <
 		typename Value
-	> std::optional<ui::brushes::solid_color> default_parser<ui::brushes::solid_color>::operator()(
+	> std::optional<ui::brush_parameters::solid_color> default_parser<ui::brush_parameters::solid_color>::operator()(
 		const Value &val
 	) const {
 		if (auto obj = val.template cast<typename Value::object_type>()) {
 			if (auto color = obj->template parse_member<colord>(u8"color")) {
-				return ui::brushes::solid_color(color.value());
+				return ui::brush_parameters::solid_color(color.value());
 			}
 		}
 		return std::nullopt;
@@ -142,7 +142,7 @@ namespace codepad::json {
 
 	template <
 		typename Value
-	> std::optional<ui::brushes::linear_gradient> default_parser<ui::brushes::linear_gradient>::operator()(
+	> std::optional<ui::brush_parameters::linear_gradient> default_parser<ui::brush_parameters::linear_gradient>::operator()(
 		const Value &val
 	) const {
 		if (auto obj = val.template cast<typename Value::object_type>()) {
@@ -151,7 +151,7 @@ namespace codepad::json {
 					if (auto stops = obj->template parse_member<ui::gradient_stop_collection>(
 						u8"gradient_stops", array_parser<ui::gradient_stop>()
 						)) {
-						return ui::brushes::linear_gradient(from.value(), to.value(), std::move(stops.value()));
+						return ui::brush_parameters::linear_gradient(from.value(), to.value(), std::move(stops.value()));
 					}
 				}
 			}
@@ -162,7 +162,7 @@ namespace codepad::json {
 
 	template <
 		typename Value
-	> std::optional<ui::brushes::radial_gradient> default_parser<ui::brushes::radial_gradient>::operator()(
+	> std::optional<ui::brush_parameters::radial_gradient> default_parser<ui::brush_parameters::radial_gradient>::operator()(
 		const Value &val
 	) const {
 		if (auto obj = val.template cast<typename Value::object_type>()) {
@@ -171,7 +171,7 @@ namespace codepad::json {
 					if (auto stops = obj->template parse_member<ui::gradient_stop_collection>(
 						u8"gradient_stops", array_parser<ui::gradient_stop>()
 						)) {
-						return ui::brushes::radial_gradient(
+						return ui::brush_parameters::radial_gradient(
 							center.value(), radius.value(), std::move(stops.value())
 						);
 					}
@@ -682,57 +682,57 @@ namespace codepad::json {
 
 
 namespace codepad::ui {
-	template <typename Value> std::optional<generic_brush> managed_json_parser<generic_brush>::operator()(
+	template <typename Value> std::optional<generic_brush_parameters> managed_json_parser<generic_brush_parameters>::operator()(
 		const Value &val
 	) const {
 		if (auto obj = val.template try_cast<typename Value::object_type>()) {
-			generic_brush result;
+			generic_brush_parameters result;
 			if (auto type = obj->template parse_member<std::u8string_view>(u8"type")) {
 				if (type.value() == u8"solid") {
-					if (auto brush = val.template parse<brushes::solid_color>()) {
-						result.value.emplace<brushes::solid_color>(std::move(brush.value()));
+					if (auto brush = val.template parse<brush_parameters::solid_color>()) {
+						result.value.emplace<brush_parameters::solid_color>(std::move(brush.value()));
 					}
 				} else if (type.value() == u8"linear_gradient") {
-					if (auto brush = val.template parse<brushes::linear_gradient>()) {
-						result.value.emplace<brushes::linear_gradient>(std::move(brush.value()));
+					if (auto brush = val.template parse<brush_parameters::linear_gradient>()) {
+						result.value.emplace<brush_parameters::linear_gradient>(std::move(brush.value()));
 					}
 				} else if (type.value() == u8"radial_gradient") {
-					if (auto brush = val.template parse<brushes::radial_gradient>()) {
-						result.value.emplace<brushes::radial_gradient>(std::move(brush.value()));
+					if (auto brush = val.template parse<brush_parameters::radial_gradient>()) {
+						result.value.emplace<brush_parameters::radial_gradient>(std::move(brush.value()));
 					}
 				} else if (type.value() == u8"radial_gradient") {
-					if (auto brush = val.template parse<brushes::radial_gradient>()) {
-						result.value.emplace<brushes::radial_gradient>(std::move(brush.value()));
+					if (auto brush = val.template parse<brush_parameters::radial_gradient>()) {
+						result.value.emplace<brush_parameters::radial_gradient>(std::move(brush.value()));
 					}
 				} else if (type.value() == u8"bitmap") {
-					if (auto brush = val.template parse<brushes::bitmap_pattern>(
-						managed_json_parser<brushes::bitmap_pattern>(_manager)
+					if (auto brush = val.template parse<brush_parameters::bitmap_pattern>(
+						managed_json_parser<brush_parameters::bitmap_pattern>(_manager)
 						)) {
-						result.value.emplace<brushes::bitmap_pattern>(std::move(brush.value()));
+						result.value.emplace<brush_parameters::bitmap_pattern>(std::move(brush.value()));
 					}
 				} else if (type.value() != u8"none") {
 					val.template log<log_level::error>(CP_HERE) << "invalid brush type";
 					return std::nullopt;
 				}
 			}
-			if (auto trans = obj->template parse_optional_member<transforms::generic>(u8"transform")) {
+			if (auto trans = obj->template parse_optional_member<transform_parameters::generic>(u8"transform")) {
 				result.transform = std::move(trans.value());
 			}
 			return result;
 		} else if (auto color = val.template parse<colord>()) {
-			generic_brush result;
-			result.value.emplace<brushes::solid_color>(color.value());
+			generic_brush_parameters result;
+			result.value.emplace<brush_parameters::solid_color>(color.value());
 			return result;
 		}
 		return std::nullopt;
 	}
 
 
-	template <typename Value> std::optional<generic_pen> managed_json_parser<generic_pen>::operator()(
+	template <typename Value> std::optional<generic_pen_parameters> managed_json_parser<generic_pen_parameters>::operator()(
 		const Value &val
 	) const {
-		if (auto brush = val.template parse<generic_brush>(managed_json_parser<generic_brush>(_manager))) {
-			generic_pen result;
+		if (auto brush = val.template parse<generic_brush_parameters>(managed_json_parser<generic_brush_parameters>(_manager))) {
+			generic_pen_parameters result;
 			result.brush = brush.value();
 			if (auto obj = val.template cast<typename Value::object_type>()) {
 				result.thickness =
@@ -780,16 +780,16 @@ namespace codepad::ui {
 					val.template log<log_level::error>(CP_HERE) << "invalid geometry type";
 					return std::nullopt;
 				}
-				if (auto trans = obj->template parse_optional_member<transforms::generic>(u8"transform")) {
+				if (auto trans = obj->template parse_optional_member<transform_parameters::generic>(u8"transform")) {
 					result.transform = std::move(trans.value());
 				}
-				if (auto fill = obj->template parse_optional_member<generic_brush>(
-					u8"fill", managed_json_parser<generic_brush>(_manager)
+				if (auto fill = obj->template parse_optional_member<generic_brush_parameters>(
+					u8"fill", managed_json_parser<generic_brush_parameters>(_manager)
 					)) {
 					result.fill = fill.value();
 				}
-				if (auto stroke = obj->template parse_optional_member<generic_pen>(
-					u8"stroke", managed_json_parser<generic_pen>(_manager)
+				if (auto stroke = obj->template parse_optional_member<generic_pen_parameters>(
+					u8"stroke", managed_json_parser<generic_pen_parameters>(_manager)
 					)) {
 					result.stroke = stroke.value();
 				}
@@ -813,7 +813,7 @@ namespace codepad::ui {
 				)) {
 				res.geometries = std::move(geoms.value());
 			}
-			if (auto trans = obj->template parse_optional_member<transforms::generic>(u8"transform")) {
+			if (auto trans = obj->template parse_optional_member<transform_parameters::generic>(u8"transform")) {
 				res.transform = std::move(trans.value());
 			}
 			return res;

@@ -310,6 +310,18 @@ namespace codepad::ui {
 			return (get_visibility() & vis) == vis;
 		}
 
+		/// Sets whether to clip this element when rendering.
+		void set_clip_to_bounds(bool clip) {
+			if (clip != _clip_to_bounds) {
+				_clip_to_bounds = clip;
+				invalidate_visual();
+			}
+		}
+		/// Returns whether this element is clipped when rendering.
+		[[nodiscard]] bool get_clip_to_bounds() const {
+			return _clip_to_bounds;
+		}
+
 		/// Returns if the mouse is hovering over this element.
 		[[nodiscard]] bool is_mouse_over() const {
 			return _mouse_over;
@@ -380,7 +392,10 @@ namespace codepad::ui {
 		vec2d _cached_mouse_position; ///< Cached mouse position relative to this elemnt.
 		/// The timestamp used to check if \ref _cached_mouse_position is valid.
 		std::size_t _cached_mouse_position_timestamp = 0;
-		bool _mouse_over = false; ///< Indicates if the mouse is hovering over this element.
+		bool
+			_mouse_over = false, ///< Indicates if the mouse is hovering over this element.
+			/// Indicates that all contents that lie outside of the layout of this element should be clipped.
+			_clip_to_bounds = false;
 
 		std::list<_animation_info> _animations; ///< A list of playing animations.
 

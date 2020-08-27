@@ -188,10 +188,10 @@ namespace codepad::editors::code {
 				vec2d topleft(get_padding().left, std::floor(top + slh * static_cast<double>(i->first)));
 				r.draw_rectangle(
 					rectd::from_corner_and_size(topleft, bmp.get_size()),
-					ui::generic_brush_parameters(
-						ui::brush_parameters::bitmap_pattern(&bmp), matd3x3::translate(topleft)
+					ui::generic_brush(
+						ui::brushes::bitmap_pattern(&bmp), matd3x3::translate(topleft)
 					),
-					ui::generic_pen_parameters()
+					ui::generic_pen()
 				);
 			}
 			// render visible region indicator

@@ -165,7 +165,7 @@ namespace codepad::json {
 
 namespace codepad::ui {
 	/// Various types of transforms.
-	namespace transforms {
+	namespace transform_parameters {
 		/// The identity transform.
 		struct identity {
 			/// Returns the identity matrix.
@@ -294,7 +294,7 @@ namespace codepad::ui {
 		};
 
 		struct generic;
-		/// A collection of \ref transforms::generic that are applied in order.
+		/// A collection of \ref transform_parameters::generic that are applied in order.
 		struct collection {
 			/// Returns the combined transformation matrix.
 			matd3x3 get_matrix(vec2d) const;
@@ -343,20 +343,20 @@ namespace codepad::ui {
 	}
 }
 namespace codepad::json {
-	/// Parser for \ref ui::transforms::generic.
-	template <> struct default_parser<ui::transforms::generic> {
+	/// Parser for \ref ui::transform_parameters::generic.
+	template <> struct default_parser<ui::transform_parameters::generic> {
 		/// Parses a generic transform. The value can either be:
 		///  - A list, whcih is interpreted as a transform collection.
 		///  - An object with a member named either `trasnaltion', `scale', `rotation', or `children'. These members
 		///    are checked in order and only the first one is handled.
-		template <typename Value> std::optional<ui::transforms::generic> operator()(const Value&) const;
+		template <typename Value> std::optional<ui::transform_parameters::generic> operator()(const Value&) const;
 	};
 }
 
 
-/// Various types of brushes.
-namespace codepad::ui::brushes {
-	/// Corresponds to \ref brush_parameters::solid_color.
+/// Stores parameters of brushes.
+namespace codepad::ui::brush_parameters {
+	/// Corresponds to \ref brushes::solid_color.
 	struct solid_color {
 		/// Default constructor.
 		solid_color() = default;
@@ -364,14 +364,14 @@ namespace codepad::ui::brushes {
 		explicit solid_color(colord c) : color(c) {
 		}
 
-		/// Returns the corresponding \ref brush_parameters::solid_color given the target region.
-		brush_parameters::solid_color get_parameters(vec2d) const {
-			return brush_parameters::solid_color(color);
+		/// Returns the corresponding \ref brushes::solid_color given the target region.
+		brushes::solid_color get_parameters(vec2d) const {
+			return brushes::solid_color(color);
 		}
 
-		colord color; ///< \sa brush_parameters::solid_color::color
+		colord color; ///< \sa brushes::solid_color::color
 	};
-	/// Corresponds to \ref brush_parameters::linear_gradient.
+	/// Corresponds to \ref brushes::linear_gradient.
 	struct linear_gradient {
 		/// Default constructor.
 		linear_gradient() = default;
@@ -380,19 +380,19 @@ namespace codepad::ui::brushes {
 			gradient_stops(std::move(gs)), from(f), to(t) {
 		}
 
-		/// Returns the corresponding \ref brush_parameters::linear_gradient given the target region.
-		brush_parameters::linear_gradient get_parameters(vec2d unit) const {
-			return brush_parameters::linear_gradient(
+		/// Returns the corresponding \ref brushes::linear_gradient given the target region.
+		brushes::linear_gradient get_parameters(vec2d unit) const {
+			return brushes::linear_gradient(
 				from.get_absolute_offset(unit), to.get_absolute_offset(unit), gradient_stops
 			);
 		}
 
-		gradient_stop_collection gradient_stops; ///< \sa brush_parameters::linear_gradient::gradients
+		gradient_stop_collection gradient_stops; ///< \sa brushes::linear_gradient::gradients
 		relative_vec2d
-			from, ///< \sa brush_parameters::linear_gradient::from
-			to; ///< \sa brush_parameters::linear_gradient::to
+			from, ///< \sa brushes::linear_gradient::from
+			to; ///< \sa brushes::linear_gradient::to
 	};
-	/// Corresponds to \ref brush_parameters::radial_gradient.
+	/// Corresponds to \ref brushes::radial_gradient.
 	struct radial_gradient {
 		/// Default constructor.
 		radial_gradient() = default;
@@ -401,18 +401,18 @@ namespace codepad::ui::brushes {
 			gradient_stops(std::move(gs)), center(c), radius(r) {
 		}
 
-		/// Returns the corresponding \ref brush_parameters::radial_gradient given the target region.
-		brush_parameters::radial_gradient get_parameters(vec2d unit) const {
-			return brush_parameters::radial_gradient(
+		/// Returns the corresponding \ref brushes::radial_gradient given the target region.
+		brushes::radial_gradient get_parameters(vec2d unit) const {
+			return brushes::radial_gradient(
 				center.get_absolute_offset(unit), radius, gradient_stops
 			);
 		}
 
-		gradient_stop_collection gradient_stops; ///< \sa brush_parameters::radial_gradient::gradients
-		relative_vec2d center; ///< \sa brush_parameters::radial_gradient::center
-		double radius; ///< \sa brush_parameters::radial_gradient::radius
+		gradient_stop_collection gradient_stops; ///< \sa brushes::radial_gradient::gradients
+		relative_vec2d center; ///< \sa brushes::radial_gradient::center
+		double radius; ///< \sa brushes::radial_gradient::radius
 	};
-	/// Corresponds to \ref brush_parameters::bitmap_pattern.
+	/// Corresponds to \ref brushes::bitmap_pattern.
 	struct bitmap_pattern {
 		/// Default constructor.
 		bitmap_pattern() = default;
@@ -420,108 +420,108 @@ namespace codepad::ui::brushes {
 		explicit bitmap_pattern(std::shared_ptr<bitmap> img) : image(std::move(img)) {
 		}
 
-		/// Returns the corresponding \ref brush_parameters::bitmap_pattern given the target region.
-		brush_parameters::bitmap_pattern get_parameters(vec2d) const {
-			return brush_parameters::bitmap_pattern(&*image);
+		/// Returns the corresponding \ref brushes::bitmap_pattern given the target region.
+		brushes::bitmap_pattern get_parameters(vec2d) const {
+			return brushes::bitmap_pattern(&*image);
 		}
 
-		std::shared_ptr<bitmap> image; ///< \sa brush_parameters::bitmap_pattern::image
+		std::shared_ptr<bitmap> image; ///< \sa brushes::bitmap_pattern::image
 	};
-	/// Corresponds to \ref brush_parameters::none.
+	/// Corresponds to \ref brushes::none.
 	struct none {
-		/// Returns a new \ref brush_parameters::none object.
-		brush_parameters::none get_parameters(vec2d) const {
-			return brush_parameters::none();
+		/// Returns a new \ref brushes::none object.
+		brushes::none get_parameters(vec2d) const {
+			return brushes::none();
 		}
 	};
 }
 namespace codepad::json {
-	/// Parser for \ref ui::brushes::solid_color.
-	template <> struct default_parser<ui::brushes::solid_color> {
+	/// Parser for \ref ui::brush_parameters::solid_color.
+	template <> struct default_parser<ui::brush_parameters::solid_color> {
 		/// The parser interface.
-		template <typename Value> std::optional<ui::brushes::solid_color> operator()(const Value&) const;
+		template <typename Value> std::optional<ui::brush_parameters::solid_color> operator()(const Value&) const;
 	};
-	/// Parser for \ref ui::brushes::linear_gradient.
-	template <> struct default_parser<ui::brushes::linear_gradient> {
+	/// Parser for \ref ui::brush_parameters::linear_gradient.
+	template <> struct default_parser<ui::brush_parameters::linear_gradient> {
 		/// The parser interface.
-		template <typename Value> std::optional<ui::brushes::linear_gradient> operator()(const Value&) const;
+		template <typename Value> std::optional<ui::brush_parameters::linear_gradient> operator()(const Value&) const;
 	};
-	/// Parser for \ref ui::brushes::radial_gradient.
-	template <> struct default_parser<ui::brushes::radial_gradient> {
+	/// Parser for \ref ui::brush_parameters::radial_gradient.
+	template <> struct default_parser<ui::brush_parameters::radial_gradient> {
 		/// The parser interface.
-		template <typename Value> std::optional<ui::brushes::radial_gradient> operator()(const Value&) const;
+		template <typename Value> std::optional<ui::brush_parameters::radial_gradient> operator()(const Value&) const;
 	};
 }
 namespace codepad::ui {
-	/// Parser for \ref brushes::bitmap_pattern.
-	template <> struct managed_json_parser<brushes::bitmap_pattern> {
+	/// Parser for \ref brush_parameters::bitmap_pattern.
+	template <> struct managed_json_parser<brush_parameters::bitmap_pattern> {
 	public:
 		/// Initializes \ref _manager.
 		explicit managed_json_parser(manager &m) : _manager(m) {
 		}
 
 		/// The parser interface.
-		template <typename Value> std::optional<ui::brushes::bitmap_pattern> operator()(const Value&) const;
+		template <typename Value> std::optional<ui::brush_parameters::bitmap_pattern> operator()(const Value&) const;
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
 
-	/// A generic brush.
-	struct generic_brush {
+	/// Parameters for a generic brush.
+	struct generic_brush_parameters {
 		/// Stores the actual value of the brush.
 		using value_type = std::variant<
-			brushes::none,
-			brushes::solid_color,
-			brushes::linear_gradient,
-			brushes::radial_gradient,
-			brushes::bitmap_pattern
+			brush_parameters::none,
+			brush_parameters::solid_color,
+			brush_parameters::linear_gradient,
+			brush_parameters::radial_gradient,
+			brush_parameters::bitmap_pattern
 		>;
 
 		/// Returns the corresponding brush parameters given the target region.
-		generic_brush_parameters get_parameters(vec2d unit) const {
-			if (std::holds_alternative<brushes::none>(value)) {
-				return generic_brush_parameters();
+		generic_brush get_parameters(vec2d unit) const {
+			if (std::holds_alternative<brush_parameters::none>(value)) {
+				return generic_brush();
 			}
 			return std::visit([this, &unit](auto &&b) {
-				return generic_brush_parameters(b.get_parameters(unit), transform.get_matrix(unit));
+				return generic_brush(b.get_parameters(unit), transform.get_matrix(unit));
 				}, value);
 		}
 
 		value_type value; ///< The value of this generic brush.
-		transforms::generic transform; ///< The transform of this brush.
+		transform_parameters::generic transform; ///< The transform of this brush.
 	};
-	/// Used to parse a \ref generic_brush.
-	template <> struct managed_json_parser<generic_brush> {
+	/// Used to parse a \ref generic_brush_parameters.
+	template <> struct managed_json_parser<generic_brush_parameters> {
 	public:
 		/// Initializes \ref _manager.
 		managed_json_parser(manager &m) : _manager(m) {
 		}
 
 		/// The parser interface.
-		template <typename Value> std::optional<generic_brush> operator()(const Value&) const;
+		template <typename Value> std::optional<generic_brush_parameters> operator()(const Value&) const;
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
 
-	/// A generic pen defined by a brush.
-	struct generic_pen {
+	/// Parameters for a generic pen defined by a brush.
+	struct generic_pen_parameters {
 		/// Returns the corresponding pen parameters given the target region.
-		generic_pen_parameters get_parameters(vec2d unit) const {
-			return generic_pen_parameters(brush.get_parameters(unit), thickness);
+		generic_pen get_parameters(vec2d unit) const {
+			return generic_pen(brush.get_parameters(unit), thickness);
 		}
 
-		generic_brush brush; ///< The brush.
+		generic_brush_parameters brush; ///< The brush.
 		double thickness = 1.0; ///< The thickness of this pen.
 	};
-	/// Used to parse a \ref generic_pen.
-	template <> struct managed_json_parser<generic_pen> {
+	/// Used to parse a \ref generic_pen_parameters.
+	template <> struct managed_json_parser<generic_pen_parameters> {
 	public:
 		/// Initializes \ref _manager.
 		managed_json_parser(manager &m) : _manager(m) {
 		}
 
 		/// The parser interface.
-		template <typename Value> std::optional<generic_pen> operator()(const Value&) const;
+		template <typename Value> std::optional<generic_pen_parameters> operator()(const Value&) const;
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
@@ -545,7 +545,7 @@ namespace codepad {
 			/// Draws this rectangle in the specified region with the specified bursh and pen.
 			void draw(
 				vec2d unit, renderer_base &r,
-				const generic_brush_parameters &brush, const generic_pen_parameters &pen
+				const generic_brush &brush, const generic_pen &pen
 			) const {
 				r.draw_rectangle(rectd::from_corners(
 					top_left.get_absolute_offset(unit), bottom_right.get_absolute_offset(unit)
@@ -581,7 +581,7 @@ namespace codepad {
 			/// Draws this rounded rectangle in the specified region with the specified bursh and pen.
 			void draw(
 				vec2d unit, renderer_base &r,
-				const generic_brush_parameters &brush, const generic_pen_parameters &pen
+				const generic_brush &brush, const generic_pen &pen
 			) const {
 				r.draw_rounded_rectangle(
 					rectd::from_corners(top_left.get_absolute_offset(unit), bottom_right.get_absolute_offset(unit)),
@@ -617,7 +617,7 @@ namespace codepad {
 			/// Draws this ellipse in the specified region with the specified bursh and pen.
 			void draw(
 				vec2d unit, renderer_base &r,
-				const generic_brush_parameters &brush, const generic_pen_parameters &pen
+				const generic_brush &brush, const generic_pen &pen
 			) const {
 				auto rgn = rectd::from_corners(
 					top_left.get_absolute_offset(unit), bottom_right.get_absolute_offset(unit)
@@ -704,7 +704,7 @@ namespace codepad {
 			/// Draws this path in the specified region with the specified brush and pen.
 			void draw(
 				vec2d unit, renderer_base &r,
-				const generic_brush_parameters &brush, const generic_pen_parameters &pen
+				const generic_brush &brush, const generic_pen &pen
 			) const {
 				path_geometry_builder &builder = r.start_path();
 				for (const auto &sp : subpaths) {
@@ -759,9 +759,9 @@ namespace codepad::ui {
 		}
 
 		value_type value; ///< The value of this geometry.
-		transforms::generic transform; ///< The transform of this geometry.
-		generic_brush fill; ///< The brush used to fill the geometry.
-		generic_pen stroke; ///< The pen used to stroke the geometry.
+		transform_parameters::generic transform; ///< The transform of this geometry.
+		generic_brush_parameters fill; ///< The brush used to fill the geometry.
+		generic_pen_parameters stroke; ///< The pen used to stroke the geometry.
 	};
 	/// Parser for \ref generic_visual_geometry.
 	template <> struct managed_json_parser<generic_visual_geometry> {
@@ -780,7 +780,7 @@ namespace codepad::ui {
 	/// Parameters that determines the visuals of an element.
 	struct visuals {
 		std::vector<generic_visual_geometry> geometries; ///< The geometries used as the background of the element.
-		transforms::generic transform; ///< The transform of the element.
+		transform_parameters::generic transform; ///< The transform of the element.
 
 		/// Renders this object as an independent set of geometries in the specified bounds.
 		void render(rectd bounds, renderer_base &r) const {
@@ -830,14 +830,6 @@ namespace codepad::json {
 }
 
 namespace codepad::ui {
-	/// Basic parameters that are used by all types of elements.
-	struct element_parameters {
-		visuals visual_parameters; ///< The \ref visuals.
-		element_layout layout_parameters; ///< The \ref element_layout.
-		visibility element_visibility = visibility::full; ///< The visibility of this element.
-		cursor custom_cursor = cursor::not_specified; ///< The custom cursor of the element.
-	};
-
 	/// Contains configuration of an element's behavior.
 	struct element_configuration {
 	public:

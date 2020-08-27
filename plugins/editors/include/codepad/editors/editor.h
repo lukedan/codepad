@@ -70,8 +70,8 @@ namespace codepad::editors {
 			edit_mode_changed;
 	protected:
 		ui::visuals _caret_visuals; ///< The visuals of carets.
-		ui::generic_brush _selection_brush; ///< The brush used for the selection.
-		ui::generic_pen _selection_pen; ///< The pen used for the outline of the selection.
+		ui::generic_brush_parameters _selection_brush; ///< The brush used for the selection.
+		ui::generic_pen_parameters _selection_pen; ///< The pen used for the outline of the selection.
 		std::unique_ptr<selection_renderer> _selection_renderer; ///< The \ref selection_renderer.
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 

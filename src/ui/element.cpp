@@ -127,6 +127,15 @@ namespace codepad::ui {
 					e.set_zindex(z);
 				}
 				));
+			mapping.emplace(u8"clip_to_bounds", std::make_shared<getter_setter_property<element, bool>>(
+				u8"clip_to_bounds",
+				[](element &e) {
+					return e.get_clip_to_bounds();
+				},
+				[](element &e, bool clip) {
+					e.set_clip_to_bounds(clip);
+				}
+				));
 		}
 
 		return mapping;
@@ -151,14 +160,14 @@ namespace codepad::ui {
 		it->task = get_manager().get_scheduler().register_task(
 			scheduler::clock_t::now(), this,
 			[it](element *elem) -> std::optional<scheduler::clock_t::time_point> {
-			auto now = scheduler::clock_t::now();
-			if (auto next_update = it->animation->update(now)) {
-				return now + next_update.value();
-			} else {
-				// erase entry in _animations
-				elem->_animations.erase(it);
-				return std::nullopt;
-			}
+				auto now = scheduler::clock_t::now();
+				if (auto next_update = it->animation->update(now)) {
+					return now + next_update.value();
+				} else {
+					// erase entry in _animations
+					elem->_animations.erase(it);
+					return std::nullopt;
+				}
 			}
 		);
 	}
@@ -221,7 +230,9 @@ namespace codepad::ui {
 		get_manager().get_renderer().push_matrix_mult(
 			matd3x3::translate(offset) * get_visual_parameters().transform.get_matrix(get_layout().size())
 		);
-		/*get_manager().get_renderer().push_clip(_layout.fit_grid_enlarge<int>());*/ // TODO clips?
+		if (_clip_to_bounds) {
+			get_manager().get_renderer().push_rectangle_clip(rectd::from_corners(vec2d(), _layout.size()));
+		}
 	}
 
 	void element::_custom_render() const {
@@ -232,7 +243,9 @@ namespace codepad::ui {
 	}
 
 	void element::_on_postrender() {
-		/*get_manager().get_renderer().pop_clip();*/
+		if (_clip_to_bounds) {
+			get_manager().get_renderer().pop_clip();
+		}
 		get_manager().get_renderer().pop_matrix();
 	}
 

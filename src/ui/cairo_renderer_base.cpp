@@ -712,8 +712,8 @@ namespace codepad::ui::cairo {
 
 	void renderer_base::_draw_path(
 		cairo_t *context,
-		const ui::generic_brush_parameters &brush,
-		const ui::generic_pen_parameters &pen
+		const ui::generic_brush &brush,
+		const ui::generic_pen &pen
 	) {
 		if (_details::gtk_object_ref<cairo_pattern_t> brush_patt = _create_pattern(brush)) {
 			cairo_set_source(context, brush_patt.get());
@@ -730,7 +730,7 @@ namespace codepad::ui::cairo {
 	}
 
 	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
-		const ui::brush_parameters::solid_color &brush
+		const ui::brushes::solid_color &brush
 	) {
 		return _details::make_gtk_object_ref_give(
 			cairo_pattern_create_rgba(
@@ -747,7 +747,7 @@ namespace codepad::ui::cairo {
 	}
 
 	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
-		const ui::brush_parameters::linear_gradient &brush
+		const ui::brushes::linear_gradient &brush
 	) {
 		if (brush.gradients) {
 			auto patt = _details::make_gtk_object_ref_give(
@@ -761,7 +761,7 @@ namespace codepad::ui::cairo {
 	}
 
 	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
-		const ui::brush_parameters::radial_gradient &brush
+		const ui::brushes::radial_gradient &brush
 	) {
 		if (brush.gradients) {
 			auto patt = _details::make_gtk_object_ref_give(
@@ -775,7 +775,7 @@ namespace codepad::ui::cairo {
 	}
 
 	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
-		const ui::brush_parameters::bitmap_pattern &brush
+		const ui::brushes::bitmap_pattern &brush
 	) {
 		if (brush.image) {
 			return _details::make_gtk_object_ref_give(
@@ -787,13 +787,13 @@ namespace codepad::ui::cairo {
 	}
 
 	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
-		const ui::brush_parameters::none&
+		const ui::brushes::none&
 	) {
 		return _details::gtk_object_ref<cairo_pattern_t>();
 	}
 
 	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
-		const generic_brush_parameters &b
+		const generic_brush &b
 	) {
 		auto pattern = std::visit([](auto &&brush) {
 			return _create_pattern(brush);

@@ -403,6 +403,8 @@ namespace codepad::editors::binary {
 		void _on_logical_parent_constructed() override;
 
 		// misc
+		bool _register_event(std::u8string_view, std::function<void()>) override;
+
 		/// Loads font and interaction settings.
 		void _initialize(std::u8string_view) override;
 		/// Sets the current document to empty to unbind event listeners.

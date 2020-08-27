@@ -21,31 +21,31 @@ namespace codepad::ui {
 	/// Transition functions used in animations.
 	namespace transition_functions {
 		/// The linear transition function.
-		inline double linear(double v) {
+		[[nodiscard]] inline double linear(double v) {
 			return v;
 		}
 
 		/// The smoothstep transition function.
-		inline double smoothstep(double v) {
+		[[nodiscard]] inline double smoothstep(double v) {
 			return v * v * (3.0 - 2.0 * v);
 		}
 
 		/// The concave quadratic transition function.
-		inline double concave_quadratic(double v) {
+		[[nodiscard]] inline double concave_quadratic(double v) {
 			return v * v;
 		}
 		/// The convex quadratic transition function.
-		inline double convex_quadratic(double v) {
+		[[nodiscard]] inline double convex_quadratic(double v) {
 			v = 1.0 - v;
 			return 1.0 - v * v;
 		}
 
 		/// The concave cubic transition function.
-		inline double concave_cubic(double v) {
+		[[nodiscard]] inline double concave_cubic(double v) {
 			return v * v * v;
 		}
 		/// The convex cubic transition function.
-		inline double convex_cubic(double v) {
+		[[nodiscard]] inline double convex_cubic(double v) {
 			v = 1.0 - v;
 			return 1.0 - v * v * v;
 		}

@@ -301,7 +301,7 @@ namespace codepad::ui::animation_path {
 
 
 		// transforms
-#define CP_APB_CURRENT_TYPE transforms::generic, transform
+#define CP_APB_CURRENT_TYPE transform_parameters::generic, transform
 		template <
 			template <typename> typename, typename Comp, std::size_t = 0
 		> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(transform) (
@@ -309,7 +309,7 @@ namespace codepad::ui::animation_path {
 		);
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE transforms::translation, translation_transform
+#define CP_APB_CURRENT_TYPE transform_parameters::translation, translation_transform
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -318,7 +318,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE transforms::scale, scale_transform
+#define CP_APB_CURRENT_TYPE transform_parameters::scale, scale_transform
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -328,7 +328,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE transforms::rotation, rotation_transform
+#define CP_APB_CURRENT_TYPE transform_parameters::rotation, rotation_transform
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -338,7 +338,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE transforms::collection, transform_collection
+#define CP_APB_CURRENT_TYPE transform_parameters::collection, transform_collection
 		template <
 			template <typename> typename MemberAccess, typename Comp, std::size_t Count = 0
 		> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(transform_collection) (
@@ -351,9 +351,9 @@ namespace codepad::ui::animation_path {
 				if (begin->property == u8"children" && begin->index.has_value()) {
 					auto nextcomp = getter_components::pair(
 						getter_components::pair(
-							comp, getter_components::member_component<&transforms::collection::components>()
+							comp, getter_components::member_component<&transform_parameters::collection::components>()
 						),
-						getter_components::array_component<transforms::generic>(begin->index.value())
+						getter_components::array_component<transform_parameters::generic>(begin->index.value())
 					);
 					return CP_APB_GETTER_NAME(transform)<
 						MemberAccess, std::decay_t<decltype(nextcomp)>, Count + 1
@@ -363,7 +363,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE transforms::generic, transform
+#define CP_APB_CURRENT_TYPE transform_parameters::generic, transform
 #define CP_APB_CURRENT_VARIANT_INFO value_type, value
 		template <
 			template <typename> typename MemberAccess, typename Comp, std::size_t Count
@@ -377,16 +377,16 @@ namespace codepad::ui::animation_path {
 				CP_APB_MUST_NOT_TERMINATE_EARLY;
 			}
 
-			CP_APB_TRY_FORWARD_VARIANT(transforms::translation, translation_transform);
-			CP_APB_TRY_FORWARD_VARIANT(transforms::scale, scale_transform);
-			CP_APB_TRY_FORWARD_VARIANT(transforms::rotation, rotation_transform);
+			CP_APB_TRY_FORWARD_VARIANT(transform_parameters::translation, translation_transform);
+			CP_APB_TRY_FORWARD_VARIANT(transform_parameters::scale, scale_transform);
+			CP_APB_TRY_FORWARD_VARIANT(transform_parameters::rotation, rotation_transform);
 			/*if (begin->type == u8"transform_collection") {
 				CP_APB_NO_INDEX;
 				auto &&nextcomp = getter_components::pair(
 					getter_components::pair(
-						comp, getter_components::member_component<&transforms::generic::value>()
+						comp, getter_components::member_component<&transform_parameters::generic::value>()
 					),
-					getter_components::variant_component<transforms::generic::value_type, transforms::collection>()
+					getter_components::variant_component<transform_parameters::generic::value_type, transform_parameters::collection>()
 				);
 				return CP_APB_GETTER_NAME(transform_collection)<
 					MemberAccess, std::decay_t<decltype(nextcomp)>, Count
@@ -407,7 +407,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE brushes::solid_color, solid_color_brush
+#define CP_APB_CURRENT_TYPE brush_parameters::solid_color, solid_color_brush
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -416,7 +416,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE brushes::linear_gradient, linear_gradient_brush
+#define CP_APB_CURRENT_TYPE brush_parameters::linear_gradient, linear_gradient_brush
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -427,7 +427,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE brushes::radial_gradient, radial_gradient_brush
+#define CP_APB_CURRENT_TYPE brush_parameters::radial_gradient, radial_gradient_brush
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -438,7 +438,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE brushes::bitmap_pattern, bitmap_brush
+#define CP_APB_CURRENT_TYPE brush_parameters::bitmap_pattern, bitmap_brush
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 			CP_APB_CHECK_TYPE;
@@ -447,7 +447,7 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE generic_brush, brush
+#define CP_APB_CURRENT_TYPE generic_brush_parameters, brush
 #define CP_APB_CURRENT_VARIANT_INFO value_type, value
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
@@ -460,14 +460,14 @@ namespace codepad::ui::animation_path {
 				}
 			}
 
-			CP_APB_TRY_FORWARD_VARIANT(brushes::solid_color, solid_color_brush);
-			CP_APB_TRY_FORWARD_VARIANT(brushes::linear_gradient, linear_gradient_brush);
-			CP_APB_TRY_FORWARD_VARIANT(brushes::radial_gradient, radial_gradient_brush);
-			CP_APB_TRY_FORWARD_VARIANT(brushes::bitmap_pattern, bitmap_brush);
+			CP_APB_TRY_FORWARD_VARIANT(brush_parameters::solid_color, solid_color_brush);
+			CP_APB_TRY_FORWARD_VARIANT(brush_parameters::linear_gradient, linear_gradient_brush);
+			CP_APB_TRY_FORWARD_VARIANT(brush_parameters::radial_gradient, radial_gradient_brush);
+			CP_APB_TRY_FORWARD_VARIANT(brush_parameters::bitmap_pattern, bitmap_brush);
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
-#define CP_APB_CURRENT_TYPE generic_pen, pen
+#define CP_APB_CURRENT_TYPE generic_pen_parameters, pen
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;
 
@@ -480,7 +480,7 @@ namespace codepad::ui::animation_path {
 			}
 
 			return CP_APB_GETTER_NAME(brush)<MemberAccess>(begin, end, getter_components::pair(
-				comp, getter_components::member_component<&generic_pen::brush>()
+				comp, getter_components::member_component<&generic_pen_parameters::brush>()
 			));
 		}
 		CP_APB_DEFINE_PROPERTY_GETTER

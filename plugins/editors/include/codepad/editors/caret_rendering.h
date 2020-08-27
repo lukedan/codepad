@@ -18,8 +18,7 @@ namespace codepad::editors {
 
 		/// Renders a single selected region.
 		virtual void render(
-			ui::renderer_base&, const std::vector<rectd>&,
-			const ui::generic_brush_parameters&, const ui::generic_pen_parameters&
+			ui::renderer_base&, const std::vector<rectd>&, const ui::generic_brush&, const ui::generic_pen&
 		) const = 0;
 	};
 
@@ -28,10 +27,8 @@ namespace codepad::editors {
 	public:
 		/// Renders these regions as a single path with round corners.
 		void render(
-			ui::renderer_base &rend,
-			const std::vector<rectd> &rects,
-			const ui::generic_brush_parameters &brush,
-			const ui::generic_pen_parameters &pen
+			ui::renderer_base &rend, const std::vector<rectd> &rects,
+			const ui::generic_brush &brush, const ui::generic_pen &pen
 		) const override {
 			if (rects.empty()) {
 				return;

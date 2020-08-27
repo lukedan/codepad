@@ -509,14 +509,14 @@ namespace codepad::ui::cairo {
 		/// Draws an ellipse.
 		void draw_ellipse(
 			vec2d center, double radiusx, double radiusy,
-			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+			const ui::generic_brush &brush, const ui::generic_pen &pen
 		) override {
 			_make_ellipse_geometry(center, radiusx, radiusy);
 			_draw_path(_render_stack.top().context, brush, pen);
 		}
 		/// Draws a rectangle.
 		void draw_rectangle(
-			rectd rect, const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+			rectd rect, const ui::generic_brush &brush, const ui::generic_pen &pen
 		) override {
 			cairo_t *context = _render_stack.top().context;
 			cairo_rectangle(context, rect.xmin, rect.ymin, rect.width(), rect.height());
@@ -525,14 +525,14 @@ namespace codepad::ui::cairo {
 		/// Draws a rounded rectangle.
 		void draw_rounded_rectangle(
 			rectd region, double radiusx, double radiusy,
-			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+			const ui::generic_brush &brush, const ui::generic_pen &pen
 		) override {
 			_make_rounded_rectangle_geometry(region, radiusx, radiusy);
 			_draw_path(_render_stack.top().context, brush, pen);
 		}
 		/// Draws the path in the current context.
 		void end_and_draw_path(
-			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+			const ui::generic_brush &brush, const ui::generic_pen &pen
 		) override {
 			assert_true_usage(
 				!_render_stack.empty() && _path_builder._context == _render_stack.top().context,
@@ -659,7 +659,7 @@ namespace codepad::ui::cairo {
 
 
 		/// Draws the current path using the given brush and pen.
-		static void _draw_path(cairo_t*, const ui::generic_brush_parameters&, const ui::generic_pen_parameters&);
+		static void _draw_path(cairo_t*, const ui::generic_brush&, const ui::generic_pen&);
 		/// Saves the current cairo context status onto the stack by calling \p cairo_save(), then calls
 		/// \p cairo_clip() to update the clip region.
 		inline static void _push_clip(cairo_t *context) {
@@ -670,29 +670,29 @@ namespace codepad::ui::cairo {
 
 		/// Creates a new solid color pattern.
 		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::solid_color&
+			const ui::brushes::solid_color&
 		);
 		/// Adds gradient stops to a gradient pattern.
 		static void _add_gradient_stops(cairo_pattern_t*, const gradient_stop_collection&);
 		/// Creates a new linear gradient pattern.
 		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::linear_gradient&
+			const ui::brushes::linear_gradient&
 		);
 		/// Creates a new radial gradient pattern.
 		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::radial_gradient&
+			const ui::brushes::radial_gradient&
 		);
 		/// Creates a new bitmap gradient pattern.
 		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::bitmap_pattern&
+			const ui::brushes::bitmap_pattern&
 		);
 		/// Returns an empty \ref _details::gtk_object_ref.
 		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const ui::brush_parameters::none&
+			const ui::brushes::none&
 		);
 		/// Creates a new \p cairo_pattern_t given the parameters of the brush.
 		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
-			const generic_brush_parameters&
+			const generic_brush&
 		);
 
 

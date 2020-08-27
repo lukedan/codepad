@@ -307,20 +307,20 @@ namespace codepad::os::direct2d {
 		/// Draws a \p ID2D1EllipseGeometry.
 		void draw_ellipse(
 			vec2d center, double radiusx, double radiusy,
-			const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+			const ui::generic_brush &brush, const ui::generic_pen &pen
 		) override;
 		/// Draws a \p ID2D1RectangleGeometry.
 		void draw_rectangle(
-			rectd, const ui::generic_brush_parameters&, const ui::generic_pen_parameters&
+			rectd, const ui::generic_brush&, const ui::generic_pen&
 		) override;
 		/// Draws a \p ID2D1RoundedRectangleGeometry.
 		void draw_rounded_rectangle(
 			rectd region, double radiusx, double radiusy,
-			const ui::generic_brush_parameters&, const ui::generic_pen_parameters&
+			const ui::generic_brush&, const ui::generic_pen&
 		) override;
 		/// Calls \ref path_geometry_builder::_end() and draws the returned geometry.
 		void end_and_draw_path(
-			const ui::generic_brush_parameters&, const ui::generic_pen_parameters&
+			const ui::generic_brush&, const ui::generic_pen&
 		) override;
 
 		/// Creates a \p ID2D1EllipseGeometry and pushes it as a clip.
@@ -406,35 +406,35 @@ namespace codepad::os::direct2d {
 		/// Draws the given geometry.
 		void _draw_geometry(
 			_details::com_wrapper<ID2D1Geometry>,
-			const ui::generic_brush_parameters&,
-			const ui::generic_pen_parameters&
+			const ui::generic_brush&,
+			const ui::generic_pen&
 		);
 		/// Calls \p ID2D1DeviceContext::PushLayer() to push a layer with the specified geometry as its clip.
 		void _push_layer(_details::com_wrapper<ID2D1Geometry> clip);
 
 
-		/// Creates a brush based on \ref ui::brush_parameters::solid_color.
-		_details::com_wrapper<ID2D1SolidColorBrush> _create_brush(const ui::brush_parameters::solid_color&);
+		/// Creates a brush based on \ref ui::brushes::solid_color.
+		_details::com_wrapper<ID2D1SolidColorBrush> _create_brush(const ui::brushes::solid_color&);
 		/// Creates a \p ID2D1GradientStopCollection.
 		_details::com_wrapper<ID2D1GradientStopCollection> _create_gradient_stop_collection(
 			const std::vector<ui::gradient_stop>&
 		);
-		/// Creates a brush based on \ref ui::brush_parameters::linear_gradient.
+		/// Creates a brush based on \ref ui::brushes::linear_gradient.
 		_details::com_wrapper<ID2D1LinearGradientBrush> _create_brush(
-			const ui::brush_parameters::linear_gradient&
+			const ui::brushes::linear_gradient&
 		);
-		/// Creates a brush based on \ref ui::brush_parameters::radial_gradient.
+		/// Creates a brush based on \ref ui::brushes::radial_gradient.
 		_details::com_wrapper<ID2D1RadialGradientBrush> _create_brush(
-			const ui::brush_parameters::radial_gradient&
+			const ui::brushes::radial_gradient&
 		);
-		/// Creates a brush based on \ref ui::brush_parameters::bitmap_pattern.
+		/// Creates a brush based on \ref ui::brushes::bitmap_pattern.
 		_details::com_wrapper<ID2D1BitmapBrush> _create_brush(
-			const ui::brush_parameters::bitmap_pattern&
+			const ui::brushes::bitmap_pattern&
 		);
 		/// Returns an empty \ref _details::com_wrapper.
-		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::brush_parameters::none&);
-		/// Creates a \p ID2D1Brush from the given \ref ui::generic_brush_parameters specification.
-		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::generic_brush_parameters&);
+		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::brushes::none&);
+		/// Creates a \p ID2D1Brush from the given \ref ui::generic_brush specification.
+		_details::com_wrapper<ID2D1Brush> _create_brush(const ui::generic_brush&);
 
 
 		/// Creates an \p IDWriteTextLayout.

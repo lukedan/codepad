@@ -149,7 +149,6 @@ namespace codepad {
 	///               \ref lacks_synthesizer, then there will be no default synthesizer and all methods that make use
 	///               of it will be disabled.
 	/// \sa binary_tree_node
-	/// \todo Maybe switch to red-black tree?
 	template <
 		typename T, typename AdditionalData = no_data, typename Synth = default_synthesizer<AdditionalData>
 	> struct binary_tree {

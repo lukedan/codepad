@@ -1,6 +1,7 @@
 {
 	"graphics_backend": "direct2d",
 	"native_plugins": [
+		"editors",
 		"command_pack",
 		"python_plugin_host_pybind11"
 	],

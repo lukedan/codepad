@@ -260,12 +260,12 @@ namespace codepad::ui {
 
 	template <
 		typename Value
-	> std::optional<brushes::bitmap_pattern> managed_json_parser<brushes::bitmap_pattern>::operator()(
+	> std::optional<brush_parameters::bitmap_pattern> managed_json_parser<brush_parameters::bitmap_pattern>::operator()(
 		const Value &val
 		) const {
 		if (auto obj = val.template cast<typename Value::object_type>()) {
 			if (auto image = obj->template parse_member<std::u8string_view>(u8"image")) {
-				return brushes::bitmap_pattern(_manager.get_texture(image.value()));
+				return brush_parameters::bitmap_pattern(_manager.get_texture(image.value()));
 			}
 		}
 		return std::nullopt;

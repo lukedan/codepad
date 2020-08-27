@@ -405,8 +405,8 @@ namespace codepad {
 
 	namespace ui {
 		using gradient_stop_collection = std::vector<gradient_stop>; ///< A list of gradient stops.
-		/// Structures used to stores the parameters of a brush.
-		namespace brush_parameters {
+		/// Various types of brushes.
+		namespace brushes {
 			/// Defines a brush that paints the region with the same color.
 			struct solid_color {
 				/// Default constructor.
@@ -458,27 +458,27 @@ namespace codepad {
 			};
 		}
 		/// Generic brush parameters, together with the transform of the brush.
-		struct generic_brush_parameters {
+		struct generic_brush {
 			/// The value type.
 			using value_type = std::variant<
-				brush_parameters::none,
-				brush_parameters::solid_color,
-				brush_parameters::linear_gradient,
-				brush_parameters::radial_gradient,
-				brush_parameters::bitmap_pattern
+				brushes::none,
+				brushes::solid_color,
+				brushes::linear_gradient,
+				brushes::radial_gradient,
+				brushes::bitmap_pattern
 			>;
 
 			/// Default constructor. Initializes \ref transform to be the identity transform.
-			generic_brush_parameters() {
+			generic_brush() {
 				transform.set_identity();
 			}
 			/// Initializes \ref value with a specific type of brush.
-			template <typename Brush> generic_brush_parameters(Brush b) :
+			template <typename Brush> generic_brush(Brush b) :
 				value(std::in_place_type<Brush>, std::move(b)) {
 				transform.set_identity();
 			}
 			/// Initializes \ref value with a specific type of brush, and \ref transform.
-			template <typename Brush> generic_brush_parameters(Brush b, matd3x3 trans) :
+			template <typename Brush> generic_brush(Brush b, matd3x3 trans) :
 				value(std::in_place_type<Brush>, std::move(b)), transform(trans) {
 			}
 
@@ -486,15 +486,15 @@ namespace codepad {
 			matd3x3 transform; ///< The transform of this brush.
 		};
 		/// A pen, defined using a brush.
-		struct generic_pen_parameters {
+		struct generic_pen {
 			/// Default constructor.
-			generic_pen_parameters() = default;
+			generic_pen() = default;
 			/// Initializes all fields of this struct.
-			explicit generic_pen_parameters(generic_brush_parameters b, double t = 1.0) :
+			explicit generic_pen(generic_brush b, double t = 1.0) :
 				brush(std::move(b)), thickness(t) {
 			}
 
-			generic_brush_parameters brush; ///< The brush.
+			generic_brush brush; ///< The brush.
 			double thickness = 1.0; ///< The thickness of this pen.
 		};
 
@@ -547,19 +547,19 @@ namespace codepad {
 			/// Draws a ellipse.
 			virtual void draw_ellipse(
 				vec2d center, double radiusx, double radiusy,
-				const generic_brush_parameters &brush, const generic_pen_parameters &pen
+				const generic_brush &brush, const generic_pen &pen
 			) = 0;
 			/// Draws a rectangle.
 			virtual void draw_rectangle(
-				rectd rect, const generic_brush_parameters &brush, const generic_pen_parameters &pen
+				rectd rect, const generic_brush &brush, const generic_pen &pen
 			) = 0;
 			/// Draws a rounded rectangle.
 			virtual void draw_rounded_rectangle(
 				rectd region, double radiusx, double radiusy,
-				const generic_brush_parameters &brush, const generic_pen_parameters &pen
+				const generic_brush &brush, const generic_pen &pen
 			) = 0;
 			/// Finishes building the current path and draws it. The path will then be discarded.
-			virtual void end_and_draw_path(const generic_brush_parameters&, const generic_pen_parameters&) = 0;
+			virtual void end_and_draw_path(const generic_brush&, const generic_pen&) = 0;
 
 			// clipping
 			/// Pushes an ellipse clip.

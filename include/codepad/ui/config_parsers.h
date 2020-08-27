@@ -42,7 +42,15 @@ namespace codepad::ui {
 		void parse_configuration(const object_t &val, element_configuration &value) {
 			if (auto attrobj = val.template parse_optional_member<object_t>(u8"attributes")) {
 				for (auto it = attrobj->member_begin(); it != attrobj->member_end(); ++it) {
-					value.attributes.emplace(it.name(), json::store(it.value()));
+					json::value_storage attr_value = json::store(it.value());
+					// FIXME here emplace() moves the json value, while try_emplace requires a new string to be
+					//       constructed
+					auto [attr_iter, inserted] = value.attributes.try_emplace(
+						std::u8string(it.name()), std::move(attr_value)
+					);
+					if (!inserted) { // override base value
+						attr_iter->second = std::move(attr_value);
+					}
 				}
 			}
 

@@ -379,6 +379,12 @@ namespace codepad::editors::binary {
 		};
 	}
 
+	bool contents_region::_register_event(std::u8string_view name, std::function<void()> callback) {
+		return
+			_event_helpers::try_register_event(name, u8"carets_changed", carets_changed, callback) ||
+			interactive_contents_region_base::_register_event(name, std::move(callback));
+	}
+
 	void contents_region::_initialize(std::u8string_view cls) {
 		element::_initialize(cls);
 

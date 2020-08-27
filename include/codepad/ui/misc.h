@@ -459,10 +459,10 @@ namespace codepad {
 					_renderer.push_matrix_mult(matd3x3::translate(_snapped_position));
 					_renderer.draw_rectangle(
 						rectd::from_corners(vec2d(), _target.target_bitmap->get_size()),
-						ui::generic_brush_parameters(
-							ui::brush_parameters::bitmap_pattern(_target.target_bitmap.get())
+						ui::generic_brush(
+							ui::brushes::bitmap_pattern(_target.target_bitmap.get())
 						),
-						ui::generic_pen_parameters()
+						ui::generic_pen()
 					);
 					_renderer.pop_matrix();
 

@@ -676,7 +676,7 @@ namespace codepad::os::direct2d {
 
 	void renderer::draw_ellipse(
 		vec2d center, double radiusx, double radiusy,
-		const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+		const ui::generic_brush &brush, const ui::generic_pen &pen
 	) {
 		_details::com_wrapper<ID2D1EllipseGeometry> geom;
 		_details::com_check(_d2d_factory->CreateEllipseGeometry(
@@ -689,7 +689,7 @@ namespace codepad::os::direct2d {
 	}
 
 	void renderer::draw_rectangle(
-		rectd rect, const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+		rectd rect, const ui::generic_brush &brush, const ui::generic_pen &pen
 	) {
 		_details::com_wrapper<ID2D1RectangleGeometry> geom;
 		_details::com_check(_d2d_factory->CreateRectangleGeometry(_details::cast_rect(rect), geom.get_ref()));
@@ -698,7 +698,7 @@ namespace codepad::os::direct2d {
 
 	void renderer::draw_rounded_rectangle(
 		rectd region, double radiusx, double radiusy,
-		const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+		const ui::generic_brush &brush, const ui::generic_pen &pen
 	) {
 		_details::com_wrapper<ID2D1RoundedRectangleGeometry> geom;
 		_details::com_check(_d2d_factory->CreateRoundedRectangleGeometry(
@@ -711,7 +711,7 @@ namespace codepad::os::direct2d {
 	}
 
 	void renderer::end_and_draw_path(
-		const ui::generic_brush_parameters &brush, const ui::generic_pen_parameters &pen
+		const ui::generic_brush &brush, const ui::generic_pen &pen
 	) {
 		_draw_geometry(_path_builder._end(), brush, pen);
 	}
@@ -886,7 +886,7 @@ namespace codepad::os::direct2d {
 
 				case DWRITE_GLYPH_IMAGE_FORMATS_SVG:
 					{
-						auto brush = _create_brush(ui::brush_parameters::solid_color(color));
+						auto brush = _create_brush(ui::brushes::solid_color(color));
 						_d2d_device_context->DrawSvgGlyphRun(
 							baseline_origin, &colored_run->glyphRun, brush.get()
 						);
@@ -910,7 +910,7 @@ namespace codepad::os::direct2d {
 								colored_run->runColor.a
 							);
 						}
-						auto brush = _create_brush(ui::brush_parameters::solid_color(run_color));
+						auto brush = _create_brush(ui::brushes::solid_color(run_color));
 						_d2d_device_context->DrawGlyphRun(baseline_origin, &colored_run->glyphRun, brush.get());
 					}
 					break;
@@ -935,8 +935,8 @@ namespace codepad::os::direct2d {
 
 	void renderer::_draw_geometry(
 		_details::com_wrapper<ID2D1Geometry> geom,
-		const ui::generic_brush_parameters &brush_def,
-		const ui::generic_pen_parameters &pen_def
+		const ui::generic_brush &brush_def,
+		const ui::generic_pen &pen_def
 	) {
 		if (_details::com_wrapper<ID2D1Brush> brush = _create_brush(brush_def)) {
 			_d2d_device_context->FillGeometry(geom.get(), brush.get());
@@ -964,7 +964,7 @@ namespace codepad::os::direct2d {
 	}
 
 	_details::com_wrapper<ID2D1SolidColorBrush> renderer::_create_brush(
-		const ui::brush_parameters::solid_color &brush_def
+		const ui::brushes::solid_color &brush_def
 	) {
 		_details::com_wrapper<ID2D1SolidColorBrush> brush;
 		_details::com_check(_d2d_device_context->CreateSolidColorBrush(
@@ -989,7 +989,7 @@ namespace codepad::os::direct2d {
 	}
 
 	_details::com_wrapper<ID2D1LinearGradientBrush> renderer::_create_brush(
-		const ui::brush_parameters::linear_gradient &brush_def
+		const ui::brushes::linear_gradient &brush_def
 	) {
 		_details::com_wrapper<ID2D1LinearGradientBrush> brush;
 		if (brush_def.gradients) {
@@ -1005,7 +1005,7 @@ namespace codepad::os::direct2d {
 	}
 
 	_details::com_wrapper<ID2D1RadialGradientBrush> renderer::_create_brush(
-		const ui::brush_parameters::radial_gradient &brush_def
+		const ui::brushes::radial_gradient &brush_def
 	) {
 		_details::com_wrapper<ID2D1RadialGradientBrush> brush;
 		if (brush_def.gradients) {
@@ -1022,7 +1022,7 @@ namespace codepad::os::direct2d {
 	}
 
 	_details::com_wrapper<ID2D1BitmapBrush> renderer::_create_brush(
-		const ui::brush_parameters::bitmap_pattern &brush_def
+		const ui::brushes::bitmap_pattern &brush_def
 	) {
 		_details::com_wrapper<ID2D1BitmapBrush> brush;
 		if (brush_def.image) {
@@ -1035,11 +1035,11 @@ namespace codepad::os::direct2d {
 		return brush;
 	}
 
-	_details::com_wrapper<ID2D1Brush> renderer::_create_brush(const ui::brush_parameters::none&) {
+	_details::com_wrapper<ID2D1Brush> renderer::_create_brush(const ui::brushes::none&) {
 		return _details::com_wrapper<ID2D1Brush>();
 	}
 
-	_details::com_wrapper<ID2D1Brush> renderer::_create_brush(const ui::generic_brush_parameters &b) {
+	_details::com_wrapper<ID2D1Brush> renderer::_create_brush(const ui::generic_brush &b) {
 		auto brush = std::visit([this](auto &&brush) {
 			return _details::com_wrapper<ID2D1Brush>(_create_brush(brush));
 			}, b.value);
