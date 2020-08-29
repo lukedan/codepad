@@ -114,12 +114,12 @@ int main(int argc, char **argv) {
 
 	default_random_engine eng(123456);
 	auto buf = man.buffers.new_file();
-	interpretation interp(buf, man.encodings.get_default());
+	std::shared_ptr<interpretation> interp = man.buffers.open_interpretation(buf, man.encodings.get_default());
 
 	caret_set cset;
 	cset.reset();
-	interp.on_insert(cset, generate_random_string(1000000, eng), nullptr);
-	assert_true_logical(interp.check_integrity());
+	interp->on_insert(cset, generate_random_string(1000000, eng), nullptr);
+	assert_true_logical(interp->check_integrity());
 
 	uniform_int_distribution<size_t>
 		ncarets_dist(1, 100), insertlen_dist(0, 3000);
@@ -127,13 +127,13 @@ int main(int argc, char **argv) {
 	size_t idx = 0;
 	while (keep_running) {
 		logger::get().log_info(CP_HERE) <<
-			"document length: " << buf->length() << " bytes, " << interp.get_linebreaks().num_chars() << " chars";
+			"document length: " << buf->length() << " bytes, " << interp->get_linebreaks().num_chars() << " chars";
 
 		vector<pair<size_t, size_t>> positions;
 		if (bool_dist(eng)) {
-			positions = get_modify_positions_random(ncarets_dist(eng), *buf, interp, eng);
+			positions = get_modify_positions_random(ncarets_dist(eng), *buf, *interp, eng);
 		} else {
-			positions = get_modify_positions_boundary(ncarets_dist(eng), *buf, interp, eng);
+			positions = get_modify_positions_boundary(ncarets_dist(eng), *buf, *interp, eng);
 		}
 		vector<byte_string> inserts;
 		for (size_t i = 0; i < positions.size(); ++i) {
@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
 			mod.end_custom(dummy); // no history; otherwise all memory will be eaten
 		}
 		logger::get().log_info(CP_HERE) << "checking edit " << idx;
-		assert_true_logical(interp.check_integrity());
+		assert_true_logical(interp->check_integrity());
 		++idx;
 	}
 

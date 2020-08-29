@@ -19,11 +19,19 @@
 namespace codepad::editors {
 	/// Used to identify a \ref buffer in certain events.
 	struct buffer_info {
-		/// Assigns the specified \ref buffer to \ref buf.
+		/// Initializes \ref buf.
 		explicit buffer_info(buffer &b) : buf(b) {
 		}
 
 		buffer &buf; ///< Reference to the \ref buffer.
+	};
+	/// Used to identify a \ref code::interpretation in certain events.
+	struct interpretation_info {
+		/// Initializes \ref interp.
+		explicit interpretation_info(code::interpretation &i) : interp(i) {
+		}
+
+		code::interpretation &interp; ///< The \ref code::interpretation.
 	};
 	/// Manager of all \ref buffer "buffers". All \ref buffer instances should be created with the instance
 	/// returned by \ref buffer_manager::get.
@@ -32,6 +40,33 @@ namespace codepad::editors {
 	class buffer_manager {
 		friend buffer;
 	public:
+		/// Token for a tag.
+		template <typename T> struct tag_token {
+			friend buffer_manager;
+		public:
+			/// Default constructor.
+			tag_token() = default;
+
+			/// Resets this token.
+			void reset() {
+				_index = std::numeric_limits<std::size_t>::max();
+			}
+
+			/// Returns whether this token is empty.
+			[[nodiscard]] bool empty() const {
+				return _index == std::numeric_limits<std::size_t>::max();
+			}
+		private:
+			/// Constructor.
+			explicit tag_token(std::size_t i) : _index(i) {
+			}
+
+			/// Index of the tag in \ref buffer::_tags.
+			std::size_t _index = std::numeric_limits<std::size_t>::max();
+		};
+		using buffer_tag_token = tag_token<buffer>; ///< Tag token for buffers.
+		using interpretation_tag_token = tag_token<code::interpretation>; ///< Tag token for interpretations.
+
 		/// Returns a \p std::shared_ptr<buffer> to the file specified by the given file name. If the file has not
 		/// been opened, this function opens the file; otherwise, it returns the pointer returned by previous calls
 		/// to this function. The file must exist.
@@ -47,24 +82,24 @@ namespace codepad::editors {
 			// create new one
 			auto res = std::make_shared<buffer>(path, this);
 			ins.first->second.buf = res;
-			/*res->_tags.resize(_tag_alloc_max);*/ // allocate space for tags
+			res->_tags.resize(_buffer_tag_alloc_max); // allocate space for tags
 			buffer_created.invoke_noret(*res);
 			return res;
 		}
 		/// Creates a new file not yet associated with a path, identified by a \p std::size_t.
 		std::shared_ptr<buffer> new_file() {
-			std::shared_ptr<buffer> ctx;
+			std::shared_ptr<buffer> buf;
 			if (_noname_alloc.empty()) {
-				ctx = std::make_shared<buffer>(_noname_map.size(), this);
-				_noname_map.emplace_back(ctx);
+				buf = std::make_shared<buffer>(_noname_map.size(), this);
+				_noname_map.emplace_back(buf);
 			} else {
-				ctx = std::make_shared<buffer>(_noname_alloc.top(), this);
-				_noname_map[_noname_alloc.top()] = _buffer_data(ctx);
+				buf = std::make_shared<buffer>(_noname_alloc.top(), this);
+				_noname_map[_noname_alloc.top()] = _buffer_data(buf);
 				_noname_alloc.pop();
 			}
-			// ctx->_tags.resize(_tag_alloc_max); // allocate space for tags
-			buffer_created.invoke_noret(*ctx);
-			return ctx;
+			buf->_tags.resize(_buffer_tag_alloc_max); // allocate space for tags
+			buffer_created.invoke_noret(*buf);
+			return buf;
 		}
 
 		/// Returns the \ref code::interpretation of the given \ref buffer corresponding to the given
@@ -86,64 +121,98 @@ namespace codepad::editors {
 			}
 			auto ptr = std::make_shared<code::interpretation>(buf, encoding);
 			it->second = ptr;
+			interpretation_created.invoke_noret(*ptr);
 			return ptr;
 		}
 
-		// TODO
-		/*
-		/// Allocates a tag slot and returns the index.
-		///
-		/// \remark This function tries to enlarge \ref buffer::_tags of all open buffers if no previously
-		///         deallocated slot is available.
-		std::size_t allocate_tag() {
-			std::size_t res;
-			if (_tag_alloc.empty()) {
-				res = _tag_alloc_max++;
-				for_each_buffer([this](std::shared_ptr<document> &doc) {
-					doc->_tags.resize(_tag_alloc_max);
-					});
-			} else {
-				res = _tag_alloc.top();
-				_tag_alloc.pop();
-			}
-			return res;
-		}
-		/// Deallocates a tag slot, and clears the corresponding entries in \ref document::_tags for all open
-		/// documents.
-		void deallocate_tag(std::size_t tag) {
-			for_each_buffer([tag](std::shared_ptr<document> &doc) {
-				doc->_tags[tag].reset();
+
+		/// Allocates a buffer tag slot and returns the \ref buffer_tag_token. This function tries to enlarge
+		/// \ref buffer::_tags of all open buffers if no previously deallocated slot is available.
+		[[nodiscard]] buffer_tag_token allocate_buffer_tag() {
+			std::size_t res = 0;
+			if (_buffer_tag_alloc.empty()) {
+				res = _buffer_tag_alloc_max++;
+				for_each_buffer([this](buffer &buf) {
+					buf._tags.resize(_buffer_tag_alloc_max);
 				});
-			_tag_alloc.emplace(tag);
+			} else {
+				res = _buffer_tag_alloc.top();
+				_buffer_tag_alloc.pop();
+			}
+			return buffer_tag_token(res);
 		}
-		*/
+		/// Deallocates a buffer tag slot, and clears the corresponding entries in \ref buffer::_tags for all open
+		/// documents.
+		void deallocate_buffer_tag(buffer_tag_token &token) {
+			for_each_buffer([index = token._index](buffer &buf) {
+				buf._tags[index].reset();
+			});
+			_buffer_tag_alloc.emplace(token._index);
+			token.reset();
+		}
+
+		/// Allocates an interpretation tag slot and returns the \ref interpretation_tag_token.
+		[[nodiscard]] interpretation_tag_token allocate_interpretation_tag() {
+			std::size_t res = 0;
+			if (_interpretation_tag_alloc.empty()) {
+				res = _interpretation_tag_alloc_max++;
+				for_each_interpretation([this](code::interpretation &interp) {
+					interp._tags.resize(_interpretation_tag_alloc_max);
+				});
+			} else {
+				res = _interpretation_tag_alloc.top();
+				_interpretation_tag_alloc.pop();
+			}
+			return interpretation_tag_token(res);
+		}
+		/// Deallocates a buffer tag slot, and clears the corresponding entries in \ref code::interpretation::_tags
+		/// for all open interpretations.
+		void deallocate_interpretation_tag(interpretation_tag_token &token) {
+			for_each_interpretation([index = token._index](code::interpretation &interp) {
+				interp._tags[index].reset();
+			});
+			_interpretation_tag_alloc.emplace(token._index);
+			token.reset();
+		}
 
 
 		/// Iterates through all open buffers.
-		///
-		/// \param cb A callback function invoked for each open buffer.
 		template <typename Cb> void for_each_buffer(Cb &&cb) {
 			for (auto &pair : _file_map) {
-				auto doc = pair.second.buf.lock();
+				auto buf = pair.second.buf.lock();
 				// should not be nullptr since all disposed documents are removed from the map
-				assert_true_logical(doc != nullptr, "corrupted document registry");
-				cb(doc);
+				assert_true_logical(buf != nullptr, "corrupted document registry");
+				cb(*buf);
 			}
 			for (auto &wptr : _noname_map) {
-				auto doc = wptr.buf.lock();
-				if (doc) {
-					cb(doc);
+				if (auto buf = wptr.buf.lock()) {
+					cb(*buf);
 				}
 			}
 		}
+		/// Iterates through all open interpretations.
+		template <typename Cb> void for_each_interpretation(Cb &&cb) {
+			for_each_buffer([this, callback = std::forward<Cb>(cb)](buffer &buf) {
+				for (auto &pair : _get_data_of(buf).interpretations) {
+					if (auto interp_ptr = pair.second.lock()) {
+						callback(*interp_ptr);
+					}
+				}
+			});
+		}
 
 		info_event<buffer_info>
-			/// Invoked when a buffer has been created. Components and plugins that make use of per-buffer tags
-			/// may have to handle this (and only this, as the tags are automatically disposed) event to initialize
-			/// them.
+			/// Invoked when a buffer has been created. Components and plugins that make use of per-buffer tags can
+			/// handle this event to initialize them. Note that tags are automatically disposed when the buffer is
+			/// disposed.
 			buffer_created,
 			/// Invoked when a buffer is about to be disposed. Handlers should be careful not to modify the buffer.
 			buffer_disposing;
+		info_event<interpretation_info>
+			/// Invoked when an interpretation has been created. Components and plugins that make use of
+			/// per-interpretation tags can handle this event to initialize them. Note that tags are automatically
+			/// disposed when the interpretation is disposed.
+			interpretation_created;
 	protected:
 		/// Stores a \p std::weak_ptr to a \ref buffer, and pointers to all its
 		/// \ref code::interpretation "interpretations".
@@ -156,7 +225,7 @@ namespace codepad::editors {
 			/// No copy construction.
 			_buffer_data(const _buffer_data&) = delete;
 			/// Move constructor.
-			_buffer_data(_buffer_data &&src) :
+			_buffer_data(_buffer_data &&src) noexcept :
 				buf(std::move(src.buf)), interpretations(std::move(src.interpretations)) {
 			}
 			/// No copy assignment.
@@ -180,8 +249,14 @@ namespace codepad::editors {
 		/// Stores indices of disposed buffers in \ref _noname_map for more efficient allocation of indices.
 		std::stack<std::size_t> _noname_alloc;
 
-		std::stack<std::size_t> _tag_alloc; ///< Stores deallocated tag indices.
-		std::size_t _tag_alloc_max = 0; ///< Stores the next index to allocate for a tag if \ref _tag_alloc is empty.
+		std::stack<std::size_t>
+			_buffer_tag_alloc, ///< Stores deallocated buffer tag indices.
+			_interpretation_tag_alloc; ///< Stores deallocated interpretation tag indices.
+		std::size_t
+			/// Stores the next index to allocate for a tag if \ref _buffer_tag_alloc is empty.
+			_buffer_tag_alloc_max = 0,
+			/// Stores the next index to allocate for a tag if \ref _interpretation_tag_alloc is empty.
+			_interpretation_tag_alloc_max = 0;
 
 		/// Returns the \ref _buffer_data associated with the given \ref buffer.
 		_buffer_data &_get_data_of(const buffer &buf) {
@@ -198,7 +273,9 @@ namespace codepad::editors {
 		void _on_deleting_buffer(buffer &buf) {
 			buffer_disposing.invoke_noret(buf);
 			if (std::holds_alternative<std::size_t>(buf._fileid)) {
-				_noname_alloc.emplace(std::get<std::size_t>(buf._fileid));
+				std::size_t index = std::get<std::size_t>(buf._fileid);
+				_noname_map[index] = _buffer_data();
+				_noname_alloc.emplace(index);
 			} else {
 				assert_true_logical(
 					_file_map.erase(std::get<std::filesystem::path>(buf._fileid)) == 1,
@@ -216,7 +293,7 @@ namespace codepad::editors {
 			_buffer_data &target = _noname_map[id];
 			auto insres = _file_map.try_emplace(f, std::move(target));
 			if (!insres.second) {
-				// TODO merge buffers?
+				// TODO merge buffers? it probably makes sense to swap them
 			} else {
 				target = _buffer_data(); // keep _buffer_data::buf valid
 			}

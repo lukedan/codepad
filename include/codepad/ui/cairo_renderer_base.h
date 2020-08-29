@@ -447,7 +447,10 @@ namespace codepad::ui::cairo {
 			_details::ft_check(FT_Done_FreeType(_freetype));
 			_pango_context.reset();
 
-			// without this pango would still be using some fonts which will cause the cairo check to fail
+			// although this will replace the font map with a new instance, it will still hopefully free resources
+			// the old one's holding on to. without this pango would still be using some fonts which will cause the
+			// cairo check to fail
+			pango_cairo_font_map_set_default(nullptr);
 			cairo_debug_reset_static_data();
 
 			// finally, unload fontconfig

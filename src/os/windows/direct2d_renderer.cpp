@@ -952,14 +952,12 @@ namespace codepad::os::direct2d {
 		// also the mode is set here instead of during PopLayer() as per the documentation at:
 		// https://docs.microsoft.com/en-us/windows/win32/direct2d/direct2d-layers-overview#blend-modes
 		_d2d_device_context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_COPY);
+		// the overload that accepts a D2D1::LayerParameters has an option
+		// D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE which has been deprecated
 		_d2d_device_context->PushLayer(D2D1::LayerParameters1(
 			D2D1::InfiniteRect(), clip.get(), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
 			D2D1::IdentityMatrix(), 1.0f, nullptr, D2D1_LAYER_OPTIONS1_INITIALIZE_FROM_BACKGROUND
 		), nullptr);
-		/*_d2d_device_context->PushLayer(D2D1::LayerParameters(
-			D2D1::InfiniteRect(), clip.get(), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
-			D2D1::IdentityMatrix(), 1.0f, nullptr, D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE
-		), nullptr);*/
 		_d2d_device_context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_SOURCE_OVER);
 	}
 

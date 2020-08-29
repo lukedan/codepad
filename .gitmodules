@@ -1,0 +1,9 @@
+[submodule "plugins/tree_sitter/tree-sitter"]
+	path = plugins/tree_sitter/tree-sitter
+	url = https://github.com/tree-sitter/tree-sitter.git
+[submodule "plugins/tree_sitter/languages/tree-sitter-json"]
+	path = plugins/tree_sitter/languages/tree-sitter-json
+	url = https://github.com/tree-sitter/tree-sitter-json
+[submodule "plugins/tree_sitter/languages/tree-sitter-cpp"]
+	path = plugins/tree_sitter/languages/tree-sitter-cpp
+	url = https://github.com/tree-sitter/tree-sitter-cpp

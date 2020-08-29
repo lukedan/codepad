@@ -647,6 +647,7 @@ namespace codepad::editors {
 		std::vector<edit> _history; ///< Records undoable or redoable edits made to this \ref buffer.
 		/// Used to identify this buffer. Also stores the path to the associated file, if one exists.
 		std::variant<std::size_t, std::filesystem::path> _fileid;
+		std::vector<std::any> _tags; ///< Tags associated with this buffer.
 		buffer_manager *_bufman = nullptr; ///< The \ref buffer_manager for this \ref buffer.
 		std::size_t _curedit = 0; ///< The index of the edit that's to be redone next should the need arise.
 	};

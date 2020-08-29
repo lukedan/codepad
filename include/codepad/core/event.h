@@ -33,6 +33,11 @@ namespace codepad {
 			/// Default construtor.
 			token() = default;
 
+			/// Resets this token to empty.
+			void reset() {
+				_text_tok.reset();
+			}
+
 			/// Returns whether this token represents a registered event handler. Note that this may not be accurate
 			/// if the event itself has been disposed.
 			bool is_valid() const {
@@ -72,7 +77,7 @@ namespace codepad {
 			} else {
 				_list.erase(tok._text_tok.value());
 			}
-			tok._text_tok.reset();
+			tok.reset();
 			return *this;
 		}
 

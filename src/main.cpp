@@ -1,8 +1,6 @@
 ﻿// Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include <iostream>
-
 #include "codepad/core/logging.h"
 #include "codepad/core/logger_sinks.h"
 #include "codepad/core/plugins.h"
