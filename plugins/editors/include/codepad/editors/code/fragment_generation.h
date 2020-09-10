@@ -235,7 +235,7 @@ namespace codepad::editors::code {
 			_cached_fonts.clear(); // clear cached fonts
 			_pos = pos;
 			_char_it = _interp.at_character(_pos);
-			_theme_it = text_theme_data::char_iterator(_interp.get_text_theme(), _pos);
+			_theme_it = text_theme_data::position_iterator(_interp.get_text_theme(), _pos);
 			_components.reposition(_pos);
 		}
 
@@ -253,7 +253,7 @@ namespace codepad::editors::code {
 		/// Iterator to the current character in the \ref interpretation.
 		interpretation::character_iterator _char_it;
 		/// Iterator to the current entry in the \ref text_theme_data that determines the theme of the text.
-		text_theme_data::char_iterator _theme_it;
+		text_theme_data::position_iterator _theme_it;
 
 		std::size_t _pos = 0; ///< The position of character \ref _char_it points to.
 		const interpretation &_interp; ///< The associated \ref interpretation.

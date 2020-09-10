@@ -159,10 +159,7 @@ namespace codepad::ui {
 				}
 			}
 		}
-		if (has_value) {
-			return size_allocation::pixels(maxw + get_padding().width());
-		}
-		return size_allocation::proportion(1.0);
+		return size_allocation::pixels(maxw + get_padding().width());
 	}
 
 	size_allocation panel::get_desired_height() const {
@@ -176,10 +173,7 @@ namespace codepad::ui {
 				}
 			}
 		}
-		if (has_value) {
-			return size_allocation::pixels(maxh + get_padding().height());
-		}
-		return size_allocation::proportion(1.0);
+		return size_allocation::pixels(maxh + get_padding().height());
 	}
 
 	void panel::layout_on_direction(

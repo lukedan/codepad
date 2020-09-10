@@ -24,10 +24,7 @@ namespace codepad::ui {
 				}
 			}
 		}
-		if (has_value) {
-			return size_allocation::pixels(val + get_padding().width());
-		}
-		return size_allocation::proportion(1.0);
+		return size_allocation::pixels(val + get_padding().width());
 	}
 
 	size_allocation stack_panel::get_desired_height() const {
@@ -44,10 +41,7 @@ namespace codepad::ui {
 				}
 			}
 		}
-		if (has_value) {
-			return size_allocation::pixels(val + get_padding().height());
-		}
-		return size_allocation::proportion(1.0);
+		return size_allocation::pixels(val + get_padding().height());
 	}
 
 	const property_mapping &stack_panel::get_properties() const {

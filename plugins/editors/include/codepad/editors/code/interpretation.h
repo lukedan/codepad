@@ -41,6 +41,12 @@ namespace codepad::editors::code {
 		/// Similar to \ref next_codepoint(buffer::const_iterator&, const buffer::const_iterator&, codepoint&) const
 		/// except that this function doesn't extract the codepoint itself.
 		virtual bool next_codepoint(buffer::const_iterator&, const buffer::const_iterator&) const = 0;
+
+		/// \overload
+		virtual bool next_codepoint(const std::byte *&it, const std::byte *end, codepoint&) const = 0;
+		/// \overload
+		virtual bool next_codepoint(const std::byte *&it, const std::byte *end) const = 0;
+
 		/// Returns the encoded representation of the given codepoint.
 		virtual byte_string encode_codepoint(codepoint) const = 0;
 	};
@@ -65,6 +71,16 @@ namespace codepad::editors::code {
 		bool next_codepoint(buffer::const_iterator &it, const buffer::const_iterator &end) const override {
 			return Encoding::next_codepoint(it, end);
 		}
+
+		/// Calls \p next_codepoint() in \p Encoding.
+		bool next_codepoint(const std::byte *&it, const std::byte *end, codepoint &res) const override {
+			return Encoding::next_codepoint(it, end, res);
+		}
+		/// Calls \p next_codepoint() in \p Encoding.
+		bool next_codepoint(const std::byte *&it, const std::byte *end) const override {
+			return Encoding::next_codepoint(it, end);
+		}
+
 		/// Calls \p encode_codepoint() in \p Encoding.
 		byte_string encode_codepoint(codepoint cp) const override {
 			return Encoding::encode_codepoint(cp);
@@ -422,6 +438,16 @@ namespace codepad::editors::code {
 			return _lbs.num_linebreaks() + 1;
 		}
 
+		/// Sets the theme of all text.
+		void set_text_theme(text_theme_data t) {
+			_theme = std::move(t);
+			// TODO visual & text layout changed
+		}
+		/// Returns the \ref text_theme_data associated with this \ref interpretation.
+		const text_theme_data &get_text_theme() const {
+			return _theme;
+		}
+
 		/// Returns the \ref buffer that this object interprets.
 		const std::shared_ptr<buffer> &get_buffer() const {
 			return _buf;
@@ -433,10 +459,6 @@ namespace codepad::editors::code {
 		/// Returns the linebreaks in this \ref interpretation.
 		const linebreak_registry &get_linebreaks() const {
 			return _lbs;
-		}
-		/// Returns the \ref text_theme_data associated with this \ref interpretation.
-		const text_theme_data &get_text_theme() const {
-			return _theme;
 		}
 		/// Returns the default line ending for this \ref interpretation.
 		ui::line_ending get_default_line_ending() const {

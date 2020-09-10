@@ -117,14 +117,14 @@ namespace codepad::editors::code {
 		text_theme_parameter_info<ui::font_style> style; ///< Records the text's style across the entire buffer.
 		text_theme_parameter_info<ui::font_weight> weight; ///< Records the text's weight across the entire buffer.
 
-		/// An iterator used to obtain the theme of the text at a certain position. This should only be used
+		/// An iterator used to obtain the theme of the text at certain positions. This should only be used
 		/// temporarily when the associated \ref text_theme_data isn't changing.
-		struct char_iterator {
+		struct position_iterator {
 			/// Default constructor.
-			char_iterator() = default;
+			position_iterator() = default;
 			/// Initializes \ref current_theme from the given iterators, then initializes all \p next_* iterators by
 			/// incrementing the given ones.
-			char_iterator(const text_theme_data &data, std::size_t position) :
+			position_iterator(const text_theme_data &data, std::size_t position) :
 				_next_color(data.color.get_iter_at(position)),
 				_next_style(data.style.get_iter_at(position)),
 				_next_weight(data.weight.get_iter_at(position)),
@@ -138,8 +138,8 @@ namespace codepad::editors::code {
 				++_next_weight;
 			}
 
-			/// Moves the given \ref char_iterator to the given position. The position must be after where this
-			/// \ref char_iterator was at.
+			/// Moves the given \ref position_iterator to the given position. The position must be after where this
+			/// \ref position_iterator was at.
 			///
 			/// \return All members that have potentially changed.
 			text_theme_member move_forward(std::size_t pos) {

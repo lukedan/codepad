@@ -7,3 +7,6 @@
 [submodule "plugins/tree_sitter/languages/tree-sitter-cpp"]
 	path = plugins/tree_sitter/languages/tree-sitter-cpp
 	url = https://github.com/tree-sitter/tree-sitter-cpp
+[submodule "plugins/tree_sitter/languages/tree-sitter-c"]
+	path = plugins/tree_sitter/languages/tree-sitter-c
+	url = https://github.com/tree-sitter/tree-sitter-c.git

@@ -3,7 +3,8 @@
 	"native_plugins": [
 		"editors",
 		"command_pack",
-		"python_plugin_host_pybind11"
+		"python_plugin_host_pybind11",
+		"tree_sitter"
 	],
 	"editor": {
 		"font_size": 12,
@@ -11,7 +12,8 @@
 		"backup_fonts": [
 			"SimSun",
 			"MingLiu-ExtB",
-			"Segoe UI Emoji"
+			"Segoe UI Emoji",
+			"Arial"
 		],
 		"interaction_modes": [
 			"prepare_drag",

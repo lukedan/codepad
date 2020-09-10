@@ -27,19 +27,17 @@ namespace codepad::ui {
 		/// Returns the minimum width that can contain all elements in pixels, plus padding. More specifically, the
 		/// return value is the padding plus the sum of all horizontal sizes specified in pixels, ignoring those
 		/// specified as proportions, if the panel is in a horizontal state; or the padding plus the maximum
-		/// horizontal size specified in pixels otherwise. If all values are in proportions, returns 1.0 in
-		/// proportion.
+		/// horizontal size specified in pixels otherwise.
 		size_allocation get_desired_width() const override;
 		/// Similar to \ref get_desired_width(), but for height.
 		size_allocation get_desired_height() const override;
 
-		// TODO change to using orientation instead of bools
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel with the given
 		/// orientation and client area. All elements must be children of the given \ref panel.
-		template <bool Vertical> inline static void layout_elements_in(
+		template <orientation Orient> inline static void layout_elements_in(
 			rectd client, const std::vector<element*> &elems
 		) {
-			if constexpr (Vertical) {
+			if constexpr (Orient == orientation::vertical) {
 				_layout_elements_in_impl<
 					true, &panel::layout_child_horizontal,
 					&rectd::ymin, &rectd::ymax, &rectd::xmin, &rectd::xmax
@@ -53,12 +51,12 @@ namespace codepad::ui {
 		}
 		/// Calls the corresponding templated version of \ref layout_elements_in.
 		inline static void layout_elements_in(
-			rectd client, const std::vector<element*> &elems, bool vertical
+			rectd client, const std::vector<element*> &elems, orientation orient
 		) {
-			if (vertical) {
-				layout_elements_in<true>(client, elems);
+			if (orient == orientation::vertical) {
+				layout_elements_in<orientation::vertical>(client, elems);
 			} else {
-				layout_elements_in<false>(client, elems);
+				layout_elements_in<orientation::horizontal>(client, elems);
 			}
 		}
 
@@ -165,7 +163,7 @@ namespace codepad::ui {
 			layout_elements_in(
 				get_client_region(),
 				std::vector<element*>(_children.items().begin(), _children.items().end()),
-				get_orientation() == orientation::vertical
+				get_orientation()
 			);
 		}
 

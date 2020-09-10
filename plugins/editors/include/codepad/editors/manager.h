@@ -52,6 +52,12 @@ namespace codepad::editors {
 				_index = std::numeric_limits<std::size_t>::max();
 			}
 
+			/// Retrieves the value of this tag associated with the given object.
+			std::any &get_for(T &object) const {
+				assert_true_usage(!empty(), "empty token");
+				return object._tags[_index];
+			}
+
 			/// Returns whether this token is empty.
 			[[nodiscard]] bool empty() const {
 				return _index == std::numeric_limits<std::size_t>::max();
@@ -120,6 +126,7 @@ namespace codepad::editors {
 				it = data.interpretations.try_emplace(std::u8string(encoding.get_name())).first;
 			}
 			auto ptr = std::make_shared<code::interpretation>(buf, encoding);
+			ptr->_tags.resize(_interpretation_tag_alloc_max); // allocate space for tags
 			it->second = ptr;
 			interpretation_created.invoke_noret(*ptr);
 			return ptr;
