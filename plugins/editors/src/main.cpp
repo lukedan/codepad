@@ -26,8 +26,10 @@ namespace codepad::editors {
 
 	std::unique_ptr<cp::editors::manager> _manager;
 
-	manager &manager::get() {
-		return *_manager;
+	namespace _details {
+		manager &get_manager() {
+			return *_manager;
+		}
 	}
 }
 

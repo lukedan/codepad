@@ -8,6 +8,7 @@
 
 #include "codepad/editors/manager.h"
 #include "codepad/editors/code/fragment_generation.h"
+#include "../details.h"
 
 namespace codepad::editors::code {
 	settings::retriever_parser<std::vector<std::u8string>> &contents_region::get_backup_fonts_setting(settings &set) {
@@ -80,18 +81,22 @@ namespace codepad::editors::code {
 		fragment_assembler ass(*this);
 		while (iter.get_position() < position) {
 			fragment_generation_result res = iter.generate_and_update();
-			if (iter.get_position() >= position) {
+			if (iter.get_position() > position) {
 				if (holds_alternative<text_fragment>(res.result)) {
 					fragment_assembler::text_rendering rendering = ass.append(get<text_fragment>(res.result));
 					return rendering.topleft.x + rendering.text->get_character_placement(
 						position - (iter.get_position() - res.steps)
 					).xmin;
 				}
+				// FIXME the cursor is inside some object, for now just return the end position
 				return ass.get_horizontal_position();
 			}
-			visit([&ass](auto &&frag) {
+			std::visit([&ass](auto &&frag) {
 				ass.append(frag);
-				}, res.result);
+			}, res.result);
+			if (iter.get_position() == position) {
+				return ass.get_horizontal_position();
+			}
 		}
 		return ass.get_horizontal_position();
 	}
@@ -175,11 +180,8 @@ namespace codepad::editors::code {
 			used = &extcarets;
 		}
 
-		{ // render to a pixel-snapped buffer to avoid subpixel antialiasing being disabled by clips
-			ui::pixel_snapped_render_target target(
-				renderer, rectd::from_corners(vec2d(), get_layout().size()), get_window()->get_scaling_factor()
-			);
-
+		{
+			renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
 			renderer.push_matrix_mult(matd3x3::translate(vec2d(
 				get_padding().left,
 				get_padding().top - editor::get_encapsulating(*this)->get_vertical_position() +
@@ -245,6 +247,7 @@ namespace codepad::editors::code {
 			}
 
 			renderer.pop_matrix();
+			renderer.pop_clip();
 		}
 	}
 
@@ -279,7 +282,7 @@ namespace codepad::editors::code {
 			profile.begin(), profile.end()
 		).get_value();
 		for (const auto &mode_name : modes) {
-			if (auto mode = manager::get().code_interactions.try_create(mode_name)) {
+			if (auto mode = editors::_details::get_manager().code_interactions.try_create(mode_name)) {
 				_interaction_manager.activators().emplace_back(std::move(mode));
 			}
 		}

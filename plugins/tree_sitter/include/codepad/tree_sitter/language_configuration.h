@@ -9,12 +9,15 @@
 #include <string_view>
 #include <string>
 #include <map>
+#include <unordered_map>
 
 #include <tree_sitter/api.h>
 
+#include <codepad/editors/code/interpretation.h>
+
 #include "query.h"
 
-namespace tree_sitter {
+namespace codepad::tree_sitter {
 	/// Used with the various \p _index_* fields to indicate that no such capture is present.
 	constexpr static uint32_t index_none = std::numeric_limits<uint32_t>::max();
 
@@ -36,9 +39,9 @@ namespace tree_sitter {
 			auto it = path.begin(), last = path.begin();
 			while (it != last) {
 				auto char_beg = it;
-				codepad::codepoint cp;
-				if (!codepad::encodings::utf8::next_codepoint(it, path.end(), cp)) {
-					cp = codepad::encodings::replacement_character;
+				codepoint cp;
+				if (!encodings::utf8::next_codepoint(it, path.end(), cp)) {
+					cp = encodings::replacement_character;
 				}
 				if (cp == '.') {
 					if (!cb(path.substr(last - path.begin(), char_beg - last))) {
@@ -53,7 +56,7 @@ namespace tree_sitter {
 		/// Pushes the given theme onto \ref _themes, and sets the index of that key to the index of the new theme.
 		///
 		/// \return The old highlight index.
-		std::size_t set_theme_for(std::u8string_view key, codepad::editors::code::text_theme_specification theme) {
+		std::size_t set_theme_for(std::u8string_view key, editors::code::text_theme_specification theme) {
 			std::size_t new_id = _themes.size();
 			_themes.emplace_back(std::move(theme));
 			return set_index_for(key, new_id);
@@ -100,15 +103,15 @@ namespace tree_sitter {
 		}
 
 		/// Returns \ref _themes.
-		std::vector<codepad::editors::code::text_theme_specification> &themes() {
+		std::vector<editors::code::text_theme_specification> &themes() {
 			return _themes;
 		}
 		/// \overload
-		const std::vector<codepad::editors::code::text_theme_specification> &themes() const {
+		const std::vector<editors::code::text_theme_specification> &themes() const {
 			return _themes;
 		}
 	protected:
-		std::vector<codepad::editors::code::text_theme_specification> _themes; ///< The values of all themes.
+		std::vector<editors::code::text_theme_specification> _themes; ///< The values of all themes.
 		layer _root_layer; ///< The top layer.
 	};
 
@@ -117,104 +120,15 @@ namespace tree_sitter {
 	public:
 		/// Creates a language configuration using the given \p TSLanguage and queries. The returned object takes
 		/// control of the input \p TSLanguage.
-		[[nodiscard]] inline static language_configuration create_for(
-			TSLanguage *lang,
+		[[nodiscard]] static language_configuration create_for(
+			TSLanguage*,
 			std::u8string_view injection_query,
 			std::u8string_view locals_query,
 			std::u8string_view highlights_query
-		) {
-			language_configuration res;
-			res._language = lang;
-
-			// concatenate the query strings and construct a single query
-			// then record the indices of patterns in each query
-			std::u8string full_query;
-			full_query.reserve(injection_query.size() + locals_query.size() + highlights_query.size());
-			full_query.append(injection_query.begin(), injection_query.end());
-			full_query.append(locals_query.begin(), locals_query.end());
-			full_query.append(highlights_query.begin(), highlights_query.end());
-
-			res._query = query::create_for(full_query, res._language);
-			if (res._query) {
-				uint32_t locals_query_offset = static_cast<uint32_t>(injection_query.size());
-				uint32_t highlights_query_offset = locals_query_offset + static_cast<uint32_t>(locals_query.size());
-				res._locals_pattern_index = res._highlights_pattern_index = 0;
-				for (uint32_t i = 0; i < res._query.get_num_patterns(); ++i) {
-					uint32_t pattern_offset = res._query.get_start_byte_for_pattern(i);
-					if (pattern_offset >= highlights_query_offset) {
-						break;
-					}
-					++res._highlights_pattern_index;
-					if (pattern_offset < locals_query_offset) {
-						++res._locals_pattern_index;
-					}
-				}
-			}
-
-			// construct a separate query for combined injections
-			res._combined_injections_query = query::create_for(injection_query, res._language);
-			bool has_combined_queries = false;
-			if (res._combined_injections_query) {
-				for (uint32_t i = 0; i < res._combined_injections_query.get_num_patterns(); ++i) {
-					auto &properties = res._combined_injections_query.get_property_settings()[i];
-					for (auto &prop : properties) {
-						if (prop.key == u8"injection.combined") {
-							has_combined_queries = false;
-							res._query.disable_pattern(i);
-						} else {
-							res._combined_injections_query.disable_pattern(i);
-						}
-					}
-				}
-			}
-			if (!has_combined_queries) {
-				res._combined_injections_query = query();
-			}
-
-			// non local variable patterns
-			for (auto &predicates : res._query.get_property_predicates()) {
-				bool non_local = false;
-				for (auto &pred : predicates) {
-					if (pred.value.key == u8"local" && pred.inequality) {
-						non_local = true;
-						break;
-					}
-				}
-				res._non_local_variable_patterns.emplace_back(non_local);
-			}
-
-			// cache indices of special captures
-			auto &captures = res._query.get_captures();
-			for (std::size_t i = 0; i < captures.size(); ++i) {
-				std::u8string_view capture = captures[i];
-				if (capture == u8"injection.content") {
-					res._capture_injection_content = static_cast<uint32_t>(i);
-				} else if (capture == u8"injection.language") {
-					res._capture_injection_language = static_cast<uint32_t>(i);
-				} else if (capture == u8"local.definition") {
-					res._capture_local_definition = static_cast<uint32_t>(i);
-				} else if (capture == u8"local.definition-value") {
-					res._capture_local_definition_value = static_cast<uint32_t>(i);
-				} else if (capture == u8"local.reference") {
-					res._capture_local_reference = static_cast<uint32_t>(i);
-				} else if (capture == u8"local.scope") {
-					res._capture_local_scope = static_cast<uint32_t>(i);
-				}
-			}
-
-			return res;
-		}
+		);
 
 		/// Sets the highlight configuration and fills \ref _capture_highlights.
-		void set_highlight_configuration(std::shared_ptr<highlight_configuration> config) {
-			_highlight = std::move(config);
-			if (_highlight) {
-				_capture_highlights.resize(_query.get_captures().size());
-				for (std::size_t i = 0; i < _capture_highlights.size(); ++i) {
-					_capture_highlights[i] = _highlight->get_index_for(_query.get_captures()[i]);
-				}
-			}
-		}
+		void set_highlight_configuration(std::shared_ptr<highlight_configuration>);
 		/// Returns \ref _highlight.
 		[[nodiscard]] const std::shared_ptr<highlight_configuration> &get_highlight_configuration() const {
 			return _highlight;
@@ -296,5 +210,38 @@ namespace tree_sitter {
 			_capture_local_definition_value = index_none, ///< Index of the <tt>local.definition-value</tt> capture.
 			_capture_local_reference = index_none, ///< Index of the <tt>local.reference</tt> capture.
 			_capture_local_scope = index_none; ///< Index of the <tt>local.scope</tt> capture.
+	};
+
+	/// Manages languages.
+	class language_manager {
+	public:
+		/// Registers builtin languages.
+		void register_builtin_languages();
+		/// Registers or updates a language.
+		///
+		/// \return The previous configuration for that language.
+		std::shared_ptr<language_configuration> register_language(
+			std::u8string, std::shared_ptr<language_configuration>
+		);
+
+		/// Finds the language with the given name.
+		const language_configuration *find_lanaguage(const std::u8string &s) const {
+			auto it = _languages.find(s);
+			if (it == _languages.end()) {
+				return nullptr;
+			}
+			return it->second.get();
+		}
+
+		/// Sets \ref _highlight_config and configures all registered languages.
+		void set_highlight_configuration(std::shared_ptr<highlight_configuration>);
+		/// Returns \ref _highlight_config.
+		const std::shared_ptr<highlight_configuration> &get_highlight_config() const {
+			return _highlight_config;
+		}
+	protected:
+		/// Mapping between language names and language configurations.
+		std::unordered_map<std::u8string, std::shared_ptr<language_configuration>> _languages;
+		std::shared_ptr<highlight_configuration> _highlight_config; ///< Highlight configuration.
 	};
 }

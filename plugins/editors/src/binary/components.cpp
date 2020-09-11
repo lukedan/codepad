@@ -62,11 +62,7 @@ namespace codepad::editors::binary {
 			auto &renderer = get_manager().get_renderer();
 
 			{
-				ui::pixel_snapped_render_target buffer(
-					renderer,
-					rectd::from_corners(vec2d(), get_layout().size()),
-					get_window()->get_scaling_factor()
-				);
+				renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
 
 				for (
 					double ypos = static_cast<double>(firstline) * rgn->get_line_height() - top;
@@ -79,6 +75,8 @@ namespace codepad::editors::binary {
 					// TODO custom color
 					renderer.draw_plain_text(*text, vec2d(right - text->get_width(), ypos), colord());
 				}
+
+				renderer.pop_clip();
 			}
 		}
 	}

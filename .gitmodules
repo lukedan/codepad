@@ -10,3 +10,12 @@
 [submodule "plugins/tree_sitter/languages/tree-sitter-c"]
 	path = plugins/tree_sitter/languages/tree-sitter-c
 	url = https://github.com/tree-sitter/tree-sitter-c.git
+[submodule "plugins/tree_sitter/languages/tree-sitter-html"]
+	path = plugins/tree_sitter/languages/tree-sitter-html
+	url = https://github.com/tree-sitter/tree-sitter-html.git
+[submodule "plugins/tree_sitter/languages/tree-sitter-javascript"]
+	path = plugins/tree_sitter/languages/tree-sitter-javascript
+	url = https://github.com/tree-sitter/tree-sitter-javascript.git
+[submodule "plugins/tree_sitter/languages/tree-sitter-css"]
+	path = plugins/tree_sitter/languages/tree-sitter-css
+	url = https://github.com/tree-sitter/tree-sitter-css.git

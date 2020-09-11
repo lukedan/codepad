@@ -13,7 +13,7 @@
 
 #include "highlight_layer_iterator.h"
 
-namespace tree_sitter {
+namespace codepad::tree_sitter {
 	/// Iterates through highlighted regions in a given piece of code.
 	class highlight_iterator {
 	public:
@@ -77,7 +77,7 @@ namespace tree_sitter {
 				auto &layer = _layers[min_index];
 				auto &layer_lang = layer.get_language();
 
-				std::size_t range_begin, range_end;
+				uint32_t range_begin, range_end;
 				if (auto &match = layer.peek_capture(*_interp)) {
 					auto &cur_capture = match->match.captures[match->capture_index];
 					range_begin = ts_node_start_byte(cur_capture.node);
@@ -215,7 +215,7 @@ namespace tree_sitter {
 					if (auto &next_match = layer.peek_capture(*_interp)) {
 						auto &next_capture = next_match->match.captures[next_match->capture_index];
 						if (std::memcmp(&next_capture.node, &cur_capture.node, sizeof(TSNode)) == 0) {
-							match = next_match.value();
+							match = layer.next_capture(*_interp).value();
 							cur_capture = match.match.captures[match.capture_index];
 							continue;
 						}

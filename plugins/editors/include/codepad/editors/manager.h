@@ -347,8 +347,5 @@ namespace codepad::editors {
 		code::encoding_manager encodings; ///< Manager of all encodings.
 		interaction_mode_registry<code::caret_set> code_interactions; ///< \ref interaction_manager for code editors.
 		interaction_mode_registry<binary::caret_set> binary_interactions; ///< \ref interaction_manager for binary editors.
-
-		/// Returns the \ref manager associated with this plugin.
-		static manager &get();
 	};
 }

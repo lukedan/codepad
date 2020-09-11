@@ -1132,10 +1132,6 @@
 								"type": "solid",
 								"color": [ 0.2, 0.5, 1.0, 0.2 ]
 							},
-							"selection_pen": {
-								"type": "solid",
-								"color": [ 0.0, 0.0, 0.0, 1.0 ]
-							},
 							"caret_visuals": {
 								"geometries": [
 									{
@@ -1356,10 +1352,6 @@
 							"selection_brush": {
 								"type": "solid",
 								"color": [ 0.2, 0.5, 1.0, 0.2 ]
-							},
-							"selection_pen": {
-								"type": "solid",
-								"color": [ 0.0, 0.0, 0.0, 1.0 ]
 							},
 							"caret_visuals": {
 								"geometries": [

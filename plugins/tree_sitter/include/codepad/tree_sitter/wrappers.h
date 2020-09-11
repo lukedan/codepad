@@ -8,7 +8,7 @@
 
 #include <tree_sitter/api.h>
 
-namespace tree_sitter {
+namespace codepad::tree_sitter {
 	/// A basic wrapper around a pointer that prohibits copying.
 	template <typename T, auto Dtor> struct pointer_wrapper {
 	public:

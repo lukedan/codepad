@@ -7,6 +7,7 @@
 /// Implementation of the contents region of the binary editor.
 
 #include "codepad/editors/manager.h"
+#include "../details.h"
 
 namespace codepad::editors::binary {
 	void contents_region::set_buffer(std::shared_ptr<buffer> buf) {
@@ -241,11 +242,7 @@ namespace codepad::editors::binary {
 			auto &renderer = get_manager().get_renderer();
 
 			{
-				ui::pixel_snapped_render_target buffer(
-					renderer,
-					rectd::from_corners(vec2d(), get_layout().size()),
-					get_window()->get_scaling_factor()
-				);
+				renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
 
 				// render bytes
 				for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
@@ -311,6 +308,8 @@ namespace codepad::editors::binary {
 						renderer, v, _selection_brush.get_parameters(unit), _selection_pen.get_parameters(unit)
 					);
 				}
+
+				renderer.pop_clip();
 			}
 		}
 	}
@@ -404,7 +403,7 @@ namespace codepad::editors::binary {
 			profile.begin(), profile.end()
 		).get_value();
 		for (auto &&mode_name : modes) {
-			if (auto mode = manager::get().binary_interactions.try_create(mode_name)) {
+			if (auto mode = editors::_details::get_manager().binary_interactions.try_create(mode_name)) {
 				_interaction_manager.activators().emplace_back(std::move(mode));
 			}
 		}

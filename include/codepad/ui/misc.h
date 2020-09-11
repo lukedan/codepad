@@ -416,68 +416,6 @@ namespace codepad {
 		};
 
 
-		/// A temporary \ref render_target, with pixel snapping. The transform of the current render target must not
-		/// change after this is created until the text has been drawn onto the original render target when this is
-		/// disposed or when using \ref finish(). This is mainly used to work around the fact that pushing clips
-		/// (layers) in Direct2D disables subpixel antialiasing.
-		class pixel_snapped_render_target {
-		public:
-			/// Constructs this struct with the renderer, the target area where text is to be drawn, and the scaling
-			/// factor of the current render target. This function computes the offset required for pixel snapping,
-			/// and starts rendering to the temporary render target.
-			pixel_snapped_render_target(renderer_base &r, rectd target_area, vec2d scaling) : _renderer(r) {
-				_target = r.create_render_target(target_area.size(), scaling, colord(1.0, 1.0, 1.0, 0.0));
-				vec2d corner = target_area.xmin_ymin();
-				matd3x3 transform = r.get_matrix(), snap_transform = matd3x3::identity();
-				if (!transform.has_rotation_or_nonrigid()) {
-					vec2d trans_corner = corner + vec2d(transform[0][2], transform[1][2]);
-					trans_corner.x *= scaling.x;
-					trans_corner.y *= scaling.y;
-					vec2d offset = vec2d(std::round(trans_corner.x), std::round(trans_corner.y)) - trans_corner;
-					offset.x /= scaling.x;
-					offset.y /= scaling.y;
-
-					_snapped_position = corner + offset;
-					snap_transform = matd3x3::translate(-offset);
-				}
-
-				_renderer.begin_drawing(*_target.target);
-				_renderer.push_matrix(snap_transform);
-			}
-			/// Calls \ref finish().
-			~pixel_snapped_render_target() {
-				finish();
-			}
-
-			/// If this buffer is still valid, finishes rendering to the buffer and draws it onto the last render
-			/// target.
-			void finish() {
-				if (_target.target_bitmap) {
-					_renderer.pop_matrix();
-					_renderer.end_drawing();
-
-					_renderer.push_matrix_mult(matd3x3::translate(_snapped_position));
-					_renderer.draw_rectangle(
-						rectd::from_corners(vec2d(), _target.target_bitmap->get_size()),
-						ui::generic_brush(
-							ui::brushes::bitmap_pattern(_target.target_bitmap.get())
-						),
-						ui::generic_pen()
-					);
-					_renderer.pop_matrix();
-
-					_target.target.reset();
-					_target.target_bitmap.reset();
-				}
-			}
-		protected:
-			/// The position where the temporary buffer should be drawn onto in the original render target, with
-			/// pixel snapping.
-			vec2d _snapped_position;
-			render_target_data _target; ///< The temporary render target.
-			renderer_base &_renderer; ///< The renderer.
-		};
-
 		/// Used when starting dragging to add a small deadzone where dragging will not yet trigger. The mouse is
 		/// captured when the mouse is in the deadzone.
 		class drag_deadzone {

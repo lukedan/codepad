@@ -59,11 +59,7 @@ namespace codepad::editors::code {
 			double baseline_correction = edt->get_baseline() - font->get_ascent_em() * edt->get_font_size();
 
 			{
-				ui::pixel_snapped_render_target buffer(
-					renderer,
-					rectd::from_corners(vec2d(), get_layout().size()),
-					get_window()->get_scaling_factor()
-				);
+				renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
 
 				for (std::size_t curi = fline; curi < eline; ++curi, cury += lh) {
 					std::size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
@@ -82,6 +78,8 @@ namespace codepad::editors::code {
 						renderer.draw_plain_text(*text, vec2d(width - w, cury + baseline_correction), colord());
 					}
 				}
+
+				renderer.pop_clip();
 			}
 		}
 	}

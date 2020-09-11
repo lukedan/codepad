@@ -16,7 +16,7 @@
 #include "wrappers.h"
 #include "language_configuration.h"
 
-namespace tree_sitter {
+namespace codepad::tree_sitter {
 	/// Returns the range for the node.
 	[[nodiscard]] inline TSRange get_range_for_node(const TSNode &node) {
 		return TSRange{
@@ -227,7 +227,7 @@ namespace tree_sitter {
 				TSRange range_after{
 					.start_point = ts_node_end_point(node),
 					.end_point = { .row = _uint32_max, .column = _uint32_max },
-					.start_byte = ts_node_start_byte(node),
+					.start_byte = ts_node_end_byte(node),
 					.end_byte = _uint32_max
 				};
 
