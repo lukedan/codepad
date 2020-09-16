@@ -658,8 +658,8 @@ namespace codepad::os::direct2d {
 		assert_true_usage(_render_stack.top().matrices.size() == 1, "push_matrix/pop_matrix calls mismatch");
 		_render_stack.pop();
 		if (_render_stack.empty()) {
-			_details::com_check(_d2d_device_context->EndDraw());
 			_d2d_device_context->SetTarget(nullptr); // so that windows can be resized normally
+			_details::com_check(_d2d_device_context->EndDraw());
 			for (IDXGISwapChain *chain : _present_chains) {
 				_details::com_check(chain->Present(0, 0));
 			}

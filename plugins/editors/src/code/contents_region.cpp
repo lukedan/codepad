@@ -216,7 +216,7 @@ namespace codepad::editors::code {
 					auto &&rendering = ass.append(specfrag);
 					ass.render(get_manager().get_renderer(), rendering);
 					caretrend.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
-					}, frag.result);
+				}, frag.result);
 				if (std::holds_alternative<linebreak_fragment>(frag.result)) {
 					++curvisline;
 				} else if (ass.get_horizontal_position() + get_padding().left > get_layout().width()) {

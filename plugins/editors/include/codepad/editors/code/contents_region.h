@@ -101,14 +101,21 @@ namespace codepad::editors::code {
 			return _line_height * 0.8; // TODO customizable baseline?
 		}
 
-		/// Sets the maximum width of a tab character.
-		void set_tab_width(double w) {
-			_tab_width = w;
+		/// Sets the maximum width of a tab character relative to the width of spaces.
+		void set_tab_space_width(double w) {
+			_tab_space_width = w;
 			_on_editing_visual_changed();
 		}
-		/// Returns the maximum width of a tab character.
-		double get_tab_width() const {
-			return _tab_width;
+		/// Returns the maximum width of a tab character relative to the width of spaces.
+		[[nodiscard]] double get_tab_space_width() const {
+			return _tab_space_width;
+		}
+		/// Returns the maximum absolute width of a tab character.
+		[[nodiscard]] double get_tab_width() const {
+			auto font = _font_families[0]->get_matching_font(
+				ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal
+			);
+			return font->get_character_width_em(U' ') * _tab_space_width * _font_size;
 		}
 
 		/// Sets the formatter used to format invalid codepoints.
@@ -631,7 +638,7 @@ namespace codepad::editors::code {
 		std::vector<std::unique_ptr<ui::font_family>> _font_families;
 		double
 			_font_size = 12.0, ///< The font size.
-			_tab_width = 30.0, ///< The maximum width of a tab character.
+			_tab_space_width = 4.0, ///< The maximum width of a tab character as a number of spaces.
 			_line_height = 18.0; ///< The height of a line.
 		view_formatting _fmt; ///< The \ref view_formatting associated with this contents_region.
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.

@@ -9,10 +9,10 @@
 #include "codepad/core/json/rapidjson.h"
 #include "codepad/os/current/all.h"
 #ifdef CP_PLATFORM_WINDOWS
-#   include "codepad/os/windows/direct2d_renderer.h"
-#   include "codepad/os/windows/cairo_renderer.h"
+#	include "codepad/os/windows/direct2d_renderer.h"
+#	include "codepad/os/windows/cairo_renderer.h"
 #elif defined(CP_PLATFORM_UNIX)
-#   include "codepad/os/linux/gtk/cairo_renderer.h"
+#	include "codepad/os/linux/gtk/cairo_renderer.h"
 #endif
 #include "codepad/ui/cairo_renderer_base.h"
 #include "codepad/ui/config_parsers.h"

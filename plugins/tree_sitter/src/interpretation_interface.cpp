@@ -45,7 +45,7 @@ namespace codepad::tree_sitter {
 					if (!event_stack.empty()) {
 						theme.set_range(
 							prev_char_pos, cur_char_pos,
-							_lang->get_highlight_configuration()->themes()[event_stack.back()]
+							_lang->get_highlight_configuration()->entries[event_stack.back()].theme
 						);
 					}
 					prev_pos = event->position;

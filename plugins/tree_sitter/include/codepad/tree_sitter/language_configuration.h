@@ -8,6 +8,7 @@
 
 #include <string_view>
 #include <string>
+#include <algorithm>
 #include <map>
 #include <unordered_map>
 
@@ -27,10 +28,25 @@ namespace codepad::tree_sitter {
 		/// Indicates that no name is associated with a layer.
 		constexpr static std::size_t no_associated_theme = std::numeric_limits<std::size_t>::max();
 
-		/// One layer in the configuration.
-		struct layer {
-			std::map<std::u8string, layer, std::less<void>> layer_mapping; ///< Mapping into the next layer.
-			std::size_t theme_index = no_associated_theme; ///< The index of this layer's theme in \ref _themes.
+		/// One entry in the configuration.
+		struct entry {
+			/// The key used to identify this entry. In order for lookups to function properly this should be sorted.
+			std::vector<std::u8string> key;
+			editors::code::text_theme_specification theme; ///< Theme associated with the key.
+
+			/// Constructs a new entry from the given key.
+			[[nodiscard]] inline static entry construct(
+				std::u8string_view key, editors::code::text_theme_specification theme
+			) {
+				entry result;
+				result.theme = theme;
+				split_path(key, [&result](std::u8string_view s) {
+					result.key.emplace_back(s);
+					return true;
+				});
+				std::sort(result.key.begin(), result.key.end());
+				return result;
+			}
 		};
 
 		/// Calls the callback function for all components in the given path, terminating once the callback returns
@@ -53,66 +69,53 @@ namespace codepad::tree_sitter {
 			cb(path.substr(last - path.begin(), path.end() - last));
 		}
 
-		/// Pushes the given theme onto \ref _themes, and sets the index of that key to the index of the new theme.
-		///
-		/// \return The old highlight index.
-		std::size_t set_theme_for(std::u8string_view key, editors::code::text_theme_specification theme) {
-			std::size_t new_id = _themes.size();
-			_themes.emplace_back(std::move(theme));
-			return set_index_for(key, new_id);
-		}
-
-		/// Sets the highlight index for the given key.
-		///
-		/// \return The old highlight index.
-		std::size_t set_index_for(std::u8string_view key, std::size_t id) {
-			layer *current = &_root_layer;
-			split_path(key, [this, &current](std::u8string_view part) {
-				auto [it, inserted] = current->layer_mapping.emplace(std::u8string(part), layer());
-				current = &it->second;
-				return true;
-			});
-			std::size_t res = no_associated_theme;
-			res = current->theme_index;
-			current->theme_index = id;
-			return res;
+		/// Shorthand for constructring an entry and adding it to \ref entries.
+		void add_entry(std::u8string_view key, editors::code::text_theme_specification theme) {
+			entries.emplace_back(entry::construct(key, theme));
 		}
 		/// Returns the theme index for the given dot-separated key.
-		std::size_t get_index_for(std::u8string_view key) const {
-			const layer *current = &_root_layer;
-			std::size_t index = no_associated_theme;
+		[[nodiscard]] std::size_t get_index_for(std::u8string_view key) const {
+			std::size_t max_index = no_associated_theme, max_matches = 0;
 
-			split_path(key, [this, &current, &index](std::u8string_view part) {
-				auto next_layer = current->layer_mapping.find(part);
-				if (next_layer == current->layer_mapping.end()) {
-					return false;
-				}
-				// update result
-				if (next_layer->second.theme_index != no_associated_theme) {
-					index = next_layer->second.theme_index;
-				}
-				// advance to the next layer
-				current = &next_layer->second;
+			std::vector<std::u8string_view> key_parts;
+			split_path(key, [this, &key_parts](std::u8string_view part) {
+				key_parts.emplace_back(part);
 				return true;
 			});
+			std::sort(key_parts.begin(), key_parts.end());
 
-			if (index == no_associated_theme) {
+			for (std::size_t i = 0; i < entries.size(); ++i) {
+				auto &cur_entry = entries[i];
+
+				std::size_t matches = 0;
+				auto part_it = key_parts.begin();
+				auto ent_part_it = cur_entry.key.begin();
+				while (part_it != key_parts.end() && ent_part_it != cur_entry.key.end()) {
+					int cmp = part_it->compare(*ent_part_it);
+					if (cmp == 0) {
+						++matches;
+						++part_it;
+						++ent_part_it;
+					} else if (cmp < 0) {
+						++part_it;
+					} else {
+						++ent_part_it;
+					}
+				}
+
+				if (matches > max_matches) {
+					max_matches = matches;
+					max_index = i;
+				}
+			}
+
+			if (max_index == no_associated_theme) {
 				codepad::logger::get().log_info(CP_HERE) << "no highlight for " << key;
 			}
-			return index;
+			return max_index;
 		}
 
-		/// Returns \ref _themes.
-		std::vector<editors::code::text_theme_specification> &themes() {
-			return _themes;
-		}
-		/// \overload
-		const std::vector<editors::code::text_theme_specification> &themes() const {
-			return _themes;
-		}
-	protected:
-		std::vector<editors::code::text_theme_specification> _themes; ///< The values of all themes.
-		layer _root_layer; ///< The top layer.
+		std::vector<entry> entries; ///< Entries of this configuration.
 	};
 
 	/// Wrapper around a \p TSLanguage and associated highlighting queries.

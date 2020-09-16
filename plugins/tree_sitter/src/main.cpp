@@ -52,25 +52,25 @@ extern "C" {
 		cp::tree_sitter::_manager->register_builtin_languages();
 
 		auto highlight_config = std::make_shared<cp::tree_sitter::highlight_configuration>();
-		highlight_config->set_theme_for(u8"keyword", codepad::editors::code::text_theme_specification(
+		highlight_config->add_entry(u8"keyword", codepad::editors::code::text_theme_specification(
 			codepad::colord(0.337, 0.612, 0.839, 1.0), codepad::ui::font_style::normal, codepad::ui::font_weight::normal
 		));
-		highlight_config->set_theme_for(u8"operator", codepad::editors::code::text_theme_specification(
+		highlight_config->add_entry(u8"operator", codepad::editors::code::text_theme_specification(
 			codepad::colord(0.863, 0.863, 0.667, 1.0), codepad::ui::font_style::normal, codepad::ui::font_weight::normal
 		));
-		highlight_config->set_theme_for(u8"string", codepad::editors::code::text_theme_specification(
+		highlight_config->add_entry(u8"string", codepad::editors::code::text_theme_specification(
 			codepad::colord(0.808, 0.569, 0.471, 1.0), codepad::ui::font_style::normal, codepad::ui::font_weight::normal
 		));
-		highlight_config->set_theme_for(u8"comment", codepad::editors::code::text_theme_specification(
+		highlight_config->add_entry(u8"comment", codepad::editors::code::text_theme_specification(
 			codepad::colord(0.416, 0.600, 0.333, 1.0), codepad::ui::font_style::normal, codepad::ui::font_weight::normal
 		));
-		highlight_config->set_theme_for(u8"type", codepad::editors::code::text_theme_specification(
+		highlight_config->add_entry(u8"type", codepad::editors::code::text_theme_specification(
 			codepad::colord(0.306, 0.788, 0.690, 1.0), codepad::ui::font_style::normal, codepad::ui::font_weight::normal
 		));
-		highlight_config->set_theme_for(u8"number", codepad::editors::code::text_theme_specification(
+		highlight_config->add_entry(u8"number", codepad::editors::code::text_theme_specification(
 			codepad::colord(0.710, 0.808, 0.659, 1.0), codepad::ui::font_style::normal, codepad::ui::font_weight::normal
 		));
-		highlight_config->set_theme_for(u8"tag", codepad::editors::code::text_theme_specification(
+		highlight_config->add_entry(u8"tag", codepad::editors::code::text_theme_specification(
 			codepad::colord(0.337, 0.612, 0.839, 1.0), codepad::ui::font_style::normal, codepad::ui::font_weight::normal
 		));
 		cp::tree_sitter::_manager->set_highlight_configuration(std::move(highlight_config));

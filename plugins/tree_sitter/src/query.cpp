@@ -160,7 +160,7 @@ namespace codepad::tree_sitter {
 		for (const text_predicate &pred : _text_predicates[match.pattern_index]) {
 			bool good = std::visit(
 				[&match, &text_cb](const auto &pred) {
-				return pred.test(match, text_cb);
+					return pred.test(match, text_cb);
 				}, pred
 			);
 			if (!good) {
