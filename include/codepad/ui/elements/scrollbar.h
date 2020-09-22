@@ -309,7 +309,7 @@ namespace codepad::ui {
 				// this is done before updating the value so that new tasks are cancelled correctly even if some
 				// handler of actual_value_changed changes the target value again
 				_smooth_update_token = scheduler::task_token();
-				_update_actual_value(get_actual_value());
+				_update_actual_value(get_target_value());
 				return true;
 			}
 			// position: 0.0 for start, 1.0 for end

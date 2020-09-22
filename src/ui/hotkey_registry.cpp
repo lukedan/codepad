@@ -30,7 +30,7 @@ namespace codepad {
 		}
 
 
-		bool hotkey_group::register_hotkey(const std::vector<key_gesture> &sks, std::u8string action) {
+		bool hotkey_group::register_hotkey(const std::vector<key_gesture> &sks, action act) {
 			if (sks.empty()) {
 				return false;
 			}
@@ -58,7 +58,7 @@ namespace codepad {
 			c->get_children().emplace(
 				std::piecewise_construct,
 				std::forward_as_tuple(sks.back()),
-				std::forward_as_tuple(std::in_place_type<std::u8string>, std::move(action))
+				std::forward_as_tuple(std::in_place_type<action>, std::move(act))
 			);
 			return true;
 		}

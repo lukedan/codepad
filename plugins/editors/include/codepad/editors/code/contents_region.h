@@ -8,7 +8,7 @@
 
 #include <memory>
 
-#include "codepad/core/binary_tree.h"
+#include "codepad/core/red_black_tree.h"
 #include "codepad/core/settings.h"
 #include "../caret_rendering.h"
 #include "../editor.h"

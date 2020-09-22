@@ -678,11 +678,36 @@ namespace codepad::json {
 		}
 		return std::nullopt;
 	}
+
+
+	template <
+		typename Value
+	> std::optional<ui::hotkey_group::action> default_parser<ui::hotkey_group::action>::operator()(
+		const Value &val
+	) const {
+		ui::hotkey_group::action res;
+		if (auto str = val.template try_cast<std::u8string_view>()) {
+			res.identifier = str.value();
+		} else if (auto full_repr = val.template try_cast<typename Value::object_type>()) {
+			if (full_repr->size() != 1) {
+				val.template log<log_level::error>(CP_HERE) << "action must have one and only one member";
+			}
+			auto member = full_repr->member_begin();
+			res.identifier = member.name();
+			res.arguments = store(member.value());
+		} else {
+			val.template log<log_level::error>(CP_HERE) << "invalid action representation";
+			return std::nullopt;
+		}
+		return res;
+	}
 }
 
 
 namespace codepad::ui {
-	template <typename Value> std::optional<generic_brush_parameters> managed_json_parser<generic_brush_parameters>::operator()(
+	template <
+		typename Value
+	> std::optional<generic_brush_parameters> managed_json_parser<generic_brush_parameters>::operator()(
 		const Value &val
 	) const {
 		if (auto obj = val.template try_cast<typename Value::object_type>()) {
@@ -731,7 +756,9 @@ namespace codepad::ui {
 	template <typename Value> std::optional<generic_pen_parameters> managed_json_parser<generic_pen_parameters>::operator()(
 		const Value &val
 	) const {
-		if (auto brush = val.template parse<generic_brush_parameters>(managed_json_parser<generic_brush_parameters>(_manager))) {
+		if (auto brush = val.template parse<generic_brush_parameters>(
+			managed_json_parser<generic_brush_parameters>(_manager)
+		)) {
 			generic_pen_parameters result;
 			result.brush = brush.value();
 			if (auto obj = val.template cast<typename Value::object_type>()) {

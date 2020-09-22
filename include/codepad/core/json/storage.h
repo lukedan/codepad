@@ -13,6 +13,7 @@
 
 #include "../encodings.h"
 #include "misc.h"
+#include "parsing.h"
 
 namespace codepad::json {
 	// forward declarations
@@ -42,6 +43,8 @@ namespace codepad::json {
 
 		/// Returns a corresponding \ref storage::value_t.
 		json::storage::value_t get_value() const;
+		/// Returns a \ref parsing::value_t for parsing.
+		parsing::value_t<json::storage::value_t> get_parser_value() const;
 
 		storage value; ///< The value.
 	};
@@ -229,6 +232,12 @@ namespace codepad::json {
 					}
 				};
 
+				// these are pretty strange but they're required for range-for loops to work
+				using value_type = value_t; ///< Value type.
+				using pointer = proxy; ///< Uses proxy as pointers.
+				using reference = value_t; ///< Uses \p value_t as references.
+				using iterator_category = std::random_access_iterator_tag; ///< Iterator category of this iterator.
+
 				/// Default constructor.
 				iterator() = default;
 
@@ -306,7 +315,12 @@ namespace codepad::json {
 		}
 	}
 
+
 	inline json::storage::value_t value_storage::get_value() const {
 		return json::storage::value_t(*this);
+	}
+
+	inline parsing::value_t<json::storage::value_t> value_storage::get_parser_value() const {
+		return parsing::make_value(get_value());
 	}
 }

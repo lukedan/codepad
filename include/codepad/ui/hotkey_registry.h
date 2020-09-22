@@ -14,6 +14,7 @@
 
 #include "../core/misc.h"
 #include "../core/json/misc.h"
+#include "../core/json/storage.h"
 #include "../os/misc.h"
 #include "misc.h"
 
@@ -68,30 +69,8 @@ namespace codepad {
 				return std::nullopt;
 			}
 
-			/// Equality of two key gestures.
-			friend bool operator==(key_gesture lhs, key_gesture rhs) {
-				return lhs.primary == rhs.primary && lhs.mod_keys == rhs.mod_keys;
-			}
-			/// Inequality of two key gestures.
-			friend bool operator!=(key_gesture lhs, key_gesture rhs) {
-				return !(lhs == rhs);
-			}
-			/// Comparison of two key gestures.
-			friend bool operator<(key_gesture lhs, key_gesture rhs) {
-				return lhs.primary == rhs.primary ? lhs.mod_keys < rhs.mod_keys : lhs.primary < rhs.primary;
-			}
-			/// Comparison of two key gestures.
-			friend bool operator>(key_gesture lhs, key_gesture rhs) {
-				return rhs < lhs;
-			}
-			/// Comparison of two key gestures.
-			friend bool operator<=(key_gesture lhs, key_gesture rhs) {
-				return !(rhs < lhs);
-			}
-			/// Comparison of two key gestures.
-			friend bool operator>=(key_gesture lhs, key_gesture rhs) {
-				return !(lhs < rhs);
-			}
+			/// Comparisons.
+			friend std::strong_ordering operator<=>(key_gesture, key_gesture) = default;
 		};
 
 		/// A mouse gesture, corresponds to one mouse button click with or without modifier keys.
@@ -115,30 +94,8 @@ namespace codepad {
 				return std::nullopt;
 			}
 
-			/// Equality of two mouse gestures.
-			friend bool operator==(mouse_gesture lhs, mouse_gesture rhs) {
-				return lhs.primary == rhs.primary && lhs.mod_keys == rhs.mod_keys;
-			}
-			/// Inequality of two mouse gestures.
-			friend bool operator!=(mouse_gesture lhs, mouse_gesture rhs) {
-				return !(lhs == rhs);
-			}
-			/// Comparison of two mouse gestures.
-			friend bool operator<(mouse_gesture lhs, mouse_gesture rhs) {
-				return lhs.primary == rhs.primary ? lhs.mod_keys < rhs.mod_keys : lhs.primary < rhs.primary;
-			}
-			/// Comparison of two mouse gestures.
-			friend bool operator>(mouse_gesture lhs, mouse_gesture rhs) {
-				return rhs < lhs;
-			}
-			/// Comparison of two mouse gestures.
-			friend bool operator<=(mouse_gesture lhs, mouse_gesture rhs) {
-				return !(rhs < lhs);
-			}
-			/// Comparison of two mouse gestures.
-			friend bool operator>=(mouse_gesture lhs, mouse_gesture rhs) {
-				return !(lhs < rhs);
-			}
+			/// Comparisons.
+			friend std::strong_ordering operator<=>(mouse_gesture, mouse_gesture) = default;
 		};
 
 		/// A group of non-conflicting hotkeys. A hotkey contains one or more gestures.
@@ -147,13 +104,26 @@ namespace codepad {
 		/// \tparam T Type of data associated with hotkeys.
 		class hotkey_group {
 		public:
+			/// An action that is taken when a gesture is made.
+			struct action {
+				/// Default constructor.
+				action() = default;
+				/// Initializes all fields of this struct.
+				action(std::u8string id, json::value_storage args) :
+					identifier(std::move(id)), arguments(std::move(args)) {
+				}
+
+				std::u8string identifier; ///< The string that identifies this action.
+				json::value_storage arguments; ///< Arguments for this action.
+			};
+
 			/// Registers a hotkey to this group.
 			///
 			/// \param gs The hotkey, which consists of a series of gestures.
 			/// \param action Name of the corresponding action.
 			/// \return \p true if the registration succeeded. The registration may fail if the hotkey is empty or
 			///         if there are conflicting hotkeys.
-			bool register_hotkey(const std::vector<key_gesture> &gs, std::u8string action);
+			bool register_hotkey(const std::vector<key_gesture> &gs, action action);
 			/// Unregister a hotkey from this group. The entry must exist.
 			///
 			/// \param gs The hotkey.
@@ -172,7 +142,7 @@ namespace codepad {
 
 				/// Checks if this is a leaf node.
 				bool is_leaf() const {
-					return std::holds_alternative<std::u8string>(_v);
+					return std::holds_alternative<action>(_v);
 				}
 
 				/// Returns all children gestures if is_leaf() returns \p true.
@@ -184,16 +154,16 @@ namespace codepad {
 					return std::get<layer_rec_t>(_v);
 				}
 
-				/// Returns the data if is_leaf() returns \p false.
-				std::u8string &get_data() {
-					return std::get<std::u8string>(_v);
+				/// Returns the action if is_leaf() returns \p false.
+				action &get_action() {
+					return std::get<action>(_v);
 				}
 				/// Const version of get_data().
-				const std::u8string &get_data() const {
-					return std::get<std::u8string>(_v);
+				const action &get_action() const {
+					return std::get<action>(_v);
 				}
 			protected:
-				std::variant<layer_rec_t, std::u8string> _v; ///< The underlying union.
+				std::variant<layer_rec_t, action> _v; ///< The underlying union.
 			};
 
 			_gesture_rec_t _reg; ///< The root node.
@@ -218,10 +188,10 @@ namespace codepad {
 					return _ptr && _ptr->is_leaf();
 				}
 
-				/// Returns the data of the leaf node if is_trigger() returns \p true.
-				const std::u8string &get_data() const {
+				/// Returns the action of the leaf node if is_trigger() returns \p true.
+				const action &get_action() const {
 					assert_true_logical(is_trigger(), "intermediate nodes doesn't have callbacks");
-					return _ptr->get_data();
+					return _ptr->get_action();
 				}
 
 				/// Equality.
@@ -245,6 +215,14 @@ namespace codepad {
 			/// hotkeys, this function returns an empty state. This function also returns the input state unchanged
 			/// if \ref key_gesture::primary is a modifier key.
 			state update_state(key_gesture, const state&) const;
+		};
+	}
+	namespace json {
+		/// Parser for \ref ui::hotkey_group::action.
+		template <> struct default_parser<ui::hotkey_group::action> {
+			/// Parses a \ref ui::hotkey_group::action. The node can either be a string or an object containing the
+			/// ID and (optionally) arguments of the action.
+			template <typename Value> std::optional<ui::hotkey_group::action> operator()(const Value&) const;
 		};
 	}
 }

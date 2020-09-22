@@ -32,6 +32,7 @@ namespace codepad::editors::code {
 			}
 
 			std::size_t length = 0; ///< The number of characters between the two soft linebreaks.
+			red_black_tree::color color = red_black_tree::color::red; ///< The color of this node.
 		};
 		/// Stores additional synthesized data of a subtree.
 		///
@@ -58,7 +59,9 @@ namespace codepad::editors::code {
 			}
 		};
 		/// The type of the tree.
-		using tree_type = binary_tree<node_data, node_synth_data>;
+		using tree_type = red_black_tree::tree<
+			node_data, red_black_tree::member_red_black_access<&node_data::color>, node_synth_data
+		>;
 		/// The type of a node in the tree.
 		using node_type = typename tree_type::node;
 		/// Const iterators to elements in the tree.
@@ -188,15 +191,14 @@ namespace codepad::editors::code {
 		///
 		/// \param poss The new list of soft linebreaks' positions, sorted in increasing order.
 		void set_softbreaks(const std::vector<std::size_t> &poss) {
-			std::vector<node_data> vs;
-			vs.reserve(poss.size());
+			_t.clear();
+
 			std::size_t last = 0; // no reason to insert softbreak at position 0
 			for (std::size_t cp : poss) {
 				assert_true_usage(cp > last, "softbreak list not properly sorted");
-				vs.emplace_back(cp - last);
+				_t.emplace_before(_t.end(), cp - last);
 				last = cp;
 			}
-			_t = tree_type(vs.begin(), vs.end());
 		}
 
 		/// Returns the total number of soft linebreaks.
@@ -216,7 +218,7 @@ namespace codepad::editors::code {
 		struct _get_softbreaks_before {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = sum_synthesizer::index_finder<node_synth_data::length_property>;
-			/// Interface to binary_tree::find_custom.
+			/// Interface to \ref red_black_tree::tree::find_custom().
 			int select_find(node_type &n, std::size_t &target) {
 				return finder::template select_find<
 					node_synth_data::softbreaks_property
@@ -225,7 +227,7 @@ namespace codepad::editors::code {
 			std::size_t num_softbreaks = 0; ///< Records the number of soft linebreaks before the resulting node.
 		};
 
-		tree_type _t; ///< The underlying \ref binary_tree that records all soft linebreaks.
+		tree_type _t; ///< The underlying binary tree that records all soft linebreaks.
 		const linebreak_registry *_reg = nullptr; ///< The associated \ref linebreak_registry.
 
 
@@ -375,6 +377,7 @@ namespace codepad::editors::code {
 				folded_lines = 0,
 				bytepos_first = 0, ///< Position of the first byte of this folded region.
 				bytepos_second = 0; ///< Position past the last byte of this folded region.
+			red_black_tree::color color = red_black_tree::color::red; ///< The color of this node.
 		};
 		/// Contains additional synthesized data of a subtree.
 		///
@@ -469,7 +472,11 @@ namespace codepad::editors::code {
 			}
 		};
 		/// Trees for storing folded regions.
-		using tree_type = binary_tree<fold_region_node_data, fold_region_synth_data>;
+		using tree_type = red_black_tree::tree<
+			fold_region_node_data,
+			red_black_tree::member_red_black_access<&fold_region_node_data::color>,
+			fold_region_synth_data
+		>;
 		using node_type = tree_type::node; ///< Nodes of \ref tree_type.
 		using iterator = tree_type::const_iterator; ///< Const iterators through the registry.
 
@@ -734,7 +741,7 @@ namespace codepad::editors::code {
 		template <typename Prop, typename SynProp> struct _unfolded_to_folded {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = sum_synthesizer::index_finder<Prop>;
-			/// Interface for \ref binary_tree::find_custom.
+			/// Interface for \ref red_black_tree::tree::find_custom().
 			int select_find(const node_type &n, std::size_t &v) {
 				return finder::template select_find<SynProp>(n, v, total_unfolded);
 			}
@@ -756,7 +763,7 @@ namespace codepad::editors::code {
 		template <typename Prop, typename SynProp> struct _folded_to_unfolded {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = sum_synthesizer::index_finder<Prop, false, std::less_equal<>>;
-			/// Interface for \ref binary_tree::find_custom.
+			/// Interface for \ref red_black_tree::tree::find_custom().
 			int select_find(const node_type &n, std::size_t &v) {
 				return finder::template select_find<SynProp>(n, v, total);
 			}
@@ -778,7 +785,7 @@ namespace codepad::editors::code {
 				fold_region_synth_data::span_property, false, Cmp
 			>;
 			int select_find(const node_type &n, std::size_t &v) {
-				/// Interface for \ref binary_tree::find_custom.
+				/// Interface for \ref red_black_tree::tree::find_custom().
 				return finder::template select_find<
 					fold_region_synth_data::span_property, fold_region_synth_data::line_span_property
 				>(n, v, total_chars, total_lines);
@@ -812,7 +819,7 @@ namespace codepad::editors::code {
 			_bytepos_valid = true;
 		}
 
-		tree_type _t; ///< The underlying \ref binary_tree.
+		tree_type _t; ///< The underlying binary tree.
 		bool _bytepos_valid = false; ///< Whether the underlying byte positions are valid.
 	};
 

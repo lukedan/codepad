@@ -6,6 +6,8 @@
 /// \file
 /// Structs used to manage the formatting of a buffer that's independent of the view.
 
+#include <codepad/core/red_black_tree.h>
+
 #include "../buffer.h"
 
 namespace codepad::editors::code {
@@ -26,6 +28,7 @@ namespace codepad::editors::code {
 			std::size_t nonbreak_chars = 0; ///< The number of codepoints in this line, excluding the linebreak.
 			/// The type of the line ending. This will be line_ending::none for the last line.
 			ui::line_ending ending = ui::line_ending::none;
+			red_black_tree::color color = red_black_tree::color::black; ///< The color of this node.
 		};
 		/// Stores additional data of a node in the tree.
 		struct line_synth_data {
@@ -85,7 +88,7 @@ namespace codepad::editors::code {
 			}
 		};
 		/// A binary tree for storing line information.
-		using tree_type = binary_tree<line_info, line_synth_data>;
+		using tree_type = red_black_tree::tree<line_info, red_black_tree::member_red_black_access<&line_info::color>, line_synth_data>;
 		/// A node of the binary tree.
 		using node_type = tree_type::node;
 		/// A const iterator through the nodes of the tree.
@@ -265,15 +268,15 @@ namespace codepad::editors::code {
 
 		/// Returns the index of the line to which the given iterator points.
 		std::size_t get_line(iterator i) const {
-			return _get_node_sum_before<line_synth_data::num_lines_property>(i.get_node());
+			return _get_node_sum_before<line_synth_data::num_lines_property>(i);
 		}
 		/// Returns the index of the first codepoint of the line corresponding to the given iterator.
 		std::size_t get_beginning_codepoint_of(iterator i) const {
-			return _get_node_sum_before<line_synth_data::num_codepoints_property>(i.get_node());
+			return _get_node_sum_before<line_synth_data::num_codepoints_property>(i);
 		}
 		/// Returns the index of the first character of the line corresponding to the given iterator.
 		std::size_t get_beginning_char_of(iterator i) const {
-			return _get_node_sum_before<line_synth_data::num_chars_property>(i.get_node());
+			return _get_node_sum_before<line_synth_data::num_chars_property>(i);
 		}
 
 
@@ -298,7 +301,11 @@ namespace codepad::editors::code {
 				_t.get_modifier_for(at.get_node())->nonbreak_chars += lines.back().nonbreak_chars - offset;
 				// the first line
 				auto it = _t.emplace_before(at, offset + lines[0].nonbreak_chars, lines[0].ending);
-				_t.insert_range_before_copy(at, lines.begin() + 1, lines.end() - 1); // all other lines
+				// insert all other lines
+				// FIXME maybe use bulk operation?
+				for (auto it = lines.begin() + 1; it != lines.end() - 1; ++it) {
+					_t.emplace_before(at, *it);
+				}
 				_try_merge_rn_linebreak(it);
 				_try_merge_rn_linebreak(at);
 			}
@@ -418,7 +425,7 @@ namespace codepad::editors::code {
 		/// Clears all registered line information.
 		void clear() {
 			_t.clear();
-			_t.emplace_before(nullptr);
+			_t.emplace_before(_t.end());
 		}
 	protected:
 		tree_type _t; ///< The underlying binary tree that stores the information of all lines.
@@ -427,7 +434,7 @@ namespace codepad::editors::code {
 		struct _pos_char_to_cp {
 			/// The specialization of sum_synthesizer::index_finder used for this conversion.
 			using finder = sum_synthesizer::index_finder<line_synth_data::num_chars_property, true>;
-			/// Interface for binary_tree::find_custom.
+			/// Interface for \ref red_black_tree::tree::find_custom().
 			int select_find(const node_type &n, std::size_t &c) {
 				return finder::template select_find<
 					line_synth_data::num_codepoints_property, line_synth_data::num_lines_property
@@ -441,7 +448,7 @@ namespace codepad::editors::code {
 		struct _pos_cp_to_char {
 			/// The specialization of sum_synthesizer::index_finder used for this conversion.
 			using finder = sum_synthesizer::index_finder<line_synth_data::num_codepoints_property, true>;
-			/// Interface for binary_tree::find_custom.
+			/// Interface for \ref red_black_tree::tree::find_custom().
 			int select_find(const node_type &n, std::size_t &c) {
 				return finder::template select_find<
 					line_synth_data::num_chars_property, line_synth_data::num_lines_property
@@ -457,7 +464,7 @@ namespace codepad::editors::code {
 		template <typename Prop> struct _get_line {
 			/// The specialization of \ref sum_synthesizer::index_finder used for this conversion.
 			using finder = sum_synthesizer::index_finder<Prop, true>;
-			/// Interface for \ref binary_tree::find_custom.
+			/// Interface for \ref red_black_tree::tree::find_custom().
 			int select_find(const node_type &n, std::size_t &c) {
 				return finder::template select_find<line_synth_data::num_lines_property>(n, c, total_lines);
 			}
@@ -467,7 +474,7 @@ namespace codepad::editors::code {
 		using _line_beg_finder = sum_synthesizer::index_finder<line_synth_data::num_lines_property>;
 		/// Used to find the node corresponding to the i-th line and collect additional information in the process.
 		template <typename AccumProp> struct _line_beg_accum_finder {
-			/// Interface for \ref binary_tree::find_custom.
+			/// Interface for \ref red_black_tree::tree::find_custom().
 			int select_find(const node_type &n, std::size_t &l) {
 				return _line_beg_finder::template select_find<AccumProp>(n, l, total);
 			}
@@ -479,9 +486,9 @@ namespace codepad::editors::code {
 		using _line_beg_codepoint_accum_finder = _line_beg_accum_finder<line_synth_data::num_codepoints_property>;
 
 		/// Wrapper for \ref sum_synthesizer::sum_before when there's only one property.
-		template <typename Prop> std::size_t _get_node_sum_before(node_type *n) const {
+		template <typename Prop> std::size_t _get_node_sum_before(tree_type::const_iterator it) const {
 			std::size_t v = 0;
-			sum_synthesizer::sum_before<Prop>(_t.get_const_iterator_for(n), v);
+			sum_synthesizer::sum_before<Prop>(it, v);
 			return v;
 		}
 

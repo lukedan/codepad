@@ -14,6 +14,7 @@
 namespace codepad::ui {
 	class element;
 
+	using command = std::function<void(element*, const json::value_storage&)>; ///< Callback function for commands.
 	/// Registry for all commands. Maps strings to functions that take
 	/// pointers to \ref codepad::ui::element "elements" as arguments.
 	class APIGEN_EXPORT_RECURSIVE command_registry {
@@ -25,37 +26,33 @@ namespace codepad::ui {
 		///             same name in this registry, otherwise the function is moved into this registry.
 		/// \return \p false if a command of the same name has already been registered, in which case the new
 		///         command will be discarded.
-		bool register_command(const std::u8string &name, std::function<void(element*)> &func) {
+		bool register_command(const std::u8string &name, command &func) {
 			return _cmds.try_emplace(name, std::move(func)).second;
 		}
 		/// Unregisters a command.
 		///
 		/// \return The function associated with this command, or \p nullptr if no such command is found.
-		std::function<void(element*)> unregister_command(const std::u8string &name) {
+		command unregister_command(const std::u8string &name) {
 			auto it = _cmds.find(name);
 			if (it == _cmds.end()) {
 				return nullptr;
 			}
-			std::function<void(element*)> func = std::move(it->second);
+			command func = std::move(it->second);
 			_cmds.erase(it);
 			return func;
 		}
-		/// Finds the command with the given name. The command must have been registered.
-		const std::function<void(element*)> &find_command(const std::u8string &name) {
-			return _cmds.at(name);
-		}
 		/// Finds the command with the given name. Returns \p nullptr if none is found.
-		const std::function<void(element*)> *try_find_command(const std::u8string &name) {
+		const command *find_command(const std::u8string &name) const {
 			auto it = _cmds.find(name);
 			return it == _cmds.end() ? nullptr : &it->second;
 		}
 
 		/// Wraps a function that accepts a certain type of element into a function that accepts a \ref element.
-		template <typename Elem> [[nodiscard]] inline static std::function<void(element*)> convert_type(
-			std::function<void(Elem&)> f
+		template <typename Elem> [[nodiscard]] inline static command convert_type(
+			std::function<void(Elem&, const json::value_storage&)> f
 		) {
 			static_assert(std::is_base_of_v<element, Elem>, "invalid element type");
-			return[func = std::move(f)](element *e) {
+			return[func = std::move(f)](element *e, const json::value_storage &args) {
 				Elem *te = dynamic_cast<Elem*>(e);
 				if (e != nullptr && te == nullptr) { // not the right type
 					logger::get().log_warning(CP_HERE) <<
@@ -63,12 +60,12 @@ namespace codepad::ui {
 						", expected " << demangle(typeid(Elem).name());
 					return;
 				}
-				func(*te);
+				func(*te, args);
 			};
 		}
 	protected:
 		/// The map that stores all registered commands.
-		std::unordered_map<std::u8string, std::function<void(element*)>> _cmds;
+		std::unordered_map<std::u8string, command> _cmds;
 	};
 
 	/// Holds the information of an element and its corresponding \ref hotkey_group.
@@ -86,10 +83,10 @@ namespace codepad::ui {
 	/// Contains information about the user pressing a hotkey.
 	struct hotkey_info {
 		/// Constructs the info with corresponding data.
-		hotkey_info(std::u8string cmd, element *p) : command(std::move(cmd)), parameter(p) {
+		hotkey_info(const hotkey_group::action &cmd, element *p) : command(cmd), subject(p) {
 		}
-		const std::u8string command; ///< The command corresponding to the hotkey.
-		element *const parameter = nullptr; ///< The element on which the hotkey is registered.
+		const hotkey_group::action &command; ///< The command corresponding to the hotkey.
+		element *const subject = nullptr; ///< The element on which the hotkey is registered.
 	};
 
 	/// Manages and monitors hotkeys. At any time only the hotkeys registered to the classes of certain elements are

@@ -411,37 +411,37 @@ namespace codepad::editors {
 
 		/// Returns an iterator to the first byte of the buffer.
 		iterator begin() {
-			auto it = _t.mutable_tree().begin();
-			return iterator(it, it == _t.cend() ? byte_array::iterator() : it.get_value_rawmod().data.begin(), 0);
+			auto it = _t.begin();
+			return iterator(it, it == _t.end() ? byte_array::iterator() : it.get_value_rawmod().data.begin(), 0);
 		}
 		/// Const version of begin().
 		const_iterator begin() const {
-			auto it = _t.cbegin();
-			return const_iterator(it, it == _t.cend() ? byte_array::const_iterator() : it->data.begin(), 0);
+			auto it = _t.begin();
+			return const_iterator(it, it == _t.end() ? byte_array::const_iterator() : it->data.begin(), 0);
 		}
 		/// Returns an iterator past the last byte of the buffer.
 		iterator end() {
-			return iterator(_t.mutable_tree().end(), byte_array::iterator(), length());
+			return iterator(_t.end(), byte_array::iterator(), length());
 		}
 		/// Const version of end().
 		const_iterator end() const {
-			return const_iterator(_t.cend(), byte_array::const_iterator(), length());
+			return const_iterator(_t.end(), byte_array::const_iterator(), length());
 		}
 
 		/// Returns an iterator to the first chunk of the buffer.
 		tree_type::const_iterator node_begin() const {
-			return _t.cbegin();
+			return _t.begin();
 		}
 		/// Returns an iterator past the last chunk of the buffer.
 		tree_type::const_iterator node_end() const {
-			return _t.cend();
+			return _t.end();
 		}
 
 		/// Returns an iterator to the byte at the given position of the buffer.
 		iterator at(std::size_t bytepos) {
 			std::size_t chkpos = bytepos;
-			auto t = _t.mutable_tree().find(_byte_index_finder(), chkpos);
-			if (t == _t.cend()) {
+			auto t = _t.find(_byte_index_finder(), chkpos);
+			if (t == _t.end()) {
 				return iterator(t, byte_array::iterator(), length());
 			}
 			return iterator(t, t.get_value_rawmod().data.begin() + chkpos, bytepos - chkpos);
@@ -450,7 +450,7 @@ namespace codepad::editors {
 		const_iterator at(std::size_t bytepos) const {
 			std::size_t chkpos = bytepos;
 			auto t = _t.find(_byte_index_finder(), chkpos);
-			if (t == _t.cend()) {
+			if (t == _t.end()) {
 				return const_iterator(t, byte_array::const_iterator(), length());
 			}
 			return const_iterator(t, t->data.begin() + bytepos, bytepos - chkpos);
@@ -460,7 +460,7 @@ namespace codepad::editors {
 		std::size_t get_position(const const_iterator &it) const {
 			std::size_t res = 0;
 			sum_synthesizer::sum_before<node_data::length_property>(it._it, res);
-			if (it._it != _t.cend()) {
+			if (it._it != _t.end()) {
 				res += it._s - it._it->data.begin();
 			}
 			return res;
@@ -468,7 +468,7 @@ namespace codepad::editors {
 
 		/// Returns a clip of the buffer.
 		byte_string get_clip(const const_iterator &beg, const const_iterator &end) const {
-			if (beg._it == _t.cend()) {
+			if (beg._it == _t.end()) {
 				return byte_string();
 			}
 			if (beg._it == end._it) { // in the same chunk
@@ -479,7 +479,7 @@ namespace codepad::editors {
 			for (++it; it != end._it; ++it) { // insert full chunks
 				result.append(it->data.begin(), it->data.end());
 			}
-			if (end._it != _t.cend()) {
+			if (end._it != _t.end()) {
 				result.append(end._it->data.begin(), end._s); // insert the part in the last chunk
 			}
 			return result;
@@ -561,12 +561,12 @@ namespace codepad::editors {
 			chunk_data afterstr, *curstr;
 			std::vector<chunk_data> strs; // the buffer for (not all) inserted bytes
 			if (pos == begin()) { // insert at the very beginning, no need to split or update
-				updit = _t.cend();
+				updit = _t.end();
 				chunk_data st;
 				st.data.reserve(maximum_bytes_per_chunk);
 				strs.push_back(std::move(st));
 				curstr = &strs.back();
-			} else if (pos._it == _t.cend() || pos._s == pos._it->data.begin()) {
+			} else if (pos._it == _t.end() || pos._s == pos._it->data.begin()) {
 				// insert at the beginning of a chunk, which is not the first chunk
 				--updit;
 				curstr = &updit.get_value_rawmod();
@@ -606,18 +606,18 @@ namespace codepad::editors {
 		///
 		/// \todo Find a better merging strategy.
 		void _try_merge_small_nodes(const tree_type::const_iterator &it) {
-			if (it == _t.cend()) {
+			if (it == _t.end()) {
 				return;
 			}
 			std::size_t nvl = it->data.size();
 			if (nvl * 2 > maximum_bytes_per_chunk) {
 				return;
 			}
-			if (it != _t.cbegin()) {
+			if (it != _t.begin()) {
 				tree_type::const_iterator prev = it;
 				--prev;
 				if (prev->data.size() + nvl < maximum_bytes_per_chunk) {
-					_t.mutable_tree().get_modifier_for(prev.get_node())->data.insert(
+					_t.get_modifier_for(prev.get_node())->data.insert(
 						prev->data.end(), it->data.begin(), it->data.end()
 					);
 					_t.erase(it);
@@ -626,8 +626,8 @@ namespace codepad::editors {
 			}
 			tree_type::const_iterator next = it;
 			++next;
-			if (next != _t.cend() && next->data.size() + nvl < maximum_bytes_per_chunk) {
-				_t.mutable_tree().get_modifier_for(it.get_node())->data.insert(
+			if (next != _t.end() && next->data.size() + nvl < maximum_bytes_per_chunk) {
+				_t.get_modifier_for(it.get_node())->data.insert(
 					it->data.end(), next->data.begin(), next->data.end()
 				);
 				_t.erase(next);

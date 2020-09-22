@@ -160,11 +160,12 @@ namespace codepad::ui {
 
 		/// Parses a JSON object for a list of \ref key_gesture "key_gestures" and the corresponding command.
 		inline static bool parse_hotkey_entry(
-			std::vector<key_gesture> &gests, std::u8string &cmd, const object_t &obj
+			std::vector<key_gesture> &gests, hotkey_group::action &action, const object_t &obj
 		) {
-			if (auto command = obj.template parse_member<std::u8string_view>(u8"command")) {
-				cmd = command.value();
+			if (auto act = obj.parse_member<hotkey_group::action>(u8"action")) {
+				action = std::move(act.value());
 			} else {
+				obj.template log<log_level::error>(CP_HERE) << "failed to parse action";
 				return false;
 			}
 			if (auto gestures = obj.find_member(u8"gestures"); gestures != obj.member_end()) {
@@ -195,9 +196,9 @@ namespace codepad::ui {
 			for (auto &&cls : arr) {
 				if (auto obj = cls.template try_cast<object_t>()) {
 					std::vector<key_gesture> gs;
-					std::u8string name;
-					if (parse_hotkey_entry(gs, name, obj.value())) {
-						gp.register_hotkey(gs, std::move(name));
+					hotkey_group::action act;
+					if (parse_hotkey_entry(gs, act, obj.value())) {
+						gp.register_hotkey(gs, std::move(act));
 					} else {
 						logger::get().log_warning(CP_HERE) << "invalid hotkey entry";
 					}

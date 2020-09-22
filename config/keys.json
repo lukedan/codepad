@@ -2,7 +2,7 @@
 	"editor": [
 		{
 			"gestures": "insert",
-			"command": "contents_region.toggle_insert"
+			"action": "contents_region.toggle_insert"
 		}
 	],
 	"code_editor": {
@@ -10,138 +10,138 @@
 		"hotkeys": [
 			{
 				"gestures": "left",
-				"command": "contents_region.carets.move_left"
+				"action": "contents_region.carets.move_left"
 			},
 			{
 				"gestures": "right",
-				"command": "contents_region.carets.move_right"
+				"action": "contents_region.carets.move_right"
 			},
 			{
 				"gestures": "up",
-				"command": "contents_region.carets.move_up"
+				"action": "contents_region.carets.move_up"
 			},
 			{
 				"gestures": "down",
-				"command": "contents_region.carets.move_down"
+				"action": "contents_region.carets.move_down"
 			},
 
 			{
 				"gestures": "shift+left",
-				"command": "contents_region.carets.move_left_selected"
+				"action": { "contents_region.carets.move_left": { "continue_selection": true } }
 			},
 			{
 				"gestures": "shift+right",
-				"command": "contents_region.carets.move_right_selected"
+				"action": { "contents_region.carets.move_right": { "continue_selection": true } }
 			},
 			{
 				"gestures": "shift+up",
-				"command": "contents_region.carets.move_up_selected"
+				"action": { "contents_region.carets.move_up": { "continue_selection": true } }
 			},
 			{
 				"gestures": "shift+down",
-				"command": "contents_region.carets.move_down_selected"
-			},
-
-			{
-				"gestures": "alt+j",
-				"command": "contents_region.carets.move_left"
-			},
-			{
-				"gestures": "alt+l",
-				"command": "contents_region.carets.move_right"
-			},
-			{
-				"gestures": "alt+i",
-				"command": "contents_region.carets.move_up"
-			},
-			{
-				"gestures": "alt+k",
-				"command": "contents_region.carets.move_down"
-			},
-			{
-				"gestures": "alt+u",
-				"command": "contents_region.carets.move_to_line_beginning_noblank"
-			},
-			{
-				"gestures": "alt+o",
-				"command": "contents_region.carets.move_to_line_ending"
-			},
-
-			{
-				"gestures": "alt+shift+j",
-				"command": "contents_region.carets.move_left_selected"
-			},
-			{
-				"gestures": "alt+shift+l",
-				"command": "contents_region.carets.move_right_selected"
-			},
-			{
-				"gestures": "alt+shift+i",
-				"command": "contents_region.carets.move_up_selected"
-			},
-			{
-				"gestures": "alt+shift+k",
-				"command": "contents_region.carets.move_down_selected"
-			},
-			{
-				"gestures": "alt+shift+u",
-				"command": "contents_region.carets.move_to_line_beginning_noblank_selected"
-			},
-			{
-				"gestures": "alt+shift+o",
-				"command": "contents_region.carets.move_to_line_ending_selected"
+				"action": { "contents_region.carets.move_down": { "continue_selection": true } }
 			},
 
 			{
 				"gestures": "home",
-				"command": "contents_region.carets.move_to_line_beginning_noblank"
+				"action": "contents_region.carets.move_to_line_beginning_noblank"
 			},
 			{
 				"gestures": "end",
-				"command": "contents_region.carets.move_to_line_ending"
+				"action": "contents_region.carets.move_to_line_ending"
 			},
 			{
 				"gestures": "ctrl+home",
-				"command": "contents_region.carets.move_to_line_beginning"
+				"action": "contents_region.carets.move_to_line_beginning"
 			},
 			{
 				"gestures": "shift+home",
-				"command": "contents_region.carets.move_to_line_beginning_noblank_selected"
+				"action": { "contents_region.carets.move_to_line_beginning_noblank": { "continue_selection": true } }
 			},
 			{
 				"gestures": "shift+end",
-				"command": "contents_region.carets.move_to_line_ending_selected"
+				"action": { "contents_region.carets.move_to_line_ending": { "continue_selection": true } }
 			},
 			{
 				"gestures": "shift+ctrl+home",
-				"command": "contents_region.carets.move_to_line_beginning_selected"
+				"action": { "contents_region.carets.move_to_line_beginning": { "continue_selection": true } }
+			},
+
+			{
+				"gestures": "alt+j",
+				"action": "contents_region.carets.move_left"
+			},
+			{
+				"gestures": "alt+l",
+				"action": "contents_region.carets.move_right"
+			},
+			{
+				"gestures": "alt+i",
+				"action": "contents_region.carets.move_up"
+			},
+			{
+				"gestures": "alt+k",
+				"action": "contents_region.carets.move_down"
+			},
+			{
+				"gestures": "alt+u",
+				"action": "contents_region.carets.move_to_line_beginning_noblank"
+			},
+			{
+				"gestures": "alt+o",
+				"action": "contents_region.carets.move_to_line_ending"
+			},
+
+			{
+				"gestures": "alt+shift+j",
+				"action": { "contents_region.carets.move_left": { "continue_selection": true } }
+			},
+			{
+				"gestures": "alt+shift+l",
+				"action": { "contents_region.carets.move_right": { "continue_selection": true } }
+			},
+			{
+				"gestures": "alt+shift+i",
+				"action": { "contents_region.carets.move_up": { "continue_selection": true } }
+			},
+			{
+				"gestures": "alt+shift+k",
+				"action": { "contents_region.carets.move_down": { "continue_selection": true } }
+			},
+			{
+				"gestures": "alt+shift+u",
+				"action": { "contents_region.carets.move_to_line_beginning_noblank": { "continue_selection": true } }
+			},
+			{
+				"gestures": "alt+shift+o",
+				"action": { "contents_region.carets.move_to_line_ending": { "continue_selection": true } }
 			},
 
 			{
 				"gestures": "ctrl+z",
-				"command": "contents_region.undo"
+				"action": "contents_region.undo"
 			},
 			{
 				"gestures": "ctrl+y",
-				"command": "contents_region.redo"
+				"action": "contents_region.redo"
 			},
 
 			{
 				"gestures": "ctrl+-",
-				"command": "contents_region.folding.fold_selected"
+				"action": "contents_region.folding.fold_selected"
 			},
 
 			{
 				"gestures": "backspace",
-				"command": "contents_region.delete_before_carets"
+				"action": "contents_region.delete_before_carets"
 			},
 			{
 				"gestures": "delete",
-				"command": "contents_region.delete_after_carets"
+				"action": "contents_region.delete_after_carets"
 			},
 			{
 				"gestures": "enter",
-				"command": "contents_region.insert_new_line"
+				"action": "contents_region.insert_new_line"
 			}
 		]
 	},
@@ -151,88 +151,94 @@
 	"tab": [
 		{
 			"gestures": [ "ctrl+t", "left" ],
-			"command": "tab.split_left"
+			"action": "tab.split_left"
 		},
 		{
 			"gestures": [ "ctrl+t", "right" ],
-			"command": "tab.split_right"
+			"action": "tab.split_right"
 		},
 		{
 			"gestures": [ "ctrl+t", "up" ],
-			"command": "tab.split_up"
+			"action": "tab.split_up"
 		},
 		{
 			"gestures": [ "ctrl+t", "down" ],
-			"command": "tab.split_down"
+			"action": "tab.split_down"
 		},
 
 		{
 			"gestures": [ "ctrl+t", "ctrl+n" ],
-			"command": "tab.move_to_new_window"
+			"action": "tab.move_to_new_window"
 		},
 
 		{
 			"gestures": "ctrl+w",
-			"command": "tab.request_close"
+			"action": "tab.request_close"
 		}
 	],
 	"tab_host": [
 		{
 			"gestures": "ctrl+o",
-			"command": "open_file_dialog"
+			"action": "open_file"
+		},
+		{
+			"gestures": "ctrl+shift+alt+s",
+			"action": {
+				"open_file": "config/settings.json"
+			}
 		},
 		{
 			"gestures": "ctrl+shift+o",
-			"command": "open_binary_file_dialog"
+			"action": "open_binary_file_dialog"
 		},
 		{
 			"gestures": "ctrl+n",
-			"command": "new_file"
+			"action": "new_file"
 		}
 	],
 
 	"text_edit": [
 		{
 			"gestures": "left",
-			"command": "text_edit.move_caret_left"
+			"action": "text_edit.move_caret_left"
 		},
 		{
 			"gestures": "shift+left",
-			"command": "text_edit.move_caret_left_selected"
+			"action": { "text_edit.move_caret_left": { "continue_selection": true } }
 		},
 		{
 			"gestures": "right",
-			"command": "text_edit.move_caret_right"
+			"action": "text_edit.move_caret_right"
 		},
 		{
 			"gestures": "shift+right",
-			"command": "text_edit.move_caret_right_selected"
+			"action": { "text_edit.move_caret_right": { "continue_selection": true } }
 		},
 
 		{
 			"gestures": "home",
-			"command": "text_edit.move_caret_to_line_beginning"
+			"action": "text_edit.move_caret_to_line_beginning"
 		},
 		{
 			"gestures": "shift+home",
-			"command": "text_edit.move_caret_to_line_beginning_selected"
+			"action": { "text_edit.move_caret_to_line_beginning": { "continue_selection": true } }
 		},
 		{
 			"gestures": "end",
-			"command": "text_edit.move_caret_to_line_ending"
+			"action": "text_edit.move_caret_to_line_ending"
 		},
 		{
 			"gestures": "shift+end",
-			"command": "text_edit.move_caret_to_line_ending_selected"
+			"action": { "text_edit.move_caret_to_line_ending": { "continue_selection": true } }
 		},
 
 		{
 			"gestures": "backspace",
-			"command": "text_edit.delete_before"
+			"action": "text_edit.delete_before"
 		},
 		{
 			"gestures": "delete",
-			"command": "text_edit.delete_after"
+			"action": "text_edit.delete_after"
 		}
 	]
 }

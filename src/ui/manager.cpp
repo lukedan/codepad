@@ -46,11 +46,11 @@ namespace codepad::ui {
 
 
 		_scheduler.get_hotkey_listener().triggered += [this](hotkey_info &info) {
-			const auto *cmd = _commands.try_find_command(info.command);
+			const auto *cmd = _commands.find_command(info.command.identifier);
 			if (cmd) {
-				(*cmd)(info.parameter);
+				(*cmd)(info.subject, info.command.arguments);
 			} else {
-				logger::get().log_warning(CP_HERE) << "invalid command: " << info.command;
+				logger::get().log_warning(CP_HERE) << "invalid command: " << info.command.identifier;
 			}
 		};
 	}

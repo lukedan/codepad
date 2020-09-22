@@ -253,13 +253,25 @@ namespace codepad::json {
 				}
 				return std::nullopt;
 			}
-			/// Attempts to cast this value into a more specific type. Logs an error message if the cast fails.
+			/// Attempts to cast this value into a more specific type. Logs an error message if the cast fails or if
+			/// the object is \p null.
 			template <typename T> std::optional<T> cast() const {
 				if (_this()->template is<T>()) {
 					return _this()->template get<T>();
 				}
 				_this()->template log<log_level::error>(CP_HERE) <<
 					u8"cast to " << demangle(typeid(T).name()) << u8" failed";
+				return std::nullopt;
+			}
+			/// Attempts to cast this value into a more specific type. Logs an error message if the cast fails.
+			template <typename T> std::optional<T> cast_optional() const {
+				if (_this()->template is<T>()) {
+					return _this()->template get<T>();
+				}
+				if (!_this()->template is<null_t>()) {
+					_this()->template log<log_level::error>(CP_HERE) <<
+						u8"cast to " << demangle(typeid(T).name()) << u8" failed";
+				}
 				return std::nullopt;
 			}
 			/// Attempts to parse this value.

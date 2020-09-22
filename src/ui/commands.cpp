@@ -29,7 +29,7 @@ namespace codepad::ui {
 			// in which case the state will be reset
 			intercept = st.on_keypress(k, first) || intercept;
 			if (st.state.is_trigger()) { // reached leaf node, trigger
-				hotkey_info hk(st.state.get_data(), st.group.param);
+				hotkey_info hk(st.state.get_action(), st.group.param);
 				st.state = hotkey_group::state(); // reset state
 				for (_hotkey_group_state &j : _groups) {
 					// all state should be empty, otherwise there are conflicts

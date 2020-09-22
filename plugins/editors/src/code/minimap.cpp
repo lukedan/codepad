@@ -123,7 +123,7 @@ namespace codepad::editors::code {
 				std::visit([&ass, &r](auto &&frag) {
 					auto &&rendering = ass.append(frag);
 					ass.render(r, rendering);
-					}, tok.result);
+				}, tok.result);
 				if (std::holds_alternative<linebreak_fragment>(tok.result)) {
 					++curvisline;
 				} else if (ass.get_horizontal_position() > _width / scale) {
@@ -158,7 +158,7 @@ namespace codepad::editors::code {
 					[](minimap &m) {
 						m.invalidate_visual();
 					}
-				)
+					)
 			);
 		}
 

@@ -34,7 +34,7 @@ namespace codepad::editors {
 			}
 			// TODO build the tree directly
 			for (chunk_data &cd : chunks) {
-				_t.emplace_before(_t.cend(), std::move(cd));
+				_t.emplace_before(_t.end(), std::move(cd));
 			}
 		} // TODO failed to open file
 
@@ -91,11 +91,11 @@ namespace codepad::editors {
 	}
 
 	void buffer::_erase(const_iterator beg, const_iterator end) {
-		if (beg._it == _t.cend()) {
+		if (beg._it == _t.end()) {
 			return;
 		}
 		if (beg._it == end._it) { // same chunk
-			_t.mutable_tree().get_modifier_for(beg._it.get_node())->data.erase(beg._s, end._s);
+			_t.get_modifier_for(beg._it.get_node())->data.erase(beg._s, end._s);
 			_try_merge_small_nodes(beg._it);
 			return;
 		}
@@ -107,14 +107,14 @@ namespace codepad::editors {
 			++erase_beg;
 			_t.erase(erase_beg, end._it);
 			// erase the part in the first chunk
-			_t.mutable_tree().get_modifier_for(beg._it.get_node())->data.erase(beg._s, beg._it->data.end());
+			_t.get_modifier_for(beg._it.get_node())->data.erase(beg._s, beg._it->data.end());
 		}
-		if (end._it != _t.cend()) {
+		if (end._it != _t.end()) {
 			// erase the part in the last chunk
-			_t.mutable_tree().get_modifier_for(end._it.get_node())->data.erase(end._it->data.begin(), end._s);
+			_t.get_modifier_for(end._it.get_node())->data.erase(end._it->data.begin(), end._s);
 			_try_merge_small_nodes(end._it);
 		} else if (!_t.empty()) {
-			_try_merge_small_nodes(--_t.cend());
+			_try_merge_small_nodes(--_t.end());
 		}
 	}
 }

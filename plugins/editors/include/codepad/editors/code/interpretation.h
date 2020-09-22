@@ -9,6 +9,7 @@
 #include <map>
 
 #include <codepad/core/encodings.h>
+#include <codepad/core/red_black_tree.h>
 
 #include "../buffer.h"
 #include "linebreak_registry.h"
@@ -159,6 +160,7 @@ namespace codepad::editors::code {
 				num_bytes = 0, ///< The number of bytes in this chunk.
 				/// The number of codepoints, including both valid and invalid ones, in this chunk.
 				num_codepoints = 0;
+			red_black_tree::color color = red_black_tree::color::red; ///< The color of this node.
 		};
 		/// Contains additional synthesized data of a node.
 		struct node_data {
@@ -184,7 +186,9 @@ namespace codepad::editors::code {
 			}
 		};
 		/// The type of a tree used to store the chunks.
-		using tree_type = binary_tree<chunk_data, node_data>;
+		using tree_type = red_black_tree::tree<
+			chunk_data, red_black_tree::member_red_black_access<&chunk_data::color>, node_data
+		>;
 		/// The type of a node in the tree.
 		using node_type = tree_type::node;
 
@@ -541,7 +545,7 @@ namespace codepad::editors::code {
 		struct _codepoint_pos_converter {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = sum_synthesizer::index_finder<node_data::num_codepoints_property>;
-			/// Interface for \ref binary_tree::find_custom.
+			/// Interface for \ref red_black_tree::tree::find_custom().
 			int select_find(const node_type &n, std::size_t &c) {
 				return finder::template select_find<node_data::num_bytes_property>(n, c, total_bytes);
 			}
@@ -554,7 +558,7 @@ namespace codepad::editors::code {
 		template <template <typename T> typename Cmp = std::less> struct _byte_pos_converter {
 			/// The underlying \ref sum_synthesizer::index_finder.
 			using finder = _byte_finder<Cmp>;
-			/// Interface for \ref binary_tree::find_custom.
+			/// Interface for \ref red_black_tree::tree::find_custom().
 			int select_find(const node_type &n, std::size_t &c) {
 				return finder::template select_find<node_data::num_codepoints_property>(n, c, total_codepoints);
 			}
@@ -695,28 +699,29 @@ namespace codepad::editors::code {
 			_debug_log_post_edit_fixup("starting post-edit fixup");
 			std::size_t
 				lastbyte = 0, // number of bytes before lastchk
-				lastcp = 0; // number of codepoints before lastchk
+				lastcp = 0, // number of codepoints before lastchk
+				// additional number of bytes before the modified region to begin checking
+				additional_checked_bytes = _encoding->get_maximum_codepoint_length() - 1;
 			tree_type::const_iterator lastchk = _chks.begin();
 			for (auto modit = info.positions.begin(); modit != info.positions.end(); ) {
 				_debug_log_post_edit_fixup(
 					"  modification ", modit->position, " -", modit->removed_range, " +", modit->added_range
 				);
 				std::size_t
-					modaddend = modit->position + modit->added_range,
-					modremend = modit->position + modit->removed_range;
-				std::size_t
-					cpoffset = _encoding->get_maximum_codepoint_length() - 1,
-					// starting from where the interpretation may have been changed
-					suspect = std::max(modit->position, cpoffset) - cpoffset;
-				if (lastchk != _chks.end() && suspect > lastbyte + lastchk->num_bytes) {
+					added_range_end = modit->position + modit->added_range,
+					removed_range_end = modit->position + modit->removed_range;
+				// starting from this byte, the interpretation may have been changed
+				std::size_t first_checked_byte =
+					std::max(modit->position, additional_checked_bytes) - additional_checked_bytes;
+				if (lastchk != _chks.end() && first_checked_byte > lastbyte + lastchk->num_bytes) {
 					// skip to the desired chunk
 					_debug_log_post_edit_fixup("    adjusting begin position");
-					std::size_t chkpos = suspect;
+					std::size_t chkpos = first_checked_byte;
 					// if a modification starts at the beginning of a chunk, then the codepoint barrier is invalid
 					_byte_pos_converter<std::less_equal> finder;
 					lastchk = _chks.find(finder, chkpos);
 					lastcp = finder.total_codepoints;
-					lastbyte = suspect - chkpos;
+					lastbyte = first_checked_byte - chkpos;
 				}
 				// otherwise start decoding from last position (start of chunk)
 				std::size_t cppos = lastcp;
@@ -742,7 +747,7 @@ namespace codepad::editors::code {
 				std::size_t
 					firstcp = lastcp, // index of the first decoded codepoint
 					splitcp = lastcp + maximum_codepoints_per_chunk;
-				for (; bit != _buf->end() && bit.get_position() < modaddend; ++cppos) { // decode new content
+				for (; bit != _buf->end() && bit.get_position() < added_range_end; ++cppos) { // decode new content
 					if (cppos >= splitcp) { // break chunk
 						std::size_t bytepos = bit.get_position();
 						chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
@@ -757,12 +762,12 @@ namespace codepad::editors::code {
 				}
 
 				// find the next old codepoint boundary
-				std::size_t tgckpos = modremend; // position of the next old codepoint boundary
+				std::size_t tgckpos = removed_range_end; // position of the next old codepoint boundary
 				_byte_pos_converter posfinder;
 				tree_type::const_iterator chkit = _chks.find(posfinder, tgckpos);
 				std::size_t
 					endcp = posfinder.total_codepoints, // (one after) the last codepoint to remove from old _lbs
-					tgpos = modaddend - tgckpos; // adjust position to that after the edit
+					tgpos = added_range_end - tgckpos; // adjust position to that after the edit
 				auto nextmodit = modit;
 				++nextmodit;
 				if (tgckpos > 0) { // advance if the removed region does not end before the first byte
@@ -808,7 +813,9 @@ namespace codepad::editors::code {
 				// apply changes
 				// chunks
 				_chks.erase(lastchk, chkit);
-				_chks.insert_range_before_move(chkit, chks.begin(), chks.end());
+				for (chunk_data &chk : chks) {
+					_chks.emplace_before(chkit, std::move(chk));
+				}
 				chunk_data cd;
 				if (_try_merge_small_chunks(chkit, cd)) {
 					lastbyte -= cd.num_bytes;

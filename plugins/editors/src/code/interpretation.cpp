@@ -19,7 +19,6 @@ namespace codepad::editors::code {
 
 		performance_monitor mon(u8"full_decode", performance_monitor::log_condition::always);
 
-		std::vector<chunk_data> chunks;
 		// TODO maybe get rid of this intermediate buffer and add the lines to _lbs directly
 		std::vector<linebreak_registry::line_info> lines;
 		ui::linebreak_analyzer line_analyzer(
@@ -34,7 +33,7 @@ namespace codepad::editors::code {
 			if (curcp >= splitcp) {
 				// break chunk before this codepoint
 				std::size_t bytepos = cur.get_position();
-				chunks.emplace_back(bytepos - chkbegbytes, curcp - chkbegcps);
+				_chks.emplace_before(_chks.end(), chunk_data(bytepos - chkbegbytes, curcp - chkbegcps));
 				chkbegbytes = bytepos;
 				chkbegcps = curcp;
 				splitcp = curcp + maximum_codepoints_per_chunk;
@@ -49,10 +48,8 @@ namespace codepad::editors::code {
 		// process the last chunk
 		line_analyzer.finish();
 		if (_buf->length() > chkbegbytes) {
-			chunks.emplace_back(_buf->length() - chkbegbytes, curcp - chkbegcps);
+			_chks.emplace_before(_chks.end(), chunk_data(_buf->length() - chkbegbytes, curcp - chkbegcps));
 		}
-		// insert into the tree
-		_chks.insert_range_before_move(_chks.end(), chunks.begin(), chunks.end());
 		_lbs.insert_chars(_lbs.begin(), 0, lines);
 	}
 

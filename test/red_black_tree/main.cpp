@@ -53,7 +53,7 @@ using tree = red_black_tree::tree<node_data, red_black_tree::member_red_black_ac
 tree build_tree(const std::vector<int> &values) {
 	tree result;
 	for (int x : values) {
-		result.emplace_before(result.cend(), x);
+		result.emplace_before(result.end(), x);
 	}
 	return result;
 }
@@ -308,7 +308,7 @@ int main(int argc, char **argv) {
 			}
 
 			{ // check actual data
-				auto it = t.cbegin();
+				auto it = t.begin();
 				for (int val : ref) {
 					assert_true_logical(it->value == val, "incorrect value");
 					++it;

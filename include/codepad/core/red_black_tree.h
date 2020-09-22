@@ -556,6 +556,10 @@ namespace codepad::red_black_tree {
 		using typename binary_tree_t::reverse_iterator;
 		using typename binary_tree_t::const_reverse_iterator;
 
+		using binary_tree_t::begin;
+		using binary_tree_t::end;
+		using binary_tree_t::rbegin;
+		using binary_tree_t::rend;
 		using binary_tree_t::cbegin;
 		using binary_tree_t::cend;
 		using binary_tree_t::crbegin;
@@ -600,24 +604,23 @@ namespace codepad::red_black_tree {
 		}
 		/// Erases a range of elements in the tree, performing fixup using the default synthesizer.
 		void erase(const_iterator begin, const_iterator end) {
-			tree _ = split_range(begin, end); // discarded
+			[[maybe_unused]] tree discarded = split_range(begin, end);
 		}
 
 
-		/// Invokes \ref binary_tree::find().
-		template <typename BranchSelector, typename Ref> const_iterator find(BranchSelector &&b, Ref &&ref) const {
-			return binary_tree_t::find(std::forward<BranchSelector>(b), std::forward<Ref>(ref));
-		}
+		using binary_tree_t::find;
 
 		using binary_tree_t::refresh_synthesized_result;
+		using binary_tree_t::refresh_tree_synthesized_result;
 
 		using binary_tree_t::clear;
 		using binary_tree_t::empty;
 
-		/// Returns the root node.
-		[[nodiscard]] const node *root() const {
-			return binary_tree_t::root();
-		}
+		using binary_tree_t::get_iterator_for;
+		using binary_tree_t::get_const_iterator_for;
+		using binary_tree_t::get_modifier_for;
+
+		using binary_tree_t::root;
 
 
 		/// Merges two trees using the middle node (which must be isolated), and returns the new tree. The red black
@@ -674,7 +677,7 @@ namespace codepad::red_black_tree {
 			}
 			for (; detached->left; detached = detached->left) {
 			}
-			detach(t.mutable_tree(), detached, t._rb_access, t.get_synthesizer());
+			detach(t.raw_tree(), detached, t._rb_access, t.get_synthesizer());
 			if (split_point == nullptr) {
 				this->mutable_root() = join(
 					this->mutable_root(), t.mutable_root(), detached, _rb_access, this->get_synthesizer()
@@ -739,8 +742,9 @@ namespace codepad::red_black_tree {
 			red_black_tree::check_integrity(root(), _rb_access);
 		}
 
-		/// Returns a mutable reference to the underlying tree that allows for modifications. Use with caution.
-		[[nodiscard]] binary_tree_t &mutable_tree() {
+		/// Returns a reference to the underlying tree that allows for direct structural modifications. Use with
+		/// caution.
+		[[nodiscard]] binary_tree_t &raw_tree() {
 			return *this;
 		}
 	protected:
