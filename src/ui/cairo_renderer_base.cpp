@@ -385,7 +385,7 @@ namespace codepad::ui::cairo {
 	}
 
 
-	std::unique_ptr<ui::font> font_family::get_matching_font(
+	std::shared_ptr<ui::font> font_family::get_matching_font(
 		font_style style, font_weight weight, font_stretch stretch
 	) const {
 		auto patt = _details::make_gtk_object_ref_give(FcPatternDuplicate(_pattern.get()));
@@ -418,7 +418,7 @@ namespace codepad::ui::cairo {
 			_renderer._freetype, reinterpret_cast<const char*>(file_name), font_index, &face
 		));
 
-		return std::unique_ptr<font>(new font(_details::make_freetype_face_ref_give(face)));
+		return std::make_shared<font>(_details::make_freetype_face_ref_give(face));
 	}
 
 
@@ -565,8 +565,8 @@ namespace codepad::ui::cairo {
 
 
 	render_target_data renderer_base::create_render_target(vec2d size, vec2d scaling_factor, colord clear) {
-		auto resrt = std::make_unique<render_target>();
-		auto resbmp = std::make_unique<bitmap>();
+		auto resrt = std::make_shared<render_target>();
+		auto resbmp = std::make_shared<bitmap>();
 
 		// create surface
 		resbmp->_size = size;
@@ -596,10 +596,10 @@ namespace codepad::ui::cairo {
 		return render_target_data(std::move(resrt), std::move(resbmp));
 	}
 
-	std::unique_ptr<ui::font_family> renderer_base::find_font_family(const std::u8string &family) {
+	std::shared_ptr<ui::font_family> renderer_base::find_font_family(const std::u8string &family) {
 		auto pattern = _details::make_gtk_object_ref_give(FcPatternCreate());
 		FcPatternAddString(pattern.get(), FC_FAMILY, reinterpret_cast<const FcChar8*>(family.c_str()));
-		return std::unique_ptr<font_family>(new font_family(*this, std::move(pattern)));
+		return std::make_shared<font_family>(*this, std::move(pattern));
 	}
 
 	void renderer_base::begin_drawing(ui::render_target &generic_rt) {
@@ -639,7 +639,7 @@ namespace codepad::ui::cairo {
 		cairo_new_path(context);
 	}
 
-	std::unique_ptr<ui::plain_text> renderer_base::create_plain_text(
+	std::shared_ptr<ui::plain_text> renderer_base::create_plain_text(
 		std::u8string_view text, ui::font &generic_fnt, double font_size
 	) {
 		auto buf = _details::make_gtk_object_ref_give(hb_buffer_create());
@@ -655,7 +655,7 @@ namespace codepad::ui::cairo {
 		return _create_plain_text_impl(std::move(buf), generic_fnt, font_size);
 	}
 
-	std::unique_ptr<ui::plain_text> renderer_base::create_plain_text(
+	std::shared_ptr<ui::plain_text> renderer_base::create_plain_text(
 		std::basic_string_view<codepoint> text, ui::font &generic_fnt, double font_size
 	) {
 		auto buf = _details::make_gtk_object_ref_give(hb_buffer_create());
@@ -843,11 +843,11 @@ namespace codepad::ui::cairo {
 		stackframe.update_transform();
 	}
 
-	std::unique_ptr<formatted_text> renderer_base::_create_formatted_text_impl(
+	std::shared_ptr<formatted_text> renderer_base::_create_formatted_text_impl(
 		std::u8string_view text, const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 		horizontal_text_alignment halign, vertical_text_alignment valign
 	) {
-		auto result = std::unique_ptr<formatted_text>(new formatted_text(size, valign));
+		auto result = std::make_shared<formatted_text>(size, valign);
 		result->_layout.set_give(pango_layout_new(_pango_context.get()));
 
 		pango_layout_set_text(
@@ -930,7 +930,7 @@ namespace codepad::ui::cairo {
 		return result;
 	}
 
-	std::unique_ptr<ui::plain_text> renderer_base::_create_plain_text_impl(
+	std::shared_ptr<ui::plain_text> renderer_base::_create_plain_text_impl(
 		_details::gtk_object_ref<hb_buffer_t> buf, ui::font &generic_fnt, double font_size
 	) {
 		auto fnt = _details::cast_font(generic_fnt);
@@ -951,9 +951,7 @@ namespace codepad::ui::cairo {
 		hb_shape(hb_font, buf.get(), nullptr, 0); // TODO features?
 
 		hb_font_destroy(hb_font);
-		return std::unique_ptr<plain_text>(new plain_text(
-			std::move(buf), fnt, fnt._face->size->metrics, num_chars, font_size
-		));
+		return std::make_shared<plain_text>(std::move(buf), fnt, fnt._face->size->metrics, num_chars, font_size);
 	}
 }
 

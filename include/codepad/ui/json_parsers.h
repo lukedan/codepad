@@ -593,10 +593,10 @@ namespace codepad::json {
 	template <typename Value> std::optional<ui::font_weight> default_parser<ui::font_weight>::operator()(
 		const Value &val
 	) const {
-		if (auto str = val.template cast<std::u8string_view>()) {
-			if (str.value() == u8"normal") {
-				return ui::font_weight::normal;
-			}
+		if (auto str = val.template try_cast<std::u8string_view>()) {
+			return enum_parser<ui::font_weight>::parse(str.value());
+		} else if (auto num = val.template try_cast<int>()) {
+			return static_cast<ui::font_weight>(num.value());
 		}
 		return std::nullopt;
 	}
@@ -758,7 +758,7 @@ namespace codepad::ui {
 	) const {
 		if (auto brush = val.template parse<generic_brush_parameters>(
 			managed_json_parser<generic_brush_parameters>(_manager)
-		)) {
+			)) {
 			generic_pen_parameters result;
 			result.brush = brush.value();
 			if (auto obj = val.template cast<typename Value::object_type>()) {

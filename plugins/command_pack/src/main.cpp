@@ -65,8 +65,10 @@ namespace command_pack {
 		return *cp::editors::code::contents_region::get_from_editor(e);
 	}
 
+	/// Opens the specified file with the specified encoding in a tab, and adds the tab to the given
+	/// \ref cp::ui::tabs::host.
 	cp::ui::tabs::tab *open_file_with_encoding(
-		std::filesystem::path file, cp::ui::tabs::host &host, std::u8string_view encoding
+		const std::filesystem::path &file, cp::ui::tabs::host &host, std::u8string_view encoding
 	) {
 		auto ctx = _editor_manager->buffers.open_file(file);
 		const cp::editors::code::buffer_encoding *enc = nullptr;
@@ -96,7 +98,30 @@ namespace command_pack {
 		return tb;
 	}
 
-	void parse_caret_movement_parameter(const cp::json::value_storage &args, bool &word, bool *continue_sel = nullptr) {
+	/// Opens the specified file as binary in a tab, and adds the tab to the given \ref cp::ui::tabs::host.
+	cp::ui::tabs::tab *open_binary_file(const std::filesystem::path &file, cp::ui::tabs::host &host) {
+		auto ctx = _editor_manager->buffers.open_file(file);
+		cp::ui::tabs::tab *tb = host.get_tab_manager().new_tab_in(&host);
+		tb->set_label(file.u8string());
+		auto *editor = dynamic_cast<cp::editors::editor*>(
+			host.get_manager().create_element(u8"editor", u8"binary_editor")
+		);
+		auto *contents =
+			dynamic_cast<cp::editors::binary::contents_region*>(editor->get_contents_region());
+		contents->code_selection_renderer() =
+			std::make_unique<cp::editors::rounded_selection_renderer>();
+		contents->set_buffer(std::move(ctx));
+		tb->children().add(*editor);
+		return tb;
+	}
+
+	/// Parses parameters for caret movement: `word', which indicates that caret movement should be based on words
+	/// instead of characters, and `continue_selection', which indicates that the other end of the selection should
+	/// be kept as-is. The \p continue_sel parameter can be \p nullptr which indicates that no such parameter is
+	/// expected.
+	void parse_caret_movement_parameter(
+		const cp::json::value_storage &args, bool &word, bool *continue_sel = nullptr
+	) {
 		if (auto obj = args.get_parser_value().cast_optional<cp::json::storage::object_t>()) {
 			if (auto b_word = obj->parse_optional_member<bool>(u8"word")) {
 				word = b_word.value();
@@ -107,6 +132,34 @@ namespace command_pack {
 				}
 			}
 		}
+	}
+
+	/// If the given argument is \p null, opens a file dialog to let the user choose one or more files. Otherwise,
+	/// attempts to parse a list of file names from the given arguments.
+	std::vector<std::filesystem::path> parse_file_list_or_show_dialog(
+		const cp::json::value_storage &args, const cp::ui::window_base *dialog_parent
+	) {
+		if (args.get_value().is<cp::json::null_t>()) {
+			return cp::os::file_dialog::show_open_dialog(
+				dialog_parent, cp::os::file_dialog::type::multiple_selection
+			);
+		}
+		// otherwise parse the arguments
+		std::vector<std::filesystem::path> files;
+		auto args_parser = args.get_parser_value();
+		if (auto paths = args_parser.try_parse<std::vector<std::u8string_view>>(
+			cp::json::array_parser<std::u8string_view>()
+			)) {
+			for (auto &str : paths.value()) {
+				files.emplace_back(str);
+			}
+		} else if (auto path = args_parser.try_parse<std::u8string_view>()) {
+			files.emplace_back(path.value());
+		} else {
+			cp::logger::get().log_error(CP_HERE) <<
+				"argument to 'open_file' must either be empty, a string, or a list of strings.";
+		}
+		return files;
 	}
 }
 
@@ -273,18 +326,26 @@ extern "C" {
 				)
 		);
 
-		/*_commands.emplace_back(
+		command_pack::_commands.emplace_back(
 			u8"contents_region.delete_before_carets",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
-				get_code_contents_region_from(e).on_backspace();
-				})
+			cp::ui::command_registry::convert_type<cp::editors::editor>(
+				[](cp::editors::editor &e, const cp::json::value_storage &args) {
+					bool word = false;
+					command_pack::parse_caret_movement_parameter(args, word);
+					command_pack::get_code_contents_region_from(e).on_backspace();
+				}
+				)
 		);
-		_commands.emplace_back(
+		command_pack::_commands.emplace_back(
 			u8"contents_region.delete_after_carets",
-			cp::ui::command_registry::convert_type<cp::editors::editor>([](cp::editors::editor &e) {
-				get_code_contents_region_from(e).on_delete();
-				})
-		);*/
+			cp::ui::command_registry::convert_type<cp::editors::editor>(
+				[](cp::editors::editor &e, const cp::json::value_storage &args) {
+					bool word = false;
+					command_pack::parse_caret_movement_parameter(args, word);
+					command_pack::get_code_contents_region_from(e).on_delete();
+				}
+				)
+		);
 		command_pack::_commands.emplace_back(
 			u8"contents_region.insert_new_line",
 			cp::ui::command_registry::convert_type<cp::editors::editor>(
@@ -378,27 +439,8 @@ extern "C" {
 			u8"open_file",
 			cp::ui::command_registry::convert_type<cp::ui::tabs::host>(
 				[](cp::ui::tabs::host &th, const cp::json::value_storage &args) {
-					std::vector<std::filesystem::path> files;
-					if (args.get_value().is<cp::json::null_t>()) {
-						files = cp::os::file_dialog::show_open_dialog(
-							th.get_window(), cp::os::file_dialog::type::multiple_selection
-						);
-					} else {
-						auto args_parser = args.get_parser_value();
-						if (auto paths = args_parser.try_parse<std::vector<std::u8string_view>>(
-							cp::json::array_parser<std::u8string_view>()
-							)) {
-							for (auto &str : paths.value()) {
-								files.emplace_back(str);
-							}
-						} else if (auto path = args_parser.try_parse<std::u8string_view>()) {
-							files.emplace_back(path.value());
-						} else {
-							cp::logger::get().log_error(CP_HERE) <<
-								"argument to 'open_file' must either be empty, a string, or a list of strings.";
-						}
-					}
-
+					std::vector<std::filesystem::path> files =
+						command_pack::parse_file_list_or_show_dialog(args, th.get_window());
 					cp::ui::tabs::tab *last = nullptr;
 					for (const auto &path : files) {
 						last = command_pack::open_file_with_encoding(path, th, u8"");
@@ -434,34 +476,22 @@ extern "C" {
 				)
 		);
 
-		/*_commands.emplace_back(
+		command_pack::_commands.emplace_back(
 			u8"open_binary_file_dialog",
-			cp::ui::command_registry::convert_type<cp::ui::tabs::host>([](cp::ui::tabs::host &th) {
-				auto files = cp::os::file_dialog::show_open_dialog(
-					th.get_window(), cp::os::file_dialog::type::multiple_selection
-				);
-				cp::ui::tabs::tab *last = nullptr;
-				for (const auto &path : files) {
-					auto ctx = _editor_manager->buffers.open_file(path);
-
-					cp::ui::tabs::tab *tb = th.get_tab_manager().new_tab_in(&th);
-					tb->set_label(path.filename().u8string());
-					auto *editor = dynamic_cast<cp::editors::editor*>(
-						th.get_manager().create_element(u8"editor", u8"binary_editor")
-					);
-					auto *contents =
-						dynamic_cast<cp::editors::binary::contents_region*>(editor->get_contents_region());
-					contents->code_selection_renderer() =
-						std::make_unique<cp::editors::rounded_selection_renderer>();
-					contents->set_buffer(std::move(ctx));
-					tb->children().add(*editor);
-					last = tb;
+			cp::ui::command_registry::convert_type<cp::ui::tabs::host>(
+				[](cp::ui::tabs::host &th, const cp::json::value_storage &args) {
+					std::vector<std::filesystem::path> files =
+						command_pack::parse_file_list_or_show_dialog(args, th.get_window());
+					cp::ui::tabs::tab *last = nullptr;
+					for (const auto &path : files) {
+						last = command_pack::open_binary_file(path, th);
+					}
+					if (last) {
+						th.activate_tab(*last);
+					}
 				}
-				if (last) {
-					th.activate_tab(*last);
-				}
-				})
-		);*/
+				)
+		);
 	}
 
 	PLUGIN_FINALIZE() {

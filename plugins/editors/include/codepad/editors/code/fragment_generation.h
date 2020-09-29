@@ -11,37 +11,43 @@
 #include "../buffer.h"
 #include "interpretation.h"
 #include "view.h"
-#include "contents_region.h"
 
 namespace codepad::editors::code {
+	class contents_region;
+
+
 	/// Indicates that no fragment is produced by the current component.
 	struct no_fragment {
 	};
-	/// A fragment of text that does not contain invalid codepoints, tabs, or linebreaks.
+	/// A fragment of text.
 	struct text_fragment {
 		/// Default constructor.
 		text_fragment() = default;
 		/// Initializes all fields of this struct.
-		text_fragment(std::basic_string<codepoint> txt, colord c, std::shared_ptr<ui::font> f) :
-			text(txt), color(c), font(std::move(f)) {
+		text_fragment(std::basic_string<codepoint> txt, colord c, std::shared_ptr<ui::font> f, bool gizmo) :
+			text(txt), color(c), font(std::move(f)), is_gizmo(gizmo) {
+		}
+
+		/// Initializes this fragment as a gizmo using a UTF-8 string.
+		inline static text_fragment gizmo_from_utf8(std::u8string_view txt, colord c, std::shared_ptr<ui::font> f) {
+			std::basic_string<codepoint> u32;
+			for (auto it = txt.begin(); it != txt.end(); ) {
+				codepoint cp;
+				if (!encodings::utf8::next_codepoint(it, txt.end(), cp)) {
+					cp = encodings::replacement_character;
+				}
+				u32.push_back(cp);
+			}
+			return text_fragment(std::move(u32), c, std::move(f), true);
 		}
 
 		std::basic_string<codepoint> text; ///< The text.
 		colord color; ///< The color of this clip of text.
 		std::shared_ptr<ui::font> font; ///< The font used to render this text.
+		bool is_gizmo = false; ///< Indicates that this fragment is a gizmo rather than text in the document.
 	};
 	/// A fragment that contains a single tab character.
 	struct tab_fragment {
-	};
-	/// A fragment that contains an invalid codepoint.
-	struct invalid_codepoint_fragment {
-		/// Default constructor.
-		invalid_codepoint_fragment() = default;
-		/// Initializes \ref value.
-		explicit invalid_codepoint_fragment(codepoint cp) : value(cp) {
-		}
-
-		codepoint value = 0; ///< The byte value of this codepoint.
 	};
 	/// A fragment that contains a single linebreak.
 	struct linebreak_fragment {
@@ -53,37 +59,25 @@ namespace codepad::editors::code {
 
 		ui::line_ending type = ui::line_ending::none; ///< The type of this linebreak.
 	};
-
 	/// Indicates that the next fragment to be rendered is an image.
 	struct image_gizmo_fragment {
 		// TODO
 	};
-	/// Indicates that the next fragment to be rendered is a short clip of text.
-	struct text_gizmo_fragment {
-		/// Default constructor.
-		text_gizmo_fragment() = default;
-		/// Initializes all fields of this struct.
-		text_gizmo_fragment(ui::font_parameters f, std::u8string str, colord c) : font(f), contents(std::move(str)), color(c) {
-		}
-
-		ui::font_parameters font; ///< The font used to render this fragment.
-		std::u8string contents; ///< The contents of this fragment.
-		colord color; ///< Color used to render this fragment.
-	};
 
 	/// Contains information about a fragment to be rendered.
 	using fragment = std::variant<
-		no_fragment,
-		text_fragment, tab_fragment, invalid_codepoint_fragment, linebreak_fragment,
-		image_gizmo_fragment, text_gizmo_fragment
+		no_fragment, text_fragment, tab_fragment, linebreak_fragment, image_gizmo_fragment
 	>;
 	/// Holds the result of a step of fragment generation.
 	struct fragment_generation_result {
 		/// Constructs this struct to indicate that no fragment is generated.
 		fragment_generation_result() = default;
 		/// Initializes all fields of this struct.
+		fragment_generation_result(fragment frag, std::size_t diff) : result(std::move(frag)), steps(diff) {
+		}
+		/// Initializes all fields of this struct.
 		template <typename T> constexpr fragment_generation_result(T tok, std::size_t diff) :
-			result(std::in_place_type<T>, tok), steps(diff) {
+			result(std::in_place_type<T>, std::move(tok)), steps(diff) {
 		}
 
 		fragment result; ///< The generated fragment.
@@ -96,6 +90,10 @@ namespace codepad::editors::code {
 			return fragment_generation_result(no_fragment(), std::numeric_limits<std::size_t>::max());
 		}
 	};
+
+
+	/// Used to format a \ref codepoint for display.
+	using invalid_codepoint_fragment_func = std::function<fragment(codepoint)>;
 
 
 	/// Used to host additional components of the \ref fragment_generator. Each component must contain the following
@@ -166,13 +164,17 @@ namespace codepad::editors::code {
 		constexpr static std::size_t maximum_text_fragment_length = 100;
 
 		/// Constructs this \ref fragment_generator with the given \ref interpretation and starting position, and the
-		/// \ref fragment_generator_component_hub from all other arguments.
+		/// \ref fragment_generator_component_hub from all other arguments. The \ref invalid_codepoint_fragment_func
+		/// is only referenced and must outlive this generator object.
 		template <typename ...Args> fragment_generator(
-			const interpretation &interp,
-			const std::vector<std::unique_ptr<ui::font_family>> &fonts,
+			const interpretation &interp, const invalid_codepoint_fragment_func &invcp_func,
+			const std::vector<std::shared_ptr<ui::font_family>> &fonts,
 			std::size_t begpos,
 			Args &&...args
-		) : _components(std::forward<Args>(args)...), _pos(begpos), _interp(interp), _font_set(fonts) {
+		) :
+			_components(std::forward<Args>(args)...), _inv_cp_frag_func(invcp_func),
+			_pos(begpos), _interp(interp), _font_set(fonts) {
+
 			reposition(_pos);
 		}
 
@@ -182,9 +184,7 @@ namespace codepad::editors::code {
 			fragment_generation_result res = _components.generate(get_position());
 			if (std::holds_alternative<no_fragment>(res.result)) { // generate text
 				if (!_char_it.codepoint().is_codepoint_valid()) { // invalid codepoint
-					res = fragment_generation_result(
-						invalid_codepoint_fragment(_char_it.codepoint().get_codepoint()), 1
-					);
+					res = fragment_generation_result(_inv_cp_frag_func(_char_it.codepoint().get_codepoint()), 1);
 					_char_it.next();
 				} else if (_char_it.is_linebreak()) { // hard linebreak
 					res = fragment_generation_result(linebreak_fragment(_char_it.get_linebreak()), 1);
@@ -211,7 +211,7 @@ namespace codepad::editors::code {
 						!_char_it.is_linebreak() && _char_it.codepoint().get_codepoint() != '\t' &&
 						// make sure the whole clip uses the same font
 						_select_font(_char_it.codepoint().get_codepoint()) == fontid
-						);
+					);
 				}
 			} else { // only update _char_it
 				if (res.steps == 1) {
@@ -255,10 +255,13 @@ namespace codepad::editors::code {
 		/// Iterator to the current entry in the \ref text_theme_data that determines the theme of the text.
 		text_theme_data::position_iterator _theme_it;
 
+		/// Function used to generate fragments for invalid codepoints.
+		const invalid_codepoint_fragment_func &_inv_cp_frag_func;
+
 		std::size_t _pos = 0; ///< The position of character \ref _char_it points to.
 		const interpretation &_interp; ///< The associated \ref interpretation.
 		/// The list of fonts. Fonts in the back are backups for those in the front.
-		const std::vector<std::unique_ptr<ui::font_family>> &_font_set;
+		const std::vector<std::shared_ptr<ui::font_family>> &_font_set;
 
 
 		/// Selects a font for the given codepoint.
@@ -326,8 +329,14 @@ namespace codepad::editors::code {
 	/// A component that jumps to the ends of folded regions and generates corresponding gizmos.
 	struct folded_region_skipper {
 	public:
-		/// Initializes this struct with the given \ref folding_registry at the given position.
-		folded_region_skipper(const folding_registry &reg, std::size_t pos) : _reg(reg) {
+		/// Function type used to generate a fragment corresponding to the given folded region.
+		using fragment_func = std::function<fragment(const folding_registry::iterator&)>;
+
+		/// Initializes this struct with the given \ref folding_registry at the given position. The input
+		/// \ref fragment_func is not copied and the referenced function object must outlive this component.
+		folded_region_skipper(const folding_registry &reg, const fragment_func &frag_func, std::size_t pos) :
+			_frag_func(frag_func), _reg(reg) {
+
 			reposition(pos);
 		}
 
@@ -335,10 +344,8 @@ namespace codepad::editors::code {
 		fragment_generation_result generate(std::size_t position) {
 			if (_cur_region != _reg.end()) {
 				if (position >= _region_start) { // jump
-					// TODO fragment should be customizable
 					return fragment_generation_result(
-						text_gizmo_fragment(ui::font_parameters(), u8"...", colord(0.8, 0.8, 0.8, 1.0)),
-						_cur_region->range - (position - _region_start)
+						_frag_func(_cur_region), _cur_region->range - (position - _region_start)
 					);
 				}
 				return fragment_generation_result(no_fragment(), _region_start - position);
@@ -369,6 +376,7 @@ namespace codepad::editors::code {
 			}
 		}
 	protected:
+		const fragment_func &_frag_func; ///< The fragment generation function.
 		folding_registry::iterator _cur_region; ///< Iterator to the next folded region.
 		const folding_registry &_reg; ///< The registry for folded regions.
 		std::size_t _region_start = 0; ///< Position of the beginning of the next folded region.
@@ -383,11 +391,11 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			text_rendering() = default;
 			/// Initializes all fields of this struct.
-			text_rendering(std::unique_ptr<ui::plain_text> t, vec2d pos, double basecorr, colord c) :
+			text_rendering(std::shared_ptr<ui::plain_text> t, vec2d pos, double basecorr, colord c) :
 				text(std::move(t)), topleft(pos), baseline_correction(basecorr), color(c) {
 			}
 
-			std::unique_ptr<ui::plain_text> text; ///< The formatted text.
+			std::shared_ptr<ui::plain_text> text; ///< The formatted text.
 			vec2d topleft; ///< The top-left position of this fragment, without \ref baseline_correction.
 			/// The offset to add to the result of \ref get_vertical_position() to align the baseline of all text.
 			double baseline_correction = 0.0;
@@ -406,19 +414,11 @@ namespace codepad::editors::code {
 
 		/// Initializes the renderer, font, and spacing.
 		fragment_assembler(
-			ui::renderer_base &r, const ui::font_family &ff, double sz, double lh, double base, double tabw,
-			invalid_codepoint_formatter fmt, colord invclr
-		) :
-			_renderer(&r), _font_family(ff), _invalid_cp_fmt(std::move(fmt)), _invalid_cp_color(invclr),
-			_font_size(sz), _line_height(lh), _baseline(base), _tab_width(tabw) {
+			ui::renderer_base &r, const ui::font_family &ff, double sz, double lh, double base, double tabw
+		) : _renderer(&r), _font_family(ff), _font_size(sz), _line_height(lh), _baseline(base), _tab_width(tabw) {
 		}
 		/// Initializes this struct using the given \ref contents_region.
-		fragment_assembler(const contents_region &rgn) : fragment_assembler(
-			rgn.get_manager().get_renderer(), *rgn.get_font_families()[0], rgn.get_font_size(),
-			rgn.get_line_height(), rgn.get_baseline(), rgn.get_tab_width(),
-			rgn.get_invalid_codepoint_formatter(), rgn.get_invalid_codepoint_color() // TODO custom color
-		) {
-		}
+		fragment_assembler(const contents_region&);
 
 		/// Returns the line height set for this \ref fragment_assembler.
 		double get_line_height() const {
@@ -460,22 +460,16 @@ namespace codepad::editors::code {
 		}
 		/// Appends a \ref text_fragment to the rendered document by calling \ref _append_text().
 		text_rendering append(const text_fragment &frag) {
-			return _append_text(std::basic_string_view<codepoint>(frag.text), *frag.font, _font_size, frag.color);
+			return _append_plain_text(
+				_renderer->create_plain_text(frag.text, *frag.font, _font_size),
+				*frag.font, _font_size, frag.color
+			);
 		}
 		/// Appends a \ref tab_fragment to the rendered document.
 		basic_rendering append(const tab_fragment&) {
 			basic_rendering r(get_position());
 			set_horizontal_position((std::floor(get_horizontal_position() / _tab_width) + 1.0) * _tab_width);
 			return r;
-		}
-		/// Appends a \ref invalid_codepoint_fragment to the rendered document.
-		text_rendering append(const invalid_codepoint_fragment &frag) {
-			std::u8string textrepr = _invalid_cp_fmt(frag.value);
-			// TODO custom style
-			auto font = _font_family.get_matching_font(
-				ui::font_style::italic, ui::font_weight::normal, ui::font_stretch::normal
-			);
-			return _append_text(std::u8string_view(textrepr), *font, _font_size, _invalid_cp_color);
 		}
 		/// Appends a \ref linebreak_fragment to the rendered document by simply moving the current position.
 		basic_rendering append(const linebreak_fragment&) {
@@ -489,12 +483,13 @@ namespace codepad::editors::code {
 			// TODO
 			return basic_rendering(get_position());
 		}
-		/// Appends a \ref text_gizmo_fragment to the rendered document by calling \ref _append_text().
-		text_rendering append(const text_gizmo_fragment &frag) {
-			auto font = _renderer->find_font_family(frag.font.family)->get_matching_font(
-				frag.font.style, frag.font.weight, frag.font.stretch
+
+		/// Appends a \ref text_fragment to the document, taking the fast path for laying out text.
+		text_rendering append_fast(const text_fragment &frag) {
+			return _append_plain_text(
+				_renderer->create_plain_text_fast(frag.text, *frag.font, _font_size),
+				*frag.font, _font_size, frag.color
 			);
-			return _append_text(std::u8string_view(frag.contents), *font, frag.font.size, frag.color);
 		}
 
 		/// Does nothing. Defined to complete the basic interface.
@@ -510,8 +505,6 @@ namespace codepad::editors::code {
 	protected:
 		ui::renderer_base *_renderer = nullptr; ///< The renderer.
 		const ui::font_family &_font_family; ///< The font family.
-		invalid_codepoint_formatter _invalid_cp_fmt; ///< Used to format and display invalid codepoints.
-		colord _invalid_cp_color; ///< The color of invalid codepoints.
 		double
 			_font_size = 0.0, ///< The font size.
 			_line_height = 0.0, ///< The height of a line.
@@ -521,15 +514,12 @@ namespace codepad::editors::code {
 			_xpos = 0.0; ///< The horizontal position, relative to the left side of the document.
 
 		/// Appends a clip of text to the ending of the document.
-		template <typename Char> text_rendering _append_text(
-			std::basic_string_view<Char> text, ui::font &font, double size, colord color
+		text_rendering _append_plain_text(
+			std::shared_ptr<ui::plain_text> text, ui::font &font, double size, colord color
 		) {
-			std::unique_ptr<ui::plain_text> fmttext = _renderer->create_plain_text(
-				text, font, size
-			);
 			vec2d pos = get_position();
-			advance_horizontal_position(fmttext->get_width());
-			return text_rendering(std::move(fmttext), pos, _baseline - font.get_ascent_em() * size, color);
+			advance_horizontal_position(text->get_width());
+			return text_rendering(std::move(text), pos, _baseline - font.get_ascent_em() * size, color);
 		}
 	};
 

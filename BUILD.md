@@ -1,47 +1,63 @@
-# Building `codepad`
+## Building codepad
 
-`codepad` uses CMake. Due to the usage of C++20, it is recommended that you use the latest versions of compilers to avoid language support issues.
+- Install prerequisites:
+  - On Windows, Visual Studio 2019 is recommended. You can find installers of CMake and VS2019 online. Building with MinGW-w32 has not been thoroughly tested and can be tricky.
 
-## Prerequisites
+    The best way to install other required packages is to use `vcpkg`. You can install it following the instructions [here](https://github.com/microsoft/vcpkg#quick-start-windows). After that, install the following packages:
+    ```
+    vcpkg install rapidjson
+    vcpkg install pybind11
+    ```
 
-- CMake
+    If you want to build codepad with Cairo support, also install:
+    ```
+    vcpkg install fontconfig
+    vcpkg install freetype
+    vcpkg install harfbuzz
+    vcpkg install pango
+    vcpkg install cairo
+    ```
+    The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DUSE_CAIRO=No` while configuring to build without the Cairo backend.
 
-### Dependencies
+  - On Ubuntu, install CMake and g++:
+    ```
+    apt install cmake
+    apt install g++-10
+    ```
 
-- RapidJSON
+    The packages can be installed using `apt`:
+    ```
+    apt install rapidjson-dev
+    apt install pybind11-dev
+    apt install libfontconfig1-dev
+    apt install libfreetype-dev
+    apt install libharfbuzz-dev
+    apt install libpango1.0-dev
+    apt install libcairo2-dev
+    apt install libgtk-3-dev
+    ```
+    Note that older versions of pybind11 may not be compatible with codepad, in which case the plugin will fail to build (and you'll also need to edit `config/settings.json` to not load that plugin), but you should still be able to build and run the rest of the program without any problem.
 
-#### Graphics Backend Dependencies
+- Clone the repository and initialize submodules:
+  ```
+  git clone https://github.com/lukedan/codepad.git
+  git submodule update --init --recursive
+  ```
 
-`codepad` supports numerous graphics backends, including Direct2D and Cairo. On Linux, only the Cairo renderer is supported. On Windows the Direct2D renderer is recommended, although you can still build with Cairo renderer support by specifying `-DUSE_CAIRO=YES` for CMake. The Cairo renderer can suffer from poor compatibility and performance on Windows.
+- Generate and build:
+  ```
+  mkdir build
+  cd build
+  cmake ..
+  cmake -build .
+  ```
+  If you're building on Windows using `vcpkg`, also specify `-DCMAKE_TOOLCHAIN_FILE=[path to vcpkg]/scripts/buildsystems/vcpkg.cmake` on line 3. If you're buliding without Cairo, specify `-DUSE_CAIRO=No` on line 3.
 
-The Cairo renderer, if enabled, requires the following packages:
+## Running codepad
 
-- FontConfig
-- Cairo
-- FreeType
-- HarfBuzz
-- Pango
-
-#### Additional Linux Dependencies
-
-- GTK 3
-
-#### Native Plugins
-
-- The `python_plugin_host_pybind11` plugin depends on `pybind11`.
-
-## Building on Windows
-
-The recommended building configuration on Windows is:
-
-- Visual Studio 2019.
-- `vcpkg` for dependency installation, especially if you want to build with Cairo renderer support. Refer to `vcpkg` documentation for how to make the packages visible to CMake.
-
-Building with MinGW-w32 has not been thoroughly tested and can be tricky.
-
-## Running `codepad`
-
-`codepad` uses configuration files in the `config` folder. Currently this dependency is hard-coded in [`main.cpp`](src/main.cpp), and the `config` folder must be in the working directory of the executable. `codepad` also loads plugins specified in [`settings.json`](config/settings.json) that are shared libraries, and due to how shared library loading works on different platforms, the system may fail to find the library files. Thus, you may need to manually modify the list items to match the relative paths of the library files in the build output folder.
+- Codepad uses configuration files in the `config` folder. Currently this dependency is hard-coded in [`src/main.cpp`](src/main.cpp), and the `config` folder must be in the working directory of the executable.
+- `codepad` loads plugins specified in [`config/settings.json`](config/settings.json) that are shared libraries, and due to how shared library loading works on different platforms, the system may fail to find the library files. Thus, you may need to manually modify the list items to match the relative paths of the library files in the build output folder. By default the plugin shared libraries are placed in the same folder as the executable.
+- You may need to change the rendering backend in `config/settings.json` to `cairo` on Linux.
 
 ## Building the documentation
 

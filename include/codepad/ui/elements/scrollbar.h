@@ -145,20 +145,31 @@ namespace codepad::ui {
 			return _visible_range;
 		}
 
-		/// Scrolls the scroll bar so that as much of the given range is visible as possible.
-		void make_range_visible(double min, double max) {
-			if (max - min > get_visible_range()) {
-				if (min > get_target_value()) {
-					set_target_value(min);
-				} else if (double maxtop = max - get_visible_range(); maxtop < get_target_value()) {
-					set_target_value(maxtop);
+		/// Computes the new position that makes as much of the given range visible as possible.
+		///
+		/// \return The new position, or \p std::nullopt if no movement is needed.
+		inline static std::optional<double> make_range_visible_axis(
+			double min, double max, double pos, double visible_range
+		) {
+			if (max - min > visible_range) {
+				if (min > pos) {
+					return min;
+				} else if (double maxtop = max - visible_range; maxtop < pos) {
+					return maxtop;
 				}
 			} else {
-				if (min < get_target_value()) {
-					set_target_value(min);
-				} else if (double mintop = max - get_visible_range(); mintop > get_target_value()) {
-					set_target_value(mintop);
+				if (min < pos) {
+					return min;
+				} else if (double mintop = max - visible_range; mintop > pos) {
+					return mintop;
 				}
+			}
+			return std::nullopt;
+		}
+		/// Scrolls the scroll bar so that as much of the given range is visible as possible.
+		void make_range_visible(double min, double max) {
+			if (auto newpos = make_range_visible_axis(min, max, get_target_value(), get_visible_range())) {
+				set_target_value(newpos.value());
 			}
 		}
 

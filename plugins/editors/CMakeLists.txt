@@ -7,6 +7,7 @@ target_sources(editors
 
 		"src/code/caret_set.cpp"
 		"src/code/contents_region.cpp"
+		"src/code/fragment_generation.cpp"
 		"src/code/interpretation.cpp"
 		"src/code/line_number_display.cpp"
 		"src/code/minimap.cpp"

@@ -206,6 +206,10 @@ namespace codepad::ui::cairo {
 	class formatted_text : public ui::formatted_text {
 		friend renderer_base;
 	public:
+		/// Initializes \ref _layout_size and \ref _valign.
+		formatted_text(vec2d size, vertical_text_alignment valign) : _layout_size(size), _valign(valign) {
+		}
+
 		/// Returns the layout of the text.
 		rectd get_layout() const override;
 		/// Returns the metrics of each line.
@@ -272,10 +276,6 @@ namespace codepad::ui::cairo {
 		_details::glib_object_ref<PangoLayout> _layout; ///< The underlying \p PangoLayout object.
 		vertical_text_alignment _valign = vertical_text_alignment::center; ///< Vertical text alignment.
 
-		/// Initializes \ref _layout_size and \ref _valign.
-		formatted_text(vec2d size, vertical_text_alignment valign) : _layout_size(size), _valign(valign) {
-		}
-
 		/// Returns the offset of the text inside the layout rectangle.
 		[[nodiscard]] vec2d _get_offset() const;
 
@@ -290,6 +290,10 @@ namespace codepad::ui::cairo {
 		friend font_family;
 		friend plain_text;
 	public:
+		/// Initializes \ref _face directly.
+		explicit font(_details::freetype_face_ref f) : _face(std::move(f)) {
+		}
+
 		/// Returns the ascender of the font.
 		[[nodiscard]] double get_ascent_em() const override {
 			// FIXME these fields are only relevant for scalable font formats
@@ -317,10 +321,6 @@ namespace codepad::ui::cairo {
 	protected:
 		_details::freetype_face_ref _face; ///< The Freetype font face.
 
-		/// Initializes \ref _face directly.
-		explicit font(_details::freetype_face_ref f) : _face(std::move(f)) {
-		}
-
 		/// Converts lengths from font design units into EM units. Since the default DPI on windows and ubuntu is 96,
 		/// here we also scale the length accordingly.
 		[[nodiscard]] double _into_em(double len) const {
@@ -334,24 +334,34 @@ namespace codepad::ui::cairo {
 	class font_family : public ui::font_family {
 		friend renderer_base;
 	public:
+		/// Initializes all fields of this struct.
+		font_family(renderer_base &r, _details::gtk_object_ref<FcPattern> patt) :
+			_renderer(r), _pattern(std::move(patt)) {
+		}
+
 		/// Returns a font in this family matching the given description.
-		[[nodiscard]] std::unique_ptr<ui::font> get_matching_font(
+		[[nodiscard]] std::shared_ptr<ui::font> get_matching_font(
 			font_style, font_weight, font_stretch
 		) const override;
 	protected:
 		renderer_base &_renderer; ///< The \ref renderer_base that created this \ref font_family.
 		_details::gtk_object_ref<FcPattern> _pattern; ///< The Fontconfig pattern.
-
-		/// Initializes all fields of this struct.
-		font_family(renderer_base &r, _details::gtk_object_ref<FcPattern> patt) :
-			_renderer(r), _pattern(std::move(patt)) {
-		}
 	};
 
 	/// Holds a \p hb_buffer_t.
 	class plain_text : public ui::plain_text {
 		friend renderer_base;
 	public:
+		/// Directly initializes \ref _buffer.
+		plain_text(
+			_details::gtk_object_ref<hb_buffer_t> buf, const font &fnt,
+			const FT_Size_Metrics &size_info, std::size_t nchars, double font_size
+		) : _buffer(std::move(buf)), _font(fnt._face), _num_characters(nchars), _font_size(font_size) {
+			_x_scale = size_info.x_scale / 64.0;
+			_ascender = size_info.ascender / 64.0;
+			_height = fnt._into_em(_font->height) * font_size;
+		}
+
 		/// Returns the total width of this text clip.
 		[[nodiscard]] double get_width() const override {
 			_maybe_calculate_block_map();
@@ -382,17 +392,6 @@ namespace codepad::ui::cairo {
 			_x_scale = 0.0, ///< Used to convert horizontal width from font units into device-independent pixels.
 			_ascender = 0.0, ///< Ascender in device-independent pixels.
 			_height = 0.0; ///< Font height in device-independent pixels.
-
-
-		/// Directly initializes \ref _buffer.
-		plain_text(
-			_details::gtk_object_ref<hb_buffer_t> buf, const font &fnt,
-			const FT_Size_Metrics &size_info, std::size_t nchars, double font_size
-		) : _buffer(std::move(buf)), _font(fnt._face), _num_characters(nchars), _font_size(font_size) {
-			_x_scale = size_info.x_scale / 64.0;
-			_ascender = size_info.ascender / 64.0;
-			_height = fnt._into_em(_font->height) * font_size;
-		}
 
 		/// Returns the width of a character at the specified block. This function assumes that
 		/// \ref _cached_first_char_of_block and \ref _cached_block_positions has been calculated.
@@ -461,8 +460,8 @@ namespace codepad::ui::cairo {
 		render_target_data create_render_target(vec2d size, vec2d scaling_factor, colord clear) override;
 
 		/// Loads a \ref bitmap from disk as an image surface.
-		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) override {
-			auto res = std::make_unique<bitmap>();
+		std::shared_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) override {
+			auto res = std::make_shared<bitmap>();
 
 			// TODO this may be platform-dependent
 
@@ -470,7 +469,7 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Creates a new \ref text_format.
-		std::unique_ptr<ui::font_family> find_font_family(const std::u8string&) override;
+		std::shared_ptr<ui::font_family> find_font_family(const std::u8string&) override;
 
 		/// Starts drawing to the given \ref render_target.
 		void begin_drawing(ui::render_target&) override;
@@ -584,14 +583,14 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Creates a new \ref formatted_text object.
-		std::unique_ptr<ui::formatted_text> create_formatted_text(
+		std::shared_ptr<ui::formatted_text> create_formatted_text(
 			std::u8string_view text, const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 			horizontal_text_alignment halign, vertical_text_alignment valign
 		) override {
 			return _create_formatted_text_impl(text, font, c, size, wrap, halign, valign);
 		}
 		/// Creates a new \ref formatted_text object.
-		std::unique_ptr<ui::formatted_text> create_formatted_text(
+		std::shared_ptr<ui::formatted_text> create_formatted_text(
 			std::basic_string_view<codepoint> utf32,
 			const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 			horizontal_text_alignment halign, vertical_text_alignment valign
@@ -609,11 +608,18 @@ namespace codepad::ui::cairo {
 		void draw_formatted_text(const ui::formatted_text&, vec2d pos) override;
 
 		/// \overload
-		std::unique_ptr<ui::plain_text> create_plain_text(std::u8string_view, ui::font&, double) override;
+		std::shared_ptr<ui::plain_text> create_plain_text(std::u8string_view, ui::font&, double) override;
 		/// Creates a new \ref plain_text object for the given text and font.
-		std::unique_ptr<ui::plain_text> create_plain_text(
+		std::shared_ptr<ui::plain_text> create_plain_text(
 			std::basic_string_view<codepoint>, ui::font&, double
 		) override;
+		/// Creates a new \ref plain_text object for the given text and font, taking the fast path.
+		std::shared_ptr<ui::plain_text> create_plain_text_fast(
+			std::basic_string_view<codepoint> text, ui::font &fnt, double size
+		) override {
+			// TODO actual fast path code
+			return create_plain_text(text, fnt, size);
+		}
 		/// Renders the given fragment of text.
 		void draw_plain_text(const ui::plain_text&, vec2d, colord) override;
 	protected:
@@ -703,12 +709,12 @@ namespace codepad::ui::cairo {
 
 
 		/// Creates a new \ref formatted_text object.
-		[[nodiscard]] std::unique_ptr<formatted_text> _create_formatted_text_impl(
+		[[nodiscard]] std::shared_ptr<formatted_text> _create_formatted_text_impl(
 			std::u8string_view text, const font_parameters&, colord, vec2d size, wrapping_mode,
 			horizontal_text_alignment, vertical_text_alignment
 		);
 		/// Creates a new \ref plain_text from the given \p hb_buffer_t.
-		[[nodiscard]] std::unique_ptr<ui::plain_text> _create_plain_text_impl(
+		[[nodiscard]] std::shared_ptr<ui::plain_text> _create_plain_text_impl(
 			_details::gtk_object_ref<hb_buffer_t>, ui::font&, double
 		);
 

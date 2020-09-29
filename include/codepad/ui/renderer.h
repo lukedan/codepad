@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstring>
 #include <variant>
+#include <memory>
 #include <any>
 
 #include "../core/color.h"
@@ -54,11 +55,14 @@ namespace codepad {
 			normal = 40
 		};
 	}
+	/// Parser for \ref ui::font_weight.
+	template <> struct enum_parser<ui::font_weight> {
+		static std::optional<ui::font_weight> parse(std::u8string_view);
+	};
 	namespace json {
-		// TODO use enum_parser
 		/// Parser for \ref ui::font_weight.
 		template <> struct default_parser<ui::font_weight> {
-			/// Parses a \ref ui::font_weight.
+			/// Parses a \ref ui::font_weight. In addition to strings, the weight can also be specified as a number.
 			template <typename Value> std::optional<ui::font_weight> operator()(const Value&) const;
 		};
 	}
@@ -168,12 +172,12 @@ namespace codepad {
 			/// Default constructor.
 			render_target_data() = default;
 			/// Initializes all fields of this struct.
-			render_target_data(std::unique_ptr<render_target> rt, std::unique_ptr<bitmap> bmp) :
+			render_target_data(std::shared_ptr<render_target> rt, std::shared_ptr<bitmap> bmp) :
 				target(std::move(rt)), target_bitmap(std::move(bmp)) {
 			}
 
-			std::unique_ptr<render_target> target; ///< The \ref render_target.
-			std::unique_ptr<bitmap> target_bitmap; ///< The \ref bitmap.
+			std::shared_ptr<render_target> target; ///< The \ref render_target.
+			std::shared_ptr<bitmap> target_bitmap; ///< The \ref bitmap.
 		};
 
 		/// The parameters used to identify a font.
@@ -325,7 +329,7 @@ namespace codepad {
 			virtual ~font_family() = default;
 
 			/// Returns a font in this family matching the given description.
-			[[nodiscard]] virtual std::unique_ptr<font> get_matching_font(
+			[[nodiscard]] virtual std::shared_ptr<font> get_matching_font(
 				font_style, font_weight, font_stretch
 			) const = 0;
 		};
@@ -512,10 +516,10 @@ namespace codepad {
 			) = 0;
 
 			/// Loads a \ref bitmap from disk. The second parameter specifies the scaling factor of this bitmap.
-			virtual std::unique_ptr<bitmap> load_bitmap(const std::filesystem::path&, vec2d) = 0;
+			virtual std::shared_ptr<bitmap> load_bitmap(const std::filesystem::path&, vec2d) = 0;
 
 			/// Returns a font family identified by its name.
-			virtual std::unique_ptr<font_family> find_font_family(const std::u8string&) = 0;
+			virtual std::shared_ptr<font_family> find_font_family(const std::u8string&) = 0;
 
 			/// Starts drawing to the given window.
 			virtual void begin_drawing(window_base&) = 0;
@@ -576,12 +580,12 @@ namespace codepad {
 			// formatted text related
 			/// Creates a new \ref formatted_text from the given parameters, using the given font parameters and color
 			/// for the entire clip of text.
-			virtual std::unique_ptr<formatted_text> create_formatted_text(
+			virtual std::shared_ptr<formatted_text> create_formatted_text(
 				std::u8string_view, const font_parameters&, colord, vec2d, wrapping_mode,
 				horizontal_text_alignment, vertical_text_alignment
 			) = 0;
 			/// \ref create_formatted_text() that accepts a UTF-32 string.
-			virtual std::unique_ptr<formatted_text> create_formatted_text(
+			virtual std::shared_ptr<formatted_text> create_formatted_text(
 				std::basic_string_view<codepoint>, const font_parameters&, colord, vec2d, wrapping_mode,
 				horizontal_text_alignment, vertical_text_alignment
 			) = 0;
@@ -591,9 +595,14 @@ namespace codepad {
 
 			// plain text related
 			/// Creates a new \ref plain_text from the given parameters.
-			virtual std::unique_ptr<plain_text> create_plain_text(std::u8string_view, font&, double font_size) = 0;
+			virtual std::shared_ptr<plain_text> create_plain_text(std::u8string_view, font&, double font_size) = 0;
 			/// \ref create_plain_text() that accepts a UTF-32 string.
-			virtual std::unique_ptr<plain_text> create_plain_text(
+			virtual std::shared_ptr<plain_text> create_plain_text(
+				std::basic_string_view<codepoint>, font&, double font_size
+			) = 0;
+			/// A version of \ref create_plain_text() that's supposed to be faster, possibly at the expense of
+			/// certain font features.
+			virtual std::shared_ptr<plain_text> create_plain_text_fast(
 				std::basic_string_view<codepoint>, font&, double font_size
 			) = 0;
 			/// Draws the given \ref plain_text at the given position, using the given color.

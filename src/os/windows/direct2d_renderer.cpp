@@ -85,8 +85,27 @@ namespace codepad::os::direct2d {
 		}
 		/// Casts a \ref ui::font_stretch to a \p DWRITE_FONT_STRETCH.
 		DWRITE_FONT_STRETCH cast_font_stretch(ui::font_stretch stretch) {
-			// TODO
-			return DWRITE_FONT_STRETCH_NORMAL;
+			switch (stretch) {
+			case ui::font_stretch::ultra_condensed:
+				return DWRITE_FONT_STRETCH_ULTRA_CONDENSED;
+			case ui::font_stretch::extra_condensed:
+				return DWRITE_FONT_STRETCH_EXTRA_CONDENSED;
+			case ui::font_stretch::condensed:
+				return DWRITE_FONT_STRETCH_CONDENSED;
+			case ui::font_stretch::semi_condensed:
+				return DWRITE_FONT_STRETCH_SEMI_CONDENSED;
+			case ui::font_stretch::normal:
+				return DWRITE_FONT_STRETCH_NORMAL;
+			case ui::font_stretch::semi_expanded:
+				return DWRITE_FONT_STRETCH_SEMI_EXPANDED;
+			case ui::font_stretch::expanded:
+				return DWRITE_FONT_STRETCH_EXPANDED;
+			case ui::font_stretch::extra_expanded:
+				return DWRITE_FONT_STRETCH_EXTRA_EXPANDED;
+			case ui::font_stretch::ultra_expanded:
+				return DWRITE_FONT_STRETCH_ULTRA_EXPANDED;
+			}
+			return DWRITE_FONT_STRETCH_NORMAL; // should not be here
 		}
 		/// Casts a \ref ui::horizontal_text_alignment to a \p DWRITE_TEXT_ALIGNMENT.
 		DWRITE_TEXT_ALIGNMENT cast_horizontal_text_alignment(ui::horizontal_text_alignment align) {
@@ -265,7 +284,7 @@ namespace codepad::os::direct2d {
 
 	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
 		_details::com_wrapper<ID2D1SolidColorBrush> brush;
-		_rend->_d2d_device_context->CreateSolidColorBrush(_details::cast_color(c), brush.get_ref());
+		_rend._d2d_device_context->CreateSolidColorBrush(_details::cast_color(c), brush.get_ref());
 		_details::com_check(_text->SetDrawingEffect(brush.get(), _details::make_text_range(beg, len)));
 	}
 
@@ -298,19 +317,24 @@ namespace codepad::os::direct2d {
 	}
 
 
-	std::unique_ptr<ui::font> font_family::get_matching_font(
+	std::shared_ptr<ui::font> font_family::get_matching_font(
 		ui::font_style style, ui::font_weight weight, ui::font_stretch stretch
 	) const {
-		auto result = std::make_unique<font>();
-		_details::com_check(_family->GetFirstMatchingFont(
-			_details::cast_font_weight(weight),
-			_details::cast_font_stretch(stretch),
-			_details::cast_font_style(style),
-			result->_font.get_ref()
-		));
-		_details::com_check(result->_font->CreateFontFace(result->_font_face.get_ref()));
-		result->_font_face->GetMetrics(&result->_metrics);
-		return result;
+		auto [it, inserted] = _cache.try_emplace(std::make_tuple(style, weight, stretch));
+		if (inserted) {
+			auto result = std::make_shared<font>();
+			_details::com_check(_family->GetFirstMatchingFont(
+				_details::cast_font_weight(weight),
+				_details::cast_font_stretch(stretch),
+				_details::cast_font_style(style),
+				result->_font.get_ref()
+			));
+			_details::com_check(result->_font->CreateFontFace(result->_font_face.get_ref()));
+			result->_font_face->GetMetrics(&result->_metrics);
+
+			it->second = result;
+		}
+		return it->second;
 	}
 
 
@@ -568,8 +592,8 @@ namespace codepad::os::direct2d {
 	}
 
 	ui::render_target_data renderer::create_render_target(vec2d size, vec2d scaling_factor, colord c) {
-		auto resrt = std::make_unique<render_target>();
-		auto resbmp = std::make_unique<bitmap>();
+		auto resrt = std::make_shared<render_target>();
+		auto resbmp = std::make_shared<bitmap>();
 		_details::com_wrapper<IDXGISurface> surface;
 
 		D3D11_TEXTURE2D_DESC texture_desc;
@@ -605,8 +629,8 @@ namespace codepad::os::direct2d {
 		return ui::render_target_data(std::move(resrt), std::move(resbmp));
 	}
 
-	std::unique_ptr<ui::bitmap> renderer::load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) {
-		auto res = std::make_unique<bitmap>();
+	std::shared_ptr<ui::bitmap> renderer::load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) {
+		auto res = std::make_shared<bitmap>();
 		_details::com_wrapper<IWICBitmapSource> converted;
 		_details::com_wrapper<IWICBitmapSource> img = _details::wic_image_loader::get().load_image(bmp);
 		_details::com_check(WICConvertBitmapSource(GUID_WICPixelFormat32bppPBGRA, img.get(), converted.get_ref()));
@@ -624,7 +648,7 @@ namespace codepad::os::direct2d {
 		return res;
 	}
 
-	std::unique_ptr<ui::font_family> renderer::find_font_family(const std::u8string &family) {
+	std::shared_ptr<ui::font_family> renderer::find_font_family(const std::u8string &family) {
 		_details::com_wrapper<IDWriteFontCollection> fonts;
 		_details::com_check(_dwrite_factory->GetSystemFontCollection(fonts.get_ref(), false)); // no need to hurry
 
@@ -635,7 +659,7 @@ namespace codepad::os::direct2d {
 			return nullptr;
 		}
 
-		auto res = std::make_unique<font_family>();
+		auto res = std::make_shared<font_family>();
 		_details::com_check(fonts->GetFontFamily(index, res->_family.get_ref()));
 		return res;
 	}
@@ -746,7 +770,7 @@ namespace codepad::os::direct2d {
 		_d2d_device_context->PopLayer();
 	}
 
-	std::unique_ptr<ui::formatted_text> renderer::create_formatted_text(
+	std::shared_ptr<ui::formatted_text> renderer::create_formatted_text(
 		std::u8string_view text, const ui::font_parameters &params, colord c, vec2d maxsize, ui::wrapping_mode wrap,
 		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 	) {
@@ -754,7 +778,7 @@ namespace codepad::os::direct2d {
 		return _create_formatted_text_impl(converted, params, c, maxsize, wrap, halign, valign);
 	}
 
-	std::unique_ptr<ui::formatted_text> renderer::create_formatted_text(
+	std::shared_ptr<ui::formatted_text> renderer::create_formatted_text(
 		std::basic_string_view<codepoint> text, const ui::font_parameters &params, colord c,
 		vec2d maxsize, ui::wrapping_mode wrap,
 		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
@@ -781,14 +805,14 @@ namespace codepad::os::direct2d {
 		);
 	}
 
-	std::unique_ptr<ui::plain_text> renderer::create_plain_text(
+	std::shared_ptr<ui::plain_text> renderer::create_plain_text(
 		std::u8string_view text, ui::font &font, double size
 	) {
 		auto utf16 = _details::utf8_to_wstring(text);
 		return _create_plain_text_impl(utf16, font, size);
 	}
 
-	std::unique_ptr<ui::plain_text> renderer::create_plain_text(
+	std::shared_ptr<ui::plain_text> renderer::create_plain_text(
 		std::basic_string_view<codepoint> text, ui::font &font, double size
 	) {
 		std::basic_string<std::byte> bytestr;
@@ -799,6 +823,12 @@ namespace codepad::os::direct2d {
 			std::basic_string_view<WCHAR>(reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2),
 			font, size
 		);
+	}
+
+	std::shared_ptr<ui::plain_text> renderer::create_plain_text_fast(
+		std::basic_string_view<codepoint> text, ui::font &font, double size
+	) {
+		return _create_plain_text_fast_impl(text, font, size);
 	}
 
 	void renderer::draw_plain_text(const ui::plain_text &t, vec2d pos, colord color) {
@@ -846,17 +876,8 @@ namespace codepad::os::direct2d {
 		);
 
 		if (has_color == DWRITE_E_NOCOLOR) { // no color information, draw original glyph run
-			// determine if & how to apply pixel snapping
-			if (!trans.has_rotation_or_nonrigid()) {
-				double ypos = trans[1][2] + pos.y;
-				// snap to physical pixels
-				ypos *= scale.y;
-				pos.y += (std::round(ypos) - ypos) / scale.y;
-			}
-
 			_text_brush->SetColor(_details::cast_color(color)); // text color
 			_d2d_device_context->DrawGlyphRun(_details::cast_point(pos), &run, _text_brush.get());
-
 		} else { // draw color glyphs
 			_details::com_check(has_color);
 			while (true) {
@@ -1048,13 +1069,14 @@ namespace codepad::os::direct2d {
 	}
 
 
-	std::unique_ptr<formatted_text> renderer::_create_formatted_text_impl(
+	std::shared_ptr<formatted_text> renderer::_create_formatted_text_impl(
 		std::basic_string_view<WCHAR> text, const ui::font_parameters &fmt, colord c,
 		vec2d maxsize, ui::wrapping_mode wrap,
 		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 	) {
 		// use new to access protedted constructor
-		auto res = std::unique_ptr<formatted_text>(new formatted_text(*this));
+		auto res = std::make_shared<formatted_text>(*this);
+
 		_details::com_wrapper<IDWriteTextFormat> format;
 		_details::com_check(_dwrite_factory->CreateTextFormat(
 			_details::utf8_to_wstring(fmt.family).c_str(),
@@ -1079,11 +1101,12 @@ namespace codepad::os::direct2d {
 		return res;
 	}
 
-	std::unique_ptr<plain_text> renderer::_create_plain_text_impl(
+	std::shared_ptr<plain_text> renderer::_create_plain_text_impl(
 		std::basic_string_view<WCHAR> text, ui::font &f, double size
 	) {
-		auto result = std::make_unique<plain_text>();
+		auto result = std::make_shared<plain_text>();
 		result->_font_face = _details::cast_font(f)._font_face;
+		result->_font_size = size;
 
 		// script & font features
 		DWRITE_SCRIPT_ANALYSIS script;
@@ -1146,8 +1169,6 @@ namespace codepad::os::direct2d {
 			result->_glyph_advances.get(), result->_glyph_offsets.get()
 		));
 
-		result->_font_size = size;
-
 		// since directwrite treats a surrogate pair (one codepoint) as two characters, here we find all
 		// surrogate pairs, remove duplicate entries in the cluster map, and correct the number of characters
 		// TODO this has not been thoroughly tested
@@ -1186,6 +1207,42 @@ namespace codepad::os::direct2d {
 
 		return result;
 	}
+
+	std::shared_ptr<plain_text> renderer::_create_plain_text_fast_impl(
+		std::basic_string_view<codepoint> text, ui::font &fnt, double size
+	) {
+		auto &dwfnt = _details::cast_font(fnt);
+
+		auto result = std::make_shared<plain_text>();
+		result->_font_face = dwfnt._font_face;
+		result->_font_size = size;
+		result->_char_count = result->_glyph_count = text.size();
+
+		result->_glyphs = std::make_unique<UINT16[]>(text.size());
+		result->_cluster_map = std::make_unique<UINT16[]>(text.size());
+		result->_glyph_advances = std::make_unique<FLOAT[]>(text.size());
+		result->_glyph_offsets = std::make_unique<DWRITE_GLYPH_OFFSET[]>(text.size());
+		for (std::size_t i = 0; i < text.size(); ++i) {
+			codepoint cp = text[i];
+
+			auto [it, inserted] = dwfnt._cached_glyph_info.try_emplace(cp);
+			if (inserted) {
+				_details::com_check(dwfnt._font_face->GetGlyphIndices(&cp, 1, &it->second.glyph_index));
+				_details::com_check(
+					dwfnt._font_face->GetDesignGlyphMetrics(&it->second.glyph_index, 1, &it->second.metrics)
+				);
+			}
+			result->_cluster_map[i] = i;
+			result->_glyphs[i] = it->second.glyph_index;
+			result->_glyph_advances[i] = static_cast<FLOAT>(
+				size * it->second.metrics.advanceWidth / static_cast<double>(dwfnt._metrics.designUnitsPerEm)
+			);
+			result->_glyph_offsets[i] = DWRITE_GLYPH_OFFSET{ .advanceOffset = 0.0f, .ascenderOffset = 0.0f };
+		}
+
+		return result;
+	}
+
 
 	_details::com_wrapper<IDXGIFactory2> renderer::_get_dxgi_factory() {
 		_details::com_wrapper<IDXGIAdapter> adapter;

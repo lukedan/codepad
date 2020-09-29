@@ -50,8 +50,9 @@ namespace codepad::os::direct2d {
 	class formatted_text : public ui::formatted_text {
 		friend renderer;
 	public:
-		/// Default constructor.
-		formatted_text() = default;
+		/// Initializes \ref _rend.
+		explicit formatted_text(renderer &r) : _rend(r) {
+		}
 
 		/// Returns the layout of the text.
 		rectd get_layout() const override;
@@ -95,12 +96,8 @@ namespace codepad::os::direct2d {
 		/// Calls \p IDWriteTextLayout::SetFontStretch().
 		void set_font_stretch(ui::font_stretch, std::size_t beg, std::size_t len) override;
 	protected:
-		/// Initializes \ref _rend.
-		explicit formatted_text(renderer &r) : _rend(&r) {
-		}
-
 		_details::com_wrapper<IDWriteTextLayout> _text; ///< The \p IDWriteTextLayout handle.
-		renderer *_rend = nullptr; ///< The renderer.
+		renderer &_rend; ///< The renderer.
 	};
 
 	/// Encapsules a \p IDWriteFontFace.
@@ -137,6 +134,13 @@ namespace codepad::os::direct2d {
 			return gmetrics.advanceWidth / static_cast<double>(_metrics.designUnitsPerEm);
 		}
 	protected:
+		/// Information about a glyph for a specific codepoint.
+		struct _glyph_info {
+			DWRITE_GLYPH_METRICS metrics; ///< The metrics of this glyph.
+			UINT16 glyph_index = 0; ///< Index of this glyph.
+		};
+
+		std::unordered_map<codepoint, _glyph_info> _cached_glyph_info; ///< Cached glyph information.
 		DWRITE_FONT_METRICS _metrics; ///< The metrics of this font.
 		_details::com_wrapper<IDWriteFont> _font; ///< The \p IDWriteFont.
 		_details::com_wrapper<IDWriteFontFace> _font_face; ///< The \p IDWriteFontFace.
@@ -147,10 +151,14 @@ namespace codepad::os::direct2d {
 		friend renderer;
 	public:
 		/// Returns the first font matching the given descriptions.
-		std::unique_ptr<ui::font> get_matching_font(
+		std::shared_ptr<ui::font> get_matching_font(
 			ui::font_style, ui::font_weight, ui::font_stretch
 		) const override;
 	protected:
+		/// A cache of fonts that match the specific sets of parameters.
+		mutable std::map<
+			std::tuple<ui::font_style, ui::font_weight, ui::font_stretch>, std::shared_ptr<font>
+		> _cache;
 		_details::com_wrapper<IDWriteFontFamily> _family; ///< The \p IDWriteFontFamily.
 	};
 
@@ -262,10 +270,10 @@ namespace codepad::os::direct2d {
 		ui::render_target_data create_render_target(vec2d size, vec2d scaling_factor, colord clear) override;
 
 		/// Loads a \ref bitmap from disk.
-		std::unique_ptr<ui::bitmap> load_bitmap(const std::filesystem::path&, vec2d scaling_factor) override;
+		std::shared_ptr<ui::bitmap> load_bitmap(const std::filesystem::path&, vec2d scaling_factor) override;
 
 		/// Creates a \p IDWriteTextFormat.
-		std::unique_ptr<ui::font_family> find_font_family(const std::u8string&) override;
+		std::shared_ptr<ui::font_family> find_font_family(const std::u8string&) override;
 
 		/// Starts drawing to the given window.
 		void begin_drawing(ui::window_base&) override;
@@ -335,12 +343,12 @@ namespace codepad::os::direct2d {
 		void pop_clip() override;
 
 		/// Calls \ref _create_formatted_text_impl().
-		std::unique_ptr<ui::formatted_text> create_formatted_text(
+		std::shared_ptr<ui::formatted_text> create_formatted_text(
 			std::u8string_view, const ui::font_parameters&, colord, vec2d maxsize, ui::wrapping_mode,
 			ui::horizontal_text_alignment, ui::vertical_text_alignment
 		) override;
 		/// Calls \ref _create_formatted_text_impl().
-		std::unique_ptr<ui::formatted_text> create_formatted_text(
+		std::shared_ptr<ui::formatted_text> create_formatted_text(
 			std::basic_string_view<codepoint>, const ui::font_parameters&, colord,
 			vec2d maxsize, ui::wrapping_mode,
 			ui::horizontal_text_alignment, ui::vertical_text_alignment
@@ -348,13 +356,17 @@ namespace codepad::os::direct2d {
 		/// Calls \p ID2D1DeviceContext::DrawTextLayout to render the given \ref formatted_text.
 		void draw_formatted_text(const ui::formatted_text&, vec2d topleft) override;
 
-		/// Calls \ref _create_plain_text_impl to shape the given text.
-		std::unique_ptr<ui::plain_text> create_plain_text(
+		/// Calls \ref _create_plain_text_impl() to shape the given text.
+		std::shared_ptr<ui::plain_text> create_plain_text(
 			std::u8string_view, ui::font&, double size
 		) override;
-		/// Calls \ref _create_plain_text_impl to shape the given text.
-		std::unique_ptr<ui::plain_text> create_plain_text(
+		/// Calls \ref _create_plain_text_impl() to shape the given text.
+		std::shared_ptr<ui::plain_text> create_plain_text(
 			std::basic_string_view<codepoint>, ui::font&, double size
+		) override;
+		/// Calls \ref _create_plain_text_fast_impl() to layout the glyphs.
+		std::shared_ptr<ui::plain_text> renderer::create_plain_text_fast(
+			std::basic_string_view<codepoint> text, ui::font &font, double size
 		) override;
 		/// Calls \p ID2D1DeviceContext::DrawGlyphRun to render the text clip. Any pushed layer will disable subpixel
 		/// antialiasing for this text.
@@ -438,14 +450,20 @@ namespace codepad::os::direct2d {
 
 
 		/// Creates an \p IDWriteTextLayout.
-		std::unique_ptr<formatted_text> _create_formatted_text_impl(
+		std::shared_ptr<formatted_text> _create_formatted_text_impl(
 			std::basic_string_view<WCHAR>, const ui::font_parameters&, colord,
 			vec2d maxsize, ui::wrapping_mode,
 			ui::horizontal_text_alignment, ui::vertical_text_alignment
 		);
 		/// Creates a \ref plain_text object.
-		std::unique_ptr<plain_text> _create_plain_text_impl(
+		std::shared_ptr<plain_text> _create_plain_text_impl(
 			std::basic_string_view<WCHAR>, ui::font&, double size
+		);
+
+		/// Creates a \ref plain_text without any advanced font features, by simply laying out the glyphs
+		/// sequentially.
+		std::shared_ptr<plain_text> _create_plain_text_fast_impl(
+			std::basic_string_view<codepoint>, ui::font&, double size
 		);
 
 

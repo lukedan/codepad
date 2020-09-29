@@ -268,7 +268,7 @@ namespace codepad::ui {
 		/// \sa _on_child_desired_size_changed()
 		virtual void _on_child_layout_parameters_changed(element&) {
 		}
-		/// Invalidate all children's layout.
+		/// Updates the layout of all children.
 		void _on_layout_changed() override {
 			_on_update_children_layout();
 			element::_on_layout_changed();
@@ -313,8 +313,8 @@ namespace codepad::ui {
 		/// \p true.
 		void _dispose() override;
 
-		/// Returns a \ref class_arrangements::notify_mapping that contains information about important children used
-		/// by this \ref panel.
+		/// Returns a \ref class_arrangements::notify_mapping that contains information about children that are
+		/// relevant to the logic of this \ref panel.
 		virtual class_arrangements::notify_mapping _get_child_notify_mapping() {
 			return class_arrangements::notify_mapping();
 		}

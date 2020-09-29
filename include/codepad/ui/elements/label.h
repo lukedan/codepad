@@ -86,7 +86,7 @@ namespace codepad::ui {
 		std::u8string _text; ///< The text.
 		colord _text_color; ///< The color of the text.
 		font_parameters _font; ///< The font.
-		mutable std::unique_ptr<formatted_text> _cached_fmt; ///< The cached formatted text.
+		mutable std::shared_ptr<formatted_text> _cached_fmt; ///< The cached formatted text.
 		horizontal_text_alignment _halign = horizontal_text_alignment::front; ///< Horizontal text alignment.
 		vertical_text_alignment _valign = vertical_text_alignment::top; ///< Vertical text alignment.
 

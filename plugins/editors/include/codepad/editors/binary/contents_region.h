@@ -172,11 +172,11 @@ namespace codepad::editors::binary {
 		}
 
 		/// Returns the \ref ui::font for rendering characters.
-		const std::unique_ptr<ui::font> &get_font() const {
+		const std::shared_ptr<ui::font> &get_font() const {
 			return _font;
 		}
 		/// Sets the \ref ui::font for rendering characters.
-		void set_font(std::unique_ptr<ui::font> f) {
+		void set_font(std::shared_ptr<ui::font> f) {
 			_font = std::move(f);
 			_on_font_parameters_changed();
 		}
@@ -266,7 +266,7 @@ namespace codepad::editors::binary {
 		info_event<buffer::end_edit_info>::token _mod_tok; ///< Used to listen to \ref buffer::end_edit.
 		radix _radix = radix::hexadecimal; ///< The radix used to display bytes.
 
-		std::unique_ptr<ui::font> _font; ///< The font used to display all bytes.
+		std::shared_ptr<ui::font> _font; ///< The font used to display all bytes.
 		double
 			_cached_max_byte_width = 0.0, ///< The width of a character.
 			_blank_width = 5.0, ///< The distance between two consecutive bytes.

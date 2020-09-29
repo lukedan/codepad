@@ -15,11 +15,9 @@
 #include "../interaction_modes.h"
 #include "caret_set.h"
 #include "view.h"
+#include "fragment_generation.h"
 
 namespace codepad::editors::code {
-	/// Used to format a \ref codepoint for display.
-	using invalid_codepoint_formatter = std::function<std::u8string(codepoint)>;
-
 	/// The main component of a \ref editor that's responsible of text editing. This element should only be used as a
 	/// child of a \ref editor.
 	///
@@ -60,19 +58,19 @@ namespace codepad::editors::code {
 
 		/// Sets the font family given its name.
 		void set_font_families_by_name(const std::vector<std::u8string> &names) {
-			std::vector<std::unique_ptr<ui::font_family>> fonts;
+			std::vector<std::shared_ptr<ui::font_family>> fonts;
 			for (const std::u8string &name : names) {
 				fonts.emplace_back(get_manager().get_renderer().find_font_family(name));
 			}
 			set_font_families(std::move(fonts));
 		}
 		/// Sets the set of font families.
-		void set_font_families(std::vector<std::unique_ptr<ui::font_family>> fs) {
+		void set_font_families(std::vector<std::shared_ptr<ui::font_family>> fs) {
 			_font_families = std::move(fs);
 			_on_editing_visual_changed();
 		}
 		/// Returns the set of font families.
-		const std::vector<std::unique_ptr<ui::font_family>> &get_font_families() const {
+		const std::vector<std::shared_ptr<ui::font_family>> &get_font_families() const {
 			return _font_families;
 		}
 
@@ -118,14 +116,20 @@ namespace codepad::editors::code {
 			return font->get_character_width_em(U' ') * _tab_space_width * _font_size;
 		}
 
-		/// Sets the formatter used to format invalid codepoints.
-		void set_invalid_codepoint_formatter(invalid_codepoint_formatter fmt) {
-			_invalid_cp_fmt = std::move(fmt);
+		// TODO set
+		/// Returns \ref _fold_fragment_func.
+		const folded_region_skipper::fragment_func &get_folded_fragment_function() const {
+			return _fold_fragment_func;
+		}
+
+		/// Sets \ref _invalid_cp_func.
+		void set_invalid_codepoint_fragment_func(invalid_codepoint_fragment_func fmt) {
+			_invalid_cp_func = std::move(fmt);
 			_on_editing_visual_changed();
 		}
-		/// Returns the formatter used to format invalid codepoints.
-		const invalid_codepoint_formatter &get_invalid_codepoint_formatter() const {
-			return _invalid_cp_fmt;
+		/// Returns \ref _invalid_cp_func.
+		const invalid_codepoint_fragment_func &get_invalid_codepoint_fragment_func() const {
+			return _invalid_cp_func;
 		}
 
 		/// Sets the font size and automatically adjusts the line height.
@@ -599,13 +603,6 @@ namespace codepad::editors::code {
 			return reinterpret_cast<char8_t*>(_buf);
 		}
 
-		/// Returns the color of invalid codepoints.
-		///
-		/// \todo This should be customizable.
-		inline static colord get_invalid_codepoint_color() {
-			return colord(1.0, 0.2, 0.2, 1.0);
-		}
-
 		/// Retrieves the \ref contents_region attached to the given \ref editor.
 		inline static contents_region *get_from_editor(editor &edt) {
 			return dynamic_cast<contents_region*>(edt.get_contents_region());
@@ -631,11 +628,11 @@ namespace codepad::editors::code {
 		caret_set _cset; ///< The set of carets.
 		double _lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
 
-		/// Used to format invalid codepoints.
-		invalid_codepoint_formatter _invalid_cp_fmt{ format_invalid_codepoint };
+		folded_region_skipper::fragment_func _fold_fragment_func; ///< Dictates the format of folded regions.
+		invalid_codepoint_fragment_func _invalid_cp_func; ///< Used to format invalid codepoints.
 		/// The set of font family used to display code. Font families in the back are backups for font families in
 		/// front.
-		std::vector<std::unique_ptr<ui::font_family>> _font_families;
+		std::vector<std::shared_ptr<ui::font_family>> _font_families;
 		double
 			_font_size = 12.0, ///< The font size.
 			_tab_space_width = 4.0, ///< The maximum width of a tab character as a number of spaces.

@@ -74,9 +74,9 @@ namespace codepad::editors::code {
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
 		fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> iter(
-			*get_document(), get_font_families(), linebeg,
+			*get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), linebeg,
 			soft_linebreak_inserter(_fmt.get_linebreaks(), linebeg),
-			folded_region_skipper(_fmt.get_folding(), linebeg)
+			folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), linebeg)
 		);
 		fragment_assembler ass(*this);
 		while (iter.get_position() < position) {
@@ -107,9 +107,9 @@ namespace codepad::editors::code {
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
 		fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> iter(
-			*get_document(), get_font_families(), linebeg,
+			*get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), linebeg,
 			soft_linebreak_inserter(_fmt.get_linebreaks(), linebeg),
-			folded_region_skipper(_fmt.get_folding(), linebeg)
+			folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), linebeg)
 		);
 		fragment_assembler ass(*this);
 		while (iter.get_position() < _doc->get_linebreaks().num_chars()) {
@@ -124,17 +124,18 @@ namespace codepad::editors::code {
 				auto &&rendering = ass.append(frag);
 				if (ass.get_horizontal_position() > x) {
 					if constexpr (std::is_same_v<std::decay_t<decltype(frag)>, text_fragment>) {
-						ui::caret_hit_test_result htres = rendering.text->hit_test(x - rendering.topleft.x);
-						respos.position = iter.get_position() - res.steps;
-						respos.position += htres.rear ? htres.character + 1 : htres.character;
-						respos.at_back = true;
-						return true;
-					} else {
-						if (x < 0.5 * (rendering.topleft.x + ass.get_horizontal_position())) {
+						if (!frag.is_gizmo) {
+							ui::caret_hit_test_result htres = rendering.text->hit_test(x - rendering.topleft.x);
 							respos.position = iter.get_position() - res.steps;
+							respos.position += htres.rear ? htres.character + 1 : htres.character;
 							respos.at_back = true;
 							return true;
 						}
+					}
+					if (x < 0.5 * (rendering.topleft.x + ass.get_horizontal_position())) {
+						respos.position = iter.get_position() - res.steps;
+						respos.at_back = true;
+						return true;
 					}
 				}
 				return false;
@@ -201,9 +202,9 @@ namespace codepad::editors::code {
 
 			// rendering facilities
 			fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> gen(
-				*get_document(), get_font_families(), firstchar,
+				*get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), firstchar,
 				soft_linebreak_inserter(_fmt.get_linebreaks(), firstchar),
-				folded_region_skipper(_fmt.get_folding(), firstchar)
+				folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), firstchar)
 			);
 			fragment_assembler ass(*this);
 			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
@@ -258,7 +259,7 @@ namespace codepad::editors::code {
 
 		auto &renderer = get_manager().get_renderer();
 		auto &set = get_manager().get_settings();
-		std::vector<std::unique_ptr<ui::font_family>> families;
+		std::vector<std::shared_ptr<ui::font_family>> families;
 		families.emplace_back(renderer.find_font_family(
 			editor::get_font_family_setting(set).get_profile(profile.begin(), profile.end()).get_value()
 		));
@@ -286,5 +287,17 @@ namespace codepad::editors::code {
 				_interaction_manager.activators().emplace_back(std::move(mode));
 			}
 		}
+
+		// TODO customizability
+		_fold_fragment_func = [this](const folding_registry::iterator&) {
+			return text_fragment::gizmo_from_utf8(u8"...", colord(0.8, 0.8, 0.8, 1.0), get_font_families()[0]->get_matching_font(
+				ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal
+			));
+		};
+		_invalid_cp_func = [this](codepoint cp) {
+			return text_fragment::gizmo_from_utf8(format_invalid_codepoint(cp), colord(1.0, 0.2, 0.2, 1.0), get_font_families()[0]->get_matching_font(
+				ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal
+			));
+		};
 	}
 }

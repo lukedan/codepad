@@ -8,12 +8,11 @@
 
 #include "../element.h"
 #include "../panel.h"
-#include "scrollbar.h"
 #include "label.h"
+#include "scroll_viewport.h"
 
 namespace codepad::ui {
-	/// An element derived from \ref label that enables the user to edit the text it contains. Note that this element
-	/// does not contain scrollbars.
+	/// An element derived from \ref label that enables the user to edit the text it contains.
 	class text_edit : public label {
 	public:
 		/// Returns \ref cursor::text_beam if the mouse is not inside the selection, and the default value if it is.
@@ -151,7 +150,7 @@ namespace codepad::ui {
 		/// \ref carets_changed, and updates caret position if this \ref text_edit is focused.
 		void _on_caret_changed();
 
-		/// FOR TESTING.
+		/// TODO FOR TESTING.
 		void _on_key_down(key_info &p) override {
 			label::_on_key_down(p);
 			if (p.key_pressed == key::control) {
@@ -186,4 +185,6 @@ namespace codepad::ui {
 		/// Renders the caret and the selection.
 		void _custom_render() const override;
 	};
+
+	// TODO combine text_edit and scroll_view for textbox
 }

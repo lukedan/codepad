@@ -103,6 +103,13 @@ namespace codepad {
 	}
 
 
+	std::optional<ui::font_weight> enum_parser<ui::font_weight>::parse(std::u8string_view str) {
+		if (str == u8"normal") {
+			return ui::font_weight::normal;
+		}
+	}
+
+
 	std::optional<ui::horizontal_text_alignment> enum_parser<ui::horizontal_text_alignment>::parse(
 		std::u8string_view str
 	) {
