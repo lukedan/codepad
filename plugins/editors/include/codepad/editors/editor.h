@@ -20,9 +20,12 @@ namespace codepad::editors {
 	class contents_region_base : public ui::element {
 	public:
 		/// Returns the amount of space to scroll for a `tick'.
-		virtual double get_horizontal_scroll_delta() const = 0;
-		/// Returns the amount of space to scroll for a `tick'.
 		virtual double get_vertical_scroll_delta() const = 0;
+		/// Returns the amount of space to scroll for a `tick'. By default this simply returns the result of
+		/// \ref get_vertical_scroll_delta().
+		virtual double get_horizontal_scroll_delta() const {
+			return get_vertical_scroll_delta();
+		}
 		/// Returns the horizontal viewport range.
 		virtual double get_horizontal_scroll_range() const = 0;
 		/// Returns the vertical viewport range.
@@ -76,27 +79,7 @@ namespace codepad::editors {
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
 		/// Handles the registration of \p mode_changed_insert and \p mode_changed_overwrite events.
-		bool _register_edit_mode_changed_event(std::u8string_view name, std::function<void()> &callback) {
-			// not using _event_helpers::try_register_event() here
-			// since it takes a non-const reference to the callback
-			if (name == u8"mode_changed_insert") {
-				edit_mode_changed += [this, cb = std::move(callback)]() {
-					if (is_insert_mode()) {
-						cb();
-					}
-				};
-				return true;
-			}
-			if (name == u8"mode_changed_overwrite") {
-				edit_mode_changed += [this, cb = std::move(callback)]() {
-					if (!is_insert_mode()) {
-						cb();
-					}
-				};
-				return true;
-			}
-			return false;
-		}
+		bool _register_edit_mode_changed_event(std::u8string_view, std::function<void()>&);
 		/// Additionally calls \ref _register_edit_mode_changed_event().
 		bool _register_event(std::u8string_view name, std::function<void()> callback) override {
 			return
@@ -232,26 +215,6 @@ namespace codepad::editors {
 		}
 
 		/// Initializes \ref _hori_scroll, \ref _vert_scroll and \ref _contents.
-		void _initialize(std::u8string_view cls) override {
-			panel::_initialize(cls);
-
-			_vert_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
-				vertical_viewport_changed.invoke();
-				invalidate_visual();
-			};
-			_hori_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
-				horizontal_viewport_changed.invoke();
-				invalidate_visual();
-			};
-
-			_contents->layout_changed += [this]() {
-				vertical_viewport_changed.invoke();
-				horizontal_viewport_changed.invoke();
-				_reset_scrollbars();
-			};
-			_contents->content_visual_changed += [this]() {
-				_reset_scrollbars();
-			};
-		}
+		void _initialize(std::u8string_view) override;
 	};
 }

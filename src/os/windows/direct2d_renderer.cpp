@@ -969,7 +969,7 @@ namespace codepad::os::direct2d {
 
 	void renderer::_push_layer(_details::com_wrapper<ID2D1Geometry> clip) {
 		// since the layer is initialized from the background, we temporarily change the blending mode to copy so
-		// that everything blends correctly
+		// that everything blends correctly and subpixel antialiasing is properly enabled
 		// also the mode is set here instead of during PopLayer() as per the documentation at:
 		// https://docs.microsoft.com/en-us/windows/win32/direct2d/direct2d-layers-overview#blend-modes
 		_d2d_device_context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_COPY);
@@ -1094,7 +1094,7 @@ namespace codepad::os::direct2d {
 		_details::com_check(_dwrite_factory->CreateTextLayout(
 			text.data(), static_cast<UINT32>(text.size()),
 			format.get(),
-			static_cast<FLOAT>(maxsize.x), static_cast<FLOAT>(maxsize.y),
+			static_cast<FLOAT>(std::max(maxsize.x, 0.0)), static_cast<FLOAT>(std::max(maxsize.y, 0.0)),
 			res->_text.get_ref()
 		));
 		res->set_text_color(c, 0, std::numeric_limits<std::size_t>::max());
@@ -1232,7 +1232,7 @@ namespace codepad::os::direct2d {
 					dwfnt._font_face->GetDesignGlyphMetrics(&it->second.glyph_index, 1, &it->second.metrics)
 				);
 			}
-			result->_cluster_map[i] = i;
+			result->_cluster_map[i] = static_cast<UINT16>(i);
 			result->_glyphs[i] = it->second.glyph_index;
 			result->_glyph_advances[i] = static_cast<FLOAT>(
 				size * it->second.metrics.advanceWidth / static_cast<double>(dwfnt._metrics.designUnitsPerEm)

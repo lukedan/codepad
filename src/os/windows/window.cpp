@@ -128,10 +128,10 @@ namespace codepad::os {
 		if (form) {
 			switch (msg) {
 			case WM_CLOSE:
-				// WM_CLOSE is not intercepted by GetMessage or PeekMessage
-				// so we need to wake the main thread up first
-				form->get_manager().get_scheduler().wake_up();
 				form->_on_close_request();
+				// WM_CLOSE is not intercepted by GetMessage or PeekMessage, so we need to
+				// wake the main thread up to run the message loop and update everything
+				form->get_manager().get_scheduler().wake_up();
 				return 0;
 
 			case WM_SIZE:

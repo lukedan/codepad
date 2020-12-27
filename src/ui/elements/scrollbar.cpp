@@ -47,6 +47,7 @@ namespace codepad::ui {
 		static property_mapping mapping;
 		if (mapping.empty()) {
 			mapping = panel::get_properties_static();
+
 			mapping.emplace(u8"orientation", std::make_shared<getter_setter_property<scrollbar, orientation>>(
 				u8"orientation",
 				[](scrollbar &bar) {
@@ -56,6 +57,13 @@ namespace codepad::ui {
 					bar.set_orientation(ori);
 				}
 				));
+
+			mapping.emplace(
+				u8"smooth_scroll_duration", std::make_shared<member_pointer_property<&scrollbar::_smooth_duration>>()
+			);
+			mapping.emplace(
+				u8"smoothing", std::make_shared<member_pointer_property<&scrollbar::_smoothing_transition>>()
+			);
 		}
 
 		return mapping;
@@ -102,6 +110,26 @@ namespace codepad::ui {
 		}
 	}
 
+	void scrollbar::_on_drag_button_moved(double newmin) {
+		double range, draglen;
+		rectd client = get_client_region();
+		if (get_orientation() == orientation::vertical) {
+			range = client.height();
+			draglen = _drag->get_layout().height();
+		} else {
+			range = client.width();
+			draglen = _drag->get_layout().width();
+		}
+		double
+			diff = newmin,
+			totsz = range;
+		if (_drag_button_extended) {
+			set_values_immediate((get_total_range() - get_visible_range()) * diff / (totsz - draglen));
+		} else {
+			set_values_immediate(get_total_range() * diff / totsz);
+		}
+	}
+
 	class_arrangements::notify_mapping scrollbar::_get_child_notify_mapping() {
 		auto mapping = panel::_get_child_notify_mapping();
 		mapping.emplace(get_drag_button_name(), _name_cast(_drag));
@@ -122,5 +150,56 @@ namespace codepad::ui {
 		_pgdn->click += [this]() {
 			set_target_value(get_target_value() + get_visible_range());
 		};
+	}
+
+	void scrollbar::_update_smooth_scrolling(double time) {
+		if (time >= _smooth_duration) {
+			_update_actual_value(get_target_value());
+		} else {
+			// position: 0.0 for start, 1.0 for end
+			double progress = time / _smooth_duration, position = 1.0;
+			auto &smoothing = get_smoothing();
+			if (smoothing) {
+				position = smoothing(progress);
+			}
+			_update_actual_value(_smooth_begin_pos + (get_target_value() - _smooth_begin_pos) * position);
+		}
+	}
+
+	void scrollbar::_initiate_smooth_scrolling() {
+		if (get_smoothing()) {
+			auto now = scheduler::clock_t::now();
+
+			if (!_smooth_update_token.empty()) {
+				// if there's already another smooth scrolling operation in progress, first update it and use the
+				// updated values as the initial position of the new smooth scrolling operation
+				// this greatly reduces the choppiness with consecutive scroll operations
+				_update_smooth_scrolling(std::chrono::duration<double>(now - _smooth_begin).count());
+
+				get_manager().get_scheduler().cancel_task(_smooth_update_token);
+			}
+
+			_smooth_begin = now;
+			_smooth_begin_pos = get_actual_value();
+			_smooth_update_token = get_manager().get_scheduler().register_task(
+				scheduler::clock_t::now(), this, [this](element*) -> std::optional<scheduler::clock_t::time_point> {
+					auto now = scheduler::clock_t::now();
+					double time = std::chrono::duration<double>(now - _smooth_begin).count();
+					bool ended = time >= _smooth_duration;
+					// this is done before updating the value so that new tasks are cancelled correctly even if some
+					// handler of actual_value_changed changes the target value again
+					if (ended) {
+						_smooth_update_token = scheduler::task_token();
+					}
+					_update_smooth_scrolling(time);
+					if (ended) {
+						return std::nullopt;
+					}
+					return now;
+				}
+			);
+		} else {
+			_update_actual_value(get_target_value());
+		}
 	}
 }

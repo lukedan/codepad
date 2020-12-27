@@ -201,7 +201,7 @@ namespace codepad::ui {
 		// size in pixels are prioritized so that zero-size proportion parts are ignored when possible
 		if (anchormin && anchormax) {
 			if (pixelsize) {
-				double midpos = 0.5 * (clientmin + clientmax);
+				double midpos = 0.5 * (clientmin + clientmax + marginmin - marginmax);
 				clientmin = midpos - 0.5 * size;
 				clientmax = midpos + 0.5 * size;
 			} else {
@@ -391,7 +391,7 @@ namespace codepad::ui {
 	}
 
 	std::optional<double> panel::_get_max_vertical_absolute_span(const element_collection &children) {
-		return _get_max_absolute_span<_get_horizontal_absolute_span>(children);
+		return _get_max_absolute_span<_get_vertical_absolute_span>(children);
 	}
 
 	/// Implementation of \ref panel::_get_total_horizontal_absolute_span() and

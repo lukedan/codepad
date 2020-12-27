@@ -216,6 +216,7 @@ namespace codepad::ui {
 		label::_on_text_changed();
 		_cached_line_metrics.clear();
 		_cached_line_beginnings.clear();
+		text_changed();
 	}
 
 	void text_edit::_on_caret_changed() {
@@ -288,14 +289,36 @@ namespace codepad::ui {
 	void text_edit::_custom_render() const {
 		label::_custom_render();
 		// label::_on_prerender() calls _check_cache_format(), so no need to call again here
-		rectd cursor = _cached_fmt->get_character_placement(_caret.caret);
+		vec2d offset(get_padding().left, get_padding().top);
+		rectd cursor = _cached_fmt->get_character_placement(_caret.caret).translated(offset);
 		_caret_visuals.render(cursor, get_manager().get_renderer());
 		if (_caret.has_selection()) { // render selection
 			auto [sel_min, sel_max] = _caret.get_range();
 			std::vector<rectd> rs = _cached_fmt->get_character_range_placement(sel_min, sel_max - sel_min);
-			for (rectd r : rs) {
-				_selection_visuals.render(r, get_manager().get_renderer());
+			for (const rectd &r : rs) {
+				_selection_visuals.render(r.translated(offset), get_manager().get_renderer());
 			}
 		}
+	}
+
+
+	void textbox::_initialize(std::u8string_view cls) {
+		_is_focus_scope = true;
+
+		scroll_view::_initialize(cls);
+
+		_edit->caret_changed += [this]() {
+			thickness edit_padding = _edit->get_padding();
+			rectd caret = _edit->get_formatted_text().get_character_placement(
+				_edit->get_caret_selection().caret
+			).translated(vec2d(edit_padding.left, edit_padding.top));
+			make_region_visible(caret);
+		};
+		_edit->text_changed += [this]() {
+			// this is necessary: since text layout of _edit is dependent on its element layout, without this the
+			// caret_changed event won't be able to obtain correct caret positions
+			get_manager().get_scheduler().update_element_layout_immediate(*_edit);
+			clamp_to_valid_range();
+		};
 	}
 }

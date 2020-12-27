@@ -105,7 +105,7 @@ namespace codepad::tree_sitter {
 
 				// handle injections
 				if (match.match.pattern_index < layer_lang.get_locals_pattern_index()) {
-					auto &inj = injection::from_match(
+					auto inj = injection::from_match(
 						match.match, layer_lang, layer_lang.get_query(), *_interp
 					);
 					layer.remove_match(match.match);

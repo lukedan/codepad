@@ -42,13 +42,6 @@ namespace codepad::ui {
 		void _on_mouse_move(mouse_move_info&) override;
 	};
 
-	/// Smoothing applied when scrolling.
-	enum class scrollbar_smoothing : unsigned char {
-		none, ///< No smoothing.
-		exponential, ///< Exponential smoothing.
-		convex_polynomial ///< Convex polynomial curve. Speed will be used as the power of the polynomial.
-	};
-
 	/// A scroll bar.
 	class scrollbar : public panel {
 		friend scrollbar_drag_button;
@@ -128,7 +121,9 @@ namespace codepad::ui {
 		/// \param tot The total length of the region.
 		/// \param vis The visible length of the region.
 		void set_params(double tot, double vis) {
-			assert_true_usage(vis <= tot, "scrollbar visible range too large");
+			if (vis > tot) {
+				vis = tot;
+			}
 			_total_range = tot;
 			_visible_range = vis;
 			// let set_target_value() update the target value for the new range
@@ -185,16 +180,14 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Returns the type of smooth scrolling used.
-		[[nodiscard]] scrollbar_smoothing get_smoothing() const {
-			return _smoothing;
+		/// Returns the \ref transition_function used for smoothing.
+		[[nodiscard]] const transition_function &get_smoothing() const {
+			return _smoothing_transition;
 		}
-		/// Sets the type of smooth scrolling used.
-		void set_smoothing(scrollbar_smoothing smoothing) {
-			if (smoothing != _smoothing) {
-				_smoothing = smoothing;
-				_on_smoothing_changed();
-			}
+		/// Sets the \ref transition_function used for smoothing.
+		void set_smoothing(transition_function smoothing) {
+			_smoothing_transition = smoothing;
+			_on_smoothing_changed();
 		}
 
 		/// Returns the list of properties.
@@ -204,7 +197,7 @@ namespace codepad::ui {
 		info_event<value_changed_info> actual_value_changed;
 		info_event<> orientation_changed; ///< Invoked when the orientation of this element is changed.
 
-		/// Adds the \p orientation property.
+		/// Adds the \p orientation, \p smooth_scroll_duration, and \p smoothing properties.
 		static const property_mapping &get_properties_static();
 
 		/// Returns the default class of elements of this type.
@@ -231,18 +224,15 @@ namespace codepad::ui {
 			_target_value = 0.0, ///< Target value.
 			_visible_range = 0.1, ///< The length of the visible range.
 
-			// TODO properties
 			/// The duration of smooth scroll operations.
-			_smooth_duration = 0.1,
-			/// The speed of smooth scroll operations. This can be interpreted differently by different modes.
-			_smooth_speed = 3.0;
+			_smooth_duration = 0.1;
 		orientation _orientation = orientation::horizontal; ///< The orientation of this scrollbar.
 		scrollbar_drag_button *_drag = nullptr; ///< The drag button.
 		button
 			*_pgup = nullptr, ///< The `page up' button.
 			*_pgdn = nullptr; ///< The `page down' button.
-		// TODO property for this
-		scrollbar_smoothing _smoothing = scrollbar_smoothing::convex_polynomial; ///< Smoothing.
+		/// Transition function for smooth scrolling.
+		transition_function _smoothing_transition = transition_functions::convex_cubic;
 		/// The starting time of the current smooth scrolling operation.
 		scheduler::clock_t::time_point _smooth_begin;
 		double _smooth_begin_pos = 0.0; ///< Starting position of the current smooth scrolling operation.
@@ -262,25 +252,7 @@ namespace codepad::ui {
 		/// Called when \ref _drag is being dragged by the user. Calculate the new value of this \ref scrollbar.
 		///
 		/// \param newmin The new top or left boundary of \ref _drag relative to this element.
-		virtual void _on_drag_button_moved(double newmin) {
-			double range, draglen;
-			rectd client = get_client_region();
-			if (get_orientation() == orientation::vertical) {
-				range = client.height();
-				draglen = _drag->get_layout().height();
-			} else {
-				range = client.width();
-				draglen = _drag->get_layout().width();
-			}
-			double
-				diff = newmin,
-				totsz = range;
-			if (_drag_button_extended) {
-				set_values_immediate((get_total_range() - get_visible_range()) * diff / (totsz - draglen));
-			} else {
-				set_values_immediate(get_total_range() * diff / totsz);
-			}
-		}
+		virtual void _on_drag_button_moved(double newmin);
 
 		/// Handles the \p set_horizontal and \p set_vertical events.
 		bool _register_event(std::u8string_view name, std::function<void()> callback) override {
@@ -313,57 +285,10 @@ namespace codepad::ui {
 		}
 		/// Updates smooth scrolling.
 		///
-		/// \return \p true if the scrolling operation has finished.
-		bool _update_smooth_scrolling() {
-			double time = std::chrono::duration<double>(scheduler::clock_t::now() - _smooth_begin).count();
-			if (time >= _smooth_duration) {
-				// this is done before updating the value so that new tasks are cancelled correctly even if some
-				// handler of actual_value_changed changes the target value again
-				_smooth_update_token = scheduler::task_token();
-				_update_actual_value(get_target_value());
-				return true;
-			}
-			// position: 0.0 for start, 1.0 for end
-			double progress = time / _smooth_duration, position = 1.0;
-			switch (get_smoothing()) {
-			case scrollbar_smoothing::exponential:
-				position = 1.0 - std::exp(_smooth_speed * progress);
-				break;
-			case scrollbar_smoothing::convex_polynomial:
-				position = 1.0 - std::pow(1.0 - progress, _smooth_speed);
-				break;
-			case scrollbar_smoothing::none: // otherwise nothing to do
-				break;
-			}
-			_update_actual_value(_smooth_begin_pos + (get_target_value() - _smooth_begin_pos) * position);
-			return false;
-		}
+		/// \param time The time, in seconds, since \ref _smooth_begin.
+		void _update_smooth_scrolling(double time);
 		/// Initiates smooth scrolling.
-		void _initiate_smooth_scrolling() {
-			switch (get_smoothing()) {
-			case scrollbar_smoothing::none:
-				// simply set the actual value to the target
-				_update_actual_value(get_target_value());
-				break;
-			case scrollbar_smoothing::exponential:
-				[[fallthrough]];
-			case scrollbar_smoothing::convex_polynomial:
-				_smooth_begin = scheduler::clock_t::now();
-				_smooth_begin_pos = get_actual_value();
-				if (!_smooth_update_token.empty()) {
-					get_manager().get_scheduler().cancel_task(_smooth_update_token);
-				}
-				_smooth_update_token = get_manager().get_scheduler().register_task(
-					scheduler::clock_t::now(), this, [this](element*) -> std::optional<scheduler::clock_t::time_point> {
-						if (_update_smooth_scrolling()) {
-							return std::nullopt;
-						}
-						return scheduler::clock_t::now();
-					}
-				);
-				break;
-			}
-		}
+		void _initiate_smooth_scrolling();
 
 		/// Called when the target value has been changed. Calls \ref _initiate_smooth_scrolling().
 		virtual void _on_target_value_changed() {

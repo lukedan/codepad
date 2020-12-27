@@ -143,11 +143,6 @@ namespace codepad::editors::code {
 		double get_vertical_scroll_delta() const override {
 			return get_line_height() * _lines_per_scroll;
 		}
-		/// Returns the length of scrolling by one tick. Currently the same value as that returned by
-		/// \ref get_vertical_scroll_delta().
-		double get_horizontal_scroll_delta() const override {
-			return get_vertical_scroll_delta();
-		}
 		/// Returns the vertical viewport range.
 		double get_vertical_scroll_range() const override {
 			return

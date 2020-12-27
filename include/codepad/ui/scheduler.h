@@ -140,6 +140,8 @@ namespace codepad::ui {
 		/// The calculation is recursive; that is, after a parent's layout has been changed,
 		/// all its children are automatically marked for layout calculation.
 		void update_invalid_layout();
+		/// Immediately updates the layout of the given element and its descendents.
+		void update_element_layout_immediate(element&);
 
 		/// Marks the given element for re-rendering. This will re-render the whole window,
 		/// but even if the visual of multiple elements in the window is invalidated,
@@ -272,6 +274,9 @@ namespace codepad::ui {
 		/// Called by \ref element_collection when an element is about to be removed from it. This function updates
 		/// the innermost focus scopes, the global focus, and the capture state of the window.
 		void _on_removing_element(element&);
+
+		/// Updates the layout of the children of all given panels.
+		void _update_layout(const std::set<panel*>&, std::deque<element*> notify);
 
 		/// Cancels the given task.
 		void _cancel_task(_task_info *tsk) {

@@ -127,6 +127,10 @@ int main(int argc, char **argv) {
 		lbl->set_text(u8"Ctrl+O to open a file\nCtrl+Shift+O to open a file as binary");
 		stack->children().add(*lbl);
 
+		auto *tb = man.create_element<textbox>();
+		tb->get_text_edit()->set_text(u8"textbox\ntest");
+		stack->children().add(*tb);
+
 		tabs::tab *tmptab = tabman.new_tab();
 		tmptab->set_label(u8"Welcome");
 		tmptab->children().add(*stack);

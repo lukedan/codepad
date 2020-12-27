@@ -134,26 +134,29 @@ namespace codepad::editors::binary {
 		return std::numeric_limits<unsigned char>::max();
 	}
 
-	std::u8string_view contents_region::_get_hex_byte(std::byte b) {
-		static const char8_t _lut[256][3]{
-			u8"00", u8"01", u8"02", u8"03", u8"04", u8"05", u8"06", u8"07", u8"08", u8"09", u8"0A", u8"0B", u8"0C", u8"0D", u8"0E", u8"0F",
-			u8"10", u8"11", u8"12", u8"13", u8"14", u8"15", u8"16", u8"17", u8"18", u8"19", u8"1A", u8"1B", u8"1C", u8"1D", u8"1E", u8"1F",
-			u8"20", u8"21", u8"22", u8"23", u8"24", u8"25", u8"26", u8"27", u8"28", u8"29", u8"2A", u8"2B", u8"2C", u8"2D", u8"2E", u8"2F",
-			u8"30", u8"31", u8"32", u8"33", u8"34", u8"35", u8"36", u8"37", u8"38", u8"39", u8"3A", u8"3B", u8"3C", u8"3D", u8"3E", u8"3F",
-			u8"40", u8"41", u8"42", u8"43", u8"44", u8"45", u8"46", u8"47", u8"48", u8"49", u8"4A", u8"4B", u8"4C", u8"4D", u8"4E", u8"4F",
-			u8"50", u8"51", u8"52", u8"53", u8"54", u8"55", u8"56", u8"57", u8"58", u8"59", u8"5A", u8"5B", u8"5C", u8"5D", u8"5E", u8"5F",
-			u8"60", u8"61", u8"62", u8"63", u8"64", u8"65", u8"66", u8"67", u8"68", u8"69", u8"6A", u8"6B", u8"6C", u8"6D", u8"6E", u8"6F",
-			u8"70", u8"71", u8"72", u8"73", u8"74", u8"75", u8"76", u8"77", u8"78", u8"79", u8"7A", u8"7B", u8"7C", u8"7D", u8"7E", u8"7F",
-			u8"80", u8"81", u8"82", u8"83", u8"84", u8"85", u8"86", u8"87", u8"88", u8"89", u8"8A", u8"8B", u8"8C", u8"8D", u8"8E", u8"8F",
-			u8"90", u8"91", u8"92", u8"93", u8"94", u8"95", u8"96", u8"97", u8"98", u8"99", u8"9A", u8"9B", u8"9C", u8"9D", u8"9E", u8"9F",
-			u8"A0", u8"A1", u8"A2", u8"A3", u8"A4", u8"A5", u8"A6", u8"A7", u8"A8", u8"A9", u8"AA", u8"AB", u8"AC", u8"AD", u8"AE", u8"AF",
-			u8"B0", u8"B1", u8"B2", u8"B3", u8"B4", u8"B5", u8"B6", u8"B7", u8"B8", u8"B9", u8"BA", u8"BB", u8"BC", u8"BD", u8"BE", u8"BF",
-			u8"C0", u8"C1", u8"C2", u8"C3", u8"C4", u8"C5", u8"C6", u8"C7", u8"C8", u8"C9", u8"CA", u8"CB", u8"CC", u8"CD", u8"CE", u8"CF",
-			u8"D0", u8"D1", u8"D2", u8"D3", u8"D4", u8"D5", u8"D6", u8"D7", u8"D8", u8"D9", u8"DA", u8"DB", u8"DC", u8"DD", u8"DE", u8"DF",
-			u8"E0", u8"E1", u8"E2", u8"E3", u8"E4", u8"E5", u8"E6", u8"E7", u8"E8", u8"E9", u8"EA", u8"EB", u8"EC", u8"ED", u8"EE", u8"EF",
-			u8"F0", u8"F1", u8"F2", u8"F3", u8"F4", u8"F5", u8"F6", u8"F7", u8"F8", u8"F9", u8"FA", u8"FB", u8"FC", u8"FD", u8"FE", u8"FF"
+	std::basic_string_view<codepoint> contents_region::_get_hex_byte(std::byte b) {
+		static const char32_t _lut[256][3]{
+			U"00", U"01", U"02", U"03", U"04", U"05", U"06", U"07", U"08", U"09", U"0A", U"0B", U"0C", U"0D", U"0E", U"0F",
+			U"10", U"11", U"12", U"13", U"14", U"15", U"16", U"17", U"18", U"19", U"1A", U"1B", U"1C", U"1D", U"1E", U"1F",
+			U"20", U"21", U"22", U"23", U"24", U"25", U"26", U"27", U"28", U"29", U"2A", U"2B", U"2C", U"2D", U"2E", U"2F",
+			U"30", U"31", U"32", U"33", U"34", U"35", U"36", U"37", U"38", U"39", U"3A", U"3B", U"3C", U"3D", U"3E", U"3F",
+			U"40", U"41", U"42", U"43", U"44", U"45", U"46", U"47", U"48", U"49", U"4A", U"4B", U"4C", U"4D", U"4E", U"4F",
+			U"50", U"51", U"52", U"53", U"54", U"55", U"56", U"57", U"58", U"59", U"5A", U"5B", U"5C", U"5D", U"5E", U"5F",
+			U"60", U"61", U"62", U"63", U"64", U"65", U"66", U"67", U"68", U"69", U"6A", U"6B", U"6C", U"6D", U"6E", U"6F",
+			U"70", U"71", U"72", U"73", U"74", U"75", U"76", U"77", U"78", U"79", U"7A", U"7B", U"7C", U"7D", U"7E", U"7F",
+			U"80", U"81", U"82", U"83", U"84", U"85", U"86", U"87", U"88", U"89", U"8A", U"8B", U"8C", U"8D", U"8E", U"8F",
+			U"90", U"91", U"92", U"93", U"94", U"95", U"96", U"97", U"98", U"99", U"9A", U"9B", U"9C", U"9D", U"9E", U"9F",
+			U"A0", U"A1", U"A2", U"A3", U"A4", U"A5", U"A6", U"A7", U"A8", U"A9", U"AA", U"AB", U"AC", U"AD", U"AE", U"AF",
+			U"B0", U"B1", U"B2", U"B3", U"B4", U"B5", U"B6", U"B7", U"B8", U"B9", U"BA", U"BB", U"BC", U"BD", U"BE", U"BF",
+			U"C0", U"C1", U"C2", U"C3", U"C4", U"C5", U"C6", U"C7", U"C8", U"C9", U"CA", U"CB", U"CC", U"CD", U"CE", U"CF",
+			U"D0", U"D1", U"D2", U"D3", U"D4", U"D5", U"D6", U"D7", U"D8", U"D9", U"DA", U"DB", U"DC", U"DD", U"DE", U"DF",
+			U"E0", U"E1", U"E2", U"E3", U"E4", U"E5", U"E6", U"E7", U"E8", U"E9", U"EA", U"EB", U"EC", U"ED", U"EE", U"EF",
+			U"F0", U"F1", U"F2", U"F3", U"F4", U"F5", U"F6", U"F7", U"F8", U"F9", U"FA", U"FB", U"FC", U"FD", U"FE", U"FF"
 		};
-		return std::u8string_view(_lut[static_cast<std::size_t>(b)], 2);
+		static_assert(sizeof(codepoint) == sizeof(char32_t));
+		return std::basic_string_view<codepoint>(
+			reinterpret_cast<const codepoint*>(_lut[static_cast<std::size_t>(b)]), 2
+			);
 	}
 
 	rectd contents_region::_get_caret_rect(std::size_t cpos) const {
@@ -258,7 +261,7 @@ namespace codepad::editors::binary {
 						i < lastbyte && it != _buf->end();
 						++i, ++it, x += _cached_max_byte_width + _blank_width
 						) {
-						auto text = renderer.create_plain_text(_get_hex_byte(*it), *_font, _font_size);
+						auto text = renderer.create_plain_text_fast(_get_hex_byte(*it), *_font, _font_size);
 						// TODO customizable color
 						renderer.draw_plain_text(
 							*text,

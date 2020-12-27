@@ -22,9 +22,6 @@ namespace codepad::ui {
 		if (_children_layout_scheduled.empty() && _layout_notify.empty()) {
 			return;
 		}
-		performance_monitor mon(u8"layout", relayout_time_redline);
-		assert_true_logical(!_layouting, "update_invalid_layout() cannot be called recursively");
-		_layouting = true;
 
 		// list of elements to be notified
 		std::deque<element*> notify(_layout_notify.begin(), _layout_notify.end());
@@ -33,24 +30,21 @@ namespace codepad::ui {
 		std::set<panel*> childrenupdate;
 		std::swap(childrenupdate, _children_layout_scheduled);
 
-		for (panel *pnl : childrenupdate) {
-			pnl->_on_update_children_layout();
-			for (element *elem : pnl->_children.items()) {
-				notify.emplace_back(elem);
+		_update_layout(childrenupdate, std::move(notify));
+	}
+
+	void scheduler::update_element_layout_immediate(element &e) {
+		panel *pnl = e.parent();
+		if (!pnl) {
+			pnl = dynamic_cast<panel*>(&e);
+			if (!pnl) {
+				// what are we doing here?
+				return;
 			}
 		}
-		while (!notify.empty()) {
-			element *li = notify.front();
-			notify.pop_front();
-			li->_on_layout_changed();
-			// for panels, since their layout have been changed, their children will also be notified
-			if (auto *pnl = dynamic_cast<panel*>(li)) {
-				for (element *elem : pnl->_children.items()) {
-					notify.emplace_back(elem);
-				}
-			}
-		}
-		_layouting = false;
+
+		std::set<panel*> update{ pnl };
+		_update_layout(update, std::deque<element*>());
 	}
 
 	void scheduler::update_invalid_visuals() {
@@ -159,7 +153,7 @@ namespace codepad::ui {
 #ifdef CP_CHECK_USAGE_ERRORS
 				assert_true_usage(!elem->_initialized, "element::_dispose() must be invoked by children classses");
 #endif
-					// remove the current entry from all lists
+				// remove the current entry from all lists
 				auto *pnl = dynamic_cast<panel*>(elem);
 				if (pnl) {
 					_children_layout_scheduled.erase(pnl);
@@ -249,5 +243,30 @@ namespace codepad::ui {
 				}
 			}
 		}
+	}
+
+	void scheduler::_update_layout(const std::set<panel*> &update, std::deque<element*> notify) {
+		performance_monitor mon(u8"layout", relayout_time_redline);
+		assert_true_logical(!_layouting, "update_invalid_layout() cannot be called recursively");
+		_layouting = true;
+
+		for (panel *pnl : update) {
+			pnl->_on_update_children_layout();
+			for (element *elem : pnl->_children.items()) {
+				notify.emplace_back(elem);
+			}
+		}
+		while (!notify.empty()) {
+			element *li = notify.front();
+			notify.pop_front();
+			li->_on_layout_changed();
+			// for panels, since their layout have been changed, their children will also be notified
+			if (auto *pnl = dynamic_cast<panel*>(li)) {
+				for (element *elem : pnl->_children.items()) {
+					notify.emplace_back(elem);
+				}
+			}
+		}
+		_layouting = false;
 	}
 }

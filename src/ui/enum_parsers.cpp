@@ -107,6 +107,8 @@ namespace codepad {
 		if (str == u8"normal") {
 			return ui::font_weight::normal;
 		}
+		// TODO
+		return std::nullopt;
 	}
 
 

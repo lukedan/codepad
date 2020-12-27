@@ -224,6 +224,12 @@ namespace codepad::ui::animation_path {
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
+#define CP_APB_CURRENT_TYPE transition_function, transition_function
+		CP_APB_START_GETTER
+			CP_APB_MAY_TERMINATE_EARLY;
+		CP_APB_END_GETTER
+#undef CP_APB_CURRENT_TYPE
+
 
 		// other basic types
 #define CP_APB_CURRENT_TYPE std::shared_ptr<bitmap>, bitmap

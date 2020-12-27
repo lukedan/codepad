@@ -36,7 +36,7 @@
     apt install libcairo2-dev
     apt install libgtk-3-dev
     ```
-    Note that older versions of pybind11 may not be compatible with codepad, in which case the plugin will fail to build (and you'll also need to edit `config/settings.json` to not load that plugin), but you should still be able to build and run the rest of the program without any problem.
+    Note that older versions of pybind11 may not be compatible with codepad, in which case the plugin will fail to build, but you should still be able to build and run the rest of the program without any problem.
 
 - Clone the repository and initialize submodules:
   ```

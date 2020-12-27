@@ -204,6 +204,67 @@
 			}
 		}
 	},
+	"textbox": {
+		"children": [
+			{
+				"type": "scrollbar",
+				"name": "vertical_scrollbar",
+				"attributes": {
+					"orientation": "vertical",
+					"layout": {
+						"size": [ 8.0, 1.0 ],
+						"width_alloc": "px",
+						"height_alloc": "*",
+						"margin": [ 0.0, 0.0, 0.0, 8.0 ],
+						"anchor": "trb"
+					}
+				}
+			},
+			{
+				"type": "scrollbar",
+				"name": "horizontal_scrollbar",
+				"attributes": {
+					"orientation": "horizontal",
+					"layout": {
+						"size": [ 1.0, 8.0 ],
+						"width_alloc": "*",
+						"height_alloc": "px",
+						"margin": [ 0.0, 0.0, 8.0, 0.0 ],
+						"anchor": "lrb"
+					}
+				}
+			},
+			{
+				"type": "scroll_viewport",
+				"name": "viewport",
+				"attributes": {
+					"visibility": "-f",
+					"layout": {
+						"size": [ 300.0, 100.0 ],
+						"width_alloc": "px",
+						"height_alloc": "px",
+						"margin": [ 0.0, 0.0, 8.0, 8.0 ],
+						"anchor": "ltrb",
+						"padding": 2.0
+					},
+					"cursor": "text_beam",
+					"clip_to_bounds": true
+				},
+				"children": [
+					{
+						"type": "text_edit",
+						"name": "text_edit",
+						"attributes": {
+							"layout": {
+								"anchor": "lt"
+							},
+							"horizontal_alignment": "front"
+						}
+					}
+				]
+			}
+		]
+	},
 
 	"drag_destination_indicator_block": {
 		"attributes": {

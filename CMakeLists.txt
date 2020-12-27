@@ -82,6 +82,7 @@ set_target_properties(codepad_core PROPERTIES ENABLE_EXPORTS YES)
 # set warning level
 if(MSVC)
 	target_compile_options(codepad_core
+		PUBLIC /experimental:module- # current msvc implementation of modules break pybind11
 		PRIVATE /W4 /permissive-)
 elseif(CMAKE_COMPILER_IS_GNUCXX)
 	target_compile_options(codepad_core
@@ -91,7 +92,7 @@ endif()
 # libraries
 find_package(RapidJSON CONFIG REQUIRED)
 target_include_directories(codepad_core
-	PUBLIC ${RAPIDJSON_INCLUDE_DIRS})
+	PUBLIC ${RapidJSON_INCLUDE_DIRS})
 
 # platform dependent sources & settings
 if(WIN32)

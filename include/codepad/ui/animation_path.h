@@ -397,8 +397,6 @@ namespace codepad::ui {
 				};
 
 				/// Pairs the given components.
-				///
-				/// \todo C++20, [[no_unique_address]] or something.
 				template <typename Comp1, typename Comp2> struct paired_component {
 					static_assert(
 						std::is_same_v<typename Comp1::output_type, typename Comp2::input_type>,
@@ -419,8 +417,8 @@ namespace codepad::ui {
 						return comp2.get(comp1.get(input));
 					}
 
-					Comp1 comp1; ///< The first component.
-					Comp2 comp2; ///< The second component.
+					[[no_unique_address]] Comp1 comp1; ///< The first component.
+					[[no_unique_address]] Comp2 comp2; ///< The second component.
 
 					/// Compares both components of the given two pairs.
 					friend bool operator==(const paired_component &lhs, const paired_component &rhs) {

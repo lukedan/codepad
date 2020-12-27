@@ -108,7 +108,9 @@ namespace codepad::ui {
 		/// Returns the list of properties.
 		const property_mapping &get_properties() const override;
 
-		info_event<> caret_changed; ///< Invoked when the caret or the selection has been changed.
+		info_event<>
+			caret_changed, ///< Invoked when the caret or the selection has been changed.
+			text_changed; ///< Invoked when the text has been changed.
 
 		/// Adds the \p caret_visuals property.
 		static const property_mapping &get_properties_static();
@@ -186,5 +188,34 @@ namespace codepad::ui {
 		void _custom_render() const override;
 	};
 
-	// TODO combine text_edit and scroll_view for textbox
+	/// A textbox that combines a \ref scroll_view and a \ref text_edit.
+	class textbox : public scroll_view {
+	public:
+		/// Returns \ref _edit.
+		text_edit *get_text_edit() const {
+			return _edit;
+		}
+
+		/// Returns the name of \ref _edit.
+		inline static std::u8string_view get_text_edit_name() {
+			return u8"text_edit";
+		}
+
+		/// Returns the default class of elements of this type.
+		inline static std::u8string_view get_default_class() {
+			return u8"textbox";
+		}
+	protected:
+		text_edit *_edit = nullptr; ///< The associated \ref text_edit.
+
+		/// Returns the mapping that contains notifications for \ref _edit.
+		class_arrangements::notify_mapping _get_child_notify_mapping() override {
+			auto mapping = scroll_view::_get_child_notify_mapping();
+			mapping.emplace(get_text_edit_name(), _name_cast(_edit));
+			return mapping;
+		}
+
+		/// Registers event handlers for edit and caret movement events of \ref _edit.
+		void _initialize(std::u8string_view) override;
+	};
 }

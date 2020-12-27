@@ -44,6 +44,31 @@ namespace codepad::editors {
 		return mapping;
 	}
 
+	bool contents_region_base::_register_edit_mode_changed_event(
+		std::u8string_view name, std::function<void()> &callback
+	) {
+		// not using _event_helpers::try_register_event() here
+		// since it takes a non-const reference to the callback
+		if (name == u8"mode_changed_insert") {
+			edit_mode_changed += [this, cb = std::move(callback)]() {
+				if (is_insert_mode()) {
+					cb();
+				}
+			};
+			return true;
+		}
+		if (name == u8"mode_changed_overwrite") {
+			edit_mode_changed += [this, cb = std::move(callback)]() {
+				if (!is_insert_mode()) {
+					cb();
+				}
+			};
+			return true;
+		}
+		return false;
+	}
+
+
 	settings::retriever_parser<double> &editor::get_font_size_setting(settings &set) {
 		static setting<double> _setting(
 			{ u8"editor", u8"font_size" }, settings::basic_parsers::basic_type_with_default<double>(12.0)
@@ -69,5 +94,27 @@ namespace codepad::editors {
 			)
 		);
 		return _setting.get(set);
+	}
+
+	void editor::_initialize(std::u8string_view cls) {
+		panel::_initialize(cls);
+
+		_vert_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
+			vertical_viewport_changed.invoke();
+			invalidate_visual();
+		};
+		_hori_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
+			horizontal_viewport_changed.invoke();
+			invalidate_visual();
+		};
+
+		_contents->layout_changed += [this]() {
+			vertical_viewport_changed.invoke();
+			horizontal_viewport_changed.invoke();
+			_reset_scrollbars();
+		};
+		_contents->content_visual_changed += [this]() {
+			_reset_scrollbars();
+		};
 	}
 }

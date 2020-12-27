@@ -113,11 +113,6 @@ namespace codepad::editors::binary {
 		double get_vertical_scroll_delta() const override {
 			return get_line_height() * _lines_per_scroll;
 		}
-		/// Returns the length of scrolling by one tick. Currently the same value as that returned by
-		/// \ref get_vertical_scroll_delta().
-		double get_horizontal_scroll_delta() const override {
-			return get_vertical_scroll_delta();
-		}
 		/// Returns the vertical viewport range.
 		double get_vertical_scroll_range() const override {
 			return
@@ -258,7 +253,7 @@ namespace codepad::editors::binary {
 		}
 	protected:
 		/// Returns the hexadecimal representation of the given byte.
-		static std::u8string_view _get_hex_byte(std::byte);
+		static std::basic_string_view<codepoint> _get_hex_byte(std::byte);
 
 		caret_set _carets; ///< The set of carets.
 		interaction_manager<caret_set> _interaction_manager; ///< Manages certain mouse and keyboard interactions.
