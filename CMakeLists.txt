@@ -8,17 +8,18 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 # options
 # plugin interface
-set(ENABLE_APIGEN NO CACHE BOOL "Whether to generate and build the plugin interface using apigen.")
-set(APIGEN_PATH "./apigen" CACHE FILEPATH "Path to the apigen executable.")
+set(CODEPAD_ENABLE_APIGEN NO CACHE BOOL "Whether to generate and build the plugin interface using apigen.")
+set(CODEPAD_APIGEN_PATH "./apigen" CACHE FILEPATH "Path to the apigen executable.")
 
 # graphics backend
-set(USE_CAIRO YES CACHE BOOL "Whether or not to include the Cairo graphics backend.")
+set(CODEPAD_USE_CAIRO YES CACHE BOOL "Whether or not to include the Cairo graphics backend.")
+set(CODEPAD_USE_SKIA YES CACHE BOOL "Whether or not to include the Skia graphics backend.")
 if(UNIX)
-	set(USE_GTK YES CACHE BOOL "Whether or not to use GTK3 on Linux.")
+	set(CODEPAD_USE_GTK YES CACHE BOOL "Whether or not to use GTK3 on Linux.")
 endif()
 
 # backtrace
-set(ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing backtraces.")
+set(CODEPAD_ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing backtraces.")
 
 
 # main library
@@ -48,7 +49,6 @@ target_sources(codepad_core
 		"src/ui/animation_path.cpp"
 		"src/ui/animation_path_parser.cpp"
 		"src/ui/arrangements.cpp"
-		"src/ui/cairo_renderer_base.cpp"
 		"src/ui/commands.cpp"
 		"src/ui/element.cpp"
 		"src/ui/element_parameters.cpp" 
@@ -56,7 +56,6 @@ target_sources(codepad_core
 		"src/ui/hotkey_registry.cpp"
 		"src/ui/manager.cpp"
 		"src/ui/misc.cpp"
-		
 		"src/ui/panel.cpp"
 		"src/ui/renderer.cpp"
 		"src/ui/scheduler.cpp"
@@ -67,13 +66,25 @@ target_include_directories(codepad_core PUBLIC "include/")
 # compile definitions
 target_compile_definitions(codepad_core
 	PUBLIC UNICODE _UNICODE)
-if(ENABLE_BACKTRACE)
+if(CODEPAD_ENABLE_BACKTRACE)
 	target_compile_definitions(codepad_core
 		PUBLIC CP_LOG_STACKTRACE)
 endif()
-if(USE_CAIRO)
+if(CODEPAD_USE_CAIRO)
+	target_sources(codepad_core
+		PRIVATE
+			"src/ui/pango_harfbuzz_text_context.cpp"
+			"src/ui/cairo_renderer_base.cpp")
 	target_compile_definitions(codepad_core
 		PUBLIC CP_USE_CAIRO)
+endif()
+if(CODEPAD_USE_SKIA)
+	target_sources(codepad_core
+		PRIVATE
+			"src/ui/pango_harfbuzz_text_context.cpp"
+			"src/ui/skia_renderer_base.cpp")
+	target_compile_definitions(codepad_core
+		PUBLIC CP_USE_SKIA)
 endif()
 
 # enable export so that plugins can link to the executable
@@ -122,7 +133,7 @@ if(WIN32)
 	endif()
 
 	# finding cairo and dependencies on windows is quite different from finding cairo on linux
-	if(USE_CAIRO)
+	if(CODEPAD_USE_CAIRO)
 		find_package(Freetype REQUIRED)
 		find_package(Fontconfig REQUIRED)
 		find_package(harfbuzz REQUIRED)
@@ -154,6 +165,14 @@ if(WIN32)
 				Freetype::Freetype Fontconfig::Fontconfig
 				unofficial::glib::gobject)
 	endif()
+
+	if(CODEPAD_USE_SKIA)
+		find_package(skia CONFIG REQUIRED)
+
+		target_link_libraries(codepad_core
+			PUBLIC
+				skia skia::skia)
+	endif()
 elseif(UNIX)
 	target_sources(codepad_core
 		PRIVATE
@@ -164,12 +183,12 @@ elseif(UNIX)
 		PUBLIC CP_PLATFORM_UNIX)
 	target_link_libraries(codepad_core
 		PUBLIC dl pthread) # TODO why link pthread?
-	if(ENABLE_BACKTRACE)
+	if(CODEPAD_ENABLE_BACKTRACE)
 		target_link_options(codepad_core
 			PRIVATE -rdynamic) # enables detailed stacktrace
 	endif()
 
-	if(USE_GTK)
+	if(CODEPAD_USE_GTK)
 		target_sources(codepad_core
 			PRIVATE
 				"src/os/linux/gtk/linux.cpp"
@@ -189,7 +208,7 @@ elseif(UNIX)
 			PUBLIC ${X11_LIBRARIES})
 	endif()
 
-	if(USE_CAIRO)
+	if(CODEPAD_USE_CAIRO)
 		find_package(Freetype REQUIRED)
 		find_package(Fontconfig REQUIRED)
 		find_package(Cairo REQUIRED)
@@ -222,12 +241,12 @@ endif()
 
 
 # codegen
-if(${ENABLE_APIGEN})
-	if(NOT EXISTS "${APIGEN_PATH}")
+if(${CODEPAD_ENABLE_APIGEN})
+	if(NOT EXISTS "${CODEPAD_APIGEN_PATH}")
 		message(
 			FATAL_ERROR
 				"Build cannot continue because a valid apigen executable is not found. Either specify a valid path "
-				"to apigen or use -DENABLE_APIGEN=NO to build codepad_core without plugin support.")
+				"to apigen or use -DCODEPAD_ENABLE_APIGEN=NO to build codepad_core without plugin support.")
 	endif()
 
 	target_compile_definitions(codepad_core
@@ -261,7 +280,7 @@ if(${ENABLE_APIGEN})
 	add_custom_command(
 		OUTPUT "${API_HEADER_PATH}" "${HOST_HEADER_PATH}" "${HOST_SOURCE_PATH}" "${COLLECTOR_PATH}"
 		COMMAND
-			"${APIGEN_PATH}"
+			"${CODEPAD_APIGEN_PATH}"
 			"-api_header_file=${API_HEADER_PATH}"
 			"-host_header_file=${HOST_HEADER_PATH}"
 			"-host_source_file=${HOST_SOURCE_PATH}"
@@ -275,7 +294,7 @@ if(${ENABLE_APIGEN})
 			${APIGEN_DEFINES}
 			${APIGEN_COMPILE_OPTIONS}
 			"${EXPORT_FILE_PATH}"
-		DEPENDS ${CODEPAD_SOURCES} "${EXPORT_FILE_PATH}" "${APIGEN_PATH}"
+		DEPENDS ${CODEPAD_SOURCES} "${EXPORT_FILE_PATH}" "${CODEPAD_APIGEN_PATH}"
 		COMMENT "Invoking apigen..."
 		VERBATIM)
 

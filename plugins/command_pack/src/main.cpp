@@ -23,40 +23,7 @@
 namespace cp = ::codepad;
 
 namespace command_pack {
-	/// Used to automatically register and unregister commands.
-	struct command_stub {
-		/// Initializes this command.
-		command_stub(std::u8string n, cp::ui::command f) :
-			_name(std::move(n)), _exec(std::move(f)) {
-		}
-		/// Checks that the command is unregistered.
-		~command_stub() {
-			cp::assert_true_usage(!_registered);
-		}
-
-		/// Registers this command.
-		void register_command(cp::ui::command_registry &reg) {
-			if (reg.register_command(_name, _exec)) {
-				_registered = true;
-			} else {
-				cp::logger::get().log_warning(CP_HERE) << "failed to register command: " << _name;
-			}
-		}
-		/// Unregisters this command.
-		void unregister_command(cp::ui::command_registry &reg) {
-			if (_registered) {
-				_exec = reg.unregister_command(_name);
-				_registered = false;
-			}
-		}
-	private:
-		std::u8string _name; ///< The name of this command.
-		cp::ui::command _exec; ///< The function to be executed.
-		bool _registered = false; ///< Whether this command has been registered.
-	};
-
-
-	std::deque<command_stub> _commands;
+	std::deque<cp::ui::command_registry::stub> _commands;
 	const cp::plugin_context *_context = nullptr;
 	cp::editors::manager *_editor_manager = nullptr;
 

@@ -665,7 +665,7 @@ namespace codepad::os::direct2d {
 	}
 
 	void renderer::begin_drawing(ui::window_base &w) {
-		auto &data = _window_data::get(w);
+		auto &data = _get_window_data_as<_window_data>(w);
 		_begin_draw_impl(data.target.get(), w.get_scaling_factor() * USER_DEFAULT_SCREEN_DPI);
 		_present_chains.emplace(data.swap_chain.get());
 	}
@@ -1301,7 +1301,7 @@ namespace codepad::os::direct2d {
 		data.emplace<_window_data>(actual_data);
 		// resize buffer when the window size has changed
 		wnd.size_changed += [this, pwnd = &wnd](ui::window_base::size_changed_info&) {
-			auto &data = _window_data::get(*pwnd);
+			auto &data = _get_window_data_as<_window_data>(*pwnd);
 			data.target.reset(); // must release bitmap before resizing
 			_details::com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 			// recreate bitmap
@@ -1309,7 +1309,7 @@ namespace codepad::os::direct2d {
 		};
 		// reallocate buffer when the window scaling has changed
 		wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window_base::scaling_factor_changed_info &p) {
-			auto &data = _window_data::get(*pwnd);
+			auto &data = _get_window_data_as<_window_data>(*pwnd);
 			data.target.reset(); // must release bitmap before resizing
 			_details::com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 			// recreate bitmap
@@ -1319,12 +1319,5 @@ namespace codepad::os::direct2d {
 
 	void renderer::_delete_window(ui::window_base &w) {
 		_get_window_data(w).reset();
-	}
-
-
-	renderer::_window_data &renderer::_window_data::get(ui::window_base &wnd) {
-		_window_data *d = std::any_cast<_window_data>(&_get_window_data(wnd));
-		assert_true_usage(d, "window has no associated data");
-		return *d;
 	}
 }

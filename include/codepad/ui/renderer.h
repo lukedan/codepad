@@ -615,6 +615,13 @@ namespace codepad {
 
 			/// Returns a reference to the renderer-specific data of the given window.
 			static std::any &_get_window_data(window_base&);
+			/// Invokes \ref _get_window_data(), then uses \p std::any_cast() to cast its result. This function
+			/// checks that the window data is non-empty.
+			template <typename T> static T &_get_window_data_as(window_base &wnd) {
+				auto *data = std::any_cast<T>(&_get_window_data(wnd));
+				assert_true_usage(data, "window has no associated data");
+				return *data;
+			}
 		};
 	}
 }

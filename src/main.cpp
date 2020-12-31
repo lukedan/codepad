@@ -10,11 +10,17 @@
 #include "codepad/os/current/all.h"
 #ifdef CP_PLATFORM_WINDOWS
 #	include "codepad/os/windows/direct2d_renderer.h"
-#	include "codepad/os/windows/cairo_renderer.h"
+#	ifdef CP_USE_CAIRO
+#		include "codepad/os/windows/cairo_renderer.h"
+#	endif
+#	ifdef CP_USE_SKIA
+#		include "codepad/os/windows/skia_renderer.h"
+#	endif
 #elif defined(CP_PLATFORM_UNIX)
-#	include "codepad/os/linux/gtk/cairo_renderer.h"
+#	ifdef CP_USE_CAIRO
+#		include "codepad/os/linux/gtk/cairo_renderer.h"
+#	endif
 #endif
-#include "codepad/ui/cairo_renderer_base.h"
 #include "codepad/ui/config_parsers.h"
 #include "codepad/ui/json_parsers.h"
 #include "codepad/ui/elements/tabs/tab.h"
@@ -94,6 +100,11 @@ int main(int argc, char **argv) {
 #ifdef CP_USE_CAIRO
 			if (renderer == u8"cairo") {
 				man.set_renderer(std::make_unique<cairo_renderer>());
+			}
+#endif
+#ifdef CP_USE_SKIA
+			if (renderer == u8"skia") {
+				man.set_renderer(std::make_unique<skia_renderer>());
 			}
 #endif
 			assert_true_usage(man.has_renderer(), "unrecognized renderer");

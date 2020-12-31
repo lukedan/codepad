@@ -365,7 +365,7 @@ namespace codepad::os::direct2d {
 			std::basic_string_view<codepoint>, ui::font&, double size
 		) override;
 		/// Calls \ref _create_plain_text_fast_impl() to layout the glyphs.
-		std::shared_ptr<ui::plain_text> renderer::create_plain_text_fast(
+		std::shared_ptr<ui::plain_text> create_plain_text_fast(
 			std::basic_string_view<codepoint> text, ui::font &font, double size
 		) override;
 		/// Calls \p ID2D1DeviceContext::DrawGlyphRun to render the text clip. Any pushed layer will disable subpixel
@@ -376,9 +376,6 @@ namespace codepad::os::direct2d {
 		struct _window_data {
 			_details::com_wrapper<IDXGISwapChain1> swap_chain; ///< The DXGI swap chain.
 			_details::com_wrapper<ID2D1Bitmap1> target; ///< The target bitmap.
-
-			/// Returns the \ref _window_data associated with the given window.
-			static _window_data &get(ui::window_base&);
 		};
 		/// Stores information about a currently active render target.
 		struct _render_target_stackframe {

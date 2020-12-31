@@ -7,6 +7,7 @@
 #include <ShObjIdl.h>
 #include <Shlwapi.h>
 #include <processthreadsapi.h>
+#include <commdlg.h>
 
 #include "codepad/core/logger_sinks.h"
 #include "codepad/ui/manager.h"

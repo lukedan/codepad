@@ -19,20 +19,72 @@ namespace codepad::ui {
 	/// pointers to \ref codepad::ui::element "elements" as arguments.
 	class APIGEN_EXPORT_RECURSIVE command_registry {
 	public:
+		/// Used to easily register and unregister commands with error handling.
+		struct stub {
+			/// Initializes this command.
+			stub(std::u8string n, command f) :
+				_name(std::move(n)), _exec(std::move(f)) {
+			}
+			/// Move constructor.
+			stub(stub &&src) :
+				_name(std::move(src._name)), _exec(std::move(src._exec)), _registered(src._registered) {
+				src._registered = false;
+			}
+			/// No copy construction.
+			stub(const stub&) = delete;
+			/// Move assignment.
+			stub &operator=(stub &&src) {
+				assert_true_usage(!_registered, "command must be manually unregistered before move assignment");
+				_name = std::move(src._name);
+				_exec = std::move(src._exec);
+				_registered = src._registered;
+				src._registered = false;
+				return *this;
+			}
+			/// No copy assignment.
+			stub &operator=(const stub&) = delete;
+			/// Checks that the command is unregistered.
+			~stub() {
+				assert_true_usage(!_registered, "command must be manually unregistered before disposing");
+			}
+
+			/// Registers this command.
+			void register_command(command_registry &reg) {
+				if (reg.register_command(_name, _exec)) {
+					_registered = true;
+				} else {
+					logger::get().log_warning(CP_HERE) << "failed to register command: " << _name;
+				}
+			}
+			/// Unregisters this command.
+			void unregister_command(command_registry &reg) {
+				if (_registered) {
+					_exec = reg.unregister_command(_name);
+					_registered = false;
+				}
+			}
+		private:
+			std::u8string _name; ///< The name of this command.
+			command _exec; ///< The function to be executed.
+			bool _registered = false; ///< Whether this command has been registered.
+		};
+
+
 		/// Registers a command.
 		///
 		/// \param name The name used to identify this command.
 		/// \param func The corresponding function. This will not be modified if there's already a command with the
-		///             same name in this registry, otherwise the function is moved into this registry.
+		///             same name in this registry, otherwise the function is moved into this registry, leaving the
+		///             original variable in a moved-from state.
 		/// \return \p false if a command of the same name has already been registered, in which case the new
 		///         command will be discarded.
-		bool register_command(const std::u8string &name, command &func) {
+		[[nodiscard]] bool register_command(const std::u8string &name, command &func) {
 			return _cmds.try_emplace(name, std::move(func)).second;
 		}
 		/// Unregisters a command.
 		///
 		/// \return The function associated with this command, or \p nullptr if no such command is found.
-		command unregister_command(const std::u8string &name) {
+		[[nodiscard]] command unregister_command(const std::u8string &name) {
 			auto it = _cmds.find(name);
 			if (it == _cmds.end()) {
 				return nullptr;
@@ -42,7 +94,7 @@ namespace codepad::ui {
 			return func;
 		}
 		/// Finds the command with the given name. Returns \p nullptr if none is found.
-		const command *find_command(const std::u8string &name) const {
+		[[nodiscard]] const command *find_command(const std::u8string &name) const {
 			auto it = _cmds.find(name);
 			return it == _cmds.end() ? nullptr : &it->second;
 		}
