@@ -16,10 +16,10 @@
 #include <pango/pango.h>
 #include <pango/pangocairo.h>
 
-#include "../core/logging.h"
-#include "../core/assert.h"
-#include "../core/misc.h"
-#include "renderer.h"
+#include "../../core/logging.h"
+#include "../../core/assert.h"
+#include "../../core/misc.h"
+#include "../renderer.h"
 
 namespace codepad::ui {
 	namespace _details {
@@ -246,6 +246,8 @@ namespace codepad::ui {
 			[[nodiscard]] PangoLayout *get_pango_layout() const {
 				return _layout.get();
 			}
+			/// Returns the offset of the text inside the layout rectangle.
+			[[nodiscard]] vec2d get_alignment_offset() const;
 		protected:
 			/// Contains length information about a single line.
 			struct _line_position {
@@ -270,9 +272,6 @@ namespace codepad::ui {
 			vec2d _layout_size; ///< The size of the virtual layout box.
 			_details::glib_object_ref<PangoLayout> _layout; ///< The underlying \p PangoLayout object.
 			vertical_text_alignment _valign = vertical_text_alignment::center; ///< Vertical text alignment.
-
-			/// Returns the offset of the text inside the layout rectangle.
-			[[nodiscard]] vec2d _get_offset() const;
 
 			/// Converts character indices to byte positions.
 			[[nodiscard]] std::pair<guint, guint> _char_to_byte(std::size_t beg, std::size_t len) const;
@@ -411,6 +410,26 @@ namespace codepad::ui {
 			[[nodiscard]] double _get_part_width(std::size_t block) const;
 		};
 
+
+		namespace _details {
+			using namespace ui::_details;
+
+			/// Casts a \ref ui::formatted_text to a \ref formatted_text.
+			[[nodiscard]] inline const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
+				auto *rt = dynamic_cast<const formatted_text*>(&t);
+				assert_true_usage(rt, "invalid formatted text type");
+				return *rt;
+			}
+
+			/// Casts a \ref ui::plain_text to a \ref plain_text.
+			[[nodiscard]] inline const plain_text &cast_plain_text(const ui::plain_text &t) {
+				auto *rt = dynamic_cast<const plain_text*>(&t);
+				assert_true_usage(rt, "invalid plain text type");
+				return *rt;
+			}
+		}
+
+
 		/// Context for text layout.
 		class text_context {
 			friend font_family;
@@ -444,7 +463,7 @@ namespace codepad::ui {
 
 			/// Creates a new \ref text_format.
 			[[nodiscard]] std::shared_ptr<ui::font_family> find_font_family(const std::u8string &family) {
-				auto pattern = ui::_details::make_gtk_object_ref_give(FcPatternCreate());
+				auto pattern = _details::make_gtk_object_ref_give(FcPatternCreate());
 				FcPatternAddString(pattern.get(), FC_FAMILY, reinterpret_cast<const FcChar8*>(family.c_str()));
 				return std::make_shared<pango_harfbuzz::font_family>(*this, std::move(pattern));
 			}
@@ -493,7 +512,7 @@ namespace codepad::ui {
 			[[nodiscard]] std::shared_ptr<plain_text> create_plain_text(
 				std::basic_string_view<codepoint> text, ui::font &generic_fnt, double font_size
 			) {
-				auto buf = ui::_details::make_gtk_object_ref_give(hb_buffer_create());
+				auto buf = _details::make_gtk_object_ref_give(hb_buffer_create());
 				for (std::size_t i = 0; i < text.size(); ++i) {
 					hb_buffer_add(buf.get(), text[i], static_cast<unsigned int>(i));
 				}
@@ -526,22 +545,5 @@ namespace codepad::ui {
 				_details::gtk_object_ref<hb_buffer_t>, ui::font&, double
 			);
 		};
-
-
-		namespace _details {
-			/// Casts a \ref ui::formatted_text to a \ref formatted_text.
-			[[nodiscard]] inline const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
-				auto *rt = dynamic_cast<const formatted_text*>(&t);
-				assert_true_usage(rt, "invalid formatted text type");
-				return *rt;
-			}
-
-			/// Casts a \ref ui::plain_text to a \ref plain_text.
-			[[nodiscard]] inline const plain_text &cast_plain_text(const ui::plain_text &t) {
-				auto *rt = dynamic_cast<const plain_text*>(&t);
-				assert_true_usage(rt, "invalid plain text type");
-				return *rt;
-			}
-		}
 	}
 }

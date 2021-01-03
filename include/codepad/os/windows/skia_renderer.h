@@ -8,7 +8,7 @@
 
 #include <gl/GL.h>
 
-#include "../../ui/skia_renderer_base.h"
+#include "../../ui/backends/skia_renderer_base.h"
 #include "misc.h"
 
 namespace codepad::os {

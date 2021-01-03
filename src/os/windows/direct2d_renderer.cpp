@@ -6,12 +6,14 @@
 /// \file
 /// Implementation of the Direct2D renderer.
 
+#include "codepad/ui/misc.h"
+
 namespace codepad::os::direct2d {
 	namespace _details { // cast objects to types specific to the direct2d renderer
 		using namespace os::_details; // import stuff from common win32
 
 		/// Converts a \ref matd3x3 to a \p D2D1_MATRIX_3X2_F.
-		D2D1_MATRIX_3X2_F cast_matrix(matd3x3 m) {
+		[[nodiscard]] D2D1_MATRIX_3X2_F cast_matrix(matd3x3 m) {
 			// the resulting matrix is transposed
 			D2D1_MATRIX_3X2_F mat;
 			mat.m11 = static_cast<FLOAT>(m[0][0]);
@@ -23,7 +25,7 @@ namespace codepad::os::direct2d {
 			return mat;
 		}
 		/// Converts a \ref matd3x3 to a \p DWRITE_MATRIX.
-		DWRITE_MATRIX cast_dwrite_matrix(matd3x3 m) {
+		[[nodiscard]] DWRITE_MATRIX cast_dwrite_matrix(matd3x3 m) {
 			// the resulting matrix is transposed
 			DWRITE_MATRIX mat;
 			mat.m11 = static_cast<FLOAT>(m[0][0]);
@@ -35,7 +37,7 @@ namespace codepad::os::direct2d {
 			return mat;
 		}
 		/// Converts a \ref colord to a \p D2D1_COLOR_F.
-		D2D1_COLOR_F cast_color(colord c) {
+		[[nodiscard]] D2D1_COLOR_F cast_color(colord c) {
 			return D2D1::ColorF(
 				static_cast<FLOAT>(c.r),
 				static_cast<FLOAT>(c.g),
@@ -44,7 +46,7 @@ namespace codepad::os::direct2d {
 			);
 		}
 		/// Converts a \ref rectd to a \p D2D1_RECT_F.
-		D2D1_RECT_F cast_rect(rectd r) {
+		[[nodiscard]] D2D1_RECT_F cast_rect(rectd r) {
 			return D2D1::RectF(
 				static_cast<FLOAT>(r.xmin),
 				static_cast<FLOAT>(r.ymin),
@@ -53,21 +55,12 @@ namespace codepad::os::direct2d {
 			);
 		}
 		/// Converts a \ref vec2d to a \p D2D1_POINT_2F.
-		D2D1_POINT_2F cast_point(vec2d pt) {
+		[[nodiscard]] D2D1_POINT_2F cast_point(vec2d pt) {
 			return D2D1::Point2F(static_cast<FLOAT>(pt.x), static_cast<FLOAT>(pt.y));
 		}
 
-		/// Constructs a \p DWRITE_TEXT_RANGE.
-		DWRITE_TEXT_RANGE make_text_range(std::size_t beg, std::size_t len) {
-			DWRITE_TEXT_RANGE result;
-			result.startPosition = static_cast<UINT32>(beg);
-			// this works for size_t::max() as well since both types are unsigned
-			result.length = static_cast<UINT32>(len);
-			return result;
-		}
-
 		/// Casts a \ref ui::font_style to a \p DWRITE_FONT_STYLE.
-		DWRITE_FONT_STYLE cast_font_style(ui::font_style style) {
+		[[nodiscard]] DWRITE_FONT_STYLE cast_font_style(ui::font_style style) {
 			switch (style) {
 			case ui::font_style::normal:
 				return DWRITE_FONT_STYLE_NORMAL;
@@ -79,12 +72,12 @@ namespace codepad::os::direct2d {
 			return DWRITE_FONT_STYLE_NORMAL; // should not be here
 		}
 		/// Casts a \ref ui::font_weight to a \p DWRITE_FONT_WEIGHT.
-		DWRITE_FONT_WEIGHT cast_font_weight(ui::font_weight weight) {
+		[[nodiscard]] DWRITE_FONT_WEIGHT cast_font_weight(ui::font_weight weight) {
 			// TODO
 			return DWRITE_FONT_WEIGHT_REGULAR;
 		}
 		/// Casts a \ref ui::font_stretch to a \p DWRITE_FONT_STRETCH.
-		DWRITE_FONT_STRETCH cast_font_stretch(ui::font_stretch stretch) {
+		[[nodiscard]] DWRITE_FONT_STRETCH cast_font_stretch(ui::font_stretch stretch) {
 			switch (stretch) {
 			case ui::font_stretch::ultra_condensed:
 				return DWRITE_FONT_STRETCH_ULTRA_CONDENSED;
@@ -108,7 +101,7 @@ namespace codepad::os::direct2d {
 			return DWRITE_FONT_STRETCH_NORMAL; // should not be here
 		}
 		/// Casts a \ref ui::horizontal_text_alignment to a \p DWRITE_TEXT_ALIGNMENT.
-		DWRITE_TEXT_ALIGNMENT cast_horizontal_text_alignment(ui::horizontal_text_alignment align) {
+		[[nodiscard]] DWRITE_TEXT_ALIGNMENT cast_horizontal_text_alignment(ui::horizontal_text_alignment align) {
 			switch (align) {
 			case ui::horizontal_text_alignment::center:
 				return DWRITE_TEXT_ALIGNMENT_CENTER;
@@ -120,7 +113,7 @@ namespace codepad::os::direct2d {
 			return DWRITE_TEXT_ALIGNMENT_LEADING; // should not be here
 		}
 		/// Casts a \ref ui::vertical_text_alignment to a \p DWRITE_PARAGRAPH_ALIGNMENT.
-		DWRITE_PARAGRAPH_ALIGNMENT cast_vertical_text_alignment(ui::vertical_text_alignment align) {
+		[[nodiscard]] DWRITE_PARAGRAPH_ALIGNMENT cast_vertical_text_alignment(ui::vertical_text_alignment align) {
 			switch (align) {
 			case ui::vertical_text_alignment::top:
 				return DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
@@ -132,7 +125,7 @@ namespace codepad::os::direct2d {
 			return DWRITE_PARAGRAPH_ALIGNMENT_NEAR; // should not be here
 		}
 		/// Casts a \ref ui::wrapping_mode to a \p DWRITE_WORD_WRAPPING.
-		DWRITE_WORD_WRAPPING cast_wrapping_mode(ui::wrapping_mode wrap) {
+		[[nodiscard]] DWRITE_WORD_WRAPPING cast_wrapping_mode(ui::wrapping_mode wrap) {
 			switch (wrap) {
 			case ui::wrapping_mode::none:
 				return DWRITE_WORD_WRAPPING_NO_WRAP;
@@ -143,7 +136,7 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Underlying implementation of various <tt>cast_*</tt> functions.
-		template <typename To, typename From> To &cast_object(From &f) {
+		template <typename To, typename From> [[nodiscard]] To &cast_object(From &f) {
 #ifdef CP_CHECK_LOGICAL_ERRORS
 			To *res = dynamic_cast<To*>(&f);
 			assert_true_logical(res, "invalid object type");
@@ -154,27 +147,27 @@ namespace codepad::os::direct2d {
 		}
 
 		/// Casts a \ref ui::render_target to a \ref render_target.
-		render_target &cast_render_target(ui::render_target &t) {
+		[[nodiscard]] render_target &cast_render_target(ui::render_target &t) {
 			return cast_object<render_target>(t);
 		}
 		/// Casts a \ref ui::bitmap to a \ref bitmap.
-		bitmap &cast_bitmap(ui::bitmap &b) {
+		[[nodiscard]] bitmap &cast_bitmap(ui::bitmap &b) {
 			return cast_object<bitmap>(b);
 		}
 		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
-		const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
+		[[nodiscard]] const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
 			return cast_object<const formatted_text>(t);
 		}
 		/// Casts a \ref ui::font to a \ref font.
-		font &cast_font(ui::font &f) {
+		[[nodiscard]] font &cast_font(ui::font &f) {
 			return cast_object<font>(f);
 		}
 		/// Casts a \ref ui::font_family to a \ref font_family.
-		font_family &cast_font_family(ui::font_family &f) {
+		[[nodiscard]] font_family &cast_font_family(ui::font_family &f) {
 			return cast_object<font_family>(f);
 		}
 		/// Casts a \ref ui::plain_text to a \ref plain_text.
-		const plain_text &cast_plain_text(const ui::plain_text &f) {
+		[[nodiscard]] const plain_text &cast_plain_text(const ui::plain_text &f) {
 			return cast_object<const plain_text>(f);
 		}
 	}
@@ -203,13 +196,24 @@ namespace codepad::os::direct2d {
 		} else {
 			_details::com_check(res);
 		}
+
 		std::vector<ui::line_metrics> resvec;
 		resvec.reserve(ressize);
+		std::size_t position = 0, word_position = 0;
 		for (std::size_t i = 0; i < ressize; ++i) {
-			resvec.emplace_back(
-				bufptr[i].length - bufptr[i].newlineLength, bufptr[i].newlineLength,
-				bufptr[i].height, bufptr[i].baseline
-			);
+			ui::line_metrics &line = resvec.emplace_back();
+			line.height = bufptr[i].height;
+			line.baseline = bufptr[i].baseline;
+
+			word_position += bufptr[i].length - bufptr[i].newlineLength;
+			std::size_t end = _word_index_to_char_index(word_position);
+			word_position += bufptr[i].newlineLength;
+			std::size_t linebreak_end = _word_index_to_char_index(word_position);
+
+			line.non_linebreak_characters = end - position;
+			line.linebreak_characters = linebreak_end - end;
+
+			position = linebreak_end;
 		}
 		return resvec;
 	}
@@ -225,7 +229,7 @@ namespace codepad::os::direct2d {
 			std::swap(placement.xmin, placement.xmax);
 		}
 		return ui::caret_hit_test_result(
-			static_cast<std::size_t>(metrics.textPosition),
+			_word_index_to_char_index(static_cast<std::size_t>(metrics.textPosition)),
 			placement,
 			metrics.bidiLevel % 2 == 1, trailing != 0
 		);
@@ -234,7 +238,9 @@ namespace codepad::os::direct2d {
 	rectd formatted_text::get_character_placement(std::size_t pos) const {
 		FLOAT px, py;
 		DWRITE_HIT_TEST_METRICS metrics;
-		_details::com_check(_text->HitTestTextPosition(static_cast<UINT32>(pos), false, &px, &py, &metrics));
+		_details::com_check(_text->HitTestTextPosition(
+			static_cast<UINT32>(_char_index_to_word_index(pos)), false, &px, &py, &metrics
+		));
 		rectd result = rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
 		if (metrics.bidiLevel % 2 != 0) {
 			std::swap(result.xmin, result.xmax);
@@ -246,16 +252,17 @@ namespace codepad::os::direct2d {
 		constexpr UINT32 static_buffer_size = 20;
 		static DWRITE_HIT_TEST_METRICS static_buffer[static_buffer_size];
 
+		DWRITE_TEXT_RANGE range = _make_text_range(beg, len);
 		UINT32 count = 0;
 		HRESULT hres = _text->HitTestTextRange(
-			static_cast<UINT32>(beg), static_cast<UINT32>(len), 0.0f, 0.0f, static_buffer, static_buffer_size, &count
+			range.startPosition, range.length, 0.0f, 0.0f, static_buffer, static_buffer_size, &count
 		);
 		const DWRITE_HIT_TEST_METRICS *result_ptr = static_buffer;
 		std::vector<DWRITE_HIT_TEST_METRICS> buffer;
 		if (hres == E_NOT_SUFFICIENT_BUFFER) {
 			buffer.resize(count);
 			_details::com_check(_text->HitTestTextRange(
-				static_cast<UINT32>(beg), static_cast<UINT32>(len), 0.0f, 0.0f, buffer.data(), count, &count
+				range.startPosition, range.length, 0.0f, 0.0f, buffer.data(), count, &count
 			));
 			result_ptr = buffer.data();
 		} else {
@@ -278,42 +285,85 @@ namespace codepad::os::direct2d {
 	}
 
 	void formatted_text::set_layout_size(vec2d sz) {
-		_details::com_check(_text->SetMaxWidth(static_cast<FLOAT>(sz.x)));
-		_details::com_check(_text->SetMaxHeight(static_cast<FLOAT>(sz.y)));
+		_details::com_check(_text->SetMaxWidth(static_cast<FLOAT>(std::max(sz.x, 0.0))));
+		_details::com_check(_text->SetMaxHeight(static_cast<FLOAT>(std::max(sz.y, 0.0))));
 	}
 
 	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
 		_details::com_wrapper<ID2D1SolidColorBrush> brush;
 		_rend._d2d_device_context->CreateSolidColorBrush(_details::cast_color(c), brush.get_ref());
-		_details::com_check(_text->SetDrawingEffect(brush.get(), _details::make_text_range(beg, len)));
+		_details::com_check(_text->SetDrawingEffect(brush.get(), _make_text_range(beg, len)));
 	}
 
 	void formatted_text::set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) {
 		_details::com_check(_text->SetFontFamilyName(
-			_details::utf8_to_wstring(family).c_str(), _details::make_text_range(beg, len)
+			_details::utf8_to_wstring(family).c_str(), _make_text_range(beg, len)
 		));
 	}
 
 	void formatted_text::set_font_size(double size, std::size_t beg, std::size_t len) {
-		_details::com_check(_text->SetFontSize(static_cast<FLOAT>(size), _details::make_text_range(beg, len)));
+		_details::com_check(_text->SetFontSize(static_cast<FLOAT>(size), _make_text_range(beg, len)));
 	}
 
 	void formatted_text::set_font_style(ui::font_style style, std::size_t beg, std::size_t len) {
 		_details::com_check(_text->SetFontStyle(
-			_details::cast_font_style(style), _details::make_text_range(beg, len)
+			_details::cast_font_style(style), _make_text_range(beg, len)
 		));
 	}
 
 	void formatted_text::set_font_weight(ui::font_weight weight, std::size_t beg, std::size_t len) {
 		_details::com_check(_text->SetFontWeight(
-			_details::cast_font_weight(weight), _details::make_text_range(beg, len)
+			_details::cast_font_weight(weight), _make_text_range(beg, len)
 		));
 	}
 
 	void formatted_text::set_font_stretch(ui::font_stretch stretch, std::size_t beg, std::size_t len) {
 		_details::com_check(_text->SetFontStretch(
-			_details::cast_font_stretch(stretch), _details::make_text_range(beg, len)
+			_details::cast_font_stretch(stretch), _make_text_range(beg, len)
 		));
+	}
+
+	std::size_t formatted_text::_char_index_to_word_index(std::size_t i) const {
+		auto iter = std::lower_bound(_surrogate_chars.begin(), _surrogate_chars.end(), i);
+		return std::max(i, i + (iter - _surrogate_chars.begin()));
+	}
+
+	std::size_t formatted_text::_word_index_to_char_index(std::size_t i) const {
+		if (_surrogate_chars.empty() || i <= _surrogate_chars[0]) {
+			return i;
+		}
+
+		auto beg = _surrogate_chars.begin(), end = _surrogate_chars.end();
+		std::size_t prev_surrogate_word_index = _surrogate_chars[0];
+		while (end != beg + 1) {
+			auto mid = beg + (end - beg) / 2;
+			prev_surrogate_word_index = *mid + (mid - beg);
+			if (prev_surrogate_word_index < i) {
+				beg = mid;
+			} else {
+				end = mid;
+			}
+		}
+
+		std::size_t offset = i - (prev_surrogate_word_index + 1);
+		if (offset == 0) {
+			logger::get().log_warning(CP_HERE) << "word index is at second word of a surrogate pair: " << i;
+		}
+		return *beg + offset;
+	}
+
+	DWRITE_TEXT_RANGE formatted_text::_make_text_range(std::size_t beg, std::size_t len) const {
+		std::size_t word_beg = _char_index_to_word_index(beg), word_end = beg + len;
+		if (std::numeric_limits<std::size_t>::max() - len < beg) {
+			word_end = std::numeric_limits<std::size_t>::max();
+		}
+		word_end = _char_index_to_word_index(word_end);
+
+		DWRITE_TEXT_RANGE result;
+		result.startPosition = static_cast<UINT32>(word_beg);
+		// this works for size_t::max() as well since both types are unsigned
+		result.length = static_cast<UINT32>(word_end - word_beg);
+		return result;
 	}
 
 
@@ -774,8 +824,36 @@ namespace codepad::os::direct2d {
 		std::u8string_view text, const ui::font_parameters &params, colord c, vec2d maxsize, ui::wrapping_mode wrap,
 		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 	) {
-		auto converted = _details::utf8_to_wstring(text);
-		return _create_formatted_text_impl(converted, params, c, maxsize, wrap, halign, valign);
+		std::basic_string<std::byte> bytestr;
+		bytestr.reserve(text.size() * 2);
+
+		std::vector<std::size_t> surrogate;
+		std::size_t num_chars = 0;
+		ui::linebreak_analyzer analyzer(
+			[&num_chars](std::size_t nonbreak_chars, ui::line_ending ending) {
+				num_chars += nonbreak_chars + ui::get_line_ending_length(ending);
+			}
+		);
+
+		std::size_t i = 0;
+		for (auto it = text.begin(); it != text.end(); ++i) {
+			codepoint cp;
+			if (!encodings::utf8::next_codepoint(it, text.end(), cp)) {
+				cp = encodings::replacement_character;
+			}
+			analyzer.put(cp);
+			auto encoded = encodings::utf16<>::encode_codepoint(cp);
+			if (encoded.size() == 4) {
+				surrogate.emplace_back(i);
+			}
+			bytestr += encoded;
+		}
+		analyzer.finish();
+
+		return _create_formatted_text_impl(
+			std::basic_string_view<WCHAR>(reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2),
+			params, c, maxsize, wrap, halign, valign, std::move(surrogate), num_chars
+		);
 	}
 
 	std::shared_ptr<ui::formatted_text> renderer::create_formatted_text(
@@ -784,12 +862,29 @@ namespace codepad::os::direct2d {
 		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 	) {
 		std::basic_string<std::byte> bytestr;
-		for (codepoint cp : text) {
-			bytestr += encodings::utf16<>::encode_codepoint(cp);
+		bytestr.reserve(text.size());
+
+		std::vector<std::size_t> surrogate;
+		std::size_t num_chars = 0;
+		ui::linebreak_analyzer analyzer(
+			[&num_chars](std::size_t nonbreak_chars, ui::line_ending ending) {
+				num_chars += nonbreak_chars + ui::get_line_ending_length(ending);
+			}
+		);
+
+		for (std::size_t i = 0; i < text.size(); ++i) {
+			analyzer.put(text[i]);
+			auto encoded = encodings::utf16<>::encode_codepoint(text[i]);
+			if (encoded.size() == 4) {
+				surrogate.emplace_back(i);
+			}
+			bytestr += encoded;
 		}
+		analyzer.finish();
+
 		return _create_formatted_text_impl(
 			std::basic_string_view<WCHAR>(reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2),
-			params, c, maxsize, wrap, halign, valign
+			params, c, maxsize, wrap, halign, valign, std::move(surrogate), num_chars
 		);
 	}
 
@@ -1072,10 +1167,11 @@ namespace codepad::os::direct2d {
 	std::shared_ptr<formatted_text> renderer::_create_formatted_text_impl(
 		std::basic_string_view<WCHAR> text, const ui::font_parameters &fmt, colord c,
 		vec2d maxsize, ui::wrapping_mode wrap,
-		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
+		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
+		std::vector<std::size_t> surrogate, std::size_t num_chars
 	) {
 		// use new to access protedted constructor
-		auto res = std::make_shared<formatted_text>(*this);
+		auto res = std::make_shared<formatted_text>(*this, std::move(surrogate), num_chars);
 
 		_details::com_wrapper<IDWriteTextFormat> format;
 		_details::com_check(_dwrite_factory->CreateTextFormat(

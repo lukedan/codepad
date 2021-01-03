@@ -32,7 +32,7 @@ namespace codepad::os {
 		/// Shows an open file dialog that asks the user to select one or multiple files.
 		///
 		/// \return The list of files that the user selects, or empty if the user cancels the operation.
-		static std::vector<std::filesystem::path> show_open_dialog(const ui::window_base*, type);
+		[[nodiscard]] static std::vector<std::filesystem::path> show_open_dialog(const ui::window_base*, type);
 	};
 
 	/// Contains functions associated with clipboards.
@@ -41,8 +41,18 @@ namespace codepad::os {
 		/// Copies the given text to the clipboard.
 		static void set_text(std::u8string_view);
 		/// Retrieves text from the clipboard.
-		static std::optional<std::u8string> get_text();
+		[[nodiscard]] static std::optional<std::u8string> get_text();
 		/// Returns if there's text in the clipboard.
 		static bool is_text_available();
+	};
+
+	/// Getters for various platform-dependent system parameters.
+	class system_parameters {
+	public:
+		/// Returns the radius of the zone where a drag operation is ready but does not start.
+		[[nodiscard]] static double get_drag_deadzone_radius();
+
+		/// Returns the width of the console window.
+		[[nodiscard]] static std::size_t get_console_width();
 	};
 }

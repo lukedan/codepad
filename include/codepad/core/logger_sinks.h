@@ -105,9 +105,6 @@ namespace codepad::logger_sinks {
 		void _print_left(color_scheme::entry, std::u8string_view = u8" ") const;
 		/// Prints the message with a fixed width.
 		void _print_w(std::u8string_view, color_scheme::entry scheme, color_scheme::entry banner, std::size_t) const;
-
-		/// Returns the width of the console window. This function is platform-specific.
-		static std::size_t _get_console_width();
 	};
 
 	/// A sink that writes logging information to a file.

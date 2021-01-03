@@ -9,7 +9,6 @@
 #include <processthreadsapi.h>
 #include <commdlg.h>
 
-#include "codepad/core/logger_sinks.h"
 #include "codepad/ui/manager.h"
 #include "codepad/os/windows/misc.h"
 #include "codepad/os/windows/window.h"
@@ -282,6 +281,20 @@ namespace codepad::os {
 		_details::winapi_check(CloseClipboard());
 		return result;
 	}
+
+
+	double system_parameters::get_drag_deadzone_radius() {
+		return std::abs(GetSystemMetrics(SM_CXDRAG));
+	}
+
+	std::size_t system_parameters::get_console_width() {
+		HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+		os::_details::winapi_check(out != nullptr);
+		os::_details::winapi_check(out != INVALID_HANDLE_VALUE);
+		CONSOLE_SCREEN_BUFFER_INFO info;
+		os::_details::winapi_check(GetConsoleScreenBufferInfo(out, &info));
+		return static_cast<std::size_t>(info.srWindow.Right - info.srWindow.Left + 1);
+	}
 }
 
 
@@ -341,18 +354,6 @@ namespace codepad {
 #endif
 
 
-namespace codepad::logger_sinks {
-	std::size_t console_sink::_get_console_width() {
-		HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-		os::_details::winapi_check(out != nullptr);
-		os::_details::winapi_check(out != INVALID_HANDLE_VALUE);
-		CONSOLE_SCREEN_BUFFER_INFO info;
-		os::_details::winapi_check(GetConsoleScreenBufferInfo(out, &info));
-		return static_cast<std::size_t>(info.srWindow.Right - info.srWindow.Left + 1);
-	}
-}
-
-
 namespace codepad::ui {
 	/*font_parameters font_manager::get_default_ui_font_parameters() {
 		NONCLIENTMETRICS ncmetrics;
@@ -384,11 +385,6 @@ namespace codepad::ui {
 			(logfnt.lfItalic ? font_style::italic : font_style::normal)
 		);
 	}*/
-
-
-	double manager::get_drag_deadzone_radius() {
-		return std::abs(GetSystemMetrics(SM_CXDRAG));
-	}
 
 
 	bool scheduler::_main_iteration_system_impl(wait_type ty) {

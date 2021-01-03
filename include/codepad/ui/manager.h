@@ -202,11 +202,6 @@ namespace codepad::ui {
 
 			arrangements_parser<ValueType> parser(*this);
 		}
-
-
-		/// Returns the radius of the zone where a drag operation is ready but does not start. This function is
-		/// platform-specific.
-		static double get_drag_deadzone_radius();
 	protected:
 		class_arrangements_registry _class_arrangements; ///< All class arrangements.
 		class_hotkeys_registry _class_hotkeys; ///< All class hotkeys.

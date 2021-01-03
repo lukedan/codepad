@@ -251,13 +251,17 @@ namespace codepad {
 				height = 0.0, ///< The height of this line.
 				baseline = 0.0; ///< The distance from the top of the line to the baseline.
 		};
-		/// A piece of text, possibly containing text with various different formats.
+		/// A piece of text with advanced layout and shaping, possibly containing text with different formats and
+		/// styles. The functions that involve characters deal with codepoints, i.e., \r\n is trated as two
+		/// characters, while a surrogate pair is treated as a single character.
 		class formatted_text {
 		public:
 			/// Default virtual destructor.
 			virtual ~formatted_text() = default;
 
-			/// Returns the region occupied by the text in the layout region.
+			/// Returns the region occupied by the text relative to the layout region. The layout region is a
+			/// rectangle with its top-left corner positioned at the origin and specified when creating this
+			/// \ref formatted_text or with \ref set_layout_size().
 			[[nodiscard]] virtual rectd get_layout() const = 0;
 			/// Returns the metrics of all lines.
 			[[nodiscard]] virtual std::vector<line_metrics> get_line_metrics() const = 0;
@@ -269,7 +273,9 @@ namespace codepad {
 			[[nodiscard]] virtual caret_hit_test_result hit_test(vec2d) const = 0;
 			/// Retrieves information about the character on the given line at the given horizontal position.
 			[[nodiscard]] virtual caret_hit_test_result hit_test_at_line(std::size_t, double) const = 0;
-			/// Returns the space occupied by the character at the given position.
+			/// Returns the space occupied by the character at the given position. For right-to-left characters, this
+			/// returns a rectangle with negative width (i.e., xmin is the right side of the character and xmax is
+			/// the left side of the character).
 			[[nodiscard]] virtual rectd get_character_placement(std::size_t) const = 0;
 			/// Returns the positions occupied by the given range of text.
 			[[nodiscard]] virtual std::vector<rectd> get_character_range_placement(

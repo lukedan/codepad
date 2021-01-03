@@ -8,7 +8,7 @@
 
 #include <cairo-win32.h>
 
-#include "../../ui/cairo_renderer_base.h"
+#include "../../ui/backends/cairo_renderer_base.h"
 
 namespace codepad::os {
 	/// Windows implementation of the Cairo renderer.

@@ -1,7 +1,7 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "codepad/ui/pango_harfbuzz_text_context.h"
+#include "codepad/ui/backends/pango_harfbuzz_text_context.h"
 
 /// \file
 /// Implementation of text layout using Pango, Harfbuzz, Freetype, and Fontconfig.
@@ -109,7 +109,7 @@ namespace codepad::ui::pango_harfbuzz {
 	rectd formatted_text::get_layout() const {
 		PangoRectangle layout;
 		pango_layout_get_extents(_layout.get(), nullptr, &layout);
-		return _details::cast_rect_back(layout).translated(_get_offset());
+		return _details::cast_rect_back(layout).translated(get_alignment_offset());
 	}
 
 	std::vector<line_metrics> formatted_text::get_line_metrics() const {
@@ -139,7 +139,7 @@ namespace codepad::ui::pango_harfbuzz {
 	}
 
 	caret_hit_test_result formatted_text::hit_test(vec2d pos) const {
-		vec2d offset = _get_offset();
+		vec2d offset = get_alignment_offset();
 		pos -= offset;
 		int index = 0, trailing = 0;
 		PangoRectangle rect;
@@ -159,7 +159,7 @@ namespace codepad::ui::pango_harfbuzz {
 	}
 
 	caret_hit_test_result formatted_text::hit_test_at_line(std::size_t line, double x) const {
-		vec2d offset = _get_offset();
+		vec2d offset = get_alignment_offset();
 		x -= offset.x;
 		caret_hit_test_result res;
 		PangoLayoutLine *pango_line = pango_layout_get_line_readonly(_layout.get(), static_cast<int>(line));
@@ -187,7 +187,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_layout_index_to_pos(
 			_layout.get(), static_cast<int>(_bytepos[std::min(pos, _bytepos.size() - 1)]), &rect
 		);
-		return _details::cast_rect_back(rect).translated(_get_offset());
+		return _details::cast_rect_back(rect).translated(get_alignment_offset());
 	}
 
 	std::vector<rectd> formatted_text::get_character_range_placement(std::size_t beg, std::size_t len) const {
@@ -249,7 +249,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_layout_iter_free(pango_iter);
 
 		// offset all regions
-		vec2d offset = _get_offset();
+		vec2d offset = get_alignment_offset();
 		for (rectd &r : result) {
 			r = r.translated(offset);
 		}
@@ -312,7 +312,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
 	}
 
-	vec2d formatted_text::_get_offset() const {
+	vec2d formatted_text::get_alignment_offset() const {
 		PangoAlignment halign = pango_layout_get_alignment(_layout.get());
 		if (_valign == vertical_text_alignment::top && halign == PANGO_ALIGN_LEFT) {
 			return vec2d();
@@ -352,7 +352,7 @@ namespace codepad::ui::pango_harfbuzz {
 	std::shared_ptr<ui::font> font_family::get_matching_font(
 		font_style style, font_weight weight, font_stretch stretch
 	) const {
-		auto patt = ui::_details::make_gtk_object_ref_give(FcPatternDuplicate(_pattern.get()));
+		auto patt = _details::make_gtk_object_ref_give(FcPatternDuplicate(_pattern.get()));
 
 		// FIXME what are these return values?
 		FcPatternAddInteger(patt.get(), FC_SLANT, _details::cast_font_style_fontconfig(style));
@@ -366,7 +366,7 @@ namespace codepad::ui::pango_harfbuzz {
 		FcDefaultSubstitute(patt.get());
 
 		FcResult result;
-		auto res_patt = ui::_details::make_gtk_object_ref_give(FcFontMatch(nullptr, patt.get(), &result));
+		auto res_patt = _details::make_gtk_object_ref_give(FcFontMatch(nullptr, patt.get(), &result));
 		assert_true_sys(result != FcResultOutOfMemory, "Fontconfig out of memory");
 
 		FcChar8 *file_name = nullptr;
@@ -378,11 +378,11 @@ namespace codepad::ui::pango_harfbuzz {
 		FcPatternGetInteger(res_patt.get(), FC_INDEX, 0, &font_index);
 
 		FT_Face face;
-		ui::_details::ft_check(FT_New_Face(
+		_details::ft_check(FT_New_Face(
 			_ctx._freetype, reinterpret_cast<const char*>(file_name), font_index, &face
 		));
 
-		return std::make_shared<font>(ui::_details::make_freetype_face_ref_give(face));
+		return std::make_shared<font>(_details::make_freetype_face_ref_give(face));
 	}
 
 
@@ -497,7 +497,6 @@ namespace codepad::ui::pango_harfbuzz {
 
 		// horizontal wrapping
 		if (wrap == wrapping_mode::none) {
-			// FIXME alignment won't work for this case
 			pango_layout_set_width(result->_layout.get(), -1); // disable wrapping
 		} else {
 			pango_layout_set_width(result->_layout.get(), pango_units_from_double(size.x));
@@ -505,14 +504,14 @@ namespace codepad::ui::pango_harfbuzz {
 		}
 		pango_layout_set_alignment(result->_layout.get(), _details::cast_horizontal_alignment(halign));
 
-		// TODO vertical alignment
+		// vertical alignment is handled manually in get_alignment_offset()
 		// "The behavior is undefined if a height other than -1 is set and ellipsization mode is set to
 		// PANGO_ELLIPSIZE_NONE, and may change in the future."
 		// https://developer.gnome.org/pango/stable/pango-Layout-Objects.html#pango-layout-set-height
 		pango_layout_set_height(result->_layout.get(), -1);
 
 		{ // set color
-			auto attr_list = ui::_details::make_gtk_object_ref_give(pango_attr_list_new());
+			auto attr_list = _details::make_gtk_object_ref_give(pango_attr_list_new());
 			pango_attr_list_insert(attr_list.get(), pango_attr_foreground_new(
 				_details::cast_color_component(c.r),
 				_details::cast_color_component(c.g),
@@ -558,7 +557,7 @@ namespace codepad::ui::pango_harfbuzz {
 	}
 
 	std::shared_ptr<plain_text> text_context::_create_plain_text_impl(
-		ui::_details::gtk_object_ref<hb_buffer_t> buf, ui::font &generic_fnt, double font_size
+		_details::gtk_object_ref<hb_buffer_t> buf, ui::font &generic_fnt, double font_size
 	) {
 		auto fnt = _details::cast_font(generic_fnt);
 
@@ -570,7 +569,7 @@ namespace codepad::ui::pango_harfbuzz {
 		hb_buffer_set_script(buf.get(), HB_SCRIPT_LATIN);
 		hb_buffer_set_language(buf.get(), hb_language_from_string("en", -1));
 
-		ui::_details::ft_check(FT_Set_Char_Size(
+		_details::ft_check(FT_Set_Char_Size(
 			fnt._face.get(), 0, static_cast<FT_F26Dot6>(std::round(64.0 * font_size)), 96, 96
 		));
 		hb_font_t *hb_font = hb_ft_font_create(fnt._face.get(), nullptr);

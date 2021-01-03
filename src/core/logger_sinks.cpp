@@ -6,6 +6,8 @@
 /// \file
 /// Implementation of logger sinks.
 
+#include "codepad/os/misc.h"
+
 namespace codepad::logger_sinks {
 	void console_sink::on_message(
 		const std::chrono::duration<double> &time, const code_position &pos, log_level level, std::u8string_view text
@@ -26,7 +28,7 @@ namespace codepad::logger_sinks {
 			std::setiosflags(std::ios::fixed) << std::setw(static_cast<int>(_time_width)) <<
 			std::setprecision(2) << time.count();
 
-		std::size_t w = std::max(_get_console_width(), _time_width) - _time_width;
+		std::size_t w = std::max(os::system_parameters::get_console_width(), _time_width) - _time_width;
 
 		// TODO use std::format instead
 		std::stringstream ss;

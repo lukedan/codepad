@@ -231,11 +231,24 @@ namespace codepad::ui {
 			return _layout_params.height_alloc;
 		}
 
+		/// Sets the layout parameters of this element. This is only for debugging and could be overriden by
+		/// animations.
+		void set_layout_parameters_debug(const element_layout &layout) {
+			_layout_params = layout;
+			_on_layout_parameters_changed();
+		}
 		/// Returns the layout parameters for this \ref element.
 		[[nodiscard]] const element_layout &get_layout_parameters() const {
 			return _layout_params;
 		}
 
+		/// Sets the layout parameters of this element. This is only for debugging and could be overriden by
+		/// animations. It's also potentially dangerous to override existing visuals with animations using this,
+		/// which could lead to crashes and/or invalid reads/writes.
+		void set_visual_parameters_debug(visuals visual) {
+			_visual_params = std::move(visual);
+			invalidate_visual();
+		}
 		/// Returns the visual parameters for this \ref element.
 		[[nodiscard]] const visuals &get_visual_parameters() const {
 			return _visual_params;

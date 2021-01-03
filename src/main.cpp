@@ -1,6 +1,8 @@
 ﻿// Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
+#include <array>
+
 #include "codepad/core/logging.h"
 #include "codepad/core/logger_sinks.h"
 #include "codepad/core/plugins.h"
@@ -33,6 +35,74 @@
 using namespace codepad;
 using namespace codepad::os;
 using namespace codepad::ui;
+
+tabs::tab *make_textbox_test_tab(
+	manager &man,
+	tabs::tab_manager &tabman,
+	std::u8string_view text =
+	u8"this line ends with \\r\\n\r\n"
+	u8"this line ends with \\r\r"
+	u8"this line ends with \\n\n"
+	u8"emoji: 😊\n"
+	u8"rtl, longline: لحضور المؤتمر الدولي العاشر ليونيكود (Unicode Conference)، الذي سيعقد في 10-12 آذار 1997 بمدينة مَايِنْتْس، ألمانيا."
+) {
+	visuals textbox_visuals;
+	auto &bkg = textbox_visuals.geometries.emplace_back();
+	bkg.fill.value.emplace<brush_parameters::solid_color>().color = colord(1.0, 1.0, 1.0, 0.1);
+	bkg.stroke.brush.value.emplace<brush_parameters::solid_color>().color = colord(1.0, 0.0, 0.0, 1.0);
+	auto &bkg_rect = bkg.value.emplace<geometries::rectangle>();
+	bkg_rect.top_left = relative_vec2d(vec2d(), vec2d());
+	bkg_rect.bottom_right = relative_vec2d(vec2d(1.0, 1.0), vec2d());
+
+	element_layout textbox_layout;
+	textbox_layout.height_alloc = size_allocation_type::proportion;
+	textbox_layout.width_alloc = size_allocation_type::proportion;
+	textbox_layout.padding = thickness(2.0);
+	textbox_layout.size = vec2d(1.0, 1.0);
+
+	std::array<horizontal_text_alignment, 9> halign{
+		horizontal_text_alignment::front, horizontal_text_alignment::center, horizontal_text_alignment::rear,
+		horizontal_text_alignment::front, horizontal_text_alignment::center, horizontal_text_alignment::rear,
+		horizontal_text_alignment::front, horizontal_text_alignment::center, horizontal_text_alignment::rear
+	};
+	std::array<vertical_text_alignment, 9> valign{
+		vertical_text_alignment::top, vertical_text_alignment::top, vertical_text_alignment::top,
+		vertical_text_alignment::center, vertical_text_alignment::center, vertical_text_alignment::center,
+		vertical_text_alignment::bottom, vertical_text_alignment::bottom, vertical_text_alignment::bottom
+	};
+	std::array<anchor, 9> anc{
+		anchor::top_left, anchor::top, anchor::top_right,
+		anchor::left, anchor::none, anchor::right,
+		anchor::bottom_left, anchor::bottom, anchor::bottom_right
+	};
+	std::array<thickness, 9> margin{
+		thickness(30.0, 30.0, 2.4, 2.4), thickness(1.2, 30.0, 1.2, 2.4), thickness(2.4, 30.0, 30.0, 2.4),
+		thickness(30.0, 1.2, 2.4, 1.2), thickness(1.2, 1.2, 1.2, 1.2), thickness(2.4, 1.2, 30.0, 1.2),
+		thickness(30.0, 2.4, 2.4, 30.0), thickness(1.2, 2.4, 1.2, 30.0), thickness(2.4, 2.4, 30.0, 30.0)
+	};
+
+	auto *tab = tabman.new_tab();
+	tab->set_label(u8"textbox_test");
+
+	for (std::size_t i = 0; i < 9; ++i) {
+		auto *edit = man.create_element<text_edit>();
+
+		edit->set_horizontal_alignment(halign[i]);
+		edit->set_vertical_alignment(valign[i]);
+		edit->set_text(std::u8string(text));
+
+		edit->set_visual_parameters_debug(textbox_visuals);
+		textbox_layout.elem_anchor = anc[i];
+		textbox_layout.margin = margin[i];
+		edit->set_layout_parameters_debug(textbox_layout);
+
+		edit->set_clip_to_bounds(true);
+
+		tab->children().add(*edit);
+	}
+
+	return tab;
+}
 
 int main(int argc, char **argv) {
 	// startup
@@ -130,8 +200,16 @@ int main(int argc, char **argv) {
 		auto *stack = man.create_element<stack_panel>();
 		stack->set_orientation(orientation::vertical);
 
+		std::u8string_view test_text =
+			u8"this line ends with \\r\\n\r\n"
+			u8"this line ends with \\r\r"
+			u8"this line ends with \\n\n"
+			u8"emoji: 😊\n"
+			u8"rtl: لحضور المؤتمر الدولي العاشر ليونيكود (Unicode Conference)، الذي سيعقد في 10-12 آذار 1997 بمدينة مَايِنْتْس، ألمانيا.";
+
+
 		auto *text = man.create_element<text_edit>();
-		text->set_text(u8"this line ends with \\r\\n\r\nthis line ends with \\r\rsample text\nعندما يريد العالم أن ‪يتكلّم ‬ ،\n فهو يتحدّث بلغة يونيكود. تسجّل الآن \nلحضور المؤتمر الدولي العاشر ليونيكود (Unicode \nConference)، الذي سيعقد في 10-12 آذار 1997 بمدينة مَايِنْتْس، ألمانيا.\n و سيجمع المؤتمر بين خبراء من كافة قطاعات \nالصناعة على الشبكة العالمية انترنيت ويونيكود،\n حيث ستتم، على الصعيدين الدولي والمحلي على حد\n سواء مناقشة سبل استخدام يونكود في النظم القائمة\n وفيما يخص التطبيقات الحاسوبية،\n الخطوط، تصميم النصوص والحوسبة متعددة اللغات.");
+		text->set_text(std::u8string(test_text));
 		stack->children().add(*text);
 
 		auto *lbl = man.create_element<label>();
@@ -139,13 +217,16 @@ int main(int argc, char **argv) {
 		stack->children().add(*lbl);
 
 		auto *tb = man.create_element<textbox>();
-		tb->get_text_edit()->set_text(u8"textbox\ntest");
+		tb->get_text_edit()->set_text(std::u8string(test_text));
 		stack->children().add(*tb);
 
 		tabs::tab *tmptab = tabman.new_tab();
 		tmptab->set_label(u8"Welcome");
 		tmptab->children().add(*stack);
 		tmptab->get_host()->activate_tab(*tmptab);
+
+
+		make_textbox_test_tab(man, tabman);
 
 
 		// main loop

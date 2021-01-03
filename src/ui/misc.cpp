@@ -6,10 +6,11 @@
 /// \file
 /// Implementation of miscellaneous functionalities.
 
+#include "codepad/os/misc.h"
 #include "codepad/ui/manager.h"
 
 namespace codepad::ui {
-	drag_deadzone::drag_deadzone() : drag_deadzone(manager::get_drag_deadzone_radius()) {
+	drag_deadzone::drag_deadzone() : drag_deadzone(os::system_parameters::get_drag_deadzone_radius()) {
 	}
 
 	void drag_deadzone::start(const mouse_position &mouse, element &parent) {

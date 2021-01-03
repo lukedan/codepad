@@ -10,9 +10,9 @@
 
 #include <cairo.h>
 
-#include "../core/math.h"
-#include "renderer.h"
-#include "window.h"
+#include "../../core/math.h"
+#include "../renderer.h"
+#include "../window.h"
 #include "pango_harfbuzz_text_context.h"
 
 namespace codepad::ui::cairo {

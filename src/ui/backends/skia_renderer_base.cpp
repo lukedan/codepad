@@ -1,7 +1,7 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "codepad/ui/skia_renderer_base.h"
+#include "codepad/ui/backends/skia_renderer_base.h"
 
 /// \file
 /// Implementation of the Skia renderer.

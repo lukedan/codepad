@@ -73,16 +73,16 @@ endif()
 if(CODEPAD_USE_CAIRO)
 	target_sources(codepad_core
 		PRIVATE
-			"src/ui/pango_harfbuzz_text_context.cpp"
-			"src/ui/cairo_renderer_base.cpp")
+			"src/ui/backends/pango_harfbuzz_text_context.cpp"
+			"src/ui/backends/cairo_renderer_base.cpp")
 	target_compile_definitions(codepad_core
 		PUBLIC CP_USE_CAIRO)
 endif()
 if(CODEPAD_USE_SKIA)
 	target_sources(codepad_core
 		PRIVATE
-			"src/ui/pango_harfbuzz_text_context.cpp"
-			"src/ui/skia_renderer_base.cpp")
+			"src/ui/backends/pango_harfbuzz_text_context.cpp"
+			"src/ui/backends/skia_renderer_base.cpp")
 	target_compile_definitions(codepad_core
 		PUBLIC CP_USE_SKIA)
 endif()

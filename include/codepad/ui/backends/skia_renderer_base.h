@@ -23,9 +23,9 @@ namespace std {
 #include <skia/core/SkSurface.h>
 #include <skia/core/SkCanvas.h>
 
-#include "renderer.h"
+#include "../renderer.h"
+#include "../window.h"
 #include "pango_harfbuzz_text_context.h"
-#include "window.h"
 
 namespace codepad::ui::skia {
 	class renderer_base;

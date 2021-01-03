@@ -51,7 +51,9 @@ namespace codepad::os::direct2d {
 		friend renderer;
 	public:
 		/// Initializes \ref _rend.
-		explicit formatted_text(renderer &r) : _rend(r) {
+		explicit formatted_text(
+			renderer &r, std::vector<std::size_t> surrogate, std::size_t chars
+		) : _surrogate_chars(std::move(surrogate)), _rend(r), _num_chars(chars) {
 		}
 
 		/// Returns the layout of the text.
@@ -59,10 +61,9 @@ namespace codepad::os::direct2d {
 		/// Returns the metrics of each line.
 		std::vector<ui::line_metrics> get_line_metrics() const override;
 
-		/// Returns the total number of characters.
+		/// Returns \ref _num_chars.
 		std::size_t get_num_characters() const override {
-			// TODO
-			return 0;
+			return _num_chars;
 		}
 
 		/// Invokes \p IDWriteTextLayout::HitTestPoint().
@@ -96,8 +97,21 @@ namespace codepad::os::direct2d {
 		/// Calls \p IDWriteTextLayout::SetFontStretch().
 		void set_font_stretch(ui::font_stretch, std::size_t beg, std::size_t len) override;
 	protected:
+		/// Indices (character indices, not word indices) of characters that are surrogate pairs.
+		std::vector<std::size_t> _surrogate_chars;
 		_details::com_wrapper<IDWriteTextLayout> _text; ///< The \p IDWriteTextLayout handle.
 		renderer &_rend; ///< The renderer.
+		std::size_t _num_chars = 0; ///< The number of characters in this \ref formatted_text.
+
+		/// Converts character index to word index.
+		[[nodiscard]] std::size_t _char_index_to_word_index(std::size_t) const;
+		/// Converts word index to character index. If the word is the second part of a surrogate pair, a warning
+		/// message is logged.
+		[[nodiscard]] std::size_t _word_index_to_char_index(std::size_t) const;
+
+		/// Converts character positions to word indices using \ref _char_index_to_word_index() and returns the
+		/// resulting \p DWRITE_TEXT_RANGE object.
+		[[nodiscard]] DWRITE_TEXT_RANGE _make_text_range(std::size_t beg, std::size_t len) const;
 	};
 
 	/// Encapsules a \p IDWriteFontFace.
@@ -450,7 +464,8 @@ namespace codepad::os::direct2d {
 		std::shared_ptr<formatted_text> _create_formatted_text_impl(
 			std::basic_string_view<WCHAR>, const ui::font_parameters&, colord,
 			vec2d maxsize, ui::wrapping_mode,
-			ui::horizontal_text_alignment, ui::vertical_text_alignment
+			ui::horizontal_text_alignment, ui::vertical_text_alignment,
+			std::vector<std::size_t> surrogate, std::size_t num_chars
 		);
 		/// Creates a \ref plain_text object.
 		std::shared_ptr<plain_text> _create_plain_text_impl(

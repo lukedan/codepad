@@ -1,7 +1,7 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "codepad/ui/cairo_renderer_base.h"
+#include "codepad/ui/backends/cairo_renderer_base.h"
 
 /// \file
 /// Implementation of the cairo renderer.
@@ -10,6 +10,8 @@
 
 namespace codepad::ui::cairo {
 	namespace _details {
+		using namespace ui::_details;
+
 		/// Converts a \ref matd3x3 to a \p cairo_matrix_t.
 		[[nodiscard]] cairo_matrix_t cast_matrix(matd3x3 m) {
 			cairo_matrix_t result;
@@ -103,7 +105,7 @@ namespace codepad::ui::cairo {
 
 		// create surface
 		resbmp->_size = size;
-		resbmp->_surface = ui::_details::make_gtk_object_ref_give(
+		resbmp->_surface = _details::make_gtk_object_ref_give(
 			cairo_image_surface_create(
 				CAIRO_FORMAT_ARGB32,
 				static_cast<int>(std::ceil(size.x * scaling_factor.x)),
@@ -117,7 +119,7 @@ namespace codepad::ui::cairo {
 		cairo_surface_set_device_scale(resbmp->_surface.get(), scaling_factor.x, scaling_factor.y);
 
 		// create context
-		resrt->_context = ui::_details::make_gtk_object_ref_give(cairo_create(resbmp->_surface.get()));
+		resrt->_context = _details::make_gtk_object_ref_give(cairo_create(resbmp->_surface.get()));
 		assert_true_sys(
 			cairo_status(resrt->_context.get()) == CAIRO_STATUS_SUCCESS,
 			"failed to create cairo context"
@@ -159,6 +161,8 @@ namespace codepad::ui::cairo {
 		auto &text = pango_harfbuzz::_details::cast_formatted_text(ft);
 		cairo_t *context = _render_stack.top().context;
 
+		pos += text.get_alignment_offset();
+
 		pango_cairo_update_context(context, _text_context.get_pango_context());
 		pango_layout_context_changed(text.get_pango_layout());
 		cairo_move_to(context, pos.x, pos.y);
@@ -174,11 +178,11 @@ namespace codepad::ui::cairo {
 		// TODO this prevents the text from flickering, but is this the correct way to do it?
 		double sx, sy;
 		cairo_surface_get_device_scale(cairo_get_target(context), &sx, &sy);
-		ui::_details::ft_check(FT_Set_Char_Size(
+		_details::ft_check(FT_Set_Char_Size(
 			text.get_font(), 0, static_cast<FT_F26Dot6>(std::round(64.0 * text.get_font_size())), 96 * sx, 96 * sy
 		));
 
-		auto cairo_fnt = ui::_details::make_gtk_object_ref_give(
+		auto cairo_fnt = _details::make_gtk_object_ref_give(
 			cairo_ft_font_face_create_for_ft_face(text.get_font(), 0)
 		);
 		cairo_set_font_face(context, cairo_fnt.get());
@@ -211,11 +215,11 @@ namespace codepad::ui::cairo {
 		const ui::generic_brush &brush,
 		const ui::generic_pen &pen
 	) {
-		if (ui::_details::gtk_object_ref<cairo_pattern_t> brush_patt = _create_pattern(brush)) {
+		if (_details::gtk_object_ref<cairo_pattern_t> brush_patt = _create_pattern(brush)) {
 			cairo_set_source(context, brush_patt.get());
 			cairo_fill_preserve(context);
 		}
-		if (ui::_details::gtk_object_ref<cairo_pattern_t> pen_patt = _create_pattern(pen.brush)) {
+		if (_details::gtk_object_ref<cairo_pattern_t> pen_patt = _create_pattern(pen.brush)) {
 			cairo_set_source(context, pen_patt.get());
 			cairo_set_line_width(context, pen.thickness);
 			cairo_stroke_preserve(context);
@@ -225,10 +229,10 @@ namespace codepad::ui::cairo {
 		cairo_set_source_rgb(context, 1.0, 0.4, 0.7);
 	}
 
-	ui::_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::solid_color &brush
 	) {
-		return ui::_details::make_gtk_object_ref_give(
+		return _details::make_gtk_object_ref_give(
 			cairo_pattern_create_rgba(
 				brush.color.r, brush.color.g, brush.color.b, brush.color.a
 			));
@@ -242,53 +246,53 @@ namespace codepad::ui::cairo {
 		}
 	}
 
-	ui::_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::linear_gradient &brush
 	) {
 		if (brush.gradients) {
-			auto patt = ui::_details::make_gtk_object_ref_give(
+			auto patt = _details::make_gtk_object_ref_give(
 				cairo_pattern_create_linear(
 					brush.from.x, brush.from.y, brush.to.x, brush.to.y
 				));
 			_add_gradient_stops(patt.get(), *brush.gradients);
 			return patt;
 		}
-		return ui::_details::gtk_object_ref<cairo_pattern_t>();
+		return _details::gtk_object_ref<cairo_pattern_t>();
 	}
 
-	ui::_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::radial_gradient &brush
 	) {
 		if (brush.gradients) {
-			auto patt = ui::_details::make_gtk_object_ref_give(
+			auto patt = _details::make_gtk_object_ref_give(
 				cairo_pattern_create_radial(
 					brush.center.x, brush.center.y, 0.0, brush.center.x, brush.center.y, brush.radius
 				));
 			_add_gradient_stops(patt.get(), *brush.gradients);
 			return patt;
 		}
-		return ui::_details::gtk_object_ref<cairo_pattern_t>();
+		return _details::gtk_object_ref<cairo_pattern_t>();
 	}
 
-	ui::_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::bitmap_pattern &brush
 	) {
 		if (brush.image) {
-			return ui::_details::make_gtk_object_ref_give(
+			return _details::make_gtk_object_ref_give(
 				cairo_pattern_create_for_surface(
 					_details::cast_bitmap(*brush.image)._surface.get()
 				));
 		}
-		return ui::_details::gtk_object_ref<cairo_pattern_t>();
+		return _details::gtk_object_ref<cairo_pattern_t>();
 	}
 
-	ui::_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::none&
 	) {
-		return ui::_details::gtk_object_ref<cairo_pattern_t>();
+		return _details::gtk_object_ref<cairo_pattern_t>();
 	}
 
-	ui::_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const generic_brush &b
 	) {
 		auto pattern = std::visit([](auto &&brush) {
