@@ -82,15 +82,15 @@ namespace codepad::os {
 		g_object_unref(buf);
 		return tex;
 	}*/
+
+
+	double system_parameters::get_drag_deadzone_radius() {
+		return 5.0; // TODO
+	}
 }
 
 
 namespace codepad::ui {
-	double manager::get_drag_deadzone_radius() {
-		return 5.0; // TODO
-	}
-
-
 	bool scheduler::_main_iteration_system_impl(wait_type type) {
 		if (type == wait_type::non_blocking) {
 			if (gtk_events_pending()) {

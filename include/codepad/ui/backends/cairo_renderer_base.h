@@ -87,15 +87,6 @@ namespace codepad::ui::cairo {
 		/// Creates a new image surface as a render target and clears it.
 		render_target_data create_render_target(vec2d size, vec2d scaling_factor, colord clear) override;
 
-		/// Loads a \ref bitmap from disk as an image surface.
-		std::shared_ptr<ui::bitmap> load_bitmap(const std::filesystem::path &bmp, vec2d scaling_factor) override {
-			auto res = std::make_shared<bitmap>();
-
-			// TODO this may be platform-dependent
-
-			return res;
-		}
-
 		/// Invokes \ref pango_harfbuzz::text_context::find_font_family().
 		std::shared_ptr<ui::font_family> find_font_family(const std::u8string &family) override {
 			return _text_context.find_font_family(family);
@@ -254,6 +245,9 @@ namespace codepad::ui::cairo {
 		/// Holds the \p cairo_t associated with a window.
 		struct _window_data {
 			_details::gtk_object_ref<cairo_t> context; ///< The \p cairo_t.
+			window_base
+				*prev = nullptr, ///< Previous window. Forms a loop between all windows.
+				*next = nullptr; ///< Next window. Forms a loop between all windows.
 
 			/// Returns the associated \p cairo_surface_t.
 			[[nodiscard]] cairo_surface_t *get_surface() const {
@@ -282,6 +276,9 @@ namespace codepad::ui::cairo {
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of currently active render targets.
 		path_geometry_builder _path_builder; ///< The \ref path_geometry_builder.
 		pango_harfbuzz::text_context _text_context; ///< The context for text layout.
+		/// Pointer to a random window. This is used with \ref _window_data::prev and \ref _window_data::next to keep
+		/// track of all existing windows.
+		window_base *_random_window = nullptr;
 
 
 		/// Draws the current path using the given brush and pen.
@@ -295,30 +292,42 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Creates a new solid color pattern.
-		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::solid_color&
 		);
 		/// Adds gradient stops to a gradient pattern.
 		static void _add_gradient_stops(cairo_pattern_t*, const gradient_stop_collection&);
 		/// Creates a new linear gradient pattern.
-		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::linear_gradient&
 		);
 		/// Creates a new radial gradient pattern.
-		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::radial_gradient&
 		);
 		/// Creates a new bitmap gradient pattern.
-		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::bitmap_pattern&
 		);
 		/// Returns an empty \ref _details::gtk_object_ref.
-		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::none&
 		);
 		/// Creates a new \p cairo_pattern_t given the parameters of the brush.
-		static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
 			const generic_brush&
+		);
+
+
+		/// Creates a surface similar to that of the given window. By default this function invokes
+		/// \p cairo_surface_create_similar(), but derived classes can override this to change this behavior. This
+		/// function does not need to handle errors or device scaling.
+		[[nodiscard]] virtual _details::gtk_object_ref<cairo_surface_t> _create_similar_surface(
+			window_base &wnd, int width, int height
+		);
+		/// Creates a new offscreen surface for use as render targets or bitmap surfaces.
+		[[nodiscard]] _details::gtk_object_ref<cairo_surface_t> _create_offscreen_surface(
+			int width, int height, vec2d scale
 		);
 
 
@@ -331,8 +340,43 @@ namespace codepad::ui::cairo {
 		/// Called to finalize drawing to the current rendering target.
 		virtual void _finish_drawing_to_target() = 0;
 
+
+		/// Allow children classes to access \ref bitmap::_size.
+		[[nodiscard]] inline static vec2d &_bitmap_size(bitmap &bmp) {
+			return bmp._size;
+		}
+		/// Allow children classes to access \ref bitmap::_surface.
+		[[nodiscard]] inline static _details::gtk_object_ref<cairo_surface_t> &_bitmap_surface(bitmap &bmp) {
+			return bmp._surface;
+		}
+
+
+		/// Adds the window to the linked list loop pointed to by \ref _random_window.
+		void _new_window(window_base &w) override {
+			auto &data = _get_window_data(w).emplace<_window_data>();
+			if (_random_window) {
+				auto &next_data = _get_window_data_as<_window_data>(*_random_window);
+				auto &prev_data = _get_window_data_as<_window_data>(*next_data.prev);
+				data.next = _random_window;
+				data.prev = next_data.prev;
+				next_data.prev = prev_data.next = &w;
+			} else {
+				_random_window = data.next = data.prev = &w;
+			}
+		}
 		/// Releases all resources.
 		void _delete_window(window_base &w) override {
+			auto &data = _get_window_data_as<_window_data>(w);
+			if (data.next == &w) {
+				assert_true_logical(data.prev == &w && _random_window == &w, "invalid linked list loop");
+				_random_window = nullptr;
+			} else {
+				_random_window = data.next;
+				auto &next_data = _get_window_data_as<_window_data>(*data.next);
+				auto &prev_data = _get_window_data_as<_window_data>(*data.prev);
+				next_data.prev = data.prev;
+				prev_data.next = data.next;
+			}
 			_get_window_data(w).reset();
 		}
 	};

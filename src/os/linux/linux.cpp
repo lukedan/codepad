@@ -62,8 +62,8 @@ namespace codepad {
 #endif
 
 
-namespace codepad::logger_sinks {
-	std::size_t console_sink::_get_console_width() {
+namespace codepad::os {
+	std::size_t system_parameters::get_console_width() {
 		struct winsize result{};
 		int res = ioctl(STDOUT_FILENO, TIOCGWINSZ, &result);
 		assert_true_sys(res >= 0, "ioctl() failed");

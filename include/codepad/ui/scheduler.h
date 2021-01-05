@@ -154,8 +154,6 @@ namespace codepad::ui {
 
 		// update tasks
 		/// Registers a new update task.
-		///
-		/// \todo Should I mark this nodiscard?
 		task_token register_task(clock_t::time_point scheduled, element *e, task_function func) {
 			auto [it, inserted] = _tasks.emplace(e, std::list<_task_info>());
 			_task_info &task = it->second.emplace_back(scheduled, std::move(func), it);

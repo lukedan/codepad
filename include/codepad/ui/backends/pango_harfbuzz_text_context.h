@@ -169,6 +169,45 @@ namespace codepad::ui {
 		class text_context;
 
 
+		namespace _details {
+			using namespace ui::_details;
+
+			/// Used as keys of caching entries.
+			struct font_params {
+				/// Default constructor.
+				font_params() = default;
+				/// Initializes all fields of the struct.
+				font_params(font_style sty, font_weight w, font_stretch str) : style(sty), weight(w), stretch(str) {
+				}
+
+				font_style style = font_style::normal; ///< Font style.
+				font_weight weight = font_weight::normal; ///< Font weight.
+				font_stretch stretch = font_stretch::normal; ///< Font stretch.
+
+				/// Support comparison.
+				friend std::strong_ordering operator<=>(font_params, font_params) = default;
+			};
+			/// Hash function for \ref font_params.
+			struct font_params_hash {
+				/// The implementation.
+				std::size_t operator()(const font_params &params) const {
+					std::size_t res = std::hash<font_style>()(params.style);
+					res = combine_hashes(res, std::hash<font_weight>()(params.weight));
+					res = combine_hashes(res, std::hash<font_stretch>()(params.stretch));
+					return res;
+				}
+			};
+
+			/// An entry in the font cache.
+			struct font_family_cache {
+				/// The cached list of font faces.
+				std::unordered_map<font_params, _details::freetype_face_ref, _details::font_params_hash> font_faces;
+				/// A partially-filled \p FcPattern that can be used for searching for font faces.
+				_details::gtk_object_ref<FcPattern> pattern;
+			};
+		}
+
+
 		/// Initializes and finalizes Fontconfig.
 		class fontconfig_usage {
 		public:
@@ -329,8 +368,7 @@ namespace codepad::ui {
 			friend text_context;
 		public:
 			/// Initializes all fields of this struct.
-			font_family(text_context &ctx, _details::gtk_object_ref<FcPattern> patt) :
-				_ctx(ctx), _pattern(std::move(patt)) {
+			font_family(text_context &ctx, _details::font_family_cache &entry) : _ctx(ctx), _cache_entry(entry) {
 			}
 
 			/// Returns a font in this family matching the given description.
@@ -338,8 +376,8 @@ namespace codepad::ui {
 				font_style, font_weight, font_stretch
 			) const override;
 		protected:
-			text_context &_ctx; ///< The \ref text_context that created this \ref font_family.
-			_details::gtk_object_ref<FcPattern> _pattern; ///< The Fontconfig pattern.
+			text_context &_ctx; ///< The \ref font_context object.
+			_details::font_family_cache &_cache_entry; ///< The entry in \ref text_context::_font_cache.
 		};
 
 		/// Holds a \p hb_buffer_t.
@@ -412,8 +450,6 @@ namespace codepad::ui {
 
 
 		namespace _details {
-			using namespace ui::_details;
-
 			/// Casts a \ref ui::formatted_text to a \ref formatted_text.
 			[[nodiscard]] inline const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
 				auto *rt = dynamic_cast<const formatted_text*>(&t);
@@ -450,6 +486,8 @@ namespace codepad::ui {
 			/// De-initializes Pango and Freetype.
 			void deinitialize() {
 				if (_pango_context) {
+					_font_cache.clear();
+
 					// although this will replace the font map with a new instance, it will still hopefully free
 					// resources the old one's holding on to. without this pango would still be using some fonts which
 					// will cause the cairo check to fail
@@ -463,9 +501,14 @@ namespace codepad::ui {
 
 			/// Creates a new \ref text_format.
 			[[nodiscard]] std::shared_ptr<ui::font_family> find_font_family(const std::u8string &family) {
-				auto pattern = _details::make_gtk_object_ref_give(FcPatternCreate());
-				FcPatternAddString(pattern.get(), FC_FAMILY, reinterpret_cast<const FcChar8*>(family.c_str()));
-				return std::make_shared<pango_harfbuzz::font_family>(*this, std::move(pattern));
+				auto [it, inserted] = _font_cache.try_emplace(family);
+				if (inserted) {
+					it->second.pattern = _details::make_gtk_object_ref_give(FcPatternCreate());
+					FcPatternAddString(
+						it->second.pattern.get(), FC_FAMILY, reinterpret_cast<const FcChar8*>(family.c_str())
+					);
+				}
+				return std::make_shared<pango_harfbuzz::font_family>(*this, it->second);
 			}
 
 			/// Creates a new \ref formatted_text object.
@@ -532,6 +575,8 @@ namespace codepad::ui {
 				return _pango_context.get();
 			}
 		protected:
+			/// Cached font information.
+			std::unordered_map<std::u8string, _details::font_family_cache> _font_cache;
 			_details::glib_object_ref<PangoContext> _pango_context; ///< The Pango context.
 			FT_Library _freetype = nullptr; ///< The Freetype library.
 

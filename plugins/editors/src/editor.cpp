@@ -6,6 +6,8 @@
 /// \file
 /// Implementation of the editor.
 
+#include "codepad/ui/json_parsers.h"
+
 namespace codepad::editors {
 	const ui::property_mapping &contents_region_base::get_properties() const {
 		return get_properties_static();

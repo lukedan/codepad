@@ -11,8 +11,11 @@
 #include "misc.h"
 
 namespace codepad::os {
+	class cairo_renderer;
+
 	class window : public ui::window_base {
 		friend ui::element;
+		friend cairo_renderer;
 	public:
 		using native_handle_t = GtkWidget*;
 
@@ -235,9 +238,6 @@ namespace codepad::os {
 		static gboolean _on_key_press_event(GtkWidget*, GdkEvent*, window*);
 		static gboolean _on_key_release_event(GtkWidget*, GdkEvent*, window*);
 		static gboolean _on_scroll_event(GtkWidget*, GdkEvent*, window*);
-		/// Event handler of the `draw' signal. Sets \ref _renderer_data to the given \p cairo_t, invokes
-		/// \ref _on_render(), and resets \ref _renderer_data.
-		static gboolean _on_draw_event(GtkWidget*, cairo_t*, window*);
 
 		inline static void _on_im_commit(GtkIMContext*, gchar *str, window *wnd) {
 			ui::text_info inf(reinterpret_cast<const char8_t*>(str));

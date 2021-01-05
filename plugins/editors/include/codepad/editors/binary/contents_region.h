@@ -39,11 +39,16 @@ namespace codepad::editors::binary {
 	};
 
 	/// The radix used when displaying and editing binary data.
-	enum class radix {
+	enum class radix : unsigned char {
 		binary = 2, ///< Binary.
 		octal = 8, ///< Octal.
+		decimal = 10, ///< Decimal.
 		hexadecimal = 16 ///< Hexadecimal.
 	};
+	/// Returns the maximum number of digits required to represent a byte for the given \ref radix.
+	[[nodiscard]] std::size_t get_maximum_byte_digits_for_radix(radix);
+	/// Base conversion.
+	[[nodiscard]] std::basic_string<codepoint> convert_base(unsigned i, radix base, std::size_t min_length = 1);
 
 	/// The \ref ui::element that displays the contents of the \ref buffer and handles user interactions.
 	///
@@ -252,14 +257,11 @@ namespace codepad::editors::binary {
 			return u8"binary_selection";
 		}
 	protected:
-		/// Returns the hexadecimal representation of the given byte.
-		static std::basic_string_view<codepoint> _get_hex_byte(std::byte);
-
 		caret_set _carets; ///< The set of carets.
 		interaction_manager<caret_set> _interaction_manager; ///< Manages certain mouse and keyboard interactions.
 		std::shared_ptr<buffer> _buf; ///< The buffer that's being edited.
 		info_event<buffer::end_edit_info>::token _mod_tok; ///< Used to listen to \ref buffer::end_edit.
-		radix _radix = radix::hexadecimal; ///< The radix used to display bytes.
+		radix _radix = radix::binary; ///< The radix used to display bytes.
 
 		std::shared_ptr<ui::font> _font; ///< The font used to display all bytes.
 		double
@@ -365,9 +367,10 @@ namespace codepad::editors::binary {
 
 		/// Updates cached bytes per row, and invalidates the visuals of this element.
 		void _on_font_parameters_changed() {
-			_cached_max_byte_width = get_font_size() * 2.0 * _font->get_maximum_character_width_em(
-				reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
-			);
+			_cached_max_byte_width =
+				get_font_size() * get_maximum_byte_digits_for_radix(_radix) * _font->get_maximum_character_width_em(
+					reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
+				);
 			if (!_update_bytes_per_row()) {
 				_on_content_visual_changed();
 			}

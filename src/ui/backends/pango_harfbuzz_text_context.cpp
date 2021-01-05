@@ -352,37 +352,43 @@ namespace codepad::ui::pango_harfbuzz {
 	std::shared_ptr<ui::font> font_family::get_matching_font(
 		font_style style, font_weight weight, font_stretch stretch
 	) const {
-		auto patt = _details::make_gtk_object_ref_give(FcPatternDuplicate(_pattern.get()));
+		_details::font_params params(style, weight, stretch);
+		auto [it, inserted] = _cache_entry.font_faces.try_emplace(params);
 
-		// FIXME what are these return values?
-		FcPatternAddInteger(patt.get(), FC_SLANT, _details::cast_font_style_fontconfig(style));
-		FcPatternAddInteger(patt.get(), FC_WEIGHT, _details::cast_font_weight_fontconfig(weight));
-		FcPatternAddInteger(patt.get(), FC_WIDTH, _details::cast_font_stretch_fontconfig(stretch));
+		if (inserted) {
+			auto patt = _details::make_gtk_object_ref_give(FcPatternDuplicate(_cache_entry.pattern.get()));
 
-		// FIXME fontconfig? hello? what should i do here?
-		//       FcFontMatch() calls FcFontRenderPrepare() which calls FcConfigSubstituteWithPat() with
-		//       FcMatchFont, so i assume that we don't need to do that here
-		assert_true_sys(FcConfigSubstitute(nullptr, patt.get(), FcMatchPattern), "Fontconfig operation failed");
-		FcDefaultSubstitute(patt.get());
+			// FIXME what are these return values?
+			FcPatternAddInteger(patt.get(), FC_SLANT, _details::cast_font_style_fontconfig(style));
+			FcPatternAddInteger(patt.get(), FC_WEIGHT, _details::cast_font_weight_fontconfig(weight));
+			FcPatternAddInteger(patt.get(), FC_WIDTH, _details::cast_font_stretch_fontconfig(stretch));
 
-		FcResult result;
-		auto res_patt = _details::make_gtk_object_ref_give(FcFontMatch(nullptr, patt.get(), &result));
-		assert_true_sys(result != FcResultOutOfMemory, "Fontconfig out of memory");
+			// FIXME fontconfig? hello? what should i do here?
+			//       FcFontMatch() calls FcFontRenderPrepare() which calls FcConfigSubstituteWithPat() with
+			//       FcMatchFont, so i assume that we don't need to do that here
+			assert_true_sys(FcConfigSubstitute(nullptr, patt.get(), FcMatchPattern), "Fontconfig operation failed");
+			FcDefaultSubstitute(patt.get());
 
-		FcChar8 *file_name = nullptr;
-		int font_index = 0;
-		assert_true_sys(
-			FcPatternGetString(res_patt.get(), FC_FILE, 0, &file_name) == FcResultMatch,
-			"failed to obtain font file name from Fontconfig"
-		);
-		FcPatternGetInteger(res_patt.get(), FC_INDEX, 0, &font_index);
+			FcResult result;
+			auto res_patt = _details::make_gtk_object_ref_give(FcFontMatch(nullptr, patt.get(), &result));
+			assert_true_sys(result != FcResultOutOfMemory, "Fontconfig out of memory");
 
-		FT_Face face;
-		_details::ft_check(FT_New_Face(
-			_ctx._freetype, reinterpret_cast<const char*>(file_name), font_index, &face
-		));
+			FcChar8 *file_name = nullptr;
+			int font_index = 0;
+			assert_true_sys(
+				FcPatternGetString(res_patt.get(), FC_FILE, 0, &file_name) == FcResultMatch,
+				"failed to obtain font file name from Fontconfig"
+			);
+			FcPatternGetInteger(res_patt.get(), FC_INDEX, 0, &font_index);
 
-		return std::make_shared<font>(_details::make_freetype_face_ref_give(face));
+			FT_Face face;
+			_details::ft_check(FT_New_Face(
+				_ctx._freetype, reinterpret_cast<const char*>(file_name), font_index, &face
+			));
+			it->second = _details::make_freetype_face_ref_give(face);
+		}
+
+		return std::make_shared<font>(it->second);
 	}
 
 

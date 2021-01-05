@@ -162,7 +162,7 @@ namespace codepad::ui {
 		inline static bool parse_hotkey_entry(
 			std::vector<key_gesture> &gests, hotkey_group::action &action, const object_t &obj
 		) {
-			if (auto act = obj.parse_member<hotkey_group::action>(u8"action")) {
+			if (auto act = obj.template parse_member<hotkey_group::action>(u8"action")) {
 				action = std::move(act.value());
 			} else {
 				obj.template log<log_level::error>(CP_HERE) << "failed to parse action";

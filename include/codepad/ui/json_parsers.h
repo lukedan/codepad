@@ -9,6 +9,7 @@
 #include "../core/json_parsers.h"
 #include "element_parameters.h"
 #include "hotkey_registry.h"
+#include "manager.h"
 
 namespace codepad::json {
 	template <typename Value> std::optional<ui::relative_vec2d> default_parser<ui::relative_vec2d>::operator()(
@@ -705,6 +706,33 @@ namespace codepad::json {
 
 
 namespace codepad::ui {
+	template <typename Value> std::optional<
+		brush_parameters::bitmap_pattern
+	> managed_json_parser<brush_parameters::bitmap_pattern>::operator()(const Value &val) const {
+		if (auto obj = val.template cast<typename Value::object_type>()) {
+			if (auto image = obj->template parse_member<std::u8string_view>(u8"image")) {
+				return brush_parameters::bitmap_pattern(_manager.get_texture(image.value()));
+			}
+		}
+		return std::nullopt;
+	}
+
+
+	template <
+		typename Value
+	> std::optional<transition_function> managed_json_parser<transition_function>::operator()(
+		const Value &val
+	) const {
+		if (auto str = val.template cast<std::u8string_view>()) {
+			if (auto func = _manager.find_transition_function(str.value())) {
+				return func;
+			}
+			val.template log<log_level::error>(CP_HERE) << "unrecognized transition function: " << str.value();
+		}
+		return std::nullopt;
+	}
+
+
 	template <
 		typename Value
 	> std::optional<generic_brush_parameters> managed_json_parser<generic_brush_parameters>::operator()(
@@ -753,7 +781,9 @@ namespace codepad::ui {
 	}
 
 
-	template <typename Value> std::optional<generic_pen_parameters> managed_json_parser<generic_pen_parameters>::operator()(
+	template <
+		typename Value
+	> std::optional<generic_pen_parameters> managed_json_parser<generic_pen_parameters>::operator()(
 		const Value &val
 	) const {
 		if (auto brush = val.template parse<generic_brush_parameters>(

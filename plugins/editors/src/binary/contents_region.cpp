@@ -6,10 +6,50 @@
 /// \file
 /// Implementation of the contents region of the binary editor.
 
+#include <array>
+
 #include "codepad/editors/manager.h"
 #include "../details.h"
 
 namespace codepad::editors::binary {
+	std::size_t get_maximum_byte_digits_for_radix(radix r) {
+		static bool _initialized = false;
+		static std::array<std::size_t, 15> _cache;
+
+		if (!_initialized) {
+			_cache.fill(0);
+			_initialized = true;
+		}
+		auto rval = static_cast<unsigned>(r);
+		unsigned rid = rval - 2;
+		if (_cache[rid] == 0) {
+			std::size_t result = 0;
+			for (unsigned x = 255; x > 0; x /= rval, ++result) {
+			}
+			_cache[rid] = result;
+		}
+
+		return _cache[rid];
+	}
+
+	std::basic_string<codepoint> convert_base(unsigned i, radix b, std::size_t min_length) {
+		std::basic_string<codepoint> result;
+
+		auto base = static_cast<unsigned>(b);
+		while (i != 0) {
+			unsigned digit = i % base;
+			result += static_cast<codepoint>(digit < 10 ? U'0' + digit : U'A' + (digit - 10));
+			i /= base;
+		}
+		while (result.size() < min_length) {
+			result += static_cast<codepoint>(U'0');
+		}
+		std::reverse(result.begin(), result.end());
+
+		return result;
+	}
+
+
 	void contents_region::set_buffer(std::shared_ptr<buffer> buf) {
 		_unbind_buffer_events();
 		_buf = std::move(buf);
@@ -134,31 +174,6 @@ namespace codepad::editors::binary {
 		return std::numeric_limits<unsigned char>::max();
 	}
 
-	std::basic_string_view<codepoint> contents_region::_get_hex_byte(std::byte b) {
-		static const char32_t _lut[256][3]{
-			U"00", U"01", U"02", U"03", U"04", U"05", U"06", U"07", U"08", U"09", U"0A", U"0B", U"0C", U"0D", U"0E", U"0F",
-			U"10", U"11", U"12", U"13", U"14", U"15", U"16", U"17", U"18", U"19", U"1A", U"1B", U"1C", U"1D", U"1E", U"1F",
-			U"20", U"21", U"22", U"23", U"24", U"25", U"26", U"27", U"28", U"29", U"2A", U"2B", U"2C", U"2D", U"2E", U"2F",
-			U"30", U"31", U"32", U"33", U"34", U"35", U"36", U"37", U"38", U"39", U"3A", U"3B", U"3C", U"3D", U"3E", U"3F",
-			U"40", U"41", U"42", U"43", U"44", U"45", U"46", U"47", U"48", U"49", U"4A", U"4B", U"4C", U"4D", U"4E", U"4F",
-			U"50", U"51", U"52", U"53", U"54", U"55", U"56", U"57", U"58", U"59", U"5A", U"5B", U"5C", U"5D", U"5E", U"5F",
-			U"60", U"61", U"62", U"63", U"64", U"65", U"66", U"67", U"68", U"69", U"6A", U"6B", U"6C", U"6D", U"6E", U"6F",
-			U"70", U"71", U"72", U"73", U"74", U"75", U"76", U"77", U"78", U"79", U"7A", U"7B", U"7C", U"7D", U"7E", U"7F",
-			U"80", U"81", U"82", U"83", U"84", U"85", U"86", U"87", U"88", U"89", U"8A", U"8B", U"8C", U"8D", U"8E", U"8F",
-			U"90", U"91", U"92", U"93", U"94", U"95", U"96", U"97", U"98", U"99", U"9A", U"9B", U"9C", U"9D", U"9E", U"9F",
-			U"A0", U"A1", U"A2", U"A3", U"A4", U"A5", U"A6", U"A7", U"A8", U"A9", U"AA", U"AB", U"AC", U"AD", U"AE", U"AF",
-			U"B0", U"B1", U"B2", U"B3", U"B4", U"B5", U"B6", U"B7", U"B8", U"B9", U"BA", U"BB", U"BC", U"BD", U"BE", U"BF",
-			U"C0", U"C1", U"C2", U"C3", U"C4", U"C5", U"C6", U"C7", U"C8", U"C9", U"CA", U"CB", U"CC", U"CD", U"CE", U"CF",
-			U"D0", U"D1", U"D2", U"D3", U"D4", U"D5", U"D6", U"D7", U"D8", U"D9", U"DA", U"DB", U"DC", U"DD", U"DE", U"DF",
-			U"E0", U"E1", U"E2", U"E3", U"E4", U"E5", U"E6", U"E7", U"E8", U"E9", U"EA", U"EB", U"EC", U"ED", U"EE", U"EF",
-			U"F0", U"F1", U"F2", U"F3", U"F4", U"F5", U"F6", U"F7", U"F8", U"F9", U"FA", U"FB", U"FC", U"FD", U"FE", U"FF"
-		};
-		static_assert(sizeof(codepoint) == sizeof(char32_t));
-		return std::basic_string_view<codepoint>(
-			reinterpret_cast<const codepoint*>(_lut[static_cast<std::size_t>(b)]), 2
-			);
-	}
-
 	rectd contents_region::_get_caret_rect(std::size_t cpos) const {
 		if (cpos == _buf->length()) { // caret is at the end of the file
 			// in this case, make the caret a vertical line
@@ -261,7 +276,12 @@ namespace codepad::editors::binary {
 						i < lastbyte && it != _buf->end();
 						++i, ++it, x += _cached_max_byte_width + _blank_width
 						) {
-						auto text = renderer.create_plain_text_fast(_get_hex_byte(*it), *_font, _font_size);
+						auto text = renderer.create_plain_text_fast(
+							convert_base(
+								static_cast<unsigned>(*it), _radix, get_maximum_byte_digits_for_radix(_radix)
+							),
+							*_font, _font_size
+						);
 						// TODO customizable color
 						renderer.draw_plain_text(
 							*text,

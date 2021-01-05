@@ -92,13 +92,6 @@ namespace codepad::os {
 		return true;
 	}
 
-	gboolean window::_on_draw_event(GtkWidget*, cairo_t *cr, window *wnd) {
-		wnd->_renderer_data.emplace<cairo_t*>(cr);
-		wnd->_on_render();
-		wnd->_renderer_data.reset();
-		return true;
-	}
-
 	void window::_initialize(std::u8string_view cls) {
 		window_base::_initialize(cls);
 
@@ -128,7 +121,6 @@ namespace codepad::os {
 		_connect_signal(_wnd, "key-release-event", _on_key_release_event);
 		_connect_signal(_wnd, "scroll-event", _on_scroll_event);
 		_connect_signal(_wnd, "grab-broken-event", _on_grab_broken_event);
-		_connect_signal(_wnd, "draw", _on_draw_event);
 
 		// setup IM context
 		_imctx = gtk_im_multicontext_new();

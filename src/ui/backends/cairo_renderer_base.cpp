@@ -105,18 +105,11 @@ namespace codepad::ui::cairo {
 
 		// create surface
 		resbmp->_size = size;
-		resbmp->_surface = _details::make_gtk_object_ref_give(
-			cairo_image_surface_create(
-				CAIRO_FORMAT_ARGB32,
-				static_cast<int>(std::ceil(size.x * scaling_factor.x)),
-				static_cast<int>(std::ceil(size.y * scaling_factor.y))
-			));
-		assert_true_sys(
-			cairo_surface_status(resbmp->_surface.get()) == CAIRO_STATUS_SUCCESS,
-			"failed to create cairo surface"
+		resbmp->_surface = _create_offscreen_surface(
+			static_cast<int>(std::ceil(size.x * scaling_factor.x)),
+			static_cast<int>(std::ceil(size.y * scaling_factor.y)),
+			scaling_factor
 		);
-		// set dpi scaling
-		cairo_surface_set_device_scale(resbmp->_surface.get(), scaling_factor.x, scaling_factor.y);
 
 		// create context
 		resrt->_context = _details::make_gtk_object_ref_give(cairo_create(resbmp->_surface.get()));
@@ -250,10 +243,9 @@ namespace codepad::ui::cairo {
 		const brushes::linear_gradient &brush
 	) {
 		if (brush.gradients) {
-			auto patt = _details::make_gtk_object_ref_give(
-				cairo_pattern_create_linear(
-					brush.from.x, brush.from.y, brush.to.x, brush.to.y
-				));
+			auto patt = _details::make_gtk_object_ref_give(cairo_pattern_create_linear(
+				brush.from.x, brush.from.y, brush.to.x, brush.to.y
+			));
 			_add_gradient_stops(patt.get(), *brush.gradients);
 			return patt;
 		}
@@ -264,10 +256,9 @@ namespace codepad::ui::cairo {
 		const brushes::radial_gradient &brush
 	) {
 		if (brush.gradients) {
-			auto patt = _details::make_gtk_object_ref_give(
-				cairo_pattern_create_radial(
-					brush.center.x, brush.center.y, 0.0, brush.center.x, brush.center.y, brush.radius
-				));
+			auto patt = _details::make_gtk_object_ref_give(cairo_pattern_create_radial(
+				brush.center.x, brush.center.y, 0.0, brush.center.x, brush.center.y, brush.radius
+			));
 			_add_gradient_stops(patt.get(), *brush.gradients);
 			return patt;
 		}
@@ -278,10 +269,9 @@ namespace codepad::ui::cairo {
 		const brushes::bitmap_pattern &brush
 	) {
 		if (brush.image) {
-			return _details::make_gtk_object_ref_give(
-				cairo_pattern_create_for_surface(
-					_details::cast_bitmap(*brush.image)._surface.get()
-				));
+			return _details::make_gtk_object_ref_give(cairo_pattern_create_for_surface(
+				_details::cast_bitmap(*brush.image)._surface.get()
+			));
 		}
 		return _details::gtk_object_ref<cairo_pattern_t>();
 	}
@@ -303,6 +293,38 @@ namespace codepad::ui::cairo {
 			cairo_pattern_set_matrix(pattern.get(), &mat);
 		}
 		return pattern;
+	}
+
+	_details::gtk_object_ref<cairo_surface_t> renderer_base::_create_similar_surface(
+		window_base &wnd, int width, int height
+	) {
+		return _details::make_gtk_object_ref_give(cairo_surface_create_similar(
+			_get_window_data_as<_window_data>(wnd).get_surface(), CAIRO_CONTENT_COLOR_ALPHA, width, height
+		));
+	}
+
+	_details::gtk_object_ref<cairo_surface_t> renderer_base::_create_offscreen_surface(
+		int width, int height, vec2d scale
+	) {
+		_details::gtk_object_ref<cairo_surface_t> result;
+		if (_random_window) {
+			result = _create_similar_surface(*_random_window, width, height);
+		} else {
+			logger::get().log_warning(CP_HERE) <<
+				"no window has been created before creating this offscreen surface: " <<
+				"an image surface has been created which could lead to poor performance" <<
+				logger::stacktrace;
+			result = _details::make_gtk_object_ref_give(cairo_image_surface_create(
+				CAIRO_FORMAT_ARGB32, width, height
+			));
+		}
+		assert_true_sys(
+			cairo_surface_status(result.get()) == CAIRO_STATUS_SUCCESS,
+			"failed to create cairo surface"
+		);
+		// set dpi scaling
+		cairo_surface_set_device_scale(result.get(), scale.x, scale.y);
+		return result;
 	}
 
 	void renderer_base::_make_ellipse_geometry(vec2d center, double rx, double ry) {

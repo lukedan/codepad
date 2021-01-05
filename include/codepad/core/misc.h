@@ -83,6 +83,12 @@ namespace codepad {
 	}
 
 
+	/// Combines two hash values.
+	[[nodiscard]] constexpr std::size_t combine_hashes(std::size_t a, std::size_t b) {
+		return a ^ (b + 0x9e3779b9 + (a << 6) + (a >> 2));
+	}
+
+
 	/// Parses enums from strings. Specialize this class to provide parsing for a specific enum type.
 	template <typename Enum> struct enum_parser {
 		static std::optional<Enum> parse(std::u8string_view);
@@ -135,8 +141,8 @@ namespace std {
 		std::size_t operator()(const codepad::code_position &pos) const {
 			std::size_t res = hash<int>()(pos.line);
 			hash<string_view> viewhasher;
-			res ^= viewhasher(pos.function) + 0x9e3779b9 + (res << 6) + (res >> 2);
-			res ^= viewhasher(pos.file) + 0x9e3779b9 + (res << 6) + (res >> 2);
+			res = codepad::combine_hashes(res, viewhasher(pos.function));
+			res = codepad::combine_hashes(res, viewhasher(pos.file));
 			return res;
 		}
 	};
