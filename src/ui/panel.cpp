@@ -149,12 +149,10 @@ namespace codepad::ui {
 	}
 
 	size_allocation panel::get_desired_width() const {
-		bool has_value = false;
 		double maxw = 0.0;
 		for (const element *e : _children.items()) {
 			if (e->is_visible(visibility::layout)) {
 				if (auto span = _get_horizontal_absolute_span(*e)) {
-					has_value = true;
 					maxw = std::max(maxw, span.value());
 				}
 			}
@@ -163,12 +161,10 @@ namespace codepad::ui {
 	}
 
 	size_allocation panel::get_desired_height() const {
-		bool has_value = false;
 		double maxh = 0.0;
 		for (const element *e : _children.items()) {
 			if (e->is_visible(visibility::layout)) {
 				if (auto span = _get_vertical_absolute_span(*e)) {
-					has_value = true;
 					maxh = std::max(maxh, span.value());
 				}
 			}

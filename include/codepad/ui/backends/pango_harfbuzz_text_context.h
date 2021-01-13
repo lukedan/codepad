@@ -26,7 +26,6 @@ namespace codepad::ui {
 		/// Checks the given Freetype return value.
 		inline void ft_check(FT_Error err) {
 			if (err != FT_Err_Ok) {
-				// TODO for some reason FT_Error_String is not defined on Ubuntu 18.04
 				logger::get().log_error(CP_HERE) <<
 					"Freetype error " << err << ": " << FT_Error_String(err);
 				assert_true_sys(false, "Freetype error");
@@ -389,8 +388,8 @@ namespace codepad::ui {
 				_details::gtk_object_ref<hb_buffer_t> buf, const font &fnt,
 				const FT_Size_Metrics &size_info, std::size_t nchars, double font_size
 			) : _buffer(std::move(buf)), _font(fnt._face), _num_characters(nchars), _font_size(font_size) {
-				_x_scale = size_info.x_scale / 64.0;
-				_ascender = size_info.ascender / 64.0;
+				_x_scale = static_cast<double>(size_info.x_scale) / 64.0;
+				_ascender = static_cast<double>(size_info.ascender) / 64.0;
 				_height = fnt._into_em(_font->height) * font_size;
 			}
 

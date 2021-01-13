@@ -10,6 +10,7 @@
 #include <vector>
 #include <chrono>
 #include <functional>
+#include <mutex>
 
 #include "misc.h"
 #include "encodings.h"
@@ -35,7 +36,7 @@ namespace codepad {
 		) = 0;
 	};
 
-	/// Struct used to format and produce log.
+	/// Struct used to format and produce log. This struct is thread-safe.
 	struct APIGEN_EXPORT_RECURSIVE logger {
 	public:
 		using clock_t = std::chrono::high_resolution_clock; ///< The clock used to calculate time.
@@ -113,11 +114,14 @@ namespace codepad {
 				if (_parent) {
 					auto message = _contents.str();
 					auto dur = clock_t::now() - _parent->get_creation_time();
-					for (auto &&sink : _parent->sinks) {
-						sink->on_message(
-							dur, _pos, _level,
-							std::u8string_view(reinterpret_cast<const char8_t*>(message.c_str()), message.size())
-						);
+					{
+						std::lock_guard<std::mutex> mtx(_parent->_mutex);
+						for (auto &&sink : _parent->sinks) {
+							sink->on_message(
+								dur, _pos, _level,
+								std::u8string_view(reinterpret_cast<const char8_t*>(message.c_str()), message.size())
+							);
+						}
 					}
 					_parent = nullptr;
 				}
@@ -130,6 +134,7 @@ namespace codepad {
 			logger *_parent = nullptr; ///< The \ref logger that created this entry.
 			log_level _level = log_level::error; ///< The log level of this entry.
 		};
+		friend log_entry;
 
 		constexpr static stacktrace_t stacktrace{}; ///< The static \ref stacktrace_t object.
 
@@ -140,8 +145,6 @@ namespace codepad {
 		explicit logger(std::vector<std::unique_ptr<log_sink>> sinks) :
 			sinks(std::move(sinks)), _creation(clock_t::now()) {
 		}
-		logger(const logger&) = delete; // HACK apigen
-		logger &operator=(const logger&) = delete; // HACK apigen
 
 		/// Creates a new \ref log_entry with the specified \ref log_level.
 		template <log_level Level> log_entry log(code_position cp) {
@@ -189,5 +192,6 @@ namespace codepad {
 		static std::unique_ptr<logger> &_get_ptr();
 
 		clock_t::time_point _creation; ///< The time of this logger's creation.
+		std::mutex _mutex; ///< Mutex used for synchronization.
 	};
 }

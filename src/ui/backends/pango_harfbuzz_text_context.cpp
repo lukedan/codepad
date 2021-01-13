@@ -402,17 +402,17 @@ namespace codepad::ui::pango_harfbuzz {
 		if (block_iter != _cached_block_positions.begin()) {
 			--block_iter;
 		}
-		std::size_t block_id = block_iter - _cached_block_positions.begin();
+		std::size_t block_id = static_cast<std::size_t>(block_iter - _cached_block_positions.begin());
 
 		caret_hit_test_result res;
 		if (block_id + 1 < _cached_block_positions.size()) {
 			double part_width = _get_part_width(block_id);
 			double offset = (x - _cached_block_positions[block_id]) / part_width;
-			std::size_t block_offset = static_cast<std::size_t>(offset);
-			double left = _cached_block_positions[block_id] + block_offset * part_width;
+			auto block_offset = static_cast<std::size_t>(offset);
+			double left = _cached_block_positions[block_id] + static_cast<double>(block_offset) * part_width;
 
 			res.character = _cached_first_char_of_block[block_id] + block_offset;
-			res.rear = (offset - block_offset) > 0.5;
+			res.rear = (offset - static_cast<double>(block_offset)) > 0.5;
 			res.character_layout = rectd::from_xywh(left, 0.0, part_width, _height);
 		} else { // end of the clip
 			res.character = _num_characters;
@@ -435,9 +435,11 @@ namespace codepad::ui::pango_harfbuzz {
 			return rectd(0.0, 0.0, 0.0, _height);
 		}
 		--block_it;
-		std::size_t block_id = block_it - _cached_first_char_of_block.begin();
+		std::size_t block_id = static_cast<std::size_t>(block_it - _cached_first_char_of_block.begin());
 		double part_width = _get_part_width(block_id);
-		double left = _cached_block_positions[block_id] + part_width * (i - _cached_first_char_of_block[block_id]);
+		double left =
+			_cached_block_positions[block_id] +
+			part_width * static_cast<double>(i - _cached_first_char_of_block[block_id]);
 		return rectd::from_xywh(left, 0.0, part_width, _height);
 	}
 
@@ -551,11 +553,12 @@ namespace codepad::ui::pango_harfbuzz {
 		line_analyzer.finish();
 		assert_true_sys(
 			result->_line_positions.back().end_pos_after_break ==
-			pango_layout_get_character_count(result->_layout.get()),
+			static_cast<std::size_t>(pango_layout_get_character_count(result->_layout.get())),
 			"character count inconsistent with pango"
 		);
 		assert_true_sys(
-			result->_line_positions.size() == pango_layout_get_line_count(result->_layout.get()),
+			result->_line_positions.size() ==
+			static_cast<std::size_t>(pango_layout_get_line_count(result->_layout.get())),
 			"line count inconsistent with pango"
 		);
 

@@ -35,6 +35,9 @@ namespace codepad::json::rapidjson {
 
 		/// Default constructor.
 		value_t() = default;
+		/// Initializes \ref _val directly.
+		explicit value_t(const rapidjson_value_t *v) : _val(v) {
+		}
 
 		/// Determines if \ref _val holds a value of the given type.
 		template <typename T> bool is() const {
@@ -71,10 +74,6 @@ namespace codepad::json::rapidjson {
 		}
 	protected:
 		const rapidjson_value_t *_val = nullptr; ///< The value.
-
-		/// Initializes \ref _val directly.
-		explicit value_t(const rapidjson_value_t *v) : _val(v) {
-		}
 	};
 	/// Wrapper around a \ref rapidjson_value_t that is knwon to be an object.
 	struct object_t : public _details::object_type_base<object_t> {
