@@ -9,59 +9,59 @@
 #include "common.h"
 
 namespace codepad::lsp::types {
-	struct WorkspaceFoldersServerCapabilities : public object {
+	struct WorkspaceFoldersServerCapabilities : public virtual object {
 		optional<boolean> supported;
 		optional<primitive_variant<boolean, string>> changeNotifications;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkspaceFolder : public object {
+	struct WorkspaceFolder : public virtual object {
 		DocumentUri uri;
 		string name;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkspaceFoldersChangeEvent : public object {
+	struct WorkspaceFoldersChangeEvent : public virtual object {
 		array<WorkspaceFolder> added;
 		array<WorkspaceFolder> removed;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidChangeWorkspaceFoldersParams : public object {
+	struct DidChangeWorkspaceFoldersParams : public virtual object {
 		WorkspaceFoldersChangeEvent event;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidChangeConfigurationClientCapabilities : public object {
+	struct DidChangeConfigurationClientCapabilities : public virtual object {
 		optional<boolean> dynamicRegistration;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidChangeConfigurationParams : public object {
+	struct DidChangeConfigurationParams : public virtual object {
 		any settings;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ConfigurationItem : public object {
+	struct ConfigurationItem : public virtual object {
 		optional<DocumentUri> scopeUri;
 		optional<string> section;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ConfigurationParams : public object {
+	struct ConfigurationParams : public virtual object {
 		array<ConfigurationItem> items;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidChangeWatchedFilesClientCapabilities : public object {
+	struct DidChangeWatchedFilesClientCapabilities : public virtual object {
 		optional<boolean> dynamicRegistration;
 
 		void visit_fields(visitor_base&) override;
@@ -74,14 +74,14 @@ namespace codepad::lsp::types {
 	};
 	using WatchKind = numerical_enum<WatchKindEnum>;
 
-	struct FileSystemWatcher : public object {
+	struct FileSystemWatcher : public virtual object {
 		string globPattern;
 		optional<WatchKind> kind;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidChangeWatchedFilesRegistrationOptions : public object {
+	struct DidChangeWatchedFilesRegistrationOptions : public virtual object {
 		array<FileSystemWatcher> watchers;
 
 		void visit_fields(visitor_base&) override;
@@ -94,32 +94,32 @@ namespace codepad::lsp::types {
 	};
 	using FileChangeType = numerical_enum<FileChangeTypeEnum>;
 
-	struct FileEvent : public object {
+	struct FileEvent : public virtual object {
 		DocumentUri uri;
 		FileChangeType type;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidChangeWatchedFilesParams : public object {
+	struct DidChangeWatchedFilesParams : public virtual object {
 		array<FileEvent> changes;
 
 		void visit_fields(visitor_base&) override;
 	};
 
 	/// Used by \ref WorkspaceSymbolClientCapabilities.
-	struct SymbolKindClientCapabilities : public object {
+	struct SymbolKindClientCapabilities : public virtual object {
 		/*optional<array<SymbolKind>> valueSet;*/
 
 		void visit_fields(visitor_base&) override;
 	};
 	/// Used by \ref WorkspaceSymbolClientCapabilities.
-	struct WorkspaceSymbolTagSupportClientCapabilities : public object {
+	struct WorkspaceSymbolTagSupportClientCapabilities : public virtual object {
 		/*array<SymbolTag> valueSet;*/
 
 		void visit_fields(visitor_base&) override;
 	};
-	struct WorkspaceSymbolClientCapabilities : public object {
+	struct WorkspaceSymbolClientCapabilities : public virtual object {
 		optional<boolean> dynamicRegistration;
 		optional<SymbolKindClientCapabilities> symbolKind;
 		optional<WorkspaceSymbolTagSupportClientCapabilities> tagSupport;
@@ -127,52 +127,52 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkspaceSymbolOptions : public WorkDoneProgressOptions {
+	struct WorkspaceSymbolOptions : public virtual WorkDoneProgressOptions {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkspaceSymbolRegistrationOptions : public WorkspaceSymbolOptions {
+	struct WorkspaceSymbolRegistrationOptions : public virtual WorkspaceSymbolOptions {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkspaceSymbolParams : public WorkDoneProgressParams, public PartialResultParams {
+	struct WorkspaceSymbolParams : public virtual WorkDoneProgressParams, public virtual PartialResultParams {
 		string query;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ExecuteCommandClientCapabilities : public object {
+	struct ExecuteCommandClientCapabilities : public virtual object {
 		optional<boolean> dynamicRegistration;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ExecuteCommandOptions : public WorkDoneProgressOptions {
+	struct ExecuteCommandOptions : public virtual WorkDoneProgressOptions {
 		array<string> commands;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ExecuteCommandRegistrationOptions : public ExecuteCommandOptions {
+	struct ExecuteCommandRegistrationOptions : public virtual ExecuteCommandOptions {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ExecuteCommandParams : public WorkDoneProgressParams {
+	struct ExecuteCommandParams : public virtual WorkDoneProgressParams {
 		string command;
 		optional<array<any>> arguments;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ApplyWorkspaceEditParams : public object {
+	struct ApplyWorkspaceEditParams : public virtual object {
 		optional<string> label;
 		WorkspaceEdit edit;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ApplyWorkspaceEditResponse : public object {
-		boolean applied;
+	struct ApplyWorkspaceEditResponse : public virtual object {
+		boolean applied = false;
 		optional<string> failureReason;
 		optional<uinteger> failedChange;
 
@@ -184,7 +184,7 @@ namespace codepad::lsp::types {
 		folder
 	};
 	struct FileOperationPatternKind :
-		public contiguous_string_enum<FileOperationPatternKindEnum, FileOperationPatternKind> {
+		public virtual contiguous_string_enum<FileOperationPatternKindEnum, FileOperationPatternKind> {
 		friend contiguous_string_enum;
 	protected:
 		inline static const std::vector<std::u8string_view> &_get_strings() {
@@ -193,13 +193,13 @@ namespace codepad::lsp::types {
 		}
 	};
 
-	struct FileOperationPatternOptions : public object {
+	struct FileOperationPatternOptions : public virtual object {
 		optional<boolean> ignoreCase;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct FileOperationPattern : public object {
+	struct FileOperationPattern : public virtual object {
 		string glob;
 		optional<FileOperationPatternKind> matches;
 		optional<FileOperationPatternOptions> options;
@@ -207,51 +207,51 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct FileOperationFilter : public object {
+	struct FileOperationFilter : public virtual object {
 		optional<string> scheme;
 		FileOperationPattern pattern;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct FileOperationRegistrationOptions : public object {
+	struct FileOperationRegistrationOptions : public virtual object {
 		array<FileOperationFilter> filters;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct FileCreate : public object {
+	struct FileCreate : public virtual object {
 		string uri;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct CreateFilesParams : public object {
+	struct CreateFilesParams : public virtual object {
 		array<FileCreate> files;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct FileRename : public object {
+	struct FileRename : public virtual object {
 		string oldUri;
 		string newUri;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct RenameFilesParams : public object {
+	struct RenameFilesParams : public virtual object {
 		array<FileRename> files;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct FileDelete : public object {
+	struct FileDelete : public virtual object {
 		string uri;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DeleteFilesParams : public object {
+	struct DeleteFilesParams : public virtual object {
 		array<FileDelete> files;
 
 		void visit_fields(visitor_base&) override;

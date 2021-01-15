@@ -397,6 +397,13 @@ namespace codepad::ui {
 			res = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
 		}
 		if (res != 0) {
+			if (msg.message == WM_APP) { // message by scheduler::execute_callback()
+				auto *func = reinterpret_cast<std::function<void()>*>(msg.lParam);
+				(*func)();
+				delete func;
+				return true;
+			}
+
 			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) { // handle hotkeys
 				auto *form = os::window::_get_associated_window(msg.hwnd);
 				if (form && _hotkeys.on_key_down(key_gesture(
@@ -422,6 +429,11 @@ namespace codepad::ui {
 
 	void scheduler::_wake_up() {
 		os::_details::winapi_check(PostThreadMessage(_thread_id, WM_NULL, 0, 0));
+	}
+
+	void scheduler::_execute_callback(std::function<void()> func) {
+		auto *func_ptr = new std::function<void()>(std::move(func));
+		os::_details::winapi_check(PostThreadMessage(_thread_id, WM_APP, 0, reinterpret_cast<LPARAM>(func_ptr)));
 	}
 
 	scheduler::thread_id_t scheduler::_get_thread_id() {

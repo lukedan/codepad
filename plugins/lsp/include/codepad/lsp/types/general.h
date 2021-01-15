@@ -14,14 +14,14 @@
 
 namespace codepad::lsp::types {
 	/// Used by \ref InitializeParams and \ref InitializeResult.
-	struct NameVersion : public object {
+	struct NameVersion : public virtual object {
 		string name;
 		optional<string> version;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentClientCapabilities : public object {
+	struct TextDocumentClientCapabilities : public virtual object {
 		optional<TextDocumentSyncClientCapabilities> synchronization;
 		optional<CompletionClientCapabilities> completion;
 		optional<HoverClientCapabilities> hover;
@@ -53,7 +53,7 @@ namespace codepad::lsp::types {
 	};
 
 	/// Used by \ref WorkspaceClientCapabilities.
-	struct WorkspaceFileOperationsClientCapabilities : public object {
+	struct WorkspaceFileOperationsClientCapabilities : public virtual object {
 		optional<boolean> dynamicRegistration;
 		optional<boolean> didCreate;
 		optional<boolean> willCreate;
@@ -65,7 +65,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 	/// Used by \ref ClientCapabilities.
-	struct WorkspaceClientCapabilities : public object {
+	struct WorkspaceClientCapabilities : public virtual object {
 		optional<boolean> applyEdit;
 		optional<WorkspaceEditClientCapabilities> workspaceEdit;
 		optional<DidChangeConfigurationClientCapabilities> didChangeConfiguration;
@@ -81,7 +81,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 	/// Used by \ref ClientCapabilities.
-	struct WindowClientCapabilities : public object {
+	struct WindowClientCapabilities : public virtual object {
 		optional<boolean> workDoneProgress;
 		optional<ShowMessageRequestClientCapabilities> showMessage;
 		optional<ShowDocumentClientCapabilities> showDocument;
@@ -89,13 +89,13 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 	/// Used by \ref ClientCapabilities.
-	struct GeneralClientCapabilities : public object {
+	struct GeneralClientCapabilities : public virtual object {
 		optional<RegularExpressionClientCapabilities> regularExpressions;
 		optional<MarkdownClientCapabilities> markdown;
 
 		void visit_fields(visitor_base&) override;
 	};
-	struct ClientCapabilities : public object {
+	struct ClientCapabilities : public virtual object {
 		optional<WorkspaceClientCapabilities> workspace;
 		optional<TextDocumentClientCapabilities> textDocument;
 		optional<WindowClientCapabilities> window;
@@ -105,7 +105,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct InitializeParams : public WorkDoneProgressParams {
+	struct InitializeParams : public virtual WorkDoneProgressParams {
 		primitive_variant<null, integer> processId;
 		optional<NameVersion> clientInfo;
 		optional<string> locale;
@@ -119,7 +119,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ServerCapabilities : public object {
+	struct ServerCapabilities : public virtual object {
 		optional<primitive_variant<TextDocumentSyncKind, TextDocumentSyncOptions>> textDocumentSync;
 		optional<CompletionOptions> completionProvider;
 		optional<primitive_variant<boolean, HoverOptions>> hoverProvider;
@@ -129,27 +129,31 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct InitializeResult : public object {
+	struct InitializeResult : public virtual object {
 		ServerCapabilities capabilities;
 		optional<NameVersion> serverInfo;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct InitializeError : public object {
-		boolean retry;
+	struct InitializeError : public virtual object {
+		boolean retry = false;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct LogTraceParams : public object {
+	struct InitializedParams : public virtual object {
+		void visit_fields(visitor_base&) override;
+	};
+
+	struct LogTraceParams : public virtual object {
 		string message;
 		optional<string> verbose;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct SetTraceParams : public object {
+	struct SetTraceParams : public virtual object {
 		TraceValue value;
 
 		void visit_fields(visitor_base&) override;

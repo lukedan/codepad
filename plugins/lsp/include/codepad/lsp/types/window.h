@@ -17,7 +17,7 @@ namespace codepad::lsp::types {
 	};
 	using MessageType = numerical_enum<MessageTypeEnum>;
 
-	struct ShowMessageParams : public object {
+	struct ShowMessageParams : public virtual object {
 		MessageType type;
 		string message;
 
@@ -25,24 +25,24 @@ namespace codepad::lsp::types {
 	};
 
 	/// Used by ShowMessageRequestClientCapabilities.
-	struct MessageActionItemClientCapabilities : public object {
+	struct MessageActionItemClientCapabilities : public virtual object {
 		optional<boolean> additionalPropertiesSupport;
 
 		void visit_fields(visitor_base&) override;
 	};
-	struct ShowMessageRequestClientCapabilities : public object {
+	struct ShowMessageRequestClientCapabilities : public virtual object {
 		optional<MessageActionItemClientCapabilities> messageActionItem;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct MessageActionItem : public object {
+	struct MessageActionItem : public virtual object {
 		string title;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ShowMessageRequestParams : public object {
+	struct ShowMessageRequestParams : public virtual object {
 		MessageType type;
 		string message;
 		optional<array<MessageActionItem>> actions;
@@ -50,13 +50,13 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ShowDocumentClientCapabilities : public object {
-		boolean support;
+	struct ShowDocumentClientCapabilities : public virtual object {
+		boolean support = false;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ShowDocumentParams : public object {
+	struct ShowDocumentParams : public virtual object {
 		URI uri;
 		optional<boolean> external;
 		optional<boolean> takeFocus;
@@ -65,26 +65,26 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ShowDocumentResult : public object {
-		boolean success;
+	struct ShowDocumentResult : public virtual object {
+		boolean success = false;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct LogMessageParams : public object {
+	struct LogMessageParams : public virtual object {
 		MessageType type;
 		string message;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkDoneProgressCreateParams : public object {
+	struct WorkDoneProgressCreateParams : public virtual object {
 		ProgressToken token;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkDoneProgressCancelParams : public object {
+	struct WorkDoneProgressCancelParams : public virtual object {
 		ProgressToken token;
 
 		void visit_fields(visitor_base&) override;

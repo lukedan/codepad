@@ -256,7 +256,7 @@ namespace codepad::lsp::types {
 				return;
 			}
 			if (_stack.top()->IsArray()) {
-				// TODO
+				var.set_array_and_visit(*this);
 				return;
 			}
 			if (_stack.top()->IsObject()) {

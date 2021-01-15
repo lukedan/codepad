@@ -9,7 +9,7 @@
 #include "common.h"
 
 namespace codepad::lsp::types {
-	struct Registration : public object {
+	struct Registration : public virtual object {
 		string id;
 		string method;
 		optional<any> registerOptions;
@@ -17,20 +17,20 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct RegistrationParams : public object {
+	struct RegistrationParams : public virtual object {
 		array<Registration> registrations;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct Unregistration : public object {
+	struct Unregistration : public virtual object {
 		string id;
 		string method;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct UnregistrationParams : public object {
+	struct UnregistrationParams : public virtual object {
 		array<Unregistration> unregisterations;
 
 		void visit_fields(visitor_base&) override;

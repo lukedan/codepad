@@ -10,12 +10,12 @@
 
 namespace codepad::lsp::types {
 	/// Used by \ref PublishDiagnosticsClientCapabilities.
-	struct PublishDiagnosticsTagSupportClientCapabilities : public object {
+	struct PublishDiagnosticsTagSupportClientCapabilities : public virtual object {
 		array<DiagnosticTag> valueSet;
 
 		void visit_fields(visitor_base&) override;
 	};
-	struct PublishDiagnosticsClientCapabilities : public object {
+	struct PublishDiagnosticsClientCapabilities : public virtual object {
 		optional<boolean> relatedInformation;
 		optional<PublishDiagnosticsTagSupportClientCapabilities> tagSupport;
 		optional<boolean> versionSupport;
@@ -25,7 +25,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct PublishDiagnosticsParams : public object {
+	struct PublishDiagnosticsParams : public virtual object {
 		DocumentUri uri;
 		optional<uinteger> version;
 		array<Diagnostic> diagnostics;

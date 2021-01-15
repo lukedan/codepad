@@ -93,7 +93,6 @@ set_target_properties(codepad_core PROPERTIES ENABLE_EXPORTS YES)
 # set warning level
 if(MSVC)
 	target_compile_options(codepad_core
-		PUBLIC /experimental:module- # current msvc implementation of modules break pybind11
 		PRIVATE /W4 /permissive-)
 elseif(CMAKE_COMPILER_IS_GNUCXX)
 	target_compile_options(codepad_core

@@ -50,7 +50,6 @@ namespace codepad::lsp {
 				if (accum.empty()) { // end of header
 					break;
 				}
-				logger::get().log_debug(CP_HERE) << "header entry: " << accum;
 
 				std::size_t split = 1;
 				for (; split < accum.size(); ++split) {
@@ -59,11 +58,9 @@ namespace codepad::lsp {
 					}
 				}
 				std::string_view header(accum.begin(), accum.begin() + split - 1);
-				logger::get().log_debug(CP_HERE) << "header: " << header;
 				if (header == "Content-Length") {
 					// TODO handle errors?
 					std::from_chars(accum.data() + split + 1, accum.data() + accum.size(), message_length);
-					logger::get().log_debug(CP_HERE) << "message length: " << message_length;
 				}
 			}
 
@@ -156,7 +153,8 @@ namespace codepad::lsp {
 
 		/// Sends the given bytes to the server.
 		virtual void _send_bytes(const void*, std::size_t) = 0;
-		/// Receives bytes from the server. Blocks until any bytes are received.
+		/// Receives bytes from the server. Blocks until any bytes are received. This function may be called from
+		/// a thread other than the one this object is created on.
 		///
 		/// \return The actual number of bytes received.
 		virtual std::size_t _receive_bytes(void*, std::size_t) = 0;

@@ -224,10 +224,16 @@ namespace codepad::ui {
 		/// single message from the system by calling \ref _main_iteration_system() with \ref wait_type::blocking.
 		void main_iteration();
 
-		/// Wakes the main thread up from the idle state by calling \ref _wake_up(). This function can be called from
-		/// other threads as long as this \ref scheduler object has finished construction.
+		/// Wakes the main thread up from the idle state by calling \ref _wake_up(). This function does not block.
+		/// This function can be called from other threads as long as this \ref scheduler object has finished
+		/// construction.
 		void wake_up() {
 			_wake_up();
+		}
+		/// Wakes the main thread up and executes the given callback function. This function does not block. This
+		/// function can be called from other threads.
+		void execute_callback(std::function<void()> func) {
+			_execute_callback(std::move(func));
 		}
 
 		/// Returns the \ref hotkey_listener.
@@ -250,7 +256,7 @@ namespace codepad::ui {
 		std::set<element*> _dirty; ///< Stores all elements whose visuals need updating.
 		std::set<element*> _to_delete; ///< Stores all elements that are to be disposed of.
 
-		/// Keeps track of all tasks and their respective associated elements. 
+		/// Keeps track of all tasks and their respective associated elements.
 		std::map<element*, std::list<_task_info>> _tasks;
 		/// Used to keep track the tasks to execute first.
 		intrusive_priority_queue<_task_ref, _task_compare> _task_queue;
@@ -264,7 +270,6 @@ namespace codepad::ui {
 		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 
-		std::thread::id _tid;
 
 		/// Finds the focus scope that the given \ref element is in. The element itself is not taken into account.
 		/// Returns \p nullptr if the element is not in any scope (which should only happen for windows).
@@ -304,17 +309,20 @@ namespace codepad::ui {
 		}
 
 		// platform-dependent functions
-		/// Handles one message from the system message queue. This function is platform-dependent.
+		/// Handles one message from the system message queue. This function is platform-specific.
 		///
 		/// \return Whether a message has been handled.
 		bool _main_iteration_system_impl(wait_type);
 		/// Sets a timer that will be activated after the given amount of time. When the timer is expired, this
 		/// program will regain control and thus can update stuff. If this is called when a timer has previously
-		/// been set, it may or may not be cancelled. This function is platform-dependent.
+		/// been set, it may or may not be cancelled. This function is platform-specific.
 		void _set_timer(clock_t::duration);
 		/// Wakes the main thread up from the idle state. This function can be called from other threads as long as
 		/// this \ref scheduler object has finished construction.
 		void _wake_up();
+		/// Executes the callback function on the main thread. This function can be called from other threads. This
+		/// function is platform-specific.
+		void _execute_callback(std::function<void()>);
 
 		/// Returns the current thread ID.
 		static thread_id_t _get_thread_id();

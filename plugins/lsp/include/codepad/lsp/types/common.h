@@ -122,7 +122,9 @@ namespace codepad::lsp::types {
 		virtual void set_decimal(decimal) = 0;
 		/// Sets this variant to a \ref string.
 		virtual void set_string(std::u8string_view) = 0;
-		/// Sets this variant to a \ref object, and invokes its \p visit() function.
+		/// Sets this variant to an \ref array_base, and invokes the corresponding \p visit() function.
+		virtual void set_array_and_visit(visitor_base&) = 0;
+		/// Sets this variant to an \ref object, and invokes the corresponding \p visit() function.
 		virtual void set_object_and_visit(visitor_base&) = 0;
 
 		/// Visits the currently active value.
@@ -356,7 +358,16 @@ namespace codepad::lsp::types {
 				logger::get().log_error(CP_HERE) << "variant does not contain any string types or enums";
 			}
 		}
-		/// Sets this variant to a \ref object.
+		/// Sets this variant to an \ref array_base.
+		void set_array_and_visit(visitor_base &vis) override {
+			constexpr auto _id = _details::get_index_in_tuple<array_base, std::tuple<Args...>>();
+			if constexpr (_id) {
+				vis.visit(value.emplace<_id.value()>());
+			} else {
+				logger::get().log_error(CP_HERE) << "variant does not contain an array type";
+			}
+		}
+		/// Sets this variant to an \ref object or a \ref map_base.
 		void set_object_and_visit(visitor_base &vis) override {
 			constexpr auto _id_obj = _details::get_index_in_tuple<object, std::tuple<Args...>>();
 			constexpr auto _id_map = _details::get_index_in_tuple<map_base, std::tuple<Args...>>();
@@ -438,7 +449,7 @@ namespace codepad::lsp::types {
 	using URI = string;
 
 	using ProgressToken = primitive_variant<integer, string>;
-	template <typename T> struct ProgressParams : public object {
+	template <typename T> struct ProgressParams : public virtual object {
 		ProgressToken token;
 		T value;
 
@@ -448,35 +459,35 @@ namespace codepad::lsp::types {
 		}
 	};
 
-	struct RegularExpressionClientCapabilities : public object {
+	struct RegularExpressionClientCapabilities : public virtual object {
 		string engine;
 		optional<string> version;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct Position : public object {
-		uinteger line;
-		uinteger character;
+	struct Position : public virtual object {
+		uinteger line = 0;
+		uinteger character = 0;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct Range : public object {
+	struct Range : public virtual object {
 		Position start;
 		Position end;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct Location : public object {
+	struct Location : public virtual object {
 		DocumentUri uri;
 		Range range;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct LocationLink : public object {
+	struct LocationLink : public virtual object {
 		optional<Range> originSelectionRange;
 		DocumentUri targetUri;
 		Range targetRange;
@@ -499,20 +510,20 @@ namespace codepad::lsp::types {
 	};
 	using DiagnosticTag = numerical_enum<DiagnosticTagEnum>;
 
-	struct DiagnosticRelatedInformation : public object {
+	struct DiagnosticRelatedInformation : public virtual object {
 		Location location;
 		string message;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct CodeDescription : public object {
+	struct CodeDescription : public virtual object {
 		URI href;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct Diagnostic : public object {
+	struct Diagnostic : public virtual object {
 		Range range;
 		optional<DiagnosticSeverity> severity;
 		optional<primitive_variant<integer, string>> code;
@@ -526,7 +537,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct Command : public object {
+	struct Command : public virtual object {
 		string title;
 		string command;
 		optional<array<any>> arguments;
@@ -534,14 +545,14 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextEdit : public object {
+	struct TextEdit : public virtual object {
 		Range range;
 		string newText;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct ChangeAnnotation : public object {
+	struct ChangeAnnotation : public virtual object {
 		string label;
 		optional<boolean> needsConfirmation;
 		optional<string> description;
@@ -551,39 +562,39 @@ namespace codepad::lsp::types {
 
 	using ChangeAnnotationIdentifier = string;
 
-	struct AnnotatedTextEdit : public TextEdit {
+	struct AnnotatedTextEdit : public virtual TextEdit {
 		ChangeAnnotationIdentifier annotationId;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentIdentifier : public object {
+	struct TextDocumentIdentifier : public virtual object {
 		DocumentUri uri;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct OptionalVersionedTextDocumentIdentifier : public TextDocumentIdentifier {
+	struct OptionalVersionedTextDocumentIdentifier : public virtual TextDocumentIdentifier {
 		primitive_variant<null, integer> version;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentEdit : public object {
+	struct TextDocumentEdit : public virtual object {
 		OptionalVersionedTextDocumentIdentifier textDocument;
 		/*array<std::variant<TextEdit, AnnotatedTextEdit>> edits;*/ // TODO
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct CreateFileOptions : public object {
+	struct CreateFileOptions : public virtual object {
 		optional<boolean> overwrite;
 		optional<boolean> ignoreIfExists;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct CreateFile : public object {
+	struct CreateFile : public virtual object {
 		// kind = 'create'
 		DocumentUri uri;
 		optional<CreateFileOptions> options;
@@ -592,14 +603,14 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct RenameFileOptions : public object {
+	struct RenameFileOptions : public virtual object {
 		optional<boolean> overwrite;
 		optional<boolean> ignoreIfExists;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct RenameFile : public object {
+	struct RenameFile : public virtual object {
 		// kind = 'rename'
 		DocumentUri oldUri;
 		DocumentUri newUri;
@@ -609,14 +620,14 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DeleteFileOptions : public object {
+	struct DeleteFileOptions : public virtual object {
 		optional<boolean> recursive;
 		optional<boolean> ignoreIfNotExists;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DeleteFile : public object {
+	struct DeleteFile : public virtual object {
 		// kind = 'delete'
 		DocumentUri uri;
 		optional<DeleteFileOptions> options;
@@ -631,7 +642,7 @@ namespace codepad::lsp::types {
 		std::variant<TextDocumentEdit, CreateFile, RenameFile, DeleteFile> value;
 	};
 
-	struct WorkspaceEdit : public object {
+	struct WorkspaceEdit : public virtual object {
 		optional<map<array<TextEdit>>> changes;
 		/*optional<DocumentChange> documentChanges;*/ // TODO
 		optional<map<ChangeAnnotation>> changeAnnotations;
@@ -652,7 +663,7 @@ namespace codepad::lsp::types {
 		textOnlyTransactional
 	};
 
-	struct WorkspaceEditClientCapabilities : public object {
+	struct WorkspaceEditClientCapabilities : public virtual object {
 		optional<boolean> documentChanges;
 		/*optional<array<ResourceOperationKind>> resourceOperations;*/ // TODO
 		/*optional<FailureHandlingKind> failureHandling;*/ // TODO
@@ -662,29 +673,29 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentItem : public object {
+	struct TextDocumentItem : public virtual object {
 		DocumentUri uri;
 		string languageId;
-		integer version;
+		integer version = 0;
 		string text;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct VersionedTextDocumentIdentifier : public TextDocumentIdentifier {
-		integer version;
+	struct VersionedTextDocumentIdentifier : public virtual TextDocumentIdentifier {
+		integer version = 0;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentPositionParams : public object {
+	struct TextDocumentPositionParams : public virtual object {
 		TextDocumentIdentifier textDocument;
 		Position position;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DocumentFilter : public object {
+	struct DocumentFilter : public virtual object {
 		optional<string> language;
 		optional<string> scheme;
 		optional<string> pattern;
@@ -694,13 +705,13 @@ namespace codepad::lsp::types {
 
 	using DocumentSelector = array<DocumentFilter>;
 
-	struct StaticRegistrationOptions : public object {
+	struct StaticRegistrationOptions : public virtual object {
 		optional<string> id;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentRegistrationOptions : public object {
+	struct TextDocumentRegistrationOptions : public virtual object {
 		primitive_variant<null, DocumentSelector> documentSelector;
 
 		void visit_fields(visitor_base&) override;
@@ -710,7 +721,7 @@ namespace codepad::lsp::types {
 		plaintext,
 		markdown
 	};
-	struct MarkupKind : public contiguous_string_enum<MarkupKindEnum, MarkupKind> {
+	struct MarkupKind : public virtual contiguous_string_enum<MarkupKindEnum, MarkupKind> {
 		friend contiguous_string_enum;
 	protected:
 		inline static const std::vector<std::u8string_view> &_get_strings() {
@@ -719,21 +730,21 @@ namespace codepad::lsp::types {
 		}
 	};
 
-	struct MarkupContent : public object {
+	struct MarkupContent : public virtual object {
 		MarkupKind kind;
 		string value;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct MarkdownClientCapabilities : public object {
+	struct MarkdownClientCapabilities : public virtual object {
 		string parser;
 		optional<string> version;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkDoneProgressBegin : public object {
+	struct WorkDoneProgressBegin : public virtual object {
 		// kind = 'begin'
 		string title;
 		optional<boolean> cancellable;
@@ -743,7 +754,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkDoneProgressReport : public object {
+	struct WorkDoneProgressReport : public virtual object {
 		// kind = 'report'
 		optional<boolean> cancellable;
 		optional<string> message;
@@ -752,26 +763,26 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkDoneProgressEnd : public object {
+	struct WorkDoneProgressEnd : public virtual object {
 		// kind = 'end'
 		optional<string> message;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkDoneProgressParams : public object {
+	struct WorkDoneProgressParams : public virtual object {
 		optional<ProgressToken> workDoneToken;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct WorkDoneProgressOptions : public object {
+	struct WorkDoneProgressOptions : public virtual object {
 		optional<boolean> workDoneProgress;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct PartialResultParams : public object {
+	struct PartialResultParams : public virtual object {
 		optional<ProgressToken> partialResultToken;
 
 		void visit_fields(visitor_base&) override;

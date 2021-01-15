@@ -4,6 +4,8 @@
 /// \file
 /// Plugin interface.
 
+#include "codepad/ui/manager.h"
+#include "codepad/ui/scheduler.h"
 #include "codepad/core/plugins.h"
 
 #include "plugin_defs.h"
@@ -52,7 +54,50 @@ extern "C" {
 
 	PLUGIN_ENABLE() {
 		auto bkend = std::make_unique<cp::lsp::stdio_backend>(TEXT("D:/Software/LLVM/bin/clangd.exe"));
-		cp::lsp::_client = std::make_unique<cp::lsp::client>(std::move(bkend));
+		cp::lsp::_client = std::make_unique<cp::lsp::client>(
+			std::move(bkend), cp::lsp::_context->ui_man->get_scheduler()
+		);
+
+		// initialize
+		cp::lsp::types::InitializeParams init;
+		init.processId.value.emplace<cp::lsp::types::integer>(GetCurrentProcessId()); // TODO winapi
+		init.capabilities.workspace.value.emplace().workspaceFolders.value.emplace(true);
+		{
+			auto &folders = init.workspaceFolders.value.emplace()
+				.value.emplace<cp::lsp::types::array<cp::lsp::types::WorkspaceFolder>>().value;
+			{
+				auto &folder = folders.emplace_back();
+				folder.uri = u8"file:///D:/Documents/Projects/codepad";
+				folder.name = u8"codepad";
+			}
+		}
+		cp::lsp::_client->send_request<cp::lsp::types::InitializeResult>(
+			u8"initialize", init, [](cp::lsp::types::InitializeResult res) {
+				cp::lsp::types::InitializedParams initialized;
+				cp::lsp::_client->send_notification(u8"initialized", initialized);
+
+				cp::lsp::types::SetTraceParams trace;
+				trace.value.value = cp::lsp::types::TraceValueEnum::verbose;
+				cp::lsp::_client->send_notification(u8"$/setTrace", trace);
+
+				cp::lsp::types::DidOpenTextDocumentParams didopen;
+				didopen.textDocument.languageId = u8"cpp";
+				didopen.textDocument.uri = u8"file:///D:/Documents/Projects/codepad/src/core/globals.cpp";
+				didopen.textDocument.version = 0;
+				cp::lsp::_client->send_notification(u8"textDocument/didOpen", didopen);
+
+				cp::lsp::types::CompletionParams completion;
+				completion.position.line = 0;
+				completion.position.character = 0;
+				completion.textDocument.uri = u8"file:///D:/Documents/Projects/codepad/src/core/globals.cpp";
+				cp::lsp::_client->send_request<cp::lsp::types::CompletionResponse>(
+					u8"textDocument/completion", completion, [](cp::lsp::types::CompletionResponse resp) {
+						cp::lsp::types::logger_serializer log(cp::logger::get().log_debug(CP_HERE));
+						log.visit(resp);
+					}
+				);
+			}
+		);
 		// TODO
 	}
 	PLUGIN_DISABLE() {

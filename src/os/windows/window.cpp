@@ -395,7 +395,7 @@ namespace codepad::os {
 				break;
 			case WM_INPUTLANGCHANGE:
 				window::_ime::get().on_input_language_changed();
-				break;
+				return TRUE;
 
 			case WM_PAINT:
 				form->_on_render();

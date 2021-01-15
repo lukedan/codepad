@@ -50,25 +50,25 @@ namespace codepad::lsp::types {
 	using CompletionItemTag = numerical_enum<CompletionItemTagEnum>;
 
 	/// Used by \ref CompletionItemClientCapabilities.
-	struct TagSupportClientCapabilties : public object {
+	struct TagSupportClientCapabilties : public virtual object {
 		array<CompletionItemTag> valueSet;
 
 		void visit_fields(visitor_base&) override;
 	};
 	/// Used by \ref CompletionItemClientCapabilities.
-	struct ResolveSupportClientCapabilties : public object {
+	struct ResolveSupportClientCapabilties : public virtual object {
 		array<string> properties;
 
 		void visit_fields(visitor_base&) override;
 	};
 	/// Used by \ref CompletionItemClientCapabilities.
-	struct InsertTextModeSupportClientCapabilities : public object {
+	struct InsertTextModeSupportClientCapabilities : public virtual object {
 		array<InsertTextMode> valueSet;
 
 		void visit_fields(visitor_base&) override;
 	};
 	/// Used by \ref CompletionClientCapabilities.
-	struct CompletionItemClientCapabilities : public object {
+	struct CompletionItemClientCapabilities : public virtual object {
 		optional<boolean> snippetSupport;
 		optional<boolean> commitCharactersSupport;
 		optional<array<MarkupKind>> documentationFormat;
@@ -82,12 +82,12 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 	/// Used by \ref CompletionClientCapabilities.
-	struct CompletionItemKindClientCapabilities : public object {
+	struct CompletionItemKindClientCapabilities : public virtual object {
 		optional<array<CompletionItemKind>> valueSet;
 
 		void visit_fields(visitor_base&) override;
 	};
-	struct CompletionClientCapabilities : public object {
+	struct CompletionClientCapabilities : public virtual object {
 		optional<boolean> dynamicRegistration;
 		optional<CompletionItemClientCapabilities> completionItem;
 		optional<CompletionItemKindClientCapabilities> completionItemKind;
@@ -96,7 +96,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct CompletionOptions : public WorkDoneProgressOptions {
+	struct CompletionOptions : public virtual WorkDoneProgressOptions {
 		optional<array<string>> triggerCharacters;
 		optional<array<string>> allCommitCharacters;
 		optional<boolean> resolveProvider;
@@ -104,7 +104,9 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct CompletionRegistrationOptions : public TextDocumentRegistrationOptions, public CompletionOptions {
+	struct CompletionRegistrationOptions :
+		public virtual TextDocumentRegistrationOptions, public virtual CompletionOptions {
+
 		void visit_fields(visitor_base&) override;
 	};
 
@@ -115,7 +117,7 @@ namespace codepad::lsp::types {
 	};
 	using CompletionTriggerKind = numerical_enum<CompletionTriggerKindEnum>;
 
-	struct CompletionContext : public object {
+	struct CompletionContext : public virtual object {
 		CompletionTriggerKind triggerKind;
 		optional<string> triggerCharacter;
 
@@ -123,7 +125,10 @@ namespace codepad::lsp::types {
 	};
 
 	struct CompletionParams :
-		public TextDocumentPositionParams, public WorkDoneProgressParams, public PartialResultParams {
+		public virtual TextDocumentPositionParams,
+		public virtual WorkDoneProgressParams,
+		public virtual PartialResultParams {
+
 		optional<CompletionContext> context;
 
 		void visit_fields(visitor_base&) override;
@@ -135,7 +140,7 @@ namespace codepad::lsp::types {
 	};
 	using InsertTextFormat = numerical_enum<InsertTextFormatEnum>;
 
-	struct CompletionItem : public object {
+	struct CompletionItem : public virtual object {
 		string label;
 		optional<CompletionItemKind> kind;
 		optional<array<CompletionItemTag>> tags;
@@ -157,14 +162,17 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct CompletionList : public object {
-		boolean isIncomplete;
+	struct CompletionList : public virtual object {
+		boolean isIncomplete = false;
 		array<CompletionItem> items;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct InsertReplaceEdit : public object {
+	/// Convenience response type for \p textDocument/completion.
+	using CompletionResponse = primitive_variant<null, array<CompletionItem>, CompletionList>;
+
+	struct InsertReplaceEdit : public virtual object {
 		string newText;
 		Range insert;
 		Range replace;
@@ -172,27 +180,27 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct HoverClientCapabilities : public object {
+	struct HoverClientCapabilities : public virtual object {
 		optional<boolean> dynamicRegistration;
 		optional<array<MarkupKind>> contentFormat;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct HoverOptions : public WorkDoneProgressOptions {
+	struct HoverOptions : public virtual WorkDoneProgressOptions {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct HoverRegistrationOptions : public TextDocumentRegistrationOptions, public HoverOptions {
+	struct HoverRegistrationOptions : public virtual TextDocumentRegistrationOptions, public virtual HoverOptions {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct HoverParams : public TextDocumentPositionParams, public WorkDoneProgressParams {
+	struct HoverParams : public virtual TextDocumentPositionParams, public virtual WorkDoneProgressParams {
 		void visit_fields(visitor_base&) override;
 	};
 
 	/// Used by \ref MarkedString.
-	struct MarkedStringObject : public object {
+	struct MarkedStringObject : public virtual object {
 		string language;
 		string value;
 
@@ -200,7 +208,7 @@ namespace codepad::lsp::types {
 	};
 	using MarkedString = primitive_variant<string, MarkedStringObject>;
 
-	struct Hover : public object {
+	struct Hover : public virtual object {
 		/*primitive_variant<MarkedString, array<MarkedString>, MarkupContent> contents;*/
 		optional<Range> range;
 

@@ -16,19 +16,19 @@ namespace codepad::lsp::types {
 	};
 	using TextDocumentSyncKind = numerical_enum<TextDocumentSyncKindEnum>;
 
-	struct DidOpenTextDocumentParams : public object {
+	struct DidOpenTextDocumentParams : public virtual object {
 		TextDocumentItem textDocument;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentChangeRegistrationOptions : public TextDocumentRegistrationOptions {
+	struct TextDocumentChangeRegistrationOptions : public virtual TextDocumentRegistrationOptions {
 		TextDocumentSyncKind syncKind;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentContentChangeEvent : public object {
+	struct TextDocumentContentChangeEvent : public virtual object {
 		optional<Range> range;
 		// if range is empty, rangeLength must also be empty
 		optional<uinteger> rangeLength; // deprecated
@@ -37,7 +37,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidChangeTextDocumentParams : public object {
+	struct DidChangeTextDocumentParams : public virtual object {
 		VersionedTextDocumentIdentifier textDocument;
 		array<TextDocumentContentChangeEvent> contentChanges;
 
@@ -51,39 +51,39 @@ namespace codepad::lsp::types {
 	};
 	using TextDocumentSaveReason = numerical_enum<TextDocumentSaveReasonEnum>;
 
-	struct WillSaveTextDocumentParams : public object {
+	struct WillSaveTextDocumentParams : public virtual object {
 		TextDocumentIdentifier textDocument;
 		TextDocumentSaveReason reason;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct SaveOptions : public object {
+	struct SaveOptions : public virtual object {
 		optional<boolean> includeText;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentSaveRegistrationOptions : public TextDocumentRegistrationOptions {
+	struct TextDocumentSaveRegistrationOptions : public virtual TextDocumentRegistrationOptions {
 		optional<boolean> includeText;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidSaveTextDocumentParams : public object {
+	struct DidSaveTextDocumentParams : public virtual object {
 		TextDocumentIdentifier textDocument;
 		optional<string> text;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct DidCloseTextDocumentParams : public object {
+	struct DidCloseTextDocumentParams : public virtual object {
 		TextDocumentIdentifier textDocument;
 
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentSyncClientCapabilities : public object {
+	struct TextDocumentSyncClientCapabilities : public virtual object {
 		optional<boolean> dynamicRegistration;
 		optional<boolean> willSave;
 		optional<boolean> willSaveWaitUntil;
@@ -92,7 +92,7 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
-	struct TextDocumentSyncOptions : public object {
+	struct TextDocumentSyncOptions : public virtual object {
 		optional<boolean> openClose;
 		optional<TextDocumentSyncKind> change;
 		optional<boolean> willSave;

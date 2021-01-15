@@ -83,6 +83,10 @@ namespace codepad::lsp::types {
 	}
 
 
+	CP_LSP_VISIT_FUNC(v, InitializedParams) {
+	}
+
+
 	CP_LSP_VISIT_FUNC(v, ServerCapabilities) {
 		CP_LSP_VISIT_FIELD(v, textDocumentSync);
 		CP_LSP_VISIT_FIELD(v, completionProvider);
