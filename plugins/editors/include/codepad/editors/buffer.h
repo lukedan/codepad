@@ -537,6 +537,11 @@ namespace codepad::editors {
 			_t.clear();
 		}
 
+		/// Returns the identifier of this buffer. This would be a path for an existing file, or an integer for newly
+		/// created files.
+		[[nodiscard]] const std::variant<std::size_t, std::filesystem::path> &get_id() const {
+			return _fileid;
+		}
 		/// Returns the associated \ref buffer_manager.
 		buffer_manager *get_manager() const {
 			return _bufman;

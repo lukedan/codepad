@@ -7,7 +7,7 @@
 /// Implementation of the scrollbar.
 
 #include "codepad/ui/manager.h"
-#include "codepad/ui/json_parsers.h"
+#include "codepad/ui/json_parsers.inl"
 
 namespace codepad::ui {
 	scrollbar &scrollbar_drag_button::_get_bar() const {

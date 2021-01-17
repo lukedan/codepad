@@ -7,7 +7,7 @@
 /// Implementation of stack panels.
 
 #include "codepad/ui/manager.h"
-#include "codepad/ui/json_parsers.h"
+#include "codepad/ui/json_parsers.inl"
 
 namespace codepad::ui {
 	size_allocation stack_panel::get_desired_width() const {

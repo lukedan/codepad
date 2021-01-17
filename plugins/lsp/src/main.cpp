@@ -8,6 +8,8 @@
 #include "codepad/ui/scheduler.h"
 #include "codepad/core/plugins.h"
 
+#include "codepad/editors/manager.h"
+
 #include "plugin_defs.h"
 
 #include "codepad/lsp/backends/stdio.h"
@@ -20,14 +22,18 @@
 #include "codepad/lsp/types/text_synchronization.h"
 #include "codepad/lsp/types/window.h"
 #include "codepad/lsp/types/workspace.h"
-#include "codepad/lsp/messages/general.h"
 #include "codepad/lsp/backend.h"
 #include "codepad/lsp/client.h"
 
 namespace codepad::lsp {
 	const plugin_context *_context = nullptr; ///< The \ref plugin_context.
 	plugin *_this_plugin = nullptr; ///< Handle of this plugin.
-	std::unique_ptr<client> _client;
+	editors::manager *_editor_manager = nullptr; ///< The \ref editors::manager.
+
+	std::unique_ptr<client> _client; ///< The LSP client.
+
+	/// Token used to register for \ref editors::buffer_manager::interpretation_created.
+	info_event<editors::interpretation_info>::token _interpretation_created_token;
 }
 
 namespace cp = codepad;
@@ -37,10 +43,13 @@ extern "C" {
 		cp::lsp::_context = &ctx;
 		cp::lsp::_this_plugin = &this_plug;
 
-		/*auto editors_plugin = ctx.plugin_man->find_plugin(u8"editors");
+		auto editors_plugin = ctx.plugin_man->find_plugin(u8"editors");
 		if (editors_plugin.valid()) {
 			this_plug.add_dependency(editors_plugin);
-		}*/
+			if (auto **ppman = editors_plugin.get_data<cp::editors::manager*>()) {
+				cp::lsp::_editor_manager = *ppman;
+			}
+		}
 	}
 
 	PLUGIN_FINALIZE() {
@@ -58,6 +67,17 @@ extern "C" {
 			std::move(bkend), cp::lsp::_context->ui_man->get_scheduler()
 		);
 
+		auto &handlers = cp::lsp::_client->request_handlers();
+		handlers.try_emplace(
+			u8"textDocument/publishDiagnostics",
+			cp::lsp::client::request_handler::create_notification_handler<cp::lsp::types::PublishDiagnosticsParams>(
+				[](cp::lsp::client&, cp::lsp::types::PublishDiagnosticsParams params) {
+					cp::lsp::types::logger_serializer ser(cp::logger::get().log_debug(CP_HERE));
+					ser.visit(params);
+				}
+			)
+		);
+
 		// initialize
 		cp::lsp::types::InitializeParams init;
 		init.processId.value.emplace<cp::lsp::types::integer>(GetCurrentProcessId()); // TODO winapi
@@ -71,36 +91,27 @@ extern "C" {
 				folder.name = u8"codepad";
 			}
 		}
-		cp::lsp::_client->send_request<cp::lsp::types::InitializeResult>(
-			u8"initialize", init, [](cp::lsp::types::InitializeResult res) {
-				cp::lsp::types::InitializedParams initialized;
-				cp::lsp::_client->send_notification(u8"initialized", initialized);
+		cp::lsp::_client->initialize(
+			init, []() {
+			}
+		);
 
-				cp::lsp::types::SetTraceParams trace;
-				trace.value.value = cp::lsp::types::TraceValueEnum::verbose;
-				cp::lsp::_client->send_notification(u8"$/setTrace", trace);
-
-				cp::lsp::types::DidOpenTextDocumentParams didopen;
-				didopen.textDocument.languageId = u8"cpp";
-				didopen.textDocument.uri = u8"file:///D:/Documents/Projects/codepad/src/core/globals.cpp";
-				didopen.textDocument.version = 0;
-				cp::lsp::_client->send_notification(u8"textDocument/didOpen", didopen);
-
-				cp::lsp::types::CompletionParams completion;
-				completion.position.line = 0;
-				completion.position.character = 0;
-				completion.textDocument.uri = u8"file:///D:/Documents/Projects/codepad/src/core/globals.cpp";
-				cp::lsp::_client->send_request<cp::lsp::types::CompletionResponse>(
-					u8"textDocument/completion", completion, [](cp::lsp::types::CompletionResponse resp) {
-						cp::lsp::types::logger_serializer log(cp::logger::get().log_debug(CP_HERE));
-						log.visit(resp);
-					}
-				);
+		cp::lsp::_interpretation_created_token = (cp::lsp::_editor_manager->buffers.interpretation_created +=
+			[](cp::editors::interpretation_info &info) {
+				if (cp::lsp::_client->get_state() == cp::lsp::client::state::ready) {
+					cp::lsp::_client->didOpen(info.interp);
+				} else {
+					// TODO
+				}
 			}
 		);
 		// TODO
 	}
 	PLUGIN_DISABLE() {
+		cp::lsp::_editor_manager->buffers.interpretation_created -= cp::lsp::_interpretation_created_token;
+
+		cp::lsp::_client->shutdown_and_exit();
+		cp::lsp::_client.reset();
 		// TODO
 	}
 }

@@ -7,7 +7,7 @@
 /// Implementation of \ref codepad::ui::text_edit.
 
 #include "codepad/ui/manager.h"
-#include "codepad/ui/json_parsers.h"
+#include "codepad/ui/json_parsers.inl"
 
 namespace codepad::ui {
 	std::pair<std::u8string::iterator, bool> text_edit::modify(

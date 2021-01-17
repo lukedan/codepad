@@ -24,7 +24,7 @@
 #	endif
 #endif
 #include "codepad/ui/config_parsers.h"
-#include "codepad/ui/json_parsers.h"
+#include "codepad/ui/json_parsers.inl"
 #include "codepad/ui/elements/tabs/tab.h"
 #include "codepad/ui/elements/tabs/manager.h"
 

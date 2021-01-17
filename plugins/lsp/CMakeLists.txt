@@ -10,8 +10,10 @@ target_sources(lsp
 		"src/types/text_synchronization.cpp"
 		"src/types/window.cpp"
 		"src/types/workspace.cpp"
-		"src/main.cpp")
-target_link_libraries(lsp PUBLIC codepad_core)
+		"src/client.cpp"
+		"src/main.cpp"
+		"src/uri.cpp")
+target_link_libraries(lsp PUBLIC codepad_core editors)
 target_include_directories(lsp
 	PUBLIC "include/"
 	PRIVATE "../common/include/")
@@ -24,3 +26,7 @@ set_target_properties(lsp
 find_package(RapidJSON CONFIG REQUIRED)
 target_include_directories(lsp
 	PUBLIC ${RapidJSON_INCLUDE_DIRS})
+
+find_package(uriparser CONFIG REQUIRED char)
+target_link_libraries(lsp
+	PRIVATE uriparser::uriparser)
