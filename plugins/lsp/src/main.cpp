@@ -24,6 +24,7 @@
 #include "codepad/lsp/types/workspace.h"
 #include "codepad/lsp/backend.h"
 #include "codepad/lsp/client.h"
+#include "codepad/lsp/uri.h"
 
 namespace codepad::lsp {
 	const plugin_context *_context = nullptr; ///< The \ref plugin_context.

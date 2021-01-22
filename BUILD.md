@@ -7,6 +7,7 @@
     ```
     vcpkg install rapidjson
     vcpkg install pybind11
+    vcpkg install uriparser
     ```
 
     If you want to build codepad with Cairo support, also install:
@@ -35,6 +36,7 @@
     apt install libpango1.0-dev
     apt install libcairo2-dev
     apt install libgtk-3-dev
+    apt install liburiparser-dev
     ```
     Note that older versions of pybind11 may not be compatible with codepad, in which case the plugin will fail to build, but you should still be able to build and run the rest of the program without any problem.
 

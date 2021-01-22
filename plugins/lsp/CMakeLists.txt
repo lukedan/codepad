@@ -1,6 +1,22 @@
 add_library(lsp SHARED)
 
 target_sources(lsp
+	PUBLIC
+		"include/codepad/lsp/backends/stdio.h"
+
+		"include/codepad/lsp/types/client.h"
+		"include/codepad/lsp/types/common.h"
+		"include/codepad/lsp/types/diagnostics.h"
+		"include/codepad/lsp/types/general.h"
+		"include/codepad/lsp/types/language_features.h"
+		"include/codepad/lsp/types/serialization.h"
+		"include/codepad/lsp/types/text_synchronization.h"
+		"include/codepad/lsp/types/window.h"
+		"include/codepad/lsp/types/workspace.h"
+
+		"include/codepad/lsp/backend.h"
+		"include/codepad/lsp/client.h"
+		"include/codepad/lsp/uri.h"
 	PRIVATE
 		"src/types/client.cpp"
 		"src/types/common.cpp"

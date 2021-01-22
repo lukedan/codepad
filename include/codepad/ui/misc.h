@@ -245,7 +245,8 @@ namespace codepad {
 				new_line_callback(_ncps, line_ending::none);
 			}
 
-			/// The callback that will be invoked when a new line is encountered.
+			/// The callback that will be invoked when a new line is encountered. The first parameter is the number
+			/// of characters in the line, *excluding the linebreak*.
 			std::function<void(std::size_t, line_ending)> new_line_callback;
 		protected:
 			std::size_t _ncps = 0; ///< The number of codepoints in the current line.

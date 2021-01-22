@@ -85,7 +85,7 @@ namespace codepad::lsp {
 						);
 						auto handler_it = c.request_handlers().find(method);
 						if (handler_it == c.request_handlers().end()) {
-							logger::get().log_info(CP_HERE) << "unhandled LSP request/notification: " << method;
+							logger::get().log_warning(CP_HERE) << "unhandled LSP request/notification: " << method;
 							return;
 						}
 						handler_it->second.callback(*doc_ptr, c);

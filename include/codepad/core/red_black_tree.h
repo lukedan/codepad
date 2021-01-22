@@ -588,7 +588,7 @@ namespace codepad::red_black_tree {
 		}
 
 		/// Erases the given node using a custom synthesizer.
-		template <typename MySynth> iterator erase(const_iterator it, MySynth &&synth) {
+		template <typename MySynth> iterator erase_custom_synth(const_iterator it, MySynth &&synth) {
 			assert_true_usage(it.get_container() == this, "iterator is for another tree");
 			node *n = it.get_node();
 			assert_true_usage(n != nullptr, "trying to erase empty iterator");
@@ -600,7 +600,7 @@ namespace codepad::red_black_tree {
 		}
 		/// Erases the given node using the default synthesizer.
 		iterator erase(const_iterator it) {
-			return erase(it, this->get_synthesizer());
+			return erase_custom_synth(it, this->get_synthesizer());
 		}
 		/// Erases a range of elements in the tree, performing fixup using the default synthesizer.
 		void erase(const_iterator begin, const_iterator end) {

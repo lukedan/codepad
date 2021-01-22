@@ -178,8 +178,9 @@ namespace codepad::editors {
 			}
 
 			std::size_t
-				/// The position where the modification takes place. If multiple modifications are made simultaneously
-				/// by multiple carets, this position is obtained after all previous modifications have completed.
+				/// The byte position where the modification takes place. If multiple modifications are made
+				/// simultaneously by multiple carets, this position is obtained after all previous modifications
+				/// have completed.
 				position = 0,
 				removed_range = 0, ///< The length of the removed byte sequence.
 				added_range = 0; ///< The length of the added byte sequence.
@@ -189,14 +190,15 @@ namespace codepad::editors {
 		/// inserted at the same position.
 		struct modification {
 			/// Returns a \ref modification_position containing position information about this modification.
-			modification_position get_position_info() const {
+			[[nodiscard]] modification_position get_position_info() const {
 				return modification_position(position, removed_content.size(), added_content.size());
 			}
 
 			byte_string
 				removed_content, ///< Bytes removed by this modification.
 				added_content; ///< Bytes inserted by this modification.
-			/// The position where this modification took place, after all previous modifications have been made.
+			/// The byte position where this modification took place, obtained after all previous modifications in
+			/// the same edit have been applied.
 			std::size_t position = 0;
 		};
 		/// A list of modifications made by multiple carets at the same time.
@@ -267,6 +269,34 @@ namespace codepad::editors {
 			const edit_type type = edit_type::normal; ///< The type of this edit.
 			ui::element *const source_element = nullptr; ///< The source that made this edit.
 		};
+		/// Information about a single modification that is about to be made as a part of an edit.
+		struct begin_modification_info {
+			/// Initializes all fields of this struct.
+			begin_modification_info(std::size_t pos, std::size_t erase, const byte_string &insert) :
+				position(pos), bytes_to_erase(erase), bytes_to_insert(insert) {
+			}
+
+			const std::size_t
+				/// The first byte where this modification takes place, after all previous modifications in the same
+				/// edit have been applied.
+				position = 0,
+				bytes_to_erase = 0; ///< The number of bytes that are erased in this modification.
+			const byte_string &bytes_to_insert; ///< The bytes to insert at \ref position.
+		};
+		/// Information about a single modification that has been made as a part of an edit.
+		struct end_modification_info {
+			/// Initializes all fields of this struct.
+			end_modification_info(std::size_t pos, const byte_string &erased, const byte_string &inserted) :
+				position(pos), bytes_erased(erased), bytes_inserted(inserted) {
+			}
+
+			/// The starting position of this modification, after all previous modifications in the same edit have
+			/// been applied.
+			const std::size_t position = 0;
+			const byte_string
+				&bytes_erased, ///< The bytes that have been erased at \ref position.
+				&bytes_inserted; ///< The bytes that have been inserted at \ref position.
+		};
 		/// Information about an edit to a \ref buffer.
 		struct end_edit_info {
 			/// Initializes all fields of this struct.
@@ -317,6 +347,7 @@ namespace codepad::editors {
 			/// made.
 			void modify_nofixup(std::size_t pos, std::size_t eraselen, byte_string insert) {
 				modification mod;
+				_buf->begin_modify.invoke_noret(pos, eraselen, insert);
 				mod.position = pos;
 				if (eraselen > 0) {
 					const_iterator posit = _buf->at(pos), endit = _buf->at(pos + eraselen);
@@ -327,6 +358,7 @@ namespace codepad::editors {
 					_buf->_insert(_buf->at(pos), insert.begin(), insert.end());
 					mod.added_content = std::move(insert);
 				}
+				_buf->end_modify.invoke_noret(pos, mod.removed_content, mod.added_content);
 				_diff += mod.added_content.size() - mod.removed_content.size();
 				_pos.emplace_back(mod.position, mod.removed_content.size(), mod.added_content.size());
 				_edt.emplace_back(std::move(mod));
@@ -345,28 +377,32 @@ namespace codepad::editors {
 			}
 
 			/// Reverts a modification made previously. This operation is not recorded, and is intended to be used
-			/// solely throughout the duration of an edit.
+			/// solely for undoing an entire edit.
 			void undo(const modification &mod) {
 				std::size_t pos = mod.position + _diff;
+				_buf->begin_modify.invoke_noret(pos, mod.added_content.size(), mod.removed_content);
 				if (!mod.added_content.empty()) {
 					_buf->_erase(_buf->at(pos), _buf->at(pos + mod.added_content.size()));
 				}
 				if (!mod.removed_content.empty()) {
 					_buf->_insert(_buf->at(pos), mod.removed_content.begin(), mod.removed_content.end());
 				}
+				_buf->end_modify.invoke_noret(pos, mod.added_content, mod.removed_content);
 				_diff += mod.removed_content.size() - mod.added_content.size();
 				_pos.emplace_back(pos, mod.added_content.size(), mod.removed_content.size());
 			}
 			/// Restores a previously reverted modification. This operation is not recorded, and is intended to be
-			/// used solely throughout the duration of an edit.
+			/// used solely for redoing an entire edit.
 			void redo(const modification &mod) {
 				// the modification already stores adjusted positions
+				_buf->begin_modify.invoke_noret(mod.position, mod.removed_content.size(), mod.added_content);
 				if (!mod.removed_content.empty()) {
 					_buf->_erase(_buf->at(mod.position), _buf->at(mod.position + mod.removed_content.size()));
 				}
 				if (!mod.added_content.empty()) {
 					_buf->_insert(_buf->at(mod.position), mod.added_content.begin(), mod.added_content.end());
 				}
+				_buf->end_modify.invoke_noret(mod.position, mod.removed_content, mod.added_content);
 				_diff += mod.added_content.size() - mod.removed_content.size();
 				_pos.emplace_back(mod.position, mod.removed_content.size(), mod.added_content.size());
 			}
@@ -548,6 +584,12 @@ namespace codepad::editors {
 		}
 
 		info_event<begin_edit_info> begin_edit; ///< Invoked when this \ref buffer is about to be modified.
+		/// Invoked for every single modification within an edit. This is invoked before the modification it refers
+		/// to is applied, but **after** all previous modifications have been applied.
+		info_event<begin_modification_info> begin_modify;
+		/// Invked for every single modification within an edit, after it has been made but before \ref begin_modify
+		/// is invoked for the next modification or \ref end_edit is invoked.
+		info_event<end_modification_info> end_modify;
 		info_event<end_edit_info> end_edit; ///< Invoked when this \ref buffer has been modified.
 	protected:
 		/// Used to find the chunk in which the byte at the given index lies.

@@ -116,14 +116,15 @@ namespace codepad::editors {
 			const std::shared_ptr<buffer> &buf, const code::buffer_encoding &encoding
 		) {
 			_buffer_data &data = _get_data_of(*buf);
-			auto it = data.interpretations.find(encoding.get_name());
+			std::u8string encoding_name(encoding.get_name());
+			auto it = data.interpretations.find(encoding_name);
 			if (it != data.interpretations.end()) {
 				auto ptr = it->second.lock();
 				if (ptr) {
 					return ptr;
 				}
 			} else {
-				it = data.interpretations.try_emplace(std::u8string(encoding.get_name())).first;
+				it = data.interpretations.try_emplace(std::move(encoding_name)).first;
 			}
 			auto ptr = std::make_shared<code::interpretation>(buf, encoding);
 			ptr->_tags.resize(_interpretation_tag_alloc_max); // allocate space for tags
@@ -139,8 +140,8 @@ namespace codepad::editors {
 			std::size_t res = 0;
 			if (_buffer_tag_alloc.empty()) {
 				res = _buffer_tag_alloc_max++;
-				for_each_buffer([this](buffer &buf) {
-					buf._tags.resize(_buffer_tag_alloc_max);
+				for_each_buffer([this](std::shared_ptr<buffer> buf) {
+					buf->_tags.resize(_buffer_tag_alloc_max);
 				});
 			} else {
 				res = _buffer_tag_alloc.top();
@@ -151,8 +152,8 @@ namespace codepad::editors {
 		/// Deallocates a buffer tag slot, and clears the corresponding entries in \ref buffer::_tags for all open
 		/// documents.
 		void deallocate_buffer_tag(buffer_tag_token &token) {
-			for_each_buffer([index = token._index](buffer &buf) {
-				buf._tags[index].reset();
+			for_each_buffer([index = token._index](std::shared_ptr<buffer> buf) {
+				buf->_tags[index].reset();
 			});
 			_buffer_tag_alloc.emplace(token._index);
 			token.reset();
@@ -163,8 +164,8 @@ namespace codepad::editors {
 			std::size_t res = 0;
 			if (_interpretation_tag_alloc.empty()) {
 				res = _interpretation_tag_alloc_max++;
-				for_each_interpretation([this](code::interpretation &interp) {
-					interp._tags.resize(_interpretation_tag_alloc_max);
+				for_each_interpretation([this](std::shared_ptr<code::interpretation> interp) {
+					interp->_tags.resize(_interpretation_tag_alloc_max);
 				});
 			} else {
 				res = _interpretation_tag_alloc.top();
@@ -175,38 +176,53 @@ namespace codepad::editors {
 		/// Deallocates a buffer tag slot, and clears the corresponding entries in \ref code::interpretation::_tags
 		/// for all open interpretations.
 		void deallocate_interpretation_tag(interpretation_tag_token &token) {
-			for_each_interpretation([index = token._index](code::interpretation &interp) {
-				interp._tags[index].reset();
+			for_each_interpretation([index = token._index](std::shared_ptr<code::interpretation> interp) {
+				interp->_tags[index].reset();
 			});
 			_interpretation_tag_alloc.emplace(token._index);
 			token.reset();
 		}
 
 
-		/// Iterates through all open buffers.
+		/// Iterates over all open buffers.
 		template <typename Cb> void for_each_buffer(Cb &&cb) {
 			for (auto &pair : _file_map) {
 				auto buf = pair.second.buf.lock();
 				// should not be nullptr since all disposed documents are removed from the map
 				assert_true_logical(buf != nullptr, "corrupted document registry");
-				cb(*buf);
+				cb(std::move(buf));
 			}
 			for (auto &wptr : _noname_map) {
 				if (auto buf = wptr.buf.lock()) {
-					cb(*buf);
+					cb(std::move(buf));
 				}
 			}
 		}
-		/// Iterates through all open interpretations.
+		/// Iterates over all open interpretations.
 		template <typename Cb> void for_each_interpretation(Cb &&cb) {
-			for_each_buffer([this, callback = std::forward<Cb>(cb)](buffer &buf) {
-				for (auto &pair : _get_data_of(buf).interpretations) {
+			for_each_buffer([this, callback = std::forward<Cb>(cb)](std::shared_ptr<buffer> buf) {
+				for (auto &pair : _get_data_of(*buf).interpretations) {
 					if (auto interp_ptr = pair.second.lock()) {
-						callback(*interp_ptr);
+						callback(std::move(interp_ptr));
 					}
 				}
 			});
 		}
+		/// Iterates over all interpretations of the \ref buffer that corresponds to the given
+		/// \p std::filesystem::path.
+		template <typename Cb> void for_each_interpretation_of_buffer(Cb &&cb, const std::filesystem::path &path) {
+			auto it = _file_map.find(path);
+			if (it != _file_map.end()) {
+				if (auto buf = it->second.buf.lock()) {
+					for (auto &pair : it->second.interpretations) {
+						if (auto interp_ptr = pair.second.lock()) {
+							cb(pair.first, std::move(interp_ptr));
+						}
+					}
+				}
+			}
+		}
+
 
 		info_event<buffer_info>
 			/// Invoked when a buffer has been created. Components and plugins that make use of per-buffer tags can
@@ -231,26 +247,20 @@ namespace codepad::editors {
 			}
 			/// No copy construction.
 			_buffer_data(const _buffer_data&) = delete;
-			/// Move constructor.
-			_buffer_data(_buffer_data &&src) noexcept :
-				buf(std::move(src.buf)), interpretations(std::move(src.interpretations)) {
-			}
+			/// Default move constructor.
+			_buffer_data(_buffer_data&&) = default;
 			/// No copy assignment.
 			_buffer_data &operator=(const _buffer_data&) = delete;
-			/// Move assignment.
-			_buffer_data &operator=(_buffer_data &&src) {
-				std::swap(buf, src.buf);
-				std::swap(interpretations, src.interpretations);
-				return *this;
-			}
+			/// Default move assignment.
+			_buffer_data &operator=(_buffer_data&&) = default;
 
 			std::weak_ptr<buffer> buf; ///< Pointer to the buffer.
 			/// All \ref code::interpretation "interpretations" of this \ref buffer.
-			std::map<std::u8string, std::weak_ptr<code::interpretation>, std::less<>> interpretations;
+			std::unordered_map<std::u8string, std::weak_ptr<code::interpretation>> interpretations;
 		};
 
 		/// Stores all \p buffer "buffers" that correspond to files and their <tt>std::filesystem::path</tt>s.
-		std::map<std::filesystem::path, _buffer_data> _file_map;
+		std::unordered_map<std::filesystem::path, _buffer_data> _file_map;
 		/// Stores all \p buffer "buffers" that don't correspond to files.
 		std::vector<_buffer_data> _noname_map;
 		/// Stores indices of disposed buffers in \ref _noname_map for more efficient allocation of indices.

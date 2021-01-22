@@ -21,16 +21,32 @@ using namespace codepad::editors::code;
 
 std::atomic_bool keep_running; ///< This is set to \p false if SIGINT is encountered.
 
+uniform_real_distribution<double> prob_dist(0.0, 1.0);
+
 /// Generates and returns a series of codepoints and encodes them as UTF8.
 template <typename Rnd> byte_string generate_random_utf8_string(size_t length, Rnd &random) {
 	uniform_int_distribution<codepoint> dist(0, 0x10FFFF - 0x800);
 	basic_string<codepoint> str;
 	for (size_t i = 0; i < length; ++i) {
-		codepoint cp = dist(random);
-		if (cp >= 0xD800) {
-			cp += 0x800;
+		// 2% possibility to generate a line break character
+		if (prob_dist(random) < 0.02) {
+			double x = prob_dist(random);
+			if (x < 0.3) {
+				str.push_back(U'\r');
+			} else if (x < 0.6) {
+				str.push_back(U'\n');
+			} else {
+				// this means that `length` is just a suggestion, but it doesn't break anything
+				str.push_back(U'\r');
+				str.push_back(U'\n');
+			}
+		} else {
+			codepoint cp = dist(random);
+			if (cp >= 0xD800) {
+				cp += 0x800;
+			}
+			str.push_back(cp);
 		}
-		str.push_back(cp);
 	}
 	byte_string res;
 	for (codepoint cp : str) {
@@ -64,6 +80,10 @@ template <typename Rnd> vector<pair<size_t, size_t>> get_modify_positions_bounda
 	sort(carets.begin(), carets.end());
 	caret_set cset;
 	for (size_t i = 0; i < carets.size(); i += 2) {
+		// 10% chance: don't erase anything
+		if (prob_dist(random) < 0.1) {
+			carets[i + 1] = carets[i];
+		}
 		cset.add(caret_set::entry({carets[i], carets[i + 1]}, caret_data()));
 	}
 
@@ -90,6 +110,10 @@ template <typename Rnd> vector<pair<size_t, size_t>> get_modify_positions_random
 	sort(carets.begin(), carets.end());
 	vector<pair<size_t, size_t>> cs;
 	for (size_t i = 0; i < carets.size(); i += 2) {
+		// 10% chance: don't erase anything
+		if (prob_dist(random) < 0.1) {
+			carets[i + 1] = carets[i];
+		}
 		cs.emplace_back(carets[i], carets[i + 1]);
 	}
 	return cs;
@@ -137,9 +161,12 @@ int main(int argc, char **argv) {
 		}
 		vector<byte_string> inserts;
 		for (size_t i = 0; i < positions.size(); ++i) {
-			if (bool_dist(eng)) {
+			double r = prob_dist(eng);
+			if (r < 0.1) { // 10% chance: don't insert anything
+				inserts.emplace_back();
+			} else if (r < 0.55) { // 45% chance: insert ranodm string
 				inserts.emplace_back(generate_random_string(insertlen_dist(eng), eng));
-			} else {
+			} else { // insert utf-8 string
 				inserts.emplace_back(generate_random_utf8_string(insertlen_dist(eng), eng));
 			}
 		}

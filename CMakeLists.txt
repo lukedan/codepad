@@ -26,6 +26,72 @@ set(CODEPAD_ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing 
 add_library(codepad_core SHARED)
 target_compile_features(codepad_core PUBLIC cxx_std_20)
 target_sources(codepad_core
+	PUBLIC
+		"include/codepad/core/json/parsing.h"
+		"include/codepad/core/json/rapidjson.h"
+		"include/codepad/core/json/storage.h"
+
+		"include/codepad/core/assert.h"
+		"include/codepad/core/binary_tree.h"
+		"include/codepad/core/color.h"
+		"include/codepad/core/encodings.h"
+		"include/codepad/core/event.h"
+		"include/codepad/core/intrusive_priority_queue.h"
+		"include/codepad/core/json_parsers.inl"
+		"include/codepad/core/logger_sinks.h"
+		"include/codepad/core/logging.h"
+		"include/codepad/core/math.h"
+		"include/codepad/core/misc.h"
+		"include/codepad/core/plugins.h"
+		"include/codepad/core/profiling.h"
+		"include/codepad/core/red_black_tree.h"
+		"include/codepad/core/settings.h"
+
+		"include/codepad/os/current/all.h"
+		"include/codepad/os/current/window.h"
+
+		"include/codepad/os/dynamic_library.h"
+		"include/codepad/os/filesystem.h"
+		"include/codepad/os/misc.h"
+
+		"include/codepad/ui/backends/cairo_renderer_base.h"
+		"include/codepad/ui/backends/pango_harfbuzz_text_context.h"
+		"include/codepad/ui/backends/skia_renderer_base.h"
+
+		"include/codepad/ui/elements/tabs/animated_tab_button_panel.h"
+		"include/codepad/ui/elements/tabs/host.h"
+		"include/codepad/ui/elements/tabs/manager.h"
+		"include/codepad/ui/elements/tabs/split_panel.h"
+		"include/codepad/ui/elements/tabs/tab.h"
+
+		"include/codepad/ui/elements/button.h"
+		"include/codepad/ui/elements/label.h"
+		"include/codepad/ui/elements/scroll_viewport.h"
+		"include/codepad/ui/elements/scrollbar.h"
+		"include/codepad/ui/elements/stack_panel.h"
+		"include/codepad/ui/elements/text_edit.h"
+
+		"include/codepad/ui/animation.h"
+		"include/codepad/ui/animation_path.h"
+		"include/codepad/ui/animation_path_parser.h"
+		"include/codepad/ui/arrangements.h"
+		"include/codepad/ui/commands.h"
+		"include/codepad/ui/config_parsers.h"
+		"include/codepad/ui/element.h"
+		"include/codepad/ui/element_classes.h"
+		"include/codepad/ui/element_parameters.h"
+		"include/codepad/ui/hotkey_registry.h"
+		"include/codepad/ui/json_parsers.inl"
+		"include/codepad/ui/manager.h"
+		"include/codepad/ui/misc.h"
+		"include/codepad/ui/panel.h"
+		"include/codepad/ui/property.h"
+		"include/codepad/ui/renderer.h"
+		"include/codepad/ui/scheduler.h"
+		"include/codepad/ui/window.h"
+
+		"include/codepad/api_export.h"
+		"include/codepad/apigen_definitions.h"
 	PRIVATE
 		"src/core/globals.cpp"
 		"src/core/logger_sinks.cpp"
@@ -107,6 +173,12 @@ target_include_directories(codepad_core
 # platform dependent sources & settings
 if(WIN32)
 	target_sources(codepad_core
+		PUBLIC
+			"include/codepad/os/windows/cairo_renderer.h"
+			"include/codepad/os/windows/direct2d_renderer.h"
+			"include/codepad/os/windows/misc.h"
+			"include/codepad/os/windows/skia_renderer.h"
+			"include/codepad/os/windows/window.h"
 		PRIVATE
 			"src/os/windows/direct2d_renderer.cpp"
 			"src/os/windows/dynamic_library.cpp"
@@ -174,6 +246,8 @@ if(WIN32)
 	endif()
 elseif(UNIX)
 	target_sources(codepad_core
+		PUBLIC
+			"include/codepad/os/linux/window.h"
 		PRIVATE
 			"src/os/linux/dynamic_library.cpp"
 			"src/os/linux/filesystem.cpp"
@@ -189,6 +263,10 @@ elseif(UNIX)
 
 	if(CODEPAD_USE_GTK)
 		target_sources(codepad_core
+			PUBLIC
+				"include/codepad/os/linux/gtk/cairo_renderer.h"
+				"include/codepad/os/linux/gtk/misc.h"
+				"include/codepad/os/linux/gtk/window.h"
 			PRIVATE
 				"src/os/linux/gtk/linux.cpp"
 				"src/os/linux/gtk/misc.cpp"
@@ -200,6 +278,9 @@ elseif(UNIX)
 			PUBLIC Gtk3::Gtk)
 	else()
 		target_sources(codepad_core
+			PUBLIC
+				"include/codepad/os/linux/x11/misc.h"
+				"include/codepad/os/linux/x11/window.h"
 			PRIVATE
 				"src/os/linux/x11/linux.cpp")
 		find_package(X11 REQUIRED)

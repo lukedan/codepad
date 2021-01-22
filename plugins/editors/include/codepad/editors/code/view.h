@@ -706,7 +706,7 @@ namespace codepad::editors::code {
 						continue;
 					}
 				}
-				it = _t.erase(it, no_synthesizer());
+				it = _t.erase_custom_synth(it, no_synthesizer());
 			}
 			_t.refresh_tree_synthesized_result();
 			_bytepos_valid = false;

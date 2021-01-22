@@ -299,6 +299,43 @@ namespace codepad::editors::code {
 			}
 		};
 
+		/// Contains position information about a single modification. Unlike \ref buffer::modification_position,
+		/// codepoint positions for a single edit may intersect since a codepoint may be composed of multiple bytes.
+		struct modification_codepoint_position {
+			/// Default constructor.
+			modification_codepoint_position() = default;
+			/// Initializes all fields of this struct.
+			modification_codepoint_position(std::size_t pos, std::size_t rem, std::size_t add) :
+				position(pos), removed_codepoints(rem), added_codepoints(add) {
+			}
+
+			std::size_t
+				/// Position of the first codepoint that has been modified, after all previous modifications in the
+				/// same edit. This is defined as the first codepoint that intersects with the range of bytes that
+				/// have been modified. Note that this means that the encoding has to be context free for this to be
+				/// accurate.
+				position = 0,
+				/// The number of codepoints in the old document that intersect with the removed range of bytes.
+				removed_codepoints = 0,
+				/// The number of codepoints in the new document that intersect with the added range of bytes.
+				added_codepoints = 0;
+		};
+		/// Codepoint positions for an edit.
+		using edit_codepoint_positions = std::vector<modification_codepoint_position>;
+
+		/// Contains information for the \ref end_edit_interpret event, with additional information about the
+		/// codepoints that are affected.
+		struct end_edit_info {
+		public:
+			const edit_codepoint_positions codepoint_positions; ///< Position of the affected codepoints.
+			buffer::end_edit_info &buffer_info; ///< Information about modification of the underlying \ref buffer.
+		protected:
+			/// Initializes all fields of this struct.
+			end_edit_info(edit_codepoint_positions pos, buffer::end_edit_info &info) :
+				codepoint_positions(std::move(pos)), buffer_info(info) {
+			}
+		};
+
 		/// Similar to \ref linebreak_registry::position_converter, but converts between
 		/// positions of codepoints and bytes instead.
 		struct codepoint_position_converter {
@@ -310,66 +347,51 @@ namespace codepad::editors::code {
 
 			/// Resets this converter so that a new series of queries can be made.
 			void reset() {
-				_cpchk = _interp._chks.begin();
-				_byteit = _interp.get_buffer()->begin();
-				_firstcp = _firstbyte = _chkcp = 0;
+				_chunk_iter = _interp._chunks.begin();
+				_byte_iter = _interp.get_buffer()->begin();
+				_firstcp = _firstbyte = _chunk_codepoint_offset = _codepoint_start = 0;
 			}
 
 			/// Returns the position of the first byte of the given codepoint. This should not be used mixedly with
 			/// \ref byte_to_codepoint().
-			std::size_t codepoint_to_byte(std::size_t pos) {
-				if (_cpchk == _interp._chks.end()) {
-					// if _cpchk is at the end, then all following queries can only query about the end
-					return _interp._buf->length();
-				}
-				if (_firstcp + _cpchk->num_codepoints > pos) {
-					pos -= _firstcp;
-				} else {
-					_firstcp = pos;
-					_chkcp = 0;
-					_codepoint_pos_converter finder;
-					_cpchk = _interp._chks.find(finder, pos);
-					_firstcp -= pos;
-					_firstbyte = finder.total_bytes;
-					_byteit = _interp.get_buffer()->at(_firstbyte);
-				}
-				for (; _chkcp < pos; ++_chkcp) {
-					_interp.get_encoding()->next_codepoint(_byteit, _interp.get_buffer()->end());
-				}
-				return _byteit.get_position();
-			}
+			[[nodiscard]] std::size_t codepoint_to_byte(std::size_t);
 			/// Returns the position of the codepoint that contains the given byte. This should not be used mixedly
 			/// with \ref codepoint_to_byte().
-			std::size_t byte_to_codepoint(std::size_t pos) {
-				if (_cpchk == _interp._chks.end()) {
-					// if _cpchk is at the end, then all following queries can only query about the end
-					return _chkcp;
-				}
-				std::size_t globalpos = pos;
-				if (_firstbyte + _cpchk->num_bytes > pos) {
-					pos -= _firstbyte;
-				} else {
-					_firstbyte = pos;
-					_chkcp = 0;
-					_byte_pos_converter finder;
-					_cpchk = _interp._chks.find(finder, pos);
-					_firstbyte -= pos;
-					_firstcp = finder.total_codepoints;
-					_byteit = _interp.get_buffer()->at(_firstbyte);
-				}
-				for (; _byteit.get_position() < globalpos; ++_chkcp) {
-					_interp.get_encoding()->next_codepoint(_byteit, _interp.get_buffer()->end());
-				}
-				return _firstcp + _chkcp - (_byteit.get_position() == globalpos ? 0 : 1);
+			///
+			/// \return The first element is the codepoint index, and the second element is the index of the first
+			///         byte of that codepoint
+			[[nodiscard]] std::pair<std::size_t, std::size_t> byte_to_codepoint(std::size_t);
+
+			/// Returns an iterator into the chunk that the last query was in.
+			[[nodiscard]] const tree_type::const_iterator &get_chunk_iterator() const {
+				return _chunk_iter;
+			}
+			/// Returns an current iterator into the \ref buffer after the last query. For codepoint-to-byte queries,
+			/// this will exactly be at the previously queried position; for byte-to-codepoint queries, this will be
+			/// one codepoint ahead iff the previously queried byte position was not the first codepoint of a
+			/// codepoint.
+			[[nodiscard]] const buffer::const_iterator &get_buffer_iterator() const {
+				return _byte_iter;
+			}
+			/// Returns the number of codepoints before the chunk returned by \ref get_chunk_iterator().
+			[[nodiscard]] std::size_t get_chunk_codepoint_position() const {
+				return _firstcp;
+			}
+			/// Returns the number of bytes before the chunk returned by \ref get_chunk_iterator().
+			[[nodiscard]] std::size_t get_chunk_byte_position() const {
+				return _firstbyte;
 			}
 		protected:
-			tree_type::const_iterator _cpchk; ///< Iterator to the current chunk in which the codepoint lies.
-			buffer::const_iterator _byteit; ///< Iterator to the current byte.
+			tree_type::const_iterator _chunk_iter; ///< Iterator to the current chunk in which the codepoint lies.
+			buffer::const_iterator _byte_iter; ///< Iterator to the current byte.
 			const interpretation &_interp; ///< The associated \ref interpretation.
 			std::size_t
-				_firstcp = 0, ///< The number of codepoints before \ref _cpchk.
-				_firstbyte = 0, ///< The number of bytes before \ref _cpchk.
-				_chkcp = 0; ///< The position of \ref _byteit in this chunk.
+				_firstcp = 0, ///< The number of codepoints before \ref _chunk_iter.
+				_firstbyte = 0, ///< The number of bytes before \ref _chunk_iter.
+				_chunk_codepoint_offset = 0, ///< The codepoint position of \ref _byte_iter in this chunk.
+				/// The index of the first byte of the codepoint that has just been decoded. This is only used by
+				/// \ref byte_to_codepoint().
+				_codepoint_start = 0;
 		};
 		/// Combines \ref codepoint_position_converter and
 		/// \ref linebreak_registry::position_converter to convert between the positions of characters
@@ -395,7 +417,7 @@ namespace codepad::editors::code {
 			/// Returns the position of the character that contains this byte. This should not be used mixedly with
 			/// \ref character_to_byte().
 			std::size_t byte_to_character(std::size_t pos) {
-				return _char2cp.codepoint_to_character(_cp2byte.byte_to_codepoint(pos));
+				return _char2cp.codepoint_to_character(_cp2byte.byte_to_codepoint(pos).first);
 			}
 		protected:
 			/// Used to convert between the positions of characters and codepoints.
@@ -403,6 +425,7 @@ namespace codepad::editors::code {
 			/// Used to convert between the positions of codepoints and bytes.
 			codepoint_position_converter _cp2byte;
 		};
+
 
 		/// Constructor. Sets up event handlers to reinterpret the buffer when it's changed, and performs the initial
 		/// full decoding.
@@ -414,13 +437,15 @@ namespace codepad::editors::code {
 		/// Unregisters from \ref buffer::end_edit.
 		~interpretation() {
 			_buf->begin_edit -= _begin_edit_tok;
+			_buf->begin_modify -= _begin_modify_tok;
+			_buf->end_modify -= _end_modify_tok;
 			_buf->end_edit -= _end_edit_tok;
 		}
 
 		/// Returns a \ref codepoint_iterator pointing at the specified codepoint.
 		codepoint_iterator at_codepoint(std::size_t pos) const {
 			_codepoint_pos_converter finder;
-			_chks.find(finder, pos);
+			_chunks.find(finder, pos);
 			codepoint_iterator res(_buf->at(finder.total_bytes), *this);
 			for (std::size_t i = 0; i < pos; ++i) {
 				res.next();
@@ -429,17 +454,17 @@ namespace codepad::editors::code {
 		}
 		/// Returns a \ref character_iterator pointing at the specified character.
 		character_iterator at_character(std::size_t pos) const {
-			auto [colinfo, cp] = _lbs.get_line_and_column_and_codepoint_of_char(pos);
+			auto [colinfo, cp] = _linebreaks.get_line_and_column_and_codepoint_of_char(pos);
 			return character_iterator(at_codepoint(cp), colinfo.line_iterator, colinfo.position_in_line);
 		}
 
 		/// Returns the total number of codepoints in this \ref interpretation.
 		std::size_t num_codepoints() const {
-			return _chks.root() == nullptr ? 0 : _chks.root()->synth_data.total_codepoints;
+			return _chunks.root() == nullptr ? 0 : _chunks.root()->synth_data.total_codepoints;
 		}
 		/// Returns the result of \ref linebreak_registry::num_linebreaks() plus one.
 		std::size_t num_lines() const {
-			return _lbs.num_linebreaks() + 1;
+			return _linebreaks.num_linebreaks() + 1;
 		}
 
 		/// Sets the theme of all text.
@@ -462,7 +487,7 @@ namespace codepad::editors::code {
 		}
 		/// Returns the linebreaks in this \ref interpretation.
 		const linebreak_registry &get_linebreaks() const {
-			return _lbs;
+			return _linebreaks;
 		}
 		/// Returns the default line ending for this \ref interpretation.
 		ui::line_ending get_default_line_ending() const {
@@ -520,7 +545,7 @@ namespace codepad::editors::code {
 		/// Checks the integrity of this \ref interpretation by re-interpreting the underlying \ref buffer, and the
 		/// underlying buffer by invoking \ref buffer::check_integrity(). Used for testing and debugging.
 		///
-		/// \return Indicates whether the data in \ref _lbs and \ref _chks are valid and correct. Note that the
+		/// \return Indicates whether the data in \ref _linebreaks and \ref _chunks are valid and correct. Note that the
 		///         underlying trees assert if they're corrupted instead of returning \p false.
 		bool check_integrity() const;
 
@@ -530,17 +555,6 @@ namespace codepad::editors::code {
 		info_event<buffer::end_edit_info> end_edit_interpret;
 		// TODO visual_changed event
 	protected:
-		tree_type _chks; ///< Chunks used to speed up navigation.
-		text_theme_data _theme; ///< Theme of the text.
-		linebreak_registry _lbs; ///< Records all linebreaks.
-
-		std::vector<std::any> _tags; ///< Tags associated with this interpretation.
-		const std::shared_ptr<buffer> _buf; ///< The underlying \ref buffer.
-		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
-		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
-		ui::line_ending _line_ending = ui::line_ending::n; ///< The default line ending for this \ref interpretation.
-		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
-
 		/// Used to find the number of bytes before a specified codepoint.
 		struct _codepoint_pos_converter {
 			/// The underlying \ref sum_synthesizer::index_finder.
@@ -565,6 +579,24 @@ namespace codepad::editors::code {
 			std::size_t total_codepoints = 0; ///< Records the total number of codepoints before the resulting chunk.
 		};
 
+		/// Stores information generated before a modification and used after a modification.
+		struct _modification_cache {
+			// starting position
+			std::size_t
+				/// The index of byte to start decoding from. It's guaranteed that this byte starts a codepoint.
+				start_decoding_byte = 0,
+				start_decoding_codepoint = 0, ///< The codepoint index that corresponds to \ref start_decoding_byte.
+				/// The codepoint position of the first codepoint of \ref start_decoding_chunk.
+				chunk_codepoint_offset = 0,
+				chunk_byte_offset = 0; ///< The byte position of the first byte of \ref start_decoding_chunk.
+			tree_type::const_iterator start_decoding_chunk; ///< The chunk that \ref start_decoding_codepoint is in.
+			// end position
+			/// Cached codepoint boundaries (byte positions) after the erased region in the old document. Elements in
+			/// this array represent consecutive codepoints.
+			std::vector<std::size_t> post_erase_boundaries;
+			/// The codepoint index of the first element of \ref post_erase_boundaries in the old document.
+			std::size_t post_erase_codepoint_index = 0;
+		};
 
 		/// Used to store precomputed byte positions of a modification.
 		struct _precomp_mod_positions {
@@ -578,6 +610,28 @@ namespace codepad::editors::code {
 				begin = 0, ///< Position of the first removed byte.
 				length = 0; ///< The number of consecutive removed bytes.
 		};
+
+
+		tree_type _chunks; ///< Chunks used to speed up navigation.
+		text_theme_data _theme; ///< Theme of the text.
+		linebreak_registry _linebreaks; ///< Records all linebreaks.
+
+		std::vector<std::any> _tags; ///< Tags associated with this interpretation.
+		const std::shared_ptr<buffer> _buf; ///< The underlying \ref buffer.
+		ui::line_ending _line_ending = ui::line_ending::n; ///< The default line ending for this \ref interpretation.
+		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
+
+		// event tokens
+		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
+		/// Used to listen to \ref buffer::begin_modify;
+		info_event<buffer::begin_modification_info>::token _begin_modify_tok;
+		/// Used to listen to \ref buffer::end_modify;
+		info_event<buffer::end_modification_info>::token _end_modify_tok;
+		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
+
+		/// Used when the underlying \ref buffer is changed to update \ref _chunks and \ref _linebreaks.
+		_modification_cache _mod_cache;
+
 
 		/// Computes byte positions of the removed contents of an edit for a whole \ref caret_set, when the user
 		/// inputs a short clip of text. This function assumes that \ref caret_data::bytepos_first and
@@ -633,31 +687,6 @@ namespace codepad::editors::code {
 		}
 
 
-		/// Used by \ref _post_edit_fixup() to look for valid cached codepoint boundaries.
-		std::vector<buffer::modification_position>::const_iterator _advance_target_chunk_iterator(
-			tree_type::const_iterator &it, std::size_t &firstbyte, std::size_t &firstcp,
-			std::vector<buffer::modification_position>::const_iterator modit,
-			std::vector<buffer::modification_position>::const_iterator modend
-		) {
-			for (bool done = false; !done; ) {
-				firstbyte += it->num_bytes;
-				firstcp += it->num_codepoints;
-				++it;
-				done = true;
-				while (modit != modend && firstbyte > modit->position) {
-					// handle other modifications after the current one but before the boundary
-					if (firstbyte >= modit->position + modit->removed_range) {
-						// completely before the boundary, add offset
-						firstbyte += modit->added_range - modit->removed_range;
-					} else { // boundary is removed, look for the next one
-						done = false;
-						break;
-					}
-					++modit;
-				}
-			}
-			return modit;
-		}
 		/// Attempts to merge the given node with its neighboring chunks, if they're too small. This operation won't
 		/// invalidate the given iterator.
 		///
@@ -666,14 +695,14 @@ namespace codepad::editors::code {
 		/// \return Whether the nodes have been merged.
 		/// \todo Find a better merging strategy.
 		bool _try_merge_small_chunks(tree_type::const_iterator it, chunk_data &merged) {
-			if (it != _chks.end() && it != _chks.begin()) {
+			if (it != _chunks.end() && it != _chunks.begin()) {
 				auto prev = it;
 				--prev;
 				if (it->num_codepoints + prev->num_codepoints < maximum_codepoints_per_chunk) { // merge!
 					merged = *prev;
-					_chks.erase(prev);
+					_chunks.erase(prev);
 					{
-						auto mod = _chks.get_modifier_for(it.get_node());
+						auto mod = _chunks.get_modifier_for(it.get_node());
 						mod->num_bytes += merged.num_bytes;
 						mod->num_codepoints += merged.num_codepoints;
 					}
@@ -682,155 +711,6 @@ namespace codepad::editors::code {
 			}
 			return false;
 		}
-#define CP_DEBUG_LOG_POST_EDIT_FIXUP 0
-#if CP_DEBUG_LOG_POST_EDIT_FIXUP
-		/// Logs the given message if \ref _debug_log_post_edit_fixup_enabled is \p true.
-		template <typename ...Args> inline static void _debug_log_post_edit_fixup(Args &&...args) {
-			logger::get().log_verbose(CP_HERE, std::forward<Args>(args)...);
-		}
-#else
-		/// Logging is disabled. Does nothing.
-		template <typename ...Args> inline static void _debug_log_post_edit_fixup(Args&&...) {
-		}
-#endif
-#undef CP_DEBUG_LOG_POST_EDIT_FIXUP
-		/// Adjusts \ref _chks and \ref _lbs after an edit has been made.
-		void _post_edit_fixup(buffer::end_edit_info &info) {
-			_debug_log_post_edit_fixup("starting post-edit fixup");
-			std::size_t
-				lastbyte = 0, // number of bytes before lastchk
-				lastcp = 0, // number of codepoints before lastchk
-				// additional number of bytes before the modified region to begin checking
-				additional_checked_bytes = _encoding->get_maximum_codepoint_length() - 1;
-			tree_type::const_iterator lastchk = _chks.begin();
-			for (auto modit = info.positions.begin(); modit != info.positions.end(); ) {
-				_debug_log_post_edit_fixup(
-					"  modification ", modit->position, " -", modit->removed_range, " +", modit->added_range
-				);
-				std::size_t
-					added_range_end = modit->position + modit->added_range,
-					removed_range_end = modit->position + modit->removed_range;
-				// starting from this byte, the interpretation may have been changed
-				std::size_t first_checked_byte =
-					std::max(modit->position, additional_checked_bytes) - additional_checked_bytes;
-				if (lastchk != _chks.end() && first_checked_byte > lastbyte + lastchk->num_bytes) {
-					// skip to the desired chunk
-					_debug_log_post_edit_fixup("    adjusting begin position");
-					std::size_t chkpos = first_checked_byte;
-					// if a modification starts at the beginning of a chunk, then the codepoint barrier is invalid
-					_byte_pos_converter<std::less_equal> finder;
-					lastchk = _chks.find(finder, chkpos);
-					lastcp = finder.total_codepoints;
-					lastbyte = first_checked_byte - chkpos;
-				}
-				// otherwise start decoding from last position (start of chunk)
-				std::size_t cppos = lastcp;
-				buffer::const_iterator bit = _buf->at(lastbyte);
-				_debug_log_post_edit_fixup("    starting from codepoint ", lastcp, ", byte ", lastbyte);
-
-				// TODO maybe get rid of the buffer and insert into _lbr directly
-				std::vector<linebreak_registry::line_info> lines;
-				ui::linebreak_analyzer line_analyzer(
-					[&lines](std::size_t len, ui::line_ending ending) {
-						lines.emplace_back(len, ending);
-					}
-				);
-				codepoint cp = 0;
-				// find first modified codepoint
-				for (; bit != _buf->end() && bit.get_position() <= modit->position; ++cppos) {
-					if (!_encoding->next_codepoint(bit, _buf->end(), cp)) {
-						cp = 0;
-					}
-					line_analyzer.put(cp);
-				}
-				std::vector<chunk_data> chks;
-				std::size_t
-					firstcp = lastcp, // index of the first decoded codepoint
-					splitcp = lastcp + maximum_codepoints_per_chunk;
-				for (; bit != _buf->end() && bit.get_position() < added_range_end; ++cppos) { // decode new content
-					if (cppos >= splitcp) { // break chunk
-						std::size_t bytepos = bit.get_position();
-						chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
-						lastbyte = bytepos;
-						lastcp = cppos;
-						splitcp = lastcp + maximum_codepoints_per_chunk;
-					}
-					if (!_encoding->next_codepoint(bit, _buf->end(), cp)) {
-						cp = 0;
-					}
-					line_analyzer.put(cp);
-				}
-
-				// find the next old codepoint boundary
-				std::size_t tgckpos = removed_range_end; // position of the next old codepoint boundary
-				_byte_pos_converter posfinder;
-				tree_type::const_iterator chkit = _chks.find(posfinder, tgckpos);
-				std::size_t
-					endcp = posfinder.total_codepoints, // (one after) the last codepoint to remove from old _lbs
-					tgpos = added_range_end - tgckpos; // adjust position to that after the edit
-				auto nextmodit = modit;
-				++nextmodit;
-				if (tgckpos > 0) { // advance if the removed region does not end before the first byte
-					assert_true_logical(chkit != _chks.end(), "invalid modification position");
-					nextmodit = _advance_target_chunk_iterator(chkit, tgpos, endcp, nextmodit, info.positions.end());
-					_debug_log_post_edit_fixup("    removed region ends in the middle of a chunk");
-				}
-				_debug_log_post_edit_fixup("    targeting byte ", tgpos, ", codepoint ", endcp);
-				while (true) {
-					// decode till the end of chunk
-					for (; bit != _buf->end() && bit.get_position() < tgpos; ++cppos) {
-						if (cppos >= splitcp) { // break chunk
-							std::size_t bytepos = bit.get_position();
-							chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
-							lastbyte = bytepos;
-							lastcp = cppos;
-							splitcp = lastcp + maximum_codepoints_per_chunk;
-						}
-						if (!_encoding->next_codepoint(bit, _buf->end(), cp)) {
-							cp = 0;
-						}
-						line_analyzer.put(cp);
-					}
-					if (bit.get_position() == tgpos) { // boundary found, stop
-						break;
-					}
-					assert_true_logical(chkit != _chks.end(), "faulty decoder");
-					nextmodit = _advance_target_chunk_iterator(chkit, tgpos, endcp, nextmodit, info.positions.end());
-					_debug_log_post_edit_fixup("      no luck, targeting byte ", tgpos, ", codepoint ", endcp);
-				}
-				// handle last chunk
-				line_analyzer.finish();
-				std::size_t bytepos = bit.get_position();
-				if (bytepos != lastbyte) {
-					chks.emplace_back(bytepos - lastbyte, cppos - lastcp);
-					lastbyte = bytepos;
-					lastcp = cppos;
-				} else {
-					assert_true_logical(cppos == lastcp, "shouldn't happen");
-				}
-				_debug_log_post_edit_fixup("    parse finishes at byte ", lastbyte, ", codepoint ", lastcp);
-
-				// apply changes
-				// chunks
-				_chks.erase(lastchk, chkit);
-				for (chunk_data &chk : chks) {
-					_chks.emplace_before(chkit, std::move(chk));
-				}
-				chunk_data cd;
-				if (_try_merge_small_chunks(chkit, cd)) {
-					lastbyte -= cd.num_bytes;
-					lastcp -= cd.num_codepoints;
-				}
-				lastchk = chkit;
-				// lines
-				_lbs.erase_codepoints(firstcp, endcp);
-				_lbs.insert_codepoints(firstcp, lines);
-
-				modit = nextmodit;
-			}
-			end_edit_interpret.invoke(info);
-			_debug_log_post_edit_fixup("successfully finished post-edit fixup");
-		}
 
 		/// Called when an edit is about to be made to \ref _buf.
 		///
@@ -838,9 +718,15 @@ namespace codepad::editors::code {
 		void _on_begin_edit(buffer::begin_edit_info&) {
 
 		}
-		/// Called when an edit has been made to \ref _buf.
+		/// Called when a modification is about to be made. This function gathers line-related information about the
+		/// removed text and saves codepoint boundaries around the erased region to speed up decoding of new content.
+		void _on_begin_modify(buffer::begin_modification_info&);
+		/// Called when a modification has been made. This function decodes the inserted content and updates
+		/// \ref _chunks and \ref _linebreaks.
+		void _on_end_modify(buffer::end_modification_info&);
+		/// Called when an edit has been made to \ref _buf. Invokes \ref end_edit_interpret.
 		void _on_end_edit(buffer::end_edit_info &info) {
-			_post_edit_fixup(info);
+			end_edit_interpret.invoke(info);
 		}
 	};
 }

@@ -380,7 +380,7 @@ namespace codepad::editors::code {
 		}
 
 		/// Called when the given range of codepoints has been erased from the buffer. This operation may break or
-		/// assemble multi-codepoint linebreaks. Only \ref end will remain valid after this operation.
+		/// assemble multi-codepoint linebreaks. Only \ref end is guaranteed to remain valid after this operation.
 		void erase_codepoints(iterator beg, std::size_t begcpoff, iterator end, std::size_t endcpoff) {
 			if (beg == end && begcpoff == endcpoff) {
 				return;

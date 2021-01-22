@@ -6,5 +6,4 @@
 /// \file
 /// Includes all platform-specific headers for the current platform.
 
-#include "misc.h"
 #include "window.h"

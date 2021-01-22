@@ -21,4 +21,13 @@ namespace codepad::lsp::uri {
 	[[nodiscard]] inline std::u8string from_current_os_path(const std::filesystem::path &p) {
 		return from_current_os_path(p.u8string());
 	}
+
+
+	/// Converts a URI to a windows path.
+	[[nodiscard]] std::u8string to_windows_path(const std::u8string&);
+	/// Converts a URI to a unix path.
+	[[nodiscard]] std::u8string to_unix_path(const std::u8string&);
+
+	/// Converts a URI to a path of the current OS.
+	[[nodiscard]] std::u8string to_current_os_path(const std::u8string&);
 }
