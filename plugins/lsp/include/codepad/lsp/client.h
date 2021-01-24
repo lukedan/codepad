@@ -79,6 +79,7 @@ namespace codepad::lsp {
 			_send_request_impl<types::InitializeResult>(
 				u8"initialize", init,
 				[this, callback = std::forward<Callback>(cb)](types::InitializeResult res) {
+					_initialize_result = std::move(res);
 					state expected = state::initializing;
 					assert_true_logical(
 						_state.compare_exchange_strong(expected, state::ready),
@@ -86,7 +87,7 @@ namespace codepad::lsp {
 					);
 					types::InitializedParams initialized;
 					_send_notification_impl(u8"initialized", initialized);
-					callback();
+					callback(_initialize_result);
 				},
 				default_error_handler
 			);
@@ -117,35 +118,6 @@ namespace codepad::lsp {
 			_state = state::exited;
 		}
 
-		/// Sends the \p didOpen notification.
-		void didOpen(editors::code::interpretation &interp) {
-			auto &encoding = *interp.get_encoding();
-			auto &buffer = *interp.get_buffer();
-			auto &id = buffer.get_id();
-			if (!std::holds_alternative<std::filesystem::path>(id)) {
-				return;
-			}
-
-			// encode document as utf8
-			types::string text;
-			text.reserve(buffer.length());
-			for (editors::buffer::const_iterator it = buffer.begin(); it != buffer.end(); ) {
-				codepoint cp;
-				if (!encoding.next_codepoint(it, buffer.end(), cp)) {
-					cp = encodings::replacement_character;
-				}
-				auto str = encodings::utf8::encode_codepoint(cp);
-				text += std::u8string_view(reinterpret_cast<const char8_t*>(str.data()), str.size());
-			}
-
-			types::DidOpenTextDocumentParams didopen;
-			didopen.textDocument.version = 0;
-			didopen.textDocument.languageId = u8"cpp"; // TODO
-			didopen.textDocument.uri = uri::from_current_os_path(std::get<std::filesystem::path>(id));
-			didopen.textDocument.text = std::move(text);
-			send_notification(u8"textDocument/didOpen", didopen);
-		}
-
 
 		/// Sends a request and registers the given response handler. The handler will be executed on the main
 		/// thread.
@@ -161,6 +133,11 @@ namespace codepad::lsp {
 			_send_notification_impl(name, send);
 		}
 
+
+		/// Returns \ref _initialize_result.
+		const types::InitializeResult &get_initialize_result() const {
+			return _initialize_result;
+		}
 
 		/// Returns the state of this \ref client. Check that this is \ref state::ready before sending is reliable
 		/// because transitioning out of \ref state::ready is always manual.
@@ -196,6 +173,8 @@ namespace codepad::lsp {
 			void handle_reply(const rapidjson::Value&);
 		};
 
+
+		types::InitializeResult _initialize_result; ///< Initialization result with server capabilities.
 
 		std::unique_ptr<backend> _backend; ///< The backend used by this client.
 		std::unordered_map<types::integer, _reply_handler> _reply_handlers; ///< Handlers for reply messages.

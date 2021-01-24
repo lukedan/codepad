@@ -31,12 +31,12 @@ namespace codepad::editors::code {
 			_doc = std::move(newdoc);
 			_cset.reset();
 			if (_doc) {
-				_begin_edit_tok = (_doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
+				_begin_edit_tok = _doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
 					_on_begin_edit(info);
-					});
-				_end_edit_tok = (_doc->end_edit_interpret += [this](buffer::end_edit_info &info) {
+				};
+				_end_edit_tok = _doc->get_buffer()->end_edit += [this](buffer::end_edit_info &info) {
 					_on_end_edit(info);
-					});
+				};
 				/*_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
 					_on_content_visual_changed();
 					});*/
@@ -414,7 +414,7 @@ namespace codepad::editors::code {
 							std::numeric_limits<std::size_t>::max() :
 							linfo.second.prev_chars + linfo.second.entry->length;
 						for (
-							auto cit = _doc->at_character(begp);
+							auto cit = _doc->character_at(begp);
 							!cit.is_linebreak() && (
 								cit.codepoint().get_codepoint() == ' ' || cit.codepoint().get_codepoint() == '\t'
 								) && exbegp < nextsb;
@@ -701,7 +701,7 @@ namespace codepad::editors::code {
 		void _unbind_document_events() {
 			if (_doc) {
 				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
-				_doc->end_edit_interpret -= _end_edit_tok;
+				_doc->get_buffer()->end_edit -= _end_edit_tok;
 				/*_doc->visual_changed -= _ctx_vis_change_tok;*/
 			}
 		}

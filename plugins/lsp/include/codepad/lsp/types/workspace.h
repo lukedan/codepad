@@ -186,8 +186,8 @@ namespace codepad::lsp::types {
 	struct FileOperationPatternKind :
 		public virtual contiguous_string_enum<FileOperationPatternKindEnum, FileOperationPatternKind> {
 		friend contiguous_string_enum;
-	protected:
-		inline static const std::vector<std::u8string_view> &_get_strings() {
+
+		inline static const std::vector<std::u8string_view> &get_strings() {
 			static std::vector<std::u8string_view> _strings{ u8"file", u8"folder" };
 			return _strings;
 		}

@@ -333,6 +333,7 @@ namespace codepad::editors::code {
 					end_chunk = _chunks.find(conv, byte_offset);
 					// this may over/underflow, but will work correctly nevertheless
 					current_target_byte = (byte_position - byte_offset) + end_chunk->num_bytes;
+					current_target_codepoint = conv.total_codepoints + end_chunk->num_codepoints;
 				} else {
 					// target next fast boundary
 					current_target_byte = *target_pos_iter + old_to_new_doc_byte;
@@ -351,9 +352,6 @@ namespace codepad::editors::code {
 				remaining_codepoints = current_codepoint - chunk_first_codepoint;
 			std::size_t old_chunk_bytes = 0, old_chunk_codepoints = 0;
 
-			if (end_chunk != _chunks.end()) {
-				logger::get().log_warning(CP_HERE) << "invalid prediction";
-			}
 			if (end_chunk == _chunks.end()) { // finished before reaching a old codepoint barrier
 				// find the chunk that `current_target_byte - old_to_new_doc_byte` is in
 				std::size_t byte_position = current_target_byte - old_to_new_doc_byte;
@@ -378,12 +376,15 @@ namespace codepad::editors::code {
 		}
 		// finish collecting lines
 		linebreaks.finish();
+		// decoding is done
 
-
-		// decoding is done, update `_chunks` and `_linebreaks`.
 		linebreak_registry::line_column_info
 			start_info = _linebreaks.get_line_and_column_of_codepoint(_mod_cache.start_decoding_codepoint),
 			end_info = _linebreaks.get_line_and_column_of_codepoint(current_target_codepoint);
+		modification_decoded.invoke_noret(
+			start_info, end_info, _mod_cache.start_decoding_codepoint, current_target_codepoint, info
+		);
+
 		// update line breaks
 		_linebreaks.erase_codepoints(
 			start_info.line_iterator, start_info.position_in_line, end_info.line_iterator, end_info.position_in_line
@@ -397,5 +398,7 @@ namespace codepad::editors::code {
 		for (chunk_data chk : chunks) {
 			_chunks.emplace_before(end_chunk, chk);
 		}
+
+		end_modification.invoke_noret(_mod_cache.start_decoding_codepoint, current_codepoint, info);
 	}
 }

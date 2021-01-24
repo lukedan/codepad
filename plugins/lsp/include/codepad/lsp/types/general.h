@@ -25,11 +25,11 @@ namespace codepad::lsp::types {
 		optional<TextDocumentSyncClientCapabilities> synchronization;
 		optional<CompletionClientCapabilities> completion;
 		optional<HoverClientCapabilities> hover;
-		/*optional<SignatureHelpClientCapabilities> signatureHelp;
+		optional<SignatureHelpClientCapabilities> signatureHelp;
 		optional<DeclarationClientCapabilities> declaration;
 		optional<DefinitionClientCapabilities> definition;
 		optional<TypeDefinitionClientCapabilities> typeDefinition;
-		optional<ImplementationClientCapabilities> implementation;
+		/*optional<ImplementationClientCapabilities> implementation;
 		optional<ReferenceClientCapabilities> references;
 		optional<DocumentHighlightClientCapabilities> documentHighlight;
 		optional<DocumentSymbolClientCapabilities> documentSymbol;
@@ -45,9 +45,9 @@ namespace codepad::lsp::types {
 		optional<FoldingRangeClientCapabilities> foldingRange;
 		optional<SelectionRangeClientCapabilities> selectionRange;
 		optional<LinkedEditingRangeClientCapabilities> linkedEditingRange;
-		optional<CallHierarchyClientCapabilities> callHierarchy;
+		optional<CallHierarchyClientCapabilities> callHierarchy;*/
 		optional<SemanticTokensClientCapabilities> semanticTokens;
-		optional<MonikerClientCapabilities> moniker;*/
+		/*optional<MonikerClientCapabilities> moniker;*/
 
 		void visit_fields(visitor_base&) override;
 	};
@@ -74,7 +74,7 @@ namespace codepad::lsp::types {
 		optional<ExecuteCommandClientCapabilities> executeCommand;
 		optional<boolean> workspaceFolders;
 		optional<boolean> configuration;
-		/*optional<SemanticTokensWorkspaceClientCapabilities> semanticTokens;*/
+		optional<SemanticTokensWorkspaceClientCapabilities> semanticTokens;
 		/*optional<CodeLensWorkspaceClientCapabilities> codeLens;*/
 		optional<WorkspaceFileOperationsClientCapabilities> fileOperations;
 
@@ -102,6 +102,9 @@ namespace codepad::lsp::types {
 		optional<GeneralClientCapabilities> general;
 		optional<any> experimental;
 
+		// clangd extension
+		optional<array<string>> offsetEncoding;
+
 		void visit_fields(visitor_base&) override;
 	};
 
@@ -123,8 +126,20 @@ namespace codepad::lsp::types {
 		optional<primitive_variant<TextDocumentSyncKind, TextDocumentSyncOptions>> textDocumentSync;
 		optional<CompletionOptions> completionProvider;
 		optional<primitive_variant<boolean, HoverOptions>> hoverProvider;
-		/*optional<SignatureHelpOptions> signatureHelpProvider;*/
-		// TODO
+		optional<SignatureHelpOptions> signatureHelpProvider;
+		// TODO declarationProvider
+		optional<primitive_variant<boolean, DefinitionOptions>> definitionProvider;
+		// TODO typeDefinitionProvider
+		// TODO implementationProvider
+		optional<primitive_variant<boolean, ReferenceOptions>> referencesProvider;
+		optional<primitive_variant<boolean, DocumentHighlightOptions>> documentHighlightProvider;
+		/*optional<primitive_variant<boolean, DocumentSymbolOptions>> documentSymbolProvider;*/
+		// TODO codeActionProvider
+		// ...
+		// TODO callHierarchyProvider
+		optional<TextDocumentRegistrationOptions_variant<
+			SemanticTokensOptions, SemanticTokensRegistrationOptions
+		>> semanticTokensProvider;
 
 		void visit_fields(visitor_base&) override;
 	};
@@ -132,6 +147,9 @@ namespace codepad::lsp::types {
 	struct InitializeResult : public virtual object {
 		ServerCapabilities capabilities;
 		optional<NameVersion> serverInfo;
+
+		// clangd extension
+		optional<string> offsetEncoding;
 
 		void visit_fields(visitor_base&) override;
 	};

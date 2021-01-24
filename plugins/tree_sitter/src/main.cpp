@@ -94,11 +94,7 @@ extern "C" {
 					auto *lang = cp::tree_sitter::_manager->find_lanaguage(u8"cpp");
 
 					auto &data = cp::tree_sitter::_interpretation_tag_token.get_for(info.interp);
-					auto interp_interface =
-						std::make_shared<cp::tree_sitter::interpretation_interface>(info.interp, lang);
-					data.emplace<std::shared_ptr<cp::tree_sitter::interpretation_interface>>(
-						std::move(interp_interface)
-					);
+					data.emplace<cp::tree_sitter::interpretation_interface>(info.interp, lang);
 				}
 		);
 		cp::tree_sitter::_interpretation_tag_token =

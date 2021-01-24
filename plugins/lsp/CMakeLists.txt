@@ -16,6 +16,7 @@ target_sources(lsp
 
 		"include/codepad/lsp/backend.h"
 		"include/codepad/lsp/client.h"
+		"include/codepad/lsp/interpretation_tag.h"
 		"include/codepad/lsp/uri.h"
 	PRIVATE
 		"src/types/client.cpp"
@@ -27,6 +28,7 @@ target_sources(lsp
 		"src/types/window.cpp"
 		"src/types/workspace.cpp"
 		"src/client.cpp"
+		"src/interpretation_tag.cpp"
 		"src/main.cpp"
 		"src/uri.cpp")
 target_link_libraries(lsp PUBLIC codepad_core editors)

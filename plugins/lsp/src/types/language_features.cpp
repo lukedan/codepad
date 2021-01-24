@@ -147,5 +147,330 @@ namespace codepad::lsp::types {
 	}
 
 
+	CP_LSP_VISIT_FUNC(v, ParameterInformationClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, labelOffsetSupport);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SignatureInformationClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, documentationFormat);
+		CP_LSP_VISIT_FIELD(v, parameterInformation);
+		CP_LSP_VISIT_FIELD(v, activeParameterSupport);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SignatureHelpClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, dynamicRegistration);
+		CP_LSP_VISIT_FIELD(v, signatureInformation);
+		CP_LSP_VISIT_FIELD(v, contextSupport);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SignatureHelpOptions) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressOptions);
+		CP_LSP_VISIT_FIELD(v, triggerCharacters);
+		CP_LSP_VISIT_FIELD(v, retriggerCharacters);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SignatureHelpRegistrationOptions) {
+		CP_LSP_VISIT_BASE(v, TextDocumentRegistrationOptions);
+		CP_LSP_VISIT_BASE(v, SignatureHelpOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ParameterInformation) {
+		CP_LSP_VISIT_FIELD(v, label);
+		CP_LSP_VISIT_FIELD(v, documentation);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SignatureInformation) {
+		CP_LSP_VISIT_FIELD(v, label);
+		CP_LSP_VISIT_FIELD(v, documentation);
+		CP_LSP_VISIT_FIELD(v, parameters);
+		CP_LSP_VISIT_FIELD(v, activeParameter);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SignatureHelp) {
+		CP_LSP_VISIT_FIELD(v, signatures);
+		CP_LSP_VISIT_FIELD(v, activeSignature);
+		CP_LSP_VISIT_FIELD(v, activeParameter);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SignatureHelpContext) {
+		CP_LSP_VISIT_FIELD(v, triggerKind);
+		CP_LSP_VISIT_FIELD(v, triggerCharacter);
+		CP_LSP_VISIT_FIELD(v, isRetrigger);
+		CP_LSP_VISIT_FIELD(v, activeSignatureHelp);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SignatureHelpParams) {
+		CP_LSP_VISIT_BASE(v, TextDocumentPositionParams);
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_FIELD(v, context);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DeclarationClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, dynamicRegistration);
+		CP_LSP_VISIT_FIELD(v, linkSupport);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DeclarationOptions) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DeclarationRegistrationOptions) {
+		CP_LSP_VISIT_BASE(v, DeclarationOptions);
+		CP_LSP_VISIT_BASE(v, TextDocumentRegistrationOptions);
+		CP_LSP_VISIT_BASE(v, StaticRegistrationOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DeclarationParams) {
+		CP_LSP_VISIT_BASE(v, TextDocumentPositionParams);
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DefinitionClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, dynamicRegistration);
+		CP_LSP_VISIT_FIELD(v, linkSupport);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DefinitionOptions) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DefinitionRegistrationOptions) {
+		CP_LSP_VISIT_BASE(v, TextDocumentRegistrationOptions);
+		CP_LSP_VISIT_BASE(v, DefinitionOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DefinitionParams) {
+		CP_LSP_VISIT_BASE(v, TextDocumentPositionParams);
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, TypeDefinitionClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, dynamicRegistration);
+		CP_LSP_VISIT_FIELD(v, linkSupport);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, TypeDefinitionOptions) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, TypeDefinitionRegistrationOptions) {
+		CP_LSP_VISIT_BASE(v, TextDocumentRegistrationOptions);
+		CP_LSP_VISIT_BASE(v, TypeDefinitionOptions);
+		CP_LSP_VISIT_BASE(v, StaticRegistrationOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, TypeDefinitionParams) {
+		CP_LSP_VISIT_BASE(v, TextDocumentPositionParams);
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ImplementationClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, dynamicRegistration);
+		CP_LSP_VISIT_FIELD(v, linkSupport);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ImplementationOptions) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ImplementationRegistrationOptions) {
+		CP_LSP_VISIT_BASE(v, TextDocumentRegistrationOptions);
+		CP_LSP_VISIT_BASE(v, ImplementationOptions);
+		CP_LSP_VISIT_BASE(v, StaticRegistrationOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ImplementationParams) {
+		CP_LSP_VISIT_BASE(v, TextDocumentPositionParams);
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ReferenceClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, dynamicRegistration);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ReferenceOptions) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ReferenceRegistrationOptions) {
+		CP_LSP_VISIT_BASE(v, TextDocumentRegistrationOptions);
+		CP_LSP_VISIT_BASE(v, ReferenceOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ReferenceContext) {
+		CP_LSP_VISIT_FIELD(v, includeDeclaration);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, ReferenceParams) {
+		CP_LSP_VISIT_BASE(v, TextDocumentPositionParams);
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+		CP_LSP_VISIT_FIELD(v, context);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DocumentHighlightClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, dynamicRegistration);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DocumentHighlightOptions) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DocumentHighlightRegistrationOptions) {
+		CP_LSP_VISIT_BASE(v, TextDocumentRegistrationOptions);
+		CP_LSP_VISIT_BASE(v, DocumentHighlightOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DocumentHighlightParams) {
+		CP_LSP_VISIT_BASE(v, TextDocumentPositionParams);
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, DocumentHighlight) {
+		CP_LSP_VISIT_FIELD(v, range);
+		CP_LSP_VISIT_FIELD(v, kind);
+	}
+
+
 	// TODO
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensLegend) {
+		CP_LSP_VISIT_FIELD(v, tokenTypes);
+		CP_LSP_VISIT_FIELD(v, tokenModifiers);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensFullRequestsClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, delta);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensRequestsClientCapabilities) {
+		// TODO range
+		CP_LSP_VISIT_FIELD(v, full);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, dynamicRegistration);
+		CP_LSP_VISIT_FIELD(v, requests);
+		CP_LSP_VISIT_FIELD(v, tokenTypes);
+		CP_LSP_VISIT_FIELD(v, tokenModifiers);
+		CP_LSP_VISIT_FIELD(v, formats);
+		CP_LSP_VISIT_FIELD(v, overlappingTokenSupport);
+		CP_LSP_VISIT_FIELD(v, multilineTokenSupport);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensOptions) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressOptions);
+		CP_LSP_VISIT_FIELD(v, legend);
+		// TODO range
+		CP_LSP_VISIT_FIELD(v, full);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensRegistrationOptions) {
+		CP_LSP_VISIT_BASE(v, TextDocumentRegistrationOptions);
+		CP_LSP_VISIT_BASE(v, SemanticTokensOptions);
+		CP_LSP_VISIT_BASE(v, StaticRegistrationOptions);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensParams) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+		CP_LSP_VISIT_FIELD(v, textDocument);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokens) {
+		CP_LSP_VISIT_FIELD(v, resultId);
+		CP_LSP_VISIT_FIELD(v, data);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensPartialResult) {
+		CP_LSP_VISIT_FIELD(v, data);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensDeltaParams) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+		CP_LSP_VISIT_FIELD(v, textDocument);
+		CP_LSP_VISIT_FIELD(v, previousResultId);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensEdit) {
+		CP_LSP_VISIT_FIELD(v, start);
+		CP_LSP_VISIT_FIELD(v, deleteCount);
+		CP_LSP_VISIT_FIELD(v, data);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensDelta) {
+		CP_LSP_VISIT_FIELD(v, resultId);
+		CP_LSP_VISIT_FIELD(v, edits);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensDeltaPartialResult) {
+		CP_LSP_VISIT_FIELD(v, edits);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensRangeParams) {
+		CP_LSP_VISIT_BASE(v, WorkDoneProgressParams);
+		CP_LSP_VISIT_BASE(v, PartialResultParams);
+		CP_LSP_VISIT_FIELD(v, textDocument);
+		CP_LSP_VISIT_FIELD(v, range);
+	}
+
+
+	CP_LSP_VISIT_FUNC(v, SemanticTokensWorkspaceClientCapabilities) {
+		CP_LSP_VISIT_FIELD(v, refreshSupport);
+	}
 }

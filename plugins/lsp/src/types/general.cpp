@@ -19,6 +19,12 @@ namespace codepad::lsp::types {
 		CP_LSP_VISIT_FIELD(v, synchronization);
 		CP_LSP_VISIT_FIELD(v, completion);
 		CP_LSP_VISIT_FIELD(v, hover);
+		CP_LSP_VISIT_FIELD(v, signatureHelp);
+		CP_LSP_VISIT_FIELD(v, declaration);
+		CP_LSP_VISIT_FIELD(v, definition);
+		CP_LSP_VISIT_FIELD(v, typeDefinition);
+		// TODO
+		CP_LSP_VISIT_FIELD(v, semanticTokens);
 		// TODO
 	}
 
@@ -43,6 +49,7 @@ namespace codepad::lsp::types {
 		CP_LSP_VISIT_FIELD(v, executeCommand);
 		CP_LSP_VISIT_FIELD(v, workspaceFolders);
 		CP_LSP_VISIT_FIELD(v, configuration);
+		CP_LSP_VISIT_FIELD(v, semanticTokens);
 		// TODO
 		CP_LSP_VISIT_FIELD(v, fileOperations);
 	}
@@ -67,6 +74,8 @@ namespace codepad::lsp::types {
 		CP_LSP_VISIT_FIELD(v, window);
 		CP_LSP_VISIT_FIELD(v, general);
 		CP_LSP_VISIT_FIELD(v, experimental);
+
+		CP_LSP_VISIT_FIELD(v, offsetEncoding);
 	}
 
 
@@ -91,13 +100,23 @@ namespace codepad::lsp::types {
 		CP_LSP_VISIT_FIELD(v, textDocumentSync);
 		CP_LSP_VISIT_FIELD(v, completionProvider);
 		CP_LSP_VISIT_FIELD(v, hoverProvider);
+		CP_LSP_VISIT_FIELD(v, signatureHelpProvider);
+		// TODO declarationProvider
+		CP_LSP_VISIT_FIELD(v, definitionProvider);
+		// TODO typeDefinitionProvider
+		// TODO implementationProvider
+		CP_LSP_VISIT_FIELD(v, referencesProvider);
+		CP_LSP_VISIT_FIELD(v, documentHighlightProvider);
 		// TODO
+		CP_LSP_VISIT_FIELD(v, semanticTokensProvider);
 	}
 
 
 	CP_LSP_VISIT_FUNC(v, InitializeResult) {
 		CP_LSP_VISIT_FIELD(v, capabilities);
 		CP_LSP_VISIT_FIELD(v, serverInfo);
+
+		CP_LSP_VISIT_FIELD(v, offsetEncoding);
 	}
 
 

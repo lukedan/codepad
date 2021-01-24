@@ -7,6 +7,7 @@
 /// Implementation of classes used to interpret a \ref codepad::editors::buffer.
 
 #include <map>
+#include <deque>
 
 #include <codepad/core/encodings.h>
 #include <codepad/core/red_black_tree.h>
@@ -299,41 +300,48 @@ namespace codepad::editors::code {
 			}
 		};
 
-		/// Contains position information about a single modification. Unlike \ref buffer::modification_position,
-		/// codepoint positions for a single edit may intersect since a codepoint may be composed of multiple bytes.
-		struct modification_codepoint_position {
-			/// Default constructor.
-			modification_codepoint_position() = default;
+		/// Contains information for the \ref modification_decoded event, with additional information about the
+		/// codepoints that are affected. See documentation about the event for more details.
+		struct modification_decoded_info {
 			/// Initializes all fields of this struct.
-			modification_codepoint_position(std::size_t pos, std::size_t rem, std::size_t add) :
-				position(pos), removed_codepoints(rem), added_codepoints(add) {
+			modification_decoded_info(
+				linebreak_registry::line_column_info start_lc, linebreak_registry::line_column_info past_end_lc,
+				std::size_t start_cp, std::size_t past_end_cp, buffer::end_modification_info &info
+			) :
+				start_line_column(start_lc), past_end_line_column(past_end_lc),
+				start_codepoint(start_cp), past_end_codepoint(past_end_cp), buffer_info(info) {
 			}
 
-			std::size_t
-				/// Position of the first codepoint that has been modified, after all previous modifications in the
-				/// same edit. This is defined as the first codepoint that intersects with the range of bytes that
-				/// have been modified. Note that this means that the encoding has to be context free for this to be
-				/// accurate.
-				position = 0,
-				/// The number of codepoints in the old document that intersect with the removed range of bytes.
-				removed_codepoints = 0,
-				/// The number of codepoints in the new document that intersect with the added range of bytes.
-				added_codepoints = 0;
+			const linebreak_registry::line_column_info
+				start_line_column, ///< Line and column information of \ref start_codepoint.
+				past_end_line_column; ///< Line and column information of \ref past_end_codepoint.
+			const std::size_t
+				/// The first codepoint that has been affected by this modification. This index is obtained
+				/// **before** the modification.
+				start_codepoint = 0,
+				/// One past the last codepoint that has been affected by this modification. This index is obtained
+				/// **before** the modification.
+				past_end_codepoint = 0;
+			/// Information about modification of the underlying \ref buffer.
+			buffer::end_modification_info &buffer_info;
 		};
-		/// Codepoint positions for an edit.
-		using edit_codepoint_positions = std::vector<modification_codepoint_position>;
-
-		/// Contains information for the \ref end_edit_interpret event, with additional information about the
+		/// Contains information for the \ref end_modification event, with additional information about the
 		/// codepoints that are affected.
-		struct end_edit_info {
-		public:
-			const edit_codepoint_positions codepoint_positions; ///< Position of the affected codepoints.
-			buffer::end_edit_info &buffer_info; ///< Information about modification of the underlying \ref buffer.
-		protected:
+		struct end_modification_info {
 			/// Initializes all fields of this struct.
-			end_edit_info(edit_codepoint_positions pos, buffer::end_edit_info &info) :
-				codepoint_positions(std::move(pos)), buffer_info(info) {
+			end_modification_info(std::size_t start, std::size_t past_end, buffer::end_modification_info &info) :
+				start_codepoint(start), past_end_codepoint(past_end), buffer_info(info) {
 			}
+
+			const std::size_t
+				/// The first codepoint that has been affected by this modification. This index is obtained **after**
+				/// the modification.
+				start_codepoint = 0,
+				/// One past the last codepoint that has been affected by this modification. This index is obtained
+				/// **after** the modification.
+				past_end_codepoint = 0;
+			/// Information about modification of the underlying \ref buffer.
+			buffer::end_modification_info &buffer_info;
 		};
 
 		/// Similar to \ref linebreak_registry::position_converter, but converts between
@@ -434,16 +442,21 @@ namespace codepad::editors::code {
 		interpretation(const interpretation&) = delete;
 		/// No copy assignment.
 		interpretation &operator=(const interpretation&) = delete;
-		/// Unregisters from \ref buffer::end_edit.
+		/// Clears all tags and unregisters from \ref buffer events.
 		~interpretation() {
+			_tags.clear();
 			_buf->begin_edit -= _begin_edit_tok;
 			_buf->begin_modify -= _begin_modify_tok;
 			_buf->end_modify -= _end_modify_tok;
 			_buf->end_edit -= _end_edit_tok;
 		}
 
+		/// Returns a \ref codepoint_iterator pointing at the beginning of this document.
+		[[nodiscard]] codepoint_iterator codepoint_begin() const {
+			return codepoint_iterator(_buf->begin(), *this);
+		}
 		/// Returns a \ref codepoint_iterator pointing at the specified codepoint.
-		codepoint_iterator at_codepoint(std::size_t pos) const {
+		[[nodiscard]] codepoint_iterator codepoint_at(std::size_t pos) const {
 			_codepoint_pos_converter finder;
 			_chunks.find(finder, pos);
 			codepoint_iterator res(_buf->at(finder.total_bytes), *this);
@@ -453,9 +466,9 @@ namespace codepad::editors::code {
 			return res;
 		}
 		/// Returns a \ref character_iterator pointing at the specified character.
-		character_iterator at_character(std::size_t pos) const {
+		[[nodiscard]] character_iterator character_at(std::size_t pos) const {
 			auto [colinfo, cp] = _linebreaks.get_line_and_column_and_codepoint_of_char(pos);
-			return character_iterator(at_codepoint(cp), colinfo.line_iterator, colinfo.position_in_line);
+			return character_iterator(codepoint_at(cp), colinfo.line_iterator, colinfo.position_in_line);
 		}
 
 		/// Returns the total number of codepoints in this \ref interpretation.
@@ -545,14 +558,19 @@ namespace codepad::editors::code {
 		/// Checks the integrity of this \ref interpretation by re-interpreting the underlying \ref buffer, and the
 		/// underlying buffer by invoking \ref buffer::check_integrity(). Used for testing and debugging.
 		///
-		/// \return Indicates whether the data in \ref _linebreaks and \ref _chunks are valid and correct. Note that the
-		///         underlying trees assert if they're corrupted instead of returning \p false.
+		/// \return Indicates whether the data in \ref _linebreaks and \ref _chunks are valid and correct. Note that
+		///         the underlying trees assert if they're corrupted instead of returning \p false.
 		bool check_integrity() const;
 
 
-		/// Invoked when an edit has been made to the underlying \ref buffer, after this \ref interpretation has
-		/// finished updating.
-		info_event<buffer::end_edit_info> end_edit_interpret;
+		/// This event is invoked when \ref buffer::end_modify is invoked. Specifically, this is invoked after the
+		/// new contents have been decoded, but before \ref _linebreaks and \ref _chunks are updated. **This means
+		/// that they'll be out-of-sync with the underlying buffer and lag behind**. This can be useful to obtain
+		/// information about the text that has been removed.
+		info_event<modification_decoded_info> modification_decoded;
+		/// This event is invoked after \ref modification_decoded after \ref _linebreaks and \ref _chunks have been
+		/// updated. This can be useful for obtaining information about content added by the modification.
+		info_event<end_modification_info> end_modification;
 		// TODO visual_changed event
 	protected:
 		/// Used to find the number of bytes before a specified codepoint.
@@ -616,7 +634,7 @@ namespace codepad::editors::code {
 		text_theme_data _theme; ///< Theme of the text.
 		linebreak_registry _linebreaks; ///< Records all linebreaks.
 
-		std::vector<std::any> _tags; ///< Tags associated with this interpretation.
+		std::deque<std::any> _tags; ///< Tags associated with this interpretation.
 		const std::shared_ptr<buffer> _buf; ///< The underlying \ref buffer.
 		ui::line_ending _line_ending = ui::line_ending::n; ///< The default line ending for this \ref interpretation.
 		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
@@ -724,9 +742,8 @@ namespace codepad::editors::code {
 		/// Called when a modification has been made. This function decodes the inserted content and updates
 		/// \ref _chunks and \ref _linebreaks.
 		void _on_end_modify(buffer::end_modification_info&);
-		/// Called when an edit has been made to \ref _buf. Invokes \ref end_edit_interpret.
+		/// Called when an edit has been made to \ref _buf.
 		void _on_end_edit(buffer::end_edit_info &info) {
-			end_edit_interpret.invoke(info);
 		}
 	};
 }

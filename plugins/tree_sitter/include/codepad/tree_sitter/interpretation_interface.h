@@ -24,16 +24,29 @@ namespace codepad::tree_sitter {
 			// create parser
 			_parser.set(ts_parser_new());
 
-			// this object is owned by the interpretation and will be disposed when it's disposed
-			// so no need to unregister
-			interp.end_edit_interpret += [this](codepad::editors::buffer::end_edit_info&) {
+			_event_token = _interp->get_buffer()->end_edit += [this](codepad::editors::buffer::end_edit_info&) {
 				_update_highlight();
 			};
 			_update_highlight();
 		}
+		/// Assert during copy construction.
+		interpretation_interface(const interpretation_interface&) {
+			assert_true_logical(false, "interpretation_interface cannot be copied");
+		}
+		/// Assert during copy assignment.
+		interpretation_interface &operator=(const interpretation_interface&) {
+			assert_true_logical(false, "interpretation_interface cannot be copied");
+			return *this;
+		}
+		/// Unregisters from \ref editors::buffer::end_edit.
+		~interpretation_interface() {
+			_interp->get_buffer()->end_edit -= _event_token;
+		}
 	protected:
 		parser_ptr _parser; ///< The parser.
-		codepad::editors::code::interpretation *_interp = nullptr; ///< The associated interpretation.
+		editors::code::interpretation *_interp = nullptr; ///< The associated interpretation.
+		/// Token for \ref editors::buffer::end_edit.
+		info_event<editors::buffer::end_edit_info>::token _event_token;
 		const language_configuration *_lang = nullptr; ///< The language configuration.
 
 		/// Contains information used in a \p TSInput.

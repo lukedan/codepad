@@ -81,6 +81,10 @@ namespace codepad::lsp::types {
 		void visit(primitive_variant_base &var) override {
 			var.visit_value(*this);
 		}
+		/// Invokes \ref custom_variant_base::visit_value().
+		void visit(custom_variant_base &var) override {
+			var.visit_value(*this);
+		}
 		/// Writes a \ref map_base.
 		void visit(map_base &m) override {
 			_writer->StartObject();
@@ -265,6 +269,14 @@ namespace codepad::lsp::types {
 			}
 			assert_true_sys(false, "failed to detect type of JSON object");
 		}
+		/// Deserializes a \ref custom_variant_base.
+		void visit(custom_variant_base &var) override {
+			if (_stack.top() == nullptr) {
+				logger::get().log_error(CP_HERE) << "invalid value";
+				return;
+			}
+			var.deduce_type_and_visit(*this, *_stack.top());
+		}
 		/// Deserializes a \ref map_base.
 		void visit(map_base &map) override {
 			if (_stack.top() == nullptr) {
@@ -435,8 +447,13 @@ namespace codepad::lsp::types {
 		}
 		/// Visits a \ref primitive_variant_base.
 		void visit(primitive_variant_base &variant) override {
-			_entry << "(variant) ";
+			_entry << "(primitive variant) ";
 			variant.visit_value(*this);
+		}
+		/// Deserializes a \ref custom_variant_base.
+		void visit(custom_variant_base &var) override {
+			_entry << "(custom variant) ";
+			var.visit_value(*this);
 		}
 		/// Visits a \ref map_base.
 		void visit(map_base &map) override {

@@ -11,6 +11,8 @@
 #include <variant>
 #include <any>
 
+#include <rapidjson/document.h>
+
 #include "codepad/core/json/misc.h"
 #include "codepad/core/json/storage.h"
 #include "codepad/core/misc.h"
@@ -130,6 +132,16 @@ namespace codepad::lsp::types {
 		/// Visits the currently active value.
 		virtual void visit_value(visitor_base&) = 0;
 	};
+	/// A custom variant type.
+	struct custom_variant_base {
+		/// Default virtual destructor.
+		virtual ~custom_variant_base() = default;
+
+		/// Deduces the type of this variant and visits the value.
+		virtual void deduce_type_and_visit(visitor_base&, const rapidjson::Value&) = 0;
+		/// Visits the currently active value.
+		virtual void visit_value(visitor_base&) = 0;
+	};
 	/// Type-erased base class of mappings.
 	struct map_base {
 		/// Default virtual destructor.
@@ -173,6 +185,8 @@ namespace codepad::lsp::types {
 		virtual void visit(array_base&) = 0;
 		/// Visits a \ref primitive_variant_base.
 		virtual void visit(primitive_variant_base&) = 0;
+		/// Visits a \ref custom_variant_base.
+		virtual void visit(custom_variant_base&) = 0;
 		/// Visits a \ref map_base.
 		virtual void visit(map_base&) = 0;
 
@@ -210,14 +224,14 @@ namespace codepad::lsp::types {
 	};
 	/// An enum type represented as strings. The enum values are continuous and starts from 0, so the enum can be
 	/// converted to and from strings using only a list of strings. This class uses CRTP and derived classes must
-	/// implement \p _get_strings() that returns a <tt>const std::vector&</tt> of \p std::u8string_view.
+	/// implement \p get_strings() that returns a <tt>const std::vector&</tt> of \p std::u8string_view.
 	template <typename Enum, typename Derived> struct contiguous_string_enum : public string_enum_base {
 	public:
 		Enum value; ///< The underlying enum value.
 
 		/// Returns the value of this enum.
 		std::u8string_view get_value() const override {
-			return Derived::_get_strings()[static_cast<std::size_t>(value)];
+			return Derived::get_strings()[static_cast<std::size_t>(value)];
 		}
 		/// Sets \ref value using the result of \ref _get_mapping().
 		void set_value(std::u8string_view str) override {
@@ -228,7 +242,7 @@ namespace codepad::lsp::types {
 		static std::unordered_map<std::u8string_view, std::size_t> _get_mapping() {
 			static std::unordered_map<std::u8string_view, std::size_t> _mapping;
 			if (_mapping.empty()) {
-				auto &strings = Derived::_get_strings();
+				auto &strings = Derived::get_strings();
 				for (std::size_t i = 0; i < strings.size(); ++i) {
 					_mapping.emplace(strings[i], i);
 				}
@@ -717,14 +731,48 @@ namespace codepad::lsp::types {
 		void visit_fields(visitor_base&) override;
 	};
 
+	/// A variant that decides whether an object is derived from \ref TextDocumentRegistrationOptions or not. The
+	/// type that's not derived from \ref TextDocumentRegistrationOptions is put before the one that is and is
+	/// initialized by default.
+	template <
+		typename Other, typename RegistrationOptions
+	> struct TextDocumentRegistrationOptions_variant : public custom_variant_base {
+		static_assert(
+			std::is_base_of_v<TextDocumentRegistrationOptions, RegistrationOptions>,
+			"the second template parameter must be derived from TextDocumentRegistrationOptions"
+		);
+
+		std::variant<Other, RegistrationOptions> value; ///< The value.
+
+		/// If the value is an object and contains a field named \p documentSelector, the value is a
+		/// \p RegistrationOptions. Otherwise use the other type.
+		void deduce_type_and_visit(visitor_base &vis, const rapidjson::Value &val) override {
+			if (val.IsObject()) {
+				if (auto member = val.FindMember("documentSelector"); member != val.MemberEnd()) {
+					vis.visit(value.emplace<RegistrationOptions>());
+					return;
+				}
+			}
+			vis.visit(value.emplace<Other>());
+		}
+		/// Visits the underlying value.
+		void visit_value(visitor_base &vis) override {
+			std::visit(
+				[&vis](auto &&val) {
+					vis.visit(val);
+				}, value
+			);
+		}
+	};
+
 	enum class MarkupKindEnum : unsigned char {
 		plaintext,
 		markdown
 	};
 	struct MarkupKind : public virtual contiguous_string_enum<MarkupKindEnum, MarkupKind> {
 		friend contiguous_string_enum;
-	protected:
-		inline static const std::vector<std::u8string_view> &_get_strings() {
+
+		inline static const std::vector<std::u8string_view> &get_strings() {
 			static std::vector<std::u8string_view> _strings{ u8"plaintext", u8"markdown" };
 			return _strings;
 		}
@@ -795,8 +843,8 @@ namespace codepad::lsp::types {
 	};
 	struct TraceValue : contiguous_string_enum<TraceValueEnum, TraceValue> {
 		friend contiguous_string_enum;
-	protected:
-		inline static const std::vector<std::u8string_view> &_get_strings() {
+
+		inline static const std::vector<std::u8string_view> &get_strings() {
 			static std::vector<std::u8string_view> _strings{ u8"off", u8"message", u8"verbose" };
 			return _strings;
 		}

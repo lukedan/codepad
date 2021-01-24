@@ -9,7 +9,7 @@
 #include <codepad/ui/renderer.h>
 
 namespace codepad::editors::code {
-	/// Specifies the theme of the text.
+	/// Specifies the theme of the text at a specific point.
 	struct text_theme_specification {
 		/// Default constructor.
 		text_theme_specification() = default;

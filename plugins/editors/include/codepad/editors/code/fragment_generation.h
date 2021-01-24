@@ -217,7 +217,7 @@ namespace codepad::editors::code {
 				if (res.steps == 1) {
 					_char_it.next();
 				} else if (res.steps > 1) {
-					_char_it = _interp.at_character(_pos + res.steps); // TODO room for optimization
+					_char_it = _interp.character_at(_pos + res.steps); // TODO room for optimization
 				}
 			}
 			// update everything else
@@ -234,7 +234,7 @@ namespace codepad::editors::code {
 		void reposition(std::size_t pos) {
 			_cached_fonts.clear(); // clear cached fonts
 			_pos = pos;
-			_char_it = _interp.at_character(_pos);
+			_char_it = _interp.character_at(_pos);
 			_theme_it = text_theme_data::position_iterator(_interp.get_text_theme(), _pos);
 			_components.reposition(_pos);
 		}

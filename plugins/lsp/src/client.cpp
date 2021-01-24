@@ -42,7 +42,6 @@ namespace codepad::lsp {
 		while (true) {
 			// receive & parse message
 			std::u8string msg = c._backend->receive_message();
-			logger::get().log_debug(CP_HERE) << "received message:\n" << msg;
 			rapidjson::Document doc;
 			doc.Parse<
 				rapidjson::kParseCommentsFlag | rapidjson::kParseTrailingCommasFlag
