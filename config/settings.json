@@ -4,7 +4,8 @@
 		"editors",
 		"command_pack",
 		"python_plugin_host_pybind11",
-		"tree_sitter"
+		"tree_sitter",
+		"lsp"
 	],
 	"editor": {
 		"font_size": 12,

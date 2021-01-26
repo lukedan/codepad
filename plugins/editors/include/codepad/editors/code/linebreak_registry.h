@@ -302,7 +302,6 @@ namespace codepad::editors::code {
 				// the first line
 				auto it = _t.emplace_before(at, offset + lines[0].nonbreak_chars, lines[0].ending);
 				// insert all other lines
-				// FIXME maybe use bulk operation?
 				for (auto it = lines.begin() + 1; it != lines.end() - 1; ++it) {
 					_t.emplace_before(at, *it);
 				}
@@ -317,6 +316,9 @@ namespace codepad::editors::code {
 
 		/// Called when a range of codepoints has been inserted to the buffer.
 		void insert_codepoints(iterator at, std::size_t offset, const std::vector<line_info> &lines) {
+			if (lines.size() == 1 && lines[0].nonbreak_chars == 0) {
+				return; // nothing to insert; if we continue we would incorrectly break up \r\n
+			}
 			if (at != _t.end() && offset > at->nonbreak_chars) { // break \r\n
 				assert_true_logical(at->ending == ui::line_ending::rn, "invalid begin padding");
 				std::size_t n = at->nonbreak_chars;

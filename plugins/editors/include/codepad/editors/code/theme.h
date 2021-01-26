@@ -6,6 +6,7 @@
 /// \file
 /// Classes used to record and manage font color, style, etc. in a \ref codepad::editors::code::interpretation.
 
+#include <codepad/core/red_black_tree.h>
 #include <codepad/ui/renderer.h>
 
 namespace codepad::editors::code {
@@ -21,77 +22,193 @@ namespace codepad::editors::code {
 		ui::font_style style = ui::font_style::normal; ///< The font style.
 		ui::font_weight weight = ui::font_weight::normal; ///< The font weight.
 	};
-	/// Records a parameter of the theme of the entire buffer. Internally, it keeps a list of
-	/// (position, value) pairs, and characters will use the last value specified before it.
+	/// Records a parameter of the theme of the entire buffer.
 	template <typename T> class text_theme_parameter_info {
 	public:
+		/// Data for a segment of text that has the parameter set to the given value.
+		struct segment_data {
+			/// Default constructor.
+			segment_data() = default;
+			/// Initializes \ref value and \ref length.
+			segment_data(T val, std::size_t len) : value(std::move(val)), length(len) {
+			}
+
+			T value{}; ///< The property value for this segment.
+			std::size_t length = 0; ///< The length of this segment, in characters.
+			red_black_tree::color color = red_black_tree::color::red; ///< The color of this node.
+		};
+		/// Contains additional synthesized data of a node.
+		struct node_data {
+			/// A node of the tree.
+			using node = binary_tree_node<segment_data, node_data>;
+
+			std::size_t total_chars = 0; ///< The total number of characters in this subtree.
+
+			using num_chars_property = sum_synthesizer::compact_property<
+				synthesization_helper::field_value_property<&segment_data::length>,
+				&node_data::total_chars
+			>; ///<	Property used to obtain the total number of characters in a subtree.
+
+			/// Refreshes the given node's data.
+			inline static void synthesize(node &n) {
+				sum_synthesizer::synthesize<num_chars_property>(n);
+			}
+		};
+		/// Type of binary tree used for storing theme information.
+		using tree_type = red_black_tree::tree<
+			segment_data, red_black_tree::member_red_black_access<&segment_data::color>, node_data
+		>;
 		/// Iterator.
-		using iterator = typename std::map<std::size_t, T>::iterator;
+		using iterator = typename tree_type::iterator;
 		/// Const iterator.
-		using const_iterator = typename std::map<std::size_t, T>::const_iterator;
+		using const_iterator = typename tree_type::const_iterator;
 
 		/// Default constructor. Adds a default-initialized value to position 0.
 		text_theme_parameter_info() : text_theme_parameter_info(T()) {
 		}
 		/// Constructor that adds the given value to position 0.
 		explicit text_theme_parameter_info(T def) {
-			_changes.emplace(0, std::move(def));
+			_segments.emplace_before(_segments.end(), std::move(def), 0);
 		}
 
 		/// Clears the parameter of the theme, and adds the given value to position 0.
 		void clear(T def) {
-			_changes.clear();
-			_changes[0] = def;
+			_segments.clear();
+			_segments.emplace_before(_segments.end(), std::move(def), 0);
 		}
 		/// Sets the parameter of the given range to the given value.
-		void set_range(std::size_t s, std::size_t pe, T c) {
+		void set_range(std::size_t s, std::size_t pe, T val) {
 			assert_true_usage(s < pe, "invalid range");
-			auto beg = get_iter_at(s), end = get_iter_at(pe);
-			T begv = beg->second, endv = end->second;
-			_changes.erase(++beg, ++end);
-			if (begv != c) {
-				_changes[s] = c;
-			}
-			if (endv != c) {
-				_changes[pe] = endv;
-			}
+			_erase_range_no_merging(s, pe);
+			_insert_at(s, std::move(val), pe - s);
 		}
-		/// Retrieves the value of the parameter at the given position.
-		T get_at(std::size_t cp) const {
-			return get_iter_at(cp)->second;
+
+		void on_modification_decoded(std::size_t removed_start, std::size_t removed_end) {
+
+		}
+
+		/// Retrieves the value of the parameter at the given character.
+		[[nodiscard]] T get_at(std::size_t cp) const {
+			return get_segment_at(cp).first->value;
 		}
 
 		/// Returns an iterator to the first pair.
-		iterator begin() {
-			return _changes.begin();
+		[[nodiscard]] iterator begin() {
+			return _segments.begin();
 		}
 		/// Returns an iterator past the last pair.
-		iterator end() {
-			return _changes.end();
+		[[nodiscard]] iterator end() {
+			return _segments.end();
 		}
-		/// Returns an iterator to the pair that determines the parameter at the given position.
-		iterator get_iter_at(std::size_t cp) {
-			return --_changes.upper_bound(cp);
+		/// Returns an iterator to the segment that contains the given character, and the number of characters before
+		/// that segment.
+		[[nodiscard]] std::pair<iterator, std::size_t> get_segment_at(std::size_t cp) {
+			std::size_t segment_offset = cp;
+			auto iter = _segments.find(_char_finder(), segment_offset);
+			return { iter, cp - segment_offset };
 		}
 		/// Const version of \ref begin().
-		const_iterator begin() const {
-			return _changes.begin();
+		[[nodiscard]] const_iterator begin() const {
+			return _segments.begin();
 		}
 		/// Const version of \ref end().
-		const_iterator end() const {
-			return _changes.end();
+		[[nodiscard]] const_iterator end() const {
+			return _segments.end();
 		}
-		/// Const version of \ref get_iter_at(std::size_t).
-		const_iterator get_iter_at(std::size_t cp) const {
-			return --_changes.upper_bound(cp);
-		}
-
-		/// Returns the number of position-value pairs in this parameter.
-		std::size_t size() const {
-			return _changes.size();
+		/// Const version of \ref get_segment_at().
+		[[nodiscard]] std::pair<const_iterator, std::size_t> get_segment_at(std::size_t cp) const {
+			std::size_t segment_offset = cp;
+			auto iter = _segments.find(_char_finder(), segment_offset);
+			return { iter, cp - segment_offset };
 		}
 	protected:
-		std::map<std::size_t, T> _changes; ///< The underlying \p std::map that stores the position-value pairs.
+		/// Used to find the segment that contains the i-th character.
+		using _char_finder = sum_synthesizer::index_finder<typename node_data::num_chars_property, true>;
+
+		/// The underlying binary tree that stores the segments. The sum of segment lengths may be shorter than the
+		/// document length, in which case the text after all segments will inherit the color of the last segment.
+		tree_type _segments;
+
+		/// Erases the given range of characters without merging segments that have the same value.
+		void _erase_range_no_merging(std::size_t beg, std::size_t end) {
+			auto [beg_iter, beg_pos] = get_segment_at(beg);
+			auto [end_iter, end_pos] = get_segment_at(end);
+			// if beg and end are in the same segment, simply reduce the length of it
+			if (beg_iter == end_iter) {
+				std::size_t nchars = end - beg;
+				beg_iter.get_modifier()->length = std::max(beg_iter->length, nchars) - nchars;
+				return;
+			}
+			if (beg_pos != beg) {
+				// reduce the length of the segment at the beginning, and increment beg_iter so that
+				// [beg_iter, end_iter) can be completely erased
+				beg_pos += beg_iter->length;
+				std::size_t beg_part = beg_pos - beg;
+				beg_iter.get_modifier()->length = std::max(beg_iter->length, beg_part) - beg_part;
+				++beg_iter;
+			}
+			// reduce the length of the segment at the end
+			if (end_pos != end) {
+				std::size_t end_part = end - end_pos;
+				end_iter.get_modifier()->length = std::max(end_iter->length, end_part) - end_part;
+			}
+			// erase full segments
+			_segments.erase(beg_iter, end_iter);
+		}
+		/// Inserts a segment at the given position. This function merges segments with the same parameter value and
+		/// makes sure that the last segment's length is 0 if the insertion occurs near the end.
+		void _insert_at(std::size_t pos, T value, std::size_t length) {
+			auto [iter, iter_pos] = get_segment_at(pos);
+			if (length == 0) {
+				// no need to insert, but still merge segments
+				if (iter_pos == pos && iter_pos > 0) {
+					auto prev_iter = iter;
+					--prev_iter;
+					if (prev_iter->value == iter->value) { // needs merging
+						iter.get_modifier()->length += prev_iter->length;
+						_segments.erase(prev_iter);
+					}
+				}
+			} else {
+				if (iter_pos == pos) {
+					// insert at segment boundary; may need to merge segments
+					auto prev_iter = iter;
+					bool merge_before = false;
+					if (iter_pos > 0) {
+						--prev_iter;
+						merge_before = prev_iter->value == value;
+					}
+					if (merge_before) {
+						if (iter->value == value) {
+							iter.get_modifier()->length += prev_iter->length + length;
+							_segments.erase(prev_iter);
+						} else {
+							prev_iter.get_modifier()->length += length;
+						}
+					} else {
+						if (iter->value == value) {
+							iter.get_modifier()->length += length;
+						} else {
+							_segments.emplace_before(iter, std::move(value), length);
+						}
+					}
+				} else {
+					// insert at middle
+					if (value == iter->value) {
+						iter.get_modifier()->length += length;
+					} else {
+						std::size_t first_part = pos - iter_pos;
+						_segments.emplace_before(iter, iter->value, first_part);
+						_segments.emplace_before(iter, std::move(value), length);
+						iter.get_modifier()->length = std::max(iter->length, first_part) - first_part;
+					}
+				}
+			}
+			auto next = iter;
+			if (++next == _segments.end()) {
+				iter.get_modifier()->length = 0;
+			}
+		}
 	};
 
 	/// Bitfield indicating specific parameters of the text's theme.
@@ -124,18 +241,10 @@ namespace codepad::editors::code {
 			position_iterator() = default;
 			/// Initializes \ref current_theme from the given iterators, then initializes all \p next_* iterators by
 			/// incrementing the given ones.
-			position_iterator(const text_theme_data &data, std::size_t position) :
-				_next_color(data.color.get_iter_at(position)),
-				_next_style(data.style.get_iter_at(position)),
-				_next_weight(data.weight.get_iter_at(position)),
-				_data(&data) {
-
-				current_theme = text_theme_specification(
-					_next_color->second, _next_style->second, _next_weight->second
-				);
-				++_next_color;
-				++_next_style;
-				++_next_weight;
+			position_iterator(const text_theme_data &data, std::size_t position) : _data(&data) {
+				_next_color = _create_iterator_position(_data->color, position, current_theme.color);
+				_next_style = _create_iterator_position(_data->style, position, current_theme.style);
+				_next_weight = _create_iterator_position(_data->weight, position, current_theme.weight);
 			}
 
 			/// Moves the given \ref position_iterator to the given position. The position must be after where this
@@ -144,70 +253,89 @@ namespace codepad::editors::code {
 			/// \return All members that have potentially changed.
 			text_theme_member move_forward(std::size_t pos) {
 				text_theme_member result = text_theme_member::none;
-				if (_move_iter_forward(_next_color, _data->color, current_theme.color, pos)) {
+				if (_next_color.move_forward(_data->color, pos, current_theme.color)) {
 					result |= text_theme_member::color;
 				}
-				if (_move_iter_forward(_next_style, _data->style, current_theme.style, pos)) {
+				if (_next_style.move_forward(_data->style, pos, current_theme.style)) {
 					result |= text_theme_member::style;
 				}
-				if (_move_iter_forward(_next_weight, _data->weight, current_theme.weight, pos)) {
+				if (_next_weight.move_forward(_data->weight, pos, current_theme.weight)) {
 					result |= text_theme_member::weight;
 				}
 				return result;
 			}
 			/// Returns the number of characters to the next change of any parameter, given the current position.
 			std::size_t forecast(std::size_t pos) const {
-				std::size_t res = _forecast_iter(_next_color, _data->color, pos);
-				res = std::min(res, _forecast_iter(_next_style, _data->style, pos));
-				res = std::min(res, _forecast_iter(_next_weight, _data->weight, pos));
+				std::size_t res = _next_color.forecast(_data->color, pos);
+				res = std::min(res, _next_style.forecast(_data->style, pos));
+				res = std::min(res, _next_weight.forecast(_data->weight, pos));
 				return res;
 			}
 
 			text_theme_specification current_theme; ///< The current theme of the text.
 		protected:
-			/// The iterator to the next position-color pair.
-			text_theme_parameter_info<colord>::const_iterator _next_color;
-			/// The iterator to the next position-\ref ui::font_style pair.
-			text_theme_parameter_info<ui::font_style>::const_iterator _next_style;
-			/// The iterator to the next position-\ref ui::font_weight pair.
-			text_theme_parameter_info<ui::font_weight>::const_iterator _next_weight;
-			const text_theme_data *_data = nullptr; ///< The associated \ref text_theme_data.
+			/// Contains an iterator and its corresponding position.
+			template <typename T> struct _iterator_position {
+				/// Default constructor.
+				_iterator_position() = default;
 
-			/// Called by \ref move_forward(). Increments a \ref text_theme_parameter_info::const_iterator if
-			/// necessary.
-			///
-			/// \param it The iterator.
-			/// \param spec The set of position-value pairs.
-			/// \param val The value at the position.
-			/// \param pos The new position in the text.
-			/// \return \p true if the iterator has been moved.
-			template <typename T> inline static bool _move_iter_forward(
-				typename text_theme_parameter_info<T>::const_iterator &it,
-				const text_theme_parameter_info<T> &spec, T &val, std::size_t pos
-			) {
-				if (it != spec.end() && it->first <= pos) { // fast case: only need to increment once
-					val = it->second;
-					++it;
-					if (it != spec.end() && it->first <= pos) { // slow: reposition
-						it = spec.get_iter_at(pos);
-						val = it->second;
-						++it;
+				typename text_theme_parameter_info<T>::const_iterator iterator; ///< The iterator.
+				/// The position where the next parameter change will occur.
+				std::size_t next_position = 0;
+
+				/// Moves \ref iterator and \ref next_position forward.
+				///
+				/// \return Whether \ref value has been changed.
+				bool move_forward(const text_theme_parameter_info<T> &param, std::size_t newpos, T &value) {
+					if (newpos < next_position || iterator == param.end()) {
+						return false;
 					}
+					// fast path: only needs to move to the next segment
+					next_position += iterator->length;
+					if (newpos < next_position) {
+						value = iterator->value;
+						++iterator;
+						return true;
+					}
+					// slow path: recompute
+					auto [iter, pos] = param.get_segment_at(newpos);
+					iterator = iter;
+					next_position = pos + iterator->length;
+					value = iterator->value;
+					++iterator;
 					return true;
 				}
-				return false;
+				/// Returns the distance to where the next parameter change will happen.
+				[[nodiscard]] std::size_t forecast(
+					const text_theme_parameter_info<T> &param, std::size_t position
+				) const {
+					if (iterator != param.end()) {
+						return next_position - position;
+					}
+					return std::numeric_limits<std::size_t>::max();
+				}
+			};
+			/// Creates a \ref _iterator_position for the given parameter at the given position.
+			template <typename T> [[nodiscard]] inline static _iterator_position<T> _create_iterator_position(
+				const text_theme_parameter_info<T> &param, std::size_t pos, T &value
+			) {
+				_iterator_position<T> result;
+				auto [iter, begin_pos] = param.get_segment_at(pos);
+				result.iterator = iter;
+				result.next_position = begin_pos + result.iterator->length;
+				value = result.iterator->value;
+				++result.iterator;
+				return result;
 			}
 
-			/// \ref forecast() for a single parameter.
-			template <typename T> inline static std::size_t _forecast_iter(
-				const typename text_theme_parameter_info<T>::const_iterator &it,
-				const text_theme_parameter_info<T> &spec, std::size_t pos
-			) {
-				if (it != spec.end()) {
-					return it->first - pos;
-				}
-				return std::numeric_limits<std::size_t>::max();
-			}
+
+			/// The iterator to the next position-color pair.
+			_iterator_position<colord> _next_color;
+			/// The iterator to the next position-\ref ui::font_style pair.
+			_iterator_position<ui::font_style> _next_style;
+			/// The iterator to the next position-\ref ui::font_weight pair.
+			_iterator_position<ui::font_weight> _next_weight;
+			const text_theme_data *_data = nullptr; ///< The associated \ref text_theme_data.
 		};
 
 		/// Sets the theme of the text in the given range.

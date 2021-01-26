@@ -177,6 +177,7 @@ namespace codepad::lsp {
 		auto &tokens = std::get<types::SemanticTokens>(response.value);
 		std::size_t line = 0, character_offset = 0;
 		editors::code::text_theme_data data;
+		_interp->swap_text_theme(data);
 		auto &linebreaks = _interp->get_linebreaks();
 		editors::code::linebreak_registry::linebreak_info line_info = linebreaks.get_line_info(0);
 		_semantic_token::iterate_over_range(
@@ -211,6 +212,6 @@ namespace codepad::lsp {
 				data.set_range(line_info.first_char + character_offset, token_end, spec);
 			}
 		);
-		_interp->set_text_theme(std::move(data));
+		_interp->swap_text_theme(data);
 	}
 }

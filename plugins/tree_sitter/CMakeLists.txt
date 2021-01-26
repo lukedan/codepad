@@ -14,7 +14,7 @@ target_sources(tree_sitter
 		"src/language_configuration.cpp"
 		"src/main.cpp"
 		"src/query.cpp")
-target_link_libraries(tree_sitter PRIVATE codepad_core editors)
+target_link_libraries(tree_sitter PUBLIC codepad_core editors)
 target_include_directories(tree_sitter
 	PUBLIC
 		"include/"

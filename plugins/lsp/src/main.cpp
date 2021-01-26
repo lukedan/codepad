@@ -115,7 +115,7 @@ extern "C" {
 		{
 			auto &semantic_tokens = init.capabilities.textDocument.value.emplace().semanticTokens.value.emplace();
 			semantic_tokens.multilineTokenSupport.value.emplace(true);
-			semantic_tokens.overlappingTokenSupport.value.emplace(false);
+			semantic_tokens.overlappingTokenSupport.value.emplace(true);
 			semantic_tokens.requests.full.value.emplace()
 				.value.emplace<cp::lsp::types::SemanticTokensFullRequestsClientCapabilities>()
 				.delta.value.emplace(true);

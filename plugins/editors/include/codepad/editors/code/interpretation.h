@@ -306,7 +306,8 @@ namespace codepad::editors::code {
 			/// Initializes all fields of this struct.
 			modification_decoded_info(
 				linebreak_registry::line_column_info start_lc, linebreak_registry::line_column_info past_end_lc,
-				std::size_t start_cp, std::size_t past_end_cp, buffer::end_modification_info &info
+				std::size_t start_char, std::size_t past_end_char, std::size_t start_cp, std::size_t past_end_cp,
+				buffer::end_modification_info &info
 			) :
 				start_line_column(start_lc), past_end_line_column(past_end_lc),
 				start_codepoint(start_cp), past_end_codepoint(past_end_cp), buffer_info(info) {
@@ -316,6 +317,8 @@ namespace codepad::editors::code {
 				start_line_column, ///< Line and column information of \ref start_codepoint.
 				past_end_line_column; ///< Line and column information of \ref past_end_codepoint.
 			const std::size_t
+				start_char = 0, ///< The character index of \ref start_codepoint.
+				past_end_char = 0, ///< The character index of \ref past_end_codepoint.
 				/// The first codepoint that has been affected by this modification. This index is obtained
 				/// **before** the modification.
 				start_codepoint = 0,
@@ -376,8 +379,7 @@ namespace codepad::editors::code {
 			}
 			/// Returns an current iterator into the \ref buffer after the last query. For codepoint-to-byte queries,
 			/// this will exactly be at the previously queried position; for byte-to-codepoint queries, this will be
-			/// one codepoint ahead iff the previously queried byte position was not the first codepoint of a
-			/// codepoint.
+			/// one codepoint ahead iff the previously queried byte position was not the first byte of a codepoint.
 			[[nodiscard]] const buffer::const_iterator &get_buffer_iterator() const {
 				return _byte_iter;
 			}
@@ -483,6 +485,11 @@ namespace codepad::editors::code {
 		/// Sets the theme of all text.
 		void set_text_theme(text_theme_data t) {
 			_theme = std::move(t);
+			// TODO visual & text layout changed
+		}
+		/// Swaps the theme of all text with the given theme data.
+		void swap_text_theme(text_theme_data &t) {
+			std::swap(_theme, t);
 			// TODO visual & text layout changed
 		}
 		/// Returns the \ref text_theme_data associated with this \ref interpretation.
@@ -601,13 +608,14 @@ namespace codepad::editors::code {
 		struct _modification_cache {
 			// starting position
 			std::size_t
-				/// The index of byte to start decoding from. It's guaranteed that this byte starts a codepoint.
-				start_decoding_byte = 0,
-				start_decoding_codepoint = 0, ///< The codepoint index that corresponds to \ref start_decoding_byte.
+				/// The codepoint index that corresponds to the first entry in \ref start_boundaries.
+				start_decoding_codepoint = 0,
 				/// The codepoint position of the first codepoint of \ref start_decoding_chunk.
 				chunk_codepoint_offset = 0,
 				chunk_byte_offset = 0; ///< The byte position of the first byte of \ref start_decoding_chunk.
 			tree_type::const_iterator start_decoding_chunk; ///< The chunk that \ref start_decoding_codepoint is in.
+			/// Byte indices of a few consecutive codepoints before the start of the modified range.
+			std::vector<std::size_t> start_boundaries;
 			// end position
 			/// Cached codepoint boundaries (byte positions) after the erased region in the old document. Elements in
 			/// this array represent consecutive codepoints.

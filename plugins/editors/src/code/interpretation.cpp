@@ -207,8 +207,9 @@ namespace codepad::editors::code {
 	void interpretation::_on_begin_modify(buffer::begin_modification_info &info) {
 		// here we do the following things:
 		// - find the codepoint that starts at least `maximum_codepoint_length` bytes before (inclusive) the
-		//   starting position of the erased clip, and cache that position; codepoints before that codepoint are
-		//   assumed to have not changed. in `_on_end_modify()` we'll start decoding from there.
+		//   starting position of the erased clip, and cache all codepoint starts between that codepoint and the
+		//   start of the modified region (inclusive on both ends); codepoints before that codepoint are assumed to
+		//   have not changed. in `_on_end_modify()` we'll start decoding from there.
 		// - find all codepoint that start after the erased region, within `maximum_codepoint_length` bytes
 		//   (inclusive). these starting positions are also cached, and are used in `_on_end_modify()` for
 		//   terminating decoding as early as possible. it's still possible though that decoding will continue until
@@ -223,11 +224,24 @@ namespace codepad::editors::code {
 		std::size_t lookahead = _encoding->get_maximum_codepoint_length() - 1;
 		std::size_t first_checked_byte = std::max(info.position, lookahead) - lookahead;
 		auto [start_codepoint, start_byte] = conv.byte_to_codepoint(first_checked_byte);
-		_mod_cache.start_decoding_byte = start_byte;
 		_mod_cache.start_decoding_codepoint = start_codepoint;
 		_mod_cache.start_decoding_chunk = conv.get_chunk_iterator();
 		_mod_cache.chunk_codepoint_offset = conv.get_chunk_codepoint_position();
 		_mod_cache.chunk_byte_offset = conv.get_chunk_byte_position();
+		// compute more entries in `start_boundaries`
+		_mod_cache.start_boundaries.clear();
+		_mod_cache.start_boundaries.emplace_back(start_byte);
+		buffer::const_iterator beg_iter = conv.get_buffer_iterator(), buf_end = _buf->end();
+		if (beg_iter != buf_end && beg_iter.get_position() == _mod_cache.start_boundaries.front()) {
+			_encoding->next_codepoint(beg_iter, buf_end);
+		}
+		while (beg_iter != buf_end && beg_iter.get_position() < info.position) {
+			_mod_cache.start_boundaries.emplace_back(beg_iter.get_position());
+			_encoding->next_codepoint(beg_iter, buf_end);
+		}
+		if (beg_iter.get_position() == info.position) {
+			_mod_cache.start_boundaries.emplace_back(info.position);
+		}
 
 		// second step: after the removed region
 		// these are actually past-end indices
@@ -274,13 +288,37 @@ namespace codepad::editors::code {
 			}
 		);
 		buffer::const_iterator
-			byte_iter = _buf->at(_mod_cache.start_decoding_byte),
+			byte_iter = _buf->at(_mod_cache.start_boundaries.front()),
 			end_iter = _buf->end();
+		auto next_start_boundary = ++_mod_cache.start_boundaries.begin();
 		std::size_t
 			current_codepoint = _mod_cache.start_decoding_codepoint,
 			// starting positions of newly created chunks
 			chunk_first_codepoint = _mod_cache.chunk_codepoint_offset,
 			chunk_first_byte = _mod_cache.chunk_byte_offset;
+		// find the first codepoint that has actually been changed by going through the codepoint boundaries before
+		// the modified region
+		while (next_start_boundary != _mod_cache.start_boundaries.end() && byte_iter != end_iter) {
+			auto next_iter = byte_iter;
+			_encoding->next_codepoint(next_iter, end_iter);
+			std::size_t byte_pos = next_iter.get_position();
+			if (byte_pos != *next_start_boundary) {
+				break; // the codepoint we've just decoded has been changed
+			}
+			// otherwise update everything
+			byte_iter = next_iter;
+			++next_start_boundary;
+			++current_codepoint;
+			if (byte_pos >= chunk_first_byte + _mod_cache.start_decoding_chunk->num_bytes) {
+				// move on to the next chunk
+				chunk_first_byte += _mod_cache.start_decoding_chunk->num_bytes;
+				chunk_first_codepoint += _mod_cache.start_decoding_chunk->num_codepoints;
+				++_mod_cache.start_decoding_chunk;
+			}
+		}
+		std::size_t first_changed_codepoint = current_codepoint;
+
+
 		auto target_pos_iter = _mod_cache.post_erase_boundaries.begin();
 		// add this to a byte position in the old document after the erased region to convert it to the same position
 		// in the new document; similarly, subtract this to convert from new document to old document. this may
@@ -378,18 +416,19 @@ namespace codepad::editors::code {
 		linebreaks.finish();
 		// decoding is done
 
-		linebreak_registry::line_column_info
-			start_info = _linebreaks.get_line_and_column_of_codepoint(_mod_cache.start_decoding_codepoint),
-			end_info = _linebreaks.get_line_and_column_of_codepoint(current_target_codepoint);
+		auto [start_info, start_char] =
+			_linebreaks.get_line_and_column_and_char_of_codepoint(first_changed_codepoint);
+		auto [end_info, end_char] =
+			_linebreaks.get_line_and_column_and_char_of_codepoint(current_target_codepoint);
 		modification_decoded.invoke_noret(
-			start_info, end_info, _mod_cache.start_decoding_codepoint, current_target_codepoint, info
+			start_info, end_info, start_char, end_char, first_changed_codepoint, current_target_codepoint, info
 		);
 
 		// update line breaks
 		_linebreaks.erase_codepoints(
 			start_info.line_iterator, start_info.position_in_line, end_info.line_iterator, end_info.position_in_line
 		);
-		_linebreaks.insert_codepoints(_mod_cache.start_decoding_codepoint, lines);
+		_linebreaks.insert_codepoints(first_changed_codepoint, lines);
 		// update codepoint boundaries
 		if (end_chunk != _chunks.end()) {
 			++end_chunk;
@@ -399,6 +438,6 @@ namespace codepad::editors::code {
 			_chunks.emplace_before(end_chunk, chk);
 		}
 
-		end_modification.invoke_noret(_mod_cache.start_decoding_codepoint, current_codepoint, info);
+		end_modification.invoke_noret(first_changed_codepoint, current_codepoint, info);
 	}
 }

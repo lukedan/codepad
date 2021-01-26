@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
 				inserts.emplace_back(generate_random_utf8_string(insertlen_dist(eng), eng));
 			}
 		}
-		logger::get().log_info(CP_HERE) << "total edits: " << positions.size();
+		logger::get().log_info(CP_HERE) << "modifications: " << positions.size();
 		{
 			buffer::modifier mod;
 			mod.begin(*buf, nullptr);
