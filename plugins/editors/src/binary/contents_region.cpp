@@ -143,8 +143,8 @@ namespace codepad::editors::binary {
 					(pos.x + 0.5 * get_blank_width()) / (_cached_max_byte_width + get_blank_width())
 					), get_bytes_per_row()),
 				res = line * get_bytes_per_row() + col;
-			if (res >= _buf->length()) {
-				return _buf->length();
+			if (res >= get_buffer()->length()) {
+				return get_buffer()->length();
 			}
 			return res;
 		}
@@ -175,7 +175,7 @@ namespace codepad::editors::binary {
 	}
 
 	rectd contents_region::_get_caret_rect(std::size_t cpos) const {
-		if (cpos == _buf->length()) { // caret is at the end of the file
+		if (cpos == get_buffer()->length()) { // caret is at the end of the file
 			// in this case, make the caret a vertical line
 			if (cpos == 0) { // empty document
 				return rectd::from_xywh(_get_column_offset(0), _get_line_offset(0), 0.0f, get_line_height());
@@ -266,14 +266,14 @@ namespace codepad::editors::binary {
 				for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
 					// render a single line
 					std::size_t pos = line * get_bytes_per_row() + firstbyte;
-					if (pos >= _buf->length()) {
+					if (pos >= get_buffer()->length()) {
 						break;
 					}
-					auto it = _buf->at(pos);
+					auto it = get_buffer()->at(pos);
 					double x = topleft.x;
 					for (
 						std::size_t i = firstbyte;
-						i < lastbyte && it != _buf->end();
+						i < lastbyte && it != get_buffer()->end();
 						++i, ++it, x += _cached_max_byte_width + _blank_width
 						) {
 						auto text = renderer.create_plain_text_fast(

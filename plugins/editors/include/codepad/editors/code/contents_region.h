@@ -214,7 +214,7 @@ namespace codepad::editors::code {
 			auto it = _cset.add(caret_set::entry(
 				ui::caret_selection(c.caret, c.selection), caret_data(0.0, c.caret_at_back)
 			));
-			// the added caret may be merged, so alignment is calculated later
+			// the added caret may be merged, so alignment is calculated again here
 			it->second.alignment = get_horizontal_caret_position(_extract_position(*it));
 			_on_carets_changed();
 		}
@@ -270,8 +270,8 @@ namespace codepad::editors::code {
 		/// \param gp A function-like object that takes a \ref caret_set::entry as input and returns either: 1) a
 		///           \ref caret_position, or 2) a <tt>std::pair<std::size_t, caret_data></tt>, containing the new
 		///           position and related data. This object is used when \p continueselection is \p true, or when
-		///           the selection is empty (i.e., <tt>caret_selection::first == caret_selection::second</tt>).
-		///           That is, this object focuses on moving only the caret and does not care about the selection.
+		///           the selection is empty (i.e., <tt>caret_selection::first == caret_selection::second</tt>). That
+		///           is, this object focuses on moving only the caret and does not care about the selection.
 		/// \param sp Similar to \p gp, except that this object is used when \p continueselection is false and the
 		///           selection is not empty. In other words, this object is used when the selection should be
 		///           cancelled.
@@ -432,7 +432,7 @@ namespace codepad::editors::code {
 					return caret_position(et.first.caret == exbegp ? begp : exbegp, true);
 				},
 				continueselection
-					);
+			);
 		}
 		/// Moves all carets to the end of the lines they're at, with folding and word wrapping enabled.
 		///
@@ -449,7 +449,7 @@ namespace codepad::editors::code {
 					);
 				},
 				continueselection
-					);
+			);
 		}
 		/// Cancels all selected regions.
 		void cancel_all_selections() {
@@ -489,8 +489,9 @@ namespace codepad::editors::code {
 		/// \return \p true if an action has been reverted.
 		bool try_undo() {
 			if (_doc->get_buffer()->can_undo()) {
+				buffer::modifier modifier(*_doc->get_buffer(), this);
 				_interaction_manager.on_edit_operation();
-				_doc->get_buffer()->undo(this);
+				modifier.undo();
 				return true;
 			}
 			return false;
@@ -500,8 +501,9 @@ namespace codepad::editors::code {
 		/// \return \p true if an action has been restored.
 		bool try_redo() {
 			if (_doc->get_buffer()->can_redo()) {
+				buffer::modifier modifier(*_doc->get_buffer(), this);
 				_interaction_manager.on_edit_operation();
-				_doc->get_buffer()->redo(this);
+				modifier.redo();
 				return true;
 			}
 			return false;
@@ -538,15 +540,15 @@ namespace codepad::editors::code {
 				std::min(static_cast<std::size_t>(std::max(0.0, bottom / lh)) + 1, get_num_visual_lines())
 			);
 		}
-		/// Similar to the other \ref get_visible_visual_lines(), except that this function uses the current viewport of the
-		/// \ref editor as the parameters.
+		/// Similar to the other \ref get_visible_visual_lines(), except that this function uses the current viewport
+		/// of the \ref editor as the parameters.
 		std::pair<std::size_t, std::size_t> get_visible_visual_lines() const {
 			double top = editor::get_encapsulating(*this)->get_vertical_position() - get_padding().top;
 			return get_visible_visual_lines(top, top + get_layout().height());
 		}
 		/// Returns the caret position corresponding to a given position. Note that the offset is relative to the
 		/// top-left corner of the document rather than that of this element.
-		caret_position hit_test_for_caret_document(vec2d offset) const {
+		[[nodiscard]] caret_position hit_test_for_caret_document(vec2d offset) const {
 			std::size_t line = static_cast<std::size_t>(std::max(offset.y / get_line_height(), 0.0));
 			return _hit_test_at_visual_line(std::min(line, get_num_visual_lines() - 1), offset.x);
 		}
@@ -563,7 +565,7 @@ namespace codepad::editors::code {
 		/// Returns the horizontal visual position of a caret.
 		///
 		/// \return The horizontal position of the caret, relative to the leftmost of the document.
-		double get_horizontal_caret_position(caret_position pos) const {
+		[[nodiscard]] double get_horizontal_caret_position(caret_position pos) const {
 			return _get_caret_pos_x_at_visual_line(_get_visual_line_of_caret(pos), pos.position);
 		}
 
@@ -690,10 +692,11 @@ namespace codepad::editors::code {
 		void _make_caret_visible(caret_position caret) {
 			std::size_t line = _get_visual_line_of_caret(caret);
 			double
-				fh = get_line_height(),
-				xpos = _get_caret_pos_x_at_visual_line(line, caret.position),
-				ypos = static_cast<double>(line) * fh + get_padding().top;
-			rectd rgn = rectd::from_xywh(xpos, ypos, 0.0, fh); // TODO maybe include the whole selection
+				line_height = get_line_height(),
+				xpos,
+				ypos = static_cast<double>(line) * line_height + get_padding().top;
+			xpos = _get_caret_pos_x_at_visual_line(line, caret.position);
+			rectd rgn = rectd::from_xywh(xpos, ypos, 0.0, line_height); // TODO maybe include the whole selection
 			editor::get_encapsulating(*this)->make_region_visible(rgn);
 		}
 
@@ -718,7 +721,6 @@ namespace codepad::editors::code {
 			if (info.source_element != this) {
 				_interaction_manager.on_edit_operation();
 			}
-			_cset.calculate_byte_positions(*_doc);
 			_fmt.prepare_for_edit(*_doc);
 		}
 		/// Called when \ref buffer::end_edit is triggered. Performs necessary adjustments to the view, invokes
@@ -776,37 +778,22 @@ namespace codepad::editors::code {
 			// all byte positions calculated below may not be the exact first byte of the corresponding character,
 			// and thus cannot be used as bytepos_first and bytepos_second
 			// also, carets may merge into one another
-			if (info.source_element == this && info.type == edit_type::normal) {
-				for (const buffer::modification_position &pos : info.positions) {
-					std::size_t bp = pos.position + pos.added_range, cp = cvt.byte_to_character(bp);
-					caret_set::entry et({ cp, cp }, _get_caret_data(caret_position(cp, false)));
-					newcarets.add(et);
+			if (info.source_element == this) {
+				if (info.type == edit_type::normal) {
+					for (const buffer::modification_position &pos : info.positions) {
+						std::size_t bp = pos.position + pos.added_range, cp = cvt.byte_to_character(bp);
+						caret_set::entry et(
+							{ cp, cp }, _get_caret_data(caret_position(cp, false))
+						);
+						newcarets.add(et);
+					}
+				} else {
+					// TODO fixup edit positions
+					newcarets.add({ ui::caret_selection(0, 0), caret_data() });
 				}
 			} else {
-				buffer::position_patcher patcher(info.positions);
-				for (auto &pair : _cset.carets) {
-					std::size_t bp1 = pair.second.bytepos_first, bp2 = pair.second.bytepos_second, cp1, cp2;
-					if (bp1 == bp2) {
-						bp1 = bp2 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp1);
-						cp1 = cp2 = cvt.byte_to_character(bp1);
-					} else {
-						if (bp1 < bp2) {
-							bp1 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp1);
-							cp1 = cvt.byte_to_character(bp1);
-							bp2 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp2);
-							cp2 = cvt.byte_to_character(bp2);
-						} else {
-							bp2 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp2);
-							cp2 = cvt.byte_to_character(bp2);
-							bp1 = patcher.patch_next<buffer::position_patcher::strategy::back>(bp1);
-							cp1 = cvt.byte_to_character(bp1);
-						}
-					}
-					caret_set::entry et(
-						{ cp1, cp2 }, _get_caret_data(caret_position(cp1, pair.second.after_stall))
-					);
-					newcarets.add(et);
-				}
+				// TODO fixup edit positions
+				newcarets.add({ ui::caret_selection(0, 0), caret_data() });
 			}
 			set_carets_keepdata(std::move(newcarets));
 		}

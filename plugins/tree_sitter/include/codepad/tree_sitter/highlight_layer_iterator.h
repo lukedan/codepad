@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Implementation of iterators used for highlighting.
+/// Implementation of iterators used for highlighting. This is basically a transcript of the Rust version.
 
 #include <vector>
 #include <deque>
@@ -301,13 +301,13 @@ namespace codepad::tree_sitter {
 			return result;
 		}
 
-		// TODO input and interp are duplicates
 		/// Processes the given source code. If there are any combined injections in the source code, this function
 		/// eagerly produces layer iterators for them as well. Normal injections are not handled here.
 		[[nodiscard]] inline static std::vector<highlight_layer_iterator> process_layers(
 			std::vector<TSRange> ranges, const TSInput &input, const codepad::editors::code::interpretation &interp,
-			const parser_ptr &parser, const language_configuration &lang_config, std::size_t depth,
-			const std::function<const language_configuration*(std::u8string_view)> &lang_callback
+			const parser_ptr &parser, const language_configuration &lang_config,
+			const std::function<const language_configuration*(std::u8string_view)> &lang_callback,
+			std::size_t depth, const std::size_t *cancellation_token
 		) {
 			constexpr uint32_t _uint32_max = std::numeric_limits<uint32_t>::max();
 
@@ -333,10 +333,11 @@ namespace codepad::tree_sitter {
 					break;
 				}
 				// TODO maybe reuse the old tree
+				ts_parser_set_cancellation_flag(parser.get(), cancellation_token);
 				tree_ptr tree(ts_parser_parse(parser.get(), nullptr, input));
+				ts_parser_set_cancellation_flag(parser.get(), nullptr);
 				if (!tree) {
-					codepad::logger::get().log_error(CP_HERE) << "failed to parse document";
-					break;
+					break; // operation was cancelled
 				}
 
 				// process combined injections

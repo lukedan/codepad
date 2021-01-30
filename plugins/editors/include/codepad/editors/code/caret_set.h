@@ -106,10 +106,6 @@ namespace codepad::editors::code {
 		/// Only used when the caret is positioned at a soft linebreak, to determine which line it's on.
 		/// \p false if it's on the former line, and \p true if it's on the latter.
 		bool after_stall = false;
-
-		std::size_t
-			bytepos_first = 0, ///< The position, in bytes, of the first element of a \ref ui::caret_selection.
-			bytepos_second = 0; ///< The position, in bytes, of the second element of a \ref ui::caret_selection.
 	};
 
 	/// Stores carets for a \ref contents_region.
@@ -120,14 +116,6 @@ namespace codepad::editors::code {
 	public:
 		using position = caret_position; ///< Position with additional data.
 		using selection = caret_selection_position; ///< Selection with additional data.
-
-		/// Indicates whether \ref caret_data::bytepos_first and \ref caret_data::bytepos_second have been
-		/// calculated.
-		bool bytepos_valid = false;
-
-		/// Calculates \ref caret_data::bytepos_first and \ref caret_data::bytepos_second with the given
-		/// \ref interpretation if necessary.
-		void calculate_byte_positions(const interpretation&);
 
 		/// Returns whether the given position is in a selection. This is simply a wrapper of the variant that takes
 		/// a \p std::size_t, and \ref position::at_back is discarded.
@@ -142,17 +130,6 @@ namespace codepad::editors::code {
 		/// Wrapper around \ref caret_selection_position::get_caret_position().
 		inline static position get_caret_position(selection s) {
 			return s.get_caret_position();
-		}
-	protected:
-		/// Sets \ref bytepos_valid to \p false before adding the caret.
-		inline static iterator _add_impl(caret_set &set, entry p, bool &merged) {
-			set.bytepos_valid = false;
-			return _base::_add_impl(set, p, merged);
-		}
-		/// Sets \ref bytepos_valid to \p false before resetting.
-		inline static void _reset_impl(caret_set &set) {
-			set.bytepos_valid = false;
-			_base::_reset_impl(set);
 		}
 	};
 }

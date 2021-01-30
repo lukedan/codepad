@@ -9,8 +9,8 @@
 namespace codepad::editors::code {
 	ui::size_allocation line_number_display::get_desired_width() const {
 		if (contents_region *edt = component_helper::get_contents_region(*this)) {
-			std::size_t ln = edt->get_document()->num_lines(), w = 0;
-			for (; ln > 0; ++w, ln /= 10) {
+			std::size_t num_lines = edt->get_document()->num_lines(), digits = 0;
+			for (; num_lines > 0; ++digits, num_lines /= 10) {
 			}
 			// TODO customizable font parameters
 			auto font = edt->get_font_families()[0]->get_matching_font(
@@ -19,7 +19,7 @@ namespace codepad::editors::code {
 			double maxw = edt->get_font_size() * font->get_maximum_character_width_em(
 				reinterpret_cast<const codepoint*>(U"0123456789")
 			);
-			return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(w) * maxw);
+			return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(digits) * maxw);
 		}
 		return ui::size_allocation::pixels(0.0);
 	}

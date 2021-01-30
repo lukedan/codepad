@@ -78,6 +78,9 @@ namespace codepad::editors::code {
 		}
 		/// Sets the parameter of the given range to the given value.
 		void set_range(std::size_t s, std::size_t pe, T val) {
+			if (s == pe) {
+				return;
+			}
 			assert_true_usage(s < pe, "invalid range");
 			_erase_range_no_merging(s, pe);
 			_insert_at(s, std::move(val), pe - s);

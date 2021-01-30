@@ -11,6 +11,7 @@
 
 #include "caret_set.h"
 #include "editor.h"
+#include "buffer.h"
 
 namespace codepad::editors {
 	template <typename> class interaction_manager;
@@ -379,17 +380,17 @@ namespace codepad::editors {
 				}
 				return true;
 			}
-			/// Updates the caret.
-			bool on_viewport_changed() override {
-				CaretSet::set_caret_position(_selection, this->_manager.get_mouse_position());
-				return true;
-			}
 			/// Releases capture and exits this mode if \ref _trigger_button is released.
 			bool on_mouse_up(ui::mouse_button_info &info) override {
 				if (info.button == _trigger_button) {
 					_exit(true);
 					return false;
 				}
+				return true;
+			}
+			/// Updates the caret.
+			bool on_viewport_changed() override {
+				CaretSet::set_caret_position(_selection, this->_manager.get_mouse_position());
 				return true;
 			}
 			/// Exits this mode.

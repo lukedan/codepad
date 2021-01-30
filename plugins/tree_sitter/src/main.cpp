@@ -15,12 +15,13 @@
 #include <codepad/editors/code/interpretation.h>
 
 #include "codepad/tree_sitter/interpretation_interface.h"
+#include "codepad/tree_sitter/manager.h"
 
 namespace codepad::tree_sitter {
 	const plugin_context *_context = nullptr; ///< The \ref cp::plugin_context.
 	editors::manager *_editor_manager = nullptr; ///< The editor manager.
 
-	std::unique_ptr<language_manager> _manager; ///< Global language manager.
+	std::unique_ptr<manager> _manager; ///< Global language manager.
 
 	/// Used to listen to \ref cp::editors::buffer_manager::interpretation_created.
 	info_event<editors::interpretation_info>::token _interpretation_created_token;
@@ -28,7 +29,7 @@ namespace codepad::tree_sitter {
 	editors::buffer_manager::interpretation_tag_token _interpretation_tag_token;
 
 	namespace _details {
-		language_manager &get_language_manager() {
+		manager &get_manager() {
 			return *_manager;
 		}
 	}
@@ -48,9 +49,12 @@ extern "C" {
 			}
 		}
 
-		cp::tree_sitter::_manager = std::make_unique<cp::tree_sitter::language_manager>();
+		cp::tree_sitter::_manager = std::make_unique<cp::tree_sitter::manager>(
+			cp::tree_sitter::_context->ui_man->get_scheduler()
+		);
 		cp::tree_sitter::_manager->register_builtin_languages();
 
+		// TODO hard-coded color config
 		auto highlight_config = std::make_shared<cp::tree_sitter::highlight_configuration>();
 		highlight_config->add_entry(u8"keyword", codepad::editors::code::text_theme_specification(
 			codepad::colord(0.337, 0.612, 0.839, 1.0), codepad::ui::font_style::normal, codepad::ui::font_weight::normal
@@ -88,6 +92,9 @@ extern "C" {
 	}
 
 	PLUGIN_ENABLE() {
+		// start the highlighting thread before any requests may be issued
+		cp::tree_sitter::_manager->start_highlighter_thread();
+
 		cp::tree_sitter::_interpretation_created_token = (
 			cp::tree_sitter::_editor_manager->buffers.interpretation_created +=
 				[](cp::editors::interpretation_info &info) {
@@ -106,5 +113,8 @@ extern "C" {
 		);
 		cp::tree_sitter::_editor_manager->buffers.interpretation_created -=
 			cp::tree_sitter::_interpretation_created_token;
+
+		// stop the highlighting thread after all requests have been cancelled
+		cp::tree_sitter::_manager->stop_highlighter_thread();
 	}
 }

@@ -111,9 +111,7 @@ namespace codepad::lsp {
 		/// Note that this function blocks until a reply for the \p shutdown request is received.
 		void shutdown_and_exit() {
 			shutdown();
-			// wait
-			while (_state != state::receiver_shutdown) {
-			}
+			_state.wait(state::shutting_down);
 			exit();
 			_state = state::exited;
 		}
@@ -190,7 +188,6 @@ namespace codepad::lsp {
 		template <typename ReturnStruct, typename SendStruct, typename Callback> void _send_request_impl(
 			std::u8string_view name, SendStruct &send, Callback &&cb, on_error_callback err
 		) {
-			logger::get().log_debug(CP_HERE) << "LSP: sending request " << name;
 			types::integer id = _next_message_id;
 			++_next_message_id;
 			// register handler before sending the message
@@ -204,7 +201,6 @@ namespace codepad::lsp {
 		}
 		/// Sets \ref _shutdown_message_id, then sends the \p shutdown request without registering a handler.
 		void _send_shutdown_request() {
-			logger::get().log_debug(CP_HERE) << "LSP: sending shutdown request";
 			types::integer id = _next_message_id;
 			_shutdown_message_id = id;
 			++_next_message_id;
@@ -213,7 +209,6 @@ namespace codepad::lsp {
 		}
 		/// Implementation of \ref send_notification().
 		template <typename SendStruct> void _send_notification_impl(std::u8string_view name, SendStruct &send) {
-			logger::get().log_debug(CP_HERE) << "LSP: sending notification " << name;
 			_backend->send_message(name, send, std::nullopt);
 		}
 

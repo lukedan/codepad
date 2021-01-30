@@ -10,7 +10,7 @@ namespace codepad::editors::code {
 	std::size_t interpretation::codepoint_position_converter::codepoint_to_byte(std::size_t pos) {
 		if (_chunk_iter == _interp._chunks.end()) {
 			// if _chunk_iter is at the end, then all following queries can only query about the end
-			return _interp._buf->length();
+			return _interp.get_buffer()->length();
 		}
 		if (_firstcp + _chunk_iter->num_codepoints > pos) {
 			pos -= _firstcp;
@@ -35,7 +35,7 @@ namespace codepad::editors::code {
 	) {
 		if (_chunk_iter == _interp._chunks.end()) {
 			// if _chunk_iter is at the end, then all following queries can only query about the end
-			return { _firstcp, _interp._buf->length() };
+			return { _firstcp, _interp.get_buffer()->length() };
 		}
 		if (_firstbyte + _chunk_iter->num_bytes <= pos) {
 			// fast-forward to the chunk that contains the given byte
@@ -90,7 +90,7 @@ namespace codepad::editors::code {
 		std::size_t
 			chkbegbytes = 0, chkbegcps = 0, curcp = 0,
 			splitcp = maximum_codepoints_per_chunk; // where to split the next chunk
-		for (buffer::const_iterator cur = _buf->begin(); cur != _buf->end(); ++curcp) {
+		for (buffer::const_iterator cur = get_buffer()->begin(); cur != get_buffer()->end(); ++curcp) {
 			if (curcp >= splitcp) {
 				// break chunk before this codepoint
 				std::size_t bytepos = cur.get_position();
@@ -101,21 +101,23 @@ namespace codepad::editors::code {
 			}
 			// decode codepoint
 			codepoint curc = 0;
-			if (!_encoding->next_codepoint(cur, _buf->end(), curc)) { // invalid codepoint?
+			if (!_encoding->next_codepoint(cur, get_buffer()->end(), curc)) { // invalid codepoint?
 				curc = 0; // disable linebreak detection
 			}
 			line_analyzer.put(curc);
 		}
 		// process the last chunk
 		line_analyzer.finish();
-		if (_buf->length() > chkbegbytes) {
-			_chunks.emplace_before(_chunks.end(), chunk_data(_buf->length() - chkbegbytes, curcp - chkbegcps));
+		if (get_buffer()->length() > chkbegbytes) {
+			_chunks.emplace_before(
+				_chunks.end(), chunk_data(get_buffer()->length() - chkbegbytes, curcp - chkbegcps)
+			);
 		}
 		_linebreaks.insert_chars(_linebreaks.begin(), 0, lines);
 	}
 
 	bool interpretation::check_integrity() const {
-		_buf->check_integrity();
+		get_buffer()->check_integrity();
 
 		bool error = false;
 
@@ -127,7 +129,7 @@ namespace codepad::editors::code {
 			}
 		}
 
-		buffer::const_iterator it = _buf->begin();
+		buffer::const_iterator it = get_buffer()->begin();
 		auto chk = _chunks.begin();
 		std::size_t bytesbefore = 0;
 		std::vector<linebreak_registry::line_info> lines;
@@ -136,9 +138,9 @@ namespace codepad::editors::code {
 				lines.emplace_back(len, ending);
 			}
 		);
-		while (it != _buf->end() && chk != _chunks.end()) {
+		while (it != get_buffer()->end() && chk != _chunks.end()) {
 			codepoint cp;
-			if (!_encoding->next_codepoint(it, _buf->end(), cp)) {
+			if (!_encoding->next_codepoint(it, get_buffer()->end(), cp)) {
 				cp = 0;
 			}
 			linebreaks.put(cp);
@@ -157,17 +159,17 @@ namespace codepad::editors::code {
 				++chk;
 			}
 		}
-		if (it != _buf->end() || chk != _chunks.end()) {
+		if (it != get_buffer()->end() || chk != _chunks.end()) {
 			error = true;
-			if (it != _buf->end()) {
+			if (it != get_buffer()->end()) {
 				logger::get().log_error(CP_HERE) <<
 					"document length mismatch: chunks ended abruptly at byte " << it.get_position() <<
-					", expected " << _buf->length();
+					", expected " << get_buffer()->length();
 			} else {
 				logger::get().log_error(CP_HERE) <<
 					"document length mismatch: got " <<
 					(_chunks.empty() ? 0 : _chunks.root()->synth_data.total_bytes) << " bytes, expected " <<
-					_buf->length() << " bytes";
+					get_buffer()->length() << " bytes";
 			}
 		}
 		linebreaks.finish();
@@ -231,7 +233,7 @@ namespace codepad::editors::code {
 		// compute more entries in `start_boundaries`
 		_mod_cache.start_boundaries.clear();
 		_mod_cache.start_boundaries.emplace_back(start_byte);
-		buffer::const_iterator beg_iter = conv.get_buffer_iterator(), buf_end = _buf->end();
+		buffer::const_iterator beg_iter = conv.get_buffer_iterator(), buf_end = get_buffer()->end();
 		if (beg_iter != buf_end && beg_iter.get_position() == _mod_cache.start_boundaries.front()) {
 			_encoding->next_codepoint(beg_iter, buf_end);
 		}
@@ -256,7 +258,7 @@ namespace codepad::editors::code {
 		}
 		_mod_cache.post_erase_boundaries.clear();
 		_mod_cache.post_erase_codepoint_index = end_codepoint;
-		auto end_iter = _buf->end();
+		auto end_iter = get_buffer()->end();
 		std::size_t current_pos = iter.get_position();
 		do {
 			_mod_cache.post_erase_boundaries.emplace_back(current_pos);
@@ -288,8 +290,8 @@ namespace codepad::editors::code {
 			}
 		);
 		buffer::const_iterator
-			byte_iter = _buf->at(_mod_cache.start_boundaries.front()),
-			end_iter = _buf->end();
+			byte_iter = get_buffer()->at(_mod_cache.start_boundaries.front()),
+			end_iter = get_buffer()->end();
 		auto next_start_boundary = ++_mod_cache.start_boundaries.begin();
 		std::size_t
 			current_codepoint = _mod_cache.start_decoding_codepoint,

@@ -172,8 +172,8 @@ int main(int argc, char **argv) {
 		}
 		logger::get().log_info(CP_HERE) << "modifications: " << positions.size();
 		{
-			buffer::modifier mod;
-			mod.begin(*buf, nullptr);
+			buffer::modifier mod(*buf, nullptr);
+			mod.begin();
 			for (size_t i = 0; i < positions.size(); ++i) {
 				mod.modify(positions[i].first, positions[i].second - positions[i].first, inserts[i]);
 			}

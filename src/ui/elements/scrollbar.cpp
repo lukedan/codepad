@@ -39,6 +39,22 @@ namespace codepad::ui {
 	}
 
 
+	void scrollbar::set_params(double tot, double vis) {
+		if (vis > tot) {
+			vis = tot;
+		}
+		_total_range = tot;
+		_visible_range = vis;
+		// _on_target_value_changed is NOT called here; it only starts smooth scrolling which we don't need here
+		_target_value = _clamp_value(get_target_value());
+		_smooth_begin_pos = _clamp_value(_smooth_begin_pos);
+		// update smooth scrolling using the new parameters
+		// if no smooth scrolling has ever been initiated, _smooth_begin will be epoch which still works corretly
+		_update_smooth_scrolling(
+			std::chrono::duration<double>(scheduler::clock_t::now() - _smooth_begin).count()
+		);
+	}
+
 	const property_mapping &scrollbar::get_properties() const {
 		return get_properties_static();
 	}

@@ -7,7 +7,8 @@
 /// Miscellaneous private shared functions.
 
 #include "codepad/tree_sitter/language_configuration.h"
+#include "codepad/tree_sitter/manager.h"
 
 namespace codepad::tree_sitter::_details {
-	language_manager &get_language_manager();
+	manager &get_manager();
 }

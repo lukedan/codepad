@@ -214,37 +214,4 @@ namespace codepad::tree_sitter {
 			_capture_local_reference = index_none, ///< Index of the <tt>local.reference</tt> capture.
 			_capture_local_scope = index_none; ///< Index of the <tt>local.scope</tt> capture.
 	};
-
-	/// Manages languages.
-	class language_manager {
-	public:
-		/// Registers builtin languages.
-		void register_builtin_languages();
-		/// Registers or updates a language.
-		///
-		/// \return The previous configuration for that language.
-		std::shared_ptr<language_configuration> register_language(
-			std::u8string, std::shared_ptr<language_configuration>
-		);
-
-		/// Finds the language with the given name.
-		const language_configuration *find_lanaguage(const std::u8string &s) const {
-			auto it = _languages.find(s);
-			if (it == _languages.end()) {
-				return nullptr;
-			}
-			return it->second.get();
-		}
-
-		/// Sets \ref _highlight_config and configures all registered languages.
-		void set_highlight_configuration(std::shared_ptr<highlight_configuration>);
-		/// Returns \ref _highlight_config.
-		const std::shared_ptr<highlight_configuration> &get_highlight_config() const {
-			return _highlight_config;
-		}
-	protected:
-		/// Mapping between language names and language configurations.
-		std::unordered_map<std::u8string, std::shared_ptr<language_configuration>> _languages;
-		std::shared_ptr<highlight_configuration> _highlight_config; ///< Highlight configuration.
-	};
 }

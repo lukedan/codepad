@@ -529,7 +529,6 @@ namespace codepad::red_black_tree {
 
 			// merge the two trees
 			*join_target = join(join_left, join_right, pivot, access, synth);
-			check_integrity(*join_target, access);
 
 			if (next_pivot == nullptr) {
 				break;

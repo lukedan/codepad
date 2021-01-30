@@ -118,18 +118,9 @@ namespace codepad::ui {
 
 		/// Sets the parameters of the scroll bar.
 		///
-		/// \param tot The total length of the region.
-		/// \param vis The visible length of the region.
-		void set_params(double tot, double vis) {
-			if (vis > tot) {
-				vis = tot;
-			}
-			_total_range = tot;
-			_visible_range = vis;
-			// let set_target_value() update the target value for the new range
-			set_target_value(get_target_value());
-			_actual_value = _target_value;
-		}
+		/// \param tot The length of the entire region.
+		/// \param vis The length of the visible region.
+		void set_params(double tot, double vis);
 
 		/// Returns the total length of the region.
 		[[nodiscard]] double get_total_range() const {

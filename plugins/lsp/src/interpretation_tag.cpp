@@ -146,7 +146,10 @@ namespace codepad::lsp {
 				},
 				[this](types::integer code, std::u8string_view msg, const rapidjson::Value *data) {
 					--_queued_highlight_version;
-					client::default_error_handler(code, msg, data);
+					// ignore errors caused by content modifications
+					if (code != static_cast<types::integer>(types::ErrorCodesEnum::ContentModified)) {
+						client::default_error_handler(code, msg, data);
+					}
 				}
 			);
 			++_queued_highlight_version;
@@ -154,6 +157,7 @@ namespace codepad::lsp {
 	}
 
 	void interpretation_tag::_on_semanticTokens(types::SemanticTokensResponse response) {
+		performance_monitor mon(u8"semanticTokens", std::chrono::milliseconds(40));
 		if (--_queued_highlight_version != 0) {
 			// skip; highlight is not for the latest document
 			return;

@@ -140,5 +140,6 @@ namespace codepad::lsp {
 			continue;
 		}
 		c._state = state::receiver_shutdown;
+		c._state.notify_one();
 	}
 }

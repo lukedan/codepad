@@ -4,7 +4,8 @@
 #pragma once
 
 /// \file
-/// Implementation of iterators used to go through highlighted regions.
+/// Implementation of iterators used to go through highlighted regions. This is basically a transcript of the Rust
+/// version.
 
 #include <optional>
 #include <queue>
@@ -17,6 +18,9 @@ namespace codepad::tree_sitter {
 	/// Iterates through highlighted regions in a given piece of code.
 	class highlight_iterator {
 	public:
+		/// Number of iterations between cancellation checks.
+		constexpr static std::size_t cancellation_check_interval = 100;
+
 		/// Used to store an event during highlighting, indicating a highlight boundary.
 		struct event {
 			/// Default constructor.
@@ -33,21 +37,33 @@ namespace codepad::tree_sitter {
 
 		/// Creates a new iterator for the given interpretation.
 		explicit highlight_iterator(
-			const TSInput &input, const codepad::editors::code::interpretation &interp, const parser_ptr &parser,
-			const language_configuration &lang,
-			std::function<const language_configuration*(std::u8string_view)> lang_callback
-		) : _lang_callback(std::move(lang_callback)), _interp(&interp) {
-			_layers = highlight_layer_iterator::process_layers({}, input, *_interp, parser, lang, 0, _lang_callback);
+			const TSInput &input, const editors::code::interpretation &interp,
+			const parser_ptr &parser, const language_configuration &lang,
+			std::function<const language_configuration*(std::u8string_view)> lang_callback,
+			std::size_t *cancellation_token
+		) : _lang_callback(std::move(lang_callback)), _interp(interp), _cancellation_token(cancellation_token) {
+			_layers = highlight_layer_iterator::process_layers(
+				{}, input, _interp, parser, lang, _lang_callback, 0, cancellation_token
+			);
 		}
 
 		/// Produces the next event.
-		std::optional<event> next(
-			const TSInput &input, const parser_ptr &parser
-		) {
+		std::optional<event> next(const TSInput &input, const parser_ptr &parser) {
 			while (true) {
+				// check for cancellation
+				if (_cancellation_token) {
+					if (++_iterations >= cancellation_check_interval) {
+						_iterations = 0;
+						std::atomic_ref<std::size_t> cancel(*_cancellation_token);
+						if (cancel != 0) {
+							return std::nullopt;
+						}
+					}
+				}
+
 				// remove empty layers
 				for (std::size_t i = 0; i < _layers.size(); ) {
-					if (_layers[i].has_ended(*_interp)) {
+					if (_layers[i].has_ended(_interp)) {
 						if (i + 1 < _layers.size()) {
 							std::swap(_layers[i], _layers.back());
 						}
@@ -64,9 +80,9 @@ namespace codepad::tree_sitter {
 				// find the layer with the smallest sort key
 				std::size_t min_index = 0;
 				{
-					auto min_key = _get_sort_key(_layers[0], *_interp);
+					auto min_key = _get_sort_key(_layers[0], _interp);
 					for (std::size_t i = 1; i < _layers.size(); ++i) {
-						auto key = _get_sort_key(_layers[i], *_interp);
+						auto key = _get_sort_key(_layers[i], _interp);
 						if (key < min_key) {
 							min_index = i;
 							min_key = key;
@@ -78,7 +94,7 @@ namespace codepad::tree_sitter {
 				auto &layer_lang = layer.get_language();
 
 				uint32_t range_begin, range_end;
-				if (auto &match = layer.peek_capture(*_interp)) {
+				if (auto &match = layer.peek_capture(_interp)) {
 					auto &cur_capture = match->match.captures[match->capture_index];
 					range_begin = ts_node_start_byte(cur_capture.node);
 					range_end = ts_node_end_byte(cur_capture.node);
@@ -100,13 +116,13 @@ namespace codepad::tree_sitter {
 					return std::nullopt;
 				}
 
-				capture match = layer.next_capture(*_interp).value();
+				capture match = layer.next_capture(_interp).value();
 				TSQueryCapture cur_capture = match.match.captures[match.capture_index];
 
 				// handle injections
 				if (match.match.pattern_index < layer_lang.get_locals_pattern_index()) {
 					auto inj = injection::from_match(
-						match.match, layer_lang, layer_lang.get_query(), *_interp
+						match.match, layer_lang, layer_lang.get_query(), _interp
 					);
 					layer.remove_match(match.match);
 
@@ -118,8 +134,8 @@ namespace codepad::tree_sitter {
 							);
 							if (!ranges.empty()) {
 								auto new_layers = highlight_layer_iterator::process_layers(
-									std::move(ranges), input, *_interp, parser,
-									*new_lang, layer.get_depth() + 1, _lang_callback
+									std::move(ranges), input, _interp, parser,
+									*new_lang, _lang_callback, layer.get_depth() + 1, _cancellation_token
 								);
 								for (auto &l : new_layers) {
 									_layers.emplace_back(std::move(l));
@@ -176,7 +192,7 @@ namespace codepad::tree_sitter {
 							}
 						}
 						cur_scope.locals.emplace_back(local_definition{
-							.name = get_source_for_range(range_begin, range_end, *_interp),
+							.name = get_source_for_range(range_begin, range_end, _interp),
 							.value_range_begin = val_range_begin,
 							.value_range_end = val_range_end
 						});
@@ -184,7 +200,7 @@ namespace codepad::tree_sitter {
 					} else if (cur_capture.index == layer_lang.get_local_reference_capture_index()) {
 						// the capture is a reference to a local definition
 						if (definition_highlight_index == nullptr) { // not already a definition
-							std::u8string def_name = get_source_for_range(range_begin, range_end, *_interp);
+							std::u8string def_name = get_source_for_range(range_begin, range_end, _interp);
 							for (
 								auto scope_it = layer._scope_stack.rbegin();
 								scope_it != layer._scope_stack.rend();
@@ -212,10 +228,10 @@ namespace codepad::tree_sitter {
 					}
 
 					// peek and continue processing if the next capture is the same node
-					if (auto &next_match = layer.peek_capture(*_interp)) {
+					if (auto &next_match = layer.peek_capture(_interp)) {
 						auto &next_capture = next_match->match.captures[next_match->capture_index];
 						if (std::memcmp(&next_capture.node, &cur_capture.node, sizeof(TSNode)) == 0) {
-							match = layer.next_capture(*_interp).value();
+							match = layer.next_capture(_interp).value();
 							cur_capture = match.match.captures[match.capture_index];
 							continue;
 						}
@@ -245,11 +261,11 @@ namespace codepad::tree_sitter {
 					// the current node is a local definition
 					// skip over highlight patterns that are disabled for local variables
 					while (layer_lang.get_non_local_variable_patterns()[match.capture_index]) {
-						if (auto &next_match = layer.peek_capture(*_interp)) {
+						if (auto &next_match = layer.peek_capture(_interp)) {
 							auto &next_capture = next_match->match.captures[next_match->capture_index];
 							if (std::memcmp(&next_capture.node, &cur_capture.node, sizeof(TSNode)) == 0) {
 								// skip the match
-								match = layer.next_capture(*_interp).value();
+								match = layer.next_capture(_interp).value();
 								cur_capture = match.match.captures[match.capture_index];
 								continue;
 							}
@@ -265,10 +281,10 @@ namespace codepad::tree_sitter {
 
 				// skip all highlights for the same node
 				do {
-					if (auto &next_match = layer.peek_capture(*_interp)) {
+					if (auto &next_match = layer.peek_capture(_interp)) {
 						auto &next_capture = next_match->match.captures[next_match->capture_index];
 						if (std::memcmp(&next_capture.node, &cur_capture.node, sizeof(TSNode)) == 0) {
-							layer.next_capture(*_interp);
+							layer.next_capture(_interp);
 							continue;
 						}
 					}
@@ -302,7 +318,7 @@ namespace codepad::tree_sitter {
 		/// indicates if the event is the end of a highlight region, and the last element is the negative depth of
 		/// the layer.
 		[[nodiscard]] inline static std::tuple<uint32_t, bool, int> _get_sort_key(
-			highlight_layer_iterator &it, const codepad::editors::code::interpretation &interp
+			highlight_layer_iterator &it, const editors::code::interpretation &interp
 		) {
 			std::optional<uint32_t> next_start, next_end;
 			if (auto &capture = it.peek_capture(interp)) {
@@ -330,7 +346,7 @@ namespace codepad::tree_sitter {
 		/// A function that returns the \ref language_configuration that corresponds to a given language name.
 		std::function<const language_configuration*(std::u8string_view)> _lang_callback;
 		/// The interpretation associated with this iterator.
-		const codepad::editors::code::interpretation *_interp = nullptr;
+		const editors::code::interpretation &_interp;
 		std::size_t
 			/// Starting position of the previous highlight region.
 			_last_highlight_begin = std::numeric_limits<std::size_t>::max(),
@@ -338,6 +354,8 @@ namespace codepad::tree_sitter {
 			_last_highlight_end = std::numeric_limits<std::size_t>::max(),
 			/// Depth of the previous highlight region.
 			_last_highlight_depth = std::numeric_limits<std::size_t>::max(),
-			_byte_position = 0; ///< Current position.
+			_byte_position = 0, ///< Current position.
+			_iterations = 0; ///< The number of iterations. Used when checking whether to cancel the operation.
+		std::size_t *_cancellation_token = nullptr; ///< Cancellation token.
 	};
 }

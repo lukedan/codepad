@@ -12,9 +12,10 @@
 #include <string>
 #include <algorithm>
 #include <fstream>
+#include <shared_mutex>
 
 #include <codepad/core/red_black_tree.h>
-#include <codepad/core/red_black_tree.h>
+#include <codepad/core/threading.h>
 #include <codepad/core/profiling.h>
 #include <codepad/ui/element.h>
 #include <codepad/os/filesystem.h>
@@ -43,6 +44,13 @@ namespace codepad::editors {
 	public:
 		/// The maximum number of bytes there can be in a single chunk.
 		constexpr static std::size_t maximum_bytes_per_chunk = 4096;
+
+		/// Read-write lock type for the buffer.
+#ifdef NDEBUG
+		using lock_t = std::shared_mutex;
+#else
+		using lock_t = checked_shared_mutex;
+#endif
 
 		/// Stores the contents of a chunk.
 		struct chunk_data {
@@ -132,14 +140,12 @@ namespace codepad::editors {
 
 			/// Equality.
 			friend bool operator==(const iterator_base &lhs, const iterator_base &rhs) {
-				// it's undefined behaviro to compare iterators from different vectors, however here this comparison
+				// it's undefined behavior to compare iterators from different vectors, however here this comparison
 				// is short-circuited if that's the case
 				return lhs._it == rhs._it && lhs._s == rhs._s;
 			}
 			/// Inequality.
-			friend bool operator!=(const iterator_base &lhs, const iterator_base &rhs) {
-				return !(lhs == rhs);
-			}
+			friend bool operator!=(const iterator_base&, const iterator_base&) = default;
 
 			/// Returns the position of the byte to which this iterator points.
 			std::size_t get_position() const {
@@ -230,7 +236,7 @@ namespace codepad::editors {
 
 			/// Returns the patched position. Modifications with no removed content receive special treatment: a
 			/// position is patched if it lies exactly at the position.
-			template <strategy Strat> std::size_t patch_next(std::size_t pos) {
+			template <strategy Strat> [[nodiscard]] std::size_t patch_next(std::size_t pos) {
 				pos += _diff;
 				while (
 					_next != _pos.end() &&
@@ -320,52 +326,39 @@ namespace codepad::editors {
 		/// \ref end_custom() to finish editing.
 		struct modifier {
 		public:
-			/// Starts editing the given \ref buffer, with the given source and \ref edit_type. Invokes
+			/// Initializes this modifier with the given \ref buffer and source of modification.
+			modifier(buffer&, ui::element*);
+
+			/// Acquires \ref buffer::_lock and starts editing the \ref buffer with the given \ref edit_type. Invokes
 			/// \ref buffer::begin_edit.
-			void begin(buffer &buf, ui::element *src, edit_type type = edit_type::normal) {
-				_buf = &buf;
-				_src = src;
+			void begin(edit_type type = edit_type::normal) {
 				_type = type;
-				_buf->begin_edit.invoke_noret(_type, _src);
+				_buf.begin_edit.invoke_noret(_type, _src);
+				_buf._lock.lock();
 			}
 
-			/// Appends accumulated modifications to the \ref buffer's history, and invokes \ref buffer::end_edit.
-			/// Normally this should be used when \ref edit_type::normal is given to \ref begin().
+			/// Appends accumulated modifications to the \ref buffer's history, invokes \ref buffer::end_edit, and
+			/// unlocks \ref buffer::_lock. Normally this should be used when \ref edit_type::normal is given to
+			/// \ref begin().
 			void end() {
-				_buf->_append_edit(std::move(_edt));
-				_buf->end_edit.invoke_noret(_type, _src, _buf->history()[_buf->current_edit() - 1], std::move(_pos));
-				_buf = nullptr;
+				_buf._append_edit(std::move(_edt));
+				_buf._lock.unlock();
+				_buf.end_edit.invoke_noret(_type, _src, _buf._history[_buf._curedit - 1], std::move(_pos));
 			}
-			/// Finishes the edit with the specified edit contents by invoking \ref buffer::end_edit only, normally
-			/// used for redoing or undoing.
+			/// Finishes the edit with the specified edit contents by invoking \ref buffer::end_edit and unlocking
+			/// \ref buffer::_lock, normally used for redoing or undoing.
 			void end_custom(const edit &edt) {
-				_buf->end_edit.invoke_noret(_type, _src, edt, std::move(_pos));
-				_buf = nullptr;
+				_buf._lock.unlock();
+				_buf.end_edit.invoke_noret(_type, _src, edt, std::move(_pos));
 			}
 
 			/// Erases a sequence of bytes starting from \p pos with length \p eraselen, and inserts \p insert at
 			/// \p pos. The position \p pos is supposed to be the value after all previous modifications have been
-			/// made.
-			void modify_nofixup(std::size_t pos, std::size_t eraselen, byte_string insert) {
-				modification mod;
-				_buf->begin_modify.invoke_noret(pos, eraselen, insert);
-				mod.position = pos;
-				if (eraselen > 0) {
-					const_iterator posit = _buf->at(pos), endit = _buf->at(pos + eraselen);
-					mod.removed_content = _buf->get_clip(posit, endit);
-					_buf->_erase(posit, endit);
-				}
-				if (!insert.empty()) {
-					_buf->_insert(_buf->at(pos), insert.begin(), insert.end());
-					mod.added_content = std::move(insert);
-				}
-				_buf->end_modify.invoke_noret(pos, mod.removed_content, mod.added_content);
-				_diff += mod.added_content.size() - mod.removed_content.size();
-				_pos.emplace_back(mod.position, mod.removed_content.size(), mod.added_content.size());
-				_edt.emplace_back(std::move(mod));
-			}
+			/// made. This function can only be called between \ref begin() and \ref end().
+			void modify_nofixup(std::size_t pos, std::size_t eraselen, byte_string insert);
 			/// Similar to \ref modify_nofixup, but \p pos is obtained before modifications have been made, and is
-			/// automatically adjusted with \ref _diff.
+			/// automatically adjusted with \ref _diff. This function can only be called between \ref begin() and
+			/// \ref end().
 			void modify(std::size_t pos, std::size_t eraselen, byte_string insert) {
 				pos += get_fixup_offset();
 				modify_nofixup(pos, eraselen, std::move(insert));
@@ -377,53 +370,53 @@ namespace codepad::editors {
 				return _diff;
 			}
 
-			/// Reverts a modification made previously. This operation is not recorded, and is intended to be used
-			/// solely for undoing an entire edit.
-			void undo(const modification &mod) {
-				std::size_t pos = mod.position + _diff;
-				_buf->begin_modify.invoke_noret(pos, mod.added_content.size(), mod.removed_content);
-				if (!mod.added_content.empty()) {
-					_buf->_erase(_buf->at(pos), _buf->at(pos + mod.added_content.size()));
+			/// Reverts a previously made edit. The caller does not need to call \ref begin() or \ref end().
+			void undo() {
+				begin(edit_type::undo);
+				--_buf._curedit;
+				for (const modification &cmod : _buf._history[_buf._curedit]) {
+					_undo_modification(cmod);
 				}
-				if (!mod.removed_content.empty()) {
-					_buf->_insert(_buf->at(pos), mod.removed_content.begin(), mod.removed_content.end());
-				}
-				_buf->end_modify.invoke_noret(pos, mod.added_content, mod.removed_content);
-				_diff += mod.removed_content.size() - mod.added_content.size();
-				_pos.emplace_back(pos, mod.added_content.size(), mod.removed_content.size());
+				end_custom(_buf._history[_buf._curedit]);
 			}
-			/// Restores a previously reverted modification. This operation is not recorded, and is intended to be
-			/// used solely for redoing an entire edit.
-			void redo(const modification &mod) {
-				// the modification already stores adjusted positions
-				_buf->begin_modify.invoke_noret(mod.position, mod.removed_content.size(), mod.added_content);
-				if (!mod.removed_content.empty()) {
-					_buf->_erase(_buf->at(mod.position), _buf->at(mod.position + mod.removed_content.size()));
+			/// Restores a previously undone edit. The caller does not need to call \ref begin() or \ref end().
+			void redo() {
+				begin(edit_type::redo);
+				for (const modification &cmod : _buf._history[_buf._curedit]) {
+					_redo_modification(cmod);
 				}
-				if (!mod.added_content.empty()) {
-					_buf->_insert(_buf->at(mod.position), mod.added_content.begin(), mod.added_content.end());
-				}
-				_buf->end_modify.invoke_noret(mod.position, mod.removed_content, mod.added_content);
-				_diff += mod.added_content.size() - mod.removed_content.size();
-				_pos.emplace_back(mod.position, mod.removed_content.size(), mod.added_content.size());
+				++_buf._curedit;
+				end_custom(_buf._history[_buf._curedit - 1]);
+			}
+
+			/// Returns the \ref buffer this object is modifying.
+			[[nodiscard]] buffer &get_buffer() const {
+				return _buf;
 			}
 		protected:
 			edit_positions _pos; ///< Records the actual positions of each \ref modification.
 			edit _edt; ///< Modifications made so far.
-			buffer *_buf = nullptr; ///< The buffer being modified.
+			buffer &_buf; ///< The buffer being modified.
 			ui::element *_src = nullptr; ///< The source of this edit.
 			edit_type _type = edit_type::normal; ///< The type of this edit.
 			/// Used to adjust positions obtained before modifications are made. Note that although its value may
 			/// overflow, it'll still work as intended.
 			std::size_t _diff = 0;
+
+			/// Reverts a modification made previously. This operation is not recorded, and is intended to be used
+			/// solely for undoing an entire edit.
+			void _undo_modification(const modification&);
+			/// Restores a previously reverted modification. This operation is not recorded, and is intended to be
+			/// used solely for redoing an entire edit.
+			void _redo_modification(const modification&);
 		};
 		/// A wrapper for \ref modifier that automatically calls \ref modifier::begin() upon construction and
 		/// \ref modifier::end() upon destruction. The edit type can only be \ref edit_type::normal.
 		struct scoped_normal_modifier {
 		public:
 			/// Calls \ref modifier::begin() to start editing the buffer.
-			scoped_normal_modifier(buffer &buf, ui::element *src) {
-				_mod.begin(buf, src, edit_type::normal);
+			scoped_normal_modifier(buffer &buf, ui::element *src) : _mod(buf, src) {
+				_mod.begin(edit_type::normal);
 			}
 			/// Calls \ref modifier::end().
 			~scoped_normal_modifier() {
@@ -438,129 +431,71 @@ namespace codepad::editors {
 			modifier _mod; ///< The underlying \ref modifier.
 		};
 
+		/// Locks the buffer non-exclusively and allows access to the buffer from other threads.
+		struct async_reader_lock {
+			friend modifier;
+		public:
+			/// Initializes this reader using the given buffer and acquires the lock.
+			explicit async_reader_lock(buffer &b) : _lock(b._lock) {
+			}
+		protected:
+			std::shared_lock<lock_t> _lock; ///< The acquired lock.
+		};
+
 		/// Constructs this \ref buffer with the given buffer index.
 		buffer(std::size_t id, buffer_manager *man) :
 			_fileid(std::in_place_type<std::size_t>, id), _bufman(man) {
 		}
 		/// Constructs this \ref buffer with the given file name, and loads that file's contents.
 		buffer(const std::filesystem::path&, buffer_manager*);
+		/// Invokes \ref buffer_manager::_on_deleting_buffer().
 		~buffer();
 
-		/// Returns an iterator to the first byte of the buffer.
-		iterator begin() {
-			auto it = _t.begin();
-			return iterator(it, it == _t.end() ? byte_array::iterator() : it.get_value_rawmod().data.begin(), 0);
-		}
-		/// Const version of begin().
-		const_iterator begin() const {
+		/// Returns an iterator to the first byte.
+		[[nodiscard]] const_iterator begin() const {
 			auto it = _t.begin();
 			return const_iterator(it, it == _t.end() ? byte_array::const_iterator() : it->data.begin(), 0);
 		}
-		/// Returns an iterator past the last byte of the buffer.
-		iterator end() {
-			return iterator(_t.end(), byte_array::iterator(), length());
-		}
-		/// Const version of end().
-		const_iterator end() const {
+		/// Returns an iterator past the last byte.
+		[[nodiscard]] const_iterator end() const {
 			return const_iterator(_t.end(), byte_array::const_iterator(), length());
 		}
 
 		/// Returns an iterator to the first chunk of the buffer.
-		tree_type::const_iterator node_begin() const {
+		[[nodiscard]] tree_type::const_iterator node_begin() const {
 			return _t.begin();
 		}
 		/// Returns an iterator past the last chunk of the buffer.
-		tree_type::const_iterator node_end() const {
+		[[nodiscard]] tree_type::const_iterator node_end() const {
 			return _t.end();
 		}
 
-		/// Returns an iterator to the byte at the given position of the buffer.
-		iterator at(std::size_t bytepos) {
-			std::size_t chkpos = bytepos;
-			auto t = _t.find(_byte_index_finder(), chkpos);
-			if (t == _t.end()) {
-				return iterator(t, byte_array::iterator(), length());
-			}
-			return iterator(t, t.get_value_rawmod().data.begin() + chkpos, bytepos - chkpos);
-		}
-		/// Const version of at().
-		const_iterator at(std::size_t bytepos) const {
-			std::size_t chkpos = bytepos;
-			auto t = _t.find(_byte_index_finder(), chkpos);
-			if (t == _t.end()) {
-				return const_iterator(t, byte_array::const_iterator(), length());
-			}
-			return const_iterator(t, t->data.begin() + bytepos, bytepos - chkpos);
-		}
-
-		/// Given a \ref const_iterator, returns the position of the byte it points to.
-		std::size_t get_position(const const_iterator &it) const {
-			std::size_t res = 0;
-			sum_synthesizer::sum_before<node_data::length_property>(it._it, res);
-			if (it._it != _t.end()) {
-				res += it._s - it._it->data.begin();
-			}
-			return res;
-		}
+		/// Returns an iterator to the byte at the given index.
+		[[nodiscard]] const_iterator at(std::size_t bytepos) const;
 
 		/// Returns a clip of the buffer.
-		byte_string get_clip(const const_iterator &beg, const const_iterator &end) const {
-			if (beg._it == _t.end()) {
-				return byte_string();
-			}
-			if (beg._it == end._it) { // in the same chunk
-				return byte_string(beg._s, end._s);
-			}
-			byte_string result(beg._s, beg._it->data.end()); // insert the part in the first chunk
-			tree_type::const_iterator it = beg._it;
-			for (++it; it != end._it; ++it) { // insert full chunks
-				result.append(it->data.begin(), it->data.end());
-			}
-			if (end._it != _t.end()) {
-				result.append(end._it->data.begin(), end._s); // insert the part in the last chunk
-			}
-			return result;
-		}
+		[[nodiscard]] byte_string get_clip(const const_iterator &beg, const const_iterator &end) const;
 
+		/// Returns the index after the last edit made to this buffer, potentially after redoing or undoing.
+		[[nodiscard]] std::size_t current_edit() const {
+			return _curedit;
+		}
 		/// Returns whether this buffer has been modified.
-		bool can_undo() const {
+		[[nodiscard]] bool can_undo() const {
 			return _curedit > 0;
 		}
 		/// Returns whether there are undone edits after which no new edits have been made.
-		bool can_redo() const {
+		[[nodiscard]] bool can_redo() const {
 			return _curedit < _history.size();
 		}
-		/// Reverts a previously made edit.
-		void undo(ui::element *source) {
-			modifier mod;
-			mod.begin(*this, source, edit_type::undo);
-			--_curedit;
-			for (const modification &cmod : _history[_curedit]) {
-				mod.undo(cmod);
-			}
-			mod.end_custom(_history[_curedit]);
-		}
-		/// Restores a previously undone edit.
-		void redo(ui::element *source) {
-			modifier mod;
-			mod.begin(*this, source, edit_type::redo);
-			for (const modification &cmod : _history[_curedit]) {
-				mod.redo(cmod);
-			}
-			++_curedit;
-			mod.end_custom(_history[_curedit - 1]);
-		}
+
 
 		/// Returns the recorded list of edits made to this buffer.
-		const std::vector<edit> &history() const {
+		[[nodiscard]] const std::vector<edit> &history() const {
 			return _history;
 		}
-		/// Returns the index after the last edit made to this buffer, potentially after redoing or undoing.
-		std::size_t current_edit() const {
-			return _curedit;
-		}
 		/// Returns the number of bytes in this buffer.
-		std::size_t length() const {
+		[[nodiscard]] std::size_t length() const {
 			const node_type *n = _t.root();
 			return n == nullptr ? 0 : n->synth_data.total_length;
 		}
@@ -568,10 +503,6 @@ namespace codepad::editors {
 		/// Invokes \ref red_black_tree::tree::check_integrity().
 		void check_integrity() const {
 			_t.check_integrity();
-		}
-		/// Clears the contents of this buffer.
-		void clear() {
-			_t.clear();
 		}
 
 		/// Returns the identifier of this buffer. This would be a path for an existing file, or an integer for newly
@@ -584,24 +515,26 @@ namespace codepad::editors {
 			return _bufman;
 		}
 
-		info_event<begin_edit_info> begin_edit; ///< Invoked when this \ref buffer is about to be modified.
+		/// Invoked when this \ref buffer is about to be modified, right before the read lock is acquired. Acquiring
+		/// the read lock after invoking this event gives listeners a chance to cancel async read operations.
+		info_event<begin_edit_info> begin_edit;
 		/// Invoked for every single modification within an edit. This is invoked before the modification it refers
 		/// to is applied, but **after** all previous modifications have been applied.
 		info_event<begin_modification_info> begin_modify;
 		/// Invked for every single modification within an edit, after it has been made but before \ref begin_modify
 		/// is invoked for the next modification or \ref end_edit is invoked.
 		info_event<end_modification_info> end_modify;
-		info_event<end_edit_info> end_edit; ///< Invoked when this \ref buffer has been modified.
+		/// Invoked after this \ref buffer has been modified, right after releasing the read lock.
+		info_event<end_edit_info> end_edit;
 	protected:
 		/// Used to find the chunk in which the byte at the given index lies.
 		using _byte_index_finder = sum_synthesizer::index_finder<node_data::length_property>;
 
+		// functions that modify this buffer; these should be protected by the lock
 		/// Erases a subsequence from the buffer.
 		void _erase(const_iterator beg, const_iterator end);
 		/// Inserts an array of bytes at the given position.
-		template <typename It1, typename It2> void _insert(
-			const_iterator pos, const It1 &beg, const It2 &end
-		) {
+		template <typename It1, typename It2> void _insert(const_iterator pos, const It1 &beg, const It2 &end) {
 			if (beg == end) {
 				return;
 			}
@@ -653,35 +586,7 @@ namespace codepad::editors {
 		/// maximum value. Note that this function does not ensure the validity of any iterator after this operation.
 		///
 		/// \todo Find a better merging strategy.
-		void _try_merge_small_nodes(const tree_type::const_iterator &it) {
-			if (it == _t.end()) {
-				return;
-			}
-			std::size_t nvl = it->data.size();
-			if (nvl * 2 > maximum_bytes_per_chunk) {
-				return;
-			}
-			if (it != _t.begin()) {
-				tree_type::const_iterator prev = it;
-				--prev;
-				if (prev->data.size() + nvl < maximum_bytes_per_chunk) {
-					_t.get_modifier_for(prev.get_node())->data.insert(
-						prev->data.end(), it->data.begin(), it->data.end()
-					);
-					_t.erase(it);
-					return;
-				}
-			}
-			tree_type::const_iterator next = it;
-			++next;
-			if (next != _t.end() && next->data.size() + nvl < maximum_bytes_per_chunk) {
-				_t.get_modifier_for(it.get_node())->data.insert(
-					it->data.end(), next->data.begin(), next->data.end()
-				);
-				_t.erase(next);
-				return;
-			}
-		}
+		void _try_merge_small_nodes(const tree_type::const_iterator&);
 		/// Adds an \ref edit to the history of this buffer.
 		void _append_edit(edit edt) {
 			if (_curedit < _history.size()) {
@@ -691,12 +596,16 @@ namespace codepad::editors {
 			++_curedit;
 		}
 
+
 		tree_type _t; ///< The underlying binary tree that stores all the chunks.
+		lock_t _lock; ///< Mutex used to protect the reading and writing of this \ref buffer.
+
 		std::vector<edit> _history; ///< Records undoable or redoable edits made to this \ref buffer.
+		std::size_t _curedit = 0; ///< The index of the edit that's to be redone next should the need arise.
+
 		/// Used to identify this buffer. Also stores the path to the associated file, if one exists.
 		std::variant<std::size_t, std::filesystem::path> _fileid;
 		std::deque<std::any> _tags; ///< Tags associated with this buffer.
 		buffer_manager *_bufman = nullptr; ///< The \ref buffer_manager for this \ref buffer.
-		std::size_t _curedit = 0; ///< The index of the edit that's to be redone next should the need arise.
 	};
 }

@@ -8,12 +8,13 @@
 
 #include <algorithm>
 
-#include "codepad/core/settings.h"
-#include "codepad/ui/panel.h"
-#include "codepad/ui/manager.h"
-#include "codepad/ui/elements/scrollbar.h"
-#include "codepad/editors/caret_set.h"
-#include "codepad/editors/caret_rendering.h"
+#include <codepad/core/settings.h>
+#include <codepad/ui/panel.h>
+#include <codepad/ui/manager.h>
+#include <codepad/ui/elements/scrollbar.h>
+
+#include "caret_set.h"
+#include "caret_rendering.h"
 
 namespace codepad::editors {
 	/// The base class of content regions.

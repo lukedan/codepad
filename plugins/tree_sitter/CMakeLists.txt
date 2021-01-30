@@ -6,6 +6,7 @@ target_sources(tree_sitter
 		"include/codepad/tree_sitter/highlight_layer_iterator.h"
 		"include/codepad/tree_sitter/interpretation_interface.h"
 		"include/codepad/tree_sitter/language_configuration.h"
+		"include/codepad/tree_sitter/manager.h"
 		"include/codepad/tree_sitter/query.h"
 		"include/codepad/tree_sitter/wrappers.h"
 	PRIVATE
@@ -13,6 +14,7 @@ target_sources(tree_sitter
 		"src/interpretation_interface.cpp"
 		"src/language_configuration.cpp"
 		"src/main.cpp"
+		"src/manager.cpp"
 		"src/query.cpp")
 target_link_libraries(tree_sitter PUBLIC codepad_core editors)
 target_include_directories(tree_sitter

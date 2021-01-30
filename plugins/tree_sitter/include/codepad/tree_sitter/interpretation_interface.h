@@ -17,18 +17,9 @@ namespace codepad::tree_sitter {
 	/// Interface between the editor and \p tree-sitter.
 	class interpretation_interface {
 	public:
-		/// Constructor.
-		interpretation_interface(
-			codepad::editors::code::interpretation &interp, const language_configuration *config
-		) : _interp(&interp), _lang(config) {
-			// create parser
-			_parser.set(ts_parser_new());
-
-			_event_token = _interp->get_buffer()->end_edit += [this](codepad::editors::buffer::end_edit_info&) {
-				_update_highlight();
-			};
-			_update_highlight();
-		}
+		/// Creates a new parser, registers to \ref editors::buffer::end_edit, and starts highlighting for this
+		/// interpretation.
+		interpretation_interface(editors::code::interpretation&, const language_configuration*);
 		/// Assert during copy construction.
 		interpretation_interface(const interpretation_interface&) {
 			assert_true_logical(false, "interpretation_interface cannot be copied");
@@ -40,22 +31,34 @@ namespace codepad::tree_sitter {
 		}
 		/// Unregisters from \ref editors::buffer::end_edit.
 		~interpretation_interface() {
-			_interp->get_buffer()->end_edit -= _event_token;
+			// TODO cancel queued highlight tasks
+			_interp->get_buffer()->begin_edit -= _begin_edit_token;
+			_interp->get_buffer()->end_edit -= _end_edit_token;
+		}
+
+		/// Computes and returns the new highlight for the document. This function does not create a
+		/// \ref editors::buffer::async_reader_lock - it is the responsibility of the caller to do so when necessary.
+		[[nodiscard]] editors::code::text_theme_data compute_highlight(std::size_t *cancellation_token);
+		/// Queues this interpretation for highlighting. Skips if no language is associated with this interpretation.
+		void queue_highlight();
+
+		/// Returns the \ref editors::code::interpretation associated with this object.
+		[[nodiscard]] editors::code::interpretation &get_interpretation() const {
+			return *_interp;
 		}
 	protected:
 		parser_ptr _parser; ///< The parser.
 		editors::code::interpretation *_interp = nullptr; ///< The associated interpretation.
+		/// Token for \ref editors::buffer::begin_edit.
+		info_event<editors::buffer::begin_edit_info>::token _begin_edit_token;
 		/// Token for \ref editors::buffer::end_edit.
-		info_event<editors::buffer::end_edit_info>::token _event_token;
+		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
 		const language_configuration *_lang = nullptr; ///< The language configuration.
 
 		/// Contains information used in a \p TSInput.
 		struct _payload {
-			codepad::editors::byte_string read_buffer;
-			codepad::editors::code::interpretation &interpretation; ///< The interpretation.
+			editors::byte_string read_buffer; ///< Intermediate buffer.
+			const editors::code::interpretation &interpretation; ///< Used to read the buffer.
 		};
-
-		/// Updates the highlight of \ref _interp.
-		void _update_highlight();
 	};
 }

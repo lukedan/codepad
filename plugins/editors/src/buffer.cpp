@@ -9,6 +9,57 @@
 #include "codepad/editors/manager.h"
 
 namespace codepad::editors {
+	buffer::modifier::modifier(buffer &buf, ui::element *src) : _buf(buf), _src(src) {
+	}
+
+	void buffer::modifier::modify_nofixup(std::size_t pos, std::size_t eraselen, byte_string insert) {
+		modification mod;
+		_buf.begin_modify.invoke_noret(pos, eraselen, insert);
+		mod.position = pos;
+		if (eraselen > 0) {
+			const_iterator posit = _buf.at(pos), endit = _buf.at(pos + eraselen);
+			mod.removed_content = _buf.get_clip(posit, endit);
+			_buf._erase(posit, endit);
+		}
+		if (!insert.empty()) {
+			_buf._insert(_buf.at(pos), insert.begin(), insert.end());
+			mod.added_content = std::move(insert);
+		}
+		_buf.end_modify.invoke_noret(pos, mod.removed_content, mod.added_content);
+		_diff += mod.added_content.size() - mod.removed_content.size();
+		_pos.emplace_back(mod.position, mod.removed_content.size(), mod.added_content.size());
+		_edt.emplace_back(std::move(mod));
+	}
+
+	void buffer::modifier::_undo_modification(const modification &mod) {
+		std::size_t pos = mod.position + _diff;
+		_buf.begin_modify.invoke_noret(pos, mod.added_content.size(), mod.removed_content);
+		if (!mod.added_content.empty()) {
+			_buf._erase(_buf.at(pos), _buf.at(pos + mod.added_content.size()));
+		}
+		if (!mod.removed_content.empty()) {
+			_buf._insert(_buf.at(pos), mod.removed_content.begin(), mod.removed_content.end());
+		}
+		_buf.end_modify.invoke_noret(pos, mod.added_content, mod.removed_content);
+		_diff += mod.removed_content.size() - mod.added_content.size();
+		_pos.emplace_back(pos, mod.added_content.size(), mod.removed_content.size());
+	}
+
+	void buffer::modifier::_redo_modification(const modification &mod) {
+		// the modification already stores adjusted positions
+		_buf.begin_modify.invoke_noret(mod.position, mod.removed_content.size(), mod.added_content);
+		if (!mod.removed_content.empty()) {
+			_buf._erase(_buf.at(mod.position), _buf.at(mod.position + mod.removed_content.size()));
+		}
+		if (!mod.added_content.empty()) {
+			_buf._insert(_buf.at(mod.position), mod.added_content.begin(), mod.added_content.end());
+		}
+		_buf.end_modify.invoke_noret(mod.position, mod.removed_content, mod.added_content);
+		_diff += mod.added_content.size() - mod.removed_content.size();
+		_pos.emplace_back(mod.position, mod.removed_content.size(), mod.added_content.size());
+	}
+
+
 	buffer::buffer(const std::filesystem::path &filename, buffer_manager *man) :
 		_fileid(std::in_place_type<std::filesystem::path>, filename), _bufman(man) {
 
@@ -90,6 +141,33 @@ namespace codepad::editors {
 		}
 	}
 
+	buffer::const_iterator buffer::at(std::size_t bytepos) const {
+		std::size_t chkpos = bytepos;
+		auto t = _t.find(_byte_index_finder(), chkpos);
+		if (t == _t.end()) {
+			return const_iterator(t, byte_array::const_iterator(), length());
+		}
+		return const_iterator(t, t->data.begin() + chkpos, bytepos - chkpos);
+	}
+
+	byte_string buffer::get_clip(const const_iterator &beg, const const_iterator &end) const {
+		if (beg._it == _t.end()) {
+			return byte_string();
+		}
+		if (beg._it == end._it) { // in the same chunk
+			return byte_string(beg._s, end._s);
+		}
+		byte_string result(beg._s, beg._it->data.end()); // insert the part in the first chunk
+		tree_type::const_iterator it = beg._it;
+		for (++it; it != end._it; ++it) { // insert full chunks
+			result.append(it->data.begin(), it->data.end());
+		}
+		if (end._it != _t.end()) {
+			result.append(end._it->data.begin(), end._s); // insert the part in the last chunk
+		}
+		return result;
+	}
+
 	void buffer::_erase(const_iterator beg, const_iterator end) {
 		if (beg._it == _t.end()) {
 			return;
@@ -115,6 +193,36 @@ namespace codepad::editors {
 			_try_merge_small_nodes(end._it);
 		} else if (!_t.empty()) {
 			_try_merge_small_nodes(--_t.end());
+		}
+	}
+
+	void buffer::_try_merge_small_nodes(const tree_type::const_iterator &it) {
+		if (it == _t.end()) {
+			return;
+		}
+		std::size_t nvl = it->data.size();
+		if (nvl * 2 > maximum_bytes_per_chunk) {
+			return;
+		}
+		if (it != _t.begin()) {
+			tree_type::const_iterator prev = it;
+			--prev;
+			if (prev->data.size() + nvl < maximum_bytes_per_chunk) {
+				_t.get_modifier_for(prev.get_node())->data.insert(
+					prev->data.end(), it->data.begin(), it->data.end()
+				);
+				_t.erase(it);
+				return;
+			}
+		}
+		tree_type::const_iterator next = it;
+		++next;
+		if (next != _t.end() && next->data.size() + nvl < maximum_bytes_per_chunk) {
+			_t.get_modifier_for(it.get_node())->data.insert(
+				it->data.end(), next->data.begin(), next->data.end()
+			);
+			_t.erase(next);
+			return;
 		}
 	}
 }
