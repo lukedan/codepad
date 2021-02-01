@@ -22,128 +22,36 @@ namespace codepad::os {
 		OCR_SIZEWE
 	};
 
-	window::window(const std::u8string &clsname, window *parent) {
-		auto u16str = _details::utf8_to_wstring(clsname.c_str());
-		_wndclass::get();
-		_details::winapi_check(_hwnd = CreateWindowEx(
-			WS_EX_ACCEPTFILES,
-			reinterpret_cast<LPCTSTR>(static_cast<std::size_t>(_wndclass::get().atom)),
-			reinterpret_cast<LPCTSTR>(u16str.c_str()), WS_OVERLAPPEDWINDOW,
-			CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-			parent ? parent->_hwnd : nullptr, nullptr, GetModuleHandle(nullptr), nullptr
-		));
-	}
-
-	void window::set_caption(const std::u8string &cap) {
-		auto u16str = _details::utf8_to_wstring(cap.c_str());
-		_details::winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
-	}
-
-	vec2d window::get_position() const {
-		POINT tl;
-		tl.x = tl.y = 0;
-		_details::winapi_check(ClientToScreen(_hwnd, &tl));
-		return vec2d(static_cast<double>(tl.x), static_cast<double>(tl.y));
-	}
-
-	void window::set_position(vec2d pos) {
-		RECT r;
-		POINT tl;
-		tl.x = tl.y = 0;
-		_details::winapi_check(GetWindowRect(_hwnd, &r));
-		_details::winapi_check(ClientToScreen(_hwnd, &tl));
-		tl.x -= r.left;
-		tl.y -= r.top;
-		_details::winapi_check(SetWindowPos(
-			_hwnd, nullptr, static_cast<int>(pos.x) - tl.x, static_cast<int>(pos.y) - tl.y, 0, 0, SWP_NOSIZE
-		));
-	}
-
-	vec2d window::get_client_size() const {
-		RECT r;
-		_details::winapi_check(GetClientRect(_hwnd, &r));
-		return _physical_to_logical_position(vec2d(
-			static_cast<double>(r.right), static_cast<double>(r.bottom)
-		));
-	}
-
-	void window::set_client_size(vec2d sz) {
-		sz = _logical_to_physical_position(sz);
-		RECT wndrgn, cln;
-		_details::winapi_check(GetWindowRect(_hwnd, &wndrgn));
-		_details::winapi_check(GetClientRect(_hwnd, &cln));
-		_details::winapi_check(SetWindowPos(
-			_hwnd, nullptr, 0, 0,
-			wndrgn.right - wndrgn.left - cln.right + static_cast<int>(std::round(sz.x)),
-			wndrgn.bottom - wndrgn.top - cln.bottom + static_cast<int>(std::round(sz.y)),
-			SWP_NOMOVE
-		));
-	}
-
-	void window::prompt_ready() {
-		FLASHWINFO fwi;
-		std::memset(&fwi, 0, sizeof(fwi));
-		fwi.cbSize = sizeof(fwi);
-		fwi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
-		fwi.dwTimeout = 0;
-		fwi.hwnd = _hwnd;
-		fwi.uCount = 0;
-		FlashWindowEx(&fwi);
-	}
-
-	bool window::hit_test_full_client(vec2d v) const {
-		RECT r;
-		_details::winapi_check(GetWindowRect(_hwnd, &r));
-		return r.left <= v.x && r.right > v.x && r.top <= v.y && r.bottom > v.y;
-	}
-
-	vec2d window::screen_to_client(vec2d v) const {
-		POINT p;
-		p.x = static_cast<int>(std::round(v.x));
-		p.y = static_cast<int>(std::round(v.y));
-		_details::winapi_check(ScreenToClient(_hwnd, &p));
-		return _physical_to_logical_position(vec2d(
-			static_cast<double>(p.x), static_cast<double>(p.y)
-		));
-	}
-
-	vec2d window::client_to_screen(vec2d v) const {
-		v = _logical_to_physical_position(v);
-		POINT p;
-		p.x = static_cast<int>(std::round(v.x));
-		p.y = static_cast<int>(std::round(v.y));
-		_details::winapi_check(ClientToScreen(_hwnd, &p));
-		return vec2d(static_cast<double>(p.x), static_cast<double>(p.y));
-	}
 
 	/// Forwards the event to the window.
-	template <typename Inf, typename ...Args> void _form_onevent(
-		window &w, void (window::*handle)(Inf&), Args && ...args
+	template <typename Inf, typename ...Args> void _wnd_onevent(
+		ui::window &w, void (ui::window::*handle)(Inf&), Args && ...args
 	) {
 		Inf inf(std::forward<Args>(args)...);
 		(w.*handle)(inf);
 	}
-	LRESULT CALLBACK window::_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-		auto *form = window::_get_associated_window(hwnd);
-		if (form) {
+	LRESULT CALLBACK window_impl::_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+		auto *wnd_impl = window_impl::_get_associated_window_impl(hwnd);
+		if (wnd_impl) {
+			auto &wnd = wnd_impl->_window;
 			switch (msg) {
 			case WM_CLOSE:
-				form->_on_close_request();
+				wnd._on_close_request();
 				// WM_CLOSE is not intercepted by GetMessage or PeekMessage, so we need to
 				// wake the main thread up to run the message loop and update everything
-				form->get_manager().get_scheduler().wake_up();
+				wnd.get_manager().get_scheduler().wake_up();
 				return 0;
 
 			case WM_SIZE:
 				{
 					if (wparam != SIZE_MINIMIZED) {
 						vec2d size(LOWORD(lparam), HIWORD(lparam));
-						size = form->_physical_to_logical_position(size);
-						size_changed_info p(size);
+						size = wnd_impl->_physical_to_logical_position(size);
+						ui::window::size_changed_info p(size);
 						if (p.new_value.x > 0 && p.new_value.y > 0) {
-							form->_layout = rectd::from_corners(vec2d(), p.new_value);
-							form->_on_size_changed(p);
-							form->get_manager().get_scheduler().update_layout_and_visuals();
+							wnd._layout = rectd::from_corners(vec2d(), p.new_value);
+							wnd._on_size_changed(p);
+							wnd.get_manager().get_scheduler().update_layout_and_visuals();
 						}
 					}
 					return 0;
@@ -151,13 +59,14 @@ namespace codepad::os {
 			case WM_DPICHANGED:
 				{
 					double dpix = LOWORD(wparam), dpiy = HIWORD(wparam);
-					scaling_factor_changed_info p(vec2d(
+					ui::window::scaling_factor_changed_info p(vec2d(
 						dpix / USER_DEFAULT_SCREEN_DPI, dpiy / USER_DEFAULT_SCREEN_DPI
 					));
-					form->_on_scaling_factor_changed(p);
+					wnd_impl->_cached_scaling = p.new_value;
+					wnd._on_scaling_factor_changed(p);
 					RECT* const advised_window_layout = reinterpret_cast<RECT*>(lparam);
 					SetWindowPos(
-						form->get_native_handle(),
+						wnd_impl->get_native_handle(),
 						nullptr,
 						advised_window_layout->left,
 						advised_window_layout->top,
@@ -171,16 +80,16 @@ namespace codepad::os {
 			case WM_SYSKEYDOWN:
 				[[fallthrough]]; // same processing
 			case WM_KEYDOWN:
-				_form_onevent<ui::key_info>(
-					*form, &window::_on_key_down, _details::key_id_mapping_t::backward.value[wparam]
-				);
+				_wnd_onevent<ui::key_info>(
+					wnd, &ui::window::_on_key_down, _details::key_id_mapping_t::backward.value[wparam]
+					);
 				break;
 			case WM_SYSKEYUP:
 				[[fallthrough]];
 			case WM_KEYUP:
-				_form_onevent<ui::key_info>(
-					*form, &window::_on_key_up, _details::key_id_mapping_t::backward.value[wparam]
-				);
+				_wnd_onevent<ui::key_info>(
+					wnd, &ui::window::_on_key_up, _details::key_id_mapping_t::backward.value[wparam]
+					);
 				break;
 
 			case WM_UNICHAR:
@@ -196,7 +105,7 @@ namespace codepad::os {
 							encodings::utf8::encode_codepoint(static_cast<codepoint>(wparam)).c_str()
 						);
 					}
-					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, content);
+					_wnd_onevent<ui::text_info>(wnd, &ui::window::_on_keyboard_text, content);
 				}
 				return FALSE;
 			case WM_CHAR:
@@ -215,7 +124,7 @@ namespace codepad::os {
 						}
 						content = reinterpret_cast<const char8_t*>(encodings::utf8::encode_codepoint(res).c_str());
 					}
-					_form_onevent<ui::text_info>(*form, &window::_on_keyboard_text, content);
+					_wnd_onevent<ui::text_info>(wnd, &ui::window::_on_keyboard_text, content);
 				}
 				return 0;
 
@@ -224,14 +133,14 @@ namespace codepad::os {
 					POINT p;
 					p.x = GET_X_LPARAM(lparam);
 					p.y = GET_Y_LPARAM(lparam);
-					_details::winapi_check(ScreenToClient(form->_hwnd, &p));
+					_details::winapi_check(ScreenToClient(wnd_impl->get_native_handle(), &p));
 					int wheel_delta = GET_WHEEL_DELTA_WPARAM(wparam);
-					_form_onevent<ui::mouse_scroll_info>(
-						*form, &window::_on_mouse_scroll,
+					_wnd_onevent<ui::mouse_scroll_info>(
+						wnd, &ui::window::_on_mouse_scroll,
 						// here the sign is inverted so that we add the value
 						// to obtain the new position instead of subtracting
 						vec2d(0.0, -wheel_delta / static_cast<double>(WHEEL_DELTA)),
-						form->_update_mouse_position(form->_physical_to_logical_position(vec2d(p.x, p.y))),
+						wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(vec2d(p.x, p.y))),
 						// FIXME here and in WM_MOUSEHWHEEL this is used to determine if the scroll event is smooth
 						//       scrolling, which may cause false positives, but we aren't aware of a better way
 						wheel_delta % WHEEL_DELTA != 0
@@ -243,96 +152,97 @@ namespace codepad::os {
 					POINT p;
 					p.x = GET_X_LPARAM(lparam);
 					p.y = GET_Y_LPARAM(lparam);
-					_details::winapi_check(ScreenToClient(form->_hwnd, &p));
+					_details::winapi_check(ScreenToClient(wnd_impl->get_native_handle(), &p));
 					int wheel_delta = GET_WHEEL_DELTA_WPARAM(wparam);
-					_form_onevent<ui::mouse_scroll_info>(
-						*form, &window::_on_mouse_scroll,
+					_wnd_onevent<ui::mouse_scroll_info>(
+						wnd, &ui::window::_on_mouse_scroll,
 						vec2d(wheel_delta / -static_cast<double>(WHEEL_DELTA), 0.0),
-						form->_update_mouse_position(form->_physical_to_logical_position(vec2d(p.x, p.y))),
+						wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(vec2d(p.x, p.y))),
 						wheel_delta % WHEEL_DELTA != 0
 					);
 					return 0;
 				}
 
 			case WM_MOUSEMOVE:
-				if (!form->is_mouse_over()) {
-					form->_on_mouse_enter();
+				if (!wnd.is_mouse_over()) {
+					wnd_impl->_setup_mouse_tracking();
+					wnd._on_mouse_enter();
 				}
-				_form_onevent<ui::mouse_move_info>(
-					*form, &window::_on_mouse_move,
-					form->_update_mouse_position(form->_physical_to_logical_position(
+				_wnd_onevent<ui::mouse_move_info>(
+					wnd, &ui::window::_on_mouse_move,
+					wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
 					))
 				);
 				return 0;
 			case WM_MOUSELEAVE:
-				form->_on_mouse_leave();
+				wnd._on_mouse_leave();
 				return 0;
 
 			case WM_LBUTTONDOWN:
-				_form_onevent<ui::mouse_button_info>(
-					*form, &window::_on_mouse_down,
+				_wnd_onevent<ui::mouse_button_info>(
+					wnd, &ui::window::_on_mouse_down,
 					ui::mouse_button::primary, _details::get_modifiers(),
-					form->_update_mouse_position(form->_physical_to_logical_position(
+					wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					)
 				);
 				return 0;
 			case WM_LBUTTONUP:
-				_form_onevent<ui::mouse_button_info>(
-					*form, &window::_on_mouse_up,
+				_wnd_onevent<ui::mouse_button_info>(
+					wnd, &ui::window::_on_mouse_up,
 					ui::mouse_button::primary, _details::get_modifiers(),
-					form->_update_mouse_position(form->_physical_to_logical_position(
+					wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					)
 				);
 				return 0;
 			case WM_RBUTTONDOWN:
-				_form_onevent<ui::mouse_button_info>(
-					*form, &window::_on_mouse_down,
+				_wnd_onevent<ui::mouse_button_info>(
+					wnd, &ui::window::_on_mouse_down,
 					ui::mouse_button::secondary, _details::get_modifiers(),
-					form->_update_mouse_position(form->_physical_to_logical_position(
+					wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					)
 				);
 				return 0;
 			case WM_RBUTTONUP:
-				_form_onevent<ui::mouse_button_info>(
-					*form, &window::_on_mouse_up,
+				_wnd_onevent<ui::mouse_button_info>(
+					wnd, &ui::window::_on_mouse_up,
 					ui::mouse_button::secondary, _details::get_modifiers(),
-					form->_update_mouse_position(form->_physical_to_logical_position(
+					wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					)
 				);
 				return 0;
 			case WM_MBUTTONDOWN:
-				_form_onevent<ui::mouse_button_info>(
-					*form, &window::_on_mouse_down,
+				_wnd_onevent<ui::mouse_button_info>(
+					wnd, &ui::window::_on_mouse_down,
 					ui::mouse_button::tertiary, _details::get_modifiers(),
-					form->_update_mouse_position(form->_physical_to_logical_position(
+					wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					)
 				);
 				return 0;
 			case WM_MBUTTONUP:
-				_form_onevent<ui::mouse_button_info>(
-					*form, &window::_on_mouse_up,
+				_wnd_onevent<ui::mouse_button_info>(
+					wnd, &ui::window::_on_mouse_up,
 					ui::mouse_button::tertiary, _details::get_modifiers(),
-					form->_update_mouse_position(form->_physical_to_logical_position(
+					wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(
 						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))
 					)
 				);
 				return 0;
 
 			case WM_SETFOCUS:
-				form->get_manager().get_scheduler().set_focused_element(form);
+				wnd.get_manager().get_scheduler().set_focused_element(&wnd);
 				return 0;
 			case WM_KILLFOCUS:
-				form->get_manager().get_scheduler().set_focused_element(nullptr);
+				wnd.get_manager().get_scheduler().set_focused_element(nullptr);
 				return 0;
 
 			case WM_CANCELMODE:
-				form->_on_lost_window_capture();
+				wnd._on_lost_window_capture();
 				// MSDN says DefWindowProc releases mouse capture but does not say if we should too
 				// if we don't it seems that this message can be sent again and again so we might as well
 				_details::winapi_check(ReleaseCapture());
@@ -340,10 +250,10 @@ namespace codepad::os {
 
 			case WM_SETCURSOR:
 				{
-					if (!form->is_mouse_over()) {
+					if (!wnd.is_mouse_over()) {
 						return DefWindowProc(hwnd, msg, wparam, lparam);
 					}
-					ui::cursor c = form->get_current_display_cursor();
+					ui::cursor c = wnd.get_current_display_cursor();
 					if (c == ui::cursor::not_specified) {
 						return DefWindowProc(hwnd, msg, wparam, lparam);
 					}
@@ -362,27 +272,27 @@ namespace codepad::os {
 
 			// ime-related messages
 			case WM_IME_SETCONTEXT:
-				window::_ime::get().complete_composition(*form);
+				window_impl::_ime::get().complete_composition(*wnd_impl);
 				lparam &= ~ISC_SHOWUICOMPOSITIONWINDOW;
 				return DefWindowProc(hwnd, msg, wparam, lparam);
 			case WM_IME_STARTCOMPOSITION:
-				window::_ime::get().start_composition(*form);
+				window_impl::_ime::get().start_composition(*wnd_impl);
 				return 0;
 			case WM_IME_COMPOSITION:
 				{
-					window::_ime::get().update_composition(*form);
-					if (auto str = window::_ime::get().get_composition_string(*form, lparam)) {
+					window_impl::_ime::get().update_composition(*wnd_impl);
+					if (auto str = window_impl::_ime::get().get_composition_string(*wnd_impl, lparam)) {
 						if (!str->empty()) {
-							_form_onevent<ui::composition_info>(
-								*form, &window::_on_composition,
+							_wnd_onevent<ui::composition_info>(
+								wnd, &ui::window::_on_composition,
 								_details::wstring_to_utf8(str->c_str())
 								);
 						}
 					}
-					if (auto str = window::_ime::get().get_result(*form, lparam)) {
+					if (auto str = window_impl::_ime::get().get_result(*wnd_impl, lparam)) {
 						if (!str->empty()) {
-							_form_onevent<ui::text_info>(
-								*form, &window::_on_keyboard_text,
+							_wnd_onevent<ui::text_info>(
+								wnd, &ui::window::_on_keyboard_text,
 								_details::wstring_to_utf8(str->c_str())
 								);
 						}
@@ -390,15 +300,15 @@ namespace codepad::os {
 					return 0;
 				}
 			case WM_IME_ENDCOMPOSITION:
-				form->_on_composition_finished();
-				window::_ime::get().complete_composition(*form);
+				wnd._on_composition_finished();
+				window_impl::_ime::get().complete_composition(*wnd_impl);
 				break;
 			case WM_INPUTLANGCHANGE:
-				window::_ime::get().on_input_language_changed();
+				window_impl::_ime::get().on_input_language_changed();
 				return TRUE;
 
 			case WM_PAINT:
-				form->_on_render();
+				wnd._on_render();
 				_details::winapi_check(ValidateRect(hwnd, nullptr));
 				return 0;
 			}
@@ -406,18 +316,122 @@ namespace codepad::os {
 		return DefWindowProc(hwnd, msg, wparam, lparam);
 	}
 
-	window *window::_get_associated_window(HWND hwnd) {
+
+	window_impl::window_impl(ui::window &wnd) : ui::_details::window_impl(wnd) {
+		_wndclass::get();
+		_details::winapi_check(_hwnd = CreateWindowEx(
+			WS_EX_ACCEPTFILES,
+			reinterpret_cast<LPCTSTR>(static_cast<std::size_t>(_wndclass::get().atom)),
+			TEXT("Codepad"), WS_OVERLAPPEDWINDOW,
+			CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+			nullptr, nullptr, GetModuleHandle(nullptr), nullptr
+		));
+		// sets the user data of the window to this impl
+		SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+		// update cached dpi, because the WM_DPICHANGED message is not sent after creating the window
+		// FIXME this function only returns one value which we now use for both x and y
+		UINT dpi = GetDpiForWindow(_hwnd);
+		double scaling = dpi / static_cast<double>(USER_DEFAULT_SCREEN_DPI);
+		_cached_scaling = vec2d(scaling, scaling);
+	}
+
+	window_impl::~window_impl() {
+		_details::winapi_check(DestroyWindow(_hwnd));
+	}
+
+	void window_impl::set_parent(ui::window *wnd) {
+		HWND parent = wnd ? _details::cast_window_impl(*wnd->_impl).get_native_handle() : nullptr;
+		_details::winapi_check(SetParent(_hwnd, parent));
+	}
+
+	void window_impl::set_caption(const std::u8string &cap) {
+		auto u16str = _details::utf8_to_wstring(cap.c_str());
+		_details::winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
+	}
+
+	vec2d window_impl::get_position() const {
+		POINT tl;
+		tl.x = tl.y = 0;
+		_details::winapi_check(ClientToScreen(_hwnd, &tl));
+		return vec2d(static_cast<double>(tl.x), static_cast<double>(tl.y));
+	}
+
+	void window_impl::set_position(vec2d pos) {
+		RECT r;
+		POINT tl;
+		tl.x = tl.y = 0;
+		_details::winapi_check(GetWindowRect(_hwnd, &r));
+		_details::winapi_check(ClientToScreen(_hwnd, &tl));
+		tl.x -= r.left;
+		tl.y -= r.top;
+		_details::winapi_check(SetWindowPos(
+			_hwnd, nullptr, static_cast<int>(pos.x) - tl.x, static_cast<int>(pos.y) - tl.y, 0, 0, SWP_NOSIZE
+		));
+	}
+
+	vec2d window_impl::get_client_size() const {
+		RECT r;
+		_details::winapi_check(GetClientRect(_hwnd, &r));
+		return _physical_to_logical_position(vec2d(
+			static_cast<double>(r.right), static_cast<double>(r.bottom)
+		));
+	}
+
+	void window_impl::set_client_size(vec2d sz) {
+		sz = _logical_to_physical_position(sz);
+		RECT wndrgn, cln;
+		_details::winapi_check(GetWindowRect(_hwnd, &wndrgn));
+		_details::winapi_check(GetClientRect(_hwnd, &cln));
+		_details::winapi_check(SetWindowPos(
+			_hwnd, nullptr, 0, 0,
+			wndrgn.right - wndrgn.left - cln.right + static_cast<int>(std::round(sz.x)),
+			wndrgn.bottom - wndrgn.top - cln.bottom + static_cast<int>(std::round(sz.y)),
+			SWP_NOMOVE
+		));
+	}
+
+	void window_impl::prompt_ready() {
+		FLASHWINFO fwi;
+		std::memset(&fwi, 0, sizeof(fwi));
+		fwi.cbSize = sizeof(fwi);
+		fwi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
+		fwi.dwTimeout = 0;
+		fwi.hwnd = _hwnd;
+		fwi.uCount = 0;
+		FlashWindowEx(&fwi);
+	}
+
+	vec2d window_impl::screen_to_client(vec2d v) const {
+		POINT p;
+		p.x = static_cast<int>(std::round(v.x));
+		p.y = static_cast<int>(std::round(v.y));
+		_details::winapi_check(ScreenToClient(_hwnd, &p));
+		return _physical_to_logical_position(vec2d(
+			static_cast<double>(p.x), static_cast<double>(p.y)
+		));
+	}
+
+	vec2d window_impl::client_to_screen(vec2d v) const {
+		v = _logical_to_physical_position(v);
+		POINT p;
+		p.x = static_cast<int>(std::round(v.x));
+		p.y = static_cast<int>(std::round(v.y));
+		_details::winapi_check(ClientToScreen(_hwnd, &p));
+		return vec2d(static_cast<double>(p.x), static_cast<double>(p.y));
+	}
+
+	window_impl *window_impl::_get_associated_window_impl(HWND hwnd) {
 		if (hwnd) {
 			DWORD atom;
 			_details::winapi_check(atom = GetClassLong(hwnd, GCW_ATOM));
 			if (atom == _wndclass::get().atom) { // the correct class
-				return reinterpret_cast<window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+				return reinterpret_cast<window_impl*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 			}
 		}
 		return nullptr;
 	}
 
-	void window::_set_window_style_bit(bool v, LONG bit, int type) {
+	void window_impl::_set_window_style_bit(bool v, LONG bit, int type) {
 		LONG old = GetWindowLong(_hwnd, type);
 		SetWindowLong(_hwnd, type, v ? old | bit : old & ~bit);
 		_details::winapi_check(SetWindowPos(
@@ -425,7 +439,7 @@ namespace codepad::os {
 		));
 	}
 
-	void window::_setup_mouse_tracking() {
+	void window_impl::_setup_mouse_tracking() {
 		TRACKMOUSEEVENT tme;
 		std::memset(&tme, 0, sizeof(tme));
 		tme.cbSize = sizeof(tme);
@@ -435,24 +449,8 @@ namespace codepad::os {
 		_details::winapi_check(TrackMouseEvent(&tme));
 	}
 
-	void window::_initialize(std::u8string_view cls) {
-		SetWindowLongPtr(_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-		window_base::_initialize(cls);
 
-		// update cached dpi, because the WM_DPICHANGED message is not sent after creating the window
-		// FIXME this function only returns one value which we now use for both x and y
-		UINT dpi = GetDpiForWindow(_hwnd);
-		double scaling = dpi / static_cast<double>(USER_DEFAULT_SCREEN_DPI);
-		_cached_scaling = vec2d(scaling, scaling);
-	}
-
-	void window::_dispose() {
-		_details::winapi_check(DestroyWindow(_hwnd));
-		window_base::_dispose();
-	}
-
-
-	std::optional<std::wstring> window::_ime::_get_string(window &wnd, DWORD type) {
+	std::optional<std::wstring> window_impl::_ime::_get_string(window_impl &wnd, DWORD type) {
 		HIMC context = ImmGetContext(wnd._hwnd);
 		if (context) {
 			LONG buffersz = ImmGetCompositionString(context, type, nullptr, 0);
@@ -469,7 +467,7 @@ namespace codepad::os {
 		return std::nullopt;
 	}
 
-	void window::_ime::_update_caret_position(window &wnd) {
+	void window_impl::_ime::_update_caret_position(window_impl &wnd) {
 		recti scaled_caret = rectd::from_corners(
 			wnd._logical_to_physical_position(_caretrgn.xmin_ymin()),
 			wnd._logical_to_physical_position(_caretrgn.xmax_ymax())
@@ -504,7 +502,7 @@ namespace codepad::os {
 		}
 	}
 
-	void window::_ime::_end_composition(window &wnd, DWORD signal) {
+	void window_impl::_ime::_end_composition(window_impl &wnd, DWORD signal) {
 		if (_compositing) {
 			DestroyCaret();
 			HIMC context = ImmGetContext(wnd._hwnd);
@@ -516,13 +514,13 @@ namespace codepad::os {
 		}
 	}
 
-	window::_ime &window::_ime::get() {
+	window_impl::_ime &window_impl::_ime::get() {
 		static _ime object;
 		return object;
 	}
 
 
-	window::_wndclass::_wndclass() {
+	window_impl::_wndclass::_wndclass() {
 		WNDCLASSEX wcex;
 		memset(&wcex, 0, sizeof(wcex));
 		wcex.style = CS_HREDRAW | CS_VREDRAW;
@@ -534,8 +532,14 @@ namespace codepad::os {
 		_details::winapi_check(atom = RegisterClassEx(&wcex));
 	}
 
-	window::_wndclass &window::_wndclass::get() {
+	window_impl::_wndclass &window_impl::_wndclass::get() {
 		static _wndclass object;
 		return object;
+	}
+}
+
+namespace codepad::ui {
+	std::unique_ptr<_details::window_impl> window::_create_impl(window &wnd) {
+		return std::make_unique<os::window_impl>(wnd);
 	}
 }

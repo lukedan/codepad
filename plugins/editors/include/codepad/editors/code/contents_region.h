@@ -672,7 +672,7 @@ namespace codepad::editors::code {
 		///
 		/// \todo Maybe also take into account the width of the character.
 		void _update_window_caret_position() {
-			ui::window_base *wnd = get_window();
+			ui::window *wnd = get_window();
 			// when selecting with a mouse, it's possible that there are no carets in _cset at all
 			if (!_cset.carets.empty() && wnd != nullptr) {
 				auto entry = _cset.carets.begin();

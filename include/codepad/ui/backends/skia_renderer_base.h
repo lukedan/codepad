@@ -165,8 +165,8 @@ namespace codepad::ui::skia {
 			auto &rt = _details::cast_render_target(target);
 			_render_target_stackframe &stackframe = _render_stack.emplace(rt._surface->getCanvas(), rt._scale);
 		}
-		/// Starts drawing to the given \ref window_base and invokes \ref _start_drawing_to_window().
-		void begin_drawing(window_base &wnd) override {
+		/// Starts drawing to the given \ref window and invokes \ref _start_drawing_to_window().
+		void begin_drawing(window &wnd) override {
 			_render_stack.emplace(
 				_get_window_data_as<_window_data>(wnd).surface->getCanvas(), wnd.get_scaling_factor(), &wnd
 			);
@@ -181,7 +181,7 @@ namespace codepad::ui::skia {
 			_render_stack.pop();
 
 			if (!_render_stack.empty()) {
-				if (window_base *wnd = _render_stack.top().window) {
+				if (window *wnd = _render_stack.top().window) {
 					_start_drawing_to_window(*wnd);
 				}
 			}
@@ -354,14 +354,14 @@ namespace codepad::ui::skia {
 			// TODO
 		}
 	protected:
-		/// Skia data associated with a \ref window_base.
+		/// Skia data associated with a \ref window.
 		struct _window_data {
 			sk_sp<SkSurface> surface; ///< The Skia surface.
 		};
 		/// Stores information about a render target that's being rendered to.
 		struct _render_target_stackframe {
 			/// Initializes all struct members and invokes \ref update_matrix().
-			_render_target_stackframe(SkCanvas *c, vec2d scale, window_base *wnd = nullptr) :
+			_render_target_stackframe(SkCanvas *c, vec2d scale, window *wnd = nullptr) :
 				window(wnd), canvas(c),
 				scale_matrix(SkMatrix::MakeScale(
 					static_cast<SkScalar>(scale.x), static_cast<SkScalar>(scale.y)
@@ -371,7 +371,7 @@ namespace codepad::ui::skia {
 				update_matrix();
 			}
 
-			window_base *window = nullptr; ///< A window.
+			window *window = nullptr; ///< A window.
 			SkCanvas *canvas = nullptr; ///< The canvas to draw to.
 			/// The stack of matrices. Although \p SkCanvas has a \p save() function which saves its state,
 			/// unfortunately the two attributes (matrix and clip) are combined when saving, which makes it
@@ -410,8 +410,8 @@ namespace codepad::ui::skia {
 
 
 		/// Called to start drawing to a window in a platform-specific way.
-		virtual void _start_drawing_to_window(window_base&) = 0;
+		virtual void _start_drawing_to_window(window&) = 0;
 		/// Called to finalize drawing to a window in a platform-specific way.
-		virtual void _finish_drawing_to_window(window_base&) = 0;
+		virtual void _finish_drawing_to_window(window&) = 0;
 	};
 }

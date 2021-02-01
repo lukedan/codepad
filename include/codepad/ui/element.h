@@ -28,18 +28,18 @@ namespace codepad::ui {
 	class manager;
 	class scheduler;
 	struct task_token;
-	class window_base;
+	class window;
 	class element_collection;
 
 	/// Used to transform mouse position between the coordinate systems of a hierarchy of elements. This struct does
 	/// not take into account factors like hit testing, visibility, etc.
 	struct mouse_position {
-		friend window_base;
+		friend window;
 	public:
 		/// Returns the mouse position relative to the specified \ref element.
 		vec2d get(element&) const;
 	protected:
-		static window_base *_active_window; ///< The window that currently has valid mouse position data.
+		static window *_active_window; ///< The window that currently has valid mouse position data.
 		static std::size_t _global_timestamp; ///< The global timestamp of the latest mouse position.
 
 		/// Private constructor; only windows can create \ref mouse_position objects.
@@ -172,7 +172,7 @@ namespace codepad::ui {
 	class APIGEN_EXPORT_RECURSIVE APIGEN_EXPORT_BASE element {
 		APIGEN_ENABLE_PRIVATE_EXPORT;
 		friend element_collection;
-		friend window_base;
+		friend window;
 		friend manager;
 		friend scheduler;
 		friend panel;
@@ -293,7 +293,7 @@ namespace codepad::ui {
 
 		/// Returns the window that contains the element, or \p nullptr if the element's not currently attached to
 		/// one. For windows themselves, this function returns \p nullptr.
-		window_base *get_window() const;
+		window *get_window() const;
 		/// Returns the \ref manager of this element.
 		[[nodiscard]] manager &get_manager() const {
 			return *_manager;

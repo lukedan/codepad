@@ -104,7 +104,7 @@ namespace command_pack {
 	/// If the given argument is \p null, opens a file dialog to let the user choose one or more files. Otherwise,
 	/// attempts to parse a list of file names from the given arguments.
 	std::vector<std::filesystem::path> parse_file_list_or_show_dialog(
-		const cp::json::value_storage &args, const cp::ui::window_base *dialog_parent
+		const cp::json::value_storage &args, const cp::ui::window *dialog_parent
 	) {
 		if (args.get_value().is<cp::json::null_t>()) {
 			return cp::os::file_dialog::show_open_dialog(

@@ -27,12 +27,12 @@ namespace codepad::ui {
 	class element;
 	class element_collection;
 	class panel;
-	class window_base;
+	class window;
 
 	/// Schedules the updating and rendering of all elements. There should at most be one active object of this type
 	/// per thread.
 	class scheduler {
-		friend window_base;
+		friend window;
 		friend element_collection;
 	public:
 		constexpr static std::chrono::duration<double>

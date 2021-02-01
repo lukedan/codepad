@@ -290,7 +290,7 @@ namespace codepad::os::direct2d {
 		std::shared_ptr<ui::font_family> find_font_family(const std::u8string&) override;
 
 		/// Starts drawing to the given window.
-		void begin_drawing(ui::window_base&) override;
+		void begin_drawing(ui::window&) override;
 		/// Starts drawing to the given \ref render_target.
 		void begin_drawing(ui::render_target&) override;
 		/// Finishes drawing.
@@ -487,8 +487,8 @@ namespace codepad::os::direct2d {
 		);
 
 		/// Creates a corresponding \p ID2D1HwndRenderTarget.
-		void _new_window(ui::window_base&) override;
+		void _new_window(ui::window&) override;
 		/// Releases all resources.
-		void _delete_window(ui::window_base&) override;
+		void _delete_window(ui::window&) override;
 	};
 }

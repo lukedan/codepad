@@ -53,11 +53,11 @@ namespace codepad::ui {
 		}
 		performance_monitor mon(u8"render", render_time_redline);
 		// gather the list of windows to render
-		std::set<window_base*> ss;
+		std::set<window*> ss;
 		for (auto i : _dirty) {
-			window_base *wnd = i->get_window();
+			window *wnd = i->get_window();
 			if (!wnd) {
-				wnd = dynamic_cast<window_base*>(i);
+				wnd = dynamic_cast<window*>(i);
 			}
 			if (wnd) {
 				ss.insert(wnd);
@@ -231,7 +231,7 @@ namespace codepad::ui {
 		}
 
 		// release mouse capture if necessary
-		if (window_base *wnd = e.get_window()) {
+		if (window *wnd = e.get_window()) {
 			for (element *c = wnd->get_mouse_capture(); c; c = c->parent()) {
 				if (c == &e) { // yes, the captured element is a child of the removed element
 					element *capture = wnd->get_mouse_capture();

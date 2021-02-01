@@ -45,7 +45,7 @@ namespace codepad::ui::tabs {
 			);
 		}
 
-		/// Creates a new \ref tab in a \ref host in the last focused \ref window_base. If there are no windows,
+		/// Creates a new \ref tab in a \ref host in the last focused \ref window. If there are no windows,
 		/// a new one is created.
 		tab *new_tab();
 		/// Creates a new \ref tab in the given \ref host and returns it. If the given \ref host is
@@ -104,7 +104,7 @@ namespace codepad::ui::tabs {
 		info_event<tab_drag_update_info> drag_move_tab_button;
 	protected:
 		std::set<host*> _changed; ///< The set of \ref host "tab_hosts" whose children have changed.
-		std::list<window_base*> _wndlist; ///< The list of windows, ordered according to their z-indices.
+		std::list<window*> _wndlist; ///< The list of windows, ordered according to their z-indices.
 
 		// drag destination
 		tab *_drag = nullptr; ///< The \ref tab that's currently being dragged.
@@ -119,7 +119,7 @@ namespace codepad::ui::tabs {
 		info_event<mouse_button_info>::token _stop_drag_token; ///< Used to know when to stop dragging.
 		info_event<>::token _capture_lost_token; ///< Used to listen to capture lost events and stop dragging.
 		// drag ui
-		window_base *_drag_tab_window = nullptr; ///< The window used to display the tab that's being dragged.
+		window *_drag_tab_window = nullptr; ///< The window used to display the tab that's being dragged.
 		drag_destination_selector *_drag_dest_selector = nullptr; ///< The \ref drag_destination_selector.
 		// drag parameters
 		/// The offset from the top left corner of the \ref tab_button to the mouse cursor.
@@ -132,10 +132,10 @@ namespace codepad::ui::tabs {
 
 
 		/// Creates a new window and registers necessary event handlers.
-		window_base *_new_window();
+		window *_new_window();
 		/// Deletes the given window managed by this \ref tab_manager. Use this instead of directly calling
 		/// \ref scheduler::mark_for_disposal().
-		void _delete_window(window_base&);
+		void _delete_window(window&);
 		/// Creates a new \ref tab instance not attached to any \ref host. Use this instead of
 		/// \ref ui::manager::create_element<tab>() so that the \ref tab is correctly registered to this manager.
 		tab *_new_detached_tab() {
@@ -182,7 +182,7 @@ namespace codepad::ui::tabs {
 		///
 		/// \param base The window.
 		/// \param cb A callable object. It can either return \p void, or a \p bool indicating whether to continue.
-		template <typename T> inline static void _enumerate_hosts(window_base *base, T &&cb) {
+		template <typename T> inline static void _enumerate_hosts(window *base, T &&cb) {
 			assert_true_logical(base->children().size() == 1, "window must have only one child");
 			std::vector<element*> hsts;
 			hsts.push_back(*base->children().items().begin());

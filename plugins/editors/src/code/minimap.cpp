@@ -79,7 +79,7 @@ namespace codepad::editors::code {
 	}
 
 	void minimap::_page_cache::_render_page(std::size_t s, std::size_t pe) {
-		ui::window_base *wnd = _parent->get_window();
+		ui::window *wnd = _parent->get_window();
 		if (wnd == nullptr) { // we need the scale factor from the window
 			return;
 		}

@@ -23,7 +23,7 @@
 namespace codepad::ui {
 	/// This manages various UI-related registries and resources, acting as the core of all UI code.
 	class APIGEN_EXPORT_RECURSIVE manager {
-		friend class window_base;
+		friend class window;
 	public:
 		/// Wrapper of an \ref element's constructor. The element's constructor takes a string that indicates the
 		/// element's class.

@@ -16,7 +16,7 @@ namespace codepad::os {
 		}
 
 		/// Pushes the new context onto the stack, using \ref window::_cairo_context.
-		void begin_drawing(ui::window_base &wnd) override {
+		void begin_drawing(ui::window &wnd) override {
 			auto *context = _get_window_data_as<_window_data>(wnd).context.get();
 			assert_true_usage(context != nullptr, "manually beginning drawing to windows is not allowed");
 			_render_stack.emplace(context, &wnd);

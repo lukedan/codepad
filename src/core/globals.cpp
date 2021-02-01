@@ -19,7 +19,7 @@
 
 namespace codepad {
 	// TODO probably put these into ui::manager as well
-	ui::window_base *ui::mouse_position::_active_window = nullptr;
+	ui::window *ui::mouse_position::_active_window = nullptr;
 	// this is set to 1 so that no window thinks it has up-to-date mouse position initially
 	std::size_t ui::mouse_position::_global_timestamp = 1;
 

@@ -13,7 +13,7 @@
 #include "../ui/misc.h"
 
 namespace codepad::ui {
-	class window_base;
+	class window;
 }
 
 namespace codepad::os {
@@ -32,7 +32,7 @@ namespace codepad::os {
 		/// Shows an open file dialog that asks the user to select one or multiple files.
 		///
 		/// \return The list of files that the user selects, or empty if the user cancels the operation.
-		[[nodiscard]] static std::vector<std::filesystem::path> show_open_dialog(const ui::window_base*, type);
+		[[nodiscard]] static std::vector<std::filesystem::path> show_open_dialog(const ui::window*, type);
 	};
 
 	/// Contains functions associated with clipboards.

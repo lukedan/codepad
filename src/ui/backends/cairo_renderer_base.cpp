@@ -296,7 +296,7 @@ namespace codepad::ui::cairo {
 	}
 
 	_details::gtk_object_ref<cairo_surface_t> renderer_base::_create_similar_surface(
-		window_base &wnd, int width, int height
+		window &wnd, int width, int height
 	) {
 		return _details::make_gtk_object_ref_give(cairo_surface_create_similar(
 			_get_window_data_as<_window_data>(wnd).get_surface(), CAIRO_CONTENT_COLOR_ALPHA, width, height

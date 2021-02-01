@@ -14,7 +14,7 @@ namespace codepad::ui {
 	}
 
 	void drag_deadzone::start(const mouse_position &mouse, element &parent) {
-		if (window_base *wnd = parent.get_window()) { // start only if the element's in a window
+		if (window *wnd = parent.get_window()) { // start only if the element's in a window
 			wnd->set_mouse_capture(parent);
 			_start = mouse.get(*wnd);
 			_deadzone = true;
@@ -22,7 +22,7 @@ namespace codepad::ui {
 	}
 
 	bool drag_deadzone::update(const mouse_position &mouse, element &parent) {
-		if (window_base *wnd = parent.get_window()) {
+		if (window *wnd = parent.get_window()) {
 			double sqrdiff = (mouse.get(*wnd) - _start).length_sqr();
 			if (sqrdiff > radius * radius) { // start dragging
 				wnd->release_mouse_capture();
@@ -35,7 +35,7 @@ namespace codepad::ui {
 
 	void drag_deadzone::on_cancel(element &parent) {
 		assert_true_logical(_deadzone, "please caret check is_active() before calling on_cancel()");
-		if (window_base *wnd = parent.get_window()) {
+		if (window *wnd = parent.get_window()) {
 			if (wnd->get_mouse_capture()) {
 				wnd->release_mouse_capture();
 			}

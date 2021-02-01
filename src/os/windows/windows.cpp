@@ -50,21 +50,15 @@ namespace codepad::os {
 #define CP_USE_LEGACY_OPEN_FILE_DIALOG // new open file dialog doesn't work right now
 
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
-	std::vector<std::filesystem::path> file_dialog::show_open_dialog(const ui::window_base *parent, type type) {
+	std::vector<std::filesystem::path> file_dialog::show_open_dialog(const ui::window *parent, type type) {
 		const std::size_t file_buffer_size = 1000;
 
-#	ifdef CP_CHECK_LOGICAL_ERRORS
-		auto *wnd = dynamic_cast<const window*>(parent);
-		assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
-#	else
-		const window *wnd = static_cast<const window*>(parent);
-#	endif
 		OPENFILENAME ofn;
 		TCHAR file[file_buffer_size];
 
 		memset(&ofn, 0, sizeof(ofn));
 		ofn.lStructSize = sizeof(ofn);
-		ofn.hwndOwner = wnd ? wnd->get_native_handle() : nullptr;
+		ofn.hwndOwner = parent ? _details::cast_window_impl(parent->get_impl()).get_native_handle() : nullptr;
 		ofn.lpstrFile = file;
 		ofn.lpstrFile[0] = '\0';
 		ofn.nMaxFile = file_buffer_size;
@@ -170,7 +164,7 @@ namespace codepad::os {
 		_details::com_check(pDialogEventHandler->QueryInterface(riid, ppv));
 		pDialogEventHandler->Release();
 	}
-	vector<filesystem::path> open_file_dialog(const window_base *parent, file_dialog_type type) {
+	vector<filesystem::path> open_file_dialog(const window *parent, file_dialog_type type) {
 		const COMDLG_FILTERSPEC file_types = { L"All files", L"*.*" };
 
 #	ifdef CP_CHECK_LOGICAL_ERRORS
@@ -405,7 +399,7 @@ namespace codepad::ui {
 			}
 
 			if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) { // handle hotkeys
-				auto *form = os::window::_get_associated_window(msg.hwnd);
+				auto *form = os::window_impl::_get_associated_window_impl(msg.hwnd);
 				if (form && _hotkeys.on_key_down(key_gesture(
 					os::_details::key_id_mapping_t::backward.value[msg.wParam], os::_details::get_modifiers()
 				))) {

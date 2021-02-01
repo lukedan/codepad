@@ -3,6 +3,9 @@
 
 #pragma once
 
+/// \file
+/// Implementation of \ref codepad::ui::_details::window_impl on windows.
+
 #include <cstring>
 
 #include <Windows.h>
@@ -16,40 +19,54 @@
 #include "misc.h"
 
 namespace codepad::os {
-	class window : public ui::window_base {
-		friend ui::element;
+	/// Implementation of windows using WinAPI.
+	class window_impl : public ui::_details::window_impl {
 		friend ui::scheduler;
 	public:
-		using native_handle_t = HWND;
+		using native_handle_t = HWND; ///< Native handle.
 
-		explicit window(window *parent = nullptr) : window(u8"Codepad", parent) {
-		}
-		explicit window(const std::u8string &clsname, window *parent = nullptr);
+		/// Creates a new window.
+		window_impl(ui::window&);
+		/// Calls \p DestroyWindow().
+		~window_impl();
 
+		/// Sets the parent of this window using 
+		void set_parent(ui::window *wnd) override;
+
+		/// Sets the caption of this window using \p SetWindowText().
 		void set_caption(const std::u8string &cap) override;
+
+		/// Returns the result of \p ClientToScreen(0, 0).
 		vec2d get_position() const override;
-		void set_position(vec2d pos) override;
+		/// Finds the offset of the client area using \p GetWindowRect() and \p ClientToScreen(), then sets the
+		/// position using \p SetWindowPos().
+		void set_position(vec2d) override;
+		/// Returns the result of \p GetClientRect() scaled by \ref _physical_to_logical_position().
 		vec2d get_client_size() const override;
-		void set_client_size(vec2d sz) override;
+		/// Retrieves the offset of the client area using \p GetWindowRect() and \p ClientToScreen(), then sets the
+		/// size of the client area using \p SetWindowPos(), without altering the position of the top-left corner of
+		/// the window's client area on screen.
+		void set_client_size(vec2d) override;
 		/// Returns the cached scaling factor, i.e., \ref _cached_scaling.
 		vec2d get_scaling_factor() const override {
 			return _cached_scaling;
 		}
 
+		/// Activates this window by calling \p SetWindowPos() with \p HWND_TOP.
 		void activate() override {
 			_details::winapi_check(SetWindowPos(_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
 		}
 		void prompt_ready() override;
 
-		/// Calls \p ShowWindow() to show the window.
+		/// Calls \p ShowWindow() with \p SW_SHOWNA to show the window.
 		void show() override {
 			ShowWindow(_hwnd, SW_SHOWNA);
 		}
-		/// Calls \p ShowWindow() to show and activate the window.
+		/// Calls \p ShowWindow() with \p SW_SHOWNORMAL to show and activate the window.
 		void show_and_activate() override {
 			ShowWindow(_hwnd, SW_SHOWNORMAL);
 		}
-		/// Calls \p ShowWindow() to hide the window.
+		/// Calls \p ShowWindow() with \p SW_HIDE to hide the window.
 		void hide() override {
 			ShowWindow(_hwnd, SW_HIDE);
 		}
@@ -59,45 +76,42 @@ namespace codepad::os {
 			_details::winapi_check(InvalidateRect(_hwnd, nullptr, false));
 		}
 
+		/// Calls \ref _set_window_style_bit() to set the \p WS_MAXIMIZE bit.
 		void set_display_maximize_button(bool disp) override {
 			_set_window_style_bit(disp, WS_MAXIMIZE, GWL_STYLE);
 		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_MINIMIZE bit.
 		void set_display_minimize_button(bool disp) override {
 			_set_window_style_bit(disp, WS_MINIMIZE, GWL_STYLE);
 		}
+		/// Calls \ref _set_window_style_bit() to set the <tt>WS_CAPTION ^ WS_BORDER</tt> bit.
 		void set_display_caption_bar(bool disp) override {
 			_set_window_style_bit(disp, WS_CAPTION ^ WS_BORDER, GWL_STYLE);
 		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_BORDER bit.
 		void set_display_border(bool disp) override {
 			_set_window_style_bit(disp, WS_BORDER, GWL_STYLE);
 		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_THICKFRAME bit.
 		void set_sizable(bool size) override {
 			_set_window_style_bit(size, WS_THICKFRAME, GWL_STYLE);
 		}
+
 		/// Calls \p SetWindowPos() to set whether this window is above other normal windows.
 		void set_topmost(bool topmost) override {
 			_details::winapi_check(SetWindowPos(
 				_hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
 			));
 		}
-		/// Calls \ref _set_window_style_bit() to set whether this window has a taskbar icon.
+		/// Calls \ref _set_window_style_bit() to set the \p WS_EX_TOOLWINDOW bit.
 		void set_show_icon(bool show) override {
 			_set_window_style_bit(!show, WS_EX_TOOLWINDOW, GWL_EXSTYLE);
 		}
 
-		bool hit_test_full_client(vec2d) const override;
-
+		/// Converts client positions in logical pixels to screen coordinates using \p ScreenToClient().
 		vec2d screen_to_client(vec2d) const override;
+		/// Converts screen coordinates to client positions in logical pixels using \p ClientToScreen().
 		vec2d client_to_screen(vec2d) const override;
-
-		void set_mouse_capture(ui::element &elem) override {
-			window_base::set_mouse_capture(elem);
-			SetCapture(_hwnd);
-		}
-		void release_mouse_capture() override {
-			window_base::release_mouse_capture();
-			_details::winapi_check(ReleaseCapture());
-		}
 
 		void set_active_caret_position(rectd pos) override {
 			_ime::get().set_caret_region(*this, pos);
@@ -106,41 +120,47 @@ namespace codepad::os {
 			_ime::get().cancel_composition(*this);
 		}
 
-		native_handle_t get_native_handle() const {
-			return _hwnd;
+		/// Calls \p SetCapture().
+		void set_mouse_capture() override {
+			SetCapture(_hwnd);
+		}
+		/// Calls \p ReleaseCapture().
+		void release_mouse_capture() override {
+			_details::winapi_check(ReleaseCapture());
 		}
 
-		inline static std::u8string_view get_default_class() {
-			return u8"window";
+		/// Returns the \p HWND of this window.
+		native_handle_t get_native_handle() const {
+			return _hwnd;
 		}
 	protected:
 		/// Singleton struct for handling IME events. Largely based on the implementation of chromium.
 		struct _ime {
 		public:
-			void start_composition(window &wnd) {
+			void start_composition(window_impl &wnd) {
 				_compositing = true;
 				_update_caret_position(wnd);
 			}
-			void update_composition(window &wnd) {
+			void update_composition(window_impl &wnd) {
 				_update_caret_position(wnd);
 			}
-			std::optional<std::wstring> get_composition_string(window &wnd, LPARAM lparam) {
+			std::optional<std::wstring> get_composition_string(window_impl &wnd, LPARAM lparam) {
 				if (lparam & GCS_COMPSTR) {
 					// TODO caret and underline
 					return _get_string(wnd, GCS_COMPSTR);
 				}
 				return std::nullopt;
 			}
-			std::optional<std::wstring> get_result(window &wnd, LPARAM lparam) {
+			std::optional<std::wstring> get_result(window_impl &wnd, LPARAM lparam) {
 				if (lparam & GCS_RESULTSTR) {
 					return _get_string(wnd, GCS_RESULTSTR);
 				}
 				return std::nullopt;
 			}
-			void cancel_composition(window &wnd) {
+			void cancel_composition(window_impl &wnd) {
 				_end_composition(wnd, CPS_CANCEL);
 			}
-			void complete_composition(window &wnd) {
+			void complete_composition(window_impl &wnd) {
 				_end_composition(wnd, CPS_COMPLETE);
 			}
 
@@ -148,7 +168,7 @@ namespace codepad::os {
 				_lang = LOWORD(GetKeyboardLayout(0));
 			}
 
-			void set_caret_region(window &wnd, rectd rgn) {
+			void set_caret_region(window_impl &wnd, rectd rgn) {
 				_caretrgn = rgn;
 				_update_caret_position(wnd);
 			}
@@ -159,28 +179,37 @@ namespace codepad::os {
 			LANGID _lang = LANG_USER_DEFAULT;
 			bool _compositing = false;
 
-			std::optional<std::wstring> _get_string(window&, DWORD type);
-			void _update_caret_position(window&);
-			void _end_composition(window&, DWORD signal);
+			std::optional<std::wstring> _get_string(window_impl&, DWORD type);
+			void _update_caret_position(window_impl&);
+			void _end_composition(window_impl&, DWORD signal);
 		};
 
+		/// The window procedure.
 		static LRESULT CALLBACK _wndproc(HWND, UINT, WPARAM, LPARAM);
-
+		
 		/// Checks if the given window is managed by codepad and if so, retrieves a pointer to the corresponding
-		/// \ref window. If it's not, returns \p nullptr.
-		static window *_get_associated_window(HWND);
+		/// \ref window_impl. If it's not, returns \p nullptr.
+		static window_impl *_get_associated_window_impl(HWND);
 
 		vec2d _cached_scaling{1.0, 1.0}; ///< The cached scaling factor.
 		HWND _hwnd; ///< The handle of this window.
 
+		/// Contains the window class used by all windows.
 		struct _wndclass {
+			/// Registers the window class by calling \p RegisterClassEx().
 			_wndclass();
+			/// No copy/move construction.
+			_wndclass(const _wndclass&) = delete;
+			/// No copy/move assignment.
+			_wndclass &operator=(const _wndclass&) = delete;
+			/// Unregisters this class using \p UnregisterClass().
 			~_wndclass() {
 				_details::winapi_check(UnregisterClass(reinterpret_cast<LPCTSTR>(atom), GetModuleHandle(nullptr)));
 			}
 
-			ATOM atom;
+			ATOM atom; ///< The atom for the window class.
 
+			/// Returns the global \ref _wndclass object.
 			static _wndclass &get();
 		};
 
@@ -196,28 +225,15 @@ namespace codepad::os {
 		/// Sets the specified bites to the given value by calling \p SetWindowLong().
 		void _set_window_style_bit(bool v, LONG bit, int type);
 
+		/// Calls \p TrackMouseEvent() so that the window receives hover and mouse leave events.
 		void _setup_mouse_tracking();
-
-		void _on_mouse_enter() override {
-			_setup_mouse_tracking();
-			window_base::_on_mouse_enter();
-		}
-
-		/// Updates \ref _cached_scaling before calling the function in the base class.
-		void _on_scaling_factor_changed(scaling_factor_changed_info &p) override {
-			_cached_scaling = p.new_value;
-			window_base::_on_scaling_factor_changed(p);
-		}
-
-		void _initialize(std::u8string_view cls) override;
-		void _dispose() override;
 	};
 
 	namespace _details {
-		/// Casts a \ref ui::window_base to a \ref window.
-		inline window &cast_window(ui::window_base &w) {
-			auto *wnd = dynamic_cast<window*>(&w);
-			assert_true_usage(wnd, "invalid window type");
+		/// Casts a \ref ui::window_impl to a \ref window_impl.
+		[[nodiscard]] inline window_impl &cast_window_impl(ui::_details::window_impl &w) {
+			auto *wnd = dynamic_cast<window_impl*>(&w);
+			assert_true_usage(wnd, "invalid window_impl type");
 			return *wnd;
 		}
 	}

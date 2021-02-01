@@ -38,7 +38,7 @@ namespace codepad::ui {
 		register_element_type<scroll_view>();
 		register_element_type<text_edit>();
 		register_element_type<textbox>();
-		register_element_type<os::window>();
+		register_element_type<window>();
 
 		register_element_type<tabs::split_panel>();
 		register_element_type<tabs::tab_button>();

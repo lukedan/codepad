@@ -21,7 +21,7 @@ namespace codepad::ui::tabs {
 	tab *tab_manager::new_tab_in(host *host) {
 		if (!host) {
 			host = _new_tab_host();
-			window_base *w = _new_window();
+			window *w = _new_window();
 			w->children().add(*host);
 			w->show_and_activate();
 		}
@@ -33,7 +33,7 @@ namespace codepad::ui::tabs {
 	void tab_manager::move_tab_to_new_window(tab &t) {
 		rectd tglayout = t.get_layout();
 		host *hst = t.get_host();
-		window_base *wnd = t.get_window();
+		window *wnd = t.get_window();
 		if (hst != nullptr && wnd != nullptr) {
 			vec2d windowpos = wnd->client_to_screen(hst->get_layout().xmin_ymin());
 			tglayout = rectd::from_corner_and_size(windowpos, tglayout.size());
@@ -68,10 +68,10 @@ namespace codepad::ui::tabs {
 								}
 							} else {
 #ifdef CP_CHECK_LOGICAL_ERRORS
-								auto f = dynamic_cast<window_base*>(father->parent());
+								auto f = dynamic_cast<window*>(father->parent());
 								assert_true_logical(f != nullptr, "parent of parent must be a window or a split panel");
 #else
-								auto f = static_cast<window_base*>(father->parent());
+								auto f = static_cast<window*>(father->parent());
 #endif
 								f->children().remove(*father);
 								f->children().add(*other);
@@ -92,7 +92,7 @@ namespace codepad::ui::tabs {
 	void tab_manager::start_dragging_tab(tab &t, vec2d diff, rectd layout) {
 		assert_true_usage(_drag == nullptr, "a tab is currently being dragged");
 
-		_drag_tab_window = dynamic_cast<window_base*>(_manager.create_element(
+		_drag_tab_window = dynamic_cast<window*>(_manager.create_element(
 			u8"window", u8"tabs.drag_ghost_window"
 		));
 		assert_true_logical(_drag_tab_window, "failed to create transparent window for dragging");
@@ -131,8 +131,8 @@ namespace codepad::ui::tabs {
 		}
 	}
 
-	window_base *tab_manager::_new_window() {
-		window_base *wnd = _manager.create_element<os::window>();
+	window *tab_manager::_new_window() {
+		window *wnd = _manager.create_element<window>();
 		_wndlist.emplace_front(wnd);
 		wnd->got_window_focus += [this, wnd]() {
 			// there can't be too many windows... right?
@@ -163,7 +163,7 @@ namespace codepad::ui::tabs {
 		return wnd;
 	}
 
-	void tab_manager::_delete_window(window_base &wnd) {
+	void tab_manager::_delete_window(window &wnd) {
 		for (auto it = _wndlist.begin(); it != _wndlist.end(); ++it) {
 			if (*it == &wnd) {
 				_wndlist.erase(it);
@@ -195,7 +195,7 @@ namespace codepad::ui::tabs {
 				f->set_child2(sp);
 			}
 		} else {
-			auto *w = dynamic_cast<window_base*>(hst.parent());
+			auto *w = dynamic_cast<window*>(hst.parent());
 			assert_true_logical(w != nullptr, "root element must be a window");
 			w->children().remove(hst);
 			w->children().add(*sp);
@@ -225,7 +225,7 @@ namespace codepad::ui::tabs {
 		if (hst != nullptr) {
 			hst->remove_tab(t);
 		}
-		window_base *wnd = _new_window();
+		window *wnd = _new_window();
 		wnd->set_client_size(layout.size());
 		wnd->set_position(layout.xmin_ymin());
 		host *nhst = _new_tab_host();
@@ -251,7 +251,7 @@ namespace codepad::ui::tabs {
 		vec2d mouse = p.new_position.get(region);
 		// TODO this way of testing if the mouse is still inside is not reliable
 		if (!rectd::from_corners(vec2d(), region.get_layout().size()).contains(mouse)) {
-			window_base *wnd = _drag->get_window();
+			window *wnd = _drag->get_window();
 			vec2d button_topleft_screen = wnd->client_to_screen(p.new_position.get(*wnd) - _drag_offset);
 			_exit_dragging_in_host();
 			_drag_destination->remove_tab(*_drag);
@@ -278,7 +278,7 @@ namespace codepad::ui::tabs {
 	void tab_manager::_update_dragging_free(mouse_move_info &p) {
 		// find the tab host that the mouse is currently over
 		host *target = nullptr;
-		for (window_base *wnd : _wndlist) {
+		for (window *wnd : _wndlist) {
 			if (wnd->hit_test(p.new_position.get(*wnd))) { // hit
 				_enumerate_hosts(
 					wnd, [&p, &target](host &hst) {

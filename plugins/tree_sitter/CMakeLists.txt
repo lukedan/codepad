@@ -11,6 +11,9 @@ target_sources(tree_sitter
 		"include/codepad/tree_sitter/wrappers.h"
 	PRIVATE
 		"tree-sitter/lib/src/lib.c"
+
+		"src/highlight_iterator.cpp"
+		"src/highlight_layer_iterator.cpp"
 		"src/interpretation_interface.cpp"
 		"src/language_configuration.cpp"
 		"src/main.cpp"

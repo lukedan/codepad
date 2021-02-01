@@ -17,7 +17,7 @@ namespace codepad::ui {
 		if (e._cached_mouse_position_timestamp != _global_timestamp) {
 			vec2d fresh_pos;
 			if (e.parent() == nullptr) {
-				window_base *wnd = dynamic_cast<window_base*>(&e);
+				window *wnd = dynamic_cast<window*>(&e);
 				assert_true_usage(wnd, "cannot get mouse position for isolated element");
 				assert_true_logical(
 					_active_window && _active_window != wnd,
@@ -72,13 +72,13 @@ namespace codepad::ui {
 		}
 	}
 
-	window_base *element::get_window() const {
+	window *element::get_window() const {
 		element *cur = parent();
 		if (cur) {
 			while (cur->parent() != nullptr) {
 				cur = cur->parent();
 			}
-			return dynamic_cast<window_base*>(cur);
+			return dynamic_cast<window*>(cur);
 		}
 		return nullptr;
 	}

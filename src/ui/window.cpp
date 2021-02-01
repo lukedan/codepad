@@ -4,14 +4,14 @@
 #include "codepad/ui/window.h"
 
 /// \file
-/// Implementation of certain functions of \ref codepad::ui::window_base.
+/// Implementation of certain functions of \ref codepad::ui::window.
 
 #include <vector>
 
 #include "codepad/ui/manager.h"
 
 namespace codepad::ui {
-	void window_base::set_mouse_capture(element &elem) {
+	void window::set_mouse_capture(element &elem) {
 		logger::get().log_debug(CP_HERE) <<
 			"set mouse capture 0x" << &elem << " <" << demangle(typeid(elem).name()) << ">";
 		assert_true_usage(_capture == nullptr, "mouse already captured");
@@ -44,16 +44,18 @@ namespace codepad::ui {
 			}
 			_capture->_on_mouse_enter();
 		}
+		// finally, notify the system
+		_impl->set_mouse_capture();
 	}
 
-	[[nodiscard]] cursor window_base::get_current_display_cursor() const {
+	[[nodiscard]] cursor window::get_current_display_cursor() const {
 		if (_capture) {
 			return _capture->get_current_display_cursor();
 		}
 		return panel::get_current_display_cursor();
 	}
 
-	mouse_position window_base::_update_mouse_position(vec2d pos) {
+	mouse_position window::_update_mouse_position(vec2d pos) {
 		mouse_position::_active_window = this;
 		++mouse_position::_global_timestamp;
 		_cached_mouse_position = get_visual_parameters().transform.inverse_transform_point(
@@ -63,41 +65,43 @@ namespace codepad::ui {
 		return mouse_position();
 	}
 
-	void window_base::_on_prerender() {
+	void window::_on_prerender() {
 		get_manager().get_renderer().begin_drawing(*this);
 		get_manager().get_renderer().clear(colord(0.0, 0.0, 0.0, 0.0));
 		panel::_on_prerender();
 	}
 
-	void window_base::_on_postrender() {
+	void window::_on_postrender() {
 		panel::_on_postrender();
 		get_manager().get_renderer().end_drawing();
 	}
 
-	void window_base::_initialize(std::u8string_view cls) {
+	void window::_initialize(std::u8string_view cls) {
+		_impl = _create_impl(*this);
+
 		panel::_initialize(cls);
 		_is_focus_scope = true;
 		get_manager().get_renderer()._new_window(*this);
 	}
 
-	void window_base::_dispose() {
+	void window::_dispose() {
 		// here we call _on_removing_element to ensure that the focus has been properly updated
 		get_manager().get_scheduler()._on_removing_element(*this);
 		get_manager().get_renderer()._delete_window(*this);
 		panel::_dispose();
 	}
 
-	void window_base::_on_size_changed(size_changed_info &p) {
+	void window::_on_size_changed(size_changed_info &p) {
 		get_manager().get_scheduler().notify_layout_change(*this);
 		size_changed(p);
 	}
 
-	void window_base::_on_scaling_factor_changed(scaling_factor_changed_info &p) {
+	void window::_on_scaling_factor_changed(scaling_factor_changed_info &p) {
 		invalidate_visual();
 		scaling_factor_changed(p);
 	}
 
-	void window_base::_on_key_down(key_info &p) {
+	void window::_on_key_down(key_info &p) {
 		element *focus = get_manager().get_scheduler().get_focused_element();
 		if (focus && focus != this) {
 			focus->_on_key_down(p);
@@ -106,7 +110,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_key_up(key_info &p) {
+	void window::_on_key_up(key_info &p) {
 		element *focus = get_manager().get_scheduler().get_focused_element();
 		if (focus && focus != this) {
 			focus->_on_key_up(p);
@@ -115,7 +119,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_keyboard_text(text_info &p) {
+	void window::_on_keyboard_text(text_info &p) {
 		element *focus = get_manager().get_scheduler().get_focused_element();
 		if (focus && focus != this) {
 			focus->_on_keyboard_text(p);
@@ -124,7 +128,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_composition(composition_info &p) {
+	void window::_on_composition(composition_info &p) {
 		element *focus = get_manager().get_scheduler().get_focused_element();
 		if (focus && focus != this) {
 			focus->_on_composition(p);
@@ -133,7 +137,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_composition_finished() {
+	void window::_on_composition_finished() {
 		element *focus = get_manager().get_scheduler().get_focused_element();
 		if (focus && focus != this) {
 			focus->_on_composition_finished();
@@ -142,14 +146,14 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_lost_window_capture() {
+	void window::_on_lost_window_capture() {
 		if (_capture != nullptr) {
 			_capture->_on_capture_lost();
 			_capture = nullptr;
 		}
 	}
 
-	void window_base::_on_mouse_enter() {
+	void window::_on_mouse_enter() {
 		if (_capture != nullptr) { // TODO technically this won't happen as the window has already captured the mouse
 			_capture->_on_mouse_enter();
 			element::_on_mouse_enter();
@@ -158,7 +162,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_mouse_leave() {
+	void window::_on_mouse_leave() {
 		if (_capture != nullptr) { // TODO technically this won't happen
 			_capture->_on_mouse_leave();
 			element::_on_mouse_leave();
@@ -167,7 +171,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_mouse_move(mouse_move_info &p) {
+	void window::_on_mouse_move(mouse_move_info &p) {
 		if (_capture != nullptr) {
 			_capture->_on_mouse_move(p);
 			element::_on_mouse_move(p);
@@ -176,7 +180,7 @@ namespace codepad::ui {
 		}
 	}
 	
-	void window_base::_on_mouse_down(mouse_button_info &p) {
+	void window::_on_mouse_down(mouse_button_info &p) {
 		if (_capture != nullptr) {
 			_capture->_on_mouse_down(p);
 			mouse_down(p);
@@ -185,7 +189,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_mouse_up(mouse_button_info &p) {
+	void window::_on_mouse_up(mouse_button_info &p) {
 		if (_capture != nullptr) {
 			_capture->_on_mouse_up(p);
 			element::_on_mouse_up(p);
@@ -194,7 +198,7 @@ namespace codepad::ui {
 		}
 	}
 
-	void window_base::_on_mouse_scroll(mouse_scroll_info &p) {
+	void window::_on_mouse_scroll(mouse_scroll_info &p) {
 		if (_capture != nullptr) {
 			for (element *e = _capture; e != this; e = e->parent()) {
 				assert_true_logical(e, "corrupted element tree");

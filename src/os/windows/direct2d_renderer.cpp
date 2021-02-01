@@ -607,11 +607,15 @@ namespace codepad::os::direct2d {
 			D3D_FEATURE_LEVEL_9_1
 		};
 		D3D_FEATURE_LEVEL created_feature_level;
+		UINT create_flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+#ifndef NDEBUG
+		create_flags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 		_details::com_check(D3D11CreateDevice(
 			nullptr,
 			D3D_DRIVER_TYPE_HARDWARE,
 			nullptr,
-			D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG,
+			create_flags,
 			supported_feature_levels,
 			ARRAYSIZE(supported_feature_levels),
 			D3D11_SDK_VERSION,
@@ -714,7 +718,7 @@ namespace codepad::os::direct2d {
 		return res;
 	}
 
-	void renderer::begin_drawing(ui::window_base &w) {
+	void renderer::begin_drawing(ui::window &w) {
 		auto &data = _get_window_data_as<_window_data>(w);
 		_begin_draw_impl(data.target.get(), w.get_scaling_factor() * USER_DEFAULT_SCREEN_DPI);
 		_present_chains.emplace(data.swap_chain.get());
@@ -1367,8 +1371,8 @@ namespace codepad::os::direct2d {
 		return bitmap;
 	}
 
-	void renderer::_new_window(ui::window_base &w) {
-		window &wnd = _details::cast_window(w);
+	void renderer::_new_window(ui::window &wnd) {
+		window_impl &wnd_impl = _details::cast_window_impl(wnd.get_impl());
 		std::any &data = _get_window_data(wnd);
 		_window_data actual_data;
 
@@ -1387,7 +1391,7 @@ namespace codepad::os::direct2d {
 		swapchain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 		swapchain_desc.Flags = 0;
 		_details::com_check(_get_dxgi_factory()->CreateSwapChainForHwnd(
-			_d3d_device.get(), wnd.get_native_handle(), &swapchain_desc,
+			_d3d_device.get(), wnd_impl.get_native_handle(), &swapchain_desc,
 			nullptr, nullptr, actual_data.swap_chain.get_ref()
 		));
 		// set data
@@ -1396,7 +1400,7 @@ namespace codepad::os::direct2d {
 		);
 		data.emplace<_window_data>(actual_data);
 		// resize buffer when the window size has changed
-		wnd.size_changed += [this, pwnd = &wnd](ui::window_base::size_changed_info&) {
+		wnd.size_changed += [this, pwnd = &wnd](ui::window::size_changed_info&) {
 			auto &data = _get_window_data_as<_window_data>(*pwnd);
 			data.target.reset(); // must release bitmap before resizing
 			_details::com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
@@ -1404,7 +1408,7 @@ namespace codepad::os::direct2d {
 			data.target = _create_bitmap_from_swap_chain(data.swap_chain.get(), pwnd->get_scaling_factor());
 		};
 		// reallocate buffer when the window scaling has changed
-		wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window_base::scaling_factor_changed_info &p) {
+		wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window::scaling_factor_changed_info &p) {
 			auto &data = _get_window_data_as<_window_data>(*pwnd);
 			data.target.reset(); // must release bitmap before resizing
 			_details::com_check(data.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
@@ -1413,7 +1417,7 @@ namespace codepad::os::direct2d {
 		};
 	}
 
-	void renderer::_delete_window(ui::window_base &w) {
+	void renderer::_delete_window(ui::window &w) {
 		_get_window_data(w).reset();
 	}
 }

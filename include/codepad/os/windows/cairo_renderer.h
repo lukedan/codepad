@@ -65,7 +65,7 @@ namespace codepad::os {
 		}
 
 		/// Pushes the window and its context onto the stack.
-		void begin_drawing(ui::window_base &w) override {
+		void begin_drawing(ui::window &w) override {
 			auto &data = _get_window_data_as<_window_data>(w);
 			_render_stack.emplace(data.context.get(), &w);
 		}
@@ -82,10 +82,10 @@ namespace codepad::os {
 		//      incorrectly have a smaller size
 		/// Creates a cairo context from a newly created Win32 surface.
 		ui::_details::gtk_object_ref<cairo_t> _create_context_for_window(
-			ui::window_base &w, vec2d scaling
+			ui::window &w, vec2d scaling
 		) {
 			auto surface = ui::_details::make_gtk_object_ref_give(cairo_win32_surface_create_with_format(
-				GetDC(_details::cast_window(w).get_native_handle()), CAIRO_FORMAT_ARGB32
+				GetDC(_details::cast_window_impl(w.get_impl()).get_native_handle()), CAIRO_FORMAT_ARGB32
 			));
 			cairo_surface_set_device_scale(surface.get(), scaling.x, scaling.y);
 			auto result = ui::_details::make_gtk_object_ref_give(cairo_create(surface.get()));
@@ -93,20 +93,20 @@ namespace codepad::os {
 		}
 
 		/// Creates a Cairo surface for the window, and listens to specific events to resize the surface as needed.
-		void _new_window(ui::window_base &wnd) override {
+		void _new_window(ui::window &wnd) override {
 			renderer_base::_new_window(wnd);
 
 			// create context
 			_get_window_data_as<_window_data>(wnd).context = _create_context_for_window(wnd, wnd.get_scaling_factor());
 			// resize buffer when the window size has changed
-			wnd.size_changed += [this, pwnd = &wnd](ui::window_base::size_changed_info&) {
+			wnd.size_changed += [this, pwnd = &wnd](ui::window::size_changed_info&) {
 				auto &data = _get_window_data_as<_window_data>(*pwnd);
 				data.context.reset();
 				data.context = _create_context_for_window(*pwnd, pwnd->get_scaling_factor());
 				pwnd->invalidate_visual();
 			};
 			// reallocate buffer when the window scaling has changed
-			wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window_base::scaling_factor_changed_info &p) {
+			wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window::scaling_factor_changed_info &p) {
 				auto &data = _get_window_data_as<_window_data>(*pwnd);
 				data.context.reset();
 				data.context = _create_context_for_window(*pwnd, p.new_value);

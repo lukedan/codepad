@@ -245,7 +245,7 @@ namespace codepad::ui::cairo {
 		/// Holds the \p cairo_t associated with a window.
 		struct _window_data {
 			_details::gtk_object_ref<cairo_t> context; ///< The \p cairo_t.
-			window_base
+			window
 				*prev = nullptr, ///< Previous window. Forms a loop between all windows.
 				*next = nullptr; ///< Next window. Forms a loop between all windows.
 
@@ -257,7 +257,7 @@ namespace codepad::ui::cairo {
 		/// Stores information about a currently active render target.
 		struct _render_target_stackframe {
 			/// Initializes \ref context and pushes an identity matrix onto \ref matrices.
-			explicit _render_target_stackframe(cairo_t *c, window_base *w = nullptr) : context(c), window(w) {
+			explicit _render_target_stackframe(cairo_t *c, window *w = nullptr) : context(c), window(w) {
 				matd3x3 id;
 				id.set_identity();
 				matrices.emplace(id);
@@ -270,7 +270,7 @@ namespace codepad::ui::cairo {
 			/// The cairo context. Here we're using raw pointers for the same reason as in
 			/// \ref os::direct2d::renderer.
 			cairo_t *context = nullptr;
-			window_base *window = nullptr; ///< The target window.
+			window *window = nullptr; ///< The target window.
 		};
 
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of currently active render targets.
@@ -278,7 +278,7 @@ namespace codepad::ui::cairo {
 		pango_harfbuzz::text_context _text_context; ///< The context for text layout.
 		/// Pointer to a random window. This is used with \ref _window_data::prev and \ref _window_data::next to keep
 		/// track of all existing windows.
-		window_base *_random_window = nullptr;
+		window *_random_window = nullptr;
 
 
 		/// Draws the current path using the given brush and pen.
@@ -323,7 +323,7 @@ namespace codepad::ui::cairo {
 		/// \p cairo_surface_create_similar(), but derived classes can override this to change this behavior. This
 		/// function does not need to handle errors or device scaling.
 		[[nodiscard]] virtual _details::gtk_object_ref<cairo_surface_t> _create_similar_surface(
-			window_base &wnd, int width, int height
+			window &wnd, int width, int height
 		);
 		/// Creates a new offscreen surface for use as render targets or bitmap surfaces.
 		[[nodiscard]] _details::gtk_object_ref<cairo_surface_t> _create_offscreen_surface(
@@ -352,7 +352,7 @@ namespace codepad::ui::cairo {
 
 
 		/// Adds the window to the linked list loop pointed to by \ref _random_window.
-		void _new_window(window_base &w) override {
+		void _new_window(window &w) override {
 			auto &data = _get_window_data(w).emplace<_window_data>();
 			if (_random_window) {
 				auto &next_data = _get_window_data_as<_window_data>(*_random_window);
@@ -365,7 +365,7 @@ namespace codepad::ui::cairo {
 			}
 		}
 		/// Releases all resources.
-		void _delete_window(window_base &w) override {
+		void _delete_window(window &w) override {
 			auto &data = _get_window_data_as<_window_data>(w);
 			if (data.next == &w) {
 				assert_true_logical(data.prev == &w && _random_window == &w, "invalid linked list loop");

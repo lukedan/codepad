@@ -19,7 +19,10 @@
 
 namespace codepad {
 	namespace ui {
-		class window_base;
+		namespace _details {
+			class window_impl;
+		}
+		class window;
 
 		/// Determines the style of rendered text.
 		enum class font_style : unsigned char {
@@ -511,7 +514,7 @@ namespace codepad {
 
 		/// Basic interface of a renderer.
 		class renderer_base {
-			friend window_base;
+			friend window;
 		public:
 			/// Default virtual destructor.
 			virtual ~renderer_base() = default;
@@ -528,7 +531,7 @@ namespace codepad {
 			virtual std::shared_ptr<font_family> find_font_family(const std::u8string&) = 0;
 
 			/// Starts drawing to the given window.
-			virtual void begin_drawing(window_base&) = 0;
+			virtual void begin_drawing(window&) = 0;
 			/// Starts drawing to the given \ref render_target.
 			virtual void begin_drawing(render_target&) = 0;
 			/// Finishes drawing to the last render target on which \ref begin_drawing() has been called.
@@ -615,15 +618,15 @@ namespace codepad {
 			virtual void draw_plain_text(const plain_text&, vec2d, colord) = 0;
 		protected:
 			/// Called to register the creation of a window.
-			virtual void _new_window(window_base&) = 0;
+			virtual void _new_window(window&) = 0;
 			/// Called to register the deletion of a window.
-			virtual void _delete_window(window_base&) = 0;
+			virtual void _delete_window(window&) = 0;
 
 			/// Returns a reference to the renderer-specific data of the given window.
-			static std::any &_get_window_data(window_base&);
+			[[nodiscard]] static std::any &_get_window_data(window&);
 			/// Invokes \ref _get_window_data(), then uses \p std::any_cast() to cast its result. This function
 			/// checks that the window data is non-empty.
-			template <typename T> static T &_get_window_data_as(window_base &wnd) {
+			template <typename T> [[nodiscard]] static T &_get_window_data_as(window &wnd) {
 				auto *data = std::any_cast<T>(&_get_window_data(wnd));
 				assert_true_usage(data, "window has no associated data");
 				return *data;

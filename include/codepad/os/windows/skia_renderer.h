@@ -30,7 +30,7 @@ namespace codepad::os {
 
 
 		/// Creates a surface for the given window.
-		[[nodiscard]] sk_sp<SkSurface> _create_surface_for_window(window &wnd, vec2d scaling) {
+		[[nodiscard]] sk_sp<SkSurface> _create_surface_for_window(ui::window &wnd, vec2d scaling) {
 			vec2d size = wnd.get_client_size();
 			size.x *= scaling.x;
 			size.y *= scaling.y;
@@ -42,10 +42,10 @@ namespace codepad::os {
 
 		/// Creates a surface for the window, and registers handlers for when the surface needs to be recreated.
 		/// Initializes \ref _gl_context if necessary.
-		void _new_window(ui::window_base &wnd_base) override {
-			window &wnd = _details::cast_window(wnd_base);
+		void _new_window(ui::window &wnd) override {
+			window_impl &wnd_impl = _details::cast_window_impl(wnd.get_impl());
 
-			HDC hdc = GetDC(wnd.get_native_handle());
+			HDC hdc = GetDC(wnd_impl.get_native_handle());
 			_details::winapi_check(hdc);
 			if (_gl_context == nullptr) {
 				_pixel_format_descriptor.nSize = sizeof(_pixel_format_descriptor);
@@ -74,49 +74,49 @@ namespace codepad::os {
 			} else {
 				_details::winapi_check(SetPixelFormat(hdc, _pixel_format, &_pixel_format_descriptor));
 			}
-			ReleaseDC(wnd.get_native_handle(), hdc);
+			ReleaseDC(wnd_impl.get_native_handle(), hdc);
 
 			auto &data = _get_window_data(wnd).emplace<_window_data>();
-			data.surface = _create_surface_for_window(wnd, wnd.get_scaling_factor());
+			data.surface = _create_surface_for_window(wnd, wnd_impl.get_scaling_factor());
 			// resize buffer when the window size has changed
-			wnd.size_changed += [this, pwnd = &wnd](ui::window_base::size_changed_info&) {
+			wnd.size_changed += [this, pwnd = &wnd](ui::window::size_changed_info&) {
 				auto &data = _get_window_data_as<_window_data>(*pwnd);
 				data.surface.reset();
 				data.surface = _create_surface_for_window(*pwnd, pwnd->get_scaling_factor());
 				pwnd->invalidate_visual();
 			};
 			// reallocate buffer when the scaling factor has changed
-			wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window_base::scaling_factor_changed_info &p) {
+			wnd.scaling_factor_changed += [this, pwnd = &wnd](ui::window::scaling_factor_changed_info &p) {
 				auto &data = _get_window_data_as<_window_data>(*pwnd);
 				data.surface.reset();
 				data.surface = _create_surface_for_window(*pwnd, p.new_value);
 				pwnd->invalidate_visual();
 			};
 		}
-		void _delete_window(ui::window_base &wnd) override {
+		void _delete_window(ui::window &wnd) override {
 			// TODO anything needs to be done?
 		}
 
 		/// Invokes \p wglMakeCurrent() to start drawing to the given window.
-		void _start_drawing_to_window(ui::window_base &wnd_base) override {
-			window &wnd = _details::cast_window(wnd_base);
-			HDC hdc = GetDC(wnd.get_native_handle());
+		void _start_drawing_to_window(ui::window &wnd) override {
+			window_impl &wnd_impl = _details::cast_window_impl(wnd.get_impl());
+			HDC hdc = GetDC(wnd_impl.get_native_handle());
 			_details::winapi_check(hdc);
 			_details::winapi_check(wglMakeCurrent(hdc, _gl_context));
-			ReleaseDC(wnd.get_native_handle(), hdc);
+			ReleaseDC(wnd_impl.get_native_handle(), hdc);
 
-			vec2d size = wnd.get_client_size(), scaling = wnd.get_scaling_factor();
+			vec2d size = wnd_impl.get_client_size(), scaling = wnd_impl.get_scaling_factor();
 			size.x *= scaling.x;
 			size.y *= scaling.y;
 			glViewport(0, 0, size.x, size.y);
 		}
 		/// Invokes \p SwapBuffers().
-		void _finish_drawing_to_window(ui::window_base &wnd_base) override {
-			window &wnd = _details::cast_window(wnd_base);
-			HDC hdc = GetDC(wnd.get_native_handle());
+		void _finish_drawing_to_window(ui::window &wnd) override {
+			window_impl &wnd_impl = _details::cast_window_impl(wnd.get_impl());
+			HDC hdc = GetDC(wnd_impl.get_native_handle());
 			_details::winapi_check(hdc);
 			_details::winapi_check(SwapBuffers(hdc));
-			ReleaseDC(wnd.get_native_handle(), hdc);
+			ReleaseDC(wnd_impl.get_native_handle(), hdc);
 
 			GLenum error = glGetError();
 			if (error != GL_NO_ERROR) {

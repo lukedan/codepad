@@ -414,7 +414,7 @@ namespace codepad::editors {
 			ui::mouse_button _trigger_button = ui::mouse_button::primary;
 
 			/// Called when about to exit the mode. Adds the caret to the caret set. If \p release_capture is
-			/// \p true, then \ref ui::window_base::release_mouse_capture() will also be called.
+			/// \p true, then \ref ui::window::release_mouse_capture() will also be called.
 			void _exit(bool release_capture) {
 				this->_manager.get_contents_region().add_caret(_selection);
 				if (release_capture) {
