@@ -39,6 +39,8 @@ namespace codepad::lsp {
 	editors::buffer_manager::interpretation_tag_token _interpretation_tag_token;
 	/// Token used to register for \ref editors::buffer_manager::interpretation_created.
 	info_event<editors::interpretation_info>::token _interpretation_created_token;
+	/// Token used to register for \ref editors::buffer_manager::code_editor_created.
+	info_event<editors::buffer_manager::code_editor_created_info>::token _code_editor_created_token;
 }
 
 namespace cp = codepad;
@@ -112,27 +114,36 @@ extern "C" {
 		cp::lsp::types::InitializeParams init;
 		init.processId.value.emplace<cp::lsp::types::integer>(GetCurrentProcessId()); // TODO winapi
 		init.capabilities.workspace.value.emplace().workspaceFolders.value.emplace(true);
-		{
-			auto &semantic_tokens = init.capabilities.textDocument.value.emplace().semanticTokens.value.emplace();
-			semantic_tokens.multilineTokenSupport.value.emplace(true);
-			semantic_tokens.overlappingTokenSupport.value.emplace(true);
-			semantic_tokens.requests.full.value.emplace()
-				.value.emplace<cp::lsp::types::SemanticTokensFullRequestsClientCapabilities>()
-				.delta.value.emplace(true);
+		{ // capabilities
+			auto &text_document = init.capabilities.textDocument.value.emplace();
+			{
+				auto &semantic_tokens = text_document.semanticTokens.value.emplace();
+				semantic_tokens.multilineTokenSupport.value.emplace(true);
+				semantic_tokens.overlappingTokenSupport.value.emplace(true);
+				semantic_tokens.requests.full.value.emplace()
+					.value.emplace<cp::lsp::types::SemanticTokensFullRequestsClientCapabilities>()
+					.delta.value.emplace(true);
 
-			auto &token_types = cp::lsp::types::SemanticTokenTypes::get_strings();
-			semantic_tokens.tokenTypes.value.reserve(token_types.size());
-			for (std::u8string_view type : token_types) {
-				semantic_tokens.tokenTypes.value.emplace_back(type);
+				auto &token_types = cp::lsp::types::SemanticTokenTypes::get_strings();
+				semantic_tokens.tokenTypes.value.reserve(token_types.size());
+				for (std::u8string_view type : token_types) {
+					semantic_tokens.tokenTypes.value.emplace_back(type);
+				}
+
+				auto &token_modifiers = cp::lsp::types::SemanticTokenModifiers::get_strings();
+				semantic_tokens.tokenModifiers.value.reserve(token_modifiers.size());
+				for (std::u8string_view modifier : token_modifiers) {
+					semantic_tokens.tokenModifiers.value.emplace_back(modifier);
+				}
+
+				semantic_tokens.formats.value.emplace_back().value = cp::lsp::types::TokenFormatEnum::Relative;
 			}
-
-			auto &token_modifiers = cp::lsp::types::SemanticTokenModifiers::get_strings();
-			semantic_tokens.tokenModifiers.value.reserve(token_modifiers.size());
-			for (std::u8string_view modifier : token_modifiers) {
-				semantic_tokens.tokenModifiers.value.emplace_back(modifier);
+			{
+				auto &hover = text_document.hover.value.emplace();
+				auto &content_format = hover.contentFormat.value.emplace();
+				content_format.value.emplace_back().value = cp::lsp::types::MarkupKindEnum::markdown;
+				content_format.value.emplace_back().value = cp::lsp::types::MarkupKindEnum::plaintext;
 			}
-
-			semantic_tokens.formats.value.emplace_back().value = cp::lsp::types::TokenFormatEnum::Relative;
 		}
 		{
 			auto &folders = init.workspaceFolders.value.emplace()
@@ -162,9 +173,17 @@ extern "C" {
 				);
 			}
 		);
+		cp::lsp::_code_editor_created_token = (cp::lsp::_editor_manager->buffers.code_editor_created +=
+			[](cp::editors::buffer_manager::code_editor_created_info &info) {
+				cp::lsp::interpretation_tag::on_editor_created(
+					info.contents_region_element, *cp::lsp::_client, cp::lsp::_interpretation_tag_token
+				);
+			}
+		);
 	}
 	PLUGIN_DISABLE() {
 		cp::lsp::_editor_manager->buffers.interpretation_created -= cp::lsp::_interpretation_created_token;
+		cp::lsp::_editor_manager->buffers.code_editor_created -= cp::lsp::_code_editor_created_token;
 		cp::lsp::_editor_manager->buffers.deallocate_interpretation_tag(cp::lsp::_interpretation_tag_token);
 
 		cp::lsp::_client->shutdown_and_exit();

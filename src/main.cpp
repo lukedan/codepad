@@ -9,7 +9,6 @@
 #include "codepad/core/settings.h"
 #include "codepad/core/json/parsing.h"
 #include "codepad/core/json/rapidjson.h"
-#include "codepad/os/current/all.h"
 #ifdef CP_PLATFORM_WINDOWS
 #	include "codepad/os/windows/direct2d_renderer.h"
 #	ifdef CP_USE_CAIRO

@@ -48,9 +48,6 @@ target_sources(codepad_core
 		"include/codepad/core/settings.h"
 		"include/codepad/core/threading.h"
 
-		"include/codepad/os/current/all.h"
-		"include/codepad/os/current/window.h"
-
 		"include/codepad/os/dynamic_library.h"
 		"include/codepad/os/filesystem.h"
 		"include/codepad/os/misc.h"

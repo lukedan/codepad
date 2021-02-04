@@ -13,7 +13,7 @@
 #include "buffer.h"
 #include "code/interpretation.h"
 #include "code/caret_set.h"
-#include "code/interpretation.h"
+#include "code/contents_region.h"
 #include "binary/contents_region.h"
 
 namespace codepad::editors {
@@ -33,13 +33,24 @@ namespace codepad::editors {
 
 		code::interpretation &interp; ///< The \ref code::interpretation.
 	};
-	/// Manager of all \ref buffer "buffers". All \ref buffer instances should be created with the instance
-	/// returned by \ref buffer_manager::get.
-	///
-	/// \todo Per-buffer tag and per-interpretation tag?
+	/// Manager of all \ref buffer and \ref code::interpretation instances. All \ref buffer and
+	/// \ref code::interpretation instances should be created with this manager.
 	class buffer_manager {
 		friend buffer;
 	public:
+		/// Contains information about the creation of an \ref editor for \ref code::interpretation.
+		struct code_editor_created_info {
+			/// Initializes all fields of this struct.
+			code_editor_created_info(editor &edt, code::contents_region &contents) :
+				editor_element(edt), contents_region_element(contents) {
+			}
+
+			editor &editor_element; ///< The newly created \ref editor.
+			/// The newly created \ref code::contents_region. Use \ref code::contents_region::get_document() to
+			/// retrieve the underlying \ref code::interpretation.
+			code::contents_region &contents_region_element;
+		};
+
 		/// Token for a tag.
 		template <typename T> struct tag_token {
 			friend buffer_manager;
@@ -131,6 +142,15 @@ namespace codepad::editors {
 			it->second = ptr;
 			interpretation_created.invoke_noret(*ptr);
 			return ptr;
+		}
+
+		/// Initializes the \ref editor using the given \ref code::interpretation, then invokes
+		/// \ref code_editor_created.
+		void initialize_code_editor(editor &edt, std::shared_ptr<code::interpretation> interp) {
+			auto *contents = dynamic_cast<code::contents_region*>(edt.get_contents_region());
+			assert_true_usage(contents, "editor does not contain a content_region for code");
+			contents->_set_document(std::move(interp));
+			code_editor_created.invoke_noret(edt, *contents);
 		}
 
 
@@ -236,6 +256,7 @@ namespace codepad::editors {
 			/// per-interpretation tags can handle this event to initialize them. Note that tags are automatically
 			/// disposed when the interpretation is disposed.
 			interpretation_created;
+		info_event<code_editor_created_info> code_editor_created; ///< Invoked when an \ref editor is created.
 	protected:
 		/// Stores a \p std::weak_ptr to a \ref buffer, and pointers to all its
 		/// \ref code::interpretation "interpretations".

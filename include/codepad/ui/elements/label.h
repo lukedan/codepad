@@ -39,7 +39,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the color of the text.
-		colord get_text_color() const {
+		[[nodiscard]] colord get_text_color() const {
 			return _text_color;
 		}
 		/// Sets the color of the text.
@@ -49,7 +49,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the font parameters.
-		const font_parameters get_font_parameters() const {
+		[[nodiscard]] const font_parameters get_font_parameters() const {
 			return _font;
 		}
 		/// Sets the font parameters.
@@ -59,7 +59,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns \ref _halign.
-		horizontal_text_alignment get_horizontal_alignment() const {
+		[[nodiscard]] horizontal_text_alignment get_horizontal_alignment() const {
 			return _halign;
 		}
 		/// Sets \ref _halign and invokes \ref _on_text_layout_changed().
@@ -68,8 +68,20 @@ namespace codepad::ui {
 			_on_text_layout_changed();
 		}
 
+		/// Returns the wrapping mode currently applied to this \ref label.
+		[[nodiscard]] wrapping_mode get_wrapping_mode() const {
+			return _wrap;
+		}
+		/// Sets the wrapping mode and invokes \ref _on_text_layout_changed().
+		void set_wrapping_mode(wrapping_mode w) {
+			if (_wrap != w) {
+				_wrap = w;
+				_on_text_layout_changed();
+			}
+		}
+
 		/// Returns \ref _valign.
-		vertical_text_alignment get_vertical_alignment() const {
+		[[nodiscard]] vertical_text_alignment get_vertical_alignment() const {
 			return _valign;
 		}
 		/// Sets \ref _valign and invokes \ref _on_text_layout_changed().
@@ -94,6 +106,7 @@ namespace codepad::ui {
 		mutable std::shared_ptr<formatted_text> _cached_fmt; ///< The cached formatted text.
 		horizontal_text_alignment _halign = horizontal_text_alignment::front; ///< Horizontal text alignment.
 		vertical_text_alignment _valign = vertical_text_alignment::top; ///< Vertical text alignment.
+		wrapping_mode _wrap = wrapping_mode::none; ///< Wrapping mode for this label.
 
 		/// Calls \ref _check_cache_format().
 		void _on_prerender() override {

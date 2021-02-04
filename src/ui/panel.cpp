@@ -247,12 +247,11 @@ namespace codepad::ui {
 	}
 
 	void panel::_on_child_desired_size_changed(element &child, bool width, bool height) {
-		if (_is_child_desired_size_relevant(child, width, height)) { // actually affects something
-			if (_parent != nullptr) {
-				_parent->_on_child_desired_size_changed(*this, width, height);
-			} else {
-				invalidate_layout();
-			}
+		bool
+			width_changed = width && get_width_allocation() == size_allocation_type::automatic,
+			height_changed = height && get_height_allocation() == size_allocation_type::automatic;
+		if (width_changed || height_changed) { // actually affects something
+			_on_desired_size_changed(width_changed, height_changed);
 		} else {
 			child.invalidate_layout();
 		}
@@ -262,13 +261,7 @@ namespace codepad::ui {
 		if (element *mouseover = _hit_test_for_child(p.position)) {
 			mouseover->_on_mouse_down(p);
 		}
-		mouse_down.invoke(p);
-		if (p.button == mouse_button::primary) {
-			if (is_visible(visibility::focus) && !p.is_focus_set()) {
-				p.mark_focus_set();
-				get_manager().get_scheduler().set_focused_element(this);
-			}
-		}
+		element::_on_mouse_down(p);
 	}
 
 	void panel::_on_mouse_move(mouse_move_info &p) {
@@ -287,6 +280,13 @@ namespace codepad::ui {
 			_children_cursor = mouseover->get_current_display_cursor(); // get cursor
 		}
 		element::_on_mouse_move(p);
+	}
+
+	void panel::_on_mouse_hover(mouse_hover_info &p) {
+		if (element *mouseover = _hit_test_for_child(p.position)) {
+			mouseover->_on_mouse_hover(p);
+		}
+		element::_on_mouse_hover(p);
 	}
 
 	element *panel::_hit_test_for_child(const mouse_position &p) const {

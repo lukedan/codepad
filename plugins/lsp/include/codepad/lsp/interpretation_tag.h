@@ -46,6 +46,11 @@ namespace codepad::lsp {
 		static void on_interpretation_created(
 			editors::code::interpretation&, client&, const editors::buffer_manager::interpretation_tag_token&
 		);
+		/// Invoked when a new \ref editors::editor with a \ref editors::code::contents_region is created. This
+		/// function registers for the \p mouse_hover event.
+		static void on_editor_created(
+			editors::code::contents_region&, client&, const editors::buffer_manager::interpretation_tag_token&
+		);
 	protected:
 		/// Information about a single semantic token.
 		struct _semantic_token {
@@ -116,5 +121,7 @@ namespace codepad::lsp {
 
 		/// Handler for the response of \p semanticTokens.
 		void _on_semanticTokens(types::SemanticTokensResponse);
+		/// Handler for the response of \p hover.
+		void _on_hover(editors::code::contents_region&, types::HoverResponse);
 	};
 }

@@ -63,6 +63,16 @@ namespace codepad::ui {
 					lbl.set_text(std::move(text));
 				}
 				));
+
+			mapping.emplace(u8"wrapping", std::make_shared<getter_setter_property<label, wrapping_mode>>(
+				u8"wrapping",
+				[](label &lbl) {
+					return lbl.get_wrapping_mode();
+				},
+				[](label &lbl, wrapping_mode mode) {
+					lbl.set_wrapping_mode(mode);
+				}
+				));
 		}
 
 		return mapping;
@@ -80,7 +90,7 @@ namespace codepad::ui {
 		if (!_cached_fmt) {
 			rectd client = get_client_region();
 			_cached_fmt = get_manager().get_renderer().create_formatted_text(
-				get_text(), _font, _text_color, client.size(), wrapping_mode::none, _halign, _valign
+				get_text(), _font, _text_color, client.size(), _wrap, _halign, _valign
 			);
 		}
 	}

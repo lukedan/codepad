@@ -111,7 +111,14 @@ namespace codepad {
 			none, ///< Don't wrap.
 			wrap ///< Wrap, but in an unspecified manner.
 		};
+	}
+	/// Parser for \ref ui::wrapping_mode.
+	template <> struct enum_parser<ui::wrapping_mode> {
+		/// The parser interface.
+		static std::optional<ui::wrapping_mode> parse(std::u8string_view);
+	};
 
+	namespace ui {
 		/// Controls the horizontal alignment of text.
 		///
 		/// \todo Justified alignment?

@@ -6,6 +6,8 @@
 /// \file
 /// Implementation of \ref codepad::lsp::interpretation_tag.
 
+#include <codepad/ui/elements/label.h>
+
 namespace codepad::lsp {
 	interpretation_tag::interpretation_tag(editors::code::interpretation &interp, client &c) :
 		_interp(&interp), _client(&c) {
@@ -76,6 +78,30 @@ namespace codepad::lsp {
 	) {
 		if (std::holds_alternative<std::filesystem::path>(interp.get_buffer()->get_id())) {
 			tok.get_for(interp).emplace<interpretation_tag>(interp, c);
+		}
+	}
+
+	void interpretation_tag::on_editor_created(
+		editors::code::contents_region &contents, client &c,
+		const editors::buffer_manager::interpretation_tag_token &tok
+	) {
+		auto *tag = std::any_cast<interpretation_tag>(&tok.get_for(*contents.get_document()));
+		if (tag) {
+			// TODO unregister for the event when the plugin is disabled
+			contents.mouse_hover += [tag, &contents, &c](ui::mouse_hover_info &p) {
+				editors::code::caret_position caret = contents.hit_test_for_caret(p.position.get(contents));
+				auto line_col = tag->_interp->get_linebreaks().get_line_and_column_of_char(caret.position);
+				types::HoverParams params;
+				params.textDocument = tag->_change_params.textDocument;
+				params.position.line = line_col.line;
+				params.position.character = line_col.position_in_line;
+				c.send_request<types::HoverResponse>(
+					u8"textDocument/hover", params, [tag, &contents](types::HoverResponse response) {
+						logger::get().log_debug(CP_HERE) << "requesting hover popup";
+						tag->_on_hover(contents, std::move(response));
+					}
+				);
+			};
 		}
 	}
 
@@ -217,5 +243,65 @@ namespace codepad::lsp {
 			}
 		);
 		_interp->swap_text_theme(data);
+	}
+
+	/// Implementation for \ref _set_hover_label() with one or more \ref types::MarkedString.
+	void _set_hover_label_impl(ui::label &lbl, const types::MarkedString *strs, std::size_t count) {
+		std::u8string text;
+		for (std::size_t i = 0; i < count; ++i) {
+			if (i > 0) {
+				text += u8"\n-----\n";
+			}
+			if (std::holds_alternative<types::string>(strs[i].value)) {
+				text += std::get<types::string>(strs[i].value);
+			} else {
+				auto &val = std::get<types::MarkedStringObject>(strs[i].value);
+				text += u8"LANG: " + val.language + u8"\n";
+				text += val.value;
+			}
+		}
+		lbl.set_text(std::move(text));
+	}
+	/// Sets the contents of the label to the given \ref types::MarkedString.
+	void _set_hover_label(ui::label &lbl, const types::MarkedString &str) {
+		_set_hover_label_impl(lbl, &str, 1);
+	}
+	/// Sets the contents of the label to the given array of \ref types::MarkedString.
+	void _set_hover_label(ui::label &lbl, const types::array<types::MarkedString> &strs) {
+		_set_hover_label_impl(lbl, strs.value.data(), strs.value.size());
+	}
+	/// Sets the contents of the label to the given array of \ref types::MarkupContent.
+	void _set_hover_label(ui::label &lbl, const types::MarkupContent &markup) {
+		lbl.set_text(markup.value);
+	}
+	void interpretation_tag::_on_hover(editors::code::contents_region &contents, types::HoverResponse raw_response) {
+		if (std::holds_alternative<types::Hover>(raw_response.value)) {
+			logger::get().log_debug(CP_HERE) << "showing hover popup";
+			auto &response = std::get<types::Hover>(raw_response.value);
+			if (response.range.value.has_value()) {
+				// TODO
+			}
+			auto *wnd = dynamic_cast<ui::window*>(
+				contents.get_manager().create_element(u8"window", u8"hover_window")
+			);
+			auto *label = dynamic_cast<ui::label*>(
+				contents.get_manager().create_element(u8"label", u8"hover_label")
+			);
+			wnd->set_width_size_policy(ui::window::size_policy::application);
+			wnd->set_height_size_policy(ui::window::size_policy::application);
+			wnd->set_display_border(false);
+			wnd->set_display_caption_bar(false);
+			wnd->set_sizable(false);
+			wnd->set_show_icon(false);
+			wnd->set_parent(contents.get_window());
+			wnd->children().add(*label);
+			std::visit(
+				[label](auto &&val) {
+					_set_hover_label(*label, val);
+				},
+				response.contents.value
+			);
+			wnd->show();
+		}
 	}
 }

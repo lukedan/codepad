@@ -30,110 +30,126 @@ namespace codepad::os {
 		/// Calls \p DestroyWindow().
 		~window_impl();
 
-		/// Sets the parent of this window using 
-		void set_parent(ui::window *wnd) override;
-
-		/// Sets the caption of this window using \p SetWindowText().
-		void set_caption(const std::u8string &cap) override;
-
-		/// Returns the result of \p ClientToScreen(0, 0).
-		vec2d get_position() const override;
-		/// Finds the offset of the client area using \p GetWindowRect() and \p ClientToScreen(), then sets the
-		/// position using \p SetWindowPos().
-		void set_position(vec2d) override;
-		/// Returns the result of \p GetClientRect() scaled by \ref _physical_to_logical_position().
-		vec2d get_client_size() const override;
-		/// Retrieves the offset of the client area using \p GetWindowRect() and \p ClientToScreen(), then sets the
-		/// size of the client area using \p SetWindowPos(), without altering the position of the top-left corner of
-		/// the window's client area on screen.
-		void set_client_size(vec2d) override;
-		/// Returns the cached scaling factor, i.e., \ref _cached_scaling.
-		vec2d get_scaling_factor() const override {
-			return _cached_scaling;
-		}
-
-		/// Activates this window by calling \p SetWindowPos() with \p HWND_TOP.
-		void activate() override {
-			_details::winapi_check(SetWindowPos(_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
-		}
-		void prompt_ready() override;
-
-		/// Calls \p ShowWindow() with \p SW_SHOWNA to show the window.
-		void show() override {
-			ShowWindow(_hwnd, SW_SHOWNA);
-		}
-		/// Calls \p ShowWindow() with \p SW_SHOWNORMAL to show and activate the window.
-		void show_and_activate() override {
-			ShowWindow(_hwnd, SW_SHOWNORMAL);
-		}
-		/// Calls \p ShowWindow() with \p SW_HIDE to hide the window.
-		void hide() override {
-			ShowWindow(_hwnd, SW_HIDE);
-		}
-
-		/// Calls \p InvalidateRect().
-		void invalidate_window_visuals() override {
-			_details::winapi_check(InvalidateRect(_hwnd, nullptr, false));
-		}
-
-		/// Calls \ref _set_window_style_bit() to set the \p WS_MAXIMIZE bit.
-		void set_display_maximize_button(bool disp) override {
-			_set_window_style_bit(disp, WS_MAXIMIZE, GWL_STYLE);
-		}
-		/// Calls \ref _set_window_style_bit() to set the \p WS_MINIMIZE bit.
-		void set_display_minimize_button(bool disp) override {
-			_set_window_style_bit(disp, WS_MINIMIZE, GWL_STYLE);
-		}
-		/// Calls \ref _set_window_style_bit() to set the <tt>WS_CAPTION ^ WS_BORDER</tt> bit.
-		void set_display_caption_bar(bool disp) override {
-			_set_window_style_bit(disp, WS_CAPTION ^ WS_BORDER, GWL_STYLE);
-		}
-		/// Calls \ref _set_window_style_bit() to set the \p WS_BORDER bit.
-		void set_display_border(bool disp) override {
-			_set_window_style_bit(disp, WS_BORDER, GWL_STYLE);
-		}
-		/// Calls \ref _set_window_style_bit() to set the \p WS_THICKFRAME bit.
-		void set_sizable(bool size) override {
-			_set_window_style_bit(size, WS_THICKFRAME, GWL_STYLE);
-		}
-
-		/// Calls \p SetWindowPos() to set whether this window is above other normal windows.
-		void set_topmost(bool topmost) override {
-			_details::winapi_check(SetWindowPos(
-				_hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
-			));
-		}
-		/// Calls \ref _set_window_style_bit() to set the \p WS_EX_TOOLWINDOW bit.
-		void set_show_icon(bool show) override {
-			_set_window_style_bit(!show, WS_EX_TOOLWINDOW, GWL_EXSTYLE);
-		}
-
-		/// Converts client positions in logical pixels to screen coordinates using \p ScreenToClient().
-		vec2d screen_to_client(vec2d) const override;
-		/// Converts screen coordinates to client positions in logical pixels using \p ClientToScreen().
-		vec2d client_to_screen(vec2d) const override;
-
-		void set_active_caret_position(rectd pos) override {
-			_ime::get().set_caret_region(*this, pos);
-		}
-		void interrupt_input_method() override {
-			_ime::get().cancel_composition(*this);
-		}
-
-		/// Calls \p SetCapture().
-		void set_mouse_capture() override {
-			SetCapture(_hwnd);
-		}
-		/// Calls \p ReleaseCapture().
-		void release_mouse_capture() override {
-			_details::winapi_check(ReleaseCapture());
-		}
-
 		/// Returns the \p HWND of this window.
 		native_handle_t get_native_handle() const {
 			return _hwnd;
 		}
 	protected:
+		// PIMPL functions
+		/// Sets the owner of this window using \p SetWindowLongPtr().
+		void _set_parent(ui::window *wnd) override;
+
+		/// Sets the caption of this window using \p SetWindowText().
+		void _set_caption(const std::u8string &cap) override;
+
+		/// Returns the result of \p ClientToScreen(0, 0).
+		vec2d _get_position() const override;
+		/// Finds the offset of the client area using \p GetWindowRect() and \p ClientToScreen(), then sets the
+		/// position using \p SetWindowPos().
+		void _set_position(vec2d) override;
+		/// Returns the result of \p GetClientRect() scaled by \ref _physical_to_logical_position().
+		vec2d _get_client_size() const override;
+		/// Retrieves the offset of the client area using \p GetWindowRect() and \p ClientToScreen(), then sets the
+		/// size of the client area using \p SetWindowPos(), without altering the position of the top-left corner of
+		/// the window's client area on screen.
+		void _set_client_size(vec2d) override;
+		/// Returns the cached scaling factor, i.e., \ref _cached_scaling.
+		vec2d _get_scaling_factor() const override {
+			return _cached_scaling;
+		}
+
+		/// Activates this window by calling \p SetWindowPos() with \p HWND_TOP.
+		void _activate() override {
+			_details::winapi_check(SetWindowPos(_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
+		}
+		void _prompt_ready() override;
+
+		/// Calls \p ShowWindow() with \p SW_SHOWNA to show the window.
+		void _show() override {
+			ShowWindow(_hwnd, SW_SHOWNA);
+		}
+		/// Calls \p ShowWindow() with \p SW_SHOWNORMAL to show and activate the window.
+		void _show_and_activate() override {
+			ShowWindow(_hwnd, SW_SHOWNORMAL);
+		}
+		/// Calls \p ShowWindow() with \p SW_HIDE to hide the window.
+		void _hide() override {
+			ShowWindow(_hwnd, SW_HIDE);
+		}
+
+		/// Calls \p InvalidateRect().
+		void _invalidate_window_visuals() override {
+			_details::winapi_check(InvalidateRect(_hwnd, nullptr, false));
+		}
+
+		/// Calls \ref _set_window_style_bit() to set the \p WS_MAXIMIZE bit.
+		void _set_display_maximize_button(bool disp) override {
+			_set_window_style_bit(disp, WS_MAXIMIZE, GWL_STYLE);
+		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_MINIMIZE bit.
+		void _set_display_minimize_button(bool disp) override {
+			_set_window_style_bit(disp, WS_MINIMIZE, GWL_STYLE);
+		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_DLGFRAME bit.
+		void _set_display_caption_bar(bool disp) override {
+			_set_window_style_bit(disp, WS_DLGFRAME, GWL_STYLE);
+		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_BORDER bit.
+		void _set_display_border(bool disp) override {
+			_set_window_style_bit(disp, WS_BORDER, GWL_STYLE);
+		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_THICKFRAME bit.
+		void _set_sizable(bool size) override {
+			_set_window_style_bit(size, WS_THICKFRAME, GWL_STYLE);
+		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_EX_NOACTIVATE bit.
+		void _set_focusable(bool vis) override {
+			// FIXME this doesn't work
+			_set_window_style_bit(!vis, WS_EX_NOACTIVATE, GWL_EXSTYLE);
+		}
+
+		/// Calls \p SetWindowPos() to set whether this window is above other normal windows.
+		void _set_topmost(bool topmost) override {
+			_details::winapi_check(SetWindowPos(
+				_hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+				SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
+			));
+		}
+		/// Calls \ref _set_window_style_bit() to set the \p WS_EX_TOOLWINDOW and \p WS_EX_APPWINDOW bits.
+		void _set_show_icon(bool show) override {
+			_set_window_style_bit(!show, WS_EX_TOOLWINDOW, GWL_EXSTYLE);
+			_set_window_style_bit(show, WS_EX_APPWINDOW, GWL_EXSTYLE);
+		}
+
+		/// Converts client positions in logical pixels to screen coordinates using \p ScreenToClient().
+		vec2d _screen_to_client(vec2d) const override;
+		/// Converts screen coordinates to client positions in logical pixels using \p ClientToScreen().
+		vec2d _client_to_screen(vec2d) const override;
+
+		void _set_active_caret_position(rectd pos) override {
+			_ime::get().set_caret_region(*this, pos);
+		}
+		void _interrupt_input_method() override {
+			_ime::get().cancel_composition(*this);
+		}
+
+		/// Calls \p SetCapture().
+		void _set_mouse_capture() override {
+			SetCapture(_hwnd);
+		}
+		/// Calls \p ReleaseCapture().
+		void _release_mouse_capture() override {
+			_details::winapi_check(ReleaseCapture());
+		}
+
+		/// Calls \ref _update_managed_window_size().
+		void _on_size_policy_changed() override {
+			_update_managed_window_size();
+		}
+		/// Resizes the window to satisfy the width and height requested by the application.
+		void _update_managed_window_size() override;
+
+		// other private members
 		/// Singleton struct for handling IME events. Largely based on the implementation of chromium.
 		struct _ime {
 		public:
@@ -193,6 +209,9 @@ namespace codepad::os {
 
 		vec2d _cached_scaling{1.0, 1.0}; ///< The cached scaling factor.
 		HWND _hwnd; ///< The handle of this window.
+		/// Whether mouse movement is being tracked. This is used to record whether \p TrackMouseEvent() has been
+		/// called, so that this window receives mouse leave and hover events.
+		bool _mouse_tracked = false;
 
 		/// Contains the window class used by all windows.
 		struct _wndclass {
@@ -225,7 +244,8 @@ namespace codepad::os {
 		/// Sets the specified bites to the given value by calling \p SetWindowLong().
 		void _set_window_style_bit(bool v, LONG bit, int type);
 
-		/// Calls \p TrackMouseEvent() so that the window receives hover and mouse leave events.
+		/// Checks if the mouse position is being tracked. If not, calls \p TrackMouseEvent() so that the window
+		/// receives hover and mouse leave events.
 		void _setup_mouse_tracking();
 	};
 

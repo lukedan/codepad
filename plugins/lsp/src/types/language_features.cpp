@@ -142,7 +142,7 @@ namespace codepad::lsp::types {
 
 
 	CP_LSP_VISIT_FUNC(v, Hover) {
-		// TODO
+		CP_LSP_VISIT_FIELD(v, contents);
 		CP_LSP_VISIT_FIELD(v, range);
 	}
 

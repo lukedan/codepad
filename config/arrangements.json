@@ -44,6 +44,46 @@
 		}
 	},
 
+	"hover_window": {
+		"attributes": {
+			"visibility": "-f",
+			"layout": {
+				"width": "auto",
+				"height": "auto",
+				"padding": 5
+			}
+		}
+	},
+	"hover_label": {
+		"attributes": {
+			"layout": {
+				"width": 300
+			},
+			"font": {
+				"family": "Comic Sans MS",
+				"size": 20,
+				"style": "italic"
+			},
+			"wrapping": "wrap"
+		},
+		"animations": {
+			"mouse_enter": {
+				"font.size": {
+					"to": 30,
+					"duration": 0.5,
+					"transition": "convex_quadratic"
+				}
+			},
+			"mouse_leave": {
+				"font.size": {
+					"to": 20,
+					"duration": 0.5,
+					"transition": "convex_quadratic"
+				}
+			}
+		}
+	},
+
 	"scrollbar": {
 		"attributes": {
 			"layout": {

@@ -112,6 +112,18 @@ namespace codepad {
 	}
 
 
+	std::optional<ui::wrapping_mode> enum_parser<ui::wrapping_mode>::parse(
+		std::u8string_view str
+	) {
+		if (str == u8"none") {
+			return ui::wrapping_mode::none;
+		} else if (str == u8"wrap") {
+			return ui::wrapping_mode::wrap;
+		}
+		return std::nullopt;
+	}
+
+
 	std::optional<ui::horizontal_text_alignment> enum_parser<ui::horizontal_text_alignment>::parse(
 		std::u8string_view str
 	) {

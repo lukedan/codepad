@@ -56,6 +56,15 @@ namespace codepad::ui {
 		/// The position that the mouse has moved to.
 		const mouse_position new_position;
 	};
+	/// Contains information about mouse hover events.
+	struct mouse_hover_info {
+		/// Initializes all fields of this struct.
+		mouse_hover_info(modifier_keys mods, mouse_position pos) : modifiers(mods), position(pos) {
+		}
+
+		const modifier_keys modifiers; ///< Modifier keys that are pressed during the event.
+		const mouse_position position; ///< The mouse position of the hover event.
+	};
 	/// Contains information about mouse scrolling.
 	struct mouse_scroll_info {
 	public:
@@ -364,6 +373,8 @@ namespace codepad::ui {
 			lost_capture, ///< Triggered when the element loses mouse capture.
 			layout_changed; ///< Triggered when the layout of this element has changed.
 		info_event<mouse_move_info> mouse_move; ///< Triggered when the mouse moves over the element.
+		/// Triggered when the mouse hovers over the window for a while without moving.
+		info_event<mouse_hover_info> mouse_hover;
 		info_event<mouse_button_info>
 			mouse_down, ///< Triggered when a mouse button is pressed when the mouse is over the element.
 			mouse_up; ///< Triggered when a mouse button is released when the mouse is over the elemnet.
@@ -449,6 +460,11 @@ namespace codepad::ui {
 		virtual void _on_mouse_move(mouse_move_info &p) {
 			mouse_move.invoke(p);
 		}
+		/// Called when the mouse hovers over the element. Invokes \ref mouse_hover.
+		/// Derived classes should override this function instead of registering for the event.
+		virtual void _on_mouse_hover(mouse_hover_info &p) {
+			mouse_hover.invoke(p);
+		}
 		/// Called when a mouse button is pressed when the mouse is over this element.
 		/// Changes the focus if appropriate, and invokes \ref mouse_down.
 		/// Derived classes should override this function instead of registering for the event.
@@ -526,12 +542,13 @@ namespace codepad::ui {
 		/// \ref _on_prerender(), then calls \ref _custom_render(), and finally calls \ref _on_postrender().
 		void _on_render();
 
-		/// Called by the element itself when its desired size has changed. It should be left for the parent to
-		/// decide whether it should invalidate its own layout or call \ref invalidate_layout() on this child.
+		/// Called by the element itself when its desired size has changed. It's not guaranteed that any size
+		/// allocation will be \ref size_allocation_type::automatic when this is called. The parent decides whether
+		/// it should invalidate its own layout or call \ref invalidate_layout() on this child.
 		///
-		/// \param width Whether the width of the desired size has changed.
-		/// \param height Whether the height of the desired size has changed.
-		void _on_desired_size_changed(bool width, bool height);
+		/// \param width Whether the desired width has changed.
+		/// \param height Whether the desired height has changed.
+		virtual void _on_desired_size_changed(bool width, bool height);
 		/// Called by \ref manager when the layout has changed. Calls \ref invalidate_visual. Derived classes can
 		/// override this to update layout-dependent properties. For panels, override
 		/// \ref panel::_on_update_children_layout() instead when re-calculating the layout of its children.

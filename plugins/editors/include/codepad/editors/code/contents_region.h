@@ -17,6 +17,9 @@
 #include "view.h"
 #include "fragment_generation.h"
 
+namespace codepad::editors {
+	class buffer_manager;
+}
 namespace codepad::editors::code {
 	/// The main component of a \ref editor that's responsible of text editing. This element should only be used as a
 	/// child of a \ref editor.
@@ -24,28 +27,8 @@ namespace codepad::editors::code {
 	/// \todo Proper syntax highlighting, drag & drop, code folding, etc.
 	/// \todo Extract caret movement code to somewhere else.
 	class contents_region : public interactive_contents_region_base<caret_set> {
+		friend buffer_manager;
 	public:
-		/// Sets the \ref interpretation displayed by the contents_region.
-		void set_document(std::shared_ptr<interpretation> newdoc) {
-			_unbind_document_events();
-			_doc = std::move(newdoc);
-			_cset.reset();
-			if (_doc) {
-				_begin_edit_tok = _doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
-					_on_begin_edit(info);
-				};
-				_end_edit_tok = _doc->get_buffer()->end_edit += [this](buffer::end_edit_info &info) {
-					_on_end_edit(info);
-				};
-				/*_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
-					_on_content_visual_changed();
-					});*/
-				_fmt = view_formatting(*_doc);
-			} else { // empty document, only used when the contents_region's being disposed
-				_fmt = view_formatting();
-			}
-			_on_content_modified();
-		}
 		/// Returns the \ref interpretation currently bound to this contents_region.
 		const std::shared_ptr<interpretation> &get_document() const {
 			return _doc;
@@ -638,6 +621,27 @@ namespace codepad::editors::code {
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
 
 
+		/// Sets the \ref interpretation displayed by the contents_region. This should only be called once after this
+		/// \ref contents_region is created by the \ref buffer_manager.
+		void _set_document(std::shared_ptr<interpretation> newdoc) {
+			assert_true_usage(_doc == nullptr, "setting document twice");
+			assert_true_usage(newdoc != nullptr, "cannot set empty document");
+			_doc = std::move(newdoc);
+			_cset.reset();
+			_begin_edit_tok = _doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
+				_on_begin_edit(info);
+			};
+			_end_edit_tok = _doc->get_buffer()->end_edit += [this](buffer::end_edit_info &info) {
+				_on_end_edit(info);
+			};
+			/*_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
+				_on_content_visual_changed();
+				});*/
+			_fmt = view_formatting(*_doc);
+			_on_content_modified();
+		}
+
+
 		/// Returns the visual line that the given caret is on.
 		std::size_t _get_visual_line_of_caret(caret_position pos) const {
 			auto
@@ -698,15 +702,6 @@ namespace codepad::editors::code {
 			xpos = _get_caret_pos_x_at_visual_line(line, caret.position);
 			rectd rgn = rectd::from_xywh(xpos, ypos, 0.0, line_height); // TODO maybe include the whole selection
 			editor::get_encapsulating(*this)->make_region_visible(rgn);
-		}
-
-		/// Unbinds events from \ref _doc if necessary.
-		void _unbind_document_events() {
-			if (_doc) {
-				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
-				_doc->get_buffer()->end_edit -= _end_edit_tok;
-				/*_doc->visual_changed -= _ctx_vis_change_tok;*/
-			}
 		}
 
 		/// Simply calls \ref _on_carets_changed().
@@ -915,7 +910,11 @@ namespace codepad::editors::code {
 
 		/// Unbinds the current document.
 		void _dispose() override {
-			_unbind_document_events();
+			if (_doc) {
+				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
+				_doc->get_buffer()->end_edit -= _end_edit_tok;
+				/*_doc->visual_changed -= _ctx_vis_change_tok;*/
+			}
 			_base::_dispose();
 		}
 	};

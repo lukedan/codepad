@@ -60,7 +60,7 @@ namespace command_pack {
 			dynamic_cast<cp::editors::code::contents_region*>(editor->get_contents_region());
 		contents->code_selection_renderer() =
 			std::make_unique<cp::editors::rounded_selection_renderer>();
-		contents->set_document(interp);
+		_editor_manager->buffers.initialize_code_editor(*editor, std::move(interp));
 		tb->children().add(*editor);
 		return tb;
 	}
@@ -436,7 +436,7 @@ extern "C" {
 					);
 					auto *contents = dynamic_cast<cp::editors::code::contents_region*>(editor->get_contents_region());
 					contents->code_selection_renderer() = std::make_unique<cp::editors::rounded_selection_renderer>();
-					contents->set_document(interp);
+					command_pack::_editor_manager->buffers.initialize_code_editor(*editor, std::move(interp));
 					tb->children().add(*editor);
 					th.activate_tab(*tb);
 				}

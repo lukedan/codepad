@@ -246,15 +246,6 @@ namespace codepad::ui {
 				layout_child(*elem, client);
 			}
 		}
-		/// Called by \ref _on_child_desired_size_changed() to determine if the change of a child's desired size may
-		/// affect the layout of this panel.
-		///
-		/// \sa _on_child_desired_size_changed()
-		virtual bool _is_child_desired_size_relevant(element&, bool width, bool height) const {
-			return
-				(width && get_width_allocation() == size_allocation_type::automatic) ||
-				(height && get_height_allocation() == size_allocation_type::automatic);
-		}
 		/// Called by a child whose desired size has just changed in a way that may affect its layout. This function
 		/// calls \ref _on_child_desired_size_changed() to determine if the change may affect the layout of this
 		/// panel, the it calls either \ref _on_child_desired_size_changed() on the parent if the result is yes, or
@@ -274,7 +265,7 @@ namespace codepad::ui {
 			element::_on_layout_changed();
 		}
 
-		/// If the mouse is over an element, calls element::_on_mouse_down on that element.
+		/// If the mouse is over a child, calls element::_on_mouse_down on that element.
 		/// Sets itself as focused if it can have the focus, and the focus has not been set by another element.
 		void _on_mouse_down(mouse_button_info&) override;
 		/// Calls element::_on_mouse_leave for all children that still thinks the mouse is over it.
@@ -289,6 +280,8 @@ namespace codepad::ui {
 		/// Tests for the element that the mouse is over, and calls \ref element::_on_mouse_move(). It also calls
 		/// \ref element::_on_mouse_enter() and \ref element::_on_mouse_leave() automatically when necessary.
 		void _on_mouse_move(mouse_move_info&) override;
+		/// If the mouse is over a child, calls element::_on_mouse_hover on that element.
+		void _on_mouse_hover(mouse_hover_info&) override;
 		/// Sends the message to the topmost element that the mouse is over.
 		void _on_mouse_scroll(mouse_scroll_info &p) override {
 			if (element *mouseover = _hit_test_for_child(p.position)) {

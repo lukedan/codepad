@@ -26,88 +26,98 @@ namespace codepad::ui {
 	namespace _details {
 		/// Pimpl for windows.
 		class window_impl {
+			friend window;
 		public:
 			/// Initializes \ref _window.
 			explicit window_impl(window &w) : _window(w) {
 			}
 			/// Default virtual destructor.
 			virtual ~window_impl() = default;
+		protected:
+			window &_window; ///< The associated \ref window.
 
 			/// Sets the parent of this window.
-			virtual void set_parent(window*) = 0;
+			virtual void _set_parent(window*) = 0;
 
 			/// Sets the caption of this window.
-			virtual void set_caption(const std::u8string&) = 0;
+			virtual void _set_caption(const std::u8string&) = 0;
 
 			/// Returns the position of the top-left corner of the client area of this window in screen coordinates.
-			[[nodiscard]] virtual vec2d get_position() const = 0;
+			[[nodiscard]] virtual vec2d _get_position() const = 0;
 			/// Adjusts the position of the top-left corner of the client area of this window in screen coordinates
 			/// to the given position by moving this window.
-			virtual void set_position(vec2d) = 0;
+			virtual void _set_position(vec2d) = 0;
 
 			/// Returns the size of the client area, *in logical pixels* (meaning that it has been adjusted to
 			/// counter the effects of device scaling, returned by \ref get_scaling_factor() ).
-			[[nodiscard]] virtual vec2d get_client_size() const = 0;
+			[[nodiscard]] virtual vec2d _get_client_size() const = 0;
 			/// Sets the size of the client area, *in logical pixels*.
-			virtual void set_client_size(vec2d) = 0;
+			virtual void _set_client_size(vec2d) = 0;
 
 			/// Returns the scaling factor currently applied to this window.
-			[[nodiscard]] virtual vec2d get_scaling_factor() const = 0;
+			[[nodiscard]] virtual vec2d _get_scaling_factor() const = 0;
 
 			/// Activates this window, bringing it to the top level and focuses on the window.
-			virtual void activate() = 0;
+			virtual void _activate() = 0;
 			/// Prompts the user that this window is ready, without activating the window.
-			virtual void prompt_ready() = 0;
+			virtual void _prompt_ready() = 0;
 
 			/// Shows the window without activating it.
-			virtual void show() = 0;
-			/// Shows and activates the window. By default this function calls \ref show() and \ref activate();
+			virtual void _show() = 0;
+			/// Shows and activates the window. By default this function calls \ref _show() and \ref _activate();
 			/// implementaitons can override this to provide a simpler way to achieve this.
-			virtual void show_and_activate() {
-				show();
-				activate();
+			virtual void _show_and_activate() {
+				_show();
+				_activate();
 			}
 			/// Hides the window without closing it.
-			virtual void hide() = 0;
+			virtual void _hide() = 0;
 
 			/// Invoked when this winodw needs redrawing.
-			virtual void invalidate_window_visuals() = 0;
+			virtual void _invalidate_window_visuals() = 0;
 
 			/// Sets whether the `maximize' button is displayed.
-			virtual void set_display_maximize_button(bool) = 0;
+			virtual void _set_display_maximize_button(bool) = 0;
 			/// Sets whether the `minimize' button is displayed.
-			virtual void set_display_minimize_button(bool) = 0;
+			virtual void _set_display_minimize_button(bool) = 0;
 			/// Sets whether the title bar is displayed.
-			virtual void set_display_caption_bar(bool) = 0;
+			virtual void _set_display_caption_bar(bool) = 0;
 			/// Sets whether the window border is displayed.
-			virtual void set_display_border(bool) = 0;
+			virtual void _set_display_border(bool) = 0;
 			/// Sets whether the user can resize the window.
-			virtual void set_sizable(bool) = 0;
+			virtual void _set_sizable(bool) = 0;
+			/// Sets whether this window can acquire focus.
+			virtual void _set_focusable(bool) = 0;
 
 			/// Sets whether this window is displayed about all other normal windows.
-			virtual void set_topmost(bool) = 0;
+			virtual void _set_topmost(bool) = 0;
 			/// Sets if this window is shown in the taskbar or the task list. This may have other side effects.
-			virtual void set_show_icon(bool) = 0;
+			virtual void _set_show_icon(bool) = 0;
 
 			/// Obtains the corresponding logical position in client coordinates from the given physical position in
 			/// screen coordinates. The result may not be exact due to rounding, and round-trip is not guaranteed.
-			[[nodiscard]] virtual vec2d screen_to_client(vec2d) const = 0;
+			[[nodiscard]] virtual vec2d _screen_to_client(vec2d) const = 0;
 			/// Obtains the corresponding physical position in screen coordinates from the given logical position in
 			/// client coordinates. The result may not be exact due to rounding, and round-trip is not guaranteed.
-			[[nodiscard]] virtual vec2d client_to_screen(vec2d) const = 0;
+			[[nodiscard]] virtual vec2d _client_to_screen(vec2d) const = 0;
 
 			/// Called to set the position of the currently active caret. This position
 			/// is used by input methods to display components such as the candidate window.
-			virtual void set_active_caret_position(rectd) = 0;
+			virtual void _set_active_caret_position(rectd) = 0;
 			/// Called when the input is interrupted by, e.g., a change of focus or caret position.
-			virtual void interrupt_input_method() = 0;
+			virtual void _interrupt_input_method() = 0;
 
 			/// Notifies the system that this window now captures the mouse.
-			virtual void set_mouse_capture() = 0;
+			virtual void _set_mouse_capture() = 0;
 			/// Notifies the system that this window has released the capture on the mouse.
-			virtual void release_mouse_capture() = 0;
-		protected:
-			window &_window; ///< The associated \ref window.
+			virtual void _release_mouse_capture() = 0;
+
+			/// Invoked when the size policy of this window, either width or height, has been changed. The
+			/// implementation can call \ref window::get_width_size_policy() and
+			/// \ref window::get_height_size_policy() to retrieve the new size policy.
+			virtual void _on_size_policy_changed() = 0;
+			/// Updates the size of the window if it's managed by the application.
+			virtual void _update_managed_window_size() = 0;
 		};
 	}
 
@@ -124,116 +134,126 @@ namespace codepad::ui {
 		using size_changed_info = value_update_info<vec2d, value_update_info_contents::new_value>;
 		/// Contains the new DPI scaling factor of a window.
 		using scaling_factor_changed_info = value_update_info<vec2d, value_update_info_contents::new_value>;
+		/// Controls how the size of this window is determined.
+		enum class size_policy : unsigned char {
+			/// The user is free to resize the window on a particular orientation. The size of this element is
+			/// ignored.
+			user,
+			/// The window cannot be resized in that orientation. The size of the window will be respected, whether
+			/// it's automatic or a fixed value. Proportional sizing will be treated as fixed pixels and a warning
+			/// will be issued.
+			application
+		};
 
 		/// Sets the parent of this window.
 		void set_parent(window *other) {
-			_impl->set_parent(other);
+			_impl->_set_parent(other);
 		}
 
 		/// Sets the caption of the window.
 		void set_caption(const std::u8string &s) {
-			_impl->set_caption(s);
+			_impl->_set_caption(s);
 		}
 
 		/// Retrieves the physical position of the top-left corner of the window's client region in screen
 		/// coordinates.
 		[[nodiscard]] vec2d get_position() const {
-			return _impl->get_position();
+			return _impl->_get_position();
 		}
 		/// Moves the window so that the top-left corner of the window's client region is at the given physical
 		/// position. The position may not be exact due to rounding.
 		void set_position(vec2d pos) {
-			_impl->set_position(pos);
+			_impl->_set_position(pos);
 		}
 		/// Returns the logical size of the window's client region.
 		[[nodiscard]] vec2d get_client_size() const {
-			return _impl->get_client_size();
+			return _impl->_get_client_size();
 		}
 		/// Sets the logical size the window's client region. The size may not be exact due to rounding.
 		void set_client_size(vec2d size) {
-			_impl->set_client_size(size);
+			_impl->_set_client_size(size);
 		}
 
 		/// Returns the DPI scaling factor of this window.
 		[[nodiscard]] vec2d get_scaling_factor() const {
-			return _impl->get_scaling_factor();
+			return _impl->_get_scaling_factor();
 		}
 
 		/// Activates this window, bringing it to the top level and focuses on the window.
 		void activate() {
-			_impl->activate();
+			_impl->_activate();
 		}
 		/// Prompts the user that this window is ready, without activating the window.
 		void prompt_ready() {
-			_impl->prompt_ready();
+			_impl->_prompt_ready();
 		}
 
 		/// Shows the window without activating it.
 		void show() {
-			_impl->show();
+			_impl->_show();
 		}
 		/// Shows and activates the window.
 		void show_and_activate() {
-			_impl->show_and_activate();
+			_impl->_show_and_activate();
 		}
 		/// Hides the window without closing it.
 		void hide() {
-			_impl->hide();
+			_impl->_hide();
 		}
 
 		/// Invoked when any element in this winodw needs redrawing.
 		void invalidate_window_visuals() {
-			_impl->invalidate_window_visuals();
+			_impl->_invalidate_window_visuals();
 		}
 
 		/// Sets whether the `maximize' button is displayed.
 		void set_display_maximize_button(bool b) {
-			_impl->set_display_maximize_button(b);
+			_impl->_set_display_maximize_button(b);
 		}
 		/// Sets whether the `minimize' button is displayed.
 		void set_display_minimize_button(bool b) {
-			_impl->set_display_minimize_button(b);
+			_impl->_set_display_minimize_button(b);
 		}
 		/// Sets whether the title bar is displayed.
 		void set_display_caption_bar(bool b) {
-			_impl->set_display_caption_bar(b);
+			_impl->_set_display_caption_bar(b);
 		}
 		/// Sets whether the window border is displayed.
 		void set_display_border(bool b) {
-			_impl->set_display_border(b);
+			_impl->_set_display_border(b);
 		}
 		/// Sets whether the user can resize the window.
 		void set_sizable(bool b) {
-			_impl->set_sizable(b);
+			_impl->_set_sizable(b);
 		}
 		/// Sets whether this window is displayed about all other normal windows.
 		void set_topmost(bool b) {
-			_impl->set_topmost(b);
+			_impl->_set_topmost(b);
 		}
 		/// Sets if this window is shown in the taskbar or the task list. This may have other side effects.
 		void set_show_icon(bool b) {
-			_impl->set_show_icon(b);
+			_impl->_set_show_icon(b);
 		}
 
 		/// Obtains the corresponding logical position in client coordinates from the given physical position in
 		/// screen coordinates.
 		[[nodiscard]] vec2d screen_to_client(vec2d p) const {
-			return _impl->screen_to_client(p);
+			return _impl->_screen_to_client(p);
 		}
 		/// Obtains the corresponding physical position in screen coordinates from the given logical position in
 		/// client coordinates.
 		[[nodiscard]] vec2d client_to_screen(vec2d p) const {
-			return _impl->client_to_screen(p);
+			return _impl->_client_to_screen(p);
 		}
 
 		/// Called to set the position of the currently active caret. This position
 		/// is used by input methods to display components such as the candidate window.
 		void set_active_caret_position(rectd r) {
-			_impl->set_active_caret_position(r);
+			_impl->_set_active_caret_position(r);
 		}
 		/// Called when the input is interrupted by, e.g., a change of focus or caret position.
 		void interrupt_input_method() {
-			_impl->interrupt_input_method();
+			_impl->_interrupt_input_method();
 		}
 
 		/// Captures the mouse to a given element, so that wherever the mouse moves to, the element always receives
@@ -252,7 +272,7 @@ namespace codepad::ui {
 			_capture = nullptr;
 			// TODO send a mouse_move message to correct mouse over information?
 			// notify the system
-			_impl->release_mouse_capture();
+			_impl->_release_mouse_capture();
 		}
 		/// If the mouse is captured, returns the mouse cursor of \ref _capture; otherwise falls back to
 		/// the default behavior.
@@ -261,6 +281,29 @@ namespace codepad::ui {
 		/// Returns the underlying implementation of this window.
 		[[nodiscard]] _details::window_impl &get_impl() const {
 			return *_impl;
+		}
+
+		/// Returns the \ref size_policy for the width of this window.
+		[[nodiscard]] size_policy get_width_size_policy() const {
+			return _width_policy;
+		}
+		/// Sets the \ref size_policy for the width of this window.
+		void set_width_size_policy(size_policy policy) {
+			if (policy != _width_policy) {
+				_width_policy = policy;
+				_impl->_on_size_policy_changed();
+			}
+		}
+		/// Returns the \ref size_policy for the height of this window.
+		[[nodiscard]] size_policy get_height_size_policy() const {
+			return _height_policy;
+		}
+		/// Sets the \ref size_policy for the height of this window.
+		void set_height_size_policy(size_policy policy) {
+			if (policy != _height_policy) {
+				_height_policy = policy;
+				_impl->_on_size_policy_changed();
+			}
 		}
 
 		info_event<>
@@ -279,6 +322,9 @@ namespace codepad::ui {
 		std::any _renderer_data; ///< Renderer-specific data associated with this window.
 		std::unique_ptr<_details::window_impl> _impl; ///< The implementation of this window.
 		element *_capture = nullptr; ///< The element that captures the mouse.
+		size_policy
+			_width_policy = size_policy::user,
+			_height_policy = size_policy::user;
 
 		/// Updates \ref _cached_mouse_position and \ref _cached_mouse_position_timestamp, and returns a
 		/// corresponding \ref mouse_position object. Note that the input position is in device independent units.
@@ -298,6 +344,34 @@ namespace codepad::ui {
 		virtual void _on_size_changed(size_changed_info&);
 		/// Called when the window's scaling factor has been changed.
 		virtual void _on_scaling_factor_changed(scaling_factor_changed_info&);
+
+		/// Calls \ref window_impl::_update_managed_window_size().
+		void _on_layout_parameters_changed() override {
+			panel::_on_layout_parameters_changed();
+			_impl->_update_managed_window_size();
+		}
+		/// If the size of the window is controlled by the application, checks thst the size allocation is automatic
+		/// and calls \ref window_impl::_update_managed_window_size().
+		void _on_desired_size_changed(bool width, bool height) override {
+			panel::_on_desired_size_changed(width, height);
+			bool
+				width_may_change = width && get_width_size_policy() == size_policy::application,
+				height_may_change = height && get_height_size_policy() == size_policy::application;
+			if (width_may_change || height_may_change) {
+				_impl->_update_managed_window_size();
+			}
+		}
+
+		/// If the \ref visibility::focus bit has changed, invokes \ref _details::window_impl::_set_focusable() to
+		/// reflect this change.
+		///
+		/// \todo Maybe we want to do the same thing for \ref visibility::visual and/or \ref visibility::interact?
+		void _on_visibility_changed(_visibility_changed_info &info) override {
+			panel::_on_visibility_changed(info);
+			if (((info.old_value ^ get_visibility()) & visibility::focus) != visibility::none) {
+				_impl->_set_focusable((get_visibility() & visibility::focus) != visibility::none);
+			}
+		}
 
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.

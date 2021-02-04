@@ -209,12 +209,45 @@ namespace codepad::lsp::types {
 	};
 	using MarkedString = primitive_variant<string, MarkedStringObject>;
 
+	/// Type for \ref Hover::contents;
+	struct HoverContents_variant : public custom_variant_base {
+		/// Deduces the type of this variant. If it's an object, this function checks for the field \p kind which
+		/// indicates that this should be a \ref MarkupContent.
+		void deduce_type_and_visit(visitor_base &v, const rapidjson::Value &json_val) override {
+			if (json_val.IsObject()) {
+				if (auto kind = json_val.FindMember("kind"); kind != json_val.MemberEnd()) {
+					v.visit(value.emplace<MarkupContent>());
+				} else {
+					v.visit(value.emplace<MarkedString>());
+				}
+			} else if (json_val.IsArray()) { // array
+				v.visit(value.emplace<array<MarkedString>>());
+			} else if (json_val.IsString()) { // MarkedString can be a simple string
+				v.visit(value.emplace<MarkedString>());
+			} else { // error
+				logger::get().log_error(CP_HERE) << "invalid JSON for Hover.contents";
+			}
+		}
+		/// Calls \p std::visit().
+		void visit_value(visitor_base &v) override {
+			std::visit(
+				[&v](auto &&val) {
+					v.visit(val);
+				}, value
+			);
+		}
+
+		std::variant<MarkedString, array<MarkedString>, MarkupContent> value; ///< The value of this variant.
+	};
 	struct Hover : public virtual object {
-		/*primitive_variant<MarkedString, array<MarkedString>, MarkupContent> contents;*/
+		HoverContents_variant contents;
 		optional<Range> range;
 
 		void visit_fields(visitor_base&) override;
 	};
+
+	/// Convenience response type for \p textDocument/hover.
+	using HoverResponse = primitive_variant<null, Hover>;
 
 
 	/// Used by \ref SignatureInformationClientCapabilities.

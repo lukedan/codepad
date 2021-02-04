@@ -47,7 +47,7 @@ namespace codepad::os {
 	}
 
 
-#define CP_USE_LEGACY_OPEN_FILE_DIALOG // new open file dialog doesn't work right now
+#define CP_USE_LEGACY_OPEN_FILE_DIALOG // TODO new open file dialog doesn't work right now
 
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
 	std::vector<std::filesystem::path> file_dialog::show_open_dialog(const ui::window *parent, type type) {
@@ -99,7 +99,7 @@ namespace codepad::os {
 			static const QITAB qit[] = {
 				QITABENT(dialog_event_handler, IFileDialogEvents),
 				QITABENT(dialog_event_handler, IFileDialogControlEvents),
-			{ 0 },
+				{ 0 },
 			};
 			return QISearch(this, qit, riid, ppv);
 		}
@@ -117,42 +117,39 @@ namespace codepad::os {
 		}
 
 		// IFileDialogEvents methods
-		IFACEMETHODIMP OnFileOk(IFileDialog*) {
+		IFACEMETHODIMP OnFileOk(IFileDialog*) override {
 			return S_OK;
 		};
-		IFACEMETHODIMP OnFolderChange(IFileDialog*) {
+		IFACEMETHODIMP OnFolderChange(IFileDialog*) override {
 			return S_OK;
 		};
-		IFACEMETHODIMP OnFolderChanging(IFileDialog*, IShellItem*) {
+		IFACEMETHODIMP OnFolderChanging(IFileDialog*, IShellItem*) override {
 			return S_OK;
 		};
-		IFACEMETHODIMP OnHelp(IFileDialog*) {
+		IFACEMETHODIMP OnSelectionChange(IFileDialog*) override {
 			return S_OK;
 		};
-		IFACEMETHODIMP OnSelectionChange(IFileDialog*) {
+		IFACEMETHODIMP OnShareViolation(IFileDialog*, IShellItem*, FDE_SHAREVIOLATION_RESPONSE*) override {
 			return S_OK;
 		};
-		IFACEMETHODIMP OnShareViolation(IFileDialog*, IShellItem*, FDE_SHAREVIOLATION_RESPONSE*) {
-			return S_OK;
-		};
-		IFACEMETHODIMP OnTypeChange(IFileDialog*) {
+		IFACEMETHODIMP OnTypeChange(IFileDialog*) override {
 			return S_OK;
 		}
-		IFACEMETHODIMP OnOverwrite(IFileDialog*, IShellItem*, FDE_OVERWRITE_RESPONSE*) {
+		IFACEMETHODIMP OnOverwrite(IFileDialog*, IShellItem*, FDE_OVERWRITE_RESPONSE*) override {
 			return S_OK;
 		};
 
 		// IFileDialogControlEvents methods
-		IFACEMETHODIMP OnItemSelected(IFileDialogCustomize*, DWORD, DWORD) {
+		IFACEMETHODIMP OnItemSelected(IFileDialogCustomize*, DWORD, DWORD) override {
 			return S_OK;
 		}
-		IFACEMETHODIMP OnButtonClicked(IFileDialogCustomize*, DWORD) {
+		IFACEMETHODIMP OnButtonClicked(IFileDialogCustomize*, DWORD) override {
 			return S_OK;
 		};
-		IFACEMETHODIMP OnCheckButtonToggled(IFileDialogCustomize*, DWORD, BOOL) {
+		IFACEMETHODIMP OnCheckButtonToggled(IFileDialogCustomize*, DWORD, BOOL) override {
 			return S_OK;
 		};
-		IFACEMETHODIMP OnControlActivating(IFileDialogCustomize*, DWORD) {
+		IFACEMETHODIMP OnControlActivating(IFileDialogCustomize*, DWORD) override {
 			return S_OK;
 		};
 	private:
@@ -164,15 +161,9 @@ namespace codepad::os {
 		_details::com_check(pDialogEventHandler->QueryInterface(riid, ppv));
 		pDialogEventHandler->Release();
 	}
-	vector<filesystem::path> open_file_dialog(const window *parent, file_dialog_type type) {
-		const COMDLG_FILTERSPEC file_types = { L"All files", L"*.*" };
+	std::vector<std::filesystem::path> file_dialog::show_open_dialog(const ui::window *parent, type type) {
+		const COMDLG_FILTERSPEC file_types = { TEXT("All files"), TEXT("*.*") };
 
-#	ifdef CP_CHECK_LOGICAL_ERRORS
-		const window *wnd = dynamic_cast<const window*>(parent);
-		assert_true_logical((wnd != nullptr) == (parent != nullptr), "invalid window type");
-#	else
-		const window *wnd = static_cast<const window*>(parent);
-#	endif
 		_details::com_usage uses_com;
 		IFileOpenDialog *dialog = nullptr;
 		IFileDialogEvents *devents = nullptr;
@@ -184,18 +175,21 @@ namespace codepad::os {
 		_details::com_check(dialog->Advise(devents, &cookie));
 		_details::com_check(dialog->GetOptions(&options));
 		options |= FOS_FORCEFILESYSTEM;
-		if (type == file_dialog_type::multiple_selection) {
+		if (type == type::multiple_selection) {
 			options |= FOS_ALLOWMULTISELECT;
 		} else {
 			options &= ~FOS_ALLOWMULTISELECT;
 		}
 		_details::com_check(dialog->SetOptions(options));
 		_details::com_check(dialog->SetFileTypes(1, &file_types));
-		_details::com_check(dialog->SetFileTypeIndex(1));
+		_details::com_check(dialog->SetFileTypeIndex(1)); // this index is one-based
 		// TODO bug here: program hangs
 		// also no problem if parent is nullptr
-		HRESULT res = dialog->Show(wnd ? wnd->get_native_handle() : nullptr);
+		HRESULT res = dialog->Show(
+			parent ? _details::cast_window_impl(parent->get_impl()).get_native_handle() : nullptr
+		);
 		if (res == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+			// TODO probably everything leaks
 			return {};
 		}
 		_details::com_check(res);
@@ -203,14 +197,14 @@ namespace codepad::os {
 		DWORD count;
 		_details::com_check(dialog->GetResults(&files));
 		_details::com_check(files->GetCount(&count));
-		vector<filesystem::path> result;
+		std::vector<std::filesystem::path> result;
 		result.reserve(count);
 		for (DWORD i = 0; i < count; ++i) {
 			IShellItem *item;
 			_details::com_check(files->GetItemAt(i, &item));
 			LPWSTR path = nullptr;
 			_details::com_check(item->GetDisplayName(SIGDN_FILESYSPATH, &path));
-			result.push_back(filesystem::path(path));
+			result.push_back(std::filesystem::path(path));
 			CoTaskMemFree(path);
 		}
 		files->Release();

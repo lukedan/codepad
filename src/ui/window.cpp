@@ -45,7 +45,7 @@ namespace codepad::ui {
 			_capture->_on_mouse_enter();
 		}
 		// finally, notify the system
-		_impl->set_mouse_capture();
+		_impl->_set_mouse_capture();
 	}
 
 	[[nodiscard]] cursor window::get_current_display_cursor() const {

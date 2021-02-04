@@ -7,7 +7,6 @@
 /// Manager for tabs and tab hosts.
 
 #include "../../../os/misc.h"
-#include "../../../os/current/window.h"
 #include "../../element.h"
 #include "../../panel.h"
 #include "split_panel.h"

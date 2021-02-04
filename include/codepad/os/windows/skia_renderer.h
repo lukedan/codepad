@@ -77,7 +77,7 @@ namespace codepad::os {
 			ReleaseDC(wnd_impl.get_native_handle(), hdc);
 
 			auto &data = _get_window_data(wnd).emplace<_window_data>();
-			data.surface = _create_surface_for_window(wnd, wnd_impl.get_scaling_factor());
+			data.surface = _create_surface_for_window(wnd, wnd.get_scaling_factor());
 			// resize buffer when the window size has changed
 			wnd.size_changed += [this, pwnd = &wnd](ui::window::size_changed_info&) {
 				auto &data = _get_window_data_as<_window_data>(*pwnd);
@@ -105,7 +105,7 @@ namespace codepad::os {
 			_details::winapi_check(wglMakeCurrent(hdc, _gl_context));
 			ReleaseDC(wnd_impl.get_native_handle(), hdc);
 
-			vec2d size = wnd_impl.get_client_size(), scaling = wnd_impl.get_scaling_factor();
+			vec2d size = wnd.get_client_size(), scaling = wnd.get_scaling_factor();
 			size.x *= scaling.x;
 			size.y *= scaling.y;
 			glViewport(0, 0, size.x, size.y);

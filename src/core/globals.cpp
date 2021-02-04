@@ -11,7 +11,6 @@
 #include "codepad/core/misc.h"
 #include "codepad/core/plugins.h"
 #include "codepad/core/settings.h"
-#include "codepad/os/current/all.h"
 #include "codepad/ui/commands.h"
 #include "codepad/ui/renderer.h"
 #include "codepad/ui/manager.h"

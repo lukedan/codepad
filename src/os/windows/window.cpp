@@ -42,6 +42,57 @@ namespace codepad::os {
 				wnd.get_manager().get_scheduler().wake_up();
 				return 0;
 
+			case WM_SIZING:
+				{
+					// prevent resizing the window if the size is controlled by the application
+					bool
+						manage_width = wnd.get_width_size_policy() == ui::window::size_policy::application,
+						manage_height = wnd.get_height_size_policy() == ui::window::size_policy::application;
+					if (!manage_width && !manage_height) {
+						break; // no need to handle this message
+					}
+					RECT window_rect;
+					_details::winapi_check(GetWindowRect(wnd_impl->get_native_handle(), &window_rect));
+					RECT *rect = reinterpret_cast<RECT*>(lparam);
+					// adjust the rectangle to maintain the original size
+					if (manage_width) {
+						switch (wparam) {
+						case WMSZ_TOPLEFT:
+							[[fallthrough]];
+						case WMSZ_BOTTOMLEFT:
+							[[fallthrough]];
+						case WMSZ_LEFT:
+							rect->left = rect->right - (window_rect.right - window_rect.left);
+							break;
+						case WMSZ_TOPRIGHT:
+							[[fallthrough]];
+						case WMSZ_BOTTOMRIGHT:
+							[[fallthrough]];
+						case WMSZ_RIGHT:
+							rect->right = rect->left + (window_rect.right - window_rect.left);
+							break;
+						}
+					}
+					if (manage_height) {
+						switch (wparam) {
+						case WMSZ_TOPLEFT:
+							[[fallthrough]];
+						case WMSZ_TOPRIGHT:
+							[[fallthrough]];
+						case WMSZ_TOP:
+							rect->top = rect->bottom - (window_rect.bottom - window_rect.top);
+							break;
+						case WMSZ_BOTTOMLEFT:
+							[[fallthrough]];
+						case WMSZ_BOTTOMRIGHT:
+							[[fallthrough]];
+						case WMSZ_BOTTOM:
+							rect->bottom = rect->top + (window_rect.bottom - window_rect.top);
+							break;
+						}
+					}
+					return TRUE;
+				}
 			case WM_SIZE:
 				{
 					if (wparam != SIZE_MINIMIZED) {
@@ -164,8 +215,10 @@ namespace codepad::os {
 				}
 
 			case WM_MOUSEMOVE:
+				// this could be either the first time (on mouse enter), or when the mouse is moved after a hover
+				// event is received
+				wnd_impl->_setup_mouse_tracking();
 				if (!wnd.is_mouse_over()) {
-					wnd_impl->_setup_mouse_tracking();
 					wnd._on_mouse_enter();
 				}
 				_wnd_onevent<ui::mouse_move_info>(
@@ -175,7 +228,18 @@ namespace codepad::os {
 					))
 				);
 				return 0;
+			case WM_MOUSEHOVER:
+				wnd_impl->_mouse_tracked = false;
+				_wnd_onevent<ui::mouse_hover_info>(
+					wnd, &ui::window::_on_mouse_hover,
+					_details::get_modifiers(),
+					wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(
+						vec2d(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
+					))
+				);
+				return 0;
 			case WM_MOUSELEAVE:
+				wnd_impl->_mouse_tracked = false;
 				wnd._on_mouse_leave();
 				return 0;
 
@@ -321,8 +385,8 @@ namespace codepad::os {
 		_wndclass::get();
 		_details::winapi_check(_hwnd = CreateWindowEx(
 			WS_EX_ACCEPTFILES,
-			reinterpret_cast<LPCTSTR>(static_cast<std::size_t>(_wndclass::get().atom)),
-			TEXT("Codepad"), WS_OVERLAPPEDWINDOW,
+			reinterpret_cast<LPCTSTR>(static_cast<std::size_t>(_wndclass::get().atom)), TEXT("Codepad"),
+			WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
 			CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 			nullptr, nullptr, GetModuleHandle(nullptr), nullptr
 		));
@@ -339,24 +403,31 @@ namespace codepad::os {
 		_details::winapi_check(DestroyWindow(_hwnd));
 	}
 
-	void window_impl::set_parent(ui::window *wnd) {
+	void window_impl::_set_parent(ui::window *wnd) {
+		// what we're really setting here is ownership
+		// TODO is a single SetWindowLongPtr enough? not according to https://devblogs.microsoft.com/oldnewthing/20100315-00/?p=14613
 		HWND parent = wnd ? _details::cast_window_impl(*wnd->_impl).get_native_handle() : nullptr;
-		_details::winapi_check(SetParent(_hwnd, parent));
+		SetLastError(0);
+		if (SetWindowLongPtr(_hwnd, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(parent)) == 0) {
+			if (GetLastError() != 0) {
+				_details::winapi_check(GetLastError());
+			}
+		}
 	}
 
-	void window_impl::set_caption(const std::u8string &cap) {
+	void window_impl::_set_caption(const std::u8string &cap) {
 		auto u16str = _details::utf8_to_wstring(cap.c_str());
 		_details::winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
 	}
 
-	vec2d window_impl::get_position() const {
+	vec2d window_impl::_get_position() const {
 		POINT tl;
 		tl.x = tl.y = 0;
 		_details::winapi_check(ClientToScreen(_hwnd, &tl));
 		return vec2d(static_cast<double>(tl.x), static_cast<double>(tl.y));
 	}
 
-	void window_impl::set_position(vec2d pos) {
+	void window_impl::_set_position(vec2d pos) {
 		RECT r;
 		POINT tl;
 		tl.x = tl.y = 0;
@@ -369,7 +440,7 @@ namespace codepad::os {
 		));
 	}
 
-	vec2d window_impl::get_client_size() const {
+	vec2d window_impl::_get_client_size() const {
 		RECT r;
 		_details::winapi_check(GetClientRect(_hwnd, &r));
 		return _physical_to_logical_position(vec2d(
@@ -377,7 +448,7 @@ namespace codepad::os {
 		));
 	}
 
-	void window_impl::set_client_size(vec2d sz) {
+	void window_impl::_set_client_size(vec2d sz) {
 		sz = _logical_to_physical_position(sz);
 		RECT wndrgn, cln;
 		_details::winapi_check(GetWindowRect(_hwnd, &wndrgn));
@@ -390,7 +461,7 @@ namespace codepad::os {
 		));
 	}
 
-	void window_impl::prompt_ready() {
+	void window_impl::_prompt_ready() {
 		FLASHWINFO fwi;
 		std::memset(&fwi, 0, sizeof(fwi));
 		fwi.cbSize = sizeof(fwi);
@@ -401,7 +472,7 @@ namespace codepad::os {
 		FlashWindowEx(&fwi);
 	}
 
-	vec2d window_impl::screen_to_client(vec2d v) const {
+	vec2d window_impl::_screen_to_client(vec2d v) const {
 		POINT p;
 		p.x = static_cast<int>(std::round(v.x));
 		p.y = static_cast<int>(std::round(v.y));
@@ -411,13 +482,52 @@ namespace codepad::os {
 		));
 	}
 
-	vec2d window_impl::client_to_screen(vec2d v) const {
+	vec2d window_impl::_client_to_screen(vec2d v) const {
 		v = _logical_to_physical_position(v);
 		POINT p;
 		p.x = static_cast<int>(std::round(v.x));
 		p.y = static_cast<int>(std::round(v.y));
 		_details::winapi_check(ClientToScreen(_hwnd, &p));
 		return vec2d(static_cast<double>(p.x), static_cast<double>(p.y));
+	}
+
+	void window_impl::_update_managed_window_size() {
+		bool
+			manage_width = _window.get_width_size_policy() == ui::window::size_policy::application,
+			manage_height = _window.get_width_size_policy() == ui::window::size_policy::application;
+		if (!manage_width && !manage_height) {
+			return;
+		}
+		RECT client, window_rect;
+		_details::winapi_check(GetClientRect(_hwnd, &client));
+		_details::winapi_check(GetWindowRect(_hwnd, &window_rect));
+		LONG
+			new_width = window_rect.right - window_rect.left,
+			new_height = window_rect.bottom - window_rect.top;
+		// compute new size
+		bool has_proportion = false;
+		if (manage_width) {
+			auto width = _window.get_layout_width();
+			has_proportion = has_proportion || !width.is_pixels;
+			LONG border_width = new_width - (client.right - client.left);
+			new_width = border_width + std::max<LONG>(static_cast<LONG>(width.value * _cached_scaling.x), 0);
+		}
+		if (manage_height) {
+			auto height = _window.get_layout_height();
+			has_proportion = has_proportion || !height.is_pixels;
+			LONG border_height = new_height - (client.bottom - client.top);
+			new_height = border_height + std::max<LONG>(static_cast<LONG>(height.value * _cached_scaling.y), 0);
+		}
+		if (has_proportion) {
+			logger::get().log_warning(CP_HERE) <<
+				"window size managed by application, but has a proportional value; "
+				"it'll be treated as a pixel value instead";
+		}
+		// set window size
+		_details::winapi_check(SetWindowPos(
+			_hwnd, nullptr, 0, 0, new_width, new_height,
+			SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER
+		));
 	}
 
 	window_impl *window_impl::_get_associated_window_impl(HWND hwnd) {
@@ -433,20 +543,23 @@ namespace codepad::os {
 
 	void window_impl::_set_window_style_bit(bool v, LONG bit, int type) {
 		LONG old = GetWindowLong(_hwnd, type);
-		SetWindowLong(_hwnd, type, v ? old | bit : old & ~bit);
+		SetWindowLongPtr(_hwnd, type, v ? old | bit : old & ~bit);
 		_details::winapi_check(SetWindowPos(
-			_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+			_hwnd, nullptr, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
 		));
 	}
 
 	void window_impl::_setup_mouse_tracking() {
-		TRACKMOUSEEVENT tme;
-		std::memset(&tme, 0, sizeof(tme));
-		tme.cbSize = sizeof(tme);
-		tme.dwFlags = TME_HOVER | TME_LEAVE;
-		tme.dwHoverTime = HOVER_DEFAULT;
-		tme.hwndTrack = _hwnd;
-		_details::winapi_check(TrackMouseEvent(&tme));
+		if (!_mouse_tracked) {
+			TRACKMOUSEEVENT tme;
+			std::memset(&tme, 0, sizeof(tme));
+			tme.cbSize = sizeof(tme);
+			tme.dwFlags = TME_HOVER | TME_LEAVE;
+			tme.dwHoverTime = HOVER_DEFAULT;
+			tme.hwndTrack = _hwnd;
+			_details::winapi_check(TrackMouseEvent(&tme));
+			_mouse_tracked = true;
+		}
 	}
 
 
