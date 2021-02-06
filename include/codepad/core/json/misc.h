@@ -102,7 +102,27 @@ namespace codepad::json {
 			return std::nullopt;
 		}
 
-		Parser parser; ///< The parser for individual objects.
+		[[no_unique_address]] Parser parser; ///< The parser for individual objects.
+	};
+
+	/// The parser that parses an optional object. This parser treats \p null as empty, which could interfere with
+	/// the parser for the actual value.
+	template <typename T, typename Parser = default_parser<T>> struct optional_parser {
+		/// Default constructor.
+		optional_parser() = default;
+		/// Initializes \ref parser.
+		explicit optional_parser(Parser p) : parser(std::move(p)) {
+		}
+
+		/// Checks if the value is \p null.
+		template <typename Value> std::optional<std::optional<T>> operator()(const Value &val) const {
+			if (val.template is<null_t>()) {
+				return std::optional<T>(std::nullopt);
+			}
+			return val.template parse<T>(parser);
+		}
+
+		[[no_unique_address]] Parser parser; ///< The parser for the underlying value.
 	};
 
 

@@ -211,7 +211,7 @@ namespace codepad::ui {
 			return get_padding().shrink(_layout);
 		}
 		/// Returns the width value used for layout calculation. If the current width allocation type is
-		/// \ref size_allocation_type::automatic, the result will be that of \ref get_desired_width; otherwise the
+		/// \ref size_allocation_type::automatic, the result will be that of \ref get_desired_width(); otherwise the
 		/// user-defined width will be returned.
 		[[nodiscard]] size_allocation get_layout_width() const;
 		/// Returns the height value used for layout calculation.

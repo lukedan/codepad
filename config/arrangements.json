@@ -56,15 +56,15 @@
 	},
 	"hover_label": {
 		"attributes": {
-			"layout": {
-				"width": 300
-			},
+			"visibility": "-f",
 			"font": {
 				"family": "Comic Sans MS",
 				"size": 20,
 				"style": "italic"
 			},
-			"wrapping": "wrap"
+			"wrapping": "wrap",
+			"wrapping_width": 600,
+			"wrapping_width_mode": "custom"
 		},
 		"animations": {
 			"mouse_enter": {
@@ -1046,6 +1046,14 @@
 							[ 1.0, 1.0 ],
 							[ 0.0, 0.0 ]
 						],
+						//"fill": {
+						//	"type": "bitmap",
+						//	"image": "test.jfif",
+						//	"transform": {
+						//		"center": [ 0.0, 0.0 ],
+						//		"scale": [ 0.1, 0.1 ]
+						//	}
+						//}
 						"fill": {
 							"type": "solid",
 							"color": [ 1.0, 1.0, 1.0, 0.15 ]

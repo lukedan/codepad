@@ -293,9 +293,21 @@ namespace codepad {
 			) const = 0;
 
 			/// Returns the size used for layout calculation and wrapping.
-			virtual vec2d get_layout_size() const = 0;
+			[[nodiscard]] virtual vec2d get_layout_size() const = 0;
 			/// Returns the size used for layout calculation and wrapping.
 			virtual void set_layout_size(vec2d) = 0;
+			/// Returns the horizontal text alignment.
+			[[nodiscard]] virtual horizontal_text_alignment get_horizontal_alignment() const = 0;
+			/// Sets the horizontal text alignment.
+			virtual void set_horizontal_alignment(horizontal_text_alignment) = 0;
+			/// Returns the vertical text alignment.
+			[[nodiscard]] virtual vertical_text_alignment get_vertical_alignment() const = 0;
+			/// Sets the vertical text alignment.
+			virtual void set_vertical_alignment(vertical_text_alignment) = 0;
+			/// Returns the wrapping mode of this text.
+			[[nodiscard]] virtual wrapping_mode get_wrapping_mode() const = 0;
+			/// Sets the wrapping mode of this text.
+			virtual void set_wrapping_mode(wrapping_mode) = 0;
 
 			/// Sets the color of the specified range of text.
 			virtual void set_text_color(colord, std::size_t, std::size_t) = 0;

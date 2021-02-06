@@ -25,6 +25,12 @@ namespace codepad::ui {
 			));
 			mapping.emplace(u8"font", std::make_shared<member_pointer_property<&label::_font>>(
 				[](label &lbl) {
+					constexpr std::size_t size_t_max = std::numeric_limits<std::size_t>::max();
+					lbl._formatted_text->set_font_family(lbl.get_font_parameters().family, 0, size_t_max);
+					lbl._formatted_text->set_font_size(lbl.get_font_parameters().size, 0, size_t_max);
+					lbl._formatted_text->set_font_style(lbl.get_font_parameters().style, 0, size_t_max);
+					lbl._formatted_text->set_font_weight(lbl.get_font_parameters().weight, 0, size_t_max);
+					lbl._formatted_text->set_font_stretch(lbl.get_font_parameters().stretch, 0, size_t_max);
 					lbl._on_text_layout_changed();
 				}
 			));
@@ -73,6 +79,30 @@ namespace codepad::ui {
 					lbl.set_wrapping_mode(mode);
 				}
 				));
+			mapping.emplace(
+				u8"wrapping_width_mode",
+				std::make_shared<getter_setter_property<label, wrapping_width_mode>>(
+					u8"wrapping_width_mode",
+					[](label &lbl) {
+						return lbl.get_wrapping_width_mode();
+					},
+					[](label &lbl, wrapping_width_mode mode) {
+						lbl.set_wrapping_width_mode(mode);
+					}
+				)
+			);
+			mapping.emplace(
+				u8"wrapping_width",
+				std::make_shared<getter_setter_property<label, double>>(
+					u8"wrapping_width",
+					[](label &lbl) {
+						return lbl.get_custom_wrapping_width();
+					},
+					[](label &lbl, double width) {
+						lbl.set_custom_wrapping_width(width);
+					}
+				)
+			);
 		}
 
 		return mapping;
@@ -83,15 +113,6 @@ namespace codepad::ui {
 
 		rectd client = get_client_region();
 		vec2d offset = client.xmin_ymin() - get_layout().xmin_ymin();
-		get_manager().get_renderer().draw_formatted_text(*_cached_fmt, offset);
-	}
-
-	void label::_check_cache_format() const {
-		if (!_cached_fmt) {
-			rectd client = get_client_region();
-			_cached_fmt = get_manager().get_renderer().create_formatted_text(
-				get_text(), _font, _text_color, client.size(), _wrap, _halign, _valign
-			);
-		}
+		get_manager().get_renderer().draw_formatted_text(*_formatted_text, offset);
 	}
 }

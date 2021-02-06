@@ -265,6 +265,23 @@ namespace codepad::ui {
 			void set_layout_size(vec2d size) override {
 				_layout_size = size;
 			}
+			/// Returns the result of \p pango_layout_get_alignment().
+			horizontal_text_alignment get_horizontal_alignment() const override;
+			/// Sets the horizontal text alignment using \p pango_layout_set_alignment().
+			void set_horizontal_alignment(horizontal_text_alignment) override;
+			/// Returns \ref _valign.
+			vertical_text_alignment get_vertical_alignment() const override {
+				return _valign;
+			}
+			/// Sets \ref _valign.
+			void set_vertical_alignment(vertical_text_alignment align) override {
+				_valign = align;
+			}
+			/// Checks if a width is currently set using \p pango_layout_get_width(), and returns the corresponding
+			/// mode.
+			wrapping_mode get_wrapping_mode() const override;
+			/// Sets the wrapping mode of this text using \p pango_layout_set_width() and \p pango_layout_set_wrap().
+			void set_wrapping_mode(wrapping_mode) override;
 
 			/// Sets the color of the specified range of text.
 			void set_text_color(colord, std::size_t beg, std::size_t len) override;

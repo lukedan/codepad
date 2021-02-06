@@ -107,9 +107,9 @@ namespace codepad::ui {
 		/// Otherwise just returns element::get_current_display_cursor().
 		cursor get_current_display_cursor() const override;
 
-		/// Returns the maximum width of its children specified in pixels, plus padding.
+		/// Returns the maximum width of its children that is specified in pixels, plus padding.
 		size_allocation get_desired_width() const override;
-		/// Returns the maximum height of its children specified in pixels, plus padding.
+		/// Returns the maximum height of its children that is specified in pixels, plus padding.
 		size_allocation get_desired_height() const override;
 
 		/// Sets whether it should mark all its children for disposal when it's being disposed.

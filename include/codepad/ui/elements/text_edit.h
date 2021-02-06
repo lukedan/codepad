@@ -157,9 +157,8 @@ namespace codepad::ui {
 			label::_on_key_down(p);
 			if (p.key_pressed == key::control) {
 				logger::get().log_debug(CP_HERE) << "set red";
-				_check_cache_format();
 				auto [smin, smax] = _caret.get_range();
-				_cached_fmt->set_text_color(colord(1.0, 0.0, 0.0, 1.0), smin, smax - smin);
+				_formatted_text->set_text_color(colord(1.0, 0.0, 0.0, 1.0), smin, smax - smin);
 				invalidate_visual();
 			}
 		}

@@ -83,6 +83,18 @@ namespace codepad::os::direct2d {
 		vec2d get_layout_size() const override;
 		/// Invokes \p IDWriteTextLayout::SetMaxWidth() and \p IDWriteTextLayout::SetMaxHeight().
 		void set_layout_size(vec2d) override;
+		/// Returns the result of \p IDWriteTextFormat::GetTextAlignment().
+		ui::horizontal_text_alignment get_horizontal_alignment() const override;
+		/// Sets the horizontal text alignment using \p IDWriteTextFormat::SetTextAlignment().
+		void set_horizontal_alignment(ui::horizontal_text_alignment) override;
+		/// Returns the result of \p IDWriteTextFormat::GetParagraphAlignment().
+		ui::vertical_text_alignment get_vertical_alignment() const override;
+		/// Sets the vertical text alignment using \p IDWriteTextFormat::SetParagraphAlignment().
+		void set_vertical_alignment(ui::vertical_text_alignment) override;
+		/// Returns the result of \p IDWriteTextFormat::GetWordWrapping().
+		ui::wrapping_mode get_wrapping_mode() const override;
+		/// Sets the wrapping mode of this text using \p IDWriteTextFormat::SetWordWrapping().
+		void set_wrapping_mode(ui::wrapping_mode) override;
 
 		/// Calls \p IDWriteTextLayout::SetDrawingEffect().
 		void set_text_color(colord, std::size_t, std::size_t) override;
@@ -404,6 +416,22 @@ namespace codepad::os::direct2d {
 			/// user's fault and we'll just let it crash).
 			ID2D1Bitmap1 *target = nullptr;
 		};
+		/// Stores the result of analyzing a piece of text, containing the positions of surrogate pairs and the total
+		/// length in codepoints, as well as the text encoded in UTF-16. This is used when createing
+		/// \ref formatted_text objects.
+		struct _text_analysis {
+			std::basic_string<std::byte> text; ///< The text encoded in UTF-16.
+			std::vector<std::size_t> surrogate; ///< \sa formatted_text::_surrogate_chars
+			/// The total number of characters.
+			///
+			/// \sa formatted_text::_num_chars
+			std::size_t num_chars = 0;
+
+			/// Analyzes a UTF-8 encoded string.
+			[[nodiscard]] static _text_analysis analyze(std::u8string_view);
+			/// Analyzes a UTF-32 encoded string.
+			[[nodiscard]] static _text_analysis analyze(std::basic_string_view<codepoint>);
+		};
 
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of render targets.
 		std::set<IDXGISwapChain*> _present_chains; ///< The DXGI swap chains to call \p Present() on.
@@ -462,10 +490,8 @@ namespace codepad::os::direct2d {
 
 		/// Creates an \p IDWriteTextLayout.
 		std::shared_ptr<formatted_text> _create_formatted_text_impl(
-			std::basic_string_view<WCHAR>, const ui::font_parameters&, colord,
-			vec2d maxsize, ui::wrapping_mode,
-			ui::horizontal_text_alignment, ui::vertical_text_alignment,
-			std::vector<std::size_t> surrogate, std::size_t num_chars
+			_text_analysis, const ui::font_parameters&, colord, vec2d maxsize, ui::wrapping_mode,
+			ui::horizontal_text_alignment, ui::vertical_text_alignment
 		);
 		/// Creates a \ref plain_text object.
 		std::shared_ptr<plain_text> _create_plain_text_impl(

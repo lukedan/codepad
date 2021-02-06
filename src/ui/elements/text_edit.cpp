@@ -226,25 +226,22 @@ namespace codepad::ui {
 	}
 
 	caret_hit_test_result text_edit::_hit_test_for_caret(vec2d pos) const {
-		_check_cache_format();
-		return _cached_fmt->hit_test(
+		return get_formatted_text().hit_test(
 			pos - (get_client_region().xmin_ymin() - get_layout().xmin_ymin())
 		);
 	}
 
 	void text_edit::_update_window_caret_position() const {
 		if (get_manager().get_scheduler().get_focused_element() == this) {
-			_check_cache_format();
-			get_window()->set_active_caret_position(
-				_cached_fmt->get_character_placement(_caret.caret).translated(get_client_region().xmin_ymin())
-			);
+			rectd caret = get_formatted_text().get_character_placement(_caret.caret);
+			caret = caret.translated(get_client_region().xmin_ymin());
+			get_window()->set_active_caret_position(caret);
 		}
 	}
 
 	void text_edit::_check_cache_line_info() {
 		if (_cached_line_metrics.empty()) {
-			_check_cache_format();
-			_cached_line_metrics = _cached_fmt->get_line_metrics();
+			_cached_line_metrics = get_formatted_text().get_line_metrics();
 			// compute _cached_line_beginnings
 			_cached_line_beginnings.clear();
 			_cached_line_beginnings.reserve(_cached_line_metrics.size() + 1);
@@ -290,11 +287,11 @@ namespace codepad::ui {
 		label::_custom_render();
 		// label::_on_prerender() calls _check_cache_format(), so no need to call again here
 		vec2d offset(get_padding().left, get_padding().top);
-		rectd cursor = _cached_fmt->get_character_placement(_caret.caret).translated(offset);
+		rectd cursor = get_formatted_text().get_character_placement(_caret.caret).translated(offset);
 		_caret_visuals.render(cursor, get_manager().get_renderer());
 		if (_caret.has_selection()) { // render selection
 			auto [sel_min, sel_max] = _caret.get_range();
-			std::vector<rectd> rs = _cached_fmt->get_character_range_placement(sel_min, sel_max - sel_min);
+			std::vector<rectd> rs = get_formatted_text().get_character_range_placement(sel_min, sel_max - sel_min);
 			for (const rectd &r : rs) {
 				_selection_visuals.render(r.translated(offset), get_manager().get_renderer());
 			}

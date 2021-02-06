@@ -30,6 +30,19 @@ namespace codepad::ui::pango_harfbuzz {
 			}
 			return PANGO_ALIGN_LEFT;
 		}
+		/// Converts a \p PangoAlignment back to a \ref horizontal_text_alignment.
+		[[nodiscard]] horizontal_text_alignment cast_horizontal_alignment_back(PangoAlignment align) {
+			switch (align) {
+				// FIXME front & rear does not have exactly the same semantics as left & right
+			case PANGO_ALIGN_LEFT:
+				return horizontal_text_alignment::front;
+			case PANGO_ALIGN_RIGHT:
+				return horizontal_text_alignment::rear;
+			case PANGO_ALIGN_CENTER:
+				return horizontal_text_alignment::center;
+			}
+			return horizontal_text_alignment::front;
+		}
 
 		/// Converts a \ref font_style to a \p PangoStyle.
 		[[nodiscard]] PangoStyle cast_font_style(font_style style) {
@@ -254,6 +267,30 @@ namespace codepad::ui::pango_harfbuzz {
 			r = r.translated(offset);
 		}
 		return result;
+	}
+
+	horizontal_text_alignment formatted_text::get_horizontal_alignment() const {
+		return _details::cast_horizontal_alignment_back(pango_layout_get_alignment(_layout.get()));
+	}
+
+	void formatted_text::set_horizontal_alignment(horizontal_text_alignment align) {
+		pango_layout_set_alignment(_layout.get(), _details::cast_horizontal_alignment(align));
+	}
+
+	wrapping_mode formatted_text::get_wrapping_mode() const {
+		if (pango_layout_get_width(_layout.get()) == -1) {
+			return wrapping_mode::none;
+		}
+		return wrapping_mode::wrap;
+	}
+
+	void formatted_text::set_wrapping_mode(wrapping_mode wrap) {
+		if (wrap == wrapping_mode::none) {
+			pango_layout_set_width(_layout.get(), -1); // disable wrapping
+		} else {
+			pango_layout_set_width(_layout.get(), pango_units_from_double(_layout_size.x));
+			pango_layout_set_wrap(_layout.get(), PANGO_WRAP_WORD_CHAR);
+		}
 	}
 
 	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
@@ -503,15 +540,6 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_layout_set_ellipsize(result->_layout.get(), PANGO_ELLIPSIZE_NONE);
 		pango_layout_set_single_paragraph_mode(result->_layout.get(), false);
 
-		// horizontal wrapping
-		if (wrap == wrapping_mode::none) {
-			pango_layout_set_width(result->_layout.get(), -1); // disable wrapping
-		} else {
-			pango_layout_set_width(result->_layout.get(), pango_units_from_double(size.x));
-			pango_layout_set_wrap(result->_layout.get(), PANGO_WRAP_WORD_CHAR);
-		}
-		pango_layout_set_alignment(result->_layout.get(), _details::cast_horizontal_alignment(halign));
-
 		// vertical alignment is handled manually in get_alignment_offset()
 		// "The behavior is undefined if a height other than -1 is set and ellipsization mode is set to
 		// PANGO_ELLIPSIZE_NONE, and may change in the future."
@@ -561,6 +589,9 @@ namespace codepad::ui::pango_harfbuzz {
 			static_cast<std::size_t>(pango_layout_get_line_count(result->_layout.get())),
 			"line count inconsistent with pango"
 		);
+
+		result->set_horizontal_alignment(halign);
+		result->set_wrapping_mode(wrap);
 
 		return result;
 	}

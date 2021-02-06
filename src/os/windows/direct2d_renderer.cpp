@@ -100,6 +100,7 @@ namespace codepad::os::direct2d {
 			}
 			return DWRITE_FONT_STRETCH_NORMAL; // should not be here
 		}
+
 		/// Casts a \ref ui::horizontal_text_alignment to a \p DWRITE_TEXT_ALIGNMENT.
 		[[nodiscard]] DWRITE_TEXT_ALIGNMENT cast_horizontal_text_alignment(ui::horizontal_text_alignment align) {
 			switch (align) {
@@ -112,6 +113,21 @@ namespace codepad::os::direct2d {
 			}
 			return DWRITE_TEXT_ALIGNMENT_LEADING; // should not be here
 		}
+		/// Casts a \p DWRITE_TEXT_ALIGNMENT back to a \ref ui::horizontal_text_alignment.
+		[[nodiscard]] ui::horizontal_text_alignment cast_horizontal_text_alignment_back(
+			DWRITE_TEXT_ALIGNMENT align
+		) {
+			switch (align) {
+			case DWRITE_TEXT_ALIGNMENT_CENTER:
+				return ui::horizontal_text_alignment::center;
+			case DWRITE_TEXT_ALIGNMENT_LEADING:
+				return ui::horizontal_text_alignment::front;
+			case DWRITE_TEXT_ALIGNMENT_TRAILING:
+				return ui::horizontal_text_alignment::rear;
+			}
+			return ui::horizontal_text_alignment::front; // should not be here
+		}
+
 		/// Casts a \ref ui::vertical_text_alignment to a \p DWRITE_PARAGRAPH_ALIGNMENT.
 		[[nodiscard]] DWRITE_PARAGRAPH_ALIGNMENT cast_vertical_text_alignment(ui::vertical_text_alignment align) {
 			switch (align) {
@@ -124,6 +140,19 @@ namespace codepad::os::direct2d {
 			}
 			return DWRITE_PARAGRAPH_ALIGNMENT_NEAR; // should not be here
 		}
+		/// Casts a \p DWRITE_PARAGRAPH_ALIGNMENT back to a \ref ui::vertical_text_alignment.
+		[[nodiscard]] ui::vertical_text_alignment cast_vertical_text_alignment_back(DWRITE_PARAGRAPH_ALIGNMENT align) {
+			switch (align) {
+			case DWRITE_PARAGRAPH_ALIGNMENT_NEAR:
+				return ui::vertical_text_alignment::top;
+			case DWRITE_PARAGRAPH_ALIGNMENT_CENTER:
+				return ui::vertical_text_alignment::center;
+			case DWRITE_PARAGRAPH_ALIGNMENT_FAR:
+				return ui::vertical_text_alignment::bottom;
+			}
+			return ui::vertical_text_alignment::top; // should not be here
+		}
+
 		/// Casts a \ref ui::wrapping_mode to a \p DWRITE_WORD_WRAPPING.
 		[[nodiscard]] DWRITE_WORD_WRAPPING cast_wrapping_mode(ui::wrapping_mode wrap) {
 			switch (wrap) {
@@ -133,6 +162,16 @@ namespace codepad::os::direct2d {
 				return DWRITE_WORD_WRAPPING_WRAP;
 			}
 			return DWRITE_WORD_WRAPPING_NO_WRAP; // should not be here
+		}
+		/// Casts a \p DWRITE_WORD_WRAPPING back to a \ref ui::wrapping_mode.
+		[[nodiscard]] ui::wrapping_mode cast_wrapping_mode_back(DWRITE_WORD_WRAPPING wrap) {
+			switch (wrap) {
+			case DWRITE_WORD_WRAPPING_NO_WRAP:
+				return ui::wrapping_mode::none;
+			case DWRITE_WORD_WRAPPING_WRAP:
+				return ui::wrapping_mode::wrap;
+			}
+			return ui::wrapping_mode::none; // should not be here
 		}
 
 		/// Underlying implementation of various <tt>cast_*</tt> functions.
@@ -287,6 +326,30 @@ namespace codepad::os::direct2d {
 	void formatted_text::set_layout_size(vec2d sz) {
 		_details::com_check(_text->SetMaxWidth(static_cast<FLOAT>(std::max(sz.x, 0.0))));
 		_details::com_check(_text->SetMaxHeight(static_cast<FLOAT>(std::max(sz.y, 0.0))));
+	}
+
+	ui::horizontal_text_alignment formatted_text::get_horizontal_alignment() const {
+		return _details::cast_horizontal_text_alignment_back(_text->GetTextAlignment());
+	}
+
+	void formatted_text::set_horizontal_alignment(ui::horizontal_text_alignment halign) {
+		_details::com_check(_text->SetTextAlignment(_details::cast_horizontal_text_alignment(halign)));
+	}
+
+	ui::vertical_text_alignment formatted_text::get_vertical_alignment() const {
+		return _details::cast_vertical_text_alignment_back(_text->GetParagraphAlignment());
+	}
+
+	void formatted_text::set_vertical_alignment(ui::vertical_text_alignment valign) {
+		_details::com_check(_text->SetParagraphAlignment(_details::cast_vertical_text_alignment(valign)));
+	}
+
+	ui::wrapping_mode formatted_text::get_wrapping_mode() const {
+		return _details::cast_wrapping_mode_back(_text->GetWordWrapping());
+	}
+
+	void formatted_text::set_wrapping_mode(ui::wrapping_mode wrap) {
+		_details::com_check(_text->SetWordWrapping(_details::cast_wrapping_mode(wrap)));
 	}
 
 	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
@@ -596,6 +659,44 @@ namespace codepad::os::direct2d {
 	}
 
 
+	renderer::_text_analysis renderer::_text_analysis::analyze(std::u8string_view text) {
+		_text_analysis result;
+		result.text.reserve(text.size() * 2);
+
+		std::size_t i = 0;
+		for (auto it = text.begin(); it != text.end(); ++i) {
+			codepoint cp;
+			if (!encodings::utf8::next_codepoint(it, text.end(), cp)) {
+				cp = encodings::replacement_character;
+			}
+			auto encoded = encodings::utf16<>::encode_codepoint(cp);
+			if (encoded.size() == 4) {
+				result.surrogate.emplace_back(i);
+			}
+			result.text += encoded;
+		}
+		result.num_chars = i;
+
+		return result;
+	}
+
+	renderer::_text_analysis renderer::_text_analysis::analyze(std::basic_string_view<codepoint> text) {
+		_text_analysis result;
+		result.num_chars = text.size();
+		result.text.reserve(text.size() * 2);
+
+		for (std::size_t i = 0; i < text.size(); ++i) {
+			auto encoded = encodings::utf16<>::encode_codepoint(text[i]);
+			if (encoded.size() == 4) {
+				result.surrogate.emplace_back(i);
+			}
+			result.text += encoded;
+		}
+
+		return result;
+	}
+
+
 	renderer::renderer() {
 		D3D_FEATURE_LEVEL supported_feature_levels[]{
 			D3D_FEATURE_LEVEL_11_1,
@@ -828,35 +929,8 @@ namespace codepad::os::direct2d {
 		std::u8string_view text, const ui::font_parameters &params, colord c, vec2d maxsize, ui::wrapping_mode wrap,
 		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 	) {
-		std::basic_string<std::byte> bytestr;
-		bytestr.reserve(text.size() * 2);
-
-		std::vector<std::size_t> surrogate;
-		std::size_t num_chars = 0;
-		ui::linebreak_analyzer analyzer(
-			[&num_chars](std::size_t nonbreak_chars, ui::line_ending ending) {
-				num_chars += nonbreak_chars + ui::get_line_ending_length(ending);
-			}
-		);
-
-		std::size_t i = 0;
-		for (auto it = text.begin(); it != text.end(); ++i) {
-			codepoint cp;
-			if (!encodings::utf8::next_codepoint(it, text.end(), cp)) {
-				cp = encodings::replacement_character;
-			}
-			analyzer.put(cp);
-			auto encoded = encodings::utf16<>::encode_codepoint(cp);
-			if (encoded.size() == 4) {
-				surrogate.emplace_back(i);
-			}
-			bytestr += encoded;
-		}
-		analyzer.finish();
-
 		return _create_formatted_text_impl(
-			std::basic_string_view<WCHAR>(reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2),
-			params, c, maxsize, wrap, halign, valign, std::move(surrogate), num_chars
+			_text_analysis::analyze(text), params, c, maxsize, wrap, halign, valign
 		);
 	}
 
@@ -865,30 +939,8 @@ namespace codepad::os::direct2d {
 		vec2d maxsize, ui::wrapping_mode wrap,
 		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 	) {
-		std::basic_string<std::byte> bytestr;
-		bytestr.reserve(text.size());
-
-		std::vector<std::size_t> surrogate;
-		std::size_t num_chars = 0;
-		ui::linebreak_analyzer analyzer(
-			[&num_chars](std::size_t nonbreak_chars, ui::line_ending ending) {
-				num_chars += nonbreak_chars + ui::get_line_ending_length(ending);
-			}
-		);
-
-		for (std::size_t i = 0; i < text.size(); ++i) {
-			analyzer.put(text[i]);
-			auto encoded = encodings::utf16<>::encode_codepoint(text[i]);
-			if (encoded.size() == 4) {
-				surrogate.emplace_back(i);
-			}
-			bytestr += encoded;
-		}
-		analyzer.finish();
-
 		return _create_formatted_text_impl(
-			std::basic_string_view<WCHAR>(reinterpret_cast<const WCHAR*>(bytestr.c_str()), bytestr.size() / 2),
-			params, c, maxsize, wrap, halign, valign, std::move(surrogate), num_chars
+			_text_analysis::analyze(text), params, c, maxsize, wrap, halign, valign
 		);
 	}
 
@@ -1169,13 +1221,12 @@ namespace codepad::os::direct2d {
 
 
 	std::shared_ptr<formatted_text> renderer::_create_formatted_text_impl(
-		std::basic_string_view<WCHAR> text, const ui::font_parameters &fmt, colord c,
+		_text_analysis analysis, const ui::font_parameters &fmt, colord c,
 		vec2d maxsize, ui::wrapping_mode wrap,
-		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign,
-		std::vector<std::size_t> surrogate, std::size_t num_chars
+		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 	) {
 		// use new to access protedted constructor
-		auto res = std::make_shared<formatted_text>(*this, std::move(surrogate), num_chars);
+		auto res = std::make_shared<formatted_text>(*this, std::move(analysis.surrogate), analysis.num_chars);
 
 		_details::com_wrapper<IDWriteTextFormat> format;
 		_details::com_check(_dwrite_factory->CreateTextFormat(
@@ -1188,15 +1239,14 @@ namespace codepad::os::direct2d {
 			L"", // FIXME is this good practice?
 			format.get_ref()
 		));
-		_details::com_check(format->SetWordWrapping(_details::cast_wrapping_mode(wrap)));
-		_details::com_check(format->SetTextAlignment(_details::cast_horizontal_text_alignment(halign)));
-		_details::com_check(format->SetParagraphAlignment(_details::cast_vertical_text_alignment(valign)));
 		_details::com_check(_dwrite_factory->CreateTextLayout(
-			text.data(), static_cast<UINT32>(text.size()),
-			format.get(),
-			static_cast<FLOAT>(std::max(maxsize.x, 0.0)), static_cast<FLOAT>(std::max(maxsize.y, 0.0)),
+			reinterpret_cast<const WCHAR*>(analysis.text.data()), static_cast<UINT32>(analysis.text.size() / 2),
+			format.get(), static_cast<FLOAT>(std::max(maxsize.x, 0.0)), static_cast<FLOAT>(std::max(maxsize.y, 0.0)),
 			res->_text.get_ref()
 		));
+		res->set_wrapping_mode(wrap);
+		res->set_horizontal_alignment(halign);
+		res->set_vertical_alignment(valign);
 		res->set_text_color(c, 0, std::numeric_limits<std::size_t>::max());
 		return res;
 	}

@@ -4,7 +4,9 @@
 /// \file
 /// Implementation of enum parsers.
 
+#include "codepad/ui/misc.h"
 #include "codepad/ui/hotkey_registry.h"
+#include "codepad/ui/elements/label.h"
 
 namespace codepad {
 	// TODO case-insensitive comparison
@@ -147,6 +149,18 @@ namespace codepad {
 			return ui::vertical_text_alignment::center;
 		} else if (str == u8"bottom") {
 			return ui::vertical_text_alignment::bottom;
+		}
+		return std::nullopt;
+	}
+
+
+	std::optional<ui::label::wrapping_width_mode> enum_parser<ui::label::wrapping_width_mode>::parse(
+		std::u8string_view str
+	) {
+		if (str == u8"client") {
+			return ui::label::wrapping_width_mode::client;
+		} else if (str == u8"custom") {
+			return ui::label::wrapping_width_mode::custom;
 		}
 		return std::nullopt;
 	}
