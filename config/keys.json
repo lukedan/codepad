@@ -214,6 +214,22 @@
 			"gestures": "shift+right",
 			"action": { "text_edit.move_caret_right": { "continue_selection": true } }
 		},
+		{
+			"gestures": "up",
+			"action": "text_edit.move_caret_up"
+		},
+		{
+			"gestures": "shift+up",
+			"action": { "text_edit.move_caret_up": { "continue_selection": true } }
+		},
+		{
+			"gestures": "down",
+			"action": "text_edit.move_caret_down"
+		},
+		{
+			"gestures": "shift+down",
+			"action": { "text_edit.move_caret_down": { "continue_selection": true } }
+		},
 
 		{
 			"gestures": "home",

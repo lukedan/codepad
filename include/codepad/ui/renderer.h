@@ -281,7 +281,9 @@ namespace codepad {
 
 			/// Retrieves information about the character that is below the given point.
 			[[nodiscard]] virtual caret_hit_test_result hit_test(vec2d) const = 0;
-			/// Retrieves information about the character on the given line at the given horizontal position.
+			/// Retrieves information about the character on the given line at the given horizontal position. If the
+			/// line index is larger than the number of available lines, this operation will be performed on the last
+			/// line.
 			[[nodiscard]] virtual caret_hit_test_result hit_test_at_line(std::size_t, double) const = 0;
 			/// Returns the space occupied by the character at the given position. For right-to-left characters, this
 			/// returns a rectangle with negative width (i.e., xmin is the right side of the character and xmax is

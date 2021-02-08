@@ -137,6 +137,9 @@ namespace codepad::ui {
 		inline static std::optional<double> make_range_visible_axis(
 			double min, double max, double pos, double visible_range
 		) {
+			if (min > max) {
+				std::swap(min, max);
+			}
 			if (max - min > visible_range) {
 				if (min > pos) {
 					return min;

@@ -8,6 +8,9 @@
 
 namespace codepad::ui {
 	void scroll_view::make_region_visible(rectd range) {
+		// although scrollbar::make_range_visible_axis does this correction, we need to do it earlier here because
+		// otherwise padding width/height will be added to the wrong component
+		range = range.made_positive_swap();
 		thickness padding = _viewport->get_padding();
 		range.xmax += padding.width();
 		range.ymax += padding.height();

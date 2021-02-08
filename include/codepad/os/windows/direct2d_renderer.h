@@ -66,14 +66,11 @@ namespace codepad::os::direct2d {
 			return _num_chars;
 		}
 
-		/// Invokes \p IDWriteTextLayout::HitTestPoint().
+		/// Invokes \ref _hit_test_impl().
 		ui::caret_hit_test_result hit_test(vec2d) const override;
 		/// Since DirectWrite does not provide this functionality directly, this function just finds the correct
-		/// vertical position and returns the results of \p IDWriteTextLayout::HitTestPoint().
-		ui::caret_hit_test_result hit_test_at_line(std::size_t, double) const override {
-			// TODO
-			return ui::caret_hit_test_result();
-		}
+		/// vertical position and returns the results of \ref _hit_test_impl().
+		ui::caret_hit_test_result hit_test_at_line(std::size_t, double) const override;
 		/// Invokes \p IDWriteTextLayout::HitTestTextPosition().
 		rectd get_character_placement(std::size_t) const override;
 		/// Invokes \p IDWriteTextLayout::HitTestTextRange().
@@ -124,6 +121,9 @@ namespace codepad::os::direct2d {
 		/// Converts character positions to word indices using \ref _char_index_to_word_index() and returns the
 		/// resulting \p DWRITE_TEXT_RANGE object.
 		[[nodiscard]] DWRITE_TEXT_RANGE _make_text_range(std::size_t beg, std::size_t len) const;
+
+		/// Implementation of hit detection using \p IDWriteTextLayout::HitTestPoint().
+		[[nodiscard]] ui::caret_hit_test_result _hit_test_impl(FLOAT x, FLOAT y) const;
 	};
 
 	/// Encapsules a \p IDWriteFontFace.

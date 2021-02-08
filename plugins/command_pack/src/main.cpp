@@ -164,6 +164,26 @@ extern "C" {
 				}
 				)
 		);
+		command_pack::_commands.emplace_back(
+			u8"text_edit.move_caret_up",
+			cp::ui::command_registry::convert_type<cp::ui::text_edit>(
+				[](cp::ui::text_edit &e, const cp::json::value_storage &args) {
+					bool word = false, continue_sel = false;
+					command_pack::parse_caret_movement_parameter(args, word, &continue_sel);
+					e.move_caret_up(continue_sel);
+				}
+				)
+		);
+		command_pack::_commands.emplace_back(
+			u8"text_edit.move_caret_down",
+			cp::ui::command_registry::convert_type<cp::ui::text_edit>(
+				[](cp::ui::text_edit &e, const cp::json::value_storage &args) {
+					bool word = false, continue_sel = false;
+					command_pack::parse_caret_movement_parameter(args, word, &continue_sel);
+					e.move_caret_down(continue_sel);
+				}
+				)
+		);
 
 		command_pack::_commands.emplace_back(
 			u8"text_edit.move_caret_to_line_beginning",

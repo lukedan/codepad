@@ -45,7 +45,7 @@ namespace codepad::ui {
 					[](label &lbl, horizontal_text_alignment align) {
 						lbl.set_horizontal_alignment(align);
 					}
-						)
+				)
 			);
 			mapping.emplace(
 				u8"vertical_alignment",
@@ -57,7 +57,7 @@ namespace codepad::ui {
 					[](label &lbl, vertical_text_alignment align) {
 						lbl.set_vertical_alignment(align);
 					}
-						)
+				)
 			);
 
 			mapping.emplace(u8"text", std::make_shared<getter_setter_property<label, std::u8string>>(
@@ -68,7 +68,7 @@ namespace codepad::ui {
 				[](label &lbl, std::u8string text) {
 					lbl.set_text(std::move(text));
 				}
-				));
+			));
 
 			mapping.emplace(u8"wrapping", std::make_shared<getter_setter_property<label, wrapping_mode>>(
 				u8"wrapping",
@@ -78,7 +78,7 @@ namespace codepad::ui {
 				[](label &lbl, wrapping_mode mode) {
 					lbl.set_wrapping_mode(mode);
 				}
-				));
+			));
 			mapping.emplace(
 				u8"wrapping_width_mode",
 				std::make_shared<getter_setter_property<label, wrapping_width_mode>>(

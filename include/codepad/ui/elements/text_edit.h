@@ -24,13 +24,12 @@ namespace codepad::ui {
 		caret_selection get_caret_selection() const {
 			return _caret;
 		}
-		/// Sets the current caret.
+		/// Sets the current caret. Calls \ref _set_caret_selection_impl().
 		void set_caret_selection(caret_selection sel) {
 			_check_cache_line_info();
 			sel.caret = std::min(sel.caret, _cached_line_beginnings.back());
 			sel.selection = std::min(sel.selection, _cached_line_beginnings.back());
-			_caret = sel;
-			_on_caret_changed();
+			_set_caret_selection_impl(sel);
 		}
 
 	private:
@@ -38,12 +37,12 @@ namespace codepad::ui {
 		/// This function updates the caret alignment using this new position.
 		void _update_caret(std::size_t new_pos) {
 			_caret.caret = new_pos;
-			// TODO actually update alignment
+			_alignment = _formatted_text->get_character_placement(_caret.caret).xmin;
 		}
 		/// Invoked by \ref move_caret_raw() to update the position and alignment of the caret.
 		void _update_caret(std::pair<std::size_t, double> new_pos_align) {
 			_caret.caret = new_pos_align.first;
-			// TODO set alignment
+			_alignment = new_pos_align.second;
 		}
 	public:
 		/// Moves the caret. The two function object parameters \p move and \p cancel_sel either return a single
@@ -87,6 +86,12 @@ namespace codepad::ui {
 		/// Moves the caret one character to the end of the line. If there's a selection and \p continue_selection is
 		/// \p false, the selection is cancelled and the cursor is moved to the very end of the selected region.
 		void move_caret_to_line_ending(bool continue_selection);
+		/// Moves the caret one line above. If there's a selection and \p continue_selection is \p false, the
+		/// selection is cancelled and the cursor is moved to the very end of the selected region.
+		void move_caret_up(bool continue_selection);
+		/// Moves the caret one line below. If there's a selection and \p continue_selection is \p false, the
+		/// selection is cancelled and the cursor is moved to the very end of the selected region.
+		void move_caret_down(bool continue_selection);
 
 
 		/// Modifies the text by removing the characters in the specified range and adding the given string in its
@@ -128,7 +133,15 @@ namespace codepad::ui {
 		/// the total number of characters.
 		std::vector<std::size_t> _cached_line_beginnings;
 		caret_selection _caret; ///< The caret and the associated selection.
+		double _alignment = 0.0; ///< The alignment of the caret.
 		bool _selecting = false; ///< Whether the user is dragging with the mouse to select text.
+
+		/// Sets the caret position and recomputes \ref _alignment without checking the position.
+		void _set_caret_selection_impl(caret_selection sel) {
+			_caret = sel;
+			_update_caret(_caret.caret); // call _update_caret() to update alignment
+			_on_caret_changed();
+		}
 
 		/// Updates the selection if the user is selecting text.
 		void _on_mouse_move(mouse_move_info&) override;

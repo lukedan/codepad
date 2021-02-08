@@ -331,6 +331,9 @@ namespace codepad::ui {
 			/// Converts character indices to byte positions.
 			[[nodiscard]] std::pair<guint, guint> _char_to_byte(std::size_t beg, std::size_t len) const;
 			[[nodiscard]] std::size_t _byte_to_char(std::size_t) const;
+
+			/// Similar to \ref get_alignment_offset(), but only for the horizontal part.
+			[[nodiscard]] double _get_horizontal_alignment_offset() const;
 		};
 
 		/// A freetype font.

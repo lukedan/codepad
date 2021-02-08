@@ -258,20 +258,32 @@ namespace codepad::os::direct2d {
 	}
 
 	ui::caret_hit_test_result formatted_text::hit_test(vec2d pos) const {
-		BOOL trailing, inside;
-		DWRITE_HIT_TEST_METRICS metrics;
-		_details::com_check(_text->HitTestPoint(
-			static_cast<FLOAT>(pos.x), static_cast<FLOAT>(pos.y), &trailing, &inside, &metrics
-		));
-		rectd placement = rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
-		if (metrics.bidiLevel % 2 == 1) {
-			std::swap(placement.xmin, placement.xmax);
+		return _hit_test_impl(static_cast<FLOAT>(pos.x), static_cast<FLOAT>(pos.y));
+	}
+
+	ui::caret_hit_test_result formatted_text::hit_test_at_line(std::size_t line, double x) const {
+		DWRITE_TEXT_METRICS metrics;
+		_details::com_check(_text->GetMetrics(&metrics));
+		// if `line` is larger than the number of lines, do this hit test on the last of the line
+		line = std::min(line, static_cast<std::size_t>(metrics.lineCount - 1));
+		std::vector<DWRITE_LINE_METRICS> line_metrics(static_cast<std::size_t>(metrics.lineCount));
+		UINT32 num_lines = 0;
+		HRESULT res = _text->GetLineMetrics(line_metrics.data(), metrics.lineCount, &num_lines);
+		_details::com_check(res);
+		// find the y position for this hit test
+		FLOAT y = metrics.top;
+		for (std::size_t i = 0; i < line; ++i) {
+			y += line_metrics[i].height;
 		}
-		return ui::caret_hit_test_result(
-			_word_index_to_char_index(static_cast<std::size_t>(metrics.textPosition)),
-			placement,
-			metrics.bidiLevel % 2 == 1, trailing != 0
+		y += 0.5f * line_metrics[line].height;
+		// here we clamp the x position to the text area because the caller may use +-inf/max as the horizontal
+		// position which may in turn lead to strange results from hit detection
+		FLOAT clamped_x = std::clamp(
+			static_cast<FLOAT>(x),
+			metrics.left,
+			metrics.left + metrics.widthIncludingTrailingWhitespace
 		);
+		return _hit_test_impl(clamped_x, y);
 	}
 
 	rectd formatted_text::get_character_placement(std::size_t pos) const {
@@ -427,6 +439,21 @@ namespace codepad::os::direct2d {
 		// this works for size_t::max() as well since both types are unsigned
 		result.length = static_cast<UINT32>(word_end - word_beg);
 		return result;
+	}
+
+	ui::caret_hit_test_result formatted_text::_hit_test_impl(FLOAT x, FLOAT y) const {
+		BOOL trailing, inside;
+		DWRITE_HIT_TEST_METRICS metrics;
+		_details::com_check(_text->HitTestPoint(x, y, &trailing, &inside, &metrics));
+		rectd placement = rectd::from_xywh(metrics.left, metrics.top, metrics.width, metrics.height);
+		if (metrics.bidiLevel % 2 == 1) {
+			std::swap(placement.xmin, placement.xmax);
+		}
+		return ui::caret_hit_test_result(
+			_word_index_to_char_index(static_cast<std::size_t>(metrics.textPosition)),
+			placement,
+			metrics.bidiLevel % 2 == 1, trailing != 0
+		);
 	}
 
 

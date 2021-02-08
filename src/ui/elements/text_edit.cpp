@@ -44,8 +44,8 @@ namespace codepad::ui {
 			[this]() {
 				return std::min(_caret.caret, _caret.selection);
 			},
-				continue_sel
-				);
+			continue_sel
+		);
 	}
 
 	void text_edit::move_caret_right(bool continue_sel) {
@@ -56,8 +56,8 @@ namespace codepad::ui {
 			[this]() {
 				return std::max(_caret.caret, _caret.selection);
 			},
-				continue_sel
-				);
+			continue_sel
+		);
 	}
 
 	void text_edit::move_caret_to_line_beginning(bool continue_sel) {
@@ -65,10 +65,12 @@ namespace codepad::ui {
 			[this]() {
 				_check_cache_line_info();
 				std::size_t line = _get_line_of_character(_caret.caret);
-				return _cached_line_beginnings[line];
+				return std::pair<std::size_t, double>(
+					_cached_line_beginnings[line], -std::numeric_limits<double>::infinity()
+				);
 			},
 			continue_sel
-				);
+		);
 	}
 
 	void text_edit::move_caret_to_line_ending(bool continue_sel) {
@@ -76,10 +78,52 @@ namespace codepad::ui {
 			[this]() {
 				_check_cache_line_info();
 				std::size_t line = _get_line_of_character(_caret.caret);
-				return _cached_line_beginnings[line] + _cached_line_metrics[line].non_linebreak_characters;
+				return std::pair<std::size_t, double>(
+					_cached_line_beginnings[line] + _cached_line_metrics[line].non_linebreak_characters,
+					std::numeric_limits<double>::infinity()
+				);
 			},
 			continue_sel
+		);
+	}
+
+	void text_edit::move_caret_up(bool continue_sel) {
+		move_caret_raw(
+			[this]() {
+				_check_cache_line_info();
+				std::size_t line = _get_line_of_character(_caret.caret);
+				if (line > 0) {
+					--line;
+				}
+				auto hit_test_result = _formatted_text->hit_test_at_line(line, _alignment);
+				return std::pair<std::size_t, double>(
+					hit_test_result.rear ? hit_test_result.character + 1 : hit_test_result.character,
+					_alignment
 				);
+			},
+			[this]() {
+				return std::min(_caret.caret, _caret.selection);
+			},
+			continue_sel
+		);
+	}
+
+	void text_edit::move_caret_down(bool continue_sel) {
+		move_caret_raw(
+			[this]() {
+				_check_cache_line_info();
+				std::size_t line = _get_line_of_character(_caret.caret);
+				auto hit_test_result = _formatted_text->hit_test_at_line(line + 1, _alignment);
+				return std::pair<std::size_t, double>(
+					hit_test_result.rear ? hit_test_result.character + 1 : hit_test_result.character,
+					_alignment
+				);
+			},
+			[this]() {
+				return std::max(_caret.caret, _caret.selection);
+			},
+			continue_sel
+		);
 	}
 
 	void text_edit::delete_character_before_caret() {
@@ -94,8 +138,7 @@ namespace codepad::ui {
 			rem_end = _caret.caret;
 		}
 		modify(rem_beg, rem_end - rem_beg, std::u8string_view());
-		_caret = caret_selection(rem_beg);
-		_on_caret_changed();
+		_set_caret_selection_impl(caret_selection(rem_beg));
 	}
 
 	void text_edit::delete_character_after_caret() {
@@ -110,8 +153,7 @@ namespace codepad::ui {
 			rem_end = next;
 		}
 		modify(rem_beg, rem_end - rem_beg, std::u8string_view());
-		_caret = caret_selection(rem_beg);
-		_on_caret_changed();
+		_set_caret_selection_impl(caret_selection(rem_beg));
 	}
 
 	const property_mapping &text_edit::get_properties() const {
@@ -144,8 +186,9 @@ namespace codepad::ui {
 		label::_on_mouse_move(info);
 		if (_selecting) {
 			auto hit = _hit_test_for_caret(info.new_position.get(*this));
-			_caret.caret = hit.rear ? hit.character + 1 : hit.character;
-			_on_caret_changed();
+			_set_caret_selection_impl(caret_selection(
+				hit.rear ? hit.character + 1 : hit.character, _caret.selection
+			));
 		}
 	}
 
@@ -154,8 +197,7 @@ namespace codepad::ui {
 		if (info.button == mouse_button::primary) {
 			assert_true_logical(!_selecting, "mouse pressed again when selecting");
 			auto hit = _hit_test_for_caret(info.position.get(*this));
-			_caret = caret_selection(hit.rear ? hit.character + 1 : hit.character);
-			_on_caret_changed();
+			_set_caret_selection_impl(caret_selection(hit.rear ? hit.character + 1 : hit.character));
 
 			get_window()->set_mouse_capture(*this);
 			_selecting = true;
@@ -208,8 +250,7 @@ namespace codepad::ui {
 			encodings::utf8::next_codepoint(it_beg, _text.end());
 			++new_caret;
 		}
-		_caret = caret_selection(new_caret);
-		_on_caret_changed();
+		_set_caret_selection_impl(caret_selection(new_caret));
 	}
 
 	void text_edit::_on_text_changed() {

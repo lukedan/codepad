@@ -174,20 +174,40 @@ namespace codepad::ui::pango_harfbuzz {
 	caret_hit_test_result formatted_text::hit_test_at_line(std::size_t line, double x) const {
 		vec2d offset = get_alignment_offset();
 		x -= offset.x;
-		caret_hit_test_result res;
-		PangoLayoutLine *pango_line = pango_layout_get_line_readonly(_layout.get(), static_cast<int>(line));
-		int byte_index = 0;
-		if (pango_line == nullptr) {
-			byte_index = static_cast<int>(_bytepos.back());
-			res.character = _bytepos.size() - 1;
-			res.rear = true;
-		} else {
-			int trailing = 0;
-			// TODO the x offset is from the left edge of the line
-			pango_layout_line_x_to_index(pango_line, pango_units_from_double(x), &byte_index, &trailing);
-			res.character = _byte_to_char(static_cast<std::size_t>(byte_index));
-			res.rear = trailing != 0;
+
+		// find the line at the given index, clamp to the last line
+		line = std::min<std::size_t>(line, std::max(pango_layout_get_line_count(_layout.get()), 1) - 1);
+		PangoLayoutIter *iter = pango_layout_get_iter(_layout.get());
+		for (std::size_t i = 0; i < line; ++i) {
+			pango_layout_iter_next_line(iter);
 		}
+
+		// convert the x offset from w.r.t. the left border of the layout rectangle to w.r.t. the edge of the line
+		PangoRectangle line_extents;
+		pango_layout_iter_get_line_extents(iter, nullptr, &line_extents);
+		x -= pango_units_to_double(line_extents.x);
+
+		// convert from double to pango units. normally we use pango_units_from_double(), but here the position may
+		// exceed the range of int and needs to be clamped
+		x = std::round(x * PANGO_SCALE);
+		int x_pango;
+		if (x >= static_cast<double>(std::numeric_limits<int>::max())) {
+			x_pango = std::numeric_limits<int>::max();
+		} else if (x <= static_cast<double>(std::numeric_limits<int>::min())) {
+			x_pango = std::numeric_limits<int>::min();
+		} else {
+			x_pango = static_cast<int>(x);
+		}
+
+		// hit test
+		int byte_index = 0;
+		int trailing = 0;
+		pango_layout_line_x_to_index(pango_layout_iter_get_line_readonly(iter), x_pango, &byte_index, &trailing);
+		pango_layout_iter_free(iter); // free layout iterator
+
+		caret_hit_test_result res;
+		res.character = _byte_to_char(static_cast<std::size_t>(byte_index));
+		res.rear = trailing != 0;
 		PangoRectangle rect;
 		pango_layout_index_to_pos(_layout.get(), byte_index, &rect);
 		res.character_layout = _details::cast_rect_back(rect).translated(offset);
@@ -383,6 +403,23 @@ namespace codepad::ui::pango_harfbuzz {
 
 	std::size_t formatted_text::_byte_to_char(std::size_t c) const {
 		return std::lower_bound(_bytepos.begin(), _bytepos.end(), c) - _bytepos.begin();
+	}
+
+	double formatted_text::_get_horizontal_alignment_offset() const {
+		PangoAlignment halign = pango_layout_get_alignment(_layout.get());
+		if (halign == PANGO_ALIGN_LEFT) {
+			return 0.0;
+		}
+		// get layout extents
+		PangoRectangle layout_pango;
+		pango_layout_get_extents(_layout.get(), nullptr, &layout_pango);
+		double xmax = pango_units_to_double(layout_pango.x + layout_pango.width);
+		// compute offset
+		float offset = _layout_size.x - xmax;
+		if (halign == PANGO_ALIGN_CENTER) {
+			offset *= 0.5;
+		}
+		return offset;
 	}
 
 
