@@ -28,7 +28,16 @@ namespace codepad::logger_sinks {
 			blue = 34, ///< Blue.
 			magenta = 35, ///< Magenta.
 			cyan = 36, ///< Cyan.
-			white = 37 ///< White.
+			white = 37, ///< White.
+
+			bright_black = 90, ///< Bright black.
+			bright_red = 91, ///< Bright red.
+			bright_green = 92, ///< Bright green.
+			bright_yellow = 93, ///< Bright yellow.
+			bright_blue = 94, ///< Bright blue.
+			bright_magenta = 95, ///< Bright magenta.
+			bright_cyan = 96, ///< Bright cyan.
+			bright_white = 97 ///< Bright white.
 		};
 		/// The color scheme for logging.
 		struct color_scheme {
@@ -46,14 +55,14 @@ namespace codepad::logger_sinks {
 			};
 
 			entry
-				time{color::black, color::cyan}, ///< Color for time display.
-				code_position{color::black, color::white}, ///< Color for position display.
-				message{color::white, color::black}, ///< Color for message display.
+				time{ color::black, color::white }, ///< Color for time display.
+				code_position{ color::bright_black, color::black }, ///< Color for position display.
+				message{ color::white, color::black }, ///< Color for message display.
 
-				debug_banner{color::white, color::blue}, ///< Color for the banner of debug messages.
-				info_banner{color::black, color::green}, ///< Color for the banner of info messages.
-				warning_banner{color::black, color::yellow}, ///< Color for the banner of warning messages.
-				error_banner{color::white, color::red}; ///< Color for the banner of error messages.
+				debug_banner{ color::bright_white, color::bright_black }, ///< Color for the banner of debug messages.
+				info_banner{ color::bright_white, color::bright_blue }, ///< Color for the banner of info messages.
+				warning_banner{ color::black, color::bright_yellow }, ///< Color for the banner of warning messages.
+				error_banner{ color::black, color::red }; ///< Color for the banner of error messages.
 		};
 
 		/// Default constructor.
