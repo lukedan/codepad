@@ -1,59 +1,75 @@
 ## Building codepad
 
-- Install prerequisites:
-  - On Windows, Visual Studio 2019 is recommended. You can find installers of CMake and VS2019 online. Building with MinGW-w32 has not been thoroughly tested and can be tricky.
+1. Install prerequisites:
+	- On Windows, Visual Studio 2019 is recommended. You can find installers of CMake and VS2019 online.  Building with MinGW-w32 has not been thoroughly tested and can be tricky.
 
-    The best way to install other required packages is to use `vcpkg`. You can install it following the instructions [here](https://github.com/microsoft/vcpkg#quick-start-windows). After that, install the following packages:
-    ```
-    vcpkg install rapidjson
-    vcpkg install pybind11
-    vcpkg install uriparser
-    ```
+		The best way to install other required packages is to use `vcpkg`. You can install it following the instructions [here](https://github.com/microsoft/vcpkg#quick-start-windows).
 
-    If you want to build codepad with Cairo support, also install:
-    ```
-    vcpkg install fontconfig
-    vcpkg install freetype
-    vcpkg install harfbuzz
-    vcpkg install pango
-    vcpkg install cairo
-    ```
-    The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DUSE_CAIRO=No` while configuring to build without the Cairo backend.
+	- Install the following packages:
+		```
+		vcpkg install rapidjson
+		vcpkg install uriparser
+		vcpkg install catch2
+		```
+	- For the Python plugin, install Python and `pybind11`. To install `pybind11` using `vcpkg`:
+		```
+		vcpkg install pybind11
+		```
+		Set the `PYTHONHOME` environment (or CMake) variable if codepad has trouble finding the python libraries.
 
-  - On Ubuntu, install CMake and g++:
-    ```
-    apt install cmake
-    apt install g++-10
-    ```
+	- If you want to build codepad with Cairo support, also install:
+		```
+		vcpkg install fontconfig
+		vcpkg install freetype
+		vcpkg install harfbuzz
+		vcpkg install pango
+		vcpkg install cairo
+		```
+		The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DUSE_CAIRO=No` while configuring to build without the Cairo backend.
 
-    The packages can be installed using `apt`:
-    ```
-    apt install rapidjson-dev
-    apt install pybind11-dev
-    apt install libfontconfig1-dev
-    apt install libfreetype-dev
-    apt install libharfbuzz-dev
-    apt install libpango1.0-dev
-    apt install libcairo2-dev
-    apt install libgtk-3-dev
-    apt install liburiparser-dev
-    ```
-    Note that older versions of pybind11 may not be compatible with codepad, in which case the plugin will fail to build, but you should still be able to build and run the rest of the program without any problem.
+	- On Ubuntu, install CMake and g++:
+		```
+		sudo apt install cmake
+		sudo apt install g++-10
+		```
+		Codepad requires a C++20-compatible compiler so g++ 10 is required.
 
-- Clone the repository and initialize submodules:
-  ```
-  git clone https://github.com/lukedan/codepad.git
-  git submodule update --init --recursive
-  ```
+		The packages can be installed using `apt`:
+		```
+		sudo apt install rapidjson-dev
+		sudo apt install catch2
 
-- Generate and build:
-  ```
-  mkdir build
-  cd build
-  cmake ..
-  cmake -build .
-  ```
-  If you're building on Windows using `vcpkg`, also specify `-DCMAKE_TOOLCHAIN_FILE=[path to vcpkg]/scripts/buildsystems/vcpkg.cmake` on line 3. If you're buliding without Cairo, specify `-DUSE_CAIRO=No` on line 3.
+		sudo apt install libfontconfig1-dev
+		sudo apt install libfreetype-dev
+		sudo apt install libharfbuzz-dev
+		sudo apt install libpango1.0-dev
+		sudo apt install libcairo2-dev
+		sudo apt install libgtk-3-dev
+		sudo apt install liburiparser-dev
+		```
+		Older versions of Ubuntu may hot have the `catch2` package, in which case you can either download and configure it yourself or disable building the tests by removing the `add_subdirectory` commands in `CMakeLists.txt`. Note that some plugins have their own tests.
+
+		For the Python plugin, install Python and `pybind11`:
+		```
+		sudo apt install python-dev
+		sudo apt install pybind11-dev
+		```
+		Note that older versions of `pybind11` may not be compatible with codepad, in which case the plugin will fail to build, but you should still be able to build and run the rest of the program without any problems.
+
+2. Clone the repository and initialize submodules:
+	```
+	git clone https://github.com/lukedan/codepad.git
+	git submodule update --init --recursive
+	```
+
+3. Generate and build:
+	```
+	mkdir build
+	cd build
+	cmake ..
+	cmake -build .
+	```
+	If you're building on Windows using `vcpkg`, also specify `-DCMAKE_TOOLCHAIN_FILE=[path to vcpkg]/scripts/buildsystems/vcpkg.cmake` on line 3. If you're buliding without Cairo, specify `-DUSE_CAIRO=No` on line 3.
 
 ## Running codepad
 
