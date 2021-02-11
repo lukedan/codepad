@@ -41,6 +41,13 @@ namespace codepad::os {
 				// wake the main thread up to run the message loop and update everything
 				wnd.get_manager().get_scheduler().wake_up();
 				return 0;
+			case WM_DESTROY:
+				// a child window is being destroyed; normally we won't receive this as GWLP_USREDATA is reset before
+				// calling DestroyWindow() in ~window_impl()
+				SetWindowLongPtr(wnd_impl->_hwnd, GWLP_USERDATA, NULL);
+				wnd_impl->_hwnd = nullptr;
+				wnd.get_manager().get_scheduler().mark_for_disposal(wnd);
+				return 0;
 
 			case WM_SIZING:
 				{
@@ -400,134 +407,167 @@ namespace codepad::os {
 	}
 
 	window_impl::~window_impl() {
-		_details::winapi_check(DestroyWindow(_hwnd));
+		// when a window is destroyed, its children are also destroyed. the application is notified of the
+		// destruction via the WM_DESTROY message. however, another approach to destroy a window is marking the
+		// element for destruction. to handle both these scenarios, we reset the GWLP_USERDATA pointer to null before
+		// calling DestroyWindow(), and mark the window for destruction and reset _hwnd in _wndproc()
+		if (_hwnd) {
+			// although it seems fine to also call DestroyWindow() here when the window has already been destroyed by
+			// the system, we're gonna play it safe here
+			SetWindowLongPtr(_hwnd, GWLP_USERDATA, NULL);
+			_details::winapi_check(DestroyWindow(_hwnd));
+		}
 	}
 
 	void window_impl::_set_parent(ui::window *wnd) {
-		// what we're really setting here is ownership
-		// TODO is a single SetWindowLongPtr enough? not according to https://devblogs.microsoft.com/oldnewthing/20100315-00/?p=14613
-		HWND parent = wnd ? _details::cast_window_impl(*wnd->_impl).get_native_handle() : nullptr;
-		SetLastError(0);
-		if (SetWindowLongPtr(_hwnd, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(parent)) == 0) {
-			if (GetLastError() != 0) {
-				_details::winapi_check(GetLastError());
+		if (_hwnd) {
+			// what we're really setting here is ownership
+			// TODO is a single SetWindowLongPtr enough? not according to https://devblogs.microsoft.com/oldnewthing/20100315-00/?p=14613
+			HWND parent = wnd ? _details::cast_window_impl(*wnd->_impl).get_native_handle() : nullptr;
+			SetLastError(0);
+			if (SetWindowLongPtr(_hwnd, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(parent)) == 0) {
+				if (GetLastError() != 0) {
+					_details::winapi_check(GetLastError());
+				}
 			}
 		}
 	}
 
 	void window_impl::_set_caption(const std::u8string &cap) {
-		auto u16str = _details::utf8_to_wstring(cap.c_str());
-		_details::winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
+		if (_hwnd) {
+			auto u16str = _details::utf8_to_wstring(cap.c_str());
+			_details::winapi_check(SetWindowText(_hwnd, reinterpret_cast<LPCWSTR>(u16str.c_str())));
+		}
 	}
 
 	vec2d window_impl::_get_position() const {
-		POINT tl;
-		tl.x = tl.y = 0;
-		_details::winapi_check(ClientToScreen(_hwnd, &tl));
-		return vec2d(static_cast<double>(tl.x), static_cast<double>(tl.y));
+		if (_hwnd) {
+			POINT tl;
+			tl.x = tl.y = 0;
+			_details::winapi_check(ClientToScreen(_hwnd, &tl));
+			return vec2d(static_cast<double>(tl.x), static_cast<double>(tl.y));
+		}
+		return vec2d();
 	}
 
 	void window_impl::_set_position(vec2d pos) {
-		RECT r;
-		POINT tl;
-		tl.x = tl.y = 0;
-		_details::winapi_check(GetWindowRect(_hwnd, &r));
-		_details::winapi_check(ClientToScreen(_hwnd, &tl));
-		tl.x -= r.left;
-		tl.y -= r.top;
-		_details::winapi_check(SetWindowPos(
-			_hwnd, nullptr, static_cast<int>(pos.x) - tl.x, static_cast<int>(pos.y) - tl.y, 0, 0, SWP_NOSIZE
-		));
+		if (_hwnd) {
+			RECT r;
+			POINT tl;
+			tl.x = tl.y = 0;
+			_details::winapi_check(GetWindowRect(_hwnd, &r));
+			_details::winapi_check(ClientToScreen(_hwnd, &tl));
+			tl.x -= r.left;
+			tl.y -= r.top;
+			_details::winapi_check(SetWindowPos(
+				_hwnd, nullptr, static_cast<int>(pos.x) - tl.x, static_cast<int>(pos.y) - tl.y, 0, 0, SWP_NOSIZE
+			));
+		}
 	}
 
 	vec2d window_impl::_get_client_size() const {
-		RECT r;
-		_details::winapi_check(GetClientRect(_hwnd, &r));
-		return _physical_to_logical_position(vec2d(
-			static_cast<double>(r.right), static_cast<double>(r.bottom)
-		));
+		if (_hwnd) {
+			RECT r;
+			_details::winapi_check(GetClientRect(_hwnd, &r));
+			return _physical_to_logical_position(vec2d(
+				static_cast<double>(r.right), static_cast<double>(r.bottom)
+			));
+		}
+		return vec2d();
 	}
 
 	void window_impl::_set_client_size(vec2d sz) {
-		sz = _logical_to_physical_position(sz);
-		RECT wndrgn, cln;
-		_details::winapi_check(GetWindowRect(_hwnd, &wndrgn));
-		_details::winapi_check(GetClientRect(_hwnd, &cln));
-		_details::winapi_check(SetWindowPos(
-			_hwnd, nullptr, 0, 0,
-			wndrgn.right - wndrgn.left - cln.right + static_cast<int>(std::round(sz.x)),
-			wndrgn.bottom - wndrgn.top - cln.bottom + static_cast<int>(std::round(sz.y)),
-			SWP_NOMOVE
-		));
+		if (_hwnd) {
+			sz = _logical_to_physical_position(sz);
+			RECT wndrgn, cln;
+			_details::winapi_check(GetWindowRect(_hwnd, &wndrgn));
+			_details::winapi_check(GetClientRect(_hwnd, &cln));
+			_details::winapi_check(SetWindowPos(
+				_hwnd, nullptr, 0, 0,
+				wndrgn.right - wndrgn.left - cln.right + static_cast<int>(std::round(sz.x)),
+				wndrgn.bottom - wndrgn.top - cln.bottom + static_cast<int>(std::round(sz.y)),
+				SWP_NOMOVE
+			));
+		}
 	}
 
 	void window_impl::_prompt_ready() {
-		FLASHWINFO fwi;
-		std::memset(&fwi, 0, sizeof(fwi));
-		fwi.cbSize = sizeof(fwi);
-		fwi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
-		fwi.dwTimeout = 0;
-		fwi.hwnd = _hwnd;
-		fwi.uCount = 0;
-		FlashWindowEx(&fwi);
+		if (_hwnd) {
+			FLASHWINFO fwi;
+			std::memset(&fwi, 0, sizeof(fwi));
+			fwi.cbSize = sizeof(fwi);
+			fwi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
+			fwi.dwTimeout = 0;
+			fwi.hwnd = _hwnd;
+			fwi.uCount = 0;
+			FlashWindowEx(&fwi);
+		}
 	}
 
 	vec2d window_impl::_screen_to_client(vec2d v) const {
-		POINT p;
-		p.x = static_cast<int>(std::round(v.x));
-		p.y = static_cast<int>(std::round(v.y));
-		_details::winapi_check(ScreenToClient(_hwnd, &p));
-		return _physical_to_logical_position(vec2d(
-			static_cast<double>(p.x), static_cast<double>(p.y)
-		));
+		if (_hwnd) {
+			POINT p;
+			p.x = static_cast<int>(std::round(v.x));
+			p.y = static_cast<int>(std::round(v.y));
+			_details::winapi_check(ScreenToClient(_hwnd, &p));
+			return _physical_to_logical_position(vec2d(
+				static_cast<double>(p.x), static_cast<double>(p.y)
+			));
+		}
+		return vec2d();
 	}
 
 	vec2d window_impl::_client_to_screen(vec2d v) const {
-		v = _logical_to_physical_position(v);
-		POINT p;
-		p.x = static_cast<int>(std::round(v.x));
-		p.y = static_cast<int>(std::round(v.y));
-		_details::winapi_check(ClientToScreen(_hwnd, &p));
-		return vec2d(static_cast<double>(p.x), static_cast<double>(p.y));
+		if (_hwnd) {
+			v = _logical_to_physical_position(v);
+			POINT p;
+			p.x = static_cast<int>(std::round(v.x));
+			p.y = static_cast<int>(std::round(v.y));
+			_details::winapi_check(ClientToScreen(_hwnd, &p));
+			return vec2d(static_cast<double>(p.x), static_cast<double>(p.y));
+		}
+		return vec2d();
 	}
 
 	void window_impl::_update_managed_window_size() {
-		bool
-			manage_width = _window.get_width_size_policy() == ui::window::size_policy::application,
-			manage_height = _window.get_width_size_policy() == ui::window::size_policy::application;
-		if (!manage_width && !manage_height) {
-			return;
+		if (_hwnd) {
+			bool
+				manage_width = _window.get_width_size_policy() == ui::window::size_policy::application,
+				manage_height = _window.get_width_size_policy() == ui::window::size_policy::application;
+			if (!manage_width && !manage_height) {
+				return;
+			}
+			RECT client, window_rect;
+			_details::winapi_check(GetClientRect(_hwnd, &client));
+			_details::winapi_check(GetWindowRect(_hwnd, &window_rect));
+			LONG
+				new_width = window_rect.right - window_rect.left,
+				new_height = window_rect.bottom - window_rect.top;
+			// compute new size
+			bool has_proportion = false;
+			if (manage_width) {
+				auto width = _window.get_layout_width();
+				has_proportion = has_proportion || !width.is_pixels;
+				LONG border_width = new_width - (client.right - client.left);
+				new_width = border_width + std::max<LONG>(static_cast<LONG>(width.value * _cached_scaling.x), 0);
+			}
+			if (manage_height) {
+				auto height = _window.get_layout_height();
+				has_proportion = has_proportion || !height.is_pixels;
+				LONG border_height = new_height - (client.bottom - client.top);
+				new_height = border_height + std::max<LONG>(static_cast<LONG>(height.value * _cached_scaling.y), 0);
+			}
+			if (has_proportion) {
+				logger::get().log_warning(CP_HERE) <<
+					"window size managed by application, but has a proportional value; "
+					"it'll be treated as a pixel value instead";
+			}
+			// set window size
+			_details::winapi_check(SetWindowPos(
+				_hwnd, nullptr, 0, 0, new_width, new_height,
+				SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER
+			));
 		}
-		RECT client, window_rect;
-		_details::winapi_check(GetClientRect(_hwnd, &client));
-		_details::winapi_check(GetWindowRect(_hwnd, &window_rect));
-		LONG
-			new_width = window_rect.right - window_rect.left,
-			new_height = window_rect.bottom - window_rect.top;
-		// compute new size
-		bool has_proportion = false;
-		if (manage_width) {
-			auto width = _window.get_layout_width();
-			has_proportion = has_proportion || !width.is_pixels;
-			LONG border_width = new_width - (client.right - client.left);
-			new_width = border_width + std::max<LONG>(static_cast<LONG>(width.value * _cached_scaling.x), 0);
-		}
-		if (manage_height) {
-			auto height = _window.get_layout_height();
-			has_proportion = has_proportion || !height.is_pixels;
-			LONG border_height = new_height - (client.bottom - client.top);
-			new_height = border_height + std::max<LONG>(static_cast<LONG>(height.value * _cached_scaling.y), 0);
-		}
-		if (has_proportion) {
-			logger::get().log_warning(CP_HERE) <<
-				"window size managed by application, but has a proportional value; "
-				"it'll be treated as a pixel value instead";
-		}
-		// set window size
-		_details::winapi_check(SetWindowPos(
-			_hwnd, nullptr, 0, 0, new_width, new_height,
-			SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER
-		));
 	}
 
 	window_impl *window_impl::_get_associated_window_impl(HWND hwnd) {
@@ -542,15 +582,17 @@ namespace codepad::os {
 	}
 
 	void window_impl::_set_window_style_bit(bool v, LONG bit, int type) {
-		LONG old = GetWindowLong(_hwnd, type);
-		SetWindowLongPtr(_hwnd, type, v ? old | bit : old & ~bit);
-		_details::winapi_check(SetWindowPos(
-			_hwnd, nullptr, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
-		));
+		if (_hwnd) {
+			LONG old = GetWindowLong(_hwnd, type);
+			SetWindowLongPtr(_hwnd, type, v ? old | bit : old & ~bit);
+			_details::winapi_check(SetWindowPos(
+				_hwnd, nullptr, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+			));
+		}
 	}
 
 	void window_impl::_setup_mouse_tracking() {
-		if (!_mouse_tracked) {
+		if (_hwnd && !_mouse_tracked) {
 			TRACKMOUSEEVENT tme;
 			std::memset(&tme, 0, sizeof(tme));
 			tme.cbSize = sizeof(tme);

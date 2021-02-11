@@ -4,7 +4,7 @@
 #pragma once
 
 /// \file
-/// Implementation of the \ref codepad::tree_sitter::interpretation_interface class.
+/// Implementation of the \ref codepad::tree_sitter::interpretation_tag class.
 
 #include <tree_sitter/api.h>
 
@@ -15,22 +15,22 @@
 
 namespace codepad::tree_sitter {
 	/// Interface between the editor and \p tree-sitter.
-	class interpretation_interface {
+	class interpretation_tag {
 	public:
 		/// Creates a new parser, registers to \ref editors::buffer::end_edit, and starts highlighting for this
 		/// interpretation.
-		interpretation_interface(editors::code::interpretation&, const language_configuration*);
+		interpretation_tag(editors::code::interpretation&, const language_configuration*);
 		/// Assert during copy construction.
-		interpretation_interface(const interpretation_interface&) {
-			assert_true_logical(false, "interpretation_interface cannot be copied");
+		interpretation_tag(const interpretation_tag&) {
+			assert_true_logical(false, "interpretation_tag cannot be copied");
 		}
 		/// Assert during copy assignment.
-		interpretation_interface &operator=(const interpretation_interface&) {
-			assert_true_logical(false, "interpretation_interface cannot be copied");
+		interpretation_tag &operator=(const interpretation_tag&) {
+			assert_true_logical(false, "interpretation_tag cannot be copied");
 			return *this;
 		}
 		/// Unregisters from \ref editors::buffer::end_edit.
-		~interpretation_interface() {
+		~interpretation_tag() {
 			// TODO cancel queued highlight tasks
 			_interp->get_buffer()->begin_edit -= _begin_edit_token;
 			_interp->get_buffer()->end_edit -= _end_edit_token;

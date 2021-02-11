@@ -114,7 +114,7 @@ namespace codepad::tree_sitter {
 				break;
 			}
 			// retrieve the next interpretation for highlighting
-			interpretation_interface *interp = nullptr;
+			interpretation_tag *interp = nullptr;
 			{
 				std::lock_guard<std::mutex> guard(_lock);
 				if (_queued.empty()) {
@@ -148,7 +148,5 @@ namespace codepad::tree_sitter {
 				_active = nullptr;
 			}
 		}
-		_status = _highlighter_thread_status::stopped;
-		_status.notify_one();
 	}
 }

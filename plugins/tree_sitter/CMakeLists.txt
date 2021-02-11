@@ -4,7 +4,7 @@ target_sources(tree_sitter
 	PUBLIC
 		"include/codepad/tree_sitter/highlight_iterator.h"
 		"include/codepad/tree_sitter/highlight_layer_iterator.h"
-		"include/codepad/tree_sitter/interpretation_interface.h"
+		"include/codepad/tree_sitter/interpretation_tag.h"
 		"include/codepad/tree_sitter/language_configuration.h"
 		"include/codepad/tree_sitter/manager.h"
 		"include/codepad/tree_sitter/query.h"
@@ -14,7 +14,7 @@ target_sources(tree_sitter
 
 		"src/highlight_iterator.cpp"
 		"src/highlight_layer_iterator.cpp"
-		"src/interpretation_interface.cpp"
+		"src/interpretation_tag.cpp"
 		"src/language_configuration.cpp"
 		"src/main.cpp"
 		"src/manager.cpp"

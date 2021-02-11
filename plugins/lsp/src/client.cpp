@@ -139,7 +139,5 @@ namespace codepad::lsp {
 			logger::get().log_error(CP_HERE) << "invalid LSP message received: no valid id or method specified";
 			continue;
 		}
-		c._state = state::receiver_shutdown;
-		c._state.notify_one();
 	}
 }

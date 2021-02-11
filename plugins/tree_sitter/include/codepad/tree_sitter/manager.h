@@ -12,7 +12,7 @@
 #include <codepad/editors/code/interpretation.h>
 
 #include "language_configuration.h"
-#include "interpretation_interface.h"
+#include "interpretation_tag.h"
 
 namespace codepad::tree_sitter {
 	/// Manages languages, the highlight configuration, and the highlighting thread.
@@ -54,13 +54,12 @@ namespace codepad::tree_sitter {
 				_status.compare_exchange_strong(expected, _highlighter_thread_status::running),
 				"highlighter thread is running"
 			);
-			std::thread t(
+			_highlighter_thread_obj = std::thread(
 				[](manager *man) {
 					man->_highlighter_thread();
 				},
 				this
 			);
-			t.detach();
 		}
 		/// Signals the highlighter thread to stop and waits for it to finish.
 		void stop_highlighter_thread() {
@@ -70,18 +69,19 @@ namespace codepad::tree_sitter {
 				"highlighter thread is not running"
 			);
 			_semaphore.release(); // wake up the highlighter thread if it isn't
-			_status.wait(_highlighter_thread_status::stopping);
+			_highlighter_thread_obj.join();
+			_status = _highlighter_thread_status::stopped;
 		}
-		/// Queues the interpretation associated with the given \ref interpretation_interface for highlighting. If
+		/// Queues the interpretation associated with the given \ref interpretation_tag for highlighting. If
 		/// the interpretation is currently being highlighted, the previously queued operation will be cancelled.
-		void queue_highlighting(interpretation_interface &interp) {
+		void queue_highlighting(interpretation_tag &interp) {
 			std::lock_guard<std::mutex> guard(_lock);
 			_cancel_highlighting(interp);
 			_queued.emplace_back(&interp);
 			_semaphore.release();
 		}
 		/// Cancels all pending or ongoing highlighting operations for the given interpretation.
-		void cancel_highlighting(interpretation_interface &interp) {
+		void cancel_highlighting(interpretation_tag &interp) {
 			std::lock_guard<std::mutex> guard(_lock);
 			_cancel_highlighting(interp);
 		}
@@ -101,10 +101,11 @@ namespace codepad::tree_sitter {
 		/// requesting the highlighter thread to shutdown.
 		std::counting_semaphore<255> _semaphore{ 0 };
 		std::mutex _lock; ///< Protects \ref _queued and \ref _active.
+		std::thread _highlighter_thread_obj; ///< The highlighter thread.
 		/// Interpretations queued for highlighting. This is protected by \ref _lock.
-		std::deque<interpretation_interface*> _queued;
+		std::deque<interpretation_tag*> _queued;
 		/// The interpretation that is currently being highlighted. This is protected by \ref _lock.
-		interpretation_interface *_active = nullptr;
+		interpretation_tag *_active = nullptr;
 		/// The status of the highlighter thread.
 		std::atomic<_highlighter_thread_status> _status = _highlighter_thread_status::stopped;
 		/// The cancellation token for the highlighter thread. This should be accessed through a \p std::atomic_ref.
@@ -117,7 +118,7 @@ namespace codepad::tree_sitter {
 
 		/// Cancels all pending or ongoing highlighting operations for the given interpretation. This function
 		/// assumes that the caller already holds \ref _lock.
-		void _cancel_highlighting(interpretation_interface &interp) {
+		void _cancel_highlighting(interpretation_tag &interp) {
 			if (_active == &interp) {
 				std::atomic_ref<std::size_t> cancel(_cancellation_token);
 				cancel = 1;

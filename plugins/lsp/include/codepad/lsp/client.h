@@ -50,7 +50,6 @@ namespace codepad::lsp {
 			initializing, ///< The server is initializing.
 			ready, ///< Ready to communicate with the server.
 			shutting_down, ///< The server is being shut down.
-			receiver_shutdown, ///< The receiver thread has received the reply for \p shutdown request.
 			exited ///< The receiver thread has exited and the \p exit notification has been sent.
 		};
 		/// Function type for error callbacks.
@@ -58,13 +57,12 @@ namespace codepad::lsp {
 
 		/// Initializes \ref _backend. Also creates a new thread to receive messages from the server.
 		client(std::unique_ptr<backend> back, ui::scheduler &sched) : _backend(std::move(back)) {
-			std::thread t(
+			_receiver_thread_obj = std::thread(
 				[](client &c, ui::scheduler &sched) {
 					_receiver_thread(c, sched);
 				},
 				std::ref(*this), std::ref(sched)
 			);
-			t.detach();
 		}
 
 
@@ -111,7 +109,7 @@ namespace codepad::lsp {
 		/// Note that this function blocks until a reply for the \p shutdown request is received.
 		void shutdown_and_exit() {
 			shutdown();
-			_state.wait(state::shutting_down);
+			_receiver_thread_obj.join();
 			exit();
 			_state = state::exited;
 		}
@@ -179,6 +177,7 @@ namespace codepad::lsp {
 		std::unordered_map<std::u8string_view, request_handler> _request_handlers; ///< Handlers for requests.
 		types::integer _next_message_id = 0; ///< Used to generate message IDs.
 
+		std::thread _receiver_thread_obj; ///< The receiver thread object.
 		std::atomic<state> _state = state::not_initialized; ///< Used to signal the receiver thread to stop.
 		/// Request index of the \p shutdown message, used by the receiver thread to determine when to exit.
 		std::atomic<types::integer> _shutdown_message_id = -1;

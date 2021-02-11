@@ -60,26 +60,36 @@ namespace codepad::os {
 
 		/// Activates this window by calling \p SetWindowPos() with \p HWND_TOP.
 		void _activate() override {
-			_details::winapi_check(SetWindowPos(_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
+			if (_hwnd) {
+				_details::winapi_check(SetWindowPos(_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE));
+			}
 		}
 		void _prompt_ready() override;
 
 		/// Calls \p ShowWindow() with \p SW_SHOWNA to show the window.
 		void _show() override {
-			ShowWindow(_hwnd, SW_SHOWNA);
+			if (_hwnd) {
+				ShowWindow(_hwnd, SW_SHOWNA);
+			}
 		}
 		/// Calls \p ShowWindow() with \p SW_SHOWNORMAL to show and activate the window.
 		void _show_and_activate() override {
-			ShowWindow(_hwnd, SW_SHOWNORMAL);
+			if (_hwnd) {
+				ShowWindow(_hwnd, SW_SHOWNORMAL);
+			}
 		}
 		/// Calls \p ShowWindow() with \p SW_HIDE to hide the window.
 		void _hide() override {
-			ShowWindow(_hwnd, SW_HIDE);
+			if (_hwnd) {
+				ShowWindow(_hwnd, SW_HIDE);
+			}
 		}
 
 		/// Calls \p InvalidateRect().
 		void _invalidate_window_visuals() override {
-			_details::winapi_check(InvalidateRect(_hwnd, nullptr, false));
+			if (_hwnd) {
+				_details::winapi_check(InvalidateRect(_hwnd, nullptr, false));
+			}
 		}
 
 		/// Calls \ref _set_window_style_bit() to set the \p WS_MAXIMIZE bit.
@@ -110,10 +120,12 @@ namespace codepad::os {
 
 		/// Calls \p SetWindowPos() to set whether this window is above other normal windows.
 		void _set_topmost(bool topmost) override {
-			_details::winapi_check(SetWindowPos(
-				_hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
-				SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
-			));
+			if (_hwnd) {
+				_details::winapi_check(SetWindowPos(
+					_hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+					SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
+				));
+			}
 		}
 		/// Calls \ref _set_window_style_bit() to set the \p WS_EX_TOOLWINDOW and \p WS_EX_APPWINDOW bits.
 		void _set_show_icon(bool show) override {
@@ -135,7 +147,9 @@ namespace codepad::os {
 
 		/// Calls \p SetCapture().
 		void _set_mouse_capture() override {
-			SetCapture(_hwnd);
+			if (_hwnd) {
+				SetCapture(_hwnd);
+			}
 		}
 		/// Calls \p ReleaseCapture().
 		void _release_mouse_capture() override {
@@ -208,7 +222,10 @@ namespace codepad::os {
 		static window_impl *_get_associated_window_impl(HWND);
 
 		vec2d _cached_scaling{1.0, 1.0}; ///< The cached scaling factor.
-		HWND _hwnd; ///< The handle of this window.
+		/// The handle of this window. All functions of this class are protected against when this is \p nullptr.
+		/// This is because these functions can be called due to \p WM_DESTROY marking this window for disposal, at
+		/// which point the window handle is no longer valid.
+		HWND _hwnd = nullptr;
 		/// Whether mouse movement is being tracked. This is used to record whether \p TrackMouseEvent() has been
 		/// called, so that this window receives mouse leave and hover events.
 		bool _mouse_tracked = false;

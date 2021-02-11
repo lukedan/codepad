@@ -1,15 +1,15 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "codepad/tree_sitter/interpretation_interface.h"
+#include "codepad/tree_sitter/interpretation_tag.h"
 
 /// \file
-/// Implementation of \ref codepad::tree_sitter::interpretation_interface.
+/// Implementation of \ref codepad::tree_sitter::interpretation_tag.
 
 #include "details.h"
 
 namespace codepad::tree_sitter {
-	interpretation_interface::interpretation_interface(
+	interpretation_tag::interpretation_tag(
 		editors::code::interpretation &interp, const language_configuration *config
 	) : _interp(&interp), _lang(config) {
 		// create parser
@@ -25,7 +25,7 @@ namespace codepad::tree_sitter {
 		queue_highlight();
 	}
 
-	editors::code::text_theme_data interpretation_interface::compute_highlight(std::size_t *cancel_tok) {
+	editors::code::text_theme_data interpretation_tag::compute_highlight(std::size_t *cancel_tok) {
 		editors::code::text_theme_data theme;
 		if (_lang) {
 			_payload payload{ .interpretation = *_interp };
@@ -82,7 +82,7 @@ namespace codepad::tree_sitter {
 		return theme;
 	}
 
-	void interpretation_interface::queue_highlight() {
+	void interpretation_tag::queue_highlight() {
 		if (_lang) {
 			_details::get_manager().queue_highlighting(*this);
 		}

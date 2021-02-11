@@ -14,7 +14,7 @@
 #include <codepad/editors/manager.h>
 #include <codepad/editors/code/interpretation.h>
 
-#include "codepad/tree_sitter/interpretation_interface.h"
+#include "codepad/tree_sitter/interpretation_tag.h"
 #include "codepad/tree_sitter/manager.h"
 
 namespace codepad::tree_sitter {
@@ -101,7 +101,7 @@ extern "C" {
 					auto *lang = cp::tree_sitter::_manager->find_lanaguage(u8"cpp");
 
 					auto &data = cp::tree_sitter::_interpretation_tag_token.get_for(info.interp);
-					data.emplace<cp::tree_sitter::interpretation_interface>(info.interp, lang);
+					data.emplace<cp::tree_sitter::interpretation_tag>(info.interp, lang);
 				}
 		);
 		cp::tree_sitter::_interpretation_tag_token =
