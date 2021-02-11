@@ -99,7 +99,7 @@ namespace codepad::editors::code {
 			return font->get_character_width_em(U' ') * _tab_space_width * _font_size;
 		}
 
-		// TODO set
+		// TODO set folded fragment gizmo
 		/// Returns \ref _fold_fragment_func.
 		const folded_region_skipper::fragment_func &get_folded_fragment_function() const {
 			return _fold_fragment_func;
@@ -603,6 +603,7 @@ namespace codepad::editors::code {
 		std::shared_ptr<interpretation> _doc; ///< The \ref interpretation bound to this contents_region.
 		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
 		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
+		info_event<>::token _theme_changed_tok; ///< Used to listen to \ref interpretation::theme_changed.
 
 		interaction_manager<caret_set> _interaction_manager; ///< The \ref interaction_manager.
 		caret_set _cset; ///< The set of carets.
@@ -634,9 +635,9 @@ namespace codepad::editors::code {
 			_end_edit_tok = _doc->get_buffer()->end_edit += [this](buffer::end_edit_info &info) {
 				_on_end_edit(info);
 			};
-			/*_ctx_vis_change_tok = (_doc->visual_changed += [this]() {
+			_theme_changed_tok = (_doc->theme_changed += [this]() {
 				_on_content_visual_changed();
-				});*/
+			});
 			_fmt = view_formatting(*_doc);
 			_on_content_modified();
 		}
@@ -727,9 +728,8 @@ namespace codepad::editors::code {
 			content_modified.invoke();
 			_on_content_visual_changed();
 		}
-		/// Called when the visual of the \ref interpretation has changed, e.g., when it has been modified, swapped,
-		/// or when its \ref interpretation::_theme has changed. Invokes \ref content_visual_changed and calls
-		/// \ref _on_editing_visual_changed().
+		/// Called when the visual of the \ref interpretation has changed, e.g., when it has been modified, or when
+		/// its theme has changed. Invokes \ref content_visual_changed and calls \ref _on_editing_visual_changed().
 		void _on_content_visual_changed() {
 			content_visual_changed.invoke();
 			_on_editing_visual_changed();
@@ -913,7 +913,7 @@ namespace codepad::editors::code {
 			if (_doc) {
 				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
 				_doc->get_buffer()->end_edit -= _end_edit_tok;
-				/*_doc->visual_changed -= _ctx_vis_change_tok;*/
+				_doc->theme_changed -= _theme_changed_tok;
 			}
 			_base::_dispose();
 		}

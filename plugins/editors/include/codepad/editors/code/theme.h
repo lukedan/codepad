@@ -82,12 +82,33 @@ namespace codepad::editors::code {
 				return;
 			}
 			assert_true_usage(s < pe, "invalid range");
-			_erase_range_no_merging(s, pe);
-			_insert_at(s, std::move(val), pe - s);
+			auto [start_iter, start_pos] = get_segment_at(s);
+			auto [end_iter, end_pos] = get_segment_at(pe);
+			auto [insert_iter, insert_offset] = _erase_range_no_merging(
+				start_iter, s - start_pos, end_iter, pe - end_pos
+			);
+			_insert_at(insert_iter, insert_offset, std::move(val), pe - s);
 		}
-
-		void on_modification_decoded(std::size_t removed_start, std::size_t removed_end) {
-
+		/// Invoked when a modification has been made to the \ref interpretation to update its theme data.
+		void on_modification(std::size_t start, std::size_t removed_length, std::size_t inserted_length) {
+			if (removed_length == 0 && inserted_length == 0) {
+				return;
+			}
+			std::size_t past_removed = start + removed_length;
+			auto [start_iter, start_pos] = get_segment_at(start);
+			auto [end_iter, end_pos] = get_segment_at(past_removed);
+			auto [insert_iter, insert_offset] = _erase_range_no_merging(
+				start_iter, start - start_pos, end_iter, past_removed - end_pos
+			);
+			T value = insert_iter->value;
+			if (insert_offset == 0 && insert_iter != _segments.begin()) {
+				auto prev_iter = insert_iter;
+				--prev_iter;
+				if (prev_iter->value != value) {
+					value = (--_segments.end())->value;
+				}
+			}
+			_insert_at(insert_iter, insert_offset, std::move(value), inserted_length);
 		}
 
 		/// Retrieves the value of the parameter at the given character.
@@ -133,38 +154,38 @@ namespace codepad::editors::code {
 		tree_type _segments;
 
 		/// Erases the given range of characters without merging segments that have the same value.
-		void _erase_range_no_merging(std::size_t beg, std::size_t end) {
-			auto [beg_iter, beg_pos] = get_segment_at(beg);
-			auto [end_iter, end_pos] = get_segment_at(end);
+		///
+		/// \return The position of the erased sequence after the operation.
+		std::pair<iterator, std::size_t> _erase_range_no_merging(
+			iterator beg_iter, std::size_t beg_offset, iterator end_iter, std::size_t end_offset
+		) {
 			// if beg and end are in the same segment, simply reduce the length of it
 			if (beg_iter == end_iter) {
-				std::size_t nchars = end - beg;
+				std::size_t nchars = end_offset - beg_offset;
 				beg_iter.get_modifier()->length = std::max(beg_iter->length, nchars) - nchars;
-				return;
+				return { beg_iter, beg_offset };
 			}
-			if (beg_pos != beg) {
+			if (beg_offset > 0) {
 				// reduce the length of the segment at the beginning, and increment beg_iter so that
 				// [beg_iter, end_iter) can be completely erased
-				beg_pos += beg_iter->length;
-				std::size_t beg_part = beg_pos - beg;
-				beg_iter.get_modifier()->length = std::max(beg_iter->length, beg_part) - beg_part;
+				// the last segment will have a length of 0, here we try not to change that
+				beg_iter.get_modifier()->length = std::min(beg_iter->length, beg_offset);
 				++beg_iter;
 			}
 			// reduce the length of the segment at the end
-			if (end_pos != end) {
-				std::size_t end_part = end - end_pos;
-				end_iter.get_modifier()->length = std::max(end_iter->length, end_part) - end_part;
+			if (end_offset > 0) {
+				end_iter.get_modifier()->length = std::max(end_iter->length, end_offset) - end_offset;
 			}
 			// erase full segments
 			_segments.erase(beg_iter, end_iter);
+			return { end_iter, 0 };
 		}
 		/// Inserts a segment at the given position. This function merges segments with the same parameter value and
 		/// makes sure that the last segment's length is 0 if the insertion occurs near the end.
-		void _insert_at(std::size_t pos, T value, std::size_t length) {
-			auto [iter, iter_pos] = get_segment_at(pos);
+		void _insert_at(iterator iter, std::size_t offset, T value, std::size_t length) {
 			if (length == 0) {
 				// no need to insert, but still merge segments
-				if (iter_pos == pos && iter_pos > 0) {
+				if (offset == 0 && iter != _segments.begin()) {
 					auto prev_iter = iter;
 					--prev_iter;
 					if (prev_iter->value == iter->value) { // needs merging
@@ -173,11 +194,11 @@ namespace codepad::editors::code {
 					}
 				}
 			} else {
-				if (iter_pos == pos) {
+				if (offset == 0) {
 					// insert at segment boundary; may need to merge segments
 					auto prev_iter = iter;
 					bool merge_before = false;
-					if (iter_pos > 0) {
+					if (iter != _segments.begin()) {
 						--prev_iter;
 						merge_before = prev_iter->value == value;
 					}
@@ -200,10 +221,9 @@ namespace codepad::editors::code {
 					if (value == iter->value) {
 						iter.get_modifier()->length += length;
 					} else {
-						std::size_t first_part = pos - iter_pos;
-						_segments.emplace_before(iter, iter->value, first_part);
+						_segments.emplace_before(iter, iter->value, offset);
 						_segments.emplace_before(iter, std::move(value), length);
-						iter.get_modifier()->length = std::max(iter->length, first_part) - first_part;
+						iter.get_modifier()->length = std::max(iter->length, offset) - offset;
 					}
 				}
 			}
@@ -347,6 +367,13 @@ namespace codepad::editors::code {
 			style.set_range(s, pe, tc.style);
 			weight.set_range(s, pe, tc.weight);
 		}
+		/// Called when the interpretation is modified to update the theme data associated with it.
+		void on_modification(std::size_t start, std::size_t erased_length, std::size_t inserted_length) {
+			color.on_modification(start, erased_length, inserted_length);
+			style.on_modification(start, erased_length, inserted_length);
+			weight.on_modification(start, erased_length, inserted_length);
+		}
+
 		/// Returns the theme of the text at the given position.
 		text_theme_specification get_at(std::size_t p) const {
 			return text_theme_specification(color.get_at(p), style.get_at(p), weight.get_at(p));

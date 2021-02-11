@@ -179,6 +179,28 @@ namespace codepad::editors::code {
 				append_line(line.nonbreak_chars, line.ending);
 			}
 		};
+		/// Information about an insert operation.
+		struct insert_result {
+			bool
+				/// Whether this insertion occurred at the middle of a CRLF line break and caused it to split.
+				split = false,
+				/// Whether a LF codepoint at the very beginning of the inserted content merged with the previous
+				/// codepoint that is a CR into a CRLF line break.
+				merge_front = false,
+				/// Whether a CR codepoint at the very end of the inserted content merged with the next codepoint
+				/// that is a LF into a CRLF line break.
+				merge_back = false;
+		};
+		/// Information about an erase operation.
+		struct erase_result {
+			bool
+				/// Whether the first erased codepoint is part of a CRLF line break that caused it to be split.
+				split_front = false,
+				/// Whether the last erased codepoint is part of a CRLF line break that caused it to be split.
+				split_back = false,
+				/// Whether the codepoints before and after the erased content gets merged into a CRLF line break.
+				merge = false;
+		};
 
 		/// Stores information about a line in the tree.
 		struct linebreak_info {
@@ -199,47 +221,47 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns the number of codepoints before the character at the given index.
-		std::size_t position_char_to_codepoint(std::size_t c) const {
+		[[nodiscard]] std::size_t position_char_to_codepoint(std::size_t c) const {
 			_pos_char_to_cp selector;
 			_t.find(selector, c);
 			return selector.total_codepoints + c;
 		}
 		/// Returns a \ref linebreak_info containing information about the given line.
-		linebreak_info get_line_info(std::size_t l) const {
+		[[nodiscard]] linebreak_info get_line_info(std::size_t l) const {
 			_line_beg_char_accum_finder selector;
 			auto it = _t.find(selector, l);
 			return linebreak_info(it, selector.total);
 		}
 		/// Returns the position of the first codepoint of the given line.
-		std::size_t get_beginning_codepoint_of_line(std::size_t l) const {
+		[[nodiscard]] std::size_t get_beginning_codepoint_of_line(std::size_t l) const {
 			_line_beg_codepoint_accum_finder selector;
 			_t.find(selector, l);
 			return selector.total;
 		}
 
 		/// Returns an iterator to the first line.
-		iterator begin() const {
+		[[nodiscard]] iterator begin() const {
 			return _t.begin();
 		}
 		/// Returns an iterator past the last line.
-		iterator end() const {
+		[[nodiscard]] iterator end() const {
 			return _t.end();
 		}
 		/// Returns an iterator to the specified line.
-		iterator at_line(std::size_t line) const {
+		[[nodiscard]] iterator at_line(std::size_t line) const {
 			return _t.find(_line_beg_finder(), line);
 		}
 
 		/// Returns a \ref line_column_info containing information about the codepoint at the given index. If the
 		/// codepoint is at the end of the buffer (i.e., EOF), the returned iterator will still be end() - 1.
-		line_column_info get_line_and_column_of_codepoint(std::size_t cp) const {
+		[[nodiscard]] line_column_info get_line_and_column_of_codepoint(std::size_t cp) const {
 			_get_line<line_synth_data::num_codepoints_property> selector;
 			iterator it = _t.find(selector, cp);
 			return line_column_info(it, selector.total_lines, cp);
 		}
 		/// Returns a \ref line_column_info containing information about the character at the given index. If the
 		/// character is at the end of the buffer (i.e., EOF), the returned iterator will still be end() - 1.
-		line_column_info get_line_and_column_of_char(std::size_t c) const {
+		[[nodiscard]] line_column_info get_line_and_column_of_char(std::size_t c) const {
 			_get_line<line_synth_data::num_chars_property> selector;
 			iterator it = _t.find(selector, c);
 			return line_column_info(it, selector.total_lines, c);
@@ -247,7 +269,9 @@ namespace codepad::editors::code {
 		/// Returns a \ref line_column_info containing information about the character at the given index,
 		/// and the index of the codepoint corresponding to the character. If the character is at the end
 		/// of the buffer (i.e., EOF), the returned iterator will still be end() - 1.
-		std::pair<line_column_info, std::size_t> get_line_and_column_and_codepoint_of_char(std::size_t c) const {
+		[[nodiscard]] std::pair<line_column_info, std::size_t> get_line_and_column_and_codepoint_of_char(
+			std::size_t c
+		) const {
 			_pos_char_to_cp selector;
 			iterator it = _t.find(selector, c);
 			return {line_column_info(it, selector.total_lines, c), selector.total_codepoints + c};
@@ -257,7 +281,9 @@ namespace codepad::editors::code {
 		/// (i.e., EOF), the returned iterator will still be end() - 1.
 		///
 		/// \sa get_line_and_column_of_codepoint()
-		std::pair<line_column_info, std::size_t> get_line_and_column_and_char_of_codepoint(std::size_t cp) const {
+		[[nodiscard]] std::pair<line_column_info, std::size_t> get_line_and_column_and_char_of_codepoint(
+			std::size_t cp
+		) const {
 			_pos_cp_to_char selector;
 			iterator it = _t.find(selector, cp);
 			return {
@@ -267,15 +293,15 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns the index of the line to which the given iterator points.
-		std::size_t get_line(iterator i) const {
+		[[nodiscard]] std::size_t get_line(iterator i) const {
 			return _get_node_sum_before<line_synth_data::num_lines_property>(i);
 		}
 		/// Returns the index of the first codepoint of the line corresponding to the given iterator.
-		std::size_t get_beginning_codepoint_of(iterator i) const {
+		[[nodiscard]] std::size_t get_beginning_codepoint_of(iterator i) const {
 			return _get_node_sum_before<line_synth_data::num_codepoints_property>(i);
 		}
 		/// Returns the index of the first character of the line corresponding to the given iterator.
-		std::size_t get_beginning_char_of(iterator i) const {
+		[[nodiscard]] std::size_t get_beginning_char_of(iterator i) const {
 			return _get_node_sum_before<line_synth_data::num_chars_property>(i);
 		}
 
@@ -286,9 +312,25 @@ namespace codepad::editors::code {
 		/// \param at The line at which the text is to be inserted.
 		/// \param offset The position in the line at whith the text is to be inserted.
 		/// \param lines Lines of the text clip.
-		void insert_chars(iterator at, std::size_t offset, const std::vector<line_info> &lines) {
+		insert_result insert_codepoints(iterator at, std::size_t offset, const std::vector<line_info> &lines) {
 			assert_true_logical(!(at == _t.end() && offset != 0), "invalid insert position");
 			assert_true_logical(!lines.empty() && lines.back().ending == ui::line_ending::none, "invalid text");
+			if (lines.size() == 1 && lines[0].nonbreak_chars == 0) {
+				return insert_result(); // nothing to insert; if we continue we would incorrectly break up \r\n
+			}
+			insert_result result;
+			if (at != _t.end() && offset > at->nonbreak_chars) { // break \r\n
+				assert_true_logical(at->ending == ui::line_ending::rn, "invalid begin padding");
+				std::size_t n = at->nonbreak_chars;
+				{
+					auto mod = _t.get_modifier_for(at.get_node());
+					mod->nonbreak_chars = 0;
+					mod->ending = ui::line_ending::n;
+				}
+				_t.emplace_before(at, n, ui::line_ending::r);
+				offset = 0;
+				result.split = true;
+			}
 			if (at == _t.end()) {
 				assert_true_logical(!_t.empty(), "corrupted line_ending_registry");
 				--at;
@@ -305,109 +347,65 @@ namespace codepad::editors::code {
 				for (auto it = lines.begin() + 1; it != lines.end() - 1; ++it) {
 					_t.emplace_before(at, *it);
 				}
-				_try_merge_rn_linebreak(it);
-				_try_merge_rn_linebreak(at);
+				result.merge_front = _try_merge_rn_linebreak(it);
+				result.merge_back = _try_merge_rn_linebreak(at);
 			}
-		}
-		/// \overload
-		void insert_chars(iterator at, std::size_t offset, const text_clip_info &clipstats) {
-			insert_chars(at, offset, clipstats.lines);
-		}
-
-		/// Called when a range of codepoints has been inserted to the buffer.
-		void insert_codepoints(iterator at, std::size_t offset, const std::vector<line_info> &lines) {
-			if (lines.size() == 1 && lines[0].nonbreak_chars == 0) {
-				return; // nothing to insert; if we continue we would incorrectly break up \r\n
-			}
-			if (at != _t.end() && offset > at->nonbreak_chars) { // break \r\n
-				assert_true_logical(at->ending == ui::line_ending::rn, "invalid begin padding");
-				std::size_t n = at->nonbreak_chars;
-				{
-					auto mod = _t.get_modifier_for(at.get_node());
-					mod->nonbreak_chars = 0;
-					mod->ending = ui::line_ending::n;
-				}
-				_t.emplace_before(at, n, ui::line_ending::r);
-				offset = 0;
-			}
-			insert_chars(at, offset, lines);
+			return result;
 		}
 		/// \overload
 		///
 		/// \param pos The position of the codepoint before which the clip will be inserted.
 		/// \param lines The structure of inserted text.
-		void insert_codepoints(std::size_t pos, const std::vector<line_info> &lines) {
+		insert_result insert_codepoints(std::size_t pos, const std::vector<line_info> &lines) {
 			line_column_info posinfo = get_line_and_column_of_codepoint(pos);
-			insert_codepoints(posinfo.line_iterator, posinfo.position_in_line, lines);
+			return insert_codepoints(posinfo.line_iterator, posinfo.position_in_line, lines);
 		}
 
 		/// Called when a text clip has been erased from the buffer. \p end will remain valid after this operation.
 		///
-		/// \param beg Iterator to the line of the first erased character.
-		/// \param begoff The position of the first erased character in the line.
-		/// \param end Iterator to the line of the character after the last erased char.
-		/// \param endoff The position of the char after the last erased character in the line.
+		/// \param beg Iterator to the line of the first erased codepoint.
+		/// \param begoff The position of the first erased codepoint in the line.
+		/// \param end Iterator to the line of the codepoint after the last erased char.
+		/// \param endoff The position of the char after the last erased codepoint in the line.
 		/// \return A \ref text_clip_info containing information about the removed text.
-		text_clip_info erase_chars(iterator beg, std::size_t begoff, iterator end, std::size_t endoff) {
+		erase_result erase_codepoints(iterator beg, std::size_t begoff, iterator end, std::size_t endoff) {
 			assert_true_logical(!(end == _t.end() && endoff != 0), "invalid iterator position");
+			if (beg == end && begoff == endoff) {
+				return erase_result();
+			}
+			erase_result result;
 			if (end == _t.end()) { // cannot erase EOF
 				--end;
 				endoff = end->nonbreak_chars;
 			}
-			text_clip_info stats;
-			if (beg == end) {
-				stats.append_line(endoff - begoff, ui::line_ending::none);
-			} else {
-				stats.append_line(beg->nonbreak_chars - begoff, beg->ending);
-				iterator it = beg;
-				for (++it; it != end; ++it) {
-					stats.append_line(it->nonbreak_chars, it->ending);
-				}
-				stats.append_line(endoff, ui::line_ending::none);
-				_t.erase(beg, end);
-			}
-			_t.get_modifier_for(end.get_node())->nonbreak_chars += begoff - endoff;
-			_try_merge_rn_linebreak(end);
-			return stats;
-		}
-		/// \overload
-		///
-		/// \param beg The index of the first character that has been erased.
-		/// \param end One plus the index of the last character that has been erased.
-		text_clip_info erase_chars(std::size_t beg, std::size_t end) {
-			line_column_info
-				begp = get_line_and_column_of_char(beg),
-				endp = get_line_and_column_of_char(end);
-			return erase_chars(begp.line_iterator, begp.position_in_line, endp.line_iterator, endp.position_in_line);
-		}
-
-		/// Called when the given range of codepoints has been erased from the buffer. This operation may break or
-		/// assemble multi-codepoint linebreaks. Only \ref end is guaranteed to remain valid after this operation.
-		void erase_codepoints(iterator beg, std::size_t begcpoff, iterator end, std::size_t endcpoff) {
-			if (beg == end && begcpoff == endcpoff) {
-				return;
-			}
-			if (beg->nonbreak_chars < begcpoff) { // break \r\n
+			if (beg->nonbreak_chars < begoff) { // break \r\n
+				result.split_front = true;
 				assert_true_logical(beg->ending == ui::line_ending::rn, "invalid begin padding");
 				_t.get_modifier_for(beg.get_node())->ending = ui::line_ending::r;
 				++beg;
-				begcpoff = 0;
+				begoff = 0;
 			}
-			if (end != _t.end() && end->nonbreak_chars < endcpoff) { // break \r\n
+			if (end != _t.end() && end->nonbreak_chars < endoff) { // break \r\n
+				result.split_back = true;
 				assert_true_logical(end->ending == ui::line_ending::rn, "invalid end padding");
 				{
 					auto mod = _t.get_modifier_for(end.get_node());
-					endcpoff = mod->nonbreak_chars = (beg == end ? begcpoff : 0);
+					endoff = mod->nonbreak_chars = (beg == end ? begoff : 0);
 					mod->ending = ui::line_ending::n;
 				}
 			}
-			erase_chars(beg, begcpoff, end, endcpoff);
+			if (beg != end) {
+				_t.erase(beg, end);
+			}
+			_t.get_modifier_for(end.get_node())->nonbreak_chars += begoff - endoff;
+			result.merge = _try_merge_rn_linebreak(end);
+			return result;
 		}
 		/// \overload
 		///
 		/// \param beg The position of the first codepoint that will be erased.
 		/// \param end The position past the last codepoint that will be erased.
-		void erase_codepoints(std::size_t beg, std::size_t end) {
+		erase_result erase_codepoints(std::size_t beg, std::size_t end) {
 			line_column_info
 				begp = get_line_and_column_of_codepoint(beg),
 				endp = get_line_and_column_of_codepoint(end);

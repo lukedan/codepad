@@ -54,7 +54,6 @@ template <typename Rnd> byte_string generate_random_utf8_string(size_t length, R
 	}
 	return res;
 }
-
 /// Generates a random series of bytes.
 template <typename Rnd> byte_string generate_random_string(size_t length, Rnd &random) {
 	byte_string res;
@@ -140,6 +139,49 @@ int main(int argc, char **argv) {
 	auto buf = man.buffers.new_file();
 	std::shared_ptr<interpretation> interp = man.buffers.open_interpretation(buf, man.encodings.get_default());
 
+	// stored values from `modification_decoded`
+	std::size_t start_char_beforemod, past_end_char_beforemod, num_chars_beforemod;
+	interp->modification_decoded +=
+		[&](editors::code::interpretation::modification_decoded_info &info) {
+			start_char_beforemod = info.start_character;
+			past_end_char_beforemod = info.past_end_character;
+			if (
+				(info.buffer_info.bytes_erased.length() > 0 || info.buffer_info.bytes_inserted.length() > 0) &&
+				info.past_end_line_column.position_in_line > info.past_end_line_column.line_iterator->nonbreak_chars
+			) {
+				++past_end_char_beforemod;
+			}
+			num_chars_beforemod = interp->get_linebreaks().num_chars();
+		};
+	interp->end_modification +=
+		[&](editors::code::interpretation::end_modification_info &info) {
+			// validate the character indices in `info`
+			auto [begin_line_col, begin_char] =
+				interp->get_linebreaks().get_line_and_column_and_char_of_codepoint(info.start_codepoint);
+			auto [end_line_col, end_char] =
+				interp->get_linebreaks().get_line_and_column_and_char_of_codepoint(info.past_end_codepoint);
+			if (
+				(info.buffer_info.bytes_erased.length() > 0 || info.buffer_info.bytes_inserted.length() > 0) &&
+				end_line_col.position_in_line > end_line_col.line_iterator->nonbreak_chars
+			) {
+				++end_char;
+			}
+			std::size_t num_chars = interp->get_linebreaks().num_chars();
+			std::size_t
+				after_end_beforemod = num_chars_beforemod - past_end_char_beforemod,
+				after_end = num_chars - end_char;
+			std::size_t
+				expected_beg = std::min(begin_char, start_char_beforemod),
+				expected_after_end = std::min(after_end_beforemod, after_end);
+			std::size_t
+				expected_removed_chars = num_chars_beforemod - (expected_after_end + expected_beg),
+				expected_inserted_chars = num_chars - (expected_after_end + expected_beg);
+
+			assert_true_logical(info.start_character == expected_beg, "incorrect start character position");
+			assert_true_logical(info.removed_characters == expected_removed_chars, "incorrect erased character count");
+			assert_true_logical(info.inserted_characters == expected_inserted_chars, "incorrect inserted character count");
+		};
+
 	caret_set cset;
 	cset.reset();
 	interp->on_insert(cset, generate_random_string(1000000, eng), nullptr);
@@ -148,11 +190,11 @@ int main(int argc, char **argv) {
 	uniform_int_distribution<size_t>
 		ncarets_dist(1, 100), insertlen_dist(0, 3000);
 	uniform_int_distribution<int> bool_dist(0, 1);
-	size_t idx = 0;
-	while (keep_running) {
+	for (std::size_t idx = 0; keep_running; ++idx) {
 		logger::get().log_info(CP_HERE) <<
 			"document length: " << buf->length() << " bytes, " << interp->get_linebreaks().num_chars() << " chars";
 
+		// generate random positions and strings for the edit
 		vector<pair<size_t, size_t>> positions;
 		if (bool_dist(eng)) {
 			positions = get_modify_positions_random(ncarets_dist(eng), *buf, *interp, eng);
@@ -171,18 +213,24 @@ int main(int argc, char **argv) {
 			}
 		}
 		logger::get().log_info(CP_HERE) << "modifications: " << positions.size();
+
+		// perform the edit
 		{
 			buffer::modifier mod(*buf, nullptr);
 			mod.begin();
 			for (size_t i = 0; i < positions.size(); ++i) {
 				mod.modify(positions[i].first, positions[i].second - positions[i].first, inserts[i]);
+				// the interpretation should still be in a valid state between modifications - uncomment this to test
+				// that as well at the cost of much slower execution
+				/*assert_true_logical(interp->check_integrity());*/
 			}
 			buffer::edit dummy;
 			mod.end_custom(dummy); // no history; otherwise all memory will be eaten
 		}
+
+		// validate everything
 		logger::get().log_info(CP_HERE) << "checking edit " << idx;
 		assert_true_logical(interp->check_integrity());
-		++idx;
 	}
 
 	logger::get().log_info(CP_HERE) << "exiting normally";

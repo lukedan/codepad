@@ -45,3 +45,5 @@ set_target_properties(editors
 		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 		LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 		WINDOWS_EXPORT_ALL_SYMBOLS YES)
+
+add_subdirectory("test/")

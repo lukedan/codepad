@@ -311,6 +311,7 @@ namespace codepad::editors::code {
 				buffer::end_modification_info &info
 			) :
 				start_line_column(start_lc), past_end_line_column(past_end_lc),
+				start_character(start_char), past_end_character(past_end_char),
 				start_codepoint(start_cp), past_end_codepoint(past_end_cp), buffer_info(info) {
 			}
 
@@ -318,8 +319,15 @@ namespace codepad::editors::code {
 				start_line_column, ///< Line and column information of \ref start_codepoint.
 				past_end_line_column; ///< Line and column information of \ref past_end_codepoint.
 			const std::size_t
-				start_char = 0, ///< The character index of \ref start_codepoint.
-				past_end_char = 0, ///< The character index of \ref past_end_codepoint.
+				/// The character that \ref start_codepoint belongs to. Note that this may not be the first character
+				/// affected by this modification due to CRLF merging and splitting. Generally
+				/// \ref end_modification_info::start_character would be more useful.
+				start_character = 0,
+				/// The character that \ref past_end_codepoint belongs to. Note that this may not be the first
+				/// character affected by this modification due to CRLF merging and splitting. Generally a
+				/// combination of \ref end_modification_info::start_character and
+				/// \ref end_modification_info::removed_characters would be more useful.
+				past_end_character = 0,
 				/// The first codepoint that has been affected by this modification. This index is obtained
 				/// **before** the modification.
 				start_codepoint = 0,
@@ -331,15 +339,30 @@ namespace codepad::editors::code {
 		};
 		/// Contains information for the \ref end_modification event, with additional information about the
 		/// codepoints that are affected.
+		///
+		/// The \ref start_character, \ref removed_characters, and \ref inserted_characters fields indicate the
+		/// character range that may have been modified. The \ref start_codepoint and \ref past_end codepoint fields
+		/// indicate the codepoint range that may have been modified and is most useful when used with
+		/// \ref modification_decoded_info::past_end_codepoint.
 		struct end_modification_info {
 			/// Initializes all fields of this struct.
-			end_modification_info(std::size_t start, std::size_t past_end, buffer::end_modification_info &info) :
-				start_codepoint(start), past_end_codepoint(past_end), buffer_info(info) {
+			end_modification_info(
+				std::size_t start_char, std::size_t rem_chars, std::size_t insert_chars,
+				std::size_t start_cp, std::size_t past_end_cp, buffer::end_modification_info &info
+			) :
+				start_character(start_char), removed_characters(rem_chars), inserted_characters(insert_chars),
+				start_codepoint(start_cp), past_end_codepoint(past_end_cp), buffer_info(info) {
 			}
 
 			const std::size_t
+				/// The first character that may have been modified.
+				start_character = 0,
+				/// The number of characters that have been erased or modified by the erase operation.
+				removed_characters = 0,
+				/// The number of characters that have been inserted or modified by the insert operation.
+				inserted_characters = 0,
 				/// The first codepoint that has been affected by this modification. This index is obtained **after**
-				/// the modification.
+				/// the modification, but should be the same as \ref modification_decoded_info::start_codepoint.
 				start_codepoint = 0,
 				/// One past the last codepoint that has been affected by this modification. This index is obtained
 				/// **after** the modification.
@@ -448,7 +471,6 @@ namespace codepad::editors::code {
 		/// Clears all tags and unregisters from \ref buffer events.
 		~interpretation() {
 			_tags.clear();
-			_buf->begin_edit -= _begin_edit_tok;
 			_buf->begin_modify -= _begin_modify_tok;
 			_buf->end_modify -= _end_modify_tok;
 			_buf->end_edit -= _end_edit_tok;
@@ -486,12 +508,12 @@ namespace codepad::editors::code {
 		/// Sets the theme of all text.
 		void set_text_theme(text_theme_data t) {
 			_theme = std::move(t);
-			// TODO visual & text layout changed
+			theme_changed.invoke();
 		}
 		/// Swaps the theme of all text with the given theme data.
 		void swap_text_theme(text_theme_data &t) {
 			std::swap(_theme, t);
-			// TODO visual & text layout changed
+			theme_changed.invoke();
 		}
 		/// Returns the \ref text_theme_data associated with this \ref interpretation.
 		const text_theme_data &get_text_theme() const {
@@ -576,7 +598,9 @@ namespace codepad::editors::code {
 		/// This event is invoked after \ref modification_decoded after \ref _linebreaks and \ref _chunks have been
 		/// updated. This can be useful for obtaining information about content added by the modification.
 		info_event<end_modification_info> end_modification;
-		// TODO visual_changed event
+		/// Invoked whenever \ref _theme has been changed. Note that this could result in the layout of the document
+		/// changing as the same character can have different metrics with different styles.
+		info_event<> theme_changed;
 	protected:
 		/// Used to find the number of bytes before a specified codepoint.
 		struct _codepoint_pos_converter {
@@ -646,7 +670,6 @@ namespace codepad::editors::code {
 		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
 
 		// event tokens
-		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
 		/// Used to listen to \ref buffer::begin_modify;
 		info_event<buffer::begin_modification_info>::token _begin_modify_tok;
 		/// Used to listen to \ref buffer::end_modify;
@@ -744,20 +767,15 @@ namespace codepad::editors::code {
 			return false;
 		}
 
-		/// Called when an edit is about to be made to \ref _buf.
-		///
-		/// \todo Prepare \ref _theme for fixup.
-		void _on_begin_edit(buffer::begin_edit_info&) {
-
-		}
 		/// Called when a modification is about to be made. This function gathers line-related information about the
 		/// removed text and saves codepoint boundaries around the erased region to speed up decoding of new content.
 		void _on_begin_modify(buffer::begin_modification_info&);
 		/// Called when a modification has been made. This function decodes the inserted content and updates
 		/// \ref _chunks and \ref _linebreaks.
 		void _on_end_modify(buffer::end_modification_info&);
-		/// Called when an edit has been made to \ref _buf.
-		void _on_end_edit(buffer::end_edit_info &info) {
+		/// Called when an edit has been made to \ref _buf to invoke \ref theme_changed.
+		void _on_end_edit(buffer::end_edit_info&) {
+			theme_changed.invoke();
 		}
 	};
 }

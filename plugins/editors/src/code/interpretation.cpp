@@ -65,9 +65,6 @@ namespace codepad::editors::code {
 	interpretation::interpretation(std::shared_ptr<buffer> buf, const buffer_encoding &encoding) :
 		_buf(std::move(buf)), _encoding(&encoding) {
 
-		_begin_edit_tok = _buf->begin_edit += [this](buffer::begin_edit_info &info) {
-			_on_begin_edit(info);
-		};
 		_begin_modify_tok = _buf->begin_modify += [this](buffer::begin_modification_info &info) {
 			_on_begin_modify(info);
 		};
@@ -113,7 +110,7 @@ namespace codepad::editors::code {
 				_chunks.end(), chunk_data(get_buffer()->length() - chkbegbytes, curcp - chkbegcps)
 			);
 		}
-		_linebreaks.insert_chars(_linebreaks.begin(), 0, lines);
+		_linebreaks.insert_codepoints(_linebreaks.begin(), 0, lines);
 	}
 
 	bool interpretation::check_integrity() const {
@@ -223,7 +220,7 @@ namespace codepad::editors::code {
 		codepoint_position_converter conv(*this);
 		// first step: beginning of the removed region
 		// codepoints that start at or before this byte are assumed to not be affected by this modification
-		std::size_t lookahead = _encoding->get_maximum_codepoint_length() - 1;
+		std::size_t lookahead = _encoding->get_maximum_codepoint_length();
 		std::size_t first_checked_byte = std::max(info.position, lookahead) - lookahead;
 		auto [start_codepoint, start_byte] = conv.byte_to_codepoint(first_checked_byte);
 		_mod_cache.start_decoding_codepoint = start_codepoint;
@@ -276,17 +273,19 @@ namespace codepad::editors::code {
 		// `_on_begin_modify()`, past the end of added content, then until we find a codepoint boundary that overlaps
 		// with either old codepoint boundaries or previously cached codepoint boundaries after the erased bytes.
 		// then, using these information, we find the range of codepoints and characters affected in the unmodified
-		// document using the old data in `_chunks` and `_linebreaks`, and update `_chunks` and `_linebreaks`
-		// accordingly
+		// document using the old data in `_chunks` and `_linebreaks`, and update `_chunks`, `_linebreaks`, and
+		// `_theme` accordingly
 
 		// first, start decoding from `_mod_cache.start_decoding_byte`
 		// data about the new text
 		std::vector<linebreak_registry::line_info> lines;
+		std::size_t new_content_chars = 0;
 		std::vector<chunk_data> chunks;
 		// state
 		ui::linebreak_analyzer linebreaks(
-			[&lines](std::size_t len, ui::line_ending ending) {
+			[&](std::size_t len, ui::line_ending ending) {
 				lines.emplace_back(len, ending);
+				new_content_chars += len + (ending == ui::line_ending::none ? 0 : 1);
 			}
 		);
 		buffer::const_iterator
@@ -427,10 +426,10 @@ namespace codepad::editors::code {
 		);
 
 		// update line breaks
-		_linebreaks.erase_codepoints(
+		linebreak_registry::erase_result erase_res = _linebreaks.erase_codepoints(
 			start_info.line_iterator, start_info.position_in_line, end_info.line_iterator, end_info.position_in_line
 		);
-		_linebreaks.insert_codepoints(first_changed_codepoint, lines);
+		linebreak_registry::insert_result insert_res = _linebreaks.insert_codepoints(first_changed_codepoint, lines);
 		// update codepoint boundaries
 		if (end_chunk != _chunks.end()) {
 			++end_chunk;
@@ -440,6 +439,48 @@ namespace codepad::editors::code {
 			_chunks.emplace_before(end_chunk, chk);
 		}
 
-		end_modification.invoke_noret(first_changed_codepoint, current_codepoint, info);
+		// compute character ranges that are affected
+		if (new_content_chars == 0) {
+			// nothing inserted, use `erase_res.merge` for `insert_res`
+			insert_res.merge_front = insert_res.merge_back = insert_res.split = erase_res.merge;
+			// CR + LF merged into CRLF, in which case we need to manually add 1 to new_content_chars
+			// explanation: in the charts below we assume that the CR at the front and the LF at the end merged with
+			// different characters, so the number of added characters is not changed; however, here we have no added
+			// characters, and the merged CRLF is a new character that we need to report
+			if (erase_res.merge) {
+				++new_content_chars;
+			}
+		}
+		if (start_info.line == end_info.line && start_info.position_in_line == end_info.position_in_line) {
+			// nothing erased, use `insert_res.split` for `erase_res`
+			erase_res.split_front = erase_res.split_back = erase_res.merge = insert_res.split;
+		}
+		// - front:
+		//                 | merge after       | no merge after
+		// ----------------+-------------------+--------------------
+		//    split before | treat as modified | ++new_content_chars
+		// no split before | --start_char      | <nothing>
+		if (insert_res.merge_front && !erase_res.split_front) {
+			--start_char;
+		} else if (erase_res.split_front && !insert_res.merge_front) {
+			++new_content_chars;
+		}
+		// - back:
+		//                 | merge after                   | no merge after
+		// ----------------+-------------------------------+--------------------------------
+		//    split before | treat as modified, ++end_char | ++new_content_chars, ++end_char
+		// no split before | ++end_char                    | <nothing>
+		if (insert_res.merge_back) {
+			++end_char;
+		} else if (erase_res.split_back) {
+			++end_char;
+			++new_content_chars;
+		}
+		// update _theme
+		_theme.on_modification(start_char, end_char - start_char, new_content_chars);
+
+		end_modification.invoke_noret(
+			start_char, end_char - start_char, new_content_chars, first_changed_codepoint, current_codepoint, info
+		);
 	}
 }
