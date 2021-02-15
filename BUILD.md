@@ -15,7 +15,7 @@
 		```
 		vcpkg install pybind11
 		```
-		Set the `PYTHONHOME` environment (or CMake) variable if codepad has trouble finding the python libraries.
+		If CMake has trouble finding the python libraries, set the `PYTHONHOME` environment (or CMake) variable, or remove the line in `CMakeLists.txt` that includes `plugins/python_plugin_host_pybind11/` to skip building the plugin.
 
 	- If you want to build codepad with Cairo support, also install:
 		```
@@ -25,7 +25,7 @@
 		vcpkg install pango
 		vcpkg install cairo
 		```
-		The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DUSE_CAIRO=No` while configuring to build without the Cairo backend.
+		The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DCODEPAD_USE_CAIRO=No` while configuring to build without the Cairo backend.
 
 	- On Ubuntu, install CMake and g++:
 		```
@@ -66,8 +66,8 @@
 	```
 	mkdir build
 	cd build
-	cmake ..
-	cmake -build .
+	cmake .. -DCODEPAD_USE_SKIA=No
+	cmake --build . -j 8
 	```
 	If you're building on Windows using `vcpkg`, also specify `-DCMAKE_TOOLCHAIN_FILE=[path to vcpkg]/scripts/buildsystems/vcpkg.cmake` on line 3. If you're buliding without Cairo, specify `-DUSE_CAIRO=No` on line 3.
 

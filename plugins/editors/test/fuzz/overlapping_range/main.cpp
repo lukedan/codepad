@@ -52,6 +52,8 @@ int main(int argc, char **argv) {
 	global_log->sinks.emplace_back(std::make_unique<logger_sinks::file_sink>("overlapping_range_test.log"));
 	logger::set_current(std::move(global_log));
 
+	initialize(argc, argv);
+
 	std::default_random_engine eng(123456);
 	std::uniform_int_distribution<std::size_t>
 		insert_count_dist(500, 2000),
