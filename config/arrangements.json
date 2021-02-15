@@ -1181,7 +1181,6 @@
 			{
 				"type": "scrollbar",
 				"name": "vertical_scrollbar",
-				"class": "scrollbar",
 				"attributes": {
 					"orientation": "vertical",
 					"layout": {
@@ -1195,7 +1194,6 @@
 			{
 				"type": "scrollbar",
 				"name": "horizontal_scrollbar",
-				"class": "scrollbar",
 				"attributes": {
 					"orientation": "horizontal",
 					"layout": {
@@ -1399,7 +1397,6 @@
 			{
 				"type": "scrollbar",
 				"name": "vertical_scrollbar",
-				"class": "scrollbar",
 				"attributes": {
 					"orientation": "vertical",
 					"layout": {
@@ -1413,7 +1410,6 @@
 			{
 				"type": "scrollbar",
 				"name": "horizontal_scrollbar",
-				"class": "scrollbar",
 				"attributes": {
 					"layout": {
 						"anchor": "lrb",

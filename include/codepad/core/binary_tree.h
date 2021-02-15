@@ -160,7 +160,7 @@ namespace codepad {
 		///
 		/// \remark The lifetime of the synthesizer must be longer than that of this struct, and the synthesizer must
 		///         not be moved.
-		template <typename MySynth> struct node_value_modifier {
+		template <typename MySynth = Synth> struct node_value_modifier {
 		public:
 			/// Default constructor that initializes the struct to empty.
 			node_value_modifier() = default;
@@ -1292,7 +1292,7 @@ namespace codepad {
 		template <
 			typename Property, bool PreventOverflow = false, typename Comp = std::less<typename Property::value_type>
 		> struct index_finder {
-			/// Interface for \ref binary_tree::find_custom. This function can also collect additional data
+			/// Interface for \ref binary_tree::find_custom(). This function can also collect additional data
 			/// when looking for the node, as specified by \p Props and \p avals.
 			///
 			/// \tparam Props Additional properties whose values will be accumulated in

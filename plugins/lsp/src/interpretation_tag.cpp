@@ -89,18 +89,20 @@ namespace codepad::lsp {
 		if (tag) {
 			// TODO unregister for the event when the plugin is disabled
 			contents.mouse_hover += [tag, &contents, &c](ui::mouse_hover_info &p) {
-				editors::code::caret_position caret = contents.hit_test_for_caret(p.position.get(contents));
-				auto line_col = tag->_interp->get_linebreaks().get_line_and_column_of_char(caret.position);
-				types::HoverParams params;
-				params.textDocument = tag->_change_params.textDocument;
-				params.position.line = line_col.line;
-				params.position.character = line_col.position_in_line;
-				c.send_request<types::HoverResponse>(
-					u8"textDocument/hover", params, [tag, &contents](types::HoverResponse response) {
-						logger::get().log_debug(CP_HERE) << "requesting hover popup";
-						tag->_on_hover(contents, std::move(response));
-					}
-				);
+				if (c.get_state() == client::state::ready) {
+					editors::code::caret_position caret = contents.hit_test_for_caret(p.position.get(contents));
+					auto line_col = tag->_interp->get_linebreaks().get_line_and_column_of_char(caret.position);
+					types::HoverParams params;
+					params.textDocument = tag->_change_params.textDocument;
+					params.position.line = line_col.line;
+					params.position.character = line_col.position_in_line;
+					c.send_request<types::HoverResponse>(
+						u8"textDocument/hover", params, [tag, &contents](types::HoverResponse response) {
+							logger::get().log_debug(CP_HERE) << "requesting hover popup";
+							tag->_on_hover(contents, std::move(response));
+						}
+					);
+				}
 			};
 		}
 	}

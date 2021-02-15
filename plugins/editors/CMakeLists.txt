@@ -7,6 +7,7 @@ target_sources(editors
 
 		"include/codepad/editors/code/caret_set.h"
 		"include/codepad/editors/code/contents_region.h"
+		"include/codepad/editors/code/decoration.h"
 		"include/codepad/editors/code/fragment_generation.h"
 		"include/codepad/editors/code/interpretation.h"
 		"include/codepad/editors/code/line_number_display.h"
@@ -22,12 +23,14 @@ target_sources(editors
 		"include/codepad/editors/editor.h"
 		"include/codepad/editors/interaction_modes.h"
 		"include/codepad/editors/manager.h"
+		"include/codepad/editors/overlapping_range_registry.h"
 	PRIVATE
 		"src/binary/components.cpp"
 		"src/binary/contents_region.cpp"
 
 		"src/code/caret_set.cpp"
 		"src/code/contents_region.cpp"
+		"src/code/decoration.cpp"
 		"src/code/fragment_generation.cpp"
 		"src/code/interpretation.cpp"
 		"src/code/line_number_display.cpp"

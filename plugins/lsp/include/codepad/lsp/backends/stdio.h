@@ -54,6 +54,11 @@ namespace codepad::lsp {
 			os::_details::winapi_check(CloseHandle(stdout_write));
 			os::_details::winapi_check(CloseHandle(stderr_write));
 		}
+		/// Closes handles.
+		~stdio_backend() {
+			os::_details::winapi_check(CloseHandle(_stdin_write_pipe));
+			os::_details::winapi_check(CloseHandle(_stdout_read_pipe));
+		}
 
 		/// Peeks \ref _stdout_read_pipe.
 		bool check_message() override {
@@ -63,8 +68,8 @@ namespace codepad::lsp {
 		}
 	protected:
 		HANDLE
-			_stdin_write_pipe, ///< Pipe used to write to the standard input of the application.
-			_stdout_read_pipe; ///< Pipe used to read from the standard output of the application.
+			_stdin_write_pipe = nullptr, ///< Pipe used to write to the standard input of the application.
+			_stdout_read_pipe = nullptr; ///< Pipe used to read from the standard output of the application.
 
 		/// Writes the message to \ref _stdin_write_pipe.
 		void _send_bytes(const void *data, std::size_t len) override {
