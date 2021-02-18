@@ -64,6 +64,8 @@ namespace codepad::editors::binary {
 
 	void contents_region::on_text_input(std::u8string_view text) {
 		constexpr unsigned char _spacebar = std::numeric_limits<unsigned char>::max();
+		
+		auto radix = static_cast<unsigned char>(get_radix());
 
 		// first gather the input string
 		std::basic_string<unsigned char> chars;
@@ -76,7 +78,7 @@ namespace codepad::editors::binary {
 					++num_input_bytes;
 				} else { // possible value
 					unsigned char val = get_character_value(current);
-					if (val < static_cast<unsigned char>(get_radix())) { // is this character valid?
+					if (val < radix) { // is this character valid?
 						chars.push_back(val);
 					}
 				}
@@ -92,6 +94,10 @@ namespace codepad::editors::binary {
 		// overwrite mode:
 		//   spaces simply move the caret to the next byte
 		//   with selection: the same as in insert mode
+		unsigned char top_digit = 1;
+		while (top_digit <= 255 / radix) {
+			top_digit *= radix;
+		}
 		{
 			buffer::scoped_normal_modifier mod(*get_buffer(), this);
 			for (auto &[caret, data] : get_carets().carets) {
@@ -121,7 +127,11 @@ namespace codepad::editors::binary {
 				overwritten_bytes.resize(num_input_bytes);
 				for (std::byte &b : overwritten_bytes) {
 					for (; it != chars.end() && *it != _spacebar; ++it) {
-						b = (b << 4) | static_cast<std::byte>(*it);
+						auto cur_byte = static_cast<unsigned>(b) * radix + *it;
+						while (cur_byte > 255) {
+							cur_byte -= top_digit;
+						}
+						b = static_cast<std::byte>(cur_byte);
 					}
 					if (it != chars.end()) {
 						++it;
