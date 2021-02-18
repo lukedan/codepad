@@ -58,8 +58,6 @@ namespace command_pack {
 		);
 		auto *contents =
 			dynamic_cast<cp::editors::code::contents_region*>(editor->get_contents_region());
-		contents->code_selection_renderer() =
-			std::make_unique<cp::editors::rounded_selection_renderer>();
 		_editor_manager->buffers.initialize_code_editor(*editor, std::move(interp));
 		tb->children().add(*editor);
 		return tb;
@@ -75,8 +73,6 @@ namespace command_pack {
 		);
 		auto *contents =
 			dynamic_cast<cp::editors::binary::contents_region*>(editor->get_contents_region());
-		contents->code_selection_renderer() =
-			std::make_unique<cp::editors::rounded_selection_renderer>();
 		contents->set_buffer(std::move(ctx));
 		tb->children().add(*editor);
 		return tb;
@@ -455,7 +451,6 @@ extern "C" {
 						th.get_manager().create_element(u8"editor", u8"code_editor")
 					);
 					auto *contents = dynamic_cast<cp::editors::code::contents_region*>(editor->get_contents_region());
-					contents->code_selection_renderer() = std::make_unique<cp::editors::rounded_selection_renderer>();
 					command_pack::_editor_manager->buffers.initialize_code_editor(*editor, std::move(interp));
 					tb->children().add(*editor);
 					th.activate_tab(*tb);

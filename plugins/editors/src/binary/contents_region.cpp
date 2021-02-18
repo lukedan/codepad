@@ -196,8 +196,8 @@ namespace codepad::editors::binary {
 		);
 	}
 
-	std::vector<rectd> contents_region::_get_selection_rects(
-		ui::caret_selection sel, std::size_t clampmin, std::size_t clampmax
+	decoration_layout contents_region::_get_selection_layout(
+		ui::caret_selection sel, std::size_t clampmin, std::size_t clampmax, vec2d offset
 	) const {
 		if (sel.caret == sel.selection) { // no selection for single byte
 			return {};
@@ -209,28 +209,30 @@ namespace codepad::editors::binary {
 		if (beg >= end) { // not visible
 			return {};
 		}
-		std::vector<rectd> res;
+		decoration_layout res;
+		res.line_height = get_line_height();
+		res.baseline = get_baseline();
 		auto [bline, bcol] = _get_line_and_column_of_byte(beg);
 		auto [eline, ecol] = _get_line_and_column_of_byte(end);
 		if (ecol == 0 && eline != 0) { // move end to the end of the last line if it's at the beginning
 			--eline;
 			ecol = get_bytes_per_row();
 		}
-		double
-			y = _get_line_offset(bline),
-			lh = get_line_height();
+		res.top = _get_line_offset(bline) + offset.y;
 		if (bline == eline) { // on the same line
-			res.emplace_back(_get_column_offset(bcol), _get_column_offset(ecol) - get_blank_width(), y, y + lh);
+			res.line_bounds.emplace_back(
+				_get_column_offset(bcol) + offset.x,
+				(_get_column_offset(ecol) - get_blank_width()) + offset.x
+			);
 		} else {
 			double
-				colbeg = _get_column_offset(0),
-				colend = _get_column_offset(get_bytes_per_row()) - get_blank_width();
-			res.emplace_back(_get_column_offset(bcol), colend, y, y + lh);
-			y += lh;
-			for (std::size_t i = bline + 1; i < eline; ++i, y += lh) { // whole lines
-				res.emplace_back(colbeg, colend, y, y + lh);
+				colbeg = _get_column_offset(0) + offset.x,
+				colend = (_get_column_offset(get_bytes_per_row()) - get_blank_width()) + offset.x;
+			res.line_bounds.emplace_back(_get_column_offset(bcol) + offset.x, colend);
+			for (std::size_t i = bline + 1; i < eline; ++i) { // whole lines
+				res.line_bounds.emplace_back(colbeg, colend);
 			}
-			res.emplace_back(colbeg, _get_column_offset(ecol) - get_blank_width(), y, y + lh);
+			res.line_bounds.emplace_back(colbeg, (_get_column_offset(ecol) - get_blank_width()) + offset.x);
 		}
 		return res;
 	}
@@ -311,25 +313,22 @@ namespace codepad::editors::binary {
 						_get_line_at_position(edt->get_vertical_position() + get_layout().height()) + 1
 						) * get_bytes_per_row();
 				std::vector<rectd> caret_rects;
-				std::vector<std::vector<rectd>> selection_rects;
+				std::vector<decoration_layout> selection_rects;
 				for (; it != cset->carets.end(); ++it) {
 					if (it->first.caret > clampmax && it->first.selection > clampmax) { // out of visible scope
 						break;
 					}
 					caret_rects.emplace_back(_get_caret_rect(it->first.caret).translated(-edtpos));
-					selection_rects.emplace_back(_get_selection_rects(it->first, clampmin, clampmax));
-					for (rectd &part : selection_rects.back()) {
-						part = part.translated(-edtpos);
+					selection_rects.emplace_back(_get_selection_layout(it->first, clampmin, clampmax, -edtpos));
+				}
+				if (code_selection_renderer()) {
+					vec2d unit = get_layout().size();
+					for (auto &v : selection_rects) {
+						code_selection_renderer()->render(renderer, v, unit);
 					}
 				}
 				for (const rectd &r : caret_rects) {
 					_caret_visuals.render(r, renderer);
-				}
-				vec2d unit = get_layout().size();
-				for (auto &v : selection_rects) {
-					code_selection_renderer()->render(
-						renderer, v, _selection_brush.get_parameters(unit), _selection_pen.get_parameters(unit)
-					);
 				}
 
 				renderer.pop_clip();

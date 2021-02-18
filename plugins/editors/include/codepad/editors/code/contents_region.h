@@ -10,7 +10,7 @@
 
 #include "codepad/core/red_black_tree.h"
 #include "codepad/core/settings.h"
-#include "../caret_rendering.h"
+#include "../decoration.h"
 #include "../editor.h"
 #include "../interaction_modes.h"
 #include "caret_set.h"
@@ -603,7 +603,8 @@ namespace codepad::editors::code {
 		std::shared_ptr<interpretation> _doc; ///< The \ref interpretation bound to this contents_region.
 		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
 		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
-		info_event<>::token _theme_changed_tok; ///< Used to listen to \ref interpretation::theme_changed.
+		/// Used to listen to \ref interpretation::appearance_changed.
+		info_event<interpretation::appearance_changed_info>::token _appearance_changed_tok;
 
 		interaction_manager<caret_set> _interaction_manager; ///< The \ref interaction_manager.
 		caret_set _cset; ///< The set of carets.
@@ -635,9 +636,12 @@ namespace codepad::editors::code {
 			_end_edit_tok = _doc->get_buffer()->end_edit += [this](buffer::end_edit_info &info) {
 				_on_end_edit(info);
 			};
-			_theme_changed_tok = (_doc->theme_changed += [this]() {
-				_on_content_visual_changed();
-			});
+			_appearance_changed_tok = (
+				_doc->appearance_changed += [this](interpretation::appearance_changed_info &info) {
+					// TODO handle layout change
+					_on_content_visual_changed();
+				}
+			);
 			_fmt = view_formatting(*_doc);
 			_on_content_modified();
 		}
@@ -913,7 +917,7 @@ namespace codepad::editors::code {
 			if (_doc) {
 				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
 				_doc->get_buffer()->end_edit -= _end_edit_tok;
-				_doc->theme_changed -= _theme_changed_tok;
+				_doc->appearance_changed -= _appearance_changed_tok;
 			}
 			_base::_dispose();
 		}

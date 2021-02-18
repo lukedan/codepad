@@ -102,11 +102,15 @@ namespace codepad::editors::binary {
 		/// Returns the height of a line.
 		///
 		/// \todo Add customizable line height.
-		double get_line_height() const {
+		[[nodiscard]] double get_line_height() const {
 			return _font->get_line_height_em() * get_font_size();
 		}
+		/// Returns the distance from the top of the line to the baseline.
+		[[nodiscard]] double get_baseline() const {
+			return _font->get_ascent_em() * get_font_size();
+		}
 		/// Returns the number of lines.
-		std::size_t get_num_lines() const {
+		[[nodiscard]] std::size_t get_num_lines() const {
 			if (_buf) {
 				std::size_t bytes = get_bytes_per_row();
 				return (std::max<std::size_t>(_buf->length(), 1) + bytes - 1) / bytes;
@@ -307,10 +311,10 @@ namespace codepad::editors::binary {
 		// rendering
 		/// Returns the region that a given caret occupies, relative to the top left of the document.
 		rectd _get_caret_rect(std::size_t) const;
-		/// Returns the rectangles that a selected region covers. The selection is clamped by the given parameters to
-		/// reduce unnecessary regions. The resulting regions are placed relative to the top left of the document.
-		std::vector<rectd> _get_selection_rects(
-			ui::caret_selection sel, std::size_t clampmin, std::size_t clampmax
+		/// Returns the layout of a selected region. The selection is clamped by the given parameters to reduce
+		/// unnecessary regions. The resulting regions are placed relative to the top left of the document.
+		[[nodiscard]] decoration_layout _get_selection_layout(
+			ui::caret_selection sel, std::size_t clampmin, std::size_t clampmax, vec2d offset
 		) const;
 
 		/// Renders all visible bytes.

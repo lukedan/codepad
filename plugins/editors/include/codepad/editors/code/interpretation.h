@@ -7,12 +7,15 @@
 /// Implementation of classes used to interpret a \ref codepad::editors::buffer.
 
 #include <map>
+#include <list>
 #include <deque>
+#include <optional>
 
 #include <codepad/core/encodings.h>
 #include <codepad/core/red_black_tree.h>
 
 #include "../buffer.h"
+#include "../decoration.h"
 #include "linebreak_registry.h"
 #include "theme.h"
 #include "caret_set.h"
@@ -370,6 +373,22 @@ namespace codepad::editors::code {
 			/// Information about modification of the underlying \ref buffer.
 			buffer::end_modification_info &buffer_info;
 		};
+		/// Indicates what aspects of the document are affected by an appearance change.
+		enum class appearance_change_type {
+			visual_only, ///< Only the visual of this document has changed - as opposed to \ref layout_and_visual.
+			/// The layout of this document may have also changed, due to e.g. gizmos being added, font stretch being
+			/// changed, etc.
+			layout_and_visual
+		};
+		/// Information about the change of a document's apperance.
+		struct appearance_changed_info {
+			/// Initializes \ref type.
+			explicit appearance_changed_info(appearance_change_type t) : type(t) {
+			}
+
+			/// Indicates what aspects of this document's appearance may have been affected.
+			const appearance_change_type type = appearance_change_type::visual_only;
+		};
 
 		/// Similar to \ref linebreak_registry::position_converter, but converts between
 		/// positions of codepoints and bytes instead.
@@ -460,6 +479,35 @@ namespace codepad::editors::code {
 			codepoint_position_converter _cp2byte;
 		};
 
+		/// Returned by \ref add_decoration_provider(), this can be used to access and unregister the provider.
+		struct decoration_provider_token {
+			friend interpretation;
+		public:
+			/// Default constructor.
+			decoration_provider_token() = default;
+
+			/// Used to access the provider.
+			[[nodiscard]] decoration_provider *operator->() const {
+				return _iter.value()->get();
+			}
+			/// Used to access the provider.
+			[[nodiscard]] decoration_provider &operator*() const {
+				return ***_iter;
+			}
+
+			/// Returns whether this token is empty.
+			[[nodiscard]] bool empty() const {
+				return !_iter.has_value();
+			}
+		protected:
+			using _iter_t = std::list<std::unique_ptr<decoration_provider>>::iterator; ///< Iterator type.
+
+			std::optional<_iter_t> _iter; ///< Iterator to the provider.
+
+			/// Initializes \ref _iter.
+			explicit decoration_provider_token(_iter_t it) : _iter(it) {
+			}
+		};
 
 		/// Constructor. Sets up event handlers to reinterpret the buffer when it's changed, and performs the initial
 		/// full decoding.
@@ -506,39 +554,57 @@ namespace codepad::editors::code {
 		}
 
 		/// Sets the theme of all text.
-		void set_text_theme(text_theme_data t) {
-			_theme = std::move(t);
-			theme_changed.invoke();
-		}
-		/// Swaps the theme of all text with the given theme data.
-		void swap_text_theme(text_theme_data &t) {
+		///
+		/// \return The old text theme.
+		text_theme_data set_text_theme(text_theme_data t) {
+			// TODO proper mechanic for multiple theme providers
 			std::swap(_theme, t);
-			theme_changed.invoke();
+			return std::move(t);
 		}
 		/// Returns the \ref text_theme_data associated with this \ref interpretation.
-		const text_theme_data &get_text_theme() const {
+		[[nodiscard]] const text_theme_data &get_text_theme() const {
 			return _theme;
 		}
 
 		/// Returns the \ref buffer that this object interprets.
-		const std::shared_ptr<buffer> &get_buffer() const {
+		[[nodiscard]] const std::shared_ptr<buffer> &get_buffer() const {
 			return _buf;
 		}
 		/// Returns the \ref buffer_encoding used by this object.
-		const buffer_encoding *get_encoding() const {
+		[[nodiscard]] const buffer_encoding *get_encoding() const {
 			return _encoding;
 		}
 		/// Returns the linebreaks in this \ref interpretation.
-		const linebreak_registry &get_linebreaks() const {
+		[[nodiscard]] const linebreak_registry &get_linebreaks() const {
 			return _linebreaks;
 		}
 		/// Returns the default line ending for this \ref interpretation.
-		ui::line_ending get_default_line_ending() const {
+		[[nodiscard]] ui::line_ending get_default_line_ending() const {
 			return _line_ending;
 		}
 		/// Sets the default line ending for this \ref interpretation. Note that this does not affect existing text.
 		void set_default_line_ending(ui::line_ending end) {
 			_line_ending = end;
+		}
+
+
+		/// Adds a decoration provider to this document and invoke \ref appearance_changed. Remember to also invoke
+		/// \ref appearance_changed when the contents of the provider changes.
+		decoration_provider_token add_decoration_provider(std::unique_ptr<decoration_provider> ptr) {
+			_decorations.emplace_back(std::move(ptr));
+			appearance_changed.invoke_noret(appearance_change_type::visual_only);
+			auto iter = _decorations.end();
+			return decoration_provider_token(--iter);
+		}
+		/// Returns \ref _decorations.
+		[[nodiscard]] const std::list<std::unique_ptr<decoration_provider>> &get_decoration_providers() const {
+			return _decorations;
+		}
+		/// Removes the given provider and invokes \ref appearance_changed. The token will be reset.
+		void remove_decoration_provider(decoration_provider_token &tok) {
+			_decorations.erase(tok._iter.value());
+			tok._iter.reset();
+			appearance_changed.invoke_noret(appearance_change_type::visual_only);
 		}
 
 
@@ -598,9 +664,10 @@ namespace codepad::editors::code {
 		/// This event is invoked after \ref modification_decoded after \ref _linebreaks and \ref _chunks have been
 		/// updated. This can be useful for obtaining information about content added by the modification.
 		info_event<end_modification_info> end_modification;
-		/// Invoked whenever \ref _theme has been changed. Note that this could result in the layout of the document
-		/// changing as the same character can have different metrics with different styles.
-		info_event<> theme_changed;
+		/// Invoked when the appearance of this document has changed. In many instances this would need to be invoked
+		/// manually. This may be invoked repeatedly for a single change (due to the change causing multiple function
+		/// calls), so it's preferable to process this event lazily.
+		info_event<appearance_changed_info> appearance_changed;
 	protected:
 		/// Used to find the number of bytes before a specified codepoint.
 		struct _codepoint_pos_converter {
@@ -661,10 +728,13 @@ namespace codepad::editors::code {
 
 
 		tree_type _chunks; ///< Chunks used to speed up navigation.
-		text_theme_data _theme; ///< Theme of the text.
 		linebreak_registry _linebreaks; ///< Records all linebreaks.
 
+		text_theme_data _theme; ///< Theme of the text.
+		std::list<std::unique_ptr<decoration_provider>> _decorations; ///< The list of decoration providers.
+
 		std::deque<std::any> _tags; ///< Tags associated with this interpretation.
+
 		const std::shared_ptr<buffer> _buf; ///< The underlying \ref buffer.
 		ui::line_ending _line_ending = ui::line_ending::n; ///< The default line ending for this \ref interpretation.
 		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
@@ -775,7 +845,7 @@ namespace codepad::editors::code {
 		void _on_end_modify(buffer::end_modification_info&);
 		/// Called when an edit has been made to \ref _buf to invoke \ref theme_changed.
 		void _on_end_edit(buffer::end_edit_info&) {
-			theme_changed.invoke();
+			appearance_changed.invoke_noret(appearance_change_type::layout_and_visual);
 		}
 	};
 }

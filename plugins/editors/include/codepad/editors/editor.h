@@ -14,7 +14,7 @@
 #include <codepad/ui/elements/scrollbar.h>
 
 #include "caret_set.h"
-#include "caret_rendering.h"
+#include "decoration.h"
 
 namespace codepad::editors {
 	/// The base class of content regions.
@@ -51,12 +51,12 @@ namespace codepad::editors {
 			set_insert_mode(!is_insert_mode());
 		}
 
-		/// Returns a reference to the selection renderer used for this contents region.
-		std::unique_ptr<selection_renderer> &code_selection_renderer() {
+		/// Returns a reference to the \ref selection_renderer used for this contents region.
+		std::unique_ptr<decoration_renderer> &code_selection_renderer() {
 			return _selection_renderer;
 		}
 		/// \overload
-		const std::unique_ptr<selection_renderer> &code_selection_renderer() const {
+		const std::unique_ptr<decoration_renderer> &code_selection_renderer() const {
 			return _selection_renderer;
 		}
 
@@ -74,9 +74,7 @@ namespace codepad::editors {
 			edit_mode_changed;
 	protected:
 		ui::visuals _caret_visuals; ///< The visuals of carets.
-		ui::generic_brush_parameters _selection_brush; ///< The brush used for the selection.
-		ui::generic_pen_parameters _selection_pen; ///< The pen used for the outline of the selection.
-		std::unique_ptr<selection_renderer> _selection_renderer; ///< The \ref selection_renderer.
+		std::unique_ptr<decoration_renderer> _selection_renderer; ///< The \ref decoration_renderer.
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
 		/// Handles the registration of \p mode_changed_insert and \p mode_changed_overwrite events.

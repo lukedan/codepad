@@ -37,6 +37,8 @@ namespace codepad::lsp {
 			_on_end_edit(info);
 		};
 
+		_decoration_token = _interp->add_decoration_provider(std::make_unique<editors::decoration_provider>());
+
 		// send the requests if the client is ready
 		if (_client->get_state() == client::state::ready) {
 			// send didOpen
@@ -69,6 +71,34 @@ namespace codepad::lsp {
 				}
 			);
 			++_queued_highlight_version;
+		}
+	}
+
+	void interpretation_tag::on_publishDiagnostics(
+		editors::code::interpretation &interp, types::PublishDiagnosticsParams params,
+		const editors::buffer_manager::interpretation_tag_token &tok
+	) {
+		auto *tag = std::any_cast<interpretation_tag>(&tok.get_for(interp));
+		if (tag) {
+			if (
+				params.version.value.has_value() &&
+				params.version.value.value() != tag->_change_params.textDocument.version
+			) {
+				return;
+			}
+			auto &registry = tag->_decoration_token->decorations;
+			registry = editors::decoration_provider::registry();
+			for (const auto &diag : params.diagnostics.value) {
+				std::size_t
+					beg = tag->_position_to_character(diag.range.start),
+					end = tag->_position_to_character(diag.range.end);
+				editors::decoration_provider::decoration_data data;
+				data.description = std::move(diag.message);
+				registry.insert_range(beg, end - beg, data);
+			}
+			tag->_interp->appearance_changed.invoke_noret(
+				editors::code::interpretation::appearance_change_type::visual_only
+			);
 		}
 	}
 
@@ -149,7 +179,7 @@ namespace codepad::lsp {
 			auto iter = _interp->codepoint_at(current_codepoint);
 			current_codepoint < past_end_codepoint;
 			iter.next(), ++current_codepoint
-			) {
+		) {
 			codepoint cp =
 				iter.is_codepoint_valid() ?
 				iter.get_codepoint() :
@@ -159,6 +189,11 @@ namespace codepad::lsp {
 				reinterpret_cast<const char8_t*>(str.data()), str.size()
 			));
 		}
+		// update decorations
+		_decoration_token->decorations.on_modification(
+			info.start_character, info.removed_characters, info.inserted_characters
+		);
+		// since we're gonna invoke appearance_changed during end_edit anyway, no need to invoke it here
 	}
 
 	void interpretation_tag::_on_end_edit(editors::buffer::end_edit_info&) {
@@ -208,8 +243,8 @@ namespace codepad::lsp {
 
 		auto &tokens = std::get<types::SemanticTokens>(response.value);
 		std::size_t line = 0, character_offset = 0;
-		editors::code::text_theme_data data;
-		_interp->swap_text_theme(data);
+		// TODO we need a proper mechanic for multiple theme providers
+		editors::code::text_theme_data data = _interp->set_text_theme(editors::code::text_theme_data());
 		auto &linebreaks = _interp->get_linebreaks();
 		editors::code::linebreak_registry::linebreak_info line_info = linebreaks.get_line_info(0);
 		_semantic_token::iterate_over_range(
@@ -244,7 +279,7 @@ namespace codepad::lsp {
 				data.set_range(line_info.first_char + character_offset, token_end, spec);
 			}
 		);
-		_interp->swap_text_theme(data);
+		_interp->set_text_theme(std::move(data));
 	}
 
 	/// Implementation for \ref _set_hover_label() with one or more \ref types::MarkedString.
@@ -252,7 +287,7 @@ namespace codepad::lsp {
 		std::u8string text;
 		for (std::size_t i = 0; i < count; ++i) {
 			if (i > 0) {
-				text += u8"\n-----\n";
+				text += u8"\n=== MY SEPARATOR ===\n";
 			}
 			if (std::holds_alternative<types::string>(strs[i].value)) {
 				text += std::get<types::string>(strs[i].value);

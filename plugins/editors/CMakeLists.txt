@@ -5,9 +5,10 @@ target_sources(editors
 		"include/codepad/editors/binary/components.h"
 		"include/codepad/editors/binary/contents_region.h"
 
+		"include/codepad/editors/code/caret_gatherer.h"
 		"include/codepad/editors/code/caret_set.h"
 		"include/codepad/editors/code/contents_region.h"
-		"include/codepad/editors/code/decoration.h"
+		"include/codepad/editors/code/decoration_gatherer.h"
 		"include/codepad/editors/code/fragment_generation.h"
 		"include/codepad/editors/code/interpretation.h"
 		"include/codepad/editors/code/line_number_display.h"
@@ -18,8 +19,8 @@ target_sources(editors
 		"include/codepad/editors/code/view_caching.h"
 
 		"include/codepad/editors/buffer.h"
-		"include/codepad/editors/caret_rendering.h"
 		"include/codepad/editors/caret_set.h"
+		"include/codepad/editors/decoration.h"
 		"include/codepad/editors/editor.h"
 		"include/codepad/editors/interaction_modes.h"
 		"include/codepad/editors/manager.h"
@@ -28,15 +29,16 @@ target_sources(editors
 		"src/binary/components.cpp"
 		"src/binary/contents_region.cpp"
 
+		"src/code/caret_gatherer.cpp"
 		"src/code/caret_set.cpp"
 		"src/code/contents_region.cpp"
-		"src/code/decoration.cpp"
 		"src/code/fragment_generation.cpp"
 		"src/code/interpretation.cpp"
 		"src/code/line_number_display.cpp"
 		"src/code/minimap.cpp"
 
 		"src/buffer.cpp"
+		"src/decoration.cpp"
 		"src/editor.cpp"
 		"src/main.cpp")
 target_link_libraries(editors PUBLIC codepad_core)

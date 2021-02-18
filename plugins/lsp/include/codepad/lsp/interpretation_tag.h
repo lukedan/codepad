@@ -12,13 +12,14 @@
 #include <codepad/editors/code/interpretation.h>
 
 #include "client.h"
+#include "types/diagnostics.h"
 
 namespace codepad::lsp {
 	/// Tag struct for \ref editors::code::interpretation used to implement LSP clients.
 	class interpretation_tag {
 		friend std::any;
 	public:
-		/// Registers events and sends the \p didOpen event.
+		/// Registers events, creates a decoration provider, and sends the \p didOpen event.
 		interpretation_tag(editors::code::interpretation&, client&);
 		/// Assert in copy constructor.
 		interpretation_tag(const interpretation_tag&) {
@@ -29,17 +30,24 @@ namespace codepad::lsp {
 			assert_true_logical(false, "copy assignment is disabled for interpretation_tag");
 			return *this;
 		}
-		/// Unregisters events and sends the \p didClose event.
+		/// Unregisters events, removes the decoration provider, and sends the \p didClose event.
 		~interpretation_tag() {
 			_interp->get_buffer()->begin_edit -= _begin_edit_token;
 			_interp->modification_decoded -= _modification_decoded_token;
 			_interp->end_modification -= _end_modification_token;
 			_interp->get_buffer()->end_edit -= _end_edit_token;
+			_interp->remove_decoration_provider(_decoration_token);
 
 			types::DidCloseTextDocumentParams params;
 			params.textDocument.uri = _change_params.textDocument.uri;
 			_client->send_notification(u8"textDocument/didClose", params);
 		}
+
+		/// Handles the \p textDocument/publishDiagnostics notification.
+		static void on_publishDiagnostics(
+			editors::code::interpretation&, types::PublishDiagnosticsParams,
+			const editors::buffer_manager::interpretation_tag_token&
+		);
 
 		/// Invoked when a new \ref editors::code::interpretation is created, this function creates a tag object if
 		/// the interpretation is associated with a file on disk.
@@ -90,6 +98,9 @@ namespace codepad::lsp {
 		info_event<editors::code::interpretation::end_modification_info>::token _end_modification_token;
 		/// Token used to listen to \ref editors::buffer::end_edit.
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
+		/// Token for the \ref editors::decoration_provider.
+		editors::code::interpretation::decoration_provider_token _decoration_token;
+
 		/// Stores information about the ongoing change to the document. Some fields of this struct such as document
 		/// identifier persist between edits.
 		types::DidChangeTextDocumentParams _change_params;
@@ -105,6 +116,13 @@ namespace codepad::lsp {
 			_queued_highlight_version = 0;
 		editors::code::interpretation *_interp = nullptr; ///< The \ref interpretation this tag is associated with.
 		client *_client = nullptr; ///< The client responsible for this document.
+
+
+		/// Converts a line/column position to a character position.
+		[[nodiscard]] std::size_t _position_to_character(types::Position pos) const {
+			auto line_info = _interp->get_linebreaks().get_line_info(pos.line);
+			return line_info.first_char + pos.character;
+		}
 
 
 		/// Handler for \ref editors::buffer::begin_edit.

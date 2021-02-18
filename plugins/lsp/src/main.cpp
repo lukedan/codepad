@@ -95,17 +95,9 @@ extern "C" {
 							"received diagnostics for document that's not open: " << path;
 						return;
 					}
-					auto entry = cp::logger::get().log_info(CP_HERE);
-					entry << "diagnostics for document: " << path << "\n";
-					for (cp::lsp::types::Diagnostic &diag : params.diagnostics.value) {
-						entry << "  " <<
-							diag.range.start.line << ":" << diag.range.start.character << " - " <<
-							diag.range.end.line << ":" << diag.range.end.character;
-						if (diag.severity.value.has_value()) {
-							entry << ", " << static_cast<int>(diag.severity.value.value().value);
-						}
-						entry << ": " << diag.message << "\n";
-					}
+					cp::lsp::interpretation_tag::on_publishDiagnostics(
+						*doc, std::move(params), cp::lsp::_interpretation_tag_token
+					);
 				}
 			)
 		);

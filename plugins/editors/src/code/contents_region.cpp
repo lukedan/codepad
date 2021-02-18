@@ -8,6 +8,8 @@
 
 #include "codepad/editors/manager.h"
 #include "codepad/editors/code/fragment_generation.h"
+#include "codepad/editors/code/caret_gatherer.h"
+#include "codepad/editors/code/decoration_gatherer.h"
 #include "../details.h"
 
 namespace codepad::editors::code {
@@ -39,12 +41,11 @@ namespace codepad::editors::code {
 		_doc->on_insert(_cset, str, this);
 	}
 
-	/// \todo Also consider folded regions.
 	/// \todo Word wrapping not implemented.
-	std::vector<size_t> contents_region::_recalculate_wrapping_region(size_t, size_t) const {
+	std::vector<std::size_t> contents_region::_recalculate_wrapping_region(std::size_t, std::size_t) const {
 		/*
-		vector<size_t> poss;
-		size_t last = 0;
+		vector<std::size_t> poss;
+		std::size_t last = 0;
 
 		fragment_generator<folded_region_skipper> iter(
 			make_tuple(cref(_fmt.get_folding()), beg),
@@ -68,8 +69,8 @@ namespace codepad::editors::code {
 		return {};
 	}
 
-	double contents_region::_get_caret_pos_x_at_visual_line(size_t line, size_t position) const {
-		size_t
+	double contents_region::_get_caret_pos_x_at_visual_line(std::size_t line, std::size_t position) const {
+		std::size_t
 			linebeg = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
@@ -209,15 +210,27 @@ namespace codepad::editors::code {
 			fragment_assembler ass(*this);
 			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
 
+			// decorations
+			decoration_gatherer deco_gather(get_document()->get_decoration_providers(), firstchar, ass);
+			std::vector<std::pair<decoration_layout, decoration_renderer*>> decorations;
+			deco_gather.render_callback = [&](decoration_layout layout, decoration_renderer *deco_renderer) {
+				decorations.emplace_back(std::move(layout), deco_renderer);
+			};
+
 			// render text & gather information for carets
 			while (gen.get_position() < plastchar) {
 				fragment_generation_result frag = gen.generate_and_update();
 				// render the fragment
-				std::visit([this, &frag, &gen, &ass, &caretrend](auto &&specfrag) {
-					auto &&rendering = ass.append(specfrag);
-					ass.render(get_manager().get_renderer(), rendering);
-					caretrend.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
-				}, frag.result);
+				std::visit(
+					[&, this](auto &&specfrag) {
+						auto &&rendering = ass.append(specfrag);
+						ass.render(get_manager().get_renderer(), rendering);
+
+						caretrend.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
+						deco_gather.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
+					},
+					frag.result
+				);
 				if (std::holds_alternative<linebreak_fragment>(frag.result)) {
 					++curvisline;
 				} else if (ass.get_horizontal_position() + get_padding().left > get_layout().width()) {
@@ -226,25 +239,36 @@ namespace codepad::editors::code {
 					auto pos = _fmt.get_linebreaks().get_beginning_char_of_visual_line(
 						_fmt.get_folding().folded_to_unfolded_line_number(curvisline)
 					);
-					// update caret renderer
+					// update gatherers
 					caretrend.skip_line(pos.second == linebreak_type::soft, pos.first);
-					gen.reposition(pos.first); // reposition fragment generator
+					deco_gather.skip_line(pos.first);
+					// reposition fragment generator
+					gen.reposition(pos.first);
 					// update fragment assenbler
 					ass.set_horizontal_position(0.0);
 					ass.advance_vertical_position(1);
 				}
 			}
-
 			caretrend.finish(gen.get_position());
-			// render carets
+			// TODO finish deco_gather
+
+			// render carets & selections
 			vec2d unit = get_layout().size();
-			for (const auto &selrgn : caretrend.get_selection_rects()) {
-				code_selection_renderer()->render(
-					renderer, selrgn, _selection_brush.get_parameters(unit), _selection_pen.get_parameters(unit)
-				);
+			if (code_selection_renderer()) {
+				for (const auto &selrgn : caretrend.get_selection_rects()) {
+					code_selection_renderer()->render(renderer, selrgn, unit);
+				}
 			}
 			for (const rectd &rgn : caretrend.get_caret_rects()) {
 				_caret_visuals.render(rgn, renderer);
+			}
+
+			// render decorations
+			decoration_renderers::rounded_renderer temp_deco_rend; // TODO
+			temp_deco_rend.pen.thickness = 1.0;
+			temp_deco_rend.pen.brush.value.emplace<ui::brush_parameters::solid_color>(colord(1.0, 0.0, 0.0, 1.0));
+			for (const auto &[layout, rend] : decorations) {
+				temp_deco_rend.render(renderer, layout, unit);
 			}
 
 			renderer.pop_matrix();

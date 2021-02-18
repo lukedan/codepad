@@ -5,27 +5,27 @@
 
 		The best way to install other required packages is to use `vcpkg`. You can install it following the instructions [here](https://github.com/microsoft/vcpkg#quick-start-windows).
 
-	- Install the following packages:
-		```
-		vcpkg install rapidjson
-		vcpkg install uriparser
-		vcpkg install catch2
-		```
-	- For the Python plugin, install Python and `pybind11`. To install `pybind11` using `vcpkg`:
-		```
-		vcpkg install pybind11
-		```
-		If CMake has trouble finding the python libraries, set the `PYTHONHOME` environment (or CMake) variable, or remove the line in `CMakeLists.txt` that includes `plugins/python_plugin_host_pybind11/` to skip building the plugin.
+		- Install the following packages:
+			```
+			vcpkg install rapidjson
+			vcpkg install uriparser
+			vcpkg install catch2
+			```
+		- For the Python plugin, install Python and `pybind11`. To install `pybind11` using `vcpkg`:
+			```
+			vcpkg install pybind11
+			```
+			If CMake has trouble finding the python libraries, set the `PYTHONHOME` environment (or CMake) variable, or remove the line in `CMakeLists.txt` that includes `plugins/python_plugin_host_pybind11/` to skip building the plugin.
 
-	- If you want to build codepad with Cairo support, also install:
-		```
-		vcpkg install fontconfig
-		vcpkg install freetype
-		vcpkg install harfbuzz
-		vcpkg install pango
-		vcpkg install cairo
-		```
-		The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DCODEPAD_USE_CAIRO=No` while configuring to build without the Cairo backend.
+		- If you want to build codepad with Cairo support, also install:
+			```
+			vcpkg install fontconfig
+			vcpkg install freetype
+			vcpkg install harfbuzz
+			vcpkg install pango
+			vcpkg install cairo
+			```
+			The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DCODEPAD_USE_CAIRO=No` while configuring to build without the Cairo backend.
 
 	- On Ubuntu, install CMake and g++:
 		```

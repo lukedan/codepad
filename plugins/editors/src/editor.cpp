@@ -25,22 +25,6 @@ namespace codepad::editors {
 					}
 					)
 			);
-			mapping.emplace(
-				u8"selection_brush",
-				std::make_shared<ui::member_pointer_property<&contents_region_base::_selection_brush>>(
-					[](contents_region_base &c) {
-						c.invalidate_visual();
-					}
-					)
-			);
-			mapping.emplace(
-				u8"selection_pen",
-				std::make_shared<ui::member_pointer_property<&contents_region_base::_selection_pen>>(
-					[](contents_region_base &c) {
-						c.invalidate_visual();
-					}
-					)
-			);
 		}
 
 		return mapping;

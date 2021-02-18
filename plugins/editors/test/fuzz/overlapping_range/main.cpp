@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
 		modification_position_dist(0, 15000),
 		modification_length_dist(0, 5000),
 
-		op_dist(0, 4);
+		op_dist(0, 5);
 	std::uniform_int_distribution<int> bool_dist(0, 1);
 	std::uniform_int_distribution<test_t> value_dist(
 		std::numeric_limits<test_t>::min(), std::numeric_limits<test_t>::max()
@@ -193,7 +193,38 @@ int main(int argc, char **argv) {
 				break;
 			}
 
-		case 3: // point query
+		case 3: // "first ending after" query
+			{
+				std::size_t position = point_query_position_dist(eng);
+				logger::get().log_debug(CP_HERE) << "\"first ending after\" query at " << position;
+
+				auto result = ranges.find_first_range_ending_after(position);
+				range rng;
+				if (result.get_iterator() != ranges.end()) {
+					rng = range(
+						result.get_range_start(),
+						result.get_iterator()->length,
+						result.get_iterator()->value
+					);
+				}
+
+				bool found = false;
+				for (auto ref_iter = reference.begin(); ref_iter != reference.end(); ++ref_iter) {
+					if (ref_iter->begin + ref_iter->length > position) {
+						if (*ref_iter != rng) {
+							error() << "incorrect \"first after \" query result";
+						}
+						found = true;
+						break;
+					}
+				}
+				if (found == (result.get_iterator() == ranges.end())) {
+					error() << "incorrect \"first after \" query result";
+				}
+
+				break;
+			}
+		case 4: // point query
 			{
 				std::size_t position = point_query_position_dist(eng);
 				logger::get().log_debug(CP_HERE) << "point query at " << position;
@@ -206,7 +237,7 @@ int main(int argc, char **argv) {
 						result.begin.get_iterator()->length,
 						result.begin.get_iterator()->value
 					);
-					result.begin = ranges.find_next_range_ending_after(position, result.begin);
+					result.begin = ranges.find_next_range_ending_at_or_after(position, result.begin);
 				}
 
 				// check the results
@@ -229,7 +260,7 @@ int main(int argc, char **argv) {
 
 				break;
 			}
-		case 4: // range query
+		case 5: // range query
 			{
 				std::size_t position = range_query_position_dist(eng);
 				std::size_t length = range_query_length_dist(eng);
@@ -244,7 +275,7 @@ int main(int argc, char **argv) {
 						result.before_begin.get_iterator()->length,
 						result.before_begin.get_iterator()->value
 					);
-					result.before_begin = ranges.find_next_range_ending_after(position, result.before_begin);
+					result.before_begin = ranges.find_next_range_ending_at_or_after(position, result.before_begin);
 				}
 				while (result.begin.get_iterator() != result.end.get_iterator()) {
 					found_ranges.emplace_back(

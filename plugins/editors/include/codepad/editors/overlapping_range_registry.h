@@ -100,11 +100,11 @@ namespace codepad::editors {
 		/// The result of a point query.
 		struct point_query_result {
 			iterator_position
-				/// The first range that intersects the given point. Ranges between this element and \ref end may not
-				/// actually intersect the point - use \ref find_next_range_ending_after() to iterate through ranges
+				/// The first range that ends at or after the given point. Ranges between this element and \ref end may not
+				/// actually intersect the point - use \ref find_next_range_ending_at_or_after() to iterate through ranges
 				/// that are guaranteed to intersect the point.
 				begin,
-				/// Iterator past the last range that intersects the given point.
+				/// Iterator to the first range that starts after the given point.
 				end;
 		};
 		/// The result of a range query.
@@ -115,9 +115,9 @@ namespace codepad::editors {
 				/// but needs further testing. Use \ref find_next_range_ending_after() to advance this iterator
 				/// through elements that intersect the range until \ref begin.
 				before_begin,
-				begin, ///< Iterator to the first element that starts within the queried range.
-				/// Iterator past the last element that starts within the queried range, which also must be the last
-				/// element that intersects with the range.
+				/// Iterator to the first element that starts at or after the start of the range.
+				begin,
+				/// Iterator to the first element that starts after the end of the queried range.
 				end;
 		};
 
@@ -159,85 +159,38 @@ namespace codepad::editors {
 			}
 		}
 
+		/// Finds the first element that ends after the given index.
+		[[nodiscard]] iterator_position find_first_range_ending_after(std::size_t point) const {
+			return _find(_extent_finder_exclusive(), point);
+		}
 		/// Finds the range of elements that may intersect with the given point.
-		[[nodiscard]] point_query_result find_intersecting_ranges(std::size_t point) {
+		[[nodiscard]] point_query_result find_intersecting_ranges(std::size_t point) const {
 			point_query_result result;
 			result.begin = _find(_extent_finder(), point);
 			result.end = _find(_position_finder_exclusive(), point);
 			return result;
 		}
 		/// Finds the range of elements that may intersect with the given range.
-		[[nodiscard]] range_query_result find_intersecting_ranges(std::size_t begin, std::size_t past_end) {
+		[[nodiscard]] range_query_result find_intersecting_ranges(std::size_t begin, std::size_t past_end) const {
 			range_query_result result;
 			result.before_begin = _find(_extent_finder(), begin);
 			result.begin = _find(_position_finder(), begin);
 			result.end = _find(_position_finder_exclusive(), past_end);
 			return result;
 		}
-		/// Given an \ref iterator_position, finds an iterator to the next range that ends at or after the given
-		/// position.
-		[[nodiscard]] iterator_position find_next_range_ending_after(std::size_t begin, iterator_position iter) {
-			assert_true_logical(iter.get_iterator() != _ranges.end(), "iterator already at the end");
-			std::size_t &iter_pos = iter._pos;
-			typename node_data::node *n = iter._iter.get_node();
-			while (
-				n->right == nullptr ||
-				iter_pos + n->value.offset + n->right->synth_data.maximum_end_position < begin
-				) { // ignore the right subtree and go up to the next node
-				while (n->parent && n == n->parent->right) {
-					if (n->left) {
-						iter_pos -= n->left->synth_data.offset_sum;
-					}
-					iter_pos -= n->parent->value.offset;
-					n = n->parent;
-				}
-				// now either n is the root, or n is a right child
-				if (n->parent == nullptr) {
-					// n is the root, there's no next range - return the end
-					iter._iter = _ranges.end();
-					iter._pos = n->synth_data.offset_sum;
-					return iter;
-				}
-				iter_pos += n->value.offset;
-				if (n->right) {
-					iter_pos += n->right->synth_data.offset_sum;
-				}
-				n = n->parent;
-				// we've moved to the next element - check if it ends after the position
-				if (iter_pos + n->value.offset + n->value.length >= begin) {
-					// yes - return the iterator
-					// the right subtree will be checked next time this function is called
-					iter._iter = _ranges.get_iterator_for(n);
-					return iter;
-				}
-			}
-			// check the right subtree - it must contain an element that ends at or after the position
-			n = n->right;
-			iter_pos += n->parent->value.offset;
-			// now iter_pos is before the subtree; save it for querying
-			if (begin <= iter_pos) {
-				// every element in the subtree ends after begin; simply return the leftmost element
-				for (; n->left; n = n->left) {
-				}
-				iter._iter = _ranges.get_iterator_for(n);
-				// iter_pos is already at the correct position
-				return iter;
-			}
-			// use a `_range_extent_finder` to find the first iterator
-			std::size_t subtree_offset = begin - iter_pos;
-			_extent_finder finder;
-			// this must yield a non-null node; if the node somehow becomes null we'll just crash here
-			while (true) {
-				int branch = finder.select_find(*n, subtree_offset);
-				if (branch == 0) {
-					break;
-				}
-				n = branch > 0 ? n->right : n->left;
-			}
-			iter._iter = _ranges.get_iterator_for(n);
-			iter_pos = begin - subtree_offset;
-			return iter;
+		/// Finds the next element that ends after the given point.
+		[[nodiscard]] iterator_position find_next_range_ending_after(
+			std::size_t point, iterator_position iter
+		) const {
+			return _find_next_range_with_ending_impl<std::less<>>(point, iter);
 		}
+		/// Finds the next element that ends at or after the given point.
+		[[nodiscard]] iterator_position find_next_range_ending_at_or_after(
+			std::size_t point, iterator_position iter
+		) const {
+			return _find_next_range_with_ending_impl<std::less_equal<>>(point, iter);
+		}
+
 
 		/// Called when a modification has been made - this function erases all ranges that are fully erased,
 		/// truncates ranges that are partially erased, and extents ones that span over the erased range.
@@ -245,7 +198,10 @@ namespace codepad::editors {
 			std::size_t
 				erase_end = start + erased,
 				char_diff = inserted - erased;
-			range_query_result query = find_intersecting_ranges(start, erase_end);
+			range_query_result query;
+			query.before_begin = _find(_extent_finder(), start);
+			query.begin = _find(_position_finder(), start);
+			query.end = _find(_position_finder_exclusive(), erase_end);
 
 			// ranges starting before `start`
 			while (query.before_begin.get_iterator() != query.begin.get_iterator()) {
@@ -256,7 +212,7 @@ namespace codepad::editors {
 					_get_modifier_for(query.before_begin.get_iterator())->length -= end - start;
 				}
 				// update
-				query.before_begin = find_next_range_ending_after(start, query.before_begin);
+				query.before_begin = find_next_range_ending_at_or_after(start, query.before_begin);
 			}
 
 			if (query.begin.get_iterator() == _ranges.end()) {
@@ -307,19 +263,20 @@ namespace codepad::editors {
 		>;
 		/// Used to find the first range that starts after the given position.
 		using _position_finder_exclusive = sum_synthesizer::index_finder<typename node_data::offset_property>;
-		/// Used to find the first range that ends at or after the given position.
-		struct _extent_finder {
+		/// Base class of finders used to find the first range that ends at or after the given position.
+		template <typename Comp> struct _extent_finder_base {
 			/// Interface for \ref binary_tree::find_custom().
 			int select_find(const typename node_data::node &n, std::size_t &target) {
+				Comp comp;
 				if (n.left) {
-					if (target <= n.left->synth_data.maximum_end_position) {
+					if (comp(target, n.left->synth_data.maximum_end_position)) {
 						// left branch extends over `target`
 						return -1;
 					}
 					target -= n.left->synth_data.offset_sum;
 				}
 				// this node ends after `target`
-				if (target <= n.value.offset + n.value.length) {
+				if (comp(target, n.value.offset + n.value.length)) {
 					return 0;
 				}
 				// right branch
@@ -327,16 +284,90 @@ namespace codepad::editors {
 				return 1;
 			}
 		};
+		/// Used to find the first range that ends at or after the given position.
+		using _extent_finder = _extent_finder_base<std::less_equal<>>;
+		/// Used to find the first range that ends after the given position.
+		using _extent_finder_exclusive = _extent_finder_base<std::less<>>;
 
 
 		/// Finds the range and its position using the given \p Finder.
-		template <typename Finder> [[nodiscard]] iterator_position _find(Finder &&finder, std::size_t pos) {
+		template <typename Finder> [[nodiscard]] iterator_position _find(Finder &&finder, std::size_t pos) const {
 			iterator_position result;
 			std::size_t offset = pos;
 			result._iter = _ranges.find(std::forward<Finder>(finder), offset);
 			result._pos = pos - offset;
 			return result;
 		}
+
+		/// Given an \ref iterator_position, finds an iterator to the next range that ends after the given position,
+		/// or one that ends at or after the position, based on the given comparison function.
+		template <typename Comp> [[nodiscard]] iterator_position _find_next_range_with_ending_impl(
+			std::size_t begin, iterator_position iter
+		) const {
+			assert_true_logical(iter.get_iterator() != _ranges.end(), "iterator already at the end");
+			Comp cmp;
+			std::size_t &iter_pos = iter._pos;
+			typename node_data::node *n = iter._iter.get_node();
+			while (
+				n->right == nullptr ||
+				!cmp(begin, iter_pos + n->value.offset + n->right->synth_data.maximum_end_position)
+			) { // ignore the right subtree and go up to the next node
+				while (n->parent && n == n->parent->right) {
+					if (n->left) {
+						iter_pos -= n->left->synth_data.offset_sum;
+					}
+					iter_pos -= n->parent->value.offset;
+					n = n->parent;
+				}
+				// now either n is the root, or n is a left child
+				if (n->parent == nullptr) {
+					// n is the root, there's no next range - return the end
+					iter._iter = _ranges.end();
+					iter._pos = n->synth_data.offset_sum;
+					return iter;
+				}
+				iter_pos += n->value.offset;
+				if (n->right) {
+					iter_pos += n->right->synth_data.offset_sum;
+				}
+				n = n->parent;
+				// we've moved to the next element - check if it ends after the position
+				if (cmp(begin, iter_pos + n->value.offset + n->value.length)) {
+					// yes - return the iterator
+					// the right subtree will be checked next time this function is called
+					iter._iter = _ranges.get_iterator_for(n);
+					return iter;
+				}
+			}
+			// check the right subtree - it must contain an element that ends at or after the position
+			n = n->right;
+			iter_pos += n->parent->value.offset;
+			// now iter_pos is before the subtree; save it for querying
+			if (cmp(begin, iter_pos)) {
+				// fast path: every element in the subtree ends after begin; simply return the leftmost element
+				for (; n->left; n = n->left) {
+				}
+				iter._iter = _ranges.get_iterator_for(n);
+				// iter_pos is already at the correct position
+				return iter;
+			}
+			// use a `_range_extent_finder` to find the first iterator
+			std::size_t subtree_offset = begin - iter_pos;
+			_extent_finder_base<Comp> finder;
+			// this must yield a non-null node; if the node somehow becomes null we'll just crash here
+			while (true) {
+				int branch = finder.select_find(*n, subtree_offset);
+				if (branch == 0) {
+					break;
+				}
+				n = branch > 0 ? n->right : n->left;
+			}
+			iter._iter = _ranges.get_iterator_for(n);
+			iter_pos = begin - subtree_offset;
+			return iter;
+		}
+
+
 		/// Returns a modifier for the given \ref iterator.
 		[[nodiscard]] typename tree_type::binary_tree_t::template node_value_modifier<> _get_modifier_for(
 			iterator iter
