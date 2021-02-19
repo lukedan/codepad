@@ -264,7 +264,7 @@ namespace codepad::editors::code {
 			}
 
 			// render decorations
-			decoration_renderers::rounded_renderer temp_deco_rend; // TODO
+			decoration_renderers::squiggle_renderer temp_deco_rend; // TODO
 			temp_deco_rend.pen.thickness = 1.0;
 			temp_deco_rend.pen.brush.value.emplace<ui::brush_parameters::solid_color>(colord(1.0, 0.0, 0.0, 1.0));
 			for (const auto &[layout, rend] : decorations) {

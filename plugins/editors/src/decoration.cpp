@@ -95,5 +95,29 @@ namespace codepad::editors {
 
 			rend.end_and_draw_path(brush.get_parameters(client), pen.get_parameters(client));
 		}
+
+
+		void squiggle_renderer::render(ui::renderer_base &rend, const decoration_layout &layout, vec2d unit) const {
+			double y = layout.top + layout.baseline + offset;
+			auto &builder = rend.start_path();
+			for (auto [beg, end] : layout.line_bounds) {
+				builder.move_to(vec2d(beg, y));
+				bool top = true;
+				for (double x = beg; x < end; top = !top) {
+					vec2d
+						control = control_offset,
+						left = vec2d(x, y),
+						right = vec2d(x + width, y);
+					if (top) {
+						control.y = -control.y;
+					}
+					builder.add_cubic_bezier(right, left + control, right + vec2d(-control.x, control.y));
+					x = right.x;
+				}
+
+				y += layout.line_height;
+			}
+			rend.end_and_draw_path(ui::generic_brush(), pen.get_parameters(unit));
+		}
 	}
 }

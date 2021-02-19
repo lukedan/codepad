@@ -65,5 +65,18 @@ namespace codepad::editors {
 				return std::min(0.5 * v, radius);
 			}
 		};
+
+		/// A decoration renderer that renders squiggles under the text.
+		class squiggle_renderer : public decoration_renderer {
+		public:
+			/// Renders the decoration.
+			void render(ui::renderer_base&, const decoration_layout&, vec2d) const override;
+
+			ui::generic_pen_parameters pen; ///< The pen used to draw the squiggle line.
+			vec2d control_offset{ 1.5, 1.5 }; ///< Offset of the control points.
+			double
+				offset = 3.0, ///< The offset of the center of the lines with respect to the baseline.
+				width = 3.0; ///< The width of a single squiggle.
+		};
 	}
 }
