@@ -206,8 +206,6 @@ if(WIN32)
 
 	# finding cairo and dependencies on windows is quite different from finding cairo on linux
 	if(CODEPAD_USE_CAIRO)
-		find_package(Freetype REQUIRED)
-		find_package(Fontconfig REQUIRED)
 		find_package(harfbuzz REQUIRED)
 		find_package(unofficial-glib CONFIG REQUIRED)
 		find_package(unofficial-cairo CONFIG REQUIRED)
@@ -234,7 +232,6 @@ if(WIN32)
 			PUBLIC
 				unofficial::cairo::cairo unofficial::cairo::cairo-gobject
 				Pango::Pango harfbuzz::harfbuzz
-				Freetype::Freetype Fontconfig::Fontconfig
 				unofficial::glib::gobject)
 	endif()
 
@@ -261,6 +258,8 @@ elseif(UNIX)
 		target_link_options(codepad_core
 			PRIVATE -rdynamic) # enables detailed stacktrace
 	endif()
+
+	find_package(PkgConfig REQUIRED)
 
 	if(CODEPAD_USE_GTK)
 		target_sources(codepad_core
@@ -290,13 +289,9 @@ elseif(UNIX)
 	endif()
 
 	if(CODEPAD_USE_CAIRO)
-		find_package(Freetype REQUIRED)
-		find_package(Fontconfig REQUIRED)
 		find_package(Cairo REQUIRED)
 		find_package(Pango REQUIRED)
 
-		# FIXME simply find_package does not work on ubuntu 18.04
-		find_package(PkgConfig REQUIRED)
 		pkg_check_modules(harfbuzz REQUIRED IMPORTED_TARGET harfbuzz)
 
 		add_library(Cairo::Cairo INTERFACE IMPORTED)
@@ -309,10 +304,19 @@ elseif(UNIX)
 
 		target_link_libraries(codepad_core
 			PUBLIC
-				Cairo::Cairo Pango::Pango PkgConfig::harfbuzz Freetype::Freetype Fontconfig::Fontconfig)
+				Cairo::Cairo Pango::Pango PkgConfig::harfbuzz)
 	endif()
 else()
 	message(FATAL_ERROR "unrecognized platform")
+endif()
+# cairo libraries that can be found using find_package()
+if (CODEPAD_USE_CAIRO)
+	find_package(Freetype REQUIRED)
+	find_package(Fontconfig REQUIRED)
+
+	target_link_libraries(codepad_core
+		PUBLIC
+			Freetype::Freetype Fontconfig::Fontconfig)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX) # gcc needs this for filesystem to work

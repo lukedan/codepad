@@ -41,10 +41,16 @@ set_target_properties(lsp
 		LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 		WINDOWS_EXPORT_ALL_SYMBOLS YES)
 
-find_package(RapidJSON CONFIG REQUIRED)
 target_include_directories(lsp
 	PUBLIC ${RapidJSON_INCLUDE_DIRS})
 
-find_package(uriparser CONFIG REQUIRED char)
-target_link_libraries(lsp
-	PRIVATE uriparser::uriparser)
+find_package(uriparser CONFIG COMPONENTS char)
+if (uriparser_FOUND)
+	target_link_libraries(lsp PUBLIC uriparser::uriparser)
+else()
+	if (NOT PkgConfig_FOUND)
+		message(FATAL_ERROR "unable to find uriparser")
+	endif()
+	pkg_check_modules(uriparser REQUIRED IMPORTED_TARGET liburiparser)
+	target_link_libraries(lsp PUBLIC PkgConfig::uriparser)
+endif()

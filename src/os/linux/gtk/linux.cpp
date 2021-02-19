@@ -17,16 +17,11 @@ namespace codepad::os {
 
 
 	std::vector<std::filesystem::path> file_dialog::show_open_dialog(
-		const ui::window_base *parent, file_dialog::type type
+		const ui::window *parent, file_dialog::type type
 	) {
-#ifdef CP_DETECT_LOGICAL_ERRORS
-		auto wnd = dynamic_cast<const window*>(parent);
-		assert_true_logical(wnd != nullptr, "invalid window type");
-#else
-		auto wnd = static_cast<const window*>(parent);
-#endif
+		auto &parent_impl = _details::cast_window_impl(parent->get_impl());
 		GtkWidget *dialog = gtk_file_chooser_dialog_new(
-			nullptr, parent ? GTK_WINDOW(wnd->get_native_handle()) : nullptr, GTK_FILE_CHOOSER_ACTION_OPEN,
+			nullptr, parent ? GTK_WINDOW(parent_impl.get_native_handle()) : nullptr, GTK_FILE_CHOOSER_ACTION_OPEN,
 			"_Cancel", GTK_RESPONSE_CANCEL, "_Open", GTK_RESPONSE_ACCEPT, NULL
 		);
 		gtk_file_chooser_set_select_multiple(

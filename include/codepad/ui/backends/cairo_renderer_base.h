@@ -257,7 +257,7 @@ namespace codepad::ui::cairo {
 		/// Stores information about a currently active render target.
 		struct _render_target_stackframe {
 			/// Initializes \ref context and pushes an identity matrix onto \ref matrices.
-			explicit _render_target_stackframe(cairo_t *c, window *w = nullptr) : context(c), window(w) {
+			explicit _render_target_stackframe(cairo_t *c, window *w = nullptr) : context(c), target_wnd(w) {
 				matd3x3 id;
 				id.set_identity();
 				matrices.emplace(id);
@@ -270,7 +270,7 @@ namespace codepad::ui::cairo {
 			/// The cairo context. Here we're using raw pointers for the same reason as in
 			/// \ref os::direct2d::renderer.
 			cairo_t *context = nullptr;
-			window *window = nullptr; ///< The target window.
+			window *target_wnd = nullptr; ///< The target window.
 		};
 
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of currently active render targets.

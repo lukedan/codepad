@@ -6,6 +6,7 @@
 /// \file
 /// Threading utilities.
 
+#include <thread>
 #include <unordered_set>
 #include <shared_mutex>
 

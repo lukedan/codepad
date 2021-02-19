@@ -72,7 +72,7 @@ namespace codepad::os {
 	protected:
 		/// Flushes the surface if the target is a window.
 		void _finish_drawing_to_target() override {
-			if (_render_stack.top().window) {
+			if (_render_stack.top().target_wnd) {
 				cairo_surface_flush(cairo_get_target(_render_stack.top().context));
 			}
 		}
