@@ -88,7 +88,7 @@ namespace codepad::lsp {
 			}
 			auto &registry = tag->_decoration_token->decorations;
 			registry = editors::decoration_provider::registry();
-			for (const auto &diag : params.diagnostics.value) {
+			for (auto &diag : params.diagnostics.value) {
 				std::size_t
 					beg = tag->_position_to_character(diag.range.start),
 					end = tag->_position_to_character(diag.range.end);

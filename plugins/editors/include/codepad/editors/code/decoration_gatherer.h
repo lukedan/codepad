@@ -92,6 +92,13 @@ namespace codepad::editors::code {
 			}
 		}
 
+		/// Finishes all active renderers.
+		void finish() {
+			for (auto iter = _active.begin(); iter != _active.end(); ++iter) {
+				iter->finish(*this);
+			}
+		}
+
 
 		/// Returns a reference to the associated \ref fragment_assembler.
 		[[nodiscard]] const fragment_assembler &get_fragment_assembler() const {
@@ -232,6 +239,11 @@ namespace codepad::editors::code {
 				_layout.line_bounds.emplace_back(0.0, 0.0);
 				return true;
 			}
+
+			/// Finishes this decoration.
+			void finish(decoration_gatherer &rend) {
+				_terminate(_layout.line_bounds.back().first, rend);
+			}
 		protected:
 			decoration_layout _layout; ///< The accumulated layout of the current decoration.
 			decoration_renderer *_renderer = nullptr; ///< The renderer associated with the current decoration.
@@ -267,9 +279,9 @@ namespace codepad::editors::code {
 				return std::nullopt;
 			}
 
-			/// Terminates this renderer by updating the end position of the last range and rendering it.
+			/// Terminates this renderer by updating the end position of the last range and invoking
+			/// \ref decoration_gatherer::render_callback.
 			void _terminate(double x, decoration_gatherer &rend) {
-				assert_true_logical(x >= _layout.line_bounds.back().first);
 				_layout.line_bounds.back().second = x;
 				rend.render_callback(std::move(_layout), _renderer);
 			}

@@ -250,7 +250,7 @@ namespace codepad::editors::code {
 				}
 			}
 			caretrend.finish(gen.get_position());
-			// TODO finish deco_gather
+			deco_gather.finish();
 
 			// render carets & selections
 			vec2d unit = get_layout().size();
