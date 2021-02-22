@@ -16,7 +16,7 @@
 
 #include "json/misc.h"
 #include "json/storage.h"
-#include "json/rapidjson.h"
+#include "json/default_engine.h"
 #include "encodings.h"
 #include "misc.h"
 #include "event.h"

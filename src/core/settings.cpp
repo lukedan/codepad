@@ -49,6 +49,6 @@ namespace codepad {
 	}
 
 	void settings::load(const std::filesystem::path &path) {
-		set(json::store(json::parse_file<json::rapidjson::document_t>(path).root()));
+		set(json::store(json::parse_file<json::document_t>(path).root()));
 	}
 }

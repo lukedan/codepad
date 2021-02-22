@@ -25,7 +25,7 @@ namespace codepad::json {
 
 	/// Stores a JSON value.
 	struct value_storage {
-		using object = std::map<std::u8string, value_storage, std::less<>>; ///< A JSON object.
+		using object = std::vector<std::pair<std::u8string, value_storage>>; ///< A JSON object.
 		using array = std::vector<value_storage>; ///< A JSON array.
 		/// The \p std::variant type used to store any object.
 		using storage = std::variant<
@@ -80,7 +80,7 @@ namespace codepad::json {
 			auto &dict = std::get<value_storage::object>(val.value);
 			auto &&obj = v.template get<typename Value::object_type>();
 			for (auto it = obj.member_begin(); it != obj.member_end(); ++it) {
-				dict.emplace(it.name(), store(it.value()));
+				dict.emplace_back(it.name(), store(it.value()));
 			}
 			return val;
 		}
@@ -143,6 +143,11 @@ namespace codepad::json {
 			}
 			/// Returns the value as the given type.
 			template <typename T> T get() const;
+
+			/// Returns whether \ref _v is empty.
+			bool empty() const {
+				return _v == nullptr;
+			}
 		protected:
 			const value_storage::storage *_v = nullptr; ///< The value.
 
@@ -191,12 +196,23 @@ namespace codepad::json {
 			}
 			/// Finds the member with the specified name.
 			iterator find_member(std::u8string_view name) const {
-				return iterator(_obj->find(name));
+				auto iter = _obj->begin();
+				for (; iter != _obj->end(); ++iter) {
+					if (iter->first == name) {
+						break;
+					}
+				}
+				return iterator(iter);
 			}
 
 			/// Returns the number of members.
 			std::size_t size() const {
 				return _obj->size();
+			}
+
+			/// Returns whether \ref _obj is empty.
+			bool empty() const {
+				return _obj == nullptr;
 			}
 		protected:
 			const value_storage::object *_obj = nullptr; ///< The object.
@@ -279,6 +295,11 @@ namespace codepad::json {
 			/// Returns the number of elements in this array.
 			std::size_t size() const {
 				return _arr->size();
+			}
+
+			/// Returns whether \ref _arr is empty.
+			bool empty() const {
+				return _arr == nullptr;
 			}
 		protected:
 			const value_storage::array *_arr = nullptr; ///< The array.

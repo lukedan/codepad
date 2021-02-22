@@ -1,4 +1,4 @@
-﻿// Copyright (c) the Codepad contributors. All rights reserved.
+// Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
 #include <array>
@@ -8,7 +8,7 @@
 #include "codepad/core/plugins.h"
 #include "codepad/core/settings.h"
 #include "codepad/core/json/parsing.h"
-#include "codepad/core/json/rapidjson.h"
+#include "codepad/core/json/default_engine.h"
 #ifdef CP_PLATFORM_WINDOWS
 #	include "codepad/os/windows/direct2d_renderer.h"
 #	ifdef CP_USE_CAIRO
@@ -182,16 +182,16 @@ int main(int argc, char **argv) {
 		// parse visual arrangements
 		// this is done after the renderer is created because this may require loading textures
 		{
-			auto doc = json::parse_file<json::rapidjson::document_t>("config/arrangements.json");
+			auto doc = json::parse_file<json::document_t>("config/arrangements.json");
 			auto val = json::parsing::make_value(doc.root());
 			arrangements_parser<decltype(val)> parser(man);
 			parser.parse_arrangements_config(val.get<decltype(val)::object_type>());
 		}
 
 		// parse hotkeys
-		hotkey_json_parser<json::rapidjson::value_t>::parse_config(
+		hotkey_json_parser<json::value_t>::parse_config(
 			man.get_class_hotkeys().mapping,
-			json::parse_file<json::rapidjson::document_t>("config/keys.json").root().get<json::rapidjson::object_t>()
+			json::parse_file<json::document_t>("config/keys.json").root().get<json::object_t>()
 		);
 
 

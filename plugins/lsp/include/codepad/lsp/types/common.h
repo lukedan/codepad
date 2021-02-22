@@ -11,10 +11,9 @@
 #include <variant>
 #include <any>
 
-#include <rapidjson/document.h>
-
 #include "codepad/core/json/misc.h"
 #include "codepad/core/json/storage.h"
+#include "codepad/core/json/default_engine.h"
 #include "codepad/core/misc.h"
 
 /// Typedefs and structs in the LSP specification. These are not documented. These structs may inherit from one
@@ -138,7 +137,7 @@ namespace codepad::lsp::types {
 		virtual ~custom_variant_base() = default;
 
 		/// Deduces the type of this variant and visits the value.
-		virtual void deduce_type_and_visit(visitor_base&, const rapidjson::Value&) = 0;
+		virtual void deduce_type_and_visit(visitor_base&, const json::value_t&) = 0;
 		/// Visits the currently active value.
 		virtual void visit_value(visitor_base&) = 0;
 	};
@@ -746,9 +745,9 @@ namespace codepad::lsp::types {
 
 		/// If the value is an object and contains a field named \p documentSelector, the value is a
 		/// \p RegistrationOptions. Otherwise use the other type.
-		void deduce_type_and_visit(visitor_base &vis, const rapidjson::Value &val) override {
-			if (val.IsObject()) {
-				if (auto member = val.FindMember("documentSelector"); member != val.MemberEnd()) {
+		void deduce_type_and_visit(visitor_base &vis, const json::value_t &val) override {
+			if (auto obj = val.try_cast<json::object_t>()) {
+				if (auto member = obj->find_member(u8"documentSelector"); member != obj->member_end()) {
 					vis.visit(value.emplace<RegistrationOptions>());
 					return;
 				}

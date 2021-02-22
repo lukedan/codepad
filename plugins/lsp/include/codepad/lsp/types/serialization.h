@@ -8,11 +8,10 @@
 
 #include <stack>
 
-#include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 
 #include "codepad/core/json/storage.h"
-#include "codepad/core/json/rapidjson.h"
+#include "codepad/core/json/default_engine.h"
 
 #include "common.h"
 
@@ -145,21 +144,21 @@ namespace codepad::lsp::types {
 		}
 	};
 
-	/// Deserializer. Directly manipulates a \p rapidjson::Value.
+	/// Deserializer.
 	class deserializer : public visitor_base {
 	public:
 		/// Initializes this deserializer using the given JSON value.
-		explicit deserializer(const rapidjson::Value &val) {
-			_stack.emplace(&val);
+		explicit deserializer(json::value_t val) {
+			_stack.emplace(val);
 		}
 
 		/// Does nothing for \p null's.
 		void visit(null&) override {
-			if (_stack.top() == nullptr) {
+			if (_stack.top().empty()) {
 				logger::get().log_error(CP_HERE) << "invalid value";
 				return;
 			}
-			if (!_stack.top()->IsNull()) {
+			if (!_stack.top().is<json::null_t>()) {
 				logger::get().log_error(CP_HERE) << "value is not null";
 				return;
 			}
@@ -182,17 +181,15 @@ namespace codepad::lsp::types {
 		}
 		/// Deserializes a \ref string.
 		void visit(string &s) override {
-			if (auto str = _get_string()) {
-				s = str.value();
-			}
+			_get_value(s);
 		}
 		/// Deserializes a \ref any.
 		void visit(any &a) override {
-			if (_stack.top() == nullptr) {
+			if (_stack.top().empty()) {
 				logger::get().log_error(CP_HERE) << "invalid value";
 				return;
 			}
-			a = json::store(json::rapidjson::value_t(_stack.top()));
+			a = json::store(_stack.top());
 		}
 
 		/// Deserializes a \ref object.
@@ -208,62 +205,60 @@ namespace codepad::lsp::types {
 		}
 		/// Deserializes a \ref string_enum_base.
 		void visit(string_enum_base &e) override {
-			if (auto str = _get_string()) {
-				e.set_value(str.value());
+			std::u8string_view str;
+			if (_get_value(str)) {
+				e.set_value(str);
 			}
 		}
 		/// Deserializes an \ref array_base.
 		void visit(array_base &arr) override {
-			if (_stack.top() == nullptr) {
+			if (_stack.top().empty()) {
 				logger::get().log_error(CP_HERE) << "invalid value";
 				return;
 			}
-			if (!_stack.top()->IsArray()) {
-				logger::get().log_error(CP_HERE) <<
-					"invalid value type: expected array, got " << _stack.top()->GetType();
+			if (auto json_arr = _stack.top().try_cast<json::array_t>()) {
+				std::size_t length = json_arr->size();
+				arr.set_length(length);
+				for (std::size_t i = 0; i < length; ++i) {
+					_stack.emplace(json_arr.value()[i]);
+					arr.visit_element_at(i, *this);
+					_stack.pop();
+				}
 				return;
 			}
-			std::size_t length = _stack.top()->Size();
-			arr.set_length(length);
-			for (std::size_t i = 0; i < length; ++i) {
-				_stack.emplace(&(*_stack.top())[i]);
-				arr.visit_element_at(i, *this);
-				_stack.pop();
-			}
+			logger::get().log_error(CP_HERE) << "invalid value type: expected array";
 		}
 		/// Deserializes a \ref primitive_variant_base.
 		void visit(primitive_variant_base &var) override {
-			if (_stack.top() == nullptr) {
+			if (_stack.top().empty()) {
 				logger::get().log_error(CP_HERE) << "invalid value";
 				return;
 			}
-			if (_stack.top()->IsNull()) {
+			if (_stack.top().is<json::null_t>()) {
 				var.set_null();
 				return;
 			}
-			if (_stack.top()->IsBool()) {
-				var.set_boolean(_stack.top()->GetBool());
+			if (auto obj = _stack.top().try_cast<bool>()) {
+				var.set_boolean(obj.value());
 				return;
 			}
-			if (_stack.top()->IsInt64()) {
-				var.set_int64(_stack.top()->GetInt64());
+			if (auto obj = _stack.top().try_cast<std::int64_t>()) {
+				var.set_int64(obj.value());
 				return;
 			}
-			if (_stack.top()->IsDouble()) {
-				var.set_decimal(_stack.top()->GetDouble());
+			if (auto obj = _stack.top().try_cast<double>()) {
+				var.set_decimal(obj.value());
 				return;
 			}
-			if (_stack.top()->IsString()) {
-				var.set_string(std::u8string_view(
-					reinterpret_cast<const char8_t*>(_stack.top()->GetString()), _stack.top()->GetStringLength()
-				));
+			if (auto obj = _stack.top().try_cast<std::u8string_view>()) {
+				var.set_string(obj.value());
 				return;
 			}
-			if (_stack.top()->IsArray()) {
+			if (_stack.top().is<json::array_t>()) {
 				var.set_array_and_visit(*this);
 				return;
 			}
-			if (_stack.top()->IsObject()) {
+			if (_stack.top().is<json::object_t>()) {
 				var.set_object_and_visit(*this);
 				return;
 			}
@@ -271,65 +266,61 @@ namespace codepad::lsp::types {
 		}
 		/// Deserializes a \ref custom_variant_base.
 		void visit(custom_variant_base &var) override {
-			if (_stack.top() == nullptr) {
+			if (_stack.top().empty()) {
 				logger::get().log_error(CP_HERE) << "invalid value";
 				return;
 			}
-			var.deduce_type_and_visit(*this, *_stack.top());
+			var.deduce_type_and_visit(*this, _stack.top());
 		}
 		/// Deserializes a \ref map_base.
 		void visit(map_base &map) override {
-			if (_stack.top() == nullptr) {
+			if (_stack.top().empty()) {
 				logger::get().log_error(CP_HERE) << "invalid value";
 				return;
 			}
-			if (!_stack.top()->IsObject()) {
-				logger::get().log_error(CP_HERE) <<
-					"invalid value type: expected object, got " << _stack.top()->GetType();
+			if (auto obj = _stack.top().try_cast<json::object_t>()) {
+				for (auto it = obj->member_begin(); it != obj->member_end(); ++it) {
+					_stack.emplace(it.value());
+					map.insert_visit_entry(*this, it.name());
+					_stack.pop();
+				}
 				return;
 			}
-			for (auto it = _stack.top()->MemberBegin(); it != _stack.top()->MemberEnd(); ++it) {
-				_stack.emplace(&it->value);
-				map.insert_visit_entry(*this, json::rapidjson::value_t::get_string_view(it->name));
-				_stack.pop();
-			}
+			logger::get().log_error(CP_HERE) << "invalid value type: expected object";
 		}
 
 		/// Finds a field with the given name, and deserializes it if one exists.
 		void visit_field(std::u8string_view name, optional_base &opt) override {
-			if (_stack.top() == nullptr) {
+			if (_stack.top().empty()) {
 				logger::get().log_error(CP_HERE) << "invalid value";
 				return;
 			}
-			if (!_stack.top()->IsObject()) {
-				logger::get().log_error(CP_HERE) << "current value is not an object";
+			if (auto obj = _stack.top().try_cast<json::object_t>()) {
+				auto it = obj->find_member(name);
+				if (it != obj->member_end()) {
+					opt.emplace_value();
+					_stack.push(it.value());
+					opt.visit_value(*this);
+					_stack.pop();
+				} else {
+					opt.clear_value();
+				}
 				return;
 			}
-			auto it = _stack.top()->FindMember(
-				rapidjson::Value(reinterpret_cast<const char*>(name.data()), name.size())
-			);
-			if (it != _stack.top()->MemberEnd()) {
-				opt.emplace_value();
-				_stack.push(&it->value);
-				opt.visit_value(*this);
-				_stack.pop();
-			} else {
-				opt.clear_value();
-			}
+			logger::get().log_error(CP_HERE) << "current value is not an object";
+			return;
 		}
 	protected:
-		std::stack<const rapidjson::Value*> _stack; ///< The stack of JSON values that are being visited.
+		std::stack<json::value_t> _stack; ///< The stack of JSON values that are being visited.
 
 
 		/// Adds a new entry to \ref _stack.
 		void _start_field(std::u8string_view name) override {
-			if (_stack.top()) {
-				if (_stack.top()->IsObject()) {
-					auto it = _stack.top()->FindMember(
-						rapidjson::Value(reinterpret_cast<const char*>(name.data()), name.size())
-					);
-					if (it != _stack.top()->MemberEnd()) {
-						_stack.push(&it->value);
+			if (!_stack.top().empty()) {
+				if (auto obj = _stack.top().try_cast<json::object_t>()) {
+					auto it = obj->find_member(name);
+					if (it != obj->member_end()) {
+						_stack.push(it.value());
 						return;
 					} else {
 						logger::get().log_error(CP_HERE) << "member " << name << " not found";
@@ -340,7 +331,7 @@ namespace codepad::lsp::types {
 			} else {
 				logger::get().log_error(CP_HERE) << "invalid value";
 			}
-			_stack.push(nullptr);
+			_stack.push(json::value_t());
 		}
 		/// Removes an element from \ref _stack.
 		void _end_field() override {
@@ -351,31 +342,16 @@ namespace codepad::lsp::types {
 		///
 		/// \return \p false if failed to obtain the value.
 		template <typename T> bool _get_value(T &val) {
-			if (_stack.top() == nullptr) {
+			if (_stack.top().empty()) {
 				logger::get().log_error(CP_HERE) << "invalid value";
 				return false;
 			}
-			if (!_stack.top()->Is<T>()) {
-				logger::get().log_error(CP_HERE) <<
-					"invalid value type: expected " << demangle(typeid(T).name()) <<
-					", got " << _stack.top()->GetType();
+			if (!_stack.top().is<T>()) {
+				logger::get().log_error(CP_HERE) << "invalid value type: expected " << demangle(typeid(T).name());
 				return false;
 			}
-			val = _stack.top()->Get<T>();
+			val = _stack.top().get<T>();
 			return true;
-		}
-		/// Converts the current value as a \p string_view.
-		std::optional<std::u8string_view> _get_string() {
-			if (_stack.top() == nullptr) {
-				logger::get().log_error(CP_HERE) << "invalid value";
-				return std::nullopt;
-			}
-			if (!_stack.top()->IsString()) {
-				logger::get().log_error(CP_HERE) <<
-					"invalid value type: expected string, got " << _stack.top()->GetType();
-				return std::nullopt;
-			}
-			return json::rapidjson::value_t::get_string_view(*_stack.top());
 		}
 	};
 

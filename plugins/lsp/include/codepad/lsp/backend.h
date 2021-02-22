@@ -9,7 +9,7 @@
 #include <sstream>
 #include <deque>
 
-#include "rapidjson/stringbuffer.h"
+#include <rapidjson/stringbuffer.h>
 
 #include "types/serialization.h"
 

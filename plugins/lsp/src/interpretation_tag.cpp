@@ -65,7 +65,7 @@ namespace codepad::lsp {
 				u8"textDocument/semanticTokens/full", params, [this](types::SemanticTokensResponse params) {
 					_on_semanticTokens(std::move(params));
 				},
-				[this](types::integer code, std::u8string_view msg, const rapidjson::Value *data) {
+				[this](types::integer code, std::u8string_view msg, const json::value_t &data) {
 					--_queued_highlight_version;
 					client::default_error_handler(code, msg, data);
 				}
@@ -207,7 +207,7 @@ namespace codepad::lsp {
 				u8"textDocument/semanticTokens/full", params, [this](types::SemanticTokensResponse params) {
 					_on_semanticTokens(std::move(params));
 				},
-				[this](types::integer code, std::u8string_view msg, const rapidjson::Value *data) {
+				[this](types::integer code, std::u8string_view msg, const json::value_t &data) {
 					--_queued_highlight_version;
 					// ignore errors caused by content modifications
 					if (code != static_cast<types::integer>(types::ErrorCodesEnum::ContentModified)) {

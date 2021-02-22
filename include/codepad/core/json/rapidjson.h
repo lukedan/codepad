@@ -16,6 +16,14 @@ namespace codepad::json::rapidjson {
 	struct array_t;
 	struct document_t;
 
+	/// Retrieves a \ref std::u8string_view from a \p rapidjson::GenericValue.
+	template <typename Byte, typename Allocator> [[nodiscard]] inline std::u8string_view get_string_view(
+		const ::rapidjson::GenericValue<::rapidjson::UTF8<Byte>, Allocator> &v
+	) {
+		static_assert(sizeof(Byte) == sizeof(char), "invalid word type for utf-8");
+		return std::u8string_view(reinterpret_cast<const char8_t*>(v.GetString()), v.GetStringLength());
+	}
+
 	/// Default encoding used by RapidJSON.
 	using encoding = ::rapidjson::UTF8<char>;
 
@@ -68,9 +76,9 @@ namespace codepad::json::rapidjson {
 		/// Returns the value as the specified type.
 		template <typename T> T get() const;
 
-		/// Retrieves a \ref std::u8string_view from a \ref rapidjson_value_t.
-		inline static std::u8string_view get_string_view(const rapidjson_value_t &v) {
-			return std::u8string_view(reinterpret_cast<const char8_t*>(v.GetString()), v.GetStringLength());
+		/// Returns whether \ref _val is empty.
+		bool empty() const {
+			return _val == nullptr;
 		}
 	protected:
 		const rapidjson_value_t *_val = nullptr; ///< The value.
@@ -94,7 +102,7 @@ namespace codepad::json::rapidjson {
 
 			/// Returns the name of this member.
 			std::u8string_view name() const {
-				return value_t::get_string_view(_it->name);
+				return get_string_view(_it->name);
 			}
 			/// Returns the value of this member.
 			value_t value() const {
@@ -126,6 +134,11 @@ namespace codepad::json::rapidjson {
 		/// Returns the number of members this object has.
 		std::size_t size() const {
 			return _obj->MemberCount();
+		}
+
+		/// Returns whether \ref _obj is empty.
+		bool empty() const {
+			return _obj == nullptr;
 		}
 	protected:
 		const rapidjson_value_t *_obj = nullptr; ///< The value.
@@ -208,6 +221,11 @@ namespace codepad::json::rapidjson {
 		std::size_t size() const {
 			return _arr->Size();
 		}
+
+		/// Returns whether \ref _arr is empty.
+		bool empty() const {
+			return _arr == nullptr;
+		}
 	protected:
 		const rapidjson_value_t *_arr = nullptr; ///< The value.
 
@@ -237,14 +255,10 @@ namespace codepad::json::rapidjson {
 	public:
 		/// Default constructor.
 		document_t() = default;
-		/// Move constructor.
-		document_t(document_t &&src) noexcept : _doc(std::move(src._doc)) {
-		}
-		/// Move assignment.
-		document_t &operator=(document_t &&src) noexcept {
-			_doc = std::move(src._doc);
-			return *this;
-		}
+		/// Default move constructor.
+		document_t(document_t&&) noexcept = default;
+		/// Default move assignment.
+		document_t &operator=(document_t&&) = default;
 
 		/// Returns a reference to \ref _doc.
 		value_t root() const {

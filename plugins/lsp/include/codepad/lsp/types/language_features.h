@@ -213,16 +213,18 @@ namespace codepad::lsp::types {
 	struct HoverContents_variant : public custom_variant_base {
 		/// Deduces the type of this variant. If it's an object, this function checks for the field \p kind which
 		/// indicates that this should be a \ref MarkupContent.
-		void deduce_type_and_visit(visitor_base &v, const rapidjson::Value &json_val) override {
-			if (json_val.IsObject()) {
-				if (auto kind = json_val.FindMember("kind"); kind != json_val.MemberEnd()) {
+		void deduce_type_and_visit(visitor_base &v, const json::value_t &json_val) override {
+			if (auto obj = json_val.try_cast<json::object_t>()) {
+				if (auto kind = obj->find_member(u8"kind"); kind != obj->member_end()) {
 					v.visit(value.emplace<MarkupContent>());
 				} else {
 					v.visit(value.emplace<MarkedString>());
 				}
-			} else if (json_val.IsArray()) { // array
+				return;
+			}
+			if (json_val.is<json::array_t>()) { // array
 				v.visit(value.emplace<array<MarkedString>>());
-			} else if (json_val.IsString()) { // MarkedString can be a simple string
+			} else if (json_val.is<std::u8string_view>()) { // MarkedString can be a simple string
 				v.visit(value.emplace<MarkedString>());
 			} else { // error
 				logger::get().log_error(CP_HERE) << "invalid JSON for Hover.contents";

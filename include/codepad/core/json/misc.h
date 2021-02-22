@@ -20,6 +20,7 @@ namespace codepad::json {
 	//
 	// document_t:
 	//   actaully stores all data, movable, not copyable
+	//   moving this object should not invalidate any references to it
 	//
 	//   root()
 	//   static parse()
@@ -31,6 +32,7 @@ namespace codepad::json {
 	//   is<T>, get<T>
 	//     T: null_t, bool, number_t, unsigned, signed, double, array_t, object_t, u8string, u8string_view
 	//   log(), try_cast(), cast(), try_parse(), parse() (provided by value_type_base)
+	//   empty(): true for default-initialized values
 	//
 	// object_t:
 	//   an reference of the immutable underlying value, unless for storage implementation
@@ -40,6 +42,7 @@ namespace codepad::json {
 	//   find_member(), member_begin(), member_end()
 	//   size()
 	//   log(), try_parse_member(), parse_member(), parse_optional_member() (provided by object_type_base)
+	//   empty(): true for default-initialized values
 	//
 	// array_t (of value_t):
 	//   an reference of the immutable underlying value, unless for storage implementation
@@ -49,6 +52,7 @@ namespace codepad::json {
 	//   begin(), end()
 	//   at(), operator[]()
 	//   size()
+	//   empty(): true for default-initialized values
 
 	/// Dummy struct used to represent the value of \p null.
 	struct null_t {

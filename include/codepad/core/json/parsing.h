@@ -104,6 +104,11 @@ namespace codepad::json {
 			/// Casts this value into the specified type.
 			template <typename T> T get() const;
 
+			/// Returns whether the underlying value is empty.
+			bool empty() const {
+				return _value.empty();
+			}
+
 			/// Creates a new \ref logger::log_entry and logs the path to the current node. This function hides the
 			/// implementation in \ref json::_details::value_type_base to provide additional logging.
 			template <log_level Level> logger::log_entry log(code_position pos) const {
@@ -205,6 +210,16 @@ namespace codepad::json {
 				return iterator(_object.member_end(), *this);
 			}
 
+			/// Returns the number of entries in this object.
+			std::size_t size() const {
+				return _object.size();
+			}
+
+			/// Returns whether the underlying value is empty.
+			bool empty() const {
+				return _object.empty();
+			}
+
 			/// Creates a new \ref logger::log_entry and logs the path to the current node. This function hides the
 			/// implementation in \ref json::_details::value_type_base to provide additional logging.
 			template <log_level Level> logger::log_entry log(code_position pos) const {
@@ -213,11 +228,6 @@ namespace codepad::json {
 				_node->print_path(entry);
 				entry << u8":\n";
 				return entry;
-			}
-
-			/// Returns the number of entries in this object.
-			std::size_t size() const {
-				return _object.size();
 			}
 		protected:
 			using _value_object_t = typename ValueType::object_type; ///< The underlying object type.
@@ -387,6 +397,11 @@ namespace codepad::json {
 			/// Returns the number of entries in this array.
 			std::size_t size() const {
 				return _array.size();
+			}
+
+			/// Returns whether the underlying value is empty.
+			bool empty() const {
+				return _array.empty();
 			}
 		protected:
 			using _context_node_t = _details::context_node<ValueType>; ///< Nodes that provide context information.

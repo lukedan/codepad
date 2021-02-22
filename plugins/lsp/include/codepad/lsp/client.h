@@ -26,11 +26,11 @@ namespace codepad::lsp {
 		using id_t = std::variant<types::integer, std::u8string_view>; ///< Identifiers for requests.
 		/// Handler for a request.
 		struct request_handler {
-			/// The callback that will be called on the main thread upon this request. The \p rapidjson::Value that
+			/// The callback that will be called on the main thread upon this request. The \ref json::object_t that
 			/// is passed in will contain the raw complete JSON response, and it's up to the handler to determine
 			/// whether this is a request or a notifcation and the request id, and deserialize the parameters. It's
 			/// also the handler's responsibility to send any response messages.
-			std::function<void(const rapidjson::Value&, client&)> callback;
+			std::function<void(const json::object_t&, client&)> callback;
 
 			/// Creates a new request handler. The callback accepts two or three parameters: the \ref client, a
 			/// \ref id_t that is the id of the request, and, if \p Param is not \p std::nullopt_t, the deserialized
@@ -53,7 +53,7 @@ namespace codepad::lsp {
 			exited ///< The receiver thread has exited and the \p exit notification has been sent.
 		};
 		/// Function type for error callbacks.
-		using on_error_callback = std::function<void(types::integer, std::u8string_view, const rapidjson::Value*)>;
+		using on_error_callback = std::function<void(types::integer, std::u8string_view, const json::value_t&)>;
 
 		/// Initializes \ref _backend. Also creates a new thread to receive messages from the server.
 		client(std::unique_ptr<backend> back, ui::scheduler &sched) : _backend(std::move(back)) {
@@ -153,7 +153,7 @@ namespace codepad::lsp {
 
 		/// The default error handler that simply prints the error code and message. Simly logs the error.
 		inline static void default_error_handler(
-			types::integer code, std::u8string_view msg, const rapidjson::Value*
+			types::integer code, std::u8string_view msg, const json::value_t&
 		) {
 			logger::get().log_error(CP_HERE) << "LSP server returned error " << code << ": " << msg;
 		}
@@ -161,12 +161,12 @@ namespace codepad::lsp {
 		/// Handles a reply message.
 		struct _reply_handler {
 			/// Function invoked when the response does not indicate an error.
-			std::function<void(const rapidjson::Value&)> on_return;
+			std::function<void(const json::value_t&)> on_return;
 			/// Function invoked when the response indicates an error.
-			std::function<void(types::integer, std::u8string_view, const rapidjson::Value*)> on_error;
+			std::function<void(types::integer, std::u8string_view, const json::value_t&)> on_error;
 
-			/// Handles the reply. Assumes that the given \p rapidjson::Document is an object.
-			void handle_reply(const rapidjson::Value&);
+			/// Handles the reply.
+			void handle_reply(const json::object_t&);
 		};
 
 
@@ -217,7 +217,7 @@ namespace codepad::lsp {
 			Handler &&handler, on_error_callback error_handler
 		) {
 			_reply_handler result;
-			result.on_return = [h = std::forward<Handler>(handler)](const rapidjson::Value &val) {
+			result.on_return = [h = std::forward<Handler>(handler)](const json::value_t &val) {
 				types::deserializer des(val);
 				ResponseType response;
 				des.visit(response);
@@ -233,21 +233,35 @@ namespace codepad::lsp {
 	};
 
 
+	namespace _details {
+		/// Used to determine if a type is a \ref types::optional.
+		template <typename T> struct is_optional {
+			constexpr static bool value = false; ///< \p false.
+		};
+		/// True for \ref types::optional.
+		template <typename T> struct is_optional<types::optional<T>> {
+			constexpr static bool value = true; ///< \p true.
+		};
+		///< Shorthand for \ref is_optional::value.
+		template <typename T> constexpr bool is_optional_v = is_optional<T>::value;
+	}
+
+
 	template <
 		typename Param, typename Callback
 	> inline static client::request_handler client::request_handler::create_request_handler(Callback &&cb) {
 		request_handler handler;
-		handler.callback = [callback = std::forward<Callback>(cb)](const rapidjson::Value &v, client &c) {
-			auto id_it = v.FindMember("id");
-			if (id_it == v.MemberEnd()) {
+		handler.callback = [callback = std::forward<Callback>(cb)](const json::object_t &v, client &c) {
+			auto id_it = v.find_member(u8"id");
+			if (id_it == v.member_end()) {
 				logger::get().log_error(CP_HERE) << "invalid LSP request: id field missing";
 				return;
 			}
 			id_t id;
-			if (id_it->value.IsInt()) {
-				id.emplace<types::integer>(id_it->value.GetInt());
-			} else if (id_it->value.IsString()) {
-				id.emplace<std::u8string_view>(json::rapidjson::value_t::get_string_view(id_it->value));
+			if (auto id_int = id_it.value().cast<types::integer>()) {
+				id.emplace<types::integer>(id_int.value());
+			} else if (auto id_str = id_it.value().cast<std::u8string_view>()) {
+				id.emplace<std::u8string_view>(id_str.value());
 			} else {
 				logger::get().log_error(CP_HERE) << "invalid LSP request: invalid id type";
 				return;
@@ -256,8 +270,15 @@ namespace codepad::lsp {
 				callback(id, c);
 			} else {
 				Param args;
-				types::deserializer des(v);
-				static_cast<types::visitor_base*>(&des)->visit_field(u8"params", args);
+				if (auto iter = v.find_member(u8"params"); iter != v.member_end()) {
+					types::deserializer des(iter.value());
+					static_cast<types::visitor_base*>(&des)->visit(args);
+				} else {
+					if constexpr (!_details::is_optional_v<Param>) {
+						logger::get().log_error(CP_HERE) << "request expects parameters but none is found";
+						return;
+					}
+				}
 				callback(id, c, std::move(args));
 			}
 		};
@@ -268,13 +289,20 @@ namespace codepad::lsp {
 		typename Param, typename Callback
 	> inline static client::request_handler client::request_handler::create_notification_handler(Callback &&cb) {
 		request_handler handler;
-		handler.callback = [callback = std::forward<Callback>(cb)](const rapidjson::Value &v, client &c) {
+		handler.callback = [callback = std::forward<Callback>(cb)](const json::object_t &v, client &c) {
 			if constexpr (std::is_same_v<Param, std::nullopt_t>) {
 				callback(c);
 			} else {
 				Param args;
-				types::deserializer des(v);
-				static_cast<types::visitor_base*>(&des)->visit_field(u8"params", args);
+				if (auto iter = v.find_member(u8"params"); iter != v.member_end()) {
+					types::deserializer des(iter.value());
+					static_cast<types::visitor_base*>(&des)->visit(args);
+				} else {
+					if constexpr (!_details::is_optional_v<Param>) {
+						logger::get().log_error(CP_HERE) << "notification expects parameters but none is found";
+						return;
+					}
+				}
 				callback(c, std::move(args));
 			}
 		};

@@ -27,6 +27,8 @@ add_library(codepad_core SHARED)
 target_compile_features(codepad_core PUBLIC cxx_std_20)
 target_sources(codepad_core
 	PUBLIC
+		"include/codepad/core/json/default_engine.h"
+		"include/codepad/core/json/misc.h"
 		"include/codepad/core/json/parsing.h"
 		"include/codepad/core/json/rapidjson.h"
 		"include/codepad/core/json/storage.h"
