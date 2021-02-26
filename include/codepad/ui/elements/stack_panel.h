@@ -60,11 +60,6 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Returns \ref get_properties_static().
-		const property_mapping &get_properties() const override;
-
-		/// Adds the additional orientation property.
-		[[nodiscard]] static const property_mapping &get_properties_static();
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
 			return u8"stack_panel";
@@ -191,5 +186,8 @@ namespace codepad::ui {
 			_on_desired_size_changed(true, true);
 			_invalidate_children_layout();
 		}
+
+		/// Handles the \p orientation property.
+		property_info _find_property_path(const property_path::component_list&) const override;
 	};
 }

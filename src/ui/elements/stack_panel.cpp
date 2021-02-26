@@ -40,25 +40,19 @@ namespace codepad::ui {
 		return size_allocation::pixels(val + get_padding().height());
 	}
 
-	const property_mapping &stack_panel::get_properties() const {
-		return get_properties_static();
-	}
-
-	const property_mapping &stack_panel::get_properties_static() {
-		static property_mapping mapping;
-		if (mapping.empty()) {
-			mapping = panel::get_properties_static();
-			mapping.emplace(u8"orientation", std::make_shared<getter_setter_property<stack_panel, orientation>>(
-				u8"orientation",
-				[](stack_panel &p) {
-					return p.get_orientation();
-				},
-				[](stack_panel &p, orientation ori) {
-					p.set_orientation(ori);
-				}
-			));
+	property_info stack_panel::_find_property_path(const property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"stack_panel")) {
+			if (path.front().property == u8"orientation") {
+				return property_info::make_getter_setter_property_info<stack_panel, orientation, element>(
+					[](const stack_panel &p) {
+						return p.get_orientation();
+					},
+					[](stack_panel &p, orientation ori) {
+						p.set_orientation(ori);
+					}
+				);
+			}
 		}
-
-		return mapping;
+		return panel::_find_property_path(path);
 	}
 }

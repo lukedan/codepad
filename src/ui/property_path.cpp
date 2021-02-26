@@ -1,10 +1,10 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "codepad/ui/animation_path.h"
+#include "codepad/ui/property_path.h"
 
 /// \file
-/// Implementation of certain methods used when controlling the animations of elements.
+/// Implementation of certain methods used to access properties of elements.
 ///
 /// \todo Use reflection.
 
@@ -13,29 +13,310 @@
 #include "codepad/ui/renderer.h"
 #include "codepad/ui/json_parsers.inl"
 
-namespace codepad::ui::animation_path {
-	std::u8string to_string(component_list::const_iterator begin, component_list::const_iterator end) {
-		std::stringstream ss;
-		bool first = true;
-		for (auto it = begin; it != end; ++it) {
-			if (first) {
-				first = false;
-			} else {
-				ss << ".";
+namespace codepad::ui {
+	namespace property_path {
+		std::u8string to_string(component_list::const_iterator begin, component_list::const_iterator end) {
+			std::stringstream ss;
+			bool first = true;
+			for (auto it = begin; it != end; ++it) {
+				if (first) {
+					first = false;
+				} else {
+					ss << ".";
+				}
+				if (it->type.empty()) {
+					ss << reinterpret_cast<const char*>(it->property.c_str());
+				} else {
+					ss << "(" << reinterpret_cast<const char*>(it->type.c_str()) << "." << reinterpret_cast<const char*>(it->property.c_str()) << ")";
+				}
+				if (it->index) {
+					ss << "[" << it->index.value() << "]";
+				}
 			}
-			if (it->type.empty()) {
-				ss << reinterpret_cast<const char*>(it->property.c_str());
-			} else {
-				ss << "(" << reinterpret_cast<const char*>(it->type.c_str()) << "." << reinterpret_cast<const char*>(it->property.c_str()) << ")";
-			}
-			if (it->index) {
-				ss << "[" << it->index.value() << "]";
-			}
+			return std::u8string(reinterpret_cast<const char8_t*>(ss.str().c_str()));
 		}
-		return std::u8string(reinterpret_cast<const char8_t*>(ss.str().c_str()));
 	}
 
-	namespace builder {
+	namespace property_finders {
+		template <> property_info find_property_info<vec2d>(component_property_accessor_builder &builder) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<vec2d>();
+			}
+			builder.expect_type(u8"vec2d");
+			if (builder.current_component().property == u8"x") {
+				return builder.append_member_and_find_property_info<&vec2d::x>();
+			}
+			if (builder.current_component().property == u8"y") {
+				return builder.append_member_and_find_property_info<&vec2d::y>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<colord>(component_property_accessor_builder &builder) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<colord>();
+			}
+			builder.expect_type(u8"color");
+			if (builder.current_component().property == u8"r") {
+				return builder.append_member_and_find_property_info<&colord::r>();
+			}
+			if (builder.current_component().property == u8"g") {
+				return builder.append_member_and_find_property_info<&colord::g>();
+			}
+			if (builder.current_component().property == u8"b") {
+				return builder.append_member_and_find_property_info<&colord::b>();
+			}
+			if (builder.current_component().property == u8"a") {
+				return builder.append_member_and_find_property_info<&colord::a>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<thickness>(component_property_accessor_builder &builder) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<thickness>();
+			}
+			builder.expect_type(u8"thickness");
+			if (builder.current_component().property == u8"left") {
+				return builder.append_member_and_find_property_info<&thickness::left>();
+			}
+			if (builder.current_component().property == u8"top") {
+				return builder.append_member_and_find_property_info<&thickness::top>();
+			}
+			if (builder.current_component().property == u8"right") {
+				return builder.append_member_and_find_property_info<&thickness::right>();
+			}
+			if (builder.current_component().property == u8"bottom") {
+				return builder.append_member_and_find_property_info<&thickness::bottom>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<font_parameters>(component_property_accessor_builder &builder) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<font_parameters>();
+			}
+			builder.expect_type(u8"font");
+			if (builder.current_component().property == u8"family") {
+				return builder.append_member_and_find_property_info<&font_parameters::family>();
+			}
+			if (builder.current_component().property == u8"size") {
+				return builder.append_member_and_find_property_info<&font_parameters::size>();
+			}
+			if (builder.current_component().property == u8"style") {
+				return builder.append_member_and_find_property_info<&font_parameters::style>();
+			}
+			if (builder.current_component().property == u8"weight") {
+				return builder.append_member_and_find_property_info<&font_parameters::weight>();
+			}
+			if (builder.current_component().property == u8"stretch") {
+				return builder.append_member_and_find_property_info<&font_parameters::stretch>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<relative_vec2d>(component_property_accessor_builder &builder) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<relative_vec2d>();
+			}
+			builder.expect_type(u8"rel_vec2d");
+			if (builder.current_component().property == u8"relative") {
+				return builder.append_member_and_find_property_info<&relative_vec2d::relative>();
+			}
+			if (builder.current_component().property == u8"absolute") {
+				return builder.append_member_and_find_property_info<&relative_vec2d::absolute>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<relative_double>(component_property_accessor_builder &builder) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<relative_double>();
+			}
+			builder.expect_type(u8"rel_double");
+			if (builder.current_component().property == u8"relative") {
+				return builder.append_member_and_find_property_info<&relative_double::relative>();
+			}
+			if (builder.current_component().property == u8"absolute") {
+				return builder.append_member_and_find_property_info<&relative_double::absolute>();
+			}
+			return builder.fail();
+		}
+
+
+		template <> property_info find_property_info<brush_parameters::solid_color>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<brush_parameters::solid_color>();
+			}
+			builder.expect_type(u8"solid_color_brush");
+			if (builder.current_component().property == u8"color") {
+				return builder.append_member_and_find_property_info<&brush_parameters::solid_color::color>();
+			}
+			return builder.fail();
+		}
+
+
+		template <> property_info find_property_info<geometries::rectangle>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<geometries::rectangle>();
+			}
+			builder.expect_type(u8"rectangle");
+			if (builder.current_component().property == u8"top_left") {
+				return builder.append_member_and_find_property_info<&geometries::rectangle::top_left>();
+			}
+			if (builder.current_component().property == u8"bottom_right") {
+				return builder.append_member_and_find_property_info<&geometries::rectangle::bottom_right>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info_managed<generic_brush_parameters>(
+			component_property_accessor_builder &builder, manager &man
+		) {
+			auto *next_comp = builder.peek_next();
+			if (!next_comp) {
+				return builder.finish_and_create_property_info_managed<generic_brush_parameters>(man);
+			}
+			if (next_comp->is_type_or_empty(u8"brush")) {
+				builder.move_next();
+				if (builder.current_component().property == u8"transform") {
+					return builder.append_member_and_find_property_info<&generic_brush_parameters::transform>();
+				}
+				// handle variant
+				if (builder.current_component().property != u8"value") {
+					return builder.fail();
+				}
+				next_comp = builder.peek_next();
+				if (!next_comp) {
+					return builder.fail();
+				}
+			}
+			if (next_comp->type == u8"solid_color_brush") {
+				return builder.append_variant_and_find_property_info<
+					&generic_brush_parameters::value, brush_parameters::solid_color
+				>();
+			}
+			if (next_comp->type == u8"linear_gradient_brush") {
+				return builder.append_variant_and_find_property_info<
+					&generic_brush_parameters::value, brush_parameters::linear_gradient
+				>();
+			}
+			if (next_comp->type == u8"radial_gradient_brush") {
+				return builder.append_variant_and_find_property_info<
+					&generic_brush_parameters::value, brush_parameters::radial_gradient
+				>();
+			}
+			if (next_comp->type == u8"bitmap_brush") {
+				return builder.append_variant_and_find_property_info_managed<
+					&generic_brush_parameters::value, brush_parameters::bitmap_pattern
+				>(man);
+			}
+			return builder.fail();
+		}
+
+
+		template <> property_info find_property_info_managed<generic_visual_geometry>(
+			component_property_accessor_builder &builder, manager &man
+		) {
+			auto next_comp = builder.peek_next();
+			if (!next_comp) {
+				return builder.finish_and_create_property_info_managed<visuals>(man);
+			}
+			if (next_comp->is_type_or_empty(u8"geometry")) {
+				builder.move_next();
+				if (builder.current_component().property == u8"transform") {
+					return builder.append_member_and_find_property_info<&generic_visual_geometry::transform>();
+				}
+				if (builder.current_component().property == u8"fill") {
+					return builder.append_member_and_find_property_info_managed<&generic_visual_geometry::fill>(man);
+				}
+				if (builder.current_component().property == u8"stroke") {
+					return
+						builder.append_member_and_find_property_info_managed<&generic_visual_geometry::stroke>(man);
+				}
+				// handle variant
+				if (builder.current_component().property != u8"value") {
+					return builder.fail();
+				}
+				next_comp = builder.peek_next();
+				if (!next_comp) {
+					return builder.fail();
+				}
+			}
+			if (next_comp->type == u8"rectangle") {
+				return builder.append_variant_and_find_property_info<
+					&generic_visual_geometry::value, geometries::rectangle
+				>();
+			}
+			if (next_comp->type == u8"rounded_rectangle") {
+				return builder.append_variant_and_find_property_info<
+					&generic_visual_geometry::value, geometries::rounded_rectangle
+				>();
+			}
+			if (next_comp->type == u8"ellipse") {
+				return builder.append_variant_and_find_property_info<
+					&generic_visual_geometry::value, geometries::ellipse
+				>();
+			}
+			if (next_comp->type == u8"path") {
+				return builder.append_variant_and_find_property_info<
+					&generic_visual_geometry::value, geometries::path
+				>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info_managed<visuals>(
+			component_property_accessor_builder &builder, manager &man
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info_managed<visuals>(man);
+			}
+			builder.expect_type(u8"element_layout");
+			if (builder.current_component().property == u8"geometries") {
+				builder.make_append_member_pointer_component<&visuals::geometries>();
+				return find_array_property_info<
+					generic_visual_geometry, find_property_info_managed<generic_visual_geometry>
+				>(builder, man);
+			}
+			if (builder.current_component().property == u8"transform") {
+				return builder.append_member_and_find_property_info<&visuals::transform>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<element_layout>(component_property_accessor_builder &builder) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<element_layout>();
+			}
+			builder.expect_type(u8"element_layout");
+			if (builder.current_component().property == u8"margin") {
+				return builder.append_member_and_find_property_info<&element_layout::margin>();
+			}
+			if (builder.current_component().property == u8"padding") {
+				return builder.append_member_and_find_property_info<&element_layout::padding>();
+			}
+			if (builder.current_component().property == u8"size") {
+				return builder.append_member_and_find_property_info<&element_layout::size>();
+			}
+			if (builder.current_component().property == u8"anchor") {
+				return builder.append_member_and_find_property_info<&element_layout::elem_anchor>();
+			}
+			if (builder.current_component().property == u8"width_alloc") {
+				return builder.append_member_and_find_property_info<&element_layout::width_alloc>();
+			}
+			if (builder.current_component().property == u8"height_alloc") {
+				return builder.append_member_and_find_property_info<&element_layout::height_alloc>();
+			}
+			return builder.fail();
+		}
+	}
+
+/*	namespace builder {
 		/// Checks that \ref component::type is either empty or the specified type.
 		inline void check_type(const component &comp, std::u8string_view target) {
 			if (!comp.is_type_or_empty(target)) {
@@ -73,13 +354,13 @@ namespace codepad::ui::animation_path {
 	if (begin == end) {                                                                            \
 		CP_APB_SUBJECT_INFO_T res;                                                                 \
 		res.member = std::make_unique<MemberAccess<Comp>>(comp);                                   \
-		res.parser = std::make_unique<typed_animation_value_parser<typename Comp::output_type>>(); \
+		res.parser = std::make_unique<typed_property_value_parser<typename Comp::output_type>>(); \
 		return res;                                                                                \
 	}
 
 #define CP_APB_MUST_NOT_TERMINATE_EARLY                                              \
 	if (begin == end) {                                                              \
-		logger::get().log_warning(CP_HERE) << "animation path terminated too early"; \
+		logger::get().log_warning(CP_HERE) << "property path terminated too early"; \
 		return CP_APB_SUBJECT_INFO_T();                                              \
 	}
 
@@ -148,160 +429,10 @@ namespace codepad::ui::animation_path {
 	CP_APB_EXPAND_CALL(CP_APB_DO_TRY_FORWARD_ARRAY, CP_APB_CURRENT_TYPE, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME)
 
 
-
-		// primitive types
-#define CP_APB_CURRENT_TYPE bool, bool
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE int, int
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE double, double
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE std::u8string, string
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-
-		// enums
-#define CP_APB_CURRENT_TYPE anchor, anchor
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE size_allocation_type, size_allocation_type
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE cursor, cursor
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE visibility, visibility
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE orientation, orientation
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE font_style, font_style
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE font_weight, font_weight
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE font_stretch, font_stretch
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE transition_function, transition_function
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-
 		// other basic types
 #define CP_APB_CURRENT_TYPE std::shared_ptr<bitmap>, bitmap
 		CP_APB_START_GETTER
 			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE thickness, thickness
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(left, double);
-			CP_APB_TRY_FORWARD_MEMBER(top, double);
-			CP_APB_TRY_FORWARD_MEMBER(right, double);
-			CP_APB_TRY_FORWARD_MEMBER(bottom, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE vec2d, vec2d
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(x, double);
-			CP_APB_TRY_FORWARD_MEMBER(y, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE colord, color
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(r, double);
-			CP_APB_TRY_FORWARD_MEMBER(g, double);
-			CP_APB_TRY_FORWARD_MEMBER(b, double);
-			CP_APB_TRY_FORWARD_MEMBER(a, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE relative_double, rel_double
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(relative, double);
-			CP_APB_TRY_FORWARD_MEMBER(absolute, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE relative_vec2d, rel_vec2d
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(relative, vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(absolute, vec2d);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE font_parameters, font_param
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(family, string);
-			CP_APB_TRY_FORWARD_MEMBER(size, double);
-			CP_APB_TRY_FORWARD_MEMBER(style, font_style);
-			CP_APB_TRY_FORWARD_MEMBER(weight, font_weight);
-			CP_APB_TRY_FORWARD_MEMBER(stretch, font_stretch);
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
@@ -397,7 +528,7 @@ namespace codepad::ui::animation_path {
 				return CP_APB_GETTER_NAME(transform_collection)<
 					MemberAccess, std::decay_t<decltype(nextcomp)>, Count
 				>(begin, end, nextcomp);
-			}*/
+			}*//*
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
@@ -410,15 +541,6 @@ namespace codepad::ui::animation_path {
 
 			CP_APB_TRY_FORWARD_MEMBER(color, color);
 			CP_APB_TRY_FORWARD_MEMBER(position, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE brush_parameters::solid_color, solid_color_brush
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(color, color);
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
 
@@ -640,5 +762,5 @@ namespace codepad::ui::animation_path {
 			CP_APB_TRY_FORWARD_MEMBER(height_alloc, size_allocation_type);
 		CP_APB_END_GETTER
 #undef CP_APB_CURRENT_TYPE
-	}
+	}*/
 }

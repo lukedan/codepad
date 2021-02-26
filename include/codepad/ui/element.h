@@ -16,11 +16,10 @@
 #include "../core/event.h"
 #include "../core/misc.h"
 #include "../os/misc.h"
-#include "animation_path.h"
+#include "property_path.h"
 #include "hotkey_registry.h"
 #include "element_classes.h"
 #include "renderer.h"
-#include "property.h"
 #include "scheduler.h"
 
 namespace codepad::ui {
@@ -361,10 +360,6 @@ namespace codepad::ui {
 		void invalidate_layout();
 
 
-		/// Returns all properties of this element.
-		[[nodiscard]] virtual const property_mapping &get_properties() const;
-
-
 		info_event<>
 			mouse_enter, ///< Triggered when the mouse starts to be over the element.
 			mouse_leave, ///< Triggered when the mouse ceases to be over the element.
@@ -384,8 +379,6 @@ namespace codepad::ui {
 			key_up; ///< Triggered when a key is released when the element has the focus.
 		info_event<text_info> keyboard_text; ///< Triggered as the user types when the element has the focus.
 
-		/// Returns the properties of basic elements.
-		[[nodiscard]] static const property_mapping &get_properties_static();
 		/// Returns the default class of elements of this type.
 		[[nodiscard]] inline static std::u8string_view get_default_class() {
 			return u8"element";
@@ -644,6 +637,9 @@ namespace codepad::ui {
 		};
 		/// Registers the callback for the event with the given name. This is used mainly for storyboard animations.
 		virtual bool _register_event(std::u8string_view name, std::function<void()>);
+		/// Parses an property path and returns the corresponding \ref property_info. If parsing fails the returned
+		/// struct will contain null pointers.
+		virtual property_info _find_property_path(const property_path::component_list &path) const;
 
 
 		/// Called immediately after the element is created to initialize it. Initializes \ref _params and
@@ -672,96 +668,4 @@ namespace codepad::ui {
 		bool _initialized = false; ///< Indicates wheter the element has been properly initialized and disposed.
 #endif
 	};
-
-
-	template <
-		typename Intermediate
-	> inline animation_subject_information animation_subject_information::from_element_indirect_with_callback(
-		animation_path::builder::member_information<Intermediate> member,
-		std::unique_ptr<animation_path::builder::direct_typed_member_access<element, Intermediate>> median,
-		element &elem, std::function<void()> callback
-	) {
-		animation_subject_information res;
-		res.parser = std::move(member.parser);
-		res.subject = member.member->create_for_element_indirect_with_post_modify_callback(
-			elem, *median, std::move(callback)
-		);
-		res.subject_data = std::make_any<std::tuple<
-			std::shared_ptr<animation_path::builder::member_access<element>>,
-			std::shared_ptr<animation_path::builder::member_access<Intermediate>>
-			>>(std::move(median), std::move(member.member));
-		return res;
-	}
-
-	template <
-		auto Member
-	> inline animation_subject_information animation_subject_information::from_member_with_callback(
-		element &elem, std::function<void()> callback,
-		animation_path::component_list::const_iterator begin, animation_path::component_list::const_iterator end
-	) {
-		using member_component = animation_path::builder::getter_components::member_component<Member>;
-		using input = typename member_component::input_type;
-		using output = typename member_component::output_type;
-
-		auto inner = animation_path::builder::get_member_subject<output>(begin, end);
-		if (inner.member && inner.parser) {
-			std::unique_ptr<
-				animation_path::builder::direct_typed_member_access<element, output>
-			> outer = animation_path::builder::make_component_member_access(
-				animation_path::builder::getter_components::pair(
-					animation_path::builder::getter_components::dynamic_cast_component<element, input>(),
-					member_component()
-				)
-			);
-			return animation_subject_information::from_element_indirect_with_callback(
-				std::move(inner), std::move(outer), elem, std::move(callback)
-			);
-		}
-		return animation_subject_information();
-	}
-
-
-	template <auto MemberPtr> void member_pointer_property<MemberPtr>::set_value(
-		element &e, const json::value_storage &v
-	) const {
-		if (owner_type *ptr = _get_owner_from(e)) {
-			if (auto value = typed_animation_value_parser<value_type>::parse_static(v, e.get_manager())) {
-				ptr->*MemberPtr = value.value();
-				if (modify_callback) {
-					modify_callback(*ptr);
-				}
-			} else {
-				logger::get().log_warning(CP_HERE) << "failed to parse value";
-			}
-		}
-	}
-
-	template <auto MemberPtr> inline typename member_pointer_property<MemberPtr>::owner_type*
-		member_pointer_property<MemberPtr>::_get_owner_from(element &e) {
-
-		owner_type *ptr = dynamic_cast<owner_type*>(&e);
-		if (ptr == nullptr) {
-			logger::get().log_warning(CP_HERE) <<
-				"element type mismatch for property: expected " << demangle(typeid(owner_type).name()) <<
-				", got " << demangle(typeid(e).name());
-		}
-		return ptr;
-	}
-
-
-	template <typename Elem, typename T> inline void getter_setter_property<Elem, T>::set_value(
-		element &elem, const json::value_storage &raw
-	) const {
-		if (auto *ptr = dynamic_cast<Elem*>(&elem)) {
-			if (auto value = typed_animation_value_parser<T>::parse_static(raw, elem.get_manager())) {
-				setter(*ptr, value.value());
-			} else {
-				logger::get().log_warning(CP_HERE) << "failed to parse value for " << demangle(typeid(T).name());
-			}
-		} else {
-			logger::get().log_warning(CP_HERE) <<
-				"element type mismatch for property: expected " << demangle(typeid(Elem).name()) <<
-				", got " << demangle(typeid(elem).name());
-		}
-	}
 }

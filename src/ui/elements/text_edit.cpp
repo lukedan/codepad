@@ -156,11 +156,7 @@ namespace codepad::ui {
 		_set_caret_selection_impl(caret_selection(rem_beg));
 	}
 
-	const property_mapping &text_edit::get_properties() const {
-		return get_properties_static();
-	}
-
-	const property_mapping &text_edit::get_properties_static() {
+	/*const property_mapping &text_edit::get_properties_static() {
 		static property_mapping mapping;
 		if (mapping.empty()) {
 			mapping = label::get_properties_static();
@@ -180,7 +176,7 @@ namespace codepad::ui {
 		}
 
 		return mapping;
-	}
+	}*/
 
 	void text_edit::_on_mouse_move(mouse_move_info &info) {
 		label::_on_mouse_move(info);

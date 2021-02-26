@@ -256,18 +256,20 @@ namespace codepad {
 
 		/// Represents a margin, a padding, etc.
 		struct thickness {
+			/// Default constructor.
+			constexpr thickness() = default;
 			/// Constructs the struct with the same value for all four sides.
-			constexpr explicit thickness(double uni = 0.0) : left(uni), top(uni), right(uni), bottom(uni) {
+			constexpr explicit thickness(double uni) : left(uni), top(uni), right(uni), bottom(uni) {
 			}
 			/// Constructs the struct with the given values for the four sides.
 			constexpr thickness(double l, double t, double r, double b) : left(l), top(t), right(r), bottom(b) {
 			}
 
 			double
-				left, ///< The length on the left side.
-				top, ///< The length on the top side.
-				right, ///< The length on the right side.
-				bottom; ///< The length on the bottom side.
+				left = 0.0, ///< The length on the left side.
+				top = 0.0, ///< The length on the top side.
+				right = 0.0, ///< The length on the right side.
+				bottom = 0.0; ///< The length on the bottom side.
 
 			/// Enlarges the given rectangle with the lengths of the four sides.
 			constexpr rectd extend(rectd r) const {

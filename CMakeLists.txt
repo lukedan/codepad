@@ -72,8 +72,6 @@ target_sources(codepad_core
 		"include/codepad/ui/elements/text_edit.h"
 
 		"include/codepad/ui/animation.h"
-		"include/codepad/ui/animation_path.h"
-		"include/codepad/ui/animation_path_parser.h"
 		"include/codepad/ui/arrangements.h"
 		"include/codepad/ui/commands.h"
 		"include/codepad/ui/config_parsers.h"
@@ -85,7 +83,8 @@ target_sources(codepad_core
 		"include/codepad/ui/manager.h"
 		"include/codepad/ui/misc.h"
 		"include/codepad/ui/panel.h"
-		"include/codepad/ui/property.h"
+		"include/codepad/ui/property_path.h"
+		"include/codepad/ui/property_path_parser.h"
 		"include/codepad/ui/renderer.h"
 		"include/codepad/ui/scheduler.h"
 		"include/codepad/ui/window.h"
@@ -112,8 +111,6 @@ target_sources(codepad_core
 		"src/ui/elements/stack_panel.cpp"
 		"src/ui/elements/text_edit.cpp"
 
-		"src/ui/animation_path.cpp"
-		"src/ui/animation_path_parser.cpp"
 		"src/ui/arrangements.cpp"
 		"src/ui/commands.cpp"
 		"src/ui/element.cpp"
@@ -123,6 +120,8 @@ target_sources(codepad_core
 		"src/ui/manager.cpp"
 		"src/ui/misc.cpp"
 		"src/ui/panel.cpp"
+		"src/ui/property_path.cpp"
+		"src/ui/property_path_parser.cpp"
 		"src/ui/renderer.cpp"
 		"src/ui/scheduler.cpp"
 		"src/ui/window.cpp")

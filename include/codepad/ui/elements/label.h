@@ -117,11 +117,6 @@ namespace codepad::ui {
 			_on_text_layout_changed();
 		}
 
-		/// Returns the list of properties.
-		const property_mapping &get_properties() const override;
-
-		/// Adds the \p text_color, \p font, \p horizontal_alignment, \p vertical_alignment, and \p text properties.
-		static const property_mapping &get_properties_static();
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
 			return u8"label";
@@ -192,6 +187,10 @@ namespace codepad::ui {
 				_prev_client_size = client_size;
 			}
 		}
+
+		/// Handles the \p text_color, \p font, \p horizontal_alignment, \p vertical_alignment, \p text, \p wrapping,
+		/// \p wrapping_width_mode, and \p wrapping_width properties.
+		property_info _find_property_path(const property_path::component_list&) const override;
 
 		/// Creates an empty \ref formatted_text.
 		void _initialize(std::u8string_view cls) override {

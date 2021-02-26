@@ -30,9 +30,6 @@ namespace codepad::editors::code {
 			return 1.0;
 		}
 
-		/// Returns the list of properties of the \ref minimap.
-		const ui::property_mapping &get_properties() const override;
-
 		/// Sets the desired line height of minimaps.
 		inline static void set_target_line_height(double h) {
 			_target_height = h;
@@ -42,8 +39,6 @@ namespace codepad::editors::code {
 			return _target_height;
 		}
 
-		/// Adds the \p viewport_visuals property.
-		static const ui::property_mapping &get_properties_static();
 		/// Returns the default class of elements of type \ref minimap.
 		inline static std::u8string get_default_class() {
 			return u8"minimap";

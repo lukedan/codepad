@@ -11,7 +11,8 @@
 #include <functional>
 
 #include "misc.h"
-#include "animation_path.h"
+#include "property_path.h"
+#include "animation.h"
 #include "renderer.h"
 
 namespace codepad::ui {
@@ -162,8 +163,15 @@ namespace codepad::json {
 		template <typename Value> std::optional<ui::relative_double> operator()(const Value&) const;
 	};
 }
-
 namespace codepad::ui {
+	namespace property_finders {
+		/// Specialization for \ref relative_vec2d.
+		template <> property_info find_property_info<relative_vec2d>(component_property_accessor_builder&);
+		/// Specialization for \ref relative_double.
+		template <> property_info find_property_info<relative_double>(component_property_accessor_builder&);
+	}
+
+
 	/// Various types of transforms.
 	namespace transform_parameters {
 		/// The identity transform.
@@ -465,6 +473,13 @@ namespace codepad::ui {
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
+	namespace property_finders {
+		/// Specialization for \ref brush_parameters::solid_color.
+		template <> property_info find_property_info<brush_parameters::solid_color>(
+			component_property_accessor_builder&
+		);
+	}
+
 
 	/// Parameters for a generic brush.
 	struct generic_brush_parameters {
@@ -502,6 +517,12 @@ namespace codepad::ui {
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
+	namespace property_finders {
+		/// Specialization for \ref generic_brush_parameters.
+		template <> property_info find_property_info_managed<generic_brush_parameters>(
+			component_property_accessor_builder&, manager&
+		);
+	}
 
 	/// Parameters for a generic pen defined by a brush.
 	struct generic_pen_parameters {
@@ -526,6 +547,7 @@ namespace codepad::ui {
 		manager &_manager; ///< The associated \ref manager.
 	};
 }
+
 
 namespace codepad {
 	/// Various types of geometries that can be used in the definition of an element's visuals.
@@ -559,6 +581,10 @@ namespace codepad {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::rectangle> operator()(const Value&) const;
 		};
+	}
+	namespace ui::property_finders {
+		/// Specialization for \ref rectangle.
+		template <> property_info find_property_info<geometries::rectangle>(component_property_accessor_builder&);
 	}
 
 	namespace ui::geometries {
@@ -775,6 +801,12 @@ namespace codepad::ui {
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
+	namespace property_finders {
+		/// Specialization for \ref generic_visual_geometry.
+		template <> property_info find_property_info_managed<generic_visual_geometry>(
+			component_property_accessor_builder&, manager&
+		);
+	}
 
 
 	/// Parameters that determines the visuals of an element.
@@ -803,6 +835,12 @@ namespace codepad::ui {
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
+	namespace property_finders {
+		/// Specialization for \ref visuals.
+		template <> property_info find_property_info_managed<visuals>(
+			component_property_accessor_builder&, manager&
+		);
+	}
 
 	/// Parameters that determine the layout of an element.
 	struct element_layout {
@@ -828,8 +866,13 @@ namespace codepad::json {
 		);
 	};
 }
-
 namespace codepad::ui {
+	namespace property_finders {
+		/// Specialization for \ref element_layout.
+		template <> property_info find_property_info<element_layout>(component_property_accessor_builder&);
+	}
+
+
 	/// Contains configuration of an element's behavior.
 	struct element_configuration {
 	public:
@@ -853,20 +896,23 @@ namespace codepad::ui {
 				subject,
 				name; ///< The name of the event.
 		};
-
 		/// Stores the parameters used to start animations.
 		struct animation_parameters {
 			generic_keyframe_animation_definition definition; ///< The definition of the animation.
-			animation_path::component_list subject; ///< The animation subject.
+			property_path::component_list subject; ///< The animation subject.
 		};
-
 		/// Contains information about an event trigger.
 		struct event_trigger {
 			event_identifier identifier; ///< Identifier of the event.
 			std::vector<animation_parameters> animations; ///< The animations to play.
 		};
+		/// A property name and the associated value.
+		struct property_value {
+			property_path::component_list property; ///< Property name.
+			json::value_storage value; ///< The value of this property.
+		};
 
 		std::vector<event_trigger> event_triggers; ///< The list of event triggers.
-		std::map<std::u8string, json::value_storage> attributes; ///< Attributes of this element.
+		std::vector<property_value> properties; ///< Properties of this element.
 	};
 }

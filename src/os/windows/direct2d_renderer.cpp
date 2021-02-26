@@ -336,8 +336,9 @@ namespace codepad::os::direct2d {
 	}
 
 	void formatted_text::set_layout_size(vec2d sz) {
-		_details::com_check(_text->SetMaxWidth(static_cast<FLOAT>(std::max(sz.x, 0.0))));
-		_details::com_check(_text->SetMaxHeight(static_cast<FLOAT>(std::max(sz.y, 0.0))));
+		// std::max uses operator<, so we put 0.0 as the first argument so that this works even when the size is nan
+		_details::com_check(_text->SetMaxWidth(static_cast<FLOAT>(std::max(0.0, sz.x))));
+		_details::com_check(_text->SetMaxHeight(static_cast<FLOAT>(std::max(0.0, sz.y))));
 	}
 
 	ui::horizontal_text_alignment formatted_text::get_horizontal_alignment() const {

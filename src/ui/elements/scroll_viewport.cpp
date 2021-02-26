@@ -36,11 +36,7 @@ namespace codepad::ui {
 		}
 	}
 
-	const property_mapping &scroll_view::get_properties() const {
-		return get_properties_static();
-	}
-
-	const property_mapping &scroll_view::get_properties_static() {
+	/*const property_mapping &scroll_view::get_properties_static() {
 		static property_mapping mapping;
 		if (mapping.empty()) {
 			mapping = panel::get_properties_static();
@@ -54,7 +50,7 @@ namespace codepad::ui {
 		}
 
 		return mapping;
-	}
+	}*/
 
 	void scroll_view::_on_mouse_scroll(mouse_scroll_info &p) {
 		panel::_on_mouse_scroll(p);

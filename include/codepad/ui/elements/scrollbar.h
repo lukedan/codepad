@@ -184,15 +184,9 @@ namespace codepad::ui {
 			_on_smoothing_changed();
 		}
 
-		/// Returns the list of properties.
-		const property_mapping &get_properties() const override;
-
 		/// Invoked when the actual value of the scrollbar is changed.
 		info_event<value_changed_info> actual_value_changed;
 		info_event<> orientation_changed; ///< Invoked when the orientation of this element is changed.
-
-		/// Adds the \p orientation, \p smooth_scroll_duration, and \p smoothing properties.
-		static const property_mapping &get_properties_static();
 
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
@@ -298,5 +292,8 @@ namespace codepad::ui {
 		virtual void _on_smoothing_changed() {
 			_initiate_smooth_scrolling();
 		}
+
+		/// Handles the \p orientation, \p smooth_scroll_duration, and \p smoothing properties.
+		property_info _find_property_path(const property_path::component_list &path) const override;
 	};
 }

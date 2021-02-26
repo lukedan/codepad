@@ -4,14 +4,14 @@
 #pragma once
 
 /// \file
-/// Parser for animation paths.
+/// Parser for property paths.
 
 #include <string_view>
 
-#include "animation_path.h"
+#include "property_path.h"
 
-/// Parser for animation paths.
-namespace codepad::ui::animation_path::parser {
+/// Parser for property paths.
+namespace codepad::ui::property_path::parser {
 	// type = name
 	// property = name
 	// index = '[' number ']'

@@ -152,11 +152,7 @@ namespace codepad::editors::code {
 	}
 
 
-	const ui::property_mapping &minimap::get_properties() const {
-		return get_properties_static();
-	}
-
-	const ui::property_mapping &minimap::get_properties_static() {
+	/*const ui::property_mapping &minimap::get_properties_static() {
 		static ui::property_mapping mapping;
 		if (mapping.empty()) {
 			mapping = ui::element::get_properties_static();
@@ -171,7 +167,7 @@ namespace codepad::editors::code {
 		}
 
 		return mapping;
-	}
+	}*/
 
 	void minimap::_custom_render() const {
 		element::_custom_render();

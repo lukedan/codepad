@@ -83,8 +83,8 @@ namespace codepad::ui {
 		static void register_trigger_for(
 			element &trigger, element &affected, const element_configuration::event_trigger&
 		);
-		/// Sets all attributes of the given element.
-		static void set_attributes_of(element&, const std::map<std::u8string, json::value_storage>&);
+		/// Sets all properties of the given element.
+		static void set_properties_of(element&, const std::vector<element_configuration::property_value>&);
 
 		element_configuration configuration; ///< The configuration of this element.
 		std::vector<child> children; ///< Children of the composite element.

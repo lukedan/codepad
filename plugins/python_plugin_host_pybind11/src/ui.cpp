@@ -194,8 +194,6 @@ namespace python_plugin_host_pybind11 {
 			.def("invalidate_visual", &cp::ui::element::invalidate_visual)
 			.def("invalidate_layout", &cp::ui::element::invalidate_layout)
 
-			.def_property_readonly("properties", &cp::ui::element::get_properties, py::return_value_policy::reference)
-
 			.def_readonly("mouse_enter", &cp::ui::element::mouse_enter)
 			.def_readonly("mouse_leave", &cp::ui::element::mouse_leave)
 			.def_readonly("got_focus", &cp::ui::element::got_focus)

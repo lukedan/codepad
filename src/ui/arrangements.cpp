@@ -11,21 +11,18 @@
 #include "codepad/ui/manager.h"
 
 namespace codepad::ui {
-	/// Data relavent to the starting of animations. Shared pointers are used to allow for duplication.
-	struct _animation_starter {
+	/// Data relavent to the starting and playing of animations. Shared pointers are used because this is used with
+	/// \p std::function which requires it to be copy-constructible.
+	struct _animation_data {
 		/// Default constructor.
-		_animation_starter() = default;
+		_animation_data() = default;
 		/// Initializes all fields of this struct.
-		_animation_starter(
-			std::shared_ptr<animation_subject_base> sbj,
-			std::shared_ptr<animation_definition_base> def,
-			std::any data
-		) : subject(std::move(sbj)), definition(std::move(def)), subject_data(std::move(data)) {
+		_animation_data(property_info prop, std::shared_ptr<animation_definition_base> ani) :
+			property(std::move(prop)), animation(std::move(ani)) {
 		}
 
-		std::shared_ptr<animation_subject_base> subject; ///< Used to create animation subjects.
-		std::shared_ptr<animation_definition_base> definition; ///< Definition of this animation.
-		std::any subject_data; ///< Data used by \ref subject.
+		property_info property; ///< Used to create animation subjects.
+		std::shared_ptr<animation_definition_base> animation; ///< Definition of this animation.
 	};
 
 	element *class_arrangements::construction_context::find_by_name(std::u8string_view id, element &self) {
@@ -53,7 +50,7 @@ namespace codepad::ui {
 
 
 	element *class_arrangements::child::construct(construction_context &ctx) const {
-		element *e = ctx.logical_parent.get_manager().create_element_custom_no_event_or_attribute(
+		element *e = ctx.logical_parent.get_manager().create_element_custom_no_event_or_property(
 			type, element_class
 		);
 		if (e) {
@@ -86,55 +83,47 @@ namespace codepad::ui {
 	void class_arrangements::register_trigger_for(
 		element &trigger, element &affected, const element_configuration::event_trigger &ev
 	) {
-		const auto &properties = affected.get_properties();
-		std::vector<_animation_starter> anis;
+		std::vector<_animation_data> anis;
 		for (auto &ani : ev.animations) {
 			if (ani.subject.empty()) {
-				logger::get().log_warning(CP_HERE) << "empty animation path";
+				logger::get().log_error(CP_HERE) << "empty property path";
 				continue;
 			}
-			if (!ani.subject.front().type.empty()) {
-				logger::get().log_warning(CP_HERE) << "type at the very start of the animation path is ignored";
-			}
-			auto it = properties.find(ani.subject.front().property);
-			if (it == properties.end()) {
-				logger::get().log_warning(CP_HERE) <<
-					"property not found: " << 
-					animation_path::to_string(ani.subject.begin(), ani.subject.end());
+			property_info prop = affected._find_property_path(ani.subject);
+			if (prop.accessor == nullptr || prop.value_handler == nullptr) {
+				logger::get().log_error(CP_HERE) <<
+					"failed to find property corresponding to property path: " <<
+					property_path::to_string(ani.subject.begin(), ani.subject.end());
 				continue;
 			}
-			animation_subject_information subject = it->second->parse_animation_path(affected, ani.subject);
-			if (subject.parser == nullptr || subject.subject == nullptr) {
-				logger::get().log_warning(CP_HERE) <<
-					"failed to parse animation path: " <<
-					animation_path::to_string(ani.subject.begin(), ani.subject.end());
-				continue;
-			}
-			auto &&definition = subject.parser->parse_keyframe_animation(ani.definition, affected.get_manager());
-			anis.emplace_back(
-				std::move(subject.subject), std::move(definition), std::move(subject.subject_data)
-			);
+			auto kfani = prop.value_handler->parse_keyframe_animation(ani.definition);
+			anis.emplace_back(std::move(prop), std::move(kfani));
 		}
 		if (!trigger._register_event(ev.identifier.name, [target = &affected, animations = std::move(anis)]() {
 			for (auto &ani : animations) {
-				target->_start_animation(ani.definition->start(ani.subject));
+				target->_start_animation(ani.animation->start(target, ani.property.accessor));
 			}
 		})) {
-			logger::get().log_warning(CP_HERE) << "unknown event name: " << ev.identifier.name;
+			logger::get().log_error(CP_HERE) << "unknown event name: " << ev.identifier.name;
 		}
 	}
 
-	void class_arrangements::set_attributes_of(
-		element &elem, const std::map<std::u8string, json::value_storage> &attrs
+	void class_arrangements::set_properties_of(
+		element &elem, const std::vector<element_configuration::property_value> &attrs
 	) {
-		auto &properties = elem.get_properties();
-		for (const auto &[name, attr] : attrs) {
-			auto it = properties.find(name);
-			if (it != properties.end()) {
-				it->second->set_value(elem, attr);
-			} else {
-				logger::get().log_warning(CP_HERE) << "unknown attribute name: " << name;
+		for (const auto &[path, attr] : attrs) {
+			if (path.empty()) {
+				logger::get().log_error(CP_HERE) << "empty property path";
+				continue;
 			}
+			property_info prop = elem._find_property_path(path);
+			if (prop.accessor == nullptr || prop.value_handler == nullptr) {
+				logger::get().log_error(CP_HERE) <<
+					"failed to find property corresponding to property path: " <<
+					property_path::to_string(path.begin(), path.end());
+				continue;
+			}
+			prop.value_handler->set_value(&elem, *prop.accessor, attr);
 		}
 	}
 
@@ -151,11 +140,11 @@ namespace codepad::ui {
 		for (auto &&created : ctx.all_created) {
 			ctx.register_all_triggers_for(*created.second, created.first->configuration);
 		}
-		// additional attributes
-		// these are set after triggers are registered to enable elements to correctly react to attributes being set
-		set_attributes_of(logparent, configuration.attributes);
+		// additional properties
+		// these are set after triggers are registered to enable elements to correctly react to properties being set
+		set_properties_of(logparent, configuration.properties);
 		for (auto &&created : ctx.all_created) {
-			set_attributes_of(*created.second, created.first->configuration.attributes);
+			set_properties_of(*created.second, created.first->configuration.properties);
 		}
 		// construction notification
 		for (auto &created : ctx.all_created) {

@@ -11,7 +11,7 @@
 #include "hotkey_registry.h"
 #include "element_classes.h"
 #include "element.h"
-#include "animation_path_parser.h"
+#include "property_path_parser.h"
 
 namespace codepad::ui {
 	class manager;
@@ -40,17 +40,16 @@ namespace codepad::ui {
 		/// specified states already exists in \p value, it is kept if the inheritance is not overriden with
 		/// \p inherit_from.
 		void parse_configuration(const object_t &val, element_configuration &value) {
-			if (auto attrobj = val.template parse_optional_member<object_t>(u8"attributes")) {
+			if (auto attrobj = val.template parse_optional_member<object_t>(u8"properties")) {
 				for (auto it = attrobj->member_begin(); it != attrobj->member_end(); ++it) {
-					json::value_storage attr_value = json::store(it.value());
-					// FIXME here emplace() moves the json value, while try_emplace requires a new string to be
-					//       constructed
-					auto [attr_iter, inserted] = value.attributes.try_emplace(
-						std::u8string(it.name()), std::move(attr_value)
-					);
-					if (!inserted) { // override base value
-						attr_iter->second = std::move(attr_value);
+					property_path::component_list components;
+					auto res = property_path::parser::parse(it.name(), components);
+					if (res != property_path::parser::result::completed) {
+						logger::get().log_error(CP_HERE) << "failed to parse property path: " << it.name();
+						continue;
 					}
+					json::value_storage attr_value = json::store(it.value());
+					value.properties.emplace_back(std::move(components), std::move(attr_value));
 				}
 			}
 
@@ -67,11 +66,11 @@ namespace codepad::ui {
 						element_configuration::event_trigger trigger;
 						trigger.identifier = element_configuration::event_identifier::parse_from_string(sbit.name());
 						for (auto aniit = ani_obj->member_begin(); aniit != ani_obj->member_end(); ++aniit) {
-							animation_path::component_list components;
-							auto res = animation_path::parser::parse(aniit.name(), components);
-							if (res != animation_path::parser::result::completed) {
+							property_path::component_list components;
+							auto res = property_path::parser::parse(aniit.name(), components);
+							if (res != property_path::parser::result::completed) {
 								aniit.value().template log<log_level::error>(CP_HERE) <<
-									"failed to segment animation path, skipping";
+									"failed to segment property path, skipping";
 								continue;
 							}
 							element_configuration::animation_parameters aniparams;

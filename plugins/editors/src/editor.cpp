@@ -9,11 +9,7 @@
 #include "codepad/ui/json_parsers.inl"
 
 namespace codepad::editors {
-	const ui::property_mapping &contents_region_base::get_properties() const {
-		return get_properties_static();
-	}
-
-	const ui::property_mapping &contents_region_base::get_properties_static() {
+	/*const ui::property_mapping &contents_region_base::get_properties_static() {
 		static ui::property_mapping mapping;
 		if (mapping.empty()) {
 			mapping = ui::element::get_properties_static();
@@ -28,7 +24,7 @@ namespace codepad::editors {
 		}
 
 		return mapping;
-	}
+	}*/
 
 	bool contents_region_base::_register_edit_mode_changed_event(
 		std::u8string_view name, std::function<void()> &callback

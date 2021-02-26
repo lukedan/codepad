@@ -91,61 +91,67 @@ namespace codepad::ui {
 		get_manager().get_scheduler().invalidate_layout(*this);
 	}
 
-	const property_mapping &element::get_properties() const {
-		return get_properties_static();
-	}
+	property_info element::_find_property_path(const property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"element")) {
+			if (path.front().property == u8"layout") {
+				return property_info::find_member_pointer_property_info<&element::_layout_params, element>(
+					path, property_info::make_typed_modification_callback<element>([](element &e) {
+						e._on_layout_parameters_changed();
+					})
+				);
+			}
+			if (path.front().property == u8"visuals") {
+				return property_info::find_member_pointer_property_info_managed<&element::_visual_params, element>(
+					path, get_manager(), property_info::make_typed_modification_callback<element>([](element &e) {
+						e.invalidate_visual();
+					})
+				);
+			}
+			if (path.front().property == u8"cursor") {
+				return property_info::find_member_pointer_property_info<&element::_custom_cursor, element>(path);
+			}
+			if (path.front().property == u8"visibility") {
+				return property_info::make_getter_setter_property_info<element, visibility>(
+					[](const element &e) {
+						return e.get_visibility();
+					},
+					[](element &e, visibility vis) {
+						e.set_visibility(vis);
+					}
+				);
+			}
+			if (path.front().property == u8"z_index") {
+				return property_info::make_getter_setter_property_info<element, int>(
+					[](const element &e) {
+						return e.get_zindex();
+					},
+					[](element &e, int val) {
+						e.set_zindex(val);
+					}
+				);
+			}
+			if (path.front().property == u8"clip_to_bounds") {
+				return property_info::make_getter_setter_property_info<element, bool>(
+					[](const element &e) {
+						return e.get_clip_to_bounds();
+					},
+					[](element &e, bool val) {
+						e.set_clip_to_bounds(val);
+					}
+				);
+			}
 
-	const property_mapping &element::get_properties_static() {
-		static property_mapping mapping;
-		if (mapping.empty()) {
-			mapping.emplace(u8"layout", std::make_shared<member_pointer_property<&element::_layout_params>>(
-				[](element &e) {
-					e._on_layout_parameters_changed();
-				}
-			));
-			mapping.emplace(u8"visuals", std::make_shared<member_pointer_property<&element::_visual_params>>(
-				[](element &e) {
-					e.invalidate_visual();
-				}
-			));
-			mapping.emplace(u8"cursor", std::make_shared<member_pointer_property<&element::_custom_cursor>>());
-			mapping.emplace(u8"visibility", std::make_shared<getter_setter_property<element, visibility>>(
-				u8"visibility",
-				[](element &e) {
-					return e.get_visibility();
-				},
-				[](element &e, visibility vis) {
-					e.set_visibility(vis);
-				}
-				));
-			mapping.emplace(u8"z_index", std::make_shared<getter_setter_property<element, int>>(
-				u8"z_index",
-				[](element &e) {
-					return e.get_zindex();
-				},
-				[](element &e, int z) {
-					e.set_zindex(z);
-				}
-				));
-			mapping.emplace(u8"clip_to_bounds", std::make_shared<getter_setter_property<element, bool>>(
-				u8"clip_to_bounds",
-				[](element &e) {
-					return e.get_clip_to_bounds();
-				},
-				[](element &e, bool clip) {
-					e.set_clip_to_bounds(clip);
-				}
-				));
 		}
-
-		return mapping;
+		logger::get().log_error(CP_HERE) <<
+			"invalid property path: " << property_path::to_string(path.begin(), path.end());
+		return property_info();
 	}
 
 	void element::_start_animation(std::unique_ptr<playing_animation_base> ani) {
 		{ // remove animations with the same subject
 			auto it = _animations.begin();
 			while (it != _animations.end()) {
-				if (it->animation->get_subject().equals(ani->get_subject())) {
+				if (true/*it->animation->get_subject().equals(ani->get_subject())*/) { // TODO animation_path
 					get_manager().get_scheduler().cancel_task(it->task);
 					it = _animations.erase(it);
 				} else {

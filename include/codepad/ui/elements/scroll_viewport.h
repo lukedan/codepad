@@ -138,12 +138,6 @@ namespace codepad::ui {
 			_viewport->set_scroll_offset(offset);
 		}
 
-		/// Returns the list of properties.
-		const property_mapping &get_properties() const override;
-
-		/// Adds the \p horizontal_delta and \p vertical_delta property.
-		static const property_mapping &get_properties_static();
-
 		/// Returns the name of \ref _viewport.
 		inline static std::u8string_view get_viewport_name() {
 			return u8"viewport";

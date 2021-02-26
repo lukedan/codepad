@@ -55,36 +55,6 @@ namespace codepad::ui {
 		);
 	}
 
-	const property_mapping &scrollbar::get_properties() const {
-		return get_properties_static();
-	}
-
-	const property_mapping &scrollbar::get_properties_static() {
-		static property_mapping mapping;
-		if (mapping.empty()) {
-			mapping = panel::get_properties_static();
-
-			mapping.emplace(u8"orientation", std::make_shared<getter_setter_property<scrollbar, orientation>>(
-				u8"orientation",
-				[](scrollbar &bar) {
-					return bar.get_orientation();
-				},
-				[](scrollbar &bar, orientation ori) {
-					bar.set_orientation(ori);
-				}
-				));
-
-			mapping.emplace(
-				u8"smooth_scroll_duration", std::make_shared<member_pointer_property<&scrollbar::_smooth_duration>>()
-			);
-			mapping.emplace(
-				u8"smoothing", std::make_shared<member_pointer_property<&scrollbar::_smoothing_transition>>()
-			);
-		}
-
-		return mapping;
-	}
-
 	void scrollbar::_on_update_children_layout() {
 		rectd cln = get_client_region();
 		double min, max, mid1, mid2;
@@ -217,5 +187,29 @@ namespace codepad::ui {
 		} else {
 			_update_actual_value(get_target_value());
 		}
+	}
+
+	property_info scrollbar::_find_property_path(const property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"scrollbar")) {
+			if (path.front().property == u8"orientation") {
+				return property_info::make_getter_setter_property_info<scrollbar, orientation, element>(
+					[](const scrollbar &bar) {
+						return bar.get_orientation();
+					},
+					[](scrollbar &bar, orientation ori) {
+						bar.set_orientation(ori);
+					}
+				);
+			}
+			if (path.front().property == u8"smooth_scroll_duration") {
+				return property_info::find_member_pointer_property_info<&scrollbar::_smooth_duration, element>(path);
+			}
+			if (path.front().property == u8"smoothing") {
+				return property_info::find_member_pointer_property_info_managed<
+					&scrollbar::_smoothing_transition, element
+				>(path, get_manager());
+			}
+		}
+		return panel::_find_property_path(path);
 	}
 }

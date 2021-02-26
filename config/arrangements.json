@@ -1,6 +1,6 @@
 {
 	"fill": {
-		"attributes": {
+		"properties": {
 			"layout": {
 				"width": "100%",
 				"height": "100%",
@@ -12,14 +12,14 @@
 
 
 	"window": {
-		"attributes": {
+		"properties": {
 			"layout": {
 				"padding": 3
 			}
 		}
 	},
 	"label": {
-		"attributes": {
+		"properties": {
 			"font": {
 				"family": "Comic Sans MS",
 				"size": 20,
@@ -45,7 +45,7 @@
 	},
 
 	"hover_window": {
-		"attributes": {
+		"properties": {
 			"visibility": "-f",
 			"layout": {
 				"width": "auto",
@@ -55,7 +55,7 @@
 		}
 	},
 	"hover_label": {
-		"attributes": {
+		"properties": {
 			"visibility": "-f",
 			"font": {
 				"family": "Comic Sans MS",
@@ -85,7 +85,7 @@
 	},
 
 	"scrollbar": {
-		"attributes": {
+		"properties": {
 			"layout": {
 				"size": [ 8, 8 ],
 				"width_alloc": "*",
@@ -118,7 +118,7 @@
 			{
 				"type": "button",
 				"name": "page_up_button",
-				"attributes": {
+				"properties": {
 					"visibility": "-f",
 					"layout": {
 						"width": "100%",
@@ -129,7 +129,7 @@
 			{
 				"type": "scrollbar_drag_button",
 				"name": "drag_button",
-				"attributes": {
+				"properties": {
 					"visibility": "-f",
 					"layout": {
 						"width": "100%",
@@ -172,7 +172,7 @@
 			{
 				"type": "button",
 				"name": "page_down_button",
-				"attributes": {
+				"properties": {
 					"visibility": "-f",
 					"layout": {
 						"width": "100%",
@@ -196,7 +196,7 @@
 	},
 
 	"text_edit": {
-		"attributes": {
+		"properties": {
 			"font": {
 				"family": "Comic Sans MS",
 				"size": 20,
@@ -249,7 +249,7 @@
 			{
 				"type": "scrollbar",
 				"name": "vertical_scrollbar",
-				"attributes": {
+				"properties": {
 					"orientation": "vertical",
 					"layout": {
 						"size": [ 8.0, 1.0 ],
@@ -263,7 +263,7 @@
 			{
 				"type": "scrollbar",
 				"name": "horizontal_scrollbar",
-				"attributes": {
+				"properties": {
 					"orientation": "horizontal",
 					"layout": {
 						"size": [ 1.0, 8.0 ],
@@ -277,7 +277,7 @@
 			{
 				"type": "scroll_viewport",
 				"name": "viewport",
-				"attributes": {
+				"properties": {
 					"visibility": "-f",
 					"layout": {
 						"size": [ 300.0, 100.0 ],
@@ -294,7 +294,7 @@
 					{
 						"type": "text_edit",
 						"name": "text_edit",
-						"attributes": {
+						"properties": {
 							"layout": {
 								"anchor": "lt"
 							},
@@ -307,7 +307,7 @@
 	},
 
 	"drag_destination_indicator_block": {
-		"attributes": {
+		"properties": {
 			"layout": {
 				"width": "30px",
 				"height": "30px",
@@ -316,7 +316,7 @@
 		}
 	},
 	"drag_destination_selector": {
-		"attributes": {
+		"properties": {
 			"layout": {
 				"width": "100%",
 				"height": "100%"
@@ -480,7 +480,7 @@
 		"children": [
 			{
 				"type": "panel",
-				"attributes": {
+				"properties": {
 					"layout": {
 						"width": "100px",
 						"height": "100px",
@@ -492,7 +492,7 @@
 					{
 						"type": "element",
 						"name": "split_left_indicator",
-						"attributes": {
+						"properties": {
 							"visuals": {
 								"geometries": [
 									{
@@ -552,7 +552,7 @@
 					{
 						"type": "element",
 						"name": "split_right_indicator",
-						"attributes": {
+						"properties": {
 							"visuals": {
 								"geometries": [
 									{
@@ -612,7 +612,7 @@
 					{
 						"type": "element",
 						"name": "split_up_indicator",
-						"attributes": {
+						"properties": {
 							"visuals": {
 								"geometries": [
 									{
@@ -672,7 +672,7 @@
 					{
 						"type": "element",
 						"name": "split_down_indicator",
-						"attributes": {
+						"properties": {
 							"visuals": {
 								"geometries": [
 									{
@@ -732,7 +732,7 @@
 					{
 						"type": "element",
 						"name": "combine_indicator",
-						"attributes": {
+						"properties": {
 							"visuals": {
 								"geometries": [
 									{
@@ -795,7 +795,7 @@
 	},
 
 	"tab_host": {
-		"attributes": {
+		"properties": {
 			"clip_to_bounds": true,
 			"layout": {
 				"width": "100%",
@@ -805,7 +805,7 @@
 		"children": [
 			{
 				"type": "stack_panel",
-				"attributes": {
+				"properties": {
 					"layout": {
 						"width": "100%",
 						"height": "100%"
@@ -816,7 +816,7 @@
 					{
 						"type": "animated_tab_buttons_panel",
 						"name": "tab_buttons_region",
-						"attributes": {
+						"properties": {
 							"layout": {
 								"width": "100%",
 								"height": "auto",
@@ -828,7 +828,7 @@
 					{
 						"type": "panel",
 						"name": "tab_contents_region",
-						"attributes": {
+						"properties": {
 							"layout": {
 								"width": "100%",
 								"height": "100%"
@@ -841,7 +841,7 @@
 	},
 	"tab_button": {
 		"name": "main",
-		"attributes": {
+		"properties": {
 			"layout": {
 				"width": "auto",
 				"height": "auto"
@@ -885,7 +885,7 @@
 		"children": [
 			{
 				"type": "stack_panel",
-				"attributes": {
+				"properties": {
 					"layout": {
 						"height": "auto",
 						"padding": 5.0
@@ -895,7 +895,7 @@
 					{
 						"type": "label",
 						"name": "label",
-						"attributes": {
+						"properties": {
 							"visibility": "vl",
 							"layout": {
 								"margin": [ 0.0, 1.0, 0.0, 1.0 ],
@@ -933,7 +933,7 @@
 					{
 						"type": "button",
 						"name": "close_button",
-						"attributes": {
+						"properties": {
 							"visuals": {
 								"geometries": [
 									{
@@ -1028,7 +1028,7 @@
 		]
 	},
 	"tab": {
-		"attributes": {
+		"properties": {
 			"clip_to_bounds": true,
 			"layout": {
 				"width": "100%",
@@ -1066,7 +1066,7 @@
 
 	"split_panel": {
 		"name": "main",
-		"attributes": {
+		"properties": {
 			"layout": {
 				"width": "100%",
 				"height": "100%"
@@ -1076,7 +1076,7 @@
 			{
 				"type": "element",
 				"name": "separator",
-				"attributes": {
+				"properties": {
 					"visibility": "-f",
 					"layout": {
 						"size": [ 5, 5 ],
@@ -1171,7 +1171,7 @@
 
 	"code_editor": {
 		"name": "main",
-		"attributes": {
+		"properties": {
 			"layout": {
 				"width": "100%",
 				"height": "100%"
@@ -1181,7 +1181,7 @@
 			{
 				"type": "scrollbar",
 				"name": "vertical_scrollbar",
-				"attributes": {
+				"properties": {
 					"orientation": "vertical",
 					"layout": {
 						"anchor": "tbr",
@@ -1194,7 +1194,7 @@
 			{
 				"type": "scrollbar",
 				"name": "horizontal_scrollbar",
-				"attributes": {
+				"properties": {
 					"orientation": "horizontal",
 					"layout": {
 						"anchor": "lbr",
@@ -1207,7 +1207,7 @@
 			{
 				"type": "stack_panel",
 				"name": "components_panel",
-				"attributes": {
+				"properties": {
 					"visibility": "-f",
 					"orientation": "horizontal",
 					"layout": {
@@ -1219,7 +1219,7 @@
 				"children": [
 					{
 						"type": "line_number_display",
-						"attributes": {
+						"properties": {
 							"visibility": "-f",
 							"layout": {
 								"padding": [ 10, 0, 5, 0 ]
@@ -1229,7 +1229,7 @@
 					{
 						"type": "code_contents_region",
 						"name": "contents_region",
-						"attributes": {
+						"properties": {
 							"visibility": "-f",
 							"layout": {
 								"height": "100%",
@@ -1340,7 +1340,7 @@
 					},
 					{
 						"type": "minimap",
-						"attributes": {
+						"properties": {
 							"visibility": "-f",
 							"layout": {
 								"height": "100%"
@@ -1387,7 +1387,7 @@
 		]
 	},
 	"binary_editor": {
-		"attributes": {
+		"properties": {
 			"layout": {
 				"width": "100%",
 				"height": "100%"
@@ -1397,7 +1397,7 @@
 			{
 				"type": "scrollbar",
 				"name": "vertical_scrollbar",
-				"attributes": {
+				"properties": {
 					"orientation": "vertical",
 					"layout": {
 						"anchor": "tbr",
@@ -1410,7 +1410,7 @@
 			{
 				"type": "scrollbar",
 				"name": "horizontal_scrollbar",
-				"attributes": {
+				"properties": {
 					"layout": {
 						"anchor": "lrb",
 						"margin": [ 0.0, 0.0, 0.0, 0.0 ],
@@ -1423,7 +1423,7 @@
 			{
 				"type": "stack_panel",
 				"name": "components_panel",
-				"attributes": {
+				"properties": {
 					"visibility": "-f",
 					"layout": {
 						"width": "100%",
@@ -1435,7 +1435,7 @@
 				"children": [
 					{
 						"type": "primary_offset_display",
-						"attributes": {
+						"properties": {
 							"visibility": "-f",
 							"layout": {
 								"width": "auto",
@@ -1447,7 +1447,7 @@
 					{
 						"type": "binary_contents_region",
 						"name": "contents_region",
-						"attributes": {
+						"properties": {
 							"visibility": "-f",
 							"layout": {
 								"width": "1*",

@@ -69,12 +69,12 @@ namespace codepad::ui {
 
 		/// Constructs and returns an element of the specified type, class, and \ref element_configuration. This
 		/// function does not handle event triggers and animations.
-		element *create_element_custom_no_event_or_attribute(
+		element *create_element_custom_no_event_or_property(
 			std::u8string_view type, std::u8string_view cls
 		);
-		/// Constructs an element by calling \ref create_element_custom_no_event_or_attribute(), then registers
-		/// triggers and sets attributes of the element if the element is not derived from \ref panel. The events are
-		/// registered before attributes are set so that they can be invoked accordingly.
+		/// Constructs an element by calling \ref create_element_custom_no_event_or_property(), then registers
+		/// triggers and sets properties of the element if the element is not derived from \ref panel. The events are
+		/// registered before properties are set so that they can be invoked accordingly.
 		element *create_element_custom(
 			std::u8string_view type, std::u8string_view cls, const element_configuration&
 		);
@@ -224,7 +224,25 @@ namespace codepad::ui {
 	};
 
 
-	template <typename T> inline std::optional<T> typed_animation_value_parser<T>::parse_static(
+	template <
+		typename T
+	> inline std::shared_ptr<animation_definition_base> typed_animation_value_handler<T>::parse_keyframe_animation(
+		const generic_keyframe_animation_definition &def
+	) const {
+		using animation = keyframe_animation_definition<T>;
+		std::vector<typename animation::keyframe> keyframes;
+		for (auto &&kf : def.keyframes) {
+			if (auto target = parse(kf.target)) {
+				keyframes.emplace_back(target.value(), kf.duration, kf.transition_func);
+			} else {
+				logger::get().log_error(CP_HERE) << "failed to parse keyframe target";
+			}
+		}
+		return std::make_shared<animation>(std::move(keyframes), *this, def.repeat_times);
+	}
+
+
+	template <typename T> inline std::optional<T> managed_animation_value_handler<T>::parse_static(
 		const json::value_storage &value, [[maybe_unused]] manager &m
 	) {
 		if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) { // load textures
@@ -236,23 +254,4 @@ namespace codepad::ui {
 			return value.get_value().parse<T>(managed_json_parser<T>(m));
 		}
 	}
-
-	template <
-		typename T
-	> inline std::unique_ptr<animation_definition_base> typed_animation_value_parser<T>::parse_keyframe_animation(
-		const generic_keyframe_animation_definition &def, manager &m
-	) const {
-		using animation = keyframe_animation_definition<T, default_lerp<T>>;
-		std::vector<typename animation::keyframe> keyframes;
-		for (auto &&kf : def.keyframes) {
-			if (auto target = try_parse(kf.target, m)) {
-				keyframes.emplace_back(target.value(), kf.duration, kf.transition_func);
-			} else {
-				logger::get().log_warning(CP_HERE) << "failed to parse keyframe target";
-			}
-		}
-		return std::make_unique<animation>(std::move(keyframes), def.repeat_times);
-	}
-
-
 }

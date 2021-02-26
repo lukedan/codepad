@@ -1,12 +1,12 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "codepad/ui/animation_path_parser.h"
+#include "codepad/ui/property_path_parser.h"
 
 /// \file
-/// Implementation of the animation path parser.
+/// Implementation of the property path parser.
 
-namespace codepad::ui::animation_path::parser {
+namespace codepad::ui::property_path::parser {
 	namespace components {
 		result parse_string(std::u8string_view::const_iterator &it, std::u8string_view::const_iterator end) {
 			std::size_t nchars = 0;

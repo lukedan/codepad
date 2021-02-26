@@ -60,12 +60,6 @@ namespace codepad::editors {
 			return _selection_renderer;
 		}
 
-		/// Returns the list of properties.
-		const ui::property_mapping &get_properties() const override;
-
-		/// Adds the \p caret_visuals, \p selection_brush, and \p selection_pen properties.
-		static const ui::property_mapping &get_properties_static();
-
 		info_event<>
 			/// Invoked when the visual of the contents has changed, e.g., when it is modified, when the document
 			/// that's being edited is changed, or when the font has been changed, etc.

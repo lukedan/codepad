@@ -58,7 +58,7 @@ namespace codepad::ui {
 		};
 	}
 
-	element *manager::create_element_custom_no_event_or_attribute(
+	element *manager::create_element_custom_no_event_or_property(
 		std::u8string_view type, std::u8string_view cls
 	) {
 		auto it = _element_registry.find(type);
@@ -77,7 +77,7 @@ namespace codepad::ui {
 	element *manager::create_element_custom(
 		std::u8string_view type, std::u8string_view cls, const element_configuration &config
 	) {
-		element *elem = create_element_custom_no_event_or_attribute(type, cls);
+		element *elem = create_element_custom_no_event_or_property(type, cls);
 		if (elem) {
 			if (dynamic_cast<panel*>(elem) == nullptr) { // only register stuff for non-panels
 				// register event triggers
@@ -89,8 +89,8 @@ namespace codepad::ui {
 					}
 					class_arrangements::register_trigger_for(*elem, *elem, trigger);
 				}
-				// set attributes
-				class_arrangements::set_attributes_of(*elem, config.attributes);
+				// set properties
+				class_arrangements::set_properties_of(*elem, config.properties);
 			}
 		}
 		return elem;

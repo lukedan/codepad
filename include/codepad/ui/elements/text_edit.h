@@ -110,15 +110,9 @@ namespace codepad::ui {
 		void delete_character_after_caret();
 
 
-		/// Returns the list of properties.
-		const property_mapping &get_properties() const override;
-
 		info_event<>
 			caret_changed, ///< Invoked when the caret or the selection has been changed.
 			text_changed; ///< Invoked when the text has been changed.
-
-		/// Adds the \p caret_visuals property.
-		static const property_mapping &get_properties_static();
 
 		/// Returns the default class used by elements of type \ref text_edit.
 		inline static std::u8string_view get_default_class() {
