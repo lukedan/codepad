@@ -92,6 +92,9 @@ namespace codepad::ui::property_path {
 
 			/// Retrieves a pointer to the property from the object.
 			[[nodiscard]] virtual any_ptr get(const any_ptr&) const = 0;
+
+			/// Tests the equality of two components.
+			[[nodiscard]] virtual bool equals(const component_base&) const = 0;
 		};
 
 		/// A component that retrieves the value through a member pointer.
@@ -104,6 +107,11 @@ namespace codepad::ui::property_path {
 					return &(obj->*MemberPtr);
 				}
 				return nullptr;
+			}
+
+			/// Tests equality using \p dynamic_cast.
+			bool equals(const component_base &rhs) const override {
+				return dynamic_cast<const member_pointer_component*>(&rhs) != nullptr;
 			}
 		};
 		/// A component that retrieves the value at the given index from a \p std::vector.
@@ -122,6 +130,14 @@ namespace codepad::ui::property_path {
 				return nullptr;
 			}
 
+			/// Tests equality using \p dynamic_cast, then tests \ref index.
+			bool equals(const component_base &rhs) const override {
+				if (auto comp = dynamic_cast<const array_component*>(&rhs)) {
+					return comp->index == index;
+				}
+				return false;
+			}
+
 			std::size_t index = 0; ///< The index.
 		};
 		/// Used to access an object in a \p std::variant.
@@ -136,6 +152,11 @@ namespace codepad::ui::property_path {
 				}
 				return nullptr;
 			}
+
+			/// Tests equality using \p dynamic_cast.
+			bool equals(const component_base &rhs) const override {
+				return dynamic_cast<const variant_component*>(&rhs) != nullptr;
+			}
 		};
 		/// A component used to \p dynamic_cast the pointer to the correct type.
 		template <typename Target, typename Source> class dynamic_cast_component : public component_base {
@@ -149,6 +170,11 @@ namespace codepad::ui::property_path {
 				}
 				return nullptr;
 			}
+
+			/// Tests equality using \p dynamic_cast.
+			bool equals(const component_base &rhs) const override {
+				return dynamic_cast<const dynamic_cast_component*>(&rhs) != nullptr;
+			}
 		};
 	}
 
@@ -160,6 +186,9 @@ namespace codepad::ui::property_path {
 		public:
 			/// Default virtual destructor.
 			virtual ~accessor_base() = default;
+
+			/// Tests the equality of two accessors.
+			[[nodiscard]] virtual bool equals(const accessor_base&) const = 0;
 		};
 		/// Base class of typed accessors.
 		template <typename T> class typed_accessor : public accessor_base {
@@ -215,6 +244,22 @@ namespace codepad::ui::property_path {
 				}
 			}
 
+			/// Tests all components for equality. \ref modification_callback is not checked.
+			bool equals(const accessor_base &rhs) const override {
+				if (auto *typed = dynamic_cast<const address_accessor*>(&rhs)) {
+					if (typed->components.size() != components.size()) {
+						return false;
+					}
+					for (std::size_t i = 0; i < components.size(); ++i) {
+						if (!typed->components[i]->equals(*components[i])) {
+							return false;
+						}
+					}
+					return true;
+				}
+				return false;
+			}
+
 			/// The array of components.
 			std::vector<std::unique_ptr<address_accessor_components::component_base>> components;
 			/// The callback function that's invoked when \ref set_value() is called.
@@ -225,8 +270,9 @@ namespace codepad::ui::property_path {
 		public:
 			/// Initializes the getter and the setter.
 			getter_setter_accessor(
-				std::function<std::optional<T>(const Owner&)> get, std::function<void(Owner&, T)> set
-			) : getter(std::move(get)), setter(std::move(set)) {
+				std::function<std::optional<T>(const Owner&)> get, std::function<void(Owner&, T)> set,
+				std::u8string_view id
+			) : getter(std::move(get)), setter(std::move(set)), identifier(id) {
 			}
 
 			/// Returns the value via \ref getter.
@@ -247,8 +293,17 @@ namespace codepad::ui::property_path {
 				}
 			}
 
+			/// Checks if the \ref identifier of the two accessors are the same.
+			bool equals(const accessor_base &rhs) const override{
+				if (auto *typed = dynamic_cast<const getter_setter_accessor*>(&rhs)) {
+					return typed->identifier == identifier;
+				}
+				return false;
+			}
+
 			std::function<std::optional<T>(const Owner&)> getter; ///< The getter function.
 			std::function<void(Owner&, T)> setter; ///< The setter function.
+			std::u8string_view identifier; ///< Identifier used in equality tests.
 		};
 	}
 }

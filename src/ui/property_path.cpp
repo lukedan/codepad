@@ -115,6 +115,20 @@ namespace codepad::ui {
 			return builder.fail();
 		}
 
+		template <> property_info find_property_info<gradient_stop>(component_property_accessor_builder &builder) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<gradient_stop>();
+			}
+			builder.expect_type(u8"gradient_stop");
+			if (builder.current_component().property == u8"color") {
+				return builder.append_member_and_find_property_info<&gradient_stop::color>();
+			}
+			if (builder.current_component().property == u8"position") {
+				return builder.append_member_and_find_property_info<&gradient_stop::position>();
+			}
+			return builder.fail();
+		}
+
 		template <> property_info find_property_info<relative_vec2d>(component_property_accessor_builder &builder) {
 			if (!builder.move_next()) {
 				return builder.finish_and_create_property_info<relative_vec2d>();
@@ -144,6 +158,106 @@ namespace codepad::ui {
 		}
 
 
+		template <> property_info find_property_info<transform_parameters::translation>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.fail(); // no parser for transform sub-types
+			}
+			builder.expect_type(u8"translation_transform");
+			if (builder.current_component().property == u8"offset") {
+				return builder.append_member_and_find_property_info<&transform_parameters::translation::offset>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<transform_parameters::scale>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.fail(); // no parser for transform sub-types
+			}
+			builder.expect_type(u8"scale_transform");
+			if (builder.current_component().property == u8"center") {
+				return builder.append_member_and_find_property_info<&transform_parameters::scale::center>();
+			}
+			if (builder.current_component().property == u8"scale_factor") {
+				return builder.append_member_and_find_property_info<&transform_parameters::scale::scale_factor>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<transform_parameters::rotation>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.fail(); // no parser for transform sub-types
+			}
+			builder.expect_type(u8"rotation_transform");
+			if (builder.current_component().property == u8"center") {
+				return builder.append_member_and_find_property_info<&transform_parameters::rotation::center>();
+			}
+			if (builder.current_component().property == u8"angle") {
+				return builder.append_member_and_find_property_info<&transform_parameters::rotation::angle>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<transform_parameters::collection>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.fail(); // no parser for transform sub-types
+			}
+			builder.expect_type(u8"transform_collection");
+			if (builder.current_component().property == u8"children") {
+				builder.make_append_member_pointer_component<&transform_parameters::collection::components>();
+				return find_array_property_info<transform_parameters::generic>(builder);
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<transform_parameters::generic>(
+			component_property_accessor_builder &builder
+		) {
+			auto *next_comp = builder.peek_next();
+			if (!next_comp) {
+				return builder.finish_and_create_property_info<transform_parameters::generic>();
+			}
+			if (next_comp->is_type_or_empty(u8"transform")) {
+				builder.move_next();
+				if (builder.current_component().property != u8"value") {
+					return builder.fail();
+				}
+				next_comp = builder.peek_next();
+				if (!next_comp) {
+					return builder.fail();
+				}
+			}
+			if (next_comp->type == u8"translation_transform") {
+				return builder.append_variant_and_find_property_info<
+					&transform_parameters::generic::value, transform_parameters::translation
+				>();
+			}
+			if (next_comp->type == u8"scale_transform") {
+				return builder.append_variant_and_find_property_info<
+					&transform_parameters::generic::value, transform_parameters::scale
+				>();
+			}
+			if (next_comp->type == u8"rotation_transform") {
+				return builder.append_variant_and_find_property_info<
+					&transform_parameters::generic::value, transform_parameters::rotation
+				>();
+			}
+			if (next_comp->type == u8"transform_collection") {
+				return builder.append_variant_and_find_property_info<
+					&transform_parameters::generic::value, transform_parameters::collection
+				>();
+			}
+			return builder.fail();
+		}
+
+
 		template <> property_info find_property_info<brush_parameters::solid_color>(
 			component_property_accessor_builder &builder
 		) {
@@ -157,19 +271,57 @@ namespace codepad::ui {
 			return builder.fail();
 		}
 
-
-		template <> property_info find_property_info<geometries::rectangle>(
+		template <> property_info find_property_info<brush_parameters::linear_gradient>(
 			component_property_accessor_builder &builder
 		) {
 			if (!builder.move_next()) {
-				return builder.finish_and_create_property_info<geometries::rectangle>();
+				return builder.finish_and_create_property_info<brush_parameters::linear_gradient>();
 			}
-			builder.expect_type(u8"rectangle");
-			if (builder.current_component().property == u8"top_left") {
-				return builder.append_member_and_find_property_info<&geometries::rectangle::top_left>();
+			builder.expect_type(u8"linear_gradient_brush");
+			if (builder.current_component().property == u8"gradient_stops") {
+				builder.make_append_member_pointer_component<&brush_parameters::linear_gradient::gradient_stops>();
+				return find_array_property_info<gradient_stop>(builder);
 			}
-			if (builder.current_component().property == u8"bottom_right") {
-				return builder.append_member_and_find_property_info<&geometries::rectangle::bottom_right>();
+			if (builder.current_component().property == u8"from") {
+				return builder.append_member_and_find_property_info<&brush_parameters::linear_gradient::from>();
+			}
+			if (builder.current_component().property == u8"to") {
+				return builder.append_member_and_find_property_info<&brush_parameters::linear_gradient::to>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<brush_parameters::radial_gradient>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<brush_parameters::radial_gradient>();
+			}
+			builder.expect_type(u8"radial_gradient_brush");
+			if (builder.current_component().property == u8"gradient_stops") {
+				builder.make_append_member_pointer_component<&brush_parameters::radial_gradient::gradient_stops>();
+				return find_array_property_info<gradient_stop>(builder);
+			}
+			if (builder.current_component().property == u8"center") {
+				return builder.append_member_and_find_property_info<&brush_parameters::radial_gradient::center>();
+			}
+			if (builder.current_component().property == u8"radius") {
+				return builder.append_member_and_find_property_info<&brush_parameters::radial_gradient::radius>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info_managed<brush_parameters::bitmap_pattern>(
+			component_property_accessor_builder &builder, manager &man
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info_managed<brush_parameters::bitmap_pattern>(man);
+			}
+			builder.expect_type(u8"bitmap_brush");
+			if (builder.current_component().property == u8"image") {
+				return builder.append_member_and_find_property_info_managed<
+					&brush_parameters::bitmap_pattern::image
+				>(man);
 			}
 			return builder.fail();
 		}
@@ -218,6 +370,42 @@ namespace codepad::ui {
 			return builder.fail();
 		}
 
+		template <> property_info find_property_info_managed<generic_pen_parameters>(
+			component_property_accessor_builder &builder, manager &man
+		) {
+			auto *next_comp = builder.peek_next();
+			if (!next_comp) {
+				return builder.finish_and_create_property_info_managed<generic_pen_parameters>(man);
+			}
+			if (next_comp->is_type_or_empty(u8"pen")) {
+				builder.move_next();
+				if (builder.current_component().property == u8"thickness") {
+					return builder.append_member_and_find_property_info<&generic_pen_parameters::thickness>();
+				}
+				// forward to generic_brush_parameters
+				if (builder.current_component().property != u8"brush") {
+					return builder.fail();
+				}
+			}
+			return builder.append_member_and_find_property_info_managed<&generic_pen_parameters::brush>(man);
+		}
+
+
+		template <> property_info find_property_info<geometries::rectangle>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<geometries::rectangle>();
+			}
+			builder.expect_type(u8"rectangle");
+			if (builder.current_component().property == u8"top_left") {
+				return builder.append_member_and_find_property_info<&geometries::rectangle::top_left>();
+			}
+			if (builder.current_component().property == u8"bottom_right") {
+				return builder.append_member_and_find_property_info<&geometries::rectangle::bottom_right>();
+			}
+			return builder.fail();
+		}
 
 		template <> property_info find_property_info_managed<generic_visual_geometry>(
 			component_property_accessor_builder &builder, manager &man
@@ -437,164 +625,7 @@ namespace codepad::ui {
 #undef CP_APB_CURRENT_TYPE
 
 
-		// transforms
-#define CP_APB_CURRENT_TYPE transform_parameters::generic, transform
-		template <
-			template <typename> typename, typename Comp, std::size_t = 0
-		> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(transform) (
-			component_list::const_iterator, component_list::const_iterator, Comp
-		);
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE transform_parameters::translation, translation_transform
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(offset, rel_vec2d);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE transform_parameters::scale, scale_transform
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(center, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(scale_factor, vec2d);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE transform_parameters::rotation, rotation_transform
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(center, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(angle, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE transform_parameters::collection, transform_collection
-		template <
-			template <typename> typename MemberAccess, typename Comp, std::size_t Count = 0
-		> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(transform_collection) (
-			component_list::const_iterator begin, component_list::const_iterator end, [[maybe_unused]] Comp comp
-		) {
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			if constexpr (Count < 1) {
-				if (begin->property == u8"children" && begin->index.has_value()) {
-					auto nextcomp = getter_components::pair(
-						getter_components::pair(
-							comp, getter_components::member_component<&transform_parameters::collection::components>()
-						),
-						getter_components::array_component<transform_parameters::generic>(begin->index.value())
-					);
-					return CP_APB_GETTER_NAME(transform)<
-						MemberAccess, std::decay_t<decltype(nextcomp)>, Count + 1
-					>(++begin, end, nextcomp);
-				}
-			}
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE transform_parameters::generic, transform
-#define CP_APB_CURRENT_VARIANT_INFO value_type, value
-		template <
-			template <typename> typename MemberAccess, typename Comp, std::size_t Count
-		> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(transform) (
-			component_list::const_iterator begin, component_list::const_iterator end, Comp comp
-		) {
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-
-			if (begin->is_type_or_empty(u8"transform") && begin->property == u8"value") {
-				++begin;
-				CP_APB_MUST_NOT_TERMINATE_EARLY;
-			}
-
-			CP_APB_TRY_FORWARD_VARIANT(transform_parameters::translation, translation_transform);
-			CP_APB_TRY_FORWARD_VARIANT(transform_parameters::scale, scale_transform);
-			CP_APB_TRY_FORWARD_VARIANT(transform_parameters::rotation, rotation_transform);
-			/*if (begin->type == u8"transform_collection") {
-				CP_APB_NO_INDEX;
-				auto &&nextcomp = getter_components::pair(
-					getter_components::pair(
-						comp, getter_components::member_component<&transform_parameters::generic::value>()
-					),
-					getter_components::variant_component<transform_parameters::generic::value_type, transform_parameters::collection>()
-				);
-				return CP_APB_GETTER_NAME(transform_collection)<
-					MemberAccess, std::decay_t<decltype(nextcomp)>, Count
-				>(begin, end, nextcomp);
-			}*//*
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-
 		// brushes
-#define CP_APB_CURRENT_TYPE gradient_stop, gradient_stop
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(color, color);
-			CP_APB_TRY_FORWARD_MEMBER(position, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE brush_parameters::linear_gradient, linear_gradient_brush
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_ARRAY(gradient_stops, gradient_stop, gradient_stop);
-			CP_APB_TRY_FORWARD_MEMBER(from, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(to, rel_vec2d);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE brush_parameters::radial_gradient, radial_gradient_brush
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_ARRAY(gradient_stops, gradient_stop, gradient_stop);
-			CP_APB_TRY_FORWARD_MEMBER(center, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(radius, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE brush_parameters::bitmap_pattern, bitmap_brush
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(image, bitmap);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE generic_brush_parameters, brush
-#define CP_APB_CURRENT_VARIANT_INFO value_type, value
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-
-			if (begin->is_type_or_empty(u8"brush")) {
-				CP_APB_TRY_FORWARD_MEMBER(transform, transform);
-				if (begin->property == u8"value") {
-					++begin;
-					CP_APB_MUST_NOT_TERMINATE_EARLY;
-				}
-			}
-
-			CP_APB_TRY_FORWARD_VARIANT(brush_parameters::solid_color, solid_color_brush);
-			CP_APB_TRY_FORWARD_VARIANT(brush_parameters::linear_gradient, linear_gradient_brush);
-			CP_APB_TRY_FORWARD_VARIANT(brush_parameters::radial_gradient, radial_gradient_brush);
-			CP_APB_TRY_FORWARD_VARIANT(brush_parameters::bitmap_pattern, bitmap_brush);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
 #define CP_APB_CURRENT_TYPE generic_pen_parameters, pen
 		CP_APB_START_GETTER
 			CP_APB_MUST_NOT_TERMINATE_EARLY;

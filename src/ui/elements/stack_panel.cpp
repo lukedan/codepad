@@ -49,7 +49,8 @@ namespace codepad::ui {
 					},
 					[](stack_panel &p, orientation ori) {
 						p.set_orientation(ori);
-					}
+					},
+					u8"stack.orientation"
 				);
 			}
 		}

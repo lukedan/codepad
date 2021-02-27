@@ -117,7 +117,8 @@ namespace codepad::ui {
 					},
 					[](element &e, visibility vis) {
 						e.set_visibility(vis);
-					}
+					},
+					u8"element.visibility"
 				);
 			}
 			if (path.front().property == u8"z_index") {
@@ -127,7 +128,8 @@ namespace codepad::ui {
 					},
 					[](element &e, int val) {
 						e.set_zindex(val);
-					}
+					},
+					u8"element.z_index"
 				);
 			}
 			if (path.front().property == u8"clip_to_bounds") {
@@ -137,7 +139,8 @@ namespace codepad::ui {
 					},
 					[](element &e, bool val) {
 						e.set_clip_to_bounds(val);
-					}
+					},
+					u8"element.clip_to_bounds"
 				);
 			}
 
@@ -151,7 +154,7 @@ namespace codepad::ui {
 		{ // remove animations with the same subject
 			auto it = _animations.begin();
 			while (it != _animations.end()) {
-				if (true/*it->animation->get_subject().equals(ani->get_subject())*/) { // TODO animation_path
+				if (it->animation->get_accessor().equals(ani->get_accessor())) {
 					get_manager().get_scheduler().cancel_task(it->task);
 					it = _animations.erase(it);
 				} else {

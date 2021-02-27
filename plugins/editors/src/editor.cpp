@@ -9,23 +9,6 @@
 #include "codepad/ui/json_parsers.inl"
 
 namespace codepad::editors {
-	/*const ui::property_mapping &contents_region_base::get_properties_static() {
-		static ui::property_mapping mapping;
-		if (mapping.empty()) {
-			mapping = ui::element::get_properties_static();
-			mapping.emplace(
-				u8"caret_visuals",
-				std::make_shared<ui::member_pointer_property<&contents_region_base::_caret_visuals>>(
-					[](contents_region_base &c) {
-						c.invalidate_visual();
-					}
-					)
-			);
-		}
-
-		return mapping;
-	}*/
-
 	bool contents_region_base::_register_edit_mode_changed_event(
 		std::u8string_view name, std::function<void()> &callback
 	) {
@@ -48,6 +31,26 @@ namespace codepad::editors {
 			return true;
 		}
 		return false;
+	}
+
+	ui::property_info contents_region_base::_find_property_path(
+		const ui::property_path::component_list &path
+	) const {
+		if (path.front().is_type_or_empty(u8"contents_region_base")) {
+			if (path.front().property == u8"caret_visuals") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&contents_region_base::_caret_visuals, element
+				>(
+					path, get_manager(),
+					ui::property_info::make_typed_modification_callback<element, contents_region_base>(
+						[](contents_region_base &rgn) {
+							rgn.invalidate_visual();
+						}
+					)
+				);
+			}
+		}
+		return ui::element::_find_property_path(path);
 	}
 
 

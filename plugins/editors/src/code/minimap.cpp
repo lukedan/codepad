@@ -152,22 +152,21 @@ namespace codepad::editors::code {
 	}
 
 
-	/*const ui::property_mapping &minimap::get_properties_static() {
-		static ui::property_mapping mapping;
-		if (mapping.empty()) {
-			mapping = ui::element::get_properties_static();
-			mapping.emplace(
-				u8"viewport_visuals",
-				std::make_shared<ui::member_pointer_property<&minimap::_viewport_visuals>>(
-					[](minimap &m) {
+	ui::property_info minimap::_find_property_path(const ui::property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"minimap")) {
+			if (path.front().property == u8"viewport_visuals") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&minimap::_viewport_visuals, element
+				>(
+					path, get_manager(),
+					ui::property_info::make_typed_modification_callback<element, minimap>([](minimap &m) {
 						m.invalidate_visual();
-					}
-					)
-			);
+					})
+				);
+			}
 		}
-
-		return mapping;
-	}*/
+		return ui::element::_find_property_path(path);
+	}
 
 	void minimap::_custom_render() const {
 		element::_custom_render();

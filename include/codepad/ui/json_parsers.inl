@@ -707,11 +707,23 @@ namespace codepad::json {
 
 namespace codepad::ui {
 	template <typename Value> std::optional<
+		std::shared_ptr<bitmap>
+	> managed_json_parser<std::shared_ptr<bitmap>>::operator()(const Value &val) const {
+		if (auto str = val.template cast<std::u8string_view>()) {
+			return _manager.get_texture(str.value());
+		}
+		return std::nullopt;
+	}
+
+
+	template <typename Value> std::optional<
 		brush_parameters::bitmap_pattern
 	> managed_json_parser<brush_parameters::bitmap_pattern>::operator()(const Value &val) const {
 		if (auto obj = val.template cast<typename Value::object_type>()) {
-			if (auto image = obj->template parse_member<std::u8string_view>(u8"image")) {
-				return brush_parameters::bitmap_pattern(_manager.get_texture(image.value()));
+			if (auto image = obj->template parse_member<std::shared_ptr<bitmap>>(
+				u8"image", managed_json_parser<std::shared_ptr<bitmap>>(_manager)
+			)) {
+				return brush_parameters::bitmap_pattern(std::move(image.value()));
 			}
 		}
 		return std::nullopt;

@@ -190,6 +190,9 @@ namespace codepad::ui {
 		/// position is at the end of the text, this function returns it unchanged.
 		std::size_t _get_next_caret_position(std::size_t);
 
+		/// Handles the \p caret_visuals and \p selection_visuals properties.
+		property_info _find_property_path(const property_path::component_list&) const override;
+
 		/// Renders the caret and the selection.
 		void _custom_render() const override;
 	};

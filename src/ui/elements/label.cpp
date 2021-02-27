@@ -47,7 +47,8 @@ namespace codepad::ui {
 					},
 					[](label &lbl, horizontal_text_alignment align) {
 						lbl.set_horizontal_alignment(align);
-					}
+					},
+					u8"label.horizontal_alignment"
 				);
 			}
 			if (path.front().property == u8"vertical_alignment") {
@@ -57,7 +58,8 @@ namespace codepad::ui {
 					},
 					[](label &lbl, vertical_text_alignment align) {
 						lbl.set_vertical_alignment(align);
-					}
+					},
+					u8"label.vertical_alignment"
 				);
 			}
 			if (path.front().property == u8"text") {
@@ -67,7 +69,8 @@ namespace codepad::ui {
 					},
 					[](label &lbl, std::u8string text) {
 						lbl.set_text(std::move(text));
-					}
+					},
+					u8"label.text"
 				);
 			}
 			if (path.front().property == u8"wrapping") {
@@ -77,7 +80,8 @@ namespace codepad::ui {
 					},
 					[](label &lbl, wrapping_mode wrap) {
 						lbl.set_wrapping_mode(wrap);
-					}
+					},
+					u8"label.wrapping"
 				);
 			}
 			if (path.front().property == u8"wrapping_width_mode") {
@@ -87,7 +91,8 @@ namespace codepad::ui {
 					},
 					[](label &lbl, wrapping_width_mode wrap) {
 						lbl.set_wrapping_width_mode(wrap);
-					}
+					},
+					u8"label.wrapping_width_mode"
 				);
 			}
 			if (path.front().property == u8"wrapping_width") {
@@ -97,7 +102,8 @@ namespace codepad::ui {
 					},
 					[](label &lbl, double width) {
 						lbl.set_custom_wrapping_width(width);
-					}
+					},
+					u8"label.wrapping_width"
 				);
 			}
 		}

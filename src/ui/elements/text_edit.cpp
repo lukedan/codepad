@@ -156,28 +156,6 @@ namespace codepad::ui {
 		_set_caret_selection_impl(caret_selection(rem_beg));
 	}
 
-	/*const property_mapping &text_edit::get_properties_static() {
-		static property_mapping mapping;
-		if (mapping.empty()) {
-			mapping = label::get_properties_static();
-			mapping.emplace(u8"caret_visuals", std::make_shared<member_pointer_property<&text_edit::_caret_visuals>>(
-				[](text_edit &edit) {
-					edit.invalidate_visual();
-				}
-			));
-			mapping.emplace(
-				u8"selection_visuals",
-				std::make_shared<member_pointer_property<&text_edit::_selection_visuals>>(
-					[](text_edit &edit) {
-						edit.invalidate_visual();
-					}
-					)
-			);
-		}
-
-		return mapping;
-	}*/
-
 	void text_edit::_on_mouse_move(mouse_move_info &info) {
 		label::_on_mouse_move(info);
 		if (_selecting) {
@@ -318,6 +296,32 @@ namespace codepad::ui {
 			return pos + 1;
 		}
 		return pos + std::max<std::size_t>(_cached_line_metrics[line].linebreak_characters, 1);
+	}
+
+	property_info text_edit::_find_property_path(const property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"text_edit")) {
+			if (path.front().property == u8"caret_visuals") {
+				return property_info::find_member_pointer_property_info_managed<
+					&text_edit::_caret_visuals, element
+				>(
+					path, get_manager(),
+					property_info::make_typed_modification_callback<element, text_edit>([](text_edit &edt) {
+						edt.invalidate_visual();
+					})
+				);
+			}
+			if (path.front().property == u8"selection_visuals") {
+				return property_info::find_member_pointer_property_info_managed<
+					&text_edit::_selection_visuals, element
+				>(
+					path, get_manager(),
+					property_info::make_typed_modification_callback<element, text_edit>([](text_edit &edt) {
+						edt.invalidate_visual();
+					})
+				);
+			}
+		}
+		return label::_find_property_path(path);
 	}
 
 	void text_edit::_custom_render() const {

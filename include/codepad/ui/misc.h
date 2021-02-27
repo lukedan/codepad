@@ -12,9 +12,10 @@
 #include <compare>
 
 #include "../core/misc.h"
+#include "../core/math.h"
+#include "../core/color.h"
 #include "../core/json/misc.h"
 #include "../core/json/parsing.h"
-#include "renderer.h"
 
 namespace codepad {
 	// forward declarations

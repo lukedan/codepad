@@ -187,6 +187,9 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Handles the \p horizontal_delta and \p vertical_delta properties.
+		property_info _find_property_path(const property_path::component_list&) const override;
+
 		/// Registers handlers for \ref scroll_viewport::virtual_panel_size_changed, as well as for offset changes
 		/// of \ref _hori_scroll and \ref _vert_scroll.
 		void _initialize(std::u8string_view) override;

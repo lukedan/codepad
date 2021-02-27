@@ -360,6 +360,28 @@ namespace codepad::json {
 		template <typename Value> std::optional<ui::transform_parameters::generic> operator()(const Value&) const;
 	};
 }
+namespace codepad::ui::property_finders {
+	/// Specialization for \ref transform_parameters::translation.
+	template <> property_info find_property_info<transform_parameters::translation>(
+		component_property_accessor_builder&
+	);
+	/// Specialization for \ref transform_parameters::scale.
+	template <> property_info find_property_info<transform_parameters::scale>(
+		component_property_accessor_builder&
+	);
+	/// Specialization for \ref transform_parameters::rotation.
+	template <> property_info find_property_info<transform_parameters::rotation>(
+		component_property_accessor_builder&
+	);
+	/// Specialization for \ref transform_parameters::collection.
+	template <> property_info find_property_info<transform_parameters::collection>(
+		component_property_accessor_builder&
+	);
+	/// Specialization for \ref transform_parameters::generic.
+	template <> property_info find_property_info<transform_parameters::generic>(
+		component_property_accessor_builder&
+	);
+}
 
 
 /// Stores parameters of brushes.
@@ -478,6 +500,18 @@ namespace codepad::ui {
 		template <> property_info find_property_info<brush_parameters::solid_color>(
 			component_property_accessor_builder&
 		);
+		/// Specialization for \ref brush_parameters::linear_gradient.
+		template <> property_info find_property_info<brush_parameters::linear_gradient>(
+			component_property_accessor_builder&
+		);
+		/// Specialization for \ref brush_parameters::radial_gradient.
+		template <> property_info find_property_info<brush_parameters::radial_gradient>(
+			component_property_accessor_builder&
+		);
+		/// Specialization for \ref brush_parameters::bitmap_pattern.
+		template <> property_info find_property_info_managed<brush_parameters::bitmap_pattern>(
+			component_property_accessor_builder&, manager&
+		);
 	}
 
 
@@ -546,6 +580,12 @@ namespace codepad::ui {
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
+	namespace property_finders {
+		/// Specialization for \ref generic_pen_parameters.
+		template <> property_info find_property_info_managed<generic_pen_parameters>(
+			component_property_accessor_builder&, manager&
+		);
+	}
 }
 
 

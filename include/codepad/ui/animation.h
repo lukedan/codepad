@@ -10,6 +10,7 @@
 
 #include "misc.h"
 #include "../core/json/storage.h"
+#include "renderer.h"
 #include "property_path.h"
 
 namespace codepad::ui {
@@ -461,6 +462,8 @@ namespace codepad::ui {
 		template <> property_info find_property_info<thickness>(component_property_accessor_builder&);
 		/// Specialization for \ref font_parameters.
 		template <> property_info find_property_info<font_parameters>(component_property_accessor_builder&);
+		/// Specialization for \ref gradient_stop.
+		template <> property_info find_property_info<gradient_stop>(component_property_accessor_builder&);
 
 
 		/// Similar to \ref find_property_info, but the parsing of the values may require a \ref manager. By default
@@ -517,12 +520,12 @@ namespace codepad::ui {
 		template <
 			typename Owner, typename T, typename StaticOwner = Owner, typename Getter, typename Setter
 		> [[nodiscard]] inline static property_info make_getter_setter_property_info(
-			Getter &&getter, Setter &&setter
+			Getter &&getter, Setter &&setter, std::u8string_view id
 		) {
 			property_info result;
 			if constexpr (std::is_same_v<Owner, StaticOwner>) {
 				result.accessor = std::make_shared<property_path::accessors::getter_setter_accessor<T, Owner>>(
-					std::forward<Getter>(getter), std::forward<Setter>(setter)
+					std::forward<Getter>(getter), std::forward<Setter>(setter), id
 				);
 			} else {
 				result.accessor = std::make_shared<property_path::accessors::getter_setter_accessor<T, StaticOwner>>(
@@ -541,7 +544,8 @@ namespace codepad::ui {
 							logger::get().log_error(CP_HERE) <<
 								"incorrect dynamic type: expected " << demangle(typeid(Owner).name());
 						}
-					}
+					},
+					id
 				);
 			}
 			result.value_handler = std::make_shared<default_animation_value_handler<T>>();

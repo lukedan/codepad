@@ -198,7 +198,8 @@ namespace codepad::ui {
 					},
 					[](scrollbar &bar, orientation ori) {
 						bar.set_orientation(ori);
-					}
+					},
+					u8"scrollbar.orientation"
 				);
 			}
 			if (path.front().property == u8"smooth_scroll_duration") {

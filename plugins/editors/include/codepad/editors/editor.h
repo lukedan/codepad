@@ -79,6 +79,8 @@ namespace codepad::editors {
 				_register_edit_mode_changed_event(name, callback) ||
 				element::_register_event(name, std::move(callback));
 		}
+		/// Handles the \p caret_visuals property.
+		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
 	};
 
 	/// The editor region that contains a contents region and other elements.

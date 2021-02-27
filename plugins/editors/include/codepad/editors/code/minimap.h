@@ -107,6 +107,9 @@ namespace codepad::editors::code {
 			void _render_page(std::size_t s, std::size_t pe);
 		};
 
+		/// Handles the \p viewport_visuals property.
+		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
+
 		/// Checks and validates \ref _pgcache by calling \ref _page_cache::prepare.
 		void _on_prerender() override {
 			element::_on_prerender();

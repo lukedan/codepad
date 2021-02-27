@@ -16,6 +16,7 @@
 #include "../core/color.h"
 #include "../core/math.h"
 #include "../core/json/misc.h"
+#include "misc.h"
 
 namespace codepad {
 	namespace ui {
@@ -170,6 +171,19 @@ namespace codepad {
 			/// Returns the logical size of this bitmap.
 			[[nodiscard]] virtual vec2d get_size() const = 0;
 		};
+		/// Parser for \ref std::shared_ptr<bitmap>.
+		template <> struct managed_json_parser<std::shared_ptr<bitmap>> {
+		public:
+			/// Initializes \ref _manager.
+			explicit managed_json_parser(manager &m) : _manager(m) {
+			}
+
+			/// The parser interface.
+			template <typename Value> std::optional<std::shared_ptr<bitmap>> operator()(const Value&) const;
+		protected:
+			manager &_manager; ///< The associated \ref manager.
+		};
+
 		/// Basic interface of an off-screen render target.
 		class render_target {
 		public:

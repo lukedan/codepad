@@ -36,22 +36,6 @@ namespace codepad::ui {
 		}
 	}
 
-	/*const property_mapping &scroll_view::get_properties_static() {
-		static property_mapping mapping;
-		if (mapping.empty()) {
-			mapping = panel::get_properties_static();
-
-			mapping.emplace(
-				u8"horizontal_delta", std::make_shared<member_pointer_property<&scroll_view::_hori_scroll_delta>>()
-			);
-			mapping.emplace(
-				u8"vertical_delta", std::make_shared<member_pointer_property<&scroll_view::_vert_scroll_delta>>()
-			);
-		}
-
-		return mapping;
-	}*/
-
 	void scroll_view::_on_mouse_scroll(mouse_scroll_info &p) {
 		panel::_on_mouse_scroll(p);
 
@@ -61,6 +45,22 @@ namespace codepad::ui {
 		if (_vert_scroll) {
 			_vert_scroll->handle_scroll_event(p, _vert_scroll_delta);
 		}
+	}
+
+	property_info scroll_view::_find_property_path(const property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"scroll_view")) {
+			if (path.front().property == u8"horizontal_delta") {
+				return property_info::find_member_pointer_property_info<
+					&scroll_view::_hori_scroll_delta, element
+				>(path);
+			}
+			if (path.front().property == u8"vertical_delta") {
+				return property_info::find_member_pointer_property_info<
+					&scroll_view::_vert_scroll_delta, element
+				>(path);
+			}
+		}
+		return panel::_find_property_path(path);
 	}
 
 	void scroll_view::_initialize(std::u8string_view cls) {
