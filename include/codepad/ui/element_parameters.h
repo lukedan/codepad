@@ -666,6 +666,12 @@ namespace codepad {
 			) const;
 		};
 	}
+	namespace ui::property_finders {
+		/// Specialization for \ref rounded_rectangle.
+		template <> property_info find_property_info<geometries::rounded_rectangle>(
+			component_property_accessor_builder&
+		);
+	}
 
 	namespace ui::geometries {
 		/// An ellipse geometry.
@@ -698,6 +704,12 @@ namespace codepad {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::ellipse> operator()(const Value&) const;
 		};
+	}
+	namespace ui::property_finders {
+		/// Specialization for \ref ellipse.
+		template <> property_info find_property_info<geometries::ellipse>(
+			component_property_accessor_builder&
+		);
 	}
 
 	namespace ui::geometries {
@@ -804,6 +816,32 @@ namespace codepad {
 			/// The parser interface.
 			template <typename Value> std::optional<ui::geometries::path> operator()(const Value&) const;
 		};
+	}
+	namespace ui::property_finders {
+		/// Specialization for \ref geometries::path::segment.
+		template <> property_info find_property_info<geometries::path::segment>(
+			component_property_accessor_builder&
+		);
+		/// Specialization for \ref geometries::path::arc.
+		template <> property_info find_property_info<geometries::path::arc>(
+			component_property_accessor_builder&
+		);
+		/// Specialization for \ref geometries::path::cubic_bezier.
+		template <> property_info find_property_info<geometries::path::cubic_bezier>(
+			component_property_accessor_builder&
+		);
+		/// Specialization for \ref geometries::path::part.
+		template <> property_info find_property_info<geometries::path::part>(
+			component_property_accessor_builder&
+		);
+		/// Specialization for \ref geometries::path::subpath.
+		template <> property_info find_property_info<geometries::path::subpath>(
+			component_property_accessor_builder&
+		);
+		/// Specialization for \ref geometries::path.
+		template <> property_info find_property_info<geometries::path>(
+			component_property_accessor_builder&
+		);
 	}
 }
 

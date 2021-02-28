@@ -407,10 +407,165 @@ namespace codepad::ui {
 			return builder.fail();
 		}
 
+		template <> property_info find_property_info<geometries::rounded_rectangle>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<geometries::rounded_rectangle>();
+			}
+			builder.expect_type(u8"rounded_rectangle");
+			if (builder.current_component().property == u8"top_left") {
+				return builder.append_member_and_find_property_info<&geometries::rounded_rectangle::top_left>();
+			}
+			if (builder.current_component().property == u8"bottom_right") {
+				return builder.append_member_and_find_property_info<&geometries::rounded_rectangle::bottom_right>();
+			}
+			if (builder.current_component().property == u8"radiusx") {
+				return builder.append_member_and_find_property_info<&geometries::rounded_rectangle::radiusx>();
+			}
+			if (builder.current_component().property == u8"radiusy") {
+				return builder.append_member_and_find_property_info<&geometries::rounded_rectangle::radiusy>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<geometries::ellipse>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<geometries::ellipse>();
+			}
+			builder.expect_type(u8"ellipse");
+			if (builder.current_component().property == u8"top_left") {
+				return builder.append_member_and_find_property_info<&geometries::ellipse::top_left>();
+			}
+			if (builder.current_component().property == u8"bottom_right") {
+				return builder.append_member_and_find_property_info<&geometries::ellipse::bottom_right>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<geometries::path::segment>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.fail(); // no parser for path part subtypes
+			}
+			builder.expect_type(u8"segment");
+			if (builder.current_component().property == u8"to") {
+				return builder.append_member_and_find_property_info<&geometries::path::segment::to>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<geometries::path::arc>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.fail(); // no parser for path part subtypes
+			}
+			builder.expect_type(u8"arc");
+			if (builder.current_component().property == u8"to") {
+				return builder.append_member_and_find_property_info<&geometries::path::arc::to>();
+			}
+			if (builder.current_component().property == u8"radius") {
+				return builder.append_member_and_find_property_info<&geometries::path::arc::radius>();
+			}
+			if (builder.current_component().property == u8"rotation") {
+				return builder.append_member_and_find_property_info<&geometries::path::arc::rotation>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<geometries::path::cubic_bezier>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.fail(); // no parser for path part subtypes
+			}
+			builder.expect_type(u8"bezier");
+			if (builder.current_component().property == u8"to") {
+				return builder.append_member_and_find_property_info<&geometries::path::cubic_bezier::to>();
+			}
+			if (builder.current_component().property == u8"control1") {
+				return builder.append_member_and_find_property_info<&geometries::path::cubic_bezier::control1>();
+			}
+			if (builder.current_component().property == u8"control2") {
+				return builder.append_member_and_find_property_info<&geometries::path::cubic_bezier::control2>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<geometries::path::part>(
+			component_property_accessor_builder &builder
+		) {
+			auto *next_comp = builder.peek_next();
+			if (!next_comp) {
+				return builder.finish_and_create_property_info<geometries::path::part>();
+			}
+			if (next_comp->is_type_or_empty(u8"subpath_part")) {
+				builder.move_next();
+				if (builder.current_component().property != u8"value") {
+					return builder.fail();
+				}
+				next_comp = builder.peek_next();
+				if (!next_comp) {
+					return builder.fail();
+				}
+			}
+			if (next_comp->type == u8"segment") {
+				return builder.append_variant_and_find_property_info<
+					&geometries::path::part::value, geometries::path::segment
+				>();
+			}
+			if (next_comp->type == u8"arc") {
+				return builder.append_variant_and_find_property_info<
+					&geometries::path::part::value, geometries::path::arc
+				>();
+			}
+			if (next_comp->type == u8"bezier") {
+				return builder.append_variant_and_find_property_info<
+					&geometries::path::part::value, geometries::path::cubic_bezier
+				>();
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<geometries::path::subpath>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<geometries::path::subpath>();
+			}
+			builder.expect_type(u8"subpath");
+			if (builder.current_component().property == u8"starting_point") {
+				return builder.append_member_and_find_property_info<&geometries::path::subpath::starting_point>();
+			}
+			if (builder.current_component().property == u8"parts") {
+				builder.make_append_member_pointer_component<&geometries::path::subpath::parts>();
+				return find_array_property_info<geometries::path::part>(builder);
+			}
+			return builder.fail();
+		}
+
+		template <> property_info find_property_info<geometries::path>(
+			component_property_accessor_builder &builder
+		) {
+			if (!builder.move_next()) {
+				return builder.finish_and_create_property_info<geometries::path>();
+			}
+			builder.expect_type(u8"path");
+			if (builder.current_component().property == u8"subpaths") {
+				builder.make_append_member_pointer_component<&geometries::path::subpaths>();
+				return find_array_property_info<geometries::path::subpath>(builder);
+			}
+			return builder.fail();
+		}
+
 		template <> property_info find_property_info_managed<generic_visual_geometry>(
 			component_property_accessor_builder &builder, manager &man
 		) {
-			auto next_comp = builder.peek_next();
+			auto *next_comp = builder.peek_next();
 			if (!next_comp) {
 				return builder.finish_and_create_property_info_managed<visuals>(man);
 			}
@@ -458,6 +613,7 @@ namespace codepad::ui {
 			return builder.fail();
 		}
 
+
 		template <> property_info find_property_info_managed<visuals>(
 			component_property_accessor_builder &builder, manager &man
 		) {
@@ -503,295 +659,4 @@ namespace codepad::ui {
 			return builder.fail();
 		}
 	}
-
-/*	namespace builder {
-		/// Checks that \ref component::type is either empty or the specified type.
-		inline void check_type(const component &comp, std::u8string_view target) {
-			if (!comp.is_type_or_empty(target)) {
-				logger::get().log_warning(CP_HERE) << "invalid target type: " << target;
-			}
-		}
-		/// Checks that this \ref component is the last one.
-		inline void check_finished(component_list::const_iterator begin, component_list::const_iterator end) {
-			if (++begin != end) {
-				logger::get().log_warning(CP_HERE) << "redundant properties";
-			}
-		}
-		/// Checks that the component does not have an index.
-		inline void check_no_index(const component &comp) {
-			if (comp.index.has_value()) {
-				logger::get().log_warning(CP_HERE) << "unexpected index";
-			}
-		}
-
-#define CP_APB_CONCAT(X, Y) X Y // workaround for MSVC
-#define CP_APB_EXPAND_CALL(F, ...) CP_APB_CONCAT(F, (__VA_ARGS__))
-
-
-#define CP_APB_MUST_TERMINATE check_finished(begin, end)
-
-#define CP_APB_NO_INDEX check_no_index(*begin)
-
-#define CP_APB_DO_CHECK_TYPE(TYPE, TYPENAME) check_type(*begin, u8 ## #TYPENAME)
-#define CP_APB_CHECK_TYPE CP_APB_EXPAND_CALL(CP_APB_DO_CHECK_TYPE, CP_APB_CURRENT_TYPE)
-
-
-#define CP_APB_SUBJECT_INFO_T member_information<typename Comp::input_type>
-
-#define CP_APB_MAY_TERMINATE_EARLY                                                                 \
-	if (begin == end) {                                                                            \
-		CP_APB_SUBJECT_INFO_T res;                                                                 \
-		res.member = std::make_unique<MemberAccess<Comp>>(comp);                                   \
-		res.parser = std::make_unique<typed_property_value_parser<typename Comp::output_type>>(); \
-		return res;                                                                                \
-	}
-
-#define CP_APB_MUST_NOT_TERMINATE_EARLY                                              \
-	if (begin == end) {                                                              \
-		logger::get().log_warning(CP_HERE) << "property path terminated too early"; \
-		return CP_APB_SUBJECT_INFO_T();                                              \
-	}
-
-
-#define CP_APB_GETTER_NAME(TYPENAME) get_ ## TYPENAME ## _property
-#define CP_APB_DO_DECLARE_GETTER(TYPE, TYPENAME)                                            \
-	template <                                                                              \
-		template <typename> typename MemberAccess, typename Comp                            \
-	> inline CP_APB_SUBJECT_INFO_T CP_APB_GETTER_NAME(TYPENAME) (                           \
-		component_list::const_iterator begin, component_list::const_iterator end, Comp comp \
-	)
-#define CP_APB_DECLARE_GETTER CP_APB_EXPAND_CALL(CP_APB_DO_DECLARE_GETTER, CP_APB_CURRENT_TYPE)
-#define CP_APB_START_GETTER CP_APB_DECLARE_GETTER {
-
-#define CP_APB_DO_DEFINE_PROPERTY_GETTER(TYPE, TYPENAME)                       \
-	template <> member_information<TYPE> get_member_subject<TYPE>(             \
-		component_list::const_iterator beg, component_list::const_iterator end \
-	) {                                                                        \
-		return CP_APB_GETTER_NAME(TYPENAME)<component_member_access>(          \
-			beg, end, getter_components::dummy_component<TYPE>()               \
-			);                                                                 \
-	}
-#define CP_APB_DEFINE_PROPERTY_GETTER CP_APB_EXPAND_CALL(CP_APB_DO_DEFINE_PROPERTY_GETTER, CP_APB_CURRENT_TYPE)
-
-#define CP_APB_END_GETTER                                         \
-		logger::get().log_warning(CP_HERE) << "invalid property"; \
-		return CP_APB_SUBJECT_INFO_T();                           \
-	}                                                             \
-	CP_APB_DEFINE_PROPERTY_GETTER
-
-
-#define CP_APB_DO_TRY_FORWARD_MEMBER(TYPE, TYPENAME, PROP_NAME, USE_PROP_NAME, PROP_TYPENAME)         \
-	if (begin->property == u8 ## #USE_PROP_NAME) {                                                    \
-		CP_APB_NO_INDEX;                                                                              \
-		return CP_APB_GETTER_NAME(PROP_TYPENAME)<MemberAccess>(++begin, end, getter_components::pair( \
-			comp, getter_components::member_component<&TYPE::PROP_NAME>()                             \
-		));                                                                                           \
-	}
-#define CP_APB_TRY_FORWARD_MEMBER(PROP_NAME, PROP_TYPENAME) \
-	CP_APB_EXPAND_CALL(CP_APB_DO_TRY_FORWARD_MEMBER, CP_APB_CURRENT_TYPE, PROP_NAME, PROP_NAME, PROP_TYPENAME)
-
-#define CP_APB_TRY_FORWARD_MEMBER_CUSTOM_NAME(PROP_NAME, USE_PROP_NAME, PROP_TYPENAME) \
-	CP_APB_EXPAND_CALL(CP_APB_DO_TRY_FORWARD_MEMBER, CP_APB_CURRENT_TYPE, PROP_NAME, USE_PROP_NAME, PROP_TYPENAME)
-
-#define CP_APB_DO_TRY_FORWARD_VARIANT(TYPE, TYPENAME, VARIANT_TYPE, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME) \
-	if (begin->type == u8 ## #TARGET_TYPENAME) {                                                             \
-		return CP_APB_GETTER_NAME(TARGET_TYPENAME)<MemberAccess>(begin, end, getter_components::pair(        \
-			getter_components::pair(comp, getter_components::member_component<&TYPE::PROP_NAME>()),          \
-			getter_components::variant_component<TYPE::VARIANT_TYPE, TARGET_TYPE>()                          \
-		));                                                                                                  \
-	}
-#define CP_APB_TRY_FORWARD_VARIANT(TARGET_TYPE, TARGET_TYPENAME)                         \
-	CP_APB_EXPAND_CALL(                                                                  \
-		CP_APB_DO_TRY_FORWARD_VARIANT, CP_APB_CURRENT_TYPE, CP_APB_CURRENT_VARIANT_INFO, \
-		TARGET_TYPE, TARGET_TYPENAME                                                     \
-	)
-
-#define CP_APB_DO_TRY_FORWARD_ARRAY(TYPE, TYPENAME, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME)              \
-	if (begin->property == u8 ## #PROP_NAME && begin->index.has_value()) {                                \
-		return CP_APB_GETTER_NAME(TARGET_TYPENAME)<MemberAccess>(++begin, end, getter_components::pair(   \
-			getter_components::pair(comp, getter_components::member_component<&TYPE::PROP_NAME>()),       \
-			getter_components::array_component<TARGET_TYPE>(begin->index.value())                         \
-		));                                                                                               \
-	}
-#define CP_APB_TRY_FORWARD_ARRAY(PROP_NAME, TARGET_TYPE, TARGET_TYPENAME) \
-	CP_APB_EXPAND_CALL(CP_APB_DO_TRY_FORWARD_ARRAY, CP_APB_CURRENT_TYPE, PROP_NAME, TARGET_TYPE, TARGET_TYPENAME)
-
-
-		// other basic types
-#define CP_APB_CURRENT_TYPE std::shared_ptr<bitmap>, bitmap
-		CP_APB_START_GETTER
-			CP_APB_MAY_TERMINATE_EARLY;
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-
-		// brushes
-#define CP_APB_CURRENT_TYPE generic_pen_parameters, pen
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-
-			if (begin->is_type_or_empty(u8"pen")) {
-				CP_APB_TRY_FORWARD_MEMBER(thickness, double);
-				if (begin->property == u8"brush") {
-					++begin;
-					CP_APB_MUST_NOT_TERMINATE_EARLY;
-				}
-			}
-
-			return CP_APB_GETTER_NAME(brush)<MemberAccess>(begin, end, getter_components::pair(
-				comp, getter_components::member_component<&generic_pen_parameters::brush>()
-			));
-		}
-		CP_APB_DEFINE_PROPERTY_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-
-		// geometries
-#define CP_APB_CURRENT_TYPE geometries::rectangle, rectangle
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(top_left, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(bottom_right, rel_vec2d);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE geometries::rounded_rectangle, rounded_rectangle
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(top_left, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(bottom_right, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(radiusx, rel_double);
-			CP_APB_TRY_FORWARD_MEMBER(radiusy, rel_double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE geometries::ellipse, ellipse
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(top_left, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(bottom_right, rel_vec2d);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-
-		// path
-#define CP_APB_CURRENT_TYPE geometries::path::segment, segment
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(to, rel_vec2d);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE geometries::path::arc, arc
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(to, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(radius, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(rotation, double);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE geometries::path::cubic_bezier, bezier
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(to, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(control1, rel_vec2d);
-			CP_APB_TRY_FORWARD_MEMBER(control2, rel_vec2d);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE geometries::path::part, subpath_part
-#define CP_APB_CURRENT_VARIANT_INFO value_type, value
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-
-			if (begin->is_type_or_empty(u8"subpath_part") && begin->property == u8"value") {
-				++begin;
-				CP_APB_MUST_NOT_TERMINATE_EARLY;
-			}
-
-			CP_APB_TRY_FORWARD_VARIANT(geometries::path::segment, segment);
-			CP_APB_TRY_FORWARD_VARIANT(geometries::path::arc, arc);
-			CP_APB_TRY_FORWARD_VARIANT(geometries::path::cubic_bezier, bezier);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE geometries::path::subpath, subpath
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(starting_point, rel_vec2d);
-			CP_APB_TRY_FORWARD_ARRAY(parts, geometries::path::part, subpath_part);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE geometries::path, path
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_ARRAY(subpaths, geometries::path::subpath, subpath);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE generic_visual_geometry, geometry
-#define CP_APB_CURRENT_VARIANT_INFO value_type, value
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-
-			CP_APB_TRY_FORWARD_MEMBER(transform, transform);
-			CP_APB_TRY_FORWARD_MEMBER(fill, brush);
-			CP_APB_TRY_FORWARD_MEMBER(stroke, pen);
-			if (begin->is_type_or_empty(u8"geometry")) {
-				if (begin->property == u8"value") {
-					++begin;
-					CP_APB_MUST_NOT_TERMINATE_EARLY;
-				}
-			}
-
-			CP_APB_TRY_FORWARD_VARIANT(geometries::rectangle, rectangle);
-			CP_APB_TRY_FORWARD_VARIANT(geometries::rounded_rectangle, rounded_rectangle);
-			CP_APB_TRY_FORWARD_VARIANT(geometries::ellipse, ellipse);
-			CP_APB_TRY_FORWARD_VARIANT(geometries::path, path);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-
-#define CP_APB_CURRENT_TYPE visuals, visuals
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_ARRAY(geometries, generic_visual_geometry, geometry);
-			CP_APB_TRY_FORWARD_MEMBER(transform, transform);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-
-#define CP_APB_CURRENT_TYPE element_layout, element_layout
-		CP_APB_START_GETTER
-			CP_APB_MUST_NOT_TERMINATE_EARLY;
-			CP_APB_CHECK_TYPE;
-
-			CP_APB_TRY_FORWARD_MEMBER(margin, thickness);
-			CP_APB_TRY_FORWARD_MEMBER(padding, thickness);
-			CP_APB_TRY_FORWARD_MEMBER(size, vec2d);
-			CP_APB_TRY_FORWARD_MEMBER_CUSTOM_NAME(elem_anchor, anchor, anchor);
-			CP_APB_TRY_FORWARD_MEMBER(width_alloc, size_allocation_type);
-			CP_APB_TRY_FORWARD_MEMBER(height_alloc, size_allocation_type);
-		CP_APB_END_GETTER
-#undef CP_APB_CURRENT_TYPE
-	}*/
 }
