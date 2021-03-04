@@ -330,6 +330,8 @@ namespace codepad::lsp {
 			wnd->set_display_caption_bar(false);
 			wnd->set_sizable(false);
 			wnd->set_show_icon(false);
+			wnd->set_topmost(true);
+			wnd->set_focusable(false);
 			wnd->set_parent(contents.get_window());
 			wnd->children().add(*label);
 			std::visit(

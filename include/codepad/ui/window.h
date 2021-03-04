@@ -86,7 +86,7 @@ namespace codepad::ui {
 			virtual void _set_display_border(bool) = 0;
 			/// Sets whether the user can resize the window.
 			virtual void _set_sizable(bool) = 0;
-			/// Sets whether this window can acquire focus.
+			/// Sets whether this window can acquires focus when the user clicks on it.
 			virtual void _set_focusable(bool) = 0;
 
 			/// Sets whether this window is displayed about all other normal windows.
@@ -234,6 +234,10 @@ namespace codepad::ui {
 		void set_show_icon(bool b) {
 			_impl->_set_show_icon(b);
 		}
+		/// Sets whether this window should activate itself when the user clicks on it.
+		void set_focusable(bool b) {
+			_impl->_set_focusable(b);
+		}
 
 		/// Obtains the corresponding logical position in client coordinates from the given physical position in
 		/// screen coordinates.
@@ -359,17 +363,6 @@ namespace codepad::ui {
 				height_may_change = height && get_height_size_policy() == size_policy::application;
 			if (width_may_change || height_may_change) {
 				_impl->_update_managed_window_size();
-			}
-		}
-
-		/// If the \ref visibility::focus bit has changed, invokes \ref _details::window_impl::_set_focusable() to
-		/// reflect this change.
-		///
-		/// \todo Maybe we want to do the same thing for \ref visibility::visual and/or \ref visibility::interact?
-		void _on_visibility_changed(_visibility_changed_info &info) override {
-			panel::_on_visibility_changed(info);
-			if (((info.old_value ^ get_visibility()) & visibility::focus) != visibility::none) {
-				_impl->_set_focusable((get_visibility() & visibility::focus) != visibility::none);
 			}
 		}
 

@@ -114,7 +114,10 @@ namespace codepad::os {
 		}
 		/// Calls \ref _set_window_style_bit() to set the \p WS_EX_NOACTIVATE bit.
 		void _set_focusable(bool vis) override {
-			// FIXME this doesn't work
+			_focusable = vis;
+			// it seems that handling WM_MOUSEACTIVATE is enough to make it non-focusable on mouse click, but WPF
+			// uses this as well [maybe for bookkeeping? or maybe other cases (the narrator?) can active the window?]
+			// so we're keeping this here
 			_set_window_style_bit(!vis, WS_EX_NOACTIVATE, GWL_EXSTYLE);
 		}
 
@@ -130,7 +133,6 @@ namespace codepad::os {
 		/// Calls \ref _set_window_style_bit() to set the \p WS_EX_TOOLWINDOW and \p WS_EX_APPWINDOW bits.
 		void _set_show_icon(bool show) override {
 			_set_window_style_bit(!show, WS_EX_TOOLWINDOW, GWL_EXSTYLE);
-			_set_window_style_bit(show, WS_EX_APPWINDOW, GWL_EXSTYLE);
 		}
 
 		/// Converts client positions in logical pixels to screen coordinates using \p ScreenToClient().
@@ -226,9 +228,12 @@ namespace codepad::os {
 		/// This is because these functions can be called due to \p WM_DESTROY marking this window for disposal, at
 		/// which point the window handle is no longer valid.
 		HWND _hwnd = nullptr;
-		/// Whether mouse movement is being tracked. This is used to record whether \p TrackMouseEvent() has been
-		/// called, so that this window receives mouse leave and hover events.
-		bool _mouse_tracked = false;
+		bool
+			/// Whether mouse movement is being tracked. This is used to record whether \p TrackMouseEvent() has been
+			/// called, so that this window receives mouse leave and hover events.
+			_mouse_tracked = false,
+			/// Whether this window should gain focus when the user clicks on it.
+			_focusable = true;
 
 		/// Contains the window class used by all windows.
 		struct _wndclass {

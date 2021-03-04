@@ -305,6 +305,12 @@ namespace codepad::os {
 				);
 				return 0;
 
+			case WM_MOUSEACTIVATE:
+				// apparently WS_EX_NOACTIVATE by itself is not enough
+				if (!wnd_impl->_focusable) {
+					return MA_NOACTIVATE;
+				}
+				return DefWindowProc(hwnd, msg, wparam, lparam);
 			case WM_SETFOCUS:
 				wnd.get_manager().get_scheduler().set_focused_element(&wnd);
 				return 0;
