@@ -1,0 +1,92 @@
+# To-do List
+
+Items in this list are not sorted by any specific criteria.
+
+- [ ] User interface
+	- [ ] Popups
+		- [ ] OS specific: popups don't get keyboard focus
+		- [ ] Support setting the parent of a window logically
+	- [ ] Sublime-style input prompt
+		- [ ] Virtualized listbox
+		- [ ] Fuzzy searcing
+	- [ ] Add measure phase to reduce the complexity of layout computation from O(n²)
+	- [x] _Cairo renderer (cross-platform portion)_
+	- [ ] Pango-harfbuzz text handling
+		- [x] _Basic implementation_
+		- [ ] Performance optimization
+		- [ ] DPI scaling & minimap rendering
+		- [ ] Memory leaks
+	- [ ] OS specific
+		- [ ] Windows
+			- [x] _Direct2D renderer_
+			- [ ] Cairo renderer
+				- [x] _Base implementation_
+				- [ ] Fix compatibility issues
+				- [ ] Improve performance
+			- [ ] Fix open file dialog with the new API
+			- [ ] WinAPI window styles are not orthogonal
+		- [ ] Linux
+			- [ ] Cairo renderer
+				- [x] _Base implementation_
+				- [ ] Bitmap loading on Linux
+				- [ ] Assert on exit
+			- [ ] Better DPI scaling support
+			- [ ] Clipboard support
+			- [ ] Skia renderer
+			- [ ] Either revive or cut the X11 code
+		- [ ] MacOS port not yet implemented
+			- [ ] Window
+			- [ ] Cairo renderer
+			- [ ] Skia renderer
+			- [ ] Miscellaneous OS-specific functions
+	- [ ] Image assets & images for different DPI
+	- [ ] Skia renderer (cross-platform portion)
+- [ ] Editor
+	- [x] _Text editing_
+	- [x] _Multiple cursors_
+	- [ ] More interaction modes
+		- [ ] Block selection
+		- [ ] Direct mouse movement (mouse moves the caret directly)
+	- [ ] Word wrapping support
+		- [x] _Soft linebreaks_
+		- [ ] Wrap at word boundary
+		- [ ] Optimizations
+			- [ ] Incremental wrapping computation
+			- [ ] Async wrapping computation?
+	- [ ] Theme providers
+	- [ ] Gizmo providers
+	- [ ] Folding providers
+	- [ ] Parsing of decoration renderers
+	- [ ] Search & replace
+		- [ ] Regular expression support
+	- [ ] Go to anything
+- [ ] Tree-sitter plugin
+	- [x] _Basic integration_
+	- [ ] Support for different encodings
+	- [ ] Customizable themes
+	- [ ] Folding provider
+- [ ] LSP plugin
+	- [x] _Basic protocol structures_
+	- [ ] UTF-16 word position
+	- [ ] Backends
+		- [x] _Stdio backend_
+			- [ ] Convert to platform-agnostic API
+		- [ ] Socket backend
+	- [ ] Handling of LSP commands and messages
+		- [ ] Syntax highlighting
+			- [x] _Basic integration_
+			- [ ] Customizable themes
+		- [ ] Hover
+			- [x] _Basic integration_
+			- [ ] Better popups
+		- [ ] Go to symbol
+		- [ ] Folding provider
+		- [ ] Formatting
+		- [ ] ...
+- [ ] Python plugin
+	- [x] _Basic integration_
+	- [ ] API declaration
+- [ ] Workspaces
+	- [ ] Tree view
+	- [ ] Search in workspace
+- [ ] More unit tests

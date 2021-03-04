@@ -1,0 +1,39 @@
+# Format Style Options - Created with Clang Power Tools
+---
+BasedOnStyle: LLVM
+AccessModifierOffset: -4
+AlignAfterOpenBracket: AlwaysBreak
+AlignEscapedNewlines: Left
+AlignOperands: false
+AlignTrailingComments: false
+AllowShortLambdasOnASingleLine: None
+AllowShortFunctionsOnASingleLine: None
+AlwaysBreakBeforeMultilineStrings: true
+AlwaysBreakTemplateDeclarations: No
+BraceWrapping: 
+  AfterCaseLabel: true
+BreakInheritanceList: AfterColon
+BreakBeforeTernaryOperators: false
+BreakConstructorInitializers: AfterColon
+ColumnLimit: 120
+IncludeCategories: 
+  - Regex: ^"codepad/.+"$
+    Priority: 4
+  - Regex: ^".+"$
+    Priority: 5
+  - Regex: ^<codepad/.+>$
+    Priority: 3
+  - Regex: ^<.+\.(h|hpp)>$
+    Priority: 2
+  - Regex: ^<.+>$
+    Priority: 1
+IndentPPDirectives: AfterHash
+IndentWidth: 4
+IndentWrappedFunctionNames: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: All
+Standard: Latest
+TabWidth: 4
+UseTab: ForContinuationAndIndentation
+...

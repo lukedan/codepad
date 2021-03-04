@@ -1,4 +1,4 @@
-## Building codepad
+# Building codepad
 
 1. Install prerequisites:
 	- On Windows, Visual Studio 2019 is recommended. You can find installers of CMake and VS2019 online.  Building with MinGW-w32 has not been thoroughly tested and can be tricky.
@@ -71,12 +71,12 @@
 	```
 	If you're building on Windows using `vcpkg`, also specify `-DCMAKE_TOOLCHAIN_FILE=[path to vcpkg]/scripts/buildsystems/vcpkg.cmake` on line 3. If you're buliding without Cairo, specify `-DUSE_CAIRO=No` on line 3.
 
-## Running codepad
+# Running codepad
 
 - Codepad uses configuration files in the `config` folder. Currently this dependency is hard-coded in [`src/main.cpp`](src/main.cpp), and the `config` folder must be in the working directory of the executable.
 - `codepad` loads plugins specified in [`config/settings.json`](config/settings.json) that are shared libraries, and due to how shared library loading works on different platforms, the system may fail to find the library files. Thus, you may need to manually modify the list items to match the relative paths of the library files in the build output folder. By default the plugin shared libraries are placed in the same folder as the executable.
 - You may need to change the rendering backend in `config/settings.json` to `cairo` on Linux.
 
-## Building the documentation
+# Building the documentation
 
 Use doxygen and `doxyfile` in the root directory to build the documentation. Although many efforts have been made to keep the documentation correct and up-to-date, it may still contain outdated information and/or invalid references to identifiers.

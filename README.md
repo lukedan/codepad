@@ -13,6 +13,8 @@ Codepad is a free, open-source text editor written purely in C++. The goal is to
 - Fully customizable UI layout and appearance
 - Full-featured tab system
 
-## Building Codepad
+## Links
 
-[Building instructions](BUILD.md)
+### [Building Codepad](doc/build.md)
+
+### [Contributing](doc/contributing.md)
