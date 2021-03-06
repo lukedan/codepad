@@ -17,6 +17,7 @@
 
 #include "../core/misc.h"
 #include "../core/assert.h"
+#include "misc.h"
 
 namespace codepad::os {
 	/// Specifies what operations are to be performed on a file.
@@ -55,8 +56,66 @@ namespace codepad {
 }
 
 namespace codepad::os {
+	struct file;
+	struct pipe;
+
+	/// Represents a memory-mapped file.
+	struct file_mapping {
+		friend file;
+	public:
+		/// Initializes the \ref file_mapping to empty.
+		file_mapping() = default;
+		/// Move constructor.
+		file_mapping(file_mapping&&);
+		/// Move assignment.
+		file_mapping &operator=(file_mapping&&);
+		/// Calls unmap() to unmap the file.
+		~file_mapping() {
+			auto result = unmap();
+			if (result) {
+				logger::get().log_error(CP_HERE) << "file_mapping::unmap() failed with error: " << result;
+			}
+		}
+
+		/// If there is a mapped file, unmaps it and resets the \ref file_mapping to empty.
+		std::error_code unmap() {
+			if (!is_empty_handle()) {
+				std::error_code result = _unmap_impl();
+				_ptr = nullptr;
+				return result;
+			}
+			return std::error_code();
+		}
+
+		/// Returns the mapped size of the file. This could be larger than the file's actual size.
+		///
+		/// \todo Return rounded size.
+		[[nodiscard]] result<std::size_t> get_mapped_size() const;
+
+		/// Returns the pointer to the mapped memory region.
+		[[nodiscard]] void *get_mapped_pointer() const {
+			return _ptr;
+		}
+
+		/// Returns \p true if the \ref file_mapping does not refer a file.
+		[[nodiscard]] bool is_empty_handle() const {
+			return _ptr == nullptr;
+		}
+	protected:
+		void *_ptr = nullptr; ///< Pointer to the mapped memory region.
+#ifdef CP_PLATFORM_WINDOWS
+		HANDLE _handle = nullptr; ///< The handle of the file mapping.
+#elif defined(CP_PLATFORM_UNIX)
+		std::size_t _len = 0; ///< The size of the mapped region in bytes.
+#endif
+
+		/// Unmaps the file and resets corresponding fields. Assumes that the file's valid.
+		[[nodiscard]] std::error_code _unmap_impl();
+	};
+
 	/// Represents an opened file.
 	struct file {
+		friend pipe;
 	public:
 		/// The type of native handles.
 		using native_handle_t =
@@ -94,8 +153,6 @@ namespace codepad::os {
 		file(file &&rhs) noexcept : _handle(rhs._handle) {
 			rhs._handle = empty_handle;
 		}
-		/// No copy construction.
-		file(const file&) = delete;
 		/// Move assignment.
 		file &operator=(file &&rhs) noexcept {
 			close();
@@ -103,59 +160,68 @@ namespace codepad::os {
 			rhs._handle = empty_handle;
 			return *this;
 		}
-		/// No copy assignment.
-		file &operator=(const file&) = delete;
 		/// Calls close() to close the file.
 		~file() {
-			close();
+			auto result = close();
+			if (result) {
+				logger::get().log_error(CP_HERE) << "file::close() failed with error: " << result;
+			}
 		}
 
 		/// Tries to open the given file with the specified \ref access_rights and \ref open_mode.
-		inline static std::optional<file> open(const std::filesystem::path &path, access_rights acc, open_mode mode) {
-			native_handle_t h = _open_impl(path, acc, mode);
-			if (h == empty_handle) {
-				return std::nullopt;
-			}
-			return file(h);
+		[[nodiscard]] inline static result<file> open(
+			const std::filesystem::path &path, access_rights acc, open_mode mode
+		) {
+			return _open_impl(path, acc, mode).into([](native_handle_t h) {
+				return file(h);
+			});
 		}
 
 		/// If there is a currently open file, closes it and resets the \ref file to empty.
-		void close() {
+		std::error_code close() {
 			if (!is_empty_handle()) {
-				_close_impl(_handle);
+				auto result = _close_impl(_handle);
 				_handle = empty_handle;
+				return result;
 			}
+			return std::error_code();
 		}
 
 		/// Gets and returns the size of the opened file. Returns 0 if the file is empty.
-		pos_type get_size() const {
+		[[nodiscard]] result<pos_type> get_size() const {
 			if (!is_empty_handle()) {
 				return _get_size_impl();
 			}
-			return 0;
+			return std::error_code();
 		}
 
 		/// Reads a given amount of bytes into the given buffer.
 		///
 		/// \return The number of bytes read.
-		pos_type read(pos_type, void*);
+		[[nodiscard]] result<pos_type> read(pos_type, void*);
 		/// Writes the given data to the file.
-		void write(const void*, pos_type);
+		///
+		/// \return The number of bytes written. The caller should check that the entire buffer has been successfully
+		///         written.
+		[[nodiscard]] result<pos_type> write(const void*, pos_type);
 
 		/// Returns the position of the file pointer.
-		pos_type tell() const;
+		[[nodiscard]] result<pos_type> tell() const;
 		/// Moves the file pointer.
 		///
 		/// \return The position of the file pointer after this operation, relative to the beginning of the file.
-		pos_type seek(seek_mode, difference_type);
+		result<pos_type> seek(seek_mode, difference_type);
+
+		/// Maps this \ref file with the specified \ref access_rights.
+		[[nodiscard]] result<file_mapping> map(access_rights) const;
 
 		/// Returns the native handle.
-		native_handle_t get_native_handle() const {
+		[[nodiscard]] native_handle_t get_native_handle() const {
 			return _handle;
 		}
 
 		/// Returns \p true if the \ref file does not refer a file.
-		bool is_empty_handle() const {
+		[[nodiscard]] bool is_empty_handle() const {
 			return _handle == empty_handle;
 		}
 	protected:
@@ -167,75 +233,23 @@ namespace codepad::os {
 
 		/// Opens the given file with the specified \ref access_rights and \ref open_mode,
 		/// and returns the resulting file handle. If the operation fails, returns \ref empty_handle.
-		static native_handle_t _open_impl(const std::filesystem::path&, access_rights, open_mode);
+		[[nodiscard]] static result<native_handle_t> _open_impl(
+			const std::filesystem::path&, access_rights, open_mode
+		);
 		/// Closes the given file. The handle must not be empty.
-		static void _close_impl(native_handle_t);
+		[[nodiscard]] static std::error_code _close_impl(native_handle_t);
 		/// Returns the size of the opened file. Assumes that it's valid.
-		pos_type _get_size_impl() const;
+		[[nodiscard]] result<pos_type> _get_size_impl() const;
 	};
 
-	/// Represents a memory-mapped file.
-	struct file_mapping {
-	public:
-		/// Initializes the \ref file_mapping to empty.
-		file_mapping() = default;
-		/// Move constructor.
-		file_mapping(file_mapping&&);
-		/// No copy constructor.
-		file_mapping(const file_mapping&) = delete;
-		/// Move assignment.
-		file_mapping &operator=(file_mapping&&);
-		/// No copy assignment.
-		file_mapping &operator=(const file_mapping&) = delete;
-		/// Calls unmap() to unmap the file.
-		~file_mapping() {
-			unmap();
-		}
 
-		/// Tries to map the given \ref file with the specified \ref access_rights.
-		inline static std::optional<file_mapping> map(const file &f, access_rights acc) {
-			file_mapping result;
-			result._map_impl(f, acc);
-			if (!result.is_empty_handle()) {
-				return result;
-			}
-			return std::nullopt;
-		}
+	/// Read and write ends of a pipe.
+	struct pipe {
+		file
+			read, ///< The read end of the pipe.
+			write; ///< The write end of the pipe.
 
-		/// If there is a mapped file, unmaps it and resets the \ref file_mapping to empty.
-		void unmap() {
-			if (!is_empty_handle()) {
-				_unmap_impl();
-				_ptr = nullptr;
-			}
-		}
-
-		/// Returns the mapped size of the file. This could be larger than the file's actual size.
-		///
-		/// \todo Return rounded size.
-		std::size_t get_mapped_size() const;
-
-		/// Returns the pointer to the mapped memory region.
-		void *get_mapped_pointer() const {
-			return _ptr;
-		}
-
-		/// Returns \p true if the \ref file_mapping does not refer a file.
-		bool is_empty_handle() const {
-			return _ptr == nullptr;
-		}
-	protected:
-		void *_ptr = nullptr; ///< Pointer to the mapped memory region.
-#ifdef CP_PLATFORM_WINDOWS
-		HANDLE _handle = nullptr; ///< The handle of the file mapping.
-#elif defined(CP_PLATFORM_UNIX)
-		std::size_t _len = 0; ///< The size of the mapped region in bytes.
-#endif
-
-		/// Maps the given \ref file with the specified \ref access_rights.
-		/// If the operation fails, resets the \ref file_mapping to empty.
-		void _map_impl(const file&, access_rights);
-		/// Unmaps the file and resets corresponding fields. Assumes that the file's valid.
-		void _unmap_impl();
+		/// Creates a new pipe.
+		[[nodiscard]] static result<pipe> create();
 	};
 }

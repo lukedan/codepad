@@ -6,7 +6,6 @@
 /// \file
 /// Manager for tabs and tab hosts.
 
-#include "../../../os/misc.h"
 #include "../../element.h"
 #include "../../panel.h"
 #include "split_panel.h"
@@ -74,7 +73,7 @@ namespace codepad::ui::tabs {
 			assert_true_usage(host != nullptr, "cannot split tab without host");
 			_split_tab(*host, t, orient, newfirst);
 		}
-		/// Creates a new \ref os::window and a \ref host and moves the given tab into the newly created
+		/// Creates a new \ref window and a \ref host and moves the given tab into the newly created
 		/// \ref host. The size of the tab will be kept unchanged.
 		void move_tab_to_new_window(tab&);
 

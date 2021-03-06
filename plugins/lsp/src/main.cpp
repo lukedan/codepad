@@ -69,7 +69,7 @@ extern "C" {
 	}
 
 	PLUGIN_ENABLE() {
-		auto bkend = std::make_unique<cp::lsp::stdio_backend>(TEXT("D:/Software/LLVM/bin/clangd.exe"));
+		auto bkend = std::make_unique<cp::lsp::stdio_backend>(TEXT("D:/Software/LLVM/bin/clangd.exe"), std::vector<std::u8string_view>{});
 		cp::lsp::_client = std::make_unique<cp::lsp::client>(
 			std::move(bkend), cp::lsp::_context->ui_man->get_scheduler()
 		);

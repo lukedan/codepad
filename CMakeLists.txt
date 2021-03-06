@@ -53,6 +53,7 @@ target_sources(codepad_core
 		"include/codepad/os/dynamic_library.h"
 		"include/codepad/os/filesystem.h"
 		"include/codepad/os/misc.h"
+		"include/codepad/os/process.h"
 
 		"include/codepad/ui/backends/cairo_renderer_base.h"
 		"include/codepad/ui/backends/pango_harfbuzz_text_context.h"
@@ -183,6 +184,7 @@ if(WIN32)
 			"src/os/windows/dynamic_library.cpp"
 			"src/os/windows/filesystem.cpp"
 			"src/os/windows/misc.cpp"
+			"src/os/windows/process.cpp"
 			"src/os/windows/window.cpp"
 			"src/os/windows/windows.cpp")
 	target_compile_definitions(codepad_core

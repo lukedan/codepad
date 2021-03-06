@@ -73,15 +73,17 @@ namespace codepad::editors {
 			while (true) {
 				auto &chk = chunks.emplace_back();
 				chk.data.resize(maximum_bytes_per_chunk);
-				auto res = static_cast<std::size_t>(f->read(maximum_bytes_per_chunk, chk.data.data()));
-				if (res < maximum_bytes_per_chunk) {
-					if (res > 0) {
-						chk.data.resize(res);
-					} else {
-						chunks.pop_back();
+				if (auto res = f->read(maximum_bytes_per_chunk, chk.data.data())) {
+					auto bytes_read = static_cast<std::size_t>(res.value());
+					if (bytes_read < maximum_bytes_per_chunk) {
+						if (bytes_read > 0) {
+							chk.data.resize(bytes_read);
+						} else {
+							chunks.pop_back();
+						}
+						break;
 					}
-					break;
-				}
+				} // TODO read() failed
 			}
 			// TODO build the tree directly
 			for (chunk_data &cd : chunks) {

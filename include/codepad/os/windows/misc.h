@@ -34,6 +34,20 @@ namespace codepad::os {
 #endif
 		}
 
+		/// Calls \p GetLastError() and returns the error code.
+		[[nodiscard]] inline std::error_code get_error_code() {
+			return std::error_code(GetLastError(), std::system_category());
+		}
+		/// If the given value is non-zero, returns an empty \p std::error_code. Otherwise returns
+		/// \ref get_error_code().
+		template <typename T> [[nodiscard]] inline std::error_code check_and_return_error_code(T v) {
+			return v ? std::error_code() : get_error_code();
+		}
+		/// Returns a \ref result containing the \p std::error_code returned by \ref get_error_code().
+		template <typename T> [[nodiscard]] inline result<T> make_error_result() {
+			return get_error_code();
+		}
+
 		/// A wrapper for reference-counted COM objects.
 		template <typename T> struct com_wrapper final : public reference_counted_handle<com_wrapper<T>, T*> {
 		private:
@@ -138,8 +152,15 @@ namespace codepad::os {
 		};
 
 		/// Determines if the given key is held down by calling \p GetKeyState().
-		bool get_key_state(int key);
+		[[nodiscard]] bool get_key_state(int key);
 		/// Gets the set of modifier keys that are held down.
-		ui::modifier_keys get_modifiers();
+		[[nodiscard]] ui::modifier_keys get_modifiers();
+
+		/// Quotes and appends a single command line argument to the command line. The caller needs to manually add
+		/// spaces between each argument. This function also replaces invalid UTF-8 bytes with the replacement
+		/// character.
+		///
+		/// \sa https://docs.microsoft.com/en-gb/archive/blogs/twistylittlepassagesallalike/everyone-quotes-command-line-arguments-the-wrong-way
+		void quote_cmd_arg(std::u8string_view, std::wstring &append_to, bool force = false);
 	}
 }

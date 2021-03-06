@@ -66,8 +66,6 @@ namespace codepad::lsp {
 
 			return _read_bulk(message_length);
 		}
-		/// Checks if a message is present.
-		[[nodiscard]] virtual bool check_message() = 0;
 
 
 		/// Sends a request or a notification. Whether it's a request or a notification depends on the \p id

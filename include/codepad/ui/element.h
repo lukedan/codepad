@@ -15,7 +15,6 @@
 #include "../core/encodings.h"
 #include "../core/event.h"
 #include "../core/misc.h"
-#include "../os/misc.h"
 #include "property_path.h"
 #include "hotkey_registry.h"
 #include "element_classes.h"
@@ -518,7 +517,7 @@ namespace codepad::ui {
 
 		/// Called when the element has lost the capture it previously got. This can happen when the capture is
 		/// broken by an external event or when the element or one of its ancestors is removed from the window. This
-		/// function invokes \ref lost_capture. Note that \ref os::window::set_mouse_capture should not be called in
+		/// function invokes \ref lost_capture. Note that \ref window::set_mouse_capture() should not be called in
 		/// this handler.
 		virtual void _on_capture_lost() {
 			lost_capture.invoke();

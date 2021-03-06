@@ -49,59 +49,6 @@ namespace codepad::os {
 	}
 
 
-	file::native_handle_t file::_open_impl(
-		const std::filesystem::path &path, access_rights acc, open_mode mode
-	) {
-		native_handle_t res = CreateFile(
-			path.c_str(), _interpret_access_rights(acc),
-			FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-			_interpret_open_mode(mode), FILE_ATTRIBUTE_NORMAL, nullptr
-		);
-		if (res == INVALID_HANDLE_VALUE) {
-			logger::get().log_warning(CP_HERE) << "CreateFile failed with error code " << GetLastError();
-		}
-		return res;
-	}
-
-	void file::_close_impl(native_handle_t handle) {
-		_details::winapi_check(CloseHandle(handle));
-	}
-
-	file::pos_type file::_get_size_impl() const {
-		LARGE_INTEGER sz;
-		_details::winapi_check(GetFileSizeEx(_handle, &sz));
-		return sz.QuadPart;
-	}
-
-	file::pos_type file::read(file::pos_type sz, void *buf) {
-		assert_true_sys(sz <= std::numeric_limits<DWORD>::max(), "too many bytes to read");
-		DWORD res; // no need to init
-		_details::winapi_check(ReadFile(_handle, buf, static_cast<DWORD>(sz), &res, nullptr));
-		return static_cast<file::pos_type>(res);
-	}
-
-	void file::write(const void *data, pos_type sz) {
-		assert_true_sys(sz <= std::numeric_limits<DWORD>::max(), "too many bytes to write");
-		DWORD res; // no need to init
-		_details::winapi_check(WriteFile(_handle, data, static_cast<DWORD>(sz), &res, nullptr));
-		assert_true_sys(res == sz, "failed to write to file");
-	}
-
-	file::pos_type file::tell() const {
-		LARGE_INTEGER offset, res;
-		offset.QuadPart = 0;
-		_details::winapi_check(SetFilePointerEx(_handle, offset, &res, FILE_CURRENT));
-		return res.QuadPart;
-	}
-
-	file::pos_type file::seek(seek_mode mode, file::difference_type diff) { // almost identical to tell()
-		LARGE_INTEGER offset, res;
-		offset.QuadPart = diff;
-		_details::winapi_check(SetFilePointerEx(_handle, offset, &res, _interpret_seek_mode(mode)));
-		return res.QuadPart;
-	}
-
-
 	file_mapping::file_mapping(file_mapping &&rhs) : _ptr(rhs._ptr), _handle(rhs._handle) {
 		rhs._ptr = nullptr;
 		rhs._handle = nullptr;
@@ -116,37 +63,126 @@ namespace codepad::os {
 		return *this;
 	}
 
-	void file_mapping::_map_impl(const file &file, access_rights acc) {
-		_handle = CreateFileMapping(
-			file.get_native_handle(), nullptr,
+	std::error_code file_mapping::_unmap_impl() {
+		HANDLE h = _handle;
+		_handle = nullptr;
+		if (UnmapViewOfFile(_ptr)) {
+			if (CloseHandle(h)) {
+				return std::error_code();
+			}
+		}
+		return _details::get_error_code();
+	}
+
+	result<std::size_t> file_mapping::get_mapped_size() const {
+		if (!is_empty_handle()) {
+			MEMORY_BASIC_INFORMATION info;
+			if (!VirtualQuery(_ptr, &info, sizeof(info))) {
+				return _details::make_error_result<std::size_t>();
+			}
+			return info.RegionSize;
+		}
+		return std::error_code();
+	}
+
+
+	result<file::native_handle_t> file::_open_impl(
+		const std::filesystem::path &path, access_rights acc, open_mode mode
+	) {
+		native_handle_t res = CreateFile(
+			path.c_str(), _interpret_access_rights(acc),
+			FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+			_interpret_open_mode(mode), FILE_ATTRIBUTE_NORMAL, nullptr
+		);
+		if (res == INVALID_HANDLE_VALUE) {
+			return _details::make_error_result<file::native_handle_t>();
+		}
+		return res;
+	}
+
+	std::error_code file::_close_impl(native_handle_t handle) {
+		return _details::check_and_return_error_code(CloseHandle(handle));
+	}
+
+	result<file::pos_type> file::_get_size_impl() const {
+		LARGE_INTEGER sz;
+		if (!GetFileSizeEx(_handle, &sz)) {
+			return _details::make_error_result<pos_type>();
+		}
+		return sz.QuadPart;
+	}
+
+	result<file::pos_type> file::read(file::pos_type sz, void *buf) {
+		assert_true_sys(sz <= std::numeric_limits<DWORD>::max(), "too many bytes to read");
+		DWORD res = 0;
+		if (!ReadFile(_handle, buf, static_cast<DWORD>(sz), &res, nullptr)) {
+			return _details::make_error_result<pos_type>();
+		}
+		return static_cast<file::pos_type>(res);
+	}
+
+	result<file::pos_type> file::write(const void *data, pos_type sz) {
+		assert_true_sys(sz <= std::numeric_limits<DWORD>::max(), "too many bytes to write");
+		DWORD written; // no need to init
+		// written != sz may happen "when writing to a non-blocking, byte-mode pipe handle with
+		// insufficient buffer space"
+		if (!WriteFile(_handle, data, static_cast<DWORD>(sz), &written, nullptr)) {
+			return _details::make_error_result<pos_type>();
+		}
+		return written;
+	}
+
+	result<file::pos_type> file::tell() const {
+		LARGE_INTEGER offset, res;
+		offset.QuadPart = 0;
+		if (!SetFilePointerEx(_handle, offset, &res, FILE_CURRENT)) {
+			return _details::make_error_result<pos_type>();
+		}
+		return res.QuadPart;
+	}
+
+	result<file::pos_type> file::seek(seek_mode mode, file::difference_type diff) {
+		LARGE_INTEGER offset, res;
+		offset.QuadPart = diff;
+		if (!SetFilePointerEx(_handle, offset, &res, _interpret_seek_mode(mode))) {
+			return _details::make_error_result<pos_type>();
+		}
+		return res.QuadPart;
+	}
+
+	result<file_mapping> file::map(access_rights acc) const {
+		HANDLE handle = CreateFileMapping(
+			get_native_handle(), nullptr,
 			acc == access_rights::read ? PAGE_READONLY : PAGE_READWRITE,
 			0, 0, nullptr
 		);
-		if (_handle != nullptr) {
-			assert_true_usage(GetLastError() != ERROR_ALREADY_EXISTS, "cannot open multiple mappings to one file");
-			_ptr = MapViewOfFile(_handle, acc == access_rights::read ? FILE_MAP_READ : FILE_MAP_WRITE, 0, 0, 0);
-			if (!_ptr) {
-				logger::get().log_warning(CP_HERE) << "MapViewOfFile failed with error code " << GetLastError();
-				_details::winapi_check(CloseHandle(_handle));
-			}
-		} else {
-			logger::get().log_warning(CP_HERE) << "CreateFileMapping failed with error code " << GetLastError();
+		if (handle == nullptr) {
+			return _details::make_error_result<file_mapping>();
 		}
+		if (GetLastError() == ERROR_ALREADY_EXISTS) {
+			return std::error_code(ERROR_ALREADY_EXISTS, std::system_category());
+		}
+		void *ptr = MapViewOfFile(_handle, acc == access_rights::read ? FILE_MAP_READ : FILE_MAP_WRITE, 0, 0, 0);
+		if (!ptr) {
+			CloseHandle(_handle); // no point checking the result
+			return _details::make_error_result<file_mapping>();
+		}
+		file_mapping result;
+		result._handle = handle;
+		result._ptr = ptr;
+		return std::move(result);
 	}
 
-	void file_mapping::_unmap_impl() {
-		_details::winapi_check(UnmapViewOfFile(_ptr));
-		_details::winapi_check(CloseHandle(_handle));
-		_ptr = nullptr;
-		_handle = nullptr;
-	}
 
-	std::size_t file_mapping::get_mapped_size() const {
-		if (!is_empty_handle()) {
-			MEMORY_BASIC_INFORMATION info;
-			_details::winapi_check(VirtualQuery(_ptr, &info, sizeof(info)));
-			return info.RegionSize;
+	result<pipe> pipe::create() {
+		HANDLE read, write;
+		if (!CreatePipe(&read, &write, nullptr, 0)) {
+			return _details::make_error_result<pipe>();
 		}
-		return 0;
+
+		pipe result;
+		result.read = file(read);
+		result.write = file(write);
+		return std::move(result);
 	}
 }

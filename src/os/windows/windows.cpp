@@ -279,6 +279,62 @@ namespace codepad::os {
 		os::_details::winapi_check(GetConsoleScreenBufferInfo(out, &info));
 		return static_cast<std::size_t>(info.srWindow.Right - info.srWindow.Left + 1);
 	}
+
+	namespace _details {
+		void quote_cmd_arg(std::u8string_view arg, std::wstring &append_to, bool force) {
+			bool has_meta = force;
+
+			// first decode the argument
+			std::u32string decoded;
+			decoded.reserve(arg.size());
+			for (auto it = arg.begin(); it != arg.end(); ) {
+				codepoint cp;
+				if (!encodings::utf8::next_codepoint(it, arg.end(), cp)) {
+					cp = encodings::replacement_character;
+				}
+				has_meta = has_meta || (cp == U' ' || cp == U'\t' || cp == U'\n' || cp == U'\v' || cp == U'"');
+				decoded.push_back(static_cast<char32_t>(cp));
+			}
+
+			// no meta characters, append directly
+			if (!has_meta) {
+				for (char32_t c : decoded) {
+					auto str = encodings::utf16<>::encode_codepoint(c);
+					append_to.append(std::wstring_view(
+						reinterpret_cast<const wchar_t*>(str.data()), str.size() / 2
+					));
+				}
+				return;
+			}
+
+			append_to.push_back(L'"');
+			for (auto it = decoded.begin(); ; ++it) {
+				std::size_t num_backslashes = 0;
+				while (it != decoded.end() && *it == U'\\') {
+					++it;
+					++num_backslashes;
+				}
+				if (it == decoded.end()) {
+					// escape all backslashes, but let the terminating double quotation mark we add below be
+					// interpreted as a metacharacter
+					append_to.append(num_backslashes * 2, L'\\');
+					break;
+				} else if (*it == U'"') {
+					// escape all backslashes and the following double quotation mark
+					append_to.append(num_backslashes * 2 + 1, L'\\');
+					append_to.push_back(L'"');
+				} else {
+					// backslashes aren't special here
+					append_to.append(num_backslashes, L'\\');
+					auto str = encodings::utf16<>::encode_codepoint(*it);
+					append_to.append(std::wstring_view(
+						reinterpret_cast<const wchar_t*>(str.data()), str.size() / 2
+					));
+				}
+			}
+			append_to.push_back(L'"');
+		}
+	}
 }
 
 

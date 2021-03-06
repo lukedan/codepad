@@ -15,6 +15,7 @@
 #include "codepad/ui/renderer.h"
 #include "codepad/ui/manager.h"
 #include "codepad/ui/element_classes.h"
+#include "codepad/os/misc.h"
 
 namespace codepad {
 	// TODO probably put these into ui::manager as well
