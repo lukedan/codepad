@@ -264,7 +264,7 @@ namespace codepad::os::direct2d {
 	ui::caret_hit_test_result formatted_text::hit_test_at_line(std::size_t line, double x) const {
 		DWRITE_TEXT_METRICS metrics;
 		_details::com_check(_text->GetMetrics(&metrics));
-		// if `line` is larger than the number of lines, do this hit test on the last of the line
+		// if `line` is larger than the number of lines, do this hit test on the last line
 		line = std::min(line, static_cast<std::size_t>(metrics.lineCount - 1));
 		std::vector<DWRITE_LINE_METRICS> line_metrics(static_cast<std::size_t>(metrics.lineCount));
 		UINT32 num_lines = 0;
@@ -1253,7 +1253,6 @@ namespace codepad::os::direct2d {
 		vec2d maxsize, ui::wrapping_mode wrap,
 		ui::horizontal_text_alignment halign, ui::vertical_text_alignment valign
 	) {
-		// use new to access protedted constructor
 		auto res = std::make_shared<formatted_text>(*this, std::move(analysis.surrogate), analysis.num_chars);
 
 		_details::com_wrapper<IDWriteTextFormat> format;

@@ -1,7 +1,18 @@
 # To-do List
 
-Items in this list are not sorted by any specific criteria.
+Items in this list are not sorted by any specific order.
 
+- [ ] Core
+	- [ ] OS specific
+		- [ ] Pipes
+			- [ ] Windows
+			- [ ] Linux
+			- [ ] MacOS
+		- [ ] Subprocesses
+			- [ ] Windows
+			- [ ] Linux
+			- [ ] MacOS
+		- [ ] Better error handling for filesystem API
 - [ ] User interface
 	- [ ] Popups
 		- [ ] OS specific: popups don't get keyboard focus
@@ -23,7 +34,7 @@ Items in this list are not sorted by any specific criteria.
 				- [x] _Base implementation_
 				- [ ] Fix compatibility issues
 				- [ ] Improve performance
-			- [ ] Fix open file dialog with the new API
+			- [x] _Fix open file dialog with the new API_
 			- [ ] WinAPI window styles are not orthogonal
 		- [ ] Linux
 			- [ ] Cairo renderer

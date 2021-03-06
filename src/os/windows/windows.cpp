@@ -47,8 +47,6 @@ namespace codepad::os {
 	}
 
 
-#define CP_USE_LEGACY_OPEN_FILE_DIALOG // TODO new open file dialog doesn't work right now
-
 #ifdef CP_USE_LEGACY_OPEN_FILE_DIALOG
 	std::vector<std::filesystem::path> file_dialog::show_open_dialog(const ui::window *parent, type type) {
 		const std::size_t file_buffer_size = 1000;
@@ -183,31 +181,29 @@ namespace codepad::os {
 		_details::com_check(dialog->SetOptions(options));
 		_details::com_check(dialog->SetFileTypes(1, &file_types));
 		_details::com_check(dialog->SetFileTypeIndex(1)); // this index is one-based
-		// TODO bug here: program hangs
-		// also no problem if parent is nullptr
 		HRESULT res = dialog->Show(
 			parent ? _details::cast_window_impl(parent->get_impl()).get_native_handle() : nullptr
 		);
-		if (res == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
-			// TODO probably everything leaks
-			return {};
-		}
-		_details::com_check(res);
-		IShellItemArray *files = nullptr;
-		DWORD count;
-		_details::com_check(dialog->GetResults(&files));
-		_details::com_check(files->GetCount(&count));
+
+		// gather result
 		std::vector<std::filesystem::path> result;
-		result.reserve(count);
-		for (DWORD i = 0; i < count; ++i) {
-			IShellItem *item;
-			_details::com_check(files->GetItemAt(i, &item));
-			LPWSTR path = nullptr;
-			_details::com_check(item->GetDisplayName(SIGDN_FILESYSPATH, &path));
-			result.push_back(std::filesystem::path(path));
-			CoTaskMemFree(path);
+		if (res != HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+			_details::com_check(res);
+			IShellItemArray *files = nullptr;
+			DWORD count;
+			_details::com_check(dialog->GetResults(&files));
+			_details::com_check(files->GetCount(&count));
+			result.reserve(count);
+			for (DWORD i = 0; i < count; ++i) {
+				IShellItem *item;
+				_details::com_check(files->GetItemAt(i, &item));
+				LPWSTR path = nullptr;
+				_details::com_check(item->GetDisplayName(SIGDN_FILESYSPATH, &path));
+				result.push_back(std::filesystem::path(path));
+				CoTaskMemFree(path);
+			}
+			files->Release();
 		}
-		files->Release();
 		dialog->Unadvise(cookie);
 		devents->Release();
 		dialog->Release();

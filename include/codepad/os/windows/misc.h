@@ -83,7 +83,11 @@ namespace codepad::os {
 
 		struct com_usage {
 			com_usage() {
-				HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+				// https://docs.microsoft.com/en-us/windows/win32/api/objbase/ne-objbase-coinit
+				// "The multi-threaded apartment is intended for use by non-GUI threads. Threads in multi-threaded
+				// apartments should not perform UI actions. This is because UI threads require a message pump, and
+				// COM does not pump messages for threads in a multi-threaded apartment."
+				HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 				if (hr != S_FALSE) {
 					_details::com_check(hr);
 				}
