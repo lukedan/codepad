@@ -13,6 +13,7 @@
 #include <codepad/ui/manager.h>
 #include <codepad/ui/elements/scrollbar.h>
 
+#include "buffer.h"
 #include "caret_set.h"
 #include "decoration.h"
 
@@ -51,12 +52,16 @@ namespace codepad::editors {
 			set_insert_mode(!is_insert_mode());
 		}
 
+		/// Returns the associated \ref buffer. This function returns a reference to a \p std::shared_ptr so that new
+		/// views into the buffer can be opened.
+		[[nodiscard]] virtual const std::shared_ptr<buffer> &get_buffer() const = 0;
+
 		/// Returns a reference to the \ref selection_renderer used for this contents region.
-		std::unique_ptr<decoration_renderer> &code_selection_renderer() {
+		std::shared_ptr<decoration_renderer> &code_selection_renderer() {
 			return _selection_renderer;
 		}
 		/// \overload
-		const std::unique_ptr<decoration_renderer> &code_selection_renderer() const {
+		const std::shared_ptr<decoration_renderer> &code_selection_renderer() const {
 			return _selection_renderer;
 		}
 
@@ -68,7 +73,7 @@ namespace codepad::editors {
 			edit_mode_changed;
 	protected:
 		ui::visuals _caret_visuals; ///< The visuals of carets.
-		std::unique_ptr<decoration_renderer> _selection_renderer; ///< The \ref decoration_renderer.
+		std::shared_ptr<decoration_renderer> _selection_renderer; ///< The \ref decoration_renderer.
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
 		/// Handles the registration of \p mode_changed_insert and \p mode_changed_overwrite events.

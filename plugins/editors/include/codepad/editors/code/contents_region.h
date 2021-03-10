@@ -29,6 +29,10 @@ namespace codepad::editors::code {
 	class contents_region : public interactive_contents_region_base<caret_set> {
 		friend buffer_manager;
 	public:
+		/// Returns the \ref buffer associated with \ref _doc.
+		const std::shared_ptr<buffer> &get_buffer() const override {
+			return _doc->get_buffer();
+		}
 		/// Returns the \ref interpretation currently bound to this contents_region.
 		const std::shared_ptr<interpretation> &get_document() const {
 			return _doc;

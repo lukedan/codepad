@@ -92,11 +92,11 @@ namespace codepad::editors::code {
 		}
 	};
 
-	/// Manages the list of available encodings.
-	class encoding_manager {
+	/// Stores the list of available encodings.
+	class encoding_registry {
 	public:
 		/// Registers a series of built-in encodings, and sets the default encoding to UTF-8.
-		encoding_manager() {
+		encoding_registry() {
 			register_builtin_encoding<encodings::utf8>();
 			register_builtin_encoding<encodings::utf16<endianness::little_endian>>();
 			register_builtin_encoding<encodings::utf16<endianness::big_endian>>();

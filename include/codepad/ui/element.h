@@ -638,7 +638,7 @@ namespace codepad::ui {
 		virtual bool _register_event(std::u8string_view name, std::function<void()>);
 		/// Parses an property path and returns the corresponding \ref property_info. If parsing fails the returned
 		/// struct will contain null pointers.
-		virtual property_info _find_property_path(const property_path::component_list &path) const;
+		[[nodiscard]] virtual property_info _find_property_path(const property_path::component_list &path) const;
 
 
 		/// Called immediately after the element is created to initialize it. Initializes \ref _params and

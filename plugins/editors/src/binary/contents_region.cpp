@@ -287,7 +287,7 @@ namespace codepad::editors::binary {
 						std::size_t i = firstbyte;
 						i < lastbyte && it != get_buffer()->end();
 						++i, ++it, x += _cached_max_byte_width + _blank_width
-						) {
+					) {
 						auto text = renderer.create_plain_text_fast(
 							convert_base(
 								static_cast<unsigned>(*it), _radix, get_maximum_byte_digits_for_radix(_radix)

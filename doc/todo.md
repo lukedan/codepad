@@ -12,11 +12,9 @@ Items in this list are not sorted by any specific order.
 			- [ ] Windows
 			- [ ] Linux
 			- [ ] MacOS
-		- [ ] Better error handling for filesystem API
+		- [x] _Better error handling for filesystem API_
 - [ ] User interface
 	- [ ] Popups
-		- [ ] OS specific: popups don't get keyboard focus
-		- [ ] Support setting the parent of a window logically
 	- [ ] Sublime-style input prompt
 		- [ ] Virtualized listbox
 		- [ ] Fuzzy searcing
@@ -67,7 +65,7 @@ Items in this list are not sorted by any specific order.
 	- [ ] Theme providers
 	- [ ] Gizmo providers
 	- [ ] Folding providers
-	- [ ] Parsing of decoration renderers
+	- [x] _Parsing of decoration renderers_
 	- [ ] Search & replace
 		- [ ] Regular expression support
 	- [ ] Go to anything

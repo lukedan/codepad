@@ -7,6 +7,9 @@
 /// Implementation of the editor.
 
 #include "codepad/ui/json_parsers.inl"
+#include "codepad/ui/manager.h"
+#include "codepad/editors/manager.h"
+#include "details.h"
 
 namespace codepad::editors {
 	bool contents_region_base::_register_edit_mode_changed_event(
@@ -47,6 +50,25 @@ namespace codepad::editors {
 							rgn.invalidate_visual();
 						}
 					)
+				);
+			}
+			if (path.front().property == u8"selection_renderer") {
+				ui::component_property_accessor_builder builder(
+					path.begin(), path.end(),
+					ui::property_info::make_typed_modification_callback<element, contents_region_base>(
+						[](contents_region_base &rgn) {
+							rgn.invalidate_visual();
+						}
+					)
+				);
+				builder.make_append_accessor_component<
+					ui::property_path::address_accessor_components::dynamic_cast_component<
+						contents_region_base, element
+					>
+				>();
+				builder.make_append_member_pointer_component<&contents_region_base::_selection_renderer>();
+				return decoration_renderer::find_property_info_handler(
+					builder, get_manager(), _details::get_manager()
 				);
 			}
 		}

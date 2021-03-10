@@ -164,8 +164,7 @@ namespace codepad::ui::property_path {
 			/// Casts the pointer. If the cast fails, the returned \ref any_ptr will still hold the type information
 			/// of the target type, but the pointer will be \ref nullptr.
 			[[nodiscard]] any_ptr get(const any_ptr &p) const override {
-				auto *var = p.get<Source>();
-				if (var) {
+				if (auto *var = p.get<Source>()) {
 					return dynamic_cast<Target*>(var);
 				}
 				return nullptr;
@@ -174,6 +173,22 @@ namespace codepad::ui::property_path {
 			/// Tests equality using \p dynamic_cast.
 			bool equals(const component_base &rhs) const override {
 				return dynamic_cast<const dynamic_cast_component*>(&rhs) != nullptr;
+			}
+		};
+		/// A component that dereferences a pointer-like object.
+		template <typename Ptr> class dereference_component : public component_base {
+		public:
+			/// Casts the pointer and dereferences it.
+			[[nodiscard]] any_ptr get(const any_ptr &p) const override {
+				if (auto *var = p.get<Ptr>()) {
+					return &**var;
+				}
+				return nullptr;
+			}
+
+			/// Tests equality using \p dynamic_cast.
+			bool equals(const component_base &rhs) const override {
+				return dynamic_cast<const dereference_component*>(&rhs) != nullptr;
 			}
 		};
 	}

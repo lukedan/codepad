@@ -363,7 +363,7 @@ namespace codepad::red_black_tree {
 		}
 		return result;
 	}
-	/// Joins the two given trees and the node. Both trees must be non-empty.
+	/// Joins the two given trees and the node.
 	///
 	/// \param left The tree whose nodes are ordered before \p mid.
 	/// \param right The tree whose nodes are ordered after \p mid.
@@ -377,7 +377,7 @@ namespace codepad::red_black_tree {
 		assert_true_logical(mid != nullptr, "null node used for join operation");
 		assert_true_logical(
 			mid->parent == nullptr && mid->left == nullptr && mid->right == nullptr,
-			"mid must be an independent node"
+			"mid must be an isolated node"
 		);
 		assert_true_logical(
 			(left == nullptr || left->parent == nullptr) && (right == nullptr || right->parent == nullptr),

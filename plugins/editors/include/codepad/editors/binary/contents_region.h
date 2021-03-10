@@ -63,7 +63,7 @@ namespace codepad::editors::binary {
 		};
 
 		/// Returns the \ref buffer that's currently being edited.
-		const std::shared_ptr<buffer> &get_buffer() const {
+		const std::shared_ptr<buffer> &get_buffer() const override {
 			return _buf;
 		}
 		/// Sets the \ref buffer that's being edited.
