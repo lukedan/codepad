@@ -78,13 +78,13 @@ namespace codepad::ui {
 		///             original variable in a moved-from state.
 		/// \return \p false if a command of the same name has already been registered, in which case the new
 		///         command will be discarded.
-		[[nodiscard]] bool register_command(const std::u8string &name, command &func) {
-			return _cmds.try_emplace(name, std::move(func)).second;
+		[[nodiscard]] bool register_command(std::u8string name, command &func) {
+			return _cmds.try_emplace(std::move(name), std::move(func)).second;
 		}
 		/// Unregisters a command.
 		///
 		/// \return The function associated with this command, or \p nullptr if no such command is found.
-		[[nodiscard]] command unregister_command(const std::u8string &name) {
+		[[nodiscard]] command unregister_command(std::u8string_view name) {
 			auto it = _cmds.find(name);
 			if (it == _cmds.end()) {
 				return nullptr;
@@ -94,7 +94,7 @@ namespace codepad::ui {
 			return func;
 		}
 		/// Finds the command with the given name. Returns \p nullptr if none is found.
-		[[nodiscard]] const command *find_command(const std::u8string &name) const {
+		[[nodiscard]] const command *find_command(std::u8string_view name) const {
 			auto it = _cmds.find(name);
 			return it == _cmds.end() ? nullptr : &it->second;
 		}
@@ -117,7 +117,7 @@ namespace codepad::ui {
 		}
 	protected:
 		/// The map that stores all registered commands.
-		std::unordered_map<std::u8string, command> _cmds;
+		std::unordered_map<std::u8string, command, string_hash<>, std::equal_to<>> _cmds;
 	};
 
 	/// Holds the information of an element and its corresponding \ref hotkey_group.

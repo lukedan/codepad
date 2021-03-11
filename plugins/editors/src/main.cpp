@@ -40,7 +40,7 @@ extern "C" {
 		_context = &ctx;
 		_this_plugin = &this_plugin;
 
-		_manager = std::make_unique<cp::editors::manager>();
+		_manager = std::make_unique<cp::editors::manager>(*_context->ui_man);
 		_this_plugin->plugin_data.emplace<cp::editors::manager*>(_manager.get());
 	}
 

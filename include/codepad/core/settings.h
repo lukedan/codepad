@@ -77,8 +77,12 @@ namespace codepad {
 			json::storage::object_t _value; ///< Override settings of this profile.
 			const profile *_parent = nullptr; ///< The parent profile, or \p nullptr if this is the root profile.
 		};
-		/// Used to retrieve and interpret settings. Only the key, the parser and the mapping between profile names
-		/// and profile getters. Instances of this struct are intended to be used as global variables.
+		/// Used to retrieve and interpret settings. Use \ref get_profile() to retrieve a \ref profile_value object
+		/// that than retrieves a concrete value for the setting using \ref profile_value::get_value(). Since the
+		/// creation of both \ref retriever_parser and \ref profile_value are somewhat heavy, and \ref profile_value
+		/// provides caching for the retrieved setting value, consider storing these objects instead of crating new
+		/// ones every time a setting value is needed. Alternatively, register to the \ref changed event and update
+		/// these values manually.
 		template <typename T> class retriever_parser {
 		public:
 			/// Used to parse JSON values into C++ structures. The default value should be used when the setting
@@ -100,52 +104,39 @@ namespace codepad {
 			class profile_value {
 			public:
 				/// Initializes this \ref profile_value with the corresponding \ref retriever_parser.
-				profile_value(std::shared_ptr<context> ctx, settings &s, profile_value *p, std::u8string prof_key) :
-					_profile_key(std::move(prof_key)), _context(std::move(ctx)), _parent(p), _settings(s) {
+				profile_value(retriever_parser &parser, profile_value *parent, std::u8string prof_key) :
+					_profile_key(std::move(prof_key)), _parent(parent), _parser(parser) {
 				}
 
 				/// Returns the value, re-parsing it if necessary.
 				const T &get_value() {
-					if (_timestamp != _settings._timestamp) {
-						std::optional<json::storage::value_t> jsonval;
-						if (_parent) { // not the main profile
-							// gather the (reversed) key
-							std::vector<std::u8string_view> key;
-							for (const profile_value *current = this; current->_parent; current = current->_parent) {
-								key.emplace_back(current->_profile_key);
-							}
-							profile &prof = _settings.find_deepest_profile(key.rbegin(), key.rend());
-							jsonval = prof.retrieve(_context->key.begin(), _context->key.end());
-						} else { // just a small optimization to skip key collection & profile searching
-							jsonval = _settings.get_main_profile().retrieve(
-								_context->key.begin(), _context->key.end()
-							);
+					if (_timestamp != _parser._settings._timestamp) {
+						std::vector<std::u8string_view> profile;
+						for (const profile_value *current = this; current->_parent; current = current->_parent) {
+							profile.emplace_back(current->_profile_key);
 						}
-						T newval = _context->parser(jsonval);
-						if (newval != _value) {
-							_value = std::move(newval);
-						}
+						_value = _parser.get_value(profile.rbegin(), profile.rend());
 						// update timestamp
-						_timestamp = _settings._timestamp;
+						_timestamp = _parser._settings._timestamp;
 					}
 					return _value;
 				}
 
 				/// Finds or creates a child with the given key.
-				profile_value &get_child_profile(std::u8string_view key) {
+				[[nodiscard]] profile_value &get_child_profile(std::u8string_view key) {
 					auto it = _children.find(key);
 					if (it != _children.end()) {
 						return **it;
 					}
-					auto res = _children.emplace(std::make_unique<profile_value>(_context, _settings, this, std::u8string(key)));
+					auto res = _children.emplace(std::make_unique<profile_value>(_parser, this, std::u8string(key)));
 					assert_true_logical(res.second, "insertion should succeed");
 					return **res.first;
 				}
 			protected:
 				/// Used to compare two \ref profile_value instances.
-				template <typename Cmp = std::less<void>> struct _profile_value_ptr_compare {
+				template <typename Cmp = std::less<>> struct _profile_value_ptr_compare {
 					/// Allows \p std::set::find() to take \ref std::u8string_view as the key.
-					using is_transparent = std::true_type;
+					using is_transparent = void;
 
 					/// Overload for \p std::unique_ptr to \ref profile_value.
 					inline static std::u8string_view get_key(const std::unique_ptr<profile_value> &ptr) {
@@ -165,22 +156,23 @@ namespace codepad {
 				};
 
 				std::u8string _profile_key; ///< The key of this profile, relative to its parent.
-				/// Getters for children profiles.
+				/// Getters for children profiles. Using set instead of unordered_set to save space.
 				std::set<std::unique_ptr<profile_value>, _profile_value_ptr_compare<>> _children;
 				T _value; ///< The value.
 				/// The timestamp. This is set to 0 so that a fresh value will always be fetched after construction.
 				std::size_t _timestamp = 0;
-				std::shared_ptr<context> _context; ///< The context of this value.
-				profile_value *_parent = nullptr; ///< The parent \ref profile_value.
-				settings &_settings; ///< The associated \ref settings.
+				profile_value *_parent = nullptr; ///< The \ref profile_value associated with the parent profile.
+				retriever_parser &_parser; ///< The \ref retriever_parser that owns this object.
 			};
 
-			/// Default constructor.
-			retriever_parser() = default;
 			/// Constructs this \ref retriever_parser using the given setting, key, and parser.
-			retriever_parser(settings &s, std::shared_ptr<context> ctx) : _context(std::move(ctx)), _parent(&s) {
-				_main = std::make_unique<profile_value>(_context, *_parent, nullptr, u8"");
+			retriever_parser(settings &s, std::shared_ptr<context> ctx) : _context(std::move(ctx)), _settings(s) {
+				_main = std::make_unique<profile_value>(*this, nullptr, u8"");
 			}
+			/// No copy construction.
+			retriever_parser(const retriever_parser&) = delete;
+			/// No copy assignment.
+			retriever_parser &operator=(const retriever_parser&) = delete;
 
 			/// Retrieves the \ref profile_value for the given profile name.
 			template <typename It> profile_value &get_profile(It begin, It end) {
@@ -194,10 +186,20 @@ namespace codepad {
 			profile_value &get_main_profile() {
 				return *_main;
 			}
+
+			/// Retrieves and parses the setting value directly without caching, for the deepest existing profile
+			/// corresponding to the given profile name.
+			template <typename It> T get_value(It begin, It end) {
+				profile &prof = _settings.find_deepest_profile(begin, end);
+				std::optional<json::storage::value_t> jsonval = prof.retrieve(
+					_context->key.begin(), _context->key.end()
+				);
+				return _context->parser(jsonval);
+			}
 		protected:
 			std::shared_ptr<context> _context; ///< The context of this \ref retriever_parser.
 			std::unique_ptr<profile_value> _main; ///< The value corresponding to the main profile.
-			settings *_parent = nullptr; ///< The associated \ref settings object.
+			settings &_settings; ///< The associated \ref settings object.
 		};
 
 		/// A thin wrapper around a \ref retriever_parser::profile_value.
@@ -286,19 +288,19 @@ namespace codepad {
 		profile &get_main_profile();
 
 		/// Returns a \ref retriever_parser for the given setting.
-		template <typename T> retriever_parser<T> create_retriever_parser(
+		template <typename T> [[nodiscard]] std::unique_ptr<retriever_parser<T>> create_retriever_parser(
 			std::shared_ptr<typename retriever_parser<T>::context> ctx
 		) {
-			return retriever_parser<T>(*this, std::move(ctx));
+			return std::make_unique<retriever_parser<T>>(*this, std::move(ctx));
 		}
 		/// Returns a \ref retriever_parser for the given setting. Use the other overload that accepts a
 		/// \ref retriever_parser<T>::context whenever possible.
-		template <typename T> retriever_parser<T> create_retriever_parser(
+		template <typename T> [[nodiscard]] std::unique_ptr<retriever_parser<T>> create_retriever_parser(
 			std::vector<std::u8string> key, typename retriever_parser<T>::value_parser p
 		) {
 			return create_retriever_parser<T>(std::make_shared<typename retriever_parser<T>::context>(
 				std::move(key), std::move(p)
-				));
+			));
 		}
 
 		/// Updates the value of all settings.
@@ -341,13 +343,13 @@ namespace codepad {
 					_slow_map.erase(it);
 				}
 			}
-			return _retriever;
+			return *_retriever;
 		}
 	private:
 		std::shared_ptr<typename settings::retriever_parser<T>::context> _context; ///< The context of this setting.
 		/// A mapping for \ref settings objects that are not currently active.
-		std::map<settings*, settings::retriever_parser<T>> _slow_map;
-		settings::retriever_parser<T> _retriever; ///< The \ref settings::retriever_parser.
+		std::map<settings*, std::unique_ptr<settings::retriever_parser<T>>> _slow_map;
+		std::unique_ptr<settings::retriever_parser<T>> _retriever; ///< The \ref settings::retriever_parser.
 		settings *_settings = nullptr; ///< The current \ref settings object.
 	};
 }

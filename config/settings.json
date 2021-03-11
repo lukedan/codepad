@@ -19,6 +19,19 @@
 		"interaction_modes": [
 			"prepare_drag",
 			"single_selection"
-		]
+		],
+
+		"theme": { // https://github.com/mg979/vim-studio-dark/blob/master/colors/vsdark.vim
+			"keyword": {
+				"color": [ 0.337, 0.612, 0.839, 1.0 ],
+				"weight": "bold"
+			},
+			"operator": [ 0.863, 0.863, 0.667, 1.0 ],
+			"string": [ 0.808, 0.569, 0.471, 1.0 ],
+			"comment": [ 0.416, 0.600, 0.333, 1.0 ],
+			"type": [ 0.306, 0.788, 0.690, 1.0 ],
+			"number": [ 0.710, 0.808, 0.659, 1.0 ],
+			"tag": [ 0.337, 0.612, 0.839, 1.0 ]
+		}
 	}
 }

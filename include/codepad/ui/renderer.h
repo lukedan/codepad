@@ -55,8 +55,9 @@ namespace codepad {
 		/// The weight of text.
 		///
 		/// \todo WTF is the difference between FontConfig and DWrite?
-		enum class font_weight : unsigned char {
-			normal = 40
+		enum class font_weight : unsigned short {
+			normal = 400,
+			bold = 700
 		};
 	}
 	/// Parser for \ref ui::font_weight.

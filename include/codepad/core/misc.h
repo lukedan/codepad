@@ -104,6 +104,30 @@ namespace codepad {
 	};
 
 
+	/// Hash used by \p std::unordered_ containers to allow for \p std::basic_string_view or <tt>const Char*</tt> to
+	/// be used as keys when the type of the key is \p std::basic_string.
+	template <typename Char = char8_t> struct string_hash {
+		/// Indicates that this hasher accepts multiple key types.
+		using is_transparent = void;
+		using hash_type = std::hash<std::basic_string_view<Char>>; ///< Underlying \p std::hash type.
+
+		/// Computes hash for a C-style string.
+		std::size_t operator()(const Char *str) const {
+			// FIXME this will compute the length of the string which is O(n). however, since we don't use this
+			//       function often this is probably fine
+			return hash_type{}(str);
+		}
+		/// Computes hash for a \p std::basic_string_view.
+		std::size_t operator()(std::basic_string_view<Char> str) const {
+			return hash_type{}(str);
+		}
+		/// Computes hash for a \p std::basic_string.
+		std::size_t operator()(const std::basic_string<Char> &str) const {
+			return hash_type{}(str);
+		}
+	};
+
+
 	/// Information about a position in the code of codepad.
 	///
 	/// \todo Use std::source_location.
@@ -255,6 +279,33 @@ namespace codepad {
 			return All ^ get_bitset_from_string(list, str);
 		}
 		return get_bitset_from_string(list, str);
+	}
+
+	/// Calls the callback function for all substrings in the given string separated by the given codepoint,
+	/// terminating once the callback returns \p false, if the callback returns a value.
+	template <typename Callback> inline void split_string(codepoint split, std::u8string_view str, Callback &&cb) {
+		using _callback_return_t = std::invoke_result_t<Callback&&, std::u8string_view>;
+
+		auto it = str.begin(), last = str.begin();
+		while (it != last) {
+			auto char_beg = it;
+			codepoint cp;
+			if (!encodings::utf8::next_codepoint(it, str.end(), cp)) {
+				cp = encodings::replacement_character;
+			}
+			if (cp == split) {
+				std::u8string_view substring = str.substr(last - str.begin(), char_beg - last);
+				if constexpr (std::is_same_v<_callback_return_t, void>) {
+					cb(substring);
+				} else {
+					if (!cb(substring)) {
+						return;
+					}
+				}
+				last = it;
+			}
+		}
+		cb(str.substr(last - str.begin(), str.end() - last));
 	}
 
 

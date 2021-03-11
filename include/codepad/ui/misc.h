@@ -418,6 +418,18 @@ namespace codepad {
 				return json::default_parser<T>{}(v);
 			}
 		};
+		/// Managed parser for \ref colord. Handles the case where the value is a name for a color in the palette.
+		template <> struct managed_json_parser<colord> {
+		public:
+			/// Initializes \ref _manager.
+			explicit managed_json_parser(manager &man) : _manager(man) {
+			}
+
+			/// The parser interface.
+			template <typename Value> std::optional<colord> operator()(const Value&) const;
+		protected:
+			manager &_manager;
+		};
 
 
 		/// Used when starting dragging to add a small deadzone where dragging will not yet trigger. The mouse is

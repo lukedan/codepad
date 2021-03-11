@@ -29,7 +29,7 @@ There's currently a `.clang-format` file in the project root, but it is not used
 - Don't use `auto` for return types unless necessary.
 - Use prefix increment/etc. operators instead of postfix increment/etc. operators whenever possible.
 - Put all code under the `codepad` namespace if possible.
-- Use UTF-8 for all internal operations. Use `std::u8string` and `std::u8string_view` instead of `std::string` and `std::string_view`.
+- Use UTF-8 for all internal operations. Use `std::u8string` and `std::u8string_view` instead of `std::string` and `std::string_view`. Use `std::u8string_view` instead of `const std::u8string&` unless a C-style string is expected.
 - Use forward slashes (`/`) in include paths.
 
 ## Regarding `int`

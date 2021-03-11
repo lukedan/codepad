@@ -109,7 +109,7 @@ namespace codepad::tree_sitter {
 				continue;
 			}
 
-			std::size_t reference_highlight_index = highlight_configuration::no_associated_theme;
+			std::size_t reference_highlight_index = editors::theme_configuration::no_associated_theme;
 			std::size_t *definition_highlight_index = nullptr;
 			// pop ended ranges
 			while (range_begin > layer._scope_stack.back().range_end) {
@@ -139,7 +139,7 @@ namespace codepad::tree_sitter {
 				} else if (cur_capture.index == layer_lang.get_local_definition_capture_index()) {
 					// the capture is a definition
 
-					reference_highlight_index = highlight_configuration::no_associated_theme;
+					reference_highlight_index = editors::theme_configuration::no_associated_theme;
 					definition_highlight_index = nullptr;
 
 					local_scope &cur_scope = layer._scope_stack.back();
@@ -212,14 +212,14 @@ namespace codepad::tree_sitter {
 				range_begin == _last_highlight_begin &&
 				range_end == _last_highlight_end &&
 				layer.get_depth() < _last_highlight_depth
-				) {
+			) {
 				continue;
 			}
 
 			if (
 				definition_highlight_index ||
-				reference_highlight_index != highlight_configuration::no_associated_theme
-				) {
+				reference_highlight_index != editors::theme_configuration::no_associated_theme
+			) {
 				// the current node is a local definition
 				// skip over highlight patterns that are disabled for local variables
 				while (layer_lang.get_non_local_variable_patterns()[match.capture_index]) {
@@ -260,10 +260,10 @@ namespace codepad::tree_sitter {
 			}
 
 			std::size_t highlight = reference_highlight_index;
-			if (highlight == highlight_configuration::no_associated_theme) {
+			if (highlight == editors::theme_configuration::no_associated_theme) {
 				highlight = current_highlight;
 			}
-			if (highlight != highlight_configuration::no_associated_theme) {
+			if (highlight != editors::theme_configuration::no_associated_theme) {
 				// start the scope
 				_last_highlight_begin = range_begin;
 				_last_highlight_end = range_end;

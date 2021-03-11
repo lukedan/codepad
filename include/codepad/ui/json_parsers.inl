@@ -133,7 +133,7 @@ namespace codepad::json {
 		const Value &val
 	) const {
 		if (auto obj = val.template cast<typename Value::object_type>()) {
-			if (auto color = obj->template parse_member<colord>(u8"color")) {
+			if (auto color = obj->template parse_member<colord>(u8"color")) { // TODO parse color using managed parser?
 				return ui::brush_parameters::solid_color(color.value());
 			}
 		}
@@ -637,7 +637,7 @@ namespace codepad::json {
 			}
 			return params;
 		} else if (auto family = val.template try_cast<std::u8string>()) {
-			// TODO more parsing
+			// TODO more parsing e.g. `comic sans italic 9pt'
 			ui::font_parameters params;
 			params.family = std::move(family.value());
 			return params;
@@ -652,7 +652,7 @@ namespace codepad::json {
 		const ValueType &val
 	) const {
 		std::optional<double> pos;
-		std::optional<colord> color;
+		std::optional<colord> color; // TODO parse color using managed parser?
 		if (auto object = val.template try_cast<typename ValueType::object_type>()) {
 			if (object->size() > 2) {
 				val.template log<log_level::warning>(CP_HERE) << "redundant fields in gradient stop definition";
@@ -706,6 +706,14 @@ namespace codepad::json {
 
 
 namespace codepad::ui {
+	template <typename Value> std::optional<colord> managed_json_parser<colord>::operator()(const Value &val) const {
+		if (auto str = val.template try_cast<std::u8string_view>()) {
+			return _manager.find_color(str.value());
+		}
+		return json::default_parser<colord>{}(val);
+	}
+
+
 	template <typename Value> std::optional<
 		std::shared_ptr<bitmap>
 	> managed_json_parser<std::shared_ptr<bitmap>>::operator()(const Value &val) const {
@@ -772,7 +780,7 @@ namespace codepad::ui {
 				} else if (type.value() == u8"bitmap") {
 					if (auto brush = val.template parse<brush_parameters::bitmap_pattern>(
 						managed_json_parser<brush_parameters::bitmap_pattern>(_manager)
-						)) {
+					)) {
 						result.value.emplace<brush_parameters::bitmap_pattern>(std::move(brush.value()));
 					}
 				} else if (type.value() != u8"none") {
@@ -784,7 +792,7 @@ namespace codepad::ui {
 				result.transform = std::move(trans.value());
 			}
 			return result;
-		} else if (auto color = val.template parse<colord>()) {
+		} else if (auto color = val.template parse<colord>(managed_json_parser<colord>(_manager))) {
 			generic_brush_parameters result;
 			result.value.emplace<brush_parameters::solid_color>(color.value());
 			return result;

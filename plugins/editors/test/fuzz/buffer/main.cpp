@@ -133,11 +133,12 @@ int main(int argc, char **argv) {
 
 	initialize(argc, argv);
 
-	manager man;
+	buffer_manager buf_man;
+	encoding_registry encodings;
 
 	default_random_engine eng(123456);
-	auto buf = man.buffers.new_file();
-	std::shared_ptr<interpretation> interp = man.buffers.open_interpretation(buf, man.encodings.get_default());
+	auto buf = buf_man.new_file();
+	std::shared_ptr<interpretation> interp = buf_man.open_interpretation(buf, encodings.get_default());
 
 	// stored values from `modification_decoded`
 	std::size_t start_char_beforemod, past_end_char_beforemod, num_chars_beforemod;

@@ -18,7 +18,7 @@ namespace codepad::editors::code {
 			{ u8"editor", u8"backup_fonts" },
 			settings::basic_parsers::basic_type_with_default<std::vector<std::u8string>>(
 				std::vector<std::u8string>(), json::array_parser<std::u8string>()
-				)
+			)
 		);
 		return _setting.get(set);
 	}

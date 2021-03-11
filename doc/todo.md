@@ -5,10 +5,14 @@ Items in this list are not sorted by any specific order.
 - [ ] Core
 	- [ ] OS specific
 		- [ ] Pipes
-			- [ ] Windows
+			- [x] _Windows_
 			- [ ] Linux
 			- [ ] MacOS
 		- [ ] Subprocesses
+			- [x] _Windows_
+			- [ ] Linux
+			- [ ] MacOS
+		- [ ] Filesystem watchers
 			- [ ] Windows
 			- [ ] Linux
 			- [ ] MacOS
@@ -53,6 +57,7 @@ Items in this list are not sorted by any specific order.
 - [ ] Editor
 	- [x] _Text editing_
 	- [x] _Multiple cursors_
+	- [ ] Whitespace rendering
 	- [ ] More interaction modes
 		- [ ] Block selection
 		- [ ] Direct mouse movement (mouse moves the caret directly)
@@ -69,10 +74,12 @@ Items in this list are not sorted by any specific order.
 	- [ ] Search & replace
 		- [ ] Regular expression support
 	- [ ] Go to anything
+	- [ ] Relative mode(s) for line number display
+	- [ ] Async document tasks
 - [ ] Tree-sitter plugin
 	- [x] _Basic integration_
 	- [ ] Support for different encodings
-	- [ ] Customizable themes
+	- [x] _Customizable themes_
 	- [ ] Folding provider
 - [ ] LSP plugin
 	- [x] _Basic protocol structures_

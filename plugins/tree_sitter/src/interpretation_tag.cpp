@@ -72,7 +72,7 @@ namespace codepad::tree_sitter {
 					prev_pos = event->position;
 					prev_char_pos = cur_char_pos;
 				}
-				if (event->highlight != highlight_configuration::no_associated_theme) {
+				if (event->highlight != editors::theme_configuration::no_associated_theme) {
 					event_stack.emplace_back(event->highlight);
 				} else {
 					event_stack.pop_back();

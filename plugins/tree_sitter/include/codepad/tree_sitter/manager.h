@@ -10,6 +10,7 @@
 #include <semaphore>
 
 #include <codepad/editors/code/interpretation.h>
+#include <codepad/editors/theme_manager.h>
 
 #include "language_configuration.h"
 #include "interpretation_tag.h"
@@ -19,7 +20,21 @@ namespace codepad::tree_sitter {
 	class manager {
 	public:
 		/// Initializes \ref _scheduler.
-		manager(ui::scheduler &sched) : _scheduler(sched) {
+		manager(ui::manager &man, editors::theme_manager &themes) : _manager(man), _themes(themes) {
+			_settings_changed_tok = (_manager.get_settings().changed += [this]() {
+				// TODO there's gotta be a better way of doing this
+				stop_highlighter_thread();
+				for (auto it = _languages.begin(); it != _languages.end(); ++it) {
+					it->second->set_highlight_configuration(
+						_themes.get_theme_for_language(it->second->get_language_name())
+					);
+				}
+				start_highlighter_thread();
+			});
+		}
+		/// Unregisters from the settings::changed event.
+		~manager() {
+			_manager.get_settings().changed -= _settings_changed_tok;
 		}
 
 		/// Registers builtin languages.
@@ -32,19 +47,12 @@ namespace codepad::tree_sitter {
 		);
 
 		/// Finds the language with the given name.
-		const language_configuration *find_lanaguage(const std::u8string &s) const {
+		const language_configuration *find_lanaguage(std::u8string_view s) const {
 			auto it = _languages.find(s);
 			if (it == _languages.end()) {
 				return nullptr;
 			}
 			return it->second.get();
-		}
-
-		/// Sets \ref _highlight_config and configures all registered languages.
-		void set_highlight_configuration(std::shared_ptr<highlight_configuration>);
-		/// Returns \ref _highlight_config.
-		const std::shared_ptr<highlight_configuration> &get_highlight_config() const {
-			return _highlight_config;
 		}
 
 		/// Starts the highlighter thread.
@@ -94,8 +102,11 @@ namespace codepad::tree_sitter {
 		};
 
 		/// Mapping between language names and language configurations.
-		std::unordered_map<std::u8string, std::shared_ptr<language_configuration>> _languages;
-		std::shared_ptr<highlight_configuration> _highlight_config; ///< Highlight configuration.
+		std::unordered_map<
+			std::u8string, std::shared_ptr<language_configuration>, string_hash<>, std::equal_to<>
+		> _languages;
+
+		info_event<void>::token _settings_changed_tok; ///< Used to listen to \ref settings::changed.
 
 		/// Used to signal the highlighter thread that a new interpretation has been queued for highlighting, or when
 		/// requesting the highlighter thread to shutdown.
@@ -110,8 +121,10 @@ namespace codepad::tree_sitter {
 		std::atomic<_highlighter_thread_status> _status = _highlighter_thread_status::stopped;
 		/// The cancellation token for the highlighter thread. This should be accessed through a \p std::atomic_ref.
 		alignas(std::atomic_ref<std::size_t>::required_alignment) std::size_t _cancellation_token = 0;
-		/// The scheduler. Used for trasnferring highlight results back to the main thread.
-		ui::scheduler &_scheduler;
+		/// The manager. Its scheduler is used for trasnferring highlight results back to the main thread.
+		ui::manager &_manager;
+
+		editors::theme_manager &_themes; ///< Contains theme information for languages.
 
 		/// The function executed by the highlighter thread.
 		void _highlighter_thread();

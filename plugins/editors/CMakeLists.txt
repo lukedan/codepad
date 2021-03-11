@@ -19,12 +19,15 @@ target_sources(editors
 		"include/codepad/editors/code/view_caching.h"
 
 		"include/codepad/editors/buffer.h"
+		"include/codepad/editors/buffer_manager.h"
 		"include/codepad/editors/caret_set.h"
 		"include/codepad/editors/decoration.h"
 		"include/codepad/editors/editor.h"
 		"include/codepad/editors/interaction_modes.h"
+		"include/codepad/editors/json_parsers.inl"
 		"include/codepad/editors/manager.h"
 		"include/codepad/editors/overlapping_range_registry.h"
+		"include/codepad/editors/theme_manager.h"
 	PRIVATE
 		"src/binary/components.cpp"
 		"src/binary/contents_region.cpp"
@@ -40,6 +43,8 @@ target_sources(editors
 		"src/buffer.cpp"
 		"src/decoration.cpp"
 		"src/editor.cpp"
+		"src/theme_manager.cpp"
+
 		"src/main.cpp")
 target_link_libraries(editors PUBLIC codepad_core)
 target_include_directories(editors

@@ -26,14 +26,14 @@ namespace codepad::tree_sitter {
 			/// Default constructor.
 			event() = default;
 			/// Initializes all fields of this struct.
-			explicit event(std::size_t pos, std::size_t hl = highlight_configuration::no_associated_theme)
+			explicit event(std::size_t pos, std::size_t hl = editors::theme_configuration::no_associated_theme)
 				: position(pos), highlight(hl) {
 			}
 
 			std::size_t
 				position = 0, ///< The position of this event.
 				/// The highlight index, or \ref language_configuration::no_associated_theme.
-				highlight = highlight_configuration::no_associated_theme;
+				highlight = editors::theme_configuration::no_associated_theme;
 		};
 
 		/// Creates a new iterator for the given interpretation.

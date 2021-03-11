@@ -235,7 +235,7 @@ if(WIN32)
 			PUBLIC
 				unofficial::cairo::cairo unofficial::cairo::cairo-gobject
 				Pango::Pango harfbuzz::harfbuzz
-				unofficial::glib::gobject)
+				unofficial::glib::glib unofficial::glib::gobject)
 	endif()
 
 	if(CODEPAD_USE_SKIA)

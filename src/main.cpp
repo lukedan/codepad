@@ -1,4 +1,4 @@
-// Copyright (c) the Codepad contributors. All rights reserved.
+﻿// Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
 #include <array>
@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
 					{}, json::array_parser<std::u8string_view>()
 					)
 				);
-			auto value = parser.get_main_profile().get_value();
+			auto value = parser->get_main_profile().get_value();
 			for (std::u8string_view p : value) {
 				if (auto plugin = native_plugin::load(std::filesystem::path(p))) {
 					native_plugin &plug_ref = *plugin;
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
 				{ u8"graphics_backend" },
 				settings::basic_parsers::basic_type_with_default<std::u8string_view>(default_graphics_backend)
 				);
-			std::u8string_view renderer = parser.get_main_profile().get_value();
+			std::u8string_view renderer = parser->get_main_profile().get_value();
 			logger::get().log_debug(CP_HERE) << "using renderer: " << renderer;
 #ifdef CP_PLATFORM_WINDOWS
 			if (renderer == u8"direct2d") {
@@ -232,6 +232,8 @@ int main(int argc, char **argv) {
 		while (!tabman.empty()) {
 			man.get_scheduler().main_iteration();
 		}
+		// TODO here the message loop is terminated prematurely - maybe switch to a message that indicates the end of
+		//      the message loop?
 
 		// destroy all elements before shutting down so that elements referring to the plugins are destroyed
 		man.get_scheduler().dispose_marked_elements();

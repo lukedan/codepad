@@ -38,14 +38,14 @@ namespace codepad::tree_sitter {
 		register_language(
 			u8"c",
 			std::make_shared<language_configuration>(language_configuration::create_for(
-				tree_sitter_c(),
+				u8"c", tree_sitter_c(),
 				u8"", u8"", _read_file(root / "tree-sitter-c/queries/highlights.scm")
 			))
 		);
 		register_language(
 			u8"cpp",
 			std::make_shared<language_configuration>(language_configuration::create_for(
-				tree_sitter_cpp(),
+				u8"cpp", tree_sitter_cpp(),
 				u8"", u8"",
 				_read_file(root / "tree-sitter-cpp/queries/highlights.scm") +
 				_read_file(root / "tree-sitter-c/queries/highlights.scm")
@@ -54,7 +54,7 @@ namespace codepad::tree_sitter {
 		register_language(
 			u8"css",
 			std::make_shared<language_configuration>(language_configuration::create_for(
-				tree_sitter_css(),
+				u8"css", tree_sitter_css(),
 				u8"", u8"",
 				_read_file(root / "tree-sitter-css/queries/highlights.scm")
 			))
@@ -62,7 +62,7 @@ namespace codepad::tree_sitter {
 		register_language(
 			u8"html",
 			std::make_shared<language_configuration>(language_configuration::create_for(
-				tree_sitter_html(),
+				u8"html", tree_sitter_html(),
 				_read_file(root / "tree-sitter-html/queries/injections.scm"),
 				u8"",
 				_read_file(root / "tree-sitter-html/queries/highlights.scm")
@@ -70,7 +70,7 @@ namespace codepad::tree_sitter {
 		);
 		{
 			auto p05 = std::make_shared<language_configuration>(language_configuration::create_for(
-				tree_sitter_javascript(),
+				u8"javascript", tree_sitter_javascript(),
 				_read_file(root / "tree-sitter-javascript/queries/injections.scm"),
 				_read_file(root / "tree-sitter-javascript/queries/locals.scm"),
 				_read_file(root / "tree-sitter-javascript/queries/highlights-jsx.scm") +
@@ -82,7 +82,7 @@ namespace codepad::tree_sitter {
 		register_language(
 			u8"json",
 			std::make_shared<language_configuration>(language_configuration::create_for(
-				tree_sitter_json(),
+				u8"json", tree_sitter_json(),
 				u8"", u8"", u8"" // TODO no scm files?
 			))
 		);
@@ -91,20 +91,13 @@ namespace codepad::tree_sitter {
 	std::shared_ptr<language_configuration> manager::register_language(
 		std::u8string lang, std::shared_ptr<language_configuration> config
 	) {
-		config->set_highlight_configuration(_highlight_config);
+		config->set_highlight_configuration(_themes.get_theme_for_language(config->get_language_name()));
 		auto [it, inserted] = _languages.try_emplace(std::move(lang), std::move(config));
 		if (!inserted) {
 			std::swap(config, it->second);
 			return std::move(config);
 		}
 		return nullptr;
-	}
-
-	void manager::set_highlight_configuration(std::shared_ptr<highlight_configuration> new_cfg) {
-		_highlight_config = std::move(new_cfg);
-		for (auto &pair : _languages) {
-			pair.second->set_highlight_configuration(_highlight_config);
-		}
 	}
 
 	void manager::_highlighter_thread() {
@@ -137,9 +130,11 @@ namespace codepad::tree_sitter {
 			{ // pass the data back to the main thread if the operation wasn't cancelled
 				std::atomic_ref<std::size_t> cancel(_cancellation_token);
 				if (cancel == 0) {
-					_scheduler.execute_callback([t = std::move(theme), &target = interp->get_interpretation()]() {
-						target.set_text_theme(std::move(t));
-					});
+					_manager.get_scheduler().execute_callback(
+						[t = std::move(theme), &target = interp->get_interpretation()]() {
+							target.set_text_theme(std::move(t));
+						}
+					);
 				}
 			}
 

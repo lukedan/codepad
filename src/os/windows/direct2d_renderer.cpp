@@ -73,8 +73,7 @@ namespace codepad::os::direct2d {
 		}
 		/// Casts a \ref ui::font_weight to a \p DWRITE_FONT_WEIGHT.
 		[[nodiscard]] DWRITE_FONT_WEIGHT cast_font_weight(ui::font_weight weight) {
-			// TODO
-			return DWRITE_FONT_WEIGHT_REGULAR;
+			return static_cast<DWRITE_FONT_WEIGHT>(weight);
 		}
 		/// Casts a \ref ui::font_stretch to a \p DWRITE_FONT_STRETCH.
 		[[nodiscard]] DWRITE_FONT_STRETCH cast_font_stretch(ui::font_stretch stretch) {

@@ -108,6 +108,8 @@ namespace codepad {
 	std::optional<ui::font_weight> enum_parser<ui::font_weight>::parse(std::u8string_view str) {
 		if (str == u8"normal") {
 			return ui::font_weight::normal;
+		} else if (str == u8"bold") {
+			return ui::font_weight::bold;
 		}
 		// TODO
 		return std::nullopt;

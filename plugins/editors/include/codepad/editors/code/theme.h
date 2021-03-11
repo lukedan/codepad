@@ -22,6 +22,24 @@ namespace codepad::editors::code {
 		ui::font_style style = ui::font_style::normal; ///< The font style.
 		ui::font_weight weight = ui::font_weight::normal; ///< The font weight.
 	};
+}
+namespace codepad::ui {
+	/// Managed parser for \ref text_theme_specification.
+	template <> struct managed_json_parser<editors::code::text_theme_specification> {
+	public:
+		/// Initializes \ref _manager.
+		explicit managed_json_parser(manager &man) : _manager(man) {
+		}
+
+		/// Parses the theme specification.
+		template <typename Value> std::optional<
+			editors::code::text_theme_specification
+		> operator()(const Value&) const;
+	protected:
+		manager &_manager; ///< The associated \ref manager.
+	};
+}
+namespace codepad::editors::code {
 	/// Records a parameter of the theme of the entire buffer.
 	template <typename T> class text_theme_parameter_info {
 	public:
@@ -360,6 +378,11 @@ namespace codepad::editors::code {
 			_iterator_position<ui::font_weight> _next_weight;
 			const text_theme_data *_data = nullptr; ///< The associated \ref text_theme_data.
 		};
+
+		/// Calls \ref clear() with a default-initialized \ref text_theme_specification.
+		text_theme_data() {
+			clear(text_theme_specification());
+		}
 
 		/// Sets the theme of the text in the given range.
 		void set_range(std::size_t s, std::size_t pe, text_theme_specification tc) {

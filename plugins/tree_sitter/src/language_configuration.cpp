@@ -8,12 +8,13 @@
 
 namespace codepad::tree_sitter {
 	language_configuration language_configuration::create_for(
-		TSLanguage *lang,
+		std::u8string name, TSLanguage *lang,
 		std::u8string_view injection_query,
 		std::u8string_view locals_query,
 		std::u8string_view highlights_query
 	) {
 		language_configuration res;
+		res._name = std::move(name);
 		res._language = lang;
 
 		// concatenate the query strings and construct a single query
@@ -95,7 +96,7 @@ namespace codepad::tree_sitter {
 		return res;
 	}
 
-	void language_configuration::set_highlight_configuration(std::shared_ptr<highlight_configuration> config) {
+	void language_configuration::set_highlight_configuration(std::shared_ptr<editors::theme_configuration> config) {
 		_highlight = std::move(config);
 		if (_highlight) {
 			_capture_highlights.resize(_query.get_captures().size());

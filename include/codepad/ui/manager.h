@@ -170,7 +170,7 @@ namespace codepad::ui {
 			return std::nullopt;
 		}
 		/// Returns the current color scheme.
-		const std::map<std::u8string, colord, std::less<>> &get_color_scheme() const {
+		const std::unordered_map<std::u8string, colord, string_hash<>, std::equal_to<>> &get_color_scheme() const {
 			return _color_scheme;
 		}
 
@@ -207,16 +207,17 @@ namespace codepad::ui {
 	protected:
 		class_arrangements_registry _class_arrangements; ///< All class arrangements.
 		class_hotkeys_registry _class_hotkeys; ///< All class hotkeys.
-		std::map<std::u8string, colord, std::less<>> _color_scheme; ///< The color scheme.
+		/// The color scheme used by class arrangements.
+		std::unordered_map<std::u8string, colord, string_hash<>, std::equal_to<>> _color_scheme;
 
 		command_registry _commands; ///< All commands.
 		/// Registry of constructors of all element types.
-		std::map<std::u8string, element_constructor, std::less<>> _element_registry;
+		std::unordered_map<std::u8string, element_constructor, string_hash<>, std::equal_to<>> _element_registry;
 		/// Mapping from names to transition functions.
-		std::map<std::u8string, transition_function, std::less<>> _transfunc_map;
+		std::unordered_map<std::u8string, transition_function, string_hash<>, std::equal_to<>> _transfunc_map;
 
 		/// The mapping between file names and textures.
-		std::map<std::filesystem::path, std::shared_ptr<bitmap>> _textures; // TODO resource path
+		std::unordered_map<std::filesystem::path, std::shared_ptr<bitmap>> _textures; // TODO resource path
 
 		scheduler _scheduler; ///< The \ref scheduler.
 		std::unique_ptr<renderer_base> _renderer; ///< The renderer.
