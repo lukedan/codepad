@@ -708,7 +708,17 @@ namespace codepad::json {
 namespace codepad::ui {
 	template <typename Value> std::optional<colord> managed_json_parser<colord>::operator()(const Value &val) const {
 		if (auto str = val.template try_cast<std::u8string_view>()) {
-			return _manager.find_color(str.value());
+			bool skip = false;
+			if (!str->empty()) { // skip if the first character is #
+				codepoint cp;
+				auto it = str->begin();
+				if (encodings::utf8::next_codepoint(it, str->end(), cp)) {
+					skip = cp == U'#';
+				}
+			}
+			if (!skip) {
+				return _manager.find_color(str.value());
+			}
 		}
 		return json::default_parser<colord>{}(val);
 	}

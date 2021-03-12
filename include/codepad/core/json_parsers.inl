@@ -53,7 +53,7 @@ namespace codepad::json {
 
 
 	template <typename Value> std::optional<colord> default_parser<colord>::operator()(const Value &val) const {
-		if (auto arr = val.template cast<typename Value::array_type>()) { // must be an array
+		if (auto arr = val.template try_cast<typename Value::array_type>()) { // must be an array
 			if (arr->size() >= 3) {
 				colord result;
 				if (arr->size() > 3) {
@@ -88,7 +88,29 @@ namespace codepad::json {
 			} else {
 				val.template log<log_level::error>(CP_HERE) << "too few elements in color definition";
 			}
+		} else if (auto str = val.template try_cast<std::u8string_view>()) {
+			if (str->empty()) {
+				val.template log<log_level::error>(CP_HERE) << "empty color string";
+				return std::nullopt;
+			}
+			auto it = str->begin();
+			{ // skip the # symbol
+				auto next = it;
+				codepoint cp;
+				if (encodings::utf8::next_codepoint(next, str->end(), cp)) {
+					if (cp == U'#') {
+						it = next;
+					}
+				}
+			}
+			// TODO avoid copy
+			auto data = reinterpret_cast<const char*>(str->data());
+			unsigned u32_val = std::stoul(std::string(data + (it - str->begin()), data + str->size()), nullptr, 16);
+			return color<unsigned char>(
+				(u32_val >> 16) & 0xFF, (u32_val >> 8) & 0xFF, u32_val & 0xFF, 0xFF
+			).convert<double>();
 		}
+		val.template log<log_level::error>(CP_HERE) << "invalid color format";
 		return std::nullopt;
 	}
 }

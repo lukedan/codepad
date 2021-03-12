@@ -443,11 +443,11 @@ namespace codepad::editors {
 		};
 
 		/// Constructs this \ref buffer with the given buffer index.
-		buffer(std::size_t id, buffer_manager *man) :
-			_fileid(std::in_place_type<std::size_t>, id), _bufman(man) {
+		buffer(std::size_t id, buffer_manager &man) :
+			_fileid(std::in_place_type<std::size_t>, id), _buf_manager(man) {
 		}
 		/// Constructs this \ref buffer with the given file name, and loads that file's contents.
-		buffer(const std::filesystem::path&, buffer_manager*);
+		buffer(const std::filesystem::path&, buffer_manager&);
 		/// Invokes \ref buffer_manager::_on_deleting_buffer().
 		~buffer();
 
@@ -511,8 +511,8 @@ namespace codepad::editors {
 			return _fileid;
 		}
 		/// Returns the associated \ref buffer_manager.
-		buffer_manager *get_manager() const {
-			return _bufman;
+		[[nodiscard]] buffer_manager &get_buffer_manager() const {
+			return _buf_manager;
 		}
 
 		/// Invoked when this \ref buffer is about to be modified, right before the read lock is acquired. Acquiring
@@ -606,6 +606,6 @@ namespace codepad::editors {
 		/// Used to identify this buffer. Also stores the path to the associated file, if one exists.
 		std::variant<std::size_t, std::filesystem::path> _fileid;
 		std::deque<std::any> _tags; ///< Tags associated with this buffer.
-		buffer_manager *_bufman = nullptr; ///< The \ref buffer_manager for this \ref buffer.
+		buffer_manager &_buf_manager; ///< The \ref manager for this \ref buffer.
 	};
 }

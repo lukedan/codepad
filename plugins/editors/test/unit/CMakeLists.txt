@@ -4,7 +4,8 @@ target_sources(editors_test
 	PRIVATE
 		"src/main.cpp"
 		
-		"src/theme.cpp")
+		"src/theme.cpp"
+		"src/theme_configuration.cpp")
 
 find_package(Catch2 CONFIG REQUIRED)
 target_link_libraries(editors_test PRIVATE editors Catch2::Catch2)

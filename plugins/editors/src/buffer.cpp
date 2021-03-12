@@ -60,8 +60,8 @@ namespace codepad::editors {
 	}
 
 
-	buffer::buffer(const std::filesystem::path &filename, buffer_manager *man) :
-		_fileid(std::in_place_type<std::filesystem::path>, filename), _bufman(man) {
+	buffer::buffer(const std::filesystem::path &filename, buffer_manager &man) :
+		_fileid(std::in_place_type<std::filesystem::path>, filename), _buf_manager(man) {
 
 		performance_monitor mon(u8"load file", performance_monitor::log_condition::always);
 
@@ -138,9 +138,7 @@ namespace codepad::editors {
 	}
 
 	buffer::~buffer() {
-		if (_bufman) {
-			_bufman->_on_deleting_buffer(*this);
-		}
+		_buf_manager._on_deleting_buffer(*this);
 	}
 
 	buffer::const_iterator buffer::at(std::size_t bytepos) const {

@@ -287,7 +287,7 @@ namespace codepad {
 		using _callback_return_t = std::invoke_result_t<Callback&&, std::u8string_view>;
 
 		auto it = str.begin(), last = str.begin();
-		while (it != last) {
+		while (it != str.end()) {
 			auto char_beg = it;
 			codepoint cp;
 			if (!encodings::utf8::next_codepoint(it, str.end(), cp)) {

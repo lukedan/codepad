@@ -13,20 +13,16 @@
 #include <codepad/editors/manager.h>
 #include <codepad/editors/code/interpretation.h>
 
-using namespace std;
-
-using namespace codepad;
-using namespace codepad::editors;
-using namespace codepad::editors::code;
+namespace cp = codepad;
 
 std::atomic_bool keep_running; ///< This is set to \p false if SIGINT is encountered.
 
-uniform_real_distribution<double> prob_dist(0.0, 1.0);
+std::uniform_real_distribution<double> prob_dist(0.0, 1.0);
 
 /// Generates and returns a series of codepoints and encodes them as UTF8.
-template <typename Rnd> byte_string generate_random_utf8_string(size_t length, Rnd &random) {
-	uniform_int_distribution<codepoint> dist(0, 0x10FFFF - 0x800);
-	basic_string<codepoint> str;
+template <typename Rnd> cp::editors::byte_string generate_random_utf8_string(size_t length, Rnd &random) {
+	std::uniform_int_distribution<cp::codepoint> dist(0, 0x10FFFF - 0x800);
+	std::basic_string<cp::codepoint> str;
 	for (size_t i = 0; i < length; ++i) {
 		// 2% possibility to generate a line break character
 		if (prob_dist(random) < 0.02) {
@@ -41,23 +37,23 @@ template <typename Rnd> byte_string generate_random_utf8_string(size_t length, R
 				str.push_back(U'\n');
 			}
 		} else {
-			codepoint cp = dist(random);
+			cp::codepoint cp = dist(random);
 			if (cp >= 0xD800) {
 				cp += 0x800;
 			}
 			str.push_back(cp);
 		}
 	}
-	byte_string res;
-	for (codepoint cp : str) {
-		res.append(encodings::utf8::encode_codepoint(cp));
+	cp::editors::byte_string res;
+	for (cp::codepoint cp : str) {
+		res.append(cp::encodings::utf8::encode_codepoint(cp));
 	}
 	return res;
 }
 /// Generates a random series of bytes.
-template <typename Rnd> byte_string generate_random_string(size_t length, Rnd &random) {
-	byte_string res;
-	uniform_int_distribution<int> dist(0, 255);
+template <typename Rnd> cp::editors::byte_string generate_random_string(size_t length, Rnd &random) {
+	cp::editors::byte_string res;
+	std::uniform_int_distribution<int> dist(0, 255);
 	for (size_t i = 0; i < length; ++i) {
 		res.push_back(static_cast<std::byte>(dist(random)));
 	}
@@ -66,10 +62,10 @@ template <typename Rnd> byte_string generate_random_string(size_t length, Rnd &r
 
 /// Generates a series of positions in the text used for modifications. All positions are guaranteed to be at
 /// character boundaries.
-template <typename Rnd> vector<pair<size_t, size_t>> get_modify_positions_boundary(
-	size_t count, const buffer&, const interpretation &interp, Rnd &random
+template <typename Rnd> std::vector<std::pair<size_t, size_t>> get_modify_positions_boundary(
+	size_t count, const cp::editors::buffer&, const cp::editors::code::interpretation &interp, Rnd &random
 ) {
-	uniform_int_distribution<size_t> caretpos_dist(0, interp.get_linebreaks().num_chars());
+	std::uniform_int_distribution<size_t> caretpos_dist(0, interp.get_linebreaks().num_chars());
 	// create carets
 	std::vector<size_t> carets;
 	for (size_t i = 0; i < count; ++i) {
@@ -77,29 +73,31 @@ template <typename Rnd> vector<pair<size_t, size_t>> get_modify_positions_bounda
 		carets.push_back(caretpos_dist(random));
 	}
 	sort(carets.begin(), carets.end());
-	caret_set cset;
+	cp::editors::code::caret_set cset;
 	for (size_t i = 0; i < carets.size(); i += 2) {
 		// 10% chance: don't erase anything
 		if (prob_dist(random) < 0.1) {
 			carets[i + 1] = carets[i];
 		}
-		cset.add(caret_set::entry({carets[i], carets[i + 1]}, caret_data()));
+		cset.add(cp::editors::code::caret_set::entry(
+			{carets[i], carets[i + 1]}, cp::editors::code::caret_data()
+		));
 	}
 
-	vector<pair<size_t, size_t>> cs;
-	interpretation::character_position_converter cvt(interp);
+	std::vector<std::pair<size_t, size_t>> cs;
+	cp::editors::code::interpretation::character_position_converter cvt(interp);
 	for (const auto &pair : cset.carets) {
-		assert_true_logical(pair.first.caret <= pair.first.selection);
+		cp::assert_true_logical(pair.first.caret <= pair.first.selection);
 		size_t p1 = cvt.character_to_byte(pair.first.caret), p2 = cvt.character_to_byte(pair.first.selection);
 		cs.emplace_back(p1, p2);
 	}
 	return cs;
 }
 /// Generates a series of completely random positions in the text used for modifications.
-template <typename Rnd> vector<pair<size_t, size_t>> get_modify_positions_random(
-	size_t count, const buffer &buf, const interpretation&, Rnd &random
+template <typename Rnd> std::vector<std::pair<size_t, size_t>> get_modify_positions_random(
+	size_t count, const cp::editors::buffer &buf, const cp::editors::code::interpretation&, Rnd &random
 ) {
-	uniform_int_distribution<size_t> caretpos_dist(0, buf.length());
+	std::uniform_int_distribution<size_t> caretpos_dist(0, buf.length());
 	// create carets
 	std::vector<size_t> carets;
 	for (size_t i = 0; i < count; ++i) {
@@ -107,7 +105,7 @@ template <typename Rnd> vector<pair<size_t, size_t>> get_modify_positions_random
 		carets.push_back(caretpos_dist(random));
 	}
 	sort(carets.begin(), carets.end());
-	vector<pair<size_t, size_t>> cs;
+	std::vector<std::pair<size_t, size_t>> cs;
 	for (size_t i = 0; i < carets.size(); i += 2) {
 		// 10% chance: don't erase anything
 		if (prob_dist(random) < 0.1) {
@@ -126,24 +124,24 @@ int main(int argc, char **argv) {
 		keep_running = false;
 	});
 
-	auto global_log = std::make_unique<logger>();
-	global_log->sinks.emplace_back(std::make_unique<logger_sinks::console_sink>());
-	global_log->sinks.emplace_back(std::make_unique<logger_sinks::file_sink>("buffer_test.log"));
-	logger::set_current(std::move(global_log));
+	auto global_log = std::make_unique<cp::logger>();
+	global_log->sinks.emplace_back(std::make_unique<cp::logger_sinks::console_sink>());
+	global_log->sinks.emplace_back(std::make_unique<cp::logger_sinks::file_sink>("buffer_test.log"));
+	cp::logger::set_current(std::move(global_log));
 
-	initialize(argc, argv);
+	cp::initialize(argc, argv);
 
-	buffer_manager buf_man;
-	encoding_registry encodings;
+	cp::editors::buffer_manager buf_man;
+	cp::editors::code::encoding_registry encodings;
 
-	default_random_engine eng(123456);
+	std::default_random_engine eng(123456);
 	auto buf = buf_man.new_file();
-	std::shared_ptr<interpretation> interp = buf_man.open_interpretation(buf, encodings.get_default());
+	auto interp = buf_man.open_interpretation(buf, encodings.get_default());
 
 	// stored values from `modification_decoded`
 	std::size_t start_char_beforemod, past_end_char_beforemod, num_chars_beforemod;
 	interp->modification_decoded +=
-		[&](editors::code::interpretation::modification_decoded_info &info) {
+		[&](cp::editors::code::interpretation::modification_decoded_info &info) {
 			start_char_beforemod = info.start_character;
 			past_end_char_beforemod = info.past_end_character;
 			if (
@@ -155,7 +153,7 @@ int main(int argc, char **argv) {
 			num_chars_beforemod = interp->get_linebreaks().num_chars();
 		};
 	interp->end_modification +=
-		[&](editors::code::interpretation::end_modification_info &info) {
+		[&](cp::editors::code::interpretation::end_modification_info &info) {
 			// validate the character indices in `info`
 			auto [begin_line_col, begin_char] =
 				interp->get_linebreaks().get_line_and_column_and_char_of_codepoint(info.start_codepoint);
@@ -178,31 +176,35 @@ int main(int argc, char **argv) {
 				expected_removed_chars = num_chars_beforemod - (expected_after_end + expected_beg),
 				expected_inserted_chars = num_chars - (expected_after_end + expected_beg);
 
-			assert_true_logical(info.start_character == expected_beg, "incorrect start character position");
-			assert_true_logical(info.removed_characters == expected_removed_chars, "incorrect erased character count");
-			assert_true_logical(info.inserted_characters == expected_inserted_chars, "incorrect inserted character count");
+			cp::assert_true_logical(info.start_character == expected_beg, "incorrect start character position");
+			cp::assert_true_logical(
+				info.removed_characters == expected_removed_chars, "incorrect erased character count"
+			);
+			cp::assert_true_logical(
+				info.inserted_characters == expected_inserted_chars, "incorrect inserted character count"
+			);
 		};
 
-	caret_set cset;
+	cp::editors::code::caret_set cset;
 	cset.reset();
 	interp->on_insert(cset, generate_random_string(1000000, eng), nullptr);
-	assert_true_logical(interp->check_integrity());
+	cp::assert_true_logical(interp->check_integrity());
 
-	uniform_int_distribution<size_t>
+	std::uniform_int_distribution<size_t>
 		ncarets_dist(1, 100), insertlen_dist(0, 3000);
-	uniform_int_distribution<int> bool_dist(0, 1);
+	std::uniform_int_distribution<int> bool_dist(0, 1);
 	for (std::size_t idx = 0; keep_running; ++idx) {
-		logger::get().log_info(CP_HERE) <<
+		cp::logger::get().log_info(CP_HERE) <<
 			"document length: " << buf->length() << " bytes, " << interp->get_linebreaks().num_chars() << " chars";
 
 		// generate random positions and strings for the edit
-		vector<pair<size_t, size_t>> positions;
+		std::vector<std::pair<size_t, size_t>> positions;
 		if (bool_dist(eng)) {
 			positions = get_modify_positions_random(ncarets_dist(eng), *buf, *interp, eng);
 		} else {
 			positions = get_modify_positions_boundary(ncarets_dist(eng), *buf, *interp, eng);
 		}
-		vector<byte_string> inserts;
+		std::vector<cp::editors::byte_string> inserts;
 		for (size_t i = 0; i < positions.size(); ++i) {
 			double r = prob_dist(eng);
 			if (r < 0.1) { // 10% chance: don't insert anything
@@ -213,11 +215,11 @@ int main(int argc, char **argv) {
 				inserts.emplace_back(generate_random_utf8_string(insertlen_dist(eng), eng));
 			}
 		}
-		logger::get().log_info(CP_HERE) << "modifications: " << positions.size();
+		cp::logger::get().log_info(CP_HERE) << "modifications: " << positions.size();
 
 		// perform the edit
 		{
-			buffer::modifier mod(*buf, nullptr);
+			cp::editors::buffer::modifier mod(*buf, nullptr);
 			mod.begin();
 			for (size_t i = 0; i < positions.size(); ++i) {
 				mod.modify(positions[i].first, positions[i].second - positions[i].first, inserts[i]);
@@ -225,15 +227,15 @@ int main(int argc, char **argv) {
 				// that as well at the cost of much slower execution
 				/*assert_true_logical(interp->check_integrity());*/
 			}
-			buffer::edit dummy;
+			cp::editors::buffer::edit dummy;
 			mod.end_custom(dummy); // no history; otherwise all memory will be eaten
 		}
 
 		// validate everything
-		logger::get().log_info(CP_HERE) << "checking edit " << idx;
-		assert_true_logical(interp->check_integrity());
+		cp::logger::get().log_info(CP_HERE) << "checking edit " << idx;
+		cp::assert_true_logical(interp->check_integrity());
 	}
 
-	logger::get().log_info(CP_HERE) << "exiting normally";
+	cp::logger::get().log_info(CP_HERE) << "exiting normally";
 	return 0;
 }

@@ -229,17 +229,50 @@ namespace codepad::lsp {
 			// TODO handle null response
 			return;
 		};
+
 		auto &semantic_tokens = _client->get_initialize_result().capabilities.semanticTokensProvider.value;
 		if (!semantic_tokens.has_value()) {
 			return;
 		}
-		std::vector<std::u8string> types;
+		const std::vector<std::u8string> *types = nullptr, *modifiers = nullptr;
 		std::visit(
 			[&](const types::SemanticTokensOptions &opt) {
-				types = opt.legend.tokenTypes.value;
+				types = &opt.legend.tokenTypes.value;
+				modifiers = &opt.legend.tokenModifiers.value;
 			},
 			semantic_tokens->value
 		);
+
+		// TODO language
+		// TODO theme caching
+		// this is really ugly
+		std::unordered_map<std::uint64_t, editors::code::text_theme_specification> theme_mapping;
+		auto theme =
+			_interp->get_buffer()->get_buffer_manager().get_manager()->themes.get_theme_for_language(u8"cpp");
+		auto get_theme_for = [&](types::uinteger type, types::uinteger mods) {
+			std::uint64_t key = (static_cast<std::uint64_t>(type) << 32) | mods;
+			auto [it, inserted] = theme_mapping.try_emplace(key, editors::code::text_theme_specification());
+			if (inserted) {
+				std::vector<std::u8string_view> strings{ { types->at(type) } };
+				std::size_t i = 0;
+				while (mods > 0) {
+					while ((mods & 1) == 0) {
+						mods >>= 1;
+						++i;
+					}
+					strings.emplace_back(modifiers->at(i));
+					mods >>= 1;
+					++i;
+				}
+				std::size_t v = theme->get_index_for(std::move(strings));
+				if (v == editors::theme_configuration::no_associated_theme) {
+					logger::get().log_warning(CP_HERE) << "no associated theme";
+				} else {
+					it->second = theme->entries[v].theme;
+				}
+			}
+			return it->second;
+		};
 
 		auto &tokens = std::get<types::SemanticTokens>(response.value);
 		std::size_t line = 0, character_offset = 0;
@@ -268,15 +301,8 @@ namespace codepad::lsp {
 						character_offset + tok.length;
 					token_end = linebreaks.get_line_and_column_and_char_of_codepoint(codepoint).second;
 				}
-				// get theme from token type
-				editors::code::text_theme_specification spec;
-				// TODO
-				if (types[tok.tokenType] == u8"comment") {
-					spec.color = colord(0.0, 1.0, 0.0, 1.0);
-				} else {
-					spec.color = colord(1.0, 0.0, 0.0, 1.0);
-				}
-				data.set_range(line_info.first_char + character_offset, token_end, spec);
+				editors::code::text_theme_specification cur_theme = get_theme_for(tok.tokenType, tok.tokenModifiers);
+				data.set_range(line_info.first_char + character_offset, token_end, cur_theme);
 			}
 		);
 		_interp->set_text_theme(std::move(data));

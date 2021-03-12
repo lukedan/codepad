@@ -109,8 +109,12 @@ namespace codepad::editors {
 	/// Manages everything related to editors. Essentially a hub for \ref buffer_manager, \ref encoding_manager,
 	class manager {
 	public:
-		/// Constructor. Registers interaction modes and decoration renderers.
-		explicit manager(ui::manager &man) : themes(man) {
+		/// Constructor.
+		explicit manager(ui::manager &man) : buffers(this), themes(man) {
+		}
+
+		/// Registers built-in interaction modes.
+		void register_builtin_interactions() {
 			code_interactions.mapping.emplace(
 				u8"prepare_drag", []() {
 					return std::make_unique<
@@ -140,7 +144,10 @@ namespace codepad::editors {
 					>();
 				}
 			);
+		}
 
+		/// Registers built-in decoration renderers.
+		void register_builtin_decoration_renderers() {
 			decoration_renderers.register_renderer<decoration_renderers::rounded_renderer>(
 				u8"rounded_decoration_renderer"
 			);
@@ -148,6 +155,7 @@ namespace codepad::editors {
 				u8"squiggle_decoration_renderer"
 			);
 		}
+
 
 		buffer_manager buffers; ///< Manager of all buffers.
 		code::encoding_registry encodings; ///< Encodings.

@@ -47,6 +47,8 @@ namespace codepad::editors {
 		}
 		/// Returns the theme index for the given dot-separated key.
 		[[nodiscard]] std::size_t get_index_for(std::u8string_view) const;
+		/// Returns the theme index for the key composed of the given parts.
+		[[nodiscard]] std::size_t get_index_for(std::vector<std::u8string_view>) const;
 
 		std::vector<entry> entries; ///< Entries of this configuration.
 	};

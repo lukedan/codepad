@@ -42,6 +42,9 @@ extern "C" {
 
 		_manager = std::make_unique<cp::editors::manager>(*_context->ui_man);
 		_this_plugin->plugin_data.emplace<cp::editors::manager*>(_manager.get());
+
+		_manager->register_builtin_interactions();
+		_manager->register_builtin_decoration_renderers();
 	}
 
 	PLUGIN_FINALIZE() {

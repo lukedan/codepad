@@ -12,6 +12,8 @@
 #include "binary/contents_region.h"
 
 namespace codepad::editors {
+	class manager;
+
 	/// Used to identify a \ref buffer in certain events.
 	struct buffer_info {
 		/// Initializes \ref buf.
@@ -32,6 +34,7 @@ namespace codepad::editors {
 	/// \ref code::interpretation instances should be created with this manager.
 	class buffer_manager {
 		friend buffer;
+		friend manager;
 	public:
 		/// Contains information about the creation of an \ref editor for \ref code::interpretation.
 		struct code_editor_created_info {
@@ -79,6 +82,11 @@ namespace codepad::editors {
 		using buffer_tag_token = tag_token<buffer>; ///< Tag token for buffers.
 		using interpretation_tag_token = tag_token<code::interpretation>; ///< Tag token for interpretations.
 
+
+		/// Initializes \ref _manager.
+		explicit buffer_manager(manager *man = nullptr) : _manager(man) {
+		}
+
 		/// Returns a \p std::shared_ptr<buffer> to the file specified by the given file name. If the file has not
 		/// been opened, this function opens the file; otherwise, it returns the pointer returned by previous calls
 		/// to this function. The file must exist.
@@ -92,7 +100,7 @@ namespace codepad::editors {
 				return ptr;
 			}
 			// create new one
-			auto res = std::make_shared<buffer>(path, this);
+			auto res = std::make_shared<buffer>(path, *this);
 			ins.first->second.buf = res;
 			res->_tags.resize(_buffer_tag_alloc_max); // allocate space for tags
 			buffer_created.invoke_noret(*res);
@@ -102,10 +110,10 @@ namespace codepad::editors {
 		std::shared_ptr<buffer> new_file() {
 			std::shared_ptr<buffer> buf;
 			if (_noname_alloc.empty()) {
-				buf = std::make_shared<buffer>(_noname_map.size(), this);
+				buf = std::make_shared<buffer>(_noname_map.size(), *this);
 				_noname_map.emplace_back(buf);
 			} else {
-				buf = std::make_shared<buffer>(_noname_alloc.top(), this);
+				buf = std::make_shared<buffer>(_noname_alloc.top(), *this);
 				_noname_map[_noname_alloc.top()] = _buffer_data(buf);
 				_noname_alloc.pop();
 			}
@@ -238,6 +246,12 @@ namespace codepad::editors {
 			}
 		}
 
+		/// Returns the \ref manager that holds this object. Normally this would be non-empty and both \ref manager
+		/// and \ref buffer_manager would be singletons, but for tests a \ref manager may be absent.
+		[[nodiscard]] manager *get_manager() const {
+			return _manager;
+		}
+
 
 		info_event<buffer_info>
 			/// Invoked when a buffer has been created. Components and plugins that make use of per-buffer tags can
@@ -275,6 +289,7 @@ namespace codepad::editors {
 			std::unordered_map<std::u8string, std::weak_ptr<code::interpretation>> interpretations;
 		};
 
+
 		/// Stores all \p buffer "buffers" that correspond to files and their <tt>std::filesystem::path</tt>s.
 		std::unordered_map<std::filesystem::path, _buffer_data> _file_map;
 		/// Stores all \p buffer "buffers" that don't correspond to files.
@@ -290,6 +305,9 @@ namespace codepad::editors {
 			_buffer_tag_alloc_max = 0,
 			/// Stores the next index to allocate for a tag if \ref _interpretation_tag_alloc is empty.
 			_interpretation_tag_alloc_max = 0;
+
+		manager *_manager = nullptr; ///< The \ref manager that holds this buffer manager.
+
 
 		/// Returns the \ref _buffer_data associated with the given \ref buffer.
 		_buffer_data &_get_data_of(const buffer &buf) {
