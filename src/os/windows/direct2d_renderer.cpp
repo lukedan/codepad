@@ -73,7 +73,12 @@ namespace codepad::os::direct2d {
 		}
 		/// Casts a \ref ui::font_weight to a \p DWRITE_FONT_WEIGHT.
 		[[nodiscard]] DWRITE_FONT_WEIGHT cast_font_weight(ui::font_weight weight) {
-			return static_cast<DWRITE_FONT_WEIGHT>(weight);
+			auto res = static_cast<unsigned short>(weight);
+			// pango and directwrite only have different values for extra_black, so only that portion is handled here
+			if (weight > ui::font_weight::black) {
+				res = DWRITE_FONT_WEIGHT_BLACK + (res - DWRITE_FONT_WEIGHT_BLACK) / 2;
+			}
+			return static_cast<DWRITE_FONT_WEIGHT>(res);
 		}
 		/// Casts a \ref ui::font_stretch to a \p DWRITE_FONT_STRETCH.
 		[[nodiscard]] DWRITE_FONT_STRETCH cast_font_stretch(ui::font_stretch stretch) {

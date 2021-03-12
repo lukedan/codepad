@@ -72,26 +72,133 @@ namespace codepad::ui::pango_harfbuzz {
 
 		/// Converts a \ref font_weight to a \p PangoWeight.
 		[[nodiscard]] PangoWeight cast_font_weight(font_weight weight) {
-			// TODO
-			return PANGO_WEIGHT_NORMAL;
+			// we use pango values for font weight - cast directly
+			return static_cast<PangoWeight>(weight);
 		}
 
 		/// Converts a \ref font_weight to a Fontconfig weight.
 		[[nodiscard]] int cast_font_weight_fontconfig(font_weight weight) {
-			// TODO
-			return FC_WEIGHT_NORMAL;
+			//               fc		pango
+			//  THIN         0		100
+			//  EXTRALIGHT   40		200
+			//  LIGHT        50		300
+			// *SEMILIGHT    55		350
+			// *BOOK         75		380
+			//  REGULAR      80		400
+			//  MEDIUM       100	500
+			//  SEMIBOLD     180	600
+			//  BOLD         200	700
+			//  EXTRABOLD    205	800
+			//  BLACK        210	900
+			//  EXTRABLACK   215	1000
+			constexpr static int
+				_target_offsets[12]{
+					FC_WEIGHT_THIN, // no remap before thin
+					FC_WEIGHT_THIN,
+					FC_WEIGHT_EXTRALIGHT,
+					FC_WEIGHT_LIGHT,
+					FC_WEIGHT_REGULAR,
+					FC_WEIGHT_MEDIUM,
+					FC_WEIGHT_SEMIBOLD,
+					FC_WEIGHT_BOLD,
+					FC_WEIGHT_EXTRABOLD,
+					FC_WEIGHT_BLACK,
+					FC_WEIGHT_EXTRABLACK,
+					FC_WEIGHT_EXTRABLACK // no remap after extrablack
+				},
+				_source_offsets[12]{
+					PANGO_WEIGHT_THIN,
+					PANGO_WEIGHT_THIN,
+					PANGO_WEIGHT_ULTRALIGHT,
+					PANGO_WEIGHT_LIGHT,
+					PANGO_WEIGHT_NORMAL,
+					PANGO_WEIGHT_MEDIUM,
+					PANGO_WEIGHT_SEMIBOLD,
+					PANGO_WEIGHT_BOLD,
+					PANGO_WEIGHT_ULTRABOLD,
+					PANGO_WEIGHT_BOLD,
+					PANGO_WEIGHT_ULTRABOLD,
+					PANGO_WEIGHT_ULTRABOLD
+				};
+
+			auto w = static_cast<unsigned>(weight);
+			unsigned level = w / 100;
+
+			// special case: light, semi_light, and book are all in the 300s
+			if (level == 3) {
+				if (w < FC_WEIGHT_SEMILIGHT) {
+					return
+						FC_WEIGHT_LIGHT +
+						((w - FC_WEIGHT_LIGHT) * (FC_WEIGHT_SEMILIGHT - FC_WEIGHT_LIGHT)) /
+						(PANGO_WEIGHT_SEMILIGHT - PANGO_WEIGHT_LIGHT);
+				} else if (w < FC_WEIGHT_BOOK) {
+					return
+						FC_WEIGHT_SEMILIGHT +
+						((w - FC_WEIGHT_SEMILIGHT) * (FC_WEIGHT_BOOK - FC_WEIGHT_SEMILIGHT)) /
+						(PANGO_WEIGHT_BOOK - PANGO_WEIGHT_SEMILIGHT);
+				} else {
+					return
+						FC_WEIGHT_BOOK +
+						((w - FC_WEIGHT_BOOK) * (FC_WEIGHT_REGULAR - FC_WEIGHT_BOOK)) /
+						(PANGO_WEIGHT_NORMAL - PANGO_WEIGHT_BOOK);
+				}
+			}
+
+			unsigned offset = w - level * 100;
+			return
+				_target_offsets[level] +
+				(offset * (_target_offsets[level + 1] - _target_offsets[level])) /
+				(_source_offsets[level + 1] - _source_offsets[level]);
 		}
 
 		/// Converts a \ref font_stretch to a \p PangoStretch.
 		[[nodiscard]] PangoStretch cast_font_stretch(font_stretch stretch) {
-			// TODO
-			return PANGO_STRETCH_NORMAL;
+			switch (stretch) {
+			case font_stretch::ultra_condensed:
+				return PANGO_STRETCH_ULTRA_CONDENSED;
+			case font_stretch::extra_condensed:
+				return PANGO_STRETCH_EXTRA_CONDENSED;
+			case font_stretch::condensed:
+				return PANGO_STRETCH_CONDENSED;
+			case font_stretch::semi_condensed:
+				return PANGO_STRETCH_SEMI_CONDENSED;
+			case font_stretch::normal:
+				return PANGO_STRETCH_NORMAL;
+			case font_stretch::semi_expanded:
+				return PANGO_STRETCH_SEMI_EXPANDED;
+			case font_stretch::expanded:
+				return PANGO_STRETCH_EXPANDED;
+			case font_stretch::extra_expanded:
+				return PANGO_STRETCH_EXTRA_EXPANDED;
+			case font_stretch::ultra_expanded:
+				return PANGO_STRETCH_ULTRA_EXPANDED;
+			}
+			return PANGO_STRETCH_NORMAL; // something went wrong
 		}
 
 		/// Converts a \ref font_stretch to a Fontconfig width.
 		[[nodiscard]] int cast_font_stretch_fontconfig(font_stretch stretch) {
-			// TODO
-			return FC_WIDTH_NORMAL;
+			switch (stretch) {
+			case font_stretch::ultra_condensed:
+				return FC_WIDTH_ULTRACONDENSED;
+			case font_stretch::extra_condensed:
+				return FC_WIDTH_EXTRACONDENSED;
+			case font_stretch::condensed:
+				return FC_WIDTH_CONDENSED;
+			case font_stretch::semi_condensed:
+				return FC_WIDTH_SEMICONDENSED;
+			case font_stretch::normal:
+				return FC_WIDTH_NORMAL;
+			case font_stretch::semi_expanded:
+				return FC_WIDTH_SEMIEXPANDED;
+			case font_stretch::expanded:
+				return FC_WIDTH_EXPANDED;
+			case font_stretch::extra_expanded:
+				return FC_WIDTH_EXTRAEXPANDED;
+			case font_stretch::ultra_expanded:
+				return FC_WIDTH_ULTRAEXPANDED;
+			}
+			return FC_WIDTH_NORMAL; // something went wrong
 		}
 
 		/// Casts a \p PangoRectangle **in pango units** to a \ref rectd.
@@ -415,7 +522,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_layout_get_extents(_layout.get(), nullptr, &layout_pango);
 		double xmax = pango_units_to_double(layout_pango.x + layout_pango.width);
 		// compute offset
-		float offset = _layout_size.x - xmax;
+		double offset = _layout_size.x - xmax;
 		if (halign == PANGO_ALIGN_CENTER) {
 			offset *= 0.5;
 		}

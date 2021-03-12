@@ -342,7 +342,7 @@ namespace codepad {
 		binary_tree(const binary_tree &tree) : _synth(tree._synth), _root(clone_tree(tree._root)) {
 		}
 		/// Move constructor. Moves the root pointer.
-		binary_tree(binary_tree &&tree) : _synth(std::move(tree._synth)), _root(tree._root) {
+		binary_tree(binary_tree &&tree) noexcept : _synth(std::move(tree._synth)), _root(tree._root) {
 			tree._root = nullptr;
 		}
 		/// Copy assignment. Clones the tree after deleting the old one.

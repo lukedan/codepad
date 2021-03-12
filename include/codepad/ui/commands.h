@@ -22,18 +22,17 @@ namespace codepad::ui {
 		/// Used to easily register and unregister commands with error handling.
 		struct stub {
 			/// Initializes this command.
-			stub(std::u8string n, command f) :
-				_name(std::move(n)), _exec(std::move(f)) {
+			stub(std::u8string n, command f) : _name(std::move(n)), _exec(std::move(f)) {
 			}
 			/// Move constructor.
-			stub(stub &&src) :
+			stub(stub &&src) noexcept :
 				_name(std::move(src._name)), _exec(std::move(src._exec)), _registered(src._registered) {
 				src._registered = false;
 			}
 			/// No copy construction.
 			stub(const stub&) = delete;
 			/// Move assignment.
-			stub &operator=(stub &&src) {
+			stub &operator=(stub &&src) noexcept {
 				assert_true_usage(!_registered, "command must be manually unregistered before move assignment");
 				_name = std::move(src._name);
 				_exec = std::move(src._exec);

@@ -29,6 +29,7 @@ Items in this list are not sorted by any specific order.
 		- [ ] Performance optimization
 		- [ ] DPI scaling & minimap rendering
 		- [ ] Memory leaks
+	- [ ] Brush extend modes
 	- [ ] OS specific
 		- [ ] Windows
 			- [x] _Direct2D renderer_
@@ -41,7 +42,7 @@ Items in this list are not sorted by any specific order.
 		- [ ] Linux
 			- [ ] Cairo renderer
 				- [x] _Base implementation_
-				- [ ] Bitmap loading on Linux
+				- [ ] Bitmap loading
 				- [ ] Assert on exit
 			- [ ] Better DPI scaling support
 			- [ ] Clipboard support
@@ -72,7 +73,8 @@ Items in this list are not sorted by any specific order.
 	- [ ] Folding providers
 	- [x] _Parsing of decoration renderers_
 	- [ ] Search & replace
-		- [ ] Regular expression support
+		- [ ] Plain text
+		- [ ] Regular expression
 	- [ ] Go to anything
 	- [ ] Relative mode(s) for line number display
 	- [ ] Async document tasks

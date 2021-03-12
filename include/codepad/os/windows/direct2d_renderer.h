@@ -138,9 +138,11 @@ namespace codepad::os::direct2d {
 		/// Returns the sum of \p DWRITE_FONT_METRICS::ascent, \p DWRITE_FONT_METRICS::descent, and
 		/// \p DWRITE_FONT_METRICS::lineGap.
 		double get_line_height_em() const override {
-			return
-				(_metrics.ascent + _metrics.descent + _metrics.lineGap) /
-				static_cast<double>(_metrics.designUnitsPerEm);
+			return (
+				static_cast<int>(_metrics.ascent) +
+				static_cast<int>(_metrics.descent) +
+				static_cast<int>(_metrics.lineGap)
+			) / static_cast<double>(_metrics.designUnitsPerEm);
 		}
 
 		/// Calls \p IDWriteFont::HasCharacter to determine if the font contains a glyph for the given character.

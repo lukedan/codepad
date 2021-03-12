@@ -106,12 +106,31 @@ namespace codepad {
 
 
 	std::optional<ui::font_weight> enum_parser<ui::font_weight>::parse(std::u8string_view str) {
-		if (str == u8"normal") {
+		if (str == u8"thin") {
+			return ui::font_weight::thin;
+		} else if (str == u8"extra_light") {
+			return ui::font_weight::extra_light;
+		} else if (str == u8"light") {
+			return ui::font_weight::light;
+		} else if (str == u8"semi_light") {
+			return ui::font_weight::semi_light;
+		} else if (str == u8"book") {
+			return ui::font_weight::book;
+		} else if (str == u8"normal") {
 			return ui::font_weight::normal;
+		} else if (str == u8"medium") {
+			return ui::font_weight::medium;
+		} else if (str == u8"semi_bold") {
+			return ui::font_weight::semi_bold;
 		} else if (str == u8"bold") {
 			return ui::font_weight::bold;
+		} else if (str == u8"extra_bold") {
+			return ui::font_weight::extra_bold;
+		} else if (str == u8"black") {
+			return ui::font_weight::black;
+		} else if (str == u8"extra_black") {
+			return ui::font_weight::extra_black;
 		}
-		// TODO
 		return std::nullopt;
 	}
 

@@ -264,11 +264,11 @@ namespace codepad::editors {
 			/// No copy construction.
 			_buffer_data(const _buffer_data&) = delete;
 			/// Default move constructor.
-			_buffer_data(_buffer_data&&) = default;
+			_buffer_data(_buffer_data&&) noexcept = default;
 			/// No copy assignment.
 			_buffer_data &operator=(const _buffer_data&) = delete;
 			/// Default move assignment.
-			_buffer_data &operator=(_buffer_data&&) = default;
+			_buffer_data &operator=(_buffer_data&&) noexcept = default;
 
 			std::weak_ptr<buffer> buf; ///< Pointer to the buffer.
 			/// All \ref code::interpretation "interpretations" of this \ref buffer.

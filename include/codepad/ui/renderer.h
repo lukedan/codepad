@@ -39,25 +39,36 @@ namespace codepad {
 	};
 
 	namespace ui {
-		//              fc   dwrite
-		// THIN         0    100
-		// EXTRALIGHT   40   200
-		// LIGHT        50   300
-		// SEMILIGHT    55   350
-		// BOOK         75
-		// REGULAR	    80   400
-		// MEDIUM	    100  500
-		// SEMIBOLD	    180  600
-		// BOLD		    200  700
-		// EXTRABOLD	205  800
-		// BLACK		210  900
-		// EXTRABLACK	215  950
-		/// The weight of text.
-		///
-		/// \todo WTF is the difference between FontConfig and DWrite?
+		//              fc		dwrite	pango
+		// THIN         0		100		100
+		// EXTRALIGHT   40		200		200
+		// LIGHT        50		300		300
+		// SEMILIGHT    55		350		350
+		// BOOK         75				380
+		// REGULAR	    80		400		400
+		// MEDIUM	    100		500		500
+		// SEMIBOLD	    180		600		600
+		// BOLD		    200		700		700
+		// EXTRABOLD	205		800		800
+		// BLACK		210		900		900
+		// EXTRABLACK	215		950		1000
+		/// The weight of text. This can take any value between 0 and 1000, the values listed here are only some
+		/// predefined constants. Since the values are different between FontConfig, DirectWrite, and Pango, here
+		/// we use the Pango values (which are extremely similar to DirectWrite values) and map between the
+		/// predefined values linearly for Pango and DirectWrite.
 		enum class font_weight : unsigned short {
+			thin = 100,
+			extra_light = 200,
+			light = 300,
+			semi_light = 350,
+			book = 380,
 			normal = 400,
-			bold = 700
+			medium = 500,
+			semi_bold = 600,
+			bold = 700,
+			extra_bold = 800,
+			black = 900,
+			extra_black = 1000
 		};
 	}
 	/// Parser for \ref ui::font_weight.

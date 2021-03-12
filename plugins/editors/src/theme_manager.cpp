@@ -49,16 +49,9 @@ namespace codepad::editors {
 	theme_manager::theme_manager(ui::manager &man) :
 		_setting(man.get_settings().create_retriever_parser<theme_configuration>(
 			{ u8"editor", u8"theme" },
-			[&man](std::optional<json::storage::value_t> val) {
-				if (val) {
-					if (auto parsed = val->parse<theme_configuration>(
-						ui::managed_json_parser<theme_configuration>(man)
-					)) {
-						return parsed.value();
-					}
-				}
-				return theme_configuration(); // parsing failed, return an empty configuration
-			}
+			settings::basic_parsers::basic_type_with_default<theme_configuration>(
+				theme_configuration(), ui::managed_json_parser<theme_configuration>(man)
+			)
 		)) {
 	}
 }
