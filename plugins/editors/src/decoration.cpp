@@ -23,15 +23,9 @@ namespace codepad::editors {
 		[[nodiscard]] std::optional<std::shared_ptr<decoration_renderer>> parse(
 			const json::value_storage &storage
 		) const override {
-			auto val = storage.get_value();
-			if (auto obj = val.cast<json::storage::object_t>()) {
-				if (auto type = obj->parse_member<std::u8string_view>(u8"type")) {
-					auto rend = _editor_manager.decoration_renderers.create_renderer(std::u8string(type.value()));
-					if (rend) {
-						rend->parse(obj.value(), _manager);
-						return rend;
-					}
-				}
+			auto res = decoration_renderer::parse_static(storage.get_value(), _manager, _editor_manager);
+			if (res) {
+				return res;
 			}
 			return std::nullopt;
 		}
@@ -59,6 +53,21 @@ namespace codepad::editors {
 		}
 		logger::get().log_error(CP_HERE) << "unregistered decoration renderer type: " << next->type;
 		return builder.fail();
+	}
+
+	std::shared_ptr<decoration_renderer> decoration_renderer::parse_static(
+		const json::storage::value_t &val, ui::manager &man, manager &editor_man
+	) {
+		if (auto obj = val.cast<json::storage::object_t>()) {
+			if (auto type = obj->parse_member<std::u8string_view>(u8"type")) {
+				auto rend = editor_man.decoration_renderers.create_renderer(std::u8string(type.value()));
+				if (rend) {
+					rend->parse(obj.value(), man);
+					return rend;
+				}
+			}
+		}
+		return nullptr;
 	}
 
 

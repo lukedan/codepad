@@ -12,11 +12,12 @@
 
 #include "codepad/editors/code/interpretation.h"
 
-#include "backend.h"
 #include "types/serialization.h"
 #include "types/common.h"
 #include "types/general.h"
 #include "types/workspace.h"
+#include "backend.h"
+#include "manager.h"
 #include "uri.h"
 
 namespace codepad::lsp {
@@ -56,7 +57,9 @@ namespace codepad::lsp {
 		using on_error_callback = std::function<void(types::integer, std::u8string_view, const json::value_t&)>;
 
 		/// Initializes \ref _backend. Also creates a new thread to receive messages from the server.
-		client(std::unique_ptr<backend> back, ui::scheduler &sched) : _backend(std::move(back)) {
+		client(std::unique_ptr<backend> back, ui::scheduler &sched, manager &man) :
+			_backend(std::move(back)), _manager(man) {
+
 			_receiver_thread_obj = std::thread(
 				[](client &c, ui::scheduler &sched) {
 					_receiver_thread(c, sched);
@@ -150,6 +153,11 @@ namespace codepad::lsp {
 			return _request_handlers;
 		}
 
+		/// Returns \ref _manager.
+		[[nodiscard]] manager &get_manager() const {
+			return _manager;
+		}
+
 
 		/// The default error handler that simply prints the error code and message. Simly logs the error.
 		inline static void default_error_handler(
@@ -181,6 +189,8 @@ namespace codepad::lsp {
 		std::atomic<state> _state = state::not_initialized; ///< Used to signal the receiver thread to stop.
 		/// Request index of the \p shutdown message, used by the receiver thread to determine when to exit.
 		std::atomic<types::integer> _shutdown_message_id = -1;
+
+		manager &_manager; ///< The \ref manager that contains settings for the LSP plugin.
 
 
 		/// Implementation of \ref send_request().

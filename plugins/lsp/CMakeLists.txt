@@ -17,6 +17,7 @@ target_sources(lsp
 		"include/codepad/lsp/backend.h"
 		"include/codepad/lsp/client.h"
 		"include/codepad/lsp/interpretation_tag.h"
+		"include/codepad/lsp/manager.h"
 		"include/codepad/lsp/uri.h"
 	PRIVATE
 		"src/types/client.cpp"

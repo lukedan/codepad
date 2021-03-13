@@ -86,19 +86,31 @@ namespace codepad::lsp {
 			) {
 				return;
 			}
-			auto &registry = tag->_decoration_token->decorations;
-			registry = editors::decoration_provider::registry();
-			for (auto &diag : params.diagnostics.value) {
-				std::size_t
-					beg = tag->_position_to_character(diag.range.start),
-					end = tag->_position_to_character(diag.range.end);
-				editors::decoration_provider::decoration_data data;
-				data.description = std::move(diag.message);
-				registry.insert_range(beg, end - beg, data);
+			{
+				auto modifier = tag->_decoration_token.modify();
+				modifier->decorations = editors::decoration_provider::registry();
+				std::vector<std::u8string_view> lang_profile{ u8"cpp" }; // TODO language
+				modifier->renderers = {
+					tag->_client->get_manager().get_error_decoration(lang_profile.begin(), lang_profile.end()),
+					tag->_client->get_manager().get_warning_decoration(lang_profile.begin(), lang_profile.end()),
+					tag->_client->get_manager().get_info_decoration(lang_profile.begin(), lang_profile.end()),
+					tag->_client->get_manager().get_hint_decoration(lang_profile.begin(), lang_profile.end())
+				};
+				for (auto &diag : params.diagnostics.value) {
+					std::size_t
+						beg = tag->_position_to_character(diag.range.start),
+						end = tag->_position_to_character(diag.range.end);
+					auto severity = types::DiagnosticSeverityEnum::Error;
+					if (diag.severity.value) {
+						severity = diag.severity.value.value().value;
+					}
+
+					editors::decoration_provider::decoration_data data;
+					data.description = std::move(diag.message);
+					data.renderer = modifier->renderers[static_cast<std::size_t>(severity) - 1].get();
+					modifier->decorations.insert_range(beg, end - beg, data);
+				}
 			}
-			tag->_interp->appearance_changed.invoke_noret(
-				editors::code::interpretation::appearance_change_type::visual_only
-			);
 		}
 	}
 
@@ -190,10 +202,9 @@ namespace codepad::lsp {
 			));
 		}
 		// update decorations
-		_decoration_token->decorations.on_modification(
+		_decoration_token.modify()->decorations.on_modification(
 			info.start_character, info.removed_characters, info.inserted_characters
 		);
-		// since we're gonna invoke appearance_changed during end_edit anyway, no need to invoke it here
 	}
 
 	void interpretation_tag::_on_end_edit(editors::buffer::end_edit_info&) {

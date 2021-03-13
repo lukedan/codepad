@@ -41,6 +41,11 @@ namespace codepad::editors {
 		[[nodiscard]] static ui::property_info find_property_info_handler(
 			ui::component_property_accessor_builder&, ui::manager&, manager&
 		);
+
+		/// Parses the given JSON into a \ref decoration_renderer object. Returns \p nullptr if parsing fails.
+		[[nodiscard]] static std::shared_ptr<decoration_renderer> parse_static(
+			const json::storage::value_t&, ui::manager&, manager&
+		);
 	};
 
 	/// A source of text decoration that handles the rendering of the decorations, as well as querying information
@@ -56,6 +61,10 @@ namespace codepad::editors {
 		using registry = overlapping_range_registry<decoration_data>;
 
 		registry decorations; ///< Stores all decorations.
+		/// Renderers. This does not necessarily contain any elements, and is only here for the purpose of ensuring
+		/// that the renderers outlive the contents of this provider. Specifically, this will only be read or written
+		/// to by the creator of this provider.
+		std::vector<std::shared_ptr<decoration_renderer>> renderers;
 	};
 
 

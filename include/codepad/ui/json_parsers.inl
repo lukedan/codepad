@@ -818,10 +818,10 @@ namespace codepad::ui {
 	) const {
 		if (auto brush = val.template parse<generic_brush_parameters>(
 			managed_json_parser<generic_brush_parameters>(_manager)
-			)) {
+		)) {
 			generic_pen_parameters result;
 			result.brush = brush.value();
-			if (auto obj = val.template cast<typename Value::object_type>()) {
+			if (auto obj = val.template try_cast<typename Value::object_type>()) {
 				result.thickness =
 					obj->template parse_optional_member<double>(u8"thickness").value_or(result.thickness);
 			}

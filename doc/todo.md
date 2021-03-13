@@ -102,7 +102,7 @@ Items in this list are not sorted by any specific order.
 			- [ ] Better popups
 		- [ ] Diagnostics
 			- [x] _Basic integration_
-			- [ ] Customizable decorations
+			- [x] _Customizable decorations_
 			- [ ] Tooltips
 		- [ ] Go to symbol
 		- [ ] Folding provider

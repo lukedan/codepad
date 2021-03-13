@@ -38,5 +38,24 @@
 			"macro": "#C586C0",
 			"variable": "#9CDCFE"
 		}
+	},
+
+	"lsp": {
+		"error_decoration": {
+			"type": "squiggle_decoration_renderer",
+			"stroke": "#FF0000"
+		},
+		"warning_decoration": {
+			"type": "squiggle_decoration_renderer",
+			"stroke": "#FFFF00"
+		},
+		"info_decoration": {
+			"type": "rounded_decoration_renderer",
+			"stroke": "#FFFFFF"
+		},
+		"hint_decoration": {
+			"type": "squiggle_decoration_renderer",
+			"stroke": "#B5CEA8"
+		}
 	}
 }

@@ -26,6 +26,7 @@
 #include "codepad/lsp/backend.h"
 #include "codepad/lsp/client.h"
 #include "codepad/lsp/interpretation_tag.h"
+#include "codepad/lsp/manager.h"
 #include "codepad/lsp/uri.h"
 
 namespace codepad::lsp {
@@ -33,6 +34,9 @@ namespace codepad::lsp {
 	plugin *_this_plugin = nullptr; ///< Handle of this plugin.
 	editors::manager *_editor_manager = nullptr; ///< The \ref editors::manager.
 
+	std::unique_ptr<manager> _manager; ///< The global manager.
+	// TODO create per-workspace clients instead
+	//      also what about multiple languages?
 	std::unique_ptr<client> _client; ///< The LSP client.
 
 	/// The token for the per-interpretation tag used by the LSP plugin.
@@ -57,9 +61,15 @@ extern "C" {
 				cp::lsp::_editor_manager = *ppman;
 			}
 		}
+
+		cp::lsp::_manager = std::make_unique<cp::lsp::manager>(
+			*cp::lsp::_context->ui_man, *cp::lsp::_editor_manager
+		);
 	}
 
 	PLUGIN_FINALIZE() {
+		cp::lsp::_manager.reset();
+
 		cp::lsp::_context = nullptr;
 		cp::lsp::_this_plugin = nullptr;
 	}
@@ -69,9 +79,11 @@ extern "C" {
 	}
 
 	PLUGIN_ENABLE() {
-		auto bkend = std::make_unique<cp::lsp::stdio_backend>(TEXT("D:/Software/LLVM/bin/clangd.exe"), std::vector<std::u8string_view>{});
+		auto bkend = std::make_unique<cp::lsp::stdio_backend>(
+			TEXT("D:/Software/LLVM/bin/clangd.exe"), std::vector<std::u8string_view>{}
+		);
 		cp::lsp::_client = std::make_unique<cp::lsp::client>(
-			std::move(bkend), cp::lsp::_context->ui_man->get_scheduler()
+			std::move(bkend), cp::lsp::_context->ui_man->get_scheduler(), *cp::lsp::_manager
 		);
 
 		auto &handlers = cp::lsp::_client->request_handlers();

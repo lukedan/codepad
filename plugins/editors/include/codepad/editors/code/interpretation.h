@@ -483,29 +483,57 @@ namespace codepad::editors::code {
 		struct decoration_provider_token {
 			friend interpretation;
 		public:
+			/// Used to modify a \ref decoration_provider. Automatically invokes
+			/// \ref interpretation::appearance_changed upon destruction.
+			struct modifier {
+				friend decoration_provider_token;
+			public:
+				/// No copy construction.
+				modifier(const modifier&) = delete;
+				/// Invokes \ref appearance_changed.
+				~modifier() {
+					_tok._interp->appearance_changed.invoke_noret(appearance_change_type::visual_only);
+				}
+
+				/// Used to access the \ref decoration_provider.
+				[[nodiscard]] decoration_provider *operator->() const {
+					return _tok._iter->get();
+				}
+				/// Used to access the \ref decoration_provider.
+				[[nodiscard]] decoration_provider &operator*() const {
+					return **_tok._iter;
+				}
+			protected:
+				const decoration_provider_token &_tok; ///< The token that created this modifier.
+
+				/// Initializes \ref _tok.
+				explicit modifier(const decoration_provider_token &t) : _tok(t) {
+				}
+			};
+
 			/// Default constructor.
 			decoration_provider_token() = default;
 
-			/// Used to access the provider.
-			[[nodiscard]] decoration_provider *operator->() const {
-				return _iter.value()->get();
-			}
-			/// Used to access the provider.
-			[[nodiscard]] decoration_provider &operator*() const {
-				return ***_iter;
+			/// Returns a \ref modifier.
+			[[nodiscard]] modifier modify() const {
+				assert_true_usage(!empty(), "attempting to modify decoration_provider through an empty token");
+				return modifier(*this);
 			}
 
-			/// Returns whether this token is empty.
+			// TODO would we ever need to read the decorations without modifying them?
+
+			/// Returns whether \ref _interp is empty.
 			[[nodiscard]] bool empty() const {
-				return !_iter.has_value();
+				return _interp == nullptr;
 			}
 		protected:
 			using _iter_t = std::list<std::unique_ptr<decoration_provider>>::iterator; ///< Iterator type.
 
-			std::optional<_iter_t> _iter; ///< Iterator to the provider.
+			_iter_t _iter; ///< Iterator to the provider.
+			interpretation *_interp = nullptr; ///< The interpretation that this token affects.
 
-			/// Initializes \ref _iter.
-			explicit decoration_provider_token(_iter_t it) : _iter(it) {
+			/// Initializes \ref _iter and \ref _interp.
+			decoration_provider_token(_iter_t it, interpretation &interp) : _iter(it), _interp(&interp) {
 			}
 		};
 
@@ -594,7 +622,7 @@ namespace codepad::editors::code {
 			_decorations.emplace_back(std::move(ptr));
 			appearance_changed.invoke_noret(appearance_change_type::visual_only);
 			auto iter = _decorations.end();
-			return decoration_provider_token(--iter);
+			return decoration_provider_token(--iter, *this);
 		}
 		/// Returns \ref _decorations.
 		[[nodiscard]] const std::list<std::unique_ptr<decoration_provider>> &get_decoration_providers() const {
@@ -602,8 +630,8 @@ namespace codepad::editors::code {
 		}
 		/// Removes the given provider and invokes \ref appearance_changed. The token will be reset.
 		void remove_decoration_provider(decoration_provider_token &tok) {
-			_decorations.erase(tok._iter.value());
-			tok._iter.reset();
+			_decorations.erase(tok._iter);
+			tok._interp = nullptr;
 			appearance_changed.invoke_noret(appearance_change_type::visual_only);
 		}
 
