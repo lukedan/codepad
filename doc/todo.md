@@ -79,24 +79,31 @@ Items in this list are not sorted by any specific order.
 	- [ ] Relative mode(s) for line number display
 	- [ ] Async document tasks
 - [ ] Tree-sitter plugin
-	- [x] _Basic integration_
 	- [ ] Support for different encodings
-	- [x] _Customizable themes_
+	- [ ] Syntax highlighting
+		- [x] _Basic integration_
+		- [x] _Customizable themes_
+		- [ ] Tooltip for debugging
 	- [ ] Folding provider
 - [ ] LSP plugin
 	- [x] _Basic protocol structures_
 	- [ ] UTF-16 word position
 	- [ ] Backends
 		- [x] _Stdio backend_
-			- [ ] Convert to platform-agnostic API
+			- [x] _Convert to platform-agnostic API_
 		- [ ] Socket backend
 	- [ ] Handling of LSP commands and messages
 		- [ ] Syntax highlighting
 			- [x] _Basic integration_
-			- [ ] Customizable themes
+			- [x] _Customizable themes_
+			- [ ] Tooltip for debugging
 		- [ ] Hover
 			- [x] _Basic integration_
 			- [ ] Better popups
+		- [ ] Diagnostics
+			- [x] _Basic integration_
+			- [ ] Customizable decorations
+			- [ ] Tooltips
 		- [ ] Go to symbol
 		- [ ] Folding provider
 		- [ ] Formatting

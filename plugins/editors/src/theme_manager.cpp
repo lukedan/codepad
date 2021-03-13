@@ -73,7 +73,7 @@ namespace codepad::editors {
 				entry << part;
 			}
 		}
-		if (conflicts > 0) {
+		if (max_matches > 0 && conflicts > 0) {
 			logger::get().log_error(CP_HERE) << "multiple candidates found; which one is picked is unspecified";
 		}
 
