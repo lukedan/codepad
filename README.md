@@ -1,6 +1,6 @@
 # Codepad
 
-![](https://user-images.githubusercontent.com/16830156/91629019-1cbf8800-e993-11ea-9c0b-9816f68e52c4.png)
+![](https://user-images.githubusercontent.com/16830156/111044169-d7394880-8414-11eb-8cc0-6645dc9c1797.png)
 
 Codepad is a free, open-source text editor written purely in C++. The goal is to make it fast, sexy, cross-platform, and customizable. Currently it is in a very early stage of development and is **currently unfit for everyday use**. Any contribution is welcome.
 
