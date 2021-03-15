@@ -38,9 +38,10 @@ namespace codepad::tree_sitter {
 		_begin_edit_token = _interp->get_buffer().begin_edit += [this](editors::buffer::begin_edit_info&) {
 			if (auto task = _task_token.get_task()) {
 				task->cancel();
+				// ensure that there's only one instance of the task running at any given time, so that when this tag
+				// is removed, there won't be a task that still uses this tag and the language
+				task->wait_finish();
 			}
-			// the task may still finish and queue a callback that updates the theme. however, the new task (started
-			// during end_edit) will override that theme
 		};
 		_end_edit_token = _interp->get_buffer().end_edit += [this](editors::buffer::end_edit_info&) {
 			start_highlight_task();
