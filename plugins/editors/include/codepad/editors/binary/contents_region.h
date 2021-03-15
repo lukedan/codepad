@@ -63,8 +63,8 @@ namespace codepad::editors::binary {
 		};
 
 		/// Returns the \ref buffer that's currently being edited.
-		const std::shared_ptr<buffer> &get_buffer() const override {
-			return _buf;
+		buffer &get_buffer() const override {
+			return *_buf;
 		}
 		/// Sets the \ref buffer that's being edited.
 		void set_buffer(std::shared_ptr<buffer>);
@@ -265,7 +265,7 @@ namespace codepad::editors::binary {
 		interaction_manager<caret_set> _interaction_manager; ///< Manages certain mouse and keyboard interactions.
 		std::shared_ptr<buffer> _buf; ///< The buffer that's being edited.
 		info_event<buffer::end_edit_info>::token _mod_tok; ///< Used to listen to \ref buffer::end_edit.
-		radix _radix = radix::binary; ///< The radix used to display bytes.
+		radix _radix = radix::hexadecimal; ///< The radix used to display bytes.
 
 		std::shared_ptr<ui::font> _font; ///< The font used to display all bytes.
 		double

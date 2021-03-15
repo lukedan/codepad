@@ -91,57 +91,14 @@ namespace codepad::tree_sitter {
 	std::shared_ptr<language_configuration> manager::register_language(
 		std::u8string lang, std::shared_ptr<language_configuration> config
 	) {
-		config->set_highlight_configuration(_themes.get_theme_for_language(config->get_language_name()));
+		config->set_highlight_configuration(
+			get_editor_manager().themes.get_theme_for_language(config->get_language_name())
+		);
 		auto [it, inserted] = _languages.try_emplace(std::move(lang), std::move(config));
 		if (!inserted) {
 			std::swap(config, it->second);
 			return std::move(config);
 		}
 		return nullptr;
-	}
-
-	void manager::_highlighter_thread() {
-		while (true) {
-			_semaphore.acquire();
-			if (_status == _highlighter_thread_status::stopping) {
-				break;
-			}
-			// retrieve the next interpretation for highlighting
-			interpretation_tag *interp = nullptr;
-			{
-				std::lock_guard<std::mutex> guard(_lock);
-				if (_queued.empty()) {
-					continue; // this can occur with cancelled highlight requests
-				}
-				interp = _queued.front();
-				_queued.pop_front();
-
-				_active = interp;
-				std::atomic_ref<std::size_t> cancel(_cancellation_token);
-				cancel = 0;
-			}
-
-			editors::code::text_theme_data theme;
-			{ // highlight the interpretation
-				editors::buffer::async_reader_lock lock(*interp->get_interpretation().get_buffer());
-				theme = interp->compute_highlight(&_cancellation_token);
-			}
-
-			{ // pass the data back to the main thread if the operation wasn't cancelled
-				std::atomic_ref<std::size_t> cancel(_cancellation_token);
-				if (cancel == 0) {
-					_manager.get_scheduler().execute_callback(
-						[t = std::move(theme), &target = interp->get_interpretation()]() {
-							target.set_text_theme(std::move(t));
-						}
-					);
-				}
-			}
-
-			{ // highlighting has finished; reset `_active`
-				std::lock_guard<std::mutex> guard(_lock);
-				_active = nullptr;
-			}
-		}
 	}
 }

@@ -44,7 +44,7 @@ namespace codepad::ui::tabs {
 			/// the element, it must be passed in as the argument.
 			void set_offset(animated_tab_buttons_panel &pnl, element &e, double offset) {
 				if (!task.empty()) {
-					e.get_manager().get_scheduler().cancel_task(task);
+					e.get_manager().get_scheduler().cancel_synchronous_task(task);
 				}
 				current_offset = offset;
 				if (
@@ -56,14 +56,14 @@ namespace codepad::ui::tabs {
 				} else {
 					starting_offset = current_offset;
 					start = scheduler::clock_t::now();
-					task = e.get_manager().get_scheduler().register_task(
+					task = e.get_manager().get_scheduler().register_synchronous_task(
 						scheduler::clock_t::now(), &e,
 						[this, panel = &pnl](element *e) -> std::optional<scheduler::clock_t::time_point> {
 							e->invalidate_layout();
 							double dur = std::chrono::duration<double>(scheduler::clock_t::now() - start).count();
 							if (dur > panel->get_animation_duration()) {
 								current_offset = 0.0;
-								task = scheduler::task_token();
+								task = scheduler::sync_task_token();
 								return std::nullopt;
 							}
 							double progress = dur / panel->get_animation_duration();
@@ -77,7 +77,7 @@ namespace codepad::ui::tabs {
 
 			/// The token used to listen to \ref tab_button::start_drag.
 			info_event<tab_button::drag_start_info>::token token;
-			scheduler::task_token task; ///< The task used to update the animation.
+			scheduler::sync_task_token task; ///< The task used to update the animation.
 			scheduler::clock_t::time_point start; ///< The start of the current animation.
 			double
 				starting_offset = 0.0, ///< The starting offset of the tab button from its original position.

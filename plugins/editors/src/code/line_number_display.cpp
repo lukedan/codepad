@@ -9,7 +9,7 @@
 namespace codepad::editors::code {
 	ui::size_allocation line_number_display::get_desired_width() const {
 		if (contents_region *edt = component_helper::get_contents_region(*this)) {
-			std::size_t num_lines = edt->get_document()->num_lines(), digits = 0;
+			std::size_t num_lines = edt->get_document().num_lines(), digits = 0;
 			for (; num_lines > 0; ++digits, num_lines /= 10) {
 			}
 			// TODO customizable font parameters
@@ -64,7 +64,7 @@ namespace codepad::editors::code {
 				for (std::size_t curi = fline; curi < eline; ++curi, cury += lh) {
 					std::size_t line = fmt.get_folding().folded_to_unfolded_line_number(curi);
 					auto lineinfo = fmt.get_linebreaks().get_line_info(line);
-					if (lineinfo.first.entry == edt->get_document()->get_linebreaks().end()) {
+					if (lineinfo.first.entry == edt->get_document().get_linebreaks().end()) {
 						break; // when after the end of the document
 					}
 					if (lineinfo.first.first_char >= lineinfo.second.prev_chars) { // ignore soft linebreaks

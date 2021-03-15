@@ -99,7 +99,7 @@ namespace codepad::editors::binary {
 			top_digit *= radix;
 		}
 		{
-			buffer::scoped_normal_modifier mod(*get_buffer(), this);
+			buffer::scoped_normal_modifier mod(get_buffer(), this);
 			for (auto &[caret, data] : get_carets().carets) {
 				std::size_t mod_begin_pos = 0, mod_remove_len = 1;
 				std::basic_string<std::byte> overwritten_bytes;
@@ -109,14 +109,14 @@ namespace codepad::editors::binary {
 					mod_remove_len = max - min;
 				} else {
 					mod_begin_pos = caret.caret + mod.get_modifier().get_fixup_offset();
-					auto it = get_buffer()->at(mod_begin_pos);
+					auto it = get_buffer().at(mod_begin_pos);
 					if (is_insert_mode()) {
-						if (it.get_position() < get_buffer()->length()) {
+						if (it.get_position() < get_buffer().length()) {
 							overwritten_bytes.push_back(*it);
 						}
 					} else {
 						overwritten_bytes.reserve(num_input_bytes);
-						for (std::size_t i = 0; i < num_input_bytes && it != get_buffer()->end(); ++i, ++it) {
+						for (std::size_t i = 0; i < num_input_bytes && it != get_buffer().end(); ++i, ++it) {
 							overwritten_bytes.push_back(*it);
 						}
 					}
@@ -153,8 +153,8 @@ namespace codepad::editors::binary {
 					(pos.x + 0.5 * get_blank_width()) / (_cached_max_byte_width + get_blank_width())
 					), get_bytes_per_row()),
 				res = line * get_bytes_per_row() + col;
-			if (res >= get_buffer()->length()) {
-				return get_buffer()->length();
+			if (res >= get_buffer().length()) {
+				return get_buffer().length();
 			}
 			return res;
 		}
@@ -185,7 +185,7 @@ namespace codepad::editors::binary {
 	}
 
 	rectd contents_region::_get_caret_rect(std::size_t cpos) const {
-		if (cpos == get_buffer()->length()) { // caret is at the end of the file
+		if (cpos == get_buffer().length()) { // caret is at the end of the file
 			// in this case, make the caret a vertical line
 			if (cpos == 0) { // empty document
 				return rectd::from_xywh(_get_column_offset(0), _get_line_offset(0), 0.0f, get_line_height());
@@ -278,14 +278,14 @@ namespace codepad::editors::binary {
 				for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
 					// render a single line
 					std::size_t pos = line * get_bytes_per_row() + firstbyte;
-					if (pos >= get_buffer()->length()) {
+					if (pos >= get_buffer().length()) {
 						break;
 					}
-					auto it = get_buffer()->at(pos);
+					auto it = get_buffer().at(pos);
 					double x = topleft.x;
 					for (
 						std::size_t i = firstbyte;
-						i < lastbyte && it != get_buffer()->end();
+						i < lastbyte && it != get_buffer().end();
 						++i, ++it, x += _cached_max_byte_width + _blank_width
 					) {
 						auto text = renderer.create_plain_text_fast(

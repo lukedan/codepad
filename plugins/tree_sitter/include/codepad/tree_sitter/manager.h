@@ -20,16 +20,15 @@ namespace codepad::tree_sitter {
 	class manager {
 	public:
 		/// Initializes \ref _scheduler.
-		manager(ui::manager &man, editors::theme_manager &themes) : _manager(man), _themes(themes) {
+		manager(ui::manager &man, editors::manager &editor_man) : _manager(man), _editor_manager(editor_man) {
 			_settings_changed_tok = (_manager.get_settings().changed += [this]() {
-				// TODO there's gotta be a better way of doing this
-				stop_highlighter_thread();
+				cancel_and_wait_all_highlight_tasks();
 				for (auto it = _languages.begin(); it != _languages.end(); ++it) {
 					it->second->set_highlight_configuration(
-						_themes.get_theme_for_language(it->second->get_language_name())
+						get_editor_manager().themes.get_theme_for_language(it->second->get_language_name())
 					);
 				}
-				start_highlighter_thread();
+				// TODO find a way to restart highlighting for all interpretations
 			});
 		}
 		/// Unregisters from the settings::changed event.
@@ -47,7 +46,7 @@ namespace codepad::tree_sitter {
 		);
 
 		/// Finds the language with the given name.
-		const language_configuration *find_lanaguage(std::u8string_view s) const {
+		[[nodiscard]] const language_configuration *find_lanaguage(std::u8string_view s) const {
 			auto it = _languages.find(s);
 			if (it == _languages.end()) {
 				return nullptr;
@@ -55,96 +54,70 @@ namespace codepad::tree_sitter {
 			return it->second.get();
 		}
 
-		/// Starts the highlighter thread.
-		void start_highlighter_thread() {
-			_highlighter_thread_status expected = _highlighter_thread_status::stopped;
-			assert_true_logical(
-				_status.compare_exchange_strong(expected, _highlighter_thread_status::running),
-				"highlighter thread is running"
-			);
-			_highlighter_thread_obj = std::thread(
-				[](manager *man) {
-					man->_highlighter_thread();
-				},
-				this
+
+		/// Cancels all highlight tasks and waits for them to finish.
+		void cancel_and_wait_all_highlight_tasks() {
+			get_editor_manager().buffers.for_each_interpretation(
+				[this](std::shared_ptr<editors::code::interpretation> interp) {
+					auto *tag = std::any_cast<interpretation_tag>(&_interpretation_tag_token.get_for(*interp));
+					assert_true_logical(tag, "missing tree-sitter interpretation tag");
+					tag->cancel_highlight_task();
+					tag->wait_for_highlight_task();
+				}
 			);
 		}
-		/// Signals the highlighter thread to stop and waits for it to finish.
-		void stop_highlighter_thread() {
-			_highlighter_thread_status expected = _highlighter_thread_status::running;
-			assert_true_logical(
-				_status.compare_exchange_strong(expected, _highlighter_thread_status::stopping),
-				"highlighter thread is not running"
+
+
+		/// Registers for events and creates interpretation tags for all open interpretations.
+		void enable() {
+			_interpretation_created_token = (
+				get_editor_manager().buffers.interpretation_created +=
+					[this](editors::interpretation_info &info) {
+						auto *lang = find_lanaguage(u8"cpp");
+
+						auto &data = _interpretation_tag_token.get_for(info.interp);
+						data.emplace<interpretation_tag>(info.interp, lang, *this);
+					}
 			);
-			_semaphore.release(); // wake up the highlighter thread if it isn't
-			_highlighter_thread_obj.join();
-			_status = _highlighter_thread_status::stopped;
+			_interpretation_tag_token = get_editor_manager().buffers.allocate_interpretation_tag();
+
+			// TODO create interpretation tags
 		}
-		/// Queues the interpretation associated with the given \ref interpretation_tag for highlighting. If
-		/// the interpretation is currently being highlighted, the previously queued operation will be cancelled.
-		void queue_highlighting(interpretation_tag &interp) {
-			std::lock_guard<std::mutex> guard(_lock);
-			_cancel_highlighting(interp);
-			_queued.emplace_back(&interp);
-			_semaphore.release();
+		/// Calls \ref cancel_and_wait_all_highlight_tasks() and unregisters from events.
+		void disable() {
+			cancel_and_wait_all_highlight_tasks();
+
+			get_editor_manager().buffers.deallocate_interpretation_tag(_interpretation_tag_token);
+			get_editor_manager().buffers.interpretation_created -= _interpretation_created_token;
 		}
-		/// Cancels all pending or ongoing highlighting operations for the given interpretation.
-		void cancel_highlighting(interpretation_tag &interp) {
-			std::lock_guard<std::mutex> guard(_lock);
-			_cancel_highlighting(interp);
+
+
+		/// Returns \ref _manager.
+		[[nodiscard]] ui::manager &get_manager() const {
+			return _manager;
+		}
+		/// Returns \ref _editor_manager.
+		[[nodiscard]] editors::manager &get_editor_manager() const {
+			return _editor_manager;
 		}
 	protected:
-		/// Status of the highlighter thread.
-		enum class _highlighter_thread_status : unsigned char {
-			running, ///< The thread is running.
-			stopping, ///< The thread is running, but the manager has requested it to stop.
-			stopped ///< The thread is **not** running.
-		};
-
 		/// Mapping between language names and language configurations.
 		std::unordered_map<
 			std::u8string, std::shared_ptr<language_configuration>, string_hash<>, std::equal_to<>
 		> _languages;
 
 		info_event<void>::token _settings_changed_tok; ///< Used to listen to \ref settings::changed.
+		/// Used to listen to \ref editors::buffer_manager::interpretation_created.
+		info_event<editors::interpretation_info>::token _interpretation_created_token;
 
-		/// Used to signal the highlighter thread that a new interpretation has been queued for highlighting, or when
-		/// requesting the highlighter thread to shutdown.
-		std::counting_semaphore<255> _semaphore{ 0 };
-		std::mutex _lock; ///< Protects \ref _queued and \ref _active.
-		std::thread _highlighter_thread_obj; ///< The highlighter thread.
-		/// Interpretations queued for highlighting. This is protected by \ref _lock.
-		std::deque<interpretation_tag*> _queued;
-		/// The interpretation that is currently being highlighted. This is protected by \ref _lock.
-		interpretation_tag *_active = nullptr;
-		/// The status of the highlighter thread.
-		std::atomic<_highlighter_thread_status> _status = _highlighter_thread_status::stopped;
-		/// The cancellation token for the highlighter thread. This should be accessed through a \p std::atomic_ref.
-		alignas(std::atomic_ref<std::size_t>::required_alignment) std::size_t _cancellation_token = 0;
-		/// The manager. Its scheduler is used for trasnferring highlight results back to the main thread.
+		/// Token for the interpretation tag.
+		editors::buffer_manager::interpretation_tag_token _interpretation_tag_token;
+
+		/// The manager. The \ref ui::async_task_scheduler is used for highlighting tasks, and the \ref ui::scheduler
+		/// is used for trasnferring highlight results back to the main thread.
 		ui::manager &_manager;
-
-		editors::theme_manager &_themes; ///< Contains theme information for languages.
-
-		/// The function executed by the highlighter thread.
-		void _highlighter_thread();
-
-		/// Cancels all pending or ongoing highlighting operations for the given interpretation. This function
-		/// assumes that the caller already holds \ref _lock.
-		void _cancel_highlighting(interpretation_tag &interp) {
-			if (_active == &interp) {
-				std::atomic_ref<std::size_t> cancel(_cancellation_token);
-				cancel = 1;
-			}
-			// search in _queued
-			// we're not expecting a lot of interpretations to be queued, so just go over them one by one
-			for (auto iter = _queued.begin(); iter != _queued.end(); ) {
-				if (*iter == &interp) {
-					iter = _queued.erase(iter);
-				} else {
-					++iter;
-				}
-			}
-		}
+		/// The associated \ref editors::manager. This provides theme information and allows us to iterate over open
+		/// buffers.
+		editors::manager &_editor_manager;
 	};
 }

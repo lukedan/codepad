@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
 
 	std::default_random_engine eng(123456);
 	auto buf = buf_man.new_file();
-	auto interp = buf_man.open_interpretation(buf, encodings.get_default());
+	auto interp = buf_man.open_interpretation(*buf, encodings.get_default());
 
 	// stored values from `modification_decoded`
 	std::size_t start_char_beforemod, past_end_char_beforemod, num_chars_beforemod;

@@ -39,6 +39,7 @@ namespace codepad::lsp {
 	//      also what about multiple languages?
 	std::unique_ptr<client> _client; ///< The LSP client.
 
+	// TODO put all these into the manager
 	/// The token for the per-interpretation tag used by the LSP plugin.
 	editors::buffer_manager::interpretation_tag_token _interpretation_tag_token;
 	/// Token used to register for \ref editors::buffer_manager::interpretation_created.

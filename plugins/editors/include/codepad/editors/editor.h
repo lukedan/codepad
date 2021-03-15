@@ -54,7 +54,7 @@ namespace codepad::editors {
 
 		/// Returns the associated \ref buffer. This function returns a reference to a \p std::shared_ptr so that new
 		/// views into the buffer can be opened.
-		[[nodiscard]] virtual const std::shared_ptr<buffer> &get_buffer() const = 0;
+		[[nodiscard]] virtual buffer &get_buffer() const = 0;
 
 		/// Returns a reference to the \ref selection_renderer used for this contents region.
 		std::shared_ptr<decoration_renderer> &code_selection_renderer() {

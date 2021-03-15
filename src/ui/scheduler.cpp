@@ -69,15 +69,15 @@ namespace codepad::ui {
 		}
 	}
 
-	void scheduler::update_tasks() {
+	void scheduler::update_synchronous_tasks() {
 		clock_t::time_point execute_before = clock_t::now();
-		while (!_task_queue.empty() && execute_before >= _task_queue.top().info->scheduled) {
-			const auto &ref = _task_queue.top();
+		while (!_sync_task_queue.empty() && execute_before >= _sync_task_queue.top().info->scheduled) {
+			const auto &ref = _sync_task_queue.top();
 			if (auto repeat = ref.info->task(ref.info->iter->first)) { // change scheduled time
 				ref.info->scheduled = repeat.value();
-				_task_queue.on_key_decreased(0);
+				_sync_task_queue.on_key_decreased(0);
 			} else { // erase the task
-				_cancel_task(&(*ref.info));
+				_cancel_sync_task(&(*ref.info));
 			}
 		}
 	}
@@ -159,11 +159,11 @@ namespace codepad::ui {
 					_children_layout_scheduled.erase(pnl);
 				}
 				// remove all tasks related to the element
-				if (auto it = _tasks.find(elem); it != _tasks.end()) {
+				if (auto it = _sync_tasks.find(elem); it != _sync_tasks.end()) {
 					for (const auto &info : it->second) {
-						_task_queue.erase(info.queue_index);
+						_sync_task_queue.erase(info.queue_index);
 					}
-					_tasks.erase(it);
+					_sync_tasks.erase(it);
 				}
 				// remove it from other lists
 				_layout_notify.erase(elem);
@@ -187,7 +187,7 @@ namespace codepad::ui {
 			) {
 			}
 		} else {
-			_set_timer(_next_update() - clock_t::now()); // set up the timer
+			_set_timer(_earliest_sync_task() - clock_t::now()); // set up the timer
 			_main_iteration_system(wait_type::blocking); // wait for the next event or the timer
 		}
 	}

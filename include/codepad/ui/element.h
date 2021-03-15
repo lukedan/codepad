@@ -25,7 +25,6 @@ namespace codepad::ui {
 	class panel;
 	class manager;
 	class scheduler;
-	struct task_token;
 	class window;
 	class element_collection;
 
@@ -386,7 +385,7 @@ namespace codepad::ui {
 		/// Information about an ongoing animation.
 		struct _animation_info {
 			std::unique_ptr<playing_animation_base> animation; ///< The actual animation.
-			scheduler::task_token task; ///< The task related to this animation.
+			scheduler::sync_task_token task; ///< The task related to this animation.
 		};
 
 		visuals _visual_params; ///< The visual parameters of this \ref element.

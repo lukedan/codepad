@@ -23,11 +23,6 @@ namespace codepad::tree_sitter {
 
 	std::unique_ptr<manager> _manager; ///< Global language manager.
 
-	/// Used to listen to \ref cp::editors::buffer_manager::interpretation_created.
-	info_event<editors::interpretation_info>::token _interpretation_created_token;
-	/// Token for the interpretation tag.
-	editors::buffer_manager::interpretation_tag_token _interpretation_tag_token;
-
 	namespace _details {
 		manager &get_manager() {
 			return *_manager;
@@ -50,7 +45,7 @@ extern "C" {
 		}
 
 		cp::tree_sitter::_manager = std::make_unique<cp::tree_sitter::manager>(
-			*cp::tree_sitter::_context->ui_man, cp::tree_sitter::_editor_manager->themes
+			*cp::tree_sitter::_context->ui_man, *cp::tree_sitter::_editor_manager
 		);
 		cp::tree_sitter::_manager->register_builtin_languages();
 	}
@@ -67,29 +62,9 @@ extern "C" {
 	}
 
 	PLUGIN_ENABLE() {
-		// start the highlighting thread before any requests may be issued
-		cp::tree_sitter::_manager->start_highlighter_thread();
-
-		cp::tree_sitter::_interpretation_created_token = (
-			cp::tree_sitter::_editor_manager->buffers.interpretation_created +=
-				[](cp::editors::interpretation_info &info) {
-					auto *lang = cp::tree_sitter::_manager->find_lanaguage(u8"cpp");
-
-					auto &data = cp::tree_sitter::_interpretation_tag_token.get_for(info.interp);
-					data.emplace<cp::tree_sitter::interpretation_tag>(info.interp, lang);
-				}
-		);
-		cp::tree_sitter::_interpretation_tag_token =
-			cp::tree_sitter::_editor_manager->buffers.allocate_interpretation_tag();
+		cp::tree_sitter::_manager->enable();
 	}
 	PLUGIN_DISABLE() {
-		cp::tree_sitter::_editor_manager->buffers.deallocate_interpretation_tag(
-			cp::tree_sitter::_interpretation_tag_token
-		);
-		cp::tree_sitter::_editor_manager->buffers.interpretation_created -=
-			cp::tree_sitter::_interpretation_created_token;
-
-		// stop the highlighting thread after all requests have been cancelled
-		cp::tree_sitter::_manager->stop_highlighter_thread();
+		cp::tree_sitter::_manager->disable();
 	}
 }

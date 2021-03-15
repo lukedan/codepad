@@ -287,7 +287,7 @@ namespace codepad::editors {
 			/// Unregisters \ref _scroll_task.
 			~mouse_navigation_mode() {
 				if (!_scroll_task.empty()) {
-					this->_manager.get_contents_region().get_manager().get_scheduler().cancel_task(_scroll_task);
+					this->_manager.get_contents_region().get_manager().get_scheduler().cancel_synchronous_task(_scroll_task);
 				}
 			}
 
@@ -319,7 +319,7 @@ namespace codepad::editors {
 					if (_scroll_task.empty()) { // schedule update
 						auto now = ui::scheduler::clock_t::now();
 						_last_scroll_update = now;
-						_scroll_task = elem.get_manager().get_scheduler().register_task(
+						_scroll_task = elem.get_manager().get_scheduler().register_synchronous_task(
 							now, &elem,
 							[this](ui::element *e) -> std::optional<ui::scheduler::clock_t::time_point> {
 								auto now = ui::scheduler::clock_t::now();
@@ -333,14 +333,14 @@ namespace codepad::editors {
 					}
 				} else {
 					if (!_scroll_task.empty()) {
-						elem.get_manager().get_scheduler().cancel_task(_scroll_task);
+						elem.get_manager().get_scheduler().cancel_synchronous_task(_scroll_task);
 					}
 				}
 				return true;
 			}
 		protected:
 			vec2d _speed; ///< The speed of scrolling.
-			ui::scheduler::task_token _scroll_task; ///< The task used to update smooth mouse scrolling.
+			ui::scheduler::sync_task_token _scroll_task; ///< The task used to update smooth mouse scrolling.
 			ui::scheduler::clock_t::time_point _last_scroll_update; ///< The time of the last scroll update.
 			/// The inner padding. This allows the screen to start scrolling even if the mouse is still inside the
 			/// \ref ui::element.

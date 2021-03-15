@@ -13,6 +13,7 @@
 
 #include "../apigen_definitions.h"
 #include "../core/settings.h"
+#include "async_task.h"
 #include "element.h"
 #include "window.h"
 #include "renderer.h"
@@ -108,7 +109,7 @@ namespace codepad::ui {
 		}
 		/// Finds and returns the transition function corresponding to the given name. If none is found, \p nullptr
 		/// is returned.
-		transition_function find_transition_function(std::u8string_view name) const {
+		[[nodiscard]] transition_function find_transition_function(std::u8string_view name) const {
 			auto it = _transfunc_map.find(name);
 			if (it != _transfunc_map.end()) {
 				return it->second;
@@ -117,7 +118,7 @@ namespace codepad::ui {
 		}
 
 		/// Returns the texture at the given path, loading it from disk when necessary.
-		std::shared_ptr<bitmap> get_texture(const std::filesystem::path &path) {
+		[[nodiscard]] std::shared_ptr<bitmap> get_texture(const std::filesystem::path &path) {
 			auto it = _textures.find(path);
 			if (it == _textures.end()) {
 				// TODO implement proper assets and image sets
@@ -145,55 +146,66 @@ namespace codepad::ui {
 
 		/// Returns the registry of \ref class_arrangements "class_arrangementss" corresponding to all element
 		/// classes.
-		class_arrangements_registry &get_class_arrangements() {
+		[[nodiscard]] class_arrangements_registry &get_class_arrangements() {
 			return _class_arrangements;
 		}
 		/// Const version of \ref get_class_arrangements().
-		const class_arrangements_registry &get_class_arrangements() const {
+		[[nodiscard]] const class_arrangements_registry &get_class_arrangements() const {
 			return _class_arrangements;
 		}
 		/// Returns the registry of \ref hotkey_group "hotkey_groups" corresponding to all element
 		/// classes.
-		class_hotkeys_registry &get_class_hotkeys() {
+		[[nodiscard]] class_hotkeys_registry &get_class_hotkeys() {
 			return _class_hotkeys;
 		}
 		/// Const version of \ref get_class_hotkeys().
-		const class_hotkeys_registry &get_class_hotkeys() const {
+		[[nodiscard]] const class_hotkeys_registry &get_class_hotkeys() const {
 			return _class_hotkeys;
 		}
 
 		/// Finds the color that corresponds to the given name in the color scheme.
-		std::optional<colord> find_color(std::u8string_view name) const {
+		[[nodiscard]] std::optional<colord> find_color(std::u8string_view name) const {
 			if (auto it = _color_scheme.find(name); it != _color_scheme.end()) {
 				return it->second;
 			}
 			return std::nullopt;
 		}
 		/// Returns the current color scheme.
-		const std::unordered_map<std::u8string, colord, string_hash<>, std::equal_to<>> &get_color_scheme() const {
+		[[nodiscard]] const std::unordered_map<
+			std::u8string, colord, string_hash<>, std::equal_to<>
+		> &get_color_scheme() const {
 			return _color_scheme;
 		}
 
 		/// Returns the \ref scheduler.
-		scheduler &get_scheduler() {
+		[[nodiscard]] scheduler &get_scheduler() {
 			return _scheduler;
 		}
 		/// \overload
-		const scheduler &get_scheduler() const {
+		[[nodiscard]] const scheduler &get_scheduler() const {
 			return _scheduler;
 		}
 
+		/// Returns the \ref async_task_scheduler.
+		[[nodiscard]] async_task_scheduler &get_async_task_scheduler() {
+			return _async_tasks;
+		}
+		/// \overload
+		[[nodiscard]] const async_task_scheduler &get_async_task_scheduler() const {
+			return _async_tasks;
+		}
+
 		/// Returns the registry of all commands used with hotkeys.
-		command_registry &get_command_registry() {
+		[[nodiscard]] command_registry &get_command_registry() {
 			return _commands;
 		}
 		/// \overload
-		const command_registry &get_command_registry() const {
+		[[nodiscard]] const command_registry &get_command_registry() const {
 			return _commands;
 		}
 
 		/// Returns the \ref settings object associated with this manager.
-		settings &get_settings() const {
+		[[nodiscard]] settings &get_settings() const {
 			return _settings;
 		}
 
@@ -220,6 +232,7 @@ namespace codepad::ui {
 		std::unordered_map<std::filesystem::path, std::shared_ptr<bitmap>> _textures; // TODO resource path
 
 		scheduler _scheduler; ///< The \ref scheduler.
+		async_task_scheduler _async_tasks; ///< The \ref async_task_scheduler.
 		std::unique_ptr<renderer_base> _renderer; ///< The renderer.
 		settings &_settings; ///< The settings associated with this \ref manager.
 	};

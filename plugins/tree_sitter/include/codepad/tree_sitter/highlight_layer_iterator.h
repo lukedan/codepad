@@ -33,9 +33,9 @@ namespace codepad::tree_sitter {
 	[[nodiscard]] inline std::u8string get_source_for_range(
 		uint32_t first_byte, uint32_t past_last_byte, const codepad::editors::code::interpretation &interp
 	) {
-		codepad::editors::byte_string raw_str = interp.get_buffer()->get_clip(
-			interp.get_buffer()->at(static_cast<std::size_t>(first_byte)),
-			interp.get_buffer()->at(static_cast<std::size_t>(past_last_byte))
+		codepad::editors::byte_string raw_str = interp.get_buffer().get_clip(
+			interp.get_buffer().at(static_cast<std::size_t>(first_byte)),
+			interp.get_buffer().at(static_cast<std::size_t>(past_last_byte))
 		);
 		// decode & re-encode using utf8
 		std::u8string result;

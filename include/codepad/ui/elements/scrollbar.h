@@ -84,7 +84,7 @@ namespace codepad::ui {
 		void set_values_immediate(double v) {
 			// first cancel any ongoing smooth scrolling task
 			if (!_smooth_update_token.empty()) {
-				get_manager().get_scheduler().cancel_task(_smooth_update_token);
+				get_manager().get_scheduler().cancel_synchronous_task(_smooth_update_token);
 			}
 			// update value
 			value_changed_info info(_actual_value);
@@ -225,7 +225,7 @@ namespace codepad::ui {
 		scheduler::clock_t::time_point _smooth_begin;
 		double _smooth_begin_pos = 0.0; ///< Starting position of the current smooth scrolling operation.
 		/// When a smooth scrolling task is currently active, this will hold the token for that task.
-		scheduler::task_token _smooth_update_token;
+		scheduler::sync_task_token _smooth_update_token;
 		/// Marks if the length of \ref _drag is currently extended so that it's easier to interact with.
 		bool _drag_button_extended = false;
 

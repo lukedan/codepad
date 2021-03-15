@@ -127,9 +127,9 @@ namespace codepad::editors {
 		///
 		/// \todo Asynchronous loading.
 		std::shared_ptr<code::interpretation> open_interpretation(
-			const std::shared_ptr<buffer> &buf, const code::buffer_encoding &encoding
+			buffer &buf, const code::buffer_encoding &encoding
 		) {
-			_buffer_data &data = _get_data_of(*buf);
+			_buffer_data &data = _get_data_of(buf);
 			std::u8string encoding_name(encoding.get_name());
 			auto it = data.interpretations.find(encoding_name);
 			if (it != data.interpretations.end()) {
@@ -140,7 +140,7 @@ namespace codepad::editors {
 			} else {
 				it = data.interpretations.try_emplace(std::move(encoding_name)).first;
 			}
-			auto ptr = std::make_shared<code::interpretation>(buf, encoding);
+			auto ptr = std::make_shared<code::interpretation>(buf.shared_from_this(), encoding);
 			ptr->_tags.resize(_interpretation_tag_alloc_max); // allocate space for tags
 			it->second = ptr;
 			interpretation_created.invoke_noret(*ptr);
@@ -209,11 +209,21 @@ namespace codepad::editors {
 
 		/// Iterates over all open buffers.
 		template <typename Cb> void for_each_buffer(Cb &&cb) {
-			for (auto &pair : _file_map) {
-				auto buf = pair.second.buf.lock();
+			for (auto it = _file_map.begin(); it != _file_map.end(); ) {
+				// compute the next iterator in advance because the callback may cause the buffer to be disposed of,
+				// which would erase the entry in `_file_map`. since only the erased iterator is invalidated, the
+				// loop would be able to go on without any issues
+				auto next = it;
+				++next;
+
+				// call the function on the buffer
+				auto buf = it->second.buf.lock();
 				// should not be nullptr since all disposed documents are removed from the map
 				assert_true_logical(buf != nullptr, "corrupted document registry");
 				cb(std::move(buf));
+
+				// update it
+				it = next;
 			}
 			for (auto &wptr : _noname_map) {
 				if (auto buf = wptr.buf.lock()) {
@@ -320,7 +330,7 @@ namespace codepad::editors {
 		}
 
 		/// Called when a buffer is being disposed, to remove the corresponding entry in \ref _file_map or add its
-		/// index to \ref _noname_map.
+		/// index to \ref _noname_alloc.
 		void _on_deleting_buffer(buffer &buf) {
 			buffer_disposing.invoke_noret(buf);
 			if (std::holds_alternative<std::size_t>(buf._fileid)) {

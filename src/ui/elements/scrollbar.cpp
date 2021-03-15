@@ -162,12 +162,12 @@ namespace codepad::ui {
 				// this greatly reduces the choppiness with consecutive scroll operations
 				_update_smooth_scrolling(std::chrono::duration<double>(now - _smooth_begin).count());
 
-				get_manager().get_scheduler().cancel_task(_smooth_update_token);
+				get_manager().get_scheduler().cancel_synchronous_task(_smooth_update_token);
 			}
 
 			_smooth_begin = now;
 			_smooth_begin_pos = get_actual_value();
-			_smooth_update_token = get_manager().get_scheduler().register_task(
+			_smooth_update_token = get_manager().get_scheduler().register_synchronous_task(
 				scheduler::clock_t::now(), this, [this](element*) -> std::optional<scheduler::clock_t::time_point> {
 					auto now = scheduler::clock_t::now();
 					double time = std::chrono::duration<double>(now - _smooth_begin).count();
@@ -175,7 +175,7 @@ namespace codepad::ui {
 					// this is done before updating the value so that new tasks are cancelled correctly even if some
 					// handler of actual_value_changed changes the target value again
 					if (ended) {
-						_smooth_update_token = scheduler::task_token();
+						_smooth_update_token = scheduler::sync_task_token();
 					}
 					_update_smooth_scrolling(time);
 					if (ended) {

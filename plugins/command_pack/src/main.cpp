@@ -49,7 +49,7 @@ namespace command_pack {
 		if (enc == nullptr) {
 			enc = &_editor_manager->encodings.get_default();
 		}
-		auto interp = _editor_manager->buffers.open_interpretation(ctx, *enc);
+		auto interp = _editor_manager->buffers.open_interpretation(*ctx, *enc);
 
 		cp::ui::tabs::tab *tb = host.get_tab_manager().new_tab_in(&host);
 		tb->set_label(file.filename().u8string());
@@ -442,7 +442,7 @@ extern "C" {
 				[](cp::ui::tabs::host &th, const cp::json::value_storage&) {
 					auto buf = command_pack::_editor_manager->buffers.new_file();
 					auto interp = command_pack::_editor_manager->buffers.open_interpretation(
-						buf, command_pack::_editor_manager->encodings.get_default()
+						*buf, command_pack::_editor_manager->encodings.get_default()
 					);
 
 					cp::ui::tabs::tab *tb = th.get_tab_manager().new_tab_in(&th);

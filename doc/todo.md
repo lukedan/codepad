@@ -29,6 +29,7 @@ Items in this list are not sorted by any specific order.
 		- [ ] Performance optimization
 		- [ ] DPI scaling & minimap rendering
 		- [ ] Memory leaks
+	- [x] _Async tasks_
 	- [ ] Brush extend modes
 	- [ ] OS specific
 		- [ ] Windows
@@ -77,7 +78,6 @@ Items in this list are not sorted by any specific order.
 		- [ ] Regular expression
 	- [ ] Go to anything
 	- [ ] Relative mode(s) for line number display
-	- [ ] Async document tasks
 - [ ] Tree-sitter plugin
 	- [ ] Support for different encodings
 	- [ ] Syntax highlighting

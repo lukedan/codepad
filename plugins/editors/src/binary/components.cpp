@@ -9,7 +9,7 @@
 namespace codepad::editors::binary {
 	ui::size_allocation primary_offset_display::get_desired_width() const {
 		if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
-			std::size_t chars = _get_label_length(rgn->get_buffer()->length());
+			std::size_t chars = _get_label_length(rgn->get_buffer().length());
 			double maxw = rgn->get_font()->get_maximum_character_width_em(
 				reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
 			) * rgn->get_font_size();
@@ -57,7 +57,7 @@ namespace codepad::editors::binary {
 				firstline = static_cast<std::size_t>(
 					std::max(0.0, top / rgn->get_line_height())
 					),
-				chars = _get_label_length(rgn->get_buffer()->length()),
+				chars = _get_label_length(rgn->get_buffer().length()),
 				offset = firstline * rgn->get_bytes_per_row();
 			auto &renderer = get_manager().get_renderer();
 
@@ -66,7 +66,7 @@ namespace codepad::editors::binary {
 
 				for (
 					double ypos = static_cast<double>(firstline) * rgn->get_line_height() - top;
-					ypos < get_layout().height() && offset < rgn->get_buffer()->length();
+					ypos < get_layout().height() && offset < rgn->get_buffer().length();
 					ypos += rgn->get_line_height(), offset += rgn->get_bytes_per_row()
 					) {
 					auto text = renderer.create_plain_text(

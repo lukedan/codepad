@@ -13,16 +13,16 @@ namespace codepad::lsp {
 		_interp(&interp), _client(&c) {
 
 		assert_true_usage(
-			std::holds_alternative<std::filesystem::path>(_interp->get_buffer()->get_id()),
+			std::holds_alternative<std::filesystem::path>(_interp->get_buffer().get_id()),
 			"document tags are only available for files on disk"
 		);
-		auto &path = std::get<std::filesystem::path>(_interp->get_buffer()->get_id());
+		auto &path = std::get<std::filesystem::path>(_interp->get_buffer().get_id());
 
 		_change_params.textDocument.uri = uri::from_current_os_path(
-			std::get<std::filesystem::path>(_interp->get_buffer()->get_id())
+			std::get<std::filesystem::path>(_interp->get_buffer().get_id())
 		);
 
-		_begin_edit_token = _interp->get_buffer()->begin_edit += [this](editors::buffer::begin_edit_info &info) {
+		_begin_edit_token = _interp->get_buffer().begin_edit += [this](editors::buffer::begin_edit_info &info) {
 			_on_begin_edit(info);
 		};
 		_modification_decoded_token = _interp->modification_decoded +=
@@ -33,7 +33,7 @@ namespace codepad::lsp {
 			[this](editors::code::interpretation::end_modification_info &info) {
 				_on_end_modification(info);
 			};
-		_end_edit_token = _interp->get_buffer()->end_edit += [this](editors::buffer::end_edit_info &info) {
+		_end_edit_token = _interp->get_buffer().end_edit += [this](editors::buffer::end_edit_info &info) {
 			_on_end_edit(info);
 		};
 
@@ -48,7 +48,7 @@ namespace codepad::lsp {
 			didopen.textDocument.uri = uri::from_current_os_path(path);
 			// encode document as utf8
 			types::string text;
-			text.reserve(interp.get_buffer()->length());
+			text.reserve(interp.get_buffer().length());
 			for (auto iter = interp.codepoint_begin(); !iter.ended(); iter.next()) {
 				codepoint cp = iter.is_codepoint_valid() ? iter.get_codepoint() : encodings::replacement_character;
 				auto str = encodings::utf8::encode_codepoint(cp);
@@ -118,7 +118,7 @@ namespace codepad::lsp {
 		editors::code::interpretation &interp, client &c,
 		const editors::buffer_manager::interpretation_tag_token &tok
 	) {
-		if (std::holds_alternative<std::filesystem::path>(interp.get_buffer()->get_id())) {
+		if (std::holds_alternative<std::filesystem::path>(interp.get_buffer().get_id())) {
 			tok.get_for(interp).emplace<interpretation_tag>(interp, c);
 		}
 	}
@@ -127,7 +127,7 @@ namespace codepad::lsp {
 		editors::code::contents_region &contents, client &c,
 		const editors::buffer_manager::interpretation_tag_token &tok
 	) {
-		auto *tag = std::any_cast<interpretation_tag>(&tok.get_for(*contents.get_document()));
+		auto *tag = std::any_cast<interpretation_tag>(&tok.get_for(contents.get_document()));
 		if (tag) {
 			// TODO unregister for the event when the plugin is disabled
 			contents.mouse_hover += [tag, &contents, &c](ui::mouse_hover_info &p) {
@@ -259,7 +259,7 @@ namespace codepad::lsp {
 		// this is really ugly
 		std::unordered_map<std::uint64_t, editors::code::text_theme_specification> theme_mapping;
 		auto theme =
-			_interp->get_buffer()->get_buffer_manager().get_manager()->themes.get_theme_for_language(u8"cpp");
+			_interp->get_buffer().get_buffer_manager().get_manager()->themes.get_theme_for_language(u8"cpp");
 		auto get_theme_for = [&](types::uinteger type, types::uinteger mods) {
 			std::uint64_t key = (static_cast<std::uint64_t>(type) << 32) | mods;
 			auto [it, inserted] = theme_mapping.try_emplace(key, editors::code::text_theme_specification());

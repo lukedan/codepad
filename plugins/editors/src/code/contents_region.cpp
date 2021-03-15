@@ -75,7 +75,7 @@ namespace codepad::editors::code {
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
 		fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> iter(
-			*get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), linebeg,
+			get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), linebeg,
 			soft_linebreak_inserter(_fmt.get_linebreaks(), linebeg),
 			folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), linebeg)
 		);
@@ -108,7 +108,7 @@ namespace codepad::editors::code {
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
 		fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> iter(
-			*get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), linebeg,
+			get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), linebeg,
 			soft_linebreak_inserter(_fmt.get_linebreaks(), linebeg),
 			folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), linebeg)
 		);
@@ -203,7 +203,7 @@ namespace codepad::editors::code {
 
 			// rendering facilities
 			fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> gen(
-				*get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), firstchar,
+				get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), firstchar,
 				soft_linebreak_inserter(_fmt.get_linebreaks(), firstchar),
 				folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), firstchar)
 			);
@@ -211,7 +211,7 @@ namespace codepad::editors::code {
 			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
 
 			// decorations
-			decoration_gatherer deco_gather(get_document()->get_decoration_providers(), firstchar, ass);
+			decoration_gatherer deco_gather(get_document().get_decoration_providers(), firstchar, ass);
 			std::vector<std::pair<decoration_layout, decoration_renderer*>> decorations;
 			deco_gather.render_callback = [&](decoration_layout layout, decoration_renderer *deco_renderer) {
 				decorations.emplace_back(std::move(layout), deco_renderer);

@@ -146,7 +146,7 @@ namespace codepad::editors::code {
 
 	/// Interprets a \ref buffer using a given encoding. This struct stores information that can be used to determine
 	/// certain boundaries between codepoints.
-	class interpretation {
+	class interpretation : public std::enable_shared_from_this<interpretation> {
 		friend buffer_manager;
 	public:
 		/// Maximum number of codepoints in a chunk.
@@ -208,8 +208,8 @@ namespace codepad::editors::code {
 			/// \return Whether the iterator is past the end of the \ref buffer after this operation.
 			bool next() {
 				_cur = _next;
-				if (_cur != _interp->get_buffer()->end()) {
-					_valid = _interp->get_encoding()->next_codepoint(_next, _interp->get_buffer()->end(), _cp);
+				if (_cur != _interp->get_buffer().end()) {
+					_valid = _interp->get_encoding()->next_codepoint(_next, _interp->get_buffer().end(), _cp);
 					return true;
 				}
 				_cp = 0;
@@ -227,7 +227,7 @@ namespace codepad::editors::code {
 			}
 			/// Returns whether the iterator is past the end of the \ref buffer.
 			bool ended() const {
-				return _interp == nullptr || _cur == _interp->get_buffer()->end();
+				return _interp == nullptr || _cur == _interp->get_buffer().end();
 			}
 			/// Returns the underlying \ref buffer::const_iterator pointing to the first byte of the current
 			/// codepoint.
@@ -251,8 +251,8 @@ namespace codepad::editors::code {
 			codepoint_iterator(const buffer::const_iterator &cur, const interpretation &interp) :
 				_cur(cur), _next(cur), _interp(&interp) {
 
-				if (_cur != _interp->get_buffer()->end()) {
-					_valid = _interp->get_encoding()->next_codepoint(_next, _interp->get_buffer()->end(), _cp);
+				if (_cur != _interp->get_buffer().end()) {
+					_valid = _interp->get_encoding()->next_codepoint(_next, _interp->get_buffer().end(), _cp);
 				}
 			}
 		};
@@ -402,7 +402,7 @@ namespace codepad::editors::code {
 			/// Resets this converter so that a new series of queries can be made.
 			void reset() {
 				_chunk_iter = _interp._chunks.begin();
-				_byte_iter = _interp.get_buffer()->begin();
+				_byte_iter = _interp.get_buffer().begin();
 				_firstcp = _firstbyte = _chunk_codepoint_offset = _codepoint_start = 0;
 			}
 
@@ -554,13 +554,13 @@ namespace codepad::editors::code {
 
 		/// Returns a \ref codepoint_iterator pointing at the beginning of this document.
 		[[nodiscard]] codepoint_iterator codepoint_begin() const {
-			return codepoint_iterator(get_buffer()->begin(), *this);
+			return codepoint_iterator(get_buffer().begin(), *this);
 		}
 		/// Returns a \ref codepoint_iterator pointing at the specified codepoint.
 		[[nodiscard]] codepoint_iterator codepoint_at(std::size_t pos) const {
 			_codepoint_pos_converter finder;
 			_chunks.find(finder, pos);
-			codepoint_iterator res(get_buffer()->at(finder.total_bytes), *this);
+			codepoint_iterator res(get_buffer().at(finder.total_bytes), *this);
 			for (std::size_t i = 0; i < pos; ++i) {
 				res.next();
 			}
@@ -595,8 +595,8 @@ namespace codepad::editors::code {
 		}
 
 		/// Returns the \ref buffer that this object interprets.
-		[[nodiscard]] const std::shared_ptr<buffer> &get_buffer() const {
-			return _buf;
+		[[nodiscard]] buffer &get_buffer() const {
+			return *_buf;
 		}
 		/// Returns the \ref buffer_encoding used by this object.
 		[[nodiscard]] const buffer_encoding *get_encoding() const {

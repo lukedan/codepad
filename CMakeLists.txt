@@ -74,6 +74,7 @@ target_sources(codepad_core
 
 		"include/codepad/ui/animation.h"
 		"include/codepad/ui/arrangements.h"
+		"include/codepad/ui/async_task.h"
 		"include/codepad/ui/commands.h"
 		"include/codepad/ui/config_parsers.h"
 		"include/codepad/ui/element.h"
@@ -461,6 +462,12 @@ target_link_libraries(codepad
 target_sources(codepad
 	PRIVATE
 		"src/main.cpp")
+
+# force msvc to use utf-8
+if(MSVC)
+	target_compile_options(codepad
+		PUBLIC /utf-8)
+endif()
 
 
 # tests

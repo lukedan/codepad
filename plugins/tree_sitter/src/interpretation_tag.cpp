@@ -9,20 +9,44 @@
 #include "details.h"
 
 namespace codepad::tree_sitter {
+	ui::async_task_base::status interpretation_tag::_highlight_task::execute() {
+		editors::code::text_theme_data theme;
+		{
+			editors::buffer::async_reader_lock lock(_interp->get_buffer());
+			theme = _tag.compute_highlight(&_cancellation_token);
+		}
+		// transfer the highlight results back to the main thread
+		std::atomic_ref<std::size_t> cancel(_cancellation_token);
+		if (cancel == 0) {
+			_tag.get_manager().get_manager().get_scheduler().execute_callback(
+				[t = std::move(theme), target = std::move(_interp)]() mutable {
+					target->set_text_theme(std::move(t));
+				}
+			);
+			return status::finished;
+		}
+		return status::cancelled;
+	}
+
+
 	interpretation_tag::interpretation_tag(
-		editors::code::interpretation &interp, const language_configuration *config
-	) : _interp(&interp), _lang(config) {
+		editors::code::interpretation &interp, const language_configuration *config, manager &man
+	) : _lang(config), _interp(&interp), _manager(&man) {
 		// create parser
 		_parser.set(ts_parser_new());
 
-		_begin_edit_token = _interp->get_buffer()->begin_edit += [this](editors::buffer::begin_edit_info&) {
-			_details::get_manager().cancel_highlighting(*this);
+		_begin_edit_token = _interp->get_buffer().begin_edit += [this](editors::buffer::begin_edit_info&) {
+			if (auto task = _task_token.get_task()) {
+				task->cancel();
+			}
+			// the task may still finish and queue a callback that updates the theme. however, the new task (started
+			// during end_edit) will override that theme
 		};
-		_end_edit_token = _interp->get_buffer()->end_edit += [this](editors::buffer::end_edit_info&) {
-			queue_highlight();
+		_end_edit_token = _interp->get_buffer().end_edit += [this](editors::buffer::end_edit_info&) {
+			start_highlight_task();
 		};
 
-		queue_highlight();
+		start_highlight_task();
 	}
 
 	editors::code::text_theme_data interpretation_tag::compute_highlight(std::size_t *cancel_tok) {
@@ -35,11 +59,11 @@ namespace codepad::tree_sitter {
 				_payload *payload = static_cast<_payload*>(payload_void);
 
 				auto byte_end =
-					std::min<std::size_t>(byte_index + 1024, payload->interpretation.get_buffer()->length());
+					std::min<std::size_t>(byte_index + 1024, payload->interpretation.get_buffer().length());
 				*bytes_read = byte_end - byte_index;
-				payload->read_buffer = payload->interpretation.get_buffer()->get_clip(
-					payload->interpretation.get_buffer()->at(byte_index),
-					payload->interpretation.get_buffer()->at(byte_end)
+				payload->read_buffer = payload->interpretation.get_buffer().get_clip(
+					payload->interpretation.get_buffer().at(byte_index),
+					payload->interpretation.get_buffer().at(byte_end)
 				);
 				return reinterpret_cast<const char*>(payload->read_buffer.data());
 			};
@@ -82,9 +106,9 @@ namespace codepad::tree_sitter {
 		return theme;
 	}
 
-	void interpretation_tag::queue_highlight() {
-		if (_lang) {
-			_details::get_manager().queue_highlighting(*this);
-		}
+	void interpretation_tag::start_highlight_task() {
+		auto task = std::make_shared<_highlight_task>(*this);
+		_task_token = get_manager().get_manager().get_async_task_scheduler().start_task(std::move(task));
+		_task_token.weaken(); // so that there's no cyclic dependency
 	}
 }

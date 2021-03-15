@@ -32,10 +32,10 @@ namespace codepad::lsp {
 		}
 		/// Unregisters events, removes the decoration provider, and sends the \p didClose event.
 		~interpretation_tag() {
-			_interp->get_buffer()->begin_edit -= _begin_edit_token;
+			_interp->get_buffer().begin_edit -= _begin_edit_token;
 			_interp->modification_decoded -= _modification_decoded_token;
 			_interp->end_modification -= _end_modification_token;
-			_interp->get_buffer()->end_edit -= _end_edit_token;
+			_interp->get_buffer().end_edit -= _end_edit_token;
 			_interp->remove_decoration_provider(_decoration_token);
 
 			types::DidCloseTextDocumentParams params;

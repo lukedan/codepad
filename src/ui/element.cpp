@@ -155,7 +155,7 @@ namespace codepad::ui {
 			auto it = _animations.begin();
 			while (it != _animations.end()) {
 				if (it->animation->get_accessor().equals(ani->get_accessor())) {
-					get_manager().get_scheduler().cancel_task(it->task);
+					get_manager().get_scheduler().cancel_synchronous_task(it->task);
 					it = _animations.erase(it);
 				} else {
 					++it;
@@ -166,7 +166,7 @@ namespace codepad::ui {
 		_animations.emplace_back();
 		std::list<_animation_info>::iterator it = --_animations.end();
 		it->animation = std::move(ani);
-		it->task = get_manager().get_scheduler().register_task(
+		it->task = get_manager().get_scheduler().register_synchronous_task(
 			scheduler::clock_t::now(), this,
 			[it](element *elem) -> std::optional<scheduler::clock_t::time_point> {
 				auto now = scheduler::clock_t::now();

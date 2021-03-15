@@ -39,7 +39,7 @@ namespace codepad::editors {
 
 	/// Stores the contents of a file as binary data. The contents is split into chunks and stored in a binary tree.
 	/// Each node contains one chunk and some additional data to help navigate to a certain position.
-	class buffer {
+	class buffer : public std::enable_shared_from_this<buffer> {
 		friend buffer_manager;
 	public:
 		/// The maximum number of bytes there can be in a single chunk.
@@ -515,6 +515,16 @@ namespace codepad::editors {
 			return _buf_manager;
 		}
 
+		/// Sets the language of this buffer. Invokes \ref language_changed.S
+		void set_language(std::vector<std::u8string> lang) {
+			std::swap(_language, lang);
+			language_changed.invoke_noret(std::move(lang));
+		}
+		/// Returns the current language.
+		[[nodiscard]] const std::vector<std::u8string> &get_language() const {
+			return _language;
+		}
+
 		/// Invoked when this \ref buffer is about to be modified, right before the read lock is acquired. Acquiring
 		/// the read lock after invoking this event gives listeners a chance to cancel async read operations.
 		info_event<begin_edit_info> begin_edit;
@@ -526,6 +536,10 @@ namespace codepad::editors {
 		info_event<end_modification_info> end_modify;
 		/// Invoked after this \ref buffer has been modified, right after releasing the read lock.
 		info_event<end_edit_info> end_edit;
+		/// Invoked when the language of this buffer is changed via \ref set_language().
+		info_event<value_update_info<
+			std::vector<std::u8string>, value_update_info_contents::old_value
+		>> language_changed;
 	protected:
 		/// Used to find the chunk in which the byte at the given index lies.
 		using _byte_index_finder = sum_synthesizer::index_finder<node_data::length_property>;
@@ -605,6 +619,9 @@ namespace codepad::editors {
 
 		/// Used to identify this buffer. Also stores the path to the associated file, if one exists.
 		std::variant<std::size_t, std::filesystem::path> _fileid;
+		/// The language of this buffer. This is not used directly by the editor and is therefore not read nor written to
+		/// by the editor; only other plugins may read this field.
+		std::vector<std::u8string> _language;
 		std::deque<std::any> _tags; ///< Tags associated with this buffer.
 		buffer_manager &_buf_manager; ///< The \ref manager for this \ref buffer.
 	};

@@ -30,12 +30,12 @@ namespace codepad::editors::code {
 		friend buffer_manager;
 	public:
 		/// Returns the \ref buffer associated with \ref _doc.
-		const std::shared_ptr<buffer> &get_buffer() const override {
+		buffer &get_buffer() const override {
 			return _doc->get_buffer();
 		}
 		/// Returns the \ref interpretation currently bound to this contents_region.
-		const std::shared_ptr<interpretation> &get_document() const {
-			return _doc;
+		interpretation &get_document() const {
+			return *_doc;
 		}
 
 		/// Returns the total number of visual lines.
@@ -475,8 +475,8 @@ namespace codepad::editors::code {
 		///
 		/// \return \p true if an action has been reverted.
 		bool try_undo() {
-			if (_doc->get_buffer()->can_undo()) {
-				buffer::modifier modifier(*_doc->get_buffer(), this);
+			if (_doc->get_buffer().can_undo()) {
+				buffer::modifier modifier(_doc->get_buffer(), this);
 				_interaction_manager.on_edit_operation();
 				modifier.undo();
 				return true;
@@ -487,8 +487,8 @@ namespace codepad::editors::code {
 		///
 		/// \return \p true if an action has been restored.
 		bool try_redo() {
-			if (_doc->get_buffer()->can_redo()) {
-				buffer::modifier modifier(*_doc->get_buffer(), this);
+			if (_doc->get_buffer().can_redo()) {
+				buffer::modifier modifier(_doc->get_buffer(), this);
 				_interaction_manager.on_edit_operation();
 				modifier.redo();
 				return true;
@@ -634,10 +634,10 @@ namespace codepad::editors::code {
 			assert_true_usage(newdoc != nullptr, "cannot set empty document");
 			_doc = std::move(newdoc);
 			_cset.reset();
-			_begin_edit_tok = _doc->get_buffer()->begin_edit += [this](buffer::begin_edit_info &info) {
+			_begin_edit_tok = _doc->get_buffer().begin_edit += [this](buffer::begin_edit_info &info) {
 				_on_begin_edit(info);
 			};
-			_end_edit_tok = _doc->get_buffer()->end_edit += [this](buffer::end_edit_info &info) {
+			_end_edit_tok = _doc->get_buffer().end_edit += [this](buffer::end_edit_info &info) {
 				_on_end_edit(info);
 			};
 			_appearance_changed_tok = (
@@ -919,8 +919,8 @@ namespace codepad::editors::code {
 		/// Unbinds the current document.
 		void _dispose() override {
 			if (_doc) {
-				_doc->get_buffer()->begin_edit -= _begin_edit_tok;
-				_doc->get_buffer()->end_edit -= _end_edit_tok;
+				_doc->get_buffer().begin_edit -= _begin_edit_tok;
+				_doc->get_buffer().end_edit -= _end_edit_tok;
 				_doc->appearance_changed -= _appearance_changed_tok;
 			}
 			_base::_dispose();
