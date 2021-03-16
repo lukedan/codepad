@@ -17,6 +17,7 @@ target_sources(editors
 		"include/codepad/editors/code/theme.h"
 		"include/codepad/editors/code/view.h"
 		"include/codepad/editors/code/view_caching.h"
+		"include/codepad/editors/code/whitespace_gatherer.h"
 
 		"include/codepad/editors/buffer.h"
 		"include/codepad/editors/buffer_manager.h"

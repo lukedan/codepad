@@ -201,9 +201,7 @@ namespace codepad::editors::code {
 			) {
 				double xmax = rendering.topleft.x;
 				logger::get().log_debug(CP_HERE) << "xmax: " << xmax;
-				if (frag.type != ui::line_ending::none) {
-					xmax += 10.0; // TODO proper width
-				}
+				xmax += rendering.width;
 				if (_end <= posafter) {
 					_terminate(xmax, rend);
 					return false;

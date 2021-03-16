@@ -439,8 +439,9 @@ namespace codepad::editors::code {
 			return r;
 		}
 		/// Appends a \ref linebreak_fragment to the rendered document by simply moving the current position.
-		basic_rendering append(const linebreak_fragment&) {
-			basic_rendering r(get_position(), 10.0); // TODO proper width
+		basic_rendering append(const linebreak_fragment &linebreak) {
+			// TODO use the width of a space?
+			basic_rendering r(get_position(), linebreak.type == ui::line_ending::none ? 0.0 : 10.0);
 			set_horizontal_position(0.0);
 			advance_vertical_position(1);
 			return r;

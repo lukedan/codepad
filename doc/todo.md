@@ -69,6 +69,7 @@ Items in this list are not sorted by any specific order.
 		- [ ] Optimizations
 			- [ ] Incremental wrapping computation
 			- [ ] Async wrapping computation?
+	- [ ] Horizontal scrolling
 	- [ ] Theme providers
 	- [ ] Gizmo providers
 	- [ ] Folding providers

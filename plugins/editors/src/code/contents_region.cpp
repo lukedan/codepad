@@ -6,10 +6,13 @@
 /// \file
 /// Implementation of certain methods of \ref codepad::editors::code::contents_region.
 
+#include <array>
+
 #include "codepad/editors/manager.h"
 #include "codepad/editors/code/fragment_generation.h"
 #include "codepad/editors/code/caret_gatherer.h"
 #include "codepad/editors/code/decoration_gatherer.h"
+#include "codepad/editors/code/whitespace_gatherer.h"
 #include "../details.h"
 
 namespace codepad::editors::code {
@@ -209,13 +212,7 @@ namespace codepad::editors::code {
 			);
 			fragment_assembler ass(*this);
 			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
-
-			// caret set iterator for whitespace rendering
-			caret_set::const_iterator whitespace_caret_it =
-				used->carets.lower_bound(ui::caret_selection(firstchar, firstchar));
-			if (whitespace_caret_it != used->carets.begin()) {
-				--whitespace_caret_it;
-			}
+			whitespace_gatherer whitespaces(*used, firstchar, ass);
 
 			// decorations
 			decoration_gatherer deco_gather(get_document().get_decoration_providers(), firstchar, ass);
@@ -228,8 +225,8 @@ namespace codepad::editors::code {
 			std::vector<fragment_assembler::rendering_storage> renderings;
 			while (gen.get_position() < plastchar) {
 				std::size_t frag_begin = gen.get_position();
-
 				fragment_generation_result frag = gen.generate_and_update();
+
 				// render the fragment
 				std::visit(
 					[&, this](auto &&specfrag) {
@@ -237,87 +234,12 @@ namespace codepad::editors::code {
 
 						caretrend.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
 						deco_gather.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
+						whitespaces.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
 
 						renderings.emplace_back(std::move(rendering));
 					},
 					frag.result
 				);
-
-				// render whitespaces
-				// TODO extract this logic to a separate class; also this `while` may be slow
-				while (
-					whitespace_caret_it != used->carets.end() &&
-					whitespace_caret_it->first.get_range().second <= frag_begin
-				) {
-					++whitespace_caret_it;
-				}
-				if (std::holds_alternative<text_fragment>(frag.result)) {
-					auto &text_frag = std::get<text_fragment>(frag.result);
-					while (whitespace_caret_it != used->carets.end()) {
-						auto [minchar, maxchar] = whitespace_caret_it->first.get_range();
-						if (minchar >= gen.get_position()) {
-							break;
-						}
-						std::size_t
-							minchar_frag = std::max(frag_begin, minchar) - frag_begin,
-							maxchar_frag = std::min(gen.get_position(), maxchar) - frag_begin;
-						for (std::size_t i = minchar_frag; i < maxchar_frag; ++i) {
-							if (text_frag.text[i] == U' ') {
-								auto &rendering = std::get<fragment_assembler::text_rendering>(renderings.back());
-								rectd rgn = rendering.text->get_character_placement(i).translated(rendering.topleft);
-								rgn.ymax = rgn.ymin + get_line_height();
-								{
-									renderer.push_matrix_mult(matd3x3::translate(rgn.xmin_ymin()));
-									_whitespace_geometry.draw(rgn.size(), renderer);
-									renderer.pop_matrix();
-								}
-							}
-						}
-						if (maxchar >= gen.get_position()) {
-							break;
-						}
-						++whitespace_caret_it;
-					}
-				} else { // handle single-character fragments - tabs and line breaks
-					const ui::generic_visual_geometry *geom = nullptr;
-					if (std::holds_alternative<tab_fragment>(frag.result)) {
-						geom = &_tab_geometry;
-					} else if (std::holds_alternative<linebreak_fragment>(frag.result)) {
-						auto &linebreak_frag = std::get<linebreak_fragment>(frag.result);
-						switch (linebreak_frag.type) {
-						case ui::line_ending::r:
-							geom = &_cr_geometry;
-							break;
-						case ui::line_ending::n:
-							geom = &_lf_geometry;
-							break;
-						case ui::line_ending::rn:
-							geom = &_crlf_geometry;
-							break;
-						case ui::line_ending::none:
-							// soft line breaks are not rendered
-							break;
-						}
-					}
-					if (geom && whitespace_caret_it != used->carets.end()) {
-						auto [minchar, maxchar] = whitespace_caret_it->first.get_range();
-						if (minchar <= frag_begin && maxchar >= gen.get_position()) {
-							rectd region;
-							std::visit(
-								[&](auto &frag) {
-									region = rectd::from_corner_and_size(
-										frag.topleft, vec2d(frag.get_width(), get_line_height())
-									);
-								},
-								renderings.back()
-							);
-							region.xmax = ass.get_horizontal_position();
-							renderer.push_matrix_mult(matd3x3::translate(region.xmin_ymin()));
-							geom->draw(region.size(), renderer);
-							renderer.pop_matrix();
-						}
-					}
-				}
 
 				if (std::holds_alternative<linebreak_fragment>(frag.result)) {
 					++curvisline;
@@ -340,7 +262,7 @@ namespace codepad::editors::code {
 			caretrend.finish(gen.get_position());
 			deco_gather.finish();
 
-			// render carets & selections before text
+			// render carets & selections
 			vec2d unit = get_layout().size();
 			if (code_selection_renderer()) {
 				for (const auto &selrgn : caretrend.get_selection_rects()) {
@@ -351,19 +273,33 @@ namespace codepad::editors::code {
 				_caret_visuals.render(rgn, renderer);
 			}
 
+			// render decorations
+			for (const auto &[layout, rend] : decorations) {
+				if (rend) {
+					rend->render(renderer, layout, unit);
+				}
+			}
+
 			// render text
 			for (auto &rendering : renderings) {
 				std::visit([&](auto &concrete_rendering) {
 					fragment_assembler::render(renderer, concrete_rendering);
 				}, rendering);
 			}
-			renderings.clear();
 
-			// render decorations
-			for (const auto &[layout, rend] : decorations) {
-				if (rend) {
-					rend->render(renderer, layout, unit);
-				}
+			// render whitespaces
+			std::array<
+				const ui::generic_visual_geometry*,
+				static_cast<std::size_t>(whitespace_gatherer::whitespace::type::max_count)
+			> whitespace_geometries{
+				&_whitespace_geometry, &_tab_geometry,
+				&_crlf_geometry, &_cr_geometry, &_lf_geometry
+			};
+			for (auto &ws : whitespaces.whitespaces) {
+				auto *geom = whitespace_geometries[static_cast<std::size_t>(ws.whitespace_type)];
+				renderer.push_matrix_mult(matd3x3::translate(ws.placement.xmin_ymin()));
+				geom->draw(ws.placement.size(), renderer);
+				renderer.pop_matrix();
 			}
 
 			renderer.pop_matrix();

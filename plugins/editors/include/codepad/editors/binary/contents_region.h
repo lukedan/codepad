@@ -51,8 +51,6 @@ namespace codepad::editors::binary {
 	[[nodiscard]] std::basic_string<codepoint> convert_base(unsigned i, radix base, std::size_t min_length = 1);
 
 	/// The \ref ui::element that displays the contents of the \ref buffer and handles user interactions.
-	///
-	/// \todo Different radii.
 	class contents_region : public interactive_contents_region_base<caret_set> {
 	public:
 		/// How this display should be wrapped.

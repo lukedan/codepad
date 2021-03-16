@@ -106,8 +106,8 @@ namespace codepad::editors::code {
 				std::size_t steps, std::size_t posafter, caret_gatherer &rend, caret_set::const_iterator iter
 			) {
 				return _start_at_solid_fragment(rectd::from_xywh(
-					r.topleft.x, r.topleft.y, 10.0, rend.get_fragment_assembler().get_line_height()
-				), steps, posafter, rend, iter); // TODO proper width
+					r.topleft.x, r.topleft.y, r.width, rend.get_fragment_assembler().get_line_height()
+				), steps, posafter, rend, iter);
 			}
 			/// Tries to start rendering a new caret at the given generic solid fragment.
 			template <
