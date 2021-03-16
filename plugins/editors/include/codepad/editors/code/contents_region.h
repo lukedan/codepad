@@ -623,6 +623,13 @@ namespace codepad::editors::code {
 			_font_size = 12.0, ///< The font size.
 			_tab_space_width = 4.0, ///< The maximum width of a tab character as a number of spaces.
 			_line_height = 18.0; ///< The height of a line.
+		// TODO more entries from https://jkorpela.fi/chars/spaces.html ?
+		ui::generic_visual_geometry
+			_whitespace_geometry, ///< Geometry rendered for a whitespace.
+			_tab_geometry, ///< Geometry rendered for a tab.
+			_crlf_geometry, ///< Geometry rendered for a CRLF line break.
+			_cr_geometry, ///< Geometry rendered for a CR line break.
+			_lf_geometry; ///< Geometry rendered for a LF line break.
 		view_formatting _fmt; ///< The \ref view_formatting associated with this contents_region.
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
 
@@ -902,6 +909,9 @@ namespace codepad::editors::code {
 				_event_helpers::try_register_event(name, u8"carets_changed", carets_changed, callback) ||
 				_base::_register_event(name, std::move(callback));
 		}
+		/// Handles the \p whitespace_geometry, \p tab_geometry, \p crlf_geometry, \p cr_geometry, \p lf_geometry
+		/// properties.
+		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
 
 		/// Registers event handlers used to forward viewport update events to \ref _interaction_manager.
 		void _on_logical_parent_constructed() override {

@@ -349,17 +349,30 @@ namespace codepad::editors::code {
 			/// The offset to add to the result of \ref get_vertical_position() to align the baseline of all text.
 			double baseline_correction = 0.0;
 			colord color; ///< The color of the text.
+
+			/// Returns the width of \ref text.
+			[[nodiscard]] double get_width() const {
+				return text->get_width();
+			}
 		};
 		/// Basic information about unrendered fragments.
 		struct basic_rendering {
 			/// Default constructor.
 			basic_rendering() = default;
-			/// Initializes \ref topleft.
-			explicit basic_rendering(vec2d v) : topleft(v) {
+			/// Initializes all fields of this struct.
+			basic_rendering(vec2d v, double w) : topleft(v), width(w) {
 			}
 
 			vec2d topleft; ///< The top-left position of this fragment.
+			double width = 0.0; ///< The width of this fragment.
+
+			/// Returns \ref width.
+			[[nodiscard]] double get_width() const {
+				return width;
+			}
 		};
+		/// Storage for a single rendering object generated from a fragment.
+		using rendering_storage = std::variant<text_rendering, basic_rendering>;
 
 		/// Initializes the renderer, font, and spacing.
 		fragment_assembler(
@@ -409,7 +422,7 @@ namespace codepad::editors::code {
 
 		/// Does nothing but returning the current position. Normally this wouldn't be called.
 		basic_rendering append(const no_fragment&) {
-			return basic_rendering(get_position());
+			return basic_rendering(get_position(), 0.0);
 		}
 		/// Appends a \ref text_fragment to the rendered document by calling \ref _append_text().
 		text_rendering append(const text_fragment &frag) {
@@ -420,13 +433,14 @@ namespace codepad::editors::code {
 		}
 		/// Appends a \ref tab_fragment to the rendered document.
 		basic_rendering append(const tab_fragment&) {
-			basic_rendering r(get_position());
-			set_horizontal_position((std::floor(get_horizontal_position() / _tab_width) + 1.0) * _tab_width);
+			double next_pos = (std::floor(get_horizontal_position() / _tab_width) + 1.0) * _tab_width;
+			basic_rendering r(get_position(), next_pos - get_horizontal_position());
+			set_horizontal_position(next_pos);
 			return r;
 		}
 		/// Appends a \ref linebreak_fragment to the rendered document by simply moving the current position.
 		basic_rendering append(const linebreak_fragment&) {
-			basic_rendering r(get_position());
+			basic_rendering r(get_position(), 10.0); // TODO proper width
 			set_horizontal_position(0.0);
 			advance_vertical_position(1);
 			return r;
@@ -434,7 +448,7 @@ namespace codepad::editors::code {
 		/// Appends a \ref image_gizmo_fragment to the rendered document.
 		basic_rendering append(const image_gizmo_fragment&) {
 			// TODO
-			return basic_rendering(get_position());
+			return basic_rendering(get_position(), 0.0);
 		}
 
 		/// Appends a \ref text_fragment to the document, taking the fast path for laying out text.
@@ -446,11 +460,11 @@ namespace codepad::editors::code {
 		}
 
 		/// Does nothing. Defined to complete the basic interface.
-		void render(ui::renderer_base&, const basic_rendering&) {
+		inline static void render(ui::renderer_base&, const basic_rendering&) {
 		}
 		/// Renders the text using the given renderer, at the position specified in the \ref text_rendering.
 		/// Additional transformations may be necessary to 
-		void render(ui::renderer_base &r, const text_rendering &text) {
+		inline static void render(ui::renderer_base &r, const text_rendering &text) {
 			r.draw_plain_text(
 				*text.text, vec2d(text.topleft.x, text.topleft.y + text.baseline_correction), text.color
 			);

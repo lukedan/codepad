@@ -109,12 +109,12 @@ namespace codepad::editors::code {
 
 			fragment_generator<fragment_generator_component_hub<
 				soft_linebreak_inserter, folded_region_skipper
-				>> gen(
-					edt->get_document(),
-					edt->get_invalid_codepoint_fragment_func(), edt->get_font_families(), firstchar,
-					soft_linebreak_inserter(fmt.get_linebreaks(), firstchar),
-					folded_region_skipper(fmt.get_folding(), edt->get_folded_fragment_function(), firstchar)
-				);
+			>> gen(
+				edt->get_document(),
+				edt->get_invalid_codepoint_fragment_func(), edt->get_font_families(), firstchar,
+				soft_linebreak_inserter(fmt.get_linebreaks(), firstchar),
+				folded_region_skipper(fmt.get_folding(), edt->get_folded_fragment_function(), firstchar)
+			);
 			fragment_assembler ass(*edt);
 
 			r.begin_drawing(*rt.target);
@@ -125,11 +125,11 @@ namespace codepad::editors::code {
 					// take the fast path for rendering text
 					const auto &text_frag = std::get<text_fragment>(tok.result);
 					auto rendering = ass.append_fast(text_frag);
-					ass.render(r, rendering);
+					fragment_assembler::render(r, rendering);
 				} else { // render everything else normally
 					std::visit([&ass, &r](auto &&frag) {
 						auto &&rendering = ass.append(frag);
-						ass.render(r, rendering);
+						fragment_assembler::render(r, rendering);
 					}, tok.result);
 				}
 				if (std::holds_alternative<linebreak_fragment>(tok.result)) {

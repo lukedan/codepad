@@ -210,6 +210,13 @@ namespace codepad::editors::code {
 			fragment_assembler ass(*this);
 			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
 
+			// caret set iterator for whitespace rendering
+			caret_set::const_iterator whitespace_caret_it =
+				used->carets.lower_bound(ui::caret_selection(firstchar, firstchar));
+			if (whitespace_caret_it != used->carets.begin()) {
+				--whitespace_caret_it;
+			}
+
 			// decorations
 			decoration_gatherer deco_gather(get_document().get_decoration_providers(), firstchar, ass);
 			std::vector<std::pair<decoration_layout, decoration_renderer*>> decorations;
@@ -217,20 +224,101 @@ namespace codepad::editors::code {
 				decorations.emplace_back(std::move(layout), deco_renderer);
 			};
 
-			// render text & gather information for carets
+			// gather information for text and carets
+			std::vector<fragment_assembler::rendering_storage> renderings;
 			while (gen.get_position() < plastchar) {
+				std::size_t frag_begin = gen.get_position();
+
 				fragment_generation_result frag = gen.generate_and_update();
 				// render the fragment
 				std::visit(
 					[&, this](auto &&specfrag) {
-						auto &&rendering = ass.append(specfrag);
-						ass.render(get_manager().get_renderer(), rendering);
+						auto rendering = ass.append(specfrag);
 
 						caretrend.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
 						deco_gather.handle_fragment(specfrag, rendering, frag.steps, gen.get_position());
+
+						renderings.emplace_back(std::move(rendering));
 					},
 					frag.result
 				);
+
+				// render whitespaces
+				// TODO extract this logic to a separate class; also this `while` may be slow
+				while (
+					whitespace_caret_it != used->carets.end() &&
+					whitespace_caret_it->first.get_range().second <= frag_begin
+				) {
+					++whitespace_caret_it;
+				}
+				if (std::holds_alternative<text_fragment>(frag.result)) {
+					auto &text_frag = std::get<text_fragment>(frag.result);
+					while (whitespace_caret_it != used->carets.end()) {
+						auto [minchar, maxchar] = whitespace_caret_it->first.get_range();
+						if (minchar >= gen.get_position()) {
+							break;
+						}
+						std::size_t
+							minchar_frag = std::max(frag_begin, minchar) - frag_begin,
+							maxchar_frag = std::min(gen.get_position(), maxchar) - frag_begin;
+						for (std::size_t i = minchar_frag; i < maxchar_frag; ++i) {
+							if (text_frag.text[i] == U' ') {
+								auto &rendering = std::get<fragment_assembler::text_rendering>(renderings.back());
+								rectd rgn = rendering.text->get_character_placement(i).translated(rendering.topleft);
+								rgn.ymax = rgn.ymin + get_line_height();
+								{
+									renderer.push_matrix_mult(matd3x3::translate(rgn.xmin_ymin()));
+									_whitespace_geometry.draw(rgn.size(), renderer);
+									renderer.pop_matrix();
+								}
+							}
+						}
+						if (maxchar >= gen.get_position()) {
+							break;
+						}
+						++whitespace_caret_it;
+					}
+				} else { // handle single-character fragments - tabs and line breaks
+					const ui::generic_visual_geometry *geom = nullptr;
+					if (std::holds_alternative<tab_fragment>(frag.result)) {
+						geom = &_tab_geometry;
+					} else if (std::holds_alternative<linebreak_fragment>(frag.result)) {
+						auto &linebreak_frag = std::get<linebreak_fragment>(frag.result);
+						switch (linebreak_frag.type) {
+						case ui::line_ending::r:
+							geom = &_cr_geometry;
+							break;
+						case ui::line_ending::n:
+							geom = &_lf_geometry;
+							break;
+						case ui::line_ending::rn:
+							geom = &_crlf_geometry;
+							break;
+						case ui::line_ending::none:
+							// soft line breaks are not rendered
+							break;
+						}
+					}
+					if (geom && whitespace_caret_it != used->carets.end()) {
+						auto [minchar, maxchar] = whitespace_caret_it->first.get_range();
+						if (minchar <= frag_begin && maxchar >= gen.get_position()) {
+							rectd region;
+							std::visit(
+								[&](auto &frag) {
+									region = rectd::from_corner_and_size(
+										frag.topleft, vec2d(frag.get_width(), get_line_height())
+									);
+								},
+								renderings.back()
+							);
+							region.xmax = ass.get_horizontal_position();
+							renderer.push_matrix_mult(matd3x3::translate(region.xmin_ymin()));
+							geom->draw(region.size(), renderer);
+							renderer.pop_matrix();
+						}
+					}
+				}
+
 				if (std::holds_alternative<linebreak_fragment>(frag.result)) {
 					++curvisline;
 				} else if (ass.get_horizontal_position() + get_padding().left > get_layout().width()) {
@@ -252,7 +340,7 @@ namespace codepad::editors::code {
 			caretrend.finish(gen.get_position());
 			deco_gather.finish();
 
-			// render carets & selections
+			// render carets & selections before text
 			vec2d unit = get_layout().size();
 			if (code_selection_renderer()) {
 				for (const auto &selrgn : caretrend.get_selection_rects()) {
@@ -262,6 +350,14 @@ namespace codepad::editors::code {
 			for (const rectd &rgn : caretrend.get_caret_rects()) {
 				_caret_visuals.render(rgn, renderer);
 			}
+
+			// render text
+			for (auto &rendering : renderings) {
+				std::visit([&](auto &concrete_rendering) {
+					fragment_assembler::render(renderer, concrete_rendering);
+				}, rendering);
+			}
+			renderings.clear();
 
 			// render decorations
 			for (const auto &[layout, rend] : decorations) {
@@ -322,5 +418,46 @@ namespace codepad::editors::code {
 				ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal
 			));
 		};
+	}
+
+	ui::property_info contents_region::_find_property_path(const ui::property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"code_contents_region")) {
+			if (path.front().property == u8"whitespace_geometry") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&contents_region::_whitespace_geometry, element
+				>(path, get_manager(), ui::property_info::make_typed_modification_callback<element>([](element &e) {
+					e.invalidate_visual();
+				}));
+			}
+			if (path.front().property == u8"tab_geometry") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&contents_region::_tab_geometry, element
+				>(path, get_manager(), ui::property_info::make_typed_modification_callback<element>([](element &e) {
+					e.invalidate_visual();
+				}));
+			}
+			if (path.front().property == u8"crlf_geometry") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&contents_region::_crlf_geometry, element
+				>(path, get_manager(), ui::property_info::make_typed_modification_callback<element>([](element &e) {
+					e.invalidate_visual();
+				}));
+			}
+			if (path.front().property == u8"cr_geometry") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&contents_region::_cr_geometry, element
+				>(path, get_manager(), ui::property_info::make_typed_modification_callback<element>([](element &e) {
+					e.invalidate_visual();
+				}));
+			}
+			if (path.front().property == u8"lf_geometry") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&contents_region::_lf_geometry, element
+				>(path, get_manager(), ui::property_info::make_typed_modification_callback<element>([](element &e) {
+					e.invalidate_visual();
+				}));
+			}
+		}
+		return interactive_contents_region_base::_find_property_path(path);
 	}
 }

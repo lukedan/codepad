@@ -567,7 +567,7 @@ namespace codepad::ui {
 		) {
 			auto *next_comp = builder.peek_next();
 			if (!next_comp) {
-				return builder.finish_and_create_property_info_managed<visuals>(man);
+				return builder.finish_and_create_property_info_managed<generic_visual_geometry>(man);
 			}
 			if (next_comp->is_type_or_empty(u8"geometry")) {
 				builder.move_next();

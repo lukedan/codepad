@@ -92,18 +92,23 @@ namespace codepad::editors {
 		/// Tests if the given position belongs to a selected region. Carets that have no selected regions
 		/// are ignored.
 		///
-		/// \tparam Cmp Used to determine whether being at the boundaries of selected regions counts as being
-		///             inside the region.
-		template <typename Cmp = std::less_equal<>> bool is_in_selection(std::size_t cp) const {
+		/// \tparam FrontCmp Used to determine whether being at the starting boundary of selected regions counts as
+		///                  being inside the region.
+		/// \tparam RearCmp Used to determine whether being at the finishing boundary of selected regions counts as
+		///                 being inside the region.
+		template <
+			typename FrontCmp = std::less_equal<>, typename RearCmp = std::less_equal<>
+		> bool is_in_selection(std::size_t cp) const {
 			auto cur = carets.lower_bound(ui::caret_selection(cp, cp));
 			if (cur != carets.begin()) {
 				--cur;
 			}
-			Cmp cmp;
+			FrontCmp front_cmp;
+			RearCmp rear_cmp;
 			while (cur != carets.end() && std::min(cur->first.caret, cur->first.selection) <= cp) {
 				if (cur->first.caret != cur->first.selection) {
 					auto range = cur->first.get_range();
-					if (cmp(range.first, cp) && cmp(cp, range.second)) {
+					if (front_cmp(range.first, cp) && rear_cmp(cp, range.second)) {
 						return true;
 					}
 				}

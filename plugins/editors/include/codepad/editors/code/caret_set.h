@@ -117,6 +117,7 @@ namespace codepad::editors::code {
 		using position = caret_position; ///< Position with additional data.
 		using selection = caret_selection_position; ///< Selection with additional data.
 
+		using caret_set_base::is_in_selection;
 		/// Returns whether the given position is in a selection. This is simply a wrapper of the variant that takes
 		/// a \p std::size_t, and \ref position::at_back is discarded.
 		template <typename Cmp = std::less_equal<>> bool is_in_selection(position pos) const {

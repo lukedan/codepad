@@ -181,6 +181,11 @@ namespace codepad::editors::code {
 				); // TODO use the width of a space?
 				_terminate_with_caret(pos, caret, rend);
 			}
+
+			/// Returns \ref _caret.
+			[[nodiscard]] const caret_set::const_iterator &get_caret() const {
+				return _caret;
+			}
 		protected:
 			caret_set::const_iterator _caret; ///< Iterator to the caret data.
 			std::pair<std::size_t, std::size_t> _range; ///< The range of the selection.

@@ -59,7 +59,7 @@ Items in this list are not sorted by any specific order.
 - [ ] Editor
 	- [x] _Text editing_
 	- [x] _Multiple cursors_
-	- [ ] Whitespace rendering
+	- [x] _Whitespace rendering_
 	- [ ] More interaction modes
 		- [ ] Block selection
 		- [ ] Direct mouse movement (mouse moves the caret directly)
