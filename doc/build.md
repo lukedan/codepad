@@ -27,7 +27,7 @@
 			```
 			The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DCODEPAD_USE_CAIRO=No` while configuring to build without the Cairo backend.
 
-	- On Ubuntu, install CMake and g++:
+	- On Ubuntu (**Note: Building on Linux is currently broken due to the absence of `<semaphore>` and some other C++20 changes - waiting for g++11**), install CMake and g++:
 		```
 		sudo apt install cmake
 		sudo apt install g++-10
