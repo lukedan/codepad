@@ -63,7 +63,7 @@ namespace codepad::editors::code {
 
 
 	interpretation::interpretation(std::shared_ptr<buffer> buf, const buffer_encoding &encoding) :
-		_buf(std::move(buf)), _encoding(&encoding) {
+		_theme_providers(*this), _buf(std::move(buf)), _encoding(&encoding) {
 
 		_begin_modify_tok = _buf->begin_modify += [this](buffer::begin_modification_info &info) {
 			_on_begin_modify(info);
@@ -476,8 +476,13 @@ namespace codepad::editors::code {
 			++end_char;
 			++new_content_chars;
 		}
-		// update _theme
-		_theme.on_modification(start_char, end_char - start_char, new_content_chars);
+
+		// update theme and decoration providers
+		std::size_t erased_chars = end_char - start_char;
+		_theme_providers.on_modification(start_char, erased_chars, new_content_chars);
+		for (auto &provider : _decorations) {
+			provider->decorations.on_modification(start_char, erased_chars, new_content_chars);
+		}
 
 		end_modification.invoke_noret(
 			start_char, end_char - start_char, new_content_chars, first_changed_codepoint, current_codepoint, info

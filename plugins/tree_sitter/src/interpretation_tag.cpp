@@ -18,9 +18,15 @@ namespace codepad::tree_sitter {
 		// transfer the highlight results back to the main thread
 		std::atomic_ref<std::size_t> cancel(_cancellation_token);
 		if (cancel == 0) {
+			manager *man = &_tag.get_manager();
 			_tag.get_manager().get_manager().get_scheduler().execute_callback(
-				[t = std::move(theme), target = std::move(_interp)]() mutable {
-					target->set_text_theme(std::move(t));
+				[t = std::move(theme), target = std::move(_interp), man]() mutable {
+					if (auto *tag = man->get_tag_for(*target)) {
+						auto mod = tag->_theme_token.get_modifier();
+						*mod = std::move(t);
+					}
+					// the interpretation_tag can be empty if the plugin is disabled after this task has finished,
+					// but before the callback is executed
 				}
 			);
 			return status::finished;
@@ -46,6 +52,10 @@ namespace codepad::tree_sitter {
 		_end_edit_token = _interp->get_buffer().end_edit += [this](editors::buffer::end_edit_info&) {
 			start_highlight_task();
 		};
+
+		_theme_token = _interp->get_theme_providers().add_provider(
+			editors::code::text_theme_provider_registry::priority::approximate
+		);
 
 		start_highlight_task();
 	}
@@ -89,7 +99,7 @@ namespace codepad::tree_sitter {
 						"position does not monotonically increase"
 					);
 					if (!event_stack.empty()) {
-						theme.set_range(
+						theme.add_range(
 							prev_char_pos, cur_char_pos,
 							_lang->get_highlight_configuration()->entries[event_stack.back()].theme
 						);

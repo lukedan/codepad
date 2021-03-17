@@ -158,6 +158,10 @@ namespace codepad::editors {
 				_get_modifier_for(iter)->offset += offset;
 			}
 		}
+		/// Erases all ranges.
+		void clear() {
+			_ranges.clear();
+		}
 
 		/// Finds the first element that ends after the given index.
 		[[nodiscard]] iterator_position find_first_range_ending_after(std::size_t point) const {

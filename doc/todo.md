@@ -70,7 +70,7 @@ Items in this list are not sorted by any specific order.
 			- [ ] Incremental wrapping computation
 			- [ ] Async wrapping computation?
 	- [ ] Horizontal scrolling
-	- [ ] Theme providers
+	- [x] _Theme providers_
 	- [ ] Gizmo providers
 	- [ ] Folding providers
 	- [x] _Parsing of decoration renderers_

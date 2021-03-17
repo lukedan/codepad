@@ -163,9 +163,10 @@ namespace codepad::editors::code {
 			std::size_t begpos,
 			Args &&...args
 		) :
-			_components(std::forward<Args>(args)...), _inv_cp_frag_func(invcp_func),
-			_pos(begpos), _interp(interp), _font_set(fonts) {
+			_components(std::forward<Args>(args)...), _theme_it(interp.get_theme_providers()),
+			_inv_cp_frag_func(invcp_func), _pos(begpos), _interp(interp), _font_set(fonts) {
 
+			// TODO set default_theme for _theme_it
 			reposition(_pos);
 		}
 
@@ -211,14 +212,22 @@ namespace codepad::editors::code {
 					_char_it = _interp.character_at(_pos + res.steps); // TODO room for optimization
 				}
 			}
+
 			// update everything else
 			std::size_t oldpos = _pos;
 			_pos += res.steps;
-			text_theme_member changed = _theme_it.move_forward(_pos);
-			if ((changed & (text_theme_member::style | text_theme_member::weight)) != text_theme_member::none) {
+
+			text_theme_specification old_theme = _theme_it.current_theme;
+			_theme_it.move_forward(_pos);
+			if (
+				_theme_it.current_theme.style != old_theme.style ||
+				_theme_it.current_theme.weight != old_theme.weight
+			) {
 				_cached_fonts.clear();
 			}
+
 			_components.update(oldpos, res.steps);
+
 			return res;
 		}
 		/// Resets the current position.
@@ -226,7 +235,8 @@ namespace codepad::editors::code {
 			_cached_fonts.clear(); // clear cached fonts
 			_pos = pos;
 			_char_it = _interp.character_at(_pos);
-			_theme_it = text_theme_data::position_iterator(_interp.get_text_theme(), _pos);
+			_theme_it.reposition(pos);
+
 			_components.reposition(_pos);
 		}
 
@@ -243,8 +253,8 @@ namespace codepad::editors::code {
 
 		/// Iterator to the current character in the \ref interpretation.
 		interpretation::character_iterator _char_it;
-		/// Iterator to the current entry in the \ref text_theme_data that determines the theme of the text.
-		text_theme_data::position_iterator _theme_it;
+		/// Used to obtain theme information.
+		text_theme_provider_registry::iterator _theme_it;
 
 		/// Function used to generate fragments for invalid codepoints.
 		const invalid_codepoint_fragment_func &_inv_cp_frag_func;
@@ -259,7 +269,7 @@ namespace codepad::editors::code {
 		std::size_t _select_font(codepoint cp) {
 			for (std::size_t i = 0; i < _font_set.size(); ++i) {
 				if (_cached_fonts.size() <= i) { // the font has not been cached yet
-					// TODO custom font stretch
+					// TODO custom font stretch?
 					_cached_fonts.emplace_back(_font_set[i]->get_matching_font(
 						_theme_it.current_theme.style, _theme_it.current_theme.weight, ui::font_stretch::normal
 					));

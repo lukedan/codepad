@@ -59,8 +59,7 @@ namespace codepad::tree_sitter {
 		void cancel_and_wait_all_highlight_tasks() {
 			get_editor_manager().buffers.for_each_interpretation(
 				[this](std::shared_ptr<editors::code::interpretation> interp) {
-					auto *tag = std::any_cast<interpretation_tag>(&_interpretation_tag_token.get_for(*interp));
-					assert_true_logical(tag, "missing tree-sitter interpretation tag");
+					auto *tag = get_tag_for(*interp);
 					tag->cancel_highlight_task();
 					tag->wait_for_highlight_task();
 				}
@@ -89,6 +88,18 @@ namespace codepad::tree_sitter {
 
 			get_editor_manager().buffers.deallocate_interpretation_tag(_interpretation_tag_token);
 			get_editor_manager().buffers.interpretation_created -= _interpretation_created_token;
+		}
+
+		/// Retrieves the \ref interpretation_tag associated with the \ref editors::code::interpretation using
+		/// \ref _interpretation_tag_token. If the tag token is empty (i.e., the plugin is disabled), returns
+		/// \p nullptr.
+		[[nodiscard]] interpretation_tag *get_tag_for(editors::code::interpretation &interp) {
+			if (_interpretation_tag_token.empty()) {
+				return nullptr;
+			}
+			auto *tag = std::any_cast<interpretation_tag>(&_interpretation_tag_token.get_for(interp));
+			assert_true_logical(tag, "missing interpretation tag while the plugin is active");
+			return tag;
 		}
 
 

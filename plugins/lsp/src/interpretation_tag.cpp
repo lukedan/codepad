@@ -38,6 +38,9 @@ namespace codepad::lsp {
 		};
 
 		_decoration_token = _interp->add_decoration_provider(std::make_unique<editors::decoration_provider>());
+		_theme_token = _interp->get_theme_providers().add_provider(
+			editors::code::text_theme_provider_registry::priority::accurate
+		);
 
 		// send the requests if the client is ready
 		if (_client->get_state() == client::state::ready) {
@@ -201,10 +204,6 @@ namespace codepad::lsp {
 				reinterpret_cast<const char8_t*>(str.data()), str.size()
 			));
 		}
-		// update decorations
-		_decoration_token.modify()->decorations.on_modification(
-			info.start_character, info.removed_characters, info.inserted_characters
-		);
 	}
 
 	void interpretation_tag::_on_end_edit(editors::buffer::end_edit_info&) {
@@ -287,8 +286,7 @@ namespace codepad::lsp {
 
 		auto &tokens = std::get<types::SemanticTokens>(response.value);
 		std::size_t line = 0, character_offset = 0;
-		// TODO we need a proper mechanic for multiple theme providers
-		editors::code::text_theme_data data = _interp->set_text_theme(editors::code::text_theme_data());
+		editors::code::text_theme_data data;
 		auto &linebreaks = _interp->get_linebreaks();
 		editors::code::linebreak_registry::linebreak_info line_info = linebreaks.get_line_info(0);
 		_semantic_token::iterate_over_range(
@@ -313,10 +311,11 @@ namespace codepad::lsp {
 					token_end = linebreaks.get_line_and_column_and_char_of_codepoint(codepoint).second;
 				}
 				editors::code::text_theme_specification cur_theme = get_theme_for(tok.tokenType, tok.tokenModifiers);
-				data.set_range(line_info.first_char + character_offset, token_end, cur_theme);
+				data.add_range(line_info.first_char + character_offset, token_end, cur_theme);
 			}
 		);
-		_interp->set_text_theme(std::move(data));
+		auto theme_modifier = _theme_token.get_modifier();
+		*theme_modifier = std::move(data);
 	}
 
 	/// Implementation for \ref _set_hover_label() with one or more \ref types::MarkedString.

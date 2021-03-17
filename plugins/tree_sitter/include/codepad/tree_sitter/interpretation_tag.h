@@ -43,6 +43,7 @@ namespace codepad::tree_sitter {
 
 			_interp->get_buffer().begin_edit -= _begin_edit_token;
 			_interp->get_buffer().end_edit -= _end_edit_token;
+			_interp->get_theme_providers().remove_provider(_theme_token);
 		}
 
 		/// Computes and returns the new highlight for the document. This function does not create a
@@ -114,6 +115,7 @@ namespace codepad::tree_sitter {
 		/// Token for \ref editors::buffer::end_edit.
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
 
+		editors::code::text_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
 		ui::async_task_scheduler::token<_highlight_task> _task_token; ///< Token for the highlight task.
 	};
 }

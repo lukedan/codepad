@@ -37,6 +37,7 @@ namespace codepad::lsp {
 			_interp->end_modification -= _end_modification_token;
 			_interp->get_buffer().end_edit -= _end_edit_token;
 			_interp->remove_decoration_provider(_decoration_token);
+			_interp->get_theme_providers().remove_provider(_theme_token);
 
 			types::DidCloseTextDocumentParams params;
 			params.textDocument.uri = _change_params.textDocument.uri;
@@ -100,6 +101,7 @@ namespace codepad::lsp {
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
 		/// Token for the \ref editors::decoration_provider.
 		editors::code::interpretation::decoration_provider_token _decoration_token;
+		editors::code::text_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
 
 		/// Stores information about the ongoing change to the document. Some fields of this struct such as document
 		/// identifier persist between edits.

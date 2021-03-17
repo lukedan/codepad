@@ -581,19 +581,6 @@ namespace codepad::editors::code {
 			return _linebreaks.num_linebreaks() + 1;
 		}
 
-		/// Sets the theme of all text.
-		///
-		/// \return The old text theme.
-		text_theme_data set_text_theme(text_theme_data t) {
-			// TODO proper mechanic for multiple theme providers
-			std::swap(_theme, t);
-			return std::move(t);
-		}
-		/// Returns the \ref text_theme_data associated with this \ref interpretation.
-		[[nodiscard]] const text_theme_data &get_text_theme() const {
-			return _theme;
-		}
-
 		/// Returns the \ref buffer that this object interprets.
 		[[nodiscard]] buffer &get_buffer() const {
 			return *_buf;
@@ -613,26 +600,6 @@ namespace codepad::editors::code {
 		/// Sets the default line ending for this \ref interpretation. Note that this does not affect existing text.
 		void set_default_line_ending(ui::line_ending end) {
 			_line_ending = end;
-		}
-
-
-		/// Adds a decoration provider to this document and invoke \ref appearance_changed. Remember to also invoke
-		/// \ref appearance_changed when the contents of the provider changes.
-		decoration_provider_token add_decoration_provider(std::unique_ptr<decoration_provider> ptr) {
-			_decorations.emplace_back(std::move(ptr));
-			appearance_changed.invoke_noret(appearance_change_type::visual_only);
-			auto iter = _decorations.end();
-			return decoration_provider_token(--iter, *this);
-		}
-		/// Returns \ref _decorations.
-		[[nodiscard]] const std::list<std::unique_ptr<decoration_provider>> &get_decoration_providers() const {
-			return _decorations;
-		}
-		/// Removes the given provider and invokes \ref appearance_changed. The token will be reset.
-		void remove_decoration_provider(decoration_provider_token &tok) {
-			_decorations.erase(tok._iter);
-			tok._interp = nullptr;
-			appearance_changed.invoke_noret(appearance_change_type::visual_only);
 		}
 
 
@@ -673,6 +640,37 @@ namespace codepad::editors::code {
 			for (const _precomp_mod_positions &modpos : pos) {
 				mod.get_modifier().modify(modpos.begin, modpos.length, contents);
 			}
+		}
+
+
+		/// Returns the associated \ref text_theme_provider_registry. All providers will be updated via
+		/// \ref text_theme_provider_registry::on_modification() automatically when the buffer is modified.
+		[[nodiscard]] text_theme_provider_registry &get_theme_providers() {
+			return _theme_providers;
+		}
+		/// \overload
+		[[nodiscard]] const text_theme_provider_registry &get_theme_providers() const {
+			return _theme_providers;
+		}
+
+		/// Adds a decoration provider to this document and invoke \ref appearance_changed. Remember to also invoke
+		/// \ref appearance_changed when the contents of the provider changes, except when the buffer is modified
+		/// when \ref decoration_provider::registry::on_modification() will be called automatically.
+		[[nodiscard]] decoration_provider_token add_decoration_provider(std::unique_ptr<decoration_provider> ptr) {
+			_decorations.emplace_back(std::move(ptr));
+			appearance_changed.invoke_noret(appearance_change_type::visual_only);
+			auto iter = _decorations.end();
+			return decoration_provider_token(--iter, *this);
+		}
+		/// Returns \ref _decorations.
+		[[nodiscard]] const std::list<std::unique_ptr<decoration_provider>> &get_decoration_providers() const {
+			return _decorations;
+		}
+		/// Removes the given provider and invokes \ref appearance_changed. The token will be reset.
+		void remove_decoration_provider(decoration_provider_token &tok) {
+			_decorations.erase(tok._iter);
+			tok._interp = nullptr;
+			appearance_changed.invoke_noret(appearance_change_type::visual_only);
 		}
 
 
@@ -758,7 +756,7 @@ namespace codepad::editors::code {
 		tree_type _chunks; ///< Chunks used to speed up navigation.
 		linebreak_registry _linebreaks; ///< Records all linebreaks.
 
-		text_theme_data _theme; ///< Theme of the text.
+		text_theme_provider_registry _theme_providers; ///< Theme providers.
 		std::list<std::unique_ptr<decoration_provider>> _decorations; ///< The list of decoration providers.
 
 		std::deque<std::any> _tags; ///< Tags associated with this interpretation.
