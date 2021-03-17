@@ -791,7 +791,7 @@ namespace codepad::ui {
 
 	template <
 		auto MemberPtr, typename Source
-	> inline static void property_info::_add_member_pointer_property_components(
+	> inline void property_info::_add_member_pointer_property_components(
 		component_property_accessor_builder &builder
 	) {
 		using _owner_t = typename member_pointer_traits<decltype(MemberPtr)>::owner_type;

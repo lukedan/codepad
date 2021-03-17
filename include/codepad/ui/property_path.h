@@ -211,7 +211,7 @@ namespace codepad::ui::property_path {
 			/// Reads the value.
 			[[nodiscard]] virtual std::optional<T> get_value(any_ptr) const = 0;
 			/// Writes the value.
-			[[nodiscard]] virtual void set_value(any_ptr, T) const = 0;
+			virtual void set_value(any_ptr, T) const = 0;
 		};
 		/// An accessor that uses an array of \ref address_accessor_components::component_base objects to access the
 		/// value.

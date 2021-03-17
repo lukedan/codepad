@@ -71,6 +71,18 @@ namespace codepad::editors {
 					builder, get_manager(), _details::get_manager()
 				);
 			}
+			if (path.front().property == u8"text_theme") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&contents_region_base::_text_theme, element
+				>(
+					path, get_manager(),
+					ui::property_info::make_typed_modification_callback<element, contents_region_base>(
+						[](contents_region_base &rgn) {
+							rgn._on_text_theme_changed();
+						}
+					)
+				);
+			}
 		}
 		return ui::element::_find_property_path(path);
 	}

@@ -78,7 +78,8 @@ namespace codepad::editors::code {
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
 		fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> iter(
-			get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), linebeg,
+			get_document(), get_invalid_codepoint_fragment_func(),
+			get_font_families(), get_text_theme(), linebeg,
 			soft_linebreak_inserter(_fmt.get_linebreaks(), linebeg),
 			folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), linebeg)
 		);
@@ -111,7 +112,8 @@ namespace codepad::editors::code {
 				_fmt.get_folding().folded_to_unfolded_line_number(line)
 			).first;
 		fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> iter(
-			get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), linebeg,
+			get_document(), get_invalid_codepoint_fragment_func(),
+			get_font_families(), get_text_theme(), linebeg,
 			soft_linebreak_inserter(_fmt.get_linebreaks(), linebeg),
 			folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), linebeg)
 		);
@@ -120,7 +122,7 @@ namespace codepad::editors::code {
 			std::size_t oldpos = iter.get_position();
 			fragment_generation_result res = iter.generate_and_update();
 			if (holds_alternative<linebreak_fragment>(res.result)) { // end of the line
-				// explicitly require that it's at the end of the line, rather than at the beginning of the next
+				// explicitly require that it's at the end of this line, rather than at the beginning of the next
 				return caret_position(oldpos, false);
 			}
 			caret_position respos;
@@ -206,7 +208,8 @@ namespace codepad::editors::code {
 
 			// rendering facilities
 			fragment_generator<fragment_generator_component_hub<soft_linebreak_inserter, folded_region_skipper>> gen(
-				get_document(), get_invalid_codepoint_fragment_func(), get_font_families(), firstchar,
+				get_document(), get_invalid_codepoint_fragment_func(),
+				get_font_families(), get_text_theme(), firstchar,
 				soft_linebreak_inserter(_fmt.get_linebreaks(), firstchar),
 				folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), firstchar)
 			);

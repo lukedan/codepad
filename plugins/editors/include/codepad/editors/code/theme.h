@@ -12,42 +12,11 @@
 #include <codepad/ui/renderer.h>
 
 #include "../overlapping_range_registry.h"
+#include "../theme_manager.h"
 
 namespace codepad::editors::code {
 	class interpretation;
 
-
-	/// Specifies the theme of the text at a specific point.
-	struct text_theme_specification {
-		/// Default constructor.
-		text_theme_specification() = default;
-		/// Initializes all members of this struct.
-		text_theme_specification(colord c, ui::font_style st, ui::font_weight w) : color(c), style(st), weight(w) {
-		}
-
-		colord color; ///< The color of the text.
-		ui::font_style style = ui::font_style::normal; ///< The font style.
-		ui::font_weight weight = ui::font_weight::normal; ///< The font weight.
-	};
-}
-namespace codepad::ui {
-	/// Managed parser for \ref text_theme_specification.
-	template <> struct managed_json_parser<editors::code::text_theme_specification> {
-	public:
-		/// Initializes \ref _manager.
-		explicit managed_json_parser(manager &man) : _manager(man) {
-		}
-
-		/// Parses the theme specification.
-		template <typename Value> std::optional<
-			editors::code::text_theme_specification
-		> operator()(const Value&) const;
-	protected:
-		manager &_manager; ///< The associated \ref manager.
-	};
-}
-
-namespace codepad::editors::code {
 	/// Records the text's theme across the entire buffer.
 	struct text_theme_data {
 		/// The \ref overlapping_range_registry type used to hold all highlighted ranges.
@@ -141,8 +110,8 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			iterator() = default;
 			/// Initializes this iterator using the given \ref text_theme_provider_registry.
-			explicit iterator(const text_theme_provider_registry &provs) :
-				_providers(&provs), _layers(provs._providers.size()) {
+			iterator(const text_theme_provider_registry &provs, const text_theme_specification &def_theme) :
+				default_theme(def_theme), _providers(&provs), _layers(provs._providers.size()) {
 			}
 
 			/// Repositions this iterator.

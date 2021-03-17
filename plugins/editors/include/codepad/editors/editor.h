@@ -16,6 +16,7 @@
 #include "buffer.h"
 #include "caret_set.h"
 #include "decoration.h"
+#include "theme_manager.h"
 
 namespace codepad::editors {
 	/// The base class of content regions.
@@ -52,6 +53,16 @@ namespace codepad::editors {
 			set_insert_mode(!is_insert_mode());
 		}
 
+		/// Returns \ref _text_theme.
+		[[nodiscard]] const text_theme_specification &get_text_theme() const {
+			return _text_theme;
+		}
+		/// Sets \ref _text_theme and invokes \ref _on_text_theme_changed().
+		void set_text_theme(const text_theme_specification &spec) {
+			_text_theme = spec;
+			_on_text_theme_changed();
+		}
+
 		/// Returns the associated \ref buffer. This function returns a reference to a \p std::shared_ptr so that new
 		/// views into the buffer can be opened.
 		[[nodiscard]] virtual buffer &get_buffer() const = 0;
@@ -74,6 +85,7 @@ namespace codepad::editors {
 	protected:
 		ui::visuals _caret_visuals; ///< The visuals of carets.
 		std::shared_ptr<decoration_renderer> _selection_renderer; ///< The \ref decoration_renderer.
+		text_theme_specification _text_theme; ///< Default text theme.
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
 		/// Handles the registration of \p mode_changed_insert and \p mode_changed_overwrite events.
@@ -84,8 +96,13 @@ namespace codepad::editors {
 				_register_edit_mode_changed_event(name, callback) ||
 				element::_register_event(name, std::move(callback));
 		}
-		/// Handles the \p caret_visuals property.
+		/// Handles the \p caret_visuals, \p selection_renderer, and \p text_theme properties.
 		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
+
+		/// Invoked when \ref _text_theme has been changed. By default this simply calls \ref invalidate_visual().
+		virtual void _on_text_theme_changed() {
+			invalidate_visual();
+		}
 	};
 
 	/// The editor region that contains a contents region and other elements.

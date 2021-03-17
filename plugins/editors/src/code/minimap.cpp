@@ -110,8 +110,8 @@ namespace codepad::editors::code {
 			fragment_generator<fragment_generator_component_hub<
 				soft_linebreak_inserter, folded_region_skipper
 			>> gen(
-				edt->get_document(),
-				edt->get_invalid_codepoint_fragment_func(), edt->get_font_families(), firstchar,
+				edt->get_document(), edt->get_invalid_codepoint_fragment_func(),
+				edt->get_font_families(), edt->get_text_theme(), firstchar,
 				soft_linebreak_inserter(fmt.get_linebreaks(), firstchar),
 				folded_region_skipper(fmt.get_folding(), edt->get_folded_fragment_function(), firstchar)
 			);

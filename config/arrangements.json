@@ -1258,6 +1258,7 @@
 									}
 								]
 							},
+							"text_theme": "#D4D4D4",
 
 							"whitespace_geometry": {
 								"type": "ellipse",
@@ -1644,7 +1645,8 @@
 										"fill": [ 1.0, 1.0, 1.0, 1.0 ]
 									}
 								]
-							}
+							},
+							"text_theme": "#D4D4D4"
 						},
 						"animations": {
 							"carets_changed": {

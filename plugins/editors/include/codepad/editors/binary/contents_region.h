@@ -146,10 +146,14 @@ namespace codepad::editors::binary {
 		}
 
 		/// Returns the radix used to display binary data.
-		radix get_radix() const {
+		[[nodiscard]] radix get_radix() const {
 			return _radix;
 		}
-		// TODO set_radix
+		/// Sets the radix of this editor.
+		void set_radix(radix r) {
+			_radix = r;
+			_on_byte_width_changed();
+		}
 
 		/// Returns the actual current number of bytes per row.
 		std::size_t get_bytes_per_row() const {
@@ -174,20 +178,23 @@ namespace codepad::editors::binary {
 		}
 
 		/// Returns the \ref ui::font for rendering characters.
-		const std::shared_ptr<ui::font> &get_font() const {
+		[[nodiscard]] const std::shared_ptr<ui::font> &get_font() const {
 			return _font;
 		}
-		/// Sets the \ref ui::font for rendering characters.
-		void set_font(std::shared_ptr<ui::font> f) {
-			_font = std::move(f);
-			_on_font_parameters_changed();
+		/// Returns the name of the font family that's currently being used.
+		[[nodiscard]] const std::u8string &get_font_family_name() const {
+			return _font_family_name;
 		}
-		/// Sets the \ref ui::font for rendering characters given the font's name.
-		void set_font_by_name(const std::u8string &name) {
-			auto family = get_manager().get_renderer().find_font_family(name);
-			set_font(
-				family->get_matching_font(ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal)
-			);
+		/// Returns the \ref ui::font_family used for rendering text.
+		[[nodiscard]] const std::shared_ptr<ui::font_family> &get_font_family() const {
+			return _font_family;
+		}
+		/// Sets the \ref ui::font_family for rendering characters given the font's name.
+		void set_font_family(std::u8string name) {
+			_font_family_name = std::move(name);
+			_font_family = get_manager().get_renderer().find_font_family(_font_family_name);
+			_update_font();
+			_on_byte_width_changed();
 		}
 
 		/// Returns the current font size.
@@ -197,7 +204,7 @@ namespace codepad::editors::binary {
 		/// Sets the font size.
 		void set_font_size(double size) {
 			_font_size = size;
-			_on_font_parameters_changed();
+			_on_byte_width_changed();
 		}
 
 		/// Sets the number of lines to scroll per `tick'.
@@ -265,6 +272,8 @@ namespace codepad::editors::binary {
 		info_event<buffer::end_edit_info>::token _mod_tok; ///< Used to listen to \ref buffer::end_edit.
 		radix _radix = radix::hexadecimal; ///< The radix used to display bytes.
 
+		std::u8string _font_family_name; ///< The name of the font family.
+		std::shared_ptr<ui::font_family> _font_family; ///< The font family used to display all bytes.
 		std::shared_ptr<ui::font> _font; ///< The font used to display all bytes.
 		double
 			_cached_max_byte_width = 0.0, ///< The width of a character.
@@ -367,16 +376,6 @@ namespace codepad::editors::binary {
 			_on_carets_changed();
 		}
 
-		/// Updates cached bytes per row, and invalidates the visuals of this element.
-		void _on_font_parameters_changed() {
-			_cached_max_byte_width =
-				get_font_size() * get_maximum_byte_digits_for_radix(_radix) * _font->get_maximum_character_width_em(
-					reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
-				);
-			if (!_update_bytes_per_row()) {
-				_on_content_visual_changed();
-			}
-		}
 		/// Called when \ref _buf has been modified, this function re-adjusts caret positions and invokes
 		/// \ref _on_content_modified().
 		void _on_end_edit(buffer::end_edit_info&);
@@ -399,8 +398,32 @@ namespace codepad::editors::binary {
 		}
 
 		// visual
+		/// Updates \ref _font using the font family and parameters. The caller needs to manually call
+		/// \ref _on_byte_width_changed() afterwards.
+		void _update_font() {
+			_font = _font_family->get_matching_font(
+				get_text_theme().style, get_text_theme().weight, ui::font_stretch::normal
+			);
+		}
+		/// Additionally invokes \ref _update_font() and \ref _on_byte_width_changed().
+		void _on_text_theme_changed() override {
+			_update_font();
+			_on_byte_width_changed();
+			interactive_contents_region_base::_on_text_theme_changed();
+		}
 		/// Registers handlers used to forward viewport update events to \ref _interaction_manager.
 		void _on_logical_parent_constructed() override;
+		/// Invoked whenever the width of a byte may have changed. This includes: when the font parameters have been
+		/// changed, when the radix has been changed, etc.
+		void _on_byte_width_changed() {
+			_cached_max_byte_width =
+				get_font_size() * get_maximum_byte_digits_for_radix(_radix) * _font->get_maximum_character_width_em(
+					reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
+				);
+			if (!_update_bytes_per_row()) {
+				_on_content_visual_changed();
+			}
+		}
 
 		// misc
 		bool _register_event(std::u8string_view, std::function<void()>) override;

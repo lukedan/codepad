@@ -26,15 +26,16 @@
 				"color": "#569CD6",
 				"weight": "bold"
 			},
-			"operator": [ 0.863, 0.863, 0.667, 1.0 ],
 			"string": "#CE9178",
 			"comment": "#608B4E",
 			"type": "#4EC9B0",
 			"number": "#B5CEA8",
-			"tag": [ 0.337, 0.612, 0.839, 1.0 ],
 
+			"function": "#DCDCAA",
+			"namespace": "#C8C8C8",
 			"class": "#4EC9B0",
 			"enum": "#4EC9B0",
+			"enumConstant": "#B8D7A3",
 			"macro": "#C586C0",
 			"variable": "#9CDCFE"
 		}

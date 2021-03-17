@@ -294,11 +294,10 @@ namespace codepad::editors::binary {
 							),
 							*_font, _font_size
 						);
-						// TODO customizable color
 						renderer.draw_plain_text(
 							*text,
 							vec2d(x + 0.5 * (_cached_max_byte_width - text->get_width()), topleft.y),
-							colord()
+							get_text_theme().color
 						);
 					}
 				}
@@ -422,7 +421,7 @@ namespace codepad::editors::binary {
 		std::vector<std::u8string> profile{ u8"binary" };
 
 		auto &set = get_manager().get_settings();
-		set_font_by_name(
+		set_font_family(
 			editor::get_font_family_setting(set).get_profile(profile.begin(), profile.end()).get_value()
 		);
 		set_font_size(

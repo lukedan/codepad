@@ -12,7 +12,36 @@
 #include <codepad/core/settings.h>
 #include <codepad/ui/manager.h>
 
-#include "code/theme.h"
+namespace codepad::editors {
+	/// Specifies the theme of the text at a specific point.
+	struct text_theme_specification {
+		/// Default constructor.
+		text_theme_specification() = default;
+		/// Initializes all members of this struct.
+		text_theme_specification(colord c, ui::font_style st, ui::font_weight w) : color(c), style(st), weight(w) {
+		}
+
+		colord color; ///< The color of the text.
+		ui::font_style style = ui::font_style::normal; ///< The font style.
+		ui::font_weight weight = ui::font_weight::normal; ///< The font weight.
+	};
+}
+namespace codepad::ui {
+	/// Managed parser for \ref text_theme_specification.
+	template <> struct managed_json_parser<editors::text_theme_specification> {
+	public:
+		/// Initializes \ref _manager.
+		explicit managed_json_parser(manager &man) : _manager(man) {
+		}
+
+		/// Parses the theme specification.
+		template <typename Value> std::optional<
+			editors::text_theme_specification
+		> operator()(const Value&) const;
+	protected:
+		manager &_manager; ///< The associated \ref manager.
+	};
+}
 
 namespace codepad::editors {
 	/// Theme information for various token types of a specific language.
@@ -25,11 +54,11 @@ namespace codepad::editors {
 		struct entry {
 			/// The key used to identify this entry. In order for lookups to function properly this should be sorted.
 			std::vector<std::u8string> key;
-			editors::code::text_theme_specification theme; ///< Theme associated with the key.
+			editors::text_theme_specification theme; ///< Theme associated with the key.
 
 			/// Constructs a new entry from the given key.
 			[[nodiscard]] inline static entry construct(
-				std::u8string_view key, editors::code::text_theme_specification theme
+				std::u8string_view key, editors::text_theme_specification theme
 			) {
 				entry result;
 				result.theme = theme;
@@ -42,7 +71,7 @@ namespace codepad::editors {
 		};
 
 		/// Shorthand for constructring an entry and adding it to \ref entries.
-		void add_entry(std::u8string_view key, editors::code::text_theme_specification theme) {
+		void add_entry(std::u8string_view key, editors::text_theme_specification theme) {
 			entries.emplace_back(entry::construct(key, theme));
 		}
 		/// Returns the theme index for the given dot-separated key.

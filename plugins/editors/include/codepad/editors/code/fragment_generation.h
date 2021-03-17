@@ -159,19 +159,18 @@ namespace codepad::editors::code {
 		/// is only referenced and must outlive this generator object.
 		template <typename ...Args> fragment_generator(
 			const interpretation &interp, const invalid_codepoint_fragment_func &invcp_func,
-			const std::vector<std::shared_ptr<ui::font_family>> &fonts,
+			const std::vector<std::shared_ptr<ui::font_family>> &fonts, const text_theme_specification &def_theme,
 			std::size_t begpos,
 			Args &&...args
 		) :
-			_components(std::forward<Args>(args)...), _theme_it(interp.get_theme_providers()),
+			_components(std::forward<Args>(args)...), _theme_it(interp.get_theme_providers(), def_theme),
 			_inv_cp_frag_func(invcp_func), _pos(begpos), _interp(interp), _font_set(fonts) {
 
-			// TODO set default_theme for _theme_it
 			reposition(_pos);
 		}
 
 		/// Returns the fragment for the character or linebreak, and advances to the next character.
-		fragment_generation_result generate_and_update() {
+		[[nodiscard]] fragment_generation_result generate_and_update() {
 			// generate (also _char_it is updated in this step)
 			fragment_generation_result res = _components.generate(get_position());
 			if (std::holds_alternative<no_fragment>(res.result)) { // generate text
@@ -242,7 +241,7 @@ namespace codepad::editors::code {
 
 		/// Returns the current postiion of this iterator. If this called inside the \p update() method of a
 		/// component, then the returned position is that before updating.
-		std::size_t get_position() const {
+		[[nodiscard]] std::size_t get_position() const {
 			return _pos;
 		}
 	protected:
@@ -266,7 +265,7 @@ namespace codepad::editors::code {
 
 
 		/// Selects a font for the given codepoint.
-		std::size_t _select_font(codepoint cp) {
+		[[nodiscard]] std::size_t _select_font(codepoint cp) {
 			for (std::size_t i = 0; i < _font_set.size(); ++i) {
 				if (_cached_fonts.size() <= i) { // the font has not been cached yet
 					// TODO custom font stretch?
@@ -294,7 +293,7 @@ namespace codepad::editors::code {
 		/// Checks and generates a soft linebreak if necessary. \ref _cur_softbreak and \ref _prev_chars are updated
 		/// here instead of in \ref update() because this component don't really advance the current position and
 		/// will otherwise cause conflicts.
-		fragment_generation_result generate(std::size_t);
+		[[nodiscard]] fragment_generation_result generate(std::size_t);
 		/// Updates \ref _cur_softbreak according to the given offset.
 		void update(std::size_t oldpos, std::size_t steps);
 		/// Resets the current position.
@@ -323,7 +322,7 @@ namespace codepad::editors::code {
 		}
 
 		/// Checks and skips the folded region if necessary.
-		fragment_generation_result generate(std::size_t);
+		[[nodiscard]] fragment_generation_result generate(std::size_t);
 		/// Updates \ref _cur_region according to the given offset.
 		void update(std::size_t oldpos, std::size_t steps);
 		/// Resets the current position.
@@ -426,7 +425,7 @@ namespace codepad::editors::code {
 			return _line_top;
 		}
 		/// Returns the combined result of \ref get_horizontal_position() and \ref get_vertical_position().
-		vec2d get_position() const {
+		[[nodiscard]] vec2d get_position() const {
 			return vec2d(get_horizontal_position(), get_vertical_position());
 		}
 
@@ -492,7 +491,7 @@ namespace codepad::editors::code {
 			_xpos = 0.0; ///< The horizontal position, relative to the left side of the document.
 
 		/// Appends a clip of text to the ending of the document.
-		text_rendering _append_plain_text(
+		[[nodiscard]] text_rendering _append_plain_text(
 			std::shared_ptr<ui::plain_text> text, ui::font &font, double size, colord color
 		) {
 			vec2d pos = get_position();

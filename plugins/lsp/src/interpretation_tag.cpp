@@ -256,12 +256,12 @@ namespace codepad::lsp {
 		// TODO language
 		// TODO theme caching
 		// this is really ugly
-		std::unordered_map<std::uint64_t, editors::code::text_theme_specification> theme_mapping;
+		std::unordered_map<std::uint64_t, std::optional<editors::text_theme_specification>> theme_mapping;
 		auto theme =
 			_interp->get_buffer().get_buffer_manager().get_manager()->themes.get_theme_for_language(u8"cpp");
 		auto get_theme_for = [&](types::uinteger type, types::uinteger mods) {
 			std::uint64_t key = (static_cast<std::uint64_t>(type) << 32) | mods;
-			auto [it, inserted] = theme_mapping.try_emplace(key, editors::code::text_theme_specification());
+			auto [it, inserted] = theme_mapping.try_emplace(key, std::nullopt);
 			if (inserted) {
 				std::vector<std::u8string_view> strings{ { types->at(type) } };
 				std::size_t i = 0;
@@ -310,8 +310,9 @@ namespace codepad::lsp {
 						character_offset + tok.length;
 					token_end = linebreaks.get_line_and_column_and_char_of_codepoint(codepoint).second;
 				}
-				editors::code::text_theme_specification cur_theme = get_theme_for(tok.tokenType, tok.tokenModifiers);
-				data.add_range(line_info.first_char + character_offset, token_end, cur_theme);
+				if (auto cur_theme = get_theme_for(tok.tokenType, tok.tokenModifiers)) {
+					data.add_range(line_info.first_char + character_offset, token_end, cur_theme.value());
+				}
 			}
 		);
 		auto theme_modifier = _theme_token.get_modifier();
