@@ -27,7 +27,7 @@ namespace codepad::editors {
 	};
 }
 namespace codepad::ui {
-	/// Managed parser for \ref text_theme_specification.
+	/// Managed parser for \ref editors::text_theme_specification.
 	template <> struct managed_json_parser<editors::text_theme_specification> {
 	public:
 		/// Initializes \ref _manager.
@@ -41,6 +41,12 @@ namespace codepad::ui {
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
+	namespace property_finders {
+		/// Specialization for \ref editors::text_theme_specification.
+		template <> property_info find_property_info_managed<editors::text_theme_specification>(
+			component_property_accessor_builder&, manager&
+		);
+	}
 }
 
 namespace codepad::editors {

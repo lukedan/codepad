@@ -8,6 +8,30 @@
 
 #include "codepad/editors/json_parsers.inl"
 
+namespace codepad::ui::property_finders {
+	template <> property_info find_property_info_managed<editors::text_theme_specification>(
+		component_property_accessor_builder &builder, manager &man
+	) {
+		if (!builder.move_next()) {
+			return builder.finish_and_create_property_info_managed<editors::text_theme_specification>(man);
+		}
+		builder.expect_type(u8"text_theme_specification");
+		if (builder.current_component().property == u8"color") {
+			return builder.append_member_and_find_property_info_managed<
+				&editors::text_theme_specification::color
+			>(man);
+		}
+		if (builder.current_component().property == u8"style") {
+			return builder.append_member_and_find_property_info<&editors::text_theme_specification::style>();
+		}
+		if (builder.current_component().property == u8"weight") {
+			return builder.append_member_and_find_property_info<&editors::text_theme_specification::weight>();
+		}
+		return builder.fail();
+	}
+}
+
+
 namespace codepad::editors {
 	std::size_t theme_configuration::get_index_for(std::u8string_view key) const {
 		std::vector<std::u8string_view> key_parts;

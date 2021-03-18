@@ -197,37 +197,26 @@ namespace codepad::ui {
 	/// value.
 	template <typename T> struct default_lerp {
 	public:
-		/// Calls \ref lerp() if \ref _can_lerp::value is \p true.
+		/// Calls \ref lerp() if \ref can_lerp<T>::value is \p true.
 		T operator()(T from, [[maybe_unused]] T to, [[maybe_unused]] double perc) const {
-			if constexpr (_can_lerp::value) {
+			if constexpr (can_lerp<T>::value) {
 				return lerp(from, to, perc);
 			} else {
 				return from;
 			}
 		}
-	protected:
-		/// Used to test if lerping is possible for this type.
-		struct _can_lerp {
-			/// Matches if all necessary operators are implemented.
-			template <typename U = T> static std::true_type test(decltype(
-				std::declval<U>() + (std::declval<U>() - std::declval<U>()) * 0.5, 0
-			));
-			/// Matches otherwise.
-			template <typename U = T> static std::false_type test(...);
-
-			/// The result.
-			constexpr static bool value = std::is_same_v<decltype(test(0)), std::true_type>;
-		};
 	};
 	/// Base class for value handlers for specific types.
-	template <typename T> class typed_animation_value_handler : public animation_value_handler_base {
+	template <typename T, typename Lerp = default_lerp<T>> class typed_animation_value_handler :
+		public animation_value_handler_base {
 	public:
 		/// Parses the value. By default this function uses the \ref default_parser.
 		[[nodiscard]] virtual std::optional<T> parse(const json::value_storage&) const = 0;
 		/// Linearly interpolates between the two values if possible; if not this should return the first value. By
 		/// default this function simply returns the result of \ref lerp().
 		[[nodiscard]] virtual T lerp(const T &from, const T &to, double prog) const {
-			return default_lerp<T>{}(from, to, prog);
+			Lerp lerp_fn;
+			return lerp_fn(from, to, prog);
 		}
 
 		/// Parses a \ref keyframe_animation_definition.
@@ -251,7 +240,8 @@ namespace codepad::ui {
 		}
 	};
 	/// A typed value handler that uses the default JSON parser.
-	template <typename T> class default_animation_value_handler : public typed_animation_value_handler<T> {
+	template <typename T, typename Lerp = default_lerp<T>> class default_animation_value_handler :
+		public typed_animation_value_handler<T, Lerp> {
 	public:
 		/// Parses the value. By default this function uses the \ref default_parser.
 		[[nodiscard]] std::optional<T> parse(const json::value_storage &val) const override {
@@ -259,7 +249,8 @@ namespace codepad::ui {
 		}
 	};
 	/// A \ref typed_animation_value_handler where parsing a value requires a \ref manager.
-	template <typename T> class managed_animation_value_handler : public typed_animation_value_handler<T> {
+	template <typename T, typename Lerp = default_lerp<T>> class managed_animation_value_handler :
+		public typed_animation_value_handler<T, Lerp> {
 	public:
 		/// Initializes \ref _manager.
 		explicit managed_animation_value_handler(manager &m) : _manager(m) {

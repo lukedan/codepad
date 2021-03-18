@@ -1223,6 +1223,23 @@
 							"visibility": "-f",
 							"layout": {
 								"padding": [ 10, 0, 5, 0 ]
+							},
+							"text_theme": "#2B91AF"
+						},
+						"animations": {
+							"main.lost_focus": {
+								"text_theme.color": {
+									"to": "#D4D4D4",
+									"duration": 0.1,
+									"transition": "linear"
+								}
+							},
+							"main.got_focus": {
+								"text_theme.color": {
+									"to": "#2B91AF",
+									"duration": 0.1,
+									"transition": "linear"
+								}
 							}
 						}
 					},

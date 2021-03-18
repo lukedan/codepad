@@ -82,6 +82,10 @@ namespace codepad {
 			template <typename Value> std::optional<ui::font_weight> operator()(const Value&) const;
 		};
 	}
+	/// Indicates that lerping is valid for \ref ui::font_weight.
+	template <> struct can_lerp<ui::font_weight> : std::true_type {
+	};
+
 
 	namespace ui {
 		//                  fc   dwrite

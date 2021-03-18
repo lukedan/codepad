@@ -12,11 +12,7 @@ namespace codepad::editors::code {
 			std::size_t num_lines = edt->get_document().num_lines(), digits = 0;
 			for (; num_lines > 0; ++digits, num_lines /= 10) {
 			}
-			// TODO customizable font parameters
-			auto font = edt->get_font_families()[0]->get_matching_font(
-				ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal
-			);
-			double maxw = edt->get_font_size() * font->get_maximum_character_width_em(
+			double maxw = edt->get_font_size() * _font->get_maximum_character_width_em(
 				reinterpret_cast<const codepoint*>(U"0123456789")
 			);
 			return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(digits) * maxw);
@@ -37,6 +33,24 @@ namespace codepad::editors::code {
 		}
 	}
 
+	ui::property_info line_number_display::_find_property_path(const ui::property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"line_number_display")) {
+			if (path.front().property == u8"text_theme") {
+				return ui::property_info::find_member_pointer_property_info_managed<
+					&line_number_display::_theme, element
+				>(
+					path, get_manager(),
+					ui::property_info::make_typed_modification_callback<element, line_number_display>(
+						[](line_number_display &disp) {
+							disp._on_font_changed();
+						}
+					)
+				);
+			}
+		}
+		return element::_find_property_path(path);
+	}
+
 	void line_number_display::_custom_render() const {
 		element::_custom_render();
 
@@ -53,10 +67,7 @@ namespace codepad::editors::code {
 			double cury = static_cast<double>(fline) * lh - ybeg, width = client.width() + get_padding().left;
 
 			auto &renderer = get_manager().get_renderer();
-			auto font = edt->get_font_families()[0]->get_matching_font(
-				ui::font_style::normal, ui::font_weight::normal, ui::font_stretch::normal
-			);
-			double baseline_correction = edt->get_baseline() - font->get_ascent_em() * edt->get_font_size();
+			double baseline_correction = edt->get_baseline() - _font->get_ascent_em() * edt->get_font_size();
 
 			{
 				renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
@@ -71,11 +82,12 @@ namespace codepad::editors::code {
 						std::string curlbl = std::to_string(1 + line - lineinfo.second.prev_softbreaks);
 						auto text = renderer.create_plain_text(
 							std::u8string_view(reinterpret_cast<const char8_t*>(curlbl.data()), curlbl.size()),
-							*font, edt->get_font_size()
+							*_font, edt->get_font_size()
 						);
 						double w = text->get_width();
-						// TODO customizable color
-						renderer.draw_plain_text(*text, vec2d(width - w, cury + baseline_correction), colord());
+						renderer.draw_plain_text(
+							*text, vec2d(width - w, cury + baseline_correction), get_text_theme().color
+						);
 					}
 				}
 

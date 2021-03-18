@@ -239,17 +239,34 @@ namespace codepad {
 	}
 
 	/// Custom linear interpolation. For floating-point types, uses \p std::lerp(); for integral types, uses
-	/// \p std::lerp() then rounds the value back to integer; otherwise returns \p from directly.
+	/// \p std::lerp() then rounds the value back to integer or a enum; otherwise returns \p from directly. Note that
+	/// by default enums cannot be lerped although it's implemented here; they need to manually specialize
+	/// \ref can_lerp to enable this behavior.
 	template <typename T> inline constexpr T lerp(T from, T to, double perc) {
 		using _value_type = std::decay_t<T>;
 		if constexpr (std::is_floating_point_v<_value_type>) {
 			return std::lerp(from, to, static_cast<_value_type>(perc));
-		} else if constexpr (std::is_integral_v<_value_type>) {
+		} else if constexpr (std::is_integral_v<_value_type> || std::is_enum_v<_value_type>) {
 			return static_cast<T>(std::round(std::lerp(static_cast<double>(from), static_cast<double>(to), perc)));
 		} else {
 			return from * (1.0 - perc) + to * perc;
 		}
 	}
+	/// Used to test if it's valid to call \ref lerp() on a specific type. Classes that specialize \ref lerp() should
+	/// also specialize this class.
+	template <typename T> struct can_lerp {
+	protected:
+		// SFINAE stubs used to test if the necessary operators are implemented
+		/// Matches if all necessary operators are implemented.
+		template <typename U = T> static std::true_type test(decltype(
+			std::declval<U>() + (std::declval<U>() - std::declval<U>()) * 0.5, 0
+			));
+		/// Matches otherwise.
+		template <typename U = T> static std::false_type test(...);
+	public:
+		/// The result obtained using SFINAE.
+		constexpr static bool value = decltype(test(0))::value;
+	};
 
 	/// Gathers bits from a string and returns the result. Each bit is represented by a character.
 	///

@@ -238,9 +238,9 @@ namespace codepad::ui {
 	};
 
 
-	template <
-		typename T
-	> inline std::shared_ptr<animation_definition_base> typed_animation_value_handler<T>::parse_keyframe_animation(
+	template <typename T, typename Lerp> inline std::shared_ptr<
+		animation_definition_base
+	> typed_animation_value_handler<T, Lerp>::parse_keyframe_animation(
 		const generic_keyframe_animation_definition &def
 	) const {
 		using animation = keyframe_animation_definition<T>;
@@ -256,7 +256,9 @@ namespace codepad::ui {
 	}
 
 
-	template <typename T> inline std::optional<T> managed_animation_value_handler<T>::parse_static(
+	template <
+		typename T, typename Lerp
+	> inline std::optional<T> managed_animation_value_handler<T, Lerp>::parse_static(
 		const json::value_storage &value, [[maybe_unused]] manager &m
 	) {
 		if constexpr (std::is_same_v<T, std::shared_ptr<bitmap>>) { // load textures

@@ -314,6 +314,9 @@ namespace codepad {
 			std::lerp(from.bottom, to.bottom, perc)
 		);
 	}
+	/// Indicates that a valid specialization is present.
+	template <> struct can_lerp<ui::thickness> : std::true_type {
+	};
 
 	namespace ui {
 		/// Contains information about how size should be allocated on a certain orientation for an \ref element.
