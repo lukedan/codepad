@@ -181,6 +181,12 @@ namespace codepad {
 		/// Basic interface of an bitmap.
 		class bitmap {
 		public:
+			/// Default constructor.
+			bitmap() = default;
+			/// No copy & move construction.
+			bitmap(const bitmap&) = delete;
+			/// No copy & move assignment.
+			bitmap &operator=(const bitmap&) = delete;
 			/// Default virtual destructor.
 			virtual ~bitmap() = default;
 
@@ -203,6 +209,12 @@ namespace codepad {
 		/// Basic interface of an off-screen render target.
 		class render_target {
 		public:
+			/// Default constructor.
+			render_target() = default;
+			/// No copy & move construction.
+			render_target(const render_target&) = default;
+			/// No copy & move assignment.
+			render_target &operator=(const render_target&) = default;
 			/// Default virtual destructor.
 			virtual ~render_target() = default;
 		};
@@ -296,6 +308,12 @@ namespace codepad {
 		/// characters, while a surrogate pair is treated as a single character.
 		class formatted_text {
 		public:
+			/// Default constructor.
+			formatted_text() = default;
+			/// No copy & move construction.
+			formatted_text(const formatted_text&) = delete;
+			/// No copy & move assignment.
+			formatted_text &operator=(const formatted_text&) = delete;
 			/// Default virtual destructor.
 			virtual ~formatted_text() = default;
 
@@ -359,6 +377,12 @@ namespace codepad {
 		/// multiplying the EM unit by font size gives the length in device-independent pixels.
 		class font {
 		public:
+			/// Default constructor.
+			font() = default;
+			/// No copy & move construction.
+			font(const font&) = delete;
+			/// No copy & move assignment.
+			font &operator=(const font&) = delete;
 			/// Default virtual destructor.
 			virtual ~font() = default;
 
@@ -385,6 +409,12 @@ namespace codepad {
 		/// Represents a family of similar fonts.
 		class font_family {
 		public:
+			/// Default constructor.
+			font_family() = default;
+			/// No copy & move construction.
+			font_family(const font_family&) = delete;
+			/// No copy & move assignment.
+			font_family &operator=(const font_family&) = delete;
 			/// Default virtual destructor.
 			virtual ~font_family() = default;
 
@@ -398,6 +428,12 @@ namespace codepad {
 		/// is always laid out left-to-right.
 		class plain_text {
 		public:
+			/// Default constructor.
+			plain_text() = default;
+			/// No copy & move construction.
+			plain_text(const plain_text&) = delete;
+			/// No copy & move assignment.
+			plain_text &operator=(const plain_text&) = delete;
 			/// Default virtual destructor.
 			virtual ~plain_text() = default;
 
@@ -416,13 +452,9 @@ namespace codepad {
 		public:
 			/// Default constructor.
 			path_geometry_builder() = default;
-			/// No move construction.
-			path_geometry_builder(path_geometry_builder&&) = delete;
-			/// No copy construction.
+			/// No copy & move construction.
 			path_geometry_builder(const path_geometry_builder&) = delete;
-			/// No move assignment.
-			path_geometry_builder &operator=(path_geometry_builder&&) = delete;
-			/// No copy assignment.
+			/// No copy & move assignment.
 			path_geometry_builder &operator=(const path_geometry_builder&) = delete;
 			/// Default virtual destructor.
 			virtual ~path_geometry_builder() = default;

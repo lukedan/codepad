@@ -411,8 +411,6 @@ namespace codepad::ui {
 			}
 		};
 
-		// TODO binary editor performance is completely fucked because harfbuzz fonts are created on demand, which causes
-		//      caches to be rebuilt every time i guess
 		/// Holds a Fontconfig pattern.
 		class font_family : public ui::font_family {
 			friend text_context;

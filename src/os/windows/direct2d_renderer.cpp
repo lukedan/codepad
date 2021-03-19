@@ -977,7 +977,7 @@ namespace codepad::os::direct2d {
 	}
 
 	void renderer::draw_formatted_text(const ui::formatted_text &text, vec2d topleft) {
-		auto ctext = _details::cast_formatted_text(text);
+		auto &ctext = _details::cast_formatted_text(text);
 		// don't really need this since _create_formatted_text_impl already covers all text, but just in case
 		_text_brush->SetColor(_details::cast_color(colord(0.0, 0.0, 0.0, 1.0)));
 		_d2d_device_context->DrawTextLayout(
