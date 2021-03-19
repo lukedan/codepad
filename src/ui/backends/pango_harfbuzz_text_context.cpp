@@ -566,10 +566,10 @@ namespace codepad::ui::pango_harfbuzz {
 			_details::ft_check(FT_New_Face(
 				_ctx._freetype, reinterpret_cast<const char*>(file_name), font_index, &face
 			));
-			it->second = _details::make_freetype_face_ref_give(face);
+			it->second = std::make_shared<font>(_details::make_freetype_face_ref_give(face));
 		}
 
-		return std::make_shared<font>(it->second);
+		return it->second;
 	}
 
 
@@ -743,7 +743,7 @@ namespace codepad::ui::pango_harfbuzz {
 	std::shared_ptr<plain_text> text_context::_create_plain_text_impl(
 		_details::gtk_object_ref<hb_buffer_t> buf, ui::font &generic_fnt, double font_size
 	) {
-		auto fnt = _details::cast_font(generic_fnt);
+		auto &fnt = _details::cast_font(generic_fnt);
 
 		unsigned int num_chars = hb_buffer_get_length(buf.get());
 		hb_buffer_set_content_type(buf.get(), HB_BUFFER_CONTENT_TYPE_UNICODE);
@@ -756,11 +756,11 @@ namespace codepad::ui::pango_harfbuzz {
 		_details::ft_check(FT_Set_Char_Size(
 			fnt._face.get(), 0, static_cast<FT_F26Dot6>(std::round(64.0 * font_size)), 96, 96
 		));
-		hb_font_t *hb_font = hb_ft_font_create(fnt._face.get(), nullptr);
+		if (fnt._harfbuzz_font.empty()) {
+			fnt._harfbuzz_font = _details::make_harfbuzz_font_ref_give(hb_ft_font_create(fnt._face.get(), nullptr));
+		}
+		hb_shape(fnt._harfbuzz_font.get(), buf.get(), nullptr, 0); // TODO features?
 
-		hb_shape(hb_font, buf.get(), nullptr, 0); // TODO features?
-
-		hb_font_destroy(hb_font);
 		return std::make_shared<plain_text>(std::move(buf), fnt, fnt._face->size->metrics, num_chars, font_size);
 	}
 }

@@ -159,6 +159,36 @@ namespace codepad::ui {
 			res.set_give(face);
 			return res;
 		}
+
+		/// Holds a \p hb_font_t.
+		struct harfbuzz_font_ref final : public reference_counted_handle<harfbuzz_font_ref, hb_font_t*> {
+			friend reference_counted_handle<harfbuzz_font_ref, hb_font_t*>;
+		public:
+			constexpr static hb_font_t *empty_handle = nullptr; ///< The empty handle.
+		protected:
+			/// Calls \p hb_font_reference().
+			void _do_add_ref() {
+				hb_font_reference(this->_handle);
+			}
+			/// Calls \p hb_font_destroy().
+			void _do_release() {
+				hb_font_destroy(this->_handle);
+			}
+		};
+		/// Creates a new \ref harfbuzz_font_ref, and calls \ref harfbuzz_font_ref::set_share() to share the given
+		/// pointer.
+		inline harfbuzz_font_ref make_harfbuzz_font_ref_share(hb_font_t *face) {
+			harfbuzz_font_ref res;
+			res.set_share(face);
+			return res;
+		}
+		/// Creates a new \ref harfbuzz_font_ref, and calls \ref harfbuzz_font_ref::set_give() to give the pointer
+		/// to it.
+		inline harfbuzz_font_ref make_harfbuzz_font_ref_give(hb_font_t *face) {
+			harfbuzz_font_ref res;
+			res.set_give(face);
+			return res;
+		}
 	}
 
 	namespace pango_harfbuzz {
@@ -200,7 +230,7 @@ namespace codepad::ui {
 			/// An entry in the font cache.
 			struct font_family_cache {
 				/// The cached list of font faces.
-				std::unordered_map<font_params, _details::freetype_face_ref, _details::font_params_hash> font_faces;
+				std::unordered_map<font_params, std::shared_ptr<font>, _details::font_params_hash> font_faces;
 				/// A partially-filled \p FcPattern that can be used for searching for font faces.
 				_details::gtk_object_ref<FcPattern> pattern;
 			};
@@ -372,6 +402,7 @@ namespace codepad::ui {
 			}
 		protected:
 			_details::freetype_face_ref _face; ///< The Freetype font face.
+			_details::harfbuzz_font_ref _harfbuzz_font; ///< The chached Harfbuzz font. This may be empty.
 
 			/// Converts lengths from font design units into EM units. Since the default DPI on windows and ubuntu is 96,
 			/// here we also scale the length accordingly.
