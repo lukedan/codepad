@@ -19,13 +19,17 @@ namespace std {
 
 #include <stack>
 
-#include <skia/gpu/GrContext.h>
 #include <skia/core/SkSurface.h>
 #include <skia/core/SkCanvas.h>
+#include <skia/core/SkTypeface.h>
+#include <skia/core/SkFont.h>
+#include <skia/core/SkTextBlob.h>
+// TODO use GrDirectContext?
+#include <skia/gpu/GrContext.h>
 
 #include "../renderer.h"
 #include "../window.h"
-#include "pango_harfbuzz_text_context.h"
+#include "pango_harfbuzz_text_engine.h"
 
 namespace codepad::ui::skia {
 	class renderer_base;
@@ -36,6 +40,16 @@ namespace codepad::ui::skia {
 		[[nodiscard]] inline SkColor cast_color(colord c) {
 			auto u8c = c.convert<unsigned char>();
 			return SkColorSetARGB(u8c.a, u8c.r, u8c.g, u8c.b);
+		}
+
+		/// Converts a \ref colord to a \p SkColor4f.
+		[[nodiscard]] inline SkColor4f cast_colorf(colord c) {
+			SkColor4f result;
+			result.fR = c.r;
+			result.fG = c.g;
+			result.fB = c.b;
+			result.fA = c.a;
+			return result;
 		}
 
 		/// Converts a \ref vec2d to a \p SkPoint.
@@ -103,24 +117,229 @@ namespace codepad::ui::skia {
 		sk_sp<SkSurface> _surface; ///< The \p SkSurface to render to.
 	};
 
-	///
-	class path_geometry_builder : public ui::path_geometry_builder {
+	/// Wraps around a \ref pango_harfbuzz::font_data and a \p SkTypeFace.
+	class font : public ui::font {
+		friend renderer_base;
 	public:
-		void close() override {
-			// TODO
-		}
-		void move_to(vec2d pos) override {
-			// TODO
+		/// Loads the font from the given font file at the given index.
+		font(pango_harfbuzz::text_engine &engine, const char *file, int index) {
+			_skia_font = SkTypeface::MakeFromFile(file, index);
+			_data = engine.create_font_for_file(file, index);
 		}
 
+		/// Returns \ref pango_harfbuzz::font_data::get_ascent_em().
+		[[nodiscard]] double get_ascent_em() const override {
+			return _data.get_ascent_em();
+		}
+		/// Returns \ref pango_harfbuzz::font_data::get_line_height_em().
+		[[nodiscard]] double get_line_height_em() const override {
+			return _data.get_line_height_em();
+		}
+
+		/// Returns \ref pango_harfbuzz::font_data::has_character().
+		[[nodiscard]] bool has_character(codepoint cp) const override {
+			return _data.has_character(cp);
+		}
+
+		/// Returns \ref pango_harfbuzz::font_data::get_character_width_em().
+		[[nodiscard]] double get_character_width_em(codepoint cp) const override {
+			return _data.get_character_width_em(cp);
+		}
+	protected:
+		sk_sp<SkTypeface> _skia_font; ///< The Skia font face.
+		pango_harfbuzz::font_data _data; ///< Font data.
+	};
+
+	/// Wraps around a \ref pango_harfbuzz::font_family_data.
+	class font_family : public ui::font_family {
+	public:
+		/// Initializes \ref _data and \ref _engine.
+		font_family(pango_harfbuzz::text_engine &eng, pango_harfbuzz::font_family_data data) :
+			ui::font_family(), _data(std::move(data)), _engine(&eng) {
+		}
+
+		/// Searches in the cache for a matching font, and if none is found, creates a new \ref font and returns it.
+		[[nodiscard]] std::shared_ptr<ui::font> get_matching_font(
+			font_style style, font_weight weight, font_stretch stretch
+		) const override {
+			auto &entry = _data.get_cache_entry();
+			auto [it, inserted] = entry.font_faces.try_emplace(pango_harfbuzz::font_params(style, weight, stretch));
+			if (inserted) {
+				auto found = entry.find_font(style, weight, stretch);
+				it->second = std::make_shared<font>(
+					*_engine, reinterpret_cast<const char*>(found.get_font_file_path()), found.get_font_index()
+					);
+			}
+			return it->second;
+		}
+	protected:
+		pango_harfbuzz::font_family_data _data; ///< The font family data.
+		pango_harfbuzz::text_engine *_engine = nullptr; ///< The text engine that created this object.
+	};
+
+	/// Wraps around a \ref pango_harfbuzz::plain_text_data, its associated \p SkFont, and optionally a cached
+	/// \p SkTextBlob.
+	class plain_text : public ui::plain_text {
+		friend renderer_base;
+	public:
+		/// Initializes \ref data and \ref _font.
+		plain_text(pango_harfbuzz::plain_text_data data, SkFont fnt) :
+			_data(std::move(data)), _font(std::move(fnt)) {
+		}
+
+		/// Returns \ref pango_harfbuzz::plain_text_data::get_width().
+		[[nodiscard]] double get_width() const override {
+			return _data.get_width();
+		}
+
+		/// Returns \ref pango_harfbuzz::plain_text_data::hit_test().
+		[[nodiscard]] caret_hit_test_result hit_test(double x) const override {
+			return _data.hit_test(x);
+		}
+		/// Returns \ref pango_harfbuzz::plain_text_data::get_character_placement().
+		[[nodiscard]] rectd get_character_placement(std::size_t i) const override {
+			return _data.get_character_placement(i);
+		}
+	protected:
+		pango_harfbuzz::plain_text_data _data; ///< Plain text data.
+		SkFont _font; ///< The Skia font.
+		/// Cached \p SkTextBlob used only for rendering. This is initialized when this object is first rendered.
+		mutable sk_sp<SkTextBlob> _cached_text;
+	};
+
+	/// Wraps around a \ref pango_harfbuzz::formatted_text_data and optionally a \p SkTextBlob.
+	class formatted_text : public ui::formatted_text {
+		friend renderer_base;
+	public:
+		/// Initializes \ref _data.
+		explicit formatted_text(pango_harfbuzz::formatted_text_data data) : _data(std::move(data)) {
+		}
+
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_layout().
+		[[nodiscard]] rectd get_layout() const override {
+			return _data.get_layout();
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_line_metrics().
+		[[nodiscard]] std::vector<line_metrics> get_line_metrics() const override {
+			return _data.get_line_metrics();
+		}
+
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_num_characters().
+		[[nodiscard]] std::size_t get_num_characters() const override {
+			return _data.get_num_characters();
+		}
+
+		/// Returns \ref pango_harfbuzz::formatted_text_data::hit_test().
+		[[nodiscard]] caret_hit_test_result hit_test(vec2d p) const override {
+			return _data.hit_test(p);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::hit_test_at_line().
+		[[nodiscard]] caret_hit_test_result hit_test_at_line(std::size_t line, double x) const override {
+			return _data.hit_test_at_line(line, x);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_character_placement().
+		[[nodiscard]] rectd get_character_placement(std::size_t i) const override {
+			return _data.get_character_placement(i);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_character_range_placement().
+		[[nodiscard]] std::vector<rectd> get_character_range_placement(
+			std::size_t beg, std::size_t len
+		) const override {
+			return _data.get_character_range_placement(beg, len);
+		}
+
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_layout_size().
+		[[nodiscard]] vec2d get_layout_size() const override {
+			return _data.get_layout_size();
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_layout_size().
+		void set_layout_size(vec2d sz) override {
+			_data.set_layout_size(sz);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_horizontal_alignment().
+		[[nodiscard]] horizontal_text_alignment get_horizontal_alignment() const override {
+			return _data.get_horizontal_alignment();
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_horizontal_alignment().
+		void set_horizontal_alignment(horizontal_text_alignment align) override {
+			return _data.set_horizontal_alignment(align);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_vertical_alignment().
+		[[nodiscard]] vertical_text_alignment get_vertical_alignment() const override {
+			return _data.get_vertical_alignment();
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_vertical_alignment().
+		void set_vertical_alignment(vertical_text_alignment align) override {
+			_data.set_vertical_alignment(align);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_wrapping_mode().
+		[[nodiscard]] wrapping_mode get_wrapping_mode() const override {
+			return _data.get_wrapping_mode();
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_wrapping_mode().
+		void set_wrapping_mode(wrapping_mode wrap) override {
+			_data.set_wrapping_mode(wrap);
+		}
+
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_text_color().
+		void set_text_color(colord c, std::size_t beg, std::size_t len) override {
+			_data.set_text_color(c, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_family().
+		void set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) override {
+			_data.set_font_family(family, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_size().
+		void set_font_size(double size, std::size_t beg, std::size_t len) override {
+			_data.set_font_size(size, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_style().
+		void set_font_style(font_style style, std::size_t beg, std::size_t len) override {
+			_data.set_font_style(style, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_weight().
+		void set_font_weight(font_weight weight, std::size_t beg, std::size_t len) override {
+			_data.set_font_weight(weight, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_stretch().
+		void set_font_stretch(font_stretch stretch, std::size_t beg, std::size_t len) override {
+			_data.set_font_stretch(stretch, beg, len);
+		}
+	protected:
+		pango_harfbuzz::formatted_text_data _data; ///< Formatted text data from the text engine.
+		/// Cached \p SkTextBlob used only for rendering. This is initialized when this object is first rendered.
+		mutable sk_sp<SkTextBlob> _cached_text;
+	};
+
+	/// Contains a \p SkPath that is constructed by this builder.
+	class path_geometry_builder : public ui::path_geometry_builder {
+		friend renderer_base;
+	public:
+		/// Calls \p SkPath::close().
+		void close() override {
+			_path.close();
+		}
+		/// Calls \p SkPath::moveTo().
+		void move_to(vec2d pos) override {
+			_path.moveTo(pos.x, pos.y);
+		}
+
+		/// Calls \p SkPath::lineTo().
 		void add_segment(vec2d to) override {
-			// TODO
+			_path.lineTo(to.x, to.y);
 		}
+		/// Calls \p SkPath::cubicTo().
 		void add_cubic_bezier(vec2d to, vec2d control1, vec2d control2) override {
-			// TODO
+			_path.cubicTo(control1.x, control1.y, control2.x, control2.y, to.x, to.y);
 		}
-		void add_arc(vec2d to, vec2d radius, double rotation, ui::sweep_direction, ui::arc_type) override {
-			// TODO
+		/// Calls \p SkPath::arcTo().
+		void add_arc(vec2d to, vec2d radius, double rotation, ui::sweep_direction dir, ui::arc_type type) override {
+			_path.arcTo(
+				radius.x, radius.y, rotation * 180 / 3.14159265,
+				type == ui::arc_type::major ? SkPath::kLarge_ArcSize : SkPath::kSmall_ArcSize,
+				dir == ui::sweep_direction::clockwise ? SkPathDirection::kCW : SkPathDirection::kCCW,
+				to.x, to.y
+			);
 		}
 	protected:
 		SkPath _path; ///< The path being constructed.
@@ -141,12 +360,38 @@ namespace codepad::ui::skia {
 			assert_true_usage(rt, "invalid render target type");
 			return *rt;
 		}
+
+		/// Casts a \ref ui::font to a \ref font.
+		[[nodiscard]] font &cast_font(ui::font &target) {
+			auto *rt = dynamic_cast<font*>(&target);
+			assert_true_usage(rt, "invalid font type");
+			return *rt;
+		}
+
+		/// Casts a \ref ui::plain_text to a \ref plain_text.
+		[[nodiscard]] const plain_text &cast_plain_text(const ui::plain_text &target) {
+			auto *rt = dynamic_cast<const plain_text*>(&target);
+			assert_true_usage(rt, "invalid plain_text type");
+			return *rt;
+		}
 	}
 
 
+	// TODO known bugs:
+	//      - minimap is not displaying at all
+	//      - color space issue
+	//      - the surfaces do not seem to be flushed correctly (visible during animations)
+	//      - border rectangles of the drag destination boxes are not visible (???)
+	//      - font size animations are not working (?????)
 	/// Base class of the Skia renderer. Contains platform-independent code.
 	class renderer_base : public ui::renderer_base {
 	public:
+		/// Initializes \ref _color_space.
+		renderer_base() : ui::renderer_base() {
+			// TODO this color space causes the image to look washed out
+			_color_space = SkColorSpace::MakeSRGB();
+		}
+
 		/// Creates a new render target. \ref bitmap::_image_or_surface is set to the SkSurface.
 		render_target_data create_render_target(vec2d size, vec2d scaling_factor, colord clear) override;
 
@@ -155,27 +400,27 @@ namespace codepad::ui::skia {
 			return nullptr;
 		}
 
-		/// Invokes \ref pango_harfbuzz::text_context::find_font_family().
+		/// Invokes \ref pango_harfbuzz::text_engine::find_font_family().
 		std::shared_ptr<ui::font_family> find_font_family(const std::u8string &family) override {
-			return _text_context.find_font_family(family);
+			return std::make_shared<font_family>(_text_engine, _text_engine.find_font_family(family));
 		}
 
 		/// Starts drawing to the given \ref render_target.
 		void begin_drawing(ui::render_target &target) override {
 			auto &rt = _details::cast_render_target(target);
-			_render_target_stackframe &stackframe = _render_stack.emplace(rt._surface->getCanvas(), rt._scale);
+			_render_target_stackframe &stackframe = _render_stack.emplace(rt._surface.get(), rt._scale);
 		}
 		/// Starts drawing to the given \ref window and invokes \ref _start_drawing_to_window().
 		void begin_drawing(window &wnd) override {
 			_render_stack.emplace(
-				_get_window_data_as<_window_data>(wnd).surface->getCanvas(), wnd.get_scaling_factor(), &wnd
+				_get_window_data_as<_window_data>(wnd).surface.get(), wnd.get_scaling_factor(), &wnd
 			);
 			_start_drawing_to_window(wnd);
 		}
 		/// Finishes drawing. If the previous render target was a window, invokes \ref _start_drawing_to_window().
 		void end_drawing() override {
 			if (_render_stack.top().window) {
-				_render_stack.top().canvas->flush();
+				_render_stack.top().surface->flushAndSubmit();
 				_finish_drawing_to_window(*_render_stack.top().window);
 			}
 			_render_stack.pop();
@@ -217,9 +462,9 @@ namespace codepad::ui::skia {
 			return _details::cast_matrix_back(_render_stack.top().matrices.top());
 		}
 
-
+		/// Resets \ref _path_builder and returns it.
 		ui::path_geometry_builder &start_path() override {
-			// TODO
+			_path_builder._path.reset();
 			return _path_builder;
 		}
 
@@ -266,9 +511,15 @@ namespace codepad::ui::skia {
 				canvas->drawRoundRect(skrect, rx, ry, stroke.value());
 			}
 		}
-		///
+		/// Draws the path in \ref _path_builder using \p SkCanvas::drawPath().
 		void end_and_draw_path(const ui::generic_brush &brush, const ui::generic_pen &pen) override {
-			// TODO
+			SkCanvas *canvas = _render_stack.top().canvas;
+			if (auto fill = _create_paint(brush)) {
+				canvas->drawPath(_path_builder._path, fill.value());
+			}
+			if (auto stroke = _create_paint(pen)) {
+				canvas->drawPath(_path_builder._path, stroke.value());
+			}
 		}
 
 		/// Pushes an ellipse-shaped clip using \p SkCanvas::clipRRect().
@@ -299,9 +550,11 @@ namespace codepad::ui::skia {
 				_details::cast_rect(rgn), static_cast<SkScalar>(radiusx), static_cast<SkScalar>(radiusy)
 			));
 		}
-		///
+		/// Pushes a path clip using \p SkCanvas::clipPath() with the current path in \ref _path_builder.
 		void end_and_push_path_clip() override {
-			// TODO
+			SkCanvas *canvas = _render_stack.top().canvas;
+			canvas->save();
+			canvas->clipPath(_path_builder._path, true);
 		}
 		/// Pops a clip and updates the transformation matrix.
 		void pop_clip() override {
@@ -311,12 +564,14 @@ namespace codepad::ui::skia {
 			stackframe.update_matrix();
 		}
 
-		/// Invokes \ref pango_harfbuzz::text_context::create_formatted_text().
+		/// Invokes \ref pango_harfbuzz::text_engine::create_formatted_text().
 		std::shared_ptr<ui::formatted_text> create_formatted_text(
 			std::u8string_view text, const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 			horizontal_text_alignment halign, vertical_text_alignment valign
 		) override {
-			return _text_context.create_formatted_text(text, font, c, size, wrap, halign, valign);
+			return std::make_shared<formatted_text>(_text_engine.create_formatted_text(
+				text, font, c, size, wrap, halign, valign
+			));
 		}
 		/// \overload
 		std::shared_ptr<ui::formatted_text> create_formatted_text(
@@ -324,35 +579,48 @@ namespace codepad::ui::skia {
 			const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 			horizontal_text_alignment halign, vertical_text_alignment valign
 		) override {
-			return _text_context.create_formatted_text(utf32, font, c, size, wrap, halign, valign);
+			return std::make_shared<formatted_text>(_text_engine.create_formatted_text(
+				utf32, font, c, size, wrap, halign, valign
+			));
 		}
 		/// Draws the given \ref formatted_text at the given position.
 		void draw_formatted_text(const ui::formatted_text &text, vec2d pos) override {
 			// TODO
 		}
 
-		/// Invokes \ref pango_harfbuzz::text_context::create_plain_text().
+		/// Invokes \ref pango_harfbuzz::text_engine::create_plain_text().
 		std::shared_ptr<ui::plain_text> create_plain_text(
-			std::u8string_view text, ui::font &fnt, double font_size
+			std::u8string_view text, ui::font &generic_fnt, double size
 		) override {
-			return _text_context.create_plain_text(text, fnt, font_size);
+			auto &fnt = _details::cast_font(generic_fnt);
+			// TODO SkFont expects the size in points, but we have the size in device-independent pixels
+			//      it can't be this simple right?
+			return std::make_shared<plain_text>(
+				_text_engine.create_plain_text(text, fnt._data, size), SkFont(fnt._skia_font, size * 1.33)
+			);
 		}
 		/// \overload
 		std::shared_ptr<ui::plain_text> create_plain_text(
-			std::basic_string_view<codepoint> text, ui::font &fnt, double font_size
+			std::basic_string_view<codepoint> text, ui::font &generic_fnt, double size
 		) override {
-			return _text_context.create_plain_text(text, fnt, font_size);
+			auto &fnt = _details::cast_font(generic_fnt);
+			// TODO SkFont expects the size in points, but we have the size in device-independent pixels
+			return std::make_shared<plain_text>(
+				_text_engine.create_plain_text(text, fnt._data, size), SkFont(fnt._skia_font, size * 1.33)
+			);
 		}
-		/// Invokes \ref pango_harfbuzz::text_context::create_plain_text_fast().
+		/// Invokes \ref pango_harfbuzz::text_engine::create_plain_text_fast().
 		std::shared_ptr<ui::plain_text> create_plain_text_fast(
-			std::basic_string_view<codepoint> text, ui::font &fnt, double size
+			std::basic_string_view<codepoint> text, ui::font &generic_fnt, double size
 		) override {
-			return _text_context.create_plain_text_fast(text, fnt, size);
+			auto &fnt = _details::cast_font(generic_fnt);
+			// TODO SkFont expects the size in points, but we have the size in device-independent pixels
+			return std::make_shared<plain_text>(
+				_text_engine.create_plain_text_fast(text, fnt._data, size), SkFont(fnt._skia_font, size * 1.33)
+			);
 		}
 		/// Renders the given fragment of text.
-		void draw_plain_text(const ui::plain_text&, vec2d, colord) override {
-			// TODO
-		}
+		void draw_plain_text(const ui::plain_text&, vec2d, colord) override;
 	protected:
 		/// Skia data associated with a \ref window.
 		struct _window_data {
@@ -361,8 +629,8 @@ namespace codepad::ui::skia {
 		/// Stores information about a render target that's being rendered to.
 		struct _render_target_stackframe {
 			/// Initializes all struct members and invokes \ref update_matrix().
-			_render_target_stackframe(SkCanvas *c, vec2d scale, window *wnd = nullptr) :
-				window(wnd), canvas(c),
+			_render_target_stackframe(SkSurface *surf, vec2d scale, window *wnd = nullptr) :
+				window(wnd), surface(surf), canvas(surf->getCanvas()),
 				scale_matrix(SkMatrix::MakeScale(
 					static_cast<SkScalar>(scale.x), static_cast<SkScalar>(scale.y)
 				)) {
@@ -372,6 +640,7 @@ namespace codepad::ui::skia {
 			}
 
 			window *window = nullptr; ///< A window.
+			SkSurface *surface = nullptr; ///< The Skia surface.
 			SkCanvas *canvas = nullptr; ///< The canvas to draw to.
 			/// The stack of matrices. Although \p SkCanvas has a \p save() function which saves its state,
 			/// unfortunately the two attributes (matrix and clip) are combined when saving, which makes it
@@ -387,26 +656,27 @@ namespace codepad::ui::skia {
 			}
 		};
 
-		pango_harfbuzz::text_context _text_context; ///< Context for rendering text.
+		pango_harfbuzz::text_engine _text_engine; ///< Engine for text layout.
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of render targets.
 		sk_sp<GrContext> _skia_context; ///< The Skia graphics context.
+		sk_sp<SkColorSpace> _color_space; ///< The color space for all colors.
 		path_geometry_builder _path_builder; ///< Used to build paths.
 
 		/// Returns \p std::nullopt.
-		[[nodiscard]] static std::optional<SkPaint> _create_paint(const brushes::none&, const matd3x3&);
+		[[nodiscard]] std::optional<SkPaint> _create_paint(const brushes::none&, const matd3x3&);
 		/// Creates a \p SkPaint from a \ref brushes::solid_color.
-		[[nodiscard]] static std::optional<SkPaint> _create_paint(const brushes::solid_color&, const matd3x3&);
+		[[nodiscard]] std::optional<SkPaint> _create_paint(const brushes::solid_color&, const matd3x3&);
 		/// Creates a \p SkPaint from a \ref brushes::linear_gradient.
-		[[nodiscard]] static std::optional<SkPaint> _create_paint(const brushes::linear_gradient&, const matd3x3&);
+		[[nodiscard]] std::optional<SkPaint> _create_paint(const brushes::linear_gradient&, const matd3x3&);
 		/// Creates a \p SkPaint from a \ref brushes::radial_gradient.
-		[[nodiscard]] static std::optional<SkPaint> _create_paint(const brushes::radial_gradient&, const matd3x3&);
+		[[nodiscard]] std::optional<SkPaint> _create_paint(const brushes::radial_gradient&, const matd3x3&);
 		/// Creates a \p SkPaint from a \ref brushes::bitmap_pattern.
-		[[nodiscard]] static std::optional<SkPaint> _create_paint(const brushes::bitmap_pattern&, const matd3x3&);
+		[[nodiscard]] std::optional<SkPaint> _create_paint(const brushes::bitmap_pattern&, const matd3x3&);
 
 		/// Creates a \p SkPaint from a \ref generic_brush.
-		[[nodiscard]] static std::optional<SkPaint> _create_paint(const generic_brush&);
+		[[nodiscard]] std::optional<SkPaint> _create_paint(const generic_brush&);
 		/// Creates a \p SkPaint from a \ref generic_pen.
-		[[nodiscard]] static std::optional<SkPaint> _create_paint(const generic_pen&);
+		[[nodiscard]] std::optional<SkPaint> _create_paint(const generic_pen&);
 
 
 		/// Called to start drawing to a window in a platform-specific way.

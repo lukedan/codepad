@@ -1,7 +1,7 @@
 // Copyright (c) the Codepad contributors. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#include "codepad/ui/backends/pango_harfbuzz_text_context.h"
+#include "codepad/ui/backends/pango_harfbuzz_text_engine.h"
 
 /// \file
 /// Implementation of text layout using Pango, Harfbuzz, Freetype, and Fontconfig.
@@ -12,6 +12,8 @@
 
 namespace codepad::ui::pango_harfbuzz {
 	namespace _details {
+		using namespace ui::_details;
+
 		/// Converts a component of a color to a \p guint16.
 		[[nodiscard]] guint16 cast_color_component(double c) {
 			return static_cast<guint16>(std::round(c * std::numeric_limits<guint16>::max()));
@@ -221,18 +223,42 @@ namespace codepad::ui::pango_harfbuzz {
 	}
 
 
+	[[nodiscard]] find_font_result font_family_data::cache_entry::find_font(
+		font_style style, font_weight weight, font_stretch stretch
+	) const {
+		auto patt = _details::make_gtk_object_ref_give(FcPatternDuplicate(pattern.get()));
+
+		// FIXME what are these return values?
+		FcPatternAddInteger(patt.get(), FC_SLANT, _details::cast_font_style_fontconfig(style));
+		FcPatternAddInteger(patt.get(), FC_WEIGHT, _details::cast_font_weight_fontconfig(weight));
+		FcPatternAddInteger(patt.get(), FC_WIDTH, _details::cast_font_stretch_fontconfig(stretch));
+
+		// FIXME fontconfig? hello? what should i do here?
+		//       FcFontMatch() calls FcFontRenderPrepare() which calls FcConfigSubstituteWithPat() with
+		//       FcMatchFont, so i assume that we don't need to do that here
+		assert_true_sys(FcConfigSubstitute(nullptr, patt.get(), FcMatchPattern), "Fontconfig operation failed");
+		FcDefaultSubstitute(patt.get());
+
+		FcResult result;
+		auto res_patt = _details::make_gtk_object_ref_give(FcFontMatch(nullptr, patt.get(), &result));
+		assert_true_sys(result != FcResultOutOfMemory, "Fontconfig out of memory");
+
+		return find_font_result(std::move(res_patt));
+	}
+
+
 	void fontconfig_usage::maybe_initialize() {
 		static fontconfig_usage _usage;
 	}
 
 
-	rectd formatted_text::get_layout() const {
+	rectd formatted_text_data::get_layout() const {
 		PangoRectangle layout;
 		pango_layout_get_extents(_layout.get(), nullptr, &layout);
 		return _details::cast_rect_back(layout).translated(get_alignment_offset());
 	}
 
-	std::vector<line_metrics> formatted_text::get_line_metrics() const {
+	std::vector<line_metrics> formatted_text_data::get_line_metrics() const {
 		PangoLayoutIter *iter = pango_layout_get_iter(_layout.get());
 		std::vector<line_metrics> result;
 		auto pos_it = _line_positions.begin();
@@ -258,7 +284,7 @@ namespace codepad::ui::pango_harfbuzz {
 		return result;
 	}
 
-	caret_hit_test_result formatted_text::hit_test(vec2d pos) const {
+	caret_hit_test_result formatted_text_data::hit_test(vec2d pos) const {
 		vec2d offset = get_alignment_offset();
 		pos -= offset;
 		int index = 0, trailing = 0;
@@ -278,7 +304,7 @@ namespace codepad::ui::pango_harfbuzz {
 		);
 	}
 
-	caret_hit_test_result formatted_text::hit_test_at_line(std::size_t line, double x) const {
+	caret_hit_test_result formatted_text_data::hit_test_at_line(std::size_t line, double x) const {
 		vec2d offset = get_alignment_offset();
 		x -= offset.x;
 
@@ -322,7 +348,7 @@ namespace codepad::ui::pango_harfbuzz {
 		return res;
 	}
 
-	rectd formatted_text::get_character_placement(std::size_t pos) const {
+	rectd formatted_text_data::get_character_placement(std::size_t pos) const {
 		PangoRectangle rect;
 		pango_layout_index_to_pos(
 			_layout.get(), static_cast<int>(_bytepos[std::min(pos, _bytepos.size() - 1)]), &rect
@@ -330,7 +356,7 @@ namespace codepad::ui::pango_harfbuzz {
 		return _details::cast_rect_back(rect).translated(get_alignment_offset());
 	}
 
-	std::vector<rectd> formatted_text::get_character_range_placement(std::size_t beg, std::size_t len) const {
+	std::vector<rectd> formatted_text_data::get_character_range_placement(std::size_t beg, std::size_t len) const {
 		std::size_t end = beg + len;
 		std::size_t first_line = std::lower_bound(
 			_line_positions.begin(), _line_positions.end(), beg,
@@ -396,22 +422,22 @@ namespace codepad::ui::pango_harfbuzz {
 		return result;
 	}
 
-	horizontal_text_alignment formatted_text::get_horizontal_alignment() const {
+	horizontal_text_alignment formatted_text_data::get_horizontal_alignment() const {
 		return _details::cast_horizontal_alignment_back(pango_layout_get_alignment(_layout.get()));
 	}
 
-	void formatted_text::set_horizontal_alignment(horizontal_text_alignment align) {
+	void formatted_text_data::set_horizontal_alignment(horizontal_text_alignment align) {
 		pango_layout_set_alignment(_layout.get(), _details::cast_horizontal_alignment(align));
 	}
 
-	wrapping_mode formatted_text::get_wrapping_mode() const {
+	wrapping_mode formatted_text_data::get_wrapping_mode() const {
 		if (pango_layout_get_width(_layout.get()) == -1) {
 			return wrapping_mode::none;
 		}
 		return wrapping_mode::wrap;
 	}
 
-	void formatted_text::set_wrapping_mode(wrapping_mode wrap) {
+	void formatted_text_data::set_wrapping_mode(wrapping_mode wrap) {
 		if (wrap == wrapping_mode::none) {
 			pango_layout_set_width(_layout.get(), -1); // disable wrapping
 		} else {
@@ -420,7 +446,7 @@ namespace codepad::ui::pango_harfbuzz {
 		}
 	}
 
-	void formatted_text::set_text_color(colord c, std::size_t beg, std::size_t len) {
+	void formatted_text_data::set_text_color(colord c, std::size_t beg, std::size_t len) {
 		PangoAttribute
 			*attr_rgb = pango_attr_foreground_new(
 				_details::cast_color_component(c.r),
@@ -436,7 +462,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_attr_list_change(list, attr_a);
 	}
 
-	void formatted_text::set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) {
+	void formatted_text_data::set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) {
 		PangoAttribute *attr = pango_attr_family_new(reinterpret_cast<const char*>(family.c_str()));
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
@@ -444,7 +470,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
 	}
 
-	void formatted_text::set_font_size(double size, std::size_t beg, std::size_t len) {
+	void formatted_text_data::set_font_size(double size, std::size_t beg, std::size_t len) {
 		PangoAttribute *attr = pango_attr_size_new(pango_units_from_double(size));
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
@@ -452,7 +478,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
 	}
 
-	void formatted_text::set_font_style(font_style style, std::size_t beg, std::size_t len) {
+	void formatted_text_data::set_font_style(font_style style, std::size_t beg, std::size_t len) {
 		PangoAttribute *attr = pango_attr_style_new(_details::cast_font_style(style));
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
@@ -460,7 +486,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
 	}
 
-	void formatted_text::set_font_weight(font_weight weight, std::size_t beg, std::size_t len) {
+	void formatted_text_data::set_font_weight(font_weight weight, std::size_t beg, std::size_t len) {
 		PangoAttribute *attr = pango_attr_weight_new(_details::cast_font_weight(weight));
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
@@ -468,7 +494,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
 	}
 
-	void formatted_text::set_font_stretch(font_stretch stretch, std::size_t beg, std::size_t len) {
+	void formatted_text_data::set_font_stretch(font_stretch stretch, std::size_t beg, std::size_t len) {
 		PangoAttribute *attr = pango_attr_stretch_new(_details::cast_font_stretch(stretch));
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
@@ -476,7 +502,7 @@ namespace codepad::ui::pango_harfbuzz {
 		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
 	}
 
-	vec2d formatted_text::get_alignment_offset() const {
+	vec2d formatted_text_data::get_alignment_offset() const {
 		PangoAlignment halign = pango_layout_get_alignment(_layout.get());
 		if (_valign == vertical_text_alignment::top && halign == PANGO_ALIGN_LEFT) {
 			return vec2d();
@@ -502,17 +528,17 @@ namespace codepad::ui::pango_harfbuzz {
 		return offset;
 	}
 
-	std::pair<guint, guint> formatted_text::_char_to_byte(std::size_t beg, std::size_t len) const {
+	std::pair<guint, guint> formatted_text_data::_char_to_byte(std::size_t beg, std::size_t len) const {
 		beg = std::min(beg, _bytepos.size() - 1);
 		std::size_t end = std::min(beg + len, _bytepos.size() - 1);
 		return { static_cast<guint>(_bytepos[beg]), static_cast<guint>(_bytepos[end]) };
 	}
 
-	std::size_t formatted_text::_byte_to_char(std::size_t c) const {
+	std::size_t formatted_text_data::_byte_to_char(std::size_t c) const {
 		return std::lower_bound(_bytepos.begin(), _bytepos.end(), c) - _bytepos.begin();
 	}
 
-	double formatted_text::_get_horizontal_alignment_offset() const {
+	double formatted_text_data::_get_horizontal_alignment_offset() const {
 		PangoAlignment halign = pango_layout_get_alignment(_layout.get());
 		if (halign == PANGO_ALIGN_LEFT) {
 			return 0.0;
@@ -530,50 +556,7 @@ namespace codepad::ui::pango_harfbuzz {
 	}
 
 
-	std::shared_ptr<ui::font> font_family::get_matching_font(
-		font_style style, font_weight weight, font_stretch stretch
-	) const {
-		_details::font_params params(style, weight, stretch);
-		auto [it, inserted] = _cache_entry.font_faces.try_emplace(params);
-
-		if (inserted) {
-			auto patt = _details::make_gtk_object_ref_give(FcPatternDuplicate(_cache_entry.pattern.get()));
-
-			// FIXME what are these return values?
-			FcPatternAddInteger(patt.get(), FC_SLANT, _details::cast_font_style_fontconfig(style));
-			FcPatternAddInteger(patt.get(), FC_WEIGHT, _details::cast_font_weight_fontconfig(weight));
-			FcPatternAddInteger(patt.get(), FC_WIDTH, _details::cast_font_stretch_fontconfig(stretch));
-
-			// FIXME fontconfig? hello? what should i do here?
-			//       FcFontMatch() calls FcFontRenderPrepare() which calls FcConfigSubstituteWithPat() with
-			//       FcMatchFont, so i assume that we don't need to do that here
-			assert_true_sys(FcConfigSubstitute(nullptr, patt.get(), FcMatchPattern), "Fontconfig operation failed");
-			FcDefaultSubstitute(patt.get());
-
-			FcResult result;
-			auto res_patt = _details::make_gtk_object_ref_give(FcFontMatch(nullptr, patt.get(), &result));
-			assert_true_sys(result != FcResultOutOfMemory, "Fontconfig out of memory");
-
-			FcChar8 *file_name = nullptr;
-			int font_index = 0;
-			assert_true_sys(
-				FcPatternGetString(res_patt.get(), FC_FILE, 0, &file_name) == FcResultMatch,
-				"failed to obtain font file name from Fontconfig"
-			);
-			FcPatternGetInteger(res_patt.get(), FC_INDEX, 0, &font_index);
-
-			FT_Face face;
-			_details::ft_check(FT_New_Face(
-				_ctx._freetype, reinterpret_cast<const char*>(file_name), font_index, &face
-			));
-			it->second = std::make_shared<font>(_details::make_freetype_face_ref_give(face));
-		}
-
-		return it->second;
-	}
-
-
-	caret_hit_test_result plain_text::hit_test(double x) const {
+	caret_hit_test_result plain_text_data::hit_test(double x) const {
 		_maybe_calculate_block_map();
 
 		x = std::max(x, 0.0);
@@ -603,7 +586,7 @@ namespace codepad::ui::pango_harfbuzz {
 		return res;
 	}
 
-	rectd plain_text::get_character_placement(std::size_t i) const {
+	rectd plain_text_data::get_character_placement(std::size_t i) const {
 		_maybe_calculate_block_map();
 
 		if (i >= _num_characters) {
@@ -624,7 +607,7 @@ namespace codepad::ui::pango_harfbuzz {
 		return rectd::from_xywh(left, 0.0, part_width, _height);
 	}
 
-	void plain_text::_maybe_calculate_block_map() const {
+	void plain_text_data::_maybe_calculate_block_map() const {
 		if (_cached_block_positions.empty()) {
 			unsigned int num_glyphs_u = 0;
 			hb_glyph_info_t *glyphs = hb_buffer_get_glyph_infos(_buffer.get(), &num_glyphs_u);
@@ -652,22 +635,22 @@ namespace codepad::ui::pango_harfbuzz {
 		}
 	}
 
-	double plain_text::_get_part_width(std::size_t block) const {
+	double plain_text_data::_get_part_width(std::size_t block) const {
 		return
 			(_cached_block_positions[block + 1] - _cached_block_positions[block]) /
 			static_cast<double>(_cached_first_char_of_block[block + 1] - _cached_first_char_of_block[block]);
 	}
 
 
-	std::shared_ptr<formatted_text> text_context::_create_formatted_text_impl(
+	formatted_text_data text_engine::_create_formatted_text_impl(
 		std::u8string_view text, const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 		horizontal_text_alignment halign, vertical_text_alignment valign
 	) {
-		auto result = std::make_shared<formatted_text>(size, valign);
-		result->_layout.set_give(pango_layout_new(_pango_context.get()));
+		formatted_text_data result(size, valign);
+		result._layout.set_give(pango_layout_new(_pango_context.get()));
 
 		pango_layout_set_text(
-			result->_layout.get(), reinterpret_cast<const char*>(text.data()), static_cast<int>(text.size())
+			result._layout.get(), reinterpret_cast<const char*>(text.data()), static_cast<int>(text.size())
 		);
 
 		{ // set font
@@ -677,18 +660,18 @@ namespace codepad::ui::pango_harfbuzz {
 			pango_font_description_set_weight(desc, _details::cast_font_weight(font.weight));
 			pango_font_description_set_stretch(desc, _details::cast_font_stretch(font.stretch));
 			pango_font_description_set_size(desc, pango_units_from_double(font.size));
-			pango_layout_set_font_description(result->_layout.get(), desc);
+			pango_layout_set_font_description(result._layout.get(), desc);
 			pango_font_description_free(desc);
 		}
 
-		pango_layout_set_ellipsize(result->_layout.get(), PANGO_ELLIPSIZE_NONE);
-		pango_layout_set_single_paragraph_mode(result->_layout.get(), false);
+		pango_layout_set_ellipsize(result._layout.get(), PANGO_ELLIPSIZE_NONE);
+		pango_layout_set_single_paragraph_mode(result._layout.get(), false);
 
 		// vertical alignment is handled manually in get_alignment_offset()
 		// "The behavior is undefined if a height other than -1 is set and ellipsization mode is set to
 		// PANGO_ELLIPSIZE_NONE, and may change in the future."
 		// https://developer.gnome.org/pango/stable/pango-Layout-Objects.html#pango-layout-set-height
-		pango_layout_set_height(result->_layout.get(), -1);
+		pango_layout_set_height(result._layout.get(), -1);
 
 		{ // set color
 			auto attr_list = _details::make_gtk_object_ref_give(pango_attr_list_new());
@@ -700,16 +683,16 @@ namespace codepad::ui::pango_harfbuzz {
 			pango_attr_list_insert(
 				attr_list.get(), pango_attr_foreground_alpha_new(_details::cast_color_component(c.a))
 			);
-			pango_layout_set_attributes(result->_layout.get(), attr_list.get());
+			pango_layout_set_attributes(result._layout.get(), attr_list.get());
 		}
 
 		// compute _bytepos and _line_positions
-		result->_bytepos.emplace_back(0); // first character
+		result._bytepos.emplace_back(0); // first character
 		linebreak_analyzer line_analyzer(
 			[&result](std::size_t len, line_ending ending) {
 				std::size_t begin_pos =
-					result->_line_positions.empty() ? 0 : result->_line_positions.back().end_pos_after_break;
-				formatted_text::_line_position &entry = result->_line_positions.emplace_back();
+					result._line_positions.empty() ? 0 : result._line_positions.back().end_pos_after_break;
+				formatted_text_data::_line_position &entry = result._line_positions.emplace_back();
 				entry.end_pos_before_break = begin_pos + len;
 				entry.end_pos_after_break = entry.end_pos_before_break + get_line_ending_length(ending);
 			}
@@ -720,31 +703,29 @@ namespace codepad::ui::pango_harfbuzz {
 				cp = 0;
 			}
 			line_analyzer.put(cp);
-			result->_bytepos.emplace_back(it - text.begin());
+			result._bytepos.emplace_back(it - text.begin());
 		}
 		line_analyzer.finish();
 		assert_true_sys(
-			result->_line_positions.back().end_pos_after_break ==
-			static_cast<std::size_t>(pango_layout_get_character_count(result->_layout.get())),
+			result._line_positions.back().end_pos_after_break ==
+			static_cast<std::size_t>(pango_layout_get_character_count(result._layout.get())),
 			"character count inconsistent with pango"
 		);
 		assert_true_sys(
-			result->_line_positions.size() ==
-			static_cast<std::size_t>(pango_layout_get_line_count(result->_layout.get())),
+			result._line_positions.size() ==
+			static_cast<std::size_t>(pango_layout_get_line_count(result._layout.get())),
 			"line count inconsistent with pango"
 		);
 
-		result->set_horizontal_alignment(halign);
-		result->set_wrapping_mode(wrap);
+		result.set_horizontal_alignment(halign);
+		result.set_wrapping_mode(wrap);
 
 		return result;
 	}
 
-	std::shared_ptr<plain_text> text_context::_create_plain_text_impl(
-		_details::gtk_object_ref<hb_buffer_t> buf, ui::font &generic_fnt, double font_size
+	plain_text_data text_engine::_create_plain_text_impl(
+		_details::gtk_object_ref<hb_buffer_t> buf, font_data &fnt, double font_size
 	) {
-		auto &fnt = _details::cast_font(generic_fnt);
-
 		unsigned int num_chars = hb_buffer_get_length(buf.get());
 		hb_buffer_set_content_type(buf.get(), HB_BUFFER_CONTENT_TYPE_UNICODE);
 
@@ -757,10 +738,13 @@ namespace codepad::ui::pango_harfbuzz {
 			fnt._face.get(), 0, static_cast<FT_F26Dot6>(std::round(64.0 * font_size)), 96, 96
 		));
 		if (fnt._harfbuzz_font.empty()) {
-			fnt._harfbuzz_font = _details::make_harfbuzz_font_ref_give(hb_ft_font_create(fnt._face.get(), nullptr));
+			fnt._harfbuzz_font = _details::make_gtk_object_ref_give(
+				hb_ft_font_create_referenced(fnt._face.get())
+			);
 		}
+		hb_font_set_ppem(fnt._harfbuzz_font.get(), font_size, font_size);
 		hb_shape(fnt._harfbuzz_font.get(), buf.get(), nullptr, 0); // TODO features?
 
-		return std::make_shared<plain_text>(std::move(buf), fnt, fnt._face->size->metrics, num_chars, font_size);
+		return plain_text_data(std::move(buf), fnt, fnt._face->size->metrics, num_chars, font_size);
 	}
 }

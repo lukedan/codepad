@@ -151,20 +151,20 @@ namespace codepad::ui::cairo {
 	}
 
 	void renderer_base::draw_formatted_text(const ui::formatted_text &ft, vec2d pos) {
-		auto &text = pango_harfbuzz::_details::cast_formatted_text(ft);
+		auto &text = _details::cast_formatted_text(ft);
 		cairo_t *context = _render_stack.top().context;
 
-		pos += text.get_alignment_offset();
+		pos += text._data.get_alignment_offset();
 
-		pango_cairo_update_context(context, _text_context.get_pango_context());
-		pango_layout_context_changed(text.get_pango_layout());
+		pango_cairo_update_context(context, _text_engine.get_pango_context());
+		pango_layout_context_changed(text._data.get_pango_layout());
 		cairo_move_to(context, pos.x, pos.y);
-		pango_cairo_show_layout(context, text.get_pango_layout());
+		pango_cairo_show_layout(context, text._data.get_pango_layout());
 		cairo_new_path(context);
 	}
 
 	void renderer_base::draw_plain_text(const ui::plain_text &generic_text, vec2d pos, colord c) {
-		auto &text = pango_harfbuzz::_details::cast_plain_text(generic_text);
+		auto &text = _details::cast_plain_text(generic_text);
 
 		cairo_t *context = _render_stack.top().context;
 
@@ -172,24 +172,25 @@ namespace codepad::ui::cairo {
 		double sx, sy;
 		cairo_surface_get_device_scale(cairo_get_target(context), &sx, &sy);
 		_details::ft_check(FT_Set_Char_Size(
-			text.get_font(), 0, static_cast<FT_F26Dot6>(std::round(64.0 * text.get_font_size())), 96 * sx, 96 * sy
+			text._data.get_font(),
+			0, static_cast<FT_F26Dot6>(std::round(64.0 * text._data.get_font_size())), 96 * sx, 96 * sy
 		));
 
 		auto cairo_fnt = _details::make_gtk_object_ref_give(
-			cairo_ft_font_face_create_for_ft_face(text.get_font(), 0)
+			cairo_ft_font_face_create_for_ft_face(text._data.get_font(), 0)
 		);
 		cairo_set_font_face(context, cairo_fnt.get());
-		cairo_set_font_size(context, text.get_font_size() * (96.0 / 72.0));
+		cairo_set_font_size(context, text._data.get_font_size() * (96.0 / 72.0));
 
 		// gather glyphs
 		unsigned int num_glyphs = 0;
 		// FIXME check if the two num_glyphs are the same
-		hb_glyph_position_t *glyph_positions = hb_buffer_get_glyph_positions(text.get_buffer(), &num_glyphs);
-		hb_glyph_info_t *glyph_infos = hb_buffer_get_glyph_infos(text.get_buffer(), &num_glyphs);
+		hb_glyph_position_t *glyph_positions = hb_buffer_get_glyph_positions(text._data.get_buffer(), &num_glyphs);
+		hb_glyph_info_t *glyph_infos = hb_buffer_get_glyph_infos(text._data.get_buffer(), &num_glyphs);
 		std::vector<cairo_glyph_t> glyphs;
 		glyphs.reserve(static_cast<std::size_t>(num_glyphs));
 		vec2d pen_pos = pos;
-		pen_pos.y += text.get_ascender();
+		pen_pos.y += text._data.get_ascender();
 		for (unsigned int i = 0; i < num_glyphs; ++i) {
 			cairo_glyph_t &glyph = glyphs.emplace_back();
 			glyph.index = glyph_infos[i].codepoint;

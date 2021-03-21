@@ -8,6 +8,8 @@
 
 #include <gl/GL.h>
 
+#include <skia/core/SkSurfaceProps.h>
+
 #include "../../ui/backends/skia_renderer_base.h"
 #include "misc.h"
 
@@ -34,10 +36,15 @@ namespace codepad::os {
 			vec2d size = wnd.get_client_size();
 			size.x *= scaling.x;
 			size.y *= scaling.y;
-			SkImageInfo image_info = SkImageInfo::MakeN32Premul(
-				static_cast<int>(std::ceil(size.x)), static_cast<int>(std::ceil(size.y))
+			GrGLFramebufferInfo fbinfo;
+			fbinfo.fFBOID = 0; // render to the default framebuffer
+			fbinfo.fFormat = GL_RGBA8;
+			GrBackendRenderTarget target(static_cast<int>(size.x), static_cast<int>(size.y), 1, 0, fbinfo);
+			SkSurfaceProps props(SkSurfaceProps::kLegacyFontHost_InitType);
+			return SkSurface::MakeFromBackendRenderTarget(
+				_skia_context.get(), target, kBottomLeft_GrSurfaceOrigin,
+				kRGBA_8888_SkColorType, _color_space, &props
 			);
-			return SkSurface::MakeRenderTarget(_skia_context.get(), SkBudgeted::kNo, image_info);
 		}
 
 		/// Creates a surface for the window, and registers handlers for when the surface needs to be recreated.
@@ -52,7 +59,7 @@ namespace codepad::os {
 				_pixel_format_descriptor.nVersion = 1;
 				_pixel_format_descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DEPTH_DONTCARE;
 				_pixel_format_descriptor.iPixelType = PFD_TYPE_RGBA;
-				_pixel_format_descriptor.cColorBits = 32;
+				_pixel_format_descriptor.cColorBits = 24; // this does not include the alpha bit planes
 				_pixel_format_descriptor.cAlphaBits = 8;
 				_pixel_format_descriptor.iLayerType = PFD_MAIN_PLANE;
 				_pixel_format = ChoosePixelFormat(hdc, &_pixel_format_descriptor);

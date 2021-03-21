@@ -13,7 +13,7 @@
 #include "../../core/math.h"
 #include "../renderer.h"
 #include "../window.h"
-#include "pango_harfbuzz_text_context.h"
+#include "pango_harfbuzz_text_engine.h"
 
 namespace codepad::ui::cairo {
 	class renderer_base;
@@ -44,6 +44,190 @@ namespace codepad::ui::cairo {
 		}
 	};
 
+	/// Wraps around a \ref pango_harfbuzz::font_data.
+	class font : public ui::font {
+		friend renderer_base;
+	public:
+		/// Initializes \ref _data.
+		explicit font(pango_harfbuzz::font_data d) : ui::font(), _data(std::move(d)) {
+		}
+
+		/// Returns \ref pango_harfbuzz::font_data::get_ascent_em().
+		[[nodiscard]] double get_ascent_em() const override {
+			return _data.get_ascent_em();
+		}
+		/// Returns \ref pango_harfbuzz::font_data::get_line_height_em().
+		[[nodiscard]] double get_line_height_em() const override {
+			return _data.get_line_height_em();
+		}
+
+		/// Returns \ref pango_harfbuzz::font_data::has_character().
+		[[nodiscard]] bool has_character(codepoint cp) const override {
+			return _data.has_character(cp);
+		}
+
+		/// Returns \ref pango_harfbuzz::font_data::get_character_width_em().
+		[[nodiscard]] double get_character_width_em(codepoint cp) const override {
+			return _data.get_character_width_em(cp);
+		}
+	protected:
+		pango_harfbuzz::font_data _data; ///< Font data.
+	};
+
+	/// Wraps around \ref pango_harfbuzz::font_family_data.
+	class font_family : public ui::font_family {
+	public:
+		/// Initializes \ref _data.
+		explicit font_family(pango_harfbuzz::text_engine &eng, pango_harfbuzz::font_family_data d) :
+			ui::font_family(), _data(std::move(d)), _text_engine(&eng) {
+		}
+
+		/// Searches in the cache for a matching font, or creates a new font and caches it.
+		[[nodiscard]] std::shared_ptr<ui::font> get_matching_font(
+			font_style style, font_weight weight, font_stretch stretch
+		) const override {
+			auto &entry = _data.get_cache_entry();
+			auto [it, inserted] = entry.font_faces.try_emplace(pango_harfbuzz::font_params(style, weight, stretch));
+			if (inserted) {
+				auto found = entry.find_font(style, weight, stretch);
+				it->second = std::make_shared<font>(_text_engine->create_font_for_file(
+					reinterpret_cast<const char*>(found.get_font_file_path()), found.get_font_index()
+				));
+			}
+			return it->second;
+		}
+	protected:
+		pango_harfbuzz::font_family_data _data; ///< The font family object.
+		pango_harfbuzz::text_engine *_text_engine = nullptr; ///< The associated text engine used for font loading.
+	};
+
+	/// Wraps around a \ref pango_harfbuzz::plain_text_data.
+	class plain_text : public ui::plain_text {
+		friend renderer_base;
+	public:
+		/// Initializes \ref _data.
+		explicit plain_text(pango_harfbuzz::plain_text_data data) : ui::plain_text(), _data(std::move(data)) {
+		}
+
+		/// Returns \ref pango_harfbuzz::plain_text_data::get_width().
+		[[nodiscard]] double get_width() const override {
+			return _data.get_width();
+		}
+
+		/// Returns \ref pango_harfbuzz::plain_text_data::hit_test().
+		[[nodiscard]] caret_hit_test_result hit_test(double x) const override {
+			return _data.hit_test(x);
+		}
+		/// Returns \ref pango_harfbuzz::plain_text_data::get_character_placement().
+		[[nodiscard]] rectd get_character_placement(std::size_t i) const override {
+			return _data.get_character_placement(i);
+		}
+	protected:
+		pango_harfbuzz::plain_text_data _data; ///< The plain text object.
+	};
+
+	/// Wraps around a \ref 
+	class formatted_text : public ui::formatted_text {
+		friend renderer_base;
+	public:
+		/// Initializes \ref _data.
+		explicit formatted_text(pango_harfbuzz::formatted_text_data data) : ui::formatted_text(), _data(std::move(data)) {
+		}
+
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_layout().
+		[[nodiscard]] rectd get_layout() const override {
+			return _data.get_layout();
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_line_metrics().
+		[[nodiscard]] std::vector<line_metrics> get_line_metrics() const override {
+			return _data.get_line_metrics();
+		}
+
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_num_characters().
+		[[nodiscard]] std::size_t get_num_characters() const override {
+			return _data.get_num_characters();
+		}
+
+		/// Returns \ref pango_harfbuzz::formatted_text_data::hit_test().
+		[[nodiscard]] caret_hit_test_result hit_test(vec2d x) const override {
+			return _data.hit_test(x);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::hit_test_at_line().
+		[[nodiscard]] caret_hit_test_result hit_test_at_line(std::size_t line, double x) const override {
+			return _data.hit_test_at_line(line, x);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_character_placement().
+		[[nodiscard]] rectd get_character_placement(std::size_t i) const override {
+			return _data.get_character_placement(i);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_character_range_placement().
+		[[nodiscard]] std::vector<rectd> get_character_range_placement(
+			std::size_t beg, std::size_t len
+		) const override {
+			return _data.get_character_range_placement(beg, len);
+		}
+
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_layout_size().
+		[[nodiscard]] vec2d get_layout_size() const override {
+			return _data.get_layout_size();
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::set_layout_size().
+		void set_layout_size(vec2d size) override {
+			return _data.set_layout_size(size);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_horizontal_alignment().
+		[[nodiscard]] horizontal_text_alignment get_horizontal_alignment() const override {
+			return _data.get_horizontal_alignment();
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_horizontal_alignment().
+		void set_horizontal_alignment(horizontal_text_alignment align) override {
+			_data.set_horizontal_alignment(align);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_vertical_alignment().
+		[[nodiscard]] vertical_text_alignment get_vertical_alignment() const override {
+			return _data.get_vertical_alignment();
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_vertical_alignment().
+		void set_vertical_alignment(vertical_text_alignment align) override {
+			_data.set_vertical_alignment(align);
+		}
+		/// Returns \ref pango_harfbuzz::formatted_text_data::get_wrapping_mode().
+		[[nodiscard]] wrapping_mode get_wrapping_mode() const override {
+			return _data.get_wrapping_mode();
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_wrapping_mode().
+		void set_wrapping_mode(wrapping_mode wrap) override {
+			_data.set_wrapping_mode(wrap);
+		}
+
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_text_color().
+		void set_text_color(colord c, std::size_t beg, std::size_t len) override {
+			_data.set_text_color(c, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_family().
+		void set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) override {
+			_data.set_font_family(family, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_size().
+		void set_font_size(double size, std::size_t beg, std::size_t len) override {
+			_data.set_font_size(size, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_style().
+		void set_font_style(font_style style, std::size_t beg, std::size_t len) override {
+			_data.set_font_style(style, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_weight().
+		void set_font_weight(font_weight weight, std::size_t beg, std::size_t len) override {
+			_data.set_font_weight(weight, beg, len);
+		}
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_stretch().
+		void set_font_stretch(font_stretch stretch, std::size_t beg, std::size_t len) override {
+			_data.set_font_stretch(stretch, beg, len);
+		}
+	protected:
+		pango_harfbuzz::formatted_text_data _data; ///< The formatted text object.
+	};
+
 	/// Allows for the user to build a path for a \p cairo_t.
 	class path_geometry_builder : public ui::path_geometry_builder {
 		friend renderer_base;
@@ -71,6 +255,33 @@ namespace codepad::ui::cairo {
 		cairo_t *_context = nullptr; ///< The Cairo context.
 	};
 
+
+	namespace _details {
+		using namespace ui::_details;
+
+		/// Casts a \ref ui::font to a \ref font.
+		[[nodiscard]] font &cast_font(ui::font &f) {
+			auto *res = dynamic_cast<font*>(&f);
+			assert_true_logical(res, "invalid font type");
+			return *res;
+		}
+
+		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
+		[[nodiscard]] const formatted_text &cast_formatted_text(const ui::formatted_text &f) {
+			auto *res = dynamic_cast<const formatted_text*>(&f);
+			assert_true_logical(res, "invalid formatted_text type");
+			return *res;
+		}
+
+		/// Casts a \ref ui::plain_text to a \ref plain_text.
+		[[nodiscard]] const plain_text &cast_plain_text(const ui::plain_text &f) {
+			auto *res = dynamic_cast<const plain_text*>(&f);
+			assert_true_logical(res, "invalid plain_text type");
+			return *res;
+		}
+	}
+
+
 	/// Platform-independent base class for Cairo renderers.
 	///
 	/// \todo There are (possibly intended) memory leaks when using this renderer.
@@ -80,16 +291,16 @@ namespace codepad::ui::cairo {
 		/// Calls \p cairo_debug_reset_static_data() to clean up.
 		~renderer_base() {
 			// free pango stuff so cairo can be reset without problems
-			_text_context.deinitialize();
+			_text_engine.deinitialize();
 			cairo_debug_reset_static_data();
 		}
 
 		/// Creates a new image surface as a render target and clears it.
 		render_target_data create_render_target(vec2d size, vec2d scaling_factor, colord clear) override;
 
-		/// Invokes \ref pango_harfbuzz::text_context::find_font_family().
+		/// Invokes \ref pango_harfbuzz::text_engine::find_font_family().
 		std::shared_ptr<ui::font_family> find_font_family(const std::u8string &family) override {
-			return _text_context.find_font_family(family);
+			return std::make_shared<font_family>(_text_engine, _text_engine.find_font_family(family));
 		}
 
 		/// Starts drawing to the given \ref render_target.
@@ -203,12 +414,14 @@ namespace codepad::ui::cairo {
 			_render_stack.top().update_transform();
 		}
 
-		/// Invokes \ref pango_harfbuzz::text_context::create_formatted_text().
+		/// Invokes \ref pango_harfbuzz::text_engine::create_formatted_text().
 		std::shared_ptr<ui::formatted_text> create_formatted_text(
 			std::u8string_view text, const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 			horizontal_text_alignment halign, vertical_text_alignment valign
 		) override {
-			return _text_context.create_formatted_text(text, font, c, size, wrap, halign, valign);
+			return std::make_shared<formatted_text>(
+				_text_engine.create_formatted_text(text, font, c, size, wrap, halign, valign)
+			);
 		}
 		/// \overload
 		std::shared_ptr<ui::formatted_text> create_formatted_text(
@@ -216,28 +429,33 @@ namespace codepad::ui::cairo {
 			const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 			horizontal_text_alignment halign, vertical_text_alignment valign
 		) override {
-			return _text_context.create_formatted_text(utf32, font, c, size, wrap, halign, valign);
+			return std::make_shared<formatted_text>(
+				_text_engine.create_formatted_text(utf32, font, c, size, wrap, halign, valign)
+			);
 		}
 		/// Draws the given \ref formatted_text at the given position.
 		void draw_formatted_text(const ui::formatted_text&, vec2d pos) override;
 
-		/// Invokes \ref pango_harfbuzz::text_context::create_plain_text().
+		/// Invokes \ref pango_harfbuzz::text_engine::create_plain_text().
 		std::shared_ptr<ui::plain_text> create_plain_text(
-			std::u8string_view text, ui::font &fnt, double font_size
+			std::u8string_view text, ui::font &generic_fnt, double font_size
 		) override {
-			return _text_context.create_plain_text(text, fnt, font_size);
+			auto &fnt = _details::cast_font(generic_fnt);
+			return std::make_shared<plain_text>(_text_engine.create_plain_text(text, fnt._data, font_size));
 		}
 		/// \overload
 		std::shared_ptr<ui::plain_text> create_plain_text(
-			std::basic_string_view<codepoint> text, ui::font &fnt, double font_size
+			std::basic_string_view<codepoint> text, ui::font &generic_fnt, double font_size
 		) override {
-			return _text_context.create_plain_text(text, fnt, font_size);
+			auto &fnt = _details::cast_font(generic_fnt);
+			return std::make_shared<plain_text>(_text_engine.create_plain_text(text, fnt._data, font_size));
 		}
-		/// Invokes \ref pango_harfbuzz::text_context::create_plain_text_fast().
+		/// Invokes \ref pango_harfbuzz::text_engine::create_plain_text_fast().
 		std::shared_ptr<ui::plain_text> create_plain_text_fast(
-			std::basic_string_view<codepoint> text, ui::font &fnt, double size
+			std::basic_string_view<codepoint> text, ui::font &generic_fnt, double size
 		) override {
-			return _text_context.create_plain_text_fast(text, fnt, size);
+			auto &fnt = _details::cast_font(generic_fnt);
+			return std::make_shared<plain_text>(_text_engine.create_plain_text_fast(text, fnt._data, size));
 		}
 		/// Renders the given fragment of text.
 		void draw_plain_text(const ui::plain_text&, vec2d, colord) override;
@@ -275,7 +493,7 @@ namespace codepad::ui::cairo {
 
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of currently active render targets.
 		path_geometry_builder _path_builder; ///< The \ref path_geometry_builder.
-		pango_harfbuzz::text_context _text_context; ///< The context for text layout.
+		pango_harfbuzz::text_engine _text_engine; ///< The engine for text layout.
 		/// Pointer to a random window. This is used with \ref _window_data::prev and \ref _window_data::next to keep
 		/// track of all existing windows.
 		window *_random_window = nullptr;

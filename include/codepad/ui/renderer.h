@@ -472,7 +472,7 @@ namespace codepad {
 			///
 			/// \param to The ending point of this arc.
 			/// \param radius The radius before rotation.
-			/// \param rotation The clockwise rotation of the ellipse.
+			/// \param rotation The clockwise rotation of the ellipse in radians.
 			/// \param dir The sweep direction of this arc.
 			/// \param type Indicates whether this is a major arc or a minor one.
 			virtual void add_arc(vec2d to, vec2d radius, double rotation, sweep_direction dir, arc_type type) = 0;

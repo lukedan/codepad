@@ -18,8 +18,9 @@ if(UNIX)
 	set(CODEPAD_USE_GTK YES CACHE BOOL "Whether or not to use GTK3 on Linux.")
 endif()
 
-# backtrace
+# debugging
 set(CODEPAD_ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing backtraces.")
+set(CODEPAD_ENABLE_SANITIZERS NO CACHE BOOL "Whether or not to enable sanitizers provided by compilers.")
 
 
 # main library
@@ -55,9 +56,7 @@ target_sources(codepad_core
 		"include/codepad/os/misc.h"
 		"include/codepad/os/process.h"
 
-		"include/codepad/ui/backends/cairo_renderer_base.h"
-		"include/codepad/ui/backends/pango_harfbuzz_text_context.h"
-		"include/codepad/ui/backends/skia_renderer_base.h"
+		"include/codepad/ui/backends/pango_harfbuzz_text_engine.h"
 
 		"include/codepad/ui/elements/tabs/animated_tab_button_panel.h"
 		"include/codepad/ui/elements/tabs/host.h"
@@ -137,18 +136,28 @@ if(CODEPAD_ENABLE_BACKTRACE)
 	target_compile_definitions(codepad_core
 		PUBLIC CP_LOG_STACKTRACE)
 endif()
+if(CODEPAD_ENABLE_SANITIZERS)
+	if(MSVC)
+		target_compile_options(codepad_core
+			PUBLIC /fsanitize=address)
+	endif()
+endif()
 if(CODEPAD_USE_CAIRO)
 	target_sources(codepad_core
+		PUBLIC
+			"include/codepad/ui/backends/cairo_renderer_base.h"
 		PRIVATE
-			"src/ui/backends/pango_harfbuzz_text_context.cpp"
+			"src/ui/backends/pango_harfbuzz_text_engine.cpp"
 			"src/ui/backends/cairo_renderer_base.cpp")
 	target_compile_definitions(codepad_core
 		PUBLIC CP_USE_CAIRO)
 endif()
 if(CODEPAD_USE_SKIA)
 	target_sources(codepad_core
+		PUBLIC
+			"include/codepad/ui/backends/skia_renderer_base.h"
 		PRIVATE
-			"src/ui/backends/pango_harfbuzz_text_context.cpp"
+			"src/ui/backends/pango_harfbuzz_text_engine.cpp"
 			"src/ui/backends/skia_renderer_base.cpp")
 	target_compile_definitions(codepad_core
 		PUBLIC CP_USE_SKIA)
@@ -160,10 +169,10 @@ set_target_properties(codepad_core PROPERTIES ENABLE_EXPORTS YES)
 # set warning level
 if(MSVC)
 	target_compile_options(codepad_core
-		PRIVATE /W4 /permissive-)
+		PUBLIC /W4 /permissive-)
 elseif(CMAKE_COMPILER_IS_GNUCXX)
 	target_compile_options(codepad_core
-		PRIVATE -Wall -Wextra -Wconversion)
+		PUBLIC -Wall -Wextra -Wconversion)
 endif()
 
 # libraries
@@ -240,11 +249,12 @@ if(WIN32)
 	endif()
 
 	if(CODEPAD_USE_SKIA)
+		find_package(OpenGL REQUIRED)
 		find_package(skia CONFIG REQUIRED)
 
 		target_link_libraries(codepad_core
 			PUBLIC
-				skia skia::skia)
+				OpenGL::GL skia skia::skia)
 	endif()
 elseif(UNIX)
 	target_sources(codepad_core

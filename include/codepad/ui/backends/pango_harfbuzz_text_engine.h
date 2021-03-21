@@ -55,6 +55,8 @@ namespace codepad::ui {
 					FcPatternReference(this->_handle);
 				} else if constexpr (std::is_same_v<T, hb_buffer_t>) { // harfbuzz
 					hb_buffer_reference(this->_handle);
+				} else if constexpr (std::is_same_v<T, hb_font_t>) {
+					hb_font_reference(this->_handle);
 				} else {
 					logger::get().log_error(CP_HERE) <<
 						"add ref operation not implemented for " << demangle(typeid(T).name());
@@ -77,6 +79,8 @@ namespace codepad::ui {
 					FcPatternDestroy(this->_handle);
 				} else if constexpr (std::is_same_v<T, hb_buffer_t>) { // harfbuzz
 					hb_buffer_destroy(this->_handle);
+				} else if constexpr (std::is_same_v<T, hb_font_t>) {
+					hb_font_destroy(this->_handle);
 				} else {
 					logger::get().log_error(CP_HERE) <<
 						"release operation for not implemented for " << demangle(typeid(T).name());
@@ -159,82 +163,13 @@ namespace codepad::ui {
 			res.set_give(face);
 			return res;
 		}
-
-		/// Holds a \p hb_font_t.
-		struct harfbuzz_font_ref final : public reference_counted_handle<harfbuzz_font_ref, hb_font_t*> {
-			friend reference_counted_handle<harfbuzz_font_ref, hb_font_t*>;
-		public:
-			constexpr static hb_font_t *empty_handle = nullptr; ///< The empty handle.
-		protected:
-			/// Calls \p hb_font_reference().
-			void _do_add_ref() {
-				hb_font_reference(this->_handle);
-			}
-			/// Calls \p hb_font_destroy().
-			void _do_release() {
-				hb_font_destroy(this->_handle);
-			}
-		};
-		/// Creates a new \ref harfbuzz_font_ref, and calls \ref harfbuzz_font_ref::set_share() to share the given
-		/// pointer.
-		inline harfbuzz_font_ref make_harfbuzz_font_ref_share(hb_font_t *face) {
-			harfbuzz_font_ref res;
-			res.set_share(face);
-			return res;
-		}
-		/// Creates a new \ref harfbuzz_font_ref, and calls \ref harfbuzz_font_ref::set_give() to give the pointer
-		/// to it.
-		inline harfbuzz_font_ref make_harfbuzz_font_ref_give(hb_font_t *face) {
-			harfbuzz_font_ref res;
-			res.set_give(face);
-			return res;
-		}
 	}
 
 	namespace pango_harfbuzz {
-		class font;
-		class font_family;
-		class plain_text;
-		class text_context;
-
-
-		namespace _details {
-			using namespace ui::_details;
-
-			/// Used as keys of caching entries.
-			struct font_params {
-				/// Default constructor.
-				font_params() = default;
-				/// Initializes all fields of the struct.
-				font_params(font_style sty, font_weight w, font_stretch str) : style(sty), weight(w), stretch(str) {
-				}
-
-				font_style style = font_style::normal; ///< Font style.
-				font_weight weight = font_weight::normal; ///< Font weight.
-				font_stretch stretch = font_stretch::normal; ///< Font stretch.
-
-				/// Support comparison.
-				friend std::strong_ordering operator<=>(font_params, font_params) = default;
-			};
-			/// Hash function for \ref font_params.
-			struct font_params_hash {
-				/// The implementation.
-				std::size_t operator()(const font_params &params) const {
-					std::size_t res = std::hash<font_style>()(params.style);
-					res = combine_hashes(res, std::hash<font_weight>()(params.weight));
-					res = combine_hashes(res, std::hash<font_stretch>()(params.stretch));
-					return res;
-				}
-			};
-
-			/// An entry in the font cache.
-			struct font_family_cache {
-				/// The cached list of font faces.
-				std::unordered_map<font_params, std::shared_ptr<font>, _details::font_params_hash> font_faces;
-				/// A partially-filled \p FcPattern that can be used for searching for font faces.
-				_details::gtk_object_ref<FcPattern> pattern;
-			};
-		}
+		struct font_data;
+		struct font_family_data;
+		struct plain_text_data;
+		class text_engine;
 
 
 		/// Initializes and finalizes Fontconfig.
@@ -257,74 +192,134 @@ namespace codepad::ui {
 			}
 		};
 
+		/// Result of a font lookup operation using Fontconfig.
+		struct find_font_result {
+		public:
+			/// Initializes \ref _pattern.
+			explicit find_font_result(_details::gtk_object_ref<FcPattern> patt) : _pattern(std::move(patt)) {
+			}
+
+			/// Returns the font file name. The returned string lives as long as the underlying \p FcPattern.
+			[[nodiscard]] FcChar8 *get_font_file_path() const {
+				FcChar8 *file_name = nullptr;
+				assert_true_sys(
+					FcPatternGetString(_pattern.get(), FC_FILE, 0, &file_name) == FcResultMatch,
+					"failed to obtain font file name from Fontconfig"
+				);
+				return file_name;
+			}
+			/// Returns the index of the font in the font file.
+			[[nodiscard]] int get_font_index() const {
+				int font_index;
+				FcPatternGetInteger(_pattern.get(), FC_INDEX, 0, &font_index);
+				return font_index;
+			}
+		protected:
+			_details::gtk_object_ref<FcPattern> _pattern; ///< The Fontconfig pattern.
+		};
+
+		/// Used as keys of caching entries.
+		struct font_params {
+			/// Default constructor.
+			font_params() = default;
+			/// Initializes all fields of the struct.
+			font_params(font_style sty, font_weight w, font_stretch str) : style(sty), weight(w), stretch(str) {
+			}
+
+			font_style style = font_style::normal; ///< Font style.
+			font_weight weight = font_weight::normal; ///< Font weight.
+			font_stretch stretch = font_stretch::normal; ///< Font stretch.
+
+			/// Support comparison.
+			friend std::strong_ordering operator<=>(font_params, font_params) = default;
+		};
+		/// Hash function for \ref font_params.
+		struct font_params_hash {
+			/// The implementation.
+			std::size_t operator()(const font_params &params) const {
+				std::size_t res = std::hash<font_style>()(params.style);
+				res = combine_hashes(res, std::hash<font_weight>()(params.weight));
+				res = combine_hashes(res, std::hash<font_stretch>()(params.stretch));
+				return res;
+			}
+		};
+
 		/// Wraps around a \p PangoLayout.
 		///
 		/// \todo \n characters are not shown properly.
-		class formatted_text : public ui::formatted_text {
-			friend text_context;
+		struct formatted_text_data {
+			friend text_engine;
 		public:
 			/// Initializes \ref _layout_size and \ref _valign.
-			formatted_text(vec2d size, vertical_text_alignment valign) : _layout_size(size), _valign(valign) {
+			formatted_text_data(vec2d size, vertical_text_alignment valign) : _layout_size(size), _valign(valign) {
 			}
+			/// Default move construction.
+			formatted_text_data(formatted_text_data&&) = default;
+			/// No copy construction.
+			formatted_text_data(const formatted_text_data&) = delete;
+			/// Default move assignment.
+			formatted_text_data &operator=(formatted_text_data&&) = default;
+			/// No copy assignment.
+			formatted_text_data &operator=(const formatted_text_data&) = delete;
 
 			/// Returns the layout of the text.
-			rectd get_layout() const override;
+			rectd get_layout() const;
 			/// Returns the metrics of each line.
-			std::vector<line_metrics> get_line_metrics() const override;
+			std::vector<line_metrics> get_line_metrics() const;
 
 			/// Returns the length of \ref _bytepos minus 1.
-			std::size_t get_num_characters() const override {
+			std::size_t get_num_characters() const {
 				return _bytepos.size() - 1;
 			}
 
 			/// Invokes \p pango_layout_xy_to_index().
-			caret_hit_test_result hit_test(vec2d) const override;
+			caret_hit_test_result hit_test(vec2d) const;
 			/// Uses \p pango_layout_line_x_to_index() to perform hit testing at the given line.
-			caret_hit_test_result hit_test_at_line(std::size_t, double) const override;
+			caret_hit_test_result hit_test_at_line(std::size_t, double) const;
 			/// Invokes \p pango_layout_index_to_pos().
-			rectd get_character_placement(std::size_t) const override;
+			rectd get_character_placement(std::size_t) const;
 			/// For each line in the text, calls \p pango_layout_line_get_x_ranges() to compute the range of the
 			/// selection.
-			std::vector<rectd> get_character_range_placement(std::size_t beg, std::size_t len) const override;
+			std::vector<rectd> get_character_range_placement(std::size_t beg, std::size_t len) const;
 
 			/// Returns \ref _layout_size.
-			vec2d get_layout_size() const override {
+			vec2d get_layout_size() const {
 				return _layout_size;
 			}
 			/// Sets \ref _layout_size.
-			void set_layout_size(vec2d size) override {
+			void set_layout_size(vec2d size) {
 				_layout_size = size;
 			}
 			/// Returns the result of \p pango_layout_get_alignment().
-			horizontal_text_alignment get_horizontal_alignment() const override;
+			horizontal_text_alignment get_horizontal_alignment() const;
 			/// Sets the horizontal text alignment using \p pango_layout_set_alignment().
-			void set_horizontal_alignment(horizontal_text_alignment) override;
+			void set_horizontal_alignment(horizontal_text_alignment);
 			/// Returns \ref _valign.
-			vertical_text_alignment get_vertical_alignment() const override {
+			vertical_text_alignment get_vertical_alignment() const {
 				return _valign;
 			}
 			/// Sets \ref _valign.
-			void set_vertical_alignment(vertical_text_alignment align) override {
+			void set_vertical_alignment(vertical_text_alignment align) {
 				_valign = align;
 			}
 			/// Checks if a width is currently set using \p pango_layout_get_width(), and returns the corresponding
 			/// mode.
-			wrapping_mode get_wrapping_mode() const override;
+			wrapping_mode get_wrapping_mode() const;
 			/// Sets the wrapping mode of this text using \p pango_layout_set_width() and \p pango_layout_set_wrap().
-			void set_wrapping_mode(wrapping_mode) override;
+			void set_wrapping_mode(wrapping_mode);
 
 			/// Sets the color of the specified range of text.
-			void set_text_color(colord, std::size_t beg, std::size_t len) override;
+			void set_text_color(colord, std::size_t beg, std::size_t len);
 			/// Sets the font family of the specified range of text.
-			void set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) override;
+			void set_font_family(const std::u8string &family, std::size_t beg, std::size_t len);
 			/// Sets the font size of the specified range of text.
-			void set_font_size(double, std::size_t beg, std::size_t len) override;
+			void set_font_size(double, std::size_t beg, std::size_t len);
 			/// Sets the font style of the specified range of text.
-			void set_font_style(font_style, std::size_t beg, std::size_t len) override;
+			void set_font_style(font_style, std::size_t beg, std::size_t len);
 			/// Sets the font weight of the specified range of text.
-			void set_font_weight(font_weight, std::size_t beg, std::size_t len) override;
+			void set_font_weight(font_weight, std::size_t beg, std::size_t len);
 			/// Sets the font stretch of the specified range of text.
-			void set_font_stretch(font_stretch, std::size_t beg, std::size_t len) override;
+			void set_font_stretch(font_stretch, std::size_t beg, std::size_t len);
 
 
 			/// Returns \ref _layout.
@@ -366,34 +361,44 @@ namespace codepad::ui {
 			[[nodiscard]] double _get_horizontal_alignment_offset() const;
 		};
 
-		/// A freetype font.
-		class font : public ui::font {
-			friend text_context;
-			friend font_family;
-			friend plain_text;
+		/// Stores a Freetype font and a Harfbuzz font.
+		struct font_data {
+			friend text_engine;
+			friend font_family_data;
+			friend plain_text_data;
 		public:
+			/// Default constructor.
+			font_data() = default;
 			/// Initializes \ref _face directly.
-			explicit font(_details::freetype_face_ref f) : _face(std::move(f)) {
+			explicit font_data(_details::freetype_face_ref f) : _face(std::move(f)) {
 			}
+			/// Default move construction.
+			font_data(font_data&&) = default;
+			/// No copy construction.
+			font_data(const font_data&) = delete;
+			/// Default move assignment.
+			font_data &operator=(font_data&&) = default;
+			/// No copy assignment.
+			font_data &operator=(const font_data&) = delete;
 
 			/// Returns the ascender of the font.
-			[[nodiscard]] double get_ascent_em() const override {
+			[[nodiscard]] double get_ascent_em() const {
 				// FIXME these fields are only relevant for scalable font formats
 				return _into_em(static_cast<double>(_face->ascender));
 			}
 			/// Returns the distance between consecutive baselines.
-			[[nodiscard]] double get_line_height_em() const override {
+			[[nodiscard]] double get_line_height_em() const {
 				// FIXME these fields are only relevant for scalable font formats
 				return _into_em(static_cast<double>(_face->ascender));
 			}
 
 			/// If \p FT_Get_Char_Index() returns 0, then the character does not have a corresponding glyph in this font.
-			[[nodiscard]] bool has_character(codepoint cp) const override {
+			[[nodiscard]] bool has_character(codepoint cp) const {
 				return FT_Get_Char_Index(_face.get(), static_cast<FT_ULong>(cp)) != 0;
 			}
 
 			/// Loads the corresponding glyph, and returns its horizontal advance.
-			[[nodiscard]] double get_character_width_em(codepoint cp) const override {
+			[[nodiscard]] double get_character_width_em(codepoint cp) const {
 				_details::ft_check(FT_Load_Char(
 					_face.get(), static_cast<FT_ULong>(cp),
 					FT_LOAD_NO_SCALE | FT_LOAD_IGNORE_TRANSFORM | FT_LOAD_LINEAR_DESIGN
@@ -402,7 +407,7 @@ namespace codepad::ui {
 			}
 		protected:
 			_details::freetype_face_ref _face; ///< The Freetype font face.
-			_details::harfbuzz_font_ref _harfbuzz_font; ///< The chached Harfbuzz font. This may be empty.
+			_details::gtk_object_ref<hb_font_t> _harfbuzz_font; ///< The chached Harfbuzz font. This may be empty.
 
 			/// Converts lengths from font design units into EM units. Since the default DPI on windows and ubuntu is 96,
 			/// here we also scale the length accordingly.
@@ -412,29 +417,48 @@ namespace codepad::ui {
 		};
 
 		/// Holds a Fontconfig pattern.
-		class font_family : public ui::font_family {
-			friend text_context;
+		struct font_family_data {
+			friend text_engine;
 		public:
+			/// An entry in the font cache.
+			struct cache_entry {
+				/// Default constructor.
+				cache_entry() = default;
+				/// No copy & move construction.
+				cache_entry(const cache_entry&) = delete;
+				/// No copy & move assignment.
+				cache_entry &operator=(const cache_entry&) = delete;
+
+				/// Finds the font in this font family corresponding to the given \ref font_style, \ref font_weight,
+				/// and \ref font_stretch.
+				[[nodiscard]] find_font_result find_font(font_style, font_weight, font_stretch) const;
+
+				/// The cached list of fonts.
+				std::unordered_map<font_params, std::shared_ptr<ui::font>, font_params_hash> font_faces;
+				/// A partially-filled \p FcPattern that can be used for searching for font faces.
+				_details::gtk_object_ref<FcPattern> pattern;
+			};
+
+
 			/// Initializes all fields of this struct.
-			font_family(text_context &ctx, _details::font_family_cache &entry) : _ctx(ctx), _cache_entry(entry) {
+			explicit font_family_data(cache_entry &entry) : _cache_entry(&entry) {
 			}
 
-			/// Returns a font in this family matching the given description.
-			[[nodiscard]] std::shared_ptr<ui::font> get_matching_font(
-				font_style, font_weight, font_stretch
-			) const override;
+			/// Returns the associated \ref cache_entry.
+			[[nodiscard]] cache_entry &get_cache_entry() const {
+				return *_cache_entry;
+			}
 		protected:
-			text_context &_ctx; ///< The \ref font_context object.
-			_details::font_family_cache &_cache_entry; ///< The entry in \ref text_context::_font_cache.
+			cache_entry *_cache_entry = nullptr; ///< The entry in \ref text_engine::_font_cache.
 		};
 
 		/// Holds a \p hb_buffer_t.
-		class plain_text : public ui::plain_text {
-			friend text_context;
+		struct plain_text_data {
+			friend text_engine;
 		public:
 			/// Directly initializes \ref _buffer.
-			plain_text(
-				_details::gtk_object_ref<hb_buffer_t> buf, const font &fnt,
+			plain_text_data(
+				_details::gtk_object_ref<hb_buffer_t> buf, const font_data &fnt,
 				const FT_Size_Metrics &size_info, std::size_t nchars, double font_size
 			) : _buffer(std::move(buf)), _font(fnt._face), _num_characters(nchars), _font_size(font_size) {
 				_x_scale = static_cast<double>(size_info.x_scale) / 64.0;
@@ -443,15 +467,15 @@ namespace codepad::ui {
 			}
 
 			/// Returns the total width of this text clip.
-			[[nodiscard]] double get_width() const override {
+			[[nodiscard]] double get_width() const {
 				_maybe_calculate_block_map();
 				return _cached_block_positions.back();
 			}
 
 			/// Retrieves information about the character that is below the given horizontal position.
-			[[nodiscard]] caret_hit_test_result hit_test(double x) const override;
+			[[nodiscard]] caret_hit_test_result hit_test(double x) const;
 			/// Returns the space occupied by the character at the given position.
-			[[nodiscard]] rectd get_character_placement(std::size_t i) const override;
+			[[nodiscard]] rectd get_character_placement(std::size_t i) const;
 
 
 			/// Returns \ref _buffer.
@@ -497,36 +521,19 @@ namespace codepad::ui {
 		};
 
 
-		namespace _details {
-			/// Casts a \ref ui::formatted_text to a \ref formatted_text.
-			[[nodiscard]] inline const formatted_text &cast_formatted_text(const ui::formatted_text &t) {
-				auto *rt = dynamic_cast<const formatted_text*>(&t);
-				assert_true_usage(rt, "invalid formatted text type");
-				return *rt;
-			}
-
-			/// Casts a \ref ui::plain_text to a \ref plain_text.
-			[[nodiscard]] inline const plain_text &cast_plain_text(const ui::plain_text &t) {
-				auto *rt = dynamic_cast<const plain_text*>(&t);
-				assert_true_usage(rt, "invalid plain text type");
-				return *rt;
-			}
-		}
-
-
 		/// Context for text layout.
-		class text_context {
-			friend font_family;
+		class text_engine {
+			friend font_family_data;
 		public:
 			/// Initializes Fontconfig, Pango, and Freetype.
-			text_context() {
+			text_engine() {
 				fontconfig_usage::maybe_initialize();
 
 				_details::ft_check(FT_Init_FreeType(&_freetype));
 				_pango_context.set_give(pango_font_map_create_context(pango_cairo_font_map_get_default()));
 			}
 			/// Calls \p cairo_debug_reset_static_data() to clean up.
-			~text_context() {
+			~text_engine() {
 				deinitialize();
 			}
 
@@ -548,7 +555,7 @@ namespace codepad::ui {
 
 
 			/// Creates a new \ref text_format.
-			[[nodiscard]] std::shared_ptr<ui::font_family> find_font_family(const std::u8string &family) {
+			[[nodiscard]] font_family_data find_font_family(const std::u8string &family) {
 				auto [it, inserted] = _font_cache.try_emplace(family);
 				if (inserted) {
 					it->second.pattern = _details::make_gtk_object_ref_give(FcPatternCreate());
@@ -556,18 +563,24 @@ namespace codepad::ui {
 						it->second.pattern.get(), FC_FAMILY, reinterpret_cast<const FcChar8*>(family.c_str())
 					);
 				}
-				return std::make_shared<pango_harfbuzz::font_family>(*this, it->second);
+				return font_family_data(it->second);
+			}
+			/// Creates a \ref font_data object corresponding to the font at the given index in the given file.
+			[[nodiscard]] font_data create_font_for_file(const char *file, int index) {
+				FT_Face face;
+				_details::ft_check(FT_New_Face(_freetype, file, index, &face));
+				return font_data(_details::make_freetype_face_ref_give(face));
 			}
 
 			/// Creates a new \ref formatted_text object.
-			[[nodiscard]] std::shared_ptr<formatted_text> create_formatted_text(
+			[[nodiscard]] formatted_text_data create_formatted_text(
 				std::u8string_view text, const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 				horizontal_text_alignment halign, vertical_text_alignment valign
 			) {
 				return _create_formatted_text_impl(text, font, c, size, wrap, halign, valign);
 			}
 			/// Converts the text to UTF-8, then invokes \ref create_formatted_text().
-			[[nodiscard]] std::shared_ptr<formatted_text> create_formatted_text(
+			[[nodiscard]] formatted_text_data create_formatted_text(
 				std::basic_string_view<codepoint> utf32,
 				const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 				horizontal_text_alignment halign, vertical_text_alignment valign
@@ -584,8 +597,8 @@ namespace codepad::ui {
 			}
 
 			/// Creates a new \ref plain_text object for the given text and font.
-			[[nodiscard]] std::shared_ptr<plain_text> create_plain_text(
-				std::u8string_view text, ui::font &generic_fnt, double font_size
+			[[nodiscard]] plain_text_data create_plain_text(
+				std::u8string_view text, font_data &generic_fnt, double font_size
 			) {
 				auto buf = _details::make_gtk_object_ref_give(hb_buffer_create());
 				codepoint replacement = hb_buffer_get_replacement_codepoint(buf.get());
@@ -600,8 +613,8 @@ namespace codepad::ui {
 				return _create_plain_text_impl(std::move(buf), generic_fnt, font_size);
 			}
 			/// \overload
-			[[nodiscard]] std::shared_ptr<plain_text> create_plain_text(
-				std::basic_string_view<codepoint> text, ui::font &generic_fnt, double font_size
+			[[nodiscard]] plain_text_data create_plain_text(
+				std::basic_string_view<codepoint> text, font_data &generic_fnt, double font_size
 			) {
 				auto buf = _details::make_gtk_object_ref_give(hb_buffer_create());
 				for (std::size_t i = 0; i < text.size(); ++i) {
@@ -610,8 +623,8 @@ namespace codepad::ui {
 				return _create_plain_text_impl(std::move(buf), generic_fnt, font_size);
 			}
 			/// Fast path for plain text creation. Currently no difference from \ref create_plain_text().
-			[[nodiscard]] std::shared_ptr<plain_text> create_plain_text_fast(
-				std::basic_string_view<codepoint> text, ui::font &fnt, double size
+			[[nodiscard]] plain_text_data create_plain_text_fast(
+				std::basic_string_view<codepoint> text, font_data &fnt, double size
 			) {
 				// TODO implement fast path
 				return create_plain_text(text, fnt, size);
@@ -624,18 +637,18 @@ namespace codepad::ui {
 			}
 		protected:
 			/// Cached font information.
-			std::unordered_map<std::u8string, _details::font_family_cache> _font_cache;
+			std::unordered_map<std::u8string, font_family_data::cache_entry> _font_cache;
 			_details::glib_object_ref<PangoContext> _pango_context; ///< The Pango context.
 			FT_Library _freetype = nullptr; ///< The Freetype library.
 
 			/// Creates a new \ref formatted_text object.
-			[[nodiscard]] std::shared_ptr<formatted_text> _create_formatted_text_impl(
+			[[nodiscard]] formatted_text_data _create_formatted_text_impl(
 				std::u8string_view text, const font_parameters&, colord, vec2d size, wrapping_mode,
 				horizontal_text_alignment, vertical_text_alignment
 			);
 			/// Creates a new \ref plain_text from the given \p hb_buffer_t.
-			[[nodiscard]] std::shared_ptr<plain_text> _create_plain_text_impl(
-				_details::gtk_object_ref<hb_buffer_t>, ui::font&, double
+			[[nodiscard]] plain_text_data _create_plain_text_impl(
+				_details::gtk_object_ref<hb_buffer_t>, font_data&, double
 			);
 		};
 	}
