@@ -991,8 +991,22 @@ namespace codepad::os::direct2d {
 	std::shared_ptr<ui::plain_text> renderer::create_plain_text(
 		std::u8string_view text, ui::font &font, double size
 	) {
-		auto utf16 = _details::utf8_to_wstring(text);
-		return _create_plain_text_impl(utf16, font, size);
+		// MultiByteToWideChar converts a codepoint in the invalid range (U+D800 to U+DFFF) into *two* replacement
+		// characters instead of one, which leads to inconsistent results between this function and the UTF-32
+		// version. therefore, we do it manually
+		std::basic_string<WCHAR> text_u16;
+		for (auto it = text.begin(); it != text.end(); ) {
+			codepoint cp;
+			if (!encodings::utf8::next_codepoint(it, text.end(), cp)) {
+				cp = encodings::replacement_character;
+			} else if (cp >= encodings::invalid_min && cp <= encodings::invalid_max) {
+				cp = encodings::replacement_character;
+			}
+
+			auto cp_bytes = encodings::utf16<>::encode_codepoint(cp);
+			text_u16.append(reinterpret_cast<const WCHAR*>(cp_bytes.data()), cp_bytes.size() / 2);
+		}
+		return _create_plain_text_impl(text_u16, font, size);
 	}
 
 	std::shared_ptr<ui::plain_text> renderer::create_plain_text(
@@ -1000,6 +1014,11 @@ namespace codepad::os::direct2d {
 	) {
 		std::basic_string<std::byte> bytestr;
 		for (codepoint cp : text) {
+			// a codepoint in the invalid range will mislead the plain_text creation code to treat it as the start of
+			// a surrogate pair
+			if (cp >= encodings::invalid_min && cp <= encodings::invalid_max) {
+				cp = encodings::replacement_character;
+			}
 			bytestr += encodings::utf16<>::encode_codepoint(cp);
 		}
 		return _create_plain_text_impl(

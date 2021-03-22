@@ -83,10 +83,11 @@ namespace codepad {
 				return 4;
 			}
 
-			/// Moves the iterator to the next codepoint, extracting the current codepoint to \p v, and returns whether
-			/// it is valid. The caller is responsible of determining if <tt>i == end</tt>. If the codepoint is not
-			/// valid, \p v will contain the byte that \p i initially points to, and \p i will be moved to point to the
-			/// next byte.
+			/// Moves the iterator to the next codepoint, extracting the current codepoint to \p v, and returns
+			/// whether it is valid. The caller is responsible of determining if <tt>i == end</tt> before this call.
+			/// If the codepoint is not valid, \p v will contain the byte that \p i initially points to, and \p i
+			/// will be moved to point to the next byte. This function does not check if the resulting codepoint lies
+			/// between \ref invalid_min and \ref invalid_max.
 			template <typename It1, typename It2> inline static bool next_codepoint(
 				It1 &i, const It2 &end, codepoint &v
 			) {
@@ -141,9 +142,7 @@ namespace codepad {
 				++i;
 				return true;
 			}
-			/// Moves the iterator to the next codepoint and returns whether it is valid. The caller is responsible
-			/// of determining if <tt>i == end</tt>. If the codepoint is not valid, \p v will contain the byte that
-			/// \p i initially points to, and \p i will be moved to point to the next byte.
+			/// \overload
 			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
 				std::byte fb = _get(i);
 				if ((fb & mask_1) != patt_1) {
@@ -234,8 +233,8 @@ namespace codepad {
 				return 4;
 			}
 
-			/// Moves the iterator to the next codepoint, extracting the current codepoint,
-			/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
+			/// Moves the iterator to the next codepoint, extracting the current codepoint, and returns whether it is
+			/// valid. The caller is responsible of determining if <tt>i == end</tt> before the call.
 			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint &v) {
 				std::uint16_t word;
 				if (!_extract_word(i, end, word)) {
@@ -268,8 +267,7 @@ namespace codepad {
 				}
 				return true;
 			}
-			/// Moves the iterator to the next codepoint and returns whether it is valid.
-			/// The caller is responsible of determining if <tt>i == end</tt>.
+			/// \overload
 			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
 				std::uint16_t word;
 				if (!_extract_word(i, end, word)) {
