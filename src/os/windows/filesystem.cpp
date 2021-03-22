@@ -49,17 +49,14 @@ namespace codepad::os {
 	}
 
 
-	file_mapping::file_mapping(file_mapping &&rhs) : _ptr(rhs._ptr), _handle(rhs._handle) {
-		rhs._ptr = nullptr;
-		rhs._handle = nullptr;
+	file_mapping::file_mapping(file_mapping &&rhs) noexcept :
+		_ptr(std::exchange(rhs._ptr, nullptr)), _handle(std::exchange(rhs._handle, nullptr)) {
 	}
 
 	file_mapping &file_mapping::operator=(file_mapping &&rhs) {
 		unmap();
-		_ptr = rhs._ptr;
-		_handle = rhs._handle;
-		rhs._ptr = nullptr;
-		rhs._handle = nullptr;
+		_ptr = std::exchange(rhs._ptr, nullptr);
+		_handle = std::exchange(rhs._handle, nullptr);
 		return *this;
 	}
 

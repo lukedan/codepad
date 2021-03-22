@@ -6,6 +6,7 @@
 /// \file
 /// Implementation of a generic binary tree.
 
+#include <utility>
 #include <stack>
 #include <functional>
 
@@ -170,9 +171,8 @@ namespace codepad {
 			/// Default copy constructor.
 			node_value_modifier(const node_value_modifier&) = default;
 			/// Move constructor.
-			node_value_modifier(node_value_modifier &&mod) noexcept : _n(mod._n), _synth(mod._synth) {
-				mod._n = nullptr;
-				mod._synth = nullptr;
+			node_value_modifier(node_value_modifier &&mod) noexcept :
+				_n(std::exchange(mod._n, nullptr)), _synth(std::exchange(mod._synth, nullptr)) {
 			}
 			/// Calls \ref manual_refresh() before copying.
 			node_value_modifier &operator=(const node_value_modifier &mod) {
@@ -184,10 +184,8 @@ namespace codepad {
 			/// Calls \ref manual_refresh() before moving the contents.
 			node_value_modifier &operator=(node_value_modifier &&mod) noexcept {
 				manual_refresh();
-				_n = mod._n;
-				_synth = mod._synth;
-				mod._n = nullptr;
-				mod._synth = nullptr;
+				_n = std::exchange(mod._n, nullptr);
+				_synth = std::exchange(mod._synth, nullptr);
 				return *this;
 			}
 			/// Calls \ref manual_refresh() to update the synthesized values in the tree.
@@ -237,29 +235,23 @@ namespace codepad {
 				_con(it._con), _n(it._n) {
 			}
 
-			/// Equality of two \ref iterator_base instances.
-			friend bool operator==(const iterator_base &lhs, const iterator_base &rhs) {
-				return lhs._con == rhs._con && lhs._n == rhs._n;
-			}
-			/// Inequality of two \ref iterator_base instances.
-			friend bool operator!=(const iterator_base &lhs, const iterator_base &rhs) {
-				return !(lhs == rhs);
-			}
+			/// Equality - compares all fields directly.
+			friend bool operator==(const iterator_base&, const iterator_base&) = default;
 
 			/// Prefix increment.
-			iterator_base &operator++() {
+			[[nodiscard]] iterator_base &operator++() {
 				assert_true_logical(_n != nullptr, "cannot increment iterator");
 				_n = _n->next();
 				return *this;
 			}
 			/// Postfix increment.
-			const iterator_base operator++(int) {
+			[[nodiscard]] const iterator_base operator++(int) {
 				iterator_base ov = *this;
 				++*this;
 				return ov;
 			}
 			/// Prefix decrement.
-			iterator_base &operator--() {
+			[[nodiscard]] iterator_base &operator--() {
 				if (_n) {
 					_n = _n->prev();
 					assert_true_logical(_n != nullptr, "cannot decrement iterator");
@@ -269,7 +261,7 @@ namespace codepad {
 				return *this;
 			}
 			/// Postfix decrement.
-			const iterator_base operator--(int) {
+			[[nodiscard]] const iterator_base operator--(int) {
 				iterator_base ov = *this;
 				--*this;
 				return ov;
@@ -279,32 +271,32 @@ namespace codepad {
 			/// The caller is responsible of calling \ref refresh_synthesized_result(binary_tree_node*) afterwards.
 			///
 			/// \return A reference to \ref binary_tree_node::value.
-			T &get_value_rawmod() const {
+			[[nodiscard]] T &get_value_rawmod() const {
 				return _n->value;
 			}
 			/// Returns the readonly value of the node.
-			const T &get_value() const {
+			[[nodiscard]] const T &get_value() const {
 				return _n->value;
 			}
 			/// Returns a corresponding \ref node_value_modifier.
-			node_value_modifier<Synth> get_modifier() const {
+			[[nodiscard]] node_value_modifier<Synth> get_modifier() const {
 				return _con->get_modifier_for(_n);
 			}
 			/// Returns the readonly value of the node.
-			const T &operator*() const {
+			[[nodiscard]] const T &operator*() const {
 				return get_value();
 			}
 			/// Returns the readonly value of the node.
-			const T *operator->() const {
+			[[nodiscard]] const T *operator->() const {
 				return &get_value();
 			}
 
 			/// Returns the underlying node.
-			node *get_node() const {
+			[[nodiscard]] node *get_node() const {
 				return _n;
 			}
 			/// Returns the tree that this iterator belongs to.
-			container_type *get_container() const {
+			[[nodiscard]] container_type *get_container() const {
 				return _con;
 			}
 		protected:
@@ -342,8 +334,8 @@ namespace codepad {
 		binary_tree(const binary_tree &tree) : _synth(tree._synth), _root(clone_tree(tree._root)) {
 		}
 		/// Move constructor. Moves the root pointer.
-		binary_tree(binary_tree &&tree) noexcept : _synth(std::move(tree._synth)), _root(tree._root) {
-			tree._root = nullptr;
+		binary_tree(binary_tree &&tree) noexcept :
+			_synth(std::move(tree._synth)), _root(std::exchange(tree._root, nullptr)) {
 		}
 		/// Copy assignment. Clones the tree after deleting the old one.
 		binary_tree &operator=(const binary_tree &tree) {
@@ -356,8 +348,7 @@ namespace codepad {
 		binary_tree &operator=(binary_tree &&tree) noexcept {
 			delete_tree(_root);
 			_synth = std::move(tree._synth);
-			_root = tree._root;
-			tree._root = nullptr;
+			_root = std::exchange(tree._root, nullptr);
 			return *this;
 		}
 		/// Destructor. Calls delete_tree(binary_tree_node*) to dispose of all nodes.

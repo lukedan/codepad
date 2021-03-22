@@ -33,7 +33,7 @@ There's currently a `.clang-format` file in the project root, but it is not used
 - Use forward slashes (`/`) in include paths.
 
 ## Regarding `int`
-Codepad uses unsigned integers (especially `std::size_t`) extensively. Try follow these rules when determining the type of a new integral variable:
+Codepad uses unsigned integers (especially `std::size_t`) extensively. Try to follow these rules when determining the type of a new integral variable:
 
 - Firstly, if you're interfacing with a library, use whichever type the library uses.
 - If you need an integral variable to store a count/index, use `std::size_t`.

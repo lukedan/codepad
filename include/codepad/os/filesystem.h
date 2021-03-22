@@ -66,7 +66,7 @@ namespace codepad::os {
 		/// Initializes the \ref file_mapping to empty.
 		file_mapping() = default;
 		/// Move constructor.
-		file_mapping(file_mapping&&);
+		file_mapping(file_mapping&&) noexcept;
 		/// Move assignment.
 		file_mapping &operator=(file_mapping&&);
 		/// Calls unmap() to unmap the file.
@@ -150,14 +150,12 @@ namespace codepad::os {
 		/// Initializes the \ref file to empty.
 		file() = default;
 		/// Move constructor.
-		file(file &&rhs) noexcept : _handle(rhs._handle) {
-			rhs._handle = empty_handle;
+		file(file &&rhs) noexcept : _handle(std::exchange(rhs._handle, empty_handle)) {
 		}
 		/// Move assignment.
 		file &operator=(file &&rhs) noexcept {
 			close();
-			_handle = rhs._handle;
-			rhs._handle = empty_handle;
+			_handle = std::exchange(rhs._handle, empty_handle);
 			return *this;
 		}
 		/// Calls close() to close the file.

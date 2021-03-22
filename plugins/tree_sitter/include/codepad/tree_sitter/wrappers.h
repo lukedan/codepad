@@ -18,16 +18,14 @@ namespace codepad::tree_sitter {
 		explicit pointer_wrapper(T *ptr) : _ptr(ptr) {
 		}
 		/// Move construction.
-		pointer_wrapper(pointer_wrapper &&src) : _ptr(src._ptr) {
-			src._ptr = nullptr;
+		pointer_wrapper(pointer_wrapper &&src) : _ptr(std::exchange(src._ptr, nullptr)) {
 		}
 		/// No copy construction.
 		pointer_wrapper(const pointer_wrapper&) = delete;
 		/// Move assignment.
 		pointer_wrapper &operator=(pointer_wrapper &&src) {
 			_delete();
-			_ptr = src._ptr;
-			src._ptr = nullptr;
+			_ptr = std::exchange(src._ptr, nullptr);
 			return *this;
 		}
 		/// No copy assignment.

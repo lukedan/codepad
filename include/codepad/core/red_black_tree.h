@@ -9,8 +9,8 @@
 namespace codepad::red_black_tree {
 	/// The color of a node.
 	enum class color : unsigned char {
-		black, ///< Black.
-		red ///< Red.
+		black, ///< The node is black. All \p nullptr children are considered black.
+		red ///< The node is red. Both its children should be black (or \p nullptr, which are considered black).
 	};
 
 	/// Access a red-black flag in a node's value through the given member pointer.

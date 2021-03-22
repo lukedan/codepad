@@ -50,8 +50,7 @@ namespace codepad {
 			/// Move constructor.
 			log_entry(log_entry &&src) noexcept :
 				_contents(std::move(src._contents)), _pos(std::move(src._pos)),
-				_parent(src._parent), _level(src._level) {
-				src._parent = nullptr;
+				_parent(std::exchange(src._parent, nullptr)), _level(src._level) {
 			}
 			/// No copy construction.
 			log_entry(const log_entry&) = delete;
@@ -60,9 +59,8 @@ namespace codepad {
 				_flush();
 				_contents = std::move(src._contents);
 				_pos = std::move(src._pos);
-				_parent = src._parent;
+				_parent = std::exchange(src._parent, nullptr);
 				_level = src._level;
-				src._parent = nullptr;
 				return *this;
 			}
 			/// No copy assignment.

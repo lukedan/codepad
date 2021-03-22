@@ -336,8 +336,8 @@ namespace codepad {
 			_check_add_ref();
 		}
 		/// Move constructor.
-		reference_counted_handle(reference_counted_handle &&src) noexcept : _handle(src._handle) {
-			src._handle = nullptr;
+		reference_counted_handle(reference_counted_handle &&src) noexcept :
+			_handle(std::exchange(src._handle, nullptr)) {
 		}
 		/// Copy assignment.
 		reference_counted_handle &operator=(const reference_counted_handle &src) {
@@ -346,8 +346,7 @@ namespace codepad {
 		}
 		/// Move assignment.
 		reference_counted_handle &operator=(reference_counted_handle &&src) noexcept {
-			set_give(src._handle);
-			src._handle = nullptr;
+			set_give(std::exchange(src._handle, nullptr));
 			return *this;
 		}
 		/// Calls \ref _check_release().

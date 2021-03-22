@@ -39,16 +39,14 @@ namespace codepad::os {
 		/// Default constructor.
 		dynamic_library() = default;
 		/// Move constructor.
-		dynamic_library(dynamic_library &&src) noexcept : _handle(src._handle) {
-			src._handle = empty_handle;
+		dynamic_library(dynamic_library &&src) noexcept : _handle(std::exchange(src._handle, empty_handle)) {
 		}
 		/// No copy construction.
 		dynamic_library(const dynamic_library&) = delete;
 		/// Move assignment.
 		dynamic_library &operator=(dynamic_library &&src) noexcept {
 			unload();
-			_handle = src._handle;
-			src._handle = empty_handle;
+			_handle = std::exchange(src._handle, empty_handle);
 			return *this;
 		}
 		/// No copy assignment.
