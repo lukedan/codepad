@@ -27,6 +27,10 @@ namespace codepad::ui::tabs {
 			return _transition;
 		}
 
+		/// Returns the role of \ref _host.
+		inline static std::u8string_view get_host_role() {
+			return u8"host";
+		}
 		/// Returns the default class of elements of type \ref tab.
 		inline static std::u8string_view get_default_class() {
 			return u8"animated_tab_buttons_panel";
@@ -90,14 +94,11 @@ namespace codepad::ui::tabs {
 		/// The transition function.
 		std::function<double(double)> _transition = transition_functions::convex_quadratic;
 		double _animation_duration = 0.1; ///< Duration of tab button animations.
+		host *_host; ///< The \ref host that owns this panel.
 
-		/// Returns the \ref host that owns this panel.
-		host *_get_host() const {
-			return dynamic_cast<host*>(logical_parent());
-		}
 		/// Returns the \ref tab_manager of the \ref host that owns this panel.
 		tab_manager &_get_tab_manager() const {
-			return _get_host()->get_tab_manager();
+			return _host->get_tab_manager();
 		}
 
 		/// Returns the \ref _child_data corresponding to the given \ref element.
@@ -252,7 +253,7 @@ namespace codepad::ui::tabs {
 		/// Called when \ref tab_manager::drag_move_tab_button is invoked.
 		void _on_drag_update(tab_drag_update_info &info) {
 			// update position in tab list
-			host *host = _get_host();
+			host *host = _host;
 			tab_manager &man = _get_tab_manager();
 			tab_button &dragbtn = man.get_dragging_tab()->get_button();
 			double accu = 0.0, relpos =
@@ -288,6 +289,15 @@ namespace codepad::ui::tabs {
 			);
 			auto *data = _get_data(dragbtn);
 			data->set_offset(*this, dragbtn, curpos - accu);
+		}
+
+		/// Handles \ref _host.
+		bool _handle_reference(std::u8string_view role, element *elem) override {
+			if (role == get_host_role()) {
+				_reference_cast_to(_host, elem);
+				return true;
+			}
+			return stack_panel::_handle_reference(role, elem);
 		}
 	};
 }

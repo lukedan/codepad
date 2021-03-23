@@ -300,17 +300,9 @@ namespace codepad::ui {
 		/// Finds the element with the largest Z-index that is interactive and contains the given point.
 		element *_hit_test_for_child(const mouse_position&) const;
 
-		/// Calls \ref class_arrangements::construct_children() to construct children elements.
-		void _initialize(std::u8string_view cls) override;
 		/// For each child, removes it from \ref _children, and marks it for disposal if \ref _dispose_children is
 		/// \p true.
 		void _dispose() override;
-
-		/// Returns a \ref class_arrangements::notify_mapping that contains information about children that are
-		/// relevant to the logic of this \ref panel.
-		virtual class_arrangements::notify_mapping _get_child_notify_mapping() {
-			return class_arrangements::notify_mapping();
-		}
 
 		/// Returns \ref element::_parent_data.
 		inline static const std::any &_child_get_parent_data(const element &e) {
@@ -334,10 +326,6 @@ namespace codepad::ui {
 		/// Sets the layout of a given child.
 		inline static void _child_set_layout(element &e, rectd r) {
 			e._layout = r;
-		}
-		/// Sets the logical parent of a child.
-		inline static void _child_set_logical_parent(element &e, panel *logparent) {
-			e._logical_parent = logparent;
 		}
 
 		/// Calls \ref element::_on_render on a given child.
@@ -365,19 +353,6 @@ namespace codepad::ui {
 		/// Similar to \ref _get_total_horizontal_absolute_span().
 		static std::optional<double> _get_total_vertical_absolute_span(const element_collection&);
 
-
-		/// Used by composite elements to automatically check and cast a component pointer to the correct type, and
-		/// assign it to the given pointer.
-		template <typename Elem> inline static class_arrangements::construction_notify _name_cast(Elem *&elem) {
-			return [ppelem = &elem](element *ptr) {
-				*ppelem = dynamic_cast<Elem*>(ptr);
-				if (*ppelem == nullptr) {
-					logger::get().log_error(CP_HERE) <<
-						"incorrect component type, need " << demangle(typeid(Elem).name()) <<
-						", found " << demangle(typeid(*ptr).name());
-				}
-			};
-		}
 
 		element_collection _children{ *this }; ///< The collection of its children.
 		/// Caches the cursor of the child that the mouse is over.

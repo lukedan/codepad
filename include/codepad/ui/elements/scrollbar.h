@@ -24,22 +24,32 @@ namespace codepad::ui {
 			invalidate_layout();
 		}
 
+		/// Returns the role of \ref _scrollbar.
+		inline static std::u8string_view get_scrollbar_role() {
+			return u8"scrollbar";
+		}
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
 			return u8"scrollbar_drag_button";
 		}
 	protected:
+		scrollbar *_scrollbar = nullptr; ///< The \ref scrollbar that owns this button.
 		double
 			_doffset = 0.0, ///< The offset of the mouse when the button is being dragged.
 			_min_length = 15.0; ///< The minimum length of this butten.
 
 		/// Returns the \ref scrollbar that this button belongs to.
-		scrollbar &_get_bar() const;
+		[[nodiscard]] scrollbar &_get_bar() const {
+			return *_scrollbar;
+		}
 
 		/// Sets \ref _doffset accordingly if dragging starts.
 		void _on_mouse_down(mouse_button_info&) override;
 		/// Updates the value of the parent \ref scrollbar when dragging.
 		void _on_mouse_move(mouse_move_info&) override;
+
+		/// Handles \ref _scrollbar.
+		bool _handle_reference(std::u8string_view, element*) override;
 	};
 
 	/// A scroll bar.
@@ -251,12 +261,10 @@ namespace codepad::ui {
 					}, callback
 				) || panel::_register_event(name, std::move(callback));
 		}
-
-		/// Adds \ref _drag, \ref _pgup, and \ref _pgdn to the mapping.
-		class_arrangements::notify_mapping _get_child_notify_mapping() override;
-
-		/// Initializes the three buttons and adds them as children.
-		void _initialize(std::u8string_view cls) override;
+		/// Handles the \p orientation, \p smooth_scroll_duration, and \p smoothing properties.
+		property_info _find_property_path(const property_path::component_list &path) const override;
+		/// Handles \ref _drag, \ref _pgup, and \ref _pgdn.
+		bool _handle_reference(std::u8string_view, element*) override;
 
 		/// Called after the orientation has been changed. Invalidates the layout of all components.
 		virtual void _on_orientation_changed() {
@@ -292,8 +300,5 @@ namespace codepad::ui {
 		virtual void _on_smoothing_changed() {
 			_initiate_smooth_scrolling();
 		}
-
-		/// Handles the \p orientation, \p smooth_scroll_duration, and \p smoothing properties.
-		property_info _find_property_path(const property_path::component_list &path) const override;
 	};
 }

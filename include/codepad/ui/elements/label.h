@@ -193,8 +193,9 @@ namespace codepad::ui {
 		property_info _find_property_path(const property_path::component_list&) const override;
 
 		/// Creates an empty \ref formatted_text.
-		void _initialize(std::u8string_view cls) override {
-			element::_initialize(cls);
+		void _initialize() override {
+			element::_initialize();
+
 			_formatted_text = get_manager().get_renderer().create_formatted_text(
 				u8"", _font, _text_color, vec2d(),
 				wrapping_mode::none, horizontal_text_alignment::front, vertical_text_alignment::top

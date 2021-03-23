@@ -18,44 +18,51 @@ Items in this list are not sorted by any specific order.
 			- [ ] MacOS
 		- [x] _Better error handling for filesystem API_
 - [ ] User interface
-	- [ ] Popups
-	- [ ] Sublime-style input prompt
-		- [ ] Virtualized listbox
-		- [ ] Fuzzy searcing
-	- [ ] Add measure phase to reduce the complexity of layout computation from O(n²)
-	- [x] _Cairo renderer (cross-platform portion)_
-	- [ ] Pango-harfbuzz text handling
-		- [x] _Basic implementation_
-		- [ ] Performance optimization
-		- [ ] DPI scaling & minimap rendering
-		- [ ] Memory leaks
-	- [x] _Async tasks_
-	- [ ] Brush extend modes
-	- [ ] OS specific
-		- [ ] Windows
-			- [x] _Direct2D renderer_
-			- [ ] Cairo renderer
-				- [x] _Base implementation_
-				- [ ] Fix compatibility issues
-				- [ ] Improve performance
-			- [x] _Fix open file dialog with the new API_
-			- [ ] WinAPI window styles are not orthogonal
-		- [ ] Linux
-			- [ ] Cairo renderer
-				- [x] _Base implementation_
-				- [ ] Bitmap loading
-				- [ ] Assert on exit
-			- [ ] Better DPI scaling support
-			- [ ] Clipboard support
-			- [ ] Skia renderer
-			- [ ] Either revive or cut the X11 code
-		- [ ] MacOS port not yet implemented
-			- [ ] Window
-			- [ ] Cairo renderer
-			- [ ] Skia renderer
-			- [ ] Miscellaneous OS-specific functions
-	- [ ] Image assets & images for different DPI
-	- [ ] Skia renderer (cross-platform portion)
+	- [ ] Foundation
+		- [x] _Async tasks_
+		- [ ] Add measure phase to reduce the complexity of layout computation from O(n²)
+		- [ ] Image assets & images for different DPI
+		- [ ] Brush extend modes
+		- [ ] Pango-harfbuzz text handling
+			- [x] _Basic implementation_
+			- [ ] Performance optimization
+			- [ ] DPI scaling & minimap rendering
+			- [ ] Memory leaks
+		- [x] _Cairo renderer (cross-platform portion)_
+		- [ ] Skia renderer (cross-platform portion)
+		- [x] _Element references_
+		- [ ] OS specific
+			- [ ] Windows
+				- [x] _Direct2D renderer_
+				- [ ] Cairo renderer
+					- [x] _Base implementation_
+					- [ ] Fix compatibility issues
+					- [ ] Improve performance
+				- [ ] Skia renderer
+				- [x] _Fix open file dialog with the new API_
+				- [ ] WinAPI window styles are not orthogonal
+			- [ ] Linux
+				- [ ] Cairo renderer
+					- [x] _Base implementation_
+					- [ ] Bitmap loading
+					- [ ] Assert on exit
+				- [ ] Skia renderer
+				- [ ] Better DPI scaling support
+				- [ ] Clipboard support
+				- [ ] Either revive or cut the X11 code
+			- [ ] MacOS
+				- [ ] Window
+				- [ ] Cairo renderer
+				- [ ] Skia renderer
+				- [ ] Miscellaneous OS-specific functions
+	- [ ] Elements
+		- [ ] Popups
+		- [ ] Sublime-style input prompt
+			- [ ] Virtualized listbox
+			- [ ] Fuzzy searcing
+		- [ ] Tabs
+			- [x] _Base implementation_
+			- [ ] Multiple selection
 - [ ] Editor
 	- [x] _Text editing_
 	- [x] _Multiple cursors_

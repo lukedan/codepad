@@ -19,6 +19,8 @@
 #include "theme_manager.h"
 
 namespace codepad::editors {
+	class editor;
+
 	/// The base class of content regions.
 	class contents_region_base : public ui::element {
 	public:
@@ -76,16 +78,28 @@ namespace codepad::editors {
 			return _selection_renderer;
 		}
 
+		/// Returns the \ref editor that contains this element.
+		[[nodiscard]] editor &get_editor() const {
+			return *_editor;
+		}
+
+
 		info_event<>
 			/// Invoked when the visual of the contents has changed, e.g., when it is modified, when the document
 			/// that's being edited is changed, or when the font has been changed, etc.
 			content_visual_changed,
 			/// Invoked when the input mode changes from insert to overwrite or the other way around.
 			edit_mode_changed;
+
+		/// Returns the role for the editor reference.
+		[[nodiscard]] inline static std::u8string_view get_editor_role() {
+			return u8"editor";
+		}
 	protected:
 		ui::visuals _caret_visuals; ///< The visuals of carets.
 		std::shared_ptr<decoration_renderer> _selection_renderer; ///< The \ref decoration_renderer.
 		text_theme_specification _text_theme; ///< Default text theme.
+		editor *_editor = nullptr; ///< The \ref editor that contains this element.
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 
 		/// Handles the registration of \p mode_changed_insert and \p mode_changed_overwrite events.
@@ -98,10 +112,15 @@ namespace codepad::editors {
 		}
 		/// Handles the \p caret_visuals, \p selection_renderer, and \p text_theme properties.
 		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
+		/// Handles \ref _editor and calls \ref _on_editor_reference_registered().
+		bool _handle_reference(std::u8string_view, element*) override;
 
 		/// Invoked when \ref _text_theme has been changed. By default this simply calls \ref invalidate_visual().
 		virtual void _on_text_theme_changed() {
 			invalidate_visual();
+		}
+		/// Invoked after \ref _editor has been set. Does nothing by default.
+		virtual void _on_editor_reference_registered() {
 		}
 	};
 
@@ -177,11 +196,6 @@ namespace codepad::editors {
 		/// Retrieves the setting entry that determines the list of interaction modes used in code editors.
 		static settings::retriever_parser<std::vector<std::u8string>> &get_interaction_modes_setting(settings&);
 
-		/// Returns the \ref editor that's the logical parent of the given \ref ui::element.
-		inline static editor *get_encapsulating(const ui::element &e) {
-			return dynamic_cast<editor*>(e.logical_parent());
-		}
-
 		/// Returns the default class of all elements of type \ref editor.
 		inline static std::u8string_view get_default_class() {
 			return u8"editor";
@@ -222,16 +236,7 @@ namespace codepad::editors {
 			_contents->on_text_input(info.content);
 		}
 
-		/// Adds \ref _vert_scroll, \ref _hori_scroll, and \ref _contents to the mapping.
-		ui::class_arrangements::notify_mapping _get_child_notify_mapping() override {
-			auto mapping = panel::_get_child_notify_mapping();
-			mapping.emplace(get_vertical_scrollbar_name(), _name_cast(_vert_scroll));
-			mapping.emplace(get_horizontal_scrollbar_name(), _name_cast(_hori_scroll));
-			mapping.emplace(get_contents_region_name(), _name_cast(_contents));
-			return mapping;
-		}
-
-		/// Initializes \ref _hori_scroll, \ref _vert_scroll and \ref _contents.
-		void _initialize(std::u8string_view) override;
+		/// Handles \ref _vert_scroll, \ref _hori_scroll, and \ref _contents, and registers for events.
+		bool _handle_reference(std::u8string_view, element*) override;
 	};
 }

@@ -53,18 +53,17 @@ namespace codepad::ui {
 				}
 			}
 
-			if (auto ani_from = val.template parse_optional_member<std::u8string_view>(u8"inherit_animations_from")) {
-				if (auto *ancestor = get_manager().get_class_arrangements().get(ani_from.value())) {
-					value.event_triggers = ancestor->configuration.event_triggers;
-				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid animation inheritance";
-				}
-			}
 			if (auto animations = val.template parse_optional_member<object_t>(u8"animations")) {
 				for (auto sbit = animations->member_begin(); sbit != animations->member_end(); ++sbit) {
 					if (auto ani_obj = sbit.value().template cast<object_t>()) {
 						element_configuration::event_trigger trigger;
-						trigger.identifier = element_configuration::event_identifier::parse_from_string(sbit.name());
+						// parse instigator
+						split_string(U'.', sbit.name(), [&](std::u8string_view part) {
+							trigger.instigator.emplace_back(part);
+						});
+						trigger.event_name = std::move(trigger.instigator.back());
+						trigger.instigator.pop_back();
+						// parse animation
 						for (auto aniit = ani_obj->member_begin(); aniit != ani_obj->member_end(); ++aniit) {
 							property_path::component_list components;
 							auto res = property_path::parser::parse(aniit.name(), components);
@@ -77,7 +76,7 @@ namespace codepad::ui {
 							aniparams.subject = std::move(components);
 							if (auto ani = aniit.value().template parse<generic_keyframe_animation_definition>(
 								managed_json_parser<generic_keyframe_animation_definition>(get_manager())
-								)) {
+							)) {
 								aniparams.definition = ani.value();
 							} else {
 								continue;
@@ -88,6 +87,19 @@ namespace codepad::ui {
 					}
 				}
 			}
+			if (auto references = val.template parse_optional_member<object_t>(u8"references")) {
+				for (auto refit = references->member_begin(); refit != references->member_end(); ++refit) {
+					if (auto name = refit.value().cast<std::u8string_view>()) {
+						element_configuration::reference ref;
+						ref.role = refit.name();
+						split_string(U'.', name.value(), [&](std::u8string_view part) {
+							ref.name.emplace_back(part);
+						});
+						value.references.emplace_back(std::move(ref));
+					}
+				}
+			}
+			value.name = val.template parse_optional_member<std::u8string_view>(u8"name").value_or(value.name);
 		}
 
 		/// Parses additional attributes of a \ref class_arrangements::child from the given JSON object.
@@ -96,8 +108,8 @@ namespace codepad::ui {
 		) {
 			if (auto type = val.template parse_member<std::u8string_view>(u8"type")) {
 				child.type = type.value();
-				child.element_class = val.template parse_optional_member<std::u8string_view>(u8"class").value_or(child.type);
-				child.name = val.template parse_optional_member<std::u8string_view>(u8"name").value_or(child.name);
+				child.element_class =
+					val.template parse_optional_member<std::u8string_view>(u8"class").value_or(u8"");
 			}
 		}
 		/// Parses the metrics and children arrangements of either a composite element or one of its children, given
@@ -109,11 +121,6 @@ namespace codepad::ui {
 					if (auto child = elem.template cast<object_t>()) {
 						class_arrangements::child ch;
 						parse_additional_arrangement_attributes(child.value(), ch);
-						if (auto *cls = get_manager().get_class_arrangements().get(ch.element_class)) {
-							// provide default values for its element configuration
-							// TODO animations may be invalidated by additional parsing
-							ch.configuration = cls->configuration;
-						}
 						parse_class_arrangements(child.value(), ch);
 						obj.children.emplace_back(std::move(ch));
 					}
@@ -126,9 +133,6 @@ namespace codepad::ui {
 			for (auto i = val.member_begin(); i != val.member_end(); ++i) {
 				if (auto obj = i.value().template cast<object_t>()) {
 					class_arrangements arr;
-					if (auto name = obj->template parse_optional_member<std::u8string_view>(u8"name")) {
-						arr.name = std::u8string(name.value());
-					}
 					parse_class_arrangements(obj.value(), arr);
 					auto [it, inserted] = get_manager().get_class_arrangements().mapping.emplace(
 						i.name(), std::move(arr)

@@ -24,10 +24,7 @@ namespace codepad::editors::code {
 
 		/// Returns the scale of the text based on \ref _target_height.
 		double get_scale() const {
-			if (contents_region *con = component_helper::get_contents_region(*this)) {
-				return get_target_line_height() / con->get_line_height();
-			}
-			return 1.0;
+			return get_target_line_height() / _contents_region->get_line_height();
 		}
 
 		/// Sets the desired line height of minimaps.
@@ -39,12 +36,16 @@ namespace codepad::editors::code {
 			return _target_height;
 		}
 
+		/// Returns the role of the associated \ref contents_region.
+		[[nodiscard]] inline static std::u8string_view get_contents_region_role() {
+			return u8"contents_region";
+		}
 		/// Returns the default class of elements of type \ref minimap.
-		inline static std::u8string get_default_class() {
+		[[nodiscard]] inline static std::u8string_view get_default_class() {
 			return u8"minimap";
 		}
 		/// Returns the default class of the minimap's viewport.
-		inline static std::u8string_view get_viewport_class() {
+		[[nodiscard]] inline static std::u8string_view get_viewport_class() {
 			return u8"minimap_viewport";
 		}
 	protected:
@@ -109,6 +110,8 @@ namespace codepad::editors::code {
 
 		/// Handles the \p viewport_visuals property.
 		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
+		/// Handles \ref _contents_region and registers for events.
+		bool _handle_reference(std::u8string_view, element*) override;
 
 		/// Checks and validates \ref _pgcache by calling \ref _page_cache::prepare.
 		void _on_prerender() override {
@@ -120,32 +123,29 @@ namespace codepad::editors::code {
 
 		/// Calculates and returns the vertical offset of all pages according to \ref editor::get_vertical_position.
 		double _get_y_offset() const {
-			if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
-				std::size_t nlines = edt->get_num_visual_lines();
-				double
-					lh = edt->get_line_height(),
-					vh = get_client_region().height(),
-					maxh = static_cast<double>(nlines) * lh - vh,
-					maxvh = static_cast<double>(nlines) * lh * get_scale() - vh,
-					perc = (box->get_vertical_position() - edt->get_padding().top) / maxh;
-				perc = std::clamp(perc, 0.0, 1.0);
-				return std::max(0.0, perc * maxvh);
-			}
-			return 0.0;
+			std::size_t nlines = _contents_region->get_num_visual_lines();
+			double
+				lh = _contents_region->get_line_height(),
+				vh = get_client_region().height(),
+				maxh = static_cast<double>(nlines) * lh - vh,
+				maxvh = static_cast<double>(nlines) * lh * get_scale() - vh,
+				perc = (
+					_contents_region->get_editor().get_vertical_position() -
+					_contents_region->get_padding().top
+				) / maxh;
+			perc = std::clamp(perc, 0.0, 1.0);
+			return std::max(0.0, perc * maxvh);
 		}
 		/// Returns the rectangle marking the \ref contents_region's visible region.
 		rectd _get_viewport_rect() const {
-			if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				double scale = get_scale();
-				return rectd::from_xywh(
-					get_padding().left - edt->get_padding().left * scale,
-					get_padding().top - _get_y_offset() + (
-						editor::get_encapsulating(*this)->get_vertical_position() - edt->get_padding().top
-						) * scale,
-					edt->get_layout().width() * scale, get_client_region().height() * scale
-				);
-			}
-			return rectd();
+			double scale = get_scale();
+			return rectd::from_xywh(
+				get_padding().left - _contents_region->get_padding().left * scale,
+				get_padding().top - _get_y_offset() + (
+					_contents_region->get_editor().get_vertical_position() - _contents_region->get_padding().top
+				) * scale,
+				_contents_region->get_layout().width() * scale, get_client_region().height() * scale
+			);
 		}
 		/// Clamps the result of \ref _get_viewport_rect. The region is clamped so that its right border won't
 		/// overflow when the \ref contents_region's width is large.
@@ -157,11 +157,10 @@ namespace codepad::editors::code {
 		}
 		/// Returns the range of lines that are visible in the \ref minimap.
 		std::pair<std::size_t, std::size_t> _get_visible_visual_lines() const {
-			if (contents_region *edt = component_helper::get_contents_region(*this)) {
-				double scale = get_scale(), ys = _get_y_offset();
-				return edt->get_visible_visual_lines(ys / scale, (ys + get_client_region().height()) / scale);
-			}
-			return { 0, 0 };
+			double scale = get_scale(), ys = _get_y_offset();
+			return _contents_region->get_visible_visual_lines(
+				ys / scale, (ys + get_client_region().height()) / scale
+			);
 		}
 
 		// TODO notify the visible region indicator of events
@@ -171,30 +170,6 @@ namespace codepad::editors::code {
 			_pgcache.on_width_changed(get_layout().width());
 			_pgcache.invalidate(); // invalidate no matter what since the height may have also changed
 			element::_on_layout_changed();
-		}
-
-		/// Registers event handlers to update the minimap and viewport indicator automatically.
-		void _register_handlers() {
-			if (!_events_registered) {
-				if (auto &&[box, edt] = component_helper::get_core_components(*this); edt) {
-					_events_registered = true;
-					edt->editing_visual_changed += [this]() {
-						_on_editor_visual_changed();
-					};
-					box->vertical_viewport_changed += [this]() {
-						_on_viewport_changed();
-					};
-				}
-			}
-		}
-		/// Calls \ref _register_handlers().
-		void _on_added_to_parent() override {
-			element::_on_added_to_parent();
-			_register_handlers();
-		}
-		/// Calls \ref _register_handlers() if necessary.
-		void _on_logical_parent_constructed() override {
-			_register_handlers();
 		}
 
 		/// Marks \ref _pgcache for update when the viewport has changed, to determine if more pages need to
@@ -213,19 +188,20 @@ namespace codepad::editors::code {
 		void _on_mouse_down(ui::mouse_button_info &info) override {
 			element::_on_mouse_down(info);
 			if (info.button == ui::mouse_button::primary) {
-				if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
-					rectd rv = _get_viewport_rect();
-					if (rv.contains(info.position.get(*this))) {
-						_dragoffset = rv.ymin - info.position.get(*this).y; // TODO not always accurate
-						get_window()->set_mouse_capture(*this);
-						_dragging = true;
-					} else {
-						double ch = get_client_region().height();
-						box->set_target_vertical_position(std::min(
-							(info.position.get(*this).y - get_padding().top + _get_y_offset()) / get_scale() - 0.5 * ch,
-							static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - ch
-						) + edt->get_padding().top);
-					}
+				rectd rv = _get_viewport_rect();
+				if (rv.contains(info.position.get(*this))) {
+					_dragoffset = rv.ymin - info.position.get(*this).y; // TODO not always accurate
+					get_window()->set_mouse_capture(*this);
+					_dragging = true;
+				} else {
+					double client_height = get_client_region().height();
+					_contents_region->get_editor().set_target_vertical_position(std::min(
+						(info.position.get(*this).y - get_padding().top + _get_y_offset()) / get_scale() -
+							0.5 * client_height,
+						static_cast<double>(_contents_region->get_num_visual_lines()) *
+							_contents_region->get_line_height() -
+							client_height
+					) + _contents_region->get_padding().top);
 				}
 			}
 		}
@@ -243,16 +219,18 @@ namespace codepad::editors::code {
 		void _on_mouse_move(ui::mouse_move_info &info) override {
 			element::_on_mouse_move(info);
 			if (_dragging) {
-				if (auto && [box, edt] = component_helper::get_core_components(*this); edt) {
-					rectd client = get_client_region();
-					double
-						scale = get_scale(),
-						yp = info.new_position.get(*this).y + _dragoffset,
-						toth =
-						static_cast<double>(edt->get_num_visual_lines()) * edt->get_line_height() - client.height(),
-						totch = std::min(client.height() * (1.0 - scale), toth * scale);
-					box->set_vertical_position_immediate(toth * yp / totch + edt->get_padding().top);
-				}
+				rectd client = get_client_region();
+				double
+					scale = get_scale(),
+					y_pos = info.new_position.get(*this).y + _dragoffset;
+				double total_height =
+					static_cast<double>(_contents_region->get_num_visual_lines()) *
+					_contents_region->get_line_height() -
+					client.height();
+				double total_scaled_height = std::min(client.height() * (1.0 - scale), total_height * scale);
+				_contents_region->get_editor().set_vertical_position_immediate(
+					total_height * y_pos / total_scaled_height + _contents_region->get_padding().top
+				);
 			}
 		}
 		/// Stops dragging.
@@ -262,12 +240,11 @@ namespace codepad::editors::code {
 		}
 
 		_page_cache _pgcache{ *this }; ///< Caches rendered pages.
+		contents_region *_contents_region = nullptr; ///< The associated \ref contents_region.
 		ui::visuals _viewport_visuals; ///< The visuals for the viewport.
 		/// The offset of the mouse relative to the top border of the visible region indicator.
 		double _dragoffset = 0.0;
-		bool
-			_dragging = false, ///< Indicates whether the visible region indicator is being dragged.
-			_events_registered = false; ///< Indicates whether the event handlers have been registered.
+		bool _dragging = false; ///< Indicates whether the visible region indicator is being dragged.
 
 		// TODO convert this into a setting
 		static double _target_height; ///< The desired font height of minimaps.

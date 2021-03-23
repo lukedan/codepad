@@ -31,21 +31,4 @@ namespace codepad::ui {
 			return pt;
 		}
 	}
-
-
-	element_configuration::event_identifier element_configuration::event_identifier::parse_from_string(
-		std::u8string_view s
-	) {
-		if (auto it = s.begin(); it != s.end()) {
-			for (codepoint cp; it != s.end(); ) {
-				auto begin = it;
-				if (encodings::utf8::next_codepoint(it, s.end(), cp)) {
-					if (cp == U'.') { // separator, only consider the first one
-						return event_identifier(std::u8string(s.begin(), begin), std::u8string(it, s.end()));
-					}
-				}
-			}
-		}
-		return event_identifier(std::u8string(s));
-	}
 }

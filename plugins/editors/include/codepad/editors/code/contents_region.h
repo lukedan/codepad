@@ -530,7 +530,7 @@ namespace codepad::editors::code {
 		/// Similar to the other \ref get_visible_visual_lines(), except that this function uses the current viewport
 		/// of the \ref editor as the parameters.
 		std::pair<std::size_t, std::size_t> get_visible_visual_lines() const {
-			double top = editor::get_encapsulating(*this)->get_vertical_position() - get_padding().top;
+			double top = get_editor().get_vertical_position() - get_padding().top;
 			return get_visible_visual_lines(top, top + get_layout().height());
 		}
 		/// Returns the caret position corresponding to a given position. Note that the offset is relative to the
@@ -543,10 +543,9 @@ namespace codepad::editors::code {
 		///
 		/// \todo Need changes after adding horizontal scrolling.
 		caret_position hit_test_for_caret(vec2d pos) const override {
-			auto *edt = editor::get_encapsulating(*this);
 			return hit_test_for_caret_document(vec2d(
-				pos.x + edt->get_horizontal_position() - get_padding().left,
-				pos.y + edt->get_vertical_position() - get_padding().top
+				pos.x + get_editor().get_horizontal_position() - get_padding().left,
+				pos.y + get_editor().get_vertical_position() - get_padding().top
 			));
 		}
 		/// Returns the horizontal visual position of a caret.
@@ -696,14 +695,13 @@ namespace codepad::editors::code {
 			// when selecting with a mouse, it's possible that there are no carets in _cset at all
 			if (!_cset.carets.empty() && wnd != nullptr) {
 				auto entry = _cset.carets.begin();
-				auto *edt = editor::get_encapsulating(*this);
 				std::size_t visline = _get_visual_line_of_caret(_extract_position(*entry));
 				double lh = get_line_height();
 				vec2d topleft = get_client_region().xmin_ymin();
 				wnd->set_active_caret_position(rectd::from_xywh(
 					topleft.x + _get_caret_pos_x_at_visual_line(visline, entry->first.caret) -
-					edt->get_horizontal_position(),
-					topleft.y + lh * static_cast<double>(visline) - edt->get_vertical_position(),
+					get_editor().get_horizontal_position(),
+					topleft.y + lh * static_cast<double>(visline) - get_editor().get_vertical_position(),
 					0.0, lh
 				));
 			}
@@ -717,7 +715,7 @@ namespace codepad::editors::code {
 				ypos = static_cast<double>(line) * line_height + get_padding().top;
 			xpos = _get_caret_pos_x_at_visual_line(line, caret.position);
 			rectd rgn = rectd::from_xywh(xpos, ypos, 0.0, line_height); // TODO maybe include the whole selection
-			editor::get_encapsulating(*this)->make_region_visible(rgn);
+			get_editor().make_region_visible(rgn);
 		}
 
 		/// Simply calls \ref _on_carets_changed().
@@ -901,7 +899,7 @@ namespace codepad::editors::code {
 
 		// construction and destruction
 		/// Loads font and interaction settings.
-		void _initialize(std::u8string_view) override;
+		void _initialize() override;
 
 		/// Checks for the \ref carets_changed event.
 		bool _register_event(std::u8string_view name, std::function<void()> callback) override {
@@ -914,14 +912,13 @@ namespace codepad::editors::code {
 		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
 
 		/// Registers event handlers used to forward viewport update events to \ref _interaction_manager.
-		void _on_logical_parent_constructed() override {
-			_base::_on_logical_parent_constructed();
+		void _on_editor_reference_registered() override {
+			_base::_on_editor_reference_registered();
 
-			auto *edt = editor::get_encapsulating(*this);
-			edt->horizontal_viewport_changed += [this]() {
+			get_editor().horizontal_viewport_changed += [this]() {
 				_interaction_manager.on_viewport_changed();
 			};
-			edt->vertical_viewport_changed += [this]() {
+			get_editor().vertical_viewport_changed += [this]() {
 				_interaction_manager.on_viewport_changed();
 			};
 		}
@@ -936,22 +933,4 @@ namespace codepad::editors::code {
 			_base::_dispose();
 		}
 	};
-
-	/// Helper functions used to obtain the \ref contents_region associated with elements.
-	namespace component_helper {
-		/// Returns both the \ref editor and the \ref contents_region. If the returned \ref contents_region is not
-		/// \p nullptr, then the returned \ref editor also won't be \p nullptr.
-		inline std::pair<editor*, contents_region*> get_core_components(const ui::element &elem) {
-			editor *edt = editor::get_encapsulating(elem);
-			if (edt) {
-				return { edt, contents_region::get_from_editor(*edt) };
-			}
-			return { nullptr, nullptr };
-		}
-
-		/// Returns the \ref contents_region that corresponds to the given \ref ui::element.
-		inline contents_region *get_contents_region(const ui::element &elem) {
-			return get_core_components(elem).second;
-		}
-	}
 }

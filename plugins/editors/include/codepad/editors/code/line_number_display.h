@@ -26,6 +26,10 @@ namespace codepad::editors::code {
 			_on_font_changed();
 		}
 
+		/// Returns the role for \ref _contents_region.
+		inline static std::u8string_view get_contents_region_role() {
+			return u8"contents_region";
+		}
 		/// Returns the default class of elements of type \ref line_number_display.
 		inline static std::u8string_view get_default_class() {
 			return u8"line_number_display";
@@ -33,36 +37,16 @@ namespace codepad::editors::code {
 	protected:
 		std::shared_ptr<ui::font> _font; ///< The font used to render all line numbers.
 		text_theme_specification _theme; ///< Font color and style for the line numbers.
-		bool _events_registered = false; ///< Indicates whether the events has been registered.
-
-		/// Registers events if a \ref contents_region can be found.
-		void _register_handlers();
-		/// Invokes \ref _register_handlers().
-		void _on_added_to_parent() override {
-			element::_on_added_to_parent();
-			_register_handlers();
-		}
-		/// Calls \ref _register_handlers(), and \ref _update_font() if necessary.
-		void _on_logical_parent_constructed() override {
-			element::_on_logical_parent_constructed();
-			_register_handlers();
-			if (!_font) {
-				_update_font();
-			}
-		}
+		contents_region *_contents_region = nullptr; ///< The \ref contents_region associated with this display.
 
 		/// Handles the \p text_theme attribute.
 		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
+		/// Handles \ref _contents_region, registers for events, and calls \ref _update_font().
+		bool _handle_reference(std::u8string_view, element*) override;
 
 		/// Updates \ref _font when \ref _theme or the font family has changed.
 		void _update_font() {
-			if (auto *contents = component_helper::get_contents_region(*this)) {
-				_update_font(*contents);
-			}
-		}
-		/// Updates \ref _font using the given \ref contents_region.
-		void _update_font(contents_region &contents) {
-			_font = contents.get_font_families()[0]->get_matching_font(
+			_font = _contents_region->get_font_families()[0]->get_matching_font(
 				get_text_theme().style, get_text_theme().weight, ui::font_stretch::normal
 			);
 		}

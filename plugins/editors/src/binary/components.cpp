@@ -8,29 +8,11 @@
 
 namespace codepad::editors::binary {
 	ui::size_allocation primary_offset_display::get_desired_width() const {
-		if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
-			std::size_t chars = _get_label_length(rgn->get_buffer().length());
-			double maxw = rgn->get_font()->get_maximum_character_width_em(
-				reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
-			) * rgn->get_font_size();
-			return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(chars) * maxw);
-		}
-		return ui::size_allocation::pixels(0.0);
-	}
-
-	void primary_offset_display::_register_handlers() {
-		if (!_events_registered) {
-			if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
-				_events_registered = true;
-				rgn->content_modified += [this]() {
-					// when the content is modified, it is possible that the number of digits is changed
-					_on_desired_size_changed(true, false);
-				};
-				edt->vertical_viewport_changed += [this]() {
-					get_manager().get_scheduler().invalidate_visual(*this);
-				};
-			}
-		}
+		std::size_t chars = _get_label_length(_contents_region->get_buffer().length());
+		double maxw = _contents_region->get_font()->get_maximum_character_width_em(
+			reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
+		) * _contents_region->get_font_size();
+		return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(chars) * maxw);
 	}
 
 	std::u8string primary_offset_display::_to_hex(std::size_t v, std::size_t len) {
@@ -48,36 +30,47 @@ namespace codepad::editors::binary {
 
 	void primary_offset_display::_custom_render() const {
 		element::_custom_render();
-		if (auto [edt, rgn] = component_helper::get_core_components(*this); rgn) {
-			// position of the first line relative to the window
-			double
-				top = edt->get_vertical_position() - rgn->get_padding().top,
-				right = get_layout().width() - get_padding().right;
-			std::size_t
-				firstline = static_cast<std::size_t>(
-					std::max(0.0, top / rgn->get_line_height())
-					),
-				chars = _get_label_length(rgn->get_buffer().length()),
-				offset = firstline * rgn->get_bytes_per_row();
-			auto &renderer = get_manager().get_renderer();
+		// position of the first line relative to the window
+		double
+			top = _contents_region->get_editor().get_vertical_position() - _contents_region->get_padding().top,
+			right = get_layout().width() - get_padding().right;
+		std::size_t
+			firstline = static_cast<std::size_t>(
+				std::max(0.0, top / _contents_region->get_line_height())
+			),
+			chars = _get_label_length(_contents_region->get_buffer().length()),
+			offset = firstline * _contents_region->get_bytes_per_row();
+		auto &renderer = get_manager().get_renderer();
 
-			{
-				renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
+		{
+			renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
 
-				for (
-					double ypos = static_cast<double>(firstline) * rgn->get_line_height() - top;
-					ypos < get_layout().height() && offset < rgn->get_buffer().length();
-					ypos += rgn->get_line_height(), offset += rgn->get_bytes_per_row()
-					) {
-					auto text = renderer.create_plain_text(
-						_to_hex(offset, chars), *rgn->get_font(), rgn->get_font_size()
-					);
-					// TODO custom color
-					renderer.draw_plain_text(*text, vec2d(right - text->get_width(), ypos), colord());
-				}
-
-				renderer.pop_clip();
+			for (
+				double ypos = static_cast<double>(firstline) * _contents_region->get_line_height() - top;
+				ypos < get_layout().height() && offset < _contents_region->get_buffer().length();
+				ypos += _contents_region->get_line_height(), offset += _contents_region->get_bytes_per_row()
+			) {
+				auto text = renderer.create_plain_text(
+					_to_hex(offset, chars), *_contents_region->get_font(), _contents_region->get_font_size()
+				);
+				// TODO custom color
+				renderer.draw_plain_text(*text, vec2d(right - text->get_width(), ypos), colord());
 			}
+
+			renderer.pop_clip();
 		}
+	}
+
+	bool primary_offset_display::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_contents_region_role()) {
+			if (_reference_cast_to(_contents_region, elem)) {
+				_contents_region->content_modified += [this]() {
+					// when the content is modified, it is possible that the number of digits is changed
+					_on_desired_size_changed(true, false);
+				};
+			}
+			return true;
+		}
+		return element::_handle_reference(role, elem);
 	}
 }

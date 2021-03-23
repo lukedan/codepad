@@ -72,7 +72,6 @@ target_sources(codepad_core
 		"include/codepad/ui/elements/text_edit.h"
 
 		"include/codepad/ui/animation.h"
-		"include/codepad/ui/arrangements.h"
 		"include/codepad/ui/async_task.h"
 		"include/codepad/ui/commands.h"
 		"include/codepad/ui/config_parsers.h"
@@ -98,7 +97,6 @@ target_sources(codepad_core
 		"src/core/logging.cpp"
 		"src/core/plugins.cpp"
 		"src/core/profiling.cpp"
-		
 		"src/core/settings.cpp"
 
 		"src/ui/elements/tabs/host.cpp"
@@ -112,7 +110,6 @@ target_sources(codepad_core
 		"src/ui/elements/stack_panel.cpp"
 		"src/ui/elements/text_edit.cpp"
 
-		"src/ui/arrangements.cpp"
 		"src/ui/commands.cpp"
 		"src/ui/element.cpp"
 		"src/ui/element_parameters.cpp" 

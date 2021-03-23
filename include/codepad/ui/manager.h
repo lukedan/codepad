@@ -15,6 +15,7 @@
 #include "../core/settings.h"
 #include "async_task.h"
 #include "element.h"
+#include "element_parameters.h"
 #include "window.h"
 #include "renderer.h"
 #include "scheduler.h"
@@ -68,25 +69,19 @@ namespace codepad::ui {
 			return unregister_element_type(Elem::get_default_class());
 		}
 
-		/// Constructs and returns an element of the specified type, class, and \ref element_configuration. This
-		/// function does not handle event triggers and animations.
-		element *create_element_custom_no_event_or_property(
-			std::u8string_view type, std::u8string_view cls
-		);
-		/// Constructs an element by calling \ref create_element_custom_no_event_or_property(), then registers
-		/// triggers and sets properties of the element if the element is not derived from \ref panel. The events are
-		/// registered before properties are set so that they can be invoked accordingly.
-		element *create_element_custom(
-			std::u8string_view type, std::u8string_view cls, const element_configuration&
-		);
-		/// Calls \ref create_element_custom() to create an \ref element of the specified type and class, and with
-		/// the default \ref element_configuration of that class.
-		///
-		/// \sa create_element_custom()
+		/// Creates a new element tree specified by the given element type and class. The creation process consists
+		/// of the following steps:
+		/// - All elements in the tree are created:
+		///   - The element type is found in \ref _element_registry, and used to create a concrete object.
+		///   - Some fields are set: \ref element::_hotkeys and \ref element::_manager.
+		///   - \ref element::_initialize() is invoked.
+		///   - The element is added to its parent in the subtree.
+		/// - Element references are handled. This is done in no particular order for all created elements.
+		/// - Event handles are registered. This is done in no particular order for all created elements.
+		/// - Element attributes are set. This is done in no particular order for all created elements.
 		element *create_element(std::u8string_view type, std::u8string_view cls) {
-			return create_element_custom(
-				type, cls, get_class_arrangements().get_or_default(cls).configuration
-			);
+			_construction_context ctx(*this);
+			return ctx.create_tree(type, cls);
 		}
 		/// Creates an element of the given type. The type name and class are both obtained from
 		/// \p Elem::get_default_class().
@@ -217,6 +212,70 @@ namespace codepad::ui {
 			arrangements_parser<ValueType> parser(*this);
 		}
 	protected:
+		/// Context for element tree construction.
+		struct _construction_context {
+		public:
+			/// Initializes \ref _manager.
+			explicit _construction_context(manager &man) : _manager(man) {
+			}
+
+			/// Creates elements in the entire subtree. This is the first step described in \ref create_element().
+			[[nodiscard]] element *create_tree(std::u8string_view type, std::u8string_view cls);
+		protected:
+			/// Data associated with an element's creation.
+			struct _element_data {
+				/// Default constructor.
+				_element_data() = default;
+				/// Initializes all fields of this struct.
+				_element_data(
+					element &e, element &root, const element_configuration *cls, const element_configuration &custom
+				) : elem(&e), custom_subtree_root(&root), class_config(cls), custom_config(&custom) {
+				}
+
+				element
+					*elem = nullptr, ///< Pointer to the element.
+					*custom_subtree_root = nullptr; ///< Root element of the custom subtree, used for element lookup.
+				const element_configuration
+					*class_config = nullptr, ///< The configuration of the element based on its class.
+					*custom_config = nullptr; ///< The additional custom configuration of the element as a child.
+			};
+			/// Mapping between element names and created elements.
+			using _name_mapping = std::map<std::u8string, element*, std::less<>>;
+
+			std::vector<_element_data> _created; ///< The list of all created elements.
+			/// Scopes for element lookup. Each scope corresponds to one class in the class registry.
+			std::map<std::uintptr_t, _name_mapping> _scopes;
+			manager &_manager; ///< The \ref manager that is creating the element tree.
+
+			/// Creates a single element, completing step 1 except for adding it to its parent.
+			[[nodiscard]] element *_create_element(std::u8string_view type, std::u8string_view cls);
+			/// Recursively creates children elements using \ref _create_element and adds them to the given
+			/// \ref panel. All created elements (not including the given root) will be registered to the given
+			/// scope.
+			void _create_children_recursive(
+				panel &current, const std::vector<class_arrangements::child>&,
+				element &custom_subtree_root, _name_mapping&
+			);
+
+			/// Finds the target element specified by the name.
+			[[nodiscard]] element *_find_element_by_name(element &root, const std::vector<std::u8string>&) const;
+			/// Registers an trigger on the \p trigger element that will affect \p affected.
+			static void _register_trigger_for(
+				element &trigger, element &affected, const element_configuration::event_trigger&
+			);
+
+			/// Handles the given list of references.
+			void _handle_references(
+				element&, element &root, const std::vector<element_configuration::reference>&
+			) const;
+			/// Handles the given list of event triggers.
+			void _handle_event_triggers(
+				element&, element &roots, const std::vector<element_configuration::event_trigger>&
+			) const;
+			/// Handles the given list of properties.
+			static void _handle_properties(element&, const std::vector<element_configuration::property_value>&);
+		};
+
 		class_arrangements_registry _class_arrangements; ///< All class arrangements.
 		class_hotkeys_registry _class_hotkeys; ///< All class hotkeys.
 		/// The color scheme used by class arrangements.

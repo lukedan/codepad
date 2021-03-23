@@ -387,8 +387,8 @@ namespace codepad::ui {
 		virtual void _on_lost_window_capture();
 
 
-		/// Registers the window to \ref renderer_base.
-		void _initialize(std::u8string_view) override;
+		/// Creates the \ref _details::window_impl, and registers the window to the \ref renderer_base.
+		void _initialize() override;
 		/// Deletes all decorations, releases the focus, and unregisters the window from \ref renderer_base.
 		void _dispose() override;
 

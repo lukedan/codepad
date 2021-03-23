@@ -113,6 +113,8 @@ namespace codepad::ui::tabs {
 				_event_helpers::try_register_event(name, u8"tab_unselected", tab_unselected, callback) ||
 				panel::_register_event(name, std::move(callback));
 		}
+		/// Handles \ref _label and \ref _close_btn, and registers for events.
+		bool _handle_reference(std::u8string_view, element*) override;
 
 		/// Called when the associated tab is selected. Invokes \ref tab_selected.
 		virtual void _on_tab_selected() {
@@ -123,11 +125,8 @@ namespace codepad::ui::tabs {
 			tab_unselected.invoke();
 		}
 
-		/// Adds \ref _label and \ref _close_btn to the mapping.
-		class_arrangements::notify_mapping _get_child_notify_mapping() override;
-
 		/// Initializes \ref _close_btn.
-		void _initialize(std::u8string_view cls) override;
+		void _initialize() override;
 	};
 
 	/// A tab that contains other elements.
@@ -151,13 +150,15 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Returns the associated \ref tab_button.
-		tab_button &get_button() const {
+		[[nodiscard]] tab_button &get_button() const {
 			return *_btn;
 		}
 		/// Returns the \ref host that this tab is currently in, which should be its logical parent.
-		host *get_host() const;
+		[[nodiscard]] host *get_host() const {
+			return _host;
+		}
 		/// Returns the manager of this tab.
-		tab_manager &get_tab_manager() const {
+		[[nodiscard]] tab_manager &get_tab_manager() const {
 			return *_tab_manager;
 		}
 
@@ -171,13 +172,14 @@ namespace codepad::ui::tabs {
 		}
 	protected:
 		tab_button *_btn = nullptr; ///< The \ref tab_button associated with tab.
+		host *_host = nullptr; ///< The \ref host associated with this tab.
 
 		/// Called when \ref request_close is called to handle the user's request of closing this tab. By default,
 		/// this function removes this tab from the host, then marks this for disposal.
 		virtual void _on_close_requested();
 
-		/// Initializes \ref _btn.
-		void _initialize(std::u8string_view) override;
+		/// Initializes \ref _btn and sets \ref _is_focus_scope to \p true.
+		void _initialize() override;
 		/// Marks \ref _btn for disposal.
 		void _dispose() override;
 

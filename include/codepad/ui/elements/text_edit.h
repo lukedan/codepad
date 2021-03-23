@@ -217,14 +217,10 @@ namespace codepad::ui {
 	protected:
 		text_edit *_edit = nullptr; ///< The associated \ref text_edit.
 
-		/// Returns the mapping that contains notifications for \ref _edit.
-		class_arrangements::notify_mapping _get_child_notify_mapping() override {
-			auto mapping = scroll_view::_get_child_notify_mapping();
-			mapping.emplace(get_text_edit_name(), _name_cast(_edit));
-			return mapping;
-		}
+		/// Handles \ref _edit and registers for events.
+		bool _handle_reference(std::u8string_view, element*) override;
 
-		/// Registers event handlers for edit and caret movement events of \ref _edit.
-		void _initialize(std::u8string_view) override;
+		/// Sets \ref _is_focus_scope to \p false.
+		void _initialize() override;
 	};
 }

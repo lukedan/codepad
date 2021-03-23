@@ -85,12 +85,9 @@ namespace codepad::ui::tabs {
 		/// The current drag destination.
 		drag_split_type _dest = drag_split_type::new_window;
 
-		/// Adds \ref _split_left, \ref _split_right, \ref _split_up, \ref _split_down, and \ref _combine to the
-		/// mapping.
-		class_arrangements::notify_mapping _get_child_notify_mapping() override;
-
-		/// Initializes all destination indicators.
-		void _initialize(std::u8string_view cls) override;
+		/// Handles \ref _split_left, \ref _split_right, \ref _split_up, \ref _split_down, and \ref _combine, and
+		/// calls \ref _setup_indicator() on the element.
+		bool _handle_reference(std::u8string_view, element*) override;
 
 		/// Initializes the given destination indicator.
 		void _setup_indicator(element&, drag_split_type);
@@ -183,11 +180,8 @@ namespace codepad::ui::tabs {
 		/// \ref tab_button from \ref _tab_buttons_region.
 		void _on_tab_removed(tab&);
 
-		/// Adds \ref _tab_buttons_region and \ref _tab_contents_region to the mapping.
-		class_arrangements::notify_mapping _get_child_notify_mapping() override;
-
-		/// Initializes \ref _tab_buttons_region and \ref _tab_contents_region.
-		void _initialize(std::u8string_view cls) override;
+		/// Handles \ref _tab_buttons_region and \ref _tab_contents_region, and registers for events.
+		bool _handle_reference(std::u8string_view, element*) override;
 	private:
 		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.
 	};

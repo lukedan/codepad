@@ -9,26 +9,38 @@
 #include "codepad/ui/elements/tabs/manager.h"
 
 namespace codepad::ui::tabs {
-	class_arrangements::notify_mapping drag_destination_selector::_get_child_notify_mapping() {
-		auto mapping = panel::_get_child_notify_mapping();
-		mapping.emplace(get_split_left_indicator_name(), _name_cast(_split_left));
-		mapping.emplace(get_split_right_indicator_name(), _name_cast(_split_right));
-		mapping.emplace(get_split_up_indicator_name(), _name_cast(_split_up));
-		mapping.emplace(get_split_down_indicator_name(), _name_cast(_split_down));
-		mapping.emplace(get_combine_indicator_name(), _name_cast(_combine));
-		return mapping;
-	}
-
-	void drag_destination_selector::_initialize(std::u8string_view cls) {
-		panel::_initialize(cls);
-
-		set_zindex(zindex::overlay);
-
-		_setup_indicator(*_split_left, drag_split_type::split_left);
-		_setup_indicator(*_split_right, drag_split_type::split_right);
-		_setup_indicator(*_split_up, drag_split_type::split_top);
-		_setup_indicator(*_split_down, drag_split_type::split_bottom);
-		_setup_indicator(*_combine, drag_split_type::combine);
+	bool drag_destination_selector::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_split_left_indicator_name()) {
+			if (_reference_cast_to(_split_left, elem)) {
+				_setup_indicator(*_split_left, drag_split_type::split_left);
+			}
+			return true;
+		}
+		if (role == get_split_right_indicator_name()) {
+			if (_reference_cast_to(_split_right, elem)) {
+				_setup_indicator(*_split_right, drag_split_type::split_right);
+			}
+			return true;
+		}
+		if (role == get_split_up_indicator_name()) {
+			if (_reference_cast_to(_split_up, elem)) {
+				_setup_indicator(*_split_up, drag_split_type::split_top);
+			}
+			return true;
+		}
+		if (role == get_split_down_indicator_name()) {
+			if (_reference_cast_to(_split_down, elem)) {
+				_setup_indicator(*_split_down, drag_split_type::split_bottom);
+			}
+			return true;
+		}
+		if (role == get_combine_indicator_name()) {
+			if (_reference_cast_to(_combine, elem)) {
+				_setup_indicator(*_combine, drag_split_type::combine);
+			}
+			return true;
+		}
+		return panel::_handle_reference(role, elem);
 	}
 
 	void drag_destination_selector::_setup_indicator(element &elem, drag_split_type type) {
@@ -42,8 +54,8 @@ namespace codepad::ui::tabs {
 
 
 	void host::add_tab(tab &t) {
-		_child_set_logical_parent(t, this);
-		_child_set_logical_parent(*t._btn, this);
+		assert_true_logical(t._host == nullptr, "tab already belongs to another host");
+		t._host = this;
 		_tab_contents_region->children().add(t);
 		_tab_buttons_region->children().add(*t._btn);
 
@@ -54,7 +66,6 @@ namespace codepad::ui::tabs {
 	}
 
 	void host::switch_tab(tab *t) {
-		assert_true_logical(t == nullptr || t->logical_parent() == this, "the tab doesn't belong to this host");
 		if (_active_tab) {
 			_active_tab->set_visibility(visibility::none);
 			_active_tab->_btn->set_zindex(0); // TODO a bit hacky
@@ -103,33 +114,35 @@ namespace codepad::ui::tabs {
 	}
 
 	void host::_on_tab_removed(tab &t) {
+		assert_true_logical(t._host == this, "tab does not belong to this host");
+		t._host = nullptr;
 		_tab_buttons_region->children().remove(*t._btn);
 		get_tab_manager()._on_tab_detached(*this, t);
 	}
 
-	class_arrangements::notify_mapping host::_get_child_notify_mapping() {
-		auto mapping = panel::_get_child_notify_mapping();
-		mapping.emplace(get_tab_buttons_region_name(), _name_cast(_tab_buttons_region));
-		mapping.emplace(get_tab_contents_region_name(), _name_cast(_tab_contents_region));
-		return mapping;
-	}
-
-	void host::_initialize(std::u8string_view cls) {
-		panel::_initialize(cls);
-
-		_tab_contents_region->children().changing += [this](element_collection::change_info &p) {
-			if (p.change_type == element_collection::change_info::type::remove) {
-				tab *t = dynamic_cast<tab*>(&p.subject);
-				assert_true_logical(t != nullptr, "corrupted element tree");
-				_on_tab_removing(*t);
-			}
-		};
-		_tab_contents_region->children().changed += [this](element_collection::change_info &p) {
-			if (p.change_type == element_collection::change_info::type::remove) {
-				tab *t = dynamic_cast<tab*>(&p.subject);
-				assert_true_logical(t != nullptr, "corrupted element tree");
-				_on_tab_removed(*t);
-			}
-		};
+	bool host::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_tab_buttons_region_name()) {
+			_reference_cast_to(_tab_buttons_region, elem);
+			return true;
+		}
+		if (role == get_tab_contents_region_name()) {
+			_reference_cast_to(_tab_contents_region, elem);
+			_tab_contents_region->children().changing += [this](element_collection::change_info &p) {
+				if (p.change_type == element_collection::change_info::type::remove) {
+					tab *t = dynamic_cast<tab*>(&p.subject);
+					assert_true_logical(t != nullptr, "corrupted element tree");
+					_on_tab_removing(*t);
+				}
+			};
+			_tab_contents_region->children().changed += [this](element_collection::change_info &p) {
+				if (p.change_type == element_collection::change_info::type::remove) {
+					tab *t = dynamic_cast<tab*>(&p.subject);
+					assert_true_logical(t != nullptr, "corrupted element tree");
+					_on_tab_removed(*t);
+				}
+			};
+			return true;
+		}
+		return panel::_handle_reference(role, elem);
 	}
 }

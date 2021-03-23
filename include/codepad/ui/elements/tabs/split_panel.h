@@ -201,7 +201,6 @@ namespace codepad::ui::tabs {
 			}
 			e = newv;
 			if (e) {
-				_child_set_logical_parent(*e, this);
 				_children.add(*e);
 			}
 		}
@@ -257,48 +256,45 @@ namespace codepad::ui::tabs {
 				panel::_register_event(name, std::move(callback));
 		}
 
-		/// Adds \ref _sep to the mapping.
-		class_arrangements::notify_mapping _get_child_notify_mapping() override {
-			auto mapping = panel::_get_child_notify_mapping();
-			mapping.emplace(get_separator_name(), _name_cast(_sep));
-			return mapping;
-		}
-
-		/// Initializes \ref _sep and adds handlers for certain events.
-		void _initialize(std::u8string_view cls) override {
-			panel::_initialize(cls);
-
-			_sep->mouse_down += [this](mouse_button_info &p) {
-				if (p.button == mouse_button::primary) {
-					_sep_dragging = true;
-					_sep_offset =
-						get_orientation() == orientation::vertical ?
-						p.position.get(*_sep).y :
-						p.position.get(*_sep).x;
-					get_window()->set_mouse_capture(*_sep);
+		/// Handles \ref _sep and registers for events.
+		bool _handle_reference(std::u8string_view role, element *elem) override {
+			if (role == get_separator_name()) {
+				if (_reference_cast_to(_sep, elem)) {
+					_sep->mouse_down += [this](mouse_button_info &p) {
+						if (p.button == mouse_button::primary) {
+							_sep_dragging = true;
+							_sep_offset =
+								get_orientation() == orientation::vertical ?
+								p.position.get(*_sep).y :
+								p.position.get(*_sep).x;
+							get_window()->set_mouse_capture(*_sep);
+						}
+					};
+					_sep->lost_capture += [this]() {
+						_sep_dragging = false;
+					};
+					_sep->mouse_up += [this](mouse_button_info &p) {
+						if (_sep_dragging && p.button == mouse_button::primary) {
+							_sep_dragging = false;
+							get_window()->release_mouse_capture();
+						}
+					};
+					_sep->mouse_move += [this](mouse_move_info &p) {
+						if (_sep_dragging) {
+							rectd client = get_client_region();
+							double position =
+								get_orientation() == orientation::vertical ? // TODO what is this todo for?
+								(p.new_position.get(*this).y - _sep_offset) /
+								(client.height() - _sep->get_layout().height()) :
+								(p.new_position.get(*this).x - _sep_offset) /
+								(client.width() - _sep->get_layout().width());
+							set_separator_position(position);
+						}
+					};
 				}
-			};
-			_sep->lost_capture += [this]() {
-				_sep_dragging = false;
-			};
-			_sep->mouse_up += [this](mouse_button_info &p) {
-				if (_sep_dragging && p.button == mouse_button::primary) {
-					_sep_dragging = false;
-					get_window()->release_mouse_capture();
-				}
-			};
-			_sep->mouse_move += [this](mouse_move_info &p) {
-				if (_sep_dragging) {
-					rectd client = get_client_region();
-					double position =
-						get_orientation() == orientation::vertical ? // TODO what is this todo for?
-						(p.new_position.get(*this).y - _sep_offset) /
-						(client.height() - _sep->get_layout().height()) :
-						(p.new_position.get(*this).x - _sep_offset) /
-						(client.width() - _sep->get_layout().width());
-					set_separator_position(position);
-				}
-			};
+				return true;
+			}
+			return panel::_handle_reference(role, elem);
 		}
 	};
 }

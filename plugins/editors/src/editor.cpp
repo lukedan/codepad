@@ -87,6 +87,16 @@ namespace codepad::editors {
 		return ui::element::_find_property_path(path);
 	}
 
+	bool contents_region_base::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_editor_role()) {
+			if (_reference_cast_to(_editor, elem)) {
+				_on_editor_reference_registered();
+			}
+			return true;
+		}
+		return element::_handle_reference(role, elem);
+	}
+
 
 	settings::retriever_parser<double> &editor::get_font_size_setting(settings &set) {
 		static setting<double> _setting(
@@ -115,25 +125,38 @@ namespace codepad::editors {
 		return _setting.get(set);
 	}
 
-	void editor::_initialize(std::u8string_view cls) {
-		panel::_initialize(cls);
-
-		_vert_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
-			vertical_viewport_changed.invoke();
-			invalidate_visual();
-		};
-		_hori_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
-			horizontal_viewport_changed.invoke();
-			invalidate_visual();
-		};
-
-		_contents->layout_changed += [this]() {
-			vertical_viewport_changed.invoke();
-			horizontal_viewport_changed.invoke();
-			_reset_scrollbars();
-		};
-		_contents->content_visual_changed += [this]() {
-			_reset_scrollbars();
-		};
+	bool editor::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_vertical_scrollbar_name()) {
+			if (_reference_cast_to(_vert_scroll, elem)) {
+				_vert_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
+					vertical_viewport_changed.invoke();
+					invalidate_visual();
+				};
+			}
+			return true;
+		}
+		if (role == get_horizontal_scrollbar_name()) {
+			if (_reference_cast_to(_hori_scroll, elem)) {
+				_hori_scroll->actual_value_changed += [this](ui::scrollbar::value_changed_info&) {
+					horizontal_viewport_changed.invoke();
+					invalidate_visual();
+				};
+			}
+			return true;
+		}
+		if (role == get_contents_region_name()) {
+			if (_reference_cast_to(_contents, elem)) {
+				_contents->layout_changed += [this]() {
+					vertical_viewport_changed.invoke();
+					horizontal_viewport_changed.invoke();
+					_reset_scrollbars();
+				};
+				_contents->content_visual_changed += [this]() {
+					_reset_scrollbars();
+				};
+			}
+			return true;
+		}
+		return panel::_handle_reference(role, elem);
 	}
 }

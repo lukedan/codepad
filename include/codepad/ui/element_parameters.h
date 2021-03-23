@@ -954,26 +954,6 @@ namespace codepad::ui {
 	/// Contains configuration of an element's behavior.
 	struct element_configuration {
 	public:
-		/// Used to uniquely identify an \ref info_event.
-		struct event_identifier {
-			/// Default constructor.
-			event_identifier() = default;
-			/// Constructs this struct with only the name of the event.
-			explicit event_identifier(std::u8string n) : name(std::move(n)) {
-			}
-			/// Initializes all fields of this struct.
-			event_identifier(std::u8string s, std::u8string n) : subject(std::move(s)), name(std::move(n)) {
-			}
-
-			/// Parses an \ref event_identifier from a string.
-			static event_identifier parse_from_string(std::u8string_view);
-
-			std::u8string
-				/// The subject that owns and invokes this event. This may be empty if the subject is the element
-				/// itself.
-				subject,
-				name; ///< The name of the event.
-		};
 		/// Stores the parameters used to start animations.
 		struct animation_parameters {
 			generic_keyframe_animation_definition definition; ///< The definition of the animation.
@@ -981,7 +961,8 @@ namespace codepad::ui {
 		};
 		/// Contains information about an event trigger.
 		struct event_trigger {
-			event_identifier identifier; ///< Identifier of the event.
+			std::vector<std::u8string> instigator; ///< Element that generates the event.
+			std::u8string event_name; ///< The name of this event.
 			std::vector<animation_parameters> animations; ///< The animations to play.
 		};
 		/// A property name and the associated value.
@@ -989,8 +970,32 @@ namespace codepad::ui {
 			property_path::component_list property; ///< Property name.
 			json::value_storage value; ///< The value of this property.
 		};
+		/// A reference to another element.
+		struct reference {
+			/// The string used by the `referencer' to identify the role of the referenced element.
+			std::u8string role;
+			std::vector<std::u8string> name; ///< The name of the referenced element.
+		};
 
 		std::vector<event_trigger> event_triggers; ///< The list of event triggers.
 		std::vector<property_value> properties; ///< Properties of this element.
+		std::vector<reference> references; ///< A list of references.
+		std::u8string name; ///< The name of this element, used for references and event registration.
+	};
+
+	/// Controls the arrangements of composite elements.
+	struct class_arrangements {
+	public:
+		/// Stores information about a child element.
+		struct child {
+			element_configuration configuration; ///< The full configuration of the child.
+			std::vector<child> children; ///< The child's children, if it's a \ref panel.
+			std::u8string
+				type, ///< The child's type.
+				element_class; ///< The child's class.
+		};
+
+		element_configuration configuration; ///< The configuration of this element.
+		std::vector<child> children; ///< Children of the composite element.
 	};
 }

@@ -126,7 +126,6 @@ namespace codepad::ui {
 		elem._on_removing_from_parent();
 		_f._on_child_removing(elem);
 		changing.invoke_noret(change_info::type::remove, elem, nullptr);
-		elem._logical_parent = nullptr;
 		elem._parent = nullptr;
 		_children.erase(find(_children.begin(), _children.end(), &elem));
 		_zorder.erase(find(_zorder.begin(), _zorder.end(), &elem));
@@ -298,14 +297,6 @@ namespace codepad::ui {
 			}
 		}
 		return nullptr;
-	}
-
-	void panel::_initialize(std::u8string_view cls) {
-		element::_initialize(cls);
-
-		get_manager().get_class_arrangements().get_or_default(cls).construct_children(
-			*this, _get_child_notify_mapping()
-		);
 	}
 
 	void panel::_dispose() {

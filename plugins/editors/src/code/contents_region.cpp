@@ -191,8 +191,7 @@ namespace codepad::editors::code {
 			renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
 			renderer.push_matrix_mult(matd3x3::translate(vec2d(
 				get_padding().left,
-				get_padding().top - editor::get_encapsulating(*this)->get_vertical_position() +
-				static_cast<double>(be.first) * lh
+				get_padding().top - get_editor().get_vertical_position() + static_cast<double>(be.first) * lh
 			)));
 
 			// parameters
@@ -310,8 +309,8 @@ namespace codepad::editors::code {
 		}
 	}
 
-	void contents_region::_initialize(std::u8string_view cls) {
-		_base::_initialize(cls);
+	void contents_region::_initialize() {
+		interactive_contents_region_base::_initialize();
 
 		std::vector<std::u8string> profile; // TODO custom profile
 

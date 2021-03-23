@@ -340,23 +340,30 @@ namespace codepad::ui {
 	}
 
 
-	void textbox::_initialize(std::u8string_view cls) {
+	bool textbox::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_text_edit_name()) {
+			if (_reference_cast_to(_edit, elem)) {
+				_edit->caret_changed += [this]() {
+					thickness edit_padding = _edit->get_padding();
+					rectd caret = _edit->get_formatted_text().get_character_placement(
+						_edit->get_caret_selection().caret
+					).translated(vec2d(edit_padding.left, edit_padding.top));
+					make_region_visible(caret);
+				};
+				_edit->text_changed += [this]() {
+					// this is necessary: since text layout of _edit is dependent on its element layout, without this the
+					// caret_changed event won't be able to obtain correct caret positions
+					get_manager().get_scheduler().update_element_layout_immediate(*_edit);
+					clamp_to_valid_range();
+				};
+			}
+			return true;
+		}
+		return scroll_view::_handle_reference(role, elem);
+	}
+
+	void textbox::_initialize() {
 		_is_focus_scope = true;
-
-		scroll_view::_initialize(cls);
-
-		_edit->caret_changed += [this]() {
-			thickness edit_padding = _edit->get_padding();
-			rectd caret = _edit->get_formatted_text().get_character_placement(
-				_edit->get_caret_selection().caret
-			).translated(vec2d(edit_padding.left, edit_padding.top));
-			make_region_visible(caret);
-		};
-		_edit->text_changed += [this]() {
-			// this is necessary: since text layout of _edit is dependent on its element layout, without this the
-			// caret_changed event won't be able to obtain correct caret positions
-			get_manager().get_scheduler().update_element_layout_immediate(*_edit);
-			clamp_to_valid_range();
-		};
+		scroll_view::_initialize();
 	}
 }

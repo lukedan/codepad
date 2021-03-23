@@ -192,10 +192,6 @@ namespace codepad::ui {
 		[[nodiscard]] panel *parent() const {
 			return _parent;
 		}
-		/// Returns the element's logical parent.
-		[[nodiscard]] panel *logical_parent() const {
-			return _logical_parent;
-		}
 
 		/// Returns the current layout of this element, with respect to the window this element is in, and ignoring
 		/// all transformations of all elements.
@@ -394,14 +390,7 @@ namespace codepad::ui {
 		cursor _custom_cursor = cursor::not_specified; ///< The custom cursor for this \ref element.
 		int _zindex = zindex::normal; ///< The z-index of the element.
 
-		const hotkey_group *_hotkeys = nullptr; ///< The hotkey group of this element.
-
-		panel
-			*_parent = nullptr, ///< Pointer to the element's parent.
-			/// The element's logical parent. In composite elements this points to the top level composite element.
-			/// Composite elements that allow users to dynamically add children may also use this to indicate the
-			/// actual element that handles their logic.
-			*_logical_parent = nullptr;
+		panel *_parent = nullptr; ///< Pointer to the element's parent.
 		std::any _parent_data; ///< Data generated and used by the parent.
 
 		vec2d _cached_mouse_position; ///< Cached mouse position relative to this elemnt.
@@ -634,31 +623,49 @@ namespace codepad::ui {
 			}
 		};
 		/// Registers the callback for the event with the given name. This is used mainly for storyboard animations.
+		///
+		/// \return Whether the event is handled.
 		virtual bool _register_event(std::u8string_view name, std::function<void()>);
 		/// Parses an property path and returns the corresponding \ref property_info. If parsing fails the returned
 		/// struct will contain null pointers.
 		[[nodiscard]] virtual property_info _find_property_path(const property_path::component_list &path) const;
-
-
-		/// Called immediately after the element is created to initialize it. Initializes \ref _params and
-		/// \ref _hotkeys with the given element class. All derived classes should call \p base::_initialize()
-		/// <em>before</em> performing any other initialization. This functino is primarily used to avoid pitfalls
-		/// associated with virtual function calls in constructors to have this function.
+		/// Handles a reference. This will be called for all references, even those that failed to resolve to a valid
+		/// element.
 		///
-		/// \param cls The class of the element.
-		virtual void _initialize(std::u8string_view cls);
-		/// Called after the logical parent of this element (which is a composite element) has been fully constructed,
-		/// i.e., it and all of its children (including this element) has been constructed and properly initialized.
-		/// If this element does not have a logical parent, this function will not be called. The order in which this
-		/// is called for all descendents is arbitrary.
-		virtual void _on_logical_parent_constructed() {
+		/// \return Whether the role is handled.
+		virtual bool _handle_reference(std::u8string_view role, element *elem) {
+			return false; // no references for a basic element; if this is reached then it's unhandled
 		}
+
+		/// Used by elements to check and cast a reference pointer to the correct type, and assign it to the given
+		/// pointer.
+		///
+		/// \return Whether the casted pointer is non-null.
+		template <typename DesiredType> inline static bool _reference_cast_to(DesiredType *&target, element *value) {
+			target = dynamic_cast<DesiredType*>(value);
+			if (target == nullptr) {
+				logger::get().log_error(CP_HERE) <<
+					"incorrect reference type, need " << demangle(typeid(DesiredType).name()) <<
+					", found " << demangle(typeid(*value).name());
+				return false;
+			}
+			return true;
+		}
+
+
+		/// Called after the element is created to initialize it. When this is called, the element can assume that
+		/// \ref _manager, and \ref _hotkeys are initialized, but all properties, event triggers, and element
+		/// references are **not** initialized. All derived classes should call \p base::_initialize(). This function
+		/// is primarily used to avoid pitfalls associated with virtual function calls in constructors to have this
+		/// function - use this instead of the constructor whenever possible.
+		virtual void _initialize();
 		/// Called immediately before the element is disposed. Removes the element from its parent if it has one.
 		/// All derived classes should call \p base::_dispose <em>after</em> disposing of their own components.
 		/// It is primarily intended to avoid pitfalls associated with virtual function calls in destructors to have
 		/// this function.
 		virtual void _dispose();
 	private:
+		const hotkey_group *_hotkeys = nullptr; ///< The hotkey group of this element.
 		/// The \ref manager of this element. This is set after this element is constructed but before
 		/// \ref _initialize() is called.
 		manager *_manager = nullptr;

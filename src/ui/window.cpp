@@ -76,11 +76,12 @@ namespace codepad::ui {
 		get_manager().get_renderer().end_drawing();
 	}
 
-	void window::_initialize(std::u8string_view cls) {
+	void window::_initialize() {
 		_impl = _create_impl(*this);
-
-		panel::_initialize(cls);
 		_is_focus_scope = true;
+
+		panel::_initialize();
+
 		get_manager().get_renderer()._new_window(*this);
 	}
 

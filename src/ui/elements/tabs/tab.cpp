@@ -25,28 +25,30 @@ namespace codepad::ui::tabs {
 		panel::_on_mouse_down(p);
 	}
 
-	class_arrangements::notify_mapping tab_button::_get_child_notify_mapping() {
-		auto mapping = panel::_get_child_notify_mapping();
-		mapping.emplace(get_label_name(), _name_cast(_label));
-		mapping.emplace(get_close_button_name(), _name_cast(_close_btn));
-		return mapping;
+	bool tab_button::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_label_name()) {
+			_reference_cast_to(_label, elem);
+			return true;
+		}
+		if (role == get_close_button_name()) {
+			if (_reference_cast_to(_close_btn, elem)) {
+				_close_btn->click += [this]() {
+					request_close.invoke();
+				};
+			}
+			return true;
+		}
+		return panel::_handle_reference(role, elem);
 	}
 
-	void tab_button::_initialize(std::u8string_view cls) {
-		panel::_initialize(cls);
+	void tab_button::_initialize() {
+		panel::_initialize();
 
-		_close_btn->click += [this]() {
-			request_close.invoke();
-		};
 	}
 
 
-	host *tab::get_host() const {
-		return dynamic_cast<host*>(logical_parent());
-	}
-
-	void tab::_initialize(std::u8string_view cls) {
-		panel::_initialize(cls);
+	void tab::_initialize() {
+		panel::_initialize();
 
 		_is_focus_scope = true;
 

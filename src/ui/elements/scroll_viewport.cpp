@@ -63,30 +63,38 @@ namespace codepad::ui {
 		return panel::_find_property_path(path);
 	}
 
-	void scroll_view::_initialize(std::u8string_view cls) {
-		panel::_initialize(cls);
-
-		_viewport->virtual_panel_size_changed += [this]() {
-			_update_scrollbar_params();
-		};
-		_viewport->layout_changed += [this]() {
-			_update_scrollbar_params();
-		};
-
-		if (_hori_scroll) {
-			_hori_scroll->actual_value_changed += [this](scrollbar::value_changed_info&) {
-				_viewport->set_scroll_offset(vec2d(
-					_hori_scroll->get_actual_value(), _viewport->get_scroll_offset().y
-				));
-			};
+	bool scroll_view::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_viewport_name()) {
+			if (_reference_cast_to(_viewport, elem)) {
+				_viewport->virtual_panel_size_changed += [this]() {
+					_update_scrollbar_params();
+				};
+				_viewport->layout_changed += [this]() {
+					_update_scrollbar_params();
+				};
+			}
+			return true;
 		}
-
-		if (_vert_scroll) {
-			_vert_scroll->actual_value_changed += [this](scrollbar::value_changed_info&) {
-				_viewport->set_scroll_offset(vec2d(
-					_viewport->get_scroll_offset().x, _vert_scroll->get_actual_value()
-				));
-			};
+		if (role == get_horizontal_scrollbar_name()) {
+			if (_reference_cast_to(_hori_scroll, elem)) {
+				_hori_scroll->actual_value_changed += [this](scrollbar::value_changed_info&) {
+					_viewport->set_scroll_offset(vec2d(
+						_hori_scroll->get_actual_value(), _viewport->get_scroll_offset().y
+					));
+				};
+			}
+			return true;
 		}
+		if (role == get_vertical_scrollbar_name()) {
+			if (_reference_cast_to(_vert_scroll, elem)) {
+				_vert_scroll->actual_value_changed += [this](scrollbar::value_changed_info&) {
+					_viewport->set_scroll_offset(vec2d(
+						_viewport->get_scroll_offset().x, _vert_scroll->get_actual_value()
+					));
+				};
+			}
+			return true;
+		}
+		return panel::_handle_reference(role, elem);
 	}
 }

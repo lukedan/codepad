@@ -276,11 +276,10 @@ namespace codepad::ui {
 			_event_helpers::try_register_all_mouse_button_events<false>(name, mouse_up, callback);
 	}
 
-	void element::_initialize(std::u8string_view cls) {
+	void element::_initialize() {
 #ifdef CP_CHECK_USAGE_ERRORS
 		_initialized = true;
 #endif
-		_hotkeys = get_manager().get_class_hotkeys().get(cls);
 	}
 
 	void element::_dispose() {

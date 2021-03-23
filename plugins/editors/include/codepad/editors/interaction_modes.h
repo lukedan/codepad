@@ -324,8 +324,10 @@ namespace codepad::editors {
 							[this](ui::element *e) -> std::optional<ui::scheduler::clock_t::time_point> {
 								auto now = ui::scheduler::clock_t::now();
 								double delta_time = std::chrono::duration<double>(now - _last_scroll_update).count();
-								auto *edt = editor::get_encapsulating(*e);
-								edt->set_position_immediate(edt->get_position() + _speed * delta_time);
+								auto *rgn = dynamic_cast<contents_region_base*>(e);
+								rgn->get_editor().set_position_immediate(
+									rgn->get_editor().get_position() + _speed * delta_time
+								);
 								_last_scroll_update = now;
 								return now;
 							}

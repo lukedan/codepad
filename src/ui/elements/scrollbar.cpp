@@ -10,10 +10,6 @@
 #include "codepad/ui/json_parsers.inl"
 
 namespace codepad::ui {
-	scrollbar &scrollbar_drag_button::_get_bar() const {
-		return *dynamic_cast<scrollbar*>(logical_parent());
-	}
-
 	void scrollbar_drag_button::_on_mouse_down(mouse_button_info &p) {
 		if (p.button == get_trigger_button()) {
 			scrollbar &b = _get_bar();
@@ -36,6 +32,14 @@ namespace codepad::ui {
 				) - _doffset);
 		}
 		button::_on_mouse_move(p);
+	}
+
+	bool scrollbar_drag_button::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_scrollbar_role()) {
+			_reference_cast_to(_scrollbar, elem);
+			return true;
+		}
+		return button::_handle_reference(role, elem);
 	}
 
 
@@ -116,26 +120,55 @@ namespace codepad::ui {
 		}
 	}
 
-	class_arrangements::notify_mapping scrollbar::_get_child_notify_mapping() {
-		auto mapping = panel::_get_child_notify_mapping();
-		mapping.emplace(get_drag_button_name(), _name_cast(_drag));
-		mapping.emplace(get_page_up_button_name(), _name_cast(_pgup));
-		mapping.emplace(get_page_down_button_name(), _name_cast(_pgdn));
-		return mapping;
+	property_info scrollbar::_find_property_path(const property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"scrollbar")) {
+			if (path.front().property == u8"orientation") {
+				return property_info::make_getter_setter_property_info<scrollbar, orientation, element>(
+					[](const scrollbar &bar) {
+						return bar.get_orientation();
+					},
+					[](scrollbar &bar, orientation ori) {
+						bar.set_orientation(ori);
+					},
+					u8"scrollbar.orientation"
+				);
+			}
+			if (path.front().property == u8"smooth_scroll_duration") {
+				return property_info::find_member_pointer_property_info<&scrollbar::_smooth_duration, element>(path);
+			}
+			if (path.front().property == u8"smoothing") {
+				return property_info::find_member_pointer_property_info_managed<
+					&scrollbar::_smoothing_transition, element
+				>(path, get_manager());
+			}
+		}
+		return panel::_find_property_path(path);
 	}
 
-	void scrollbar::_initialize(std::u8string_view cls) {
-		panel::_initialize(cls);
-
-		_pgup->set_trigger_type(button::trigger_type::mouse_down);
-		_pgup->click += [this]() {
-			set_target_value(get_target_value() - get_visible_range());
-		};
-
-		_pgdn->set_trigger_type(button::trigger_type::mouse_down);
-		_pgdn->click += [this]() {
-			set_target_value(get_target_value() + get_visible_range());
-		};
+	bool scrollbar::_handle_reference(std::u8string_view role, element *elem) {
+		if (role == get_drag_button_name()) {
+			_reference_cast_to(_drag, elem);
+			return true;
+		}
+		if (role == get_page_up_button_name()) {
+			if (_reference_cast_to(_pgup, elem)) {
+				_pgup->set_trigger_type(button::trigger_type::mouse_down);
+				_pgup->click += [this]() {
+					set_target_value(get_target_value() - get_visible_range());
+				};
+			}
+			return true;
+		}
+		if (role == get_page_down_button_name()) {
+			if (_reference_cast_to(_pgdn, elem)) {
+				_pgdn->set_trigger_type(button::trigger_type::mouse_down);
+				_pgdn->click += [this]() {
+					set_target_value(get_target_value() + get_visible_range());
+				};
+			}
+			return true;
+		}
+		return panel::_handle_reference(role, elem);
 	}
 
 	void scrollbar::_update_smooth_scrolling(double time) {
@@ -187,30 +220,5 @@ namespace codepad::ui {
 		} else {
 			_update_actual_value(get_target_value());
 		}
-	}
-
-	property_info scrollbar::_find_property_path(const property_path::component_list &path) const {
-		if (path.front().is_type_or_empty(u8"scrollbar")) {
-			if (path.front().property == u8"orientation") {
-				return property_info::make_getter_setter_property_info<scrollbar, orientation, element>(
-					[](const scrollbar &bar) {
-						return bar.get_orientation();
-					},
-					[](scrollbar &bar, orientation ori) {
-						bar.set_orientation(ori);
-					},
-					u8"scrollbar.orientation"
-				);
-			}
-			if (path.front().property == u8"smooth_scroll_duration") {
-				return property_info::find_member_pointer_property_info<&scrollbar::_smooth_duration, element>(path);
-			}
-			if (path.front().property == u8"smoothing") {
-				return property_info::find_member_pointer_property_info_managed<
-					&scrollbar::_smoothing_transition, element
-				>(path, get_manager());
-			}
-		}
-		return panel::_find_property_path(path);
 	}
 }

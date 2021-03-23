@@ -234,6 +234,7 @@ namespace codepad::editors::binary {
 		/// of this \ref ui::element.
 		std::size_t hit_test_for_caret(vec2d) const override;
 
+
 		info_event<>
 			content_modified, ///< Invoked when the \ref buffer is modified or changed by \ref set_buffer.
 			/// Invoked when the set of carets is changed. Note that this does not necessarily mean that the result
@@ -243,11 +244,6 @@ namespace codepad::editors::binary {
 		/// Converts a character into the corresponding value, i.e., A-Z are treated as 10-35. If the character lies
 		/// out of the range, this function returns \p std::numeric_limits<unsigned char>::max().
 		static unsigned char get_character_value(codepoint);
-
-		/// Returns the \ref contents_region contained by the given \ref editor.
-		inline static contents_region *get_from_editor(editor &edt) {
-			return dynamic_cast<contents_region*>(edt.get_contents_region());
-		}
 
 		/// Returns the default class used by elements of type \ref contents_region.
 		inline static std::u8string_view get_default_class() {
@@ -412,7 +408,7 @@ namespace codepad::editors::binary {
 			interactive_contents_region_base::_on_text_theme_changed();
 		}
 		/// Registers handlers used to forward viewport update events to \ref _interaction_manager.
-		void _on_logical_parent_constructed() override;
+		void _on_editor_reference_registered() override;
 		/// Invoked whenever the width of a byte may have changed. This includes: when the font parameters have been
 		/// changed, when the radix has been changed, etc.
 		void _on_byte_width_changed() {
@@ -429,20 +425,8 @@ namespace codepad::editors::binary {
 		bool _register_event(std::u8string_view, std::function<void()>) override;
 
 		/// Loads font and interaction settings.
-		void _initialize(std::u8string_view) override;
+		void _initialize() override;
 		/// Sets the current document to empty to unbind event listeners.
 		void _dispose() override;
 	};
-
-	/// Helper functions used to obtain the \ref contents_region associated with elements.
-	namespace component_helper {
-		/// Returns both the \ref editor and the \ref contents_region. If the returned \ref contents_region is not
-		/// \p nullptr, then the returned \ref editor also won't be \p nullptr.
-		std::pair<editor*, contents_region*> get_core_components(const ui::element&);
-
-		/// Returns the \ref contents_region that corresponds to the given \ref ui::element.
-		inline contents_region *get_contents_region(const ui::element &elem) {
-			return get_core_components(elem).second;
-		}
-	}
 }

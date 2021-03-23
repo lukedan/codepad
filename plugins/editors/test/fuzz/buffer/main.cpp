@@ -223,9 +223,6 @@ int main(int argc, char **argv) {
 			mod.begin();
 			for (size_t i = 0; i < positions.size(); ++i) {
 				mod.modify(positions[i].first, positions[i].second - positions[i].first, inserts[i]);
-				// the interpretation should still be in a valid state between modifications - uncomment this to test
-				// that as well at the cost of much slower execution
-				/*assert_true_logical(interp->check_integrity());*/
 			}
 			cp::editors::buffer::edit dummy;
 			mod.end_custom(dummy); // no history; otherwise all memory will be eaten

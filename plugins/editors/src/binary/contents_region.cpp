@@ -162,13 +162,10 @@ namespace codepad::editors::binary {
 	}
 
 	std::size_t contents_region::hit_test_for_caret(vec2d pos) const {
-		if (auto *edt = editor::get_encapsulating(*this)) {
-			return hit_test_for_caret_document(vec2d(
-				pos.x + edt->get_horizontal_position() + get_padding().left,
-				pos.y + edt->get_vertical_position() + get_padding().top
-			));
-		}
-		return 0;
+		return hit_test_for_caret_document(vec2d(
+			pos.x + get_editor().get_horizontal_position() + get_padding().left,
+			pos.y + get_editor().get_vertical_position() + get_padding().top
+		));
 	}
 
 	unsigned char contents_region::get_character_value(codepoint c1) {
@@ -250,98 +247,96 @@ namespace codepad::editors::binary {
 	void contents_region::_custom_render() const {
 		interactive_contents_region_base::_custom_render();
 
-		if (auto *edt = editor::get_encapsulating(*this)) {
-			std::size_t
-				firstline = _get_line_at_position(edt->get_vertical_position()),
-				// first byte in a line
-				firstbyte = _get_column_at_position(edt->get_horizontal_position()),
-				// past last byte in a line
-				lastbyte = std::min(
-					get_bytes_per_row(),
-					static_cast<std::size_t>(
-						(edt->get_horizontal_position() + get_layout().width()) /
-						(_cached_max_byte_width + get_blank_width())
-						) + 1
-				);
-			double
-				lineh = get_line_height(),
-				bottom = get_layout().height();
-			vec2d
-				edtpos = edt->get_position(),
-				topleft = vec2d(_get_column_offset(firstbyte), _get_line_offset(firstline)) - edtpos;
-			auto &renderer = get_manager().get_renderer();
+		std::size_t
+			firstline = _get_line_at_position(get_editor().get_vertical_position()),
+			// first byte in a line
+			firstbyte = _get_column_at_position(get_editor().get_horizontal_position()),
+			// past last byte in a line
+			lastbyte = std::min(
+				get_bytes_per_row(),
+				static_cast<std::size_t>(
+					(get_editor().get_horizontal_position() + get_layout().width()) /
+					(_cached_max_byte_width + get_blank_width())
+					) + 1
+			);
+		double
+			lineh = get_line_height(),
+			bottom = get_layout().height();
+		vec2d
+			edtpos = get_editor().get_position(),
+			topleft = vec2d(_get_column_offset(firstbyte), _get_line_offset(firstline)) - edtpos;
+		auto &renderer = get_manager().get_renderer();
 
-			{
-				renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
+		{
+			renderer.push_rectangle_clip(rectd::from_corners(vec2d(), get_layout().size()));
 
-				// render bytes
-				for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
-					// render a single line
-					std::size_t pos = line * get_bytes_per_row() + firstbyte;
-					if (pos >= get_buffer().length()) {
-						break;
-					}
-					auto it = get_buffer().at(pos);
-					double x = topleft.x;
-					for (
-						std::size_t i = firstbyte;
-						i < lastbyte && it != get_buffer().end();
-						++i, ++it, x += _cached_max_byte_width + _blank_width
-					) {
-						auto text = renderer.create_plain_text_fast(
-							convert_base(
-								static_cast<unsigned>(*it), _radix, get_maximum_byte_digits_for_radix(_radix)
-							),
-							*_font, _font_size
-						);
-						renderer.draw_plain_text(
-							*text,
-							vec2d(x + 0.5 * (_cached_max_byte_width - text->get_width()), topleft.y),
-							get_text_theme().color
-						);
-					}
+			// render bytes
+			for (std::size_t line = firstline; topleft.y < bottom; topleft.y += lineh, ++line) {
+				// render a single line
+				std::size_t pos = line * get_bytes_per_row() + firstbyte;
+				if (pos >= get_buffer().length()) {
+					break;
 				}
-				// render carets
-				caret_set extcarets;
-				const caret_set *cset = &_carets;
-				std::vector<ui::caret_selection> tmpcarets = _interaction_manager.get_temporary_carets();
-				if (!tmpcarets.empty()) { // merge & use temporary caret set
-					extcarets = _carets;
-					for (const auto &caret : tmpcarets) {
-						extcarets.add(caret_set::entry(caret, caret_data()));
-					}
-					cset = &extcarets;
+				auto it = get_buffer().at(pos);
+				double x = topleft.x;
+				for (
+					std::size_t i = firstbyte;
+					i < lastbyte && it != get_buffer().end();
+					++i, ++it, x += _cached_max_byte_width + _blank_width
+				) {
+					auto text = renderer.create_plain_text_fast(
+						convert_base(
+							static_cast<unsigned>(*it), _radix, get_maximum_byte_digits_for_radix(_radix)
+						),
+						*_font, _font_size
+					);
+					renderer.draw_plain_text(
+						*text,
+						vec2d(x + 0.5 * (_cached_max_byte_width - text->get_width()), topleft.y),
+						get_text_theme().color
+					);
 				}
-				auto it = cset->carets.lower_bound({ firstline * get_bytes_per_row() + firstbyte, 0 });
-				if (it != cset->carets.begin()) {
-					--it;
-				}
-				std::size_t
-					clampmin = firstline * get_bytes_per_row(),
-					clampmax = (
-						_get_line_at_position(edt->get_vertical_position() + get_layout().height()) + 1
-						) * get_bytes_per_row();
-				std::vector<rectd> caret_rects;
-				std::vector<decoration_layout> selection_rects;
-				for (; it != cset->carets.end(); ++it) {
-					if (it->first.caret > clampmax && it->first.selection > clampmax) { // out of visible scope
-						break;
-					}
-					caret_rects.emplace_back(_get_caret_rect(it->first.caret).translated(-edtpos));
-					selection_rects.emplace_back(_get_selection_layout(it->first, clampmin, clampmax, -edtpos));
-				}
-				if (code_selection_renderer()) {
-					vec2d unit = get_layout().size();
-					for (auto &v : selection_rects) {
-						code_selection_renderer()->render(renderer, v, unit);
-					}
-				}
-				for (const rectd &r : caret_rects) {
-					_caret_visuals.render(r, renderer);
-				}
-
-				renderer.pop_clip();
 			}
+			// render carets
+			caret_set extcarets;
+			const caret_set *cset = &_carets;
+			std::vector<ui::caret_selection> tmpcarets = _interaction_manager.get_temporary_carets();
+			if (!tmpcarets.empty()) { // merge & use temporary caret set
+				extcarets = _carets;
+				for (const auto &caret : tmpcarets) {
+					extcarets.add(caret_set::entry(caret, caret_data()));
+				}
+				cset = &extcarets;
+			}
+			auto it = cset->carets.lower_bound({ firstline * get_bytes_per_row() + firstbyte, 0 });
+			if (it != cset->carets.begin()) {
+				--it;
+			}
+			std::size_t
+				clampmin = firstline * get_bytes_per_row(),
+				clampmax = (
+					_get_line_at_position(get_editor().get_vertical_position() + get_layout().height()) + 1
+					) * get_bytes_per_row();
+			std::vector<rectd> caret_rects;
+			std::vector<decoration_layout> selection_rects;
+			for (; it != cset->carets.end(); ++it) {
+				if (it->first.caret > clampmax && it->first.selection > clampmax) { // out of visible scope
+					break;
+				}
+				caret_rects.emplace_back(_get_caret_rect(it->first.caret).translated(-edtpos));
+				selection_rects.emplace_back(_get_selection_layout(it->first, clampmin, clampmax, -edtpos));
+			}
+			if (code_selection_renderer()) {
+				vec2d unit = get_layout().size();
+				for (auto &v : selection_rects) {
+					code_selection_renderer()->render(renderer, v, unit);
+				}
+			}
+			for (const rectd &r : caret_rects) {
+				_caret_visuals.render(r, renderer);
+			}
+
+			renderer.pop_clip();
 		}
 	}
 
@@ -397,14 +392,13 @@ namespace codepad::editors::binary {
 		_on_content_modified();
 	}
 
-	void contents_region::_on_logical_parent_constructed() {
-		element::_on_logical_parent_constructed();
+	void contents_region::_on_editor_reference_registered() {
+		interactive_contents_region_base::_on_editor_reference_registered();
 
-		auto *edt = editor::get_encapsulating(*this);
-		edt->horizontal_viewport_changed += [this]() {
+		get_editor().horizontal_viewport_changed += [this]() {
 			_interaction_manager.on_viewport_changed();
 		};
-		edt->vertical_viewport_changed += [this]() {
+		get_editor().vertical_viewport_changed += [this]() {
 			_interaction_manager.on_viewport_changed();
 		};
 	}
@@ -415,8 +409,8 @@ namespace codepad::editors::binary {
 			interactive_contents_region_base::_register_event(name, std::move(callback));
 	}
 
-	void contents_region::_initialize(std::u8string_view cls) {
-		element::_initialize(cls);
+	void contents_region::_initialize() {
+		interactive_contents_region_base::_initialize();
 
 		std::vector<std::u8string> profile{ u8"binary" };
 
@@ -443,16 +437,5 @@ namespace codepad::editors::binary {
 	void contents_region::_dispose() {
 		_unbind_buffer_events();
 		element::_dispose();
-	}
-
-
-	namespace component_helper {
-		std::pair<editor*, contents_region*> get_core_components(const ui::element &elem) {
-			editor *edt = editor::get_encapsulating(elem);
-			if (edt) {
-				return { edt, contents_region::get_from_editor(*edt) };
-			}
-			return { nullptr, nullptr };
-		}
 	}
 }

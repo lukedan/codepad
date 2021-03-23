@@ -164,16 +164,6 @@ namespace codepad::ui {
 			_vert_scroll_delta = 30.0, ///< Vertical distance per scroll `tick'.
 			_hori_scroll_delta = 30.0; ///< Horizontal distance per scroll `tick'.
 
-		/// Returns the mapping that contains notifications for \ref _viewport, \ref _hori_scroll, and
-		/// \ref _vert_scroll.
-		class_arrangements::notify_mapping _get_child_notify_mapping() override {
-			auto mapping = panel::_get_child_notify_mapping();
-			mapping.emplace(get_viewport_name(), _name_cast(_viewport));
-			mapping.emplace(get_horizontal_scrollbar_name(), _name_cast(_hori_scroll));
-			mapping.emplace(get_vertical_scrollbar_name(), _name_cast(_vert_scroll));
-			return mapping;
-		}
-
 		/// Handles mouse scroll events.
 		void _on_mouse_scroll(mouse_scroll_info&) override;
 
@@ -190,8 +180,9 @@ namespace codepad::ui {
 		/// Handles the \p horizontal_delta and \p vertical_delta properties.
 		property_info _find_property_path(const property_path::component_list&) const override;
 
-		/// Registers handlers for \ref scroll_viewport::virtual_panel_size_changed, as well as for offset changes
-		/// of \ref _hori_scroll and \ref _vert_scroll.
-		void _initialize(std::u8string_view) override;
+		/// Handles \ref _viewport, \ref _hori_scroll, and \ref _vert_scroll. Also handles
+		/// \ref scroll_viewport::virtual_panel_size_changed, as well as offset changes of \ref _hori_scroll and
+		/// \ref _vert_scroll.
+		bool _handle_reference(std::u8string_view, element*) override;
 	};
 }
