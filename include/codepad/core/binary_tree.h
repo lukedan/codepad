@@ -239,19 +239,19 @@ namespace codepad {
 			friend bool operator==(const iterator_base&, const iterator_base&) = default;
 
 			/// Prefix increment.
-			[[nodiscard]] iterator_base &operator++() {
+			iterator_base &operator++() {
 				assert_true_logical(_n != nullptr, "cannot increment iterator");
 				_n = _n->next();
 				return *this;
 			}
 			/// Postfix increment.
-			[[nodiscard]] const iterator_base operator++(int) {
+			const iterator_base operator++(int) {
 				iterator_base ov = *this;
 				++*this;
 				return ov;
 			}
 			/// Prefix decrement.
-			[[nodiscard]] iterator_base &operator--() {
+			iterator_base &operator--() {
 				if (_n) {
 					_n = _n->prev();
 					assert_true_logical(_n != nullptr, "cannot decrement iterator");
@@ -261,7 +261,7 @@ namespace codepad {
 				return *this;
 			}
 			/// Postfix decrement.
-			[[nodiscard]] const iterator_base operator--(int) {
+			const iterator_base operator--(int) {
 				iterator_base ov = *this;
 				--*this;
 				return ov;
