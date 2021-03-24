@@ -92,7 +92,7 @@ namespace codepad::lsp::types {
 	}
 
 
-	CP_LSP_VISIT_FUNC(v, InitializedParams) {
+	CP_LSP_VISIT_FUNC(, InitializedParams) {
 	}
 
 

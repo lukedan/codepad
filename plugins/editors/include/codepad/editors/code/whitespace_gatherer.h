@@ -85,7 +85,7 @@ namespace codepad::editors::code {
 		}
 		/// Handles a tab character.
 		void handle_fragment(
-			const tab_fragment &frag, const fragment_assembler::basic_rendering &rend,
+			const tab_fragment&, const fragment_assembler::basic_rendering &rend,
 			std::size_t steps, std::size_t posafter
 		) {
 			std::size_t frag_begin = posafter - steps;

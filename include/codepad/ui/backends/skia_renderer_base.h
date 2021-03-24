@@ -45,10 +45,10 @@ namespace codepad::ui::skia {
 		/// Converts a \ref colord to a \p SkColor4f.
 		[[nodiscard]] inline SkColor4f cast_colorf(colord c) {
 			SkColor4f result;
-			result.fR = c.r;
-			result.fG = c.g;
-			result.fB = c.b;
-			result.fA = c.a;
+			result.fR = static_cast<float>(c.r);
+			result.fG = static_cast<float>(c.g);
+			result.fB = static_cast<float>(c.b);
+			result.fA = static_cast<float>(c.a);
 			return result;
 		}
 
@@ -321,24 +321,24 @@ namespace codepad::ui::skia {
 		}
 		/// Calls \p SkPath::moveTo().
 		void move_to(vec2d pos) override {
-			_path.moveTo(pos.x, pos.y);
+			_path.moveTo(_details::cast_point(pos));
 		}
 
 		/// Calls \p SkPath::lineTo().
 		void add_segment(vec2d to) override {
-			_path.lineTo(to.x, to.y);
+			_path.lineTo(_details::cast_point(to));
 		}
 		/// Calls \p SkPath::cubicTo().
 		void add_cubic_bezier(vec2d to, vec2d control1, vec2d control2) override {
-			_path.cubicTo(control1.x, control1.y, control2.x, control2.y, to.x, to.y);
+			_path.cubicTo(_details::cast_point(control1), _details::cast_point(control2), _details::cast_point(to));
 		}
 		/// Calls \p SkPath::arcTo().
 		void add_arc(vec2d to, vec2d radius, double rotation, ui::sweep_direction dir, ui::arc_type type) override {
 			_path.arcTo(
-				radius.x, radius.y, rotation * 180 / 3.14159265,
+				_details::cast_point(radius), static_cast<SkScalar>(rotation * 180.0 / 3.14159265),
 				type == ui::arc_type::major ? SkPath::kLarge_ArcSize : SkPath::kSmall_ArcSize,
 				dir == ui::sweep_direction::clockwise ? SkPathDirection::kCW : SkPathDirection::kCCW,
-				to.x, to.y
+				_details::cast_point(to)
 			);
 		}
 	protected:
@@ -408,7 +408,7 @@ namespace codepad::ui::skia {
 		/// Starts drawing to the given \ref render_target.
 		void begin_drawing(ui::render_target &target) override {
 			auto &rt = _details::cast_render_target(target);
-			_render_target_stackframe &stackframe = _render_stack.emplace(rt._surface.get(), rt._scale);
+			_render_stack.emplace(rt._surface.get(), rt._scale);
 		}
 		/// Starts drawing to the given \ref window and invokes \ref _start_drawing_to_window().
 		void begin_drawing(window &wnd) override {
@@ -493,7 +493,7 @@ namespace codepad::ui::skia {
 			if (auto fill = _create_paint(brush)) {
 				canvas->drawRect(skrect, fill.value());
 			}
-			if (auto stroke = _create_paint(brush)) {
+			if (auto stroke = _create_paint(pen)) {
 				canvas->drawRect(skrect, stroke.value());
 			}
 		}
@@ -596,7 +596,8 @@ namespace codepad::ui::skia {
 			// TODO SkFont expects the size in points, but we have the size in device-independent pixels
 			//      it can't be this simple right?
 			return std::make_shared<plain_text>(
-				_text_engine.create_plain_text(text, fnt._data, size), SkFont(fnt._skia_font, size * 1.33)
+				_text_engine.create_plain_text(text, fnt._data, size),
+				SkFont(fnt._skia_font, static_cast<SkScalar>(size * 1.33))
 			);
 		}
 		/// \overload
@@ -606,7 +607,8 @@ namespace codepad::ui::skia {
 			auto &fnt = _details::cast_font(generic_fnt);
 			// TODO SkFont expects the size in points, but we have the size in device-independent pixels
 			return std::make_shared<plain_text>(
-				_text_engine.create_plain_text(text, fnt._data, size), SkFont(fnt._skia_font, size * 1.33)
+				_text_engine.create_plain_text(text, fnt._data, size),
+				SkFont(fnt._skia_font, static_cast<SkScalar>(size * 1.33))
 			);
 		}
 		/// Invokes \ref pango_harfbuzz::text_engine::create_plain_text_fast().
@@ -616,7 +618,8 @@ namespace codepad::ui::skia {
 			auto &fnt = _details::cast_font(generic_fnt);
 			// TODO SkFont expects the size in points, but we have the size in device-independent pixels
 			return std::make_shared<plain_text>(
-				_text_engine.create_plain_text_fast(text, fnt._data, size), SkFont(fnt._skia_font, size * 1.33)
+				_text_engine.create_plain_text_fast(text, fnt._data, size),
+				SkFont(fnt._skia_font, static_cast<SkScalar>(size * 1.33))
 			);
 		}
 		/// Renders the given fragment of text.

@@ -633,7 +633,7 @@ namespace codepad::ui {
 		/// element.
 		///
 		/// \return Whether the role is handled.
-		virtual bool _handle_reference(std::u8string_view role, element *elem) {
+		virtual bool _handle_reference(std::u8string_view, element*) {
 			return false; // no references for a basic element; if this is reached then it's unhandled
 		}
 

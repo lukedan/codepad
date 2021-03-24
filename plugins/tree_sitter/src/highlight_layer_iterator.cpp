@@ -204,9 +204,9 @@ namespace codepad::tree_sitter {
 						continue;
 					}
 					if (const language_configuration *new_cfg = lang_callback(inj.language)) {
-						auto ranges = intersect_ranges(cur_layer.ranges, inj.nodes, inj.include_children);
+						auto new_ranges = intersect_ranges(cur_layer.ranges, inj.nodes, inj.include_children);
 						queue.emplace_back(_layer_info{
-							.ranges = std::move(ranges), .lang_config = new_cfg, .depth = cur_layer.depth + 1
+							.ranges = std::move(new_ranges), .lang_config = new_cfg, .depth = cur_layer.depth + 1
 						});
 					}
 				}

@@ -36,8 +36,8 @@ namespace codepad::os {
 			// copy image data
 			unsigned char *data = cairo_image_surface_get_data(mapped_surface);
 			assert_true_sys(
-				cairo_image_surface_get_width(mapped_surface) == width &&
-				cairo_image_surface_get_height(mapped_surface) == height
+				cairo_image_surface_get_width(mapped_surface) == static_cast<int>(width) &&
+				cairo_image_surface_get_height(mapped_surface) == static_cast<int>(height)
 			);
 			int stride = cairo_image_surface_get_stride(mapped_surface);
 			_details::com_check(converted->CopyPixels(nullptr, stride, height * stride, data));

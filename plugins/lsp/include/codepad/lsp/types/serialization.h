@@ -45,7 +45,11 @@ namespace codepad::lsp::types {
 		}
 		/// Writes a \ref string.
 		void visit(string &s) override {
-			_writer->String(reinterpret_cast<const char*>(s.c_str()), s.size(), true);
+			_writer->String(
+				reinterpret_cast<const char*>(s.c_str()),
+				static_cast<rapidjson::SizeType>(s.size()),
+				true
+			);
 		}
 		/// Writes a \ref any.
 		void visit(any &a) override {
@@ -65,7 +69,11 @@ namespace codepad::lsp::types {
 		/// Writes the result of \ref string_enum_base::get_value().
 		void visit(string_enum_base &e) override {
 			std::u8string_view str = e.get_value();
-			_writer->String(reinterpret_cast<const char*>(str.data()), str.size(), true);
+			_writer->String(
+				reinterpret_cast<const char*>(str.data()),
+				static_cast<rapidjson::SizeType>(str.size()),
+				true
+			);
 		}
 		/// Writes a \ref array_base.
 		void visit(array_base &arr) override {
@@ -104,7 +112,11 @@ namespace codepad::lsp::types {
 
 		/// Invokes \p rapidjson::Writer::Key().
 		void _start_field(std::u8string_view name) override {
-			_writer->Key(reinterpret_cast<const char*>(name.data()), name.size(), true);
+			_writer->Key(
+				reinterpret_cast<const char*>(name.data()),
+				static_cast<rapidjson::SizeType>(name.size()),
+				true
+			);
 		}
 		/// Nothing to do.
 		void _end_field() override {
@@ -123,7 +135,11 @@ namespace codepad::lsp::types {
 			} else if (auto d = val.try_cast<double>()) {
 				_writer->Double(d.value());
 			} else if (auto s = val.try_cast<std::u8string_view>()) {
-				_writer->String(reinterpret_cast<const char*>(s.value().data()), s.value().size(), true);
+				_writer->String(
+					reinterpret_cast<const char*>(s.value().data()),
+					static_cast<rapidjson::SizeType>(s.value().size()),
+					true
+				);
 			} else if (auto arr = val.try_cast<json::storage::array_t>()) {
 				_writer->StartArray();
 				for (auto it = arr->begin(); it != arr->end(); ++it) {
@@ -387,7 +403,7 @@ namespace codepad::lsp::types {
 			_entry << "(string) `" << s << "`";
 		}
 		/// Visits a \ref any.
-		void visit(any &v) override {
+		void visit(any&) override {
 			_entry << "(any)"; // TODO
 		}
 

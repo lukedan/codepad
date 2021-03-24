@@ -56,8 +56,6 @@ namespace command_pack {
 		auto *editor = dynamic_cast<cp::editors::editor*>(
 			host.get_manager().create_element(u8"editor", u8"code_editor")
 		);
-		auto *contents =
-			dynamic_cast<cp::editors::code::contents_region*>(editor->get_contents_region());
 		_editor_manager->buffers.initialize_code_editor(*editor, std::move(interp));
 		tb->children().add(*editor);
 		return tb;
@@ -450,7 +448,6 @@ extern "C" {
 					auto *editor = dynamic_cast<cp::editors::editor*>(
 						th.get_manager().create_element(u8"editor", u8"code_editor")
 					);
-					auto *contents = dynamic_cast<cp::editors::code::contents_region*>(editor->get_contents_region());
 					command_pack::_editor_manager->buffers.initialize_code_editor(*editor, std::move(interp));
 					tb->children().add(*editor);
 					th.activate_tab(*tb);

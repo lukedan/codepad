@@ -100,8 +100,8 @@ namespace codepad::os {
 				pwnd->invalidate_visual();
 			};
 		}
-		void _delete_window(ui::window &wnd) override {
-			// TODO anything needs to be done?
+		/// Since the \ref _window_data is automatically destroyed when the window closes, no clean-up is necessary.
+		void _delete_window(ui::window&) override {
 		}
 
 		/// Invokes \p wglMakeCurrent() to start drawing to the given window.
@@ -115,7 +115,7 @@ namespace codepad::os {
 			vec2d size = wnd.get_client_size(), scaling = wnd.get_scaling_factor();
 			size.x *= scaling.x;
 			size.y *= scaling.y;
-			glViewport(0, 0, size.x, size.y);
+			glViewport(0, 0, static_cast<GLsizei>(std::ceil(size.x)), static_cast<GLsizei>(std::ceil(size.y)));
 		}
 		/// Invokes \p SwapBuffers().
 		void _finish_drawing_to_window(ui::window &wnd) override {

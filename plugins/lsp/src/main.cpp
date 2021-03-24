@@ -95,7 +95,8 @@ extern "C" {
 					std::filesystem::path path = cp::lsp::uri::to_current_os_path(params.uri);
 					std::shared_ptr<cp::editors::code::interpretation> doc;
 					cp::lsp::_editor_manager->buffers.for_each_interpretation_of_buffer(
-						[&doc](const std::u8string &enc, std::shared_ptr<cp::editors::code::interpretation> interp) {
+						// TODO handle multiple encodings
+						[&doc](const std::u8string&, std::shared_ptr<cp::editors::code::interpretation> interp) {
 							if (doc) {
 								cp::logger::get().log_error(CP_HERE) << "document opened using multiple encodings";
 							}

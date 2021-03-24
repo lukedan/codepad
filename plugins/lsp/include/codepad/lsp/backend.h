@@ -91,7 +91,10 @@ namespace codepad::lsp {
 				}
 
 				writer.Key("method");
-				writer.String(reinterpret_cast<const char*>(method.data()), method.size());
+				writer.String(
+					reinterpret_cast<const char*>(method.data()),
+					static_cast<rapidjson::SizeType>(method.size())
+				);
 
 				if constexpr (!std::is_same_v<std::remove_cv_t<Send>, std::nullopt_t>) {
 					writer.Key("params");

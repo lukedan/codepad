@@ -23,7 +23,7 @@ namespace codepad::ui::skia {
 		auto target_bmp = std::make_shared<bitmap>();
 		target_bmp->_image_or_surface.emplace<sk_sp<SkSurface>>(target->_surface);
 
-		// TODO clear color
+		target->_surface->getCanvas()->clear(_details::cast_color(clear));
 
 		render_target_data result;
 		result.target = std::move(target);
@@ -47,9 +47,9 @@ namespace codepad::ui::skia {
 
 			double x = 0.0, y_offset = text._data.get_ascender();
 			for (unsigned int i = 0; i < num_glyphs; ++i) {
-				run.glyphs[i] = glyph_infos[i].codepoint;
-				run.pos[i * 2] = x + glyph_positions[i].x_offset / 64.0;
-				run.pos[i * 2 + 1] = y_offset + glyph_positions[i].y_offset / 64.0;
+				run.glyphs[i] = static_cast<SkGlyphID>(glyph_infos[i].codepoint);
+				run.pos[i * 2] = static_cast<SkScalar>(x + glyph_positions[i].x_offset / 64.0);
+				run.pos[i * 2 + 1] = static_cast<SkScalar>(y_offset + glyph_positions[i].y_offset / 64.0);
 				x += glyph_positions[i].x_advance / 64.0;
 			}
 
@@ -58,7 +58,9 @@ namespace codepad::ui::skia {
 
 		SkPaint paint;
 		paint.setColor4f(_details::cast_colorf(color), _color_space.get());
-		canvas->drawTextBlob(text._cached_text, topleft.x, topleft.y, paint);
+		canvas->drawTextBlob(
+			text._cached_text, static_cast<SkScalar>(topleft.x), static_cast<SkScalar>(topleft.y), paint
+		);
 	}
 
 	std::optional<SkPaint> renderer_base::_create_paint(const brushes::none&, const matd3x3&) {

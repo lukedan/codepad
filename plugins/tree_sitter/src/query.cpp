@@ -55,7 +55,8 @@ namespace codepad::tree_sitter {
 		uint32_t error_offset;
 		TSQueryError error;
 		res._query.set(ts_query_new(
-			language, reinterpret_cast<const char*>(str.data()), str.size(),
+			language,
+			reinterpret_cast<const char*>(str.data()), static_cast<uint32_t>(str.size()),
 			&error_offset, &error
 		));
 		if (!res._query) {

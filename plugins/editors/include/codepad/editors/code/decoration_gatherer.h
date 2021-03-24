@@ -184,7 +184,7 @@ namespace codepad::editors::code {
 			}
 			/// Handles a \ref text_fragment.
 			bool handle_fragment(
-				const text_fragment &frag, const fragment_assembler::text_rendering &text,
+				const text_fragment&, const fragment_assembler::text_rendering &text,
 				std::size_t steps, std::size_t posafter, decoration_gatherer &rend
 			) {
 				if (_end <= posafter) {
@@ -196,8 +196,8 @@ namespace codepad::editors::code {
 			}
 			/// Handles a line break.
 			bool handle_fragment(
-				const linebreak_fragment &frag, const fragment_assembler::basic_rendering &rendering,
-				std::size_t steps, std::size_t posafter, decoration_gatherer &rend
+				const linebreak_fragment&, const fragment_assembler::basic_rendering &rendering,
+				std::size_t, std::size_t posafter, decoration_gatherer &rend
 			) {
 				double xmax = rendering.topleft.x;
 				logger::get().log_debug(CP_HERE) << "xmax: " << xmax;
@@ -212,7 +212,7 @@ namespace codepad::editors::code {
 			}
 			/// Handles a generic solid fragment.
 			template <typename Frag, typename Rendering> bool handle_fragment(
-				const Frag &frag, const Rendering &rendering, std::size_t steps, std::size_t posafter,
+				const Frag&, const Rendering &rendering, std::size_t, std::size_t posafter,
 				decoration_gatherer &rend
 			) {
 				if (_end <= posafter) {

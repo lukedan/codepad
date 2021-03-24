@@ -116,13 +116,13 @@ int main(int argc, char **argv) {
 	std::vector<tree> test_data;
 	std::vector<std::vector<int>> reference_data;
 
-	std::size_t index = 0;
+	std::size_t op_index = 0;
 	while (keep_running) {
 		auto op = static_cast<operations>(op_distribution(random));
 		if (reference_data.empty()) {
 			op = operations::insert_tree;
 		}
-		logger::get().log_info(CP_HERE) << "op index " << index;
+		logger::get().log_info(CP_HERE) << "op index " << op_index;
 		switch (op) {
 		case operations::insert:
 			{
@@ -316,7 +316,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		++index;
+		++op_index;
 	}
 
 	logger::get().log_info(CP_HERE) << "exiting normally";

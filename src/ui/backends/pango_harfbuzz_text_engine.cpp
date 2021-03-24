@@ -742,7 +742,11 @@ namespace codepad::ui::pango_harfbuzz {
 				hb_ft_font_create_referenced(fnt._face.get())
 			);
 		}
-		hb_font_set_ppem(fnt._harfbuzz_font.get(), font_size, font_size);
+		hb_font_set_ppem(
+			fnt._harfbuzz_font.get(),
+			static_cast<unsigned int>(font_size),
+			static_cast<unsigned int>(font_size)
+		);
 		hb_shape(fnt._harfbuzz_font.get(), buf.get(), nullptr, 0); // TODO features?
 
 		return plain_text_data(std::move(buf), fnt, fnt._face->size->metrics, num_chars, font_size);

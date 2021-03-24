@@ -648,7 +648,9 @@ namespace codepad::editors::code {
 			};
 			_appearance_changed_tok = (
 				_doc->appearance_changed += [this](interpretation::appearance_changed_info &info) {
-					// TODO handle layout change
+					if (info.type == interpretation::appearance_change_type::layout_and_visual) {
+						// TODO handle layout change
+					}
 					_on_content_visual_changed();
 				}
 			);

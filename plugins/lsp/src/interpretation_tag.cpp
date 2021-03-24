@@ -85,7 +85,7 @@ namespace codepad::lsp {
 		if (tag) {
 			if (
 				params.version.value.has_value() &&
-				params.version.value.value() != tag->_change_params.textDocument.version
+				static_cast<types::integer>(params.version.value.value()) != tag->_change_params.textDocument.version
 			) {
 				return;
 			}
@@ -139,8 +139,7 @@ namespace codepad::lsp {
 					auto line_col = tag->_interp->get_linebreaks().get_line_and_column_of_char(caret.position);
 					types::HoverParams params;
 					params.textDocument = tag->_change_params.textDocument;
-					params.position.line = line_col.line;
-					params.position.character = line_col.position_in_line;
+					params.position = types::Position(line_col.line, line_col.position_in_line);
 					c.send_request<types::HoverResponse>(
 						u8"textDocument/hover", params, [tag, &contents](types::HoverResponse response) {
 							logger::get().log_debug(CP_HERE) << "requesting hover popup";
@@ -158,8 +157,7 @@ namespace codepad::lsp {
 		auto &change = _change_params.contentChanges.value.emplace_back();
 		auto &range = change.range.value.emplace();
 		// start of range
-		range.start.line = info.start_line_column.line;
-		range.start.character = info.start_line_column.position_in_line;
+		range.start = types::Position(info.start_line_column.line, info.start_line_column.position_in_line);
 		auto start_line = *info.start_line_column.line_iterator;
 		if (range.start.character > start_line.nonbreak_chars) {
 			_change_start_offset =
@@ -169,8 +167,7 @@ namespace codepad::lsp {
 			_change_start_offset = 0;
 		}
 		// end of range
-		range.end.line = info.past_end_line_column.line;
-		range.end.character = info.past_end_line_column.position_in_line;
+		range.end = types::Position(info.past_end_line_column.line, info.past_end_line_column.position_in_line);
 		auto end_line = *info.past_end_line_column.line_iterator;
 		if (range.end.character > end_line.nonbreak_chars) {
 			_change_end_offset =

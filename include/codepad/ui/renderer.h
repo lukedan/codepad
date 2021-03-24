@@ -373,8 +373,9 @@ namespace codepad {
 			virtual void set_font_stretch(font_stretch, std::size_t, std::size_t) = 0;
 		};
 
-		/// A font in a font family. The "EM unit" used here is slightly different from the Wikipedia definition:
-		/// multiplying the EM unit by font size gives the length in device-independent pixels.
+		/// A font in a font family.
+		///
+		/// \remark Multiplying one EM unit by font size gives the length in device-independent pixels.
 		class font {
 		public:
 			/// Default constructor.
@@ -394,7 +395,7 @@ namespace codepad {
 			/// Returns whether this font contains a glyph for the given codepoint.
 			[[nodiscard]] virtual bool has_character(codepoint) const = 0;
 
-			/// Returns the width of the given character.
+			/// Returns the width of the given character in em units.
 			[[nodiscard]] virtual double get_character_width_em(codepoint) const = 0;
 			/// Returns the maximum width of all given characters.
 			[[nodiscard]] virtual double get_maximum_character_width_em(std::basic_string_view<codepoint> str) const {

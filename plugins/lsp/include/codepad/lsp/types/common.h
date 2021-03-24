@@ -321,7 +321,7 @@ namespace codepad::lsp::types {
 
 			if constexpr (_count == 1) {
 				if constexpr (_id_enum) {
-					value.emplace<_id_enum.value()>().set_value(i);
+					value.emplace<_id_enum.value()>().set_value(static_cast<integer>(i));
 				} else if constexpr (_id_int) {
 					if (
 						i < static_cast<std::int64_t>(std::numeric_limits<integer>::min()) ||
@@ -480,6 +480,13 @@ namespace codepad::lsp::types {
 	};
 
 	struct Position : public virtual object {
+		/// Default constructor.
+		Position() = default;
+		/// Convenience constructor.
+		Position(std::size_t li, std::size_t ch) :
+			object(), line(static_cast<uinteger>(li)), character(static_cast<uinteger>(ch)) {
+		}
+
 		uinteger line = 0;
 		uinteger character = 0;
 

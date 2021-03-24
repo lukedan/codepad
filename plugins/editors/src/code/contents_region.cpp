@@ -226,7 +226,6 @@ namespace codepad::editors::code {
 			// gather information for text and carets
 			std::vector<fragment_assembler::rendering_storage> renderings;
 			while (gen.get_position() < plastchar) {
-				std::size_t frag_begin = gen.get_position();
 				fragment_generation_result frag = gen.generate_and_update();
 
 				// render the fragment

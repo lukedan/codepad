@@ -344,8 +344,8 @@ namespace codepad::editors::code {
 				// the first line
 				auto it = _t.emplace_before(at, offset + lines[0].nonbreak_chars, lines[0].ending);
 				// insert all other lines
-				for (auto it = lines.begin() + 1; it != lines.end() - 1; ++it) {
-					_t.emplace_before(at, *it);
+				for (auto rest_it = lines.begin() + 1; rest_it != lines.end() - 1; ++rest_it) {
+					_t.emplace_before(at, *rest_it);
 				}
 				result.merge_front = _try_merge_rn_linebreak(it);
 				result.merge_back = _try_merge_rn_linebreak(at);
