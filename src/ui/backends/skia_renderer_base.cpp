@@ -22,6 +22,7 @@ namespace codepad::ui::skia {
 
 		auto target_bmp = std::make_shared<bitmap>();
 		target_bmp->_image_or_surface.emplace<sk_sp<SkSurface>>(target->_surface);
+		target_bmp->_scaling = scaling_factor;
 
 		target->_surface->getCanvas()->clear(_details::cast_color(clear));
 
@@ -129,6 +130,7 @@ namespace codepad::ui::skia {
 		if (img == nullptr) {
 			return std::nullopt;
 		}
+		// TODO also take into account the scaling factor of the bitmap
 		paint.setShader(img->makeShader(_details::cast_matrix(mat)));
 		return paint;
 	}
