@@ -209,9 +209,6 @@ if(WIN32)
 		# uncomment to debug slow compilation times
 #		target_compile_options(codepad_core
 #			PRIVATE /Bt /d1reportTime /d2cgsummary)
-		# enable detailed memory leak report (not THAT effective)
-#		target_compile_definitions(codepad_core
-#			PUBLIC _CRTDBG_MAP_ALLOC)
 	endif()
 
 	# finding cairo and dependencies on windows is quite different from finding cairo on linux

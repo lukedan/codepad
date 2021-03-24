@@ -121,11 +121,8 @@
 				}
 			},
 			{
-				"type": "scrollbar_drag_button",
+				"type": "button",
 				"name": "drag_button",
-				"references": {
-					"scrollbar": "main"
-				},
 				"properties": {
 					"visibility": "-f",
 					"layout": {

@@ -10,51 +10,8 @@
 #include "../manager.h"
 
 namespace codepad::ui {
-	class scrollbar;
-	/// The draggable button of a \ref scrollbar.
-	class scrollbar_drag_button : public button {
-	public:
-		/// Returns the minimum length of this button.
-		double get_minimum_length() const {
-			return _min_length;
-		}
-		/// Sets the minimum length of this button.
-		void set_minimum_length(double len) {
-			_min_length = len;
-			invalidate_layout();
-		}
-
-		/// Returns the role of \ref _scrollbar.
-		inline static std::u8string_view get_scrollbar_role() {
-			return u8"scrollbar";
-		}
-		/// Returns the default class of elements of this type.
-		inline static std::u8string_view get_default_class() {
-			return u8"scrollbar_drag_button";
-		}
-	protected:
-		scrollbar *_scrollbar = nullptr; ///< The \ref scrollbar that owns this button.
-		double
-			_doffset = 0.0, ///< The offset of the mouse when the button is being dragged.
-			_min_length = 15.0; ///< The minimum length of this butten.
-
-		/// Returns the \ref scrollbar that this button belongs to.
-		[[nodiscard]] scrollbar &_get_bar() const {
-			return *_scrollbar;
-		}
-
-		/// Sets \ref _doffset accordingly if dragging starts.
-		void _on_mouse_down(mouse_button_info&) override;
-		/// Updates the value of the parent \ref scrollbar when dragging.
-		void _on_mouse_move(mouse_move_info&) override;
-
-		/// Handles \ref _scrollbar.
-		bool _handle_reference(std::u8string_view, element*) override;
-	};
-
 	/// A scroll bar.
 	class scrollbar : public panel {
-		friend scrollbar_drag_button;
 	public:
 		/// The default thickness of scrollbars.
 		constexpr static double default_thickness = 10.0;
@@ -184,6 +141,16 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Returns the minimum length of the drag button.
+		double get_minimum_drag_button_length() const {
+			return _drag_button_minimum_length;
+		}
+		/// Sets the minimum length of the drag button.
+		void set_minimum_drag_button_length(double len) {
+			_drag_button_minimum_length = len;
+			_invalidate_children_layout();
+		}
+
 		/// Returns the \ref transition_function used for smoothing.
 		[[nodiscard]] const transition_function &get_smoothing() const {
 			return _smoothing_transition;
@@ -220,22 +187,30 @@ namespace codepad::ui {
 			_total_range = 1.0, ///< The length of the whole range.
 			_actual_value = 0.0, ///< The current actual value.
 			_target_value = 0.0, ///< Target value.
-			_visible_range = 0.1, ///< The length of the visible range.
-
-			/// The duration of smooth scroll operations.
-			_smooth_duration = 0.1;
+			_visible_range = 0.1; ///< The length of the visible range.
 		orientation _orientation = orientation::horizontal; ///< The orientation of this scrollbar.
-		scrollbar_drag_button *_drag = nullptr; ///< The drag button.
+
 		button
+			*_drag = nullptr, ///< The drag button.
 			*_pgup = nullptr, ///< The `page up' button.
 			*_pgdn = nullptr; ///< The `page down' button.
+
 		/// Transition function for smooth scrolling.
 		transition_function _smoothing_transition = transition_functions::convex_cubic;
 		/// The starting time of the current smooth scrolling operation.
 		scheduler::clock_t::time_point _smooth_begin;
-		double _smooth_begin_pos = 0.0; ///< Starting position of the current smooth scrolling operation.
+		double
+			_smooth_duration = 0.1, ///< The duration of smooth scroll operations.
+			_smooth_begin_pos = 0.0; ///< Starting position of the current smooth scrolling operation.
 		/// When a smooth scrolling task is currently active, this will hold the token for that task.
 		scheduler::sync_task_token _smooth_update_token;
+
+		double
+			/// The minimum size of \ref _drag. Prevents the button from being too small to be interacted with.
+			_drag_button_minimum_length = 15.0,
+			/// The offset of the mouse relative to the beginning end of \ref _drag. This is only valid when
+			/// \ref _drag is being dragged.
+			_drag_button_mouse_offset = 0.0;
 		/// Marks if the length of \ref _drag is currently extended so that it's easier to interact with.
 		bool _drag_button_extended = false;
 

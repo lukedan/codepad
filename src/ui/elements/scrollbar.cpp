@@ -10,39 +10,6 @@
 #include "codepad/ui/json_parsers.inl"
 
 namespace codepad::ui {
-	void scrollbar_drag_button::_on_mouse_down(mouse_button_info &p) {
-		if (p.button == get_trigger_button()) {
-			scrollbar &b = _get_bar();
-			if (b.get_orientation() == orientation::vertical) {
-				_doffset = p.position.get(b).y + b.get_layout().ymin - get_layout().ymin;
-			} else {
-				_doffset = p.position.get(b).x + b.get_layout().xmin - get_layout().xmin;
-			}
-		}
-		button::_on_mouse_down(p);
-	}
-
-	void scrollbar_drag_button::_on_mouse_move(mouse_move_info &p) {
-		if (is_trigger_button_pressed()) {
-			scrollbar &b = _get_bar();
-			b._on_drag_button_moved((
-				b.get_orientation() == orientation::vertical ?
-				p.new_position.get(b).y :
-				p.new_position.get(b).x
-				) - _doffset);
-		}
-		button::_on_mouse_move(p);
-	}
-
-	bool scrollbar_drag_button::_handle_reference(std::u8string_view role, element *elem) {
-		if (role == get_scrollbar_role()) {
-			_reference_cast_to(_scrollbar, elem);
-			return true;
-		}
-		return button::_handle_reference(role, elem);
-	}
-
-
 	void scrollbar::set_params(double tot, double vis) {
 		if (vis > tot) {
 			vis = tot;
@@ -72,9 +39,9 @@ namespace codepad::ui {
 		double
 			totsize = max - min,
 			btnlen = totsize * _visible_range / _total_range;
-		_drag_button_extended = btnlen < _drag->get_minimum_length();
+		_drag_button_extended = btnlen < get_minimum_drag_button_length();
 		if (_drag_button_extended) {
-			btnlen = _drag->get_minimum_length();
+			btnlen = get_minimum_drag_button_length();
 			double percentage = get_actual_value() / (_total_range - _visible_range);
 			mid1 = min + (totsize - btnlen) * percentage;
 			mid2 = mid1 + btnlen;
@@ -147,7 +114,28 @@ namespace codepad::ui {
 
 	bool scrollbar::_handle_reference(std::u8string_view role, element *elem) {
 		if (role == get_drag_button_name()) {
-			_reference_cast_to(_drag, elem);
+			if (_reference_cast_to(_drag, elem)) {
+				_drag->mouse_down += [this](mouse_button_info &info) {
+					if (info.button == _drag->get_trigger_button()) {
+						if (get_orientation() == orientation::vertical) {
+							_drag_button_mouse_offset =
+								info.position.get(*this).y + get_layout().ymin - _drag->get_layout().ymin;
+						} else {
+							_drag_button_mouse_offset =
+								info.position.get(*this).x + get_layout().xmin - _drag->get_layout().xmin;
+						}
+					}
+				};
+				_drag->mouse_move += [this](mouse_move_info &info) {
+					if (_drag->is_trigger_button_pressed()) {
+						_on_drag_button_moved((
+							get_orientation() == orientation::vertical ?
+							info.new_position.get(*this).y :
+							info.new_position.get(*this).x
+						) - _drag_button_mouse_offset);
+					}
+				};
+			}
 			return true;
 		}
 		if (role == get_page_up_button_name()) {
