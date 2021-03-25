@@ -300,7 +300,7 @@ namespace codepad::ui::cairo {
 
 		/// Invokes \ref pango_harfbuzz::text_engine::find_font_family().
 		std::shared_ptr<ui::font_family> find_font_family(const std::u8string &family) override {
-			return std::make_shared<font_family>(_text_engine, _text_engine.find_font_family(family));
+			return std::make_shared<font_family>(_text_engine, _text_engine.find_font_family(family.c_str()));
 		}
 
 		/// Starts drawing to the given \ref render_target.

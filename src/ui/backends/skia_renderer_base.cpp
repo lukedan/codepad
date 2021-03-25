@@ -10,6 +10,24 @@
 #include <skia/core/SkTextBlob.h>
 
 namespace codepad::ui::skia {
+	std::shared_ptr<font> font_family::_get_matching_font_impl(
+		pango_harfbuzz::text_engine &engine, pango_harfbuzz::font_family_data family,
+		font_style style, font_weight weight, font_stretch stretch
+	) {
+		auto &entry = family.get_cache_entry();
+		auto [it, inserted] = entry.font_faces.try_emplace(pango_harfbuzz::font_params(style, weight, stretch));
+		if (inserted) {
+			auto found = entry.find_font(style, weight, stretch);
+			auto result = std::make_shared<font>(
+				engine, reinterpret_cast<const char*>(found.get_font_file_path()), found.get_font_index()
+			);
+			it->second = result;
+			return result;
+		}
+		return std::dynamic_pointer_cast<font>(it->second);
+	}
+
+
 	render_target_data renderer_base::create_render_target(vec2d size, vec2d scaling_factor, colord clear) {
 		vec2d pixel_size(size.x * scaling_factor.x, size.y * scaling_factor.y);
 		SkImageInfo image_info = SkImageInfo::MakeN32Premul(
@@ -32,10 +50,92 @@ namespace codepad::ui::skia {
 		return result;
 	}
 
-	void renderer_base::draw_plain_text(const ui::plain_text &generic_text, vec2d topleft, colord color) {
-		auto &text = _details::cast_plain_text(generic_text);
+	void renderer_base::draw_formatted_text(const ui::formatted_text &generic_text, vec2d pos) {
+		auto &text = _details::cast_formatted_text(generic_text);
+
+		if (!text._cached_text) {
+			SkTextBlobBuilder builder;
+
+			// iterate over all runs
+			PangoLayoutIter *iter = pango_layout_get_iter(text._data.get_pango_layout());
+			do {
+				PangoLayoutRun *run = pango_layout_iter_get_run_readonly(iter);
+				if (!run) { // continue to the next line
+					continue;
+				}
+
+				// find the font used for this run
+				// TODO font fallback doesn't work - is it handled by the renderer?
+				SkFont font;
+				{
+					PangoFontDescription *font_description = pango_font_describe(run->item->analysis.font);
+
+					auto family = _text_engine.find_font_family(
+						reinterpret_cast<const char8_t*>(pango_font_description_get_family(font_description))
+					);
+					auto typeface = font_family::_get_matching_font_impl(
+						_text_engine, family,
+						pango_harfbuzz::_details::cast_font_style_back(
+							pango_font_description_get_style(font_description)
+						),
+						pango_harfbuzz::_details::cast_font_weight_back(
+							pango_font_description_get_weight(font_description)
+						),
+						pango_harfbuzz::_details::cast_font_stretch_back(
+							pango_font_description_get_stretch(font_description)
+						)
+					)->_skia_font;
+					// TODO pango_font_describe returns the font size in points. skia expects font size in points. yet
+					//      the font sizes don't match
+					auto font_size_pt = pango_units_to_double(pango_font_description_get_size(font_description)) * 1.33;
+					font = SkFont(typeface, font_size_pt);
+					font.setSubpixel(true);
+
+					pango_font_description_free(font_description);
+				}
+
+				// retrieve text color
+				for (GSList *attr_node = run->item->analysis.extra_attrs; attr_node; attr_node = attr_node->next) {
+					auto *attrib = static_cast<PangoAttribute*>(attr_node->data);
+					if (attrib->klass->type == PANGO_ATTR_FOREGROUND) {
+						auto *color_attrib = reinterpret_cast<PangoAttrColor*>(attrib);
+						color_attrib->color; // TODO do something with this
+					} else if (attrib->klass->type == PANGO_ATTR_FOREGROUND_ALPHA) {
+						auto *alpha_attrib = reinterpret_cast<PangoAttrInt*>(attrib);
+						alpha_attrib->value; // TODO
+					}
+				}
+
+				// collect glyphs
+				PangoRectangle run_layout;
+				pango_layout_iter_get_run_extents(iter, nullptr, &run_layout);
+				int x = run_layout.x;
+				int y = pango_layout_iter_get_baseline(iter);
+				auto &buffer = builder.allocRunPos(font, run->glyphs->num_glyphs);
+				for (gint i = 0; i < run->glyphs->num_glyphs; ++i) {
+					buffer.glyphs[i] = run->glyphs->glyphs[i].glyph;
+					buffer.pos[i * 2] = pango_units_to_double(x + run->glyphs->glyphs[i].geometry.x_offset);
+					buffer.pos[i * 2 + 1] = pango_units_to_double(y + run->glyphs->glyphs[i].geometry.y_offset);
+					x += run->glyphs->glyphs[i].geometry.width;
+				}
+
+			} while (pango_layout_iter_next_run(iter));
+			pango_layout_iter_free(iter);
+
+			text._cached_text = builder.make();
+		}
 
 		SkCanvas *canvas = _render_stack.top().canvas;
+		SkPaint paint;
+		paint.setColor4f(_details::cast_colorf(colord(1.0, 1.0, 1.0, 1.0)), _color_space.get()); // TODO color
+		pos += text._data.get_alignment_offset();
+		canvas->drawTextBlob(
+			text._cached_text, static_cast<SkScalar>(pos.x), static_cast<SkScalar>(pos.y), paint
+		);
+	}
+
+	void renderer_base::draw_plain_text(const ui::plain_text &generic_text, vec2d topleft, colord color) {
+		auto &text = _details::cast_plain_text(generic_text);
 
 		if (!text._cached_text) {
 			// gather glyphs
@@ -57,6 +157,7 @@ namespace codepad::ui::skia {
 			text._cached_text = builder.make();
 		}
 
+		SkCanvas *canvas = _render_stack.top().canvas;
 		SkPaint paint;
 		paint.setColor4f(_details::cast_colorf(color), _color_space.get());
 		canvas->drawTextBlob(

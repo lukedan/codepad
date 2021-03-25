@@ -12,8 +12,6 @@
 
 namespace codepad::ui::pango_harfbuzz {
 	namespace _details {
-		using namespace ui::_details;
-
 		/// Converts a component of a color to a \p guint16.
 		[[nodiscard]] guint16 cast_color_component(double c) {
 			return static_cast<guint16>(std::round(c * std::numeric_limits<guint16>::max()));
@@ -59,6 +57,17 @@ namespace codepad::ui::pango_harfbuzz {
 			return PANGO_STYLE_NORMAL;
 		}
 
+		font_style cast_font_style_back(PangoStyle style) {
+			switch (style) {
+			case PANGO_STYLE_NORMAL:
+				return font_style::normal;
+			case PANGO_STYLE_ITALIC:
+				return font_style::italic;
+			case PANGO_STYLE_OBLIQUE:
+				return font_style::oblique;
+			}
+		}
+
 		/// Converts a \ref font_style to a Fontconfig font slant.
 		[[nodiscard]] int cast_font_style_fontconfig(font_style style) {
 			switch (style) {
@@ -76,6 +85,10 @@ namespace codepad::ui::pango_harfbuzz {
 		[[nodiscard]] PangoWeight cast_font_weight(font_weight weight) {
 			// we use pango values for font weight - cast directly
 			return static_cast<PangoWeight>(weight);
+		}
+
+		font_weight cast_font_weight_back(PangoWeight weight) {
+			return static_cast<font_weight>(weight);
 		}
 
 		/// Converts a \ref font_weight to a Fontconfig weight.
@@ -176,6 +189,29 @@ namespace codepad::ui::pango_harfbuzz {
 				return PANGO_STRETCH_ULTRA_EXPANDED;
 			}
 			return PANGO_STRETCH_NORMAL; // something went wrong
+		}
+
+		font_stretch cast_font_stretch_back(PangoStretch stretch) {
+			switch (stretch) {
+			case PANGO_STRETCH_ULTRA_CONDENSED:
+				return font_stretch::ultra_condensed;
+			case PANGO_STRETCH_EXTRA_CONDENSED:
+				return font_stretch::extra_condensed;
+			case PANGO_STRETCH_CONDENSED:
+				return font_stretch::condensed;
+			case PANGO_STRETCH_SEMI_CONDENSED:
+				return font_stretch::semi_condensed;
+			case PANGO_STRETCH_NORMAL:
+				return font_stretch::normal;
+			case PANGO_STRETCH_SEMI_EXPANDED:
+				return font_stretch::semi_expanded;
+			case PANGO_STRETCH_EXPANDED:
+				return font_stretch::expanded;
+			case PANGO_STRETCH_EXTRA_EXPANDED:
+				return font_stretch::extra_expanded;
+			case PANGO_STRETCH_ULTRA_EXPANDED:
+				return font_stretch::ultra_expanded;
+			}
 		}
 
 		/// Converts a \ref font_stretch to a Fontconfig width.

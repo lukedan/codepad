@@ -152,6 +152,7 @@ namespace codepad::ui::skia {
 
 	/// Wraps around a \ref pango_harfbuzz::font_family_data.
 	class font_family : public ui::font_family {
+		friend renderer_base;
 	public:
 		/// Initializes \ref _data and \ref _engine.
 		font_family(pango_harfbuzz::text_engine &eng, pango_harfbuzz::font_family_data data) :
@@ -162,19 +163,16 @@ namespace codepad::ui::skia {
 		[[nodiscard]] std::shared_ptr<ui::font> get_matching_font(
 			font_style style, font_weight weight, font_stretch stretch
 		) const override {
-			auto &entry = _data.get_cache_entry();
-			auto [it, inserted] = entry.font_faces.try_emplace(pango_harfbuzz::font_params(style, weight, stretch));
-			if (inserted) {
-				auto found = entry.find_font(style, weight, stretch);
-				it->second = std::make_shared<font>(
-					*_engine, reinterpret_cast<const char*>(found.get_font_file_path()), found.get_font_index()
-					);
-			}
-			return it->second;
+			return _get_matching_font_impl(*_engine, _data, style, weight, stretch);
 		}
 	protected:
 		pango_harfbuzz::font_family_data _data; ///< The font family data.
 		pango_harfbuzz::text_engine *_engine = nullptr; ///< The text engine that created this object.
+
+		/// Finds and returns the matching font in the given font family, caching the result.
+		[[nodicard]] static std::shared_ptr<font> _get_matching_font_impl(
+			pango_harfbuzz::text_engine&, pango_harfbuzz::font_family_data, font_style, font_weight, font_stretch
+		);
 	};
 
 	/// Wraps around a \ref pango_harfbuzz::plain_text_data, its associated \p SkFont, and optionally a cached
@@ -185,6 +183,8 @@ namespace codepad::ui::skia {
 		/// Initializes \ref data and \ref _font.
 		plain_text(pango_harfbuzz::plain_text_data data, SkFont fnt) :
 			_data(std::move(data)), _font(std::move(fnt)) {
+
+			fnt.setSubpixel(true);
 		}
 
 		/// Returns \ref pango_harfbuzz::plain_text_data::get_width().
@@ -252,58 +252,68 @@ namespace codepad::ui::skia {
 		[[nodiscard]] vec2d get_layout_size() const override {
 			return _data.get_layout_size();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_layout_size().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_layout_size() and resets \ref _cached_text.
 		void set_layout_size(vec2d sz) override {
 			_data.set_layout_size(sz);
+			_cached_text.reset();
 		}
 		/// Returns \ref pango_harfbuzz::formatted_text_data::get_horizontal_alignment().
 		[[nodiscard]] horizontal_text_alignment get_horizontal_alignment() const override {
 			return _data.get_horizontal_alignment();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_horizontal_alignment().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_horizontal_alignment() and resets \ref _cached_text.
 		void set_horizontal_alignment(horizontal_text_alignment align) override {
-			return _data.set_horizontal_alignment(align);
+			_data.set_horizontal_alignment(align);
+			_cached_text.reset();
 		}
 		/// Returns \ref pango_harfbuzz::formatted_text_data::get_vertical_alignment().
 		[[nodiscard]] vertical_text_alignment get_vertical_alignment() const override {
 			return _data.get_vertical_alignment();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_vertical_alignment().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_vertical_alignment() and resets \ref _cached_text.
 		void set_vertical_alignment(vertical_text_alignment align) override {
 			_data.set_vertical_alignment(align);
+			_cached_text.reset();
 		}
 		/// Returns \ref pango_harfbuzz::formatted_text_data::get_wrapping_mode().
 		[[nodiscard]] wrapping_mode get_wrapping_mode() const override {
 			return _data.get_wrapping_mode();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_wrapping_mode().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_wrapping_mode() and resets \ref _cached_text.
 		void set_wrapping_mode(wrapping_mode wrap) override {
 			_data.set_wrapping_mode(wrap);
+			_cached_text.reset();
 		}
 
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_text_color().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_text_color() and resets \ref _cached_text.
 		void set_text_color(colord c, std::size_t beg, std::size_t len) override {
 			_data.set_text_color(c, beg, len);
+			_cached_text.reset();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_family().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_family() and resets \ref _cached_text.
 		void set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) override {
 			_data.set_font_family(family, beg, len);
+			_cached_text.reset();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_size().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_size() and resets \ref _cached_text.
 		void set_font_size(double size, std::size_t beg, std::size_t len) override {
 			_data.set_font_size(size, beg, len);
+			_cached_text.reset();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_style().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_style() and resets \ref _cached_text.
 		void set_font_style(font_style style, std::size_t beg, std::size_t len) override {
 			_data.set_font_style(style, beg, len);
+			_cached_text.reset();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_weight().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_weight() and resets \ref _cached_text.
 		void set_font_weight(font_weight weight, std::size_t beg, std::size_t len) override {
 			_data.set_font_weight(weight, beg, len);
+			_cached_text.reset();
 		}
-		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_stretch().
+		/// Calls \ref pango_harfbuzz::formatted_text_data::set_font_stretch() and resets \ref _cached_text.
 		void set_font_stretch(font_stretch stretch, std::size_t beg, std::size_t len) override {
 			_data.set_font_stretch(stretch, beg, len);
+			_cached_text.reset();
 		}
 	protected:
 		pango_harfbuzz::formatted_text_data _data; ///< Formatted text data from the text engine.
@@ -368,6 +378,13 @@ namespace codepad::ui::skia {
 			return *rt;
 		}
 
+		/// Casts a \ref ui::formatted_text to a \ref formatted_text.
+		[[nodiscard]] const formatted_text &cast_formatted_text(const ui::formatted_text &target) {
+			auto *rt = dynamic_cast<const formatted_text*>(&target);
+			assert_true_usage(rt, "invalid formatted_text type");
+			return *rt;
+		}
+
 		/// Casts a \ref ui::plain_text to a \ref plain_text.
 		[[nodiscard]] const plain_text &cast_plain_text(const ui::plain_text &target) {
 			auto *rt = dynamic_cast<const plain_text*>(&target);
@@ -402,7 +419,7 @@ namespace codepad::ui::skia {
 
 		/// Invokes \ref pango_harfbuzz::text_engine::find_font_family().
 		std::shared_ptr<ui::font_family> find_font_family(const std::u8string &family) override {
-			return std::make_shared<font_family>(_text_engine, _text_engine.find_font_family(family));
+			return std::make_shared<font_family>(_text_engine, _text_engine.find_font_family(family.c_str()));
 		}
 
 		/// Starts drawing to the given \ref render_target.
@@ -584,9 +601,7 @@ namespace codepad::ui::skia {
 			));
 		}
 		/// Draws the given \ref formatted_text at the given position.
-		void draw_formatted_text(const ui::formatted_text &text, vec2d pos) override {
-			// TODO
-		}
+		void draw_formatted_text(const ui::formatted_text&, vec2d) override;
 
 		/// Invokes \ref pango_harfbuzz::text_engine::create_plain_text().
 		std::shared_ptr<ui::plain_text> create_plain_text(

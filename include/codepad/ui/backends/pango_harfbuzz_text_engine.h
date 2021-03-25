@@ -172,6 +172,18 @@ namespace codepad::ui {
 		class text_engine;
 
 
+		namespace _details {
+			using namespace ui::_details;
+
+			/// Converts a \ref PangoStyle to a \ref font_style.
+			[[nodiscard]] font_style cast_font_style_back(PangoStyle);
+			/// Converts a \ref PangoWeight to a \ref font_weight.
+			[[nodiscard]] font_weight cast_font_weight_back(PangoWeight);
+			/// Converts a \ref PangoStretch to a \ref font_stretch.
+			[[nodiscard]] font_stretch cast_font_stretch_back(PangoStretch);
+		}
+
+
 		/// Initializes and finalizes Fontconfig.
 		class fontconfig_usage {
 		public:
@@ -554,13 +566,13 @@ namespace codepad::ui {
 			}
 
 
-			/// Creates a new \ref text_format.
-			[[nodiscard]] font_family_data find_font_family(const std::u8string &family) {
+			/// Creates a new \ref font_family_data.
+			[[nodiscard]] font_family_data find_font_family(const char8_t *family) {
 				auto [it, inserted] = _font_cache.try_emplace(family);
 				if (inserted) {
 					it->second.pattern = _details::make_gtk_object_ref_give(FcPatternCreate());
 					FcPatternAddString(
-						it->second.pattern.get(), FC_FAMILY, reinterpret_cast<const FcChar8*>(family.c_str())
+						it->second.pattern.get(), FC_FAMILY, reinterpret_cast<const FcChar8*>(family)
 					);
 				}
 				return font_family_data(it->second);
