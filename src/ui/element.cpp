@@ -72,13 +72,11 @@ namespace codepad::ui {
 		}
 	}
 
-	window *element::get_window() const {
-		element *cur = parent();
-		if (cur) {
-			while (cur->parent() != nullptr) {
-				cur = cur->parent();
+	window *element::get_window() {
+		for (element *cur = this; cur; cur = cur->parent()) {
+			if (auto *wnd = cur->_get_as_window()) {
+				return wnd;
 			}
-			return dynamic_cast<window*>(cur);
 		}
 		return nullptr;
 	}
@@ -249,6 +247,11 @@ namespace codepad::ui {
 		for (const generic_visual_geometry &g : get_visual_parameters().geometries) {
 			g.draw(unit, get_manager().get_renderer());
 		}
+		/*get_manager().get_renderer().draw_rectangle(
+			rectd::from_corner_and_size(vec2d(), unit),
+			ui::generic_brush(),
+			ui::generic_pen(ui::generic_brush(ui::brushes::solid_color(colord(1.0, 0.0, 0.0, 1.0))))
+		);*/
 	}
 
 	void element::_on_postrender() {

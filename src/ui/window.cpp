@@ -11,6 +11,30 @@
 #include "codepad/ui/manager.h"
 
 namespace codepad::ui {
+	size_allocation window::get_desired_width() const {
+		double maxw = 0.0;
+		for (const element *e : _children.items()) {
+			if (e->is_visible(visibility::layout) && !e->_get_as_window()) {
+				if (auto span = _get_horizontal_absolute_span(*e)) {
+					maxw = std::max(maxw, span.value());
+				}
+			}
+		}
+		return size_allocation::pixels(maxw + get_padding().width());
+	}
+
+	size_allocation window::get_desired_height() const {
+		double maxh = 0.0;
+		for (const element *e : _children.items()) {
+			if (e->is_visible(visibility::layout) && !e->_get_as_window()) {
+				if (auto span = _get_vertical_absolute_span(*e)) {
+					maxh = std::max(maxh, span.value());
+				}
+			}
+		}
+		return size_allocation::pixels(maxh + get_padding().height());
+	}
+
 	void window::set_mouse_capture(element &elem) {
 		logger::get().log_debug(CP_HERE) <<
 			"set mouse capture 0x" << &elem << " <" << demangle(typeid(elem).name()) << ">";
@@ -88,8 +112,11 @@ namespace codepad::ui {
 	void window::_dispose() {
 		// here we call _on_removing_element to ensure that the focus has been properly updated
 		get_manager().get_scheduler()._on_removing_element(*this);
-		get_manager().get_renderer()._delete_window(*this);
 		panel::_dispose();
+
+		// finalize renderer data after everything else so that events sent out during
+		// base panel finalization can be handled
+		get_manager().get_renderer()._delete_window(*this);
 	}
 
 	void window::_on_size_changed(size_changed_info &p) {
@@ -209,5 +236,33 @@ namespace codepad::ui {
 		} else {
 			panel::_on_mouse_scroll(p);
 		}
+	}
+
+	element *window::_hit_test_for_child(const mouse_position &pos) const {
+		for (element *elem : _children.z_ordered()) {
+			if (!elem->_get_as_window() && elem->is_visible(visibility::interact)) {
+				if (elem->hit_test(pos.get(*elem))) {
+					return elem;
+				}
+			}
+		}
+		return nullptr;
+	}
+
+	void window::_on_update_children_layout() {
+		rectd client = get_client_region();
+		for (auto *elem : _children.items()) {
+			if (!elem->_get_as_window()) {
+				layout_child(*elem, client);
+			}
+		}
+	}
+
+	void window::_on_got_system_focus() {
+		get_manager().get_scheduler()._on_system_focus_changed(this);
+	}
+
+	void window::_on_lost_system_focus() {
+		get_manager().get_scheduler()._on_system_focus_changed(nullptr);
 	}
 }

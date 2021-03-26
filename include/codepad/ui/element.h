@@ -294,8 +294,9 @@ namespace codepad::ui {
 		}
 
 		/// Returns the window that contains the element, or \p nullptr if the element's not currently attached to
-		/// one. For windows themselves, this function returns \p nullptr.
-		window *get_window() const;
+		/// one. For windows themselves, this function returns a pointer to the window itself, even if it's a child
+		/// of another window.
+		[[nodiscard]] window *get_window();
 		/// Returns the \ref manager of this element.
 		[[nodiscard]] manager &get_manager() const {
 			return *_manager;
@@ -672,5 +673,14 @@ namespace codepad::ui {
 #ifdef CP_CHECK_USAGE_ERRORS
 		bool _initialized = false; ///< Indicates wheter the element has been properly initialized and disposed.
 #endif
+
+		/// Returns \p this only for windows.
+		[[nodiscard]] virtual window *_get_as_window() {
+			return nullptr;
+		}
+		/// \override
+		[[nodiscard]] virtual const window *_get_as_window() const {
+			return nullptr;
+		}
 	};
 }

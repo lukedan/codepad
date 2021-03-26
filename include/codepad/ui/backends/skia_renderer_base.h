@@ -170,7 +170,7 @@ namespace codepad::ui::skia {
 		pango_harfbuzz::text_engine *_engine = nullptr; ///< The text engine that created this object.
 
 		/// Finds and returns the matching font in the given font family, caching the result.
-		[[nodicard]] static std::shared_ptr<font> _get_matching_font_impl(
+		[[nodiscard]] static std::shared_ptr<font> _get_matching_font_impl(
 			pango_harfbuzz::text_engine&, pango_harfbuzz::font_family_data, font_style, font_weight, font_stretch
 		);
 	};

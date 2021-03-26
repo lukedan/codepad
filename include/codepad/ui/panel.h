@@ -117,22 +117,22 @@ namespace codepad::ui {
 			_dispose_children = v;
 		}
 		/// Returns whether it would dispose its children upon disposal.
-		bool get_dispose_children() const {
+		[[nodiscard]] bool get_dispose_children() const {
 			return _dispose_children;
 		}
 
 		/// Returns whether this \ref panel is a focus scope.
-		bool is_focus_scope() const {
+		[[nodiscard]] bool is_focus_scope() const {
 			return _is_focus_scope;
 		}
 		/// Returns the focused element in this focus scope. If this panel gets the focus, this element will get the
 		/// focus instead.
-		element *get_focused_element_in_scope() const {
+		[[nodiscard]] element *get_focused_element_in_scope() const {
 			return _scope_focus;
 		}
 
 		/// Returns all of its children.
-		element_collection &children() {
+		[[nodiscard]] element_collection &children() {
 			return _children;
 		}
 
@@ -298,7 +298,7 @@ namespace codepad::ui {
 		}
 
 		/// Finds the element with the largest Z-index that is interactive and contains the given point.
-		element *_hit_test_for_child(const mouse_position&) const;
+		[[nodiscard]] virtual element *_hit_test_for_child(const mouse_position&) const;
 
 		/// For each child, removes it from \ref _children, and marks it for disposal if \ref _dispose_children is
 		/// \p true.

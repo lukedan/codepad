@@ -246,7 +246,7 @@ namespace codepad::ui {
 		);
 	}
 
-	void text_edit::_update_window_caret_position() const {
+	void text_edit::_update_window_caret_position() {
 		if (get_manager().get_scheduler().get_focused_element() == this) {
 			rectd caret = get_formatted_text().get_character_placement(_caret.caret);
 			caret = caret.translated(get_client_region().xmin_ymin());

@@ -7,6 +7,8 @@
 /// Implementation of \ref codepad::lsp::interpretation_tag.
 
 #include <codepad/ui/elements/label.h>
+#include <codepad/ui/elements/stack_panel.h>
+#include <codepad/ui/elements/text_edit.h>
 
 namespace codepad::lsp {
 	interpretation_tag::interpretation_tag(editors::code::interpretation &interp, client &c) :
@@ -352,11 +354,9 @@ namespace codepad::lsp {
 			if (response.range.value.has_value()) {
 				// TODO
 			}
+
 			auto *wnd = dynamic_cast<ui::window*>(
 				contents.get_manager().create_element(u8"window", u8"hover_window")
-			);
-			auto *label = dynamic_cast<ui::label*>(
-				contents.get_manager().create_element(u8"label", u8"hover_label")
 			);
 			wnd->set_width_size_policy(ui::window::size_policy::application);
 			wnd->set_height_size_policy(ui::window::size_policy::application);
@@ -366,14 +366,27 @@ namespace codepad::lsp {
 			wnd->set_show_icon(false);
 			wnd->set_topmost(true);
 			wnd->set_focusable(false);
-			wnd->set_parent(contents.get_window());
-			wnd->children().add(*label);
+			contents.get_window()->children().add(*wnd);
+
+			auto *stack_pnl = dynamic_cast<ui::stack_panel*>(contents.get_manager().create_element(u8"stack_panel", u8"default"));
+			stack_pnl->set_orientation(ui::orientation::vertical);
+			wnd->children().add(*stack_pnl);
+
+			auto *label = dynamic_cast<ui::label*>(
+				contents.get_manager().create_element(u8"label", u8"hover_label")
+			);
 			std::visit(
 				[label](auto &&val) {
 					_set_hover_label(*label, val);
 				},
 				response.contents.value
 			);
+			stack_pnl->children().add(*label);
+
+			auto *textbox = contents.get_manager().create_element<ui::textbox>();
+			textbox->get_text_edit()->set_text(u8"test text");
+			stack_pnl->children().add(*textbox);
+
 			wnd->show();
 		}
 	}

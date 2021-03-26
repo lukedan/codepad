@@ -312,10 +312,10 @@ namespace codepad::os {
 				}
 				return DefWindowProc(hwnd, msg, wparam, lparam);
 			case WM_SETFOCUS:
-				wnd.get_manager().get_scheduler().set_focused_element(&wnd);
+				wnd._on_got_system_focus();
 				return 0;
 			case WM_KILLFOCUS:
-				wnd.get_manager().get_scheduler().set_focused_element(nullptr);
+				wnd._on_lost_system_focus();
 				return 0;
 
 			case WM_CANCELMODE:

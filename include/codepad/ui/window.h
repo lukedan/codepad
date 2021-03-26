@@ -145,11 +145,6 @@ namespace codepad::ui {
 			application
 		};
 
-		/// Sets the parent of this window.
-		void set_parent(window *other) {
-			_impl->_set_parent(other);
-		}
-
 		/// Sets the caption of the window.
 		void set_caption(const std::u8string &s) {
 			_impl->_set_caption(s);
@@ -173,6 +168,12 @@ namespace codepad::ui {
 		void set_client_size(vec2d size) {
 			_impl->_set_client_size(size);
 		}
+
+		/// Ignores all child windows.
+		size_allocation get_desired_width() const override;
+
+		/// Ignores all child windows.
+		size_allocation get_desired_height() const override;
 
 		/// Returns the DPI scaling factor of this window.
 		[[nodiscard]] vec2d get_scaling_factor() const {
@@ -282,11 +283,6 @@ namespace codepad::ui {
 		/// the default behavior.
 		[[nodiscard]] cursor get_current_display_cursor() const override;
 
-		/// Returns the underlying implementation of this window.
-		[[nodiscard]] _details::window_impl &get_impl() const {
-			return *_impl;
-		}
-
 		/// Returns the \ref size_policy for the width of this window.
 		[[nodiscard]] size_policy get_width_size_policy() const {
 			return _width_policy;
@@ -308,6 +304,11 @@ namespace codepad::ui {
 				_height_policy = policy;
 				_impl->_on_size_policy_changed();
 			}
+		}
+
+		/// Returns the underlying implementation of this window.
+		[[nodiscard]] _details::window_impl &get_impl() const {
+			return *_impl;
 		}
 
 		info_event<>
@@ -337,6 +338,15 @@ namespace codepad::ui {
 		/// Calls \ref renderer_base::begin_drawing() and \ref renderer_base::clear() to start rendering to this
 		/// window.
 		void _on_prerender() override;
+		/// Ignores all child windows.
+		void _custom_render() const override {
+			element::_custom_render();
+			for (auto i = _children.z_ordered().rbegin(); i != _children.z_ordered().rend(); ++i) {
+				if (!(*i)->_get_as_window()) {
+					(*i)->_on_render();
+				}
+			}
+		}
 		/// Calls \ref renderer_base::end_drawing() to stop drawing.
 		void _on_postrender() override;
 
@@ -411,8 +421,43 @@ namespace codepad::ui {
 		/// to the default behavior.
 		void _on_mouse_scroll(mouse_scroll_info&) override;
 
+		/// Ignores all windows during hit testing.
+		[[nodiscard]] element *_hit_test_for_child(const mouse_position&) const override;
+
+		/// Ignores all windows.
+		void _on_update_children_layout() override;
+
+		/// Checks that the parent is also a \ref window, and calls \ref _details::window_impl::_set_parent().
+		void _on_added_to_parent() override {
+			panel::_on_added_to_parent();
+
+			auto *parent_wnd = dynamic_cast<window*>(parent());
+			assert_true_usage(parent_wnd, "windows can only be added to other windows as children");
+			_impl->_set_parent(parent_wnd);
+		}
+		/// Calls \ref _details::window_impl::_set_parent() with \p nullptr.
+		void _on_removing_from_parent() override {
+			panel::_on_removing_from_parent();
+
+			_impl->_set_parent(nullptr);
+		}
+
+		/// Calls \ref scheduler::_on_system_focus_changed() with this window.
+		void _on_got_system_focus();
+		/// Calls \ref scheduler::_on_system_focus_changed() with \p nullptr.
+		void _on_lost_system_focus();
+
 		/// Creates a \ref _details::window_impl for this window. This function will be called in
 		/// \ref _initiaslize() before everything else, and is platform-dependent.
 		[[nodiscard]] static std::unique_ptr<_details::window_impl> _create_impl(window&);
+	private:
+		/// Returns \p this.
+		window *_get_as_window() override {
+			return this;
+		}
+		/// \override
+		[[nodiscard]] virtual const window *_get_as_window() const {
+			return this;
+		}
 	};
 }

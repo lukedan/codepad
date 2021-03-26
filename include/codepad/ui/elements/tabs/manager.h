@@ -181,26 +181,46 @@ namespace codepad::ui::tabs {
 		/// \param base The window.
 		/// \param cb A callable object. It can either return \p void, or a \p bool indicating whether to continue.
 		template <typename T> inline static void _enumerate_hosts(window *base, T &&cb) {
-			assert_true_logical(base->children().size() == 1, "window must have only one child");
-			std::vector<element*> hsts;
-			hsts.push_back(*base->children().items().begin());
-			while (!hsts.empty()) {
-				element *ce = hsts.back();
-				hsts.pop_back();
-				auto *hst = dynamic_cast<host*>(ce);
-				if (hst) {
+			std::stack<split_panel*> split_panels;
+
+			/// Indicates how a single child has been handled.
+			enum class _child_info {
+				stop_enumeration, ///< The callback function has indicated that enumeration should be stopped.
+				continue_enumeration, ///< The callback has not indicated that enumeration should be stopped.
+				/// This child is not a type known to the tab system; otherwise enumeration should continue.
+				dont_care
+			};
+			auto handle_child = [&](element *e) {
+				if (auto *hst = dynamic_cast<host*>(e)) {
 					if constexpr (std::is_same_v<decltype(cb(*static_cast<host*>(nullptr))), bool>) {
 						if (!cb(*hst)) {
-							break;
+							return _child_info::stop_enumeration;
 						}
 					} else {
 						cb(*hst);
 					}
-				} else {
-					auto *sp = dynamic_cast<split_panel*>(ce);
-					assert_true_logical(sp, "corrupted element tree");
-					hsts.push_back(sp->get_child1());
-					hsts.push_back(sp->get_child2());
+					return _child_info::continue_enumeration;
+				}
+				if (auto *split = dynamic_cast<split_panel*>(e)) {
+					split_panels.emplace(split);
+					return _child_info::continue_enumeration;
+				}
+				return _child_info::dont_care;
+			};
+
+			for (auto *child : base->children().items()) {
+				if (handle_child(child) == _child_info::stop_enumeration) {
+					return;
+				}
+			}
+			while (!split_panels.empty()) {
+				split_panel *sp = split_panels.top();
+				split_panels.pop();
+				if (handle_child(sp->get_child1()) == _child_info::stop_enumeration) {
+					return;
+				}
+				if (handle_child(sp->get_child2()) == _child_info::stop_enumeration) {
+					return;
 				}
 			}
 		}

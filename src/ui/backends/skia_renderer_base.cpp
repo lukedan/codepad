@@ -88,7 +88,7 @@ namespace codepad::ui::skia {
 					// TODO pango_font_describe returns the font size in points. skia expects font size in points. yet
 					//      the font sizes don't match
 					auto font_size_pt = pango_units_to_double(pango_font_description_get_size(font_description)) * 1.33;
-					font = SkFont(typeface, font_size_pt);
+					font = SkFont(typeface, static_cast<SkScalar>(font_size_pt));
 					font.setSubpixel(true);
 
 					pango_font_description_free(font_description);
@@ -113,9 +113,13 @@ namespace codepad::ui::skia {
 				int y = pango_layout_iter_get_baseline(iter);
 				auto &buffer = builder.allocRunPos(font, run->glyphs->num_glyphs);
 				for (gint i = 0; i < run->glyphs->num_glyphs; ++i) {
-					buffer.glyphs[i] = run->glyphs->glyphs[i].glyph;
-					buffer.pos[i * 2] = pango_units_to_double(x + run->glyphs->glyphs[i].geometry.x_offset);
-					buffer.pos[i * 2 + 1] = pango_units_to_double(y + run->glyphs->glyphs[i].geometry.y_offset);
+					buffer.glyphs[i] = static_cast<SkGlyphID>(run->glyphs->glyphs[i].glyph);
+					buffer.pos[i * 2] = static_cast<SkScalar>(
+						pango_units_to_double(x + run->glyphs->glyphs[i].geometry.x_offset)
+					);
+					buffer.pos[i * 2 + 1] = static_cast<SkScalar>(
+						pango_units_to_double(y + run->glyphs->glyphs[i].geometry.y_offset)
+					);
 					x += run->glyphs->glyphs[i].geometry.width;
 				}
 

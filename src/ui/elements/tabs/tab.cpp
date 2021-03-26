@@ -41,11 +41,6 @@ namespace codepad::ui::tabs {
 		return panel::_handle_reference(role, elem);
 	}
 
-	void tab_button::_initialize() {
-		panel::_initialize();
-
-	}
-
 
 	void tab::_initialize() {
 		panel::_initialize();
@@ -58,7 +53,7 @@ namespace codepad::ui::tabs {
 			info.button_info.mark_focus_set();
 		};
 		_btn->request_close += [this]() {
-			_on_close_requested();
+			request_close();
 		};
 		_btn->start_drag += [this](tab_button::drag_start_info &p) {
 			// place the tab so that it appears as if this tab is the first tab in the given host
@@ -73,10 +68,7 @@ namespace codepad::ui::tabs {
 		panel::_dispose();
 	}
 
-	void tab::_on_close_requested() {
-		// also works without removing first, but this allows the window to check immediately if all tabs are
-		// willing to close, and thus should always be performed with the next action.
-		get_host()->remove_tab(*this);
+	void tab::_on_close() {
 		get_manager().get_scheduler().mark_for_disposal(*this);
 	}
 }

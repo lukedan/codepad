@@ -235,6 +235,38 @@
 						}
 					}
 				]
+			},
+			"visuals": {
+				"geometries": [
+					{
+						"type": "rectangle",
+						"top_left": [
+							[ 0.0, 0.0 ],
+							[ 0.0, 0.0 ]
+						],
+						"bottom_right": [
+							[ 1.0, 1.0 ],
+							[ 0.0, 0.0 ]
+						],
+						"stroke": "#444444"
+					}
+				]
+			}
+		},
+		"animations": {
+			"got_focus": {
+				"visuals.geometries[0].stroke.(solid_color_brush.color)": {
+					"to": "#4488FF",
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+			"lost_focus": {
+				"visuals.geometries[0].stroke.(solid_color_brush.color)": {
+					"to": "#444444",
+					"duration": 0.1,
+					"transition": "linear"
+				}
 			}
 		}
 	},

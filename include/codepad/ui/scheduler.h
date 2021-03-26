@@ -276,6 +276,7 @@ namespace codepad::ui {
 
 		thread_id_t _thread_id; ///< The thread ID of the thread that this scheduler is running on.
 
+		window *_focused_window = nullptr; ///< The window that currently have system keyboard focus.
 		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
 
@@ -286,6 +287,9 @@ namespace codepad::ui {
 		/// Called by \ref element_collection when an element is about to be removed from it. This function updates
 		/// the innermost focus scopes, the global focus, and the capture state of the window.
 		void _on_removing_element(element&);
+		/// Called when a window has got or lost system keyboard focus. This function updates \ref _focused_window
+		/// and calls \ref set_focused_element().
+		void _on_system_focus_changed(window*);
 
 		/// Updates the layout of the children of all given panels.
 		void _update_layout(const std::set<panel*>&, std::deque<element*> notify);

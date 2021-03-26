@@ -84,11 +84,37 @@ namespace codepad::ui {
 
 	void scheduler::set_focused_element(element *elem) {
 #ifdef CP_CHECK_LOGICAL_ERRORS
-		static bool _in = false;
+		struct _recursive_check {
+			_recursive_check(bool &b) : _value(b) {
+				assert_true_logical(!_value, "recursive calls to set_focused_element");
+				_value = true;
+			}
+			~_recursive_check() {
+				_value = false;
+			}
+		protected:
+			bool &_value;
+		};
 
-		assert_true_logical(!_in, "recursive calls to set_focused_element");
-		_in = true;
+		static bool _in = false;
+		_recursive_check _check(_in);
 #endif
+
+		// first check if a parent window has system keyboard focus, otherwise don't update anything
+		if (elem) {
+			window *wnd = elem->get_window();
+			bool should_update_focus = false;
+			while (wnd) {
+				if (wnd == _focused_window) {
+					should_update_focus = true;
+					break;
+				}
+				wnd = dynamic_cast<window*>(wnd->parent());
+			}
+			if (!should_update_focus) {
+				return;
+			}
+		}
 
 		element *newfocus = elem;
 		// handle nested focus scopes: if a focus scope receives focus, the element inside that had focus should be
@@ -243,6 +269,11 @@ namespace codepad::ui {
 				}
 			}
 		}
+	}
+
+	void scheduler::_on_system_focus_changed(window *wnd) {
+		_focused_window = wnd;
+		set_focused_element(wnd);
 	}
 
 	void scheduler::_update_layout(const std::set<panel*> &update, std::deque<element*> notify) {

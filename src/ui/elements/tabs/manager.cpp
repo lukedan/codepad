@@ -142,22 +142,22 @@ namespace codepad::ui::tabs {
 			_wndlist.emplace_front(wnd);
 		};
 		wnd->close_request += [this, wnd]() { // when requested to be closed, send request to all tabs
-			_enumerate_hosts(wnd, [](host &hst) {
-				auto &tabs = hst.get_tabs().items();
-				std::vector<element*> ts(tabs.begin(), tabs.end());
-				for (element *e : ts) {
-					if (tab *t = dynamic_cast<tab*>(e)) {
-						t->_on_close_requested();
+			bool all_closed = true;
+			_enumerate_hosts(
+				wnd, [&](host &hst) {
+					auto &tabs = hst.get_tabs().items();
+					std::vector<element*> ts(tabs.begin(), tabs.end());
+					for (element *e : ts) {
+						if (tab *t = dynamic_cast<tab*>(e)) {
+							if (!t->request_close()) {
+								all_closed = false;
+							}
+						}
 					}
 				}
-				});
-			update_changed_hosts(); // to ensure that empty hosts are merged
-			if (wnd->children().items().size() == 1) {
-				auto *hst = dynamic_cast<host*>(*wnd->children().items().begin());
-				if (hst && hst->get_tab_count() == 0) {
-					_delete_tab_host(*hst); // just in case
-					_delete_window(*wnd);
-				}
+			);
+			if (all_closed) {
+				_delete_window(*wnd);
 			}
 		};
 		return wnd;

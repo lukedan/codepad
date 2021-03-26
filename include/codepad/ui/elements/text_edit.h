@@ -175,7 +175,7 @@ namespace codepad::ui {
 		caret_hit_test_result _hit_test_for_caret(vec2d) const;
 
 		/// Updates the caret position used for IMEs if this element is focused.
-		void _update_window_caret_position() const;
+		void _update_window_caret_position();
 
 		/// Computes \ref _cached_line_metrics if it hasn't been cached.
 		void _check_cache_line_info();

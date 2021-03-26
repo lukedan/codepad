@@ -124,9 +124,6 @@ namespace codepad::ui::tabs {
 		virtual void _on_tab_unselected() {
 			tab_unselected.invoke();
 		}
-
-		/// Initializes \ref _close_btn.
-		void _initialize() override;
 	};
 
 	/// A tab that contains other elements.
@@ -143,10 +140,13 @@ namespace codepad::ui::tabs {
 			return _btn->get_label();
 		}
 
-		/// Requests that this tab be closed. Derived classes should override \ref _on_close_requested to add
-		/// additional behavior.
-		void request_close() {
-			_on_close_requested();
+		/// Requests that this tab be closed. Derived classes can override this to decide whether to actually close
+		/// the tab.
+		///
+		/// \return Whether the request has been accepted.
+		virtual bool request_close() {
+			_on_close();
+			return true;
 		}
 
 		/// Returns the associated \ref tab_button.
@@ -174,9 +174,9 @@ namespace codepad::ui::tabs {
 		tab_button *_btn = nullptr; ///< The \ref tab_button associated with tab.
 		host *_host = nullptr; ///< The \ref host associated with this tab.
 
-		/// Called when \ref request_close is called to handle the user's request of closing this tab. By default,
-		/// this function removes this tab from the host, then marks this for disposal.
-		virtual void _on_close_requested();
+		/// Called when this tab is closed. By default, this function simply marks this tab for disposal. Derived
+		/// classes can override this for further cleanup.
+		virtual void _on_close();
 
 		/// Initializes \ref _btn and sets \ref _is_focus_scope to \p true.
 		void _initialize() override;
