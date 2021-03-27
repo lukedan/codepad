@@ -204,9 +204,11 @@ extern "C" {
 			u8"text_edit.delete_before",
 			cp::ui::command_registry::convert_type<cp::ui::text_edit>(
 				[](cp::ui::text_edit &e, const cp::json::value_storage &args) {
-					bool word = false;
-					command_pack::parse_caret_movement_parameter(args, word);
-					e.delete_character_before_caret();
+					if (!e.is_readonly()) {
+						bool word = false;
+						command_pack::parse_caret_movement_parameter(args, word);
+						e.delete_character_before_caret();
+					}
 				}
 				)
 		);
@@ -214,9 +216,11 @@ extern "C" {
 			u8"text_edit.delete_after",
 			cp::ui::command_registry::convert_type<cp::ui::text_edit>(
 				[](cp::ui::text_edit &e, const cp::json::value_storage &args) {
-					bool word = false;
-					command_pack::parse_caret_movement_parameter(args, word);
-					e.delete_character_after_caret();
+					if (!e.is_readonly()) {
+						bool word = false;
+						command_pack::parse_caret_movement_parameter(args, word);
+						e.delete_character_after_caret();
+					}
 				}
 				)
 		);

@@ -96,7 +96,7 @@ namespace codepad::ui {
 
 		/// Modifies the text by removing the characters in the specified range and adding the given string in its
 		/// place. Note that the character range does not take into account CRLF new line characters, i.e., a CRLF
-		/// will be treated as two characters.
+		/// will be treated as two characters. This function does **not** check if \ref _readonly is \p true.
 		///
 		/// \return Iterator to the very beginning of the newly inserted text, and a boolean indicating whether all
 		///         erased codepoints are valid.
@@ -104,10 +104,25 @@ namespace codepad::ui {
 			std::size_t del_begin, std::size_t del_len, std::u8string_view add
 		);
 
-		/// Deletes the character before the caret, or the selection if there is one.
+		/// Deletes the character before the caret, or the selection if there is one. This function does **not**
+		/// check if \ref _readonly is \p true.
 		void delete_character_before_caret();
-		/// Deletes the character after the caret, or the selection if there is one.
+		/// Deletes the character after the caret, or the selection if there is one. This function does **not**
+		/// check if \ref _readonly is \p true.
 		void delete_character_after_caret();
+
+
+		/// Returns \ref _readonly.
+		[[nodiscard]] bool is_readonly() const {
+			return _readonly;
+		}
+		/// Sets \ref _readonly and calls \ref _on_readonly_changed() if necessary.
+		void set_readonly(bool value) {
+			if (value != _readonly) {
+				_readonly = value;
+				_on_readonly_changed();
+			}
+		}
 
 
 		info_event<>
@@ -128,7 +143,13 @@ namespace codepad::ui {
 		std::vector<std::size_t> _cached_line_beginnings;
 		caret_selection _caret; ///< The caret and the associated selection.
 		double _alignment = 0.0; ///< The alignment of the caret.
-		bool _selecting = false; ///< Whether the user is dragging with the mouse to select text.
+		bool
+			_selecting = false, ///< Whether the user is dragging with the mouse to select text.
+			/// Indicates whether this label is read-only. This only affects direct keyboard input - i.e., functions
+			/// like \ref set_text(), \ref modify(), and \ref delete_character_before_caret() do not check this flag.
+			/// Command implementations should check this flag manually via \ref is_readonly().
+			_readonly = false;
+
 
 		/// Sets the caret position and recomputes \ref _alignment without checking the position.
 		void _set_caret_selection_impl(caret_selection sel) {
@@ -146,7 +167,7 @@ namespace codepad::ui {
 		/// Stops selecting.
 		void _on_capture_lost() override;
 
-		/// Handles keyboard input.
+		/// Handles keyboard input. Does nothing if \ref _readonly is \p true.
 		void _on_keyboard_text(text_info&) override;
 
 		/// Invokes \ref _update_window_caret_position().
@@ -158,6 +179,9 @@ namespace codepad::ui {
 		/// Called when \ref _caret or \ref _selection_end is changed. Calls \ref invalidate_visuals(), invokes
 		/// \ref carets_changed, and updates caret position if this \ref text_edit is focused.
 		void _on_caret_changed();
+		/// Called when \ref _readonly has been changed. Does nothing by default.
+		virtual void _on_readonly_changed() {
+		}
 
 		/// TODO FOR TESTING.
 		void _on_key_down(key_info &p) override {
@@ -190,7 +214,7 @@ namespace codepad::ui {
 		/// position is at the end of the text, this function returns it unchanged.
 		std::size_t _get_next_caret_position(std::size_t);
 
-		/// Handles the \p caret_visuals and \p selection_visuals properties.
+		/// Handles the \p readonly, \p caret_visuals, and \p selection_visuals properties.
 		property_info _find_property_path(const property_path::component_list&) const override;
 
 		/// Renders the caret and the selection.

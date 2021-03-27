@@ -205,6 +205,10 @@ namespace codepad::ui {
 	void text_edit::_on_keyboard_text(text_info &info) {
 		label::_on_keyboard_text(info);
 
+		if (_readonly) { // don't do anything when readonly
+			return;
+		}
+
 		if (_selecting) { // stop selecting
 			_selecting = false;
 			get_window()->release_mouse_capture();
@@ -300,6 +304,13 @@ namespace codepad::ui {
 
 	property_info text_edit::_find_property_path(const property_path::component_list &path) const {
 		if (path.front().is_type_or_empty(u8"text_edit")) {
+			if (path.front().property == u8"readonly") {
+				return property_info::find_member_pointer_property_info<&text_edit::_readonly, element>(
+					path, property_info::make_typed_modification_callback<element, text_edit>([](text_edit &edt) {
+						edt._on_readonly_changed();
+					})
+				);
+			}
 			if (path.front().property == u8"caret_visuals") {
 				return property_info::find_member_pointer_property_info_managed<
 					&text_edit::_caret_visuals, element
