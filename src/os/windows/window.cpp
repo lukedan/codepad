@@ -109,9 +109,15 @@ namespace codepad::os {
 						if (p.new_value.x > 0 && p.new_value.y > 0) {
 							wnd._layout = rectd::from_corners(vec2d(), p.new_value);
 							wnd._on_size_changed(p);
+							wnd._on_window_layout_changed();
 							wnd.get_manager().get_scheduler().update_layout_and_visuals();
 						}
 					}
+					return 0;
+				}
+			case WM_MOVE:
+				{
+					wnd._on_window_layout_changed();
 					return 0;
 				}
 			case WM_DPICHANGED:

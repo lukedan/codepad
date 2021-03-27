@@ -124,6 +124,10 @@ namespace codepad::ui {
 		size_changed(p);
 	}
 
+	void window::_on_window_layout_changed() {
+		window_layout_changed();
+	}
+
 	void window::_on_scaling_factor_changed(scaling_factor_changed_info &p) {
 		invalidate_visual();
 		scaling_factor_changed(p);
@@ -256,6 +260,34 @@ namespace codepad::ui {
 				layout_child(*elem, client);
 			}
 		}
+	}
+
+	property_info window::_find_property_path(const property_path::component_list &path) const {
+		if (path.front().is_type_or_empty(u8"window")) {
+			if (path.front().property == u8"width_size_policy") {
+				return property_info::make_getter_setter_property_info<window, size_policy, element>(
+					[](const window &wnd) {
+						return wnd.get_width_size_policy();
+					},
+					[](window &wnd, size_policy p) {
+						wnd.set_width_size_policy(p);
+					},
+					u8"width_size_policy"
+				);
+			}
+			if (path.front().property == u8"height_size_policy") {
+				return property_info::make_getter_setter_property_info<window, size_policy, element>(
+					[](const window &wnd) {
+						return wnd.get_height_size_policy();
+					},
+					[](window &wnd, size_policy p) {
+						wnd.set_height_size_policy(p);
+					},
+					u8"height_size_policy"
+				);
+			}
+		}
+		return panel::_find_property_path(path);
 	}
 
 	void window::_on_got_system_focus() {

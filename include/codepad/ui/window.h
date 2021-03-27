@@ -314,7 +314,10 @@ namespace codepad::ui {
 		info_event<>
 			close_request, ///< Invoked when the user clicks the `close' button.
 			got_window_focus, ///< Invoked when the window gets keyboard focus.
-			lost_window_focus; ///< Invoked when the window loses keyboard focus.
+			lost_window_focus, ///< Invoked when the window loses keyboard focus.
+			/// Invoked when this window is moved or resized. When the size is changed, this is always invoked after
+			/// \ref size_changed instead of before it.
+			window_layout_changed;
 		info_event<size_changed_info> size_changed; ///< Invoked when the window's size has changed.
 		/// Invoked when the window's scaling factor has been changed.
 		info_event<scaling_factor_changed_info> scaling_factor_changed;
@@ -356,6 +359,8 @@ namespace codepad::ui {
 		}
 		/// Called when the window's size has changed.
 		virtual void _on_size_changed(size_changed_info&);
+		/// Called when the window's size or position has changed. By default only invokes \ref window_layout_changed.
+		virtual void _on_window_layout_changed();
 		/// Called when the window's scaling factor has been changed.
 		virtual void _on_scaling_factor_changed(scaling_factor_changed_info&);
 
@@ -442,6 +447,9 @@ namespace codepad::ui {
 			_impl->_set_parent(nullptr);
 		}
 
+		/// Handles the \p width_size_policy and \p height_size_policy properties.
+		property_info _find_property_path(const property_path::component_list&) const override;
+
 		/// Calls \ref scheduler::_on_system_focus_changed() with this window.
 		void _on_got_system_focus();
 		/// Calls \ref scheduler::_on_system_focus_changed() with \p nullptr.
@@ -459,5 +467,12 @@ namespace codepad::ui {
 		[[nodiscard]] virtual const window *_get_as_window() const {
 			return this;
 		}
+	};
+}
+namespace codepad {
+	/// Parser for \ref ui::window::size_policy.
+	template <> struct enum_parser<ui::window::size_policy> {
+		/// The parser interface.
+		static std::optional<ui::window::size_policy> parse(std::u8string_view);
 	};
 }
