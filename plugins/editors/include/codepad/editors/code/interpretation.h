@@ -155,6 +155,20 @@ namespace codepad::editors::code {
 		/// the lifespan of the tooltip.
 		[[nodiscard]] virtual ui::element *get_element() = 0;
 	};
+	/// A simple tooltip that contains a \ref ui::element that is returned in \ref tooltip::get_element().
+	class simple_tooltip : public tooltip {
+	public:
+		/// Initializes \ref _element.
+		explicit simple_tooltip(ui::element &e) : _element(&e) {
+		}
+
+		/// Returns \ref _element.
+		ui::element *get_element() override {
+			return _element;
+		}
+	protected:
+		ui::element *_element = nullptr; ///< The \ref ui::element that is displayed.
+	};
 	/// A provider for tooltips.
 	class tooltip_provider {
 	public:
@@ -541,7 +555,10 @@ namespace codepad::editors::code {
 				return modifier(*this);
 			}
 
-			// TODO would we ever need to read the decorations without modifying them?
+			/// Returns the \ref decoration_provider for reading.
+			[[nodiscard]] const decoration_provider &get_readonly() const {
+				return **_iter;
+			}
 
 			/// Returns whether \ref _interp is empty.
 			[[nodiscard]] bool empty() const {

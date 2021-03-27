@@ -1008,13 +1008,17 @@ namespace codepad::editors::code {
 			};
 		}
 
-		/// Unbinds the current document.
+		/// Unregisters from document events and dispose of \ref _tooltip if necessary.
 		void _dispose() override {
 			if (_doc) {
 				_doc->get_buffer().begin_edit -= _begin_edit_tok;
 				_doc->get_buffer().end_edit -= _end_edit_tok;
 				_doc->appearance_changed -= _appearance_changed_tok;
 			}
+			if (_tooltip) {
+				get_manager().get_scheduler().mark_for_disposal(*_tooltip);
+			}
+
 			_base::_dispose();
 		}
 	};

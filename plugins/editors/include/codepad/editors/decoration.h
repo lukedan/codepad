@@ -54,8 +54,8 @@ namespace codepad::editors {
 	public:
 		/// Data associated with a decoration.
 		struct decoration_data {
-			std::u8string_view description; ///< The scription of this decoration.
 			decoration_renderer *renderer = nullptr; ///< The renderer used for rendering this decoration.
+			std::int32_t cookie; ///< A cookie used to identify this decoration and provide additional information.
 		};
 		/// The registry type that stores all decorations.
 		using registry = overlapping_range_registry<decoration_data>;

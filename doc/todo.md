@@ -56,7 +56,7 @@ Items in this list are not sorted by any specific order.
 				- [ ] Skia renderer
 				- [ ] Miscellaneous OS-specific functions
 	- [ ] Elements
-		- [ ] Popups
+		- [x] _Popups_
 		- [ ] Sublime-style input prompt
 			- [ ] Virtualized listbox
 			- [ ] Fuzzy searcing
@@ -78,6 +78,7 @@ Items in this list are not sorted by any specific order.
 			- [ ] Async wrapping computation?
 	- [ ] Horizontal scrolling
 	- [x] _Theme providers_
+	- [x] _Tooltip providers_
 	- [ ] Gizmo providers
 	- [ ] Folding providers
 	- [x] _Parsing of decoration renderers_
@@ -108,10 +109,11 @@ Items in this list are not sorted by any specific order.
 		- [ ] Hover
 			- [x] _Basic integration_
 			- [ ] Better popups
-		- [ ] Diagnostics
+				- [ ] Markdown content display
+		- [x] _Diagnostics_
 			- [x] _Basic integration_
 			- [x] _Customizable decorations_
-			- [ ] Tooltips
+			- [x] _Tooltips_
 		- [ ] Go to symbol
 		- [ ] Folding provider
 		- [ ] Formatting

@@ -19,12 +19,12 @@ namespace codepad::lsp {
 	class interpretation_tag;
 
 	/// A tooltip that contains only text.
-	class text_tooltip : public editors::code::tooltip {
+	class hover_tooltip : public editors::code::tooltip {
 	public:
 		/// Initializes \ref _parent and \ref _label, and sends a \p textDocument/hover request.
-		text_tooltip(interpretation_tag&, std::size_t pos);
+		hover_tooltip(interpretation_tag&, std::size_t pos);
 		/// Cancels the handling of the hover request if necessary.
-		~text_tooltip() {
+		~hover_tooltip() {
 			if (!_token.empty()) {
 				_token.cancel_handler();
 			}
@@ -51,7 +51,21 @@ namespace codepad::lsp {
 		}
 
 		/// Creates a \ref text_tooltip.
-		std::unique_ptr<editors::code::tooltip> request_tooltip(std::size_t pos) override;
+		std::unique_ptr<editors::code::tooltip> request_tooltip(std::size_t) override;
+	protected:
+		interpretation_tag *_parent = nullptr; ///< The \ref interpretation_tag that created this object.
+	};
+
+	/// Provides tooltips for diagnostics.
+	class diagnostic_tooltip_provider : public editors::code::tooltip_provider {
+	public:
+		/// Initializes \ref _parent.
+		explicit diagnostic_tooltip_provider(interpretation_tag &p) : _parent(&p) {
+		}
+
+		/// Checks for diagnostics at the given position and returns a \ref editors::code::simple_tooltip for those
+		/// data if necessary.
+		std::unique_ptr<editors::code::tooltip> request_tooltip(std::size_t) override;
 	protected:
 		interpretation_tag *_parent = nullptr; ///< The \ref interpretation_tag that created this object.
 	};
@@ -59,8 +73,6 @@ namespace codepad::lsp {
 	/// Tag struct for \ref editors::code::interpretation used to implement LSP clients.
 	class interpretation_tag {
 		friend std::any;
-		friend text_tooltip;
-		friend hover_tooltip_provider;
 	public:
 		/// Registers events, creates a decoration provider, and sends the \p didOpen event.
 		interpretation_tag(editors::code::interpretation&, client&);
@@ -79,12 +91,37 @@ namespace codepad::lsp {
 			_interp->modification_decoded -= _modification_decoded_token;
 			_interp->end_modification -= _end_modification_token;
 			_interp->get_buffer().end_edit -= _end_edit_token;
-			_interp->remove_decoration_provider(_decoration_token);
+			_interp->remove_decoration_provider(_diagnostic_decoration_token);
+			_interp->remove_tooltip_provider(_hover_tooltip_token);
+			_interp->remove_tooltip_provider(_diagnostic_tooltip_token);
 			_interp->get_theme_providers().remove_provider(_theme_token);
 
 			types::DidCloseTextDocumentParams params;
 			params.textDocument.uri = _change_params.textDocument.uri;
 			_client->send_notification(u8"textDocument/didClose", params);
+		}
+
+		/// Returns the identifier of the associated document.
+		[[nodiscard]] const types::VersionedTextDocumentIdentifier &get_document_identifier() const {
+			return _change_params.textDocument;
+		}
+
+		/// Returns the \ref editors::decoration_provider for diagnostics.
+		[[nodiscard]] const editors::decoration_provider &get_diagnostic_decorations_readonly() const {
+			return _diagnostic_decoration_token.get_readonly();
+		}
+		/// Returns the message for the given diagnostic.
+		[[nodiscard]] std::u8string_view get_message_for_diagnostic(std::int32_t cookie) const {
+			return _diagnostic_messages[cookie];
+		}
+
+		/// Returns the \ref interpretation associated with this object.
+		[[nodiscard]] editors::code::interpretation &get_interpretation() const {
+			return *_interp;
+		}
+		/// Returns the \ref client responsible for this interpretation.
+		[[nodiscard]] client &get_client() const {
+			return *_client;
 		}
 
 		/// Handles the \p textDocument/publishDiagnostics notification.
@@ -138,10 +175,13 @@ namespace codepad::lsp {
 		/// Token used to listen to \ref editors::buffer::end_edit.
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
 		/// Token for the \ref editors::decoration_provider.
-		editors::code::interpretation::decoration_provider_token _decoration_token;
-		/// Token for the \ref editors::tooltip_provider.
-		editors::code::interpretation::tooltip_provider_token _tooltip_token;
+		editors::code::interpretation::decoration_provider_token _diagnostic_decoration_token;
+		editors::code::interpretation::tooltip_provider_token
+			_hover_tooltip_token, ///< Token for the tooltip provider for hover messages such as type information.
+			_diagnostic_tooltip_token; ///< Token for the tooltip provider for diagnostic messages.
 		editors::code::text_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
+
+		std::vector<std::u8string> _diagnostic_messages; ///< The list of diagnostic messages.
 
 		/// Stores information about the ongoing change to the document. Some fields of this struct such as document
 		/// identifier persist between edits.

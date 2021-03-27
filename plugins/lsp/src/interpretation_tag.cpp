@@ -11,16 +11,16 @@
 #include <codepad/ui/elements/text_edit.h>
 
 namespace codepad::lsp {
-	text_tooltip::text_tooltip(interpretation_tag &p, std::size_t pos) : _parent(&p) {
-		_label = _parent->_client->get_manager().get_plugin_context().ui_man->create_element<ui::label>();
+	hover_tooltip::hover_tooltip(interpretation_tag &p, std::size_t pos) : _parent(&p) {
+		_label = _parent->get_client().get_manager().get_plugin_context().ui_man->create_element<ui::label>();
 
-		if (_parent->_client->get_state() == client::state::ready) {
+		if (_parent->get_client().get_state() == client::state::ready) {
 			_label->set_text(u8"Loading...");
-			auto line_col = _parent->_interp->get_linebreaks().get_line_and_column_of_char(pos);
+			auto line_col = _parent->get_interpretation().get_linebreaks().get_line_and_column_of_char(pos);
 			types::HoverParams params;
-			params.textDocument = _parent->_change_params.textDocument;
+			params.textDocument = _parent->get_document_identifier();
 			params.position = types::Position(line_col.line, line_col.position_in_line);
-			_token = _parent->_client->send_request<types::HoverResponse>(
+			_token = _parent->get_client().send_request<types::HoverResponse>(
 				u8"textDocument/hover", params, [this](types::HoverResponse response) {
 					_handle_reply(std::move(response));
 					_token = client::request_token(); // token is no longer valid
@@ -60,7 +60,7 @@ namespace codepad::lsp {
 	void _set_hover_label(ui::label &lbl, const types::MarkupContent &markup) {
 		lbl.set_text(markup.value);
 	}
-	void text_tooltip::_handle_reply(types::HoverResponse raw_response) {
+	void hover_tooltip::_handle_reply(types::HoverResponse raw_response) {
 		if (std::holds_alternative<types::Hover>(raw_response.value)) {
 			auto &response = std::get<types::Hover>(raw_response.value);
 			if (response.range.value.has_value()) {
@@ -80,7 +80,27 @@ namespace codepad::lsp {
 
 
 	std::unique_ptr<editors::code::tooltip> hover_tooltip_provider::request_tooltip(std::size_t pos) {
-		return std::make_unique<text_tooltip>(*_parent, pos);
+		return std::make_unique<hover_tooltip>(*_parent, pos);
+	}
+
+
+	std::unique_ptr<editors::code::tooltip> diagnostic_tooltip_provider::request_tooltip(std::size_t pos) {
+		auto &decorations = _parent->get_diagnostic_decorations_readonly();
+		auto result = decorations.decorations.find_intersecting_ranges(pos);
+		if (result.begin.get_iterator() == result.end.get_iterator()) {
+			return nullptr;
+		}
+
+		auto &ui_man = *_parent->get_client().get_manager().get_plugin_context().ui_man;
+		auto *pnl = ui_man.create_element<ui::stack_panel>();
+		for (auto it = result.begin; it.get_iterator() != result.end.get_iterator(); ) {
+			auto *lbl = ui_man.create_element<ui::label>();
+			lbl->set_text(std::u8string(_parent->get_message_for_diagnostic(it.get_iterator()->value.cookie)));
+			pnl->children().add(*lbl);
+
+			it = decorations.decorations.find_next_range_ending_at_or_after(pos, it);
+		}
+		return std::make_unique<editors::code::simple_tooltip>(*pnl);
 	}
 
 
@@ -112,8 +132,11 @@ namespace codepad::lsp {
 			_on_end_edit(info);
 		};
 
-		_decoration_token = _interp->add_decoration_provider(std::make_unique<editors::decoration_provider>());
-		_tooltip_token = _interp->add_tooltip_provider(std::make_unique<hover_tooltip_provider>(*this));
+		_diagnostic_decoration_token = _interp->add_decoration_provider(std::make_unique<editors::decoration_provider>());
+		_hover_tooltip_token = _interp->add_tooltip_provider(std::make_unique<hover_tooltip_provider>(*this));
+		_diagnostic_tooltip_token = _interp->add_tooltip_provider(
+			std::make_unique<diagnostic_tooltip_provider>(*this)
+		);
 		_theme_token = _interp->get_theme_providers().add_provider(
 			editors::code::text_theme_provider_registry::priority::accurate
 		);
@@ -165,8 +188,10 @@ namespace codepad::lsp {
 			) {
 				return;
 			}
+
+			tag->_diagnostic_messages.clear();
 			{
-				auto modifier = tag->_decoration_token.modify();
+				auto modifier = tag->_diagnostic_decoration_token.modify();
 				modifier->decorations = editors::decoration_provider::registry();
 				std::vector<std::u8string_view> lang_profile{ u8"cpp" }; // TODO language
 				modifier->renderers = {
@@ -184,8 +209,10 @@ namespace codepad::lsp {
 						severity = diag.severity.value.value().value;
 					}
 
+					std::size_t index = tag->_diagnostic_messages.size();
+					tag->_diagnostic_messages.emplace_back(std::move(diag.message));
 					editors::decoration_provider::decoration_data data;
-					data.description = std::move(diag.message);
+					data.cookie = static_cast<std::int32_t>(index);
 					data.renderer = modifier->renderers[static_cast<std::size_t>(severity) - 1].get();
 					modifier->decorations.insert_range(beg, end - beg, data);
 				}
