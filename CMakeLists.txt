@@ -66,6 +66,7 @@ target_sources(codepad_core
 
 		"include/codepad/ui/elements/button.h"
 		"include/codepad/ui/elements/label.h"
+		"include/codepad/ui/elements/popup.h"
 		"include/codepad/ui/elements/scroll_viewport.h"
 		"include/codepad/ui/elements/scrollbar.h"
 		"include/codepad/ui/elements/stack_panel.h"
@@ -105,6 +106,7 @@ target_sources(codepad_core
 
 		"src/ui/elements/button.cpp"
 		"src/ui/elements/label.cpp"
+		"src/ui/elements/popup.cpp"
 		"src/ui/elements/scroll_viewport.cpp"
 		"src/ui/elements/scrollbar.cpp"
 		"src/ui/elements/stack_panel.cpp"

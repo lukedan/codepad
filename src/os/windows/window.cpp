@@ -472,7 +472,8 @@ namespace codepad::os {
 			tl.x -= r.left;
 			tl.y -= r.top;
 			_details::winapi_check(SetWindowPos(
-				_hwnd, nullptr, static_cast<int>(pos.x) - tl.x, static_cast<int>(pos.y) - tl.y, 0, 0, SWP_NOSIZE
+				_hwnd, nullptr, static_cast<int>(pos.x) - tl.x, static_cast<int>(pos.y) - tl.y, 0, 0,
+				SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOSIZE
 			));
 		}
 	}
