@@ -666,6 +666,8 @@ namespace codepad::editors::code {
 
 		/// Stores data from all tooltip providers used for \ref _tooltip.
 		std::vector<std::unique_ptr<tooltip>> _tooltip_data;
+		/// Used to listen to \ref element::destroying from \ref _tooltip.
+		info_event<>::token _tooltip_destroying_token;
 		contents_region_tooltip *_tooltip = nullptr; ///< The tooltip that's currently active.
 		caret_position _tooltip_position; ///< The character position of \ref _tooltip.
 
@@ -908,6 +910,16 @@ namespace codepad::editors::code {
 			return _hit_test_at_visual_line(line, align);
 		}
 
+		/// Closes the tooltip if it's open.
+		void _close_tooltip() {
+			if (_tooltip) {
+				_tooltip_data.clear();
+				_tooltip->destroying -= _tooltip_destroying_token;
+				get_manager().get_scheduler().mark_for_disposal(*_tooltip);
+				_tooltip = nullptr;
+			}
+		}
+
 		// mouse & keyboard interactions
 		/// Calls \ref interaction_manager::on_mouse_move().
 		void _on_mouse_move(ui::mouse_move_info &info) override {
@@ -939,19 +951,22 @@ namespace codepad::editors::code {
 					// don't re-create the popup when we're at the exact same position
 					return;
 				}
-				_tooltip_data.clear();
-				get_manager().get_scheduler().mark_for_disposal(*_tooltip);
-				_tooltip = nullptr;
+				_close_tooltip();
 			}
+
 			_tooltip_position = pos;
 			_tooltip = get_manager().create_element<contents_region_tooltip>();
+			// listen to the destruction of this tooltip
+			_tooltip_destroying_token = _tooltip->destroying += [this]() {
+				_tooltip = nullptr;
+			};
+			// add tooltip contents
 			for (auto &provider : get_document().get_tooltip_providers()) {
 				if (auto data = provider->request_tooltip(_tooltip_position.position)) {
 					_tooltip_data.emplace_back(std::move(data));
 					_tooltip->get_contents_panel().children().add(*_tooltip_data.back()->get_element());
 				}
 			}
-			// TODO listen to the destruction of this tooltip
 
 			_tooltip->set_target(_get_caret_placement(pos));
 
@@ -1015,9 +1030,7 @@ namespace codepad::editors::code {
 				_doc->get_buffer().end_edit -= _end_edit_tok;
 				_doc->appearance_changed -= _appearance_changed_tok;
 			}
-			if (_tooltip) {
-				get_manager().get_scheduler().mark_for_disposal(*_tooltip);
-			}
+			_close_tooltip();
 
 			_base::_dispose();
 		}

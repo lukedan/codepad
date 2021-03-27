@@ -175,6 +175,7 @@ namespace codepad::ui {
 			// dispose the current batch
 			// new batches may be produced during this process
 			for (element *elem : batch) {
+				elem->destroying();
 				elem->_dispose();
 #ifdef CP_CHECK_USAGE_ERRORS
 				assert_true_usage(!elem->_initialized, "element::_dispose() must be invoked by children classses");

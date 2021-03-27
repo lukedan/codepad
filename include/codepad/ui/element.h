@@ -361,7 +361,8 @@ namespace codepad::ui {
 			got_focus, ///< Triggered when the element gets the focus.
 			lost_focus, ///< Triggered when the element loses the focus.
 			lost_capture, ///< Triggered when the element loses mouse capture.
-			layout_changed; ///< Triggered when the layout of this element has changed.
+			layout_changed, ///< Triggered when the layout of this element has changed.
+			destroying; ///< Triggered when this element is about to be destroyed.
 		info_event<mouse_move_info> mouse_move; ///< Triggered when the mouse moves over the element.
 		/// Triggered when the mouse hovers over the window for a while without moving.
 		info_event<mouse_hover_info> mouse_hover;
