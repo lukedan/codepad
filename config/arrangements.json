@@ -32,17 +32,31 @@
 		}
 	},
 
-	"hover_window": {
+	"contents_region_tooltip": {
 		"properties": {
 			"visibility": "-f",
 			"layout": {
 				"width": "auto",
 				"height": "auto",
 				"padding": 5
+			},
+			"width_size_policy": "app",
+			"height_size_policy": "app"
+		},
+		"references": {
+			"contents_panel": "contents_panel"
+		},
+		"children": [
+			{
+				"type": "stack_panel",
+				"name": "contents_panel",
+				"properties": {
+					"orientation": "vertical"
+				}
 			}
-		}
+		]
 	},
-	"hover_label": {
+	"contents_region_label": {
 		"properties": {
 			"visibility": "-f",
 			"font": {

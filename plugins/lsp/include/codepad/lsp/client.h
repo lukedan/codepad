@@ -25,6 +25,26 @@ namespace codepad::lsp {
 	class client {
 	public:
 		using id_t = std::variant<types::integer, std::u8string_view>; ///< Identifiers for requests.
+		/// The state of this client.
+		enum class state : unsigned char {
+			not_initialized, ///< Created but not initialized.
+			initializing, ///< The server is initializing.
+			ready, ///< Ready to communicate with the server.
+			shutting_down, ///< The server is being shut down.
+			exited ///< The receiver thread has exited and the \p exit notification has been sent.
+		};
+		/// Function type for error callbacks.
+		using on_error_callback = std::function<void(types::integer, std::u8string_view, const json::value_t&)>;
+		/// Handles a reply message.
+		struct reply_handler {
+			/// Function invoked when the response does not indicate an error.
+			std::function<void(const json::value_t&)> on_return;
+			/// Function invoked when the response indicates an error.
+			on_error_callback on_error;
+
+			/// Handles the reply.
+			void handle_reply(const json::object_t&);
+		};
 		/// Handler for a request.
 		struct request_handler {
 			/// The callback that will be called on the main thread upon this request. The \ref json::object_t that
@@ -45,26 +65,54 @@ namespace codepad::lsp {
 				typename Param, typename Callback
 			> [[nodiscard]] static request_handler create_notification_handler(Callback&&);
 		};
-		/// The state of this client.
-		enum class state : unsigned char {
-			not_initialized, ///< Created but not initialized.
-			initializing, ///< The server is initializing.
-			ready, ///< Ready to communicate with the server.
-			shutting_down, ///< The server is being shut down.
-			exited ///< The receiver thread has exited and the \p exit notification has been sent.
+
+		/// A token for a request that has been sent out. This can be used to modify the callback functions. Note
+		/// that this is invalidated but not automatically cleared when the reply is executed.
+		struct request_token {
+			friend client;
+		public:
+			/// Default constructor.
+			request_token() = default;
+
+			/// Returns the registered \ref reply_handler.
+			[[nodiscard]] reply_handler &handler() const {
+				assert_true_usage(!empty(), "accessing an empty token");
+				return _iter->second;
+			}
+
+			/// Resets \ref reply_handler::on_return to \p nullptr and \ref reply_handler::on_error to
+			/// \ref default_error_handler.
+			void cancel_handler() {
+				assert_true_usage(!empty(), "accessing an empty token");
+				handler().on_return = nullptr;
+				handler().on_error = default_error_handler;
+			}
+
+			/// Returns whether this is an empty token.
+			[[nodiscard]] bool empty() const {
+				return _client == nullptr;
+			}
+		protected:
+			/// Iterator to the reply handler entry.
+			std::unordered_map<types::integer, reply_handler>::iterator _iter;
+			client *_client = nullptr; ///< The associated client. This will be \p nullptr for empty tokens.
+
+			/// Initializes all fields of this token.
+			request_token(client &c, std::unordered_map<types::integer, reply_handler>::iterator it) :
+				_iter(it), _client(&c) {
+			}
 		};
-		/// Function type for error callbacks.
-		using on_error_callback = std::function<void(types::integer, std::u8string_view, const json::value_t&)>;
+
 
 		/// Initializes \ref _backend. Also creates a new thread to receive messages from the server.
-		client(std::unique_ptr<backend> back, ui::scheduler &sched, manager &man) :
+		client(std::unique_ptr<backend> back, manager &man) :
 			_backend(std::move(back)), _manager(man) {
 
 			_receiver_thread_obj = std::thread(
 				[](client &c, ui::scheduler &sched) {
 					_receiver_thread(c, sched);
 				},
-				std::ref(*this), std::ref(sched)
+				std::ref(*this), std::ref(_manager.get_plugin_context().ui_man->get_scheduler())
 			);
 		}
 
@@ -120,11 +168,11 @@ namespace codepad::lsp {
 
 		/// Sends a request and registers the given response handler. The handler will be executed on the main
 		/// thread.
-		template <typename ReturnStruct, typename SendStruct, typename Callback> void send_request(
+		template <typename ReturnStruct, typename SendStruct, typename Callback> request_token send_request(
 			std::u8string_view name, SendStruct &send, Callback &&cb, on_error_callback err = default_error_handler
 		) {
 			assert_true_usage(_state == state::ready, "client is not ready");
-			_send_request_impl<ReturnStruct>(name, send, std::forward<Callback>(cb), std::move(err));
+			return _send_request_impl<ReturnStruct>(name, send, std::forward<Callback>(cb), std::move(err));
 		}
 		/// Sends a notification.
 		template <typename SendStruct> void send_notification(std::u8string_view name, SendStruct &send) {
@@ -166,22 +214,10 @@ namespace codepad::lsp {
 			logger::get().log_error(CP_HERE) << "LSP server returned error " << code << ": " << msg;
 		}
 	protected:
-		/// Handles a reply message.
-		struct _reply_handler {
-			/// Function invoked when the response does not indicate an error.
-			std::function<void(const json::value_t&)> on_return;
-			/// Function invoked when the response indicates an error.
-			std::function<void(types::integer, std::u8string_view, const json::value_t&)> on_error;
-
-			/// Handles the reply.
-			void handle_reply(const json::object_t&);
-		};
-
-
 		types::InitializeResult _initialize_result; ///< Initialization result with server capabilities.
 
 		std::unique_ptr<backend> _backend; ///< The backend used by this client.
-		std::unordered_map<types::integer, _reply_handler> _reply_handlers; ///< Handlers for reply messages.
+		std::unordered_map<types::integer, reply_handler> _reply_handlers; ///< Handlers for reply messages.
 		std::unordered_map<std::u8string_view, request_handler> _request_handlers; ///< Handlers for requests.
 		types::integer _next_message_id = 0; ///< Used to generate message IDs.
 
@@ -194,7 +230,7 @@ namespace codepad::lsp {
 
 
 		/// Implementation of \ref send_request().
-		template <typename ReturnStruct, typename SendStruct, typename Callback> void _send_request_impl(
+		template <typename ReturnStruct, typename SendStruct, typename Callback> request_token _send_request_impl(
 			std::u8string_view name, SendStruct &send, Callback &&cb, on_error_callback err
 		) {
 			types::integer id = _next_message_id;
@@ -207,6 +243,7 @@ namespace codepad::lsp {
 			assert_true_logical(inserted, "repeating unhandled LSP message id???");
 			// send message
 			_backend->send_message(name, send, id);
+			return request_token(*this, it);
 		}
 		/// Sets \ref _shutdown_message_id, then sends the \p shutdown request without registering a handler.
 		void _send_shutdown_request() {
@@ -223,10 +260,10 @@ namespace codepad::lsp {
 
 		/// Create a handler that converts the result JSON object to an object of the specified type, with the
 		/// specified return value handler and error handler.
-		template <typename ResponseType, typename Handler> [[nodiscard]] _reply_handler _create_handler(
+		template <typename ResponseType, typename Handler> [[nodiscard]] reply_handler _create_handler(
 			Handler &&handler, on_error_callback error_handler
 		) {
-			_reply_handler result;
+			reply_handler result;
 			result.on_return = [h = std::forward<Handler>(handler)](const json::value_t &val) {
 				types::deserializer des(val);
 				ResponseType response;

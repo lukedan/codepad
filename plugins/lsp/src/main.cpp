@@ -4,9 +4,9 @@
 /// \file
 /// Plugin interface.
 
+#include <codepad/core/plugins.h>
 #include <codepad/ui/manager.h>
 #include <codepad/ui/scheduler.h>
-#include <codepad/core/plugins.h>
 
 #include <codepad/editors/manager.h>
 #include <codepad/editors/code/interpretation.h>
@@ -30,9 +30,7 @@
 #include "codepad/lsp/uri.h"
 
 namespace codepad::lsp {
-	const plugin_context *_context = nullptr; ///< The \ref plugin_context.
 	plugin *_this_plugin = nullptr; ///< Handle of this plugin.
-	editors::manager *_editor_manager = nullptr; ///< The \ref editors::manager.
 
 	std::unique_ptr<manager> _manager; ///< The global manager.
 	// TODO create per-workspace clients instead
@@ -44,34 +42,29 @@ namespace codepad::lsp {
 	editors::buffer_manager::interpretation_tag_token _interpretation_tag_token;
 	/// Token used to register for \ref editors::buffer_manager::interpretation_created.
 	info_event<editors::interpretation_info>::token _interpretation_created_token;
-	/// Token used to register for \ref editors::buffer_manager::code_editor_created.
-	info_event<editors::buffer_manager::code_editor_created_info>::token _code_editor_created_token;
 }
 
 namespace cp = codepad;
 
 extern "C" {
 	PLUGIN_INITIALIZE(ctx, this_plug) {
-		cp::lsp::_context = &ctx;
 		cp::lsp::_this_plugin = &this_plug;
 
 		auto editors_plugin = ctx.plugin_man->find_plugin(u8"editors");
+		cp::editors::manager *editor_man = nullptr;
 		if (editors_plugin.valid()) {
 			this_plug.add_dependency(editors_plugin);
 			if (auto **ppman = editors_plugin.get_data<cp::editors::manager*>()) {
-				cp::lsp::_editor_manager = *ppman;
+				editor_man = *ppman;
 			}
 		}
 
-		cp::lsp::_manager = std::make_unique<cp::lsp::manager>(
-			*cp::lsp::_context->ui_man, *cp::lsp::_editor_manager
-		);
+		cp::lsp::_manager = std::make_unique<cp::lsp::manager>(ctx, *editor_man);
 	}
 
 	PLUGIN_FINALIZE() {
 		cp::lsp::_manager.reset();
 
-		cp::lsp::_context = nullptr;
 		cp::lsp::_this_plugin = nullptr;
 	}
 
@@ -83,9 +76,7 @@ extern "C" {
 		auto bkend = std::make_unique<cp::lsp::stdio_backend>(
 			TEXT("D:/Software/LLVM/bin/clangd.exe"), std::vector<std::u8string_view>{}
 		);
-		cp::lsp::_client = std::make_unique<cp::lsp::client>(
-			std::move(bkend), cp::lsp::_context->ui_man->get_scheduler(), *cp::lsp::_manager
-		);
+		cp::lsp::_client = std::make_unique<cp::lsp::client>(std::move(bkend), *cp::lsp::_manager);
 
 		auto &handlers = cp::lsp::_client->request_handlers();
 		handlers.try_emplace(
@@ -94,7 +85,8 @@ extern "C" {
 				[](cp::lsp::client&, cp::lsp::types::PublishDiagnosticsParams params) {
 					std::filesystem::path path = cp::lsp::uri::to_current_os_path(params.uri);
 					std::shared_ptr<cp::editors::code::interpretation> doc;
-					cp::lsp::_editor_manager->buffers.for_each_interpretation_of_buffer(
+
+					cp::lsp::_manager->get_editor_manager().buffers.for_each_interpretation_of_buffer(
 						// TODO handle multiple encodings
 						[&doc](const std::u8string&, std::shared_ptr<cp::editors::code::interpretation> interp) {
 							if (doc) {
@@ -169,28 +161,25 @@ extern "C" {
 			}
 		);
 
-		cp::lsp::_interpretation_tag_token = cp::lsp::_editor_manager->buffers.allocate_interpretation_tag();
-		cp::lsp::_interpretation_created_token = (cp::lsp::_editor_manager->buffers.interpretation_created +=
-			[](cp::editors::interpretation_info &info) {
-				// TODO what happens for multiple encodings?
-				// create per-interpretation data
-				cp::lsp::interpretation_tag::on_interpretation_created(
-					info.interp, *cp::lsp::_client, cp::lsp::_interpretation_tag_token
-				);
-			}
-		);
-		cp::lsp::_code_editor_created_token = (cp::lsp::_editor_manager->buffers.code_editor_created +=
-			[](cp::editors::buffer_manager::code_editor_created_info &info) {
-				cp::lsp::interpretation_tag::on_editor_created(
-					info.contents_region_element, *cp::lsp::_client, cp::lsp::_interpretation_tag_token
-				);
-			}
+		cp::lsp::_interpretation_tag_token =
+			cp::lsp::_manager->get_editor_manager().buffers.allocate_interpretation_tag();
+		cp::lsp::_interpretation_created_token = (
+			cp::lsp::_manager->get_editor_manager().buffers.interpretation_created +=
+				[](cp::editors::interpretation_info &info) {
+					// TODO what happens for multiple encodings?
+					// create per-interpretation data
+					cp::lsp::interpretation_tag::on_interpretation_created(
+						info.interp, *cp::lsp::_client, cp::lsp::_interpretation_tag_token
+					);
+				}
 		);
 	}
 	PLUGIN_DISABLE() {
-		cp::lsp::_editor_manager->buffers.interpretation_created -= cp::lsp::_interpretation_created_token;
-		cp::lsp::_editor_manager->buffers.code_editor_created -= cp::lsp::_code_editor_created_token;
-		cp::lsp::_editor_manager->buffers.deallocate_interpretation_tag(cp::lsp::_interpretation_tag_token);
+		cp::lsp::_manager->get_editor_manager().buffers.interpretation_created -=
+			cp::lsp::_interpretation_created_token;
+		cp::lsp::_manager->get_editor_manager().buffers.deallocate_interpretation_tag(
+			cp::lsp::_interpretation_tag_token
+		);
 
 		cp::lsp::_client->shutdown_and_exit();
 		cp::lsp::_client.reset();

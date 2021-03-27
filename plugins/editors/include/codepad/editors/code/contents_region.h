@@ -8,8 +8,11 @@
 
 #include <memory>
 
-#include "codepad/core/red_black_tree.h"
-#include "codepad/core/settings.h"
+#include <codepad/core/red_black_tree.h>
+#include <codepad/core/settings.h>
+#include <codepad/ui/elements/popup.h>
+#include <codepad/ui/elements/stack_panel.h>
+
 #include "../decoration.h"
 #include "../editor.h"
 #include "../interaction_modes.h"
@@ -21,10 +24,39 @@ namespace codepad::editors {
 	class buffer_manager;
 }
 namespace codepad::editors::code {
+	/// A tooltip with a \ref ui::stack_panel that contains tooltip contents from all providers.
+	class contents_region_tooltip : public ui::popup {
+	public:
+		/// Returns \ref _contents.
+		[[nodiscard]] ui::stack_panel &get_contents_panel() const {
+			return *_contents;
+		}
+
+		/// Returns the role used to identify \ref _contents.
+		[[nodiscard]] inline static std::u8string_view get_contents_panel_role() {
+			return u8"contents_panel";
+		}
+		/// Returns the default class of elements of this type.
+		[[nodiscard]] inline static std::u8string_view get_default_class() {
+			return u8"contents_region_tooltip";
+		}
+	protected:
+		ui::stack_panel *_contents = nullptr; ///< The panel for contents from all providers.
+
+		/// Handles \ref _contents.
+		bool _handle_reference(std::u8string_view role, element *e) override {
+			if (role == get_contents_panel_role()) {
+				_reference_cast_to(_contents, e);
+				return true;
+			}
+			return ui::popup::_handle_reference(role, e);
+		}
+	};
+
 	/// The main component of a \ref editor that's responsible of text editing. This element should only be used as a
 	/// child of a \ref editor.
 	///
-	/// \todo Proper syntax highlighting, drag & drop, code folding, etc.
+	/// \todo Proper drag & drop, code folding, etc.
 	/// \todo Extract caret movement code to somewhere else.
 	class contents_region : public interactive_contents_region_base<caret_set> {
 		friend buffer_manager;
@@ -632,6 +664,11 @@ namespace codepad::editors::code {
 		view_formatting _fmt; ///< The \ref view_formatting associated with this contents_region.
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
 
+		/// Stores data from all tooltip providers used for \ref _tooltip.
+		std::vector<std::unique_ptr<tooltip>> _tooltip_data;
+		contents_region_tooltip *_tooltip = nullptr; ///< The tooltip that's currently active.
+		caret_position _tooltip_position; ///< The character position of \ref _tooltip.
+
 
 		/// Sets the \ref interpretation displayed by the contents_region. This should only be called once after this
 		/// \ref contents_region is created by the \ref buffer_manager.
@@ -686,6 +723,19 @@ namespace codepad::editors::code {
 		/// \param line The visual line that the caret is on.
 		/// \param position The position of the caret in the whole document.
 		double _get_caret_pos_x_at_visual_line(std::size_t line, std::size_t position) const;
+		/// Returns the position of the caret correponding to the given character position. The returned region has
+		/// zero width.
+		[[nodiscard]] rectd _get_caret_placement(caret_position pos) {
+			std::size_t visline = _get_visual_line_of_caret(pos);
+			double lh = get_line_height();
+			vec2d topleft = get_client_region().xmin_ymin();
+			return rectd::from_xywh(
+				topleft.x + _get_caret_pos_x_at_visual_line(visline, pos.position) -
+				get_editor().get_horizontal_position(),
+				topleft.y + lh * static_cast<double>(visline) - get_editor().get_vertical_position(),
+				0.0, lh
+			);
+		}
 		// TODO this function should also take into account the inter-character position of the caret
 
 		/// Called when the vertical position of the document is changed or when the carets have been moved,
@@ -697,15 +747,7 @@ namespace codepad::editors::code {
 			// when selecting with a mouse, it's possible that there are no carets in _cset at all
 			if (!_cset.carets.empty() && wnd != nullptr) {
 				auto entry = _cset.carets.begin();
-				std::size_t visline = _get_visual_line_of_caret(_extract_position(*entry));
-				double lh = get_line_height();
-				vec2d topleft = get_client_region().xmin_ymin();
-				wnd->set_active_caret_position(rectd::from_xywh(
-					topleft.x + _get_caret_pos_x_at_visual_line(visline, entry->first.caret) -
-					get_editor().get_horizontal_position(),
-					topleft.y + lh * static_cast<double>(visline) - get_editor().get_vertical_position(),
-					0.0, lh
-				));
+				wnd->set_active_caret_position(_get_caret_placement(_extract_position(*entry)));
 			}
 		}
 		/// Moves the viewport so that the given caret is visible.
@@ -887,6 +929,35 @@ namespace codepad::editors::code {
 			_interaction_manager.on_capture_lost();
 			_base::_on_capture_lost();
 		}
+		/// Shows the tooltip. The previously open tooltip is closed.
+		void _on_mouse_hover(ui::mouse_hover_info &info) override {
+			_base::_on_mouse_hover(info);
+
+			caret_position pos = hit_test_for_caret(info.position.get(*this));
+			if (_tooltip) {
+				if (_tooltip_position == pos) {
+					// don't re-create the popup when we're at the exact same position
+					return;
+				}
+				_tooltip_data.clear();
+				get_manager().get_scheduler().mark_for_disposal(*_tooltip);
+				_tooltip = nullptr;
+			}
+			_tooltip_position = pos;
+			_tooltip = get_manager().create_element<contents_region_tooltip>();
+			for (auto &provider : get_document().get_tooltip_providers()) {
+				if (auto data = provider->request_tooltip(_tooltip_position.position)) {
+					_tooltip_data.emplace_back(std::move(data));
+					_tooltip->get_contents_panel().children().add(*_tooltip_data.back()->get_element());
+				}
+			}
+			// TODO listen to the destruction of this tooltip
+
+			_tooltip->set_target(_get_caret_placement(pos));
+
+			get_window()->children().add(*_tooltip);
+			_tooltip->show();
+		}
 
 		// visual & layout
 		/// Calls \ref _check_wrapping_width to check and recalculate the wrapping.
@@ -898,6 +969,18 @@ namespace codepad::editors::code {
 		///
 		/// \todo Cannot deal with very long lines.
 		void _custom_render() const override;
+
+		/// Called when the horizontal or vertical positions of the editor have changed. This function calls
+		/// \ref interaction_manager::on_viewport_changed(), adjusts the position of the tooltip if necessary, and
+		/// calls \ref _update_window_caret_position().
+		void _on_viewport_changed() {
+			_interaction_manager.on_viewport_changed();
+
+			if (_tooltip) {
+				_tooltip->set_target(_get_caret_placement(_tooltip_position));
+			}
+			_update_window_caret_position();
+		}
 
 		// construction and destruction
 		/// Loads font and interaction settings.
@@ -918,10 +1001,10 @@ namespace codepad::editors::code {
 			_base::_on_editor_reference_registered();
 
 			get_editor().horizontal_viewport_changed += [this]() {
-				_interaction_manager.on_viewport_changed();
+				_on_viewport_changed();
 			};
 			get_editor().vertical_viewport_changed += [this]() {
-				_interaction_manager.on_viewport_changed();
+				_on_viewport_changed();
 			};
 		}
 

@@ -144,6 +144,27 @@ namespace codepad::editors::code {
 		const buffer_encoding *_default = nullptr; ///< The default encoding.
 	};
 
+	/// A tooltip returned by \ref tooltip_provider::request_tooltip(). A tooltip contains one \ref ui::element that
+	/// is added to the popup window containing all tooltips, and is disposed of when the tooltip is closed.
+	class tooltip {
+	public:
+		/// Default virtual destructor.
+		virtual ~tooltip() = default;
+
+		/// Returns the \ref ui::element associated with this tooltip. This should return the same value throughout
+		/// the lifespan of the tooltip.
+		[[nodiscard]] virtual ui::element *get_element() = 0;
+	};
+	/// A provider for tooltips.
+	class tooltip_provider {
+	public:
+		/// Default virtual destructor.
+		virtual ~tooltip_provider() = default;
+
+		/// Requests a tooltip from this provider at the given text position.
+		[[nodiscard]] virtual std::unique_ptr<tooltip> request_tooltip(std::size_t) = 0;
+	};
+
 	/// Interprets a \ref buffer using a given encoding. This struct stores information that can be used to determine
 	/// certain boundaries between codepoints.
 	class interpretation : public std::enable_shared_from_this<interpretation> {
@@ -537,6 +558,23 @@ namespace codepad::editors::code {
 			}
 		};
 
+		/// Returned by \ref add_tooltip_provider(), this can be used to unregister the provider.
+		struct tooltip_provider_token {
+			friend interpretation;
+		public:
+			/// Default constructor.
+			tooltip_provider_token() = default;
+		protected:
+			using _iter_t = std::list<std::unique_ptr<tooltip_provider>>::iterator; ///< Iterator type.
+
+			_iter_t _iter; ///< Iterator to the provider.
+
+			/// Initializes \ref _iter.
+			explicit tooltip_provider_token(_iter_t it) : _iter(it) {
+			}
+		};
+
+
 		/// Constructor. Sets up event handlers to reinterpret the buffer when it's changed, and performs the initial
 		/// full decoding.
 		interpretation(std::shared_ptr<buffer>, const buffer_encoding&);
@@ -653,14 +691,12 @@ namespace codepad::editors::code {
 			return _theme_providers;
 		}
 
-		/// Adds a decoration provider to this document and invoke \ref appearance_changed. Remember to also invoke
-		/// \ref appearance_changed when the contents of the provider changes, except when the buffer is modified
-		/// when \ref decoration_provider::registry::on_modification() will be called automatically.
+		/// Adds a decoration provider to this document and invokes \ref appearance_changed. When the buffer is
+		/// modified, \ref decoration_provider::registry::on_modification() will be called automatically.
 		[[nodiscard]] decoration_provider_token add_decoration_provider(std::unique_ptr<decoration_provider> ptr) {
-			_decorations.emplace_back(std::move(ptr));
+			auto iter = _decorations.insert(_decorations.end(), std::move(ptr));
 			appearance_changed.invoke_noret(appearance_change_type::visual_only);
-			auto iter = _decorations.end();
-			return decoration_provider_token(--iter, *this);
+			return decoration_provider_token(iter, *this);
 		}
 		/// Returns \ref _decorations.
 		[[nodiscard]] const std::list<std::unique_ptr<decoration_provider>> &get_decoration_providers() const {
@@ -671,6 +707,20 @@ namespace codepad::editors::code {
 			_decorations.erase(tok._iter);
 			tok._interp = nullptr;
 			appearance_changed.invoke_noret(appearance_change_type::visual_only);
+		}
+
+		/// Adds a tooltip provider to this document.
+		[[nodiscard]] tooltip_provider_token add_tooltip_provider(std::unique_ptr<tooltip_provider> ptr) {
+			return tooltip_provider_token(_tooltip_providers.insert(_tooltip_providers.end(), std::move(ptr)));
+		}
+		/// Returns \ref _tooltip_providers.
+		[[nodiscard]] const std::list<std::unique_ptr<tooltip_provider>> &get_tooltip_providers() const {
+			return _tooltip_providers;
+		}
+		/// Removes the given \ref tooltip_provider.
+		void remove_tooltip_provider(tooltip_provider_token tok) {
+			_tooltip_providers.erase(tok._iter);
+			// TODO notify open tooltips
 		}
 
 
@@ -758,6 +808,7 @@ namespace codepad::editors::code {
 
 		text_theme_provider_registry _theme_providers; ///< Theme providers.
 		std::list<std::unique_ptr<decoration_provider>> _decorations; ///< The list of decoration providers.
+		std::list<std::unique_ptr<tooltip_provider>> _tooltip_providers; ///< The list of tooltip providers.
 
 		std::deque<std::any> _tags; ///< Tags associated with this interpretation.
 

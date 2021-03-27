@@ -11,6 +11,79 @@
 #include <codepad/ui/elements/text_edit.h>
 
 namespace codepad::lsp {
+	text_tooltip::text_tooltip(interpretation_tag &p, std::size_t pos) : _parent(&p) {
+		_label = _parent->_client->get_manager().get_plugin_context().ui_man->create_element<ui::label>();
+
+		if (_parent->_client->get_state() == client::state::ready) {
+			_label->set_text(u8"Loading...");
+			auto line_col = _parent->_interp->get_linebreaks().get_line_and_column_of_char(pos);
+			types::HoverParams params;
+			params.textDocument = _parent->_change_params.textDocument;
+			params.position = types::Position(line_col.line, line_col.position_in_line);
+			_token = _parent->_client->send_request<types::HoverResponse>(
+				u8"textDocument/hover", params, [this](types::HoverResponse response) {
+					_handle_reply(std::move(response));
+					_token = client::request_token(); // token is no longer valid
+				}
+			);
+		} else {
+			_label->set_text(u8"[LSP client not ready]");
+		}
+	}
+
+	/// Implementation for \ref _set_hover_label() with one or more \ref types::MarkedString.
+	void _set_hover_label_impl(ui::label &lbl, const types::MarkedString *strs, std::size_t count) {
+		std::u8string text;
+		for (std::size_t i = 0; i < count; ++i) {
+			if (i > 0) {
+				text += u8"\n=== MY SEPARATOR ===\n";
+			}
+			if (std::holds_alternative<types::string>(strs[i].value)) {
+				text += std::get<types::string>(strs[i].value);
+			} else {
+				auto &val = std::get<types::MarkedStringObject>(strs[i].value);
+				text += u8"LANG: " + val.language + u8"\n";
+				text += val.value;
+			}
+		}
+		lbl.set_text(std::move(text));
+	}
+	/// Sets the contents of the label to the given \ref types::MarkedString.
+	void _set_hover_label(ui::label &lbl, const types::MarkedString &str) {
+		_set_hover_label_impl(lbl, &str, 1);
+	}
+	/// Sets the contents of the label to the given array of \ref types::MarkedString.
+	void _set_hover_label(ui::label &lbl, const types::array<types::MarkedString> &strs) {
+		_set_hover_label_impl(lbl, strs.value.data(), strs.value.size());
+	}
+	/// Sets the contents of the label to the given array of \ref types::MarkupContent.
+	void _set_hover_label(ui::label &lbl, const types::MarkupContent &markup) {
+		lbl.set_text(markup.value);
+	}
+	void text_tooltip::_handle_reply(types::HoverResponse raw_response) {
+		if (std::holds_alternative<types::Hover>(raw_response.value)) {
+			auto &response = std::get<types::Hover>(raw_response.value);
+			if (response.range.value.has_value()) {
+				// TODO
+			}
+
+			std::visit(
+				[this](auto &&val) {
+					_set_hover_label(*_label, val);
+				},
+				response.contents.value
+			);
+		} else {
+			_label->set_text(u8"[No result]");
+		}
+	}
+
+
+	std::unique_ptr<editors::code::tooltip> hover_tooltip_provider::request_tooltip(std::size_t pos) {
+		return std::make_unique<text_tooltip>(*_parent, pos);
+	}
+
+
 	interpretation_tag::interpretation_tag(editors::code::interpretation &interp, client &c) :
 		_interp(&interp), _client(&c) {
 
@@ -40,6 +113,7 @@ namespace codepad::lsp {
 		};
 
 		_decoration_token = _interp->add_decoration_provider(std::make_unique<editors::decoration_provider>());
+		_tooltip_token = _interp->add_tooltip_provider(std::make_unique<hover_tooltip_provider>(*this));
 		_theme_token = _interp->get_theme_providers().add_provider(
 			editors::code::text_theme_provider_registry::priority::accurate
 		);
@@ -125,31 +199,6 @@ namespace codepad::lsp {
 	) {
 		if (std::holds_alternative<std::filesystem::path>(interp.get_buffer().get_id())) {
 			tok.get_for(interp).emplace<interpretation_tag>(interp, c);
-		}
-	}
-
-	void interpretation_tag::on_editor_created(
-		editors::code::contents_region &contents, client &c,
-		const editors::buffer_manager::interpretation_tag_token &tok
-	) {
-		auto *tag = std::any_cast<interpretation_tag>(&tok.get_for(contents.get_document()));
-		if (tag) {
-			// TODO unregister for the event when the plugin is disabled
-			contents.mouse_hover += [tag, &contents, &c](ui::mouse_hover_info &p) {
-				if (c.get_state() == client::state::ready) {
-					editors::code::caret_position caret = contents.hit_test_for_caret(p.position.get(contents));
-					auto line_col = tag->_interp->get_linebreaks().get_line_and_column_of_char(caret.position);
-					types::HoverParams params;
-					params.textDocument = tag->_change_params.textDocument;
-					params.position = types::Position(line_col.line, line_col.position_in_line);
-					c.send_request<types::HoverResponse>(
-						u8"textDocument/hover", params, [tag, &contents](types::HoverResponse response) {
-							logger::get().log_debug(CP_HERE) << "requesting hover popup";
-							tag->_on_hover(contents, std::move(response));
-						}
-					);
-				}
-			};
 		}
 	}
 
@@ -316,78 +365,5 @@ namespace codepad::lsp {
 		);
 		auto theme_modifier = _theme_token.get_modifier();
 		*theme_modifier = std::move(data);
-	}
-
-	/// Implementation for \ref _set_hover_label() with one or more \ref types::MarkedString.
-	void _set_hover_label_impl(ui::label &lbl, const types::MarkedString *strs, std::size_t count) {
-		std::u8string text;
-		for (std::size_t i = 0; i < count; ++i) {
-			if (i > 0) {
-				text += u8"\n=== MY SEPARATOR ===\n";
-			}
-			if (std::holds_alternative<types::string>(strs[i].value)) {
-				text += std::get<types::string>(strs[i].value);
-			} else {
-				auto &val = std::get<types::MarkedStringObject>(strs[i].value);
-				text += u8"LANG: " + val.language + u8"\n";
-				text += val.value;
-			}
-		}
-		lbl.set_text(std::move(text));
-	}
-	/// Sets the contents of the label to the given \ref types::MarkedString.
-	void _set_hover_label(ui::label &lbl, const types::MarkedString &str) {
-		_set_hover_label_impl(lbl, &str, 1);
-	}
-	/// Sets the contents of the label to the given array of \ref types::MarkedString.
-	void _set_hover_label(ui::label &lbl, const types::array<types::MarkedString> &strs) {
-		_set_hover_label_impl(lbl, strs.value.data(), strs.value.size());
-	}
-	/// Sets the contents of the label to the given array of \ref types::MarkupContent.
-	void _set_hover_label(ui::label &lbl, const types::MarkupContent &markup) {
-		lbl.set_text(markup.value);
-	}
-	void interpretation_tag::_on_hover(editors::code::contents_region &contents, types::HoverResponse raw_response) {
-		if (std::holds_alternative<types::Hover>(raw_response.value)) {
-			logger::get().log_debug(CP_HERE) << "showing hover popup";
-			auto &response = std::get<types::Hover>(raw_response.value);
-			if (response.range.value.has_value()) {
-				// TODO
-			}
-
-			auto *wnd = dynamic_cast<ui::window*>(
-				contents.get_manager().create_element(u8"window", u8"hover_window")
-			);
-			wnd->set_width_size_policy(ui::window::size_policy::application);
-			wnd->set_height_size_policy(ui::window::size_policy::application);
-			wnd->set_display_border(false);
-			wnd->set_display_caption_bar(false);
-			wnd->set_sizable(false);
-			wnd->set_show_icon(false);
-			wnd->set_topmost(true);
-			wnd->set_focusable(false);
-			contents.get_window()->children().add(*wnd);
-
-			auto *stack_pnl = dynamic_cast<ui::stack_panel*>(contents.get_manager().create_element(u8"stack_panel", u8"default"));
-			stack_pnl->set_orientation(ui::orientation::vertical);
-			wnd->children().add(*stack_pnl);
-
-			auto *label = dynamic_cast<ui::label*>(
-				contents.get_manager().create_element(u8"label", u8"hover_label")
-			);
-			std::visit(
-				[label](auto &&val) {
-					_set_hover_label(*label, val);
-				},
-				response.contents.value
-			);
-			stack_pnl->children().add(*label);
-
-			auto *textbox = contents.get_manager().create_element<ui::textbox>();
-			textbox->get_text_edit()->set_text(u8"test text");
-			stack_pnl->children().add(*textbox);
-
-			wnd->show();
-		}
 	}
 }

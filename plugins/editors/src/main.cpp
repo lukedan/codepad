@@ -61,6 +61,7 @@ extern "C" {
 	PLUGIN_ENABLE() {
 		_context->ui_man->register_element_type<cp::editors::editor>();
 		_context->ui_man->register_element_type<cp::editors::code::contents_region>();
+		_context->ui_man->register_element_type<cp::editors::code::contents_region_tooltip>();
 		_context->ui_man->register_element_type<cp::editors::code::line_number_display>();
 		_context->ui_man->register_element_type<cp::editors::code::minimap>();
 		_context->ui_man->register_element_type<cp::editors::binary::contents_region>();
@@ -70,6 +71,7 @@ extern "C" {
 	PLUGIN_DISABLE() {
 		_context->ui_man->unregister_element_type<cp::editors::editor>();
 		_context->ui_man->unregister_element_type<cp::editors::code::contents_region>();
+		_context->ui_man->unregister_element_type<cp::editors::code::contents_region_tooltip>();
 		_context->ui_man->unregister_element_type<cp::editors::code::line_number_display>();
 		_context->ui_man->unregister_element_type<cp::editors::code::minimap>();
 		_context->ui_man->unregister_element_type<cp::editors::binary::contents_region>();

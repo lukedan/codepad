@@ -7,7 +7,7 @@
 /// Implementation of the LSP client.
 
 namespace codepad::lsp {
-	void client::_reply_handler::handle_reply(const json::object_t &reply) {
+	void client::reply_handler::handle_reply(const json::object_t &reply) {
 		if (auto it = reply.find_member(u8"result"); it != reply.member_end()) {
 			if (on_return) {
 				on_return(it.value());
@@ -95,7 +95,7 @@ namespace codepad::lsp {
 					// log any potential errors here and exit
 					// the exit message will be sent by the main thread once this thread exits
 					if (id.value() == c._shutdown_message_id) {
-						_reply_handler handler;
+						reply_handler handler;
 						// no need for success handler
 						handler.on_error = default_error_handler;
 						handler.handle_reply(root_obj.value());
@@ -113,7 +113,7 @@ namespace codepad::lsp {
 									"no handler registered for the given LSP response";
 								return;
 							}
-							_reply_handler handler = std::move(handler_it->second);
+							reply_handler handler = std::move(handler_it->second);
 							c._reply_handlers.erase(handler_it);
 							handler.handle_reply(doc_ptr->root().get<json::object_t>());
 						}

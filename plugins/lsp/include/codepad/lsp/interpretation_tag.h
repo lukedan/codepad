@@ -7,6 +7,7 @@
 /// Handles operations on individual documents.
 
 #include <codepad/core/event.h>
+#include <codepad/ui/elements/label.h>
 #include <codepad/editors/buffer.h>
 #include <codepad/editors/manager.h>
 #include <codepad/editors/code/interpretation.h>
@@ -15,9 +16,51 @@
 #include "types/diagnostics.h"
 
 namespace codepad::lsp {
+	class interpretation_tag;
+
+	/// A tooltip that contains only text.
+	class text_tooltip : public editors::code::tooltip {
+	public:
+		/// Initializes \ref _parent and \ref _label, and sends a \p textDocument/hover request.
+		text_tooltip(interpretation_tag&, std::size_t pos);
+		/// Cancels the handling of the hover request if necessary.
+		~text_tooltip() {
+			if (!_token.empty()) {
+				_token.cancel_handler();
+			}
+		}
+
+		/// Returns \ref _label.
+		ui::element *get_element() override {
+			return _label;
+		}
+	protected:
+		/// Token of the request, used for cancelling the request when the tooltip is destroyed early.
+		client::request_token _token;
+		ui::label *_label = nullptr; ///< The \ref ui::label used for displaying text.
+		interpretation_tag *_parent = nullptr; ///< The \ref interpretation_tag that created this object.
+
+		/// Handles the response to the request sent in the constructor.
+		void _handle_reply(types::HoverResponse);
+	};
+	/// Provides hover tooltips for an \ref editors::code::interpretation.
+	class hover_tooltip_provider : public editors::code::tooltip_provider {
+	public:
+		/// Initializes \ref _parent.
+		explicit hover_tooltip_provider(interpretation_tag &p) : _parent(&p) {
+		}
+
+		/// Creates a \ref text_tooltip.
+		std::unique_ptr<editors::code::tooltip> request_tooltip(std::size_t pos) override;
+	protected:
+		interpretation_tag *_parent = nullptr; ///< The \ref interpretation_tag that created this object.
+	};
+
 	/// Tag struct for \ref editors::code::interpretation used to implement LSP clients.
 	class interpretation_tag {
 		friend std::any;
+		friend text_tooltip;
+		friend hover_tooltip_provider;
 	public:
 		/// Registers events, creates a decoration provider, and sends the \p didOpen event.
 		interpretation_tag(editors::code::interpretation&, client&);
@@ -54,11 +97,6 @@ namespace codepad::lsp {
 		/// the interpretation is associated with a file on disk.
 		static void on_interpretation_created(
 			editors::code::interpretation&, client&, const editors::buffer_manager::interpretation_tag_token&
-		);
-		/// Invoked when a new \ref editors::editor with a \ref editors::code::contents_region is created. This
-		/// function registers for the \p mouse_hover event.
-		static void on_editor_created(
-			editors::code::contents_region&, client&, const editors::buffer_manager::interpretation_tag_token&
 		);
 	protected:
 		/// Information about a single semantic token.
@@ -101,6 +139,8 @@ namespace codepad::lsp {
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
 		/// Token for the \ref editors::decoration_provider.
 		editors::code::interpretation::decoration_provider_token _decoration_token;
+		/// Token for the \ref editors::tooltip_provider.
+		editors::code::interpretation::tooltip_provider_token _tooltip_token;
 		editors::code::text_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
 
 		/// Stores information about the ongoing change to the document. Some fields of this struct such as document
@@ -141,7 +181,5 @@ namespace codepad::lsp {
 
 		/// Handler for the response of \p semanticTokens.
 		void _on_semanticTokens(types::SemanticTokensResponse);
-		/// Handler for the response of \p hover.
-		void _on_hover(editors::code::contents_region&, types::HoverResponse);
 	};
 }
