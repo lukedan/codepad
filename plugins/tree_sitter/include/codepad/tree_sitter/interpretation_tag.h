@@ -16,6 +16,20 @@
 
 namespace codepad::tree_sitter {
 	class manager;
+	class interpretation_tag;
+
+	/// Provides debug information for tree-sitter highlighting.
+	class highlight_debug_tooltip_provider : public editors::code::tooltip_provider {
+	public:
+		/// Initializes \ref _parent.
+		explicit highlight_debug_tooltip_provider(interpretation_tag &p) : _parent(&p) {
+		}
+
+		/// Lists all active captures at the given location.
+		std::unique_ptr<editors::code::tooltip> request_tooltip(std::size_t) override;
+	protected:
+		interpretation_tag *_parent = nullptr; ///< The \ref interpretation_tag that created this provider.
+	};
 
 	/// Interface between the editor and \p tree-sitter.
 	class interpretation_tag {
@@ -44,6 +58,7 @@ namespace codepad::tree_sitter {
 			_interp->get_buffer().begin_edit -= _begin_edit_token;
 			_interp->get_buffer().end_edit -= _end_edit_token;
 			_interp->get_theme_providers().remove_provider(_theme_token);
+			_interp->remove_tooltip_provider(_debug_tooltip_provider_token);
 		}
 
 		/// Computes and returns the new highlight for the document. This function does not create a
@@ -65,6 +80,15 @@ namespace codepad::tree_sitter {
 			}
 		}
 
+		/// Returns the readonly highlight data.
+		[[nodiscard]] const editors::code::text_theme_data &get_highlight() const {
+			return _theme_token.get_readonly();
+		}
+
+		/// Returns the current \ref language_configuration.
+		[[nodiscard]] const language_configuration &get_language_configuration() const {
+			return *_lang;
+		}
 		/// Returns the \ref editors::code::interpretation associated with this object.
 		[[nodiscard]] editors::code::interpretation &get_interpretation() const {
 			return *_interp;
@@ -116,6 +140,8 @@ namespace codepad::tree_sitter {
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
 
 		editors::code::text_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
+		/// Token for the tooltip provider.
+		editors::code::interpretation::tooltip_provider_token _debug_tooltip_provider_token;
 		ui::async_task_scheduler::token<_highlight_task> _task_token; ///< Token for the highlight task.
 	};
 }

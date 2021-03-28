@@ -6,9 +6,33 @@
 /// \file
 /// Implementation of \ref codepad::tree_sitter::interpretation_tag.
 
+#include <codepad/ui/elements/label.h>
+
 #include "details.h"
 
 namespace codepad::tree_sitter {
+	std::unique_ptr<editors::code::tooltip> highlight_debug_tooltip_provider::request_tooltip(std::size_t pos) {
+		auto &highlight_ranges = _parent->get_highlight().ranges;
+		auto result = highlight_ranges.find_intersecting_ranges(pos);
+		if (result.begin.get_iterator() == result.end.get_iterator()) {
+			return nullptr;
+		}
+
+		auto &manager = _parent->get_manager().get_manager();
+		auto *pnl = manager.create_element<ui::stack_panel>();
+		for (auto it = result.begin; it.get_iterator() != result.end.get_iterator(); ) {
+			auto *label = manager.create_element<ui::label>();
+			label->set_text(std::u8string(_parent->get_language_configuration().get_query().get_capture_name_at(
+				static_cast<uint32_t>(it.get_iterator()->value.cookie)
+			)));
+			pnl->children().add(*label);
+
+			it = highlight_ranges.find_next_range_ending_at_or_after(pos, it);
+		}
+		return std::make_unique<editors::code::simple_tooltip>(*pnl);
+	}
+
+
 	ui::async_task_base::status interpretation_tag::_highlight_task::execute() {
 		editors::code::text_theme_data theme;
 		{
@@ -56,11 +80,15 @@ namespace codepad::tree_sitter {
 		_theme_token = _interp->get_theme_providers().add_provider(
 			editors::code::text_theme_provider_registry::priority::approximate
 		);
+		_debug_tooltip_provider_token = _interp->add_tooltip_provider(
+			std::make_unique<highlight_debug_tooltip_provider>(*this)
+		);
 
 		start_highlight_task();
 	}
 
 	editors::code::text_theme_data interpretation_tag::compute_highlight(std::size_t *cancel_tok) {
+		// TODO with the new range-based theme storage we probably don't need this complex algorithm anymore
 		editors::code::text_theme_data theme;
 		if (_lang) {
 			_payload payload{ .interpretation = *_interp };
@@ -90,7 +118,7 @@ namespace codepad::tree_sitter {
 				prev_pos = std::numeric_limits<std::size_t>::max(),
 				prev_char_pos = std::numeric_limits<std::size_t>::max();
 			editors::code::interpretation::character_position_converter pos_conv(*_interp);
-			std::vector<std::size_t> event_stack;
+			std::vector<std::pair<std::size_t, std::size_t>> event_stack;
 			for (auto event = it.next(input, _parser); event; event = it.next(input, _parser)) {
 				if (prev_pos != event->position) {
 					std::size_t cur_char_pos = pos_conv.byte_to_character(event->position);
@@ -101,14 +129,17 @@ namespace codepad::tree_sitter {
 					if (!event_stack.empty()) {
 						theme.add_range(
 							prev_char_pos, cur_char_pos,
-							_lang->get_highlight_configuration()->entries[event_stack.back()].theme
+							editors::code::text_theme_data::range_value(
+								_lang->get_highlight_configuration()->entries[event_stack.back().first].theme,
+								event_stack.back().second
+							)
 						);
 					}
 					prev_pos = event->position;
 					prev_char_pos = cur_char_pos;
 				}
 				if (event->highlight != editors::theme_configuration::no_associated_theme) {
-					event_stack.emplace_back(event->highlight);
+					event_stack.emplace_back(event->highlight, event->capture_index);
 				} else {
 					event_stack.pop_back();
 				}

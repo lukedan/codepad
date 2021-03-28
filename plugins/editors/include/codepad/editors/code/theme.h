@@ -19,14 +19,30 @@ namespace codepad::editors::code {
 
 	/// Records the text's theme across the entire buffer.
 	struct text_theme_data {
+		/// Stores the \ref text_theme_specification and a \p std::int32_t for additional debugging information for a
+		/// range of text.
+		struct range_value {
+			/// Default constructor.
+			range_value() = default;
+			/// Initializes this struct without a cookie. Also an implicit conversion from
+			/// \ref text_theme_specification.
+			range_value(text_theme_specification v) : value(v) {
+			}
+			/// Initializes all fields of this struct.
+			range_value(text_theme_specification v, std::int32_t c) : value(v), cookie(c) {
+			}
+
+			text_theme_specification value; ///< The theme of this particular range.
+			std::int32_t cookie = 0; ///< Cookie used to provide additional debugging information.
+		};
 		/// The \ref overlapping_range_registry type used to hold all highlighted ranges.
-		using storage = overlapping_range_registry<text_theme_specification>;
+		using storage = overlapping_range_registry<range_value>;
 
 		storage ranges; ///< Highlighted ranges.
 
 		/// Adds a new highlighted range.
-		void add_range(std::size_t s, std::size_t pe, text_theme_specification tc) {
-			ranges.insert_range(s, pe - s, tc);
+		void add_range(std::size_t s, std::size_t pe, range_value val) {
+			ranges.insert_range(s, pe - s, val);
 		}
 		/// Called when the interpretation is modified to update the theme data associated with it.
 		void on_modification(std::size_t start, std::size_t erased_length, std::size_t inserted_length) {
@@ -94,6 +110,10 @@ namespace codepad::editors::code {
 			/// Returns a \ref provider_modifier for this provider.
 			[[nodiscard]] provider_modifier get_modifier() {
 				return provider_modifier(*_interpretation, _it->theme);
+			}
+			/// Returns the readonly \ref text_theme_specification.
+			[[nodiscard]] const text_theme_data &get_readonly() const {
+				return _it->theme;
 			}
 		protected:
 			std::list<_entry>::iterator _it; ///< Iterator to the \ref _entry.
@@ -199,7 +219,7 @@ namespace codepad::editors::code {
 							break;
 						}
 						active_stack.emplace_back(
-							iter.get_iterator()->value, range_start + iter.get_iterator()->length
+							iter.get_iterator()->value.value, range_start + iter.get_iterator()->length
 						);
 						iter = theme.find_next_range_ending_after(pos, iter);
 					}
@@ -225,7 +245,7 @@ namespace codepad::editors::code {
 						std::size_t range_beg = iter.get_range_start();
 						if (range_beg <= pos) {
 							if (std::size_t range_end = range_beg + iter.get_iterator()->length; range_end > pos) {
-								active_stack.emplace_back(iter.get_iterator()->value, range_end);
+								active_stack.emplace_back(iter.get_iterator()->value.value, range_end);
 								changed = true;
 							}
 							iter = theme.find_next_range_ending_after(pos, iter);
@@ -237,7 +257,7 @@ namespace codepad::editors::code {
 									break;
 								}
 								active_stack.emplace_back(
-									iter.get_iterator()->value, range_beg + iter.get_iterator()->length
+									iter.get_iterator()->value.value, range_beg + iter.get_iterator()->length
 								);
 								changed = true;
 								iter = theme.find_next_range_ending_after(pos, iter);

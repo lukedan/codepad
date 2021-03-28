@@ -955,23 +955,27 @@ namespace codepad::editors::code {
 			}
 
 			_tooltip_position = pos;
-			_tooltip = get_manager().create_element<contents_region_tooltip>();
-			// listen to the destruction of this tooltip
-			_tooltip_destroying_token = _tooltip->destroying += [this]() {
-				_tooltip = nullptr;
-			};
-			// add tooltip contents
+			// initialize tooltip contents
 			for (auto &provider : get_document().get_tooltip_providers()) {
 				if (auto data = provider->request_tooltip(_tooltip_position.position)) {
 					_tooltip_data.emplace_back(std::move(data));
-					_tooltip->get_contents_panel().children().add(*_tooltip_data.back()->get_element());
 				}
 			}
 
-			_tooltip->set_target(_get_caret_placement(pos));
+			if (!_tooltip_data.empty()) { // create tooltip
+				_tooltip = get_manager().create_element<contents_region_tooltip>();
+				for (auto &data : _tooltip_data) {
+					_tooltip->get_contents_panel().children().add(*data->get_element());
+				}
+				// listen to the destruction of this tooltip
+				_tooltip_destroying_token = _tooltip->destroying += [this]() {
+					_tooltip = nullptr;
+				};
+				_tooltip->set_target(_get_caret_placement(pos));
 
-			get_window()->children().add(*_tooltip);
-			_tooltip->show();
+				get_window()->children().add(*_tooltip);
+				_tooltip->show();
+			}
 		}
 
 		// visual & layout
@@ -1011,7 +1015,8 @@ namespace codepad::editors::code {
 		/// properties.
 		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
 
-		/// Registers event handlers used to forward viewport update events to \ref _interaction_manager.
+		/// Registers event handlers used to forward viewport update events to \ref _interaction_manager, and to call
+		/// \ref _close_tooltip() when the editor lost focus.
 		void _on_editor_reference_registered() override {
 			_base::_on_editor_reference_registered();
 
@@ -1020,6 +1025,9 @@ namespace codepad::editors::code {
 			};
 			get_editor().vertical_viewport_changed += [this]() {
 				_on_viewport_changed();
+			};
+			get_editor().lost_focus += [this]() {
+				_close_tooltip();
 			};
 		}
 

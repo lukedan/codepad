@@ -271,7 +271,7 @@ namespace codepad::tree_sitter {
 				_byte_position = range_begin;
 
 				layer._highlight_end_stack.emplace_back(range_end);
-				return event(_byte_position, highlight);
+				return event(_byte_position, highlight, cur_capture.index);
 			}
 		}
 	}

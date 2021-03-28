@@ -89,14 +89,16 @@ Items in this list are not sorted by any specific order.
 	- [ ] Relative mode(s) for line number display
 - [ ] Tree-sitter plugin
 	- [ ] Support for different encodings
-	- [ ] Syntax highlighting
+	- [ ] Languages
+	- [x] _Syntax highlighting_
 		- [x] _Basic integration_
 		- [x] _Customizable themes_
-		- [ ] Tooltip for debugging
+		- [x] _Tooltip for debugging_
 	- [ ] Folding provider
 - [ ] LSP plugin
 	- [x] _Basic protocol structures_
 	- [ ] UTF-16 word position
+	- [ ] Languages
 	- [ ] Backends
 		- [x] _Stdio backend_
 			- [x] _Convert to platform-agnostic API_
