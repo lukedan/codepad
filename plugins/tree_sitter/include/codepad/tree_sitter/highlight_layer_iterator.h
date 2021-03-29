@@ -135,16 +135,15 @@ namespace codepad::tree_sitter {
 		uint32_t capture_index = 0; ///< The index the capture in \ref match.
 	};
 
-	class highlight_iterator;
+	class highlight_collector;
 	/// Used to iterate though highlights in a particular layer.
 	class highlight_layer_iterator {
-		friend highlight_iterator;
+		friend highlight_collector;
 	protected:
 		/// Information about a combined injection.
 		struct _layer_info {
 			std::vector<TSRange> ranges; ///< Ranges of this combined injection.
 			const language_configuration *lang_config = nullptr; ///< The language configuration.
-			std::size_t depth = 0; ///< Depth of this injection.
 		};
 	public:
 		/// Removes the given match.
@@ -178,26 +177,16 @@ namespace codepad::tree_sitter {
 
 		/// Processes the given source code. If there are any combined injections in the source code, this function
 		/// eagerly produces layer iterators for them as well. Normal injections are not handled here.
-		[[nodiscard]] static std::vector<highlight_layer_iterator> process_layers(
+		[[nodiscard]] static std::deque<highlight_layer_iterator> process_layers(
 			std::vector<TSRange> ranges, const TSInput&, const codepad::editors::code::interpretation&,
 			const parser_ptr&, const language_configuration&,
 			const std::function<const language_configuration*(std::u8string_view)> &lang_callback,
-			std::size_t depth, const std::size_t *cancellation_token
+			const std::size_t *cancellation_token
 		);
-
-		/// Returns whether this layer has ended, i.e., whether there are no more captures and
-		/// \ref _highlight_end_stack is empty.
-		[[nodiscard]] bool has_ended(const codepad::editors::code::interpretation &interp) {
-			return _highlight_end_stack.empty() && !peek_capture(interp).has_value();
-		}
 
 		/// Returns the ranges of this layer.
 		[[nodiscard]] const std::vector<TSRange> &get_ranges() const {
 			return _ranges;
-		}
-		/// Returns the depth of this layer.
-		[[nodiscard]] std::size_t get_depth() const {
-			return _depth;
 		}
 		/// Returns the associated \ref language_configuration.
 		[[nodiscard]] const language_configuration &get_language() const {
@@ -205,21 +194,18 @@ namespace codepad::tree_sitter {
 		}
 	protected:
 		std::vector<local_scope> _scope_stack{local_scope::global()}; ///< A stack of local scopes.
-		std::vector<uint32_t> _highlight_end_stack; ///< Stack of highlight end boundaries.
 		std::vector<TSRange> _ranges; ///< Ranges that are in this layer.
 		std::optional<capture> _peek; ///< The next capture for peeking.
 		query_cursor_ptr _cursor; ///< The cursor used to execute queries.
 		tree_ptr _tree; ///< The syntax tree of this layer.
 		const language_configuration *_language = nullptr; ///< The language configuration.
-		std::size_t _depth = 0; ///< The depth of this layer.
 
 		/// Initializes all fields of this class, and sets up \ref _cursor to iterate through all captures.
 		highlight_layer_iterator(
 			std::vector<TSRange> ranges, query_cursor_ptr cursor, tree_ptr tree,
-			const language_configuration *lang, std::size_t depth
+			const language_configuration *lang
 		) :
-			_ranges(std::move(ranges)), _cursor(std::move(cursor)), _tree(std::move(tree)),
-			_language(lang), _depth(depth) {
+			_ranges(std::move(ranges)), _cursor(std::move(cursor)), _tree(std::move(tree)), _language(lang) {
 
 			ts_query_cursor_exec(
 				_cursor.get(), _language->get_query().get_query().get(), ts_tree_root_node(_tree.get())

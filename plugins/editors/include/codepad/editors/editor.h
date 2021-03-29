@@ -56,11 +56,11 @@ namespace codepad::editors {
 		}
 
 		/// Returns \ref _text_theme.
-		[[nodiscard]] const text_theme_specification &get_text_theme() const {
+		[[nodiscard]] const text_theme &get_text_theme() const {
 			return _text_theme;
 		}
 		/// Sets \ref _text_theme and invokes \ref _on_text_theme_changed().
-		void set_text_theme(const text_theme_specification &spec) {
+		void set_text_theme(const text_theme &spec) {
 			_text_theme = spec;
 			_on_text_theme_changed();
 		}
@@ -98,7 +98,7 @@ namespace codepad::editors {
 	protected:
 		ui::visuals _caret_visuals; ///< The visuals of carets.
 		std::shared_ptr<decoration_renderer> _selection_renderer; ///< The \ref decoration_renderer.
-		text_theme_specification _text_theme; ///< Default text theme.
+		text_theme _text_theme; ///< Default text theme.
 		editor *_editor = nullptr; ///< The \ref editor that contains this element.
 		bool _insert = true; ///< Indicates whether the contents_region is in `insert' mode.
 

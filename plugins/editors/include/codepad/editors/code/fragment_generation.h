@@ -159,7 +159,7 @@ namespace codepad::editors::code {
 		/// is only referenced and must outlive this generator object.
 		template <typename ...Args> fragment_generator(
 			const interpretation &interp, const invalid_codepoint_fragment_func &invcp_func,
-			const std::vector<std::shared_ptr<ui::font_family>> &fonts, const text_theme_specification &def_theme,
+			const std::vector<std::shared_ptr<ui::font_family>> &fonts, const text_theme &def_theme,
 			std::size_t begpos,
 			Args &&...args
 		) :
@@ -216,7 +216,7 @@ namespace codepad::editors::code {
 			std::size_t oldpos = _pos;
 			_pos += res.steps;
 
-			text_theme_specification old_theme = _theme_it.current_theme;
+			text_theme old_theme = _theme_it.current_theme;
 			_theme_it.move_forward(_pos);
 			if (
 				_theme_it.current_theme.style != old_theme.style ||
@@ -253,7 +253,7 @@ namespace codepad::editors::code {
 		/// Iterator to the current character in the \ref interpretation.
 		interpretation::character_iterator _char_it;
 		/// Used to obtain theme information.
-		text_theme_provider_registry::iterator _theme_it;
+		document_theme_provider_registry::iterator _theme_it;
 
 		/// Function used to generate fragments for invalid codepoints.
 		const invalid_codepoint_fragment_func &_inv_cp_frag_func;

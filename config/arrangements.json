@@ -40,6 +40,22 @@
 				"height": "auto",
 				"padding": 5
 			},
+			"visuals": {
+				"geometries": [
+					{
+						"type": "rectangle",
+						"top_left": [
+							[ 0.0, 0.0 ],
+							[ 0.0, 0.0 ]
+						],
+						"bottom_right": [
+							[ 1.0, 1.0 ],
+							[ 0.0, 0.0 ]
+						],
+						"stroke": "#4488FF"
+					}
+				]
+			},
 			"width_size_policy": "app",
 			"height_size_policy": "app"
 		},

@@ -14,11 +14,11 @@
 
 namespace codepad::editors {
 	/// Specifies the theme of the text at a specific point.
-	struct text_theme_specification {
+	struct text_theme {
 		/// Default constructor.
-		text_theme_specification() = default;
+		text_theme() = default;
 		/// Initializes all members of this struct.
-		text_theme_specification(colord c, ui::font_style st, ui::font_weight w) : color(c), style(st), weight(w) {
+		text_theme(colord c, ui::font_style st, ui::font_weight w) : color(c), style(st), weight(w) {
 		}
 
 		colord color; ///< The color of the text.
@@ -27,8 +27,8 @@ namespace codepad::editors {
 	};
 }
 namespace codepad::ui {
-	/// Managed parser for \ref editors::text_theme_specification.
-	template <> struct managed_json_parser<editors::text_theme_specification> {
+	/// Managed parser for \ref editors::text_theme.
+	template <> struct managed_json_parser<editors::text_theme> {
 	public:
 		/// Initializes \ref _manager.
 		explicit managed_json_parser(manager &man) : _manager(man) {
@@ -36,14 +36,14 @@ namespace codepad::ui {
 
 		/// Parses the theme specification.
 		template <typename Value> std::optional<
-			editors::text_theme_specification
+			editors::text_theme
 		> operator()(const Value&) const;
 	protected:
 		manager &_manager; ///< The associated \ref manager.
 	};
 	namespace property_finders {
-		/// Specialization for \ref editors::text_theme_specification.
-		template <> property_info find_property_info_managed<editors::text_theme_specification>(
+		/// Specialization for \ref editors::text_theme.
+		template <> property_info find_property_info_managed<editors::text_theme>(
 			component_property_accessor_builder&, manager&
 		);
 	}
@@ -60,11 +60,11 @@ namespace codepad::editors {
 		struct entry {
 			/// The key used to identify this entry. In order for lookups to function properly this should be sorted.
 			std::vector<std::u8string> key;
-			editors::text_theme_specification theme; ///< Theme associated with the key.
+			editors::text_theme theme; ///< Theme associated with the key.
 
 			/// Constructs a new entry from the given key.
 			[[nodiscard]] inline static entry construct(
-				std::u8string_view key, editors::text_theme_specification theme
+				std::u8string_view key, editors::text_theme theme
 			) {
 				entry result;
 				result.theme = theme;
@@ -77,7 +77,7 @@ namespace codepad::editors {
 		};
 
 		/// Shorthand for constructring an entry and adding it to \ref entries.
-		void add_entry(std::u8string_view key, editors::text_theme_specification theme) {
+		void add_entry(std::u8string_view key, editors::text_theme theme) {
 			entries.emplace_back(entry::construct(key, theme));
 		}
 		/// Returns the theme index for the given dot-separated key.

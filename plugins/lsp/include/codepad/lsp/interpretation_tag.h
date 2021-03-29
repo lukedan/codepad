@@ -179,7 +179,7 @@ namespace codepad::lsp {
 		editors::code::interpretation::tooltip_provider_token
 			_hover_tooltip_token, ///< Token for the tooltip provider for hover messages such as type information.
 			_diagnostic_tooltip_token; ///< Token for the tooltip provider for diagnostic messages.
-		editors::code::text_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
+		editors::code::document_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
 
 		std::vector<std::u8string> _diagnostic_messages; ///< The list of diagnostic messages.
 

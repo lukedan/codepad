@@ -16,11 +16,11 @@ namespace codepad::editors::code {
 		ui::size_allocation get_desired_width() const override;
 
 		/// Returns \ref _theme.
-		[[nodiscard]] const text_theme_specification &get_text_theme() const {
+		[[nodiscard]] const text_theme &get_text_theme() const {
 			return _theme;
 		}
 		/// Sets \ref _theme and invokes \ref _update_font() and \ref _on_font_changed().
-		void set_text_theme(const text_theme_specification &spec) {
+		void set_text_theme(const text_theme &spec) {
 			_theme = spec;
 			_update_font();
 			_on_font_changed();
@@ -36,7 +36,7 @@ namespace codepad::editors::code {
 		}
 	protected:
 		std::shared_ptr<ui::font> _font; ///< The font used to render all line numbers.
-		text_theme_specification _theme; ///< Font color and style for the line numbers.
+		text_theme _theme; ///< Font color and style for the line numbers.
 		contents_region *_contents_region = nullptr; ///< The \ref contents_region associated with this display.
 
 		/// Handles the \p text_theme attribute.

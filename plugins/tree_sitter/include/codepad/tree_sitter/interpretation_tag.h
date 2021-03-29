@@ -12,7 +12,7 @@
 #include <codepad/editors/code/interpretation.h>
 
 #include "language_configuration.h"
-#include "highlight_iterator.h"
+#include "highlight_collector.h"
 
 namespace codepad::tree_sitter {
 	class manager;
@@ -63,7 +63,9 @@ namespace codepad::tree_sitter {
 
 		/// Computes and returns the new highlight for the document. This function does not create a
 		/// \ref editors::buffer::async_reader_lock - it is the responsibility of the caller to do so when necessary.
-		[[nodiscard]] editors::code::text_theme_data compute_highlight(std::size_t *cancellation_token);
+		[[nodiscard]] highlight_collector::document_highlight_data compute_highlight(
+			std::size_t *cancellation_token
+		);
 
 		/// Starts a new highlight task and updates \ref _task_token.
 		void start_highlight_task();
@@ -80,8 +82,12 @@ namespace codepad::tree_sitter {
 			}
 		}
 
+		/// Returns \ref _capture_names.
+		[[nodiscard]] const std::vector<std::u8string> &get_capture_names() const {
+			return _capture_names;
+		}
 		/// Returns the readonly highlight data.
-		[[nodiscard]] const editors::code::text_theme_data &get_highlight() const {
+		[[nodiscard]] const editors::code::document_theme &get_highlight() const {
 			return _theme_token.get_readonly();
 		}
 
@@ -129,6 +135,8 @@ namespace codepad::tree_sitter {
 		};
 
 
+		std::vector<std::u8string> _capture_names; ///< Highlight names used for debugging.
+
 		parser_ptr _parser; ///< The parser.
 		const language_configuration *_lang = nullptr; ///< The language configuration.
 		editors::code::interpretation *_interp = nullptr; ///< The associated interpretation.
@@ -139,7 +147,7 @@ namespace codepad::tree_sitter {
 		/// Token for \ref editors::buffer::end_edit.
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
 
-		editors::code::text_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
+		editors::code::document_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
 		/// Token for the tooltip provider.
 		editors::code::interpretation::tooltip_provider_token _debug_tooltip_provider_token;
 		ui::async_task_scheduler::token<_highlight_task> _task_token; ///< Token for the highlight task.

@@ -698,13 +698,13 @@ namespace codepad::editors::code {
 		}
 
 
-		/// Returns the associated \ref text_theme_provider_registry. All providers will be updated via
-		/// \ref text_theme_provider_registry::on_modification() automatically when the buffer is modified.
-		[[nodiscard]] text_theme_provider_registry &get_theme_providers() {
+		/// Returns the associated \ref document_theme_provider_registry. All providers will be updated via
+		/// \ref document_theme_provider_registry::on_modification() automatically when the buffer is modified.
+		[[nodiscard]] document_theme_provider_registry &get_theme_providers() {
 			return _theme_providers;
 		}
 		/// \overload
-		[[nodiscard]] const text_theme_provider_registry &get_theme_providers() const {
+		[[nodiscard]] const document_theme_provider_registry &get_theme_providers() const {
 			return _theme_providers;
 		}
 
@@ -823,7 +823,7 @@ namespace codepad::editors::code {
 		tree_type _chunks; ///< Chunks used to speed up navigation.
 		linebreak_registry _linebreaks; ///< Records all linebreaks.
 
-		text_theme_provider_registry _theme_providers; ///< Theme providers.
+		document_theme_provider_registry _theme_providers; ///< Theme providers.
 		std::list<std::unique_ptr<decoration_provider>> _decorations; ///< The list of decoration providers.
 		std::list<std::unique_ptr<tooltip_provider>> _tooltip_providers; ///< The list of tooltip providers.
 

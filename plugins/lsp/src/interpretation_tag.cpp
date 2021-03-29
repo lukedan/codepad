@@ -138,7 +138,7 @@ namespace codepad::lsp {
 			std::make_unique<diagnostic_tooltip_provider>(*this)
 		);
 		_theme_token = _interp->get_theme_providers().add_provider(
-			editors::code::text_theme_provider_registry::priority::accurate
+			editors::code::document_theme_provider_registry::priority::accurate
 		);
 
 		// send the requests if the client is ready
@@ -214,7 +214,7 @@ namespace codepad::lsp {
 					editors::decoration_provider::decoration_data data;
 					data.cookie = static_cast<std::int32_t>(index);
 					data.renderer = modifier->renderers[static_cast<std::size_t>(severity) - 1].get();
-					modifier->decorations.insert_range(beg, end - beg, data);
+					modifier->decorations.insert_range_after(beg, end - beg, data);
 				}
 			}
 		}
@@ -331,7 +331,7 @@ namespace codepad::lsp {
 		// TODO language
 		// TODO theme caching
 		// this is really ugly
-		std::unordered_map<std::uint64_t, std::optional<editors::text_theme_specification>> theme_mapping;
+		std::unordered_map<std::uint64_t, std::optional<editors::text_theme>> theme_mapping;
 		auto theme =
 			_interp->get_buffer().get_buffer_manager().get_manager()->themes.get_theme_for_language(u8"cpp");
 		auto get_theme_for = [&](types::uinteger type, types::uinteger mods) {
@@ -361,7 +361,7 @@ namespace codepad::lsp {
 
 		auto &tokens = std::get<types::SemanticTokens>(response.value);
 		std::size_t line = 0, character_offset = 0;
-		editors::code::text_theme_data data;
+		editors::code::document_theme data;
 		auto &linebreaks = _interp->get_linebreaks();
 		editors::code::linebreak_registry::linebreak_info line_info = linebreaks.get_line_info(0);
 		_semantic_token::iterate_over_range(

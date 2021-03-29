@@ -138,17 +138,34 @@ namespace codepad::editors {
 		}
 
 		/// Inserts a range. If there are other ranges starting at the same position, this range will be inserted
-		/// before all of them.
+		/// **before** all of them.
 		///
 		/// \return Iterator to the inserted element.
-		iterator_position insert_range(std::size_t begin, std::size_t length, T value) {
-			iterator_position before = _find(_position_finder(), begin);
-			std::size_t insert_offset = begin - before._pos;
-			if (before.get_iterator() != _ranges.end()) {
-				_get_modifier_for(before.get_iterator())->offset -= insert_offset;
+		iterator_position insert_range_before(std::size_t begin, std::size_t length, T value) {
+			iterator_position insert_before = _find(_position_finder(), begin);
+			std::size_t insert_offset = begin - insert_before._pos;
+			if (insert_before.get_iterator() != _ranges.end()) {
+				_get_modifier_for(insert_before.get_iterator())->offset -= insert_offset;
 			}
-			before._iter = _ranges.emplace_before(before.get_iterator(), std::move(value), insert_offset, length);
-			return before;
+			insert_before._iter = _ranges.emplace_before(
+				insert_before.get_iterator(), std::move(value), insert_offset, length
+			);
+			return insert_before;
+		}
+		/// Inserts a range. If there are other ranges starting at the same position, this range will be inserted
+		/// **after** all of them.
+		///
+		/// \return Iterator to the inserted element.
+		iterator_position insert_range_after(std::size_t begin, std::size_t length, T value) {
+			iterator_position insert_before = _find(_position_finder_exclusive(), begin);
+			std::size_t insert_offset = begin - insert_before._pos;
+			if (insert_before.get_iterator() != _ranges.end()) {
+				_get_modifier_for(insert_before.get_iterator())->offset -= insert_offset;
+			}
+			insert_before._iter = _ranges.emplace_before(
+				insert_before.get_iterator(), std::move(value), insert_offset, length
+			);
+			return insert_before;
 		}
 		/// Erases the given range.
 		void erase(iterator iter) {

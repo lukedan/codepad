@@ -143,19 +143,19 @@ namespace codepad::tree_sitter {
 		return result;
 	}
 
-	std::vector<highlight_layer_iterator> highlight_layer_iterator::process_layers(
+	std::deque<highlight_layer_iterator> highlight_layer_iterator::process_layers(
 		std::vector<TSRange> ranges, const TSInput &input, const editors::code::interpretation &interp,
 		const parser_ptr &parser, const language_configuration &lang_config,
 		const std::function<const language_configuration*(std::u8string_view)> &lang_callback,
-		std::size_t depth, const std::size_t *cancellation_token
+		const std::size_t *cancellation_token
 	) {
 		constexpr uint32_t _uint32_max = std::numeric_limits<uint32_t>::max();
 
-		std::vector<highlight_layer_iterator> result;
+		std::deque<highlight_layer_iterator> result;
 		std::deque<_layer_info> queue;
 		// for ts_parser_set_included_ranges, if length == 0, the entire document is parsed
 		queue.emplace_back(_layer_info{
-			.ranges = std::move(ranges), .lang_config = &lang_config, .depth = depth
+			.ranges = std::move(ranges), .lang_config = &lang_config
 			});
 		while (!queue.empty()) {
 			_layer_info cur_layer = std::move(queue.front());
@@ -206,15 +206,14 @@ namespace codepad::tree_sitter {
 					if (const language_configuration *new_cfg = lang_callback(inj.language)) {
 						auto new_ranges = intersect_ranges(cur_layer.ranges, inj.nodes, inj.include_children);
 						queue.emplace_back(_layer_info{
-							.ranges = std::move(new_ranges), .lang_config = new_cfg, .depth = cur_layer.depth + 1
+							.ranges = std::move(new_ranges), .lang_config = new_cfg
 						});
 					}
 				}
 			}
 
 			result.emplace_back(highlight_layer_iterator(
-				std::move(cur_layer.ranges), std::move(cursor), std::move(tree),
-				cur_layer.lang_config, cur_layer.depth
+				std::move(cur_layer.ranges), std::move(cursor), std::move(tree), cur_layer.lang_config
 			));
 		}
 		return result;

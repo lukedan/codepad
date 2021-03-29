@@ -39,6 +39,24 @@ struct range {
 	friend bool operator==(const range&, const range&) = default;
 };
 
+/// Test operations to run.
+enum class test_op : unsigned char {
+	/// Inserting ranges. The ranges are inserted before existing ranges that start the same position.
+	insert_ranges_before = 0,
+	/// Inserting ranges. The ranges are inserted after existing ranges that start the same position.
+	insert_ranges_after,
+	erase_ranges, ///< Erasing ranges.
+	on_modification, ///< Handling modifications.
+
+	query_first_ending_after, ///< Querying the first range that ends after the given position.
+	query_point, ///< Querying ranges that intersect with a specific point.
+	query_range, ///< Querying ranges that intersect with a specific range.
+
+	max_enum ///< Maximum value of this enum; used for random number generation.
+};
+
+constexpr std::size_t max_num_ranges = 100000; ///< The maximum number of ranges before no new ranges can be added.
+
 /// Entry point of the test.
 int main(int argc, char **argv) {
 	// this enables us to terminate normally and check if there are any memory leaks
@@ -68,7 +86,7 @@ int main(int argc, char **argv) {
 		modification_position_dist(0, 15000),
 		modification_length_dist(0, 5000),
 
-		op_dist(0, 5);
+		op_dist(0, static_cast<std::size_t>(test_op::max_enum) - 1);
 	std::uniform_int_distribution<int> bool_dist(0, 1);
 	std::uniform_int_distribution<test_t> value_dist(
 		std::numeric_limits<test_t>::min(), std::numeric_limits<test_t>::max()
@@ -87,19 +105,19 @@ int main(int argc, char **argv) {
 		};
 
 		bool is_modification = false;
-		std::size_t op = op_dist(eng);
+		auto op = static_cast<test_op>(op_dist(eng));
 		switch (op) {
-		case 0: // insert ranges
-			if (reference.size() < 100000) {
+		case test_op::insert_ranges_before:
+			if (reference.size() < max_num_ranges) {
 				std::size_t count = insert_count_dist(eng);
-				logger::get().log_debug(CP_HERE) << "inserting " << count << " ranges";
+				logger::get().log_debug(CP_HERE) << "inserting before " << count << " ranges";
 				for (std::size_t i = 0; i < count; ++i) {
 					range rng;
 					rng.begin = position_dist(eng);
 					rng.length = length_dist(eng);
 					rng.value = value_dist(eng);
 
-					ranges.insert_range(rng.begin, rng.length, rng.value);
+					ranges.insert_range_before(rng.begin, rng.length, rng.value);
 					bool inserted = false;
 					for (auto iter = reference.begin(); iter != reference.end(); ++iter) {
 						if (iter->begin >= rng.begin) {
@@ -113,10 +131,37 @@ int main(int argc, char **argv) {
 					}
 				}
 				is_modification = true;
-				break;
 			}
-			[[fallthrough]]; // too many ranges; erase some instead
-		case 1: // erase ranges
+			// otherwise there are too many ranges; don't insert
+			break;
+		case test_op::insert_ranges_after:
+			if (reference.size() < max_num_ranges) {
+				std::size_t count = insert_count_dist(eng);
+				logger::get().log_debug(CP_HERE) << "inserting after " << count << " ranges";
+				for (std::size_t i = 0; i < count; ++i) {
+					range rng;
+					rng.begin = position_dist(eng);
+					rng.length = length_dist(eng);
+					rng.value = value_dist(eng);
+
+					ranges.insert_range_after(rng.begin, rng.length, rng.value);
+					bool inserted = false;
+					for (auto iter = reference.begin(); iter != reference.end(); ++iter) {
+						if (iter->begin > rng.begin) {
+							inserted = true;
+							reference.insert(iter, rng);
+							break;
+						}
+					}
+					if (!inserted) {
+						reference.emplace_back(rng);
+					}
+				}
+				is_modification = true;
+			}
+			// otherwise there are too many ranges; don't insert
+			break;
+		case test_op::erase_ranges:
 			{
 				// generate indices
 				std::size_t count = std::min(erase_count_dist(eng), reference.size());
@@ -150,7 +195,7 @@ int main(int argc, char **argv) {
 				is_modification = true;
 				break;
 			}
-		case 2: // on_modification
+		case test_op::on_modification:
 			{
 				std::size_t pos = modification_position_dist(eng);
 				std::size_t erase_len = modification_length_dist(eng);
@@ -193,7 +238,7 @@ int main(int argc, char **argv) {
 				break;
 			}
 
-		case 3: // "first ending after" query
+		case test_op::query_first_ending_after:
 			{
 				std::size_t position = point_query_position_dist(eng);
 				logger::get().log_debug(CP_HERE) << "\"first ending after\" query at " << position;
@@ -224,7 +269,7 @@ int main(int argc, char **argv) {
 
 				break;
 			}
-		case 4: // point query
+		case test_op::query_point:
 			{
 				std::size_t position = point_query_position_dist(eng);
 				logger::get().log_debug(CP_HERE) << "point query at " << position;
@@ -260,7 +305,7 @@ int main(int argc, char **argv) {
 
 				break;
 			}
-		case 5: // range query
+		case test_op::query_range:
 			{
 				std::size_t position = range_query_position_dist(eng);
 				std::size_t length = range_query_length_dist(eng);

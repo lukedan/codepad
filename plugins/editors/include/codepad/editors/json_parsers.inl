@@ -11,10 +11,10 @@
 
 namespace codepad::ui {
 	template <typename Value> std::optional<
-		editors::text_theme_specification
-	> managed_json_parser<editors::text_theme_specification>::operator()(const Value &val) const {
+		editors::text_theme
+	> managed_json_parser<editors::text_theme>::operator()(const Value &val) const {
 		if (auto obj = val.template try_cast<typename Value::object_type>()) {
-			editors::text_theme_specification result;
+			editors::text_theme result;
 			if (auto clr = obj->template parse_optional_member<colord>(
 				u8"color", managed_json_parser<colord>(_manager)
 			)) {
@@ -28,9 +28,9 @@ namespace codepad::ui {
 			}
 			return result;
 		} else if (auto clr = val.template try_parse<colord>(managed_json_parser<colord>(_manager))) {
-			return editors::text_theme_specification(clr.value(), font_style::normal, font_weight::normal);
+			return editors::text_theme(clr.value(), font_style::normal, font_weight::normal);
 		}
-		val.template log<log_level::error>(CP_HERE) << "invalid text_theme_specification format";
+		val.template log<log_level::error>(CP_HERE) << "invalid text_theme format";
 		return std::nullopt;
 	}
 
@@ -41,8 +41,8 @@ namespace codepad::ui {
 		if (auto obj = val.template cast<typename Value::object_type>()) {
 			editors::theme_configuration result;
 			for (auto it = obj->member_begin(); it != obj->member_end(); ++it) {
-				if (auto spec = it.value().template parse<editors::text_theme_specification>(
-					managed_json_parser<editors::text_theme_specification>(_manager)
+				if (auto spec = it.value().template parse<editors::text_theme>(
+					managed_json_parser<editors::text_theme>(_manager)
 				)) {
 					result.add_entry(it.name(), spec.value());
 				}

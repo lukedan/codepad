@@ -2,7 +2,7 @@ add_library(tree_sitter SHARED)
 
 target_sources(tree_sitter
 	PUBLIC
-		"include/codepad/tree_sitter/highlight_iterator.h"
+		"include/codepad/tree_sitter/highlight_collector.h"
 		"include/codepad/tree_sitter/highlight_layer_iterator.h"
 		"include/codepad/tree_sitter/interpretation_tag.h"
 		"include/codepad/tree_sitter/language_configuration.h"
@@ -12,7 +12,7 @@ target_sources(tree_sitter
 	PRIVATE
 		"tree-sitter/lib/src/lib.c"
 
-		"src/highlight_iterator.cpp"
+		"src/highlight_collector.cpp"
 		"src/highlight_layer_iterator.cpp"
 		"src/interpretation_tag.cpp"
 		"src/language_configuration.cpp"

@@ -9,7 +9,7 @@
 #include <codepad/editors/theme_manager.h>
 
 using config_t = codepad::editors::theme_configuration;
-using spec_t = codepad::editors::text_theme_specification;
+using spec_t = codepad::editors::text_theme;
 
 [[nodiscard]] codepad::ui::font_weight unique_weight(std::size_t i) {
 	return static_cast<codepad::ui::font_weight>(i);

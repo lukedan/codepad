@@ -17,22 +17,22 @@
 namespace codepad::editors::code {
 	class interpretation;
 
-	/// Records the text's theme across the entire buffer.
-	struct text_theme_data {
-		/// Stores the \ref text_theme_specification and a \p std::int32_t for additional debugging information for a
+	/// Records the theme of an entire document.
+	struct document_theme {
+		/// Stores the \ref text_theme and a \p std::int32_t for additional debugging information for a
 		/// range of text.
 		struct range_value {
 			/// Default constructor.
 			range_value() = default;
 			/// Initializes this struct without a cookie. Also an implicit conversion from
-			/// \ref text_theme_specification.
-			range_value(text_theme_specification v) : value(v) {
+			/// \ref text_theme.
+			range_value(text_theme v) : value(v) {
 			}
 			/// Initializes all fields of this struct.
-			range_value(text_theme_specification v, std::int32_t c) : value(v), cookie(c) {
+			range_value(text_theme v, std::int32_t c) : value(v), cookie(c) {
 			}
 
-			text_theme_specification value; ///< The theme of this particular range.
+			text_theme value; ///< The theme of this particular range.
 			std::int32_t cookie = 0; ///< Cookie used to provide additional debugging information.
 		};
 		/// The \ref overlapping_range_registry type used to hold all highlighted ranges.
@@ -40,9 +40,9 @@ namespace codepad::editors::code {
 
 		storage ranges; ///< Highlighted ranges.
 
-		/// Adds a new highlighted range.
+		/// Adds a new highlighted range. The added range will be prioritized over all ranges inserted prior to it.
 		void add_range(std::size_t s, std::size_t pe, range_value val) {
-			ranges.insert_range(s, pe - s, val);
+			ranges.insert_range_after(s, pe - s, val);
 		}
 		/// Called when the interpretation is modified to update the theme data associated with it.
 		void on_modification(std::size_t start, std::size_t erased_length, std::size_t inserted_length) {
@@ -55,8 +55,8 @@ namespace codepad::editors::code {
 		}
 	};
 
-	/// Keeps track of numerous sets of \ref text_theme_data providers with varying priorities.
-	class text_theme_provider_registry {
+	/// Keeps track of numerous sets of \ref document_theme providers with varying priorities.
+	class document_theme_provider_registry {
 	public:
 		/// The priority of a provider. Instances of this enum can take any value within the range of
 		/// <tt>unsigned char</tt>; the enum values defined here are only for reference.
@@ -70,12 +70,12 @@ namespace codepad::editors::code {
 	protected:
 		/// A provider in this registry.
 		struct _entry {
-			text_theme_data theme; ///< The theme obtained from this provider.
+			document_theme theme; ///< The theme obtained from this provider.
 			priority provider_priority = priority::approximate; ///< The priority of this provider.
 		};
 	public:
 		struct token;
-		/// Used to modify the \ref text_theme_data of a provider.
+		/// Used to modify the \ref document_theme of a provider.
 		struct provider_modifier {
 			friend token;
 		public:
@@ -84,25 +84,25 @@ namespace codepad::editors::code {
 			/// Invokes \ref interpretation::appearance_changed.
 			~provider_modifier();
 
-			/// Used to access the \ref text_theme_data.
-			[[nodiscard]] text_theme_data *operator->() const {
+			/// Used to access the \ref document_theme.
+			[[nodiscard]] document_theme *operator->() const {
 				return &_data;
 			}
-			/// Used to access the \ref text_theme_data.
-			[[nodiscard]] text_theme_data &operator*() const {
+			/// Used to access the \ref document_theme.
+			[[nodiscard]] document_theme &operator*() const {
 				return _data;
 			}
 		protected:
 			interpretation &_interp; ///< The associated \ref interpretation.
-			text_theme_data &_data; ///< The associated \ref text_theme_data.
+			document_theme &_data; ///< The associated \ref document_theme.
 
 			/// Initializes \ref _data.
-			provider_modifier(interpretation &interp, text_theme_data &data) : _interp(interp), _data(data) {
+			provider_modifier(interpretation &interp, document_theme &data) : _interp(interp), _data(data) {
 			}
 		};
-		/// A token used by providers to access the underlying \ref text_theme_data.
+		/// A token used by providers to access the underlying \ref document_theme.
 		struct token {
-			friend text_theme_provider_registry;
+			friend document_theme_provider_registry;
 		public:
 			/// Default constructor.
 			token() = default;
@@ -111,8 +111,8 @@ namespace codepad::editors::code {
 			[[nodiscard]] provider_modifier get_modifier() {
 				return provider_modifier(*_interpretation, _it->theme);
 			}
-			/// Returns the readonly \ref text_theme_specification.
-			[[nodiscard]] const text_theme_data &get_readonly() const {
+			/// Returns the readonly \ref text_theme.
+			[[nodiscard]] const document_theme &get_readonly() const {
 				return _it->theme;
 			}
 		protected:
@@ -129,8 +129,8 @@ namespace codepad::editors::code {
 		public:
 			/// Default constructor.
 			iterator() = default;
-			/// Initializes this iterator using the given \ref text_theme_provider_registry.
-			iterator(const text_theme_provider_registry &provs, const text_theme_specification &def_theme) :
+			/// Initializes this iterator using the given \ref document_theme_provider_registry.
+			iterator(const document_theme_provider_registry &provs, const text_theme &def_theme) :
 				default_theme(def_theme), _providers(&provs), _layers(provs._providers.size()) {
 			}
 
@@ -186,7 +186,7 @@ namespace codepad::editors::code {
 				}
 			}
 
-			text_theme_specification
+			text_theme
 				default_theme, ///< The default theme that will be used when no provider is active.
 				current_theme; ///< Current text theme.
 		protected:
@@ -198,19 +198,19 @@ namespace codepad::editors::code {
 					/// Default constructor.
 					active_highlight() = default;
 					/// Initializes all fields of this struct.
-					active_highlight(text_theme_specification spec, std::size_t e) : theme(spec), end(e) {
+					active_highlight(text_theme spec, std::size_t e) : theme(spec), end(e) {
 					}
 
-					text_theme_specification theme; ///< The \ref text_theme_specification for this highlight.
+					text_theme theme; ///< The \ref text_theme for this highlight.
 					std::size_t end = 0; ///< The end position of this highlight.
 				};
 
 				std::deque<active_highlight> active_stack; ///< The stack of active highlights.
 				/// Iterator to the next range that starts after the current position.
-				text_theme_data::storage::iterator_position iter;
+				document_theme::storage::iterator_position iter;
 
 				/// Repositions \ref iter and updates \ref active_stack.
-				void reposition(const text_theme_data::storage &theme, std::size_t pos) {
+				void reposition(const document_theme::storage &theme, std::size_t pos) {
 					active_stack.clear();
 					iter = theme.find_first_range_ending_after(pos);
 					while (iter.get_iterator() != theme.end()) {
@@ -227,7 +227,7 @@ namespace codepad::editors::code {
 				/// Moves this layer forward.
 				///
 				/// \return Whether the top element of the active stack has changed.
-				bool move_forward(const text_theme_data::storage &theme, std::size_t pos) {
+				bool move_forward(const document_theme::storage &theme, std::size_t pos) {
 					bool changed = false;
 					for (auto it = active_stack.begin(); it != active_stack.end(); ) {
 						if (it->end <= pos) {
@@ -270,12 +270,12 @@ namespace codepad::editors::code {
 
 			/// Highlight layers corresponding to \ref _providers.
 			std::vector<_highlight_layer> _layers;
-			const text_theme_provider_registry *_providers = nullptr; ///< The list of providers.
+			const document_theme_provider_registry *_providers = nullptr; ///< The list of providers.
 		};
 
 
 		/// Initializes this registry with the associated \ref interpretation.
-		explicit text_theme_provider_registry(interpretation &interp) : _interpretation(interp) {
+		explicit document_theme_provider_registry(interpretation &interp) : _interpretation(interp) {
 		}
 
 		/// Adds a new provider with the given priority and returns a corresponding \ref token.

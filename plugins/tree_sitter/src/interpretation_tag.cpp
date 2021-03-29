@@ -19,12 +19,12 @@ namespace codepad::tree_sitter {
 		}
 
 		auto &manager = _parent->get_manager().get_manager();
+		auto &names = _parent->get_capture_names();
 		auto *pnl = manager.create_element<ui::stack_panel>();
+		pnl->set_orientation(ui::orientation::vertical);
 		for (auto it = result.begin; it.get_iterator() != result.end.get_iterator(); ) {
 			auto *label = manager.create_element<ui::label>();
-			label->set_text(std::u8string(_parent->get_language_configuration().get_query().get_capture_name_at(
-				static_cast<uint32_t>(it.get_iterator()->value.cookie)
-			)));
+			label->set_text(names[static_cast<std::size_t>(it.get_iterator()->value.cookie)]);
 			pnl->children().add(*label);
 
 			it = highlight_ranges.find_next_range_ending_at_or_after(pos, it);
@@ -34,7 +34,7 @@ namespace codepad::tree_sitter {
 
 
 	ui::async_task_base::status interpretation_tag::_highlight_task::execute() {
-		editors::code::text_theme_data theme;
+		highlight_collector::document_highlight_data theme;
 		{
 			editors::buffer::async_reader_lock lock(_interp->get_buffer());
 			theme = _tag.compute_highlight(&_cancellation_token);
@@ -46,8 +46,11 @@ namespace codepad::tree_sitter {
 			_tag.get_manager().get_manager().get_scheduler().execute_callback(
 				[t = std::move(theme), target = std::move(_interp), man]() mutable {
 					if (auto *tag = man->get_tag_for(*target)) {
-						auto mod = tag->_theme_token.get_modifier();
-						*mod = std::move(t);
+						{
+							auto mod = tag->_theme_token.get_modifier();
+							*mod = std::move(t.theme);
+						}
+						tag->_capture_names = std::move(t.capture_names);
 					}
 					// the interpretation_tag can be empty if the plugin is disabled after this task has finished,
 					// but before the callback is executed
@@ -78,7 +81,7 @@ namespace codepad::tree_sitter {
 		};
 
 		_theme_token = _interp->get_theme_providers().add_provider(
-			editors::code::text_theme_provider_registry::priority::approximate
+			editors::code::document_theme_provider_registry::priority::approximate
 		);
 		_debug_tooltip_provider_token = _interp->add_tooltip_provider(
 			std::make_unique<highlight_debug_tooltip_provider>(*this)
@@ -87,65 +90,35 @@ namespace codepad::tree_sitter {
 		start_highlight_task();
 	}
 
-	editors::code::text_theme_data interpretation_tag::compute_highlight(std::size_t *cancel_tok) {
-		// TODO with the new range-based theme storage we probably don't need this complex algorithm anymore
-		editors::code::text_theme_data theme;
-		if (_lang) {
-			_payload payload{ .interpretation = *_interp };
-			TSInput input;
-			input.payload = &payload;
-			input.read = [](void *payload_void, uint32_t byte_index, TSPoint, uint32_t *bytes_read) {
-				_payload *payload = static_cast<_payload*>(payload_void);
-
-				auto byte_end =
-					std::min<std::size_t>(byte_index + 1024, payload->interpretation.get_buffer().length());
-				*bytes_read = byte_end - byte_index;
-				payload->read_buffer = payload->interpretation.get_buffer().get_clip(
-					payload->interpretation.get_buffer().at(byte_index),
-					payload->interpretation.get_buffer().at(byte_end)
-				);
-				return reinterpret_cast<const char*>(payload->read_buffer.data());
-			};
-			input.encoding = TSInputEncodingUTF8;
-
-			highlight_iterator it(
-				input, *_interp, _parser, *_lang, [](std::u8string_view name) {
-					return _details::get_manager().find_lanaguage(std::u8string(name));
-				},
-				cancel_tok
-			);
-			std::size_t
-				prev_pos = std::numeric_limits<std::size_t>::max(),
-				prev_char_pos = std::numeric_limits<std::size_t>::max();
-			editors::code::interpretation::character_position_converter pos_conv(*_interp);
-			std::vector<std::pair<std::size_t, std::size_t>> event_stack;
-			for (auto event = it.next(input, _parser); event; event = it.next(input, _parser)) {
-				if (prev_pos != event->position) {
-					std::size_t cur_char_pos = pos_conv.byte_to_character(event->position);
-					assert_true_logical(
-						prev_pos == std::numeric_limits<std::size_t>::max() || event->position >= prev_pos,
-						"position does not monotonically increase"
-					);
-					if (!event_stack.empty()) {
-						theme.add_range(
-							prev_char_pos, cur_char_pos,
-							editors::code::text_theme_data::range_value(
-								_lang->get_highlight_configuration()->entries[event_stack.back().first].theme,
-								event_stack.back().second
-							)
-						);
-					}
-					prev_pos = event->position;
-					prev_char_pos = cur_char_pos;
-				}
-				if (event->highlight != editors::theme_configuration::no_associated_theme) {
-					event_stack.emplace_back(event->highlight, event->capture_index);
-				} else {
-					event_stack.pop_back();
-				}
-			}
+	highlight_collector::document_highlight_data interpretation_tag::compute_highlight(std::size_t *cancel_tok) {
+		if (!_lang) {
+			return highlight_collector::document_highlight_data();
 		}
-		return theme;
+
+		_payload payload{ .interpretation = *_interp };
+		TSInput input;
+		input.payload = &payload;
+		input.read = [](void *payload_void, uint32_t byte_index, TSPoint, uint32_t *bytes_read) {
+			_payload *payload = static_cast<_payload*>(payload_void);
+
+			auto byte_end =
+				std::min<std::size_t>(byte_index + 1024, payload->interpretation.get_buffer().length());
+			*bytes_read = byte_end - byte_index;
+			payload->read_buffer = payload->interpretation.get_buffer().get_clip(
+				payload->interpretation.get_buffer().at(byte_index),
+				payload->interpretation.get_buffer().at(byte_end)
+			);
+			return reinterpret_cast<const char*>(payload->read_buffer.data());
+		};
+		input.encoding = TSInputEncodingUTF8;
+
+		highlight_collector collector(
+			input, *_interp, _parser, *_lang, [](std::u8string_view name) {
+				return _details::get_manager().find_lanaguage(std::u8string(name));
+			},
+			cancel_tok
+		);
+		return collector.compute(_parser);
 	}
 
 	void interpretation_tag::start_highlight_task() {

@@ -9,23 +9,23 @@
 #include "codepad/editors/json_parsers.inl"
 
 namespace codepad::ui::property_finders {
-	template <> property_info find_property_info_managed<editors::text_theme_specification>(
+	template <> property_info find_property_info_managed<editors::text_theme>(
 		component_property_accessor_builder &builder, manager &man
 	) {
 		if (!builder.move_next()) {
-			return builder.finish_and_create_property_info_managed<editors::text_theme_specification>(man);
+			return builder.finish_and_create_property_info_managed<editors::text_theme>(man);
 		}
-		builder.expect_type(u8"text_theme_specification");
+		builder.expect_type(u8"text_theme");
 		if (builder.current_component().property == u8"color") {
 			return builder.append_member_and_find_property_info_managed<
-				&editors::text_theme_specification::color
+				&editors::text_theme::color
 			>(man);
 		}
 		if (builder.current_component().property == u8"style") {
-			return builder.append_member_and_find_property_info<&editors::text_theme_specification::style>();
+			return builder.append_member_and_find_property_info<&editors::text_theme::style>();
 		}
 		if (builder.current_component().property == u8"weight") {
-			return builder.append_member_and_find_property_info<&editors::text_theme_specification::weight>();
+			return builder.append_member_and_find_property_info<&editors::text_theme::weight>();
 		}
 		return builder.fail();
 	}
