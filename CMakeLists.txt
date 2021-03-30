@@ -454,6 +454,7 @@ endif()
 
 
 # import plugin targets
+# if any of these fail to generate, you can comment out the line and try again
 add_subdirectory("plugins/editors/")
 add_subdirectory("plugins/command_pack/")
 add_subdirectory("plugins/python_plugin_host_pybind11/")

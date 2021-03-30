@@ -25,14 +25,14 @@ namespace codepad::tree_sitter {
 	void highlight_collector::compute_for_layer(
 		document_highlight_data &out, highlight_layer_iterator layer, const parser_ptr &parser
 	) {
-		uint32_t last_queried_row = std::numeric_limits<uint32_t>::max();
-		editors::code::linebreak_registry::linebreak_info last_linebreak_info;
-		auto query_line_info = [&](uint32_t row) {
-			if (row != last_queried_row) {
-				last_queried_row = row;
-				last_linebreak_info = _interp.get_linebreaks().get_line_info(last_queried_row);
+		uint32_t last_queried_pos = 0;
+		editors::code::interpretation::character_position_converter conv(_interp);
+		auto byte_to_char = [&](uint32_t pos) {
+			if (pos < last_queried_pos) {
+				conv.reset();
 			}
-			return last_linebreak_info;
+			last_queried_pos = pos;
+			return conv.byte_to_character(pos);
 		};
 
 		// add all capture names of the current language to `out.capture_names`
@@ -229,12 +229,8 @@ namespace codepad::tree_sitter {
 			}
 			if (highlight != editors::theme_configuration::no_associated_theme) {
 				// add the range to `out`
-				TSPoint
-					start_point = ts_node_start_point(cur_capture.node),
-					end_point = ts_node_end_point(cur_capture.node);
-				std::size_t
-					start_char = query_line_info(start_point.row).first_char + start_point.column,
-					end_char = query_line_info(end_point.row).first_char + end_point.column;
+				std::size_t start_char = byte_to_char(range_begin);
+				std::size_t end_char = byte_to_char(range_end);
 				out.theme.add_range(start_char, end_char, editors::code::document_theme::range_value(
 					layer_lang.get_highlight_configuration()->entries[highlight].theme,
 					first_name + cur_capture.index

@@ -183,7 +183,7 @@ namespace codepad::ui {
 		if (
 			(width && get_width_allocation() == size_allocation_type::automatic) ||
 			(height && get_height_allocation() == size_allocation_type::automatic)
-			) { // the change may actually affect its layout
+		) { // the change may actually affect its layout
 			if (_parent != nullptr) {
 				_parent->_on_child_desired_size_changed(*this, width, height);
 			}

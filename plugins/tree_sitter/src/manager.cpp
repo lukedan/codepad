@@ -83,7 +83,8 @@ namespace codepad::tree_sitter {
 			u8"json",
 			std::make_shared<language_configuration>(language_configuration::create_for(
 				u8"json", tree_sitter_json(),
-				u8"", u8"", u8"" // TODO no scm files?
+				u8"", u8"",
+				_read_file(root / "tree-sitter-json/queries/highlights.scm")
 			))
 		);
 	}
