@@ -21,9 +21,19 @@ namespace codepad::lsp {
 			params.textDocument = _parent->get_document_identifier();
 			params.position = types::Position(line_col.line, line_col.position_in_line);
 			_token = _parent->get_client().send_request<types::HoverResponse>(
-				u8"textDocument/hover", params, [this](types::HoverResponse response) {
+				u8"textDocument/hover", params,
+				[this](types::HoverResponse response) {
 					_handle_reply(std::move(response));
 					_token = client::request_token(); // token is no longer valid
+				},
+				[this](types::integer code, std::u8string_view msg, const json::value_t &data) {
+					if (code != static_cast<types::integer>(types::ErrorCodesEnum::ContentModified)) {
+						client::default_error_handler(code, msg, data);
+						_label->set_text(u8"[Error: " + std::u8string(msg) + u8"]"); // FIXME C++20 use std::format
+					} else {
+						_label->set_text(u8"[Modified]");
+					}
+					_token = client::request_token();
 				}
 			);
 		} else {
@@ -120,10 +130,6 @@ namespace codepad::lsp {
 		_begin_edit_token = _interp->get_buffer().begin_edit += [this](editors::buffer::begin_edit_info &info) {
 			_on_begin_edit(info);
 		};
-		_modification_decoded_token = _interp->modification_decoded +=
-			[this](editors::code::interpretation::modification_decoded_info &info) {
-				_on_modification_decoded(info);
-			};
 		_end_modification_token = _interp->end_modification +=
 			[this](editors::code::interpretation::end_modification_info &info) {
 				_on_end_modification(info);
@@ -229,45 +235,25 @@ namespace codepad::lsp {
 		}
 	}
 
-	void interpretation_tag::_on_modification_decoded(
-		editors::code::interpretation::modification_decoded_info &info
-	) {
+	void interpretation_tag::_on_end_modification(editors::code::interpretation::end_modification_info &info) {
 		auto &change = _change_params.contentChanges.value.emplace_back();
 		auto &range = change.range.value.emplace();
-		// start of range
-		range.start = types::Position(info.start_line_column.line, info.start_line_column.position_in_line);
-		auto start_line = *info.start_line_column.line_iterator;
-		if (range.start.character > start_line.nonbreak_chars) {
-			_change_start_offset =
-				info.start_line_column.position_in_line - start_line.nonbreak_chars;
-			range.start.character = start_line.nonbreak_chars;
-		} else {
-			_change_start_offset = 0;
-		}
-		// end of range
-		range.end = types::Position(info.past_end_line_column.line, info.past_end_line_column.position_in_line);
-		auto end_line = *info.past_end_line_column.line_iterator;
-		if (range.end.character > end_line.nonbreak_chars) {
-			_change_end_offset =
-				end_line.nonbreak_chars + ui::get_line_ending_length(end_line.ending) -
-				info.past_end_line_column.position_in_line;
-			++range.end.line;
-			range.end.character = 0;
-		} else {
-			_change_end_offset = 0;
-		}
-	}
 
-	void interpretation_tag::_on_end_modification(editors::code::interpretation::end_modification_info &info) {
-		auto &change = _change_params.contentChanges.value.back();
+		auto [start_pos, start_cp] = _interp->get_linebreaks().get_line_and_column_and_codepoint_of_char(
+			info.start_character
+		);
+		auto [end_pos, end_cp] = _interp->get_linebreaks().get_line_and_column_and_codepoint_of_char(
+			info.start_character + info.inserted_characters
+		); // end_pos here is not useful; we only need end_cp
+		// start of range
+		range.start = types::Position(start_pos.line, start_pos.position_in_line);
+		// end of range
+		range.end = types::Position(info.erase_end_line, info.erase_end_column);
 		// decode new text
-		change.text.clear();
-		std::size_t
-			current_codepoint = info.start_codepoint - _change_start_offset,
-			past_end_codepoint = info.past_end_codepoint + _change_end_offset;
+		std::size_t current_codepoint = start_cp;
 		for (
-			auto iter = _interp->codepoint_at(current_codepoint);
-			current_codepoint < past_end_codepoint;
+			auto iter = _interp->codepoint_at(start_cp);
+			current_codepoint < end_cp;
 			iter.next(), ++current_codepoint
 		) {
 			codepoint cp =
@@ -285,6 +271,7 @@ namespace codepad::lsp {
 		if (_client->get_state() == client::state::ready) {
 			++_change_params.textDocument.version;
 			_client->send_notification(u8"textDocument/didChange", _change_params);
+			_change_params.contentChanges.value.clear();
 
 			types::SemanticTokensParams params;
 			params.textDocument.uri = _change_params.textDocument.uri;

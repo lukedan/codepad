@@ -153,6 +153,17 @@ namespace codepad::editors::code {
 		return caret_position(_doc->get_linebreaks().num_chars(), true);
 	}
 
+	void contents_region::_on_end_modification(interpretation::end_modification_info &info) {
+		// update _tooltip_position
+		if (_tooltip_position.position > info.start_character) {
+			if (_tooltip_position.position >= info.start_character + info.removed_characters) {
+				_tooltip_position.position += info.inserted_characters - info.removed_characters;
+			} else {
+				_tooltip_position.position = info.start_character;
+			}
+		}
+	}
+
 	void contents_region::_on_end_edit(buffer::end_edit_info &info) {
 		// fixup view
 		_fmt.fixup_after_edit(info, *_doc);

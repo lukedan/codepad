@@ -593,7 +593,8 @@ namespace codepad::editors::code {
 			/// \ref interpretation to which \ref _doc points is changed, when the font has been changed, or when the
 			/// theme of \ref _doc is changed.
 			content_visual_changed,
-			content_modified, ///< Invoked when the \ref interpretation is modified or changed by \ref set_document.
+			/// Invoked when the \ref interpretation is modified or changed by \ref _set_document().
+			content_modified,
 			/// Invoked when the set of carets is changed. Note that this does not necessarily mean that the result
 			/// of \ref get_carets will change due to temporary carets.
 			carets_changed,
@@ -613,7 +614,7 @@ namespace codepad::editors::code {
 			constexpr static std::size_t _buffer_size = 20;
 			static char _buf[_buffer_size];
 
-			// TODO use std::format
+			// TODO C++20 use std::format
 			std::snprintf(_buf, _buffer_size, "[0x%lX]", static_cast<unsigned long>(value));
 			return reinterpret_cast<char8_t*>(_buf);
 		}
@@ -637,6 +638,8 @@ namespace codepad::editors::code {
 
 		std::shared_ptr<interpretation> _doc; ///< The \ref interpretation bound to this contents_region.
 		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
+		/// Used to listen to \ref interpretation::end_modification.
+		info_event<interpretation::end_modification_info>::token _end_modification_tok;
 		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
 		/// Used to listen to \ref interpretation::appearance_changed.
 		info_event<interpretation::appearance_changed_info>::token _appearance_changed_tok;
@@ -682,6 +685,9 @@ namespace codepad::editors::code {
 			_begin_edit_tok = _doc->get_buffer().begin_edit += [this](buffer::begin_edit_info &info) {
 				_on_begin_edit(info);
 			};
+			_end_modification_tok = _doc->end_modification += [this](interpretation::end_modification_info &info) {
+				_on_end_modification(info);
+			};
 			_end_edit_tok = _doc->get_buffer().end_edit += [this](buffer::end_edit_info &info) {
 				_on_end_edit(info);
 			};
@@ -707,7 +713,7 @@ namespace codepad::editors::code {
 				!pos.at_back &&
 				std::get<2>(res).entry != _fmt.get_linebreaks().begin() &&
 				std::get<2>(res).prev_chars == pos.position
-				) {
+			) {
 				--unfolded;
 			}
 			return _fmt.get_folding().unfolded_to_folded_line_number(unfolded);
@@ -778,6 +784,9 @@ namespace codepad::editors::code {
 			}
 			_fmt.prepare_for_edit(*_doc);
 		}
+		/// Called when \ref interpretation::end_modification is triggered. This function performs fixup on carets,
+		/// folded regions, and other positions that may be affected by the modification.
+		void _on_end_modification(interpretation::end_modification_info&);
 		/// Called when \ref buffer::end_edit is triggered. Performs necessary adjustments to the view, invokes
 		/// \ref content_modified, then calls \ref _on_content_visual_changed.
 		void _on_end_edit(buffer::end_edit_info&);
@@ -969,6 +978,7 @@ namespace codepad::editors::code {
 				}
 				// listen to the destruction of this tooltip
 				_tooltip_destroying_token = _tooltip->destroying += [this]() {
+					_tooltip_data.clear();
 					_tooltip = nullptr;
 				};
 				_tooltip->set_target(_get_caret_placement(pos));
@@ -1035,6 +1045,7 @@ namespace codepad::editors::code {
 		void _dispose() override {
 			if (_doc) {
 				_doc->get_buffer().begin_edit -= _begin_edit_tok;
+				_doc->end_modification -= _end_modification_tok;
 				_doc->get_buffer().end_edit -= _end_edit_tok;
 				_doc->appearance_changed -= _appearance_changed_tok;
 			}

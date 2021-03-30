@@ -27,14 +27,11 @@ namespace codepad {
 
 	performance_monitor::~performance_monitor() {
 		auto dur = clock_t::now() - _beg_time;
-		// TODO print duration directly after C++20
-		auto sdur = std::chrono::duration_cast<std::chrono::duration<double>>(dur);
 		if (dur > _expected && _cond != log_condition::never) {
 			logger::get().log_info(CP_HERE) <<
-				"operation took longer(" << sdur.count() << "s) than expected(" <<
-				_expected.count() << "): " << _label;
+				"operation took longer(" << dur << "s) than expected(" << _expected << "): " << _label;
 		} else if (_cond == log_condition::always) {
-			logger::get().log_debug(CP_HERE) << "operation took " << sdur.count() << "s: " << _label;
+			logger::get().log_debug(CP_HERE) << "operation took " << dur << "s: " << _label;
 		}
 	}
 

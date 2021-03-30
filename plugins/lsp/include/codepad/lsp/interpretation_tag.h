@@ -88,7 +88,6 @@ namespace codepad::lsp {
 		/// Unregisters events, removes the decoration provider, and sends the \p didClose event.
 		~interpretation_tag() {
 			_interp->get_buffer().begin_edit -= _begin_edit_token;
-			_interp->modification_decoded -= _modification_decoded_token;
 			_interp->end_modification -= _end_modification_token;
 			_interp->get_buffer().end_edit -= _end_edit_token;
 			_interp->remove_decoration_provider(_diagnostic_decoration_token);
@@ -168,8 +167,6 @@ namespace codepad::lsp {
 
 		/// Token used to listen to \ref editors::buffer::begin_edit.
 		info_event<editors::buffer::begin_edit_info>::token _begin_edit_token;
-		/// Token used to listen to \ref editors::code::interpretation::modification_decoded.
-		info_event<editors::code::interpretation::modification_decoded_info>::token _modification_decoded_token;
 		/// Token used to listen to \ref editors::code::interpretation::end_modification.
 		info_event<editors::code::interpretation::end_modification_info>::token _end_modification_token;
 		/// Token used to listen to \ref editors::buffer::end_edit.
@@ -186,16 +183,9 @@ namespace codepad::lsp {
 		/// Stores information about the ongoing change to the document. Some fields of this struct such as document
 		/// identifier persist between edits.
 		types::DidChangeTextDocumentParams _change_params;
-		std::size_t
-			/// The number of additional codepoints to report **before** the start of the current modification. This
-			/// is used when part of a linebreak is modified.
-			_change_start_offset = 0,
-			/// The number of additional codepoints to report **after** the end of the current modification. This is
-			/// used when part of a linebreak is modified.
-			_change_end_offset = 0,
-			/// Number of versions of this interpretation that has been queued for highlighting. Highlights should
-			/// only be applied when it'll be applied to the newest version.
-			_queued_highlight_version = 0;
+		/// Number of versions of this interpretation that has been queued for highlighting. Highlights should only
+		/// be applied when it'll be applied to the newest version.
+		std::size_t _queued_highlight_version = 0;
 		editors::code::interpretation *_interp = nullptr; ///< The \ref interpretation this tag is associated with.
 		client *_client = nullptr; ///< The client responsible for this document.
 
@@ -211,8 +201,6 @@ namespace codepad::lsp {
 		void _on_begin_edit(editors::buffer::begin_edit_info&) {
 			_change_params.contentChanges.value.clear();
 		}
-		/// Handler for \ref editors::code::interpretation::modification_decoded.
-		void _on_modification_decoded(editors::code::interpretation::modification_decoded_info&);
 		/// Handler for \ref editors::code::interpretation::end_modification.
 		void _on_end_modification(editors::code::interpretation::end_modification_info&);
 		/// Handler for \ref editors::buffer::end_edit. Sends the \p didChange notification, and also sends the

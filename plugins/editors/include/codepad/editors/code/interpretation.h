@@ -253,26 +253,26 @@ namespace codepad::editors::code {
 			}
 
 			/// Returns the current codepoint.
-			codepoint get_codepoint() const {
+			[[nodiscard]] codepoint get_codepoint() const {
 				return _cp;
 			}
 			/// Returns whether the current codepoint is valid.
-			bool is_codepoint_valid() const {
+			[[nodiscard]] bool is_codepoint_valid() const {
 				return _valid;
 			}
 			/// Returns whether the iterator is past the end of the \ref buffer.
-			bool ended() const {
+			[[nodiscard]] bool ended() const {
 				return _interp == nullptr || _cur == _interp->get_buffer().end();
 			}
 			/// Returns the underlying \ref buffer::const_iterator pointing to the first byte of the current
 			/// codepoint.
-			const buffer::const_iterator &get_raw() const {
+			[[nodiscard]] const buffer::const_iterator &get_raw() const {
 				return _cur;
 			}
 
 			/// Returns the associated \ref interpretation.
-			const interpretation *get_interpretation() const {
-				return _interp;
+			[[nodiscard]] const interpretation &get_interpretation() const {
+				return *_interp;
 			}
 		protected:
 			buffer::const_iterator
@@ -312,19 +312,19 @@ namespace codepad::editors::code {
 				}
 			}
 			/// Returns whether the current character is a linebreak.
-			bool is_linebreak() const {
+			[[nodiscard]] bool is_linebreak() const {
 				return _col == _lbit->nonbreak_chars;
 			}
 			/// Returns the type of the current line's linebreak.
-			ui::line_ending get_linebreak() const {
+			[[nodiscard]] ui::line_ending get_linebreak() const {
 				return _lbit->ending;
 			}
 			/// Returns the column where this iterator's at.
-			std::size_t get_column() const {
+			[[nodiscard]] std::size_t get_column() const {
 				return _col;
 			}
 			/// Returns the underlying \ref codepoint_iterator.
-			const codepoint_iterator &codepoint() const {
+			[[nodiscard]] const codepoint_iterator &codepoint() const {
 				return _cpit;
 			}
 		protected:
@@ -345,33 +345,50 @@ namespace codepad::editors::code {
 			/// Initializes all fields of this struct.
 			modification_decoded_info(
 				linebreak_registry::line_column_info start_lc, linebreak_registry::line_column_info past_end_lc,
-				std::size_t start_char, std::size_t past_end_char, std::size_t start_cp, std::size_t past_end_cp,
-				buffer::end_modification_info &info
+				std::size_t start_char, std::size_t past_end_char,
+				std::size_t start_cp, std::size_t past_last_erased_cp, std::size_t past_last_inserted_cp,
+				std::size_t start_b, std::size_t past_end_b, buffer::end_modification_info &info
 			) :
 				start_line_column(start_lc), past_end_line_column(past_end_lc),
 				start_character(start_char), past_end_character(past_end_char),
-				start_codepoint(start_cp), past_end_codepoint(past_end_cp), buffer_info(info) {
+				start_codepoint(start_cp),
+				past_last_erased_codepoint(past_last_erased_cp),
+				past_last_inserted_codepoint(past_last_inserted_cp),
+				start_byte(start_b), past_end_byte(past_end_b), buffer_info(info) {
 			}
 
 			const linebreak_registry::line_column_info
 				start_line_column, ///< Line and column information of \ref start_codepoint.
-				past_end_line_column; ///< Line and column information of \ref past_end_codepoint.
+				past_end_line_column; ///< Line and column information of \ref past_last_erased_codepoint.
 			const std::size_t
 				/// The character that \ref start_codepoint belongs to. Note that this may not be the first character
 				/// affected by this modification due to CRLF merging and splitting. Generally
 				/// \ref end_modification_info::start_character would be more useful.
 				start_character = 0,
-				/// The character that \ref past_end_codepoint belongs to. Note that this may not be the first
-				/// character affected by this modification due to CRLF merging and splitting. Generally a
+				/// The character that \ref past_last_erased_codepoint belongs to. Note that this may not be the
+				/// first character affected by this modification due to CRLF merging and splitting. Generally a
 				/// combination of \ref end_modification_info::start_character and
 				/// \ref end_modification_info::removed_characters would be more useful.
-				past_end_character = 0,
-				/// The first codepoint that has been affected by this modification. This index is obtained
-				/// **before** the modification.
+				past_end_character = 0;
+			const std::size_t
+				/// The first codepoint that has been affected by this modification. This index should be valid both
+				/// before and after the modification.
 				start_codepoint = 0,
 				/// One past the last codepoint that has been affected by this modification. This index is obtained
 				/// **before** the modification.
-				past_end_codepoint = 0;
+				past_last_erased_codepoint = 0,
+				/// One past the last codepoint that has been affected by this modification. This index is obtained
+				/// **after** the modification.
+				past_last_inserted_codepoint = 0;
+			const std::size_t
+				/// The byte index corresponding to \ref start_codepoint. This should be valid both before and after
+				/// the modification.
+				start_byte = 0,
+				/// The byte index corresponding to \ref past_last_erased_codepoint. This index is obtained
+				/// **after** the modification. This is also guaranteed to be after the range of inserted bytes, so
+				/// the corresponding byte index after the modification (i.e., corresponding to
+				/// \ref past_last_erased_codepoint) can be trivially computed using data from \ref buffer_info.
+				past_end_byte = 0;
 			/// Information about modification of the underlying \ref buffer.
 			buffer::end_modification_info &buffer_info;
 		};
@@ -379,32 +396,36 @@ namespace codepad::editors::code {
 		/// codepoints that are affected.
 		///
 		/// The \ref start_character, \ref removed_characters, and \ref inserted_characters fields indicate the
-		/// character range that may have been modified. The \ref start_codepoint and \ref past_end codepoint fields
-		/// indicate the codepoint range that may have been modified and is most useful when used with
-		/// \ref modification_decoded_info::past_end_codepoint.
+		/// character range that may have been modified.
 		struct end_modification_info {
 			/// Initializes all fields of this struct.
 			end_modification_info(
 				std::size_t start_char, std::size_t rem_chars, std::size_t insert_chars,
-				std::size_t start_cp, std::size_t past_end_cp, buffer::end_modification_info &info
+				std::size_t erase_end_ln, std::size_t erase_end_col, buffer::end_modification_info &info
 			) :
 				start_character(start_char), removed_characters(rem_chars), inserted_characters(insert_chars),
-				start_codepoint(start_cp), past_end_codepoint(past_end_cp), buffer_info(info) {
+				erase_end_line(erase_end_ln), erase_end_column(erase_end_col), buffer_info(info) {
 			}
 
 			const std::size_t
-				/// The first character that may have been modified.
+				/// The first character that may have been modified. This differs from
+				/// \ref modification_decoded_info::start_character in that it accounts for CRLF splitting/merging.
 				start_character = 0,
-				/// The number of characters that have been erased or modified by the erase operation.
+				/// The number of characters that have been erased or modified by the erase operation. This differs
+				/// from \ref modification_decoded_info::past_end_character in that it accounts for CRLF
+				/// splitting/merging.
 				removed_characters = 0,
 				/// The number of characters that have been inserted or modified by the insert operation.
-				inserted_characters = 0,
-				/// The first codepoint that has been affected by this modification. This index is obtained **after**
-				/// the modification, but should be the same as \ref modification_decoded_info::start_codepoint.
-				start_codepoint = 0,
-				/// One past the last codepoint that has been affected by this modification. This index is obtained
-				/// **after** the modification.
-				past_end_codepoint = 0;
+				inserted_characters = 0;
+			const std::size_t
+				/// The line index of character past the last erased character, obtained before the modification.
+				/// Line/column information of most other character positions can be obtained directly from the
+				/// \ref interpretation.
+				erase_end_line = 0,
+				/// The column index of character past the last erased character, obtained before the modification.
+				/// Line/column information of most other character positions can be obtained directly from the
+				/// \ref interpretation.
+				erase_end_column = 0;
 			/// Information about modification of the underlying \ref buffer.
 			buffer::end_modification_info &buffer_info;
 		};

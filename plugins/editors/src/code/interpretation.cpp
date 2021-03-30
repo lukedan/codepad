@@ -317,7 +317,9 @@ namespace codepad::editors::code {
 				++_mod_cache.start_decoding_chunk;
 			}
 		}
-		std::size_t first_changed_codepoint = current_codepoint;
+		std::size_t
+			byte_of_first_changed_codepoint = byte_iter.get_position(),
+			first_changed_codepoint = current_codepoint;
 
 
 		auto target_pos_iter = _mod_cache.post_erase_boundaries.begin();
@@ -421,8 +423,11 @@ namespace codepad::editors::code {
 			_linebreaks.get_line_and_column_and_char_of_codepoint(first_changed_codepoint);
 		auto [end_info, end_char] =
 			_linebreaks.get_line_and_column_and_char_of_codepoint(current_target_codepoint);
+		std::size_t original_line_length = end_info.line_iterator->nonbreak_chars;
 		modification_decoded.invoke_noret(
-			start_info, end_info, start_char, end_char, first_changed_codepoint, current_target_codepoint, info
+			start_info, end_info, start_char, end_char,
+			first_changed_codepoint, current_target_codepoint, current_codepoint,
+			byte_of_first_changed_codepoint, byte_iter.get_position(), info
 		);
 
 		// update line breaks
@@ -484,8 +489,16 @@ namespace codepad::editors::code {
 			provider->decorations.on_modification(start_char, erased_chars, new_content_chars);
 		}
 
+		// update end_info to account for merging & splitting
+		if (erase_res.split_back || insert_res.merge_back) {
+			++end_info.line;
+			end_info.position_in_line = 0;
+		} else {
+			end_info.position_in_line = std::min(end_info.position_in_line, original_line_length);
+		}
+
 		end_modification.invoke_noret(
-			start_char, end_char - start_char, new_content_chars, first_changed_codepoint, current_codepoint, info
+			start_char, end_char - start_char, new_content_chars, end_info.line, end_info.position_in_line, info
 		);
 	}
 }

@@ -8,6 +8,7 @@
 #include <random>
 #include <atomic>
 #include <csignal>
+#include <chrono>
 
 #include <codepad/core/logger_sinks.h>
 #include <codepad/editors/manager.h>
@@ -19,8 +20,10 @@ std::atomic_bool keep_running; ///< This is set to \p false if SIGINT is encount
 
 std::uniform_real_distribution<double> prob_dist(0.0, 1.0);
 
-/// Generates and returns a series of codepoints and encodes them as UTF8.
-template <typename Rnd> cp::editors::byte_string generate_random_utf8_string(size_t length, Rnd &random) {
+/// Generates and returns a series of codepoints and encodes them using the given encoding.
+template <typename Rnd> cp::editors::byte_string generate_random_encoded_string(
+	size_t length, Rnd &random, const cp::editors::code::buffer_encoding &encoding
+) {
 	std::uniform_int_distribution<cp::codepoint> dist(0, 0x10FFFF - 0x800);
 	std::basic_string<cp::codepoint> str;
 	for (size_t i = 0; i < length; ++i) {
@@ -46,7 +49,7 @@ template <typename Rnd> cp::editors::byte_string generate_random_utf8_string(siz
 	}
 	cp::editors::byte_string res;
 	for (cp::codepoint cp : str) {
-		res.append(cp::encodings::utf8::encode_codepoint(cp));
+		res.append(encoding.encode_codepoint(cp));
 	}
 	return res;
 }
@@ -136,14 +139,28 @@ int main(int argc, char **argv) {
 
 	std::default_random_engine eng(123456);
 	auto buf = buf_man.new_file();
-	auto interp = buf_man.open_interpretation(*buf, encodings.get_default());
+	auto interp = buf_man.open_interpretation(*buf, *encodings.get_encoding(u8"UTF-8"));
+
+	auto check_byte_position = [&](std::size_t byte, std::size_t cp) {
+		cp::assert_true_logical(
+			interp->codepoint_at(cp).get_raw().get_position() == byte, "incorrect byte position"
+		);
+	};
 
 	// stored values from `modification_decoded`
-	std::size_t start_char_beforemod, past_end_char_beforemod, num_chars_beforemod;
+	std::size_t
+		start_char_beforemod, past_end_char_beforemod, num_chars_beforemod,
+		start_cp, past_end_cp_aftermod,
+		start_byte, past_end_byte_aftermod;
+	cp::editors::code::linebreak_registry old_linebreaks;
 	interp->modification_decoded +=
 		[&](cp::editors::code::interpretation::modification_decoded_info &info) {
 			start_char_beforemod = info.start_character;
 			past_end_char_beforemod = info.past_end_character;
+			start_cp = info.start_codepoint;
+			past_end_cp_aftermod = info.past_last_inserted_codepoint;
+			start_byte = info.start_byte;
+			past_end_byte_aftermod = info.past_end_byte;
 			if (
 				(info.buffer_info.bytes_erased.length() > 0 || info.buffer_info.bytes_inserted.length() > 0) &&
 				info.past_end_line_column.position_in_line > info.past_end_line_column.line_iterator->nonbreak_chars
@@ -151,14 +168,15 @@ int main(int argc, char **argv) {
 				++past_end_char_beforemod;
 			}
 			num_chars_beforemod = interp->get_linebreaks().num_chars();
+			old_linebreaks = interp->get_linebreaks();
 		};
 	interp->end_modification +=
 		[&](cp::editors::code::interpretation::end_modification_info &info) {
 			// validate the character indices in `info`
 			auto [begin_line_col, begin_char] =
-				interp->get_linebreaks().get_line_and_column_and_char_of_codepoint(info.start_codepoint);
+				interp->get_linebreaks().get_line_and_column_and_char_of_codepoint(start_cp);
 			auto [end_line_col, end_char] =
-				interp->get_linebreaks().get_line_and_column_and_char_of_codepoint(info.past_end_codepoint);
+				interp->get_linebreaks().get_line_and_column_and_char_of_codepoint(past_end_cp_aftermod);
 			if (
 				(info.buffer_info.bytes_erased.length() > 0 || info.buffer_info.bytes_inserted.length() > 0) &&
 				end_line_col.position_in_line > end_line_col.line_iterator->nonbreak_chars
@@ -183,6 +201,17 @@ int main(int argc, char **argv) {
 			cp::assert_true_logical(
 				info.inserted_characters == expected_inserted_chars, "incorrect inserted character count"
 			);
+
+			auto linecol_info = old_linebreaks.get_line_and_column_of_char(
+				info.start_character + info.removed_characters
+			);
+			cp::assert_true_logical(
+				linecol_info.line == info.erase_end_line && linecol_info.position_in_line == info.erase_end_column,
+				"invalid line/column information for one-past last erased character"
+			);
+
+			check_byte_position(start_byte, start_cp);
+			check_byte_position(past_end_byte_aftermod, past_end_cp_aftermod);
 		};
 
 	cp::editors::code::caret_set cset;
@@ -190,12 +219,25 @@ int main(int argc, char **argv) {
 	interp->on_insert(cset, generate_random_string(1000000, eng), nullptr);
 	cp::assert_true_logical(interp->check_integrity());
 
+	auto last_log = std::chrono::high_resolution_clock::now();
+	auto start_time = last_log;
+
 	std::uniform_int_distribution<size_t>
 		ncarets_dist(1, 100), insertlen_dist(0, 3000);
 	std::uniform_int_distribution<int> bool_dist(0, 1);
 	for (std::size_t idx = 0; keep_running; ++idx) {
-		cp::logger::get().log_info(CP_HERE) <<
-			"document length: " << buf->length() << " bytes, " << interp->get_linebreaks().num_chars() << " chars";
+		auto now = std::chrono::high_resolution_clock::now();
+		if (std::chrono::duration_cast<std::chrono::seconds>(now - last_log).count() >= 1) {
+			auto entry = cp::logger::get().log_info(CP_HERE);
+			entry <<
+				"document length: " << buf->length() << " bytes, " <<
+				interp->get_linebreaks().num_chars() << " chars\n";
+			auto secs = std::chrono::duration<double>(now - start_time).count();
+			entry <<
+				"elapsed time: " << now - start_time << ", iterations: " << idx <<
+				", iterations/sec: " << idx / secs;
+			last_log = now;
+		}
 
 		// generate random positions and strings for the edit
 		std::vector<std::pair<size_t, size_t>> positions;
@@ -211,11 +253,12 @@ int main(int argc, char **argv) {
 				inserts.emplace_back();
 			} else if (r < 0.55) { // 45% chance: insert ranodm string
 				inserts.emplace_back(generate_random_string(insertlen_dist(eng), eng));
-			} else { // insert utf-8 string
-				inserts.emplace_back(generate_random_utf8_string(insertlen_dist(eng), eng));
+			} else { // insert encoded string
+				inserts.emplace_back(generate_random_encoded_string(
+					insertlen_dist(eng), eng, *interp->get_encoding()
+				));
 			}
 		}
-		cp::logger::get().log_info(CP_HERE) << "modifications: " << positions.size();
 
 		// perform the edit
 		{
@@ -229,7 +272,6 @@ int main(int argc, char **argv) {
 		}
 
 		// validate everything
-		cp::logger::get().log_info(CP_HERE) << "checking edit " << idx;
 		cp::assert_true_logical(interp->check_integrity());
 	}
 
