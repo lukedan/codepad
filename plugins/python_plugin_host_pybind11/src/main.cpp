@@ -23,14 +23,14 @@ namespace python_plugin_host_pybind11 {
 	cp::plugin *this_plugin = nullptr;
 
 	const char *python_import_module = R"py(
-	def load_module(mod_name, p):
-		import importlib.util
-		spec = importlib.util.spec_from_file_location(mod_name, p)
-		module = importlib.util.module_from_spec(spec)
-		spec.loader.exec_module(module)
-		return module
+def load_module(mod_name, p):
+	import importlib.util
+	spec = importlib.util.spec_from_file_location(mod_name, p)
+	module = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(module)
+	return module
 
-	load_module(module_name, path)
+load_module(module_name, path)
 	)py";
 
 	void import_module(std::u8string_view module_name, const std::filesystem::path &path) {

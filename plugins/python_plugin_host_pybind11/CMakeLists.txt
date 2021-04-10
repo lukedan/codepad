@@ -11,4 +11,5 @@ set_target_properties(python_plugin_host_pybind11
 
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
-target_link_libraries(python_plugin_host_pybind11 PRIVATE pybind11::embed)
+target_link_libraries(python_plugin_host_pybind11
+	PRIVATE Python3::Python pybind11::lto pybind11::embed pybind11::module)
