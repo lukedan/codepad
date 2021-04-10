@@ -184,32 +184,9 @@ namespace codepad {
 			rn ///< \p \\r\\n, usually used in Windows.
 		};
 		/// Returns the length, in codepoints, of the string representation of a \ref line_ending.
-		inline std::size_t get_line_ending_length(line_ending le) {
-			switch (le) {
-			case line_ending::none:
-				return 0;
-			case line_ending::n:
-				[[fallthrough]];
-			case line_ending::r:
-				return 1;
-			case line_ending::rn:
-				return 2;
-			}
-			return 0;
-		}
+		[[nodiscard]] std::size_t get_line_ending_length(line_ending);
 		/// Returns the string representation of the given \ref line_ending.
-		inline std::u32string_view line_ending_to_string(line_ending le) {
-			switch (le) {
-			case line_ending::r:
-				return U"\r";
-			case line_ending::n:
-				return U"\n";
-			case line_ending::rn:
-				return U"\r\n";
-			default:
-				return U"";
-			}
-		}
+		[[nodiscard]] std::u32string_view line_ending_to_string(line_ending);
 
 		/// Used to analyze a sequence of codepoints and find linebreaks.
 		struct linebreak_analyzer {

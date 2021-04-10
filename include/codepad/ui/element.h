@@ -98,7 +98,7 @@ namespace codepad::ui {
 
 		/// Implementation of \ref consume() for one axis.
 		void _consume_impl(double &current, double amount, std::u8string_view name) {
-			double new_value = current + amount;
+			double new_value = current - amount;
 			double product = new_value * current;
 			if (product < 0.0) {
 				if (product < -1e-6) {

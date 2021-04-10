@@ -194,7 +194,7 @@ namespace codepad::ui {
 		if (
 			std::isnan(get_layout().xmin) || std::isnan(get_layout().xmax) ||
 			std::isnan(get_layout().ymin) || std::isnan(get_layout().ymax)
-			) {
+		) {
 			logger::get().log_warning(CP_HERE) <<
 				"layout system produced nan on " << demangle(typeid(*this).name());
 		}
