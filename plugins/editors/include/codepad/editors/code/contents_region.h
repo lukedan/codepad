@@ -201,9 +201,9 @@ namespace codepad::editors::code {
 			assert_true_usage(!cs.empty(), "must have at least one caret");
 			caret_set set;
 			for (const ui::caret_selection &sel : cs) {
-				caret_set::entry et(sel, caret_data());
-				et.second.alignment = get_horizontal_caret_position(_extract_position(et));
-				set.add(et);
+				caret_data data;
+				data.alignment = get_horizontal_caret_position(_extract_position(sel, data));
+				set.add(sel, data);
 			}
 			set_carets_keepdata(std::move(set));
 		}
@@ -212,8 +212,13 @@ namespace codepad::editors::code {
 		/// \note The alignment specified in \p cs is ignored.
 		void set_carets(caret_set cs) {
 			assert_true_usage(!cs.carets.empty(), "must have at least one caret");
-			for (auto &sel : cs.carets) {
-				sel.second.alignment = get_horizontal_caret_position(_extract_position(sel));
+			std::size_t total_off = 0;
+			for (auto it = cs.carets.begin(); it != cs.carets.end(); ++it) {
+				ui::caret_selection sel = it->caret;
+				sel.selection_begin += total_off;
+				it.get_value_rawmod().data.alignment =
+					get_horizontal_caret_position(_extract_position(sel, it->data));
+				total_off += it->get_total_offset();
 			}
 			set_carets_keepdata(std::move(cs));
 		}
@@ -224,22 +229,22 @@ namespace codepad::editors::code {
 		void set_carets_keepdata(caret_set cs) {
 			assert_true_logical(!cs.carets.empty(), "must have at least one caret");
 			_cset = std::move(cs);
-			_make_caret_visible(_extract_position(*_cset.carets.rbegin()));
+			/*_make_caret_visible(_extract_position(*_cset.carets.rbegin()));*/
 			_on_carets_changed();
 		}
 
 		/// Adds the given caret to this \ref contents_region.
 		void add_caret(caret_selection_position c) override {
-			auto it = _cset.add(caret_set::entry(
-				ui::caret_selection(c.caret, c.selection), caret_data(0.0, c.caret_at_back)
-			));
+			auto [it, merged] = _cset.add(c.caret, caret_data(0.0, c.caret_after_stall));
 			// the added caret may be merged, so alignment is calculated again here
-			it->second.alignment = get_horizontal_caret_position(_extract_position(*it));
+			it.get_iterator().get_value_rawmod().data.alignment = get_horizontal_caret_position(
+				_extract_position(it.get_caret_selection(), it.get_iterator()->data)
+			);
 			_on_carets_changed();
 		}
 		/// Removes the given caret.
-		void remove_caret(caret_set::const_iterator it) override {
-			_cset.carets.erase(it);
+		void remove_caret(caret_set::iterator it) override {
+			_cset.remove(it);
 			_on_carets_changed();
 		}
 		/// Clears all carets from this \ref contents_region.
@@ -250,145 +255,111 @@ namespace codepad::editors::code {
 
 		/// Moves all carets. The caller needs to give very precise instructions on how to move them.
 		///
-		/// \param gd A function-like object that takes a \ref caret_set::entry as input and returns the position
-		///           it should move to, also as a \ref caret_set::entry. It is also responsible of providing the
-		///           additional data associated with the new caret since this function calls \ref set_carets_keepdata
-		///           to update the carets.
-		template <typename GetData> void move_carets_raw(const GetData &gd) {
-			caret_set ncs;
-			for (const auto &et : _cset.carets) {
-				ncs.add(gd(et));
+		/// \param transform A function-like object that takes a \ref ui::caret_selection and a \ref caret_data
+		///                  associated with a caret in the old set of carets as input, and returns the transformed
+		///                  caret information. The transformed information is kept as-is (e.g., alignment is not
+		///                  re-calculated).
+		template <typename Transform> void move_carets_raw(const Transform &transform) {
+			caret_set new_carets;
+			for (auto iter = _cset.begin(); iter.get_iterator() != _cset.carets.end(); iter.move_next()) {
+				auto [caret_sel, data] = transform(iter.get_caret_selection(), iter.get_iterator()->data);
+				new_carets.add(caret_sel, data);
 			}
-			set_carets_keepdata(std::move(ncs));
+			set_carets_keepdata(std::move(new_carets));
 		}
 	protected:
-		/// Used by \ref move_carets to interpret and organize the return values of the function-like objects.
-		/// This version takes a \ref caret_position, calculates the horizontal position of the caret, and
-		/// returns the result. \ref caret_position itself is not used because it would be hard for
-		/// \ref move_carets to determine the new position.
-		caret_set::entry _complete_caret_entry(caret_position fst, std::size_t scnd) {
-			return caret_set::entry(ui::caret_selection(fst.position, scnd), _get_caret_data(fst));
+		/// Updates and returns the given caret information using the specified \ref caret_position and alignment. If
+		/// \p continue_selection is \p true, \ref ui::caret_selection::move_caret() is used; otherwise the
+		/// \ref ui::caret_selection is reset.
+		[[nodiscard]] std::pair<ui::caret_selection, caret_data> _update_caret_selection(
+			ui::caret_selection caret_sel, caret_data data,
+			bool continue_selection, std::pair<caret_position, double> new_caret_and_alignment
+		) {
+			data.alignment = new_caret_and_alignment.second;
+			data.after_stall = new_caret_and_alignment.first.after_stall;
+			if (continue_selection) {
+				caret_sel.move_caret(new_caret_and_alignment.first.position);
+			} else {
+				caret_sel = ui::caret_selection(new_caret_and_alignment.first.position);
+			}
+			return { caret_sel, data };
 		}
-		/// Used by \ref move_carets to interpret and organize the return values of the function-like objects.
-		/// This version takes a position and a \ref caret_data, and returns the combined result.
-		caret_set::entry _complete_caret_entry(std::pair<std::size_t, caret_data> fst, std::size_t scnd) {
-			return caret_set::entry(ui::caret_selection(fst.first, scnd), fst.second);
-		}
-
-		/// Extracts the character position from the given \ref caret_position object.
-		std::size_t _get_caret_position(caret_position p) {
-			return p.position;
-		}
-		/// Returns the first position component.
-		std::size_t _get_caret_position(const std::pair<std::size_t, caret_data> &data) {
-			return data.first;
+		/// Computes the horizontal position of the \ref caret_position and uses it as alignment, and returns the
+		/// result of the other overload.
+		[[nodiscard]] std::pair<ui::caret_selection, caret_data> _update_caret_selection(
+			ui::caret_selection &caret_sel, caret_data &data, bool continue_selection, caret_position new_caret
+		) {
+			return _update_caret_selection(
+				caret_sel, data, continue_selection, { new_caret, get_horizontal_caret_position(new_caret) }
+			);
 		}
 	public:
-		/// Moves all carets to specified positions.
-		///
-		/// \param gp A function-like object that takes a \ref caret_set::entry as input and returns either: 1) a
-		///           \ref caret_position, or 2) a <tt>std::pair<std::size_t, caret_data></tt>, containing the new
-		///           position and related data. This object is used when \p continueselection is \p true, or when
-		///           the selection is empty (i.e., <tt>caret_selection::first == caret_selection::second</tt>). That
-		///           is, this object focuses on moving only the caret and does not care about the selection.
-		/// \param sp Similar to \p gp, except that this object is used when \p continueselection is false and the
-		///           selection is not empty. In other words, this object is used when the selection should be
-		///           cancelled.
-		/// \param continueselection Indicate whether the user wishes to keep and edit the selections. If so, the
-		///                          non-caret ends of the selections will not be changed, and only the caret ends of
-		///                          the selections are changed according to \p gp. Otherwise, selections are
-		///                          cancelled according to \p sp.
-		/// \remark If \p continueselection is \p true, the non-caret ends of the selections will be kept; otherwise,
-		///         they will be set to the same values as the caret ends (the values returned by the function-like
-		///         objects), cancelling all selections.
-		template <typename GetPos, typename SelPos> void move_carets(
-			const GetPos &gp, const SelPos &sp, bool continueselection
+		/// Transforms all caret positions based on the return value of the supplied callback functions.
+		template <typename EditSelection, typename CancelSelection> void move_carets(
+			const EditSelection &edit_sel, const CancelSelection &cancel_sel, bool continue_selection
 		) {
-			if (continueselection) {
-				move_carets_raw([this, &gp](const caret_set::entry &et) {
-					return _complete_caret_entry(gp(et), et.first.selection);
+			if (continue_selection) {
+				move_carets_raw([this, &edit_sel](ui::caret_selection caret_sel, caret_data data) {
+					return _update_caret_selection(caret_sel, data, true, edit_sel(caret_sel, data));
 				});
 			} else {
-				move_carets_raw([this, &gp, &sp](const caret_set::entry &et) {
-					if (et.first.caret == et.first.selection) {
-						auto x = gp(et);
-						return _complete_caret_entry(x, _get_caret_position(x));
+				move_carets_raw([this, &edit_sel, &cancel_sel](ui::caret_selection caret_sel, caret_data data) {
+					if (caret_sel.has_selection()) {
+						return _update_caret_selection(caret_sel, data, false, cancel_sel(caret_sel, data));
 					}
-					auto x = sp(et);
-					return _complete_caret_entry(x, _get_caret_position(x));
+					return _update_caret_selection(caret_sel, data, false, edit_sel(caret_sel, data));
 				});
 			}
 		}
-		/// Moves all carets to specified positions, treating selections and non-selections the same way. This
-		/// function is a shorthand for \ref move_carets(const GetPos&, const SelPos&, bool)
-		/// "move_carets(gp, gp, continueselection)".
-		template <typename GetPos> void move_carets(const GetPos &gp, bool continueselection) {
-			return move_carets(gp, gp, continueselection);
+		/// Moves all carets to specified positions, treating selections and non-selections the same way.
+		template <typename EditSelection> void move_carets(const EditSelection &edit_sel, bool continue_selection) {
+			return move_carets(edit_sel, edit_sel, continue_selection);
 		}
 
 
 		/// Moves all carets one character to the left. If \p continueselection is \p false, then all carets that have
 		/// selected regions will be placed at the front of the selection.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_left(bool continueselection) {
+		void move_all_carets_left(bool continue_selection) {
 			move_carets(
-				[this](const caret_set::entry &et) {
-					return caret_position(_get_previous_caret_position(et.first.caret), true);
+				[this](ui::caret_selection caret_sel, caret_data) {
+					return caret_position(_get_previous_caret_position(caret_sel.get_caret_position()), true);
 				},
-				[](const caret_set::entry &et) {
-					if (et.first.caret < et.first.selection) {
-						return _extract_position(et);
+				[](ui::caret_selection caret_sel, caret_data data) {
+					if (caret_sel.caret_offset == 0) {
+						return _extract_position(caret_sel, data);
 					}
-					return caret_position(et.first.selection, true);
+					return caret_position(caret_sel.get_caret_position(), true);
 				},
-					continueselection
-					);
+				continue_selection
+			);
 		}
 		/// Moves all carets one character to the right. If \p continueselection is \p false, then all carets that have
 		/// selected regions will be placed at the back of the selection.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_right(bool continueselection) {
+		void move_all_carets_right(bool continue_selection) {
 			move_carets(
-				[this](const caret_set::entry &et) {
-					return caret_position(_get_next_caret_position(et.first.caret), false);
+				[this](ui::caret_selection caret_sel, caret_data) {
+					return caret_position(_get_next_caret_position(caret_sel.get_caret_position()), false);
 				},
-				[](const caret_set::entry &et) {
-					if (et.first.caret > et.first.selection) {
-						return _extract_position(et);
+				[](ui::caret_selection caret_sel, caret_data data) {
+					if (caret_sel.caret_offset == caret_sel.selection_length) {
+						return _extract_position(caret_sel, data);
 					}
-					return caret_position(et.first.selection, false);
+					return caret_position(caret_sel.get_selection_end(), false);
 				},
-					continueselection
-					);
+				continue_selection
+			);
 		}
 		/// Moves all carets vertically by a given number of lines.
 		void move_all_carets_vertically(int offset, bool continue_selection) {
 			move_carets(
-				[this, offset](const caret_set::entry &et) {
+				[this, offset](ui::caret_selection caret_sel, caret_data data) {
 					auto res = _move_caret_vertically(
-						_get_visual_line_of_caret(_extract_position(et)), offset, et.second.alignment
+						_get_visual_line_of_caret(_extract_position(caret_sel, data)), offset, data.alignment
 					);
-					return std::make_pair(res.position, caret_data(et.second.alignment, res.at_back));
+					return std::make_pair(res, data.alignment);
 				},
-				[this, offset](const caret_set::entry &et) {
-					std::size_t ml;
-					double bl;
-					// decide which end of the selection to move
-					if ((et.first.caret > et.first.selection) == (offset > 0)) { // caret
-						ml = _get_visual_line_of_caret(_extract_position(et));
-						bl = et.second.alignment;
-					} else { // non-caret
-						caret_position sel_end(et.first.selection, et.first.caret > et.first.selection);
-						ml = _get_visual_line_of_caret(sel_end);
-						bl = get_horizontal_caret_position(sel_end);
-					}
-					auto res = _move_caret_vertically(ml, offset, bl);
-					return std::make_pair(res.position, caret_data(bl, res.at_back));
-				},
-					continue_selection
-					);
+				continue_selection
+			);
 		}
 		/// Moves all carets one line up.
 		void move_all_carets_up(bool continue_selection) {
@@ -398,32 +369,28 @@ namespace codepad::editors::code {
 		void move_all_carets_down(bool continue_selection) {
 			move_all_carets_vertically(1, continue_selection);
 		}
-		/// Moves all carets to the beginning of the lines they're at.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_to_line_beginning(bool continueselection) {
+		/// Moves all carets to the beginning of the lines they're at, with folding and word wrapping enabled.
+		void move_all_carets_to_line_beginning(bool continue_selection) {
 			move_carets(
-				[this](const caret_set::entry &et) {
+				[this](ui::caret_selection caret_sel, caret_data data) {
 					std::size_t begin_pos =
 						_fmt.get_linebreaks().get_beginning_char_of_visual_line(
 							_fmt.get_folding().folded_to_unfolded_line_number(
-								_get_visual_line_of_caret(_extract_position(et))
+								_get_visual_line_of_caret(_extract_position(caret_sel, data))
 							)
 						).first;
 					return caret_position(begin_pos, true);
 				},
-				continueselection
-					);
+				continue_selection
+			);
 		}
 		/// Moves all carets to the beginning of the lines they're at, with folding and word wrapping enabled,
 		/// skipping all spaces in the front of the line.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_to_line_beginning_advanced(bool continueselection) {
+		void move_all_carets_to_line_beginning_advanced(bool continue_selection) {
 			move_carets(
-				[this](const caret_set::entry &et) {
+				[this](ui::caret_selection caret_sel, caret_data data) {
 					std::size_t
-						visline = _get_visual_line_of_caret(_extract_position(et)),
+						visline = _get_visual_line_of_caret(_extract_position(caret_sel, data)),
 						unfolded = _fmt.get_folding().folded_to_unfolded_line_number(visline);
 					auto linfo = _fmt.get_linebreaks().get_line_info(unfolded);
 					std::size_t begp = std::max(linfo.first.first_char, linfo.second.prev_chars), exbegp = begp;
@@ -448,35 +415,37 @@ namespace codepad::editors::code {
 							exbegp = begp;
 						}
 					}
-					return caret_position(et.first.caret == exbegp ? begp : exbegp, true);
+					return caret_position(caret_sel.get_caret_position() == exbegp ? begp : exbegp, true);
 				},
-				continueselection
+				continue_selection
 			);
 		}
 		/// Moves all carets to the end of the lines they're at, with folding and word wrapping enabled.
-		///
-		/// \param continueselection Indicates whether selected regions should be kept.
-		void move_all_carets_to_line_ending(bool continueselection) {
+		void move_all_carets_to_line_ending(bool continue_selection) {
 			move_carets(
-				[this](caret_set::entry cp) {
+				[this](ui::caret_selection caret_sel, caret_data data) {
 					return std::make_pair(
-						_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
+						caret_position(_fmt.get_linebreaks().get_past_ending_char_of_visual_line(
 							_fmt.get_folding().folded_to_unfolded_line_number(
-								_get_visual_line_of_caret(_extract_position(cp)) + 1
+								_get_visual_line_of_caret(_extract_position(caret_sel, data)) + 1
 							) - 1
-						).first, caret_data(std::numeric_limits<double>::max(), false)
+						).first, false),
+						std::numeric_limits<double>::max()
 					);
 				},
-				continueselection
+				continue_selection
 			);
 		}
 		/// Cancels all selected regions.
 		void cancel_all_selections() {
-			caret_set ns;
-			for (const auto &caret : _cset.carets) {
-				ns.add(caret_set::entry(ui::caret_selection(caret.first.caret), caret.second));
+			caret_set new_carets;
+			for (auto it = _cset.begin(); it.get_iterator() != _cset.carets.end(); it.move_next()) {
+				new_carets.add(
+					ui::caret_selection(it.get_caret_selection().get_caret_position()),
+					it.get_iterator()->data
+				);
 			}
-			set_carets_keepdata(std::move(ns));
+			set_carets_keepdata(std::move(new_carets));
 		}
 
 
@@ -630,8 +599,8 @@ namespace codepad::editors::code {
 		}
 	protected:
 		/// Extracts a \ref caret_position from a \ref caret_set::entry.
-		inline static caret_position _extract_position(const caret_set::entry &entry) {
-			return caret_position(entry.first.caret, entry.second.after_stall);
+		inline static caret_position _extract_position(ui::caret_selection caret_sel, caret_data data) {
+			return caret_position(caret_sel.get_caret_position(), data.after_stall);
 		}
 
 		using _base = interactive_contents_region_base<caret_set>; ///< The base type.
@@ -710,7 +679,7 @@ namespace codepad::editors::code {
 				res = _fmt.get_linebreaks().get_visual_line_and_column_and_softbreak_before_or_at_char(pos.position);
 			std::size_t unfolded = std::get<0>(res);
 			if (
-				!pos.at_back &&
+				!pos.after_stall &&
 				std::get<2>(res).entry != _fmt.get_linebreaks().begin() &&
 				std::get<2>(res).prev_chars == pos.position
 			) {
@@ -755,7 +724,7 @@ namespace codepad::editors::code {
 			// when selecting with a mouse, it's possible that there are no carets in _cset at all
 			if (!_cset.carets.empty() && wnd != nullptr) {
 				auto entry = _cset.carets.begin();
-				wnd->set_active_caret_position(_get_caret_placement(_extract_position(*entry)));
+				wnd->set_active_caret_position(_get_caret_placement(_extract_position(entry->caret, entry->data)));
 			}
 		}
 		/// Moves the viewport so that the given caret is visible.
@@ -845,18 +814,15 @@ namespace codepad::editors::code {
 				if (info.type == edit_type::normal) {
 					for (const buffer::modification_position &pos : info.positions) {
 						std::size_t bp = pos.position + pos.added_range, cp = cvt.byte_to_character(bp);
-						caret_set::entry et(
-							{ cp, cp }, _get_caret_data(caret_position(cp, false))
-						);
-						newcarets.add(et);
+						newcarets.add(ui::caret_selection(cp), _get_caret_data(caret_position(cp, false)));
 					}
 				} else {
 					// TODO fixup edit positions
-					newcarets.add({ ui::caret_selection(0, 0), caret_data() });
+					newcarets.reset();
 				}
 			} else {
 				// TODO fixup edit positions
-				newcarets.add({ ui::caret_selection(0, 0), caret_data() });
+				newcarets.reset();
 			}
 			set_carets_keepdata(std::move(newcarets));
 		}
@@ -876,8 +842,8 @@ namespace codepad::editors::code {
 			}
 		}
 		/// Calculates the horizontal position of a caret, and returns the result as a \ref caret_data.
-		caret_data _get_caret_data(caret_position caret) const {
-			return caret_data(get_horizontal_caret_position(caret), caret.at_back);
+		[[nodiscard]] caret_data _get_caret_data(caret_position caret) const {
+			return caret_data(get_horizontal_caret_position(caret), caret.after_stall);
 		}
 
 		/// Moves the given position one character to the left, skipping any folded regions.

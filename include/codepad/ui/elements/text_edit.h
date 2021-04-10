@@ -16,33 +16,31 @@ namespace codepad::ui {
 	class text_edit : public label {
 	public:
 		/// Returns \ref cursor::text_beam if the mouse is not inside the selection, and the default value if it is.
-		cursor get_current_display_cursor() const {
+		cursor get_current_display_cursor() const override {
 			return cursor::text_beam;
 		}
 
 		/// Returns the caret.
-		caret_selection get_caret_selection() const {
+		[[nodiscard]] caret_selection get_caret_selection() const {
 			return _caret;
 		}
 		/// Sets the current caret. Calls \ref _set_caret_selection_impl().
 		void set_caret_selection(caret_selection sel) {
 			_check_cache_line_info();
-			sel.caret = std::min(sel.caret, _cached_line_beginnings.back());
-			sel.selection = std::min(sel.selection, _cached_line_beginnings.back());
+			sel.clamp(_cached_line_beginnings.back());
 			_set_caret_selection_impl(sel);
 		}
 
 	private:
-		/// Invoked by \ref move_caret_raw() to update the position of the caret when only the position is given.
-		/// This function updates the caret alignment using this new position.
-		void _update_caret(std::size_t new_pos) {
-			_caret.caret = new_pos;
-			_alignment = _formatted_text->get_character_placement(_caret.caret).xmin;
+		/// Updates \ref _alignment, and returns the caret position.
+		std::size_t _update_alignment(std::size_t new_pos) {
+			_alignment = _formatted_text->get_character_placement(new_pos).xmin;
+			return new_pos;
 		}
-		/// Invoked by \ref move_caret_raw() to update the position and alignment of the caret.
-		void _update_caret(std::pair<std::size_t, double> new_pos_align) {
-			_caret.caret = new_pos_align.first;
-			_alignment = new_pos_align.second;
+		/// Updates \ref _alignment using the supplied value, then returns the caret position.
+		std::size_t _update_alignment(std::pair<std::size_t, double> pos_align) {
+			_alignment = pos_align.second;
+			return pos_align.first;
 		}
 	public:
 		/// Moves the caret. The two function object parameters \p move and \p cancel_sel either return a single
@@ -53,18 +51,21 @@ namespace codepad::ui {
 		/// \param move A function that returns the position of the caret after it has been moved without cancelling
 		///             the selection.
 		/// \param cancel_sel A function that returns the new position of the caret after cancelling the selection.
-		/// \param continue_selection If \p true, will keep the selection end of the caret and move the caret end as
-		///                           if there's no selection.
+		/// \param continue_selection Determines whether the user is trying to edit the selection or to cancel the
+		///                           selection.
 		template <typename MoveCaret, typename CancelSelection> void move_caret_raw(
 			const MoveCaret &move, const CancelSelection &cancel_sel, bool continue_selection
 		) {
+			std::size_t new_pos;
 			if (continue_selection || !_caret.has_selection()) {
-				_update_caret(move());
+				new_pos = _update_alignment(move());
 			} else {
-				_update_caret(cancel_sel());
+				new_pos = _update_alignment(cancel_sel());
 			}
 			if (!continue_selection) {
-				_caret.selection = _caret.caret;
+				_caret = caret_selection(new_pos);
+			} else {
+				_caret.move_caret(new_pos);
 			}
 			_on_caret_changed();
 		}
@@ -154,7 +155,7 @@ namespace codepad::ui {
 		/// Sets the caret position and recomputes \ref _alignment without checking the position.
 		void _set_caret_selection_impl(caret_selection sel) {
 			_caret = sel;
-			_update_caret(_caret.caret); // call _update_caret() to update alignment
+			_update_alignment(_caret.get_caret_position());
 			_on_caret_changed();
 		}
 

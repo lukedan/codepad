@@ -679,30 +679,22 @@ namespace codepad::editors::code {
 		}
 
 
-		/// Called when the user presses `backspace' to modify the underlying \ref buffer. If there's only one caret
-		/// at the very beginning of the document, no modification will be done.
+		/// Called when the user presses `backspace' to modify the underlying \ref buffer. No modification is
+		/// recorded if this operation does not affect the contents of the buffer.
 		void on_backspace(caret_set &carets, ui::element *src) {
-			if (
-				carets.carets.size() > 1 ||
-				carets.carets.begin()->first.caret != carets.carets.begin()->first.selection ||
-				carets.carets.begin()->first.caret != 0
-			) {
-				std::vector<_precomp_mod_positions> pos = _precomp_mod_backspace(carets);
+			std::vector<_precomp_mod_positions> pos = _precomp_mod_backspace(carets);
+			if (pos.size() > 1 || pos[0].length > 0) {
 				buffer::scoped_normal_modifier mod(*_buf, src);
 				for (const _precomp_mod_positions &modpos : pos) {
 					mod.get_modifier().modify(modpos.begin, modpos.length, byte_string());
 				}
 			}
 		}
-		/// Called when the user presses `delete' to modify the underlying \ref buffer. If there's only one caret
-		/// at the very end of the document, no modification will be done.
+		/// Called when the user presses `delete' to modify the underlying \ref buffer. No modification is recorded
+		/// if this operation does not affect the contents of the buffer.
 		void on_delete(caret_set &carets, ui::element *src) {
-			if (
-				carets.carets.size() > 1 ||
-				carets.carets.begin()->first.caret != carets.carets.begin()->first.selection ||
-				carets.carets.begin()->first.caret != get_linebreaks().num_chars()
-			) {
-				std::vector<_precomp_mod_positions> pos = _precomp_mod_delete(carets);
+			std::vector<_precomp_mod_positions> pos = _precomp_mod_delete(carets);
+			if (pos.size() > 1 || pos[0].length > 0) {
 				buffer::scoped_normal_modifier mod(*_buf, src);
 				for (const _precomp_mod_positions &modpos : pos) {
 					mod.get_modifier().modify(modpos.begin, modpos.length, byte_string());
@@ -870,10 +862,9 @@ namespace codepad::editors::code {
 		/// \ref caret_data::bytepos_second have already been computed.
 		std::vector<_precomp_mod_positions> _precomp_mod_insert(const caret_set &carets) {
 			std::vector<_precomp_mod_positions> res;
-			res.reserve(carets.carets.size());
 			character_position_converter conv(*this);
-			for (const caret_set::entry &et : carets.carets) {
-				auto [start, end] = et.first.get_range();
+			for (auto it = carets.begin(); it.get_iterator() != carets.carets.end(); it.move_next()) {
+				auto [start, end] = it.get_caret_selection().get_range();
 				std::size_t first = conv.character_to_byte(start), second = conv.character_to_byte(end);
 				res.emplace_back(first, second - first);
 			}
@@ -882,21 +873,22 @@ namespace codepad::editors::code {
 		/// Similar to \ref _precomp_mod_insert(), but for when the user presses the `backspace' key.
 		std::vector<_precomp_mod_positions> _precomp_mod_backspace(const caret_set &carets) {
 			std::vector<_precomp_mod_positions> res;
-			res.reserve(carets.carets.size());
 			character_position_converter conv(*this);
-			for (const caret_set::entry &et : carets.carets) {
+			for (auto it = carets.begin(); it.get_iterator() != carets.carets.end(); it.move_next()) {
+				auto caret_sel = it.get_caret_selection();
 				std::size_t first, second;
-				if (et.first.caret == et.first.selection) {
-					if (et.first.caret > 0) {
-						first = conv.character_to_byte(et.first.caret - 1);
-						second = conv.character_to_byte(et.first.caret);
-					} else {
-						first = second = conv.character_to_byte(et.first.caret);
-					}
-				} else {
-					auto [start, end] = et.first.get_range();
+				if (caret_sel.has_selection()) {
+					auto [start, end] = caret_sel.get_range();
 					first = conv.character_to_byte(start);
 					second = conv.character_to_byte(end);
+				} else {
+					std::size_t caret = caret_sel.get_caret_position();
+					if (caret > 0) {
+						first = conv.character_to_byte(caret - 1);
+						second = conv.character_to_byte(caret);
+					} else {
+						first = second = conv.character_to_byte(caret);
+					}
 				}
 				res.emplace_back(first, second - first);
 			}
@@ -905,21 +897,22 @@ namespace codepad::editors::code {
 		/// Similar to \ref _precomp_mod_insert(), but for when the user presses the `delete' key.
 		std::vector<_precomp_mod_positions> _precomp_mod_delete(const caret_set &carets) {
 			std::vector<_precomp_mod_positions> res;
-			res.reserve(carets.carets.size());
 			character_position_converter conv(*this);
-			for (const caret_set::entry &et : carets.carets) {
+			for (auto it = carets.begin(); it.get_iterator() != carets.carets.end(); it.move_next()) {
+				auto caret_sel = it.get_caret_selection();
 				std::size_t first, second;
-				if (et.first.caret == et.first.selection) {
-					first = conv.character_to_byte(et.first.caret);
-					if (et.first.caret < get_linebreaks().num_chars()) {
-						second = conv.character_to_byte(et.first.caret + 1);
+				if (caret_sel.has_selection()) {
+					auto [start, end] = caret_sel.get_range();
+					first = conv.character_to_byte(start);
+					second = conv.character_to_byte(end);
+				} else {
+					std::size_t caret = caret_sel.get_caret_position();
+					first = conv.character_to_byte(caret);
+					if (caret < get_linebreaks().num_chars()) {
+						second = conv.character_to_byte(caret + 1);
 					} else {
 						second = first;
 					}
-				} else {
-					auto [start, end] = et.first.get_range();
-					first = conv.character_to_byte(start);
-					second = conv.character_to_byte(end);
 				}
 				res.emplace_back(first, second - first);
 			}

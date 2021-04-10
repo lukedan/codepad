@@ -41,9 +41,9 @@ namespace codepad::editors::code {
 		whitespace_gatherer(const caret_set &set, std::size_t first_char, fragment_assembler &ass) :
 			_ass(ass), _carets(set) {
 
-			_caret = _find_first_caret_containing_or_after(first_char);
-			if (_caret != _carets.carets.end()) {
-				_range = _caret->first.get_range();
+			_caret = _carets.find_first_ending_after(first_char);
+			if (_caret.get_iterator() != _carets.carets.end()) {
+				_range = _caret.get_caret_selection().get_range();
 			}
 		}
 
@@ -76,11 +76,11 @@ namespace codepad::editors::code {
 					break;
 				}
 				// update loop variable
-				++_caret;
-				if (_caret == _carets.carets.end()) {
+				_caret.move_next();
+				if (_caret.get_iterator() == _carets.carets.end()) {
 					break;
 				}
-				_range = _caret->first.get_range();
+				_range = _caret.get_caret_selection().get_range();
 			}
 		}
 		/// Handles a tab character.
@@ -137,7 +137,7 @@ namespace codepad::editors::code {
 
 		std::vector<whitespace> whitespaces; ///< The gathered list of whitespaces.
 	protected:
-		caret_set::const_iterator _caret; ///< Iterator to the current caret that's being considered.
+		caret_set::iterator_position _caret; ///< Iterator to the current caret that's being considered.
 		std::pair<std::size_t, std::size_t> _range; ///< The cached range of \ref _next_caret.
 		fragment_assembler &_ass; ///< The associated \ref fragment_assembler.
 		const caret_set &_carets; ///< The set of carets.
@@ -147,40 +147,28 @@ namespace codepad::editors::code {
 		///
 		/// \return Whether \ref _caret points to a caret after this operation.
 		bool _reposition(std::size_t pos) {
-			if (_caret == _carets.carets.end()) {
+			if (_caret.get_iterator() == _carets.carets.end()) {
 				return false;
 			}
 			if (_range.second > pos) {
 				return true;
 			}
 			// fast path: move to the next one and check if we're at the end
-			if (++_caret == _carets.carets.end()) {
+			_caret.move_next();
+			if (_caret.get_iterator() == _carets.carets.end()) {
 				return false;
 			}
-			_range = _caret->first.get_range();
+			_range = _caret.get_caret_selection().get_range();
 			if (_range.second > pos) {
 				return true;
 			}
 			// slow path: use lower_bound
-			_caret = _find_first_caret_containing_or_after(pos);
-			if (_caret != _carets.carets.end()) {
-				_range = _caret->first.get_range();
+			_caret = _carets.find_first_ending_after(pos);
+			if (_caret.get_iterator() != _carets.carets.end()) {
+				_range = _caret.get_caret_selection().get_range();
 				return true;
 			}
 			return false;
-		}
-		/// Finds the first caret that contains or is after the given position.
-		[[nodiscard]] caret_set::const_iterator _find_first_caret_containing_or_after(std::size_t pos) const {
-			auto iter = _carets.carets.lower_bound(ui::caret_selection(pos, pos));
-			if (iter != _carets.carets.begin()) {
-				auto prev = iter;
-				--prev;
-				auto prev_range = prev->first.get_range();
-				if (prev_range.second > pos) {
-					return prev;
-				}
-			}
-			return iter;
 		}
 	};
 }

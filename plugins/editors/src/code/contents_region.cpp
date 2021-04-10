@@ -134,13 +134,13 @@ namespace codepad::editors::code {
 							ui::caret_hit_test_result htres = rendering.text->hit_test(x - rendering.topleft.x);
 							respos.position = iter.get_position() - res.steps;
 							respos.position += htres.rear ? htres.character + 1 : htres.character;
-							respos.at_back = true;
+							respos.after_stall = true;
 							return true;
 						}
 					}
 					if (x < 0.5 * (rendering.topleft.x + ass.get_horizontal_position())) {
 						respos.position = iter.get_position() - res.steps;
-						respos.at_back = true;
+						respos.after_stall = true;
 						return true;
 					}
 				}
@@ -191,9 +191,7 @@ namespace codepad::editors::code {
 		if (!tempcarets.empty()) {
 			extcarets = _cset;
 			for (const auto &caret : tempcarets) {
-				extcarets.add(caret_set::entry(
-					caret.get_caret_selection(), caret_data(0.0, caret.caret_at_back)
-				));
+				extcarets.add(caret.get_caret_selection(), caret_data(0.0, caret.caret_after_stall));
 			}
 			used = &extcarets;
 		}
@@ -224,7 +222,7 @@ namespace codepad::editors::code {
 				folded_region_skipper(_fmt.get_folding(), get_folded_fragment_function(), firstchar)
 			);
 			fragment_assembler ass(*this);
-			caret_gatherer caretrend(used->carets, firstchar, ass, flineinfo.second == linebreak_type::soft);
+			caret_gatherer caretrend(*used, firstchar, ass, flineinfo.second == linebreak_type::soft);
 			whitespace_gatherer whitespaces(*used, firstchar, ass);
 
 			// decorations

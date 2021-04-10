@@ -100,41 +100,41 @@ namespace codepad::editors::binary {
 		}
 		{
 			buffer::scoped_normal_modifier mod(get_buffer(), this);
-			for (auto &[caret, data] : get_carets().carets) {
+			for (auto it = get_carets().begin(); it.get_iterator() != get_carets().carets.end(); it.move_next()) {
 				std::size_t mod_begin_pos = 0, mod_remove_len = 1;
 				std::basic_string<std::byte> overwritten_bytes;
-				if (caret.caret != caret.selection) {
-					auto [min, max] = caret.get_range();
-					mod_begin_pos = min + mod.get_modifier().get_fixup_offset();
-					mod_remove_len = max - min;
+				ui::caret_selection  caret_sel = it.get_caret_selection();
+				if (caret_sel.has_selection()) {
+					mod_begin_pos = caret_sel.selection_begin + mod.get_modifier().get_fixup_offset();
+					mod_remove_len = caret_sel.selection_length;
 				} else {
-					mod_begin_pos = caret.caret + mod.get_modifier().get_fixup_offset();
-					auto it = get_buffer().at(mod_begin_pos);
+					mod_begin_pos = caret_sel.selection_begin + mod.get_modifier().get_fixup_offset();
+					auto buf_it = get_buffer().at(mod_begin_pos);
 					if (is_insert_mode()) {
-						if (it.get_position() < get_buffer().length()) {
-							overwritten_bytes.push_back(*it);
+						if (buf_it.get_position() < get_buffer().length()) {
+							overwritten_bytes.push_back(*buf_it);
 						}
 					} else {
 						overwritten_bytes.reserve(num_input_bytes);
-						for (std::size_t i = 0; i < num_input_bytes && it != get_buffer().end(); ++i, ++it) {
-							overwritten_bytes.push_back(*it);
+						for (std::size_t i = 0; i < num_input_bytes && buf_it != get_buffer().end(); ++i, ++buf_it) {
+							overwritten_bytes.push_back(*buf_it);
 						}
 					}
 					mod_remove_len = overwritten_bytes.size();
 				}
 				// update overwritten_bytes
-				auto it = chars.begin();
+				auto char_it = chars.begin();
 				overwritten_bytes.resize(num_input_bytes);
 				for (std::byte &b : overwritten_bytes) {
-					for (; it != chars.end() && *it != _spacebar; ++it) {
-						auto cur_byte = static_cast<unsigned>(b) * radix + *it;
+					for (; char_it != chars.end() && *char_it != _spacebar; ++char_it) {
+						auto cur_byte = static_cast<unsigned>(b) * radix + *char_it;
 						while (cur_byte > 255) {
 							cur_byte -= top_digit;
 						}
 						b = static_cast<std::byte>(cur_byte);
 					}
-					if (it != chars.end()) {
-						++it;
+					if (char_it != chars.end()) {
+						++char_it;
 					}
 				}
 				// modify
@@ -206,7 +206,7 @@ namespace codepad::editors::binary {
 	decoration_layout contents_region::_get_selection_layout(
 		ui::caret_selection sel, std::size_t clampmin, std::size_t clampmax, vec2d offset
 	) const {
-		if (sel.caret == sel.selection) { // no selection for single byte
+		if (!sel.has_selection()) { // no selection for single byte
 			return {};
 		}
 		auto range = sel.get_range();
@@ -304,14 +304,11 @@ namespace codepad::editors::binary {
 			if (!tmpcarets.empty()) { // merge & use temporary caret set
 				extcarets = _carets;
 				for (const auto &caret : tmpcarets) {
-					extcarets.add(caret_set::entry(caret, caret_data()));
+					extcarets.add(caret, caret_data());
 				}
 				cset = &extcarets;
 			}
-			auto it = cset->carets.lower_bound({ firstline * get_bytes_per_row() + firstbyte, 0 });
-			if (it != cset->carets.begin()) {
-				--it;
-			}
+			auto it = cset->find_first_ending_at_or_after(firstline * get_bytes_per_row() + firstbyte);
 			std::size_t
 				clampmin = firstline * get_bytes_per_row(),
 				clampmax = (
@@ -319,12 +316,13 @@ namespace codepad::editors::binary {
 					) * get_bytes_per_row();
 			std::vector<rectd> caret_rects;
 			std::vector<decoration_layout> selection_rects;
-			for (; it != cset->carets.end(); ++it) {
-				if (it->first.caret > clampmax && it->first.selection > clampmax) { // out of visible scope
+			for (; it.get_iterator() != cset->carets.end(); it.move_next()) {
+				auto caret_sel = it.get_caret_selection();
+				if (caret_sel.selection_begin > clampmax) { // out of visible scope
 					break;
 				}
-				caret_rects.emplace_back(_get_caret_rect(it->first.caret).translated(-edtpos));
-				selection_rects.emplace_back(_get_selection_layout(it->first, clampmin, clampmax, -edtpos));
+				caret_rects.emplace_back(_get_caret_rect(caret_sel.get_caret_position()).translated(-edtpos));
+				selection_rects.emplace_back(_get_selection_layout(caret_sel, clampmin, clampmax, -edtpos));
 			}
 			if (code_selection_renderer()) {
 				vec2d unit = get_layout().size();
@@ -368,23 +366,22 @@ namespace codepad::editors::binary {
 		caret_set newcarets;
 		if (info.source_element == this && info.type == edit_type::normal) {
 			for (const auto &pos : info.positions) {
-				newcarets.add(caret_set::entry(
-					pos.position + std::max<std::size_t>(pos.added_range, 1) - 1, caret_data()
-				));
+				newcarets.add(
+					ui::caret_selection(pos.position + std::max<std::size_t>(pos.added_range, 1) - 1), caret_data()
+				);
 			}
 		} else {
-			for (const auto &cp : _carets.carets) {
-				ui::caret_selection newpos;
-				if (cp.first.caret < cp.first.selection) {
-					newpos.caret = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.caret);
-					newpos.selection =
-						patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.selection);
-				} else {
-					newpos.caret = patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.caret);
-					newpos.selection =
-						patcher.patch_next<buffer::position_patcher::strategy::back>(cp.first.selection);
-				}
-				newcarets.add(caret_set::entry(newpos, cp.second));
+			for (auto it = _carets.begin(); it.get_iterator() != _carets.carets.end(); it.move_next()) {
+				ui::caret_selection caret_sel = it.get_caret_selection(), newpos;
+				newpos.selection_begin =
+					patcher.patch_next<buffer::position_patcher::strategy::back>(caret_sel.selection_begin);
+				newpos.caret_offset =
+					patcher.patch_next<buffer::position_patcher::strategy::back>(caret_sel.get_caret_position()) -
+					newpos.selection_begin;
+				newpos.selection_length =
+					patcher.patch_next<buffer::position_patcher::strategy::back>(caret_sel.get_selection_end()) -
+					newpos.selection_begin;
+				newcarets.add(newpos, it.get_iterator()->data);
 			}
 		}
 		set_carets(std::move(newcarets));

@@ -2,6 +2,7 @@ add_library(editors SHARED)
 
 target_sources(editors
 	PUBLIC
+		"include/codepad/editors/binary/caret_set.h"
 		"include/codepad/editors/binary/components.h"
 		"include/codepad/editors/binary/contents_region.h"
 

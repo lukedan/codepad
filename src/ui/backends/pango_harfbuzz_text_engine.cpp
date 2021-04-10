@@ -66,6 +66,7 @@ namespace codepad::ui::pango_harfbuzz {
 			case PANGO_STYLE_OBLIQUE:
 				return font_style::oblique;
 			}
+			return font_style::normal;
 		}
 
 		/// Converts a \ref font_style to a Fontconfig font slant.
@@ -212,6 +213,7 @@ namespace codepad::ui::pango_harfbuzz {
 			case PANGO_STRETCH_ULTRA_EXPANDED:
 				return font_stretch::ultra_expanded;
 			}
+			return font_stretch::normal; // something went wrong
 		}
 
 		/// Converts a \ref font_stretch to a Fontconfig width.

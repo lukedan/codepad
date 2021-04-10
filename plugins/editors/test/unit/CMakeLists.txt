@@ -3,7 +3,8 @@ add_executable(editors_test)
 target_sources(editors_test
 	PRIVATE
 		"src/main.cpp"
-		
+
+		"src/caret_set.cpp"
 		"src/theme_configuration.cpp")
 
 find_package(Catch2 CONFIG REQUIRED)

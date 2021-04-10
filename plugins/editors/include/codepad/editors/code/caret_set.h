@@ -20,78 +20,58 @@ namespace codepad::editors::code {
 		/// Default constructor.
 		caret_position() = default;
 		/// Initializes all fields of this struct.
-		explicit caret_position(std::size_t pos, bool back) : position(pos), at_back(back) {
+		caret_position(std::size_t pos, bool back) : position(pos), after_stall(back) {
 		}
 
-		/// Equality. This may be inaccurate when both \ref position "positions" are the same.
-		friend bool operator==(caret_position lhs, caret_position rhs) {
-			return lhs.position == rhs.position && lhs.at_back == rhs.at_back;
+		/// Comparison.
+		friend std::strong_ordering operator<=>(caret_position lhs, caret_position rhs) {
+			if (lhs.position == rhs.position) {
+				if (lhs.after_stall == rhs.after_stall) {
+					return std::strong_ordering::equal;
+				}
+				return rhs.after_stall ? std::strong_ordering::less : std::strong_ordering::greater;
+			}
+			return lhs.position <=> rhs.position;
 		}
-		/// Inquality. This may be inaccurate when both \ref position "positions" are the same.
-		friend bool operator!=(caret_position lhs, caret_position rhs) {
-			return !(lhs == rhs);
-		}
-
-		/// Comparison. This may be inaccurate when both \ref position "positions" are the same.
-		friend bool operator<(caret_position lhs, caret_position rhs) {
-			return lhs.position == rhs.position ? (!lhs.at_back && rhs.at_back) : lhs.position < rhs.position;
-		}
-		/// Comparison. This may be inaccurate when both \ref position "positions" are the same.
-		friend bool operator>(caret_position lhs, caret_position rhs) {
-			return rhs < lhs;
-		}
-		/// Comparison. This may be inaccurate when both \ref position "positions" are the same.
-		friend bool operator<=(caret_position lhs, caret_position rhs) {
-			return !(rhs < lhs);
-		}
-		/// Comparison. This may be inaccurate when both \ref position "positions" are the same.
-		friend bool operator>=(caret_position lhs, caret_position rhs) {
-			return !(lhs < rhs);
-		}
+		/// Equality.
+		friend bool operator==(caret_position, caret_position) = default;
 
 		std::size_t position = 0; ///< The index of the unit that this caret is immediately before.
 		/// Indicates whether the caret should be considered as being before the character after it, rather than
 		/// being after the character before it. For example, if this caret is at the same position as a soft
 		/// linebreak, this field determines whether it appears at the end of the first line, or at the beginning
 		/// of the second line.
-		bool at_back = false;
+		bool after_stall = false;
 	};
-	/// Contains information about a \ref ui::caret_selection and relative position info.
+	/// Contains information about a \ref ui::caret_selection and more specific position info about the caret.
 	struct caret_selection_position {
 		/// Default constructor.
 		caret_selection_position() = default;
 		/// Converting constructor from a \ref caret_position.
-		caret_selection_position(caret_position cpos) :
-			caret(cpos.position), selection(cpos.position), caret_at_back(cpos.at_back) {
-		}
-		/// Initializes this struct with a \ref caret_position and the position of the other end of the selection.
-		caret_selection_position(caret_position caret, std::size_t selection) :
-			caret_selection_position(caret.position, selection, caret.at_back) {
+		explicit caret_selection_position(caret_position cpos) :
+			caret(ui::caret_selection(cpos.position)), caret_after_stall(cpos.after_stall) {
 		}
 		/// Initializes all fields of this struct.
-		caret_selection_position(std::size_t c, std::size_t s, bool back = false) :
-			caret(c), selection(s), caret_at_back(back) {
+		caret_selection_position(ui::caret_selection c, bool back) :caret(c), caret_after_stall(back) {
 		}
 
-		/// Extracts the part of this object that corresponds to a \ref ui::caret_selection.
+		/// Extracts the part of this object that corresponds to a \ref ui::caret_selection, a.k.a. \ref caret.
 		ui::caret_selection get_caret_selection() const {
-			return ui::caret_selection(caret, selection);
+			return caret;
 		}
 
 		/// Sets the value of the part of this struct that corresponds to a \ref caret_position.
 		void set_caret_position(caret_position pos) {
-			caret = pos.position;
-			caret_at_back = pos.at_back;
+			caret.move_caret(pos.position);
+			caret_after_stall = pos.after_stall;
 		}
 		/// Returns the value of the part of this struct that corresponds to a \ref caret_position.
 		caret_position get_caret_position() const {
-			return caret_position(caret, caret_at_back);
+			return caret_position(caret.get_caret_position(), caret_after_stall);
 		}
 
-		std::size_t
-			caret = 0, ///< The position of the caret.
-			selection = 0; ///< The position of the non-caret end of the selection.
-		bool caret_at_back = false; ///< \sa caret_position::at_back
+		ui::caret_selection caret; ///< The caret and the associated selection.
+		bool caret_after_stall = false; ///< \sa caret_position::at_back
 	};
 
 	/// The data associated with a \ref ui::caret_selection.
@@ -121,7 +101,7 @@ namespace codepad::editors::code {
 		/// Returns whether the given position is in a selection. This is simply a wrapper of the variant that takes
 		/// a \p std::size_t, and \ref position::at_back is discarded.
 		template <typename Cmp = std::less_equal<>> bool is_in_selection(position pos) const {
-			return _base::is_in_selection<Cmp>(pos.position);
+			return this->is_in_selection<Cmp>(pos.position);
 		}
 
 		/// Wrapper around \ref caret_selection_position::set_caret_position().
@@ -129,8 +109,13 @@ namespace codepad::editors::code {
 			s.set_caret_position(pos);
 		}
 		/// Wrapper around \ref caret_selection_position::get_caret_position().
-		inline static position get_caret_position(selection s) {
+		[[nodiscard]] inline static position get_caret_position(selection s) {
 			return s.get_caret_position();
+		}
+
+		/// Returns the \ref selection corresponding to the given \ref iterator_position.
+		[[nodiscard]] inline static selection get_caret_selection(iterator_position it) {
+			return selection(it.get_caret_selection(), it.get_iterator()->data.after_stall);
 		}
 	};
 }

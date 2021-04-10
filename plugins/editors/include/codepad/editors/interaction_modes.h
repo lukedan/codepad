@@ -30,7 +30,7 @@ namespace codepad::editors {
 		/// Adds the given caret to the contents region.
 		virtual void add_caret(typename CaretSet::selection) = 0;
 		/// Removes the given caret.
-		virtual void remove_caret(typename CaretSet::const_iterator) = 0;
+		virtual void remove_caret(typename CaretSet::iterator) = 0;
 		/// Clears all carets from the contents region.
 		virtual void clear_carets() = 0;
 	protected:
@@ -436,13 +436,15 @@ namespace codepad::editors {
 			) override {
 				if (info.get_gesture() == edit_gesture) {
 					// select a caret to be edited
-					auto it = man.get_contents_region().get_carets().carets.begin(); // TODO select a better caret
-					if (it == man.get_contents_region().get_carets().carets.end()) { // should not happen
+					auto it = man.get_contents_region().get_carets().begin(); // TODO select a better caret
+					if (it.get_iterator() == man.get_contents_region().get_carets().carets.end()) {
+						// should not happen
 						logger::get().log_error(CP_HERE) << "empty caret set when starting mouse interaction";
 						return nullptr;
 					}
-					typename CaretSet::selection caret_sel(man.get_mouse_position(), it->first.selection);
-					man.get_contents_region().remove_caret(it);
+					typename CaretSet::selection caret_sel = CaretSet::get_caret_selection(it);
+					CaretSet::set_caret_position(caret_sel, man.get_mouse_position());
+					man.get_contents_region().remove_caret(it.get_iterator());
 					return std::make_unique<mouse_single_selection_mode<CaretSet>>(
 						man, edit_gesture.primary, caret_sel
 						);

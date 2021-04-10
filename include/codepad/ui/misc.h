@@ -455,29 +455,57 @@ namespace codepad {
 		public:
 			/// Default constructor.
 			caret_selection() = default;
-			/// Sets the caret position, and sets the selection to empty.
-			explicit caret_selection(std::size_t pos) : caret(pos), selection(pos) {
+			/// Initializes this struct with the caret at the given position and an empty selection.
+			explicit caret_selection(std::size_t pos) : selection_begin(pos) {
 			}
 			/// Initializes all fields of this struct.
-			caret_selection(std::size_t c, std::size_t s) : caret(c), selection(s) {
+			caret_selection(std::size_t sel_beg, std::size_t sel_len, std::size_t caret_off) :
+				selection_begin(sel_beg), selection_length(sel_len), caret_offset(caret_off) {
+				assert_true_logical(caret_off <= sel_len, "caret offset out of bounds");
 			}
 
+			/// Moves the caret following these rules:
+			/// - If the caret is at the very beginning or the very end of the selection, the corresponding end of
+			///   the selection is moved to the new caret.
+			/// - Otherwise, if the new caret position is outside of the selection, extends the selection to the new
+			///   caret.
+			/// - Otherwise, the selection is kept unchanged.
+			/// This function modifies this object in-place.
+			void move_caret(std::size_t new_caret);
+			/// Clamps the positions so they're not above the given value. This function modifies this object
+			/// in-place.
+			void clamp(std::size_t max) {
+				selection_begin = std::min(selection_begin, max);
+				std::size_t max_len = max - selection_begin;
+				selection_length = std::min(selection_length, max_len);
+				caret_offset = std::min(caret_offset, max_len);
+			}
+
+			/// Returns the position of the caret.
+			[[nodiscard]] std::size_t get_caret_position() const {
+				return selection_begin + caret_offset;
+			}
+			/// Returns the end position of the selection.
+			[[nodiscard]] std::size_t get_selection_end() const {
+				return selection_begin + selection_length;
+			}
 			/// Returns the range covered by this selection. Basically calls \p std::minmax().
-			std::pair<std::size_t, std::size_t> get_range() const {
-				return std::minmax({ caret, selection });
+			[[nodiscard]] std::pair<std::size_t, std::size_t> get_range() const {
+				return { selection_begin, get_selection_end() };
 			}
 
-			/// Returns whether there is a selection, i.e., \ref caret != \ref selection.
-			bool has_selection() const {
-				return caret != selection;
+			/// Returns whether there is a selection, i.e., \ref selection_length > 0.
+			[[nodiscard]] bool has_selection() const {
+				return selection_length > 0;
 			}
 
-			/// Default comparisons. \ref caret will always be compared first.
-			friend std::strong_ordering operator<=>(const caret_selection&, const caret_selection&) = default;
+			/// Equality.
+			friend bool operator==(caret_selection, caret_selection) = default;
 
-			std::size_t
-				caret = 0, ///< The caret.
-				selection = 0; ///< The other end of the selection region.
+			std::size_t selection_begin = 0; ///< The starting position of the selection.
+			std::size_t selection_length = 0; ///< The length of the selection.
+			/// Offset of the caret within the selection. This must be between 0 and \ref selection_length.
+			std::size_t caret_offset = 0;
 		};
 	}
 }

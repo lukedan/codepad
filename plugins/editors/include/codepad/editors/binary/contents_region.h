@@ -11,33 +11,13 @@
 
 #include <codepad/ui/element.h>
 
-#include "../buffer.h"
-#include "../caret_set.h"
-#include "../interaction_modes.h"
-#include "../editor.h"
+#include "codepad/editors/buffer.h"
+#include "codepad/editors/caret_set.h"
+#include "codepad/editors/interaction_modes.h"
+#include "codepad/editors/editor.h"
+#include "codepad/editors/binary/caret_set.h"
 
 namespace codepad::editors::binary {
-	/// No additional data associated with a caret.
-	struct caret_data {
-	};
-
-	/// A set of carets.
-	class caret_set : public caret_set_base<caret_data, caret_set> {
-	public:
-		using position = std::size_t; ///< The position of a caret is identified by a single \p std::size_t.
-		/// The selection is a pair of positions, i.e., no additional data associated with the caret.
-		using selection = ui::caret_selection;
-
-		/// Wrapper around \ref caret_selection_position::set_caret_position().
-		inline static void set_caret_position(selection &s, position pos) {
-			s.caret = pos;
-		}
-		/// Wrapper around \ref caret_selection_position::get_caret_position().
-		inline static position get_caret_position(selection s) {
-			return s.caret;
-		}
-	};
-
 	/// The radix used when displaying and editing binary data.
 	enum class radix : unsigned char {
 		binary = 2, ///< Binary.
@@ -81,14 +61,12 @@ namespace codepad::editors::binary {
 
 		/// Adds the given caret to the \ref contents_region.
 		void add_caret(ui::caret_selection caret) override {
-			_carets.add(caret_set::entry(
-				ui::caret_selection(caret.caret, caret.selection), caret_data()
-			));
+			_carets.add(caret, caret_data());
 			_on_carets_changed();
 		}
 		/// Removes the given caret.
-		void remove_caret(caret_set::const_iterator it) override {
-			_carets.carets.erase(it);
+		void remove_caret(caret_set::iterator it) override {
+			_carets.remove(it);
 			_on_carets_changed();
 		}
 		/// Clears all carets from the \ref contents_region.

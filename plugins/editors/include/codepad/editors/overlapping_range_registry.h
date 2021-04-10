@@ -22,11 +22,10 @@ namespace codepad::editors {
 			}
 
 			T value{}; ///< The value associated with this range.
-			std::size_t
-				/// The offset of the beginning of this range from the *beginning* of the previous range. This allows
-				/// ranges to overlap.
-				offset = 0,
-				length = 0; ///< The length of this range.
+			/// The offset of the beginning of this range from the *beginning* of the previous range. This allows
+			/// ranges to overlap.
+			std::size_t offset = 0;
+			std::size_t length = 0; ///< The length of this range.
 			red_black_tree::color color = red_black_tree::color::red; ///< The color of this node.
 		};
 		/// Synthesized data of a subtree.

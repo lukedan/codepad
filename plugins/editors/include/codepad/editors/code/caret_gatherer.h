@@ -17,7 +17,7 @@ namespace codepad::editors::code {
 
 		/// Constructs this struct with the given \ref caret_set, position, \ref fragment_assembler, and a boolean
 		/// indicating whether the previous fragment is a stall.
-		caret_gatherer(const caret_set::container&, std::size_t pos, const fragment_assembler&, bool stall);
+		caret_gatherer(const caret_set&, std::size_t pos, const fragment_assembler&, bool stall);
 
 		/// Handles a generated fragment. This function first checks for any carets to be started, then updates all
 		/// active renderers.
@@ -31,7 +31,9 @@ namespace codepad::editors::code {
 				)) {
 					_active.emplace_back(std::move(renderer.value()));
 					// maintain the number of queued carets
-					if (caret_set::const_iterator next = _queued.back(); (++next) != _carets.end()) {
+					caret_set::iterator_position next = _queued.back();
+					next.move_next();
+					if (next.get_iterator() != _carets.carets.end()) {
 						_queued.emplace_back(next);
 					}
 					it = _queued.erase(it);
@@ -75,35 +77,35 @@ namespace codepad::editors::code {
 		inline static bool _should_start_before_stall(
 			ui::caret_selection caret, const caret_data &data, bool at_stall
 		) {
-			return at_stall && caret.selection > caret.caret && !data.after_stall;
+			return at_stall && caret.caret_offset == 0 && !data.after_stall;
 		}
 		/// Returns \p true if \p at_stall is \p true and the caret should end before the stall.
 		inline static bool _should_end_before_stall(
 			ui::caret_selection caret, const caret_data &data, bool at_stall
 		) {
-			return at_stall && (caret.selection > caret.caret || !data.after_stall);
+			return at_stall && (caret.caret_offset == caret.selection_length || !data.after_stall);
 		}
 
 		/// Handles a single caret. The return values of the \p handle_fragment() methods return \p false if this
 		/// caret has ended.
-		struct _single_caret_renderer {
+		struct _single_caret_renderer { // TODO handle the caret when it's at the middle of the selection
 		public:
 			/// Does nothing when at a \ref no_fragment. Actually, this shouldn't happen.
 			[[nodiscard]] inline static std::optional<_single_caret_renderer> start_at_fragment(
 				const no_fragment&, const fragment_assembler::basic_rendering&,
-				std::size_t, std::size_t, caret_gatherer&, caret_set::const_iterator
+				std::size_t, std::size_t, caret_gatherer&, caret_set::iterator_position
 			) {
 				return std::nullopt;
 			}
 			/// Tries to start rendering a new caret at the given \ref text_fragment.
 			[[nodiscard]] static std::optional<_single_caret_renderer> start_at_fragment(
 				const text_fragment&, const fragment_assembler::text_rendering&,
-				std::size_t steps, std::size_t posafter, caret_gatherer&, caret_set::const_iterator
+				std::size_t steps, std::size_t posafter, caret_gatherer&, caret_set::iterator_position
 			);
 			/// Tries to start rendering a new caret at the given \ref linebreak_fragment.
 			[[nodiscard]] inline static std::optional<_single_caret_renderer> start_at_fragment(
 				const linebreak_fragment&, const fragment_assembler::basic_rendering &r,
-				std::size_t steps, std::size_t posafter, caret_gatherer &rend, caret_set::const_iterator iter
+				std::size_t steps, std::size_t posafter, caret_gatherer &rend, caret_set::iterator_position iter
 			) {
 				return _start_at_solid_fragment(rectd::from_xywh(
 					r.topleft.x, r.topleft.y, r.width, rend.get_fragment_assembler().get_line_height()
@@ -114,7 +116,7 @@ namespace codepad::editors::code {
 				typename Frag, typename Rendering
 			> [[nodiscard]] inline static std::optional<_single_caret_renderer> start_at_fragment(
 				const Frag&, const Rendering &r, std::size_t steps, std::size_t posafter,
-				caret_gatherer &rend, caret_set::const_iterator iter
+				caret_gatherer &rend, caret_set::iterator_position iter
 			) {
 				return _start_at_solid_fragment(
 					_get_solid_fragment_caret_position(r, rend.get_fragment_assembler()), steps, posafter, rend, iter
@@ -123,7 +125,7 @@ namespace codepad::editors::code {
 
 			/// Starts rendering a caret halfway at the beginning of the view.
 			[[nodiscard]] inline static _single_caret_renderer jumpstart(
-				const fragment_assembler &ass, caret_set::const_iterator iter
+				const fragment_assembler &ass, caret_set::iterator_position iter
 			) {
 				return _single_caret_renderer(
 					iter, ass.get_horizontal_position(), ass.get_vertical_position(),
@@ -133,7 +135,7 @@ namespace codepad::editors::code {
 
 			/// Starts rendering a caret halfway when skipping part of a line.
 			[[nodiscard]] static _single_caret_renderer jumpstart_at_skip_line(
-				const fragment_assembler&, caret_set::const_iterator
+				const fragment_assembler&, caret_set::iterator_position
 			);
 
 			/// Handles a \ref no_fragment by doing nothing. Normally this should not happen.
@@ -182,21 +184,21 @@ namespace codepad::editors::code {
 				_terminate_with_caret(pos, caret, rend);
 			}
 
-			/// Returns \ref _caret.
-			[[nodiscard]] const caret_set::const_iterator &get_caret() const {
-				return _caret;
+			/// Returns \ref _caret_iter.
+			[[nodiscard]] const caret_set::iterator_position &get_iterator() const {
+				return _caret_iter;
 			}
 		protected:
-			caret_set::const_iterator _caret; ///< Iterator to the caret data.
-			std::pair<std::size_t, std::size_t> _range; ///< The range of the selection.
+			caret_set::iterator_position _caret_iter; ///< Iterator to the caret data.
+			ui::caret_selection _caret_selection; ///< Caret position data.
 			/// The layout of the selection.
 			decoration_layout _selected_regions;
 			double _region_left = 0.0; ///< The left boundary of the next selected region.
 
 			/// Initializes this struct given the corresponding caret, position, and font parameters.
 			_single_caret_renderer(
-				caret_set::const_iterator iter, double x, double y, double line_height, double baseline
-			) : _caret(iter), _range(std::minmax(_caret->first.caret, _caret->first.selection)), _region_left(x) {
+				caret_set::iterator_position iter, double x, double y, double line_height, double baseline
+			) : _caret_iter(iter), _caret_selection(iter.get_caret_selection()), _region_left(x) {
 				_selected_regions.top = y;
 				_selected_regions.line_height = line_height;
 				_selected_regions.baseline = baseline;
@@ -224,7 +226,7 @@ namespace codepad::editors::code {
 			/// returns a corresponding \ref _single_caret_renderer and adds a caret if necessary.
 			[[nodiscard]] static std::optional<_single_caret_renderer> _start_at_solid_fragment(
 				rectd caret, std::size_t steps, std::size_t posafter,
-				caret_gatherer&, caret_set::const_iterator
+				caret_gatherer&, caret_set::iterator_position
 			);
 
 			/// Handles a fragmen which the caret cannot appear inside.
@@ -241,7 +243,7 @@ namespace codepad::editors::code {
 			/// \ref caret_gatherer::_caret_rects if necessary, appends a final selected rectangle to
 			/// \ref _selected_regions, then moves it to \ref caret_gatherer::_selected_regions.
 			void _terminate_with_caret(std::size_t pos, rectd caret, caret_gatherer &rend) {
-				if (_range.second != _caret->first.selection && pos == _range.second) {
+				if (_caret_selection.has_selection() && pos == _caret_selection.get_caret_position()) {
 					// add caret only if the positions match, and the caret is after the selected region which is
 					// nonempty (to avoid rendering the caret twice)
 					rend._caret_rects.emplace_back(caret);
@@ -257,9 +259,9 @@ namespace codepad::editors::code {
 
 		std::vector<rectd> _caret_rects; ///< The positions of all carets.
 		std::vector<decoration_layout> _selected_regions; ///< The positions of selected regions.
-		const caret_set::container &_carets; ///< The set of carets.
+		const caret_set &_carets; ///< The set of carets.
 		std::list<_single_caret_renderer> _active; ///< The list of active renderers for individual carets.
-		std::list<caret_set::const_iterator> _queued; ///< The list of carets that would start shortly.
+		std::list<caret_set::iterator_position> _queued; ///< The list of carets that would start shortly.
 		const fragment_assembler *_assembler = nullptr; ///< The associated \ref fragment_assembler.
 	};
 }

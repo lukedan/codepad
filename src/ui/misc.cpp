@@ -70,4 +70,28 @@ namespace codepad::ui {
 			return U"";
 		}
 	}
+
+
+	void caret_selection::move_caret(std::size_t new_caret) {
+		if (caret_offset == 0 || caret_offset == selection_length) { // test rule 
+			std::size_t
+				new_beg = new_caret,
+				new_end = caret_offset == 0 ? get_selection_end() : selection_begin;
+			if (new_beg > new_end) {
+				std::swap(new_beg, new_end);
+			}
+			selection_begin = new_beg;
+			selection_length = new_end - new_beg;
+			caret_offset = new_caret - selection_begin;
+		} else if (new_caret < selection_begin) { // test half of rule 2
+			selection_length = get_selection_end() - new_caret;
+			selection_begin = new_caret;
+			caret_offset = 0;
+		} else if (new_caret > get_selection_end()) { // test other half of rule 2
+			selection_length = new_caret - selection_begin;
+			caret_offset = selection_length;
+		} else {
+			caret_offset = new_caret - selection_begin;
+		}
+	}
 }

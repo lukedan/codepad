@@ -302,9 +302,13 @@ extern "C" {
 			cp::ui::command_registry::convert_type<cp::editors::editor>(
 				[](cp::editors::editor &e, const cp::json::value_storage&) {
 					auto &edt = command_pack::get_code_contents_region_from(e);
-					for (auto caret : edt.get_carets().carets) {
-						if (caret.first.caret != caret.first.selection) {
-							edt.add_folded_region(std::minmax(caret.first.caret, caret.first.selection));
+					for (
+						auto it = edt.get_carets().begin();
+						it.get_iterator() != edt.get_carets().carets.end();
+						it.move_next()
+					) {
+						if (it.get_iterator()->caret.has_selection()) {
+							edt.add_folded_region(it.get_caret_selection().get_range());
 						}
 					}
 				}

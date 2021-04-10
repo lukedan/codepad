@@ -39,10 +39,10 @@ namespace codepad::ui {
 	void text_edit::move_caret_left(bool continue_sel) {
 		move_caret_raw(
 			[this]() {
-				return _get_previous_caret_position(_caret.caret);
+				return _get_previous_caret_position(_caret.get_caret_position());
 			},
 			[this]() {
-				return std::min(_caret.caret, _caret.selection);
+				return _caret.selection_begin;
 			},
 			continue_sel
 		);
@@ -51,10 +51,10 @@ namespace codepad::ui {
 	void text_edit::move_caret_right(bool continue_sel) {
 		move_caret_raw(
 			[this]() {
-				return _get_next_caret_position(_caret.caret);
+				return _get_next_caret_position(_caret.get_caret_position());
 			},
 			[this]() {
-				return std::max(_caret.caret, _caret.selection);
+				return _caret.get_selection_end();
 			},
 			continue_sel
 		);
@@ -64,7 +64,7 @@ namespace codepad::ui {
 		move_caret_raw(
 			[this]() {
 				_check_cache_line_info();
-				std::size_t line = _get_line_of_character(_caret.caret);
+				std::size_t line = _get_line_of_character(_caret.get_caret_position());
 				return std::pair<std::size_t, double>(
 					_cached_line_beginnings[line], -std::numeric_limits<double>::infinity()
 				);
@@ -77,7 +77,7 @@ namespace codepad::ui {
 		move_caret_raw(
 			[this]() {
 				_check_cache_line_info();
-				std::size_t line = _get_line_of_character(_caret.caret);
+				std::size_t line = _get_line_of_character(_caret.get_caret_position());
 				return std::pair<std::size_t, double>(
 					_cached_line_beginnings[line] + _cached_line_metrics[line].non_linebreak_characters,
 					std::numeric_limits<double>::infinity()
@@ -91,7 +91,7 @@ namespace codepad::ui {
 		move_caret_raw(
 			[this]() {
 				_check_cache_line_info();
-				std::size_t line = _get_line_of_character(_caret.caret);
+				std::size_t line = _get_line_of_character(_caret.get_caret_position());
 				if (line > 0) {
 					--line;
 				}
@@ -101,9 +101,6 @@ namespace codepad::ui {
 					_alignment
 				);
 			},
-			[this]() {
-				return std::min(_caret.caret, _caret.selection);
-			},
 			continue_sel
 		);
 	}
@@ -112,15 +109,12 @@ namespace codepad::ui {
 		move_caret_raw(
 			[this]() {
 				_check_cache_line_info();
-				std::size_t line = _get_line_of_character(_caret.caret);
+				std::size_t line = _get_line_of_character(_caret.get_caret_position());
 				auto hit_test_result = _formatted_text->hit_test_at_line(line + 1, _alignment);
 				return std::pair<std::size_t, double>(
 					hit_test_result.rear ? hit_test_result.character + 1 : hit_test_result.character,
 					_alignment
 				);
-			},
-			[this]() {
-				return std::max(_caret.caret, _caret.selection);
 			},
 			continue_sel
 		);
@@ -133,9 +127,9 @@ namespace codepad::ui {
 			rem_beg = sel_beg;
 			rem_end = sel_end;
 		} else {
-			std::size_t prev = _get_previous_caret_position(_caret.caret);
+			std::size_t prev = _get_previous_caret_position(_caret.selection_begin);
 			rem_beg = prev;
-			rem_end = _caret.caret;
+			rem_end = _caret.selection_begin;
 		}
 		modify(rem_beg, rem_end - rem_beg, std::u8string_view());
 		_set_caret_selection_impl(caret_selection(rem_beg));
@@ -148,8 +142,8 @@ namespace codepad::ui {
 			rem_beg = sel_beg;
 			rem_end = sel_end;
 		} else {
-			std::size_t next = _get_next_caret_position(_caret.caret);
-			rem_beg = _caret.caret;
+			std::size_t next = _get_next_caret_position(_caret.selection_begin);
+			rem_beg = _caret.selection_begin;
 			rem_end = next;
 		}
 		modify(rem_beg, rem_end - rem_beg, std::u8string_view());
@@ -160,9 +154,9 @@ namespace codepad::ui {
 		label::_on_mouse_move(info);
 		if (_selecting) {
 			auto hit = _hit_test_for_caret(info.new_position.get(*this));
-			_set_caret_selection_impl(caret_selection(
-				hit.rear ? hit.character + 1 : hit.character, _caret.selection
-			));
+			caret_selection new_caret_selection = _caret;
+			new_caret_selection.move_caret(hit.rear ? hit.character + 1 : hit.character);
+			_set_caret_selection_impl(new_caret_selection);
 		}
 	}
 
@@ -252,7 +246,7 @@ namespace codepad::ui {
 
 	void text_edit::_update_window_caret_position() {
 		if (get_manager().get_scheduler().get_focused_element() == this) {
-			rectd caret = get_formatted_text().get_character_placement(_caret.caret);
+			rectd caret = get_formatted_text().get_character_placement(_caret.get_caret_position());
 			caret = caret.translated(get_client_region().xmin_ymin());
 			get_window()->set_active_caret_position(caret);
 		}
@@ -339,7 +333,7 @@ namespace codepad::ui {
 		label::_custom_render();
 		// label::_on_prerender() calls _check_cache_format(), so no need to call again here
 		vec2d offset(get_padding().left, get_padding().top);
-		rectd cursor = get_formatted_text().get_character_placement(_caret.caret).translated(offset);
+		rectd cursor = get_formatted_text().get_character_placement(_caret.get_caret_position()).translated(offset);
 		_caret_visuals.render(cursor, get_manager().get_renderer());
 		if (_caret.has_selection()) { // render selection
 			auto [sel_min, sel_max] = _caret.get_range();
@@ -357,7 +351,7 @@ namespace codepad::ui {
 				_edit->caret_changed += [this]() {
 					thickness edit_padding = _edit->get_padding();
 					rectd caret = _edit->get_formatted_text().get_character_placement(
-						_edit->get_caret_selection().caret
+						_edit->get_caret_selection().get_caret_position()
 					).translated(vec2d(edit_padding.left, edit_padding.top));
 					make_region_visible(caret);
 				};
