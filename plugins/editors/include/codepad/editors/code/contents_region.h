@@ -212,13 +212,10 @@ namespace codepad::editors::code {
 		/// \note The alignment specified in \p cs is ignored.
 		void set_carets(caret_set cs) {
 			assert_true_usage(!cs.carets.empty(), "must have at least one caret");
-			std::size_t total_off = 0;
-			for (auto it = cs.carets.begin(); it != cs.carets.end(); ++it) {
-				ui::caret_selection sel = it->caret;
-				sel.selection_begin += total_off;
-				it.get_value_rawmod().data.alignment =
-					get_horizontal_caret_position(_extract_position(sel, it->data));
-				total_off += it->get_total_offset();
+			for (auto it = cs.begin(); it.get_iterator() != cs.carets.end(); it.move_next()) {
+				ui::caret_selection sel = it.get_caret_selection();
+				it.get_iterator().get_value_rawmod().data.alignment =
+					get_horizontal_caret_position(_extract_position(sel, it.get_iterator()->data));
 			}
 			set_carets_keepdata(std::move(cs));
 		}
@@ -229,7 +226,8 @@ namespace codepad::editors::code {
 		void set_carets_keepdata(caret_set cs) {
 			assert_true_logical(!cs.carets.empty(), "must have at least one caret");
 			_cset = std::move(cs);
-			/*_make_caret_visible(_extract_position(*_cset.carets.rbegin()));*/
+			auto caret_it = _cset.begin();
+			_make_caret_visible(_extract_position(caret_it.get_caret_selection(), caret_it.get_iterator()->data));
 			_on_carets_changed();
 		}
 
@@ -328,7 +326,7 @@ namespace codepad::editors::code {
 					if (caret_sel.caret_offset == 0) {
 						return _extract_position(caret_sel, data);
 					}
-					return caret_position(caret_sel.get_caret_position(), true);
+					return caret_position(caret_sel.selection_begin, true);
 				},
 				continue_selection
 			);

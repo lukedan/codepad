@@ -43,12 +43,14 @@ namespace codepad::editors::code {
 			}
 			// update all active renderers
 			for (auto it = _active.begin(); it != _active.end(); ) {
-				if (!it->handle_fragment(frag, rend, steps, posafter, *this)) { // finished
+				if (!it->handle_fragment(frag, rend, steps, posafter, _prev_stall, *this)) { // finished
 					it = _active.erase(it);
 				} else {
 					++it;
 				}
 			}
+
+			_prev_stall = steps == 0;
 		}
 
 		/// Skips the rest of the current line and possibly part of the next line. This function should be called
@@ -88,7 +90,7 @@ namespace codepad::editors::code {
 
 		/// Handles a single caret. The return values of the \p handle_fragment() methods return \p false if this
 		/// caret has ended.
-		struct _single_caret_renderer { // TODO handle the caret when it's at the middle of the selection
+		struct _single_caret_renderer {
 		public:
 			/// Does nothing when at a \ref no_fragment. Actually, this shouldn't happen.
 			[[nodiscard]] inline static std::optional<_single_caret_renderer> start_at_fragment(
@@ -100,12 +102,14 @@ namespace codepad::editors::code {
 			/// Tries to start rendering a new caret at the given \ref text_fragment.
 			[[nodiscard]] static std::optional<_single_caret_renderer> start_at_fragment(
 				const text_fragment&, const fragment_assembler::text_rendering&,
-				std::size_t steps, std::size_t posafter, caret_gatherer&, caret_set::iterator_position
+				std::size_t steps, std::size_t posafter,
+				caret_gatherer&, caret_set::iterator_position
 			);
 			/// Tries to start rendering a new caret at the given \ref linebreak_fragment.
 			[[nodiscard]] inline static std::optional<_single_caret_renderer> start_at_fragment(
 				const linebreak_fragment&, const fragment_assembler::basic_rendering &r,
-				std::size_t steps, std::size_t posafter, caret_gatherer &rend, caret_set::iterator_position iter
+				std::size_t steps, std::size_t posafter,
+				caret_gatherer &rend, caret_set::iterator_position iter
 			) {
 				return _start_at_solid_fragment(rectd::from_xywh(
 					r.topleft.x, r.topleft.y, r.width, rend.get_fragment_assembler().get_line_height()
@@ -119,7 +123,8 @@ namespace codepad::editors::code {
 				caret_gatherer &rend, caret_set::iterator_position iter
 			) {
 				return _start_at_solid_fragment(
-					_get_solid_fragment_caret_position(r, rend.get_fragment_assembler()), steps, posafter, rend, iter
+					_get_solid_fragment_caret_position(r, rend.get_fragment_assembler()),
+					steps, posafter, rend, iter
 				);
 			}
 
@@ -141,27 +146,29 @@ namespace codepad::editors::code {
 			/// Handles a \ref no_fragment by doing nothing. Normally this should not happen.
 			bool handle_fragment(
 				const no_fragment&, const fragment_assembler::basic_rendering&,
-				std::size_t, std::size_t, caret_gatherer&
+				std::size_t, std::size_t, bool, caret_gatherer&
 			) {
 				return true;
 			}
 			/// Handles a \ref text_fragment.
 			bool handle_fragment(
 				const text_fragment&, const fragment_assembler::text_rendering&,
-				std::size_t steps, std::size_t posafter, caret_gatherer&
+				std::size_t steps, std::size_t posafter, bool prev_stall, caret_gatherer&
 			);
 			/// Handles a \ref linebreak_fragment.
 			bool handle_fragment(
 				const linebreak_fragment&, const fragment_assembler::basic_rendering&,
-				std::size_t steps, std::size_t posafter, caret_gatherer&
+				std::size_t steps, std::size_t posafter, bool prev_stall, caret_gatherer&
 			);
 			/// Handles a generic solid fragment. This includes the \ref image_gizmo_fragment, the
 			/// \ref text_gizmo_fragment, the \ref tab_fragment, and the \ref invalid_codepoint_fragment.
 			template <typename Frag, typename Rendering> bool handle_fragment(
-				const Frag&, const Rendering &r, std::size_t steps, std::size_t posafter, caret_gatherer &rend
+				const Frag&, const Rendering &r,
+				std::size_t steps, std::size_t posafter, bool prev_stall, caret_gatherer &rend
 			) {
 				return _handle_solid_fragment(
-					_get_solid_fragment_caret_position(r, rend.get_fragment_assembler()), steps, posafter, rend
+					_get_solid_fragment_caret_position(r, rend.get_fragment_assembler()),
+					steps, posafter, prev_stall, rend
 				);
 			}
 
@@ -173,15 +180,24 @@ namespace codepad::editors::code {
 			/// \param rend The \ref caret_gatherer.
 			bool handle_line_skip(std::size_t posafter, bool stall, double x, caret_gatherer &rend);
 
-			/// Properly finishes rendering to this caret. Note that this function may render an extra caret that
-			/// should not be visible.
-			void finish(std::size_t pos, caret_gatherer &rend) {
+			/// Properly finishes rendering to this caret and adds all accumulated data to the given
+			/// \ref caret_gatherer.
+			void finish(std::size_t pos, bool prev_stall, caret_gatherer &rend) {
 				const fragment_assembler &ass = rend.get_fragment_assembler();
 				rectd caret = rectd::from_xywh(
 					ass.get_horizontal_position(), rend.get_fragment_assembler().get_vertical_position(),
 					10.0, ass.get_line_height()
 				); // TODO use the width of a space?
-				_terminate_with_caret(pos, caret, rend);
+
+				// check if we should add a caret right now - this is mostly used to handle the end of the document
+				if (
+					pos == _caret_selection.get_caret_position() &&
+					!(prev_stall && !_caret_iter.get_iterator()->data.after_stall)
+				) {
+					rend._caret_rects.emplace_back(caret);
+				}
+
+				_terminate(caret.xmin, rend);
 			}
 
 			/// Returns \ref _caret_iter.
@@ -205,7 +221,7 @@ namespace codepad::editors::code {
 			}
 
 			/// Returns the caret layout for a \ref fragment_assembler::basic_rendering.
-			inline static rectd _get_solid_fragment_caret_position(
+			[[nodiscard]] inline static rectd _get_solid_fragment_caret_position(
 				const fragment_assembler::basic_rendering &r, const fragment_assembler &ass
 			) {
 				return rectd(
@@ -214,13 +230,18 @@ namespace codepad::editors::code {
 				);
 			}
 			/// Returns the caret layout for a \ref fragment_assembler::text_rendering.
-			inline static rectd _get_solid_fragment_caret_position(
+			[[nodiscard]] inline static rectd _get_solid_fragment_caret_position(
 				const fragment_assembler::text_rendering &r, const fragment_assembler &ass
 			) {
 				return rectd::from_xywh(
 					r.topleft.x, r.topleft.y, r.text->get_width(), ass.get_line_height()
 				);
 			}
+
+			/// Returns whether a caret should be inserted at the current fragment. If the caret is at the middle of
+			/// the current fragment, returns \p true; otherwise checks if any stalls prevent the caret from being
+			/// added at the very beginning. Carets are never handled if they're at the end of the fragment.
+			[[nodiscard]] bool _should_insert_caret(std::size_t steps, std::size_t posafter, bool prev_stall) const;
 
 			/// Checks if the given caret starts at the given solid fragment (one that's not a text fragment). If so,
 			/// returns a corresponding \ref _single_caret_renderer and adds a caret if necessary.
@@ -231,7 +252,7 @@ namespace codepad::editors::code {
 
 			/// Handles a fragmen which the caret cannot appear inside.
 			[[nodiscard]] bool _handle_solid_fragment(
-				rectd caret, std::size_t steps, std::size_t posafter, caret_gatherer&
+				rectd caret, std::size_t steps, std::size_t posafter, bool prev_stall, caret_gatherer&
 			);
 
 			/// Appends to \ref _selected_regions the horizontal range of this line.
@@ -239,18 +260,8 @@ namespace codepad::editors::code {
 				_selected_regions.line_bounds.emplace_back(_region_left, x);
 			}
 
-			/// Called right before finishing this caret and selected region. This function appends a caret to
-			/// \ref caret_gatherer::_caret_rects if necessary, appends a final selected rectangle to
-			/// \ref _selected_regions, then moves it to \ref caret_gatherer::_selected_regions.
-			void _terminate_with_caret(std::size_t pos, rectd caret, caret_gatherer &rend) {
-				if (_caret_selection.has_selection() && pos == _caret_selection.get_caret_position()) {
-					// add caret only if the positions match, and the caret is after the selected region which is
-					// nonempty (to avoid rendering the caret twice)
-					rend._caret_rects.emplace_back(caret);
-				}
-				_terminate(caret.xmin, rend);
-			}
-			/// Similar to \ref _terminate_with_caret but does not append a caret region.
+			/// Called right before finishing this caret and selected region. This function appends a final selected
+			/// rectangle to \ref _selected_regions, then moves it to \ref caret_gatherer::_selected_regions.
 			void _terminate(double x, caret_gatherer &rend) {
 				_append_line_selection(x);
 				rend._selected_regions.emplace_back(std::move(_selected_regions));
@@ -263,5 +274,6 @@ namespace codepad::editors::code {
 		std::list<_single_caret_renderer> _active; ///< The list of active renderers for individual carets.
 		std::list<caret_set::iterator_position> _queued; ///< The list of carets that would start shortly.
 		const fragment_assembler *_assembler = nullptr; ///< The associated \ref fragment_assembler.
+		bool _prev_stall = false; ///< Whether the previous fragment was a stall.
 	};
 }

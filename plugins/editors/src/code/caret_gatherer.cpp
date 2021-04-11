@@ -9,7 +9,7 @@
 namespace codepad::editors::code {
 	caret_gatherer::caret_gatherer(
 		const caret_set &set, std::size_t pos, const fragment_assembler &ass, bool stall
-	) : _carets(set), _assembler(&ass) {
+	) : _carets(set), _assembler(&ass), _prev_stall(stall) {
 		// find the first candidate caret to render
 		auto first = _carets.find_first_ending_at_or_after(pos);
 		while (_queued.size() < maximum_num_lookahead_carets && first.get_iterator() != _carets.carets.end()) {
@@ -71,16 +71,21 @@ namespace codepad::editors::code {
 				it = _queued.erase(it);
 			}
 		}
+
+		_prev_stall = stall;
 	}
 
 	void caret_gatherer::finish(std::size_t position) {
 		for (auto &rend : _active) {
-			rend.finish(position, *this);
+			rend.finish(position, _prev_stall, *this);
 		}
 		// draw the possibly left out last caret, which is at the very end of the document and does not have a
 		// selection
-		for (auto next_caret : _queued) {
-			if (next_caret.get_caret_selection().get_caret_position() == position) {
+		for (auto &next_caret : _queued) {
+			if (
+				next_caret.get_caret_selection().get_caret_position() == position &&
+				!(_prev_stall && !next_caret.get_iterator()->data.after_stall)
+			) {
 				double x = _assembler->get_horizontal_position();
 				_caret_rects.emplace_back(rectd::from_xywh(
 					_assembler->get_horizontal_position(), _assembler->get_vertical_position(),
@@ -98,7 +103,8 @@ namespace codepad::editors::code {
 
 	std::optional<caret_gatherer::_single_caret_renderer> caret_gatherer::_single_caret_renderer::start_at_fragment(
 		const text_fragment&, const fragment_assembler::text_rendering &r,
-		std::size_t steps, std::size_t posafter, caret_gatherer &rend, caret_set::iterator_position iter
+		std::size_t steps, std::size_t posafter, caret_gatherer &rend,
+		caret_set::iterator_position iter
 	) {
 		_single_caret_renderer res(
 			iter, r.topleft.x, r.topleft.y,
@@ -109,14 +115,9 @@ namespace codepad::editors::code {
 			"single caret renderer was not started or discarded in time"
 		);
 		if (res._caret_selection.selection_begin < posafter) { // start
-			rectd caret = r.text->get_character_placement(res._caret_selection.selection_begin - (posafter - steps));
-			res._region_left += caret.xmin;
-			if (res._caret_selection.caret_offset == 0) { // add caret
-				rend._caret_rects.emplace_back(rectd::from_xywh(
-					res._region_left, r.topleft.y,
-					caret.width(), rend.get_fragment_assembler().get_line_height()
-				));
-			}
+			res._region_left += r.text->get_character_placement(
+				res._caret_selection.selection_begin - (posafter - steps)
+			).xmin;
 			return res;
 		}
 		return std::nullopt;
@@ -134,16 +135,21 @@ namespace codepad::editors::code {
 
 	bool caret_gatherer::_single_caret_renderer::handle_fragment(
 		const text_fragment&, const fragment_assembler::text_rendering &r,
-		std::size_t steps, std::size_t posafter, caret_gatherer &rend
+		std::size_t steps, std::size_t posafter, bool prev_stall, caret_gatherer &rend
 	) {
 		assert_true_logical(steps > 0, "invalid text fragment");
-		std::size_t range_end = _caret_selection.get_selection_end();
-		if (posafter > range_end) { // terminate here
-			rectd pos = r.text->get_character_placement(range_end - (posafter - steps));
-			_terminate_with_caret(range_end, rectd::from_xywh(
+
+		if (_should_insert_caret(steps, posafter, prev_stall)) { // handle caret
+			rectd pos = r.text->get_character_placement(_caret_selection.get_caret_position() - (posafter - steps));
+			rend._caret_rects.emplace_back(rectd::from_xywh(
 				pos.xmin + r.topleft.x, rend.get_fragment_assembler().get_vertical_position(),
 				pos.width(), rend.get_fragment_assembler().get_line_height()
-			), rend);
+			));
+		}
+
+		std::size_t range_end = _caret_selection.get_selection_end();
+		if (posafter > range_end) { // terminate here
+			_terminate(r.text->get_character_placement(range_end - (posafter - steps)).xmin + r.topleft.x, rend);
 			return false;
 		}
 		return true;
@@ -151,12 +157,12 @@ namespace codepad::editors::code {
 
 	bool caret_gatherer::_single_caret_renderer::handle_fragment(
 		const linebreak_fragment &frag, const fragment_assembler::basic_rendering &r,
-		std::size_t steps, std::size_t posafter, caret_gatherer &rend
+		std::size_t steps, std::size_t posafter, bool prev_stall, caret_gatherer &rend
 	) {
 		rectd pos = rectd::from_xywh(
 			r.topleft.x, r.topleft.y, 10.0, rend.get_fragment_assembler().get_line_height()
 		);
-		if (_handle_solid_fragment(pos, steps, posafter, rend)) { // not over, to the next line
+		if (_handle_solid_fragment(pos, steps, posafter, prev_stall, rend)) { // not over, to the next line
 			// for soft linebreaks, do not add space after the line
 			_append_line_selection(frag.type == ui::line_ending::none ? pos.xmin : pos.xmax);
 			_region_left = 0.0;
@@ -180,6 +186,27 @@ namespace codepad::editors::code {
 		_append_line_selection(x);
 		_region_left = 0.0;
 		return true;
+	}
+
+	bool caret_gatherer::_single_caret_renderer::_should_insert_caret(
+		std::size_t steps, std::size_t posafter, bool prev_stall
+	) const {
+		std::size_t caret_pos = _caret_selection.get_caret_position();
+		if (caret_pos >= posafter || caret_pos + steps < posafter) {
+			return false; // either too late or too early
+		}
+		if (caret_pos + steps > posafter) {
+			return true; // within the current fragment
+		}
+		// otherwise, the caret is at the very beginning of the fragment
+		if (steps > 0 && !prev_stall) {
+			return true; // no stall; always insert
+		}
+		if (_caret_iter.get_iterator()->data.after_stall) {
+			return steps > 0; // if the caret is after a stall, only insert if this fragment is not a stall
+		}
+		// otherwise, the caret is before a stall. insert if the previous fragment is not a stall
+		return !prev_stall;
 	}
 
 	std::optional<
@@ -215,19 +242,27 @@ namespace codepad::editors::code {
 	}
 
 	bool caret_gatherer::_single_caret_renderer::_handle_solid_fragment(
-		rectd caret, std::size_t steps, std::size_t posafter, caret_gatherer &rend
+		rectd caret, std::size_t steps, std::size_t posafter, bool prev_stall, caret_gatherer &rend
 	) {
+		if (_should_insert_caret(steps, posafter, prev_stall)) {
+			rend._caret_rects.emplace_back(caret);
+		}
+
 		if (steps == 0) { // stall
 			if (
 				posafter == _caret_selection.get_selection_end() &&
 				_should_end_before_stall(_caret_selection, _caret_iter.get_iterator()->data, true)
 			) {
-				_terminate_with_caret(posafter, caret, rend);
+				_terminate(caret.xmin, rend);
 				return false;
 			}
 		} else { // not stall
 			if (posafter > _caret_selection.get_selection_end()) { // stop here & this fragment is completely covered
-				_terminate_with_caret(posafter - steps, caret, rend);
+				double end_x = caret.xmax;
+				if (_caret_selection.get_selection_end() + steps == posafter) {
+					end_x = caret.xmin;
+				}
+				_terminate(end_x, rend);
 				return false;
 			}
 		}

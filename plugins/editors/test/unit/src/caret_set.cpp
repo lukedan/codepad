@@ -76,5 +76,24 @@ TEST_CASE("Manipulating a caret_set", "[caret_set]") {
 		REQUIRE(flatten_caret_set(set) == caret_list({
 			caret_selection(5, 25, 20), caret_selection(30, 20, 10), caret_selection(52, 5, 5), caret_selection(60, 10, 5)
 		}));
+
+		// covering another caret
+		set.add(caret_selection(51, 8, 3), caret_data());
+		REQUIRE(flatten_caret_set(set) == caret_list({
+			caret_selection(5, 25, 20), caret_selection(30, 20, 10), caret_selection(51, 8, 3), caret_selection(60, 10, 5)
+		}));
+
+		// covering another caret, and merging at front & back
+		set.add(caret_selection(40, 25, 5), caret_data());
+		REQUIRE(flatten_caret_set(set) == caret_list({
+			caret_selection(5, 25, 20), caret_selection(30, 40, 15)
+		}));
+	}
+
+	SECTION("Removing carets") {
+		set.remove(++set.carets.begin());
+		REQUIRE(flatten_caret_set(set) == caret_list({
+			caret_selection(5, 20, 5), caret_selection(52, 5, 5), caret_selection(60, 10, 5)
+		}));
 	}
 }
