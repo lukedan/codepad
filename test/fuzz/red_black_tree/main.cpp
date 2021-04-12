@@ -9,13 +9,10 @@
 #include <random>
 #include <atomic>
 
-#include <codepad/core/logging.h>
-#include <codepad/core/logger_sinks.h>
+#include <codepad/core/fuzz_test.h>
 #include <codepad/core/red_black_tree.h>
 
-using namespace codepad;
-
-std::atomic_bool keep_running; ///< This is set to \p false if SIGINT is encountered.
+namespace cp = codepad;
 
 /// Data stored in a tree node.
 struct node_data {
@@ -26,28 +23,30 @@ struct node_data {
 	}
 
 	int value = 0; ///< The value of this node.
-	red_black_tree::color color = red_black_tree::color::black; ///< The color of this node.
+	cp::red_black_tree::color color = cp::red_black_tree::color::black; ///< The color of this node.
 };
 /// Synthesized data for a subtree.
 struct synth_data {
 	/// A node of the tree.
-	using node = binary_tree_node<node_data, synth_data>;
+	using node = cp::binary_tree_node<node_data, synth_data>;
 
 	std::size_t num_nodes = 0; ///< The number of nodes in this subtree.
 
 	/// The property used to compute \ref num_nodes.
-	using num_nodes_property = sum_synthesizer::compact_property<
-		synthesization_helper::identity, &synth_data::num_nodes
+	using num_nodes_property = cp::sum_synthesizer::compact_property<
+		cp::synthesization_helper::identity, &synth_data::num_nodes
 	>;
 
 	/// Refreshes the data of the given node.
 	inline static void synthesize(node &n) {
-		sum_synthesizer::synthesize<num_nodes_property>(n);
+		cp::sum_synthesizer::synthesize<num_nodes_property>(n);
 	}
 };
 
 /// The red black tree type.
-using tree = red_black_tree::tree<node_data, red_black_tree::member_red_black_access<&node_data::color>, synth_data>;
+using tree = cp::red_black_tree::tree<
+	node_data, cp::red_black_tree::member_red_black_access<&node_data::color>, synth_data
+>;
 
 /// Builds a tree from the given integers.
 tree build_tree(const std::vector<int> &values) {
@@ -59,7 +58,7 @@ tree build_tree(const std::vector<int> &values) {
 }
 /// Returns an iterator to the node in the tree at the given index.
 tree::const_iterator at(const tree &t, std::size_t index) {
-	return t.find(sum_synthesizer::index_finder<synth_data::num_nodes_property>(), index);
+	return t.find(cp::sum_synthesizer::index_finder<synth_data::num_nodes_property>(), index);
 }
 
 /// Various testing operations.
@@ -95,197 +94,178 @@ template <typename T, typename Random> std::size_t random_insertion_index(const 
 	return random_between<std::size_t>(0, vec.size(), std::forward<Random>(r));
 }
 
-/// Entry point of the game.
-int main(int argc, char **argv) {
-	// this enables us to terminate normally and check if there are any memory leaks
-	keep_running = true;
-	std::signal(SIGINT, [](int) {
-		keep_running = false;
-	});
+/// Distribution of test operations.
+std::uniform_int_distribution<int> op_distribution(0, static_cast<int>(operations::max_index) - 1);
 
-	auto global_log = std::make_unique<logger>();
-	global_log->sinks.emplace_back(std::make_unique<logger_sinks::console_sink>());
-	global_log->sinks.emplace_back(std::make_unique<logger_sinks::file_sink>("buffer_test.log"));
-	logger::set_current(std::move(global_log));
+/// The fuzz test class.
+class red_black_tree_test : public cp::fuzz_test {
+public:
+	/// Returns the name of this test.
+	std::u8string_view get_name() const override {
+		return u8"red_black_tree_test";
+	}
 
-	initialize(argc, argv);
-
-	std::uniform_int_distribution<int> op_distribution(0, static_cast<int>(operations::max_index) - 1);
-	std::default_random_engine random(123456);
-
-	std::vector<tree> test_data;
-	std::vector<std::vector<int>> reference_data;
-
-	std::size_t op_index = 0;
-	while (keep_running) {
-		auto op = static_cast<operations>(op_distribution(random));
-		if (reference_data.empty()) {
+	/// Executes one test operation.
+	void iterate() override {
+		auto op = static_cast<operations>(op_distribution(rng));
+		if (_reference_data.empty()) {
 			op = operations::insert_tree;
 		}
-		logger::get().log_info(CP_HERE) << "op index " << op_index;
 		switch (op) {
 		case operations::insert:
 			{
-				logger::get().log_info(CP_HERE) << "op insert";
-				std::size_t major_index = random_index(reference_data, random);
-				std::size_t minor_index = random_insertion_index(reference_data[major_index], random);
+				std::size_t major_index = random_index(_reference_data, rng);
+				std::size_t minor_index = random_insertion_index(_reference_data[major_index], rng);
 
-				int test_value = random();
+				int test_value = rng();
 				// test
-				auto &test_tree = test_data[major_index];
+				auto &test_tree = _test_data[major_index];
 				test_tree.emplace_before(at(test_tree, minor_index), test_value);
 				// reference
-				auto &ref_arr = reference_data[major_index];
+				auto &ref_arr = _reference_data[major_index];
 				ref_arr.insert(ref_arr.begin() + minor_index, test_value);
 			}
 			break;
 		case operations::insert_subtree:
 			{
-				logger::get().log_info(CP_HERE) << "op insert_subtree";
-				std::size_t major_index = random_index(reference_data, random);
-				std::size_t minor_index = random_insertion_index(reference_data[major_index], random);
-				std::vector<int> test_values(random_between<std::size_t>(1, 1000, random));
+				std::size_t major_index = random_index(_reference_data, rng);
+				std::size_t minor_index = random_insertion_index(_reference_data[major_index], rng);
+				std::vector<int> test_values(random_between<std::size_t>(1, 1000, rng));
 				for (int &v : test_values) {
-					v = random();
+					v = rng();
 				}
 				// test
-				tree &test_tree = test_data[major_index];
+				tree &test_tree = _test_data[major_index];
 				test_tree.insert_range(build_tree(test_values), at(test_tree, minor_index));
 				// reference
-				auto &ref_arr = reference_data[major_index];
+				auto &ref_arr = _reference_data[major_index];
 				ref_arr.insert(ref_arr.begin() + minor_index, test_values.begin(), test_values.end());
 			}
 			break;
 		case operations::insert_tree:
 			{
-				logger::get().log_info(CP_HERE) << "op insert_tree";
-				std::size_t major_index = random_insertion_index(reference_data, random);
-				std::vector<int> test_values(random_between<std::size_t>(1, 1000, random));
+				std::size_t major_index = random_insertion_index(_reference_data, rng);
+				std::vector<int> test_values(random_between<std::size_t>(1, 1000, rng));
 				for (int &v : test_values) {
-					v = random();
+					v = rng();
 				}
 				// test
-				test_data.insert(test_data.begin() + major_index, build_tree(test_values));
+				_test_data.insert(_test_data.begin() + major_index, build_tree(test_values));
 				// reference
-				reference_data.insert(reference_data.begin() + major_index, std::move(test_values));
+				_reference_data.insert(_reference_data.begin() + major_index, std::move(test_values));
 			}
 			break;
 
 		case operations::erase:
 			{
-				logger::get().log_info(CP_HERE) << "op erase";
-				std::size_t major_index = random_index(reference_data, random);
-				std::size_t minor_index = random_index(reference_data[major_index], random);
+				std::size_t major_index = random_index(_reference_data, rng);
+				std::size_t minor_index = random_index(_reference_data[major_index], rng);
 				// test
-				auto &test_tree = test_data[major_index];
+				auto &test_tree = _test_data[major_index];
 				test_tree.erase(at(test_tree, minor_index));
 				if (test_tree.empty()) {
-					test_data.erase(test_data.begin() + major_index);
+					_test_data.erase(_test_data.begin() + major_index);
 				}
 				// reference
-				auto &ref_arr = reference_data[major_index];
+				auto &ref_arr = _reference_data[major_index];
 				ref_arr.erase(ref_arr.begin() + minor_index);
 				if (ref_arr.empty()) {
-					reference_data.erase(reference_data.begin() + major_index);
+					_reference_data.erase(_reference_data.begin() + major_index);
 				}
 			}
 			break;
 		case operations::erase_subtree:
 			{
-				logger::get().log_info(CP_HERE) << "op erase_subtree";
-				std::size_t major_index = random_index(reference_data, random);
-				std::size_t minor_index_beg = random_index(reference_data[major_index], random);
-				std::size_t minor_index_end = random_index(reference_data[major_index], random);
+				std::size_t major_index = random_index(_reference_data, rng);
+				std::size_t minor_index_beg = random_index(_reference_data[major_index], rng);
+				std::size_t minor_index_end = random_index(_reference_data[major_index], rng);
 				if (minor_index_beg > minor_index_end) {
 					std::swap(minor_index_beg, minor_index_end);
 				}
 				++minor_index_end; // move past the end
 				// test
-				auto &test_tree = test_data[major_index];
+				auto &test_tree = _test_data[major_index];
 				auto beg_it = at(test_tree, minor_index_beg), end_it = at(test_tree, minor_index_end);
 				test_tree.erase(beg_it, end_it);
 				if (test_tree.empty()) {
-					test_data.erase(test_data.begin() + major_index);
+					_test_data.erase(_test_data.begin() + major_index);
 				}
 				// reference
-				auto &ref_arr = reference_data[major_index];
+				auto &ref_arr = _reference_data[major_index];
 				ref_arr.erase(ref_arr.begin() + minor_index_beg, ref_arr.begin() + minor_index_end);
 				if (ref_arr.empty()) {
-					reference_data.erase(reference_data.begin() + major_index);
+					_reference_data.erase(_reference_data.begin() + major_index);
 				}
 			}
 			break;
 
 		case operations::split:
 			{
-				logger::get().log_info(CP_HERE) << "op split";
-				std::size_t major_index = random_index(reference_data, random);
-				std::size_t minor_index = random_index(reference_data[major_index], random);
+				std::size_t major_index = random_index(_reference_data, rng);
+				std::size_t minor_index = random_index(_reference_data[major_index], rng);
 				// test
-				auto &test_tree = test_data[major_index];
+				auto &test_tree = _test_data[major_index];
 				auto iter = at(test_tree, minor_index);
 				auto [left_tree, mid, right_tree] = std::move(test_tree).split_at(iter);
 				if (right_tree.empty()) {
-					test_data.erase(test_data.begin() + major_index);
+					_test_data.erase(_test_data.begin() + major_index);
 				} else {
-					test_data[major_index] = std::move(right_tree);
+					_test_data[major_index] = std::move(right_tree);
 				}
 				if (!left_tree.empty()) {
-					test_data.insert(test_data.begin() + major_index, std::move(left_tree));
+					_test_data.insert(_test_data.begin() + major_index, std::move(left_tree));
 				}
 				delete mid;
 				// reference
-				auto &ref_arr = reference_data[major_index];
+				auto &ref_arr = _reference_data[major_index];
 				std::vector<int> second(ref_arr.begin() + (minor_index + 1), ref_arr.end());
 				ref_arr.erase(ref_arr.begin() + minor_index, ref_arr.end());
 				if (!second.empty()) {
-					reference_data.insert(reference_data.begin() + major_index + 1, std::move(second));
+					_reference_data.insert(_reference_data.begin() + major_index + 1, std::move(second));
 				}
-				if (reference_data[major_index].empty()) {
-					reference_data.erase(reference_data.begin() + major_index);
+				if (_reference_data[major_index].empty()) {
+					_reference_data.erase(_reference_data.begin() + major_index);
 				}
 			}
 			break;
 		case operations::join:
 			{
-				logger::get().log_info(CP_HERE) << "op join";
-				if (reference_data.size() < 2) {
-					logger::get().log_info(CP_HERE) << "too few trees, cannot join";
-					continue;
+				if (_reference_data.size() < 2) {
+					return;
 				}
 
-				auto index = random_between<std::size_t>(0, reference_data.size() - 2, random);
-				int merge_value = random();
+				auto index = random_between<std::size_t>(0, _reference_data.size() - 2, rng);
+				int merge_value = rng();
 				// test
 				tree new_tree = tree::join_trees(
-					std::move(test_data[index]), std::move(test_data[index + 1]), merge_value
+					std::move(_test_data[index]), std::move(_test_data[index + 1]), merge_value
 				);
-				test_data[index] = std::move(new_tree);
-				test_data.erase(test_data.begin() + (index + 1));
+				_test_data[index] = std::move(new_tree);
+				_test_data.erase(_test_data.begin() + (index + 1));
 				// reference
-				reference_data[index].emplace_back(merge_value);
-				reference_data[index].insert(
-					reference_data[index].end(), reference_data[index + 1].begin(), reference_data[index + 1].end()
+				_reference_data[index].emplace_back(merge_value);
+				_reference_data[index].insert(
+					_reference_data[index].end(), _reference_data[index + 1].begin(), _reference_data[index + 1].end()
 				);
-				reference_data.erase(reference_data.begin() + (index + 1));
+				_reference_data.erase(_reference_data.begin() + (index + 1));
 			}
 			break;
 
 		default:
-			assert_true_logical(false, "invalid operation");
+			cp::assert_true_logical(false, "invalid operation");
 		}
 
 		// check that all data are consistent
-		for (tree &t : test_data) {
+		for (tree &t : _test_data) {
 			t.check_integrity();
 		}
-		assert_true_logical(test_data.size() == reference_data.size(), "number of trees different from ref");
-		for (std::size_t i = 0; i < test_data.size(); ++i) {
-			const tree &t = test_data[i];
-			const auto &ref = reference_data[i];
+		cp::assert_true_logical(_test_data.size() == _reference_data.size(), "number of trees different from ref");
+		for (std::size_t i = 0; i < _test_data.size(); ++i) {
+			const tree &t = _test_data[i];
+			const auto &ref = _reference_data[i];
 
-			assert_true_logical(t.root() != nullptr, "empty array in list");
-			assert_true_logical(t.root()->synth_data.num_nodes == ref.size(), "different number of elements");
+			cp::assert_true_logical(t.root() != nullptr, "empty array in list");
+			cp::assert_true_logical(t.root()->synth_data.num_nodes == ref.size(), "different number of elements");
 
 			{ // check synth data
 				std::stack<const tree::node*> nodes;
@@ -303,22 +283,25 @@ int main(int argc, char **argv) {
 						size += n->right->synth_data.num_nodes;
 						nodes.emplace(n->right);
 					}
-					assert_true_logical(size == n->synth_data.num_nodes, "incorrect synth data");
+					cp::assert_true_logical(size == n->synth_data.num_nodes, "incorrect synth data");
 				}
 			}
 
 			{ // check actual data
 				auto it = t.begin();
 				for (int val : ref) {
-					assert_true_logical(it->value == val, "incorrect value");
+					cp::assert_true_logical(it->value == val, "incorrect value");
 					++it;
 				}
 			}
 		}
-
-		++op_index;
 	}
+protected:
+	std::vector<tree> _test_data; ///< Trees used for testing.
+	std::vector<std::vector<int>> _reference_data; ///< Reference data.
+};
 
-	logger::get().log_info(CP_HERE) << "exiting normally";
-	return 0;
+/// Entry point of the game.
+int main(int argc, char **argv) {
+	return cp::fuzz_test::main(argc, argv, std::make_unique<red_black_tree_test>());
 }

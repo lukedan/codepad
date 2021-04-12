@@ -39,6 +39,7 @@ target_sources(codepad_core
 		"include/codepad/core/color.h"
 		"include/codepad/core/encodings.h"
 		"include/codepad/core/event.h"
+		"include/codepad/core/fuzz_test.h"
 		"include/codepad/core/intrusive_priority_queue.h"
 		"include/codepad/core/json_parsers.inl"
 		"include/codepad/core/logger_sinks.h"

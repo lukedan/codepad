@@ -9,16 +9,10 @@
 #include <random>
 #include <atomic>
 
-#include <codepad/core/logger_sinks.h>
+#include <codepad/core/fuzz_test.h>
 #include <codepad/editors/overlapping_range_registry.h>
 
-using namespace codepad;
-using namespace codepad::editors;
-
-std::atomic_bool keep_running; ///< This is set to \p false if SIGINT is encountered.
-
-/// Uniform real distribution between 0 and 1 used for operations with specific probabilities.
-std::uniform_real_distribution<double> prob_dist(0.0, 1.0);
+namespace cp = codepad;
 
 using test_t = int; ///< Value type used for testing.
 
@@ -55,79 +49,70 @@ enum class test_op : unsigned char {
 	max_enum ///< Maximum value of this enum; used for random number generation.
 };
 
+std::uniform_int_distribution<test_t> value_dist(
+	std::numeric_limits<test_t>::min(), std::numeric_limits<test_t>::max()
+); ///< Distribution of random values associated with each range.
+std::uniform_int_distribution<std::size_t>
+	insert_count_dist(500, 2000), ///< Distribution of the number of inserted ranges.
+	erase_count_dist(100, 1000), ///< Distribution of the number of erased ranges.
+
+	position_dist(0, 10000), ///< Distribution of the positions of inserted ranges.
+	length_dist(0, 3000), ///< Distribution of the lengths of inserted ranges.
+
+	point_query_position_dist(0, 15000), ///< Distribution of the position of point queries.
+	range_query_position_dist(0, 15000), ///< Distribution of the starting position of range queries.
+	range_query_length_dist(0, 5000), ///< Distribution of the length of range queries.
+	modification_position_dist(0, 15000), ///< Distribution of modification starting positions.
+	modification_length_dist(0, 5000), ///< Distribution of modification lengths.
+
+	op_dist(0, static_cast<std::size_t>(test_op::max_enum) - 1); ///< Distribution of test operations.
+
 constexpr std::size_t max_num_ranges = 100000; ///< The maximum number of ranges before no new ranges can be added.
 
-/// Entry point of the test.
-int main(int argc, char **argv) {
-	// this enables us to terminate normally and check if there are any memory leaks
-	keep_running = true;
-	std::signal(SIGINT, [](int) {
-		keep_running = false;
-		});
+/// The fuzz test class.
+class overlapping_range_test : public cp::fuzz_test {
+public:
+	/// Returns the name of this test.
+	std::u8string_view get_name() const override {
+		return u8"overlapping_range_test";
+	}
 
-	auto global_log = std::make_unique<logger>();
-	global_log->sinks.emplace_back(std::make_unique<logger_sinks::console_sink>());
-	global_log->sinks.emplace_back(std::make_unique<logger_sinks::file_sink>("overlapping_range_test.log"));
-	logger::set_current(std::move(global_log));
+	/// Logs the number of ranges.
+	void log_status(cp::logger::log_entry &entry) const override {
+		entry << "Num ranges: " << _reference.size();
+	}
 
-	initialize(argc, argv);
-
-	std::default_random_engine eng(123456);
-	std::uniform_int_distribution<std::size_t>
-		insert_count_dist(500, 2000),
-		erase_count_dist(100, 1000),
-
-		position_dist(0, 10000),
-		length_dist(0, 3000),
-
-		point_query_position_dist(0, 15000),
-		range_query_position_dist(0, 15000),
-		range_query_length_dist(0, 5000),
-		modification_position_dist(0, 15000),
-		modification_length_dist(0, 5000),
-
-		op_dist(0, static_cast<std::size_t>(test_op::max_enum) - 1);
-	std::uniform_int_distribution<int> bool_dist(0, 1);
-	std::uniform_int_distribution<test_t> value_dist(
-		std::numeric_limits<test_t>::min(), std::numeric_limits<test_t>::max()
-	);
-
-	overlapping_range_registry<test_t> ranges;
-	std::vector<range> reference;
-
-	for (std::size_t idx = 0; keep_running; ++idx) {
-		logger::get().log_info(CP_HERE) << "iteration " << idx << ", num ranges: " << reference.size();
-
+	/// Runs one iteration of this test.
+	void iterate() override {
 		bool has_error = false;
 		auto error = [&]() {
 			has_error = true;
-			return logger::get().log_error(CP_HERE);
+			return cp::logger::get().log_error(CP_HERE);
 		};
 
 		bool is_modification = false;
-		auto op = static_cast<test_op>(op_dist(eng));
+		auto op = static_cast<test_op>(op_dist(rng));
 		switch (op) {
 		case test_op::insert_ranges_before:
-			if (reference.size() < max_num_ranges) {
-				std::size_t count = insert_count_dist(eng);
-				logger::get().log_debug(CP_HERE) << "inserting before " << count << " ranges";
+			if (_reference.size() < max_num_ranges) {
+				std::size_t count = insert_count_dist(rng);
 				for (std::size_t i = 0; i < count; ++i) {
-					range rng;
-					rng.begin = position_dist(eng);
-					rng.length = length_dist(eng);
-					rng.value = value_dist(eng);
+					range insert_rng;
+					insert_rng.begin = position_dist(rng);
+					insert_rng.length = length_dist(rng);
+					insert_rng.value = value_dist(rng);
 
-					ranges.insert_range_before(rng.begin, rng.length, rng.value);
+					_ranges.insert_range_before(insert_rng.begin, insert_rng.length, insert_rng.value);
 					bool inserted = false;
-					for (auto iter = reference.begin(); iter != reference.end(); ++iter) {
-						if (iter->begin >= rng.begin) {
+					for (auto iter = _reference.begin(); iter != _reference.end(); ++iter) {
+						if (iter->begin >= insert_rng.begin) {
 							inserted = true;
-							reference.insert(iter, rng);
+							_reference.insert(iter, insert_rng);
 							break;
 						}
 					}
 					if (!inserted) {
-						reference.emplace_back(rng);
+						_reference.emplace_back(insert_rng);
 					}
 				}
 				is_modification = true;
@@ -135,26 +120,25 @@ int main(int argc, char **argv) {
 			// otherwise there are too many ranges; don't insert
 			break;
 		case test_op::insert_ranges_after:
-			if (reference.size() < max_num_ranges) {
-				std::size_t count = insert_count_dist(eng);
-				logger::get().log_debug(CP_HERE) << "inserting after " << count << " ranges";
+			if (_reference.size() < max_num_ranges) {
+				std::size_t count = insert_count_dist(rng);
 				for (std::size_t i = 0; i < count; ++i) {
-					range rng;
-					rng.begin = position_dist(eng);
-					rng.length = length_dist(eng);
-					rng.value = value_dist(eng);
+					range insert_rng;
+					insert_rng.begin = position_dist(rng);
+					insert_rng.length = length_dist(rng);
+					insert_rng.value = value_dist(rng);
 
-					ranges.insert_range_after(rng.begin, rng.length, rng.value);
+					_ranges.insert_range_after(insert_rng.begin, insert_rng.length, insert_rng.value);
 					bool inserted = false;
-					for (auto iter = reference.begin(); iter != reference.end(); ++iter) {
-						if (iter->begin > rng.begin) {
+					for (auto iter = _reference.begin(); iter != _reference.end(); ++iter) {
+						if (iter->begin > insert_rng.begin) {
 							inserted = true;
-							reference.insert(iter, rng);
+							_reference.insert(iter, insert_rng);
 							break;
 						}
 					}
 					if (!inserted) {
-						reference.emplace_back(rng);
+						_reference.emplace_back(insert_rng);
 					}
 				}
 				is_modification = true;
@@ -164,32 +148,31 @@ int main(int argc, char **argv) {
 		case test_op::erase_ranges:
 			{
 				// generate indices
-				std::size_t count = std::min(erase_count_dist(eng), reference.size());
-				std::uniform_int_distribution<std::size_t> id_dist(0, reference.size() - 1);
+				std::size_t count = std::min(erase_count_dist(rng), _reference.size());
+				std::uniform_int_distribution<std::size_t> id_dist(0, _reference.size() - 1);
 				std::vector<std::size_t> indices;
 				indices.reserve(count);
 				for (std::size_t i = 0; i < count; ++i) {
-					indices.emplace_back(id_dist(eng));
+					indices.emplace_back(id_dist(rng));
 				}
 				std::sort(indices.begin(), indices.end());
 				indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-				logger::get().log_debug(CP_HERE) << "erasing " << indices.size() << " ranges";
-				
+
 				// erase from ranges
-				auto it = ranges.begin();
+				auto it = _ranges.begin();
 				auto erase_index = indices.begin();
-				for (std::size_t i = 0; it != ranges.end() && erase_index != indices.end(); ++i) {
+				for (std::size_t i = 0; it != _ranges.end() && erase_index != indices.end(); ++i) {
 					auto current_it = it;
 					++it;
 					if (i == *erase_index) {
-						ranges.erase(current_it);
+						_ranges.erase(current_it);
 						++erase_index;
 					}
 				}
 
 				// erase from reference
 				for (std::size_t i = 0; i < indices.size(); ++i) {
-					reference.erase(reference.begin() + (indices[i] - i));
+					_reference.erase(_reference.begin() + (indices[i] - i));
 				}
 
 				is_modification = true;
@@ -197,20 +180,18 @@ int main(int argc, char **argv) {
 			}
 		case test_op::on_modification:
 			{
-				std::size_t pos = modification_position_dist(eng);
-				std::size_t erase_len = modification_length_dist(eng);
-				std::size_t insert_len = modification_length_dist(eng);
-				logger::get().log_debug(CP_HERE) <<
-					"modification at " << pos << " -" << erase_len << " +" << insert_len;
+				std::size_t pos = modification_position_dist(rng);
+				std::size_t erase_len = modification_length_dist(rng);
+				std::size_t insert_len = modification_length_dist(rng);
 
-				ranges.on_modification(pos, erase_len, insert_len);
+				_ranges.on_modification(pos, erase_len, insert_len);
 
 				// update reference
 				std::size_t
 					erase_end = pos + erase_len,
 					insert_end = pos + insert_len,
 					insert_diff = insert_len - erase_len;
-				for (auto iter = reference.begin(); iter != reference.end(); ) {
+				for (auto iter = _reference.begin(); iter != _reference.end(); ) {
 					std::size_t iter_end = iter->begin + iter->length;
 					if (iter->begin < pos) {
 						if (iter_end > pos) {
@@ -222,7 +203,7 @@ int main(int argc, char **argv) {
 						}
 					} else {
 						if (iter_end <= erase_end) {
-							iter = reference.erase(iter);
+							iter = _reference.erase(iter);
 							continue;
 						} else if (iter->begin < erase_end) {
 							iter->length -= erase_end - iter->begin;
@@ -240,13 +221,11 @@ int main(int argc, char **argv) {
 
 		case test_op::query_first_ending_after:
 			{
-				std::size_t position = point_query_position_dist(eng);
-				logger::get().log_debug(CP_HERE) << "\"first ending after\" query at " << position;
-
-				auto result = ranges.find_first_range_ending_after(position);
-				range rng;
-				if (result.get_iterator() != ranges.end()) {
-					rng = range(
+				std::size_t position = point_query_position_dist(rng);
+				auto result = _ranges.find_first_range_ending_after(position);
+				range insert_rng;
+				if (result.get_iterator() != _ranges.end()) {
+					insert_rng = range(
 						result.get_range_start(),
 						result.get_iterator()->length,
 						result.get_iterator()->value
@@ -254,16 +233,16 @@ int main(int argc, char **argv) {
 				}
 
 				bool found = false;
-				for (auto ref_iter = reference.begin(); ref_iter != reference.end(); ++ref_iter) {
+				for (auto ref_iter = _reference.begin(); ref_iter != _reference.end(); ++ref_iter) {
 					if (ref_iter->begin + ref_iter->length > position) {
-						if (*ref_iter != rng) {
+						if (*ref_iter != insert_rng) {
 							error() << "incorrect \"first after \" query result";
 						}
 						found = true;
 						break;
 					}
 				}
-				if (found == (result.get_iterator() == ranges.end())) {
+				if (found == (result.get_iterator() == _ranges.end())) {
 					error() << "incorrect \"first after \" query result";
 				}
 
@@ -271,23 +250,21 @@ int main(int argc, char **argv) {
 			}
 		case test_op::query_point:
 			{
-				std::size_t position = point_query_position_dist(eng);
-				logger::get().log_debug(CP_HERE) << "point query at " << position;
-
+				std::size_t position = point_query_position_dist(rng);
 				std::vector<range> found_ranges;
-				auto result = ranges.find_intersecting_ranges(position);
+				auto result = _ranges.find_intersecting_ranges(position);
 				while (result.begin.get_iterator() != result.end.get_iterator()) {
 					found_ranges.emplace_back(
 						result.begin.get_range_start(),
 						result.begin.get_iterator()->length,
 						result.begin.get_iterator()->value
 					);
-					result.begin = ranges.find_next_range_ending_at_or_after(position, result.begin);
+					result.begin = _ranges.find_next_range_ending_at_or_after(position, result.begin);
 				}
 
 				// check the results
 				auto iter = found_ranges.begin();
-				for (auto ref_iter = reference.begin(); ref_iter != reference.end(); ++ref_iter) {
+				for (auto ref_iter = _reference.begin(); ref_iter != _reference.end(); ++ref_iter) {
 					if (ref_iter->begin <= position && ref_iter->begin + ref_iter->length >= position) {
 						if (iter == found_ranges.end()) {
 							error() << "ranges missed by a point query";
@@ -307,20 +284,18 @@ int main(int argc, char **argv) {
 			}
 		case test_op::query_range:
 			{
-				std::size_t position = range_query_position_dist(eng);
-				std::size_t length = range_query_length_dist(eng);
+				std::size_t position = range_query_position_dist(rng);
+				std::size_t length = range_query_length_dist(rng);
 				std::size_t end = position + length;
-				logger::get().log_debug(CP_HERE) << "range query [" << position << ", " << end << "]";
-
 				std::vector<range> found_ranges;
-				auto result = ranges.find_intersecting_ranges(position, end);
+				auto result = _ranges.find_intersecting_ranges(position, end);
 				while (result.before_begin.get_iterator() != result.begin.get_iterator()) {
 					found_ranges.emplace_back(
 						result.before_begin.get_range_start(),
 						result.before_begin.get_iterator()->length,
 						result.before_begin.get_iterator()->value
 					);
-					result.before_begin = ranges.find_next_range_ending_at_or_after(position, result.before_begin);
+					result.before_begin = _ranges.find_next_range_ending_at_or_after(position, result.before_begin);
 				}
 				while (result.begin.get_iterator() != result.end.get_iterator()) {
 					found_ranges.emplace_back(
@@ -333,7 +308,7 @@ int main(int argc, char **argv) {
 
 				// check the results
 				auto iter = found_ranges.begin();
-				for (auto ref_iter = reference.begin(); ref_iter != reference.end(); ++ref_iter) {
+				for (auto ref_iter = _reference.begin(); ref_iter != _reference.end(); ++ref_iter) {
 					if (ref_iter->begin <= end && ref_iter->begin + ref_iter->length >= position) {
 						if (iter == found_ranges.end()) {
 							error() << "ranges missed by a range query";
@@ -355,36 +330,36 @@ int main(int argc, char **argv) {
 
 		// validate
 		if (is_modification) {
-			auto iter = ranges.begin_position();
-			auto ref_iter = reference.begin();
-			while (iter.get_iterator() != ranges.end() && ref_iter != reference.end()) {
+			auto iter = _ranges.begin_position();
+			auto ref_iter = _reference.begin();
+			while (iter.get_iterator() != _ranges.end() && ref_iter != _reference.end()) {
 				if (iter.get_range_start() != ref_iter->begin) {
-					error() << "position " << ref_iter - reference.begin() << ": incorrect begin position";
+					error() << "position " << ref_iter - _reference.begin() << ": incorrect begin position";
 				}
 				if (iter.get_iterator()->length != ref_iter->length) {
-					error() << "position " << ref_iter - reference.begin() << ": incorrect length";
+					error() << "position " << ref_iter - _reference.begin() << ": incorrect length";
 				}
 				if (iter.get_iterator()->value != ref_iter->value) {
-					error() << "position " << ref_iter - reference.begin() << ": incorrect length";
+					error() << "position " << ref_iter - _reference.begin() << ": incorrect length";
 				}
 				iter.move_next();
 				++ref_iter;
 			}
-			if (iter.get_iterator() != ranges.end()) {
+			if (iter.get_iterator() != _ranges.end()) {
 				error() << "more ranges than reference";
-			} else if (ref_iter != reference.end()) {
+			} else if (ref_iter != _reference.end()) {
 				error() << "less ranges than reference";
 			}
-
-			/*auto entry = std::move(logger::get().log_debug(CP_HERE) << "ranges:\n");
-			for (const auto &rng : reference) {
-				entry << "  [" << rng.begin << ", " << rng.begin + rng.length << ") - <" << rng.value << ">\n";
-			}*/
 		}
 
-		assert_true_logical(!has_error, "errorneous range implementation");
+		cp::assert_true_logical(!has_error, "errorneous range implementation");
 	}
+protected:
+	cp::editors::overlapping_range_registry<test_t> _ranges; ///< Ranges.
+	std::vector<range> _reference; ///< Reference ranges.
+};
 
-	logger::get().log_info(CP_HERE) << "exiting normally";
-	return 0;
+/// Entry point of the test.
+int main(int argc, char **argv) {
+	return cp::fuzz_test::main(argc, argv, std::make_unique<overlapping_range_test>());
 }
