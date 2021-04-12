@@ -77,6 +77,11 @@ namespace codepad::editors {
 				_pos += _iter->get_total_offset();
 				++_iter;
 			}
+			/// Moves to the previous iterator.
+			void move_prev() {
+				--_iter;
+				_pos -= _iter->get_total_offset();
+			}
 
 			/// Returns \ref _iter.
 			[[nodiscard]] const iterator &get_iterator() const {
@@ -103,6 +108,13 @@ namespace codepad::editors {
 			iterator _iter; ///< The iterator.
 			std::size_t _pos = 0; ///< The end position of the previous caret, or 0 if this is the first caret.
 		};
+		/// Result of a range query.
+		struct range_query_result {
+			iterator_position first; ///< Iterator to the first caret that ends at or after the range.
+			/// Iterator to the last caret that ends after the range. Note that this is different from the convention
+			/// where the `end' iterator points to one element past the end.
+			iterator_position last;
+		};
 
 		/// Default virtual destructor.
 		virtual ~caret_set_base() = default;
@@ -119,7 +131,9 @@ namespace codepad::editors {
 		void remove(iterator it) {
 			std::size_t total_offset = it->get_total_offset();
 			it = carets.erase(it);
-			carets.get_modifier_for(it.get_node())->caret.selection_begin += total_offset;
+			if (it != carets.end()) {
+				carets.get_modifier_for(it.get_node())->caret.selection_begin += total_offset;
+			}
 		}
 
 		/// Resets the contents of this caret set, leaving only one caret at the beginning of the buffer.
@@ -150,11 +164,19 @@ namespace codepad::editors {
 			return result;
 		}
 
+		/// Finds all carets that intersects with the given range.
+		[[nodiscard]] range_query_result find_intersecting_ranges(std::size_t beg, std::size_t end) const {
+			range_query_result result;
+			result.first = find_first_ending_at_or_after(beg);
+			result.last = find_first_ending_after(end);
+			return result;
+		}
+
 
 		/// Adds a caret to the given container, merging it with existing ones when necessary. Any caret whose
-		/// selection intersects the selection of this caret will be merged into this caret. If two carets touch,
-		/// then they're *not* merged only if they both have selections. Merging doesn't change the position of the
-		/// caret.
+		/// selection intersects the selection of this caret will be merged into this caret. If two carets touch
+		/// each other, then they're *not* merged only if they both have selections. Merging doesn't change the
+		/// position of the caret.
 		///
 		/// \param cont The container.
 		/// \param et The caret to be added to the container.
@@ -163,58 +185,62 @@ namespace codepad::editors {
 		inline static std::pair<iterator_position, bool> add_caret_to(
 			caret_set_base &set, ui::caret_selection caret, Data data
 		) {
+			auto range = set.find_intersecting_ranges(caret.selection_begin, caret.get_selection_end());
+			std::size_t selection_end = caret.get_selection_end();
+
 			// find merged carets & compute actual inserted caret
-			bool has_selection = caret.has_selection();
-			std::size_t range_end = caret.get_selection_end();
-			auto first_merge = set.find_first_ending_at_or_after(caret.selection_begin);
-			if (first_merge.get_iterator() != set.carets.end()) {
-				auto first_isect = first_merge.get_caret_selection();
-				if (
-					first_isect.get_selection_end() == caret.selection_begin &&
-					has_selection && first_isect.has_selection()
-				) {
-					first_merge.move_next(); // not merged: touching carets both have selections
+			std::size_t new_beg = caret.selection_begin, new_end = selection_end;
+			if (caret.has_selection()) {
+				// if two selections are touching, don't merge
+				if (range.first.get_iterator() != set.carets.end()) {
+					if (
+						range.first.get_iterator()->caret.has_selection() &&
+						range.first.get_caret_selection().get_selection_end() == caret.selection_begin
+					) {
+						range.first.move_next();
+					}
 				}
 			}
-			std::size_t new_beg = caret.selection_begin, new_end = range_end;
-			auto last_merge = first_merge;
-			for (; last_merge.get_iterator() != set.carets.end(); last_merge.move_next()) {
-				auto cur_isect = last_merge.get_caret_selection();
-				if (cur_isect.selection_begin > range_end) {
-					break;
+			if (range.first.get_iterator() != set.carets.end()) {
+				new_beg = std::min(new_beg, range.first.get_selection_begin());
+			}
+			if (range.last.get_iterator() != set.carets.end()) {
+				auto caret_sel = range.last.get_caret_selection();
+				if (caret_sel.selection_begin < selection_end || (
+					caret_sel.selection_begin == selection_end &&
+					!(caret.has_selection() && caret_sel.has_selection())
+				)) {
+					new_end = std::max(new_end, caret_sel.get_selection_end());
+					range.last.move_next();
 				}
-				if (cur_isect.selection_begin == range_end && has_selection && cur_isect.has_selection()) {
-					break; // not merged: touching carets both have selections
-				}
-				// compute the merged selection in the process
-				new_beg = std::min(new_beg, cur_isect.selection_begin);
-				new_end = std::max(new_end, cur_isect.get_selection_end());
 			}
 
-			// erase any merged carets
-			bool has_merged = first_merge.get_iterator() != last_merge.get_iterator();
+			bool has_merged = range.first.get_iterator() != range.last.get_iterator();
 			std::size_t erased_offset = 0;
 			if (has_merged) {
-				erased_offset = last_merge.get_total_offset() - first_merge.get_total_offset();
-				set.carets.erase(first_merge.get_iterator(), last_merge.get_iterator());
-			} // do not use first_merge._iter after this point
-
-			// update the affected offset
-			if (last_merge.get_iterator() != set.carets.end()) {
-				set.carets.get_modifier_for(last_merge.get_iterator().get_node())->caret.selection_begin =
-					last_merge.get_selection_begin() - new_end;
-			}
-
-			// insert the new caret
-			if (has_merged) {
+				// compute new merged caret_selection
 				caret.caret_offset = caret.selection_begin + caret.caret_offset - new_beg;
 				caret.selection_length = new_end - new_beg;
 				caret.selection_begin = new_beg;
-			}
-			caret.selection_begin -= first_merge.get_total_offset();
-			first_merge._iter = set.carets.emplace_before(last_merge.get_iterator(), std::move(data), caret);
 
-			return { first_merge, has_merged };
+				// erase any merged carets
+				erased_offset = range.last.get_total_offset() - range.first.get_total_offset();
+				set.carets.erase(range.first.get_iterator(), range.last.get_iterator());
+			}
+
+			// update the affected offset
+			if (range.last.get_iterator() != set.carets.end()) {
+				set.carets.get_modifier_for(range.last.get_iterator().get_node())->caret.selection_begin =
+					range.last.get_selection_begin() - caret.get_selection_end();
+			}
+
+			// insert the new caret
+			caret.selection_begin -= range.first.get_total_offset();
+			iterator_position result;
+			result._iter = set.carets.emplace_before(range.last.get_iterator(), std::move(data), caret);
+			result._pos = range.first.get_total_offset();
+
+			return { result, has_merged };
 		}
 
 		/// Tests if the given position belongs to a selected region. Carets that have no selected regions
