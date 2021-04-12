@@ -49,23 +49,23 @@ enum class test_op : unsigned char {
 	max_enum ///< Maximum value of this enum; used for random number generation.
 };
 
-std::uniform_int_distribution<test_t> value_dist(
+std::pair<test_t, test_t> value_range{
 	std::numeric_limits<test_t>::min(), std::numeric_limits<test_t>::max()
-); ///< Distribution of random values associated with each range.
-std::uniform_int_distribution<std::size_t>
-	insert_count_dist(500, 2000), ///< Distribution of the number of inserted ranges.
-	erase_count_dist(100, 1000), ///< Distribution of the number of erased ranges.
+}; ///< Possible range of random values associated with each range.
+std::pair<std::size_t, std::size_t>
+	insert_count_range{ 500, 2000 }, ///< Possible range of the number of inserted ranges.
+	erase_count_range{ 100, 1000 }, ///< Possible range of the number of erased ranges.
 
-	position_dist(0, 10000), ///< Distribution of the positions of inserted ranges.
-	length_dist(0, 3000), ///< Distribution of the lengths of inserted ranges.
+	position_range{ 0, 10000 }, ///< Possible range of the positions of inserted ranges.
+	length_range{ 0, 3000 }, ///< Possible range of the lengths of inserted ranges.
 
-	point_query_position_dist(0, 15000), ///< Distribution of the position of point queries.
-	range_query_position_dist(0, 15000), ///< Distribution of the starting position of range queries.
-	range_query_length_dist(0, 5000), ///< Distribution of the length of range queries.
-	modification_position_dist(0, 15000), ///< Distribution of modification starting positions.
-	modification_length_dist(0, 5000), ///< Distribution of modification lengths.
+	point_query_position_range{ 0, 15000 }, ///< Possible range of the position of point queries.
+	range_query_position_range{ 0, 15000 }, ///< Possible range of the starting position of range queries.
+	range_query_length_range{ 0, 5000 }, ///< Possible range of the length of range queries.
+	modification_position_range{ 0, 15000 }, ///< Possible range of modification starting positions.
+	modification_length_range{ 0, 5000 }, ///< Possible range of modification lengths.
 
-	op_dist(0, static_cast<std::size_t>(test_op::max_enum) - 1); ///< Distribution of test operations.
+	op_range{ 0, static_cast<std::size_t>(test_op::max_enum) - 1 }; ///< Possible range of test operations.
 
 constexpr std::size_t max_num_ranges = 100000; ///< The maximum number of ranges before no new ranges can be added.
 
@@ -91,16 +91,16 @@ public:
 		};
 
 		bool is_modification = false;
-		auto op = static_cast<test_op>(op_dist(rng));
+		auto op = static_cast<test_op>(random_int(op_range));
 		switch (op) {
 		case test_op::insert_ranges_before:
 			if (_reference.size() < max_num_ranges) {
-				std::size_t count = insert_count_dist(rng);
+				std::size_t count = random_int(insert_count_range);
 				for (std::size_t i = 0; i < count; ++i) {
 					range insert_rng;
-					insert_rng.begin = position_dist(rng);
-					insert_rng.length = length_dist(rng);
-					insert_rng.value = value_dist(rng);
+					insert_rng.begin = random_int(position_range);
+					insert_rng.length = random_int(length_range);
+					insert_rng.value = random_int(value_range);
 
 					_ranges.insert_range_before(insert_rng.begin, insert_rng.length, insert_rng.value);
 					bool inserted = false;
@@ -121,12 +121,12 @@ public:
 			break;
 		case test_op::insert_ranges_after:
 			if (_reference.size() < max_num_ranges) {
-				std::size_t count = insert_count_dist(rng);
+				std::size_t count = random_int(insert_count_range);
 				for (std::size_t i = 0; i < count; ++i) {
 					range insert_rng;
-					insert_rng.begin = position_dist(rng);
-					insert_rng.length = length_dist(rng);
-					insert_rng.value = value_dist(rng);
+					insert_rng.begin = random_int(position_range);
+					insert_rng.length = random_int(length_range);
+					insert_rng.value = random_int(value_range);
 
 					_ranges.insert_range_after(insert_rng.begin, insert_rng.length, insert_rng.value);
 					bool inserted = false;
@@ -148,12 +148,12 @@ public:
 		case test_op::erase_ranges:
 			{
 				// generate indices
-				std::size_t count = std::min(erase_count_dist(rng), _reference.size());
-				std::uniform_int_distribution<std::size_t> id_dist(0, _reference.size() - 1);
+				std::size_t count = std::min(random_int(erase_count_range), _reference.size());
+				std::pair<std::size_t, std::size_t> id_range{ 0, _reference.size() - 1 };
 				std::vector<std::size_t> indices;
 				indices.reserve(count);
 				for (std::size_t i = 0; i < count; ++i) {
-					indices.emplace_back(id_dist(rng));
+					indices.emplace_back(random_int(id_range));
 				}
 				std::sort(indices.begin(), indices.end());
 				indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
@@ -180,9 +180,9 @@ public:
 			}
 		case test_op::on_modification:
 			{
-				std::size_t pos = modification_position_dist(rng);
-				std::size_t erase_len = modification_length_dist(rng);
-				std::size_t insert_len = modification_length_dist(rng);
+				std::size_t pos = random_int(modification_position_range);
+				std::size_t erase_len = random_int(modification_length_range);
+				std::size_t insert_len = random_int(modification_length_range);
 
 				_ranges.on_modification(pos, erase_len, insert_len);
 
@@ -221,7 +221,7 @@ public:
 
 		case test_op::query_first_ending_after:
 			{
-				std::size_t position = point_query_position_dist(rng);
+				std::size_t position = random_int(point_query_position_range);
 				auto result = _ranges.find_first_range_ending_after(position);
 				range insert_rng;
 				if (result.get_iterator() != _ranges.end()) {
@@ -250,7 +250,7 @@ public:
 			}
 		case test_op::query_point:
 			{
-				std::size_t position = point_query_position_dist(rng);
+				std::size_t position = random_int(point_query_position_range);
 				std::vector<range> found_ranges;
 				auto result = _ranges.find_intersecting_ranges(position);
 				while (result.begin.get_iterator() != result.end.get_iterator()) {
@@ -284,8 +284,8 @@ public:
 			}
 		case test_op::query_range:
 			{
-				std::size_t position = range_query_position_dist(rng);
-				std::size_t length = range_query_length_dist(rng);
+				std::size_t position = random_int(range_query_position_range);
+				std::size_t length = random_int(range_query_length_range);
 				std::size_t end = position + length;
 				std::vector<range> found_ranges;
 				auto result = _ranges.find_intersecting_ranges(position, end);

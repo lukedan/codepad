@@ -49,7 +49,7 @@ using tree = cp::red_black_tree::tree<
 >;
 
 /// Builds a tree from the given integers.
-tree build_tree(const std::vector<int> &values) {
+[[nodiscard]] tree build_tree(const std::vector<int> &values) {
 	tree result;
 	for (int x : values) {
 		result.emplace_before(result.end(), x);
@@ -57,7 +57,7 @@ tree build_tree(const std::vector<int> &values) {
 	return result;
 }
 /// Returns an iterator to the node in the tree at the given index.
-tree::const_iterator at(const tree &t, std::size_t index) {
+[[nodiscard]] tree::const_iterator at(const tree &t, std::size_t index) {
 	return t.find(cp::sum_synthesizer::index_finder<synth_data::num_nodes_property>(), index);
 }
 
@@ -74,28 +74,10 @@ enum class operations : unsigned char {
 	max_index ///< Total number of operations.
 };
 
-/// Generates a random number in the given *closed* interval.
-template <typename T, typename Random> T random_between(T min, T max, Random &&r) {
-	using _type = std::decay_t<T>;
-	if constexpr (std::is_floating_point_v<_type>) {
-		std::uniform_real_distribution<_type> dist(min, max);
-		return dist(std::forward<Random>(r));
-	} else {
-		std::uniform_int_distribution<_type> dist(min, max);
-		return dist(std::forward<Random>(r));
-	}
-}
-/// Generates a random index within the given \p std::vector.
-template <typename T, typename Random> std::size_t random_index(const std::vector<T> &vec, Random &&r) {
-	return random_between<std::size_t>(0, vec.size() - 1, std::forward<Random>(r));
-}
-/// Generates a random index within or at the end of the given \p std::vector.
-template <typename T, typename Random> std::size_t random_insertion_index(const std::vector<T> &vec, Random &&r) {
-	return random_between<std::size_t>(0, vec.size(), std::forward<Random>(r));
-}
-
-/// Distribution of test operations.
-std::uniform_int_distribution<int> op_distribution(0, static_cast<int>(operations::max_index) - 1);
+/// Possible range of test operations.
+std::pair<int, int> op_range{ 0, static_cast<int>(operations::max_index) - 1 };
+/// The range of the number of inserted elements for each operation.
+std::pair<std::size_t, std::size_t> insert_count_range{1, 1000};
 
 /// The fuzz test class.
 class red_black_tree_test : public cp::fuzz_test {
@@ -107,15 +89,15 @@ public:
 
 	/// Executes one test operation.
 	void iterate() override {
-		auto op = static_cast<operations>(op_distribution(rng));
+		auto op = static_cast<operations>(random_int(op_range));
 		if (_reference_data.empty()) {
 			op = operations::insert_tree;
 		}
 		switch (op) {
 		case operations::insert:
 			{
-				std::size_t major_index = random_index(_reference_data, rng);
-				std::size_t minor_index = random_insertion_index(_reference_data[major_index], rng);
+				std::size_t major_index = random_index(_reference_data);
+				std::size_t minor_index = random_insertion_index(_reference_data[major_index]);
 
 				int test_value = rng();
 				// test
@@ -128,9 +110,9 @@ public:
 			break;
 		case operations::insert_subtree:
 			{
-				std::size_t major_index = random_index(_reference_data, rng);
-				std::size_t minor_index = random_insertion_index(_reference_data[major_index], rng);
-				std::vector<int> test_values(random_between<std::size_t>(1, 1000, rng));
+				std::size_t major_index = random_index(_reference_data);
+				std::size_t minor_index = random_insertion_index(_reference_data[major_index]);
+				std::vector<int> test_values(random_int(insert_count_range));
 				for (int &v : test_values) {
 					v = rng();
 				}
@@ -144,8 +126,8 @@ public:
 			break;
 		case operations::insert_tree:
 			{
-				std::size_t major_index = random_insertion_index(_reference_data, rng);
-				std::vector<int> test_values(random_between<std::size_t>(1, 1000, rng));
+				std::size_t major_index = random_insertion_index(_reference_data);
+				std::vector<int> test_values(random_int(insert_count_range));
 				for (int &v : test_values) {
 					v = rng();
 				}
@@ -158,8 +140,8 @@ public:
 
 		case operations::erase:
 			{
-				std::size_t major_index = random_index(_reference_data, rng);
-				std::size_t minor_index = random_index(_reference_data[major_index], rng);
+				std::size_t major_index = random_index(_reference_data);
+				std::size_t minor_index = random_index(_reference_data[major_index]);
 				// test
 				auto &test_tree = _test_data[major_index];
 				test_tree.erase(at(test_tree, minor_index));
@@ -176,9 +158,9 @@ public:
 			break;
 		case operations::erase_subtree:
 			{
-				std::size_t major_index = random_index(_reference_data, rng);
-				std::size_t minor_index_beg = random_index(_reference_data[major_index], rng);
-				std::size_t minor_index_end = random_index(_reference_data[major_index], rng);
+				std::size_t major_index = random_index(_reference_data);
+				std::size_t minor_index_beg = random_index(_reference_data[major_index]);
+				std::size_t minor_index_end = random_index(_reference_data[major_index]);
 				if (minor_index_beg > minor_index_end) {
 					std::swap(minor_index_beg, minor_index_end);
 				}
@@ -201,8 +183,8 @@ public:
 
 		case operations::split:
 			{
-				std::size_t major_index = random_index(_reference_data, rng);
-				std::size_t minor_index = random_index(_reference_data[major_index], rng);
+				std::size_t major_index = random_index(_reference_data);
+				std::size_t minor_index = random_index(_reference_data[major_index]);
 				// test
 				auto &test_tree = _test_data[major_index];
 				auto iter = at(test_tree, minor_index);
@@ -234,7 +216,7 @@ public:
 					return;
 				}
 
-				auto index = random_between<std::size_t>(0, _reference_data.size() - 2, rng);
+				auto index = random_int<std::size_t>(0, _reference_data.size() - 2);
 				int merge_value = rng();
 				// test
 				tree new_tree = tree::join_trees(
@@ -295,6 +277,16 @@ public:
 				}
 			}
 		}
+	}
+
+
+	/// Generates a random index within the given \p std::vector.
+	template <typename T> [[nodiscard]] std::size_t random_index(const std::vector<T> &vec) {
+		return random_int<std::size_t>(0, vec.size() - 1);
+	}
+	/// Generates a random index within or at the end of the given \p std::vector.
+	template <typename T> [[nodiscard]] std::size_t random_insertion_index(const std::vector<T> &vec) {
+		return random_int<std::size_t>(0, vec.size());
 	}
 protected:
 	std::vector<tree> _test_data; ///< Trees used for testing.

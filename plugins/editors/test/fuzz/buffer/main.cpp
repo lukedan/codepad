@@ -16,110 +16,9 @@
 
 namespace cp = codepad;
 
-std::uniform_real_distribution<double> prob_dist(0.0, 1.0); ///< Uniform distribution between 0 and 1.
-std::uniform_int_distribution<std::size_t>
-	ncarets_dist(1, 100), ///< Distribution of the number of inserted clips.
-	insertlen_dist(0, 3000); ///< Distribution of the length of inserted clips.
-std::uniform_int_distribution<int> bool_dist(0, 1); ///< Boolean distribution.
-
-/// Generates and returns a series of codepoints and encodes them using the given encoding.
-template <typename Rnd> cp::editors::byte_string generate_random_encoded_string(
-	std::size_t length, Rnd &random, const cp::editors::code::buffer_encoding &encoding
-) {
-	std::uniform_int_distribution<cp::codepoint> dist(0, 0x10FFFF - 0x800);
-	std::basic_string<cp::codepoint> str;
-	for (std::size_t i = 0; i < length; ++i) {
-		// 2% possibility to generate a line break character
-		if (prob_dist(random) < 0.02) {
-			double x = prob_dist(random);
-			if (x < 0.3) {
-				str.push_back(U'\r');
-			} else if (x < 0.6) {
-				str.push_back(U'\n');
-			} else {
-				// this means that `length` is just a suggestion, but it doesn't break anything
-				str.push_back(U'\r');
-				str.push_back(U'\n');
-			}
-		} else {
-			cp::codepoint cp = dist(random);
-			if (cp >= 0xD800) {
-				cp += 0x800;
-			}
-			str.push_back(cp);
-		}
-	}
-	cp::editors::byte_string res;
-	for (cp::codepoint cp : str) {
-		res.append(encoding.encode_codepoint(cp));
-	}
-	return res;
-}
-/// Generates a random series of bytes.
-template <typename Rnd> cp::editors::byte_string generate_random_string(std::size_t length, Rnd &random) {
-	cp::editors::byte_string res;
-	std::uniform_int_distribution<int> dist(0, 255);
-	for (std::size_t i = 0; i < length; ++i) {
-		res.push_back(static_cast<std::byte>(dist(random)));
-	}
-	return res;
-}
-
-/// Generates a series of positions in the text used for modifications. All positions are guaranteed to be at
-/// character boundaries.
-template <typename Rnd> std::vector<std::pair<std::size_t, std::size_t>> get_modify_positions_boundary(
-	std::size_t count, const cp::editors::buffer&, const cp::editors::code::interpretation &interp, Rnd &random
-) {
-	std::uniform_int_distribution<std::size_t> caretpos_dist(0, interp.get_linebreaks().num_chars());
-	// create carets
-	std::vector<std::size_t> carets;
-	for (std::size_t i = 0; i < count; ++i) {
-		carets.push_back(caretpos_dist(random));
-		carets.push_back(caretpos_dist(random));
-	}
-	sort(carets.begin(), carets.end());
-	cp::editors::code::caret_set cset;
-	for (std::size_t i = 0; i < carets.size(); i += 2) {
-		// 10% chance: don't erase anything
-		if (prob_dist(random) < 0.1) {
-			carets[i + 1] = carets[i];
-		}
-		cset.add(cp::ui::caret_selection(carets[i], carets[i + 1] - carets[i], 0), cp::editors::code::caret_data());
-	}
-
-	std::vector<std::pair<std::size_t, std::size_t>> cs;
-	cp::editors::code::interpretation::character_position_converter cvt(interp);
-	for (auto it = cset.begin(); it.get_iterator() != cset.carets.end(); it.move_next()) {
-		auto caret_sel = it.get_caret_selection();
-		std::size_t
-			p1 = cvt.character_to_byte(caret_sel.selection_begin),
-			p2 = cvt.character_to_byte(caret_sel.get_selection_end());
-		cs.emplace_back(p1, p2);
-	}
-	return cs;
-}
-/// Generates a series of completely random positions in the text used for modifications.
-template <typename Rnd> std::vector<std::pair<std::size_t, std::size_t>> get_modify_positions_random(
-	std::size_t count, const cp::editors::buffer &buf, const cp::editors::code::interpretation&, Rnd &random
-) {
-	std::uniform_int_distribution<std::size_t> caretpos_dist(0, buf.length());
-	// create carets
-	std::vector<std::size_t> carets;
-	for (std::size_t i = 0; i < count; ++i) {
-		carets.push_back(caretpos_dist(random));
-		carets.push_back(caretpos_dist(random));
-	}
-	sort(carets.begin(), carets.end());
-	std::vector<std::pair<std::size_t, std::size_t>> cs;
-	for (std::size_t i = 0; i < carets.size(); i += 2) {
-		// 10% chance: don't erase anything
-		if (prob_dist(random) < 0.1) {
-			carets[i + 1] = carets[i];
-		}
-		cs.emplace_back(carets[i], carets[i + 1]);
-	}
-	return cs;
-}
+std::pair<std::size_t, std::size_t>
+	caret_count_range{ 1, 100 }, ///< Possible range of the number of inserted clips.
+	clip_length_range{ 0,3000 }; ///< Possible range of the length of inserted clips.
 
 /// Buffer fuzz test.
 class buffer_test : public cp::fuzz_test {
@@ -206,7 +105,7 @@ public:
 
 		cp::editors::code::caret_set cset;
 		cset.reset();
-		_interp->on_insert(cset, generate_random_string(1000000, rng), nullptr);
+		_interp->on_insert(cset, generate_random_string(1000000), nullptr);
 		cp::assert_true_logical(_interp->check_integrity());
 	}
 
@@ -214,22 +113,20 @@ public:
 	void iterate() override {
 		// generate random positions and strings for the edit
 		std::vector<std::pair<std::size_t, std::size_t>> positions;
-		if (bool_dist(rng)) {
-			positions = get_modify_positions_random(ncarets_dist(rng), *_buffer, *_interp, rng);
+		if (random_bool()) {
+			positions = get_modify_positions_random(random_int(caret_count_range));
 		} else {
-			positions = get_modify_positions_boundary(ncarets_dist(rng), *_buffer, *_interp, rng);
+			positions = get_modify_positions_boundary(random_int(caret_count_range));
 		}
 		std::vector<cp::editors::byte_string> inserts;
 		for (std::size_t i = 0; i < positions.size(); ++i) {
-			double r = prob_dist(rng);
+			double r = random_double();
 			if (r < 0.1) { // 10% chance: don't insert anything
 				inserts.emplace_back();
 			} else if (r < 0.55) { // 45% chance: insert ranodm string
-				inserts.emplace_back(generate_random_string(insertlen_dist(rng), rng));
+				inserts.emplace_back(generate_random_string(random_int(clip_length_range)));
 			} else { // insert encoded string
-				inserts.emplace_back(generate_random_encoded_string(
-					insertlen_dist(rng), rng, *_interp->get_encoding()
-				));
+				inserts.emplace_back(generate_random_encoded_string(random_int(clip_length_range)));
 			}
 		}
 
@@ -246,6 +143,102 @@ public:
 
 		// validate everything
 		cp::assert_true_logical(_interp->check_integrity());
+	}
+
+
+	/// Generates and returns a series of codepoints and encodes them using the given encoding.
+	[[nodiscard]] cp::editors::byte_string generate_random_encoded_string(std::size_t length) {
+		constexpr std::pair<cp::codepoint, cp::codepoint> _codepoint_dist(0, 0x10FFFF - 0x800);
+
+		std::basic_string<cp::codepoint> str;
+		for (std::size_t i = 0; i < length; ++i) {
+			// 2% possibility to generate a line break character
+			if (random_double() < 0.02) {
+				double x = random_double();
+				if (x < 0.3) {
+					str.push_back(U'\r');
+				} else if (x < 0.6) {
+					str.push_back(U'\n');
+				} else {
+					// this means that `length` is just a suggestion, but it doesn't break anything
+					str.push_back(U'\r');
+					str.push_back(U'\n');
+				}
+			} else {
+				cp::codepoint cp = random_int(_codepoint_dist);
+				if (cp >= 0xD800) {
+					cp += 0x800;
+				}
+				str.push_back(cp);
+			}
+		}
+		cp::editors::byte_string res;
+		for (cp::codepoint cp : str) {
+			res.append(_interp->get_encoding()->encode_codepoint(cp));
+		}
+		return res;
+	}
+	/// Generates a random series of bytes.
+	cp::editors::byte_string generate_random_string(std::size_t length) {
+		constexpr std::pair<int, int> _byte_dist{ 0, 255 };
+
+		cp::editors::byte_string res;
+		for (std::size_t i = 0; i < length; ++i) {
+			res.push_back(static_cast<std::byte>(random_int(_byte_dist)));
+		}
+		return res;
+	}
+
+	/// Generates a series of positions in the text used for modifications. All positions are guaranteed to be at
+	/// character boundaries.
+	[[nodiscard]] std::vector<std::pair<std::size_t, std::size_t>> get_modify_positions_boundary(std::size_t count) {
+		std::pair<std::size_t, std::size_t> caretpos_range(0, _interp->get_linebreaks().num_chars());
+		// create carets
+		std::vector<std::size_t> carets;
+		for (std::size_t i = 0; i < count; ++i) {
+			carets.push_back(random_int(caretpos_range));
+			carets.push_back(random_int(caretpos_range));
+		}
+		sort(carets.begin(), carets.end());
+		cp::editors::code::caret_set cset;
+		for (std::size_t i = 0; i < carets.size(); i += 2) {
+			// 10% chance: don't erase anything
+			if (random_double() < 0.1) {
+				carets[i + 1] = carets[i];
+			}
+			cset.add(cp::ui::caret_selection(carets[i], carets[i + 1] - carets[i], 0), cp::editors::code::caret_data());
+		}
+
+		std::vector<std::pair<std::size_t, std::size_t>> cs;
+		cp::editors::code::interpretation::character_position_converter cvt(*_interp);
+		for (auto it = cset.begin(); it.get_iterator() != cset.carets.end(); it.move_next()) {
+			auto caret_sel = it.get_caret_selection();
+			std::size_t
+				p1 = cvt.character_to_byte(caret_sel.selection_begin),
+				p2 = cvt.character_to_byte(caret_sel.get_selection_end());
+			cs.emplace_back(p1, p2);
+		}
+		return cs;
+	}
+	/// Generates a series of completely random positions in the text used for modifications.
+	[[nodiscard]] std::vector<std::pair<std::size_t, std::size_t>> get_modify_positions_random(std::size_t count) {
+		std::pair<std::size_t, std::size_t> caretpos_range(0, _buffer->length());
+		// create carets
+		std::vector<std::size_t> carets;
+		for (std::size_t i = 0; i < count; ++i) {
+			carets.push_back(random_int(caretpos_range));
+			carets.push_back(random_int(caretpos_range));
+		}
+		sort(carets.begin(), carets.end());
+		std::vector<std::pair<std::size_t, std::size_t>> cs;
+		for (std::size_t i = 0; i < carets.size(); i += 2) {
+			// 10% chance: don't erase anything
+			if (random_double() < 0.1) {
+				carets[i + 1] = carets[i];
+			}
+			cs.emplace_back(carets[i], carets[i + 1]);
+		}
+		return cs;
 	}
 protected:
 	cp::editors::buffer_manager _manager; ///< The buffer manager.

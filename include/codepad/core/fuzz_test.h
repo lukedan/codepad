@@ -43,6 +43,26 @@ namespace codepad {
 			entry << "[No details]";
 		}
 
+
+		/// Generates a random floating-point value uniformly within the given range.
+		[[nodiscard]] double random_double(double min = 0.0, double max = 1.0) {
+			return std::uniform_real_distribution(min, max)(rng);
+		}
+		/// Generates a random integer value uniformly within the given range. Both ends of the range are possible
+		/// outputs.
+		template <typename T> [[nodiscard]] T random_int(T min, T max) {
+			return std::uniform_int_distribution<T>(min, max)(rng);
+		}
+		/// \overload
+		template <typename T> [[nodiscard]] T random_int(std::pair<T, T> range) {
+			return random_int(range.first, range.second);
+		}
+		/// Generates a random boolean value.
+		[[nodiscard]] bool random_bool() {
+			return std::uniform_int_distribution(0, 1)(rng) != 0;
+		}
+
+
 		/// The main function of a fuzz test. This function sets up the fuzz test by registering for \p SIGINT,
 		/// setting up the logger, calling \ref initialize(), etc.
 		[[nodiscard]] inline static int main(int argc, char **argv, std::unique_ptr<fuzz_test> test) {
