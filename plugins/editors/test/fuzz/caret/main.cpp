@@ -16,6 +16,7 @@ class caret_set : public cp::editors::caret_set_base<int, caret_set> {
 enum class test_op : unsigned char {
 	insert, ///< Inserting a caret.
 	erase, ///< Erasing a caret.
+	modification, ///< Handling a modification.
 
 	point_query, ///< Point query.
 
@@ -26,7 +27,8 @@ enum class test_op : unsigned char {
 std::pair<unsigned, unsigned> op_range{ 0, static_cast<unsigned>(test_op::max_value) - 1 };
 std::pair<std::size_t, std::size_t>
 	caret_begin_range{ 0, 5000 }, ///< The range of the starting position of a caret.
-	caret_length_range{ 0, 200 }; ///< The range of the length of a caret.
+	caret_length_range{ 0, 200 }, ///< The range of the length of a caret.
+	modification_position_range{ 0, 1000 }; ///< The range of the length of a modification.
 /// Possible range of caret data.
 std::pair<int, int> data_range{ std::numeric_limits<int>::min(), std::numeric_limits<int>::max() };
 
@@ -46,7 +48,6 @@ public:
 	/// Runs one test.
 	void iterate() override {
 		auto op = static_cast<test_op>(random_int(op_range));
-		bool is_modification = false;
 		switch (op) {
 		case test_op::insert:
 			{
@@ -97,7 +98,7 @@ public:
 				caret.selection_length = new_end - new_beg;
 				_reference.insert(insert_before.value_or(_reference.end()), std::make_pair(caret, data));
 
-				is_modification = true;
+				cp::assert_true_logical(_verify(), "invalid insert operation");
 				break;
 			}
 		case test_op::erase:
@@ -124,7 +125,93 @@ public:
 				_carets.remove(it.get_iterator());
 				_reference.erase(refit);
 
-				is_modification = true;
+				cp::assert_true_logical(_verify(), "invalid erase operation");
+				break;
+			}
+		case test_op::modification:
+			{
+				if (_reference.empty()) {
+					break;
+				}
+
+				auto point = random_int<std::size_t>(
+					0, std::max(caret_begin_range.second, _reference.back().first.get_selection_end())
+				);
+				std::size_t erase_len = 0;
+				if (random_double() > 0.05) { // 5% chance to not insert anything
+					erase_len = random_int(modification_position_range);
+				}
+				std::size_t insert_len = 0;
+				if (random_double() > 0.05) { // 5% chance to not erase anything
+					insert_len = random_int(modification_position_range);
+				}
+
+				_carets.on_modify(point, erase_len, insert_len);
+
+				// update reference
+				std::size_t erase_end = point + erase_len;
+				for (auto it = _reference.begin(); it != _reference.end(); ) {
+					std::size_t beg = it->first.selection_begin, end = it->first.get_selection_end();
+					if (beg > point && end < erase_end) {
+						it = _reference.erase(it);
+						continue;
+					}
+					// the only ambiguous situation is when there's no erased range: in this case, if a caret is at
+					// that exact position, it's expanded to cover the new inserted content; if a selection touches
+					// the position, it would not be expanded to cover inserted content
+					if (beg > point || (beg == point && erase_len == 0 && it->first.has_selection())) {
+						beg = std::max(beg, erase_end) + (insert_len - erase_len);
+					}
+					if (end < erase_end || (end == point && erase_len == 0 && it->first.has_selection())) {
+						end = std::min(end, point);
+					} else {
+						end += insert_len - erase_len;
+					}
+					if (beg > end) {
+						it = _reference.erase(it);
+						continue;
+					}
+
+					// compute caret position
+					std::size_t caret = it->first.get_caret_position();
+					if (caret > point) {
+						if (caret >= erase_end) {
+							caret += insert_len - erase_len;
+						} else {
+							caret = point;
+						}
+					}
+					caret = std::clamp(caret, beg, end);
+					it->first = cp::ui::caret_selection(beg, end - beg, caret - beg);
+
+					++it;
+				}
+				if (_reference.size() > 1) {
+					// remove any carets that should be merged
+					auto prev = _reference.begin();
+					for (auto cur = prev + 1; cur != _reference.end(); ) {
+						if (
+							!cur->first.has_selection() &&
+							cur->first.selection_begin == prev->first.get_selection_end()
+							) {
+							cur = _reference.erase(cur);
+							prev = cur - 1;
+							continue;
+						}
+						if (
+							!prev->first.has_selection() &&
+							prev->first.selection_begin == cur->first.selection_begin
+						) {
+							prev = _reference.erase(prev);
+							cur = prev + 1;
+							continue;
+						}
+						prev = cur;
+						++cur;
+					}
+				}
+
+				cp::assert_true_logical(_verify(), "invalid modify operation");
 				break;
 			}
 
@@ -151,20 +238,59 @@ public:
 		default:
 			cp::assert_true_logical(false, "invalid operation");
 		}
-
-		if (is_modification) {
-			auto it = _carets.begin();
-			for (auto refit = _reference.begin(); it.get_iterator() != _carets.carets.end(); it.move_next(), ++refit) {
-				cp::assert_true_logical(refit != _reference.end(), "missing carets in caret_set");
-				cp::assert_true_logical(it.get_caret_selection() == refit->first, "incorrect caret position");
-				cp::assert_true_logical(it.get_iterator()->data == refit->second, "incorrect caret data");
-			}
-			cp::assert_true_logical(it.get_iterator() == _carets.carets.end(), "too many carets in caret_set");
-		}
 	}
 protected:
 	caret_set _carets; ///< The set of carets.
 	std::vector<std::pair<cp::ui::caret_selection, int>> _reference; ///< Reference data.
+
+	/// Prints all current carets.
+	[[nodiscard]] void _print_data() const {
+		auto entry = cp::logger::get().log_info(CP_HERE);
+		entry << "Test carets:\n";
+		for (auto it = _carets.begin(); it.get_iterator() != _carets.carets.end(); it.move_next()) {
+			auto caret_sel = it.get_caret_selection();
+			entry <<
+				"  [" << caret_sel.selection_begin << "\t- " <<
+				caret_sel.get_caret_position() << "\t- " <<
+				caret_sel.get_selection_end() << "]\t- " <<
+				it.get_iterator()->data << "\n";
+		}
+		entry << "\nReference carets:\n";
+		for (const auto &pair : _reference) {
+			entry <<
+				"  [" << pair.first.selection_begin << "\t- " <<
+				pair.first.get_caret_position() << "\t- " <<
+				pair.first.get_selection_end() << "]\t- " <<
+				pair.second << "\n";
+		}
+	}
+	/// Verifies that test data matches reference data.
+	[[nodiscard]] bool _verify() const {
+		auto it = _carets.begin();
+		for (auto refit = _reference.begin(); it.get_iterator() != _carets.carets.end(); it.move_next(), ++refit) {
+			if (refit == _reference.end()) {
+				_print_data();
+				cp::logger::get().log_error(CP_HERE) << "missing carets in caret_set";
+				return false;
+			}
+			if (it.get_caret_selection() != refit->first) {
+				_print_data();
+				cp::logger::get().log_error(CP_HERE) << "incorrect caret position";
+				return false;
+			}
+			if (it.get_iterator()->data != refit->second) {
+				_print_data();
+				cp::logger::get().log_error(CP_HERE) << "incorrect caret data";
+				return false;
+			}
+		}
+		if (it.get_iterator() != _carets.carets.end()) {
+			_print_data();
+			cp::logger::get().log_error(CP_HERE) << "too many carets in caret_set";
+			return false;
+		}
+		return true;
+	}
 };
 
 /// Entry point of the test.

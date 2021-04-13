@@ -172,6 +172,146 @@ namespace codepad::editors {
 			return result;
 		}
 
+		/// Called when the document is modified to update the set of carets accordingly. This function does not
+		/// change the data associated with each caret; the caller needs to recompute those when necessary.
+		void on_modify(std::size_t beg, std::size_t erase_len, std::size_t insert_len) {
+			std::size_t erase_end = beg + erase_len;
+			range_query_result range;
+			// if there are erased characters, any selection that touches the beginning of the erased region do not
+			// affect anything
+			if (erase_len > 0) {
+				range.first = find_first_ending_after(beg);
+			} else {
+				range.first = find_first_ending_at_or_after(beg);
+			}
+			range.last = find_first_ending_at_or_after(erase_end);
+			if (range.first.get_iterator() == carets.end()) {
+				return;
+			}
+
+			// test if the erased clip is fully contained by a `range.first`
+			bool fully_contained = false;
+			{
+				auto caret_sel = range.first.get_caret_selection();
+				if (erase_len == 0) {
+					if (caret_sel.selection_begin < beg && caret_sel.get_selection_end() > erase_end) {
+						fully_contained = true;
+					} else if (caret_sel.selection_begin == beg && !caret_sel.has_selection()) {
+						fully_contained = true;
+					}
+				} else {
+					fully_contained = caret_sel.selection_begin <= beg && caret_sel.get_selection_end() >= erase_end;
+				}
+			}
+
+			if (fully_contained) {
+				std::size_t caret_pos = range.first.get_caret_selection().get_caret_position();
+				auto mod = carets.get_modifier_for(range.first.get_iterator().get_node());
+				mod->caret.selection_length += insert_len - erase_len;
+				if (caret_pos > beg) {
+					if (caret_pos >= erase_end) {
+						mod->caret.caret_offset += insert_len - erase_len;
+					} else {
+						mod->caret.caret_offset -= caret_pos - beg;
+					}
+				}
+			} else { // the removed range is not covered by any single caret
+				std::optional<iterator_position> truncate_before, truncate_after;
+				// range.first._iter == range.last._iter can only happen if caret.begin <= beg && caret.end >= end,
+				// i.e., a selection touching a insert-only (no erase) modification, in which case we should only
+				// check and increment both iterators when the caret is before the modification
+				if (range.first.get_iterator() != range.last.get_iterator()) {
+					if (range.first.get_caret_selection().get_selection_end() == beg) {
+						range.first.move_next();
+						if (range.first.get_iterator() == carets.end()) {
+							return; // nothing needs to be done; exit early to prevent dereferencing end iterator
+						}
+					}
+					if (range.first.get_selection_begin() <= beg) {
+						truncate_before = range.first;
+						range.first.move_next();
+					}
+				} else {
+					if (range.first.get_selection_begin() < beg) {
+						range.first.move_next();
+						range.last.move_next();
+					}
+				}
+				if (range.last.get_iterator() != carets.end()) {
+					auto caret_sel = range.last.get_caret_selection();
+					if (caret_sel.selection_begin < erase_end) {
+						truncate_after = range.last;
+					}
+				}
+
+				// modify carets
+				if (truncate_after) {
+					auto mod = carets.get_modifier_for(truncate_after->get_iterator().get_node());
+					auto caret_sel = truncate_after->get_caret_selection();
+					std::size_t offset = erase_end - caret_sel.selection_begin;
+					mod->caret.selection_begin += offset;
+					mod->caret.selection_length -= offset;
+					mod->caret.caret_offset = std::max(caret_sel.get_caret_position(), erase_end) - erase_end;
+				}
+				std::size_t erased_offset = range.last.get_total_offset() - range.first.get_total_offset();
+				carets.erase(range.first.get_iterator(), range.last.get_iterator());
+				if (truncate_before) {
+					auto mod = carets.get_modifier_for(truncate_before->get_iterator().get_node());
+					auto caret_sel = truncate_before->get_caret_selection();
+					std::size_t offset = caret_sel.get_selection_end() - beg;
+					mod->caret.selection_length -= offset;
+					erased_offset += offset;
+					mod->caret.caret_offset = std::min(mod->caret.caret_offset, mod->caret.selection_length);
+				}
+				if (range.last.get_iterator() != carets.end()) {
+					auto mod = carets.get_modifier_for(range.last.get_iterator().get_node());
+					mod->caret.selection_begin += erased_offset + (insert_len - erase_len);
+				}
+			}
+
+			if (carets.empty()) {
+				return;
+			}
+
+			// remove carets without selections that should be merged
+			auto begin_iter = carets.begin();
+			auto it = range.last;
+			if (it.get_iterator() != carets.end()) {
+				it.move_next();
+				if (it.get_iterator() == carets.end()) {
+					it = range.last;
+				}
+			} else {
+				it.move_prev();
+			}
+			while (true) {
+				if (it.get_iterator() == begin_iter) {
+					break;
+				}
+				auto next = it;
+				next.move_prev();
+
+				auto cur_caret_sel = next.get_caret_selection();
+				auto prev_caret_sel = it.get_caret_selection();
+				if (!prev_caret_sel.has_selection()) {
+					if (prev_caret_sel.selection_begin == cur_caret_sel.get_selection_end()) {
+						remove(it.get_iterator());
+					}
+				} else if (!cur_caret_sel.has_selection()) {
+					if (cur_caret_sel.selection_begin == prev_caret_sel.selection_begin) {
+						bool should_exit = next.get_iterator() == begin_iter;
+						remove(next.get_iterator());
+						if (should_exit) {
+							return;
+						}
+						continue; // don't update `it`; it would be tested against the caret before the erased one
+					}
+				}
+
+				it = next;
+			}
+		}
+
 
 		/// Adds a caret to the given container, merging it with existing ones when necessary. Any caret whose
 		/// selection intersects the selection of this caret will be merged into this caret. If two carets touch
