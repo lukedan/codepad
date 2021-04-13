@@ -173,7 +173,19 @@ namespace codepad::editors {
 		}
 
 		/// Called when the document is modified to update the set of carets accordingly. This function does not
-		/// change the data associated with each caret; the caller needs to recompute those when necessary.
+		/// change the data associated with each caret; the caller needs to recompute those when necessary. This
+		/// function modifies the carets as if following these rules:
+		/// - If a caret contains the entire modified range (including when there's no erased range, in which case it
+		///   can be a caret without selection), it's expanded; all other carets are not changed.
+		/// - Otherwise, if a caret does not intersect the modified region, it is not changed. This includes when the
+		///   selection touches a non-empty erased region.
+		/// - Otherwise, if the selection partially overlaps with the erased region or if it starts or ends at the
+		///   same position as the erased region, the selection and caret position are truncated.
+		/// - Otherwise, the selection is fully contained by the erased region. In this case, the caret is moved to
+		///   the beginning of the erased region, and the selection region is removed.
+		/// - Finally, after all carets have been processed, carets without selections that touch other carets or
+		///   selections are erased. If multiple carets without selections are at the same position, the first one is
+		///   kept and all others are removed.
 		void on_modify(std::size_t beg, std::size_t erase_len, std::size_t insert_len) {
 			std::size_t erase_end = beg + erase_len;
 			range_query_result range;
@@ -253,8 +265,21 @@ namespace codepad::editors {
 					mod->caret.selection_length -= offset;
 					mod->caret.caret_offset = std::max(caret_sel.get_caret_position(), erase_end) - erase_end;
 				}
-				std::size_t erased_offset = range.last.get_total_offset() - range.first.get_total_offset();
-				carets.erase(range.first.get_iterator(), range.last.get_iterator());
+				std::size_t erased_offset = 0;
+				if (range.first.get_iterator() != range.last.get_iterator()) {
+					if (!truncate_before) {
+						auto caret = range.first;
+						range.first.move_next();
+						erased_offset += caret.get_caret_selection().get_selection_end() - beg;
+						{
+							auto mod = carets.get_modifier_for(caret.get_iterator().get_node());
+							mod->caret.selection_begin = beg - caret.get_total_offset();
+							mod->caret.selection_length = mod->caret.caret_offset = 0;
+						}
+					}
+					erased_offset += range.last.get_total_offset() - range.first.get_total_offset();
+					carets.erase(range.first.get_iterator(), range.last.get_iterator());
+				}
 				if (truncate_before) {
 					auto mod = carets.get_modifier_for(truncate_before->get_iterator().get_node());
 					auto caret_sel = truncate_before->get_caret_selection();
@@ -274,6 +299,8 @@ namespace codepad::editors {
 			}
 
 			// remove carets without selections that should be merged
+			// the total offsets stored in the iterators are incorrect at this momemt, but since all operations are
+			// relative, it doesn't affect the fiual result
 			auto begin_iter = carets.begin();
 			auto it = range.last;
 			if (it.get_iterator() != carets.end()) {

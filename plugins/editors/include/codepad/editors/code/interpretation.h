@@ -429,6 +429,21 @@ namespace codepad::editors::code {
 			/// Information about modification of the underlying \ref buffer.
 			buffer::end_modification_info &buffer_info;
 		};
+		/// Additional information about an edit.
+		struct end_edit_info {
+			/// Initializes all fields of this struct.
+			end_edit_info(buffer::edit_positions edit_positions, buffer::end_edit_info &buf_info) :
+				character_edit_positions(std::move(edit_positions)), buffer_info(buf_info) {
+			}
+
+			/// Aggregates \ref end_modification_info::start_character,
+			/// \ref end_modification_info::removed_characters, \ref end_modification_info::inserted_characters for
+			/// all modifications in this edit. Note that these ranges may overlap.
+			buffer::edit_positions character_edit_positions;
+			/// Original modification information from the underlying \ref buffer.
+			buffer::end_edit_info &buffer_info;
+		};
+		
 		/// Indicates what aspects of the document are affected by an appearance change.
 		enum class appearance_change_type {
 			visual_only, ///< Only the visual of this document has changed - as opposed to \ref layout_and_visual.
@@ -770,6 +785,8 @@ namespace codepad::editors::code {
 		/// This event is invoked after \ref modification_decoded after \ref _linebreaks and \ref _chunks have been
 		/// updated. This can be useful for obtaining information about content added by the modification.
 		info_event<end_modification_info> end_modification;
+		/// Wraps around \ref buffer::end_edit to provide additional information.
+		info_event<end_edit_info> end_edit;
 		/// Invoked when the appearance of this document has changed. In many instances this would need to be invoked
 		/// manually. This may be invoked repeatedly for a single change (due to the change causing multiple function
 		/// calls), so it's preferable to process this event lazily.
@@ -817,6 +834,11 @@ namespace codepad::editors::code {
 			std::vector<std::size_t> post_erase_boundaries;
 			/// The codepoint index of the first element of \ref post_erase_boundaries in the old document.
 			std::size_t post_erase_codepoint_index = 0;
+
+			/// All character modification position for the current edit. Unlike \ref buffer::end_edit_info, all
+			/// positions in these structs are caret positions, and the ranges may overlap - they should be treated
+			/// as a series of consecutive operations.
+			std::vector<buffer::modification_position> modification_chars;
 		};
 
 		/// Used to store precomputed byte positions of a modification.
@@ -952,7 +974,11 @@ namespace codepad::editors::code {
 		/// \ref _chunks and \ref _linebreaks.
 		void _on_end_modify(buffer::end_modification_info&);
 		/// Called when an edit has been made to \ref _buf to invoke \ref theme_changed.
-		void _on_end_edit(buffer::end_edit_info&) {
+		void _on_end_edit(buffer::end_edit_info &info) {
+			buffer::edit_positions pos;
+			std::swap(pos, _mod_cache.modification_chars);
+			end_edit.invoke_noret(std::move(pos), info);
+
 			appearance_changed.invoke_noret(appearance_change_type::layout_and_visual);
 		}
 	};

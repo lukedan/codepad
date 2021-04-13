@@ -153,13 +153,12 @@ public:
 				for (auto it = _reference.begin(); it != _reference.end(); ) {
 					std::size_t beg = it->first.selection_begin, end = it->first.get_selection_end();
 					if (beg > point && end < erase_end) {
-						it = _reference.erase(it);
-						continue;
+						beg = end = point;
 					}
 					// the only ambiguous situation is when there's no erased range: in this case, if a caret is at
 					// that exact position, it's expanded to cover the new inserted content; if a selection touches
 					// the position, it would not be expanded to cover inserted content
-					if (beg > point || (beg == point && erase_len == 0 && it->first.has_selection())) {
+					if (beg > point || (beg == point && erase_len == 0 && beg != end)) {
 						beg = std::max(beg, erase_end) + (insert_len - erase_len);
 					}
 					if (end < erase_end || (end == point && erase_len == 0 && it->first.has_selection())) {

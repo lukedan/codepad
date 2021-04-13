@@ -500,5 +500,7 @@ namespace codepad::editors::code {
 		end_modification.invoke_noret(
 			start_char, end_char - start_char, new_content_chars, end_info.line, end_info.position_in_line, info
 		);
+
+		_mod_cache.modification_chars.emplace_back(start_char, end_char - start_char, new_content_chars);
 	}
 }

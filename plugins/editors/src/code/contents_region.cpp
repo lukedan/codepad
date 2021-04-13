@@ -41,7 +41,7 @@ namespace codepad::editors::code {
 				logger::get().log_warning(CP_HERE) << "skipped invalid byte sequence in input";
 			}
 		}
-		_doc->on_insert(_cset, str, this);
+		_doc->on_insert(_carets, str, this);
 	}
 
 	/// \todo Word wrapping not implemented.
@@ -164,9 +164,9 @@ namespace codepad::editors::code {
 		}
 	}
 
-	void contents_region::_on_end_edit(buffer::end_edit_info &info) {
+	void contents_region::_on_end_edit(interpretation::end_edit_info &info) {
 		// fixup view
-		_fmt.fixup_after_edit(info, *_doc);
+		_fmt.fixup_after_edit(info.buffer_info, *_doc);
 		// TODO improve performance
 		_fmt.set_softbreaks(_recalculate_wrapping_region(0, _doc->get_linebreaks().num_chars()));
 
@@ -186,10 +186,10 @@ namespace codepad::editors::code {
 		std::pair<std::size_t, std::size_t> be = get_visible_visual_lines();
 
 		caret_set extcarets;
-		const caret_set *used = &_cset;
+		const caret_set *used = &_carets;
 		std::vector<caret_selection_position> tempcarets = _interaction_manager.get_temporary_carets();
 		if (!tempcarets.empty()) {
-			extcarets = _cset;
+			extcarets = _carets;
 			for (const auto &caret : tempcarets) {
 				extcarets.add(caret.get_caret_selection(), caret_data(0.0, caret.caret_after_stall));
 			}

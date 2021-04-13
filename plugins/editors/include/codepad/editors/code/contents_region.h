@@ -193,7 +193,7 @@ namespace codepad::editors::code {
 
 		/// Returns the current set of carets.
 		const caret_set &get_carets() const override {
-			return _cset;
+			return _carets;
 		}
 		/// Sets the current carets. The provided set of carets must not be empty. This function calculates the
 		/// horizontal positions of all carets, and scrolls the viewport when necessary.
@@ -225,15 +225,15 @@ namespace codepad::editors::code {
 		/// \todo Find a better position to scroll to.
 		void set_carets_keepdata(caret_set cs) {
 			assert_true_logical(!cs.carets.empty(), "must have at least one caret");
-			_cset = std::move(cs);
-			auto caret_it = _cset.begin();
+			_carets = std::move(cs);
+			auto caret_it = _carets.begin();
 			_make_caret_visible(_extract_position(caret_it.get_caret_selection(), caret_it.get_iterator()->data));
 			_on_carets_changed();
 		}
 
 		/// Adds the given caret to this \ref contents_region.
 		void add_caret(caret_selection_position c) override {
-			auto [it, merged] = _cset.add(c.caret, caret_data(0.0, c.caret_after_stall));
+			auto [it, merged] = _carets.add(c.caret, caret_data(0.0, c.caret_after_stall));
 			// the added caret may be merged, so alignment is calculated again here
 			it.get_iterator().get_value_rawmod().data.alignment = get_horizontal_caret_position(
 				_extract_position(it.get_caret_selection(), it.get_iterator()->data)
@@ -242,12 +242,12 @@ namespace codepad::editors::code {
 		}
 		/// Removes the given caret.
 		void remove_caret(caret_set::iterator it) override {
-			_cset.remove(it);
+			_carets.remove(it);
 			_on_carets_changed();
 		}
 		/// Clears all carets from this \ref contents_region.
 		void clear_carets() override {
-			_cset.carets.clear();
+			_carets.carets.clear();
 			_on_carets_changed();
 		}
 
@@ -259,7 +259,7 @@ namespace codepad::editors::code {
 		///                  re-calculated).
 		template <typename Transform> void move_carets_raw(const Transform &transform) {
 			caret_set new_carets;
-			for (auto iter = _cset.begin(); iter.get_iterator() != _cset.carets.end(); iter.move_next()) {
+			for (auto iter = _carets.begin(); iter.get_iterator() != _carets.carets.end(); iter.move_next()) {
 				auto [caret_sel, data] = transform(iter.get_caret_selection(), iter.get_iterator()->data);
 				new_carets.add(caret_sel, data);
 			}
@@ -437,7 +437,7 @@ namespace codepad::editors::code {
 		/// Cancels all selected regions.
 		void cancel_all_selections() {
 			caret_set new_carets;
-			for (auto it = _cset.begin(); it.get_iterator() != _cset.carets.end(); it.move_next()) {
+			for (auto it = _carets.begin(); it.get_iterator() != _carets.carets.end(); it.move_next()) {
 				new_carets.add(
 					ui::caret_selection(it.get_caret_selection().get_caret_position()),
 					it.get_iterator()->data
@@ -453,12 +453,12 @@ namespace codepad::editors::code {
 		/// Calls \ref interpretation::on_backspace() with the current set of carets.
 		void on_backspace() {
 			_interaction_manager.on_edit_operation();
-			_doc->on_backspace(_cset, this);
+			_doc->on_backspace(_carets, this);
 		}
 		/// Calls \ref interpretation::on_delete() with the current set of carets.
 		void on_delete() {
 			_interaction_manager.on_edit_operation();
-			_doc->on_delete(_cset, this);
+			_doc->on_delete(_carets, this);
 		}
 		/// Called when the user presses the `enter' key to insert a line break at all carets.
 		void on_return() {
@@ -468,7 +468,7 @@ namespace codepad::editors::code {
 			for (char32_t c : le) {
 				encoded.append(_doc->get_encoding()->encode_codepoint(c));
 			}
-			_doc->on_insert(_cset, encoded, this);
+			_doc->on_insert(_carets, encoded, this);
 		}
 		/// Checks if there are editing actions available for undo-ing, and calls \ref buffer::undo() if there is.
 		///
@@ -607,12 +607,13 @@ namespace codepad::editors::code {
 		info_event<buffer::begin_edit_info>::token _begin_edit_tok; ///< Used to listen to \ref buffer::begin_edit.
 		/// Used to listen to \ref interpretation::end_modification.
 		info_event<interpretation::end_modification_info>::token _end_modification_tok;
-		info_event<buffer::end_edit_info>::token _end_edit_tok; ///< Used to listen to \ref buffer::end_edit.
+		/// Used to listen to \ref interpretation::end_edit.
+		info_event<interpretation::end_edit_info>::token _end_edit_tok;
 		/// Used to listen to \ref interpretation::appearance_changed.
 		info_event<interpretation::appearance_changed_info>::token _appearance_changed_tok;
 
 		interaction_manager<caret_set> _interaction_manager; ///< The \ref interaction_manager.
-		caret_set _cset; ///< The set of carets.
+		caret_set _carets; ///< The set of carets.
 		double _lines_per_scroll = 3.0; ///< The number of lines to scroll per `tick'.
 
 		folded_region_skipper::fragment_func _fold_fragment_func; ///< Dictates the format of folded regions.
@@ -648,14 +649,14 @@ namespace codepad::editors::code {
 			assert_true_usage(_doc == nullptr, "setting document twice");
 			assert_true_usage(newdoc != nullptr, "cannot set empty document");
 			_doc = std::move(newdoc);
-			_cset.reset();
+			_carets.reset();
 			_begin_edit_tok = _doc->get_buffer().begin_edit += [this](buffer::begin_edit_info &info) {
 				_on_begin_edit(info);
 			};
 			_end_modification_tok = _doc->end_modification += [this](interpretation::end_modification_info &info) {
 				_on_end_modification(info);
 			};
-			_end_edit_tok = _doc->get_buffer().end_edit += [this](buffer::end_edit_info &info) {
+			_end_edit_tok = _doc->end_edit += [this](interpretation::end_edit_info &info) {
 				_on_end_edit(info);
 			};
 			_appearance_changed_tok = (
@@ -719,9 +720,9 @@ namespace codepad::editors::code {
 		/// \todo Maybe also take into account the width of the character.
 		void _update_window_caret_position() {
 			ui::window *wnd = get_window();
-			// when selecting with a mouse, it's possible that there are no carets in _cset at all
-			if (!_cset.carets.empty() && wnd != nullptr) {
-				auto entry = _cset.carets.begin();
+			// when selecting with a mouse, it's possible that there are no carets in _carets at all
+			if (!_carets.carets.empty() && wnd != nullptr) {
+				auto entry = _carets.carets.begin();
 				wnd->set_active_caret_position(_get_caret_placement(_extract_position(entry->caret, entry->data)));
 			}
 		}
@@ -742,7 +743,7 @@ namespace codepad::editors::code {
 			_on_carets_changed();
 		}
 
-		/// Called when \ref buffer::begin_edit is triggered. Prepares \ref _cset for adjustments by calculating
+		/// Called when \ref buffer::begin_edit is triggered. Prepares \ref _fmt for adjustments by calculating
 		/// byte positions of each caret. If the source element is not this element, also calls
 		/// \ref interaction_manager::on_edit_operation() since it must not have been called previously.
 		void _on_begin_edit(buffer::begin_edit_info &info) {
@@ -754,9 +755,9 @@ namespace codepad::editors::code {
 		/// Called when \ref interpretation::end_modification is triggered. This function performs fixup on carets,
 		/// folded regions, and other positions that may be affected by the modification.
 		void _on_end_modification(interpretation::end_modification_info&);
-		/// Called when \ref buffer::end_edit is triggered. Performs necessary adjustments to the view, invokes
+		/// Called when \ref interpretation::end_edit is triggered. Performs necessary adjustments to the view, invokes
 		/// \ref content_modified, then calls \ref _on_content_visual_changed.
-		void _on_end_edit(buffer::end_edit_info&);
+		void _on_end_edit(interpretation::end_edit_info&);
 		/// Called when the associated \ref interpretation has been changed to another or when the contents have been
 		/// modified. Invokes \ref content_modified and calls \ref _on_content_visual_changed().
 		void _on_content_modified() {
@@ -802,27 +803,36 @@ namespace codepad::editors::code {
 		/// \ref caret_data::bytepos_second, after an edit has been made.
 		///
 		/// \todo Carets after undo-ing and redo-ing.
-		void _adjust_recalculate_caret_char_positions(buffer::end_edit_info &info) {
-			caret_set newcarets;
+		void _adjust_recalculate_caret_char_positions(interpretation::end_edit_info &info) {
 			interpretation::character_position_converter cvt(*_doc);
 			// all byte positions calculated below may not be the exact first byte of the corresponding character,
 			// and thus cannot be used as bytepos_first and bytepos_second
 			// also, carets may merge into one another
-			if (info.source_element == this) {
-				if (info.type == edit_type::normal) {
-					for (const buffer::modification_position &pos : info.positions) {
+			if (info.buffer_info.source_element == this) {
+				if (info.buffer_info.type == edit_type::normal) {
+					caret_set newcarets;
+					for (const buffer::modification_position &pos : info.buffer_info.positions) {
 						std::size_t bp = pos.position + pos.added_range, cp = cvt.byte_to_character(bp);
 						newcarets.add(ui::caret_selection(cp), _get_caret_data(caret_position(cp, false)));
 					}
+					set_carets_keepdata(std::move(newcarets));
 				} else {
-					// TODO fixup edit positions
-					newcarets.reset();
+					// TODO properly fixup edit positions for undo/redo
+					caret_set newcarets;
+					std::swap(newcarets, _carets);
+					for (const auto &mod : info.character_edit_positions) {
+						newcarets.on_modify(mod.position, mod.removed_range, mod.added_range);
+					}
+					set_carets(std::move(newcarets));
 				}
 			} else {
-				// TODO fixup edit positions
-				newcarets.reset();
+				caret_set newcarets;
+				std::swap(newcarets, _carets);
+				for (const auto &mod : info.character_edit_positions) {
+					newcarets.on_modify(mod.position, mod.removed_range, mod.added_range);
+				}
+				set_carets(std::move(newcarets));
 			}
-			set_carets_keepdata(std::move(newcarets));
 		}
 
 		/// Checks if line wrapping needs to be calculated.
@@ -1010,7 +1020,7 @@ namespace codepad::editors::code {
 			if (_doc) {
 				_doc->get_buffer().begin_edit -= _begin_edit_tok;
 				_doc->end_modification -= _end_modification_tok;
-				_doc->get_buffer().end_edit -= _end_edit_tok;
+				_doc->end_edit -= _end_edit_tok;
 				_doc->appearance_changed -= _appearance_changed_tok;
 			}
 			_close_tooltip();
