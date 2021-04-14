@@ -13,9 +13,9 @@
 #include <imm.h>
 #include <dwmapi.h>
 
-#include "../../ui/manager.h"
-#include "../../ui/renderer.h"
-#include "../../ui/window.h"
+#include "codepad/ui/manager.h"
+#include "codepad/ui/renderer.h"
+#include "codepad/ui/window.h"
 #include "misc.h"
 
 namespace codepad::os {

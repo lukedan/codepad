@@ -16,10 +16,10 @@
 #include <pango/pango.h>
 #include <pango/pangocairo.h>
 
-#include "../../core/logging.h"
-#include "../../core/assert.h"
-#include "../../core/misc.h"
-#include "../renderer.h"
+#include "codepad/core/logging.h"
+#include "codepad/core/assert.h"
+#include "codepad/core/misc.h"
+#include "codepad/ui/renderer.h"
 
 namespace codepad::ui {
 	namespace _details {

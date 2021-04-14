@@ -11,8 +11,8 @@
 #include <chrono>
 #include <functional>
 
-#include "../apigen_definitions.h"
-#include "../core/settings.h"
+#include "codepad/apigen_definitions.h"
+#include "codepad/core/settings.h"
 #include "async_task.h"
 #include "element.h"
 #include "element_parameters.h"

@@ -6,8 +6,8 @@
 /// \file
 /// Labels.
 
-#include "../element.h"
-#include "../manager.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/manager.h"
 
 namespace codepad::ui {
 	/// A label that displays plain text. Non-focusable by default.

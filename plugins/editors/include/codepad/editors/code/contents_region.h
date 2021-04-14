@@ -13,9 +13,9 @@
 #include <codepad/ui/elements/popup.h>
 #include <codepad/ui/elements/stack_panel.h>
 
-#include "../decoration.h"
-#include "../editor.h"
-#include "../interaction_modes.h"
+#include "codepad/editors/decoration.h"
+#include "codepad/editors/editor.h"
+#include "codepad/editors/interaction_modes.h"
 #include "caret_set.h"
 #include "view.h"
 #include "fragment_generation.h"

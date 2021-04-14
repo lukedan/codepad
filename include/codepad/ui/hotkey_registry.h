@@ -12,9 +12,9 @@
 #include <functional>
 #include <variant>
 
-#include "../core/misc.h"
-#include "../core/json/misc.h"
-#include "../core/json/storage.h"
+#include "codepad/core/misc.h"
+#include "codepad/core/json/misc.h"
+#include "codepad/core/json/storage.h"
 #include "misc.h"
 
 namespace codepad {

@@ -6,11 +6,11 @@
 /// \file
 /// Implementation of tabs.
 
-#include "../../../core/misc.h"
-#include "../../element.h"
-#include "../../panel.h"
-#include "../label.h"
-#include "../button.h"
+#include "codepad/core/misc.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
+#include "codepad/ui/elements/label.h"
+#include "codepad/ui/elements/button.h"
 
 namespace codepad::ui::tabs {
 	class host;

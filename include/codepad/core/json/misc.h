@@ -10,10 +10,10 @@
 #include <filesystem>
 #include <chrono>
 
-#include "../misc.h"
-#include "../encodings.h"
-#include "../assert.h"
-#include "../profiling.h"
+#include "codepad/core/misc.h"
+#include "codepad/core/encodings.h"
+#include "codepad/core/assert.h"
+#include "codepad/core/profiling.h"
 
 namespace codepad::json {
 	// JSON engine interface:

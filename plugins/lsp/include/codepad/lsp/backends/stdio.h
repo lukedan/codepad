@@ -13,7 +13,7 @@
 #include <codepad/os/filesystem.h>
 #include <codepad/os/process.h>
 
-#include "../backend.h"
+#include "codepad/lsp/backend.h"
 
 namespace codepad::lsp {
 	/// A backend that starts an executable and communicates with it through its standard input and output.

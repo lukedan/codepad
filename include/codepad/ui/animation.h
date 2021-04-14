@@ -8,8 +8,8 @@
 
 #include <optional>
 
+#include "codepad/core/json/storage.h"
 #include "misc.h"
-#include "../core/json/storage.h"
 #include "renderer.h"
 #include "property_path.h"
 

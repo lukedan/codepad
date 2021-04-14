@@ -10,9 +10,9 @@
 #include <optional>
 #include <system_error>
 
-#include "../core/misc.h"
-#include "../ui/misc.h"
-#include "../ui/window.h"
+#include "codepad/core/misc.h"
+#include "codepad/ui/misc.h"
+#include "codepad/ui/window.h"
 
 namespace codepad::os {
 	/// Contains a return value of type \p T and a \p std::error_code.

@@ -18,8 +18,8 @@
 #	include <pthread.h>
 #endif
 
-#include "../core/profiling.h"
-#include "../core/intrusive_priority_queue.h"
+#include "codepad/core/profiling.h"
+#include "codepad/core/intrusive_priority_queue.h"
 #include "commands.h"
 #include "animation.h"
 

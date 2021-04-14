@@ -11,11 +11,11 @@
 #include <filesystem>
 #include <any>
 
+#include "codepad/os/dynamic_library.h"
+#include "codepad/apigen_definitions.h"
 #include "misc.h"
 #include "assert.h"
 #include "logging.h"
-#include "../apigen_definitions.h"
-#include "../os/dynamic_library.h"
 
 #ifdef CP_ENABLE_APIGEN
 struct CP_API_STRUCT;

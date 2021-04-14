@@ -9,7 +9,7 @@
 
 #include <queue>
 
-#include "../buffer_manager.h"
+#include "codepad/editors/buffer_manager.h"
 #include "interpretation.h"
 #include "fragment_generation.h"
 

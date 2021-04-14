@@ -6,7 +6,7 @@
 /// \file
 /// Popup windows.
 
-#include "../window.h"
+#include "codepad/ui/window.h"
 
 namespace codepad::ui {
 	/// A pop-up window that maintains its position relative to a window.

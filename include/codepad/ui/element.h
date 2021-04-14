@@ -10,11 +10,11 @@
 #include <stack>
 #include <any>
 
-#include "../apigen_definitions.h"
+#include "codepad/apigen_definitions.h"
 
-#include "../core/encodings.h"
-#include "../core/event.h"
-#include "../core/misc.h"
+#include "codepad/core/encodings.h"
+#include "codepad/core/event.h"
+#include "codepad/core/misc.h"
 #include "property_path.h"
 #include "hotkey_registry.h"
 #include "element_classes.h"

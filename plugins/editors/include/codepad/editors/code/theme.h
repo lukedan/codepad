@@ -11,8 +11,8 @@
 #include <codepad/core/red_black_tree.h>
 #include <codepad/ui/renderer.h>
 
-#include "../overlapping_range_registry.h"
-#include "../theme_manager.h"
+#include "codepad/editors/overlapping_range_registry.h"
+#include "codepad/editors/theme_manager.h"
 
 namespace codepad::editors::code {
 	class interpretation;

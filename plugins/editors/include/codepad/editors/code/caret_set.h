@@ -6,7 +6,7 @@
 /// \file
 /// Structs and classes used to store carets for \ref codepad::editors::code::contents_region.
 
-#include "../caret_set.h"
+#include "codepad/editors/caret_set.h"
 
 namespace codepad::editors::code {
 	class interpretation;

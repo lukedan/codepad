@@ -6,9 +6,9 @@
 /// \file
 /// Implementation of tab hosts.
 
-#include "../../element.h"
-#include "../../panel.h"
-#include "../../manager.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
+#include "codepad/ui/manager.h"
 #include "tab.h"
 
 namespace codepad::ui::tabs {

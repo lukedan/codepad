@@ -6,8 +6,8 @@
 /// \file
 /// Definition of \ref codepad::ui::text_edit.
 
-#include "../element.h"
-#include "../panel.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
 #include "label.h"
 #include "scroll_viewport.h"
 

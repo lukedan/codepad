@@ -13,9 +13,9 @@
 #include <memory>
 #include <any>
 
-#include "../core/color.h"
-#include "../core/math.h"
-#include "../core/json/misc.h"
+#include "codepad/core/color.h"
+#include "codepad/core/math.h"
+#include "codepad/core/json/misc.h"
 #include "misc.h"
 
 namespace codepad {

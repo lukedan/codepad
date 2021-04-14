@@ -8,8 +8,8 @@
 
 #include <gdk/gdk.h>
 
-#include "../../../ui/misc.h"
-#include "../../../ui/hotkey_registry.h"
+#include "codepad/ui/misc.h"
+#include "codepad/ui/hotkey_registry.h"
 
 namespace codepad::os {
 	namespace _details {

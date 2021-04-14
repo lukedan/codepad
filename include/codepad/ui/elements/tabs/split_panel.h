@@ -6,10 +6,10 @@
 /// \file
 /// Implementation of the split panel.
 
-#include "../../element.h"
-#include "../../panel.h"
-#include "../../manager.h"
-#include "../stack_panel.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
+#include "codepad/ui/manager.h"
+#include "codepad/ui/elements/stack_panel.h"
 
 namespace codepad::ui::tabs {
 	/// A panel with two regions separated by a draggable separator.

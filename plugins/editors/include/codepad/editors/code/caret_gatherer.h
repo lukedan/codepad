@@ -6,7 +6,7 @@
 /// \file
 /// Declaration of \ref codepad::editors::code::caret_gatherer.
 
-#include "../decoration.h"
+#include "codepad/editors/decoration.h"
 #include "fragment_generation.h"
 
 namespace codepad::editors::code {

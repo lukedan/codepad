@@ -6,8 +6,8 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 
-#include "../../../ui/manager.h"
-#include "../../../ui/window.h"
+#include "codepad/ui/manager.h"
+#include "codepad/ui/window.h"
 #include "misc.h"
 
 namespace codepad::os {

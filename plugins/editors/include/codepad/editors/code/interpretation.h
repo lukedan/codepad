@@ -14,8 +14,8 @@
 #include <codepad/core/encodings.h>
 #include <codepad/core/red_black_tree.h>
 
-#include "../buffer.h"
-#include "../decoration.h"
+#include "codepad/editors/buffer.h"
+#include "codepad/editors/decoration.h"
 #include "linebreak_registry.h"
 #include "theme.h"
 #include "caret_set.h"

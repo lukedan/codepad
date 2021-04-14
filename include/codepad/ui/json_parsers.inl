@@ -6,7 +6,7 @@
 /// \file
 /// Implementations of all JSON parsers in \ref codepad::ui.
 
-#include "../core/json_parsers.inl"
+#include "codepad/core/json_parsers.inl"
 #include "element_parameters.h"
 #include "hotkey_registry.h"
 #include "manager.h"

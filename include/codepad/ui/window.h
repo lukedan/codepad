@@ -9,8 +9,8 @@
 #include <chrono>
 #include <functional>
 
-#include "../core/encodings.h"
-#include "../core/event.h"
+#include "codepad/core/encodings.h"
+#include "codepad/core/event.h"
 #include "renderer.h"
 #include "panel.h"
 #include "commands.h"

@@ -11,7 +11,7 @@
 #include <variant>
 #include <string>
 
-#include "../encodings.h"
+#include "codepad/core/encodings.h"
 #include "misc.h"
 #include "parsing.h"
 

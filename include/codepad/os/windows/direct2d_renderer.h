@@ -15,7 +15,7 @@
 #include <dwrite.h>
 #include <dwrite_3.h>
 
-#include "../../ui/renderer.h"
+#include "codepad/ui/renderer.h"
 #include "window.h"
 #include "misc.h"
 

@@ -14,7 +14,7 @@
 #include <variant>
 #include <semaphore>
 
-#include "../core/logging.h"
+#include "codepad/core/logging.h"
 
 namespace codepad::ui {
 	class async_task_scheduler;

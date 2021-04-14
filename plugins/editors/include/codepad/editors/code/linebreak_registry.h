@@ -8,7 +8,7 @@
 
 #include <codepad/core/red_black_tree.h>
 
-#include "../buffer.h"
+#include "codepad/editors/buffer.h"
 
 namespace codepad::editors::code {
 

@@ -12,8 +12,8 @@
 #	include <Windows.h>
 #endif
 
-#include "../core/encodings.h"
-#include "../core/assert.h"
+#include "codepad/core/encodings.h"
+#include "codepad/core/assert.h"
 
 namespace codepad::os {
 	/// A reference to a dynamic library.

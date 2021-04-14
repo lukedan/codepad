@@ -6,7 +6,7 @@
 /// \file
 /// Definition of the scroll viewport.
 
-#include "../panel.h"
+#include "codepad/ui/panel.h"
 #include "scrollbar.h"
 
 namespace codepad::ui {

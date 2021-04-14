@@ -6,8 +6,8 @@
 /// \file
 /// Manager for tabs and tab hosts.
 
-#include "../../element.h"
-#include "../../panel.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
 #include "split_panel.h"
 #include "tab.h"
 #include "host.h"

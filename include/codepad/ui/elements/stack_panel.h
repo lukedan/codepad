@@ -6,7 +6,7 @@
 /// \file
 /// Definition of stack panels.
 
-#include "../panel.h"
+#include "codepad/ui/panel.h"
 
 namespace codepad::ui {
 	/// A panel that arranges all children sequentially in a given orientation.

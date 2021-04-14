@@ -11,11 +11,11 @@
 #include <chrono>
 #include <compare>
 
-#include "../core/misc.h"
-#include "../core/math.h"
-#include "../core/color.h"
-#include "../core/json/misc.h"
-#include "../core/json/parsing.h"
+#include "codepad/core/misc.h"
+#include "codepad/core/math.h"
+#include "codepad/core/color.h"
+#include "codepad/core/json/misc.h"
+#include "codepad/core/json/parsing.h"
 
 namespace codepad {
 	// forward declarations

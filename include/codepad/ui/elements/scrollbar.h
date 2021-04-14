@@ -6,8 +6,8 @@
 /// \file
 /// Scrollbars.
 
+#include "codepad/ui/manager.h"
 #include "button.h"
-#include "../manager.h"
 
 namespace codepad::ui {
 	/// A scroll bar.

@@ -8,7 +8,7 @@
 
 #include <type_traits>
 
-#include "../apigen_definitions.h"
+#include "codepad/apigen_definitions.h"
 #include "json/misc.h"
 
 namespace codepad {

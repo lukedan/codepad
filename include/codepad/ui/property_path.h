@@ -10,8 +10,8 @@
 #include <memory>
 #include <typeindex>
 
-#include "../core/misc.h"
-#include "../core/json/default_engine.h"
+#include "codepad/core/misc.h"
+#include "codepad/core/json/default_engine.h"
 
 namespace codepad::ui::property_path {
 	/// A component in an property path.

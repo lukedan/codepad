@@ -8,7 +8,7 @@
 
 #include <rapidjson/document.h>
 
-#include "../encodings.h"
+#include "codepad/core/encodings.h"
 #include "misc.h"
 
 namespace codepad::json::rapidjson {

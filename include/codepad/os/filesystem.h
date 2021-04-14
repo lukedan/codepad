@@ -15,8 +15,8 @@
 #	include <sys/types.h>
 #endif
 
-#include "../core/misc.h"
-#include "../core/assert.h"
+#include "codepad/core/misc.h"
+#include "codepad/core/assert.h"
 #include "misc.h"
 
 namespace codepad::os {

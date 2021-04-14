@@ -27,8 +27,8 @@ namespace std {
 // TODO use GrDirectContext?
 #include <skia/gpu/GrContext.h>
 
-#include "../renderer.h"
-#include "../window.h"
+#include "codepad/ui/renderer.h"
+#include "codepad/ui/window.h"
 #include "pango_harfbuzz_text_engine.h"
 
 namespace codepad::ui::skia {

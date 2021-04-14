@@ -6,7 +6,7 @@
 /// \file
 /// Buttons.
 
-#include "../panel.h"
+#include "codepad/ui/panel.h"
 
 namespace codepad::ui {
 	/// Base class of button-like elements, that provides all interfaces only internally.

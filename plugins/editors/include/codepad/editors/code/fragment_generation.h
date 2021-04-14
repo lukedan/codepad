@@ -8,7 +8,7 @@
 
 #include <tuple>
 
-#include "../buffer.h"
+#include "codepad/editors/buffer.h"
 #include "interpretation.h"
 #include "view.h"
 

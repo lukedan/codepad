@@ -9,7 +9,7 @@
 #include <vector>
 #include <list>
 
-#include "../decoration.h"
+#include "codepad/editors/decoration.h"
 
 namespace codepad::editors::code {
 	/// Used to collect decorations to render while going through a text document.

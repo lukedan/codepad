@@ -6,9 +6,9 @@
 /// \file
 /// Classes used to add animations to tab buttons.
 
-#include "../../element.h"
-#include "../../panel.h"
-#include "../stack_panel.h"
+#include "codepad/ui/element.h"
+#include "codepad/ui/panel.h"
+#include "codepad/ui/elements/stack_panel.h"
 #include "host.h"
 #include "manager.h"
 

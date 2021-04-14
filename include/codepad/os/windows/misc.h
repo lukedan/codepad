@@ -5,9 +5,9 @@
 
 #include <wincodec.h>
 
-#include "../../core/misc.h"
-#include "../../ui/hotkey_registry.h"
-#include "../misc.h"
+#include "codepad/core/misc.h"
+#include "codepad/ui/hotkey_registry.h"
+#include "codepad/os/misc.h"
 
 namespace codepad::os {
 	namespace _details {
