@@ -50,6 +50,7 @@ target_sources(codepad_core
 		"include/codepad/core/profiling.h"
 		"include/codepad/core/red_black_tree.h"
 		"include/codepad/core/settings.h"
+		"include/codepad/core/text.h"
 		"include/codepad/core/threading.h"
 
 		"include/codepad/os/dynamic_library.h"
