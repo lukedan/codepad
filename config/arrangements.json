@@ -64,11 +64,56 @@
 		},
 		"children": [
 			{
-				"type": "stack_panel",
-				"name": "contents_panel",
+				"type": "size_limiter",
 				"properties": {
-					"orientation": "vertical"
-				}
+					"maximum_size.y": 500.0
+				},
+				"children": [
+					{
+						"type": "scroll_view",
+						"references": {
+							"viewport": "viewport",
+							"vertical_scrollbar": "vertical_scrollbar",
+						},
+						"children": [
+							{
+								"type": "scrollbar",
+								"class": "scrollbar",
+								"name": "vertical_scrollbar",
+								"properties": {
+									"orientation": "vertical"
+								}
+							},
+							{
+								"type": "scroll_viewport",
+								"name": "viewport",
+								"properties": {
+									"layout": {
+										"height": "100%",
+										"margin": [ 0.0, 0.0, 8.0, 8.0 ]
+									}
+								},
+								"children": [
+									{
+										"type": "size_limiter",
+										"properties": {
+											"maximum_size.x": 500.0
+										},
+										"children": [
+											{
+												"type": "stack_panel",
+												"name": "contents_panel",
+												"properties": {
+													"orientation": "vertical"
+												}
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				]
 			}
 		]
 	},
@@ -80,8 +125,11 @@
 				"size": 20,
 				"style": "italic"
 			},
+			"layout": {
+				"width": "100%"
+			},
 			"wrapping": "wrap",
-			"wrapping_width": 600,
+			"wrapping_width": 500,
 			"wrapping_width_mode": "custom"
 		},
 		"animations": {
@@ -307,6 +355,12 @@
 			"viewport": "viewport",
 			"text_edit": "text_edit"
 		},
+		"properties": {
+			"layout": {
+				"width": "300px",
+				"height": "100px"
+			}
+		},
 		"children": [
 			{
 				"type": "scrollbar",
@@ -344,10 +398,9 @@
 				"properties": {
 					"visibility": "-f",
 					"layout": {
-						"size": [ 300.0, 100.0 ],
-						"width_alloc": "px",
-						"height_alloc": "px",
 						"margin": [ 0.0, 0.0, 8.0, 8.0 ],
+						"width": "100%",
+						"height": "100%",
 						"anchor": "ltrb",
 						"padding": 2.0
 					},

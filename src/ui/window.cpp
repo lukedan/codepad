@@ -15,7 +15,7 @@ namespace codepad::ui {
 		double maxw = 0.0;
 		for (const element *e : _children.items()) {
 			if (e->is_visible(visibility::layout) && !e->_get_as_window()) {
-				if (auto span = _get_horizontal_absolute_span(*e)) {
+				if (auto span = _get_horizontal_absolute_desired_span(*e)) {
 					maxw = std::max(maxw, span.value());
 				}
 			}
@@ -27,7 +27,7 @@ namespace codepad::ui {
 		double maxh = 0.0;
 		for (const element *e : _children.items()) {
 			if (e->is_visible(visibility::layout) && !e->_get_as_window()) {
-				if (auto span = _get_vertical_absolute_span(*e)) {
+				if (auto span = _get_vertical_absolute_desired_span(*e)) {
 					maxh = std::max(maxh, span.value());
 				}
 			}

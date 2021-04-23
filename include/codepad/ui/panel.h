@@ -304,6 +304,8 @@ namespace codepad::ui {
 		/// \p true.
 		void _dispose() override;
 
+
+		// utility functions used by derived classes to manipulate children
 		/// Returns \ref element::_parent_data.
 		inline static const std::any &_child_get_parent_data(const element &e) {
 			return e._parent_data;
@@ -334,7 +336,7 @@ namespace codepad::ui {
 		}
 
 
-		// utility function used to obtain pixel sizes.
+		// utility function used to obtain pixel sizes
 		/// Returns the total horizontal span of the given element that is specified in pixels, i.e., excluding
 		/// all widths specified in proportions. Returns \p std::nullopt if all sizes are proportional.
 		static std::optional<double> _get_horizontal_absolute_span(const element&);
@@ -352,6 +354,22 @@ namespace codepad::ui {
 		static std::optional<double> _get_total_horizontal_absolute_span(const element_collection&);
 		/// Similar to \ref _get_total_horizontal_absolute_span().
 		static std::optional<double> _get_total_vertical_absolute_span(const element_collection&);
+
+		/// Similar to \ref _get_horizontal_absolute_span(), but using the desired width of the element instead.
+		static std::optional<double> _get_horizontal_absolute_desired_span(const element&);
+		/// Similar to \ref _get_vertical_absolute_span(), but using the desired width of the element instead.
+		static std::optional<double> _get_vertical_absolute_desired_span(const element&);
+
+		/// Similar to \ref _get_max_horizontal_absolute_span(), but using the desired width of the element instead.
+		static std::optional<double> _get_max_horizontal_absolute_desired_span(const element_collection&);
+		/// Similar to \ref _get_max_vertical_absolute_span(), but using the desired width of the element instead.
+		static std::optional<double> _get_max_vertical_absolute_desired_span(const element_collection&);
+
+		/// Similar to \ref _get_total_horizontal_absolute_span(), but using the desired width of the element
+		/// instead.
+		static std::optional<double> _get_total_horizontal_absolute_desired_span(const element_collection&);
+		/// Similar to \ref _get_total_vertical_absolute_span(), but using the desired width of the element instead.
+		static std::optional<double> _get_total_vertical_absolute_desired_span(const element_collection&);
 
 
 		element_collection _children{ *this }; ///< The collection of its children.

@@ -128,7 +128,8 @@ namespace codepad::ui {
 		std::shared_ptr<formatted_text> _formatted_text; ///< The formatted text.
 		/// Controls how wrapping width is computed.
 		wrapping_width_mode _wrap_width_mode = wrapping_width_mode::client;
-		double _wrap_width = 0.0; ///< Wrapping width. Disabled by default.
+		/// Wrapping width. Has no effect if \ref _wrap_width_mode is \ref wrapping_width_mode::client.
+		double _wrap_width = 0.0;
 		/// Caches the client size of this element after the previous layout operation. If the size of the client
 		/// changes, we need to call \ref _on_text_layout_changed().
 		vec2d _prev_client_size;

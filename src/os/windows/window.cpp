@@ -576,10 +576,17 @@ namespace codepad::os {
 					"it'll be treated as a pixel value instead";
 			}
 			// set window size
-			_details::winapi_check(SetWindowPos(
-				_hwnd, nullptr, 0, 0, new_width, new_height,
-				SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER
-			));
+			// since this may be called during layout and SetWindowPos calls WindowProc internally, (and WindowProc
+			// calls update_layout_and_visuals), we need to delay the call
+			_window.get_manager().get_scheduler().execute_callback(
+				[=, hwnd = _hwnd]() {
+					// TODO make callbacks cancellable
+					/*_details::winapi_check(*/SetWindowPos(
+						_hwnd, nullptr, 0, 0, new_width, new_height,
+						SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER
+					)/*)*/;
+				}
+			);
 		}
 	}
 

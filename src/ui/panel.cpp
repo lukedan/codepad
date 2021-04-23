@@ -151,7 +151,7 @@ namespace codepad::ui {
 		double maxw = 0.0;
 		for (const element *e : _children.items()) {
 			if (e->is_visible(visibility::layout)) {
-				if (auto span = _get_horizontal_absolute_span(*e)) {
+				if (auto span = _get_horizontal_absolute_desired_span(*e)) {
 					maxw = std::max(maxw, span.value());
 				}
 			}
@@ -163,7 +163,7 @@ namespace codepad::ui {
 		double maxh = 0.0;
 		for (const element *e : _children.items()) {
 			if (e->is_visible(visibility::layout)) {
-				if (auto span = _get_vertical_absolute_span(*e)) {
+				if (auto span = _get_vertical_absolute_desired_span(*e)) {
 					maxh = std::max(maxh, span.value());
 				}
 			}
@@ -245,15 +245,8 @@ namespace codepad::ui {
 		get_manager().get_scheduler().invalidate_children_layout(*this);
 	}
 
-	void panel::_on_child_desired_size_changed(element &child, bool width, bool height) {
-		bool
-			width_changed = width && get_width_allocation() == size_allocation_type::automatic,
-			height_changed = height && get_height_allocation() == size_allocation_type::automatic;
-		if (width_changed || height_changed) { // actually affects something
-			_on_desired_size_changed(width_changed, height_changed);
-		} else {
-			child.invalidate_layout();
-		}
+	void panel::_on_child_desired_size_changed(element&, bool width, bool height) {
+		_on_desired_size_changed(width, height);
 	}
 
 	void panel::_on_mouse_down(mouse_button_info &p) {
@@ -407,5 +400,37 @@ namespace codepad::ui {
 
 	std::optional<double> panel::_get_total_vertical_absolute_span(const element_collection &children) {
 		return _get_total_absolute_span<_get_vertical_absolute_span>(children);
+	}
+
+	std::optional<double> panel::_get_horizontal_absolute_desired_span(const element &e) {
+		return _get_absolute_span<
+			anchor::left, &thickness::left,
+			&element::get_desired_width,
+			anchor::right, &thickness::right
+		>(e);
+	}
+
+	std::optional<double> panel::_get_vertical_absolute_desired_span(const element &e) {
+		return _get_absolute_span<
+			anchor::top, &thickness::top,
+			&element::get_desired_height,
+			anchor::bottom, &thickness::bottom
+		>(e);
+	}
+
+	std::optional<double> panel::_get_max_horizontal_absolute_desired_span(const element_collection &children) {
+		return _get_max_absolute_span<_get_horizontal_absolute_desired_span>(children);
+	}
+
+	std::optional<double> panel::_get_max_vertical_absolute_desired_span(const element_collection &children) {
+		return _get_max_absolute_span<_get_vertical_absolute_desired_span>(children);
+	}
+
+	std::optional<double> panel::_get_total_horizontal_absolute_desired_span(const element_collection &children) {
+		return _get_total_absolute_span<_get_horizontal_absolute_desired_span>(children);
+	}
+
+	std::optional<double> panel::_get_total_vertical_absolute_desired_span(const element_collection &children) {
+		return _get_total_absolute_span<_get_vertical_absolute_desired_span>(children);
 	}
 }

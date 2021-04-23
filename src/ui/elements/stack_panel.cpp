@@ -11,33 +11,19 @@
 
 namespace codepad::ui {
 	size_allocation stack_panel::get_desired_width() const {
-		double val = 0.0;
-		for (element *e : _children.items()) {
-			if (e->is_visible(visibility::layout)) {
-				if (auto span = _get_horizontal_absolute_span(*e)) {
-					val =
-						get_orientation() == orientation::vertical ?
-						std::max(val, span.value()) :
-						val + span.value();
-				}
-			}
-		}
-		return size_allocation::pixels(val + get_padding().width());
+		std::optional<double> value =
+			get_orientation() == orientation::vertical ?
+			_get_max_horizontal_absolute_desired_span(_children) :
+			_get_total_horizontal_absolute_desired_span(_children);
+		return size_allocation::pixels(value.value_or(0.0) + get_padding().width());
 	}
 
 	size_allocation stack_panel::get_desired_height() const {
-		double val = 0.0;
-		for (element *e : _children.items()) {
-			if (e->is_visible(visibility::layout)) {
-				if (auto span = _get_vertical_absolute_span(*e)) {
-					val =
-						get_orientation() == orientation::vertical ?
-						val + span.value() :
-						std::max(val, span.value());
-				}
-			}
-		}
-		return size_allocation::pixels(val + get_padding().height());
+		std::optional<double> value =
+			get_orientation() == orientation::vertical ?
+			_get_total_vertical_absolute_desired_span(_children) :
+			_get_max_vertical_absolute_desired_span(_children);
+		return size_allocation::pixels(value.value_or(0.0) + get_padding().height());
 	}
 
 	property_info stack_panel::_find_property_path(const property_path::component_list &path) const {

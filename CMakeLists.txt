@@ -71,6 +71,7 @@ target_sources(codepad_core
 		"include/codepad/ui/elements/popup.h"
 		"include/codepad/ui/elements/scroll_viewport.h"
 		"include/codepad/ui/elements/scrollbar.h"
+		"include/codepad/ui/elements/size_limiter.h"
 		"include/codepad/ui/elements/stack_panel.h"
 		"include/codepad/ui/elements/text_edit.h"
 
@@ -111,6 +112,7 @@ target_sources(codepad_core
 		"src/ui/elements/popup.cpp"
 		"src/ui/elements/scroll_viewport.cpp"
 		"src/ui/elements/scrollbar.cpp"
+		"src/ui/elements/size_limiter.cpp"
 		"src/ui/elements/stack_panel.cpp"
 		"src/ui/elements/text_edit.cpp"
 

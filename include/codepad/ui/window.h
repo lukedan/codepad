@@ -379,6 +379,7 @@ namespace codepad::ui {
 			if (width_may_change || height_may_change) {
 				_impl->_update_managed_window_size();
 			}
+			_invalidate_children_layout();
 		}
 
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,

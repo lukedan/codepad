@@ -12,7 +12,11 @@
 
 namespace codepad::lsp {
 	hover_tooltip::hover_tooltip(interpretation_tag &p, std::size_t pos) : _parent(&p) {
-		_label = _parent->get_client().get_manager().get_plugin_context().ui_man->create_element<ui::label>();
+		_label = dynamic_cast<ui::label*>(
+			_parent->get_client().get_manager().get_plugin_context().ui_man->create_element(
+				u8"label", u8"contents_region_label"
+			)
+		);
 
 		if (_parent->get_client().get_state() == client::state::ready) {
 			_label->set_text(u8"Loading...");
@@ -84,6 +88,8 @@ namespace codepad::lsp {
 				response.contents.value
 			);
 		} else {
+			// TODO when this finishes very quickly after the popup is created, the position of this label is wrong
+			//      this is not a LSP issue; it's only documented here
 			_label->set_text(u8"[No result]");
 		}
 	}

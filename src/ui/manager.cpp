@@ -11,8 +11,12 @@
 #include "codepad/ui/window.h"
 #include "codepad/ui/element.h"
 #include "codepad/ui/panel.h"
+#include "codepad/ui/elements/button.h"
 #include "codepad/ui/elements/label.h"
 #include "codepad/ui/elements/popup.h"
+#include "codepad/ui/elements/scroll_viewport.h"
+#include "codepad/ui/elements/size_limiter.h"
+#include "codepad/ui/elements/stack_panel.h"
 #include "codepad/ui/elements/text_edit.h"
 #include "codepad/ui/elements/tabs/manager.h"
 #include "codepad/ui/elements/tabs/animated_tab_button_panel.h"
@@ -276,6 +280,7 @@ namespace codepad::ui {
 		register_element_type<scrollbar>();
 		register_element_type<scroll_viewport>();
 		register_element_type<scroll_view>();
+		register_element_type<size_limiter>();
 		register_element_type<text_edit>();
 		register_element_type<textbox>();
 		register_element_type<window>();
