@@ -356,8 +356,8 @@ namespace codepad::ui {
 					make_region_visible(caret);
 				};
 				_edit->text_changed += [this]() {
-					// this is necessary: since text layout of _edit is dependent on its element layout, without this the
-					// caret_changed event won't be able to obtain correct caret positions
+					// this is necessary: since text layout of _edit is dependent on its element layout. without
+					// this, the caret_changed event won't be able to obtain correct caret positions
 					get_manager().get_scheduler().update_element_layout_immediate(*_edit);
 					clamp_to_valid_range();
 				};

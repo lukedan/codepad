@@ -23,7 +23,7 @@ namespace codepad::ui {
 					}
 				}
 			}
-			return size_allocation::pixels(width);
+			return size_allocation::pixels(width + get_padding().width());
 		}
 		/// Clamps the desired size of all children to the target range, between \ref _min_size and \ref _max_size.
 		/// If no child has a fixed height value, the minimum height property will be returned.
@@ -36,7 +36,7 @@ namespace codepad::ui {
 					}
 				}
 			}
-			return size_allocation::pixels(height);
+			return size_allocation::pixels(height + get_padding().height());
 		}
 
 

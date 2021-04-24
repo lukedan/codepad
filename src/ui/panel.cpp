@@ -304,10 +304,9 @@ namespace codepad::ui {
 
 	/// Implementation of \ref panel::_get_horizontal_absolute_span() and \ref panel::_get_vertical_absolute_span().
 	template <
-		anchor AnchorBefore, double thickness::*MarginBefore,
-		size_allocation(element::*Size)() const,
-		anchor AnchorAfter, double thickness::*MarginAfter
-	> std::optional<double> _get_absolute_span(const element &e) {
+		anchor AnchorBefore, double thickness::*MarginBefore, anchor AnchorAfter, double thickness::*MarginAfter,
+		typename GetSize
+	> std::optional<double> _get_absolute_span(const element &e, const GetSize &get_size) {
 		bool has_value = false;
 		double cur = 0.0;
 		thickness margin = e.get_margin();
@@ -316,7 +315,7 @@ namespace codepad::ui {
 			has_value = true;
 			cur += margin.*MarginBefore;
 		}
-		auto size = (e.*Size)();
+		auto size = get_size(e);
 		if (size.is_pixels) {
 			has_value = true;
 			cur += size.value;
@@ -331,19 +330,19 @@ namespace codepad::ui {
 		return std::nullopt;
 	}
 	std::optional<double> panel::_get_horizontal_absolute_span(const element &e) {
-		return _get_absolute_span<
-			anchor::left, &thickness::left,
-			&element::get_layout_width,
-			anchor::right, &thickness::right
-		>(e);
+		return _get_absolute_span<anchor::left, &thickness::left, anchor::right, &thickness::right>(
+			e, [](const element &e) {
+				return e.get_layout_width();
+			}
+		);
 	}
 
 	std::optional<double> panel::_get_vertical_absolute_span(const element &e) {
-		return _get_absolute_span<
-			anchor::top, &thickness::top,
-			&element::get_layout_height,
-			anchor::bottom, &thickness::bottom
-		>(e);
+		return _get_absolute_span<anchor::top, &thickness::top, anchor::bottom, &thickness::bottom>(
+			e, [](const element &e) {
+				return e.get_layout_height();
+			}
+		);
 	}
 
 	/// Implementation of \ref panel::_get_max_horizontal_absolute_span() and
@@ -403,19 +402,25 @@ namespace codepad::ui {
 	}
 
 	std::optional<double> panel::_get_horizontal_absolute_desired_span(const element &e) {
-		return _get_absolute_span<
-			anchor::left, &thickness::left,
-			&element::get_desired_width,
-			anchor::right, &thickness::right
-		>(e);
+		return _get_absolute_span<anchor::left, &thickness::left, anchor::right, &thickness::right>(
+			e, [](const element &e) {
+				if (e.get_width_allocation() == size_allocation_type::fixed) {
+					return e.get_layout_width();
+				}
+				return e.get_desired_width();
+			}
+		);
 	}
 
 	std::optional<double> panel::_get_vertical_absolute_desired_span(const element &e) {
-		return _get_absolute_span<
-			anchor::top, &thickness::top,
-			&element::get_desired_height,
-			anchor::bottom, &thickness::bottom
-		>(e);
+		return _get_absolute_span<anchor::top, &thickness::top, anchor::bottom, &thickness::bottom>(
+			e, [](const element &e) {
+				if (e.get_height_allocation() == size_allocation_type::fixed) {
+					return e.get_layout_height();
+				}
+				return e.get_desired_height();
+			}
+		);
 	}
 
 	std::optional<double> panel::_get_max_horizontal_absolute_desired_span(const element_collection &children) {

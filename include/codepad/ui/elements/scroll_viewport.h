@@ -15,13 +15,13 @@ namespace codepad::ui {
 	/// children, which is then used when scrolling. It's valid to scroll outside this virtual area.
 	class scroll_viewport : public panel {
 	public:
-		/// Returns the maximum pixel width of all children.
+		/// Returns the maximum pixel width of all children. This value does not include the padding of this panel.
 		double get_virtual_panel_width() const {
-			return _get_max_horizontal_absolute_span(_children).value_or(0.0) + get_padding().width();
+			return _get_max_horizontal_absolute_span(_children).value_or(0.0);
 		}
-		/// Returns the maximum pixel height of all children.
+		/// Returns the maximum pixel height of all children. This value does not include the padding of this panel.
 		double get_virtual_panel_height() const {
-			return _get_max_vertical_absolute_span(_children).value_or(0.0) + get_padding().height();
+			return _get_max_vertical_absolute_span(_children).value_or(0.0);
 		}
 
 		/// Sets \ref _scroll_offset, and invokes \ref _on_scroll_offset_changed().
@@ -46,12 +46,11 @@ namespace codepad::ui {
 		/// Updates the layout of all elements.
 		void _on_update_children_layout() override {
 			vec2d client_size = get_client_region().size();
-			vec2d
-				virtual_size(
-					std::max(client_size.x, get_virtual_panel_width()),
-					std::max(client_size.y, get_virtual_panel_height())
-				),
-				top_left = get_client_region().xmin_ymin() - _scroll_offset;
+			vec2d virtual_size = vec2d(
+				std::max(client_size.x, get_virtual_panel_width()),
+				std::max(client_size.y, get_virtual_panel_height())
+			);
+			vec2d top_left = get_client_region().xmin_ymin() - _scroll_offset;
 			rectd virtual_client = rectd::from_corner_and_size(top_left, virtual_size);
 			for (element *e : children().items()) {
 				panel::layout_child(*e, virtual_client);
@@ -127,12 +126,12 @@ namespace codepad::ui {
 			if (_hori_scroll == nullptr) {
 				// works even when virtual panel width is smaller
 				offset.x = std::max(0.0, std::min(
-					_viewport->get_virtual_panel_width() - _viewport->get_layout().width(), offset.x
+					_viewport->get_virtual_panel_width() - _viewport->get_client_region().width(), offset.x
 				));
 			}
 			if (_vert_scroll == nullptr) {
 				offset.y = std::max(0.0, std::min(
-					_viewport->get_virtual_panel_height() - _viewport->get_layout().height(), offset.y
+					_viewport->get_virtual_panel_height() - _viewport->get_client_region().height(), offset.y
 				));
 			}
 			_viewport->set_scroll_offset(offset);
@@ -170,10 +169,16 @@ namespace codepad::ui {
 		/// Updates the parameters of all scrollbars.
 		void _update_scrollbar_params() {
 			if (_hori_scroll) {
-				_hori_scroll->set_params(_viewport->get_virtual_panel_width(), _viewport->get_layout().width());
+				_hori_scroll->set_params(
+					_viewport->get_virtual_panel_width() + _viewport->get_padding().width(),
+					_viewport->get_layout().width()
+				);
 			}
 			if (_vert_scroll) {
-				_vert_scroll->set_params(_viewport->get_virtual_panel_height(), _viewport->get_layout().height());
+				_vert_scroll->set_params(
+					_viewport->get_virtual_panel_height() + _viewport->get_padding().height(),
+					_viewport->get_layout().height()
+				);
 			}
 		}
 

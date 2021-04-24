@@ -355,9 +355,11 @@ namespace codepad::ui {
 		/// Similar to \ref _get_total_horizontal_absolute_span().
 		static std::optional<double> _get_total_vertical_absolute_span(const element_collection&);
 
-		/// Similar to \ref _get_horizontal_absolute_span(), but using the desired width of the element instead.
+		/// Similar to \ref _get_horizontal_absolute_span(), but using the desired width of the element instead when
+		/// the width allocation is proportional.
 		static std::optional<double> _get_horizontal_absolute_desired_span(const element&);
-		/// Similar to \ref _get_vertical_absolute_span(), but using the desired width of the element instead.
+		/// Similar to \ref _get_vertical_absolute_span(), but using the desired width of the element instead when
+		/// the width allocation is proportional.
 		static std::optional<double> _get_vertical_absolute_desired_span(const element&);
 
 		/// Similar to \ref _get_max_horizontal_absolute_span(), but using the desired width of the element instead.
