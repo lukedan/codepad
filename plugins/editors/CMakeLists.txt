@@ -44,6 +44,7 @@ target_sources(editors
 		"src/code/theme.cpp"
 
 		"src/buffer.cpp"
+		"src/commands.cpp"
 		"src/decoration.cpp"
 		"src/editor.cpp"
 		"src/theme_manager.cpp"

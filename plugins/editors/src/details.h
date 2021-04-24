@@ -6,9 +6,12 @@
 /// \file
 /// Miscellaneous shared private functions.
 
-#include <codepad/editors/manager.h>
+#include "codepad/editors/manager.h"
 
 namespace codepad::editors::_details {
 	/// Returns the manager.
-	manager &get_manager();
+	[[nodiscard]] manager &get_manager();
+
+	/// Returns the list of built-in commands.
+	[[nodiscard]] std::list<ui::command_registry::stub> get_builtin_commands();
 }

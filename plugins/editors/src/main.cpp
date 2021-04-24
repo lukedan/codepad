@@ -17,6 +17,7 @@
 #include "codepad/editors/code/minimap.h"
 #include "codepad/editors/binary/contents_region.h"
 #include "codepad/editors/binary/components.h"
+#include "details.h"
 
 namespace cp = ::codepad;
 
@@ -25,6 +26,7 @@ namespace codepad::editors {
 	cp::plugin *_this_plugin = nullptr;
 
 	std::unique_ptr<cp::editors::manager> _manager;
+	ui::command_registry::command_list _commands;
 
 	namespace _details {
 		manager &get_manager() {
@@ -45,6 +47,9 @@ extern "C" {
 
 		_manager->register_builtin_interactions();
 		_manager->register_builtin_decoration_renderers();
+
+		_commands = cp::ui::command_registry::command_list(_context->ui_man->get_command_registry());
+		_commands.commands = _details::get_builtin_commands();
 	}
 
 	PLUGIN_FINALIZE() {
@@ -66,9 +71,13 @@ extern "C" {
 		_context->ui_man->register_element_type<cp::editors::code::minimap>();
 		_context->ui_man->register_element_type<cp::editors::binary::contents_region>();
 		_context->ui_man->register_element_type<cp::editors::binary::primary_offset_display>();
+
+		_commands.register_all();
 	}
 
 	PLUGIN_DISABLE() {
+		_commands.unregister_all();
+
 		_context->ui_man->unregister_element_type<cp::editors::editor>();
 		_context->ui_man->unregister_element_type<cp::editors::code::contents_region>();
 		_context->ui_man->unregister_element_type<cp::editors::code::contents_region_tooltip>();

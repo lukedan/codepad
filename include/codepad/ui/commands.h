@@ -66,6 +66,32 @@ namespace codepad::ui {
 			command _exec; ///< The function to be executed.
 			bool _registered = false; ///< Whether this command has been registered.
 		};
+		/// Utility class for quickly registering and unregistering a list of commands.
+		struct command_list {
+		public:
+			/// Default constructor.
+			command_list() = default;
+			/// Initializes \ref _registry.
+			explicit command_list(command_registry &reg) : _registry(&reg) {
+			}
+
+			/// Registers all entries in \ref commands.
+			void register_all() {
+				for (stub &s : commands) {
+					s.register_command(*_registry);
+				}
+			}
+			/// Unregisters all entries in \ref commands.
+			void unregister_all() {
+				for (stub &s : commands) {
+					s.unregister_command(*_registry);
+				}
+			}
+
+			std::list<stub> commands; ///< The list of commands.
+		protected:
+			command_registry *_registry = nullptr; ///< The associated \ref command_registry.
+		};
 
 
 		/// Registers a command.
