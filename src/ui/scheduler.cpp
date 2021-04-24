@@ -34,6 +34,9 @@ namespace codepad::ui {
 	}
 
 	void scheduler::update_invalid_layout() {
+		if (_layouting) { // prevent re-entrant
+			return;
+		}
 		if (_children_layout_scheduled.empty() && _layout_notify.empty()) {
 			return;
 		}

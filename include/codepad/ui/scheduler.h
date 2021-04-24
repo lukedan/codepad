@@ -181,11 +181,12 @@ namespace codepad::ui {
 			assert_true_logical(!_layouting, "layout notifications are handled automatically");
 			_layout_notify.emplace(&e);
 		}
-		/// Calculates the layout of all elements with invalidated layout.
-		/// The calculation is recursive; that is, after a parent's layout has been changed,
-		/// all its children are automatically marked for layout calculation.
+		/// Calculates the layout of all elements with invalidated layout. The calculation is recursive; that is,
+		/// after a parent's layout has been changed, all its children are automatically marked for layout
+		/// calculation.
 		void update_invalid_layout();
-		/// Immediately updates the layout of the given element and its descendents.
+		/// Immediately updates the layout of the given element and its descendents. This function should not be
+		/// called if layout is already in progress.
 		void update_element_layout_immediate(element&);
 
 		/// Marks the given element for re-rendering. This will re-render the whole window,

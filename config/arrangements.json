@@ -8,6 +8,7 @@
 	},
 	"label": {
 		"properties": {
+			"visibility": "-f",
 			"font": {
 				"family": "Comic Sans MS",
 				"size": 20,
@@ -36,9 +37,7 @@
 		"properties": {
 			"visibility": "-f",
 			"layout": {
-				"width": "auto",
-				"height": "auto",
-				"padding": 5
+				"padding": 1.0
 			},
 			"visuals": {
 				"geometries": [
@@ -66,6 +65,7 @@
 			{
 				"type": "size_limiter",
 				"properties": {
+					"visibility": "-f",
 					"maximum_size.y": 500.0
 				},
 				"children": [
@@ -74,6 +74,9 @@
 						"references": {
 							"viewport": "viewport",
 							"vertical_scrollbar": "vertical_scrollbar",
+						},
+						"properties": {
+							"visibility": "-f"
 						},
 						"children": [
 							{
@@ -88,15 +91,19 @@
 								"type": "scroll_viewport",
 								"name": "viewport",
 								"properties": {
+									"visibility": "-f",
 									"layout": {
+										"padding": 5,
 										"height": "100%",
-										"margin": [ 0.0, 0.0, 8.0, 8.0 ]
-									}
+										"margin": [ 0.0, 0.0, 8.0, 0.0 ]
+									},
+									"clip_to_bounds": true
 								},
 								"children": [
 									{
 										"type": "size_limiter",
 										"properties": {
+											"visibility": "-f",
 											"maximum_size.x": 500.0
 										},
 										"children": [
@@ -104,6 +111,7 @@
 												"type": "stack_panel",
 												"name": "contents_panel",
 												"properties": {
+													"visibility": "-f",
 													"orientation": "vertical"
 												}
 											}
