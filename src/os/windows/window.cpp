@@ -47,6 +47,11 @@ namespace codepad::os {
 				SetWindowLongPtr(wnd_impl->_hwnd, GWLP_USERDATA, NULL);
 				wnd_impl->_hwnd = nullptr;
 				wnd.get_manager().get_scheduler().mark_for_disposal(wnd);
+
+				// cancel size callback
+				if (wnd_impl->_size_callback) {
+					wnd_impl->_size_callback.cancel();
+				}
 				return 0;
 
 			case WM_SIZING:
@@ -428,13 +433,19 @@ namespace codepad::os {
 			// the system, we're gonna play it safe here
 			SetWindowLongPtr(_hwnd, GWLP_USERDATA, NULL);
 			_details::winapi_check(DestroyWindow(_hwnd));
+
+			// cancel size callback
+			if (_size_callback) {
+				_size_callback.cancel();
+			}
 		}
 	}
 
 	void window_impl::_set_parent(ui::window *wnd) {
 		if (_hwnd) {
 			// what we're really setting here is ownership
-			// TODO is a single SetWindowLongPtr enough? not according to https://devblogs.microsoft.com/oldnewthing/20100315-00/?p=14613
+			// TODO is a single SetWindowLongPtr enough? not according to
+			//      https://devblogs.microsoft.com/oldnewthing/20100315-00/?p=14613
 			HWND parent = wnd ? _details::cast_window_impl(*wnd->_impl).get_native_handle() : nullptr;
 			SetLastError(0);
 			if (SetWindowLongPtr(_hwnd, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(parent)) == 0) {
@@ -578,13 +589,15 @@ namespace codepad::os {
 			// set window size
 			// since this may be called during layout and SetWindowPos calls WindowProc internally, (and WindowProc
 			// calls update_layout_and_visuals), we need to delay the call
-			_window.get_manager().get_scheduler().execute_callback(
+			if (_size_callback) {
+				_size_callback.cancel();
+			}
+			_size_callback = _window.get_manager().get_scheduler().execute_callback(
 				[=, hwnd = _hwnd]() {
-					// TODO make callbacks cancellable
-					/*_details::winapi_check(*/SetWindowPos(
-						_hwnd, nullptr, 0, 0, new_width, new_height,
+					_details::winapi_check(SetWindowPos(
+						hwnd, nullptr, 0, 0, new_width, new_height,
 						SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER
-					)/*)*/;
+					));
 				}
 			);
 		}

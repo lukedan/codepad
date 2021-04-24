@@ -21,7 +21,7 @@
 namespace codepad::os {
 	/// Implementation of windows using WinAPI.
 	class window_impl : public ui::_details::window_impl {
-		friend ui::scheduler;
+		friend scheduler_impl;
 	public:
 		using native_handle_t = HWND; ///< Native handle.
 
@@ -223,6 +223,8 @@ namespace codepad::os {
 		/// \ref window_impl. If it's not, returns \p nullptr.
 		static window_impl *_get_associated_window_impl(HWND);
 
+		/// Token for window resizing cased by \ref _update_managed_window_size().
+		ui::scheduler::callback_token _size_callback;
 		vec2d _cached_scaling{1.0, 1.0}; ///< The cached scaling factor.
 		/// The handle of this window. All functions of this class are protected against when this is \p nullptr.
 		/// This is because these functions can be called due to \p WM_DESTROY marking this window for disposal, at

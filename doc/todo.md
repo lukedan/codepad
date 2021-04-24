@@ -57,7 +57,9 @@ Items in this list are not sorted by any specific order.
 				- [ ] Miscellaneous OS-specific functions
 	- [ ] Elements
 		- [x] _Popups_
+		- [x] _Size limiter_
 		- [ ] Sublime-style input prompt
+			- [ ] Reference container
 			- [ ] Virtualized listbox
 			- [ ] Fuzzy searcing
 		- [ ] Tabs

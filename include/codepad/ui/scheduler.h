@@ -9,26 +9,38 @@
 #include <set>
 #include <list>
 #include <deque>
+#include <list>
 #include <chrono>
 #include <functional>
 #include <thread>
-#include <list>
-
-#ifdef CP_PLATFORM_UNIX
-#	include <pthread.h>
-#endif
+#include <mutex>
+#include <atomic>
 
 #include "codepad/core/profiling.h"
 #include "codepad/core/intrusive_priority_queue.h"
 #include "commands.h"
 #include "animation.h"
 
-namespace codepad::ui {
-	class element;
-	class element_collection;
-	class panel;
-	class window;
+namespace codepad {
+	namespace ui {
+		class element;
+		class element_collection;
+		class panel;
+		class window;
+		class scheduler;
+		namespace _details {
+			class scheduler_impl;
+		}
+	}
+	namespace os {
+		class scheduler_impl;
 
+		/// Creates a \ref scheduler_impl for the given \ref ui::scheduler object.
+		std::unique_ptr<ui::_details::scheduler_impl> create_scheduler_impl(ui::scheduler&);
+	}
+}
+
+namespace codepad::ui {
 	/// Schedules the updating and rendering of all elements. There should at most be one active object of this type
 	/// per thread.
 	class scheduler {
@@ -44,11 +56,6 @@ namespace codepad::ui {
 		constexpr static std::size_t maximum_messages_per_update = 20;
 
 		using clock_t = std::chrono::high_resolution_clock;
-#ifdef CP_PLATFORM_WINDOWS
-		using thread_id_t = std::uint32_t; ///< The type for thread IDs.
-#elif defined(CP_PLATFORM_UNIX)
-		using thread_id_t = pthread_t;
-#endif
 		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
 		enum class wait_type {
 			blocking, ///< This operation may stall.
@@ -122,11 +129,44 @@ namespace codepad::ui {
 
 			_sync_task_info *_task = nullptr; ///< Pointer to the \ref _sync_task_info.
 		};
+		/// Token for a callback. Can be used to cancel the callback.
+		struct callback_token {
+			friend scheduler;
+		public:
+			/// Default constructor.
+			callback_token() {
+			}
 
-		/// Constructor. Initializes \ref _thread_id.
-		scheduler() : _thread_id(_get_thread_id()) {
+			/// Attempts to cancel the callback. Regardless of whether this function is able to cancel the callback,
+			/// this token will be reset.
+			///
+			/// \return Whether it was successfully cancelled.
+			bool cancel();
+
+			/// Tests whether this token is empty.
+			[[nodiscard]] bool is_empty() const {
+				return _scheduler == nullptr;
+			}
+			/// Tests whether this token is non-empty.
+			[[nodiscard]] operator bool() const {
+				return _scheduler != nullptr;
+			}
+		protected:
+			std::list<std::function<void()>>::const_iterator _iter; ///< Iterator to the callback function.
+			std::size_t _timestamp = 0; ///< Timestamp.
+			scheduler *_scheduler = nullptr; ///< The \ref scheduler that created this object.
+
+			/// Initializes all fields of the struct.
+			callback_token(
+				scheduler &sched, std::list<std::function<void()>>::const_iterator it, std::size_t stamp
+			) : _iter(it), _timestamp(stamp), _scheduler(&sched) {
+			}
+		};
+
+		/// Initializes \ref _impl.
+		scheduler() {
+			_impl = os::create_scheduler_impl(*this);
 		}
-
 
 		// layout & visual
 		/// Invalidates the layout of an element. Its parent will be notified to recalculate its layout.
@@ -222,6 +262,7 @@ namespace codepad::ui {
 		/// Returns whether \ref update() needs to be called right now.
 		[[nodiscard]] bool needs_update() const {
 			return
+				_num_callbacks > 0 || // callbacks
 				_earliest_sync_task() <= clock_t::now() + _update_wait_threshold || // tasks
 				!_to_delete.empty() || // element disposal
 				!_children_layout_scheduled.empty() || !_layout_notify.empty() || // layout
@@ -236,17 +277,24 @@ namespace codepad::ui {
 		/// Wakes the main thread up from the idle state by calling \ref _wake_up(). This function does not block.
 		/// This function can be called from other threads as long as this \ref scheduler object has finished
 		/// construction.
-		void wake_up() {
-			_wake_up();
-		}
+		void wake_up();
 		/// Wakes the main thread up and executes the given callback function. This function does not block. This
 		/// function can be called from other threads.
-		void execute_callback(std::function<void()> func) {
-			_execute_callback(std::move(func));
+		callback_token execute_callback(std::function<void()> func) {
+			std::size_t timestamp;
+			std::list<std::function<void()>>::const_iterator it;
+			{
+				std::scoped_lock<std::mutex> lock(_callback_mutex);
+				it = _callbacks.insert(_callbacks.end(), std::move(func));
+				timestamp = _callback_timestamp;
+				++_num_callbacks;
+			}
+			wake_up();
+			return callback_token(*this, it, timestamp);
 		}
 
 		/// Returns the \ref hotkey_listener.
-		hotkey_listener &get_hotkey_listener() {
+		[[nodiscard]] hotkey_listener &get_hotkey_listener() {
 			return _hotkeys;
 		}
 		/// \overload
@@ -270,15 +318,25 @@ namespace codepad::ui {
 		/// Used to keep track the tasks to execute first.
 		intrusive_priority_queue<_sync_task_ref, _sync_task_compare> _sync_task_queue;
 
+		std::list<std::function<void()>> _callbacks; ///< Callback functions queued for execution.
+		std::mutex _callback_mutex;///< Protects \ref _callbacks, \ref _callback_timestamp, and \ref _num_callbacks.
+		/// Timestamp. This is incremented every time a `batch' of callbacks are executed, and used for cancelling
+		/// callbacks.
+		std::atomic_size_t _callback_timestamp = 1;
+		/// The number of entries in \ref _callbacks. This allows the main thread to check for callbacks without
+		/// locking. Note that while this can be read without locking, writing must be protected by
+		/// \ref _callback_mutex.
+		std::atomic_size_t _num_callbacks = 0;
+
 		/// If the next update is more than this amount of time away, then set the timer and yield control to reduce
 		/// resource consumption.
 		clock_t::duration _update_wait_threshold{ std::chrono::microseconds(100) };
 
-		thread_id_t _thread_id; ///< The thread ID of the thread that this scheduler is running on.
-
 		window *_focused_window = nullptr; ///< The window that currently have system keyboard focus.
 		element *_focus = nullptr; ///< Pointer to the currently focused \ref element.
 		bool _layouting = false; ///< Specifies whether layout calculation is underway.
+
+		std::unique_ptr<_details::scheduler_impl> _impl; ///< Platform-specific implementation of the scheduler.
 
 
 		/// Finds the focus scope that the given \ref element is in. The element itself is not taken into account.
@@ -316,28 +374,40 @@ namespace codepad::ui {
 			return _sync_task_queue.top().info->scheduled;
 		}
 
-		/// Simple wrapper around \ref _main_iteration_system_impl() that performs some additional common tasks.
-		bool _main_iteration_system(wait_type type) {
-			return _main_iteration_system_impl(type);
-		}
-
-		// platform-dependent functions
-		/// Handles one message from the system message queue. This function is platform-specific.
+		/// Checks and executes all queued callbacks.
 		///
-		/// \return Whether a message has been handled.
-		bool _main_iteration_system_impl(wait_type);
-		/// Sets a timer that will be activated after the given amount of time. When the timer is expired, this
-		/// program will regain control and thus can update stuff. If this is called when a timer has previously
-		/// been set, it may or may not be cancelled. This function is platform-specific.
-		void _set_timer(clock_t::duration);
-		/// Wakes the main thread up from the idle state. This function can be called from other threads as long as
-		/// this \ref scheduler object has finished construction.
-		void _wake_up();
-		/// Executes the callback function on the main thread. This function can be called from other threads. This
-		/// function is platform-specific.
-		void _execute_callback(std::function<void()>);
-
-		/// Returns the current thread ID.
-		[[nodiscard]] static thread_id_t _get_thread_id();
+		/// \return Whether any callbacks are executed.
+		bool _check_and_execute_callbacks();
 	};
+
+	namespace _details {
+		/// Virtual base class of platform-specific scheduler implementations.
+		class scheduler_impl {
+		public:
+			/// Initializes \ref owner.
+			scheduler_impl(scheduler &s) : owner(s) {
+			}
+			/// No copy & move construction.
+			scheduler_impl(const scheduler_impl&) = delete;
+			/// Default virtual destructor.
+			virtual ~scheduler_impl() = default;
+
+			/// Handles one event from the system message queue. The event could be a message from the system or an
+			/// event generated by a filesystem watcher. If the given \ref scheduler::wait_type is
+			/// \ref scheduler::wait_type::blocking, this function waits until an event has occurred, handles it, and
+			/// returns. Otherwise, It checks if an event is present, and if not, immediately returns \p false.
+			///
+			/// \return Whether an event has been handled.
+			virtual bool handle_event(scheduler::wait_type) = 0;
+			/// Sets a timer that will be activated after the given amount of time. When the timer expires, this
+			/// program will regain control as if calling \ref wake_up(). If this is called when a timer has
+			/// previously been set and hasn't triggered yet, there's no guarantee whether it will be cancelled.
+			virtual void set_timer(scheduler::clock_t::duration) = 0;
+			/// Wakes the main thread up from the wait state cased by \ref handle_event(). This function can be
+			/// called from other threads as long as this \ref scheduler object has finished construction.
+			virtual void wake_up() = 0;
+
+			scheduler &owner; ///< The \ref scheduler that uses this implementation.
+		};
+	}
 }

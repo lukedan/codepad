@@ -190,6 +190,7 @@ if(WIN32)
 			"include/codepad/os/windows/cairo_renderer.h"
 			"include/codepad/os/windows/direct2d_renderer.h"
 			"include/codepad/os/windows/misc.h"
+			"include/codepad/os/windows/scheduler.h"
 			"include/codepad/os/windows/skia_renderer.h"
 			"include/codepad/os/windows/window.h"
 		PRIVATE
@@ -198,6 +199,7 @@ if(WIN32)
 			"src/os/windows/filesystem.cpp"
 			"src/os/windows/misc.cpp"
 			"src/os/windows/process.cpp"
+			"src/os/windows/scheduler.cpp"
 			"src/os/windows/window.cpp"
 			"src/os/windows/windows.cpp")
 	target_compile_definitions(codepad_core

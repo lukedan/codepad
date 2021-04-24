@@ -11,6 +11,21 @@
 #include "codepad/ui/window.h"
 
 namespace codepad::ui {
+	bool scheduler::callback_token::cancel() {
+		auto *sched = std::exchange(_scheduler, nullptr);
+		// _callback_timestamp cannot be larger than _timestamp
+		if (sched->_callback_timestamp == _timestamp) {
+			std::scoped_lock<std::mutex> lock(sched->_callback_mutex);
+			if (sched->_callback_timestamp == _timestamp) {
+				sched->_callbacks.erase(_iter);
+				--sched->_num_callbacks;
+				return true;
+			}
+		}
+		return false;
+	}
+
+
 	void scheduler::invalidate_layout(element &e) {
 		// TODO maybe optimize for panels
 		if (e.parent() != nullptr) {
@@ -204,19 +219,24 @@ namespace codepad::ui {
 
 	void scheduler::main_iteration() {
 		if (needs_update()) {
+			// execute callbacks
+			_check_and_execute_callbacks();
 			// if updating is necessary, first perform this update, then process pending messages
 			update();
 			// limit the maximum number of messages processed at once
-			for (
-				std::size_t i = 0;
-				i < maximum_messages_per_update && _main_iteration_system(wait_type::non_blocking);
-				++i
-			) {
+			for (std::size_t i = 0; i < maximum_messages_per_update; ++i) {
+				if (!_impl->handle_event(wait_type::non_blocking)) {
+					break;
+				}
 			}
 		} else {
-			_set_timer(_earliest_sync_task() - clock_t::now()); // set up the timer
-			_main_iteration_system(wait_type::blocking); // wait for the next event or the timer
+			_impl->set_timer(_earliest_sync_task() - clock_t::now()); // set up the timer
+			_impl->handle_event(wait_type::blocking); // wait for the next event or the timer
 		}
+	}
+
+	void scheduler::wake_up() {
+		_impl->wake_up();
 	}
 
 	panel *scheduler::_find_focus_scope(element &e) {
@@ -300,5 +320,28 @@ namespace codepad::ui {
 			}
 		}
 		_layouting = false;
+	}
+
+	bool scheduler::_check_and_execute_callbacks() {
+		if (_num_callbacks > 0) {
+			// take the list of callbacks out and unlock before executing, so that queuing callbacks in them
+			// won't cause deadlocks
+			std::list<std::function<void()>> callbacks;
+			{
+				std::scoped_lock<std::mutex> lock(_callback_mutex);
+				if (_callbacks.empty()) {
+					return false;
+				}
+				std::swap(callbacks, _callbacks);
+				++_callback_timestamp;
+				_num_callbacks = 0;
+			}
+			while (!callbacks.empty()) {
+				callbacks.front()();
+				callbacks.pop_front();
+			}
+			return true;
+		}
+		return false;
 	}
 }
