@@ -80,7 +80,7 @@ namespace codepad::tree_sitter {
 			start_highlight_task();
 		};
 		_lang_changed_token = _interp->get_buffer().language_changed +=
-			[this](value_update_info<std::vector<std::u8string>, value_update_info_contents::old_value>&) {
+			[this](editors::buffer::language_changed_info&) {
 				if (auto task = _task_token.get_task()) {
 					task->cancel();
 					task->wait_finish();

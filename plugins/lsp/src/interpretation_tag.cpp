@@ -127,7 +127,6 @@ namespace codepad::lsp {
 			std::holds_alternative<std::filesystem::path>(_interp->get_buffer().get_id()),
 			"document tags are only available for files on disk"
 		);
-		auto &path = std::get<std::filesystem::path>(_interp->get_buffer().get_id());
 
 		_change_params.textDocument.uri = uri::from_current_os_path(
 			std::get<std::filesystem::path>(_interp->get_buffer().get_id())
@@ -143,6 +142,10 @@ namespace codepad::lsp {
 		_end_edit_token = _interp->get_buffer().end_edit += [this](editors::buffer::end_edit_info &info) {
 			_on_end_edit(info);
 		};
+		_langauge_changed_token =
+			_interp->get_buffer().language_changed += [this](editors::buffer::language_changed_info &info) {
+				_on_language_changed(info);
+			};
 
 		_diagnostic_decoration_token = _interp->add_decoration_provider(std::make_unique<editors::decoration_provider>());
 		_hover_tooltip_token = _interp->add_tooltip_provider(std::make_unique<hover_tooltip_provider>(*this));
@@ -155,80 +158,8 @@ namespace codepad::lsp {
 
 		// send the requests if the client is ready
 		if (_client->get_state() == client::state::ready) {
-			// send didOpen
-			types::DidOpenTextDocumentParams didopen;
-			didopen.textDocument.version = 0;
-			didopen.textDocument.languageId = u8"cpp"; // TODO
-			didopen.textDocument.uri = uri::from_current_os_path(path);
-			// encode document as utf8
-			types::string text;
-			text.reserve(interp.get_buffer().length());
-			for (auto iter = interp.codepoint_begin(); !iter.ended(); iter.next()) {
-				codepoint cp = iter.is_codepoint_valid() ? iter.get_codepoint() : encodings::replacement_character;
-				auto str = encodings::utf8::encode_codepoint(cp);
-				text += std::u8string_view(reinterpret_cast<const char8_t*>(str.data()), str.size());
-			}
-			didopen.textDocument.text = std::move(text);
-			_client->send_notification(u8"textDocument/didOpen", didopen);
-
-
-			// send semanticTokens
-			types::SemanticTokensParams params;
-			params.textDocument.uri = _change_params.textDocument.uri;
-			_client->send_request<types::SemanticTokensResponse>(
-				u8"textDocument/semanticTokens/full", params, [this](types::SemanticTokensResponse params) {
-					_on_semanticTokens(std::move(params));
-				},
-				[this](types::integer code, std::u8string_view msg, const json::value_t &data) {
-					--_queued_highlight_version;
-					client::default_error_handler(code, msg, data);
-				}
-			);
-			++_queued_highlight_version;
-		}
-	}
-
-	void interpretation_tag::on_publishDiagnostics(
-		editors::code::interpretation &interp, types::PublishDiagnosticsParams params,
-		const editors::buffer_manager::interpretation_tag_token &tok
-	) {
-		auto *tag = std::any_cast<interpretation_tag>(&tok.get_for(interp));
-		if (tag) {
-			if (
-				params.version.value.has_value() &&
-				static_cast<types::integer>(params.version.value.value()) != tag->_change_params.textDocument.version
-			) {
-				return;
-			}
-
-			tag->_diagnostic_messages.clear();
-			{
-				auto modifier = tag->_diagnostic_decoration_token.modify();
-				modifier->decorations = editors::decoration_provider::registry();
-				auto &lang_profile = tag->get_interpretation().get_buffer().get_language();
-				modifier->renderers = {
-					tag->_client->get_manager().get_error_decoration(lang_profile.begin(), lang_profile.end()),
-					tag->_client->get_manager().get_warning_decoration(lang_profile.begin(), lang_profile.end()),
-					tag->_client->get_manager().get_info_decoration(lang_profile.begin(), lang_profile.end()),
-					tag->_client->get_manager().get_hint_decoration(lang_profile.begin(), lang_profile.end())
-				};
-				for (auto &diag : params.diagnostics.value) {
-					std::size_t
-						beg = tag->_position_to_character(diag.range.start),
-						end = tag->_position_to_character(diag.range.end);
-					auto severity = types::DiagnosticSeverityEnum::Error;
-					if (diag.severity.value) {
-						severity = diag.severity.value.value().value;
-					}
-
-					std::size_t index = tag->_diagnostic_messages.size();
-					tag->_diagnostic_messages.emplace_back(std::move(diag.message));
-					editors::decoration_provider::decoration_data data;
-					data.cookie = static_cast<std::int32_t>(index);
-					data.renderer = modifier->renderers[static_cast<std::size_t>(severity) - 1].get();
-					modifier->decorations.insert_range_after(beg, end - beg, data);
-				}
-			}
+			_send_didOpen();
+			_send_semanticTokens_full();
 		}
 	}
 
@@ -275,26 +206,60 @@ namespace codepad::lsp {
 
 	void interpretation_tag::_on_end_edit(editors::buffer::end_edit_info&) {
 		if (_client->get_state() == client::state::ready) {
+			// "The version number points to the version after all provided content changes have been applied."
 			++_change_params.textDocument.version;
 			_client->send_notification(u8"textDocument/didChange", _change_params);
 			_change_params.contentChanges.value.clear();
 
-			types::SemanticTokensParams params;
-			params.textDocument.uri = _change_params.textDocument.uri;
-			_client->send_request<types::SemanticTokensResponse>(
-				u8"textDocument/semanticTokens/full", params, [this](types::SemanticTokensResponse params) {
-					_on_semanticTokens(std::move(params));
-				},
-				[this](types::integer code, std::u8string_view msg, const json::value_t &data) {
-					--_queued_highlight_version;
-					// ignore errors caused by content modifications
-					if (code != static_cast<types::integer>(types::ErrorCodesEnum::ContentModified)) {
-						client::default_error_handler(code, msg, data);
-					}
-				}
-			);
-			++_queued_highlight_version;
+			_send_semanticTokens_full();
 		}
+	}
+
+	void interpretation_tag::_on_language_changed(editors::buffer::language_changed_info&) {
+		if (_client->get_state() == client::state::ready) {
+			++_change_params.textDocument.version;
+			// FIXME currently there's no way to directly change the language, we currently just close and reopen it
+			//       with the new language id
+			_send_didClose();
+			_send_didOpen();
+		}
+	}
+
+	void interpretation_tag::_send_didOpen() {
+		// send didOpen
+		types::DidOpenTextDocumentParams didopen;
+		didopen.textDocument.version = _change_params.textDocument.version;
+		didopen.textDocument.uri = _change_params.textDocument.uri;
+		didopen.textDocument.languageId = _interp->get_buffer().get_language().back();
+		// encode document as utf8
+		types::string text;
+		text.reserve(_interp->get_buffer().length());
+		for (auto iter = _interp->codepoint_begin(); !iter.ended(); iter.next()) {
+			codepoint cp = iter.is_codepoint_valid() ? iter.get_codepoint() : encodings::replacement_character;
+			auto str = encodings::utf8::encode_codepoint(cp);
+			text += std::u8string_view(reinterpret_cast<const char8_t*>(str.data()), str.size());
+		}
+		didopen.textDocument.text = std::move(text);
+		_client->send_notification(u8"textDocument/didOpen", didopen);
+	}
+
+	void interpretation_tag::_send_semanticTokens_full() {
+		types::SemanticTokensParams params;
+		params.textDocument.uri = _change_params.textDocument.uri;
+		_client->send_request<types::SemanticTokensResponse>(
+			u8"textDocument/semanticTokens/full", params,
+			[this](types::SemanticTokensResponse params) {
+				_on_semanticTokens(std::move(params));
+			},
+			[this](types::integer code, std::u8string_view msg, const json::value_t &data) {
+				--_queued_highlight_version;
+				// ignore errors caused by content modifications
+				if (code != static_cast<types::integer>(types::ErrorCodesEnum::ContentModified)) {
+					client::default_error_handler(code, msg, data);
+				}
+			}
+		);
+		++_queued_highlight_version;
 	}
 
 	void interpretation_tag::_on_semanticTokens(types::SemanticTokensResponse response) {
@@ -321,12 +286,12 @@ namespace codepad::lsp {
 			semantic_tokens->value
 		);
 
-		// TODO language
 		// TODO theme caching
 		// this is really ugly
 		std::unordered_map<std::uint64_t, std::optional<editors::text_theme>> theme_mapping;
-		auto theme =
-			_interp->get_buffer().get_buffer_manager().get_manager()->themes.get_theme_for_language(u8"cpp");
+		auto theme = _interp->get_buffer().get_buffer_manager().get_manager()->themes.get_theme_for_language(
+			_interp->get_buffer().get_language().back()
+		);
 		auto get_theme_for = [&](types::uinteger type, types::uinteger mods) {
 			std::uint64_t key = (static_cast<std::uint64_t>(type) << 32) | mods;
 			auto [it, inserted] = theme_mapping.try_emplace(key, std::nullopt);
@@ -385,5 +350,43 @@ namespace codepad::lsp {
 		);
 		auto theme_modifier = _theme_token.get_modifier();
 		*theme_modifier = std::move(data);
+	}
+
+	void interpretation_tag::on_publishDiagnostics(types::PublishDiagnosticsParams params) {
+		if (
+			params.version.value.has_value() &&
+			static_cast<types::integer>(params.version.value.value()) != _change_params.textDocument.version
+		) {
+			return;
+		}
+
+		_diagnostic_messages.clear();
+		{
+			auto modifier = _diagnostic_decoration_token.modify();
+			modifier->decorations = editors::decoration_provider::registry();
+			auto &lang_profile = get_interpretation().get_buffer().get_language();
+			modifier->renderers = {
+				_client->get_manager().get_error_decoration(lang_profile.begin(), lang_profile.end()),
+				_client->get_manager().get_warning_decoration(lang_profile.begin(), lang_profile.end()),
+				_client->get_manager().get_info_decoration(lang_profile.begin(), lang_profile.end()),
+				_client->get_manager().get_hint_decoration(lang_profile.begin(), lang_profile.end())
+			};
+			for (auto &diag : params.diagnostics.value) {
+				std::size_t
+					beg = _position_to_character(diag.range.start),
+					end = _position_to_character(diag.range.end);
+				auto severity = types::DiagnosticSeverityEnum::Error;
+				if (diag.severity.value) {
+					severity = diag.severity.value.value().value;
+				}
+
+				std::size_t index = _diagnostic_messages.size();
+				_diagnostic_messages.emplace_back(std::move(diag.message));
+				editors::decoration_provider::decoration_data data;
+				data.cookie = static_cast<std::int32_t>(index);
+				data.renderer = modifier->renderers[static_cast<std::size_t>(severity) - 1].get();
+				modifier->decorations.insert_range_after(beg, end - beg, data);
+			}
+		}
 	}
 }

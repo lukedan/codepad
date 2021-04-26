@@ -91,7 +91,7 @@ Items in this list are not sorted by any specific order.
 	- [ ] Relative mode(s) for line number display
 - [ ] Tree-sitter plugin
 	- [ ] Support for different encodings
-	- [ ] Languages
+	- [x] _Languages_
 	- [x] _Syntax highlighting_
 		- [x] _Basic integration_
 		- [x] _Customizable themes_
@@ -100,7 +100,7 @@ Items in this list are not sorted by any specific order.
 - [ ] LSP plugin
 	- [x] _Basic protocol structures_
 	- [ ] UTF-16 word position
-	- [ ] Languages
+	- [x] _Languages_
 	- [ ] Backends
 		- [x] _Stdio backend_
 			- [x] _Convert to platform-agnostic API_

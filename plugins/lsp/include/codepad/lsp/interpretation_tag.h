@@ -90,14 +90,14 @@ namespace codepad::lsp {
 			_interp->get_buffer().begin_edit -= _begin_edit_token;
 			_interp->end_modification -= _end_modification_token;
 			_interp->get_buffer().end_edit -= _end_edit_token;
+			_interp->get_buffer().language_changed -= _langauge_changed_token;
+
 			_interp->remove_decoration_provider(_diagnostic_decoration_token);
 			_interp->remove_tooltip_provider(_hover_tooltip_token);
 			_interp->remove_tooltip_provider(_diagnostic_tooltip_token);
 			_interp->get_theme_providers().remove_provider(_theme_token);
 
-			types::DidCloseTextDocumentParams params;
-			params.textDocument.uri = _change_params.textDocument.uri;
-			_client->send_notification(u8"textDocument/didClose", params);
+			_send_didClose();
 		}
 
 		/// Returns the identifier of the associated document.
@@ -124,10 +124,7 @@ namespace codepad::lsp {
 		}
 
 		/// Handles the \p textDocument/publishDiagnostics notification.
-		static void on_publishDiagnostics(
-			editors::code::interpretation&, types::PublishDiagnosticsParams,
-			const editors::buffer_manager::interpretation_tag_token&
-		);
+		void on_publishDiagnostics(types::PublishDiagnosticsParams);
 
 		/// Invoked when a new \ref editors::code::interpretation is created, this function creates a tag object if
 		/// the interpretation is associated with a file on disk.
@@ -171,6 +168,9 @@ namespace codepad::lsp {
 		info_event<editors::code::interpretation::end_modification_info>::token _end_modification_token;
 		/// Token used to listen to \ref editors::buffer::end_edit.
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
+		/// Token used to listen to \ref editors::buffer::language_changed.
+		info_event<editors::buffer::language_changed_info>::token _langauge_changed_token;
+
 		/// Token for the \ref editors::decoration_provider.
 		editors::code::interpretation::decoration_provider_token _diagnostic_decoration_token;
 		editors::code::interpretation::tooltip_provider_token
@@ -197,6 +197,7 @@ namespace codepad::lsp {
 		}
 
 
+		// handles for document events
 		/// Handler for \ref editors::buffer::begin_edit.
 		void _on_begin_edit(editors::buffer::begin_edit_info&) {
 			_change_params.contentChanges.value.clear();
@@ -206,7 +207,23 @@ namespace codepad::lsp {
 		/// Handler for \ref editors::buffer::end_edit. Sends the \p didChange notification, and also sends the
 		/// \p semanticTokens request.
 		void _on_end_edit(editors::buffer::end_edit_info&);
+		/// Handler for \ref editors::buffer::language_changed.
+		void _on_language_changed(editors::buffer::language_changed_info&);
 
+
+		// send LSP messages
+		/// Sends the \p textDocument/didOpen notification.
+		void _send_didOpen();
+		/// Sends the \p textDocument/didClose notifictaion.
+		void _send_didClose() {
+			types::DidCloseTextDocumentParams params;
+			params.textDocument.uri = _change_params.textDocument.uri;
+			_client->send_notification(u8"textDocument/didClose", params);
+		}
+		/// Sends the \p textDocument/semanticTokens/full request.
+		void _send_semanticTokens_full();
+
+		// handlers for LSP messages
 		/// Handler for the response of \p semanticTokens.
 		void _on_semanticTokens(types::SemanticTokensResponse);
 	};

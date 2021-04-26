@@ -31,6 +31,7 @@ target_sources(lsp
 		"src/client.cpp"
 		"src/interpretation_tag.cpp"
 		"src/main.cpp"
+		"src/manager.cpp"
 		"src/uri.cpp")
 target_link_libraries(lsp PUBLIC codepad_core editors)
 target_include_directories(lsp

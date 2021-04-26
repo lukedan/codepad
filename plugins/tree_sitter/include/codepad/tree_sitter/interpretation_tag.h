@@ -147,9 +147,7 @@ namespace codepad::tree_sitter {
 		/// Token for \ref editors::buffer::end_edit.
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
 		/// Token for \ref editors::buffer::language_changed.
-		info_event<
-			value_update_info<std::vector<std::u8string>, value_update_info_contents::old_value>
-		>::token _lang_changed_token;
+		info_event<editors::buffer::language_changed_info>::token _lang_changed_token;
 
 		editors::code::document_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
 		/// Token for the tooltip provider.

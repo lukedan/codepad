@@ -51,6 +51,9 @@ namespace codepad::editors {
 #else
 		using lock_t = checked_shared_mutex;
 #endif
+		using language_id = std::vector<std::u8string>; ///< Language identifier for this buffer.
+		/// Additional data for the \ref language_changed event.
+		using language_changed_info = value_update_info<language_id, value_update_info_contents::old_value>;
 
 		/// Stores the contents of a chunk.
 		struct chunk_data {
@@ -520,7 +523,7 @@ namespace codepad::editors {
 		/// \remark The language is a series of strings, each being more specific than the previous one. This allows
 		///         dialects to inherit properties of the languages they're based on while still having a way to
 		///         identify the concrete language name.
-		void set_language(std::vector<std::u8string> lang) {
+		void set_language(language_id lang) {
 			assert_true_usage(
 				!lang.empty(), "language list cannot be empty - must at least contain an empty string"
 			);
@@ -528,7 +531,7 @@ namespace codepad::editors {
 			language_changed.invoke_noret(std::move(lang));
 		}
 		/// Returns the current language.
-		[[nodiscard]] const std::vector<std::u8string> &get_language() const {
+		[[nodiscard]] const language_id &get_language() const {
 			return _language;
 		}
 
@@ -544,9 +547,7 @@ namespace codepad::editors {
 		/// Invoked after this \ref buffer has been modified, right after releasing the read lock.
 		info_event<end_edit_info> end_edit;
 		/// Invoked when the language of this buffer is changed via \ref set_language().
-		info_event<value_update_info<
-			std::vector<std::u8string>, value_update_info_contents::old_value
-		>> language_changed;
+		info_event<language_changed_info> language_changed;
 	protected:
 		/// Used to find the chunk in which the byte at the given index lies.
 		using _byte_index_finder = sum_synthesizer::index_finder<node_data::length_property>;
@@ -628,7 +629,7 @@ namespace codepad::editors {
 		std::variant<std::size_t, std::filesystem::path> _fileid;
 		/// The language of this buffer. This is not used directly by the editor and is therefore not read nor written to
 		/// by the editor; only other plugins may read this field.
-		std::vector<std::u8string> _language{ u8"" };
+		language_id _language{ u8"" };
 		std::deque<std::any> _tags; ///< Tags associated with this buffer.
 		buffer_manager &_buf_manager; ///< The \ref manager for this \ref buffer.
 	};

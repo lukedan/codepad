@@ -37,9 +37,6 @@ namespace codepad::lsp {
 	//      also what about multiple languages?
 	std::unique_ptr<client> _client; ///< The LSP client.
 
-	// TODO put all these into the manager
-	/// The token for the per-interpretation tag used by the LSP plugin.
-	editors::buffer_manager::interpretation_tag_token _interpretation_tag_token;
 	/// Token used to register for \ref editors::buffer_manager::interpretation_created.
 	info_event<editors::interpretation_info>::token _interpretation_created_token;
 }
@@ -82,7 +79,7 @@ extern "C" {
 		handlers.try_emplace(
 			u8"textDocument/publishDiagnostics",
 			cp::lsp::client::request_handler::create_notification_handler<cp::lsp::types::PublishDiagnosticsParams>(
-				[](cp::lsp::client&, cp::lsp::types::PublishDiagnosticsParams params) {
+				[](cp::lsp::client& clnt, cp::lsp::types::PublishDiagnosticsParams params) {
 					std::filesystem::path path = cp::lsp::uri::to_current_os_path(params.uri);
 					std::shared_ptr<cp::editors::code::interpretation> doc;
 
@@ -101,9 +98,9 @@ extern "C" {
 							"received diagnostics for document that's not open: " << path;
 						return;
 					}
-					cp::lsp::interpretation_tag::on_publishDiagnostics(
-						*doc, std::move(params), cp::lsp::_interpretation_tag_token
-					);
+					if (auto *tag = cp::lsp::_manager->get_interpretation_tag_for(*doc)) {
+						tag->on_publishDiagnostics(std::move(params));
+					}
 				}
 			)
 		);
@@ -161,25 +158,22 @@ extern "C" {
 			}
 		);
 
-		cp::lsp::_interpretation_tag_token =
-			cp::lsp::_manager->get_editor_manager().buffers.allocate_interpretation_tag();
 		cp::lsp::_interpretation_created_token = (
 			cp::lsp::_manager->get_editor_manager().buffers.interpretation_created +=
 				[](cp::editors::interpretation_info &info) {
 					// TODO what happens for multiple encodings?
 					// create per-interpretation data
 					cp::lsp::interpretation_tag::on_interpretation_created(
-						info.interp, *cp::lsp::_client, cp::lsp::_interpretation_tag_token
+						info.interp, *cp::lsp::_client, cp::lsp::_manager->get_interpretation_tag_token()
 					);
 				}
 		);
+		cp::lsp::_manager->enable();
 	}
 	PLUGIN_DISABLE() {
+		cp::lsp::_manager->disable();
 		cp::lsp::_manager->get_editor_manager().buffers.interpretation_created -=
 			cp::lsp::_interpretation_created_token;
-		cp::lsp::_manager->get_editor_manager().buffers.deallocate_interpretation_tag(
-			cp::lsp::_interpretation_tag_token
-		);
 
 		cp::lsp::_client->shutdown_and_exit();
 		cp::lsp::_client.reset();

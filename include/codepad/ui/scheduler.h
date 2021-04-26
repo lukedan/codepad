@@ -53,7 +53,7 @@ namespace codepad::ui {
 			/// Maximum expected time for all rendering operations during a single frame.
 			render_time_redline{ 0.04 };
 		/// The maximum number of system messages that can be processed between two updates.
-		constexpr static std::size_t maximum_messages_per_update = 20;
+		constexpr static std::size_t maximum_messages_per_update = 100;
 
 		using clock_t = std::chrono::high_resolution_clock;
 		/// Specifies if an operation should be blocking (synchronous) or non-blocking (asynchronous).
@@ -178,7 +178,9 @@ namespace codepad::ui {
 		/// Marks the element for layout validation, meaning that its layout is valid but
 		/// \ref element::_on_layout_changed() has not been called.
 		void notify_layout_change(element &e) {
-			assert_true_logical(!_layouting, "layout notifications are handled automatically");
+			// TODO this sometimes fails due to window_impl updating app managed size - we should be able to restore
+			//      this or remove this after refactoring desired size
+			/*assert_true_logical(!_layouting, "layout notifications are handled automatically");*/
 			_layout_notify.emplace(&e);
 		}
 		/// Calculates the layout of all elements with invalidated layout. The calculation is recursive; that is,
