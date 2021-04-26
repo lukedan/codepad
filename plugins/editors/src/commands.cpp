@@ -21,6 +21,9 @@ namespace codepad::editors::_details {
 		const std::filesystem::path &file, ui::tabs::host &host, std::u8string_view encoding
 	) {
 		auto ctx = get_manager().buffers.open_file(file);
+		if (auto *lang = get_manager().get_language_for_file(file)) {
+			ctx->set_language(*lang);
+		}
 		const code::buffer_encoding *enc = nullptr;
 		if (!encoding.empty()) {
 			enc = get_manager().encodings.get_encoding(encoding);
@@ -46,6 +49,9 @@ namespace codepad::editors::_details {
 	/// Opens the specified file as binary in a tab, and adds the tab to the given \ref ui::tabs::host.
 	ui::tabs::tab *_open_binary_file(const std::filesystem::path &file, ui::tabs::host &host) {
 		auto ctx = get_manager().buffers.open_file(file);
+		if (auto *lang = get_manager().get_language_for_file(file)) {
+			ctx->set_language(*lang);
+		}
 		ui::tabs::tab *tb = host.get_tab_manager().new_tab_in(&host);
 		tb->set_label(file.u8string());
 		auto *edt = dynamic_cast<editor*>(
@@ -227,7 +233,7 @@ namespace codepad::editors::_details {
 		result.emplace_back(
 			u8"open_file",
 			ui::command_registry::convert_type<ui::tabs::host>(
-				[](ui::tabs::host &th, const json::value_storage &args) {
+				[](ui::tabs::host &th, const json::value_storage&) {
 					std::vector<std::filesystem::path> files = os::file_dialog::show_open_dialog(
 						th.get_window(), os::file_dialog::type::multiple_selection
 					);
@@ -267,7 +273,7 @@ namespace codepad::editors::_details {
 		result.emplace_back(
 			u8"open_binary_file_dialog",
 			ui::command_registry::convert_type<ui::tabs::host>(
-				[](ui::tabs::host &th, const json::value_storage &args) {
+				[](ui::tabs::host &th, const json::value_storage&) {
 					std::vector<std::filesystem::path> files = os::file_dialog::show_open_dialog(
 						th.get_window(), os::file_dialog::type::multiple_selection
 					);

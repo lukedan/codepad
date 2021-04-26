@@ -110,7 +110,7 @@ namespace codepad::lsp {
 		auto &ui_man = *_parent->get_client().get_manager().get_plugin_context().ui_man;
 		auto *pnl = ui_man.create_element<ui::stack_panel>();
 		for (auto it = result.begin; it.get_iterator() != result.end.get_iterator(); ) {
-			auto *lbl = ui_man.create_element<ui::label>();
+			auto *lbl = dynamic_cast<ui::label*>(ui_man.create_element(u8"label", u8"contents_region_label"));
 			lbl->set_text(std::u8string(_parent->get_message_for_diagnostic(it.get_iterator()->value.cookie)));
 			pnl->children().add(*lbl);
 
@@ -205,7 +205,7 @@ namespace codepad::lsp {
 			{
 				auto modifier = tag->_diagnostic_decoration_token.modify();
 				modifier->decorations = editors::decoration_provider::registry();
-				std::vector<std::u8string_view> lang_profile{ u8"cpp" }; // TODO language
+				auto &lang_profile = tag->get_interpretation().get_buffer().get_language();
 				modifier->renderers = {
 					tag->_client->get_manager().get_error_decoration(lang_profile.begin(), lang_profile.end()),
 					tag->_client->get_manager().get_warning_decoration(lang_profile.begin(), lang_profile.end()),

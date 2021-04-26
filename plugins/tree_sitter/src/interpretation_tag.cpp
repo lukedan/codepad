@@ -79,6 +79,15 @@ namespace codepad::tree_sitter {
 		_end_edit_token = _interp->get_buffer().end_edit += [this](editors::buffer::end_edit_info&) {
 			start_highlight_task();
 		};
+		_lang_changed_token = _interp->get_buffer().language_changed +=
+			[this](value_update_info<std::vector<std::u8string>, value_update_info_contents::old_value>&) {
+				if (auto task = _task_token.get_task()) {
+					task->cancel();
+					task->wait_finish();
+				}
+				_lang = _manager->find_lanaguage(_interp->get_buffer().get_language().back());
+				start_highlight_task();
+			};
 
 		_theme_token = _interp->get_theme_providers().add_provider(
 			editors::code::document_theme_provider_registry::priority::approximate

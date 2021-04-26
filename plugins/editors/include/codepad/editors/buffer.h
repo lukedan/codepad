@@ -515,8 +515,15 @@ namespace codepad::editors {
 			return _buf_manager;
 		}
 
-		/// Sets the language of this buffer. Invokes \ref language_changed.S
+		/// Sets the language of this buffer. Invokes \ref language_changed.
+		///
+		/// \remark The language is a series of strings, each being more specific than the previous one. This allows
+		///         dialects to inherit properties of the languages they're based on while still having a way to
+		///         identify the concrete language name.
 		void set_language(std::vector<std::u8string> lang) {
+			assert_true_usage(
+				!lang.empty(), "language list cannot be empty - must at least contain an empty string"
+			);
 			std::swap(_language, lang);
 			language_changed.invoke_noret(std::move(lang));
 		}
@@ -621,7 +628,7 @@ namespace codepad::editors {
 		std::variant<std::size_t, std::filesystem::path> _fileid;
 		/// The language of this buffer. This is not used directly by the editor and is therefore not read nor written to
 		/// by the editor; only other plugins may read this field.
-		std::vector<std::u8string> _language;
+		std::vector<std::u8string> _language{ u8"" };
 		std::deque<std::any> _tags; ///< Tags associated with this buffer.
 		buffer_manager &_buf_manager; ///< The \ref manager for this \ref buffer.
 	};

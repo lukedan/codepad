@@ -34,8 +34,7 @@ namespace codepad::tree_sitter {
 	/// Interface between the editor and \p tree-sitter.
 	class interpretation_tag {
 	public:
-		/// Creates a new parser, registers to \ref editors::buffer::end_edit, and starts highlighting for this
-		/// interpretation.
+		/// Creates a new parser, registers to events, and starts highlighting for this interpretation.
 		interpretation_tag(editors::code::interpretation&, const language_configuration*, manager&);
 		/// Assert during copy construction.
 		interpretation_tag(const interpretation_tag&) {
@@ -46,7 +45,7 @@ namespace codepad::tree_sitter {
 			assert_true_logical(false, "interpretation_tag cannot be copied");
 			return *this;
 		}
-		/// Unregisters from \ref editors::buffer::end_edit.
+		/// Unregisters from events.
 		~interpretation_tag() {
 			if (auto task = _task_token.get_task()) {
 				// this happens when the plugin is disabled manually, in which case we just cancel the task and wait
@@ -57,6 +56,7 @@ namespace codepad::tree_sitter {
 
 			_interp->get_buffer().begin_edit -= _begin_edit_token;
 			_interp->get_buffer().end_edit -= _end_edit_token;
+			_interp->get_buffer().language_changed -= _lang_changed_token;
 			_interp->get_theme_providers().remove_provider(_theme_token);
 			_interp->remove_tooltip_provider(_debug_tooltip_provider_token);
 		}
@@ -146,6 +146,10 @@ namespace codepad::tree_sitter {
 		info_event<editors::buffer::begin_edit_info>::token _begin_edit_token;
 		/// Token for \ref editors::buffer::end_edit.
 		info_event<editors::buffer::end_edit_info>::token _end_edit_token;
+		/// Token for \ref editors::buffer::language_changed.
+		info_event<
+			value_update_info<std::vector<std::u8string>, value_update_info_contents::old_value>
+		>::token _lang_changed_token;
 
 		editors::code::document_theme_provider_registry::token _theme_token; ///< Token for the theme provider.
 		/// Token for the tooltip provider.

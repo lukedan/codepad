@@ -72,7 +72,7 @@ namespace codepad::tree_sitter {
 			_interpretation_created_token = (
 				get_editor_manager().buffers.interpretation_created +=
 					[this](editors::interpretation_info &info) {
-						auto *lang = find_lanaguage(u8"cpp");
+						auto *lang = find_lanaguage(info.interp.get_buffer().get_language().back());
 
 						auto &data = _interpretation_tag_token.get_for(info.interp);
 						data.emplace<interpretation_tag>(info.interp, lang, *this);

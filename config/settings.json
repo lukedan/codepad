@@ -21,6 +21,11 @@
 			"single_selection"
 		],
 
+		"language_mapping": {
+			".*\\.(cpp|h|cxx|inl)": "cpp",
+			".*\\.html": "html"
+		},
+
 		"theme": { // https://github.com/tomasiser/vim-code-dark
 			"keyword": {
 				"color": "#569CD6",
