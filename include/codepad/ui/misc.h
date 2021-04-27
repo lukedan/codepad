@@ -306,12 +306,17 @@ namespace codepad {
 			}
 
 			/// Returns a \ref size_allocation corresponding to the given number of pixels.
-			inline static size_allocation pixels(double px) {
+			[[nodiscard]] inline static size_allocation pixels(double px) {
 				return size_allocation(px, true);
 			}
 			/// Returns a \ref size_allocation corresponding to the given proportion.
-			inline static size_allocation proportion(double val) {
+			[[nodiscard]] inline static size_allocation proportion(double val) {
 				return size_allocation(val, false);
+			}
+
+			/// Adds \ref value to either parameter based on \ref is_pixels.
+			void accumulate_to(double &pixels_val, double &proportion_val) const {
+				(is_pixels ? pixels_val : proportion_val) += value;
 			}
 
 			double value = 0.0; ///< The value.

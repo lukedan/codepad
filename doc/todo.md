@@ -20,7 +20,7 @@ Items in this list are not sorted by any specific order.
 - [ ] User interface
 	- [ ] Foundation
 		- [x] _Async tasks_
-		- [ ] Add measure phase to reduce the complexity of layout computation from O(n²)
+		- [x] _Add measure phase to reduce the complexity of layout computation from O(n²)_
 		- [ ] Image assets & images for different DPI
 		- [ ] Brush extend modes
 		- [ ] Pango-harfbuzz text handling

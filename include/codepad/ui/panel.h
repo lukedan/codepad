@@ -107,11 +107,6 @@ namespace codepad::ui {
 		/// Otherwise just returns element::get_current_display_cursor().
 		cursor get_current_display_cursor() const override;
 
-		/// Returns the maximum width of its children that is specified in pixels, plus padding.
-		size_allocation get_desired_width() const override;
-		/// Returns the maximum height of its children that is specified in pixels, plus padding.
-		size_allocation get_desired_height() const override;
-
 		/// Sets whether it should mark all its children for disposal when it's being disposed.
 		void set_dispose_children(bool v) {
 			_dispose_children = v;
@@ -145,16 +140,12 @@ namespace codepad::ui {
 		///                  minimum boundary of the element's layout as a return value.
 		/// \param clientmax Passes the maximum (right or bottom) boundary of the client region, and will contain the
 		///                  maximum boundary of the element's layout as a return value.
-		/// \param anchormin \p true if the element is anchored towards the `negative' (left or top) direction.
-		/// \param pixelsize \p true if the size of the element is specified in pixels.
-		/// \param anchormax \p true if the element is anchored towards the `positive' (right or bottom) direction.
-		/// \param marginmin The element's margin at the `negative' border.
-		/// \param size The size of the element in the direction.
-		/// \param marginmax The element's margin at the `positive' border.
+		/// \param margin_min Size allocation before this element.
+		/// \param size Size allocation of this element.
+		/// \param margin_max Size allocation after this element.
 		static void layout_on_direction(
 			double &clientmin, double &clientmax,
-			bool anchormin, bool pixelsize, bool anchormax,
-			double marginmin, double size, double marginmax
+			size_allocation margin_min, size_allocation size, size_allocation margin_max
 		);
 		/// Calculates the horizontal layout of the given \ref element, given the client area that contains it.
 		static void layout_child_horizontal(element&, double xmin, double xmax);
@@ -167,12 +158,67 @@ namespace codepad::ui {
 			layout_child_horizontal(child, client.xmin, client.xmax);
 			layout_child_vertical(child, client.ymin, client.ymax);
 		}
+		/// Computes the available size for a child on one orientation.
+		static double get_available_size_for_child(
+			double available, size_allocation anchor_min, size_allocation anchor_max,
+			size_allocation_type size_type, double size
+		);
 
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
 			return u8"panel";
 		}
 	protected:
+		/// Utility class used for computing desired size on one orientation. This class assumes that each child
+		/// affects the desired size individually.
+		template <
+			size_allocation (element::*MarginMin)() const,
+			size_allocation (element::*MarginMax)() const,
+			size_allocation_type (element::*SizeType)() const,
+			double (vec2d::*Size)
+		> struct _basic_desired_size_accumulator {
+			/// Default constructor.
+			_basic_desired_size_accumulator() = default;
+			/// Initializes \ref available_size.
+			explicit _basic_desired_size_accumulator(double avail) : available_size(avail) {
+			}
+
+			/// Returns the size available for the given child. Calls \ref get_available_size_for_child().
+			[[nodiscard]] double get_available(element &child) const {
+				return get_available_size_for_child(
+					available_size, (child.*MarginMin)(), (child.*MarginMax)(),
+					(child.*SizeType)(), child.get_layout_parameters().size.*Size
+				);
+			}
+			/// Updates \ref maximum_size using the newly-computed desired size of the given child.
+			void accumulate(element &child) {
+				double pixel_sum = 0.0, prop_sum = 0.0;
+				(child.*MarginMin)().accumulate_to(pixel_sum, prop_sum);
+				(child.*MarginMax)().accumulate_to(pixel_sum, prop_sum);
+				double result_size = pixel_sum;
+				auto alloc_type = (child.*SizeType)();
+				switch (alloc_type) {
+				case size_allocation_type::fixed:
+					result_size += child.get_layout_parameters().size.*Size;
+					break;
+				case size_allocation_type::automatic:
+					result_size += child.get_desired_size().*Size;
+					break;
+				case size_allocation_type::proportion:
+					{
+						double child_prop = child.get_layout_parameters().size.*Size;
+						result_size += child.get_desired_size().*Size * (child_prop + prop_sum) / child_prop;
+					}
+					break;
+				}
+				maximum_size = std::max(maximum_size, result_size);
+			}
+
+			double available_size = 0.0; ///< The total available size.
+			double maximum_size = 0.0; ///< Maximum desired computed from a child.
+		};
+
+
 		/// Calls \ref scheduler::invalidate_children_layout() to mark the layout of all children for updating.
 		void _invalidate_children_layout();
 
@@ -202,7 +248,7 @@ namespace codepad::ui {
 		/// Called when an element has been added to this panel. Invalidates the layout of the newly added element,
 		/// and the visual of the panel itself.
 		virtual void _on_child_added(element &e, element*) {
-			_on_desired_size_changed(true, true);
+			_on_desired_size_changed();
 			e.invalidate_layout();
 			invalidate_visual();
 		}
@@ -211,7 +257,7 @@ namespace codepad::ui {
 		///
 		/// \sa _on_child_removing
 		virtual void _on_child_removed(element&) {
-			_on_desired_size_changed(true, true);
+			_on_desired_size_changed();
 			invalidate_visual();
 		}
 		/// Called when the z-index of an element has been changed. Invalidates the visual of the panel.
@@ -238,6 +284,8 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Computes the desired size of all children, and finds the minimum size that can accommodate them.
+		vec2d _compute_desired_size_impl(vec2d) const override;
 		/// Called to update the layout of all children. This is called automatically in \ref _on_layout_changed(),
 		/// which in turn can also be explicitly scheduled by using \ref scheduler::notify_layout_change().
 		virtual void _on_update_children_layout() {
@@ -246,14 +294,11 @@ namespace codepad::ui {
 				layout_child(*elem, client);
 			}
 		}
-		/// Called by a child whose desired size has just changed in a way that may affect its layout. This function
-		/// calls \ref _on_child_desired_size_changed() to determine if the change may affect the layout of this
-		/// panel, the it calls either \ref _on_child_desired_size_changed() on the parent if the result is yes, or
-		/// \ref invalidate_layout() on the child otherwise.
+		/// Called by a child whose desired size has just changed.
 		///
 		/// \sa element::_on_desired_size_changed()
 		/// \sa _on_child_layout_parameters_changed()
-		virtual void _on_child_desired_size_changed(element &child, bool width, bool height);
+		virtual void _on_child_desired_size_changed(element &child);
 		/// Invoked by any child in \ref element::_on_layout_parameters_changed().
 		///
 		/// \sa _on_child_desired_size_changed()
@@ -334,44 +379,6 @@ namespace codepad::ui {
 		inline static void _child_on_render(element &e) {
 			e._on_render();
 		}
-
-
-		// utility function used to obtain pixel sizes
-		/// Returns the total horizontal span of the given element that is specified in pixels, i.e., excluding
-		/// all widths specified in proportions. Returns \p std::nullopt if all sizes are proportional.
-		static std::optional<double> _get_horizontal_absolute_span(const element&);
-		/// Similar to \ref _get_horizontal_absolute_span(), but for the height.
-		static std::optional<double> _get_vertical_absolute_span(const element&);
-
-		/// Returns the maximum horizontal span returned by \ref _get_horizontal_absolute_span(). This function takes
-		/// element visibility (more specifically, \ref visibility::layout) into account.
-		static std::optional<double> _get_max_horizontal_absolute_span(const element_collection&);
-		/// Similar to \ref _get_max_horizontal_absolute_span().
-		static std::optional<double> _get_max_vertical_absolute_span(const element_collection&);
-
-		/// Returns the total horizontal span returned by \ref _get_horizontal_absolute_span(). This function takes
-		/// element visibility (more specifically, \ref visibility::layout) into account.
-		static std::optional<double> _get_total_horizontal_absolute_span(const element_collection&);
-		/// Similar to \ref _get_total_horizontal_absolute_span().
-		static std::optional<double> _get_total_vertical_absolute_span(const element_collection&);
-
-		/// Similar to \ref _get_horizontal_absolute_span(), but using the desired width of the element instead when
-		/// the width allocation is proportional.
-		static std::optional<double> _get_horizontal_absolute_desired_span(const element&);
-		/// Similar to \ref _get_vertical_absolute_span(), but using the desired width of the element instead when
-		/// the width allocation is proportional.
-		static std::optional<double> _get_vertical_absolute_desired_span(const element&);
-
-		/// Similar to \ref _get_max_horizontal_absolute_span(), but using the desired width of the element instead.
-		static std::optional<double> _get_max_horizontal_absolute_desired_span(const element_collection&);
-		/// Similar to \ref _get_max_vertical_absolute_span(), but using the desired width of the element instead.
-		static std::optional<double> _get_max_vertical_absolute_desired_span(const element_collection&);
-
-		/// Similar to \ref _get_total_horizontal_absolute_span(), but using the desired width of the element
-		/// instead.
-		static std::optional<double> _get_total_horizontal_absolute_desired_span(const element_collection&);
-		/// Similar to \ref _get_total_vertical_absolute_span(), but using the desired width of the element instead.
-		static std::optional<double> _get_total_vertical_absolute_desired_span(const element_collection&);
 
 
 		element_collection _children{ *this }; ///< The collection of its children.

@@ -169,6 +169,10 @@ namespace codepad::ui {
 		}
 
 		// layout & visual
+		/// Invalidates the desired size of the given window.
+		void invalidate_desired_size(window &wnd) {
+			_desired_size_changed.emplace(&wnd);
+		}
 		/// Invalidates the layout of an element. Its parent will be notified to recalculate its layout.
 		void invalidate_layout(element&);
 		/// Invalidates the layout of all children of a \ref panel.
@@ -268,6 +272,7 @@ namespace codepad::ui {
 				_num_callbacks > 0 || // callbacks
 				_earliest_sync_task() <= clock_t::now() + _update_wait_threshold || // tasks
 				!_to_delete.empty() || // element disposal
+				!_desired_size_changed.empty() ||
 				!_children_layout_scheduled.empty() || !_layout_notify.empty() || // layout
 				!_dirty.empty(); // visual
 		}
@@ -308,6 +313,8 @@ namespace codepad::ui {
 	protected:
 		hotkey_listener _hotkeys; ///< Handles hotkeys.
 
+		/// The set of window whose child's desired size has changed.
+		std::set<window*> _desired_size_changed;
 		/// Stores the elements whose \ref element::_on_layout_changed() need to be called.
 		std::set<element*> _layout_notify;
 		/// Stores the panels whose children's layout need computing.
@@ -353,7 +360,7 @@ namespace codepad::ui {
 		void _on_system_focus_changed(window*);
 
 		/// Updates the layout of the children of all given panels.
-		void _update_layout(const std::set<panel*>&, std::deque<element*> notify);
+		void _update_layout(std::set<window*>, std::set<panel*>, std::deque<element*> notify);
 
 		/// Cancels the given task.
 		void _cancel_sync_task(_sync_task_info *tsk) {

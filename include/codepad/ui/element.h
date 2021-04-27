@@ -211,6 +211,22 @@ namespace codepad::ui {
 		///
 		/// \sa get_layout_width()
 		[[nodiscard]] size_allocation get_layout_height() const;
+		/// Returns the size allocation for the left margin.
+		[[nodiscard]] size_allocation get_margin_left() const {
+			return size_allocation(get_margin().left, (get_anchor() & anchor::left) != anchor::none);
+		}
+		/// Returns the size allocation for the right margin.
+		[[nodiscard]] size_allocation get_margin_right() const {
+			return size_allocation(get_margin().right, (get_anchor() & anchor::right) != anchor::none);
+		}
+		/// Returns the size allocation for the top margin.
+		[[nodiscard]] size_allocation get_margin_top() const {
+			return size_allocation(get_margin().top, (get_anchor() & anchor::top) != anchor::none);
+		}
+		/// Returns the size allocation for the bottom margin.
+		[[nodiscard]] size_allocation get_margin_bottom() const {
+			return size_allocation(get_margin().bottom, (get_anchor() & anchor::bottom) != anchor::none);
+		}
 
 		/// Returns the margin metric of this element.
 		[[nodiscard]] thickness get_margin() const {
@@ -256,15 +272,14 @@ namespace codepad::ui {
 			return _visual_params;
 		}
 
-		/// Returns the desired width of the element. Derived elements can override this to change the default
-		/// behavior, which simply makes the element fill all available space horizontally.
-		[[nodiscard]] virtual size_allocation get_desired_width() const {
-			return size_allocation::proportion(1.0);
+		/// Computes the desired size of this element, in pixels, by calling \ref _compute_desired_size_impl(), and
+		/// stores it in \ref _desired_size.
+		void compute_desired_size(vec2d available_size) {
+			_desired_size = _compute_desired_size_impl(available_size);
 		}
-		/// Returns the desired height of the element. Derived elements can override this to change the default
-		/// behavior, which simply makes the element fill all available space vertically.
-		[[nodiscard]] virtual size_allocation get_desired_height() const {
-			return size_allocation::proportion(1.0);
+		/// Returns the previously computed desired size.
+		[[nodiscard]] vec2d get_desired_size() const {
+			return _desired_size;
 		}
 
 		/// Used to test if a given point lies in the element.
@@ -388,6 +403,7 @@ namespace codepad::ui {
 
 		visuals _visual_params; ///< The visual parameters of this \ref element.
 		element_layout _layout_params; ///< The layout parameters of this \ref element.
+		vec2d _desired_size; ///< Desired size computed by \ref compute_desired_size().
 		visibility _visibility = visibility::full; ///< The visibility of this \ref element.
 		cursor _custom_cursor = cursor::not_specified; ///< The custom cursor for this \ref element.
 		int _zindex = zindex::normal; ///< The z-index of the element.
@@ -524,13 +540,13 @@ namespace codepad::ui {
 		/// \ref _on_prerender(), then calls \ref _custom_render(), and finally calls \ref _on_postrender().
 		void _on_render();
 
-		/// Called by the element itself when its desired size has changed. It's not guaranteed that any size
-		/// allocation will be \ref size_allocation_type::automatic when this is called. The parent decides whether
-		/// it should invalidate its own layout or call \ref invalidate_layout() on this child.
-		///
-		/// \param width Whether the desired width has changed.
-		/// \param height Whether the desired height has changed.
-		virtual void _on_desired_size_changed(bool width, bool height);
+		/// Computes and returns the desired size of this element given available space. Returns the full size by
+		/// default.
+		[[nodiscard]] virtual vec2d _compute_desired_size_impl(vec2d available) const {
+			return available;
+		}
+		/// Called by the element itself when its desired size has changed.
+		virtual void _on_desired_size_changed();
 		/// Called by \ref manager when the layout has changed. Calls \ref invalidate_visual. Derived classes can
 		/// override this to update layout-dependent properties. For panels, override
 		/// \ref panel::_on_update_children_layout() instead when re-calculating the layout of its children.

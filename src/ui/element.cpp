@@ -51,7 +51,7 @@ namespace codepad::ui {
 	size_allocation element::get_layout_width() const {
 		size_allocation_type type = get_width_allocation();
 		if (type == size_allocation_type::automatic) {
-			return get_desired_width();
+			return size_allocation::pixels(get_desired_size().x);
 		}
 		return size_allocation(_layout_params.size.x, type == size_allocation_type::fixed);
 	}
@@ -59,7 +59,7 @@ namespace codepad::ui {
 	size_allocation element::get_layout_height() const {
 		size_allocation_type type = get_height_allocation();
 		if (type == size_allocation_type::automatic) {
-			return get_desired_height();
+			return size_allocation::pixels(get_desired_size().y);
 		}
 		return size_allocation(_layout_params.size.y, type == size_allocation_type::fixed);
 	}
@@ -179,9 +179,9 @@ namespace codepad::ui {
 		);
 	}
 
-	void element::_on_desired_size_changed(bool width, bool height) {
+	void element::_on_desired_size_changed() {
 		if (_parent != nullptr) {
-			_parent->_on_child_desired_size_changed(*this, width, height);
+			_parent->_on_child_desired_size_changed(*this);
 		}
 	}
 

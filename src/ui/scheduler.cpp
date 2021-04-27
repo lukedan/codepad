@@ -37,18 +37,17 @@ namespace codepad::ui {
 		if (_layouting) { // prevent re-entrant
 			return;
 		}
-		if (_children_layout_scheduled.empty() && _layout_notify.empty()) {
-			return;
-		}
 
-		// list of elements to be notified
-		std::deque<element*> notify(_layout_notify.begin(), _layout_notify.end());
-		_layout_notify.clear();
+		std::set<window*> desired_size_notify;
+		std::swap(desired_size_notify, _desired_size_changed);
 		// gather the list of elements with invalidated layout
 		std::set<panel*> childrenupdate;
 		std::swap(childrenupdate, _children_layout_scheduled);
+		// list of elements to be notified
+		std::deque<element*> notify(_layout_notify.begin(), _layout_notify.end());
+		_layout_notify.clear();
 
-		_update_layout(childrenupdate, std::move(notify));
+		_update_layout(std::move(desired_size_notify), std::move(childrenupdate), std::move(notify));
 	}
 
 	void scheduler::update_element_layout_immediate(element &e) {
@@ -62,7 +61,11 @@ namespace codepad::ui {
 		}
 
 		std::set<panel*> update{ pnl };
-		_update_layout(update, std::deque<element*>());
+		std::set<window*> measure;
+		if (auto *wnd = pnl->get_window()) {
+			measure.emplace(wnd);
+		}
+		_update_layout(std::move(measure), std::move(update), {});
 	}
 
 	void scheduler::update_invalid_visuals() {
@@ -211,6 +214,9 @@ namespace codepad::ui {
 					_sync_tasks.erase(it);
 				}
 				// remove it from other lists
+				if (auto *wnd = elem->_get_as_window()) {
+					_desired_size_changed.erase(wnd);
+				}
 				_layout_notify.erase(elem);
 				_dirty.erase(elem);
 				_to_delete.erase(elem);
@@ -300,11 +306,16 @@ namespace codepad::ui {
 		set_focused_element(wnd);
 	}
 
-	void scheduler::_update_layout(const std::set<panel*> &update, std::deque<element*> notify) {
+	void scheduler::_update_layout(std::set<window*> measure, std::set<panel*> update, std::deque<element*> notify) {
 		performance_monitor mon(u8"layout", relayout_time_redline);
 		assert_true_logical(!_layouting, "update_invalid_layout() cannot be called recursively");
 		_layouting = true;
 
+		for (window *wnd : measure) {
+			logger::get().log_debug(CP_HERE) << "compute desired size";
+			wnd->compute_desired_size(wnd->get_layout().size());
+			update.emplace(wnd);
+		}
 		for (panel *pnl : update) {
 			pnl->_on_update_children_layout();
 			for (element *elem : pnl->_children.items()) {

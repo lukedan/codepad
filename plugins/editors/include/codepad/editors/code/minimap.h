@@ -17,11 +17,6 @@ namespace codepad::editors::code {
 		constexpr static std::chrono::duration<double> page_rendering_time_redline{ 0.03 };
 		constexpr static std::size_t minimum_page_size = 500; /// Maximum height of a page, in pixels.
 
-		/// Returns the default width, which is proportional to that of the \ref contents_region.
-		ui::size_allocation get_desired_width() const override {
-			return ui::size_allocation::proportion(get_scale());
-		}
-
 		/// Returns the scale of the text based on \ref _target_height.
 		double get_scale() const {
 			return get_target_line_height() / _contents_region->get_line_height();

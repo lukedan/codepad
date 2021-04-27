@@ -19,21 +19,6 @@ namespace codepad::ui {
 		/// Contains the old value when the value of this \ref scrollbar has changed.
 		using value_changed_info = value_update_info<double, value_update_info_contents::old_value>;
 
-		/// Returns the default desired width of the scroll bar.
-		size_allocation get_desired_width() const override {
-			if (get_orientation() == orientation::vertical) {
-				return size_allocation::pixels(default_thickness);
-			}
-			return size_allocation::proportion(1.0);
-		}
-		/// Returns the default desired height of the scroll bar.
-		size_allocation get_desired_height() const override {
-			if (get_orientation() != orientation::vertical) {
-				return size_allocation::pixels(default_thickness);
-			}
-			return size_allocation::proportion(1.0);
-		}
-
 		/// Sets the target value.
 		void set_target_value(double v) {
 			_target_value = _clamp_value(v);
@@ -243,7 +228,7 @@ namespace codepad::ui {
 
 		/// Called after the orientation has been changed. Invalidates the layout of all components.
 		virtual void _on_orientation_changed() {
-			_on_desired_size_changed(true, true);
+			_on_desired_size_changed();
 			_invalidate_children_layout();
 			orientation_changed.invoke();
 		}

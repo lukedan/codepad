@@ -84,28 +84,6 @@ namespace codepad::ui {
 					u8"label.wrapping"
 				);
 			}
-			if (path.front().property == u8"wrapping_width_mode") {
-				return property_info::make_getter_setter_property_info<label, wrapping_width_mode, element>(
-					[](const label &lbl) {
-						return lbl.get_wrapping_width_mode();
-					},
-					[](label &lbl, wrapping_width_mode wrap) {
-						lbl.set_wrapping_width_mode(wrap);
-					},
-					u8"label.wrapping_width_mode"
-				);
-			}
-			if (path.front().property == u8"wrapping_width") {
-				return property_info::make_getter_setter_property_info<label, double, element>(
-					[](const label &lbl) {
-						return lbl.get_custom_wrapping_width();
-					},
-					[](label &lbl, double width) {
-						lbl.set_custom_wrapping_width(width);
-					},
-					u8"label.wrapping_width"
-				);
-			}
 		}
 		return element::_find_property_path(path);
 	}

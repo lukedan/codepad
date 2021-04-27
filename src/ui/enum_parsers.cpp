@@ -176,18 +176,6 @@ namespace codepad {
 	}
 
 
-	std::optional<ui::label::wrapping_width_mode> enum_parser<ui::label::wrapping_width_mode>::parse(
-		std::u8string_view str
-	) {
-		if (str == u8"client") {
-			return ui::label::wrapping_width_mode::client;
-		} else if (str == u8"custom") {
-			return ui::label::wrapping_width_mode::custom;
-		}
-		return std::nullopt;
-	}
-
-
 	std::optional<ui::window::size_policy> enum_parser<ui::window::size_policy>::parse(std::u8string_view str) {
 		if (str == u8"app" || str == u8"application") {
 			return ui::window::size_policy::application;

@@ -11,30 +11,6 @@
 #include "codepad/ui/manager.h"
 
 namespace codepad::ui {
-	size_allocation window::get_desired_width() const {
-		double maxw = 0.0;
-		for (const element *e : _children.items()) {
-			if (e->is_visible(visibility::layout) && !e->_get_as_window()) {
-				if (auto span = _get_horizontal_absolute_desired_span(*e)) {
-					maxw = std::max(maxw, span.value());
-				}
-			}
-		}
-		return size_allocation::pixels(maxw + get_padding().width());
-	}
-
-	size_allocation window::get_desired_height() const {
-		double maxh = 0.0;
-		for (const element *e : _children.items()) {
-			if (e->is_visible(visibility::layout) && !e->_get_as_window()) {
-				if (auto span = _get_vertical_absolute_desired_span(*e)) {
-					maxh = std::max(maxh, span.value());
-				}
-			}
-		}
-		return size_allocation::pixels(maxh + get_padding().height());
-	}
-
 	void window::set_mouse_capture(element &elem) {
 		logger::get().log_debug(CP_HERE) <<
 			"set mouse capture 0x" << &elem << " <" << demangle(typeid(elem).name()) << ">";
@@ -131,6 +107,42 @@ namespace codepad::ui {
 	void window::_on_scaling_factor_changed(scaling_factor_changed_info &p) {
 		invalidate_visual();
 		scaling_factor_changed(p);
+	}
+
+	vec2d window::_compute_desired_size_impl(vec2d available) const {
+		if (get_width_size_policy() == size_policy::application) {
+			available.x = std::numeric_limits<double>::infinity();
+		}
+		if (get_height_size_policy() == size_policy::application) {
+			available.y = std::numeric_limits<double>::infinity();
+		}
+		available -= get_padding().size();
+		_basic_desired_size_accumulator<
+			&element::get_margin_left, &element::get_margin_right, &element::get_width_allocation, &vec2d::x
+		> hori_accum(available.x);
+		_basic_desired_size_accumulator<
+			&element::get_margin_top, &element::get_margin_bottom, &element::get_height_allocation, &vec2d::y
+		> vert_accum(available.y);
+		for (element *child : _children.items()) {
+			if (child->is_visible(visibility::layout) && !child->_get_as_window()) {
+				vec2d child_available(hori_accum.get_available(*child), vert_accum.get_available(*child));
+				child->compute_desired_size(child_available);
+				hori_accum.accumulate(*child);
+				vert_accum.accumulate(*child);
+			}
+		}
+		return vec2d(hori_accum.maximum_size, vert_accum.maximum_size) + get_padding().size();
+	}
+
+	void window::_on_desired_size_changed() {
+		panel::_on_desired_size_changed();
+		bool app_managed =
+			get_width_size_policy() == size_policy::application ||
+			get_height_size_policy() == size_policy::application;
+		if (app_managed) {
+			_impl->_update_managed_window_size();
+		}
+		get_manager().get_scheduler().invalidate_desired_size(*this);
 	}
 
 	void window::_on_key_down(key_info &p) {

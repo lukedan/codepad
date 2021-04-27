@@ -107,13 +107,14 @@ namespace codepad::ui::tabs {
 		}
 		/// Returns the absolute part of the span of the given element in the current orientation.
 		double _get_absolute_span(const element &elem) const {
-			auto span =
+			/*auto span =
 				get_orientation() == orientation::vertical ?
 				_get_vertical_absolute_span(elem) :
 				_get_horizontal_absolute_span(elem);
 			if (span) {
 				return span.value();
-			}
+			}*/
+			// TODO
 			logger::get().log_warning(CP_HERE) << "tab buttons should have concrete pixel sizes";
 			return 0.0;
 		}

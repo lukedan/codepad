@@ -12,9 +12,6 @@ namespace codepad::editors::binary {
 	/// Used to display the offset for each line in the binary editor.
 	class primary_offset_display : public ui::element {
 	public:
-		/// Returns the desired with.
-		ui::size_allocation get_desired_width() const override;
-
 		/// Returns the role for \ref _contents_region.
 		inline static std::u8string_view get_contents_region_role() {
 			return u8"contents_region";
@@ -32,6 +29,15 @@ namespace codepad::editors::binary {
 		}
 		/// Returns the hexadecimal representation of the given number, padded to the given length with zeros.
 		static std::u8string _to_hex(std::size_t v, std::size_t len);
+
+		/// Computes the maximum width of all offsets.
+		vec2d _compute_desired_size_impl(vec2d available) const override {
+			std::size_t chars = _get_label_length(_contents_region->get_buffer().length());
+			double maxw = _contents_region->get_font()->get_maximum_character_width_em(
+				reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
+			) * _contents_region->get_font_size();
+			return vec2d(get_padding().width() + static_cast<double>(chars) * maxw, available.y);
+		}
 
 		/// Renders the offsets.
 		void _custom_render() const override;

@@ -9,60 +9,41 @@
 namespace codepad::ui {
 	void size_limiter::layout_on_direction(
 		double &clientmin, double &clientmax,
-		bool anchormin, bool pixelsize, bool anchormax,
-		double marginmin, double size, double marginmax,
+		size_allocation margin_min, size_allocation size, size_allocation margin_max,
 		double minsize, double maxsize
 	) {
-		double clamped_size = size;
-		if (!pixelsize) {
-			double totalspace = clientmax - clientmin, totalprop = 0.0;
-			if (anchormax) {
-				totalspace -= marginmax;
-			} else {
-				totalprop += marginmax;
-			}
-			if (pixelsize) {
-				totalspace -= size;
-			} else {
-				totalprop += size;
-			}
-			if (anchormin) {
-				totalspace -= marginmin;
-			} else {
-				totalprop += marginmin;
-			}
-			clamped_size = totalspace * size / totalprop;
+		double clamped_size = size.value;
+		if (!size.is_pixels) {
+			double totalpixels = 0.0, totalprop = 0.0;
+			margin_min.accumulate_to(totalpixels, totalprop);
+			size.accumulate_to(totalpixels, totalprop);
+			margin_max.accumulate_to(totalpixels, totalprop);
+			clamped_size = ((clientmax - clientmin) - totalpixels) * size.value / totalprop;
 		}
 		clamped_size = std::clamp(clamped_size, minsize, maxsize);
 		panel::layout_on_direction(
-			clientmin, clientmax, anchormin, true, anchormax, marginmin, clamped_size, marginmax
+			clientmin, clientmax, margin_min, size_allocation::pixels(clamped_size), margin_max
 		);
 	}
 
 	void size_limiter::layout_child_horizontal(element &child, double xmin, double xmax) const {
-		anchor anc = child.get_anchor();
-		thickness margin = child.get_margin();
-		auto width = child.get_layout_width();
 		double layout_xmin = xmin;
 		double layout_xmax = xmax;
 		layout_on_direction(
 			layout_xmin, layout_xmax,
-			(anc & anchor::left) != anchor::none, width.is_pixels, (anc & anchor::right) != anchor::none,
-			margin.left, width.value, margin.right, _min_size.x, _max_size.x
+			child.get_margin_left(), child.get_layout_width(), child.get_margin_right(),
+			_min_size.x, _max_size.x
 		);
 		_child_set_horizontal_layout(child, layout_xmin, layout_xmax);
 	}
 
 	void size_limiter::layout_child_vertical(element &child, double ymin, double ymax) const {
-		anchor anc = child.get_anchor();
-		thickness margin = child.get_margin();
-		auto height = child.get_layout_height();
 		double layout_ymin = ymin;
 		double layout_ymax = ymax;
 		layout_on_direction(
 			layout_ymin, layout_ymax,
-			(anc & anchor::top) != anchor::none, height.is_pixels, (anc & anchor::bottom) != anchor::none,
-			margin.top, height.value, margin.bottom, _min_size.y, _max_size.y
+			child.get_margin_top(), child.get_layout_height(), child.get_margin_bottom(),
+			_min_size.y, _max_size.y
 		);
 		_child_set_vertical_layout(child, layout_ymin, layout_ymax);
 	}

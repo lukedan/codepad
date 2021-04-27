@@ -7,14 +7,6 @@
 /// Implementation of additional editor components.
 
 namespace codepad::editors::binary {
-	ui::size_allocation primary_offset_display::get_desired_width() const {
-		std::size_t chars = _get_label_length(_contents_region->get_buffer().length());
-		double maxw = _contents_region->get_font()->get_maximum_character_width_em(
-			reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
-		) * _contents_region->get_font_size();
-		return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(chars) * maxw);
-	}
-
 	std::u8string primary_offset_display::_to_hex(std::size_t v, std::size_t len) {
 		std::u8string res(len, '0');
 		for (auto x = res.rbegin(); v != 0 && x != res.rend(); ++x, v >>= 4) {
@@ -66,7 +58,7 @@ namespace codepad::editors::binary {
 			if (_reference_cast_to(_contents_region, elem)) {
 				_contents_region->content_modified += [this]() {
 					// when the content is modified, it is possible that the number of digits is changed
-					_on_desired_size_changed(true, false);
+					_on_desired_size_changed();
 				};
 			}
 			return true;

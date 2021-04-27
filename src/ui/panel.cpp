@@ -147,106 +147,98 @@ namespace codepad::ui {
 		return element::get_current_display_cursor();
 	}
 
-	size_allocation panel::get_desired_width() const {
-		double maxw = 0.0;
-		for (const element *e : _children.items()) {
-			if (e->is_visible(visibility::layout)) {
-				if (auto span = _get_horizontal_absolute_desired_span(*e)) {
-					maxw = std::max(maxw, span.value());
-				}
-			}
-		}
-		return size_allocation::pixels(maxw + get_padding().width());
-	}
-
-	size_allocation panel::get_desired_height() const {
-		double maxh = 0.0;
-		for (const element *e : _children.items()) {
-			if (e->is_visible(visibility::layout)) {
-				if (auto span = _get_vertical_absolute_desired_span(*e)) {
-					maxh = std::max(maxh, span.value());
-				}
-			}
-		}
-		return size_allocation::pixels(maxh + get_padding().height());
-	}
-
 	void panel::layout_on_direction(
 		double &clientmin, double &clientmax,
-		bool anchormin, bool pixelsize, bool anchormax,
-		double marginmin, double size, double marginmax
+		size_allocation margin_min, size_allocation size, size_allocation margin_max
 	) {
-		double totalspace = clientmax - clientmin, totalprop = 0.0;
-		if (anchormax) {
-			totalspace -= marginmax;
-		} else {
-			totalprop += marginmax;
-		}
-		if (pixelsize) {
-			totalspace -= size;
-		} else {
-			totalprop += size;
-		}
-		if (anchormin) {
-			totalspace -= marginmin;
-		} else {
-			totalprop += marginmin;
-		}
-		double propmult = totalspace / totalprop;
+		double totalpixels = 0.0, totalprop = 0.0;
+		margin_min.accumulate_to(totalpixels, totalprop);
+		size.accumulate_to(totalpixels, totalprop);
+		margin_max.accumulate_to(totalpixels, totalprop);
+		double propmult = ((clientmax - clientmin) - totalpixels) / totalprop;
 		// size in pixels are prioritized so that zero-size proportion parts are ignored when possible
-		if (anchormin && anchormax) {
-			if (pixelsize) {
-				double midpos = 0.5 * (clientmin + clientmax + marginmin - marginmax);
-				clientmin = midpos - 0.5 * size;
-				clientmax = midpos + 0.5 * size;
+		if (margin_min.is_pixels && margin_max.is_pixels) {
+			if (size.is_pixels) {
+				double midpos = 0.5 * (clientmin + clientmax + margin_min.value - margin_max.value);
+				clientmin = midpos - 0.5 * size.value;
+				clientmax = midpos + 0.5 * size.value;
 			} else {
-				clientmin += marginmin;
-				clientmax -= marginmax;
+				clientmin += margin_min.value;
+				clientmax -= margin_max.value;
 			}
-		} else if (anchormin) {
-			clientmin += marginmin;
-			clientmax = clientmin + (pixelsize ? size : size * propmult);
-		} else if (anchormax) {
-			clientmax -= marginmax;
-			clientmin = clientmax - (pixelsize ? size : size * propmult);
+		} else if (margin_min.is_pixels) {
+			clientmin += margin_min.value;
+			clientmax = clientmin + (size.is_pixels ? size.value : size.value * propmult);
+		} else if (margin_max.is_pixels) {
+			clientmax -= margin_max.value;
+			clientmin = clientmax - (size.is_pixels ? size.value : size.value * propmult);
 		} else {
-			clientmin += marginmin * propmult;
-			clientmax -= marginmax * propmult;
+			clientmin += margin_min.value * propmult;
+			clientmax -= margin_max.value * propmult;
 		}
 	}
 
 	void panel::layout_child_horizontal(element &child, double xmin, double xmax) {
-		anchor anc = child.get_anchor();
-		thickness margin = child.get_margin();
-		auto wprop = child.get_layout_width();
 		child._layout.xmin = xmin;
 		child._layout.xmax = xmax;
 		layout_on_direction(
 			child._layout.xmin, child._layout.xmax,
-			(anc & anchor::left) != anchor::none, wprop.is_pixels, (anc & anchor::right) != anchor::none,
-			margin.left, wprop.value, margin.right
+			child.get_margin_left(), child.get_layout_width(), child.get_margin_right()
 		);
 	}
 
 	void panel::layout_child_vertical(element &child, double ymin, double ymax) {
-		anchor anc = child.get_anchor();
-		thickness margin = child.get_margin();
-		auto hprop = child.get_layout_height();
 		child._layout.ymin = ymin;
 		child._layout.ymax = ymax;
 		layout_on_direction(
 			child._layout.ymin, child._layout.ymax,
-			(anc & anchor::top) != anchor::none, hprop.is_pixels, (anc & anchor::bottom) != anchor::none,
-			margin.top, hprop.value, margin.bottom
+			child.get_margin_top(), child.get_layout_height(), child.get_margin_bottom()
 		);
+	}
+
+	double panel::get_available_size_for_child(
+		double available, size_allocation anchor_min, size_allocation anchor_max,
+		size_allocation_type size_type, double size
+	) {
+		double ext_pixels = 0.0, ext_proportion = 0.0;
+		anchor_min.accumulate_to(ext_pixels, ext_proportion);
+		anchor_max.accumulate_to(ext_pixels, ext_proportion);
+		available -= ext_pixels;
+		switch (size_type) {
+		case size_allocation_type::automatic:
+			return available;
+		case size_allocation_type::fixed:
+			return size;
+		case size_allocation_type::proportion:
+			return available * size / (size + ext_proportion);
+		}
 	}
 
 	void panel::_invalidate_children_layout() {
 		get_manager().get_scheduler().invalidate_children_layout(*this);
 	}
 
-	void panel::_on_child_desired_size_changed(element&, bool width, bool height) {
-		_on_desired_size_changed(width, height);
+	vec2d panel::_compute_desired_size_impl(vec2d available) const {
+		available -= get_padding().size();
+		_basic_desired_size_accumulator<
+			&element::get_margin_left, &element::get_margin_right, &element::get_width_allocation, &vec2d::x
+		> hori_accum(available.x);
+		_basic_desired_size_accumulator<
+			&element::get_margin_top, &element::get_margin_bottom, &element::get_height_allocation, &vec2d::y
+		> vert_accum(available.y);
+		for (element *child : _children.items()) {
+			if (child->is_visible(visibility::layout)) {
+				vec2d child_available(hori_accum.get_available(*child), vert_accum.get_available(*child));
+				child->compute_desired_size(child_available);
+				hori_accum.accumulate(*child);
+				vert_accum.accumulate(*child);
+			}
+		}
+		return vec2d(hori_accum.maximum_size, vert_accum.maximum_size) + get_padding().size();
+	}
+
+	void panel::_on_child_desired_size_changed(element&) {
+		_on_desired_size_changed();
 	}
 
 	void panel::_on_mouse_down(mouse_button_info &p) {
@@ -300,142 +292,5 @@ namespace codepad::ui {
 		}
 		_children.clear();
 		element::_dispose();
-	}
-
-	/// Implementation of \ref panel::_get_horizontal_absolute_span() and \ref panel::_get_vertical_absolute_span().
-	template <
-		anchor AnchorBefore, double thickness::*MarginBefore, anchor AnchorAfter, double thickness::*MarginAfter,
-		typename GetSize
-	> std::optional<double> _get_absolute_span(const element &e, const GetSize &get_size) {
-		bool has_value = false;
-		double cur = 0.0;
-		thickness margin = e.get_margin();
-		anchor anc = e.get_anchor();
-		if ((anc & AnchorBefore) != anchor::none) {
-			has_value = true;
-			cur += margin.*MarginBefore;
-		}
-		auto size = get_size(e);
-		if (size.is_pixels) {
-			has_value = true;
-			cur += size.value;
-		}
-		if ((anc & AnchorAfter) != anchor::none) {
-			has_value = true;
-			cur += margin.*MarginAfter;
-		}
-		if (has_value) {
-			return cur;
-		}
-		return std::nullopt;
-	}
-	std::optional<double> panel::_get_horizontal_absolute_span(const element &e) {
-		return _get_absolute_span<anchor::left, &thickness::left, anchor::right, &thickness::right>(
-			e, [](const element &e) {
-				return e.get_layout_width();
-			}
-		);
-	}
-
-	std::optional<double> panel::_get_vertical_absolute_span(const element &e) {
-		return _get_absolute_span<anchor::top, &thickness::top, anchor::bottom, &thickness::bottom>(
-			e, [](const element &e) {
-				return e.get_layout_height();
-			}
-		);
-	}
-
-	/// Implementation of \ref panel::_get_max_horizontal_absolute_span() and
-	/// \ref panel::_get_max_vertical_absolute_span()
-	template <std::optional<double>(*GetSpan)(const element&)> std::optional<double> _get_max_absolute_span(
-		const element_collection &children
-	) {
-		bool has_value = false;
-		double val = 0.0;
-		for (element *e : children.items()) {
-			if (e->is_visible(visibility::layout)) {
-				if (auto span = GetSpan(*e)) {
-					has_value = true;
-					val = std::max(val, span.value());
-				}
-			}
-		}
-		if (has_value) {
-			return val;
-		}
-		return std::nullopt;
-	}
-	std::optional<double> panel::_get_max_horizontal_absolute_span(const element_collection &children) {
-		return _get_max_absolute_span<_get_horizontal_absolute_span>(children);
-	}
-
-	std::optional<double> panel::_get_max_vertical_absolute_span(const element_collection &children) {
-		return _get_max_absolute_span<_get_vertical_absolute_span>(children);
-	}
-
-	/// Implementation of \ref panel::_get_total_horizontal_absolute_span() and
-	/// \ref panel::_get_total_vertical_absolute_span()
-	template <std::optional<double>(*GetSpan)(const element&)> std::optional<double> _get_total_absolute_span(
-		const element_collection &children
-	) {
-		bool has_value = false;
-		double val = 0.0;
-		for (element *e : children.items()) {
-			if (e->is_visible(visibility::layout)) {
-				if (auto span = GetSpan(*e)) {
-					has_value = true;
-					val += span.value();
-				}
-			}
-		}
-		if (has_value) {
-			return val;
-		}
-		return std::nullopt;
-	}
-	std::optional<double> panel::_get_total_horizontal_absolute_span(const element_collection &children) {
-		return _get_total_absolute_span<_get_horizontal_absolute_span>(children);
-	}
-
-	std::optional<double> panel::_get_total_vertical_absolute_span(const element_collection &children) {
-		return _get_total_absolute_span<_get_vertical_absolute_span>(children);
-	}
-
-	std::optional<double> panel::_get_horizontal_absolute_desired_span(const element &e) {
-		return _get_absolute_span<anchor::left, &thickness::left, anchor::right, &thickness::right>(
-			e, [](const element &e) {
-				if (e.get_width_allocation() == size_allocation_type::fixed) {
-					return e.get_layout_width();
-				}
-				return e.get_desired_width();
-			}
-		);
-	}
-
-	std::optional<double> panel::_get_vertical_absolute_desired_span(const element &e) {
-		return _get_absolute_span<anchor::top, &thickness::top, anchor::bottom, &thickness::bottom>(
-			e, [](const element &e) {
-				if (e.get_height_allocation() == size_allocation_type::fixed) {
-					return e.get_layout_height();
-				}
-				return e.get_desired_height();
-			}
-		);
-	}
-
-	std::optional<double> panel::_get_max_horizontal_absolute_desired_span(const element_collection &children) {
-		return _get_max_absolute_span<_get_horizontal_absolute_desired_span>(children);
-	}
-
-	std::optional<double> panel::_get_max_vertical_absolute_desired_span(const element_collection &children) {
-		return _get_max_absolute_span<_get_vertical_absolute_desired_span>(children);
-	}
-
-	std::optional<double> panel::_get_total_horizontal_absolute_desired_span(const element_collection &children) {
-		return _get_total_absolute_span<_get_horizontal_absolute_desired_span>(children);
-	}
-
-	std::optional<double> panel::_get_total_vertical_absolute_desired_span(const element_collection &children) {
-		return _get_total_absolute_span<_get_vertical_absolute_desired_span>(children);
 	}
 }

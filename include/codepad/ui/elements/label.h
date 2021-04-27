@@ -13,21 +13,6 @@ namespace codepad::ui {
 	/// A label that displays plain text. Non-focusable by default.
 	class label : public element {
 	public:
-		/// Controls how wrapping width is computed for a \ref label.
-		enum class wrapping_width_mode : unsigned char {
-			client, ///< Wrapping width is the same as the width of the client area.
-			custom ///< Wrapping width is a fixed value.
-		};
-
-		/// Returns the combined width of the text and the padding in pixels.
-		size_allocation get_desired_width() const override {
-			return size_allocation::pixels(_formatted_text->get_layout().width() + get_padding().width());
-		}
-		/// Returns the combined height of the text and the padding in pixels.
-		size_allocation get_desired_height() const override {
-			return size_allocation::pixels(_formatted_text->get_layout().height() + get_padding().height());
-		}
-
 		/// Returns the text.
 		const std::u8string &get_text() const {
 			return _text;
@@ -72,32 +57,6 @@ namespace codepad::ui {
 			_on_text_layout_changed();
 		}
 
-		/// Returns \ref _wrap_width_mode.
-		[[nodiscard]] wrapping_width_mode get_wrapping_width_mode() const {
-			return _wrap_width_mode;
-		}
-		/// Sets \ref _wrap_width_mode, and invokes \ref _on_text_layout_changed() if necessary.
-		void set_wrapping_width_mode(wrapping_width_mode mode) {
-			if (_wrap_width_mode != mode) {
-				_wrap_width_mode = mode;
-				_update_text_layout_size();
-				_on_text_layout_changed();
-			}
-		}
-
-		/// Returns the custom wrapping width used by this \ref label.
-		[[nodiscard]] double get_custom_wrapping_width() const {
-			return _wrap_width;
-		}
-		/// Sets custom wrapping width and, if, calls \ref _on_text_layout_changed().
-		void set_custom_wrapping_width(double w) {
-			_wrap_width = w;
-			if (get_wrapping_width_mode() == wrapping_width_mode::custom) {
-				_update_text_layout_size();
-				_on_text_layout_changed();
-			}
-		}
-
 		/// Returns \ref _halign.
 		[[nodiscard]] horizontal_text_alignment get_horizontal_alignment() const {
 			return _formatted_text->get_horizontal_alignment();
@@ -126,10 +85,6 @@ namespace codepad::ui {
 		colord _text_color; ///< The color of the text.
 		font_parameters _font; ///< The font.
 		std::shared_ptr<formatted_text> _formatted_text; ///< The formatted text.
-		/// Controls how wrapping width is computed.
-		wrapping_width_mode _wrap_width_mode = wrapping_width_mode::client;
-		/// Wrapping width. Has no effect if \ref _wrap_width_mode is \ref wrapping_width_mode::client.
-		double _wrap_width = 0.0;
 		/// Caches the client size of this element after the previous layout operation. If the size of the client
 		/// changes, we need to call \ref _on_text_layout_changed().
 		vec2d _prev_client_size;
@@ -140,9 +95,6 @@ namespace codepad::ui {
 		/// Updates the layout size of \ref _formatted_text.
 		void _update_text_layout_size() {
 			vec2d size = get_client_region().size();
-			if (get_wrapping_width_mode() == wrapping_width_mode::custom) {
-				size.x = get_custom_wrapping_width();
-			}
 			_formatted_text->set_layout_size(size);
 		}
 
@@ -154,7 +106,7 @@ namespace codepad::ui {
 		/// Called when the layout (size) of the text has potentially changed. Invokes \ref _on_desired_size_changed() and
 		/// \ref invalidate_visual().
 		virtual void _on_text_layout_changed() {
-			_on_desired_size_changed(true, true);
+			_on_desired_size_changed();
 			invalidate_visual();
 		}
 		/// Called when the text has been changed. Re-creates \ref _formatted_text, then invokes
@@ -173,6 +125,20 @@ namespace codepad::ui {
 			_on_text_layout_changed();
 		}
 
+		/// If wrapping is enabled, computes the text size for the given available size; otherwise just returns the
+		/// current text size.
+		vec2d _compute_desired_size_impl(vec2d available) const override {
+			vec2d text_size;
+			if (get_wrapping_mode() == wrapping_mode::wrap) {
+				text_size = get_manager().get_renderer().create_formatted_text(
+					get_text(), get_font_parameters(), get_text_color(), available - get_padding().size(),
+					get_wrapping_mode(), get_horizontal_alignment(), get_vertical_alignment()
+				)->get_layout().size();
+			} else {
+				text_size = _formatted_text->get_layout().size();
+			}
+			return text_size + get_padding().size();
+		}
 		/// Updates the layout size of the cached \ref formatted_text.
 		void _on_layout_changed() override {
 			element::_on_layout_changed();
@@ -202,12 +168,5 @@ namespace codepad::ui {
 				wrapping_mode::none, horizontal_text_alignment::front, vertical_text_alignment::top
 			);
 		}
-	};
-}
-namespace codepad {
-	/// Parser for \ref ui::label::wrapping_width_mode.
-	template <> struct enum_parser<ui::label::wrapping_width_mode> {
-		/// The parser interface.
-		static std::optional<ui::label::wrapping_width_mode> parse(std::u8string_view);
 	};
 }

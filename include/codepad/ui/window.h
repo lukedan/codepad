@@ -169,12 +169,6 @@ namespace codepad::ui {
 			_impl->_set_client_size(size);
 		}
 
-		/// Ignores all child windows.
-		size_allocation get_desired_width() const override;
-
-		/// Ignores all child windows.
-		size_allocation get_desired_height() const override;
-
 		/// Returns the DPI scaling factor of this window.
 		[[nodiscard]] vec2d get_scaling_factor() const {
 			return _impl->_get_scaling_factor();
@@ -364,23 +358,19 @@ namespace codepad::ui {
 		/// Called when the window's scaling factor has been changed.
 		virtual void _on_scaling_factor_changed(scaling_factor_changed_info&);
 
+		// TODO use working area size in the future
+		/// Sets the available size to infinity if the size is managed by the application. Also skips over any child
+		/// windows.
+		vec2d _compute_desired_size_impl(vec2d available) const override;
 		/// Calls \ref window_impl::_update_managed_window_size().
 		void _on_layout_parameters_changed() override {
 			panel::_on_layout_parameters_changed();
 			_impl->_update_managed_window_size();
 		}
-		/// If the size of the window is controlled by the application, checks thst the size allocation is automatic
-		/// and calls \ref window_impl::_update_managed_window_size().
-		void _on_desired_size_changed(bool width, bool height) override {
-			panel::_on_desired_size_changed(width, height);
-			bool
-				width_may_change = width && get_width_size_policy() == size_policy::application,
-				height_may_change = height && get_height_size_policy() == size_policy::application;
-			if (width_may_change || height_may_change) {
-				_impl->_update_managed_window_size();
-			}
-			_invalidate_children_layout();
-		}
+		/// If the size of the window is controlled by the application, checks that the size allocation is automatic
+		/// and calls \ref window_impl::_update_managed_window_size(). Additionally calls
+		/// \ref scheduler::invalidate_desired_size().
+		void _on_desired_size_changed() override;
 
 		/// Forwards the keyboard event to the focused element, or, if the window itself is focused,
 		/// falls back to the default behavior.

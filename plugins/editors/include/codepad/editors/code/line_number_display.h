@@ -12,9 +12,6 @@ namespace codepad::editors::code {
 	/// Displays a the line number for each line.
 	class line_number_display : public ui::element {
 	public:
-		/// Returns the width of the longest line number.
-		ui::size_allocation get_desired_width() const override;
-
 		/// Returns \ref _theme.
 		[[nodiscard]] const text_theme &get_text_theme() const {
 			return _theme;
@@ -39,6 +36,17 @@ namespace codepad::editors::code {
 		text_theme _theme; ///< Font color and style for the line numbers.
 		contents_region *_contents_region = nullptr; ///< The \ref contents_region associated with this display.
 
+		/// Computes the desired width of line numbers.
+		vec2d _compute_desired_size_impl(vec2d available) const override {
+			std::size_t num_lines = _contents_region->get_document().num_lines(), digits = 0;
+			for (; num_lines > 0; ++digits, num_lines /= 10) {
+			}
+			double maxw = _contents_region->get_font_size() * _font->get_maximum_character_width_em(
+				reinterpret_cast<const codepoint*>(U"0123456789")
+			);
+			return vec2d(get_padding().width() + static_cast<double>(digits) * maxw, available.y);
+		}
+
 		/// Handles the \p text_theme attribute.
 		ui::property_info _find_property_path(const ui::property_path::component_list&) const override;
 		/// Handles \ref _contents_region, registers for events, and calls \ref _update_font().
@@ -54,7 +62,7 @@ namespace codepad::editors::code {
 		void _on_font_changed() {
 			_font = nullptr;
 			_update_font();
-			_on_desired_size_changed(true, false);
+			_on_desired_size_changed();
 			invalidate_visual();
 		}
 

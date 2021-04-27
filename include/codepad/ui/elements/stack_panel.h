@@ -24,14 +24,6 @@ namespace codepad::ui {
 			}
 		}
 
-		/// Returns the minimum width that can contain all elements in pixels, plus padding. More specifically, the
-		/// return value is the padding plus the sum of all horizontal sizes specified in pixels, ignoring those
-		/// specified as proportions, if the panel is in a horizontal state; or the padding plus the maximum
-		/// horizontal size specified in pixels otherwise.
-		size_allocation get_desired_width() const override;
-		/// Similar to \ref get_desired_width(), but for height.
-		size_allocation get_desired_height() const override;
-
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel with the given
 		/// orientation and client area. All elements must be children of the given \ref panel.
 		template <orientation Orient> inline static void layout_elements_in(
@@ -153,6 +145,107 @@ namespace codepad::ui {
 			}
 		}
 
+		/// Implementation of \ref _compute_desired_size_impl() for a specific orientation.
+		template <
+			size_allocation (element::*StackMarginMin)() const, size_allocation (element::*StackMarginMax)() const,
+			size_allocation_type (element::*StackSizeAlloc)() const, double vec2d::*StackSize,
+			size_allocation (element::*IndepMarginMin)() const, size_allocation (element::*IndepMarginMax)() const,
+			size_allocation_type (element::*IndepSizeAlloc)() const, double vec2d::*IndepSize
+		> inline static vec2d _compute_stack_panel_desired_size(
+			vec2d available, vec2d padding, const std::list<element*> &children
+		) {
+			available -= padding;
+			std::size_t num_auto_children = 0;
+			double total_pixels = 0.0, total_prop = 0.0;
+			for (element *child : children) {
+				if (child->is_visible(visibility::layout)) {
+					(child->*StackMarginMin)().accumulate_to(total_pixels, total_prop);
+					(child->*StackMarginMax)().accumulate_to(total_pixels, total_prop);
+					switch ((child->*StackSizeAlloc)()) {
+					case size_allocation_type::automatic:
+						++num_auto_children;
+						break;
+					case size_allocation_type::fixed:
+						total_pixels += child->get_layout_parameters().size.*StackSize;
+						break;
+					case size_allocation_type::proportion:
+						total_prop += child->get_layout_parameters().size.*StackSize;
+						break;
+					}
+				}
+			}
+
+			_basic_desired_size_accumulator<
+				IndepMarginMin, IndepMarginMax, IndepSizeAlloc, IndepSize
+			> indep_accum(available.*IndepSize);
+			// first allocate space to all elements with automatic or pixel size allocation
+			for (element *child : children) {
+				if (child->is_visible(visibility::layout)) {
+					double size;
+					switch ((child->*StackSizeAlloc)()) {
+					case size_allocation_type::proportion:
+						continue; // ignore; handled later
+					case size_allocation_type::fixed:
+						size = child->get_layout_parameters().size.*StackSize;
+						break;
+					case size_allocation_type::automatic:
+						size = std::max(0.0, available.*StackSize - total_pixels);
+						break;
+					}
+					vec2d child_available;
+					child_available.*StackSize = size;
+					child_available.*IndepSize = indep_accum.get_available(*child);
+					child->compute_desired_size(child_available);
+					if ((child->*StackSizeAlloc)() == size_allocation_type::automatic) {
+						total_pixels += child->get_desired_size().*StackSize;
+					}
+					indep_accum.accumulate(*child);
+				}
+			}
+			// then distribute the remaining space among proportion values
+			double ratio = std::max(available.*StackSize - total_pixels, 0.0) / total_prop;
+			double max_proportion_size = 0.0;
+			for (element *child : children) {
+				if (child->is_visible(visibility::layout)) {
+					if ((child->*StackSizeAlloc)() == size_allocation_type::proportion) {
+						double size_ratio = child->get_layout_parameters().size.*StackSize;
+						double size_pixel = size_ratio * ratio;
+						vec2d child_available;
+						child_available.*StackSize = size_pixel;
+						child_available.*IndepSize = indep_accum.get_available(*child);
+						child->compute_desired_size(child_available);
+						max_proportion_size = std::max(
+							max_proportion_size, child->get_desired_size().*StackSize * total_prop / size_ratio
+						);
+						indep_accum.accumulate(*child);
+					}
+				}
+			}
+
+			vec2d result;
+			result.*StackSize = max_proportion_size + total_pixels;
+			result.*IndepSize = indep_accum.maximum_size;
+			return result + padding;
+		}
+		/// Computes the desired size of this panel based on the desired size of all children.
+		vec2d _compute_desired_size_impl(vec2d available) const override {
+			if (get_orientation() == orientation::horizontal) {
+				return _compute_stack_panel_desired_size<
+					&element::get_margin_left, &element::get_margin_right,
+					&element::get_width_allocation, &vec2d::x,
+					&element::get_margin_top, &element::get_margin_bottom,
+					&element::get_height_allocation, &vec2d::y
+				>(available, get_padding().size(), _children.items());
+			} else {
+				return _compute_stack_panel_desired_size<
+					&element::get_margin_top, &element::get_margin_bottom,
+					&element::get_height_allocation, &vec2d::y,
+					&element::get_margin_left, &element::get_margin_right,
+					&element::get_width_allocation, &vec2d::x
+				>(available, get_padding().size(), _children.items());
+			}
+		}
+
 		/// Calls \ref layout_elements_in to calculate the layout of all children.
 		void _on_update_children_layout() override {
 			layout_elements_in(
@@ -174,8 +267,7 @@ namespace codepad::ui {
 		}
 		/// Invalidates the children's layout since it is determined by their ordering.
 		void _on_child_order_changed(element &elem, element *before) override {
-			bool vertical = get_orientation() == orientation::vertical;
-			_on_desired_size_changed(!vertical, vertical);
+			_on_desired_size_changed();
 			_invalidate_children_layout();
 			panel::_on_child_order_changed(elem, before);
 		}
@@ -183,7 +275,7 @@ namespace codepad::ui {
 		/// Called after the orientation of this element has been changed. Invalidates the layout of affected
 		/// elements.
 		virtual void _on_orientation_changed() {
-			_on_desired_size_changed(true, true);
+			_on_desired_size_changed();
 			_invalidate_children_layout();
 		}
 

@@ -7,16 +7,6 @@
 /// Implementation of the line number display.
 
 namespace codepad::editors::code {
-	ui::size_allocation line_number_display::get_desired_width() const {
-		std::size_t num_lines = _contents_region->get_document().num_lines(), digits = 0;
-		for (; num_lines > 0; ++digits, num_lines /= 10) {
-		}
-		double maxw = _contents_region->get_font_size() * _font->get_maximum_character_width_em(
-			reinterpret_cast<const codepoint*>(U"0123456789")
-		);
-		return ui::size_allocation::pixels(get_padding().width() + static_cast<double>(digits) * maxw);
-	}
-
 	ui::property_info line_number_display::_find_property_path(const ui::property_path::component_list &path) const {
 		if (path.front().is_type_or_empty(u8"line_number_display")) {
 			if (path.front().property == u8"text_theme") {
@@ -41,7 +31,7 @@ namespace codepad::editors::code {
 				_contents_region->editing_visual_changed += [this]() {
 					// when the content is modified, it is possible that the number of digits is changed,
 					// so we recalculate layout here
-					_on_desired_size_changed(true, false);
+					_on_desired_size_changed();
 				};
 				_update_font();
 			}
