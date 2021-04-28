@@ -12,6 +12,81 @@ namespace codepad::ui {
 	/// A panel that arranges all children sequentially in a given orientation.
 	class stack_panel : public panel {
 	public:
+		/// Utility struct used for layout computation. The user should first use \ref accumulate() to accumulate
+		/// data of all children, then use \ref compute_layout_for() to compute the layout of a child based on the
+		/// accumulated data of the entire set of elements.
+		struct stack_layout_helper {
+		public:
+			/// Default constructor.
+			stack_layout_helper() {
+			}
+			/// Initializes this struct using the size, position, and orientation of the panel.
+			stack_layout_helper(double min, double size, orientation ori) : _space(size), _offset(min), _orient(ori) {
+			}
+
+			/// Accumulates data for the given child.
+			void accumulate(element &child) {
+				double pixel_size = 0.0;
+				switch (_orient) {
+				case orientation::horizontal:
+					child.get_margin_left().accumulate_to(pixel_size, _total_proportion);
+					child.get_layout_width().accumulate_to(pixel_size, _total_proportion);
+					child.get_margin_right().accumulate_to(pixel_size, _total_proportion);
+					break;
+				case orientation::vertical:
+					child.get_margin_top().accumulate_to(pixel_size, _total_proportion);
+					child.get_layout_height().accumulate_to(pixel_size, _total_proportion);
+					child.get_margin_bottom().accumulate_to(pixel_size, _total_proportion);
+					break;
+				}
+				_space -= pixel_size;
+			}
+			/// Returns the layout of the given child on the previously specified orientation. This function must be
+			/// called in-order for all children.
+			[[nodiscard]] std::pair<double, double> compute_and_accumulate_layout_for(element &child) {
+				auto [before, size, after] = compute_detailed_span_for(child);
+				double min = _offset + before;
+				double max = min + size;
+				_offset = max + after;
+				return { min, max };
+			}
+			/// Computes the margin before, after, and the size of the given element.
+			///
+			/// \return The margin before the element, size of the element, and the margin after the element.
+			[[nodiscard]] std::tuple<double, double, double> compute_detailed_span_for(element &child) const {
+				size_allocation before, size, after;
+				switch (_orient) {
+				case orientation::horizontal:
+					before = child.get_margin_left();
+					size = child.get_layout_width();
+					after = child.get_margin_right();
+					break;
+				case orientation::vertical:
+					before = child.get_margin_top();
+					size = child.get_layout_height();
+					after = child.get_margin_bottom();
+					break;
+				}
+				return {
+					before.is_pixels ? before.value : (before.value * _space / _total_proportion),
+					size.is_pixels ? size.value : (size.value * _space / _total_proportion),
+					after.is_pixels ? after.value : (after.value * _space / _total_proportion)
+				};
+			}
+			/// Computes the total span for this child, including its margins.
+			[[nodiscard]] double compute_span_for(element &child) const {
+				auto [before, size, after] = compute_detailed_span_for(child);
+				return before + size + after;
+			}
+		protected:
+			double _total_proportion = 0.0; ///< Total proportion.
+			/// Total remaining space for all elements that should be distributed among proportion sizes.
+			double _space = 0.0;
+			double _offset = 0.0; ///< Total offset for all elements processed so far by \ref compute_layout_for().
+			orientation _orient = orientation::horizontal; ///< Orientation of this panel.
+		};
+
+
 		/// Returns the current orientation.
 		orientation get_orientation() const {
 			return _orientation;
@@ -26,30 +101,10 @@ namespace codepad::ui {
 
 		/// Calculates the layout of a list of elements as if they were in a \ref stack_panel with the given
 		/// orientation and client area. All elements must be children of the given \ref panel.
-		template <orientation Orient> inline static void layout_elements_in(
-			rectd client, const std::vector<element*> &elems
-		) {
-			if constexpr (Orient == orientation::vertical) {
-				_layout_elements_in_impl<
-					true, &panel::layout_child_horizontal,
-					&rectd::ymin, &rectd::ymax, &rectd::xmin, &rectd::xmax
-				>(client, elems);
-			} else {
-				_layout_elements_in_impl<
-					false, &panel::layout_child_vertical,
-					&rectd::xmin, &rectd::xmax, &rectd::ymin, &rectd::ymax
-				>(client, elems);
-			}
-		}
-		/// Calls the corresponding templated version of \ref layout_elements_in.
 		inline static void layout_elements_in(
-			rectd client, const std::vector<element*> &elems, orientation orient
+			rectd client, const std::list<element*> &elems, orientation orient
 		) {
-			if (orient == orientation::vertical) {
-				layout_elements_in<orientation::vertical>(client, elems);
-			} else {
-				layout_elements_in<orientation::horizontal>(client, elems);
-			}
+			_layout_elements_in_impl(client, orient, elems);
 		}
 
 		/// Returns the default class of elements of this type.
@@ -60,87 +115,42 @@ namespace codepad::ui {
 		/// The orientation used when calculating the children's layout.
 		orientation _orientation = orientation::horizontal;
 	protected:
-		/// Contains information (size, whether size is a proportion) used for layout calculation.
-		struct _elem_layout_info {
-			/// Default constructor.
-			_elem_layout_info() = default;
-
-			size_allocation
-				margin_min, ///< The element's layout settings for its margin in the `negative' direction.
-				size, ///< The element's layout settings for its size.
-				margin_max; ///< The element's layout settings for the margin in the `positive' direction.
-
-			/// Extracts the information corresponding to the given orientation from the given element.
-			template <bool Vertical> inline static _elem_layout_info extract(const element &e) {
-				_elem_layout_info res;
-				thickness margin = e.get_margin();
-				anchor anc = e.get_anchor();
-				if constexpr (Vertical) {
-					res.margin_min = size_allocation(margin.top, (anc & anchor::top) != anchor::none);
-					res.margin_max = size_allocation(margin.bottom, (anc & anchor::bottom) != anchor::none);
-					res.size = e.get_layout_height();
-				} else {
-					res.margin_min = size_allocation(margin.left, (anc & anchor::left) != anchor::none);
-					res.margin_max = size_allocation(margin.right, (anc & anchor::right) != anchor::none);
-					res.size = e.get_layout_width();
-				}
-				return res;
+		/// Implementation of \ref layout_elements_in().
+		inline static void _layout_elements_in_impl(
+			rectd client, orientation orient, const std::list<element*> &elems
+		) {
+			double offset = 0.0;
+			double size = 0.0;
+			if (orient == orientation::horizontal) {
+				offset = client.xmin;
+				size = client.width();
+			} else {
+				offset = client.ymin;
+				size = client.height();
 			}
-		};
-		/// Implementation of \ref layout_elements_in for a certain orientation.
-		///
-		/// \tparam Vertical Whether the elements should be laid out vertically.
-		/// \tparam CalcDefaultDir Member pointer to the function used to calculate layout on the orientation
-		///                        that is irrelevant to the stack panel.
-		/// \tparam MainMin Pointer to the member that holds the minimum position of the client area of the
-		///                 concerned orientation.
-		/// \tparam MainMax Pointer to the member that holds the maximum position of the client area of the
-		///                 concerned orientation.
-		/// \tparam DefMin Pointer to the member that holds the minimum position of the client area of the
-		///                irrelevant orientation.
-		/// \tparam DefMax Pointer to the member that holds the maximum position of the client area of the
-		///                irrelevant orientation.
-		template <
-			bool Vertical,
-			void(*CalcDefaultDir)(element&, double, double),
-			double rectd::*MainMin, double rectd::*MainMax,
-			double rectd::*DefMin, double rectd::*DefMax
-		> inline static void _layout_elements_in_impl(rectd client, const std::vector<element*> &elems) {
-			std::vector<_elem_layout_info> layoutinfo;
-			double total_prop = 0.0, total_px = 0.0;
+			stack_layout_helper stack(offset, size, orient);
+			// accumulate data
 			for (element *e : elems) {
 				if (e->is_visible(visibility::layout)) {
-					CalcDefaultDir(*e, client.*DefMin, client.*DefMax);
-					_elem_layout_info info = _elem_layout_info::extract<Vertical>(*e);
-					(info.margin_min.is_pixels ? total_px : total_prop) += info.margin_min.value;
-					(info.size.is_pixels ? total_px : total_prop) += info.size.value;
-					(info.margin_max.is_pixels ? total_px : total_prop) += info.margin_max.value;
-					layoutinfo.emplace_back(info);
+					stack.accumulate(*e);
+					if (orient == orientation::horizontal) {
+						panel::layout_child_vertical(*e, client.ymin, client.ymax);
+					} else {
+						panel::layout_child_horizontal(*e, client.xmin, client.xmax);
+					}
 				} else { // not accounted for; behave as panel
 					panel::layout_child(*e, client);
 				}
 			}
-			// distribute the remaining space
-			double prop_mult = (client.*MainMax - client.*MainMin - total_px) / total_prop, pos = client.*MainMin;
-			auto it = layoutinfo.begin();
+			// compute layout
 			for (element *e : elems) {
 				if (e->is_visible(visibility::layout)) {
-					const _elem_layout_info &info = *it;
-					rectd nl = e->get_layout();
-					nl.*MainMin = pos +=
-						info.margin_min.is_pixels ?
-						info.margin_min.value :
-						info.margin_min.value * prop_mult;
-					nl.*MainMax = pos +=
-						info.size.is_pixels ?
-						info.size.value :
-						info.size.value * prop_mult;
-					pos +=
-						info.margin_max.is_pixels ?
-						info.margin_max.value :
-						info.margin_max.value * prop_mult;
-					_child_set_layout(*e, nl);
-					++it;
+					auto [min, max] = stack.compute_and_accumulate_layout_for(*e);
+					if (orient == orientation::horizontal) {
+						_child_set_horizontal_layout(*e, min, max);
+					} else {
+						_child_set_vertical_layout(*e, min, max);
+					}
 				}
 			}
 		}
@@ -248,11 +258,7 @@ namespace codepad::ui {
 
 		/// Calls \ref layout_elements_in to calculate the layout of all children.
 		void _on_update_children_layout() override {
-			layout_elements_in(
-				get_client_region(),
-				std::vector<element*>(_children.items().begin(), _children.items().end()),
-				get_orientation()
-			);
+			layout_elements_in(get_client_region(), _children.items(), get_orientation());
 		}
 
 		/// Invalidates the children's layout as well.

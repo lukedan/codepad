@@ -312,7 +312,6 @@ namespace codepad::ui {
 		_layouting = true;
 
 		for (window *wnd : measure) {
-			logger::get().log_debug(CP_HERE) << "compute desired size";
 			wnd->compute_desired_size(wnd->get_layout().size());
 			update.emplace(wnd);
 		}

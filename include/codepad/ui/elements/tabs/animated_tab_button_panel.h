@@ -97,26 +97,30 @@ namespace codepad::ui::tabs {
 		host *_host; ///< The \ref host that owns this panel.
 
 		/// Returns the \ref tab_manager of the \ref host that owns this panel.
-		tab_manager &_get_tab_manager() const {
+		[[nodiscard]] tab_manager &_get_tab_manager() const {
 			return _host->get_tab_manager();
 		}
 
 		/// Returns the \ref _child_data corresponding to the given \ref element.
-		_child_data *_get_data(element &elem) {
+		[[nodiscard]] _child_data *_get_data(element &elem) {
 			return std::any_cast<_child_data>(&_child_get_parent_data(elem));
 		}
-		/// Returns the absolute part of the span of the given element in the current orientation.
-		double _get_absolute_span(const element &elem) const {
-			/*auto span =
-				get_orientation() == orientation::vertical ?
-				_get_vertical_absolute_span(elem) :
-				_get_horizontal_absolute_span(elem);
-			if (span) {
-				return span.value();
-			}*/
-			// TODO
-			logger::get().log_warning(CP_HERE) << "tab buttons should have concrete pixel sizes";
-			return 0.0;
+		/// Returns a \ref stack_layout_helper object that can be used for computing tab button positions. The
+		/// returned object will have data from all children (except \p exclude) accumulated.
+		[[nodiscard]] stack_layout_helper _get_children_layout_helper(element *exclude = nullptr) const {
+			rectd client = get_client_region();
+			stack_layout_helper result;
+			if (get_orientation() == orientation::horizontal) {
+				result = stack_layout_helper(client.xmin, client.width(), get_orientation());
+			} else {
+				result = stack_layout_helper(client.ymin, client.height(), get_orientation());
+			}
+			for (element *child : _children.items()) {
+				if (child != exclude) {
+					result.accumulate(*child);
+				}
+			}
+			return result;
 		}
 
 		/// Initializes additional information of the newly added element, and moves existing tab buttons.
@@ -141,14 +145,14 @@ namespace codepad::ui::tabs {
 			for (; it != _children.items().end() && *it != before; ++it) {
 			}
 			if (it != _children.items().end()) {
-				double size = _get_absolute_span(elem);
+				double size = _get_children_layout_helper().compute_span_for(elem);
 				for (; it != _children.items().end(); ++it) {
 					auto *data = _get_data(**it);
 					data->set_offset(*this, **it, data->current_offset - size);
 				}
 			}
 		}
-		/// Unbinds from \ref tab_button::start_drag and resets the additional data of that \ref element..
+		/// Unbinds from \ref tab_button::start_drag and resets the additional data of that \ref element.
 		void _on_child_removing(element &elem) override {
 			stack_panel::_on_child_removing(elem);
 
@@ -169,7 +173,7 @@ namespace codepad::ui::tabs {
 			}
 			++it; // ok since elem is still in _children
 			if (it != _children.items().end()) {
-				double size = _get_absolute_span(elem);
+				double size = _get_children_layout_helper().compute_span_for(elem);
 				for (; it != _children.items().end(); ++it) {
 					auto *data = _get_data(**it);
 					data->set_offset(*this, **it, data->current_offset + size);
@@ -183,30 +187,31 @@ namespace codepad::ui::tabs {
 
 			// find positions
 			auto elemit = _children.items().begin(), beforeit = _children.items().begin();
-			bool move_to_begin = true;
+			bool move_forward = true;
 			for (; elemit != _children.items().end() && *elemit != &elem; ++elemit) {
 			}
 			for (; beforeit != _children.items().end() && *beforeit != before; ++beforeit) {
 				if (*beforeit == &elem) {
-					move_to_begin = false;
+					move_forward = false;
 				}
 			}
 			if (auto next = elemit; ++next == beforeit) { // just in place
 				return;
 			}
-			double offset = _get_absolute_span(elem), elemoffset = 0.0;
+			auto layout_helper = _get_children_layout_helper();
+			double offset = layout_helper.compute_span_for(elem), elemoffset = 0.0;
 			// add offset
-			if (move_to_begin) {
+			if (move_forward) {
 				for (auto it = beforeit; it != elemit; ++it) {
 					auto *data = _get_data(**it);
 					data->set_offset(*this, **it, data->current_offset - offset);
-					elemoffset += _get_absolute_span(**it);
+					elemoffset += layout_helper.compute_span_for(**it);
 				}
 			} else {
 				for (auto it = ++elemit; it != beforeit; ++it) {
 					auto *data = _get_data(**it);
 					data->set_offset(*this, **it, data->current_offset + offset);
-					elemoffset -= _get_absolute_span(**it);
+					elemoffset -= layout_helper.compute_span_for(**it);
 				}
 			}
 			auto *data = _get_data(elem);
@@ -254,6 +259,7 @@ namespace codepad::ui::tabs {
 		/// Called when \ref tab_manager::drag_move_tab_button is invoked.
 		void _on_drag_update(tab_drag_update_info &info) {
 			// update position in tab list
+			stack_layout_helper layout = _get_children_layout_helper();
 			host *host = _host;
 			tab_manager &man = _get_tab_manager();
 			tab_button &dragbtn = man.get_dragging_tab()->get_button();
@@ -264,7 +270,7 @@ namespace codepad::ui::tabs {
 			auto beforeit = host->get_tabs().items().begin();
 			for (element *e : _children.items()) {
 				if (e != &dragbtn) {
-					double mysz = _get_absolute_span(*e);
+					double mysz = layout.compute_span_for(*e);
 					if (accu + 0.5 * mysz > relpos) { // should be here
 						break;
 					}
@@ -273,23 +279,15 @@ namespace codepad::ui::tabs {
 				++beforeit;
 			}
 			// calculate current position
-			double curpos = relpos;
-			if (get_orientation() == orientation::vertical) {
-				if ((dragbtn.get_anchor() & anchor::top) != anchor::none) {
-					curpos -= dragbtn.get_margin().top;
-				}
-			} else {
-				if ((dragbtn.get_anchor() & anchor::left) != anchor::none) {
-					curpos -= dragbtn.get_margin().left;
-				}
-			}
+			auto [margin_before, size, margin_after] = layout.compute_detailed_span_for(dragbtn);
+			relpos -= margin_before;
 			// actually set stuff
 			host->move_tab_before(
 				*man.get_dragging_tab(),
 				beforeit == host->get_tabs().items().end() ? nullptr : dynamic_cast<tab*>(*beforeit)
 			);
 			auto *data = _get_data(dragbtn);
-			data->set_offset(*this, dragbtn, curpos - accu);
+			data->set_offset(*this, dragbtn, relpos - accu);
 		}
 
 		/// Handles \ref _host.

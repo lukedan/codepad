@@ -982,8 +982,9 @@
 		"name": "main",
 		"properties": {
 			"layout": {
-				"width": "auto",
-				"height": "auto"
+				"width": "100%",
+				"height": "auto",
+				"anchor": "b"
 			},
 			"visuals": {
 				"geometries": [
@@ -1030,6 +1031,7 @@
 				"type": "stack_panel",
 				"properties": {
 					"layout": {
+						"width": "100%",
 						"height": "auto",
 						"padding": 5.0
 					}
@@ -1042,6 +1044,7 @@
 						"properties": {
 							"visibility": "vl",
 							"layout": {
+								"width": "100%",
 								"margin": [ 0.0, 1.0, 0.0, 1.0 ],
 								"anchor": "lr"
 							},

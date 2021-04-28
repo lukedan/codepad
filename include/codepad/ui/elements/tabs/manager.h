@@ -18,7 +18,7 @@ namespace codepad::ui::tabs {
 		/// Initializes all fields of this struct.
 		explicit tab_drag_update_info(vec2d pos) : position(pos) {
 		}
-		const vec2d position; /// New position of the top-left corner of the \ref tab_button.
+		const vec2d position; /// New position of the top-left corner of the \ref tab_button relative to its parent.
 	};
 	/// Contains related information when the user stops dragging a tab.
 	struct tab_drag_ended_info {
