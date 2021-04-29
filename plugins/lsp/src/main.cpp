@@ -31,6 +31,7 @@
 
 namespace codepad::lsp {
 	plugin *_this_plugin = nullptr; ///< Handle of this plugin.
+	plugin_context _plugin_context; ///< Context of the host application.
 
 	std::unique_ptr<manager> _manager; ///< The global manager.
 	// TODO create per-workspace clients instead
@@ -46,6 +47,7 @@ namespace cp = codepad;
 extern "C" {
 	PLUGIN_INITIALIZE(ctx, this_plug) {
 		cp::lsp::_this_plugin = &this_plug;
+		cp::lsp::_plugin_context = ctx;
 
 		auto editors_plugin = ctx.plugin_man->find_plugin(u8"editors");
 		cp::editors::manager *editor_man = nullptr;
@@ -70,8 +72,14 @@ extern "C" {
 	}
 
 	PLUGIN_ENABLE() {
+		auto server_path_setting = cp::lsp::_plugin_context.sett->create_retriever_parser<std::u8string>(
+			{ u8"lsp", u8"server" },
+			cp::settings::basic_parsers::basic_type_with_default<
+				std::u8string, cp::json::default_parser<std::u8string>
+			>(u8"")
+		);
 		auto bkend = std::make_unique<cp::lsp::stdio_backend>(
-			TEXT("D:/Software/LLVM/bin/clangd.exe"), std::vector<std::u8string_view>{}
+			server_path_setting->get_main_profile().get_value(), std::vector<std::u8string_view>{}
 		);
 		cp::lsp::_client = std::make_unique<cp::lsp::client>(std::move(bkend), *cp::lsp::_manager);
 

@@ -47,6 +47,8 @@
 	},
 
 	"lsp": {
+		"server": "D:/Software/LLVM/bin/clangd.exe",
+
 		"error_decoration": {
 			"type": "squiggle_decoration_renderer",
 			"stroke": "#FF0000"
