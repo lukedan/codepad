@@ -298,10 +298,8 @@ namespace codepad::ui {
 			vec2d get_layout_size() const {
 				return _layout_size;
 			}
-			/// Sets \ref _layout_size.
-			void set_layout_size(vec2d size) {
-				_layout_size = size;
-			}
+			/// Sets \ref _layout_size, then updates the width of the layout if wrapping is enabled.
+			void set_layout_size(vec2d);
 			/// Returns the result of \p pango_layout_get_alignment().
 			horizontal_text_alignment get_horizontal_alignment() const;
 			/// Sets the horizontal text alignment using \p pango_layout_set_alignment().

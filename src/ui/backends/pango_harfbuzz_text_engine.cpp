@@ -460,6 +460,13 @@ namespace codepad::ui::pango_harfbuzz {
 		return result;
 	}
 
+	void formatted_text_data::set_layout_size(vec2d size) {
+		_layout_size = size;
+		if (get_wrapping_mode() != wrapping_mode::none) {
+			pango_layout_set_width(_layout.get(), pango_units_from_double(_layout_size.x));
+		}
+	}
+
 	horizontal_text_alignment formatted_text_data::get_horizontal_alignment() const {
 		return _details::cast_horizontal_alignment_back(pango_layout_get_alignment(_layout.get()));
 	}
