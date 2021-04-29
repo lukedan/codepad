@@ -313,6 +313,8 @@ namespace codepad::ui {
 
 		for (window *wnd : measure) {
 			wnd->compute_desired_size(wnd->get_layout().size());
+			// after we have the desired size, update the managed size of the window
+			wnd->get_impl()._update_managed_window_size();
 			update.emplace(wnd);
 		}
 		for (panel *pnl : update) {

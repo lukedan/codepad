@@ -55,6 +55,20 @@ namespace codepad::ui {
 		return panel::get_current_display_cursor();
 	}
 
+	void window::set_width_size_policy(size_policy policy) {
+		if (policy != _width_policy) {
+			_width_policy = policy;
+			get_manager().get_scheduler().invalidate_desired_size(*this);
+		}
+	}
+
+	void window::set_height_size_policy(size_policy policy) {
+		if (policy != _height_policy) {
+			_height_policy = policy;
+			get_manager().get_scheduler().invalidate_desired_size(*this);
+		}
+	}
+
 	mouse_position window::_update_mouse_position(vec2d pos) {
 		mouse_position::_active_window = this;
 		++mouse_position::_global_timestamp;

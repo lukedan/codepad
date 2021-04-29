@@ -27,6 +27,7 @@ namespace codepad::ui {
 		/// Pimpl for windows.
 		class window_impl {
 			friend window;
+			friend scheduler;
 		public:
 			/// Initializes \ref _window.
 			explicit window_impl(window &w) : _window(w) {
@@ -112,13 +113,6 @@ namespace codepad::ui {
 			/// Notifies the system that this window has released the capture on the mouse.
 			virtual void _release_mouse_capture() = 0;
 
-			/// Invoked when the size policy of this window, either width or height, has been changed. The
-			/// implementation can call \ref window::get_width_size_policy() and
-			/// \ref window::get_height_size_policy() to retrieve the new size policy. By default this function
-			/// simply calls \ref _update_managed_window_size().
-			virtual void _on_size_policy_changed() {
-				_update_managed_window_size();
-			}
 			/// Updates the size of the window if it's managed by the application.
 			virtual void _update_managed_window_size() = 0;
 		};
@@ -285,23 +279,13 @@ namespace codepad::ui {
 			return _width_policy;
 		}
 		/// Sets the \ref size_policy for the width of this window.
-		void set_width_size_policy(size_policy policy) {
-			if (policy != _width_policy) {
-				_width_policy = policy;
-				_impl->_on_size_policy_changed();
-			}
-		}
+		void set_width_size_policy(size_policy);
 		/// Returns the \ref size_policy for the height of this window.
 		[[nodiscard]] size_policy get_height_size_policy() const {
 			return _height_policy;
 		}
 		/// Sets the \ref size_policy for the height of this window.
-		void set_height_size_policy(size_policy policy) {
-			if (policy != _height_policy) {
-				_height_policy = policy;
-				_impl->_on_size_policy_changed();
-			}
-		}
+		void set_height_size_policy(size_policy);
 
 		/// Returns the underlying implementation of this window.
 		[[nodiscard]] _details::window_impl &get_impl() const {
