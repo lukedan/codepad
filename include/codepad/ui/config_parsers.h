@@ -89,7 +89,7 @@ namespace codepad::ui {
 			}
 			if (auto references = val.template parse_optional_member<object_t>(u8"references")) {
 				for (auto refit = references->member_begin(); refit != references->member_end(); ++refit) {
-					if (auto name = refit.value().cast<std::u8string_view>()) {
+					if (auto name = refit.value().template cast<std::u8string_view>()) {
 						element_configuration::reference ref;
 						ref.role = refit.name();
 						split_string(U'.', name.value(), [&](std::u8string_view part) {

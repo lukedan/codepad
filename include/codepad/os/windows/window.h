@@ -158,10 +158,6 @@ namespace codepad::os {
 			_details::winapi_check(ReleaseCapture());
 		}
 
-		/// Calls \ref _update_managed_window_size().
-		void _on_size_policy_changed() override {
-			_update_managed_window_size();
-		}
 		/// Resizes the window to satisfy the width and height requested by the application.
 		void _update_managed_window_size() override;
 

@@ -297,7 +297,7 @@ namespace codepad::lsp::types {
 		void set_null() override {
 			constexpr auto _id = _details::get_index_in_tuple<null, std::tuple<Args...>>();
 			if constexpr (_id) {
-				value.emplace<_id.value()>();
+				value.template emplace<_id.value()>();
 			} else {
 				logger::get().log_error(CP_HERE) << "variant does not contain a null";
 			}
@@ -306,7 +306,7 @@ namespace codepad::lsp::types {
 		void set_boolean(boolean b) override {
 			constexpr auto _id = _details::get_index_in_tuple<boolean, std::tuple<Args...>>();
 			if constexpr (_id) {
-				value.emplace<_id.value()>(b);
+				value.template emplace<_id.value()>(b);
 			} else {
 				logger::get().log_error(CP_HERE) << "variant does not contain a boolean";
 			}
@@ -321,7 +321,7 @@ namespace codepad::lsp::types {
 
 			if constexpr (_count == 1) {
 				if constexpr (_id_enum) {
-					value.emplace<_id_enum.value()>().set_value(static_cast<integer>(i));
+					value.template emplace<_id_enum.value()>().set_value(static_cast<integer>(i));
 				} else if constexpr (_id_int) {
 					if (
 						i < static_cast<std::int64_t>(std::numeric_limits<integer>::min()) ||
@@ -329,13 +329,13 @@ namespace codepad::lsp::types {
 					) {
 						logger::get().log_error(CP_HERE) << "value out of range of int32";
 					} else {
-						value.emplace<_id_int.value()>(static_cast<integer>(i));
+						value.template emplace<_id_int.value()>(static_cast<integer>(i));
 					}
 				} else {
 					if (i < 0 || i > static_cast<std::int64_t>(std::numeric_limits<uinteger>::max())) {
 						logger::get().log_error(CP_HERE) << "value out of range of uint32";
 					} else {
-						value.emplace<_id_uint.value()>(static_cast<uinteger>(i));
+						value.template emplace<_id_uint.value()>(static_cast<uinteger>(i));
 					}
 				}
 			} else if constexpr (_count > 1) {
@@ -361,9 +361,9 @@ namespace codepad::lsp::types {
 
 			if constexpr (_count == 1) {
 				if constexpr (_id_str) {
-					value.emplace<_id_str.value()>(s);
+					value.template emplace<_id_str.value()>(s);
 				} else {
-					value.emplace<_id_enum.value()>().set_value(s);
+					value.template emplace<_id_enum.value()>().set_value(s);
 				}
 			} else if constexpr (_count > 1) {
 				logger::get().log_error(CP_HERE) << "variant contains multiple string types or enums";
@@ -375,7 +375,7 @@ namespace codepad::lsp::types {
 		void set_array_and_visit(visitor_base &vis) override {
 			constexpr auto _id = _details::get_index_in_tuple<array_base, std::tuple<Args...>>();
 			if constexpr (_id) {
-				vis.visit(value.emplace<_id.value()>());
+				vis.visit(value.template emplace<_id.value()>());
 			} else {
 				logger::get().log_error(CP_HERE) << "variant does not contain an array type";
 			}
@@ -388,9 +388,9 @@ namespace codepad::lsp::types {
 
 			if constexpr (_count == 1) {
 				if constexpr (_id_obj) {
-					vis.visit(value.emplace<_id_obj.value()>());
+					vis.visit(value.template emplace<_id_obj.value()>());
 				} else {
-					vis.visit(value.emplace<_id_map.value()>());
+					vis.visit(value.template emplace<_id_map.value()>());
 				}
 			} else if constexpr (_count > 1) {
 				logger::get().log_error(CP_HERE) << "variant contains multiple object types or enums";
@@ -755,11 +755,11 @@ namespace codepad::lsp::types {
 		void deduce_type_and_visit(visitor_base &vis, const json::value_t &val) override {
 			if (auto obj = val.try_cast<json::object_t>()) {
 				if (auto member = obj->find_member(u8"documentSelector"); member != obj->member_end()) {
-					vis.visit(value.emplace<RegistrationOptions>());
+					vis.visit(value.template emplace<RegistrationOptions>());
 					return;
 				}
 			}
-			vis.visit(value.emplace<Other>());
+			vis.visit(value.template emplace<Other>());
 		}
 		/// Visits the underlying value.
 		void visit_value(visitor_base &vis) override {

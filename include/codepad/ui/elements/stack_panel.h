@@ -191,7 +191,7 @@ namespace codepad::ui {
 			// first allocate space to all elements with automatic or pixel size allocation
 			for (element *child : children) {
 				if (child->is_visible(visibility::layout)) {
-					double size;
+					double size = 0.0;
 					switch ((child->*StackSizeAlloc)()) {
 					case size_allocation_type::proportion:
 						continue; // ignore; handled later

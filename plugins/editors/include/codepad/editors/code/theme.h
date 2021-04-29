@@ -131,7 +131,7 @@ namespace codepad::editors::code {
 			iterator() = default;
 			/// Initializes this iterator using the given \ref document_theme_provider_registry.
 			iterator(const document_theme_provider_registry &provs, const text_theme &def_theme) :
-				default_theme(def_theme), _providers(&provs), _layers(provs._providers.size()) {
+				default_theme(def_theme), _layers(provs._providers.size()), _providers(&provs) {
 			}
 
 			/// Repositions this iterator.

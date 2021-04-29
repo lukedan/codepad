@@ -44,7 +44,7 @@ namespace command_pack {
 
 
 extern "C" {
-	PLUGIN_INITIALIZE(ctx, this_plugin) {
+	PLUGIN_INITIALIZE(ctx, ) {
 		command_pack::_commands = cp::ui::command_registry::command_list(
 			ctx.ui_man->get_command_registry()
 		);

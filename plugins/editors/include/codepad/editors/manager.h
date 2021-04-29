@@ -101,8 +101,10 @@ namespace codepad::editors {
 		) const {
 			auto &mapping = _language_mapping->get_main_profile().get_value();
 			auto str = path.generic_u8string();
+			const char *beg = reinterpret_cast<const char*>(&*str.begin());
+			const char *end = beg + str.size();
 			for (auto &pair : mapping) {
-				if (std::regex_match(str.begin(), str.end(), pair.first)) {
+				if (std::regex_match(beg, end, pair.first)) {
 					return &pair.second;
 				}
 			}

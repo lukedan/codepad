@@ -7,6 +7,7 @@
 
 #include "codepad/core/misc.h"
 #include "codepad/ui/misc.h"
+#include "codepad/os/misc.h"
 #include "codepad/os/linux/gtk/misc.h"
 #include "codepad/os/linux/gtk/window.h"
 
@@ -81,35 +82,5 @@ namespace codepad::os {
 
 	double system_parameters::get_drag_deadzone_radius() {
 		return 5.0; // TODO
-	}
-}
-
-
-namespace codepad::ui {
-	bool scheduler::_main_iteration_system_impl(wait_type type) {
-		if (type == wait_type::non_blocking) {
-			if (gtk_events_pending()) {
-				gtk_main_iteration_do(false);
-				return true;
-			}
-			return false;
-		}
-		gtk_main_iteration_do(true);
-		// FIXME an event may or may not have been processed
-		//       however the scheduler doesn't really care in this case
-		return true;
-	}
-
-	/// A function that returns false. This is used as GLib sources, to create events that only happens once.
-	gboolean _glib_call_once(gpointer) {
-		return false;
-	}
-	void scheduler::_set_timer(clock_t::duration duration) {
-		guint ms = std::chrono::duration_cast<std::chrono::duration<guint, std::milli>>(duration).count();
-		g_timeout_add(ms, _glib_call_once, nullptr);
-	}
-
-	void scheduler::_wake_up() {
-		g_idle_add(_glib_call_once, nullptr);
 	}
 }

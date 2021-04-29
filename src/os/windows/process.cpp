@@ -70,4 +70,8 @@ namespace codepad::os {
 		}
 		return std::error_code();
 	}
+
+	process::id_t process::get_current_process_id() {
+		return GetCurrentProcessId();
+	}
 }

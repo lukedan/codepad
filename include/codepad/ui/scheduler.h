@@ -395,10 +395,12 @@ namespace codepad::ui {
 		class scheduler_impl {
 		public:
 			/// Initializes \ref owner.
-			scheduler_impl(scheduler &s) : owner(s) {
+			explicit scheduler_impl(scheduler &s) : owner(s) {
 			}
 			/// No copy & move construction.
 			scheduler_impl(const scheduler_impl&) = delete;
+			/// No copy & move assignment.
+			scheduler_impl &operator=(const scheduler_impl&) = delete;
 			/// Default virtual destructor.
 			virtual ~scheduler_impl() = default;
 

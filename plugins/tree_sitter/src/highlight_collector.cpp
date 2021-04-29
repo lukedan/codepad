@@ -131,7 +131,7 @@ namespace codepad::tree_sitter {
 						.name = get_source_for_range(range_begin, range_end, _interp),
 						.value_range_begin = val_range_begin,
 						.value_range_end = val_range_end
-						});
+					});
 					definition_highlight_index = &cur_scope.locals.back().highlight;
 				} else if (cur_capture.index == layer_lang.get_local_reference_capture_index()) {
 					// the capture is a reference to a local definition

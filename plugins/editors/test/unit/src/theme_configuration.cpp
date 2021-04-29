@@ -4,7 +4,7 @@
 /// \file
 /// Tests for \ref codepad::editors::theme_configuration.
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 #include <codepad/editors/theme_manager.h>
 

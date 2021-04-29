@@ -296,7 +296,7 @@ namespace codepad::lsp {
 
 	template <
 		typename Param, typename Callback
-	> inline static client::request_handler client::request_handler::create_request_handler(Callback &&cb) {
+	> inline client::request_handler client::request_handler::create_request_handler(Callback &&cb) {
 		request_handler handler;
 		handler.callback = [callback = std::forward<Callback>(cb)](const json::object_t &v, client &c) {
 			auto id_it = v.find_member(u8"id");
@@ -334,7 +334,7 @@ namespace codepad::lsp {
 
 	template <
 		typename Param, typename Callback
-	> inline static client::request_handler client::request_handler::create_notification_handler(Callback &&cb) {
+	> inline client::request_handler client::request_handler::create_notification_handler(Callback &&cb) {
 		request_handler handler;
 		handler.callback = [callback = std::forward<Callback>(cb)](const json::object_t &v, client &c) {
 			if constexpr (std::is_same_v<Param, std::nullopt_t>) {

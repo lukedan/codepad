@@ -105,7 +105,7 @@ namespace codepad::json {
 			}
 			// TODO avoid copy
 			auto data = reinterpret_cast<const char*>(str->data());
-			unsigned u32_val = std::stoul(std::string(data + (it - str->begin()), data + str->size()), nullptr, 16);
+			auto u32_val = std::stoul(std::string(data + (it - str->begin()), data + str->size()), nullptr, 16);
 			return color<unsigned char>(
 				(u32_val >> 16) & 0xFF, (u32_val >> 8) & 0xFF, u32_val & 0xFF, 0xFF
 			).convert<double>();

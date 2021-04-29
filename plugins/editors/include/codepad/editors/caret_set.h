@@ -383,7 +383,6 @@ namespace codepad::editors {
 			}
 
 			bool has_merged = range.first.get_iterator() != range.last.get_iterator();
-			std::size_t erased_offset = 0;
 			if (has_merged) {
 				// compute new merged caret_selection
 				caret.caret_offset = caret.selection_begin + caret.caret_offset - new_beg;
@@ -391,7 +390,6 @@ namespace codepad::editors {
 				caret.selection_begin = new_beg;
 
 				// erase any merged carets
-				erased_offset = range.last.get_total_offset() - range.first.get_total_offset();
 				set.carets.erase(range.first.get_iterator(), range.last.get_iterator());
 			}
 

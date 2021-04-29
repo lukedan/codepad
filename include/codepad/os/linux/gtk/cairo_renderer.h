@@ -27,7 +27,7 @@ namespace codepad::os {
 		inline static gboolean _on_draw_event(GtkWidget*, cairo_t *cr, ui::window *wnd) {
 			auto &data = _get_window_data_as<_window_data>(*wnd);
 			data.context.set_share(cr);
-			wnd->_on_render();
+			dynamic_cast<window_impl*>(&wnd->get_impl())->_on_render();
 			data.context.reset();
 			return true;
 		}

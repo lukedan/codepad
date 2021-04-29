@@ -12,6 +12,11 @@ namespace codepad::os {
 
 		// set gravity to static so that coordinates are relative to the client region
 		gtk_window_set_gravity(GTK_WINDOW(_wnd), GDK_GRAVITY_STATIC);
+		// this only applies for transient windows; destroy this window when its transient parent is destroyed
+		gtk_window_set_destroy_with_parent(GTK_WINDOW(_wnd), true);
+		// request tooltips so that we can receive hover events to show our own tooltips
+		gtk_widget_set_has_tooltip(_wnd, true);
+
 		gtk_widget_set_app_paintable(_wnd, true);
 		gtk_widget_add_events(
 			_wnd,
@@ -27,6 +32,7 @@ namespace codepad::os {
 		_connect_signal(_wnd, "delete_event", _on_delete_event);
 		_connect_signal(_wnd, "leave-notify-event", _on_leave_notify_event);
 		_connect_signal(_wnd, "motion-notify-event", _on_motion_notify_event);
+		_connect_signal(_wnd, "query-tooltip", _on_query_tooltip_event);
 		_connect_signal(_wnd, "size-allocate", _on_size_allocate);
 		_connect_signal(_wnd, "button-press-event", _on_button_press_event);
 		_connect_signal(_wnd, "button-release-event", _on_button_release_event);
@@ -67,6 +73,20 @@ namespace codepad::os {
 			ev->any.window, _details::cursor_set::get().cursors[static_cast<int>(c)]
 		);
 		return true;
+	}
+
+	gboolean window_impl::_on_query_tooltip_event(
+		GtkWidget*, int x, int y, gboolean keyboard_mode, GtkTooltip*, window_impl *wnd
+	) {
+		if (!keyboard_mode) {
+			// TODO get modifier keys
+			_form_onevent<ui::mouse_hover_info>(
+				wnd->_window, &ui::window::_on_mouse_hover,
+				ui::modifier_keys::none, wnd->_window._update_mouse_position(vec2d(x, y))
+			);
+		}
+		// we always handle tooltips by ourselves
+		return false;
 	}
 
 	gboolean window_impl::_on_button_press_event(GtkWidget*, GdkEvent *ev, window_impl *wnd) {
@@ -126,7 +146,7 @@ namespace codepad::os {
 
 		// stop kinetic scrolling
 		if (!wnd->_kinetic_token.empty()) {
-			wnd->_window.get_manager().get_scheduler().cancel_task(wnd->_kinetic_token);
+			wnd->_window.get_manager().get_scheduler().cancel_synchronous_task(wnd->_kinetic_token);
 		}
 
 		vec2d delta;
@@ -153,7 +173,7 @@ namespace codepad::os {
 						mouse(event->scroll.x, event->scroll.y),
 						speed = vec2d(event->scroll.delta_x, event->scroll.delta_y) / dt;
 					ui::scheduler::clock_t::time_point last_update = ui::scheduler::clock_t::now();
-					wnd->_kinetic_token = wnd->_window.get_manager().get_scheduler().register_task(
+					wnd->_kinetic_token = wnd->_window.get_manager().get_scheduler().register_synchronous_task(
 						last_update, &wnd->_window,
 						[
 							mouse, speed, last_update
@@ -184,7 +204,7 @@ namespace codepad::os {
 							// stop updating if scrolling has stopped
 							last_update = now;
 							if (acceleration_mag > absv.x && acceleration_mag > absv.y) { // stopped
-								impl._kinetic_token = ui::scheduler::task_token();
+								impl._kinetic_token = ui::scheduler::sync_task_token();
 								return std::nullopt;
 							} else {
 								return now;
@@ -202,5 +222,11 @@ namespace codepad::os {
 		);
 		wnd->_prev_scroll_timestamp = event->scroll.time;
 		return true;
+	}
+}
+
+namespace codepad::ui {
+	std::unique_ptr<_details::window_impl> window::_create_impl(window &wnd) {
+		return std::make_unique<os::window_impl>(wnd);
 	}
 }

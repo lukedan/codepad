@@ -473,8 +473,6 @@ namespace codepad::red_black_tree {
 	template <typename Node, typename RedBlackAccess, typename Synth> std::pair<Node*, Node*> split(
 		Node *n, RedBlackAccess &&access, Synth &&synth
 	) {
-		using _tree = binary_tree<typename Node::value_type, typename Node::synth_data_type, lacks_synthesizer>;
-
 		// resulting left & right trees, assumed to have black roots
 		Node *left = n->left, *right = n->right;
 		if (left) {

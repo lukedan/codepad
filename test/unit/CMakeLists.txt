@@ -3,9 +3,14 @@ add_executable(codepad_test)
 target_sources(codepad_test
 	PRIVATE
 		"src/main.cpp"
-		
-		"src/direct2d_renderer.cpp"
+
 		"src/text.cpp")
+
+if(CP_PLATFORM_WINDOWS)
+	target_sources(codepad_test
+		PRIVATE
+			"src/direct2d_renderer.cpp")
+endif()
 
 find_package(Catch2 CONFIG REQUIRED)
 target_link_libraries(codepad_test PRIVATE codepad_core Catch2::Catch2)

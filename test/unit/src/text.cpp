@@ -4,7 +4,7 @@
 /// \file
 /// Tests for string-matching algorithms.
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 #include <codepad/core/text.h>
 

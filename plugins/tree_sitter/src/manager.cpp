@@ -98,7 +98,7 @@ namespace codepad::tree_sitter {
 		auto [it, inserted] = _languages.try_emplace(std::move(lang), std::move(config));
 		if (!inserted) {
 			std::swap(config, it->second);
-			return std::move(config);
+			return config;
 		}
 		return nullptr;
 	}

@@ -1,3 +1,6 @@
+// Copyright (c) the Codepad contributors. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 /// \file
 /// Implementation of certain linux-specific functions.
 
@@ -9,6 +12,7 @@
 
 #include "codepad/core/logger_sinks.h"
 #include "codepad/ui/scheduler.h"
+#include "codepad/os/misc.h"
 
 #ifdef CP_LOG_STACKTRACE
 #	include <execinfo.h>
@@ -71,12 +75,5 @@ namespace codepad::os {
 			return 200;
 		}
 		return result.ws_col;
-	}
-}
-
-
-namespace codepad::ui {
-	scheduler::thread_id_t scheduler::_get_thread_id() {
-		return pthread_self();
 	}
 }

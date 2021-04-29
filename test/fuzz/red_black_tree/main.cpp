@@ -99,7 +99,7 @@ public:
 				std::size_t major_index = random_index(_reference_data);
 				std::size_t minor_index = random_insertion_index(_reference_data[major_index]);
 
-				int test_value = rng();
+				auto test_value = random_token<int>();
 				// test
 				auto &test_tree = _test_data[major_index];
 				test_tree.emplace_before(at(test_tree, minor_index), test_value);
@@ -114,7 +114,7 @@ public:
 				std::size_t minor_index = random_insertion_index(_reference_data[major_index]);
 				std::vector<int> test_values(random_int(insert_count_range));
 				for (int &v : test_values) {
-					v = rng();
+					v = random_token<int>();
 				}
 				// test
 				tree &test_tree = _test_data[major_index];
@@ -129,7 +129,7 @@ public:
 				std::size_t major_index = random_insertion_index(_reference_data);
 				std::vector<int> test_values(random_int(insert_count_range));
 				for (int &v : test_values) {
-					v = rng();
+					v = random_token<int>();
 				}
 				// test
 				_test_data.insert(_test_data.begin() + major_index, build_tree(test_values));
@@ -217,7 +217,7 @@ public:
 				}
 
 				auto index = random_int<std::size_t>(0, _reference_data.size() - 2);
-				int merge_value = rng();
+				auto merge_value = random_token<int>();
 				// test
 				tree new_tree = tree::join_trees(
 					std::move(_test_data[index]), std::move(_test_data[index + 1]), merge_value

@@ -212,6 +212,7 @@ namespace codepad::ui {
 		case size_allocation_type::proportion:
 			return available * size / (size + ext_proportion);
 		}
+		return 0.0; // should not happen
 	}
 
 	void panel::_invalidate_children_layout() {

@@ -544,17 +544,10 @@ namespace codepad::json {
 				res.is_pixels = false;
 			}
 			// it's not safe to use std::strtod here since it requires that the input string be null-terminated
-#ifdef __GNUC__
-			{ // TODO libstdc++ doesn't implement from_chars
-				std::u8string str_cstr(str.value());
-				res.value = std::stod(reinterpret_cast<const char*>(str_cstr.c_str()));
-			}
-#else
 			{
 				const char *str_data = reinterpret_cast<const char*>(str->data());
 				std::from_chars(str_data, str_data + str->size(), res.value); // result ignored
 			}
-#endif
 			if (percentage) {
 				res.value *= 0.01;
 			}

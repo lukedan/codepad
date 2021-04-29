@@ -8,8 +8,6 @@
 
 #include <filesystem>
 
-#include <Windows.h>
-
 #include <codepad/os/filesystem.h>
 #include <codepad/os/process.h>
 

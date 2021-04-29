@@ -6,6 +6,7 @@
 /// \file
 /// Implementation of URI utilities.
 
+#include <cstring>
 #include <string>
 
 #include <uriparser/Uri.h>

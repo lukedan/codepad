@@ -4,7 +4,7 @@
 /// \file
 /// Tests the Direct2D renderer.
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 #include <codepad/os/windows/direct2d_renderer.h>
 

@@ -22,6 +22,7 @@ target_sources(tree_sitter_lib
 target_include_directories(tree_sitter_lib
 	PUBLIC
 		"tree-sitter/lib/include/")
+set_property(TARGET tree_sitter_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 
 add_library(tree_sitter SHARED)

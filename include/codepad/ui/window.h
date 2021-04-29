@@ -86,7 +86,7 @@ namespace codepad::ui {
 			virtual void _set_display_border(bool) = 0;
 			/// Sets whether the user can resize the window.
 			virtual void _set_sizable(bool) = 0;
-			/// Sets whether this window can acquires focus when the user clicks on it.
+			/// Sets whether this window can acquire focus when the user clicks on it.
 			virtual void _set_focusable(bool) = 0;
 
 			/// Sets whether this window is displayed about all other normal windows.
@@ -114,8 +114,11 @@ namespace codepad::ui {
 
 			/// Invoked when the size policy of this window, either width or height, has been changed. The
 			/// implementation can call \ref window::get_width_size_policy() and
-			/// \ref window::get_height_size_policy() to retrieve the new size policy.
-			virtual void _on_size_policy_changed() = 0;
+			/// \ref window::get_height_size_policy() to retrieve the new size policy. By default this function
+			/// simply calls \ref _update_managed_window_size().
+			virtual void _on_size_policy_changed() {
+				_update_managed_window_size();
+			}
 			/// Updates the size of the window if it's managed by the application.
 			virtual void _update_managed_window_size() = 0;
 		};

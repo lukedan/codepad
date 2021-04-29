@@ -149,8 +149,6 @@ namespace codepad::tree_sitter {
 		const std::function<const language_configuration*(std::u8string_view)> &lang_callback,
 		const std::size_t *cancellation_token
 	) {
-		constexpr uint32_t _uint32_max = std::numeric_limits<uint32_t>::max();
-
 		std::deque<highlight_layer_iterator> result;
 		std::deque<_layer_info> queue;
 		// for ts_parser_set_included_ranges, if length == 0, the entire document is parsed

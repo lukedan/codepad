@@ -231,7 +231,9 @@ namespace codepad {
 			/// Converting constructor from non-const iterator to const iterator.
 			///
 			/// \param it A non-const iterator.
-			iterator_base(const iterator_base<false> &it) noexcept :
+			template <
+				typename Dummy = int, std::enable_if_t<Const, Dummy> = 0
+			> iterator_base(const iterator_base<false> &it) noexcept :
 				_con(it._con), _n(it._n) {
 			}
 

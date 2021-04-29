@@ -9,6 +9,7 @@
 #include <deque>
 #include <functional>
 #include <thread>
+#include <memory>
 #include <mutex>
 #include <atomic>
 #include <variant>
@@ -82,7 +83,7 @@ namespace codepad::ui {
 			void weaken() {
 				if (std::holds_alternative<std::shared_ptr<Task>>(_task)) {
 					auto task = std::move(std::get<std::shared_ptr<Task>>(_task));
-					_task.emplace<std::weak_ptr<Task>>(task);
+					_task.template emplace<std::weak_ptr<Task>>(task);
 				}
 			}
 

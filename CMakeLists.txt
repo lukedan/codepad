@@ -262,10 +262,12 @@ elseif(UNIX)
 	target_sources(codepad_core
 		PUBLIC
 			"include/codepad/os/linux/window.h"
+			"include/codepad/os/linux/misc.h"
 		PRIVATE
 			"src/os/linux/dynamic_library.cpp"
 			"src/os/linux/filesystem.cpp"
-			"src/os/linux/linux.cpp")
+			"src/os/linux/linux.cpp"
+			"src/os/linux/process.cpp")
 	target_compile_definitions(codepad_core
 		PUBLIC CP_PLATFORM_UNIX)
 	target_link_libraries(codepad_core
@@ -282,10 +284,12 @@ elseif(UNIX)
 			PUBLIC
 				"include/codepad/os/linux/gtk/cairo_renderer.h"
 				"include/codepad/os/linux/gtk/misc.h"
+				"include/codepad/os/linux/gtk/scheduler.h"
 				"include/codepad/os/linux/gtk/window.h"
 			PRIVATE
 				"src/os/linux/gtk/linux.cpp"
 				"src/os/linux/gtk/misc.cpp"
+				"src/os/linux/gtk/scheduler.cpp"
 				"src/os/linux/gtk/window.cpp")
 		target_compile_definitions(codepad_core
 			PUBLIC CP_USE_GTK)

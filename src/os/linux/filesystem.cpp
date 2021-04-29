@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "codepad/core/misc.h"
+#include "codepad/os/linux/misc.h"
 
 namespace codepad::os {
 	/// Transforms the given \ref access_rights into flags used by \p open().
@@ -56,61 +57,7 @@ namespace codepad::os {
 	}
 
 
-	file::native_handle_t file::_open_impl(
-		const std::filesystem::path &path, access_rights acc, open_mode mode
-	) {
-		if (mode == open_mode::create) { // file mustn't exist
-			if (::access(path.c_str(), F_OK) == 0) { // file exists
-				logger::get().log_warning(CP_HERE) <<
-					"open_mode::create specified for file, but file already exists";
-				return empty_handle;
-			}
-		}
-		native_handle_t res = ::open(
-			path.c_str(), _interpret_access_rights(acc) | _interpret_open_mode(mode)
-		);
-		if (res < 0) {
-			logger::get().log_warning(CP_HERE) << "open failed with error code " << errno;
-			res = empty_handle;
-		}
-		return res;
-	}
-
-	void file::_close_impl(native_handle_t handle) {
-		assert_true_sys(::close(handle) == 0, "failed to close the file");
-	}
-
-	file::pos_type file::_get_size_impl() const {
-		struct stat filestat{};
-		assert_true_sys(fstat(_handle, &filestat) == 0, "unable to get file size");
-		return filestat.st_size;
-	}
-
-	file::pos_type file::read(file::pos_type sz, void *buf) {
-		ssize_t res = ::read(_handle, buf, static_cast<size_t>(sz));
-		assert_true_sys(res >= 0, "failed to read from file");
-		return static_cast<pos_type>(res);
-	}
-
-	void file::write(const void *data, pos_type sz) {
-		ssize_t res = ::write(_handle, data, static_cast<size_t>(sz));
-		assert_true_sys(res == static_cast<ssize_t>(sz), "failed to write all data");
-	}
-
-	file::pos_type file::tell() const {
-		pos_type pos = lseek(_handle, 0, SEEK_CUR);
-		assert_true_sys(pos >= 0, "lseek() failed");
-		return pos;
-	}
-
-	file::pos_type file::seek(seek_mode mode, difference_type offset) {
-		pos_type pos = lseek(_handle, offset, _interpret_seek_mode(mode));
-		assert_true_sys(pos >= 0, "lseek() failed");
-		return pos;
-	}
-
-
-	file_mapping::file_mapping(file_mapping &&rhs) :
+	file_mapping::file_mapping(file_mapping &&rhs) noexcept :
 		_ptr(std::exchange(rhs._ptr, nullptr)), _len(std::exchange(rhs._len, 0)) {
 	}
 
@@ -122,26 +69,120 @@ namespace codepad::os {
 	}
 
 	/// \todo Return rounded size.
-	std::size_t file_mapping::get_mapped_size() const {
+	result<std::size_t> file_mapping::get_mapped_size() const {
 		return _len;
 	}
 
-	void file_mapping::_map_impl(const file &f, access_rights acc) {
-		_len = static_cast<std::size_t>(f.get_size());
-		_ptr = mmap(
-			nullptr, _len,
-			((acc & access_rights::read) != access_rights::zero ? PROT_READ : 0) |
-			((acc & access_rights::write) != access_rights::zero ? PROT_WRITE : 0),
-			MAP_SHARED, f.get_native_handle(), 0
-		);
-		if (_ptr == MAP_FAILED) {
-			logger::get().log_warning(CP_HERE) << "mmap failed with error code " << errno;
-			_ptr = nullptr;
+	std::error_code file_mapping::_unmap_impl() {
+		bool fail = munmap(_ptr, _len) != 0;
+		_len = 0;
+		if (fail) {
+			return _details::get_error_code_errno();
 		}
+		return std::error_code();
 	}
 
-	void file_mapping::_unmap_impl() {
-		assert_true_sys(munmap(_ptr, _len) == 0, "cannot unmap the file");
-		_len = 0;
+
+	result<file::pos_type> file::read(file::pos_type sz, void *buf) {
+		ssize_t res = ::read(_handle, buf, static_cast<size_t>(sz));
+		if (res < 0) {
+			return _details::get_error_code_errno();
+		}
+		return static_cast<pos_type>(res);
+	}
+
+	result<file::pos_type> file::write(const void *data, pos_type sz) {
+		ssize_t res = ::write(_handle, data, static_cast<size_t>(sz));
+		if (res < 0) {
+			return _details::get_error_code_errno();
+		}
+		return static_cast<pos_type>(sz);
+	}
+
+	result<file::pos_type> file::tell() const {
+		off_t pos = lseek(_handle, 0, SEEK_CUR);
+		if (pos == static_cast<off_t>(-1)) {
+			return _details::get_error_code_errno();
+		}
+		return static_cast<pos_type>(pos);
+	}
+
+	result<file::pos_type> file::seek(seek_mode mode, difference_type offset) {
+		off_t pos = lseek(_handle, offset, _interpret_seek_mode(mode));
+		if (pos == static_cast<off_t>(-1)) {
+			return _details::get_error_code_errno();
+		}
+		return static_cast<pos_type>(pos);
+	}
+
+	result<file_mapping> file::map(access_rights acc) const {
+		auto size = get_size();
+		if (!size) {
+			return size.error_code();
+		}
+		auto len = static_cast<std::size_t>(size.value());
+		void *ptr = mmap(
+			nullptr, len,
+			((acc & access_rights::read) != access_rights::zero ? PROT_READ : 0) |
+				((acc & access_rights::write) != access_rights::zero ? PROT_WRITE : 0),
+			MAP_SHARED, get_native_handle(), 0
+		);
+		if (ptr == MAP_FAILED) {
+			return _details::get_error_code_errno();
+		}
+		file_mapping result;
+		result._len = len;
+		result._ptr = ptr;
+		return result;
+	}
+
+	result<file::native_handle_t> file::_open_impl(
+		const std::filesystem::path &path, access_rights acc, open_mode mode
+	) {
+		if (mode == open_mode::create) { // file mustn't exist
+			if (::access(path.c_str(), F_OK) == 0) { // file exists
+				return _details::get_error_code_errno_custom(EEXIST);
+			} else {
+				if (errno != ENOENT) { // some other error happened
+					return _details::get_error_code_errno();
+				}
+			}
+		}
+		native_handle_t res = ::open(
+			path.c_str(), _interpret_access_rights(acc) | _interpret_open_mode(mode)
+		);
+		if (res < 0) {
+			return _details::get_error_code_errno();
+		}
+		return res;
+	}
+
+	std::error_code file::_close_impl(native_handle_t handle) {
+		if (::close(handle) != 0) {
+			return _details::get_error_code_errno();
+		}
+		return std::error_code();
+	}
+
+	result<file::pos_type> file::_get_size_impl() const {
+		struct stat filestat{};
+		int result = fstat(_handle, &filestat);
+		if (result != 0) {
+			return _details::get_error_code_errno();
+		}
+		return static_cast<pos_type>(filestat.st_size);
+	}
+
+
+	result<pipe> pipe::create() {
+		int pipefd[2];
+		int error = ::pipe(pipefd);
+		if (error != 0) {
+			return _details::get_error_code_errno();
+		}
+		pipe result;
+		result.read._handle = pipefd[0];
+		result.write._handle = pipefd[1];
+		return result;
 	}
 }

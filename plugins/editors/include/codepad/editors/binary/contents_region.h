@@ -391,7 +391,9 @@ namespace codepad::editors::binary {
 		/// changed, when the radix has been changed, etc.
 		void _on_byte_width_changed() {
 			_cached_max_byte_width =
-				get_font_size() * get_maximum_byte_digits_for_radix(_radix) * _font->get_maximum_character_width_em(
+				get_font_size() *
+				static_cast<double>(get_maximum_byte_digits_for_radix(_radix)) *
+				_font->get_maximum_character_width_em(
 					reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")
 				);
 			if (!_update_bytes_per_row()) {

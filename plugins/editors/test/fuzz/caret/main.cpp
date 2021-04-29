@@ -243,7 +243,7 @@ protected:
 	std::vector<std::pair<cp::ui::caret_selection, int>> _reference; ///< Reference data.
 
 	/// Prints all current carets.
-	[[nodiscard]] void _print_data() const {
+	void _print_data() const {
 		auto entry = cp::logger::get().log_info(CP_HERE);
 		entry << "Test carets:\n";
 		for (auto it = _carets.begin(); it.get_iterator() != _carets.carets.end(); it.move_next()) {

@@ -23,7 +23,7 @@ namespace codepad::os {
 		/// Creates a window, sets its attributes, and connects signals.
 		explicit window_impl(ui::window&);
 		/// Destroys the input method context and the window.
-		~window_impl() {
+		~window_impl() override {
 			g_object_unref(_imctx);
 			// calling g_object_unref(_wnd) will cause gtk to emit warnings for no apparent reason
 			gtk_widget_destroy(_wnd);
@@ -34,6 +34,15 @@ namespace codepad::os {
 			return _wnd;
 		}
 	protected:
+		/// Sets the parent of this window using \p gtk_window_set_transient_for.
+		void _set_parent(ui::window *wnd) override {
+			GtkWindow *parent = nullptr;
+			if (wnd) {
+				parent = GTK_WINDOW(dynamic_cast<window_impl*>(&wnd->get_impl())->_wnd);
+			}
+			gtk_window_set_transient_for(GTK_WINDOW(_wnd), parent);
+		}
+
 		void _set_caption(const std::u8string &cap) override {
 			gtk_window_set_title(GTK_WINDOW(_wnd), reinterpret_cast<const gchar*>(cap.c_str()));
 		}
@@ -124,6 +133,11 @@ namespace codepad::os {
 		void _set_sizable(bool size) override {
 			gtk_window_set_resizable(GTK_WINDOW(_wnd), size);
 		}
+		/// Sets whether this window can acquire focus using \p gtk_window_set_accept_focus().
+		void _set_focusable(bool can_focus) override {
+			gtk_window_set_accept_focus(GTK_WINDOW(_wnd), can_focus);
+		}
+
 		/// Sets whether this window is always above other ordinary windows by calling \p gtk_window_set_keep_above.
 		void _set_topmost(bool topmost) override {
 			gtk_window_set_keep_above(GTK_WINDOW(_wnd), topmost);
@@ -191,7 +205,32 @@ namespace codepad::os {
 		void _interrupt_input_method() override {
 			gtk_im_context_reset(_imctx);
 		}
-	protected:
+
+		/// Updates the size of the window if it's managed by the application.
+		void _update_managed_window_size() override {
+			bool
+				manage_width = _window.get_width_size_policy() == ui::window::size_policy::application,
+				manage_height = _window.get_width_size_policy() == ui::window::size_policy::application;
+			if (!manage_width && !manage_height) {
+				return;
+			}
+			vec2d size = _get_client_size();
+			if (manage_width) {
+				size.x = _window.get_layout_width().value;
+			}
+			if (manage_height) {
+				size.y = _window.get_layout_height().value;
+			}
+			_set_client_size(size);
+			// TODO better size computation
+		}
+
+
+		/// Calls \ref window::_on_render(). This acts as a interface for renderer backends.
+		void _on_render() {
+			_window._on_render();
+		}
+
 		template<typename Inf, typename ...Args> inline static void _form_onevent(
 			ui::window &w, void (ui::window::*handle)(Inf &), Args &&...args
 		) {
@@ -207,6 +246,8 @@ namespace codepad::os {
 			return true;
 		}
 		static gboolean _on_motion_notify_event(GtkWidget*, GdkEvent*, window_impl*);
+		/// Handler for the \p query-tooltip signal, used to trigger \ref ui::window::
+		static gboolean _on_query_tooltip_event(GtkWidget*, int, int, gboolean, GtkTooltip*, window_impl*);
 		inline static void _on_size_allocate(GtkWidget*, GdkRectangle *rect, window_impl *wnd) {
 			wnd->_window._layout = rectd(
 				0.0, static_cast<double>(rect->width), 0.0, static_cast<double>(rect->height)
@@ -219,11 +260,12 @@ namespace codepad::os {
 		static gboolean _on_button_release_event(GtkWidget*, GdkEvent*, window_impl*);
 		inline static gboolean _on_focus_in_event(GtkWidget*, GdkEvent*, window_impl *wnd) {
 			gtk_im_context_focus_in(wnd->_imctx);
-			wnd->_window.get_manager().get_scheduler().set_focused_element(&wnd->_window);
+			wnd->_window._on_got_system_focus();
 			return true;
 		}
 		inline static gboolean _on_focus_out_event(GtkWidget*, GdkEvent*, window_impl *wnd) {
 			gtk_im_context_focus_out(wnd->_imctx);
+			wnd->_window._on_lost_system_focus();
 			wnd->_window.get_manager().get_scheduler().set_focused_element(nullptr);
 			return true;
 		}
@@ -275,7 +317,7 @@ namespace codepad::os {
 
 		/// Timestamp of the previous scroll event used for eliminating duplicate events.
 		guint32 _prev_scroll_timestamp = 0;
-		ui::scheduler::task_token _kinetic_token; ///< Token for updating kinetic scrolling.
+		ui::scheduler::sync_task_token _kinetic_token; ///< Token for updating kinetic scrolling.
 	};
 
 	namespace _details {

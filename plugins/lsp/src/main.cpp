@@ -115,7 +115,9 @@ extern "C" {
 
 		// initialize
 		cp::lsp::types::InitializeParams init;
-		init.processId.value.emplace<cp::lsp::types::integer>(GetCurrentProcessId()); // TODO winapi
+		init.processId.value.emplace<cp::lsp::types::integer>(
+			static_cast<cp::lsp::types::integer>(cp::os::process::get_current_process_id())
+		);
 		init.capabilities.workspace.value.emplace().workspaceFolders.value.emplace(true);
 		{ // capabilities
 			auto &text_document = init.capabilities.textDocument.value.emplace();

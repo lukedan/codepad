@@ -57,6 +57,11 @@ namespace codepad {
 		template <typename T> [[nodiscard]] T random_int(std::pair<T, T> range) {
 			return random_int(range.first, range.second);
 		}
+		/// Generates a random integer within the range of the given value type. This can be used to generate random
+		/// IDs.
+		template <typename T> [[nodiscard]] std::enable_if_t<std::is_integral_v<T>, T> random_token() {
+			return random_int<T>(std::numeric_limits<T>::min(), std::numeric_limits<T>::max());
+		}
 		/// Generates a random boolean value.
 		[[nodiscard]] bool random_bool() {
 			return std::uniform_int_distribution(0, 1)(rng) != 0;
@@ -95,7 +100,7 @@ namespace codepad {
 						"Fuzz test: " << test->get_name() << "\n" <<
 						"Elapsed time: " << std::chrono::duration<double>(now - start_time) << "\n" <<
 						"Total iterations: " << i << "\n"
-						"Iterations/second: " << i / secs << "\n";
+						"Iterations/second: " << static_cast<double>(i) / secs << "\n";
 					test->log_status(entry);
 					last_log = now;
 				}

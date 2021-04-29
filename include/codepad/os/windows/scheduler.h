@@ -16,7 +16,8 @@ namespace codepad::os {
 	class scheduler_impl : public ui::_details::scheduler_impl {
 	public:
 		/// Initializes \ref _thread_id.
-		scheduler_impl(ui::scheduler &s) : ui::_details::scheduler_impl(s), _thread_id(GetCurrentThreadId()) {
+		explicit scheduler_impl(ui::scheduler &s) :
+			ui::_details::scheduler_impl(s), _thread_id(GetCurrentThreadId()) {
 		}
 
 		/// Handles a message using either \ref GetMessage() or \ref PeekMessage().

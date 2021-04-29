@@ -96,12 +96,26 @@ namespace codepad {
 					std::is_same_v<std::decay_t<T>, const char8_t*> ||
 					std::is_same_v<std::decay_t<T>, char8_t*>
 				) {
-					_contents << reinterpret_cast<const char*>(contents);
+					_contents << reinterpret_cast<const char *>(contents);
+#ifdef __GNUC__
+				} else if constexpr (_is_duration<std::decay_t<T>>::value) {
+					_contents << std::chrono::duration<double>(contents).count() << "s";
+#endif
 				} else {
 					_contents << std::forward<T>(contents);
 				}
 				return *this;
 			}
+#ifdef __GNUC__
+		protected:
+			/// HACK: GCC does not have output for \p std::chrono::duration yet.
+			template <typename T> struct _is_duration : std::false_type {
+			};
+			template <
+			    typename Rep, typename Ratio
+			> struct _is_duration<std::chrono::duration<Rep, Ratio>> : std::true_type {
+			};
+#endif
 		protected:
 			/// Initializes \ref _parent.
 			log_entry(logger &p, code_position pos, log_level lvl) : _pos(std::move(pos)), _parent(&p), _level(lvl) {
