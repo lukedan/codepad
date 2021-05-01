@@ -88,25 +88,25 @@ namespace python_plugin_host_pybind11 {
 		/// Wrapper around pure \ref codepad::plugin::initialize().
 		void initialize(const cp::plugin_context &ctx) override {
 			add_dependency(*this_plugin);
-			TRY_OVERLOAD_PURE(void, cp::plugin, initialize, ctx);
+			TRY_OVERRIDE_PURE(void, cp::plugin, initialize, ctx);
 		}
 		/// Wrapper around \ref codepad::plugin::finalize().
 		void finalize() override {
-			TRY_OVERLOAD(void, cp::plugin, finalize,);
+			TRY_OVERRIDE(void, cp::plugin, finalize,);
 		}
 		/// Wrapper around pure \ref codepad::plugin::get_name().
 		std::u8string get_name() const override {
-			TRY_OVERLOAD_PURE(std::u8string, cp::plugin, get_name,);
+			TRY_OVERRIDE_PURE(std::u8string, cp::plugin, get_name,);
 			return u8"";
 		}
 
 		/// Wrapper around pure \ref codepad::plugin::_on_enabled().
 		void _on_enabled() override {
-			TRY_OVERLOAD_PURE(void, cp::plugin, _on_enabled,);
+			TRY_OVERRIDE_PURE(void, cp::plugin, _on_enabled,);
 		}
 		/// Wrapper around pure \ref codepad::plugin::_on_disabled().
 		void _on_disabled() override {
-			TRY_OVERLOAD_PURE(void, cp::plugin, _on_disabled,);
+			TRY_OVERRIDE_PURE(void, cp::plugin, _on_disabled,);
 		}
 	private:
 		/// This is a managed plugin.

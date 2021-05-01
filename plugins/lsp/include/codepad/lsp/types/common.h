@@ -54,6 +54,17 @@ namespace codepad::lsp::types {
 
 	/// Base class of compound objects that correspond to JSON objects.
 	struct object {
+		/// Default constructor.
+		object() = default;
+		/// Default copy constructor.
+		object(const object&) = default;
+		/// Disable move construction - move construction needs to be implemented for every class in the hierarchy,
+		/// or data can be lost. This may be a performance issue but we can deal with it later.
+		object(object&&) = delete;
+		/// Default copy assignment.
+		object &operator=(const object&) = default;
+		/// Disable move assignment - see move constructor for details.
+		object &operator=(object&&) = delete;
 		/// Default virtual destructor.
 		virtual ~object() = default;
 

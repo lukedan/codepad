@@ -326,6 +326,8 @@ public:
 
 				break;
 			}
+		default:
+			break;
 		}
 
 		// validate

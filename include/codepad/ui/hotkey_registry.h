@@ -140,7 +140,7 @@ namespace codepad {
 				}
 
 				/// Checks if this is a leaf node.
-				bool is_leaf() const {
+				[[nodiscard]] bool is_leaf() const {
 					return std::holds_alternative<action>(_v);
 				}
 
@@ -149,7 +149,7 @@ namespace codepad {
 					return std::get<layer_rec_t>(_v);
 				}
 				/// Const version of get_children().
-				const layer_rec_t &get_children() const {
+				[[nodiscard]] const layer_rec_t &get_children() const {
 					return std::get<layer_rec_t>(_v);
 				}
 
@@ -158,7 +158,7 @@ namespace codepad {
 					return std::get<action>(_v);
 				}
 				/// Const version of get_data().
-				const action &get_action() const {
+				[[nodiscard]] const action &get_action() const {
 					return std::get<action>(_v);
 				}
 			protected:
@@ -179,16 +179,16 @@ namespace codepad {
 					_ptr = nullptr;
 				}
 				/// Checks if this object is empty, i.e., if \ref _ptr doesn't point to any node.
-				bool is_empty() const {
+				[[nodiscard]] bool is_empty() const {
 					return _ptr == nullptr;
 				}
 				/// Checks if the user has triggered a hotkey.
-				bool is_trigger() const {
+				[[nodiscard]] bool is_trigger() const {
 					return _ptr && _ptr->is_leaf();
 				}
 
 				/// Returns the action of the leaf node if is_trigger() returns \p true.
-				const action &get_action() const {
+				[[nodiscard]] const action &get_action() const {
 					assert_true_logical(is_trigger(), "intermediate nodes doesn't have callbacks");
 					return _ptr->get_action();
 				}

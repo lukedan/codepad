@@ -19,32 +19,23 @@ namespace cp = ::codepad;
 
 namespace python_plugin_host_pybind11 {
 	/// `Trampoline' class for \ref codepad::ui::element.
+	///
+	/// \todo This is incomplete.
 	template<typename Base> class py_ui_element : public Base {
 	public:
-		/// Wrapper around \ref codepad::ui::element::get_desired_width().
-		cp::ui::size_allocation get_desired_width() const override {
-			TRY_OVERLOAD(cp::ui::size_allocation, Base, get_desired_width,);
-			return cp::ui::size_allocation();
-		}
-		/// Wrapper around \ref codepad::ui::element::get_desired_height().
-		cp::ui::size_allocation get_desired_height() const override {
-			TRY_OVERLOAD(cp::ui::size_allocation, Base, get_desired_height,);
-			return cp::ui::size_allocation();
-		}
-
 		/// Wrapper around \ref codepad::ui::element::hit_test().
 		bool hit_test(cp::vec2d p) const override {
-			TRY_OVERLOAD(bool, Base, hit_test, p);
+			TRY_OVERRIDE(bool, Base, hit_test, p);
 			return false;
 		}
 		/// Wrapper around \ref codepad::ui::element::get_default_cursor().
 		cp::ui::cursor get_default_cursor() const override {
-			TRY_OVERLOAD(cp::ui::cursor, Base, get_default_cursor,);
+			TRY_OVERRIDE(cp::ui::cursor, Base, get_default_cursor,);
 			return cp::ui::cursor::denied;
 		}
 		/// Wrapper around \ref codepad::ui::element::get_current_display_cursor().
 		cp::ui::cursor get_current_display_cursor() const override {
-			TRY_OVERLOAD(cp::ui::cursor, Base, get_current_display_cursor,);
+			TRY_OVERRIDE(cp::ui::cursor, Base, get_current_display_cursor,);
 			return cp::ui::cursor::denied;
 		}
 	};
@@ -172,8 +163,7 @@ namespace python_plugin_host_pybind11 {
 			.def_property_readonly(
 				"visual_parameters", &cp::ui::element::get_visual_parameters, py::return_value_policy::reference
 			)
-			.def_property_readonly("desired_width", &cp::ui::element::get_desired_width)
-			.def_property_readonly("desired_height", &cp::ui::element::get_desired_height)
+			.def_property_readonly("desired_size", &cp::ui::element::get_desired_size)
 			.def("hit_test", &cp::ui::element::hit_test)
 
 			.def("get_default_cursor", &cp::ui::element::get_default_cursor) // function version for overriding
