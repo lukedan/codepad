@@ -59,21 +59,24 @@ namespace codepad::os {
 		[[nodiscard]] inline ui::key get_key_of_event(GdkEvent *event) {
 			return get_mapped_key(event->key.keyval);
 		}
-		template <typename Ev> [[nodiscard]] inline ui::modifier_keys get_modifiers(const Ev &event) {
+		[[nodiscard]] inline ui::modifier_keys cast_modifiers(GdkModifierType mods) {
 			ui::modifier_keys result = ui::modifier_keys::none;
-			if (event.state & GDK_CONTROL_MASK) {
+			if (mods & GDK_CONTROL_MASK) {
 				result |= ui::modifier_keys::control;
 			}
-			if (event.state & GDK_SHIFT_MASK) {
+			if (mods & GDK_SHIFT_MASK) {
 				result |= ui::modifier_keys::shift;
 			}
-			if (event.state & GDK_MOD1_MASK) { // normally alt
+			if (mods & GDK_MOD1_MASK) { // normally alt
 				result |= ui::modifier_keys::alt;
 			}
-			if (event.state & GDK_HYPER_MASK) { // whatever
+			if (mods & GDK_HYPER_MASK) { // whatever
 				result |= ui::modifier_keys::super;
 			}
 			return result;
+		}
+		template <typename Ev> [[nodiscard]] inline ui::modifier_keys get_modifiers_from(const Ev &event) {
+			return cast_modifiers(static_cast<GdkModifierType>(event.state));
 		}
 	}
 }

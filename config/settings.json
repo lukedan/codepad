@@ -1,6 +1,12 @@
 {
+	// "graphics_backend": "cairo",
 	"graphics_backend": "direct2d",
 	"native_plugins": [
+		//"cmake-build-debug/libeditors.so",
+		//"cmake-build-debug/libcommand_pack.so",
+		//"cmake-build-debug/libpython_plugin_host_pybind11.so",
+		//"cmake-build-debug/libtree_sitter.so",
+		//"cmake-build-debug/liblsp.so"
 		"editors",
 		"command_pack",
 		"python_plugin_host_pybind11",
@@ -48,6 +54,7 @@
 
 	"lsp": {
 		"server": "D:/Software/LLVM/bin/clangd.exe",
+		//"server": "/usr/bin/clangd",
 
 		"error_decoration": {
 			"type": "squiggle_decoration_renderer",

@@ -14,8 +14,6 @@ namespace codepad::os {
 		gtk_window_set_gravity(GTK_WINDOW(_wnd), GDK_GRAVITY_STATIC);
 		// this only applies for transient windows; destroy this window when its transient parent is destroyed
 		gtk_window_set_destroy_with_parent(GTK_WINDOW(_wnd), true);
-		// request tooltips so that we can receive hover events to show our own tooltips
-		gtk_widget_set_has_tooltip(_wnd, true);
 
 		gtk_widget_set_app_paintable(_wnd, true);
 		gtk_widget_add_events(
@@ -32,7 +30,6 @@ namespace codepad::os {
 		_connect_signal(_wnd, "delete_event", _on_delete_event);
 		_connect_signal(_wnd, "leave-notify-event", _on_leave_notify_event);
 		_connect_signal(_wnd, "motion-notify-event", _on_motion_notify_event);
-		_connect_signal(_wnd, "query-tooltip", _on_query_tooltip_event);
 		_connect_signal(_wnd, "size-allocate", _on_size_allocate);
 		_connect_signal(_wnd, "button-press-event", _on_button_press_event);
 		_connect_signal(_wnd, "button-release-event", _on_button_release_event);
@@ -56,6 +53,14 @@ namespace codepad::os {
 		return true;
 	}
 
+	gboolean window_impl::_on_leave_notify_event(GtkWidget*, GdkEvent*, window_impl *wnd) {
+		if (wnd->_hover_token) {
+			wnd->_window.get_manager().get_scheduler().cancel_synchronous_task(wnd->_hover_token);
+		}
+		wnd->_window._on_mouse_leave();
+		return true;
+	}
+
 	gboolean window_impl::_on_motion_notify_event(GtkWidget*, GdkEvent *ev, window_impl *wnd) {
 		if (!wnd->_window.is_mouse_over()) {
 			wnd->_window._on_mouse_enter();
@@ -72,28 +77,33 @@ namespace codepad::os {
 		gdk_window_set_cursor(
 			ev->any.window, _details::cursor_set::get().cursors[static_cast<int>(c)]
 		);
-		return true;
-	}
 
-	gboolean window_impl::_on_query_tooltip_event(
-		GtkWidget*, int x, int y, gboolean keyboard_mode, GtkTooltip*, window_impl *wnd
-	) {
-		if (!keyboard_mode) {
-			// TODO get modifier keys
-			_form_onevent<ui::mouse_hover_info>(
-				wnd->_window, &ui::window::_on_mouse_hover,
-				ui::modifier_keys::none, wnd->_window._update_mouse_position(vec2d(x, y))
-			);
+		// set hover timer
+		if (wnd->_hover_token) {
+			wnd->_window.get_manager().get_scheduler().cancel_synchronous_task(wnd->_hover_token);
 		}
-		// we always handle tooltips by ourselves
-		return false;
+		wnd->_hover_token = wnd->_window.get_manager().get_scheduler().register_synchronous_task(
+			ui::scheduler::clock_t::now() + std::chrono::milliseconds(500), &wnd->_window,
+			[impl = wnd, mouse = vec2d(ev->motion.x, ev->motion.y), seat = gdk_event_get_seat(ev)](ui::element *e) {
+				assert_true_sys(e == &impl->_window, "window_impl and window does not match");
+				GdkModifierType mods;
+				gdk_device_get_state(gdk_seat_get_pointer(seat), gtk_widget_get_window(impl->_wnd), nullptr, &mods);
+				_form_onevent<ui::mouse_hover_info>(
+					impl->_window, &ui::window::_on_mouse_hover,
+					_details::cast_modifiers(mods), impl->_window._update_mouse_position(mouse)
+				);
+				return ui::scheduler::clock_t::now() + std::chrono::milliseconds(500);
+			}
+		);
+
+		return true;
 	}
 
 	gboolean window_impl::_on_button_press_event(GtkWidget*, GdkEvent *ev, window_impl *wnd) {
 		if (ev->button.type == GDK_BUTTON_PRESS) {
 			_form_onevent<ui::mouse_button_info>(
 				wnd->_window, &ui::window::_on_mouse_down,
-				_details::get_button_from_code(ev->button.button), _details::get_modifiers(ev->button),
+				_details::get_button_from_code(ev->button.button), _details::get_modifiers_from(ev->button),
 				wnd->_window._update_mouse_position(vec2d(ev->button.x, ev->button.y))
 			);
 		}
@@ -104,7 +114,7 @@ namespace codepad::os {
 	gboolean window_impl::_on_button_release_event(GtkWidget*, GdkEvent *ev, window_impl *wnd) {
 		_form_onevent<ui::mouse_button_info>(
 			wnd->_window, &ui::window::_on_mouse_up,
-			_details::get_button_from_code(ev->button.button), _details::get_modifiers(ev->button),
+			_details::get_button_from_code(ev->button.button), _details::get_modifiers_from(ev->button),
 			wnd->_window._update_mouse_position(vec2d(ev->button.x, ev->button.y))
 		);
 		return true;
@@ -113,7 +123,7 @@ namespace codepad::os {
 	gboolean window_impl::_on_key_press_event(GtkWidget*, GdkEvent *event, window_impl *wnd) {
 		ui::key k = _details::get_key_of_event(event);
 		if (!wnd->_window.get_manager().get_scheduler().get_hotkey_listener().on_key_down(
-			ui::key_gesture(k, _details::get_modifiers(event->key))
+			ui::key_gesture(k, _details::get_modifiers_from(event->key))
 		)) {
 			if (!gtk_im_context_filter_keypress(wnd->_imctx, &event->key)) {
 				_form_onevent<ui::key_info>(wnd->_window, &ui::window::_on_key_down, k);

@@ -119,8 +119,12 @@ namespace codepad::ui {
 
 			/// Returns \p true if this refers to an actual task. Note that the tokens are not cleared when a task is
 			/// removed either after finishing execution or manually.
-			bool empty() const {
+			[[nodiscard]] bool empty() const {
 				return _task == nullptr;
+			}
+			/// Tests if this token is non-empty.
+			[[nodiscard]] explicit operator bool() const {
+				return !empty();
 			}
 		private:
 			/// Initializes \ref _task.
@@ -134,8 +138,7 @@ namespace codepad::ui {
 			friend scheduler;
 		public:
 			/// Default constructor.
-			callback_token() {
-			}
+			callback_token() = default;
 
 			/// Attempts to cancel the callback. Regardless of whether this function is able to cancel the callback,
 			/// this token will be reset.
@@ -148,7 +151,7 @@ namespace codepad::ui {
 				return _scheduler == nullptr;
 			}
 			/// Tests whether this token is non-empty.
-			[[nodiscard]] operator bool() const {
+			[[nodiscard]] explicit operator bool() const {
 				return _scheduler != nullptr;
 			}
 		protected:

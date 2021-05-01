@@ -241,13 +241,10 @@ namespace codepad::os {
 		// TODO on scaling factor changed
 
 		static gboolean _on_delete_event(GtkWidget*, GdkEvent*, window_impl*);
-		inline static gboolean _on_leave_notify_event(GtkWidget*, GdkEvent*, window_impl *wnd) {
-			wnd->_window._on_mouse_leave();
-			return true;
-		}
+		/// Handles mouse leave events and cancels hover timers.
+		static gboolean _on_leave_notify_event(GtkWidget*, GdkEvent*, window_impl*);
+		/// Handles mouse movement, and sets up the timer for hover events.
 		static gboolean _on_motion_notify_event(GtkWidget*, GdkEvent*, window_impl*);
-		/// Handler for the \p query-tooltip signal, used to trigger \ref ui::window::
-		static gboolean _on_query_tooltip_event(GtkWidget*, int, int, gboolean, GtkTooltip*, window_impl*);
 		inline static void _on_size_allocate(GtkWidget*, GdkRectangle *rect, window_impl *wnd) {
 			wnd->_window._layout = rectd(
 				0.0, static_cast<double>(rect->width), 0.0, static_cast<double>(rect->height)
@@ -318,6 +315,8 @@ namespace codepad::os {
 		/// Timestamp of the previous scroll event used for eliminating duplicate events.
 		guint32 _prev_scroll_timestamp = 0;
 		ui::scheduler::sync_task_token _kinetic_token; ///< Token for updating kinetic scrolling.
+
+		ui::scheduler::sync_task_token _hover_token; ///< Token used for the hover event.
 	};
 
 	namespace _details {
