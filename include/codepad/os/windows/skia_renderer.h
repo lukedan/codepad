@@ -8,10 +8,12 @@
 
 #include <gl/GL.h>
 
+// skia_renderer_base.h contains the hacked implementation of std::result_of_t and thus has to be included early
+#include "codepad/ui/backends/skia_renderer_base.h"
+
 #include <skia/core/SkSurfaceProps.h>
 #include <pango/pangowin32.h>
 
-#include "codepad/ui/backends/skia_renderer_base.h"
 #include "misc.h"
 
 namespace codepad::os {

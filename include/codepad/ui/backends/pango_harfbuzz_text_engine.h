@@ -352,6 +352,15 @@ namespace codepad::ui {
 
 			/// Similar to \ref get_alignment_offset(), but only for the horizontal part.
 			[[nodiscard]] double _get_horizontal_alignment_offset() const;
+
+			/// Adds the given attribute to \ref _layout.
+			void _add_attribute(PangoAttribute *attr) {
+				// here we shuffle the lists around so that pango invalidates cacned data of the layout
+				auto list = _details::make_gtk_object_ref_share(pango_layout_get_attributes(_layout.get()));
+				pango_layout_set_attributes(_layout.get(), nullptr);
+				pango_attr_list_change(list.get(), attr);
+				pango_layout_set_attributes(_layout.get(), list.get());
+			}
 		};
 
 		/// Stores a Freetype font and a Harfbuzz font.

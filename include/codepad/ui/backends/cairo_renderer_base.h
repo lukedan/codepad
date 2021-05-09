@@ -231,7 +231,7 @@ namespace codepad::ui::cairo {
 		}
 		/// Returns \ref pango_harfbuzz::formatted_text_data::set_layout_size().
 		void set_layout_size(vec2d size) override {
-			return _data.set_layout_size(size);
+			_data.set_layout_size(size);
 		}
 		/// Returns \ref pango_harfbuzz::formatted_text_data::get_horizontal_alignment().
 		[[nodiscard]] horizontal_text_alignment get_horizontal_alignment() const override {

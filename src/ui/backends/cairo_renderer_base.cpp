@@ -156,6 +156,7 @@ namespace codepad::ui::cairo {
 
 		pos += text._data.get_alignment_offset();
 
+		// TODO this triggers re-layout for all text that we draw. is there a better way to do this?
 		pango_cairo_update_context(context, _text_engine.get_pango_context());
 		pango_layout_context_changed(text._data.get_pango_layout());
 		cairo_move_to(context, pos.x, pos.y);

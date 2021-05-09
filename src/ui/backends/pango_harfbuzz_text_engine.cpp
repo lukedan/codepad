@@ -502,9 +502,8 @@ namespace codepad::ui::pango_harfbuzz {
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr_rgb->start_index = attr_a->start_index = byte_beg;
 		attr_rgb->end_index = attr_a->end_index = byte_end;
-		PangoAttrList *list = pango_layout_get_attributes(_layout.get());
-		pango_attr_list_change(list, attr_rgb);
-		pango_attr_list_change(list, attr_a);
+		_add_attribute(attr_rgb);
+		_add_attribute(attr_a);
 	}
 
 	void formatted_text_data::set_font_family(const std::u8string &family, std::size_t beg, std::size_t len) {
@@ -512,7 +511,7 @@ namespace codepad::ui::pango_harfbuzz {
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
 		attr->end_index = byte_end;
-		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
+		_add_attribute(attr);
 	}
 
 	void formatted_text_data::set_font_size(double size, std::size_t beg, std::size_t len) {
@@ -520,7 +519,7 @@ namespace codepad::ui::pango_harfbuzz {
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
 		attr->end_index = byte_end;
-		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
+		_add_attribute(attr);
 	}
 
 	void formatted_text_data::set_font_style(font_style style, std::size_t beg, std::size_t len) {
@@ -528,7 +527,7 @@ namespace codepad::ui::pango_harfbuzz {
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
 		attr->end_index = byte_end;
-		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
+		_add_attribute(attr);
 	}
 
 	void formatted_text_data::set_font_weight(font_weight weight, std::size_t beg, std::size_t len) {
@@ -536,7 +535,7 @@ namespace codepad::ui::pango_harfbuzz {
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
 		attr->end_index = byte_end;
-		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
+		_add_attribute(attr);
 	}
 
 	void formatted_text_data::set_font_stretch(font_stretch stretch, std::size_t beg, std::size_t len) {
@@ -544,7 +543,7 @@ namespace codepad::ui::pango_harfbuzz {
 		auto [byte_beg, byte_end] = _char_to_byte(beg, len);
 		attr->start_index = byte_beg;
 		attr->end_index = byte_end;
-		pango_attr_list_change(pango_layout_get_attributes(_layout.get()), attr);
+		_add_attribute(attr);
 	}
 
 	vec2d formatted_text_data::get_alignment_offset() const {

@@ -505,6 +505,9 @@ namespace codepad::ui::skia {
 		}
 		/// Draws a rectangle using \p SkCanvas::drawRect().
 		void draw_rectangle(rectd r, const generic_brush &brush, const generic_pen &pen) override {
+			if (r.contains_nan()) {
+				return; // skia is very perculiar with geometry that contains nan
+			}
 			SkCanvas *canvas = _render_stack.top().canvas;
 			SkRect skrect = _details::cast_rect(r);
 			if (auto fill = _create_paint(brush)) {
