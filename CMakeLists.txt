@@ -112,6 +112,7 @@ target_sources(codepad_core
 
 		"src/ui/elements/button.cpp"
 		"src/ui/elements/label.cpp"
+		"src/ui/elements/list_viewport.cpp"
 		"src/ui/elements/popup.cpp"
 		"src/ui/elements/scroll_viewport.cpp"
 		"src/ui/elements/scrollbar.cpp"
