@@ -35,23 +35,23 @@ namespace codepad {
 			y = 0; ///< The y coordinate.
 
 		/// Index components by numbers, 0 for \ref x and 1 for \ref y.
-		T &operator[](std::size_t);
+		[[nodiscard]] T &operator[](std::size_t);
 		/// Const version of operator[](std::size_t).
-		const T &operator[](std::size_t) const;
+		[[nodiscard]] const T &operator[](std::size_t) const;
 
 		/// Converts all components to another type and returns the result.
 		///
 		/// \tparam U The desired type of components.
-		template <typename U> constexpr vec2<U> convert() const {
+		template <typename U> [[nodiscard]] constexpr vec2<U> convert() const {
 			return vec2<U>(static_cast<U>(x), static_cast<U>(y));
 		}
 
 		/// Returns the squared length of the vector.
-		constexpr T length_sqr() const {
+		[[nodiscard]] constexpr T length_sqr() const {
 			return x * x + y * y;
 		}
 		/// Returns the length of the vector.
-		constexpr T length() const {
+		[[nodiscard]] constexpr T length() const {
 			return std::sqrt(length_sqr());
 		}
 
@@ -62,12 +62,12 @@ namespace codepad {
 			return *this;
 		}
 		/// Addition.
-		constexpr friend vec2 operator+(vec2 lhs, vec2 rhs) {
+		[[nodiscard]] constexpr friend vec2 operator+(vec2 lhs, vec2 rhs) {
 			return vec2(lhs.x + rhs.x, lhs.y + rhs.y);
 		}
 
 		/// Subtraction.
-		constexpr friend vec2 operator-(vec2 v) {
+		[[nodiscard]] constexpr friend vec2 operator-(vec2 v) {
 			return vec2(-v.x, -v.y);
 		}
 		/// Subtraction.
@@ -77,7 +77,7 @@ namespace codepad {
 			return *this;
 		}
 		/// Subtraction.
-		constexpr friend vec2 operator-(vec2 lhs, vec2 rhs) {
+		[[nodiscard]] constexpr friend vec2 operator-(vec2 lhs, vec2 rhs) {
 			return vec2(lhs.x - rhs.x, lhs.y - rhs.y);
 		}
 
@@ -88,11 +88,11 @@ namespace codepad {
 			return *this;
 		}
 		/// Scalar multiplication.
-		constexpr friend vec2 operator*(vec2 lhs, T rhs) {
+		[[nodiscard]] constexpr friend vec2 operator*(vec2 lhs, T rhs) {
 			return vec2(lhs.x * rhs, lhs.y * rhs);
 		}
 		/// Scalar multiplication.
-		constexpr friend vec2 operator*(T lhs, vec2 rhs) {
+		[[nodiscard]] constexpr friend vec2 operator*(T lhs, vec2 rhs) {
 			return vec2(lhs * rhs.x, lhs * rhs.y);
 		}
 
@@ -103,7 +103,7 @@ namespace codepad {
 			return *this;
 		}
 		/// Scalar division.
-		constexpr friend vec2 operator/(vec2 lhs, T rhs) {
+		[[nodiscard]] constexpr friend vec2 operator/(vec2 lhs, T rhs) {
 			return vec2(lhs.x / rhs, lhs.y / rhs);
 		}
 	};
@@ -116,11 +116,11 @@ namespace codepad {
 	/// Shorthand for vectors whose components are of type <tt>unsigned int</tt>.
 	using vec2u = vec2<unsigned int>;
 
-	template <typename T> inline T &vec2<T>::operator[](std::size_t sub) {
+	template <typename T> [[nodiscard]] inline T &vec2<T>::operator[](std::size_t sub) {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
-	template <typename T> inline const T &vec2<T>::operator[](std::size_t sub) const {
+	template <typename T> [[nodiscard]] inline const T &vec2<T>::operator[](std::size_t sub) const {
 		assert_true_usage(sub < 2, "invalid subscript");
 		return (&x)[sub];
 	}
@@ -151,67 +151,74 @@ namespace codepad {
 			ymax = 0; ///< Maximum y coordinate.
 
 		/// Returns the width of the rectangle, i.e., \ref xmax - \ref xmin.
-		constexpr T width() const {
+		[[nodiscard]] constexpr T width() const {
 			return xmax - xmin;
 		}
 		/// Returns the height of the rectangle, i.e., \ref ymax - \ref ymin.
-		constexpr T height() const {
+		[[nodiscard]] constexpr T height() const {
 			return ymax - ymin;
 		}
 		/// Returns the area of the rectangle, i.e., width() * height().
-		constexpr vec2<T> size() const {
+		[[nodiscard]] constexpr vec2<T> size() const {
 			return vec2<T>(width(), height());
 		}
 		/// Returns the vector (\ref xmin, \ref ymin).
-		constexpr vec2<T> xmin_ymin() const {
+		[[nodiscard]] constexpr vec2<T> xmin_ymin() const {
 			return vec2<T>(xmin, ymin);
 		}
 		/// Returns the vector (\ref xmax, \ref ymin).
-		constexpr vec2<T> xmax_ymin() const {
+		[[nodiscard]] constexpr vec2<T> xmax_ymin() const {
 			return vec2<T>(xmax, ymin);
 		}
 		/// Returns the vector (\ref xmin, \ref ymax).
-		constexpr vec2<T> xmin_ymax() const {
+		[[nodiscard]] constexpr vec2<T> xmin_ymax() const {
 			return vec2<T>(xmin, ymax);
 		}
 		/// Returns the vector (\ref xmax, \ref ymax).
-		constexpr vec2<T> xmax_ymax() const {
+		[[nodiscard]] constexpr vec2<T> xmax_ymax() const {
 			return vec2<T>(xmax, ymax);
 		}
 
 		/// Returns the x coordinate of the rectangle's center, i.e., \f$\frac{1}{2}\f$ (\ref xmin + \ref xmax).
-		constexpr double centerx() const {
+		[[nodiscard]] constexpr double centerx() const {
 			return (xmin + xmax) * 0.5f;
 		}
 		/// Returns the y coordinate of the rectangle's center, i.e., \f$\frac{1}{2}\f$ (\ref ymin + \ref ymax).
-		constexpr double centery() const {
+		[[nodiscard]] constexpr double centery() const {
 			return (ymin + ymax) * 0.5f;
 		}
 		/// Returns the coordinate of the rectangle's center, i.e., (centerx(), centery()).
-		constexpr vec2<T> center() const {
+		[[nodiscard]] constexpr vec2<T> center() const {
 			return vec2<T>(centerx(), centery());
 		}
 
 		/// Returns true if both \ref xmax > \ref xmin and \ref ymax > \ref ymin.
-		constexpr bool has_positive_area() const {
+		[[nodiscard]] constexpr bool has_positive_area() const {
 			return xmax > xmin && ymax > ymin;
 		}
 		/// Returns true if both \ref xmax >= \ref xmin and \ref ymax >= \ref ymin.
-		constexpr bool has_nonnegative_area() const {
+		[[nodiscard]] constexpr bool has_nonnegative_area() const {
 			return xmax >= xmin && ymax >= ymin;
 		}
 
 		/// Returns true if a given point lies in the rectangle or on its boundary.
 		///
 		/// \param v The given point.
-		constexpr bool contains(vec2<T> v) const {
+		[[nodiscard]] constexpr bool contains(vec2<T> v) const {
 			return v.x >= xmin && v.x <= xmax && v.y >= ymin && v.y <= ymax;
 		}
 		/// Returns true if a given point completely lies in the rectangle, i.e., does not touch the boundary.
 		///
 		/// \param v The given point.
-		constexpr bool fully_contains(vec2<T> v) const {
+		[[nodiscard]] constexpr bool fully_contains(vec2<T> v) const {
 			return v.x > xmin && v.x < xmax && v.y > ymin && v.y < ymax;
+		}
+
+		/// Returns whether any field of this struct is \p NaN.
+		template <
+			typename Dummy = int, std::enable_if_t<std::is_floating_point_v<T>, Dummy> = 0
+		> [[nodiscard]] bool contains_nan() const {
+			return std::isnan(xmin) || std::isnan(xmax) || std::isnan(ymin) || std::isnan(ymax);
 		}
 
 		/// Returns this rectangle adjusted so that \ref xmax > \ref xmin and \ref ymax > \ref ymin. If a condition
@@ -263,13 +270,17 @@ namespace codepad {
 		/// Converts all coordinates to another type.
 		///
 		/// \tparam U The desired type of the coordinates.
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, rect<U>> convert() const {
+		template <typename U> [[nodiscard]] constexpr std::enable_if_t<
+			std::is_arithmetic_v<U>, rect<U>
+		> convert() const {
 			return rect<U>(static_cast<U>(xmin), static_cast<U>(xmax), static_cast<U>(ymin), static_cast<U>(ymax));
 		}
 		/// Converts all coordinates to another type, rounding them towards out of the rectangle.
 		///
 		/// \tparam U The desired type of the coordinates.
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, rect<U>> fit_grid_enlarge() const {
+		template <typename U> [[nodiscard]] constexpr std::enable_if_t<
+			std::is_arithmetic_v<U>, rect<U>
+		> fit_grid_enlarge() const {
 			return rect<U>(
 				static_cast<U>(std::floor(xmin)), static_cast<U>(std::ceil(xmax)),
 				static_cast<U>(std::floor(ymin)), static_cast<U>(std::ceil(ymax))
@@ -278,7 +289,9 @@ namespace codepad {
 		/// Converts all coordinates to another type, rounding them towards inside of the rectangle.
 		///
 		/// \tparam U The desired type of the coordinates.
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, rect<U>> fit_grid_shrink() const {
+		template <typename U> [[nodiscard]] constexpr std::enable_if_t<
+			std::is_arithmetic_v<U>, rect<U>
+		> fit_grid_shrink() const {
 			return rect<U>(
 				static_cast<U>(std::ceil(xmin)), static_cast<U>(std::floor(xmax)),
 				static_cast<U>(std::ceil(ymin)), static_cast<U>(std::floor(ymax))
@@ -288,14 +301,14 @@ namespace codepad {
 		/// Returns the rectangle translated by a vector.
 		///
 		/// \param diff The desired offset.
-		constexpr rect translated(vec2<T> diff) const {
+		[[nodiscard]] constexpr rect translated(vec2<T> diff) const {
 			return rect(xmin + diff.x, xmax + diff.x, ymin + diff.y, ymax + diff.y);
 		}
 		/// Returns the rectangle scaled with respect to a given point by a given scalar.
 		///
 		/// \param center The center of scaling.
 		/// \param scale The desired scale.
-		constexpr rect scaled(vec2<T> center, double scale) const {
+		[[nodiscard]] constexpr rect scaled(vec2<T> center, double scale) const {
 			return rect(
 				center.x + static_cast<T>(scale * (xmin - center.x)),
 				center.x + static_cast<T>(scale * (xmax - center.x)),
@@ -306,7 +319,7 @@ namespace codepad {
 		/// Returns the rectangle scaled with respect to (0, 0).
 		///
 		/// \param scale The desired scale.
-		constexpr rect coordinates_scaled(double scale) const {
+		[[nodiscard]] constexpr rect coordinates_scaled(double scale) const {
 			return rect(
 				static_cast<T>(scale * xmin),
 				static_cast<T>(scale * xmax),
@@ -317,14 +330,14 @@ namespace codepad {
 
 		/// Returns the largest rectangle that's fully contained by both given rectangles.
 		/// If the two rectangles don't intersect, the returned rectangle will have negative area.
-		inline static constexpr rect common_part(rect lhs, rect rhs) {
+		[[nodiscard]] inline static constexpr rect common_part(rect lhs, rect rhs) {
 			return rect(
 				std::max(lhs.xmin, rhs.xmin), std::min(lhs.xmax, rhs.xmax),
 				std::max(lhs.ymin, rhs.ymin), std::min(lhs.ymax, rhs.ymax)
 			);
 		}
 		/// Returns the smallest rectangle that fully contains both given rectangles.
-		inline static constexpr rect bounding_box(rect lhs, rect rhs) {
+		[[nodiscard]] inline static constexpr rect bounding_box(rect lhs, rect rhs) {
 			return rect(
 				std::min(lhs.xmin, rhs.xmin), std::max(lhs.xmax, rhs.xmax),
 				std::min(lhs.ymin, rhs.ymin), std::max(lhs.ymax, rhs.ymax)
@@ -332,15 +345,15 @@ namespace codepad {
 		}
 
 		/// Constructs a rectangle given its top-left corner, width, and height.
-		inline static constexpr rect from_xywh(T x, T y, T w, T h) {
+		[[nodiscard]] inline static constexpr rect from_xywh(T x, T y, T w, T h) {
 			return rect(x, x + w, y, y + h);
 		}
 		/// Constructs a rectangle given the position of its top-left corner and its bottom-right corner.
-		inline static constexpr rect from_corners(vec2<T> min_corner, vec2<T> max_corner) {
+		[[nodiscard]] inline static constexpr rect from_corners(vec2<T> min_corner, vec2<T> max_corner) {
 			return rect(min_corner.x, max_corner.x, min_corner.y, max_corner.y);
 		}
 		/// Constructs a rectangle given the position of its top-left corner and its size.
-		inline static constexpr rect from_corner_and_size(vec2<T> min_corner, vec2<T> size) {
+		[[nodiscard]] inline static constexpr rect from_corner_and_size(vec2<T> min_corner, vec2<T> size) {
 			return rect(min_corner.x, min_corner.x + size.x, min_corner.y, min_corner.y + size.y);
 		}
 	};
@@ -381,7 +394,7 @@ namespace codepad {
 			}
 		}
 		/// Returns an identity matarix.
-		inline static constexpr matrix identity() {
+		[[nodiscard]] inline static constexpr matrix identity() {
 			matrix m;
 			m.set_identity();
 			return m;
@@ -390,7 +403,9 @@ namespace codepad {
 		/// Converts all values to another type.
 		///
 		/// \tparam U The desired type.
-		template <typename U> constexpr std::enable_if_t<std::is_arithmetic_v<U>, matrix<U, W, H>> convert() const {
+		template <typename U> [[nodiscard]] constexpr std::enable_if_t<
+			std::is_arithmetic_v<U>, matrix<U, W, H>
+		> convert() const {
 			matrix<U, W, H> res;
 			for (std::size_t y = 0; y < H; ++y) {
 				for (std::size_t x = 0; x < W; ++x) {
@@ -408,7 +423,7 @@ namespace codepad {
 		}
 	public:
 		/// Returns the transpose of this matrix.
-		constexpr matrix<T, H, W> transpose() const {
+		[[nodiscard]] constexpr matrix<T, H, W> transpose() const {
 			matrix<T, H, W> res;
 			for (std::size_t y = 0; y < H; ++y) {
 				for (std::size_t x = 0; x < W; ++x) {
@@ -420,7 +435,7 @@ namespace codepad {
 		/// Calculates the inverse matrix of a 3x3 matrix.
 		///
 		/// \todo Necessary for nxn matrices?
-		constexpr std::enable_if_t<W == 3 && H == 3, matrix> inverse() const {
+		[[nodiscard]] constexpr std::enable_if_t<W == 3 && H == 3, matrix> inverse() const {
 			matrix res;
 			_dot(
 				elem[0][1], elem[1][1], elem[2][1],
@@ -444,11 +459,11 @@ namespace codepad {
 		/// Returns the requested row of the matrix.
 		///
 		/// \param y 0-based index of the row.
-		row &operator[](std::size_t y) {
+		[[nodiscard]] row &operator[](std::size_t y) {
 			return elem[y];
 		}
 		/// Const version of \ref operator[].
-		const row &operator[](std::size_t y) const {
+		[[nodiscard]] const row &operator[](std::size_t y) const {
 			return elem[y];
 		}
 
@@ -462,7 +477,7 @@ namespace codepad {
 			return *this;
 		}
 		/// Addition.
-		friend matrix operator+(matrix lhs, const matrix &rhs) {
+		[[nodiscard]] friend matrix operator+(matrix lhs, const matrix &rhs) {
 			return lhs += rhs;
 		}
 
@@ -476,7 +491,7 @@ namespace codepad {
 			return *this;
 		}
 		/// Subtraction.
-		friend matrix operator-(matrix lhs, const matrix &rhs) {
+		[[nodiscard]] friend matrix operator-(matrix lhs, const matrix &rhs) {
 			return lhs -= rhs;
 		}
 
@@ -502,11 +517,11 @@ namespace codepad {
 			return *this;
 		}
 		/// Scalar multiplication.
-		friend matrix operator*(matrix lhs, T rhs) {
+		[[nodiscard]] friend matrix operator*(matrix lhs, T rhs) {
 			return lhs *= rhs;
 		}
 		/// Scalar multiplication.
-		friend matrix operator*(T lhs, matrix rhs) {
+		[[nodiscard]] friend matrix operator*(T lhs, matrix rhs) {
 			return rhs *= lhs;
 		}
 
@@ -520,12 +535,12 @@ namespace codepad {
 			return *this;
 		}
 		/// Scalar division.
-		friend matrix operator/(matrix lhs, T rhs) {
+		[[nodiscard]] friend matrix operator/(matrix lhs, T rhs) {
 			return lhs /= rhs;
 		}
 
 		/// Given a \ref vec2 (x, y), returns the vector obtained by multiplying this matrix with (x, y, 1).
-		std::enable_if_t<W == 3 && H == 3, vec2<T>> transform_position(vec2<T> v) const {
+		[[nodiscard]] std::enable_if_t<W == 3 && H == 3, vec2<T>> transform_position(vec2<T> v) const {
 			return vec2<T>(
 				elem[0][0] * v.x + elem[0][1] * v.y + elem[0][2],
 				elem[1][0] * v.x + elem[1][1] * v.y + elem[1][2]
@@ -535,7 +550,7 @@ namespace codepad {
 		/// Returns a matrix that translates vectors by a given offset.
 		///
 		/// \param off The desired offset.
-		inline static std::enable_if_t<W == 3 && H == 3, matrix> translate(vec2<T> off) {
+		[[nodiscard]] inline static std::enable_if_t<W == 3 && H == 3, matrix> translate(vec2<T> off) {
 			matrix res;
 			res[0][0] = res[1][1] = res[2][2] = 1.0;
 			res[0][2] = off.x;
@@ -545,7 +560,9 @@ namespace codepad {
 		/// Returns a matrix that rotates vectors around \p center by \p rotv,
 		/// where \p rotv is a vector of the form \f$(\cos{\alpha}, \sin{\alpha})\f$.
 		/// Scale can also be combined by multiplying \p rotv with the scale factor.
-		inline static std::enable_if_t<W == 3 && H == 3, matrix> rotate_by_vector(vec2<T> center, vec2<T> rotv) {
+		[[nodiscard]] inline static std::enable_if_t<W == 3 && H == 3, matrix> rotate_by_vector(
+			vec2<T> center, vec2<T> rotv
+		) {
 			// [1  0  cx] [rx  -ry  0] [1  0  -cx] [vx]
 			// [0  1  cy] [ry  rx   0] [0  1  -cy] [vy]
 			// [0  0  1 ] [0    0   1] [0  0   1 ] [1 ]
@@ -566,12 +583,14 @@ namespace codepad {
 			return res;
 		}
 		/// Returns a matrix that rotates vectors around \p center by a certain number of radians.
-		inline static std::enable_if_t<W == 3 && H == 3, matrix> rotate_clockwise(vec2<T> center, double radians) {
+		[[nodiscard]] inline static std::enable_if_t<W == 3 && H == 3, matrix> rotate_clockwise(
+			vec2<T> center, double radians
+		) {
 			return rotate_by_vector(center, vec2<T>(std::cos(radians), std::sin(radians)));
 		}
 		/// Returns a matrix that scales vectors around \p center by \p scale.
 		/// The x coordinate is scaled by \p scale.x and y by \p scale.y.
-		inline static std::enable_if_t<W == 3 && H == 3, matrix> scale(vec2<T> center, vec2<T> scale) {
+		[[nodiscard]] inline static std::enable_if_t<W == 3 && H == 3, matrix> scale(vec2<T> center, vec2<T> scale) {
 			// [1  0  cx] [sx  0   0] [1  0  -cx] [vx]
 			// [0  1  cy] [0   sy  0] [0  1  -cy] [vy]
 			// [0  0  1 ] [0   0   1] [0  0   1 ] [1 ]
@@ -590,14 +609,14 @@ namespace codepad {
 			return res;
 		}
 		/// Returns a matrix that scales vectors around \p center by \p uniscale.
-		inline static std::enable_if_t<W == 3 && H == 3, matrix> scale(vec2<T> center, T uniscale) {
+		[[nodiscard]] inline static std::enable_if_t<W == 3 && H == 3, matrix> scale(vec2<T> center, T uniscale) {
 			return scale(center, vec2<T>(uniscale, uniscale));
 		}
 
 
 		/// Checks if the matrix has any rotation or non-rigid (scale, skew) components. If this function returns
 		/// \p false, then the matrix is a pure translation matrix.
-		constexpr std::enable_if_t<H == W, bool> has_rotation_or_nonrigid(T eps = 1e-2f) const {
+		[[nodiscard]] constexpr std::enable_if_t<H == W, bool> has_rotation_or_nonrigid(T eps = 1e-2f) const {
 			for (std::size_t y = 0; y < H - 1; ++y) {
 				for (std::size_t x = 0; x < W - 1; ++x) {
 					if (!approximately_equals<T>(elem[y][x], x == y ? 1 : 0, eps)) {
@@ -609,9 +628,9 @@ namespace codepad {
 		}
 	};
 	/// Matrix multiplication.
-	template <typename T, std::size_t M, std::size_t N, std::size_t P> inline matrix<T, P, M> operator*(
-		const matrix<T, N, M> &lhs, const matrix<T, P, N> &rhs
-		) {
+	template <
+		typename T, std::size_t M, std::size_t N, std::size_t P
+	> [[nodiscard]] inline matrix<T, P, M> operator*(const matrix<T, N, M> &lhs, const matrix<T, P, N> &rhs) {
 		matrix<T, P, M> result;
 		for (std::size_t y = 0; y < M; ++y) {
 			for (std::size_t x = 0; x < P; ++x) {
@@ -623,7 +642,7 @@ namespace codepad {
 		return result;
 	}
 	/// Multiplication of 2x2 matrices with \ref vec2 "vec2s".
-	template <typename T> inline vec2<T> operator*(const matrix<T, 2, 2> &lhs, vec2<T> rhs) {
+	template <typename T> [[nodiscard]] inline vec2<T> operator*(const matrix<T, 2, 2> &lhs, vec2<T> rhs) {
 		return vec2<T>(lhs[0][0] * rhs.x + lhs[0][1] * rhs.y, lhs[1][0] * rhs.x + lhs[1][1] * rhs.y);
 	}
 	/// 2x2 matrices whose elements are of type \p float.
