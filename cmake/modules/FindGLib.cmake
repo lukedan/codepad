@@ -34,6 +34,7 @@ if(PKG_CONFIG_FOUND)
 endif()
 
 find_library(GLib_LIBRARY glib-2.0 HINTS ${GLib_PKG_LIBRARY_DIRS})
+find_library(GLib_GOBJECT_LIBRARY gobject-2.0 HINTS ${GLib_PKG_LIBRARY_DIRS})
 set(GLib glib-2.0)
 
 if(GLib_LIBRARY AND NOT GLib_FOUND)
@@ -45,7 +46,7 @@ if(GLib_LIBRARY AND NOT GLib_FOUND)
 		HINTS ${GLib_PKG_INCLUDE_DIRS}
 		PATH_SUFFIXES "glib-2.0")
 
-	get_filename_component(GLib_LIBDIR "${GLib}" DIRECTORY)
+	get_filename_component(GLib_LIBDIR "${GLib_LIBRARY}" DIRECTORY)
 	find_path(GLib_CONFIG_INCLUDE_DIR "glibconfig.h"
 		HINTS
 		${GLib_LIBDIR}

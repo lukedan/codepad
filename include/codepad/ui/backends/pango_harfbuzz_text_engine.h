@@ -14,7 +14,6 @@
 #include <harfbuzz/hb.h>
 
 #include <pango/pango.h>
-#include <pango/pangocairo.h>
 
 #include "codepad/core/logging.h"
 #include "codepad/core/assert.h"
@@ -41,15 +40,7 @@ namespace codepad::ui {
 		protected:
 			/// Adds a reference to the handle if necessary.
 			void _do_add_ref() {
-				if constexpr (std::is_same_v<T, cairo_t>) { // cairo
-					cairo_reference(this->_handle);
-				} else if constexpr (std::is_same_v<T, cairo_surface_t>) {
-					cairo_surface_reference(this->_handle);
-				} else if constexpr (std::is_same_v<T, cairo_pattern_t>) {
-					cairo_pattern_reference(this->_handle);
-				} else if constexpr (std::is_same_v<T, cairo_font_face_t>) {
-					cairo_font_face_reference(this->_handle);
-				} else if constexpr (std::is_same_v<T, PangoAttrList>) { // pango
+				if constexpr (std::is_same_v<T, PangoAttrList>) { // pango
 					pango_attr_list_ref(this->_handle);
 				} else if constexpr (std::is_same_v<T, FcPattern>) { // fontconfig
 					FcPatternReference(this->_handle);
@@ -65,15 +56,7 @@ namespace codepad::ui {
 			}
 			/// Removes a reference to the handle if necessary.
 			void _do_release() {
-				if constexpr (std::is_same_v<T, cairo_t>) { // cairo
-					cairo_destroy(this->_handle);
-				} else if constexpr (std::is_same_v<T, cairo_surface_t>) {
-					cairo_surface_destroy(this->_handle);
-				} else if constexpr (std::is_same_v<T, cairo_pattern_t>) {
-					cairo_pattern_destroy(this->_handle);
-				} else if constexpr (std::is_same_v<T, cairo_font_face_t>) {
-					cairo_font_face_destroy(this->_handle);
-				} else if constexpr (std::is_same_v<T, PangoAttrList>) { // pango
+				if constexpr (std::is_same_v<T, PangoAttrList>) { // pango
 					pango_attr_list_unref(this->_handle);
 				} else if constexpr (std::is_same_v<T, FcPattern>) { // fontconfig
 					FcPatternDestroy(this->_handle);
@@ -535,14 +518,14 @@ namespace codepad::ui {
 		class text_engine {
 			friend font_family_data;
 		public:
-			/// Initializes Fontconfig, Pango, and Freetype.
-			text_engine() {
+			/// Initializes Fontconfig, Pango, and Freetype, using the provided \p PangoFontMap.
+			explicit text_engine(PangoFontMap *font_map) {
 				fontconfig_usage::maybe_initialize();
 
 				_details::ft_check(FT_Init_FreeType(&_freetype));
-				_pango_context.set_give(pango_font_map_create_context(pango_cairo_font_map_get_default()));
+				_pango_context.set_give(pango_font_map_create_context(font_map));
 			}
-			/// Calls \p cairo_debug_reset_static_data() to clean up.
+			/// Calls \ref deinitialize() to clean up if necessary.
 			~text_engine() {
 				deinitialize();
 			}
@@ -552,13 +535,7 @@ namespace codepad::ui {
 			void deinitialize() {
 				if (_pango_context) {
 					_font_cache.clear();
-
-					// although this will replace the font map with a new instance, it will still hopefully free
-					// resources the old one's holding on to. without this pango would still be using some fonts which
-					// will cause the cairo check to fail
-					pango_cairo_font_map_set_default(nullptr);
 					_pango_context.reset();
-
 					_details::ft_check(FT_Done_FreeType(_freetype));
 				}
 			}

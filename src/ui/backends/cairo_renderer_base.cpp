@@ -112,7 +112,7 @@ namespace codepad::ui::cairo {
 		);
 
 		// create context
-		resrt->_context = _details::make_gtk_object_ref_give(cairo_create(resbmp->_surface.get()));
+		resrt->_context = _details::make_cairo_object_ref_give(cairo_create(resbmp->_surface.get()));
 		assert_true_sys(
 			cairo_status(resrt->_context.get()) == CAIRO_STATUS_SUCCESS,
 			"failed to create cairo context"
@@ -176,7 +176,7 @@ namespace codepad::ui::cairo {
 			0, static_cast<FT_F26Dot6>(std::round(64.0 * text._data.get_font_size())), 96 * sx, 96 * sy
 		));
 
-		auto cairo_fnt = _details::make_gtk_object_ref_give(
+		auto cairo_fnt = _details::make_cairo_object_ref_give(
 			cairo_ft_font_face_create_for_ft_face(text._data.get_font(), 0)
 		);
 		cairo_set_font_face(context, cairo_fnt.get());
@@ -209,11 +209,11 @@ namespace codepad::ui::cairo {
 		const ui::generic_brush &brush,
 		const ui::generic_pen &pen
 	) {
-		if (_details::gtk_object_ref<cairo_pattern_t> brush_patt = _create_pattern(brush)) {
+		if (_details::cairo_object_ref<cairo_pattern_t> brush_patt = _create_pattern(brush)) {
 			cairo_set_source(context, brush_patt.get());
 			cairo_fill_preserve(context);
 		}
-		if (_details::gtk_object_ref<cairo_pattern_t> pen_patt = _create_pattern(pen.brush)) {
+		if (_details::cairo_object_ref<cairo_pattern_t> pen_patt = _create_pattern(pen.brush)) {
 			cairo_set_source(context, pen_patt.get());
 			cairo_set_line_width(context, pen.thickness);
 			cairo_stroke_preserve(context);
@@ -223,10 +223,10 @@ namespace codepad::ui::cairo {
 		cairo_set_source_rgb(context, 1.0, 0.4, 0.7);
 	}
 
-	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::cairo_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::solid_color &brush
 	) {
-		return _details::make_gtk_object_ref_give(
+		return _details::make_cairo_object_ref_give(
 			cairo_pattern_create_rgba(
 				brush.color.r, brush.color.g, brush.color.b, brush.color.a
 			));
@@ -240,50 +240,50 @@ namespace codepad::ui::cairo {
 		}
 	}
 
-	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::cairo_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::linear_gradient &brush
 	) {
 		if (brush.gradients) {
-			auto patt = _details::make_gtk_object_ref_give(cairo_pattern_create_linear(
+			auto patt = _details::make_cairo_object_ref_give(cairo_pattern_create_linear(
 				brush.from.x, brush.from.y, brush.to.x, brush.to.y
 			));
 			_add_gradient_stops(patt.get(), *brush.gradients);
 			return patt;
 		}
-		return _details::gtk_object_ref<cairo_pattern_t>();
+		return _details::cairo_object_ref<cairo_pattern_t>();
 	}
 
-	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::cairo_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::radial_gradient &brush
 	) {
 		if (brush.gradients) {
-			auto patt = _details::make_gtk_object_ref_give(cairo_pattern_create_radial(
+			auto patt = _details::make_cairo_object_ref_give(cairo_pattern_create_radial(
 				brush.center.x, brush.center.y, 0.0, brush.center.x, brush.center.y, brush.radius
 			));
 			_add_gradient_stops(patt.get(), *brush.gradients);
 			return patt;
 		}
-		return _details::gtk_object_ref<cairo_pattern_t>();
+		return _details::cairo_object_ref<cairo_pattern_t>();
 	}
 
-	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::cairo_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::bitmap_pattern &brush
 	) {
 		if (brush.image) {
-			return _details::make_gtk_object_ref_give(cairo_pattern_create_for_surface(
+			return _details::make_cairo_object_ref_give(cairo_pattern_create_for_surface(
 				_details::cast_bitmap(*brush.image)._surface.get()
 			));
 		}
-		return _details::gtk_object_ref<cairo_pattern_t>();
+		return _details::cairo_object_ref<cairo_pattern_t>();
 	}
 
-	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::cairo_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const brushes::none&
 	) {
-		return _details::gtk_object_ref<cairo_pattern_t>();
+		return _details::cairo_object_ref<cairo_pattern_t>();
 	}
 
-	_details::gtk_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
+	_details::cairo_object_ref<cairo_pattern_t> renderer_base::_create_pattern(
 		const generic_brush &b
 	) {
 		auto pattern = std::visit([](auto &&brush) {
@@ -296,18 +296,18 @@ namespace codepad::ui::cairo {
 		return pattern;
 	}
 
-	_details::gtk_object_ref<cairo_surface_t> renderer_base::_create_similar_surface(
+	_details::cairo_object_ref<cairo_surface_t> renderer_base::_create_similar_surface(
 		window &wnd, int width, int height
 	) {
-		return _details::make_gtk_object_ref_give(cairo_surface_create_similar(
+		return _details::make_cairo_object_ref_give(cairo_surface_create_similar(
 			_get_window_data_as<_window_data>(wnd).get_surface(), CAIRO_CONTENT_COLOR_ALPHA, width, height
 		));
 	}
 
-	_details::gtk_object_ref<cairo_surface_t> renderer_base::_create_offscreen_surface(
+	_details::cairo_object_ref<cairo_surface_t> renderer_base::_create_offscreen_surface(
 		int width, int height, vec2d scale
 	) {
-		_details::gtk_object_ref<cairo_surface_t> result;
+		_details::cairo_object_ref<cairo_surface_t> result;
 		if (_random_window) {
 			result = _create_similar_surface(*_random_window, width, height);
 		} else {
@@ -315,7 +315,7 @@ namespace codepad::ui::cairo {
 				"no window has been created before creating this offscreen surface: " <<
 				"an image surface has been created which could lead to poor performance" <<
 				logger::stacktrace;
-			result = _details::make_gtk_object_ref_give(cairo_image_surface_create(
+			result = _details::make_cairo_object_ref_give(cairo_image_surface_create(
 				CAIRO_FORMAT_ARGB32, width, height
 			));
 		}

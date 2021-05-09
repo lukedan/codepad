@@ -219,13 +219,14 @@ if(WIN32)
 #			PRIVATE /Bt /d1reportTime /d2cgsummary)
 	endif()
 
-	# finding cairo and dependencies on windows is quite different from finding cairo on linux
-	if(CODEPAD_USE_CAIRO)
+	if(CODEPAD_USE_CAIRO OR CODEPAD_USE_SKIA)
 		find_package(harfbuzz REQUIRED)
-		find_package(unofficial-glib CONFIG REQUIRED)
-		find_package(unofficial-cairo CONFIG REQUIRED)
+		find_package(GLib REQUIRED)
+		
+		add_library(GLib::GLib INTERFACE IMPORTED)
+		target_include_directories(GLib::GLib INTERFACE ${GLib_INCLUDE_DIRS} ${GLib_CONFIG_INCLUDE_DIR})
+		target_link_libraries(GLib::GLib INTERFACE ${GLib_LIBRARY} ${GLib_GOBJECT_LIBRARY})
 
-		# the cairo renderer depends on Pango for text shaping
 		# pango include dir
 		find_path(Pango_INCLUDE_DIR
 			NAMES pango/pango.h
@@ -235,19 +236,34 @@ if(WIN32)
 		find_library(Pango_LIBRARY
 			NAMES pango-1.0
 			PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
-		find_library(PangoCairo_LIBRARY
-			NAMES pangocairo-1.0
+		# pango-win32
+		find_library(PangoWin32_LIBRARY
+			NAMES pangowin32-1.0
 			PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
 		# create target
 		add_library(Pango::Pango INTERFACE IMPORTED)
 		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
-		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
+		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoWin32_LIBRARY})
+		# pango-cairo if necessary
+		if(CODEPAD_USE_CAIRO)
+			find_library(PangoCairo_LIBRARY
+				NAMES pangocairo-1.0
+				PATHS ${Pango_PKGCONF_LIBRARY_DIRS})
+			target_link_libraries(Pango::Pango INTERFACE ${PangoCairo_LIBRARY})
+		endif()
 
-		target_link_libraries(codepad_core
-			PUBLIC
-				unofficial::cairo::cairo unofficial::cairo::cairo-gobject
-				Pango::Pango harfbuzz::harfbuzz
-				unofficial::glib::glib unofficial::glib::gobject)
+		target_link_libraries(codepad_core PUBLIC Pango::Pango harfbuzz::harfbuzz GLib::GLib)
+	endif()
+
+	# finding cairo and dependencies on windows is quite different from finding cairo on linux
+	if(CODEPAD_USE_CAIRO)
+		find_package(Cairo REQUIRED)
+
+		add_library(Cairo::Cairo INTERFACE IMPORTED)
+		target_include_directories(Cairo::Cairo INTERFACE ${CAIRO_INCLUDE_DIRS})
+		target_link_libraries(Cairo::Cairo INTERFACE ${CAIRO_LIBRARIES})
+
+		target_link_libraries(codepad_core PUBLIC Cairo::Cairo)
 	endif()
 
 	if(CODEPAD_USE_SKIA)
@@ -329,8 +345,8 @@ elseif(UNIX)
 else()
 	message(FATAL_ERROR "unrecognized platform")
 endif()
-# cairo libraries that can be found using find_package()
-if (CODEPAD_USE_CAIRO)
+# Freetype and Fontconfig can be found using find_package()
+if (CODEPAD_USE_CAIRO OR CODEPAD_USE_SKIA)
 	find_package(Freetype REQUIRED)
 	find_package(Fontconfig REQUIRED)
 

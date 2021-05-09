@@ -9,6 +9,7 @@
 #include <stack>
 
 #include <cairo.h>
+#include <pango/pangocairo.h>
 
 #include "codepad/core/math.h"
 #include "codepad/ui/renderer.h"
@@ -17,6 +18,63 @@
 
 namespace codepad::ui::cairo {
 	class renderer_base;
+
+	namespace _details {
+		/// Reference-counted handle of a Cairo object.
+		template <typename T> struct cairo_object_ref final :
+			public reference_counted_handle<cairo_object_ref<T>, T*> {
+			friend reference_counted_handle<cairo_object_ref<T>, T*>;
+		public:
+			constexpr static T *empty_handle = nullptr; ///< The empty handle.
+		protected:
+			/// Adds a reference to the handle if necessary.
+			void _do_add_ref() {
+				if constexpr (std::is_same_v<T, cairo_t>) {
+					cairo_reference(this->_handle);
+				} else if constexpr (std::is_same_v<T, cairo_surface_t>) {
+					cairo_surface_reference(this->_handle);
+				} else if constexpr (std::is_same_v<T, cairo_pattern_t>) {
+					cairo_pattern_reference(this->_handle);
+				} else if constexpr (std::is_same_v<T, cairo_font_face_t>) {
+					cairo_font_face_reference(this->_handle);
+				} else {
+					logger::get().log_error(CP_HERE) <<
+						"add ref operation not implemented for " << demangle(typeid(T).name());
+					std::abort();
+				}
+			}
+			/// Removes a reference to the handle if necessary.
+			void _do_release() {
+				if constexpr (std::is_same_v<T, cairo_t>) { // cairo
+					cairo_destroy(this->_handle);
+				} else if constexpr (std::is_same_v<T, cairo_surface_t>) {
+					cairo_surface_destroy(this->_handle);
+				} else if constexpr (std::is_same_v<T, cairo_pattern_t>) {
+					cairo_pattern_destroy(this->_handle);
+				} else if constexpr (std::is_same_v<T, cairo_font_face_t>) {
+					cairo_font_face_destroy(this->_handle);
+				} else {
+					logger::get().log_error(CP_HERE) <<
+						"release operation for not implemented for " << demangle(typeid(T).name());
+					std::abort();
+				}
+			}
+		};
+		/// Creates a new \ref cairo_object_ref, and calls \ref cairo_object_ref::set_share() to share the given
+		/// pointer.
+		template <typename T> inline cairo_object_ref<T> make_cairo_object_ref_share(T *ptr) {
+			cairo_object_ref<T> res;
+			res.set_share(ptr);
+			return res;
+		}
+		/// Creates a new \ref cairo_object_ref, and calls \ref cairo_object_ref::set_give() to give the given
+		/// pointer to it.
+		template <typename T> inline cairo_object_ref<T> make_cairo_object_ref_give(T *ptr) {
+			cairo_object_ref<T> res;
+			res.set_give(ptr);
+			return res;
+		}
+	}
 
 	/// A Cairo surface used as a source.
 	class bitmap : public ui::bitmap {
@@ -28,15 +86,15 @@ namespace codepad::ui::cairo {
 		}
 	protected:
 		vec2d _size; ///< The logical size of this bitmap.
-		_details::gtk_object_ref<cairo_surface_t> _surface; ///< The underlying Cairo surface.
+		_details::cairo_object_ref<cairo_surface_t> _surface; ///< The underlying Cairo surface.
 	};
 
 	/// A Cairo surface used as a render target.
 	class render_target : public ui::render_target {
 		friend renderer_base;
 	protected:
-		// we don't need to store the surface handle as we ca just call cairo_get_target()
-		_details::gtk_object_ref<cairo_t> _context; ///< The cairo context.
+		// we don't need to store the surface handle as we can just call cairo_get_target()
+		_details::cairo_object_ref<cairo_t> _context; ///< The cairo context.
 
 		/// Returns the target surface.
 		cairo_surface_t *_get_target() {
@@ -288,10 +346,17 @@ namespace codepad::ui::cairo {
 	/// \todo Are we using hardware acceleration by implementing it like this? (probably not)
 	class renderer_base : public ui::renderer_base {
 	public:
+		/// Initializes \ref _text_engine using a new font map created by \p pango_cairo_font_map_get_default().
+		renderer_base() : ui::renderer_base(), _text_engine(pango_cairo_font_map_get_default()) {
+		}
 		/// Calls \p cairo_debug_reset_static_data() to clean up.
 		~renderer_base() {
-			// free pango stuff so cairo can be reset without problems
+			// although this will replace the font map with a new instance, it will still hopefully free
+			// resources the old one's holding on to. without this pango would still be using some fonts which
+			// will cause the cairo check to fail
+			pango_cairo_font_map_set_default(nullptr);
 			_text_engine.deinitialize();
+			// check if anything has not been freed yet
 			cairo_debug_reset_static_data();
 		}
 
@@ -462,7 +527,7 @@ namespace codepad::ui::cairo {
 	protected:
 		/// Holds the \p cairo_t associated with a window.
 		struct _window_data {
-			_details::gtk_object_ref<cairo_t> context; ///< The \p cairo_t.
+			_details::cairo_object_ref<cairo_t> context; ///< The \p cairo_t.
 			window
 				*prev = nullptr, ///< Previous window. Forms a loop between all windows.
 				*next = nullptr; ///< Next window. Forms a loop between all windows.
@@ -510,29 +575,29 @@ namespace codepad::ui::cairo {
 		}
 
 		/// Creates a new solid color pattern.
-		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::cairo_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::solid_color&
 		);
 		/// Adds gradient stops to a gradient pattern.
 		static void _add_gradient_stops(cairo_pattern_t*, const gradient_stop_collection&);
 		/// Creates a new linear gradient pattern.
-		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::cairo_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::linear_gradient&
 		);
 		/// Creates a new radial gradient pattern.
-		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::cairo_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::radial_gradient&
 		);
 		/// Creates a new bitmap gradient pattern.
-		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::cairo_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::bitmap_pattern&
 		);
-		/// Returns an empty \ref _details::gtk_object_ref.
-		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		/// Returns an empty \ref _details::cairo_object_ref.
+		[[nodiscard]] static _details::cairo_object_ref<cairo_pattern_t> _create_pattern(
 			const brushes::none&
 		);
 		/// Creates a new \p cairo_pattern_t given the parameters of the brush.
-		[[nodiscard]] static _details::gtk_object_ref<cairo_pattern_t> _create_pattern(
+		[[nodiscard]] static _details::cairo_object_ref<cairo_pattern_t> _create_pattern(
 			const generic_brush&
 		);
 
@@ -540,11 +605,11 @@ namespace codepad::ui::cairo {
 		/// Creates a surface similar to that of the given window. By default this function invokes
 		/// \p cairo_surface_create_similar(), but derived classes can override this to change this behavior. This
 		/// function does not need to handle errors or device scaling.
-		[[nodiscard]] virtual _details::gtk_object_ref<cairo_surface_t> _create_similar_surface(
+		[[nodiscard]] virtual _details::cairo_object_ref<cairo_surface_t> _create_similar_surface(
 			window &wnd, int width, int height
 		);
 		/// Creates a new offscreen surface for use as render targets or bitmap surfaces.
-		[[nodiscard]] _details::gtk_object_ref<cairo_surface_t> _create_offscreen_surface(
+		[[nodiscard]] _details::cairo_object_ref<cairo_surface_t> _create_offscreen_surface(
 			int width, int height, vec2d scale
 		);
 
@@ -564,7 +629,7 @@ namespace codepad::ui::cairo {
 			return bmp._size;
 		}
 		/// Allow children classes to access \ref bitmap::_surface.
-		[[nodiscard]] inline static _details::gtk_object_ref<cairo_surface_t> &_bitmap_surface(bitmap &bmp) {
+		[[nodiscard]] inline static _details::cairo_object_ref<cairo_surface_t> &_bitmap_surface(bitmap &bmp) {
 			return bmp._surface;
 		}
 

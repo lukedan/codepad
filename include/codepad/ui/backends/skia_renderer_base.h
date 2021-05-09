@@ -403,8 +403,8 @@ namespace codepad::ui::skia {
 	/// Base class of the Skia renderer. Contains platform-independent code.
 	class renderer_base : public ui::renderer_base {
 	public:
-		/// Initializes \ref _color_space.
-		renderer_base() : ui::renderer_base() {
+		/// Initializes \ref _color_space and \ref _text_engine.
+		explicit renderer_base(PangoFontMap *font_map) : ui::renderer_base(), _text_engine(font_map) {
 			// TODO this color space causes the image to look washed out
 			_color_space = SkColorSpace::MakeSRGB();
 		}

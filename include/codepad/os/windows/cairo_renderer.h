@@ -6,6 +6,7 @@
 /// \file
 /// Windows implementation of the Cairo renderer.
 
+#include <pango/pangowin32.h>
 #include <cairo-win32.h>
 
 #include "codepad/ui/backends/cairo_renderer_base.h"
@@ -81,14 +82,14 @@ namespace codepad::os {
 		//      (which causes the surface to be re-created), then drag it back, the resulting surface will
 		//      incorrectly have a smaller size
 		/// Creates a cairo context from a newly created Win32 surface.
-		ui::_details::gtk_object_ref<cairo_t> _create_context_for_window(
+		ui::cairo::_details::cairo_object_ref<cairo_t> _create_context_for_window(
 			ui::window &w, vec2d scaling
 		) {
-			auto surface = ui::_details::make_gtk_object_ref_give(cairo_win32_surface_create_with_format(
+			auto surface = ui::cairo::_details::make_cairo_object_ref_give(cairo_win32_surface_create_with_format(
 				GetDC(_details::cast_window_impl(w.get_impl()).get_native_handle()), CAIRO_FORMAT_ARGB32
 			));
 			cairo_surface_set_device_scale(surface.get(), scaling.x, scaling.y);
-			auto result = ui::_details::make_gtk_object_ref_give(cairo_create(surface.get()));
+			auto result = ui::cairo::_details::make_cairo_object_ref_give(cairo_create(surface.get()));
 			return result;
 		}
 

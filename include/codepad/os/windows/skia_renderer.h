@@ -9,6 +9,7 @@
 #include <gl/GL.h>
 
 #include <skia/core/SkSurfaceProps.h>
+#include <pango/pangowin32.h>
 
 #include "codepad/ui/backends/skia_renderer_base.h"
 #include "misc.h"
@@ -17,6 +18,9 @@ namespace codepad::os {
 	/// Base class of the Skia renderer. Contains platform-independent code.
 	class skia_renderer : public ui::skia::renderer_base {
 	public:
+		/// Provides the base renderer with a Win32 Pango font map.
+		skia_renderer() : ui::skia::renderer_base(pango_win32_font_map_for_display()) {
+		}
 		/// Calls \p wglDeleteContext() to free \ref _gl_context.
 		~skia_renderer() {
 			_skia_context.reset();

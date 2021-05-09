@@ -7,25 +7,25 @@
 
 		- Install the following packages:
 			```
-			vcpkg install rapidjson
-			vcpkg install uriparser
-			vcpkg install catch2
+			vcpkg install rapidjson:x64-windows
+			vcpkg install uriparser:x64-windows
+			vcpkg install catch2:x64-windows
 			```
 		- For the Python plugin, install Python and `pybind11`. To install `pybind11` using `vcpkg`:
 			```
-			vcpkg install pybind11
+			vcpkg install pybind11:x64-windows
 			```
 			If CMake has trouble finding the python libraries, set the `PYTHONHOME` environment (or CMake) variable, or remove the line in `CMakeLists.txt` that includes `plugins/python_plugin_host_pybind11/` to skip building the plugin.
 
 		- If you want to build codepad with Cairo support, also install:
 			```
-			vcpkg install fontconfig
-			vcpkg install freetype
-			vcpkg install harfbuzz
-			vcpkg install pango
-			vcpkg install cairo
+			vcpkg install fontconfig:x64-windows
+			vcpkg install freetype:x64-windows
+			vcpkg install harfbuzz:x64-windows
+			vcpkg install pango:x64-windows
+			vcpkg install cairo:x64-windows
 			```
-			The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DCODEPAD_USE_CAIRO=No` while configuring to build without the Cairo backend.
+			The Cairo renderer can suffer from poor compatibility and performance on Windows. Specify `-DCODEPAD_USE_CAIRO=No` while configuring to build without the Cairo backend. `vcpkg` has also updated the CMake interface of these packages a few times - make sure you have the latest version of `vcpkg` and packages.
 
 	- On Ubuntu, install CMake and g++11 (older versions of g++ will **not** work):
 		```
