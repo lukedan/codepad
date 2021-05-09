@@ -67,8 +67,11 @@ target_sources(codepad_core
 		"include/codepad/ui/elements/tabs/tab.h"
 
 		"include/codepad/ui/elements/button.h"
+		"include/codepad/ui/elements/input_prompt.h"
 		"include/codepad/ui/elements/label.h"
+		"include/codepad/ui/elements/list_viewport.h"
 		"include/codepad/ui/elements/popup.h"
+		"include/codepad/ui/elements/reference_container.h"
 		"include/codepad/ui/elements/scroll_viewport.h"
 		"include/codepad/ui/elements/scrollbar.h"
 		"include/codepad/ui/elements/size_limiter.h"

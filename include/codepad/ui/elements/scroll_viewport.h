@@ -17,13 +17,10 @@ namespace codepad::ui {
 	public:
 		/// Returns the desired size of all children as if the available size is infinitely large. This size does not
 		/// include padding.
-		[[nodiscard]] vec2d get_virtual_panel_size() const {
-			_basic_desired_size_accumulator<
-				&element::get_margin_left, &element::get_margin_right, &element::get_width_allocation, &vec2d::x
-			> hori_accum(std::numeric_limits<double>::infinity());
-			_basic_desired_size_accumulator<
-				&element::get_margin_top, &element::get_margin_bottom, &element::get_height_allocation, &vec2d::y
-			> vert_accum(std::numeric_limits<double>::infinity());
+		[[nodiscard]] virtual vec2d get_virtual_panel_size() {
+			panel_desired_size_accumulator
+				hori_accum(std::numeric_limits<double>::infinity(), orientation::horizontal),
+				vert_accum(std::numeric_limits<double>::infinity(), orientation::vertical);
 			for (element *child : _children.items()) {
 				if (child->is_visible(visibility::layout)) {
 					hori_accum.accumulate(*child);
@@ -108,16 +105,20 @@ namespace codepad::ui {
 	class scroll_view : public panel {
 	public:
 		/// Returns the underlying \ref scroll_viewport.
-		const scroll_viewport *get_viewport() const {
+		[[nodiscard]] scroll_viewport *get_viewport() {
+			return _viewport;
+		}
+		/// Returns the underlying \ref scroll_viewport.
+		[[nodiscard]] const scroll_viewport *get_viewport() const {
 			return _viewport;
 		}
 
 		/// Returns \ref _hori_scroll. This may be \p nullptr.
-		const scrollbar *get_horizontal_scrollbar() const {
+		[[nodiscard]] const scrollbar *get_horizontal_scrollbar() const {
 			return _hori_scroll;
 		}
 		/// Returns \ref _vert_scroll. This may be \p nullptr.
-		const scrollbar *get_vertical_scrollbar() const {
+		[[nodiscard]] const scrollbar *get_vertical_scrollbar() const {
 			return _vert_scroll;
 		}
 

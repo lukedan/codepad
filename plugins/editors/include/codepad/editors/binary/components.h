@@ -31,7 +31,7 @@ namespace codepad::editors::binary {
 		static std::u8string _to_hex(std::size_t v, std::size_t len);
 
 		/// Computes the maximum width of all offsets.
-		vec2d _compute_desired_size_impl(vec2d available) const override {
+		vec2d _compute_desired_size_impl(vec2d available) override {
 			std::size_t chars = _get_label_length(_contents_region->get_buffer().length());
 			double maxw = _contents_region->get_font()->get_maximum_character_width_em(
 				reinterpret_cast<const codepoint*>(U"0123456789ABCDEF")

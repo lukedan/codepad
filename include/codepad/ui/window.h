@@ -348,7 +348,7 @@ namespace codepad::ui {
 		// TODO use working area size in the future
 		/// Sets the available size to infinity if the size is managed by the application. Also skips over any child
 		/// windows.
-		vec2d _compute_desired_size_impl(vec2d available) const override;
+		vec2d _compute_desired_size_impl(vec2d available) override;
 		/// Calls \ref window_impl::_update_managed_window_size().
 		void _on_layout_parameters_changed() override {
 			panel::_on_layout_parameters_changed();

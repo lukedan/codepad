@@ -219,14 +219,10 @@ namespace codepad::ui {
 		get_manager().get_scheduler().invalidate_children_layout(*this);
 	}
 
-	vec2d panel::_compute_desired_size_impl(vec2d available) const {
+	vec2d panel::_compute_desired_size_impl(vec2d available) {
 		available -= get_padding().size();
-		_basic_desired_size_accumulator<
-			&element::get_margin_left, &element::get_margin_right, &element::get_width_allocation, &vec2d::x
-		> hori_accum(available.x);
-		_basic_desired_size_accumulator<
-			&element::get_margin_top, &element::get_margin_bottom, &element::get_height_allocation, &vec2d::y
-		> vert_accum(available.y);
+		panel_desired_size_accumulator hori_accum(available.x, orientation::horizontal);
+		panel_desired_size_accumulator vert_accum(available.y, orientation::vertical);
 		for (element *child : _children.items()) {
 			if (child->is_visible(visibility::layout)) {
 				vec2d child_available(hori_accum.get_available(*child), vert_accum.get_available(*child));

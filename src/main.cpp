@@ -30,11 +30,13 @@
 #include "codepad/ui/elements/stack_panel.h"
 #include "codepad/ui/elements/label.h"
 #include "codepad/ui/elements/text_edit.h"
+#include "codepad/ui/elements/list_viewport.h"
 
 using namespace codepad;
 using namespace codepad::os;
 using namespace codepad::ui;
 
+// ui tests
 tabs::tab *make_textbox_test_tab(
 	manager &man,
 	tabs::tab_manager &tabman,
@@ -100,6 +102,25 @@ tabs::tab *make_textbox_test_tab(
 		tab->children().add(*edit);
 	}
 
+	return tab;
+}
+tabs::tab *make_list_view_test_tab(manager &man, tabs::tab_manager &tabman) {
+	auto *elem = dynamic_cast<scroll_view*>(
+		man.create_element(u8"scroll_view", u8"TEST_virtual_list_view")
+	);
+	auto source = std::make_unique<virtual_list_viewport::simple_text_item_source>();
+	for (std::size_t i = 0; i < 100; ++i) {
+		auto index = std::to_string(i);
+		source->items.emplace_back(
+			u8"item " + std::u8string(reinterpret_cast<const char8_t*>(index.c_str()), index.size())
+		);
+	}
+	auto *viewport = dynamic_cast<virtual_list_viewport*>(elem->get_viewport());
+	viewport->replace_source(std::move(source));
+
+	auto *tab = tabman.new_tab();
+	tab->set_label(u8"list_view_test");
+	tab->children().add(*elem);
 	return tab;
 }
 
@@ -226,6 +247,7 @@ int main(int argc, char **argv) {
 
 
 		make_textbox_test_tab(man, tabman);
+		make_list_view_test_tab(man, tabman);
 
 
 		// main loop

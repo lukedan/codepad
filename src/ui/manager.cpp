@@ -12,8 +12,11 @@
 #include "codepad/ui/element.h"
 #include "codepad/ui/panel.h"
 #include "codepad/ui/elements/button.h"
+#include "codepad/ui/elements/input_prompt.h"
 #include "codepad/ui/elements/label.h"
+#include "codepad/ui/elements/list_viewport.h"
 #include "codepad/ui/elements/popup.h"
+#include "codepad/ui/elements/reference_container.h"
 #include "codepad/ui/elements/scroll_viewport.h"
 #include "codepad/ui/elements/size_limiter.h"
 #include "codepad/ui/elements/stack_panel.h"
@@ -76,6 +79,10 @@ namespace codepad::ui {
 					_handle_properties(*elem.elem, elem.class_config->properties);
 				}
 				_handle_properties(*elem.elem, elem.custom_config->properties);
+			}
+			// step 5: call _on_hierarchy_constructed()
+			for (const auto &elem : _created) {
+				elem.elem->_on_hierarchy_constructed();
 			}
 			return root;
 		}
@@ -275,8 +282,10 @@ namespace codepad::ui {
 		register_element_type<panel>();
 		register_element_type<stack_panel>();
 		register_element_type<label>();
+		register_element_type<virtual_list_viewport>();
 		register_element_type<button>();
 		register_element_type<popup>();
+		register_element_type<reference_container>();
 		register_element_type<scrollbar>();
 		register_element_type<scroll_viewport>();
 		register_element_type<scroll_view>();

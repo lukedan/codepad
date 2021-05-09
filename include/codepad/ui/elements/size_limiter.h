@@ -40,7 +40,7 @@ namespace codepad::ui {
 
 		/// Clamps the available size to within the range before computing the desired size in the same way as
 		/// \ref panel, then clamps its results.
-		vec2d _compute_desired_size_impl(vec2d available) const override {
+		vec2d _compute_desired_size_impl(vec2d available) override {
 			available.x = std::clamp(available.x, _min_size.x, _max_size.x);
 			available.y = std::clamp(available.y, _min_size.y, _max_size.y);
 			vec2d result = panel::_compute_desired_size_impl(available);

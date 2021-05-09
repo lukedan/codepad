@@ -542,7 +542,7 @@ namespace codepad::ui {
 
 		/// Computes and returns the desired size of this element given available space. Returns the full size by
 		/// default.
-		[[nodiscard]] virtual vec2d _compute_desired_size_impl(vec2d available) const {
+		[[nodiscard]] virtual vec2d _compute_desired_size_impl(vec2d available) {
 			return available;
 		}
 		/// Called by the element itself when its desired size has changed.
@@ -653,6 +653,11 @@ namespace codepad::ui {
 		/// \return Whether the role is handled.
 		virtual bool _handle_reference(std::u8string_view, element*) {
 			return false; // no references for a basic element; if this is reached then it's unhandled
+		}
+		/// Called as the last step for all elements in a hierarchy created by one call to
+		/// \ref manager::create_element(). This can be useful for, e.g., handling two-level references. By default
+		/// this does nothing.
+		virtual void _on_hierarchy_constructed() {
 		}
 
 		/// Used by elements to check and cast a reference pointer to the correct type, and assign it to the given

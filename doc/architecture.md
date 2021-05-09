@@ -32,6 +32,8 @@
 
 		- Attributes are set for all created elements in no particular order.
 
+		- Finally, `element::_on_hierarchy_constructed()` is called for all created elements in no particular order.
+
 - ## Buffers and Interpretations
 
 	All binary and text editing components are implemented as a plugin in `plugins/editors`.

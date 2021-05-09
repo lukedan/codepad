@@ -127,7 +127,7 @@ namespace codepad::ui {
 
 		/// If wrapping is enabled, computes the text size for the given available size; otherwise just returns the
 		/// current text size.
-		vec2d _compute_desired_size_impl(vec2d available) const override {
+		vec2d _compute_desired_size_impl(vec2d available) override {
 			vec2d text_size;
 			if (get_wrapping_mode() == wrapping_mode::wrap) {
 				text_size = get_manager().get_renderer().create_formatted_text(

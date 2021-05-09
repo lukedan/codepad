@@ -103,6 +103,59 @@ namespace codepad::ui {
 		friend scheduler;
 		friend class_arrangements;
 	public:
+		/// Utility class used for computing desired size for a panel on one orientation.
+		struct panel_desired_size_accumulator {
+			/// Default constructor.
+			panel_desired_size_accumulator() = default;
+			/// Initializes \ref available_size.
+			panel_desired_size_accumulator(double avail, orientation ori) : available_size(avail), orient(ori) {
+			}
+
+			/// Returns the size available for the given child. Calls \ref get_available_size_for_child().
+			[[nodiscard]] double get_available(element &child) const {
+				if (orient == orientation::horizontal) {
+					return get_available_size_for_child(
+						available_size, child.get_margin_left(), child.get_margin_right(),
+						child.get_width_allocation(), child.get_layout_parameters().size.x
+					);
+				} else {
+					return get_available_size_for_child(
+						available_size, child.get_margin_top(), child.get_margin_bottom(),
+						child.get_height_allocation(), child.get_layout_parameters().size.y
+					);
+				}
+			}
+			/// Updates \ref maximum_size using the newly-computed desired size of the given child.
+			void accumulate(element &child) {
+				double pixel_sum = 0.0, prop_sum = 0.0;
+				size_allocation size;
+				double desired_size = 0.0;
+				if (orient == orientation::horizontal) {
+					child.get_margin_left().accumulate_to(pixel_sum, prop_sum);
+					child.get_margin_right().accumulate_to(pixel_sum, prop_sum);
+					size = child.get_layout_width();
+					desired_size = child.get_desired_size().x;
+				} else {
+					child.get_margin_top().accumulate_to(pixel_sum, prop_sum);
+					child.get_margin_bottom().accumulate_to(pixel_sum, prop_sum);
+					size = child.get_layout_height();
+					desired_size = child.get_desired_size().y;
+				}
+				double result_size = pixel_sum;
+				if (size.is_pixels) {
+					result_size += size.value;
+				} else {
+					result_size += desired_size * (size.value + prop_sum) / size.value;
+				}
+				maximum_size = std::max(maximum_size, result_size);
+			}
+
+			double available_size = 0.0; ///< The total available size.
+			double maximum_size = 0.0; ///< Maximum desired size computed from a child.
+			orientation orient = orientation::horizontal; ///< The orientation on which layout is being computed.
+		};
+
+
 		/// If the mouse is over any of its children, then returns the cursor of the children.
 		/// Otherwise just returns element::get_current_display_cursor().
 		cursor get_current_display_cursor() const override;
@@ -169,56 +222,6 @@ namespace codepad::ui {
 			return u8"panel";
 		}
 	protected:
-		/// Utility class used for computing desired size on one orientation. This class assumes that each child
-		/// affects the desired size individually.
-		template <
-			size_allocation (element::*MarginMin)() const,
-			size_allocation (element::*MarginMax)() const,
-			size_allocation_type (element::*SizeType)() const,
-			double (vec2d::*Size)
-		> struct _basic_desired_size_accumulator {
-			/// Default constructor.
-			_basic_desired_size_accumulator() = default;
-			/// Initializes \ref available_size.
-			explicit _basic_desired_size_accumulator(double avail) : available_size(avail) {
-			}
-
-			/// Returns the size available for the given child. Calls \ref get_available_size_for_child().
-			[[nodiscard]] double get_available(element &child) const {
-				return get_available_size_for_child(
-					available_size, (child.*MarginMin)(), (child.*MarginMax)(),
-					(child.*SizeType)(), child.get_layout_parameters().size.*Size
-				);
-			}
-			/// Updates \ref maximum_size using the newly-computed desired size of the given child.
-			void accumulate(element &child) {
-				double pixel_sum = 0.0, prop_sum = 0.0;
-				(child.*MarginMin)().accumulate_to(pixel_sum, prop_sum);
-				(child.*MarginMax)().accumulate_to(pixel_sum, prop_sum);
-				double result_size = pixel_sum;
-				auto alloc_type = (child.*SizeType)();
-				switch (alloc_type) {
-				case size_allocation_type::fixed:
-					result_size += child.get_layout_parameters().size.*Size;
-					break;
-				case size_allocation_type::automatic:
-					result_size += child.get_desired_size().*Size;
-					break;
-				case size_allocation_type::proportion:
-					{
-						double child_prop = child.get_layout_parameters().size.*Size;
-						result_size += child.get_desired_size().*Size * (child_prop + prop_sum) / child_prop;
-					}
-					break;
-				}
-				maximum_size = std::max(maximum_size, result_size);
-			}
-
-			double available_size = 0.0; ///< The total available size.
-			double maximum_size = 0.0; ///< Maximum desired computed from a child.
-		};
-
-
 		/// Calls \ref scheduler::invalidate_children_layout() to mark the layout of all children for updating.
 		void _invalidate_children_layout();
 
@@ -285,7 +288,7 @@ namespace codepad::ui {
 		}
 
 		/// Computes the desired size of all children, and finds the minimum size that can accommodate them.
-		vec2d _compute_desired_size_impl(vec2d) const override;
+		vec2d _compute_desired_size_impl(vec2d) override;
 		/// Called to update the layout of all children. This is called automatically in \ref _on_layout_changed(),
 		/// which in turn can also be explicitly scheduled by using \ref scheduler::notify_layout_change().
 		virtual void _on_update_children_layout() {

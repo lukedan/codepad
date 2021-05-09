@@ -37,7 +37,7 @@ namespace codepad::editors::code {
 		contents_region *_contents_region = nullptr; ///< The \ref contents_region associated with this display.
 
 		/// Computes the desired width of line numbers.
-		vec2d _compute_desired_size_impl(vec2d available) const override {
+		vec2d _compute_desired_size_impl(vec2d available) override {
 			std::size_t num_lines = _contents_region->get_document().num_lines(), digits = 0;
 			for (; num_lines > 0; ++digits, num_lines /= 10) {
 			}

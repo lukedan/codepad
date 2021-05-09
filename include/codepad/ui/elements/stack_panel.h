@@ -159,8 +159,7 @@ namespace codepad::ui {
 		template <
 			size_allocation (element::*StackMarginMin)() const, size_allocation (element::*StackMarginMax)() const,
 			size_allocation_type (element::*StackSizeAlloc)() const, double vec2d::*StackSize,
-			size_allocation (element::*IndepMarginMin)() const, size_allocation (element::*IndepMarginMax)() const,
-			size_allocation_type (element::*IndepSizeAlloc)() const, double vec2d::*IndepSize
+			double vec2d::*IndepSize, orientation IndepOrient
 		> inline static vec2d _compute_stack_panel_desired_size(
 			vec2d available, vec2d padding, const std::list<element*> &children
 		) {
@@ -185,9 +184,7 @@ namespace codepad::ui {
 				}
 			}
 
-			_basic_desired_size_accumulator<
-				IndepMarginMin, IndepMarginMax, IndepSizeAlloc, IndepSize
-			> indep_accum(available.*IndepSize);
+			panel_desired_size_accumulator indep_accum(available.*IndepSize, IndepOrient);
 			// first allocate space to all elements with automatic or pixel size allocation
 			for (element *child : children) {
 				if (child->is_visible(visibility::layout)) {
@@ -238,20 +235,18 @@ namespace codepad::ui {
 			return result + padding;
 		}
 		/// Computes the desired size of this panel based on the desired size of all children.
-		vec2d _compute_desired_size_impl(vec2d available) const override {
+		vec2d _compute_desired_size_impl(vec2d available) override {
 			if (get_orientation() == orientation::horizontal) {
 				return _compute_stack_panel_desired_size<
 					&element::get_margin_left, &element::get_margin_right,
 					&element::get_width_allocation, &vec2d::x,
-					&element::get_margin_top, &element::get_margin_bottom,
-					&element::get_height_allocation, &vec2d::y
+					&vec2d::y, orientation::vertical
 				>(available, get_padding().size(), _children.items());
 			} else {
 				return _compute_stack_panel_desired_size<
 					&element::get_margin_top, &element::get_margin_bottom,
 					&element::get_height_allocation, &vec2d::y,
-					&element::get_margin_left, &element::get_margin_right,
-					&element::get_width_allocation, &vec2d::x
+					&vec2d::x, orientation::horizontal
 				>(available, get_padding().size(), _children.items());
 			}
 		}
