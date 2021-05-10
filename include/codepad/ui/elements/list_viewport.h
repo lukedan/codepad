@@ -70,7 +70,7 @@ namespace codepad::ui {
 				return 0.0;
 			}
 			auto [before, size, after] = _get_item_size();
-			return (before + size + after) * _source->get_item_count();
+			return (before + size + after) * static_cast<double>(_source->get_item_count());
 		}
 		/// Returns the width or height of the virtual panel, depending on the orientation of this list. The returned
 		/// value does not include padding.

@@ -271,6 +271,12 @@ if(WIN32)
 	endif()
 
 	if(CODEPAD_USE_SKIA)
+		if(MSVC)
+			# skia uses std::result_of, but MSVC does not define it under C++20 by default
+			target_compile_definitions(codepad_core
+				PUBLIC _HAS_DEPRECATED_RESULT_OF=1)
+		endif()
+
 		find_package(OpenGL REQUIRED)
 		find_package(skia CONFIG REQUIRED)
 
@@ -345,6 +351,42 @@ elseif(UNIX)
 		target_link_libraries(codepad_core
 			PUBLIC
 				Cairo::Cairo Pango::Pango PkgConfig::harfbuzz)
+	endif()
+
+	# skia stuff - since skia don't provide packages via package managers we need to compile it ourselves
+	if(CODEPAD_USE_SKIA)
+		set(CODEPAD_SKIA_SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty/skia/")
+		set(CODEPAD_SKIA_BUILD_DIR "${CMAKE_BINARY_DIR}/thirdparty/skia/build/")
+		add_custom_command(
+			OUTPUT "${CODEPAD_SKIA_SOURCE_DIR}/bin/gn"
+			COMMAND python2 "tools/git-sync-deps"
+			WORKING_DIRECTORY "${CODEPAD_SKIA_SOURCE_DIR}")
+		add_custom_target(
+			skia_generate
+			DEPENDS "${CODEPAD_SKIA_SOURCE_DIR}/bin/gn"
+			COMMAND bin/gn gen "${CODEPAD_SKIA_BUILD_DIR}" --args='is_official_build=true'
+			WORKING_DIRECTORY  "${CODEPAD_SKIA_SOURCE_DIR}")
+		add_custom_target(
+			skia_build
+			DEPENDS skia_generate
+			COMMAND ninja -C "${CODEPAD_SKIA_BUILD_DIR}"
+			WORKING_DIRECTORY  "${CODEPAD_SKIA_SOURCE_DIR}")
+		add_custom_target(
+			skia_headers
+			COMMAND
+				"${CMAKE_COMMAND}"
+				"-DCODEPAD_SKIA_SOURCE_INCLUDE=${CODEPAD_SKIA_SOURCE_DIR}/include/"
+				"-DCODEPAD_SKIA_BUILD_INCLUDE=${CODEPAD_SKIA_BUILD_DIR}/include/skia/"
+				-P "${CMAKE_SOURCE_DIR}/cmake/copy_skia_headers.cmake")
+		add_library(skia INTERFACE)
+		add_dependencies(skia skia_build skia_headers)
+		target_include_directories(skia
+			INTERFACE "${CODEPAD_SKIA_BUILD_DIR}/include/")
+		target_link_libraries(skia
+			INTERFACE "${CODEPAD_SKIA_BUILD_DIR}/libskia.a")
+
+		target_link_libraries(codepad_core
+			PUBLIC skia)
 	endif()
 else()
 	message(FATAL_ERROR "unrecognized platform")

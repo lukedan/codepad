@@ -37,11 +37,11 @@ namespace codepad::os {
 		}
 
 		/// Creates a similar surface using \p gdk_window_create_similar_surface().
-		ui::_details::gtk_object_ref<cairo_surface_t> _create_similar_surface(
+		ui::cairo::_details::cairo_object_ref<cairo_surface_t> _create_similar_surface(
 			ui::window &wnd, int width, int height
 		) override {
 			auto &wnd_impl = _details::cast_window_impl(wnd.get_impl());
-			return ui::_details::make_gtk_object_ref_give(gdk_window_create_similar_surface(
+			return ui::cairo::_details::make_cairo_object_ref_give(gdk_window_create_similar_surface(
 				gtk_widget_get_window(wnd_impl.get_native_handle()),
 				CAIRO_CONTENT_COLOR_ALPHA, width, height
 			));

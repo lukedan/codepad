@@ -19,3 +19,6 @@
 [submodule "plugins/tree_sitter/languages/tree-sitter-css"]
 	path = plugins/tree_sitter/languages/tree-sitter-css
 	url = https://github.com/tree-sitter/tree-sitter-css.git
+[submodule "thirdparty/skia"]
+	path = thirdparty/skia
+	url = https://github.com/google/skia.git

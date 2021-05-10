@@ -7,16 +7,6 @@
 /// Base class of Skia renderers.
 
 #include <type_traits>
-// HACK skia uses result_of_t which is deprecated in C++20
-namespace std {
-	template <typename> class result_of;
-	template <typename F, typename ...Args> class result_of<F(Args...)> {
-	public:
-		using type = std::invoke_result_t<F, Args...>;
-	};
-	template <typename T> using result_of_t = typename result_of<T>::type;
-}
-
 #include <stack>
 
 #include <skia/core/SkSurface.h>
@@ -25,7 +15,12 @@ namespace std {
 #include <skia/core/SkFont.h>
 #include <skia/core/SkTextBlob.h>
 // TODO use GrDirectContext?
-#include <skia/gpu/GrContext.h>
+#if __has_include(<skia/gpu/GrDirectContext.h>)
+#	define CODEPAD_SKIA_USE_DIRECT_CONTEXT
+#	include <skia/gpu/GrDirectContext.h>
+#else
+#	include <skia/gpu/GrContext.h>
+#endif
 
 #include "codepad/ui/renderer.h"
 #include "codepad/ui/window.h"
@@ -436,14 +431,14 @@ namespace codepad::ui::skia {
 		}
 		/// Finishes drawing. If the previous render target was a window, invokes \ref _start_drawing_to_window().
 		void end_drawing() override {
-			if (_render_stack.top().window) {
+			if (_render_stack.top().wnd) {
 				_render_stack.top().surface->flushAndSubmit();
-				_finish_drawing_to_window(*_render_stack.top().window);
+				_finish_drawing_to_window(*_render_stack.top().wnd);
 			}
 			_render_stack.pop();
 
 			if (!_render_stack.empty()) {
-				if (window *wnd = _render_stack.top().window) {
+				if (window *wnd = _render_stack.top().wnd) {
 					_start_drawing_to_window(*wnd);
 				}
 			}
@@ -650,8 +645,8 @@ namespace codepad::ui::skia {
 		/// Stores information about a render target that's being rendered to.
 		struct _render_target_stackframe {
 			/// Initializes all struct members and invokes \ref update_matrix().
-			_render_target_stackframe(SkSurface *surf, vec2d scale, window *wnd = nullptr) :
-				window(wnd), surface(surf), canvas(surf->getCanvas()),
+			_render_target_stackframe(SkSurface *surf, vec2d scale, window *w = nullptr) :
+				wnd(w), surface(surf), canvas(surf->getCanvas()),
 				scale_matrix(SkMatrix::MakeScale(
 					static_cast<SkScalar>(scale.x), static_cast<SkScalar>(scale.y)
 				)) {
@@ -660,7 +655,7 @@ namespace codepad::ui::skia {
 				update_matrix();
 			}
 
-			window *window = nullptr; ///< A window.
+			window *wnd = nullptr; ///< A window.
 			SkSurface *surface = nullptr; ///< The Skia surface.
 			SkCanvas *canvas = nullptr; ///< The canvas to draw to.
 			/// The stack of matrices. Although \p SkCanvas has a \p save() function which saves its state,
@@ -679,7 +674,11 @@ namespace codepad::ui::skia {
 
 		pango_harfbuzz::text_engine _text_engine; ///< Engine for text layout.
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of render targets.
+#ifdef CODEPAD_SKIA_USE_DIRECT_CONTEXT
+		sk_sp<GrDirectContext> _skia_context; ///< The Skia graphics context.
+#else
 		sk_sp<GrContext> _skia_context; ///< The Skia graphics context.
+#endif
 		sk_sp<SkColorSpace> _color_space; ///< The color space for all colors.
 		path_geometry_builder _path_builder; ///< Used to build paths.
 

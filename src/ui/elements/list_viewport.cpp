@@ -200,7 +200,7 @@ namespace codepad::ui {
 		// layout other elements
 		std::size_t index = _second_element_index;
 		for (++it; it != _children.items().end(); ++it, ++index) {
-			double min_pos = virtual_panel_start + span * index;
+			double min_pos = virtual_panel_start + span * static_cast<double>(index);
 			if (get_orientation() == orientation::horizontal) {
 				_child_set_horizontal_layout(**it, min_pos, min_pos + size);
 				panel::layout_child_vertical(**it, client.ymin, client.ymax);
