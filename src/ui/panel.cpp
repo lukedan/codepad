@@ -278,7 +278,7 @@ namespace codepad::ui {
 				}
 			}
 		}
-		return nullptr;
+		return _hit_test_fallback;
 	}
 
 	void panel::_dispose() {

@@ -184,6 +184,18 @@ namespace codepad::ui {
 			return _children;
 		}
 
+		/// Sets \ref _hit_test_fallback.
+		void set_hit_test_fallback(element *e) {
+			if (e) {
+				assert_true_usage(e->parent() == this, "hit test fallback must be set to a child");
+			}
+			_hit_test_fallback = e;
+		}
+		/// Returns \ref _hit_test_fallback.
+		[[nodiscard]] element *get_hit_test_fallback() const {
+			return _hit_test_fallback;
+		}
+
 
 		/// Calculates the layout of an \ref element on a direction (horizontal or vertical) in a \ref panel
 		/// with the given parameters. If all of \p anchormin, \p pixelsize, and \p anchormax are \p true, all sizes
@@ -220,6 +232,10 @@ namespace codepad::ui {
 		/// Returns the default class of elements of this type.
 		inline static std::u8string_view get_default_class() {
 			return u8"panel";
+		}
+		/// Returns the reference name for \ref _hit_test_fallback.
+		inline static std::u8string_view get_hit_test_fallback_name() {
+			return u8"hit_test_fallback";
 		}
 	protected:
 		/// Calls \ref scheduler::invalidate_children_layout() to mark the layout of all children for updating.
@@ -259,7 +275,10 @@ namespace codepad::ui {
 		/// \ref _on_child_removing for some important notes.
 		///
 		/// \sa _on_child_removing
-		virtual void _on_child_removed(element&) {
+		virtual void _on_child_removed(element &e) {
+			if (&e == _hit_test_fallback) {
+				_hit_test_fallback = nullptr;
+			}
 			_on_desired_size_changed();
 			invalidate_visual();
 		}
@@ -348,6 +367,19 @@ namespace codepad::ui {
 		/// Finds the element with the largest Z-index that is interactive and contains the given point.
 		[[nodiscard]] virtual element *_hit_test_for_child(const mouse_position&) const;
 
+		/// Handles \p hit_test_fallback.
+		bool _handle_reference(std::u8string_view name, element *e) override {
+			if (name == get_hit_test_fallback_name()) {
+				if (e && e->parent() != this) {
+					logger::get().log_error(CP_HERE) << "hit test fallback must be a direct child";
+				} else {
+					_hit_test_fallback = e;
+				}
+				return true;
+			}
+			return element::_handle_reference(name, e);
+		}
+
 		/// For each child, removes it from \ref _children, and marks it for disposal if \ref _dispose_children is
 		/// \p true.
 		void _dispose() override;
@@ -389,6 +421,9 @@ namespace codepad::ui {
 		cursor _children_cursor = cursor::not_specified;
 		/// The child that's focused in this focus scope, if \ref _is_focus_scope is \p true.
 		element *_scope_focus = nullptr;
+		/// If the mouse cursor is within this element but is not over any child, the panel will consider the mouse
+		/// to be over this element. When this is \p nullptr, the behavior is disabled.
+		element *_hit_test_fallback = nullptr;
 		bool
 			/// Indicates whether the panel should mark all children for disposal when disposed.
 			_dispose_children = true,

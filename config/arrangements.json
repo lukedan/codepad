@@ -413,6 +413,54 @@
 					"cursor": "text_beam",
 					"clip_to_bounds": true
 				},
+				"references": {
+					"hit_test_fallback": "text_edit"
+				},
+				"children": [
+					{
+						"type": "text_edit",
+						"class": "text_edit",
+						"name": "text_edit",
+						"properties": {
+							"layout": {
+								"anchor": "lt"
+							},
+							"horizontal_alignment": "front"
+						}
+					}
+				]
+			}
+		]
+	},
+	"single_line_textbox": {
+		"references": {
+			"viewport": "viewport",
+			"text_edit": "text_edit"
+		},
+		"properties": {
+			"layout": {
+				"width": "300px",
+				"height": "100px"
+			}
+		},
+		"children": [
+			{
+				"type": "scroll_viewport",
+				"name": "viewport",
+				"properties": {
+					"visibility": "-f",
+					"layout": {
+						"width": "100%",
+						"height": "100%",
+						"anchor": "ltrb",
+						"padding": 2.0
+					},
+					"cursor": "text_beam",
+					"clip_to_bounds": true
+				},
+				"references": {
+					"hit_test_fallback": "text_edit"
+				},
 				"children": [
 					{
 						"type": "text_edit",

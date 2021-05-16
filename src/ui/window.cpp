@@ -272,7 +272,7 @@ namespace codepad::ui {
 				}
 			}
 		}
-		return nullptr;
+		return _hit_test_fallback;
 	}
 
 	void window::_on_update_children_layout() {
