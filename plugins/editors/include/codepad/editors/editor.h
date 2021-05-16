@@ -228,8 +228,15 @@ namespace codepad::editors {
 
 		/// Scrolls the viewport of the \ref editor.
 		void _on_mouse_scroll(ui::mouse_scroll_info &info) override {
+			// first let the element below the mouse cursor handle it (what ui::panel does)
+			if (element *mouseover = _hit_test_for_child(info.position)) {
+				_child_on_mouse_scroll(*mouseover, info);
+			}
+			// then handle the residual
 			_vert_scroll->handle_scroll_event(info, _contents->get_vertical_scroll_delta());
 			_hori_scroll->handle_scroll_event(info, _contents->get_horizontal_scroll_delta());
+			// finally call base implementation (but skip ui::panel)
+			element::_on_mouse_scroll(info);
 		}
 		/// Invokes \ref contents_region_base::on_text_input().
 		void _on_keyboard_text(ui::text_info &info) override {

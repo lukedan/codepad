@@ -142,6 +142,11 @@
 			{
 				"gestures": "enter",
 				"action": "contents_region.insert_new_line"
+			},
+
+			{
+				"gestures": "ctrl+f",
+				"action": "code_contents_region.search"
 			}
 		]
 	},

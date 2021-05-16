@@ -667,9 +667,11 @@ namespace codepad::ui {
 		template <typename DesiredType> inline static bool _reference_cast_to(DesiredType *&target, element *value) {
 			target = dynamic_cast<DesiredType*>(value);
 			if (target == nullptr) {
-				logger::get().log_error(CP_HERE) <<
-					"incorrect reference type, need " << demangle(typeid(DesiredType).name()) <<
-					", found " << demangle(typeid(*value).name());
+				auto entry = logger::get().log_error(CP_HERE);
+				entry << "incorrect reference type, need " << demangle(typeid(DesiredType).name());
+				if (value) {
+					entry << ", found " << demangle(typeid(*value).name());
+				}
 				return false;
 			}
 			return true;

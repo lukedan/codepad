@@ -12,6 +12,7 @@
 #include "codepad/editors/editor.h"
 #include "codepad/editors/manager.h"
 #include "codepad/editors/code/contents_region.h"
+#include "codepad/editors/code/search_panel.h"
 #include "codepad/editors/binary/contents_region.h"
 
 namespace codepad::editors::_details {
@@ -81,7 +82,7 @@ namespace codepad::editors::_details {
 			}
 		}
 	}
-	std::list<ui::command_registry::stub> get_builtin_commands() {
+	std::list<ui::command_registry::stub> get_builtin_commands(const plugin_context &plug_ctx) {
 		std::list<ui::command_registry::stub> result;
 
 		result.emplace_back(
@@ -224,6 +225,18 @@ namespace codepad::editors::_details {
 			ui::command_registry::convert_type<editor>(
 				[](editor &e, const json::value_storage&) {
 					code::contents_region::get_from_editor(e)->try_redo();
+				}
+				)
+		);
+
+
+		result.emplace_back(
+			u8"code_contents_region.search",
+			ui::command_registry::convert_type<editor>(
+				[&](editor &e, const json::value_storage&) {
+					auto *pnl = plug_ctx.ui_man->create_element<code::search_panel>();
+					pnl->set_contents_region(*code::contents_region::get_from_editor(e));
+					e.children().add(*pnl);
 				}
 				)
 		);

@@ -414,6 +414,10 @@ namespace codepad::ui {
 		inline static void _child_on_render(element &e) {
 			e._on_render();
 		}
+		/// Calls \ref element::_on_render on a given child.
+		inline static void _child_on_mouse_scroll(element &e, mouse_scroll_info &info) {
+			e._on_mouse_scroll(info);
+		}
 
 
 		element_collection _children{ *this }; ///< The collection of its children.

@@ -88,8 +88,8 @@ namespace codepad::editors::code {
 			return at_stall && (caret.caret_offset == caret.selection_length || !data.after_stall);
 		}
 
-		/// Handles a single caret. The return values of the \p handle_fragment() methods return \p false if this
-		/// caret has ended.
+		/// Handles a single caret. The \p handle_fragment() methods return \p false if the caret handled by this
+		/// object has ended.
 		struct _single_caret_renderer {
 		public:
 			/// Does nothing when at a \ref no_fragment. Actually, this shouldn't happen.

@@ -15,6 +15,7 @@
 #include "codepad/editors/code/contents_region.h"
 #include "codepad/editors/code/line_number_display.h"
 #include "codepad/editors/code/minimap.h"
+#include "codepad/editors/code/search_panel.h"
 #include "codepad/editors/binary/contents_region.h"
 #include "codepad/editors/binary/components.h"
 #include "details.h"
@@ -49,7 +50,7 @@ extern "C" {
 		_manager->register_builtin_decoration_renderers();
 
 		_commands = cp::ui::command_registry::command_list(_context->ui_man->get_command_registry());
-		_commands.commands = _details::get_builtin_commands();
+		_commands.commands = _details::get_builtin_commands(*_context);
 	}
 
 	PLUGIN_FINALIZE() {
@@ -69,6 +70,7 @@ extern "C" {
 		_context->ui_man->register_element_type<cp::editors::code::contents_region_tooltip>();
 		_context->ui_man->register_element_type<cp::editors::code::line_number_display>();
 		_context->ui_man->register_element_type<cp::editors::code::minimap>();
+		_context->ui_man->register_element_type<cp::editors::code::search_panel>();
 		_context->ui_man->register_element_type<cp::editors::binary::contents_region>();
 		_context->ui_man->register_element_type<cp::editors::binary::primary_offset_display>();
 
@@ -83,6 +85,7 @@ extern "C" {
 		_context->ui_man->unregister_element_type<cp::editors::code::contents_region_tooltip>();
 		_context->ui_man->unregister_element_type<cp::editors::code::line_number_display>();
 		_context->ui_man->unregister_element_type<cp::editors::code::minimap>();
+		_context->ui_man->unregister_element_type<cp::editors::code::search_panel>();
 		_context->ui_man->unregister_element_type<cp::editors::binary::contents_region>();
 		_context->ui_man->unregister_element_type<cp::editors::binary::primary_offset_display>();
 	}

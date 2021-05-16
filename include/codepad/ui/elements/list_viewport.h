@@ -179,5 +179,12 @@ namespace codepad::ui {
 
 		/// Handles the \p orientation and \p item_class properties.
 		property_info _find_property_path(const property_path::component_list&) const override;
+
+
+		/// Clear \ref _source before disposing of children, so that we won't try create new elements.
+		void _dispose() override {
+			_source = nullptr;
+			scroll_viewport::_dispose();
+		}
 	};
 }

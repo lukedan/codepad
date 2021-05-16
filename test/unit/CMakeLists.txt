@@ -6,7 +6,7 @@ target_sources(codepad_test
 
 		"src/text.cpp")
 
-if(CP_PLATFORM_WINDOWS)
+if(WIN32)
 	target_sources(codepad_test
 		PRIVATE
 			"src/direct2d_renderer.cpp")

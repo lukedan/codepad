@@ -26,14 +26,11 @@ void test_kmp_matcher(const std::u8string &str, const std::u8string &patt) {
 	kmp_t matcher(patt);
 	kmp_t::state state;
 	for (auto it = str.begin(); it != str.end(); ++it) {
-		auto [next_it, next_state] = matcher.next_match(it, str.end(), state);
-		if (next_it == str.end()) {
-			break;
+		auto [next_state, match] = matcher.put(*it, state);
+		if (match) {
+			kmp_matches.emplace_back((it - str.begin()) - (patt.size() - 1));
 		}
-		kmp_matches.emplace_back((next_it - str.begin()) - (patt.size() - 1));
-
 		state = next_state;
-		it = next_it;
 	}
 
 	REQUIRE(target_matches == kmp_matches);

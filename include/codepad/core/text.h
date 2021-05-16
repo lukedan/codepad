@@ -27,28 +27,21 @@ namespace codepad {
 			_table = compute_prefix_table(_patt);
 		}
 
-		/// Finds the next match within the specified range and returns the resulting iterator and \ref state. To
-		/// find multiple matches in the same string, the caller needs to manually increment the iterator once
-		/// between calls, and in each iteration pass in the \ref state object returned by the previous iteration.
-		/// 
-		/// \return The returned iterator points to the last character of the matching substring, not the start of
-		///         it. If no matching substring is found, \p end will be returned.
-		template <typename Iter> [[nodiscard]] std::pair<Iter, state> next_match(
-			Iter begin, Iter end, state st
-		) const {
-			for (; begin != end; ++begin) {
-				while (st._prefix_length > 0 && *begin != _patt[st._prefix_length]) {
-					st._prefix_length = _table[st._prefix_length];
-				}
-				if (*begin == _patt[st._prefix_length]) {
-					++st._prefix_length;
-					if (st._prefix_length == _patt.size()) { // found a match
-						st._prefix_length = _table.back();
-						return { begin, st };
-					}
+		/// Processes one character/byte.
+		///
+		/// \return New state, and a bool indicating whether we're at the end of a match.
+		[[nodiscard]] std::pair<state, bool> put(const typename Pattern::value_type &v, state st) {
+			while (st._prefix_length > 0 && v != _patt[st._prefix_length]) {
+				st._prefix_length = _table[st._prefix_length];
+			}
+			if (v == _patt[st._prefix_length]) {
+				++st._prefix_length;
+				if (st._prefix_length == _patt.size()) { // found a match
+					st._prefix_length = _table.back();
+					return { st, true };
 				}
 			}
-			return { end, st };
+			return { st, false };
 		}
 
 		/// Returns \ref _table.

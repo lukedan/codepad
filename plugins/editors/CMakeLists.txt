@@ -15,6 +15,7 @@ target_sources(editors
 		"include/codepad/editors/code/line_number_display.h"
 		"include/codepad/editors/code/linebreak_registry.h"
 		"include/codepad/editors/code/minimap.h"
+		"include/codepad/editors/code/search_panel.h"
 		"include/codepad/editors/code/theme.h"
 		"include/codepad/editors/code/view.h"
 		"include/codepad/editors/code/view_caching.h"
