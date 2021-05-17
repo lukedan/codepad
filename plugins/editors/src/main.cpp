@@ -23,20 +23,23 @@
 namespace cp = ::codepad;
 
 namespace codepad::editors {
-	const cp::plugin_context *_context = nullptr;
-	cp::plugin *_this_plugin = nullptr;
-
-	std::unique_ptr<cp::editors::manager> _manager;
-	ui::command_registry::command_list _commands;
-
 	namespace _details {
+		const cp::plugin_context *_context = nullptr;
+		cp::plugin *_this_plugin = nullptr;
+
+		std::unique_ptr<cp::editors::manager> _manager;
+		ui::command_registry::command_list _commands;
+
+		const cp::plugin_context &get_plugin_context() {
+			return *_context;
+		}
 		manager &get_manager() {
 			return *_manager;
 		}
 	}
 }
 
-using namespace codepad::editors;
+using namespace codepad::editors::_details;
 
 extern "C" {
 	PLUGIN_INITIALIZE(ctx, this_plugin) {
@@ -50,7 +53,7 @@ extern "C" {
 		_manager->register_builtin_decoration_renderers();
 
 		_commands = cp::ui::command_registry::command_list(_context->ui_man->get_command_registry());
-		_commands.commands = _details::get_builtin_commands(*_context);
+		_commands.commands = get_builtin_commands(*_context);
 	}
 
 	PLUGIN_FINALIZE() {

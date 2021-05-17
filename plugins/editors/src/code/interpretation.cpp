@@ -485,7 +485,7 @@ namespace codepad::editors::code {
 		// update theme and decoration providers
 		std::size_t erased_chars = end_char - start_char;
 		_theme_providers.on_modification(start_char, erased_chars, new_content_chars);
-		for (auto &provider : _decorations) {
+		for (auto &provider : _decorations.get_list()) {
 			provider->decorations.on_modification(start_char, erased_chars, new_content_chars);
 		}
 

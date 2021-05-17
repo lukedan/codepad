@@ -17,7 +17,7 @@ namespace codepad::editors::code {
 	public:
 		/// Initializes the list of `current' iterators.
 		decoration_gatherer(
-			const std::list<std::unique_ptr<decoration_provider>> &decos, std::size_t position,
+			const std::vector<decoration_provider*> &decos, std::size_t position,
 			const fragment_assembler &ass
 		) : _providers(decos), _assembler(ass) {
 			_next.resize(_providers.size());
@@ -288,7 +288,7 @@ namespace codepad::editors::code {
 		/// Next-up iterators and positions for all entries in \ref _providers.
 		std::vector<decoration_provider::registry::iterator_position> _next;
 		std::list<_single_decoration_renderer> _active; ///< Active renderers.
-		const std::list<std::unique_ptr<decoration_provider>> &_providers; ///< The set of decorations providers.
+		const std::vector<decoration_provider*> &_providers; ///< The set of decorations providers.
 		const fragment_assembler &_assembler; ///< The associated \ref fragment_assembler.
 	};
 }

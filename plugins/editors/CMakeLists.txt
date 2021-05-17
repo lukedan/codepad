@@ -42,6 +42,7 @@ target_sources(editors
 		"src/code/interpretation.cpp"
 		"src/code/line_number_display.cpp"
 		"src/code/minimap.cpp"
+		"src/code/search_panel.cpp"
 		"src/code/theme.cpp"
 
 		"src/buffer.cpp"

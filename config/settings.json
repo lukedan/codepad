@@ -49,6 +49,11 @@
 			"enumConstant": "#B8D7A3",
 			"macro": "#C586C0",
 			"variable": "#9CDCFE"
+		},
+		"search_result_decoration": {
+			"type": "rounded_decoration_renderer",
+			"fill": "#773800",
+			"stroke": "#0F202D"
 		}
 	},
 

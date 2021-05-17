@@ -61,6 +61,26 @@ namespace codepad::editors::code {
 	class contents_region : public interactive_contents_region_base<caret_set> {
 		friend buffer_manager;
 	public:
+		/// Used by the \ref decoration_provider_list to notify the \ref contents_region of its changes.
+		struct contents_region_ref {
+			/// Initializes \ref region.
+			explicit contents_region_ref(contents_region &rgn) : region(&rgn) {
+			}
+
+			/// Calls \ref _on_content_visual_changed().
+			void on_element_changed() {
+				region->_on_content_visual_changed();
+			}
+			/// Calls \ref _on_content_visual_changed().
+			void on_list_changed() {
+				region->_on_content_visual_changed();
+			}
+
+			contents_region *region = nullptr; ///< 
+		};
+		/// Decoration provider list for per-view decorations.
+		using view_decoration_provider_list = decoration_provider_list<contents_region_ref>;
+
 		/// Returns the \ref buffer associated with \ref _doc.
 		buffer &get_buffer() const override {
 			return _doc->get_buffer();
@@ -554,6 +574,15 @@ namespace codepad::editors::code {
 			return _get_caret_pos_x_at_visual_line(_get_visual_line_of_caret(pos), pos.position);
 		}
 
+		/// Returns \ref _view_decorations.
+		[[nodiscard]] view_decoration_provider_list &get_decoration_providers() {
+			return _view_decorations;
+		}
+		/// Returns \ref _view_decorations.
+		[[nodiscard]] const view_decoration_provider_list &get_decoration_providers() const {
+			return _view_decorations;
+		}
+
 
 		info_event<>
 			/// Invoked when the visual of \ref _doc has changed, e.g., when it is modified, when the
@@ -634,6 +663,9 @@ namespace codepad::editors::code {
 			_lf_geometry; ///< Geometry rendered for a LF line break.
 		view_formatting _fmt; ///< The \ref view_formatting associated with this contents_region.
 		double _view_width = 0.0; ///< The width that word wrap is calculated according to.
+
+		/// Decoration providers for only this view.
+		view_decoration_provider_list _view_decorations{ contents_region_ref(*this) };
 
 		/// Stores data from all tooltip providers used for \ref _tooltip.
 		std::vector<std::unique_ptr<tooltip>> _tooltip_data;

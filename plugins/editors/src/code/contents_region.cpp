@@ -154,6 +154,13 @@ namespace codepad::editors::code {
 	}
 
 	void contents_region::_on_end_modification(interpretation::end_modification_info &info) {
+		// update _view_decorations
+		for (auto &provider : _view_decorations.get_list()) {
+			provider->decorations.on_modification(
+				info.start_character, info.removed_characters, info.inserted_characters
+			);
+		}
+
 		// update _tooltip_position
 		if (_tooltip_position.position > info.start_character) {
 			if (_tooltip_position.position >= info.start_character + info.removed_characters) {
@@ -226,7 +233,19 @@ namespace codepad::editors::code {
 			whitespace_gatherer whitespaces(*used, firstchar, ass);
 
 			// decorations
-			decoration_gatherer deco_gather(get_document().get_decoration_providers(), firstchar, ass);
+			std::vector<decoration_provider*> deco_providers;
+			{
+				auto &interp_decorations = get_document().get_decoration_providers().get_list();
+				auto &view_decorations = get_decoration_providers().get_list();
+				deco_providers.reserve(interp_decorations.size() + view_decorations.size());
+				for (auto &deco : interp_decorations) {
+					deco_providers.emplace_back(deco.get());
+				}
+				for (auto &deco : view_decorations) {
+					deco_providers.emplace_back(deco.get());
+				}
+			}
+			decoration_gatherer deco_gather(deco_providers, firstchar, ass);
 			std::vector<std::pair<decoration_layout, decoration_renderer*>> decorations;
 			deco_gather.render_callback = [&](decoration_layout layout, decoration_renderer *deco_renderer) {
 				decorations.emplace_back(std::move(layout), deco_renderer);

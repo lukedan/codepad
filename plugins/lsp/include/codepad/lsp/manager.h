@@ -75,20 +75,5 @@ namespace codepad::lsp {
 			_hint_decoration; ///< Decoration renderer for hints.
 		const plugin_context &_plugin_context; ///< The \ref plugin_context.
 		editors::manager &_editor_manager; ///< The \ref editors::manager.
-
-
-		/// Wrapper around \ref editors::decoration_renderer::parse_static().
-		[[nodiscard]] inline static settings::retriever_parser<
-			decoration_renderer_ptr
-		>::value_parser _create_decoration_renderer_parser(ui::manager &man, editors::manager &editor_man) {
-			return [&](
-				const std::optional<json::storage::value_t> &val
-			) -> std::shared_ptr<editors::decoration_renderer> {
-				if (val) {
-					return editors::decoration_renderer::parse_static(val.value(), man, editor_man);
-				}
-				return nullptr;
-			};
-		}
 	};
 }

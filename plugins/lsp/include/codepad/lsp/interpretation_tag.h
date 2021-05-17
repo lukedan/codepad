@@ -92,7 +92,7 @@ namespace codepad::lsp {
 			_interp->get_buffer().end_edit -= _end_edit_token;
 			_interp->get_buffer().language_changed -= _langauge_changed_token;
 
-			_interp->remove_decoration_provider(_diagnostic_decoration_token);
+			_interp->get_decoration_providers().remove_provider(_diagnostic_decoration_token);
 			_interp->remove_tooltip_provider(_hover_tooltip_token);
 			_interp->remove_tooltip_provider(_diagnostic_tooltip_token);
 			_interp->get_theme_providers().remove_provider(_theme_token);
@@ -172,7 +172,7 @@ namespace codepad::lsp {
 		info_event<editors::buffer::language_changed_info>::token _langauge_changed_token;
 
 		/// Token for the \ref editors::decoration_provider.
-		editors::code::interpretation::decoration_provider_token _diagnostic_decoration_token;
+		editors::code::interpretation::interpretation_decoration_provider_list::token _diagnostic_decoration_token;
 		editors::code::interpretation::tooltip_provider_token
 			_hover_tooltip_token, ///< Token for the tooltip provider for hover messages such as type information.
 			_diagnostic_tooltip_token; ///< Token for the tooltip provider for diagnostic messages.

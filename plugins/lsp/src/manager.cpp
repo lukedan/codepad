@@ -15,23 +15,22 @@ namespace codepad::lsp {
 		_error_decoration =
 			_plugin_context.ui_man->get_settings().create_retriever_parser<decoration_renderer_ptr>(
 				{ u8"lsp", u8"error_decoration" },
-				_create_decoration_renderer_parser(*_plugin_context.ui_man, editor_man)
+				editors::decoration_renderer::create_setting_parser(*_plugin_context.ui_man, editor_man)
 			);
 		_warning_decoration =
 			_plugin_context.ui_man->get_settings().create_retriever_parser<decoration_renderer_ptr>(
 				{ u8"lsp", u8"warning_decoration" },
-				_create_decoration_renderer_parser(*_plugin_context.ui_man, editor_man)
+				editors::decoration_renderer::create_setting_parser(*_plugin_context.ui_man, editor_man)
 			);
-			
 		_info_decoration =
 			_plugin_context.ui_man->get_settings().create_retriever_parser<decoration_renderer_ptr>(
 				{ u8"lsp", u8"info_decoration" },
-				_create_decoration_renderer_parser(*_plugin_context.ui_man, editor_man)
+				editors::decoration_renderer::create_setting_parser(*_plugin_context.ui_man, editor_man)
 			);
 		_hint_decoration =
 			_plugin_context.ui_man->get_settings().create_retriever_parser<decoration_renderer_ptr>(
 				{ u8"lsp", u8"hint_decoration" },
-				_create_decoration_renderer_parser(*_plugin_context.ui_man, editor_man)
+				editors::decoration_renderer::create_setting_parser(*_plugin_context.ui_man, editor_man)
 			);
 	}
 

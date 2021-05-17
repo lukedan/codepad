@@ -147,7 +147,9 @@ namespace codepad::lsp {
 				_on_language_changed(info);
 			};
 
-		_diagnostic_decoration_token = _interp->add_decoration_provider(std::make_unique<editors::decoration_provider>());
+		_diagnostic_decoration_token = _interp->get_decoration_providers().add_provider(
+			std::make_unique<editors::decoration_provider>()
+		);
 		_hover_tooltip_token = _interp->add_tooltip_provider(std::make_unique<hover_tooltip_provider>(*this));
 		_diagnostic_tooltip_token = _interp->add_tooltip_provider(
 			std::make_unique<diagnostic_tooltip_provider>(*this)

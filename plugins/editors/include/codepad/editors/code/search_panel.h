@@ -24,11 +24,20 @@ namespace codepad::editors::code {
 		/// Sets \ref _contents_region. Also starts the first search.
 		void set_contents_region(contents_region &rgn) {
 			_contents = &rgn;
+			_decoration_token = _contents->get_decoration_providers().add_provider(
+				std::make_unique<decoration_provider>()
+			);
 			_on_input_changed();
 		}
 
+
+		/// Retrieves the setting entry that determines the decorations for search highlight decoration.
+		static settings::retriever_parser<
+			std::shared_ptr<decoration_renderer>
+		> &get_decoration_renderer_setting(settings&);
+
 		/// Returns the name for \ref _result_list.
-		inline static std::u8string_view get_result_list_name() {
+		[[nodiscard]] inline static std::u8string_view get_result_list_name() {
 			return u8"result_list";
 		}
 		/// Returns the default class of elements of this type.
@@ -65,60 +74,17 @@ namespace codepad::editors::code {
 		};
 
 		std::vector<std::size_t> _results; ///< Current results.
+		// TODO unregister decorations when this is closed
+		/// Token for the decoration provider.
+		contents_region::view_decoration_provider_list::token _decoration_token;
+
 		ui::virtual_list_viewport *_result_list = nullptr; ///< The list of results.
 		contents_region *_contents = nullptr; ///< The \ref contents_region associated with this panel.
 
 		/// Updates the search.
-		void _on_input_changed() override {
-			using _codepoint_str = std::basic_string<codepoint>;
+		void _on_input_changed() override;
 
-			_results.clear();
-
-			if (!_input->get_text().empty()) {
-				// decode search string
-				_codepoint_str pattern;
-				for (auto it = _input->get_text().begin(); it != _input->get_text().end(); ) {
-					codepoint cp;
-					if (!encodings::utf8::next_codepoint(it, _input->get_text().end(), cp)) {
-						logger::get().log_error(CP_HERE) << "invalid codepoint in search string: " << cp;
-						cp = encodings::replacement_character;
-					}
-					pattern.push_back(cp);
-				}
-
-				// match
-				auto &doc = _contents->get_document();
-				kmp_matcher<_codepoint_str> matcher(std::move(pattern));
-				kmp_matcher<_codepoint_str>::state st;
-				std::size_t position = 0;
-				auto it = doc.character_at(position);
-				while (!it.codepoint().ended()) {
-					codepoint cp;
-					if (it.is_linebreak()) {
-						cp = U'\n';
-					} else {
-						cp =
-							it.codepoint().is_codepoint_valid() ?
-							it.codepoint().get_codepoint() :
-							encodings::replacement_character;
-					}
-					auto [new_st, match] = matcher.put(cp, st);
-
-					st = new_st;
-					++position;
-					it.next();
-					if (match) {
-						_results.emplace_back(position - pattern.size());
-					}
-				}
-			}
-
-			if (_result_list) {
-				static_cast<_match_result_source*>(_result_list->get_source())->on_items_changed();
-			}
-		}
-
-		/// Initializes 
+		/// Handles \p result_list.
 		bool _handle_reference(std::u8string_view name, element *e) override {
 			if (name == get_result_list_name()) {
 				if (_reference_cast_to(_result_list, e)) {

@@ -550,66 +550,6 @@ namespace codepad::editors::code {
 			codepoint_position_converter _cp2byte;
 		};
 
-		/// Returned by \ref add_decoration_provider(), this can be used to access and unregister the provider.
-		struct decoration_provider_token {
-			friend interpretation;
-		public:
-			/// Used to modify a \ref decoration_provider. Automatically invokes
-			/// \ref interpretation::appearance_changed upon destruction.
-			struct modifier {
-				friend decoration_provider_token;
-			public:
-				/// No copy construction.
-				modifier(const modifier&) = delete;
-				/// Invokes \ref appearance_changed.
-				~modifier() {
-					_tok._interp->appearance_changed.invoke_noret(appearance_change_type::visual_only);
-				}
-
-				/// Used to access the \ref decoration_provider.
-				[[nodiscard]] decoration_provider *operator->() const {
-					return _tok._iter->get();
-				}
-				/// Used to access the \ref decoration_provider.
-				[[nodiscard]] decoration_provider &operator*() const {
-					return **_tok._iter;
-				}
-			protected:
-				const decoration_provider_token &_tok; ///< The token that created this modifier.
-
-				/// Initializes \ref _tok.
-				explicit modifier(const decoration_provider_token &t) : _tok(t) {
-				}
-			};
-
-			/// Default constructor.
-			decoration_provider_token() = default;
-
-			/// Returns a \ref modifier.
-			[[nodiscard]] modifier modify() const {
-				assert_true_usage(!empty(), "attempting to modify decoration_provider through an empty token");
-				return modifier(*this);
-			}
-
-			/// Returns the \ref decoration_provider for reading.
-			[[nodiscard]] const decoration_provider &get_readonly() const {
-				return **_iter;
-			}
-
-			/// Returns whether \ref _interp is empty.
-			[[nodiscard]] bool empty() const {
-				return _interp == nullptr;
-			}
-		protected:
-			using _iter_t = std::list<std::unique_ptr<decoration_provider>>::iterator; ///< Iterator type.
-
-			_iter_t _iter; ///< Iterator to the provider.
-			interpretation *_interp = nullptr; ///< The interpretation that this token affects.
-
-			/// Initializes \ref _iter and \ref _interp.
-			decoration_provider_token(_iter_t it, interpretation &interp) : _iter(it), _interp(&interp) {
-			}
-		};
 
 		/// Returned by \ref add_tooltip_provider(), this can be used to unregister the provider.
 		struct tooltip_provider_token {
@@ -626,6 +566,25 @@ namespace codepad::editors::code {
 			explicit tooltip_provider_token(_iter_t it) : _iter(it) {
 			}
 		};
+
+		/// Used by the \ref decoration_provider_list to notify the \ref interpretation of its changes.
+		struct interpretation_ref {
+			/// Initializes \ref interp.
+			explicit interpretation_ref(interpretation &i) : interp(&i) {
+			}
+
+			/// Invokes \ref appearance_changed with \ref appearance_change_type::visual_only.
+			void on_list_changed() {
+				interp->appearance_changed.invoke_noret(appearance_change_type::visual_only);
+			}
+			/// Invokes \ref appearance_changed with \ref appearance_change_type::visual_only.
+			void on_element_changed() {
+				interp->appearance_changed.invoke_noret(appearance_change_type::visual_only);
+			}
+
+			interpretation *interp = nullptr; ///< The \ref interpretation.
+		};
+		using interpretation_decoration_provider_list = decoration_provider_list<interpretation_ref>;
 
 
 		/// Constructor. Sets up event handlers to reinterpret the buffer when it's changed, and performs the initial
@@ -736,22 +695,13 @@ namespace codepad::editors::code {
 			return _theme_providers;
 		}
 
-		/// Adds a decoration provider to this document and invokes \ref appearance_changed. When the buffer is
-		/// modified, \ref decoration_provider::registry::on_modification() will be called automatically.
-		[[nodiscard]] decoration_provider_token add_decoration_provider(std::unique_ptr<decoration_provider> ptr) {
-			auto iter = _decorations.insert(_decorations.end(), std::move(ptr));
-			appearance_changed.invoke_noret(appearance_change_type::visual_only);
-			return decoration_provider_token(iter, *this);
-		}
 		/// Returns \ref _decorations.
-		[[nodiscard]] const std::list<std::unique_ptr<decoration_provider>> &get_decoration_providers() const {
+		[[nodiscard]] interpretation_decoration_provider_list &get_decoration_providers() {
 			return _decorations;
 		}
-		/// Removes the given provider and invokes \ref appearance_changed. The token will be reset.
-		void remove_decoration_provider(decoration_provider_token &tok) {
-			_decorations.erase(tok._iter);
-			tok._interp = nullptr;
-			appearance_changed.invoke_noret(appearance_change_type::visual_only);
+		/// Returns \ref _decorations.
+		[[nodiscard]] const interpretation_decoration_provider_list &get_decoration_providers() const {
+			return _decorations;
 		}
 
 		/// Adds a tooltip provider to this document.
@@ -859,7 +809,7 @@ namespace codepad::editors::code {
 		linebreak_registry _linebreaks; ///< Records all linebreaks.
 
 		document_theme_provider_registry _theme_providers; ///< Theme providers.
-		std::list<std::unique_ptr<decoration_provider>> _decorations; ///< The list of decoration providers.
+		interpretation_decoration_provider_list _decorations{ interpretation_ref(*this) }; ///< The list of decoration providers.
 		std::list<std::unique_ptr<tooltip_provider>> _tooltip_providers; ///< The list of tooltip providers.
 
 		std::deque<std::any> _tags; ///< Tags associated with this interpretation.

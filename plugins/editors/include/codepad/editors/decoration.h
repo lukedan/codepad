@@ -6,6 +6,7 @@
 /// \file
 /// Classes used to store and render text decoration.
 
+#include <codepad/core/settings.h>
 #include <codepad/ui/renderer.h>
 #include <codepad/ui/element_parameters.h>
 
@@ -46,26 +47,20 @@ namespace codepad::editors {
 		[[nodiscard]] static std::shared_ptr<decoration_renderer> parse_static(
 			const json::storage::value_t&, ui::manager&, manager&
 		);
-	};
 
-	/// A source of text decoration that handles the rendering of the decorations, as well as querying information
-	/// about any specific decoration object.
-	class decoration_provider {
-	public:
-		/// Data associated with a decoration.
-		struct decoration_data {
-			decoration_renderer *renderer = nullptr; ///< The renderer used for rendering this decoration.
-			/// A cookie used to identify this decoration and provide additional information.
-			std::int32_t cookie = 0;
-		};
-		/// The registry type that stores all decorations.
-		using registry = overlapping_range_registry<decoration_data>;
-
-		registry decorations; ///< Stores all decorations.
-		/// Renderers. This does not necessarily contain any elements, and is only here for the purpose of ensuring
-		/// that the renderers outlive the contents of this provider. Specifically, this will only be read or written
-		/// to by the creator of this provider.
-		std::vector<std::shared_ptr<decoration_renderer>> renderers;
+		/// Wrapper around \ref editors::decoration_renderer::parse_static().
+		[[nodiscard]] inline static settings::retriever_parser<
+			std::shared_ptr<decoration_renderer>
+		>::value_parser create_setting_parser(ui::manager &man, manager &editor_man) {
+			return [&](
+				std::optional<json::storage::value_t> val
+			) -> std::shared_ptr<decoration_renderer> {
+				if (val) {
+					return editors::decoration_renderer::parse_static(val.value(), man, editor_man);
+				}
+				return nullptr;
+			};
+		}
 	};
 
 
@@ -113,6 +108,126 @@ namespace codepad::editors {
 				offset = 3.0, ///< The offset of the center of the lines with respect to the baseline.
 				width = 3.0; ///< The width of a single squiggle.
 		};
+	}
+
+
+	/// A source of text decoration that handles the rendering of the decorations, as well as querying information
+	/// about any specific decoration object.
+	class decoration_provider {
+	public:
+		/// Data associated with a decoration.
+		struct decoration_data {
+			decoration_renderer *renderer = nullptr; ///< The renderer used for rendering this decoration.
+			/// A cookie used to identify this decoration and provide additional information.
+			std::int32_t cookie = 0;
+		};
+		/// The registry type that stores all decorations.
+		using registry = overlapping_range_registry<decoration_data>;
+
+		registry decorations; ///< Stores all decorations.
+		/// Renderers. This does not necessarily contain any elements, and is only here for the purpose of ensuring
+		/// that the renderers outlive the contents of this provider. Specifically, this will only be read or written
+		/// to by the creator of this provider.
+		std::vector<std::shared_ptr<decoration_renderer>> renderers;
+	};
+
+	/// A list of \ref decoration_provider that supports adding and removing via tokens, and modification via
+	/// modifiers. Each list contains one object of type \p Owner (the template parameter), which is used to notify
+	/// the owner when this list has been modified or when a single provider has been modified.
+	template <
+		typename Owner, typename ProviderPtr = std::unique_ptr<decoration_provider>
+	> class decoration_provider_list {
+	public:
+		struct modifier;
+		/// A token for a registered decoration provider.
+		struct token {
+			friend decoration_provider_list;
+		public:
+			/// Default constructor.
+			token() = default;
+
+			/// Returns a \ref modifier for the referenced provider.
+			[[nodiscard]] modifier modify();
+			/// Returns the associated \ref decoration_provider.
+			[[nodiscard]] const decoration_provider &get_readonly() const {
+				return **_iter;
+			}
+
+			/// Returns \p false if this token is valid and contains a reference to a provider.
+			[[nodiscard]] bool empty() const {
+				return _list == nullptr;
+			}
+			/// Returns whether this token is non-empty.
+			[[nodiscard]] explicit operator bool() const {
+				return !empty();
+			}
+		protected:
+			std::list<ProviderPtr>::const_iterator _iter; ///< Iterator to the provider.
+			decoration_provider_list *_list = nullptr; /// The list that created this token.
+
+			/// Initializes all fields of this struct.
+			token(std::list<ProviderPtr>::const_iterator it, decoration_provider_list &list) :
+				_iter(it), _list(&list) {
+			}
+		};
+		/// Used to modify a \ref decoration_provider via a \ref token.
+		struct modifier {
+			friend token;
+		public:
+			/// No copy construction.
+			modifier(const modifier&) = delete;
+			/// Invokes \p Owner::on_element_changed().
+			~modifier() {
+				_tok._list->_owner.on_element_changed();
+			}
+
+			/// Used to access the \ref decoration_provider.
+			[[nodiscard]] decoration_provider *operator->() const {
+				return &**_tok._iter;
+			}
+			/// Used to access the \ref decoration_provider.
+			[[nodiscard]] decoration_provider &operator*() const {
+				return **_tok._iter;
+			}
+		protected:
+			const token &_tok; ///< The token that created this modifier.
+
+			/// Initializes \ref _tok.
+			explicit modifier(const token &t) : _tok(t) {
+			}
+		};
+
+
+		/// Initializes \ref _owner.
+		explicit decoration_provider_list(Owner owner) : _owner(std::move(owner)) {
+		}
+
+		/// Adds a new provider to this list, and calls \p Owner::on_list_changed().
+		token add_provider(ProviderPtr provider) {
+			auto iter = _list.insert(_list.end(), std::move(provider));
+			_owner.on_list_changed();
+			return token(iter, *this);
+		}
+		/// Removes the provider from this list, and calls \p Owner::on_list_changed().
+		void remove_provider(token &tok) {
+			_list.erase(tok._iter);
+			_owner.on_list_changed();
+			tok = token();
+		}
+
+		/// Returns \ref _list.
+		[[nodiscard]] const std::list<ProviderPtr> &get_list() const {
+			return _list;
+		}
+	protected:
+		std::list<ProviderPtr> _list; ///< The list of providers.
+		Owner _owner; ///< The owner of this list.
+	};
+	template <
+		typename Owner, typename ProviderPtr
+	> decoration_provider_list<Owner, ProviderPtr>::modifier
+		decoration_provider_list<Owner, ProviderPtr>::token::modify() {
+		return modifier(*this);
 	}
 
 

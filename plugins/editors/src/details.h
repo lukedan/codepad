@@ -13,6 +13,8 @@
 namespace codepad::editors::_details {
 	/// Returns the manager.
 	[[nodiscard]] manager &get_manager();
+	/// Returns the context of this plugin.
+	[[nodiscard]] const plugin_context &get_plugin_context();
 
 	/// Returns the list of built-in commands.
 	[[nodiscard]] std::list<ui::command_registry::stub> get_builtin_commands(const plugin_context&);
