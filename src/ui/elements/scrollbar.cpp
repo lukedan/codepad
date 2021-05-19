@@ -11,11 +11,8 @@
 
 namespace codepad::ui {
 	void scrollbar::set_params(double tot, double vis) {
-		if (vis > tot) {
-			vis = tot;
-		}
-		_total_range = tot;
-		_visible_range = vis;
+		_total_range = std::max(tot, 0.0);
+		_visible_range = std::clamp(vis, 0.0, _total_range);
 		// _on_target_value_changed is NOT called here; it only starts smooth scrolling which we don't need here
 		_target_value = _clamp_value(get_target_value());
 		_smooth_begin_pos = _clamp_value(_smooth_begin_pos);
@@ -39,9 +36,9 @@ namespace codepad::ui {
 		double
 			totsize = max - min,
 			btnlen = totsize * _visible_range / _total_range;
-		_drag_button_extended = btnlen < get_minimum_drag_button_length();
+		_drag_button_extended = btnlen < get_minimum_drag_button_length() && _total_range < _visible_range;
 		if (_drag_button_extended) {
-			btnlen = get_minimum_drag_button_length();
+			btnlen = std::min(get_minimum_drag_button_length(), 0.5 * totsize);
 			double percentage = get_actual_value() / (_total_range - _visible_range);
 			mid1 = min + (totsize - btnlen) * percentage;
 			mid2 = mid1 + btnlen;
@@ -49,6 +46,10 @@ namespace codepad::ui {
 			double ratio = totsize / _total_range;
 			mid1 = min + ratio * get_actual_value();
 			mid2 = mid1 + ratio * _visible_range;
+		}
+		if (_total_range == 0.0) { // attempt to get rid of NaNs
+			mid1 = min;
+			mid2 = max;
 		}
 		if (get_orientation() == orientation::vertical) {
 			panel::layout_child_horizontal(*_drag, cln.xmin, cln.xmax);
