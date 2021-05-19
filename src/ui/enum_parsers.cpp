@@ -77,6 +77,8 @@ namespace codepad {
 			return ui::key::end;
 		} else if (str == u8"enter") {
 			return ui::key::enter;
+		} else if (str == u8"esc") {
+			return ui::key::escape;
 		}
 		return std::nullopt;
 	}

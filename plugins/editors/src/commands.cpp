@@ -240,6 +240,14 @@ namespace codepad::editors::_details {
 				}
 				)
 		);
+		result.emplace_back(
+			u8"code_search_panel.close",
+			ui::command_registry::convert_type<code::search_panel>(
+				[&](code::search_panel &p, const json::value_storage&) {
+					p.on_close();
+				}
+				)
+		);
 
 
 		// TODO options to not use the default encoding

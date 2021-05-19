@@ -91,17 +91,6 @@ namespace codepad::ui {
 			[[nodiscard]] bool is_weak() const {
 				return std::holds_alternative<std::weak_ptr<Task>>(_task);
 			}
-			/// Returns whether this token is associated with a task.
-			[[nodiscard]] bool empty() const {
-				if (std::holds_alternative<std::shared_ptr<Task>>(_task)) {
-					return std::get<std::shared_ptr<Task>>(_task) == nullptr;
-				}
-				return false;
-			}
-			/// Returns whether this token is non-empty.
-			[[nodiscard]] explicit operator bool() const {
-				return !empty();
-			}
 		protected:
 			/// Reference to the task. If this contains an empty \p std::shared_ptr, then this token is considered
 			/// empty. Otherwise this token must contain a valid reference to a task that may or may not have been

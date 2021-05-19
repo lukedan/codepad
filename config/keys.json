@@ -261,5 +261,12 @@
 			"gestures": "delete",
 			"action": "text_edit.delete_after"
 		}
+	],
+
+	"search_panel": [
+		{
+			"gestures": "esc",
+			"action": "code_search_panel.close"
+		}
 	]
 }

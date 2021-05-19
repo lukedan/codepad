@@ -319,6 +319,16 @@
 						}
 					}
 				]
+			}
+		}
+	},
+	"textbox": {
+		"properties": {
+			"visibility": "-f",
+			"layout": {
+				"width": "300px",
+				"height": "100px",
+				"padding": 1
 			},
 			"visuals": {
 				"geometries": [
@@ -338,34 +348,26 @@
 			}
 		},
 		"animations": {
-			"got_focus": {
+			"text_edit.got_focus": {
 				"visuals.geometries[0].stroke.(solid_color_brush.color)": {
 					"to": "#4488FF",
 					"duration": 0.1,
 					"transition": "linear"
 				}
 			},
-			"lost_focus": {
+			"text_edit.lost_focus": {
 				"visuals.geometries[0].stroke.(solid_color_brush.color)": {
 					"to": "#444444",
 					"duration": 0.1,
 					"transition": "linear"
 				}
 			}
-		}
-	},
-	"textbox": {
+		},
 		"references": {
 			"vertical_scrollbar": "vertical_scrollbar",
 			"horizontal_scrollbar": "horizontal_scrollbar",
 			"viewport": "viewport",
 			"text_edit": "text_edit"
-		},
-		"properties": {
-			"layout": {
-				"width": "300px",
-				"height": "100px"
-			}
 		},
 		"children": [
 			{
@@ -433,15 +435,48 @@
 		]
 	},
 	"single_line_textbox": {
-		"references": {
-			"viewport": "viewport",
-			"text_edit": "text_edit"
-		},
 		"properties": {
+			"visibility": "-f",
 			"layout": {
 				"width": "300px",
 				"height": "100px"
+			},
+			"visuals": {
+				"geometries": [
+					{
+						"type": "rectangle",
+						"top_left": [
+							[ 0.0, 0.0 ],
+							[ 0.0, 0.0 ]
+						],
+						"bottom_right": [
+							[ 1.0, 1.0 ],
+							[ 0.0, 0.0 ]
+						],
+						"stroke": "#444444"
+					}
+				]
 			}
+		},
+		"animations": {
+			"text_edit.got_focus": {
+				"visuals.geometries[0].stroke.(solid_color_brush.color)": {
+					"to": "#4488FF",
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			},
+			"text_edit.lost_focus": {
+				"visuals.geometries[0].stroke.(solid_color_brush.color)": {
+					"to": "#444444",
+					"duration": 0.1,
+					"transition": "linear"
+				}
+			}
+		},
+		"references": {
+			"viewport": "viewport",
+			"text_edit": "text_edit"
 		},
 		"children": [
 			{
@@ -1978,7 +2013,12 @@
 			{
 				"type": "label",
 				"class": "label",
-				"name": "text"
+				"name": "text",
+				"properties": {
+					"layout": {
+						"width": "100%"
+					}
+				}
 			}
 		]
 	},

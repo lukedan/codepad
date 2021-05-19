@@ -143,7 +143,7 @@ namespace codepad::ui {
 			/// Attempts to cancel the callback. Regardless of whether this function is able to cancel the callback,
 			/// this token will be reset.
 			///
-			/// \return Whether it was successfully cancelled.
+			/// \return Whether the callback was cancelled. If \p false, the callback had already been executed.
 			bool cancel();
 
 			/// Tests whether this token is empty.
