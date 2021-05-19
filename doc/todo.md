@@ -6,11 +6,11 @@ Items in this list are not sorted by any specific order.
 	- [ ] OS specific
 		- [ ] Pipes
 			- [x] _Windows_
-			- [ ] Linux
+			- [x] _Linux_
 			- [ ] MacOS
 		- [ ] Subprocesses
 			- [x] _Windows_
-			- [ ] Linux
+			- [x] _Linux_
 			- [ ] MacOS
 		- [ ] Filesystem watchers
 			- [ ] Windows
@@ -59,8 +59,8 @@ Items in this list are not sorted by any specific order.
 		- [x] _Popups_
 		- [x] _Size limiter_
 		- [ ] Sublime-style input prompt
-			- [ ] Reference container
-			- [ ] Virtualized listbox
+			- [x] _Reference container_
+			- [x] _Virtualized listbox_
 			- [ ] Fuzzy searcing
 		- [ ] Tabs
 			- [x] _Base implementation_
@@ -85,8 +85,9 @@ Items in this list are not sorted by any specific order.
 	- [ ] Folding providers
 	- [x] _Parsing of decoration renderers_
 	- [ ] Search & replace
-		- [ ] Plain text
+		- [x] _Plain text_
 		- [ ] Regular expression
+	- [ ] Code view
 	- [ ] Go to anything
 	- [ ] Relative mode(s) for line number display
 - [ ] Tree-sitter plugin
