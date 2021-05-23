@@ -12,11 +12,13 @@
 
 namespace codepad::os {
 	class cairo_renderer;
+	class skia_renderer;
 
 	/// Implementation of GTK-based windows.
 	class window_impl : public ui::_details::window_impl {
 		friend ui::element;
 		friend cairo_renderer;
+		friend skia_renderer;
 	public:
 		using native_handle_t = GtkWidget*;
 

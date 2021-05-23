@@ -14,13 +14,7 @@
 #include <skia/core/SkTypeface.h>
 #include <skia/core/SkFont.h>
 #include <skia/core/SkTextBlob.h>
-// TODO use GrDirectContext?
-#if __has_include(<skia/gpu/GrDirectContext.h>)
-#	define CODEPAD_SKIA_USE_DIRECT_CONTEXT
-#	include <skia/gpu/GrDirectContext.h>
-#else
-#	include <skia/gpu/GrContext.h>
-#endif
+#include <skia/gpu/GrDirectContext.h>
 
 #include "codepad/ui/renderer.h"
 #include "codepad/ui/window.h"
@@ -389,12 +383,6 @@ namespace codepad::ui::skia {
 	}
 
 
-	// TODO known bugs:
-	//      - minimap is not displaying at all
-	//      - color space issue
-	//      - the surfaces do not seem to be flushed correctly (visible during animations)
-	//      - border rectangles of the drag destination boxes are not visible (???)
-	//      - font size animations are not working (?????)
 	/// Base class of the Skia renderer. Contains platform-independent code.
 	class renderer_base : public ui::renderer_base {
 	public:
@@ -424,9 +412,7 @@ namespace codepad::ui::skia {
 		}
 		/// Starts drawing to the given \ref window and invokes \ref _start_drawing_to_window().
 		void begin_drawing(window &wnd) override {
-			_render_stack.emplace(
-				_get_window_data_as<_window_data>(wnd).surface.get(), wnd.get_scaling_factor(), &wnd
-			);
+			_render_stack.emplace(_get_surface_for_window(wnd), wnd.get_scaling_factor(), &wnd);
 			_start_drawing_to_window(wnd);
 		}
 		/// Finishes drawing. If the previous render target was a window, invokes \ref _start_drawing_to_window().
@@ -638,18 +624,12 @@ namespace codepad::ui::skia {
 		/// Renders the given fragment of text.
 		void draw_plain_text(const ui::plain_text&, vec2d, colord) override;
 	protected:
-		/// Skia data associated with a \ref window.
-		struct _window_data {
-			sk_sp<SkSurface> surface; ///< The Skia surface.
-		};
 		/// Stores information about a render target that's being rendered to.
 		struct _render_target_stackframe {
 			/// Initializes all struct members and invokes \ref update_matrix().
 			_render_target_stackframe(SkSurface *surf, vec2d scale, window *w = nullptr) :
 				wnd(w), surface(surf), canvas(surf->getCanvas()),
-				scale_matrix(SkMatrix::MakeScale(
-					static_cast<SkScalar>(scale.x), static_cast<SkScalar>(scale.y)
-				)) {
+				scale_matrix(SkMatrix::Scale(static_cast<SkScalar>(scale.x), static_cast<SkScalar>(scale.y))) {
 
 				matrices.emplace();
 				update_matrix();
@@ -674,11 +654,7 @@ namespace codepad::ui::skia {
 
 		pango_harfbuzz::text_engine _text_engine; ///< Engine for text layout.
 		std::stack<_render_target_stackframe> _render_stack; ///< The stack of render targets.
-#ifdef CODEPAD_SKIA_USE_DIRECT_CONTEXT
 		sk_sp<GrDirectContext> _skia_context; ///< The Skia graphics context.
-#else
-		sk_sp<GrContext> _skia_context; ///< The Skia graphics context.
-#endif
 		sk_sp<SkColorSpace> _color_space; ///< The color space for all colors.
 		path_geometry_builder _path_builder; ///< Used to build paths.
 
@@ -699,6 +675,12 @@ namespace codepad::ui::skia {
 		[[nodiscard]] std::optional<SkPaint> _create_paint(const generic_pen&);
 
 
+		// TODO use proper pixel size for the size of the surface
+		/// Creates a surface for the given window. This is mainly used by derived classes to handle window events.
+		[[nodiscard]] sk_sp<SkSurface> _create_surface_for_window(ui::window &wnd, vec2d scaling);
+
+		/// Returns the surface associated with the given window.
+		[[nodiscard]] virtual SkSurface *_get_surface_for_window(ui::window&) const = 0;
 		/// Called to start drawing to a window in a platform-specific way.
 		virtual void _start_drawing_to_window(window&) = 0;
 		/// Called to finalize drawing to a window in a platform-specific way.

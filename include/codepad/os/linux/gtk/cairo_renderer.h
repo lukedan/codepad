@@ -15,7 +15,7 @@ namespace codepad::os {
 			return nullptr;
 		}
 
-		/// Pushes the new context onto the stack, using \ref window::_cairo_context.
+		/// Pushes the new context onto the stack, using \ref _window_data::context.
 		void begin_drawing(ui::window &wnd) override {
 			auto *context = _get_window_data_as<_window_data>(wnd).context.get();
 			assert_true_usage(context != nullptr, "manually beginning drawing to windows is not allowed");
@@ -27,7 +27,7 @@ namespace codepad::os {
 		inline static gboolean _on_draw_event(GtkWidget*, cairo_t *cr, ui::window *wnd) {
 			auto &data = _get_window_data_as<_window_data>(*wnd);
 			data.context.set_share(cr);
-			dynamic_cast<window_impl*>(&wnd->get_impl())->_on_render();
+			_details::cast_window_impl(wnd->get_impl())._on_render();
 			data.context.reset();
 			return true;
 		}

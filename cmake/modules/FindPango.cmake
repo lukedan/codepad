@@ -37,6 +37,8 @@ if(PKG_CONFIG_FOUND)
 endif()
 
 find_library(Pango_LIBRARY pango-1.0 HINTS ${Pango_PKG_LIBRARY_DIRS})
+find_library(PangoCairo_LIBRARY pangocairo-1.0 HINTS ${Pango_PKG_LIBRARY_DIRS})
+find_library(PangoFT2_LIBRARY pangoft2-1.0 HINTS ${Pango_PKG_LIBRARY_DIRS})
 set(Pango pango-1.0)
 
 if(Pango_LIBRARY AND NOT Pango_FOUND)

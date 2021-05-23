@@ -21,6 +21,9 @@
 #	ifdef CP_USE_CAIRO
 #		include "codepad/os/linux/gtk/cairo_renderer.h"
 #	endif
+#	ifdef CP_USE_SKIA
+#		include "codepad/os/linux/gtk/skia_renderer.h"
+#	endif
 #endif
 #include "codepad/ui/config_parsers.h"
 #include "codepad/ui/json_parsers.inl"

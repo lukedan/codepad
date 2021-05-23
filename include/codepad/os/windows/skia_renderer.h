@@ -30,26 +30,15 @@ namespace codepad::os {
 			}
 		}
 	private:
+		/// Renderer data associated with a window.
+		struct _window_data {
+			sk_sp<SkSurface> surface; ///< The skia surface.
+		};
+
 		PIXELFORMATDESCRIPTOR _pixel_format_descriptor{}; ///< Describes \ref _pixel_format.
 		int _pixel_format = 0; ///< The pixel format chosen for windows.
 		HGLRC _gl_context = nullptr; ///< The OpenGL rendering context.
 
-
-		/// Creates a surface for the given window.
-		[[nodiscard]] sk_sp<SkSurface> _create_surface_for_window(ui::window &wnd, vec2d scaling) {
-			vec2d size = wnd.get_client_size();
-			size.x *= scaling.x;
-			size.y *= scaling.y;
-			GrGLFramebufferInfo fbinfo;
-			fbinfo.fFBOID = 0; // render to the default framebuffer
-			fbinfo.fFormat = GL_RGBA8;
-			GrBackendRenderTarget target(static_cast<int>(size.x), static_cast<int>(size.y), 1, 0, fbinfo);
-			SkSurfaceProps props(SkSurfaceProps::kLegacyFontHost_InitType);
-			return SkSurface::MakeFromBackendRenderTarget(
-				_skia_context.get(), target, kBottomLeft_GrSurfaceOrigin,
-				kRGBA_8888_SkColorType, _color_space, &props
-			);
-		}
 
 		/// Creates a surface for the window, and registers handlers for when the surface needs to be recreated.
 		/// Initializes \ref _gl_context if necessary.
@@ -81,7 +70,7 @@ namespace codepad::os {
 
 				_details::winapi_check(wglMakeCurrent(hdc, _gl_context));
 
-				_skia_context = GrContext::MakeGL();
+				_skia_context = GrDirectContext::MakeGL();
 			} else {
 				_details::winapi_check(SetPixelFormat(hdc, _pixel_format, &_pixel_format_descriptor));
 			}
@@ -108,6 +97,10 @@ namespace codepad::os {
 		void _delete_window(ui::window&) override {
 		}
 
+		/// Returns \ref _window_data::surface.
+		SkSurface *_get_surface_for_window(ui::window &wnd) const override {
+			return _get_window_data_as<_window_data>(wnd).surface.get();
+		}
 		/// Invokes \p wglMakeCurrent() to start drawing to the given window.
 		void _start_drawing_to_window(ui::window &wnd) override {
 			window_impl &wnd_impl = _details::cast_window_impl(wnd.get_impl());
@@ -116,6 +109,7 @@ namespace codepad::os {
 			_details::winapi_check(wglMakeCurrent(hdc, _gl_context));
 			ReleaseDC(wnd_impl.get_native_handle(), hdc);
 
+			// TODO just retrieve the window size directly
 			vec2d size = wnd.get_client_size(), scaling = wnd.get_scaling_factor();
 			size.x *= scaling.x;
 			size.y *= scaling.y;
@@ -123,6 +117,8 @@ namespace codepad::os {
 		}
 		/// Invokes \p SwapBuffers().
 		void _finish_drawing_to_window(ui::window &wnd) override {
+			_skia_context->flushAndSubmit(true);
+
 			window_impl &wnd_impl = _details::cast_window_impl(wnd.get_impl());
 			HDC hdc = GetDC(wnd_impl.get_native_handle());
 			_details::winapi_check(hdc);

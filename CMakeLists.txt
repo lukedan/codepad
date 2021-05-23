@@ -311,6 +311,7 @@ elseif(UNIX)
 				"include/codepad/os/linux/gtk/cairo_renderer.h"
 				"include/codepad/os/linux/gtk/misc.h"
 				"include/codepad/os/linux/gtk/scheduler.h"
+				"include/codepad/os/linux/gtk/skia_renderer.h"
 				"include/codepad/os/linux/gtk/window.h"
 			PRIVATE
 				"src/os/linux/gtk/linux.cpp"
@@ -346,7 +347,7 @@ elseif(UNIX)
 
 		add_library(Pango::Pango INTERFACE IMPORTED)
 		target_include_directories(Pango::Pango INTERFACE ${Pango_INCLUDE_DIR})
-		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY})
+		target_link_libraries(Pango::Pango INTERFACE ${Pango_LIBRARY} ${PangoCairo_LIBRARY} ${PangoFT2_LIBRARY})
 
 		target_link_libraries(codepad_core
 			PUBLIC
@@ -361,18 +362,40 @@ elseif(UNIX)
 			OUTPUT "${CODEPAD_SKIA_SOURCE_DIR}/bin/gn"
 			COMMAND python2 "tools/git-sync-deps"
 			WORKING_DIRECTORY "${CODEPAD_SKIA_SOURCE_DIR}")
+		set(SKIA_BUILD_ARGS
+			"skia_use_libwebp_decode=false"
+			"skia_use_libwebp_encode=false")
+		if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+			# ICU requires python2 which we don't have an easy way of enabling
+			list(APPEND SKIA_BUILD_ARGS
+				"is_debug=true"
+				"skia_use_system_icu=true")
+		else()
+			list(APPEND SKIA_BUILD_ARGS "is_official_build=true")
+		endif()
+		list(JOIN SKIA_BUILD_ARGS " " SKIA_BUILD_ARGS_FULL)
 		add_custom_target(
 			skia_generate
 			DEPENDS "${CODEPAD_SKIA_SOURCE_DIR}/bin/gn"
-			COMMAND bin/gn gen "${CODEPAD_SKIA_BUILD_DIR}" --args='is_official_build=true'
+			COMMAND
+				bin/gn
+					gen "${CODEPAD_SKIA_BUILD_DIR}"
+					--args=${SKIA_BUILD_ARGS_FULL}
+			VERBATIM
 			WORKING_DIRECTORY  "${CODEPAD_SKIA_SOURCE_DIR}")
-		add_custom_target(
-			skia_build
+		add_custom_command(
+			OUTPUT "${CODEPAD_SKIA_BUILD_DIR}/libskia.a"
 			DEPENDS skia_generate
 			COMMAND ninja -C "${CODEPAD_SKIA_BUILD_DIR}"
 			WORKING_DIRECTORY  "${CODEPAD_SKIA_SOURCE_DIR}")
-		add_custom_target(
-			skia_headers
+		add_custom_command(
+			OUTPUT
+				# TODO glob or scan for headers
+				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkSurface.h"
+				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkCanvas.h"
+				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkTypeface.h"
+				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkFont.h"
+				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkTextBlob.h"
 			COMMAND
 				"${CMAKE_COMMAND}"
 				"-DCODEPAD_SKIA_SOURCE_INCLUDE=${CODEPAD_SKIA_SOURCE_DIR}/include/"
@@ -384,9 +407,20 @@ elseif(UNIX)
 			INTERFACE "${CODEPAD_SKIA_BUILD_DIR}/include/")
 		target_link_libraries(skia
 			INTERFACE "${CODEPAD_SKIA_BUILD_DIR}/libskia.a")
+		target_compile_definitions(skia
+			INTERFACE SK_GL=1) # HACK
+
+		find_package(PNG REQUIRED)
+		find_package(WebP COMPONENTS demux REQUIRED)
+		find_package(JPEG REQUIRED)
+
+		target_link_libraries(skia
+			INTERFACE dl pthread PNG::PNG WebP::libwebp WebP::demux JPEG::JPEG)
+
+		find_package(OpenGL REQUIRED)
 
 		target_link_libraries(codepad_core
-			PUBLIC skia)
+			PUBLIC OpenGL::GL skia)
 	endif()
 else()
 	message(FATAL_ERROR "unrecognized platform")

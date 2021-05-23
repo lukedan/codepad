@@ -6,6 +6,11 @@
 /// \file
 /// Implementation of the Skia renderer.
 
+#ifdef CP_PLATFORM_WINDOWS
+#	include <Windows.h>
+#endif
+#include <GL/gl.h>
+
 #include <skia/effects/SkGradientShader.h>
 #include <skia/core/SkTextBlob.h>
 
@@ -236,8 +241,26 @@ namespace codepad::ui::skia {
 			return std::nullopt;
 		}
 		// TODO also take into account the scaling factor of the bitmap
-		paint.setShader(img->makeShader(_details::cast_matrix(mat)));
+		paint.setShader(img->makeShader(
+			SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear),
+			_details::cast_matrix(mat)
+		));
 		return paint;
+	}
+
+	sk_sp<SkSurface> renderer_base::_create_surface_for_window(ui::window &wnd, vec2d scaling) {
+		vec2d size = wnd.get_client_size();
+		size.x *= scaling.x;
+		size.y *= scaling.y;
+		GrGLFramebufferInfo fbinfo;
+		fbinfo.fFBOID = 0; // render to the default framebuffer
+		fbinfo.fFormat = GL_RGBA8;
+		GrBackendRenderTarget target(static_cast<int>(size.x), static_cast<int>(size.y), 1, 0, fbinfo);
+		SkSurfaceProps props;
+		return SkSurface::MakeFromBackendRenderTarget(
+			_skia_context.get(), target, kBottomLeft_GrSurfaceOrigin,
+			kRGBA_8888_SkColorType, _color_space, &props
+		);
 	}
 
 	std::optional<SkPaint> renderer_base::_create_paint(const generic_brush &brush) {
