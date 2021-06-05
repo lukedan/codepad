@@ -6,6 +6,8 @@
 /// \file
 /// Skia renderer implementation using GTK.
 
+#include <GL/gl.h>
+
 #include <skia/gpu/gl/GrGLInterface.h>
 
 #include <pango/pangoft2.h>

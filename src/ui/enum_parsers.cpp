@@ -11,6 +11,16 @@
 
 namespace codepad {
 	// TODO case-insensitive comparison
+	std::optional<ui::orientation> enum_parser<ui::orientation>::parse(std::u8string_view str) {
+		if (str == u8"h" || str == u8"hori" || str == u8"horizontal") {
+			return ui::orientation::horizontal;
+		} else if (str == u8"v" || str == u8"vert" || str == u8"vertical") {
+			return ui::orientation::vertical;
+		}
+		return std::nullopt;
+	}
+
+
 	std::optional<ui::modifier_keys> enum_parser<ui::modifier_keys>::parse(std::u8string_view str) {
 		if (str == u8"ctrl") {
 			return ui::modifier_keys::control;

@@ -33,13 +33,11 @@ namespace codepad {
 			vertical ///< Vertical.
 		};
 	}
-	namespace json {
-		/// Parser for \ref ui::orientation.
-		template <> struct default_parser<ui::orientation> {
-			/// Parses \ref ui::orientation.
-			template <typename Value> std::optional<ui::orientation> operator()(const Value&) const;
-		};
-	}
+	/// Parser for \ref ui::orientation.
+	template <> struct enum_parser<ui::orientation> {
+		/// The parser interface.
+		static std::optional<ui::orientation> parse(std::u8string_view);
+	};
 
 	namespace ui {
 		/// The visibility of an \ref element.

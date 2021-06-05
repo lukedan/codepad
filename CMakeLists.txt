@@ -358,69 +358,72 @@ elseif(UNIX)
 	if(CODEPAD_USE_SKIA)
 		set(CODEPAD_SKIA_SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty/skia/")
 		set(CODEPAD_SKIA_BUILD_DIR "${CMAKE_BINARY_DIR}/thirdparty/skia/build/")
-		add_custom_command(
-			OUTPUT "${CODEPAD_SKIA_SOURCE_DIR}/bin/gn"
-			COMMAND python2 "tools/git-sync-deps"
-			WORKING_DIRECTORY "${CODEPAD_SKIA_SOURCE_DIR}")
-		set(SKIA_BUILD_ARGS
+
+		# gather list of skia compilation arguments
+		set(CODEPAD_SKIA_BUILD_ARGS
 			"skia_use_libwebp_decode=false"
 			"skia_use_libwebp_encode=false")
 		if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 			# ICU requires python2 which we don't have an easy way of enabling
-			list(APPEND SKIA_BUILD_ARGS
+			list(APPEND CODEPAD_SKIA_BUILD_ARGS
 				"is_debug=true"
 				"skia_use_system_icu=true")
 		else()
-			list(APPEND SKIA_BUILD_ARGS "is_official_build=true")
+			list(APPEND CODEPAD_SKIA_BUILD_ARGS "is_official_build=true")
 		endif()
-		list(JOIN SKIA_BUILD_ARGS " " SKIA_BUILD_ARGS_FULL)
-		add_custom_target(
-			skia_generate
-			DEPENDS "${CODEPAD_SKIA_SOURCE_DIR}/bin/gn"
+		list(JOIN CODEPAD_SKIA_BUILD_ARGS " " CODEPAD_SKIA_BUILD_ARGS_FULL)
+
+		# fetch dependencies
+		message("Fetching skia dependencies...")
+		execute_process(
+			COMMAND python2 "tools/git-sync-deps"
+			WORKING_DIRECTORY "${CODEPAD_SKIA_SOURCE_DIR}")
+		# generate build files
+		message("Generating skia build files...")
+		execute_process(
 			COMMAND
 				bin/gn
 					gen "${CODEPAD_SKIA_BUILD_DIR}"
-					--args=${SKIA_BUILD_ARGS_FULL}
-			VERBATIM
-			WORKING_DIRECTORY  "${CODEPAD_SKIA_SOURCE_DIR}")
-		add_custom_command(
-			OUTPUT "${CODEPAD_SKIA_BUILD_DIR}/libskia.a"
-			DEPENDS skia_generate
-			COMMAND ninja -C "${CODEPAD_SKIA_BUILD_DIR}"
-			WORKING_DIRECTORY  "${CODEPAD_SKIA_SOURCE_DIR}")
-		add_custom_command(
-			OUTPUT
-				# TODO glob or scan for headers
-				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkSurface.h"
-				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkCanvas.h"
-				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkTypeface.h"
-				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkFont.h"
-				"${CODEPAD_SKIA_BUILD_DIR}/include/skia/core/SkTextBlob.h"
+					--args=${CODEPAD_SKIA_BUILD_ARGS_FULL}
+			WORKING_DIRECTORY "${CODEPAD_SKIA_SOURCE_DIR}")
+		# copy headers
+		execute_process(
 			COMMAND
 				"${CMAKE_COMMAND}"
-				"-DCODEPAD_SKIA_SOURCE_INCLUDE=${CODEPAD_SKIA_SOURCE_DIR}/include/"
-				"-DCODEPAD_SKIA_BUILD_INCLUDE=${CODEPAD_SKIA_BUILD_DIR}/include/skia/"
-				-P "${CMAKE_SOURCE_DIR}/cmake/copy_skia_headers.cmake")
+					"-DCODEPAD_SKIA_SOURCE_INCLUDE=${CODEPAD_SKIA_SOURCE_DIR}/include/"
+					"-DCODEPAD_SKIA_BUILD_INCLUDE=${CODEPAD_SKIA_BUILD_DIR}/include/skia/"
+					-P "${CMAKE_SOURCE_DIR}/cmake/copy_skia_headers.cmake")
+		# gather defines
+		execute_process(
+			COMMAND bin/gn desc "${CODEPAD_SKIA_BUILD_DIR}" :skia defines
+			WORKING_DIRECTORY "${CODEPAD_SKIA_SOURCE_DIR}"
+			OUTPUT_VARIABLE CODEPAD_SKIA_DEFINES)
+
+		string(REPLACE "\n" ";" CODEPAD_SKIA_DEFINES ${CODEPAD_SKIA_DEFINES})
+
+		add_custom_target(
+			skia_build
+			COMMAND ninja -C "${CODEPAD_SKIA_BUILD_DIR}"
+			WORKING_DIRECTORY "${CODEPAD_SKIA_SOURCE_DIR}")
 		add_library(skia INTERFACE)
-		add_dependencies(skia skia_build skia_headers)
+		add_dependencies(skia skia_build)
 		target_include_directories(skia
 			INTERFACE "${CODEPAD_SKIA_BUILD_DIR}/include/")
 		target_link_libraries(skia
 			INTERFACE "${CODEPAD_SKIA_BUILD_DIR}/libskia.a")
 		target_compile_definitions(skia
-			INTERFACE SK_GL=1) # HACK
+			INTERFACE ${CODEPAD_SKIA_DEFINES})
 
 		find_package(PNG REQUIRED)
 		find_package(WebP COMPONENTS demux REQUIRED)
 		find_package(JPEG REQUIRED)
-
-		target_link_libraries(skia
-			INTERFACE dl pthread PNG::PNG WebP::libwebp WebP::demux JPEG::JPEG)
-
 		find_package(OpenGL REQUIRED)
 
+		target_link_libraries(skia
+			INTERFACE dl pthread PNG::PNG WebP::libwebp WebP::demux JPEG::JPEG OpenGL::GL)
+
 		target_link_libraries(codepad_core
-			PUBLIC OpenGL::GL skia)
+			PUBLIC skia)
 	endif()
 else()
 	message(FATAL_ERROR "unrecognized platform")

@@ -430,23 +430,6 @@ namespace codepad::json {
 	}
 
 
-	template <typename Value> std::optional<ui::orientation> default_parser<ui::orientation>::operator()(
-		const Value &obj
-	) const {
-		if (auto opt_str = obj.template cast<std::u8string_view>()) {
-			std::u8string_view str = opt_str.value();
-			if (str == u8"h" || str == u8"hori" || str == u8"horizontal") {
-				return ui::orientation::horizontal;
-			} else if (str == u8"v" || str == u8"vert" || str == u8"vertical") {
-				return ui::orientation::vertical;
-			} else {
-				obj.template log<log_level::error>(CP_HERE) << "invalid orientation string";
-			}
-		}
-		return std::nullopt;
-	}
-
-
 	template <typename Value> std::optional<ui::visibility> default_parser<ui::visibility>::operator()(
 		const Value &val
 	) const {
