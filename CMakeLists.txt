@@ -34,6 +34,10 @@ target_sources(codepad_core
 		"include/codepad/core/json/rapidjson.h"
 		"include/codepad/core/json/storage.h"
 
+		"include/codepad/core/regex/compiler.h"
+		"include/codepad/core/regex/matcher.h"
+		"include/codepad/core/regex/parser.h"
+
 		"include/codepad/core/assert.h"
 		"include/codepad/core/binary_tree.h"
 		"include/codepad/core/color.h"
