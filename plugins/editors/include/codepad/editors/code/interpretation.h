@@ -316,7 +316,7 @@ namespace codepad::editors::code {
 				return _col == _lbit->nonbreak_chars;
 			}
 			/// Returns the type of the current line's linebreak.
-			[[nodiscard]] ui::line_ending get_linebreak() const {
+			[[nodiscard]] line_ending get_linebreak() const {
 				return _lbit->ending;
 			}
 			/// Returns the column where this iterator's at.
@@ -644,11 +644,11 @@ namespace codepad::editors::code {
 			return _linebreaks;
 		}
 		/// Returns the default line ending for this \ref interpretation.
-		[[nodiscard]] ui::line_ending get_default_line_ending() const {
+		[[nodiscard]] line_ending get_default_line_ending() const {
 			return _line_ending;
 		}
 		/// Sets the default line ending for this \ref interpretation. Note that this does not affect existing text.
-		void set_default_line_ending(ui::line_ending end) {
+		void set_default_line_ending(line_ending end) {
 			_line_ending = end;
 		}
 
@@ -815,7 +815,7 @@ namespace codepad::editors::code {
 		std::deque<std::any> _tags; ///< Tags associated with this interpretation.
 
 		const std::shared_ptr<buffer> _buf; ///< The underlying \ref buffer.
-		ui::line_ending _line_ending = ui::line_ending::n; ///< The default line ending for this \ref interpretation.
+		line_ending _line_ending = line_ending::n; ///< The default line ending for this \ref interpretation.
 		const buffer_encoding *const _encoding = nullptr; ///< The encoding used to interpret the \ref buffer.
 
 		// event tokens

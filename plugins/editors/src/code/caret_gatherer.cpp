@@ -164,7 +164,7 @@ namespace codepad::editors::code {
 		);
 		if (_handle_solid_fragment(pos, steps, posafter, prev_stall, rend)) { // not over, to the next line
 			// for soft linebreaks, do not add space after the line
-			_append_line_selection(frag.type == ui::line_ending::none ? pos.xmin : pos.xmax);
+			_append_line_selection(frag.type == line_ending::none ? pos.xmin : pos.xmax);
 			_region_left = 0.0;
 			return true;
 		}

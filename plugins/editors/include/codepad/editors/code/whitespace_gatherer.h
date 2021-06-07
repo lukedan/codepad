@@ -111,13 +111,13 @@ namespace codepad::editors::code {
 			if (_range.first <= frag_begin && _range.second >= posafter) {
 				whitespace::type type;
 				switch (frag.type) {
-				case ui::line_ending::r:
+				case line_ending::r:
 					type = whitespace::type::cr;
 					break;
-				case ui::line_ending::n:
+				case line_ending::n:
 					type = whitespace::type::lf;
 					break;
-				case ui::line_ending::rn:
+				case line_ending::rn:
 					type = whitespace::type::crlf;
 					break;
 				default:

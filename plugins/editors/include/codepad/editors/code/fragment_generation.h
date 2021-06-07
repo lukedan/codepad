@@ -44,11 +44,11 @@ namespace codepad::editors::code {
 		/// Default constructor.
 		linebreak_fragment() = default;
 		/// Initializes all fields of this struct.
-		explicit linebreak_fragment(ui::line_ending le) : type(le) {
+		explicit linebreak_fragment(line_ending le) : type(le) {
 		}
 
-		/// The type of this linebreak. For soft linebreaks, this will be \ref ui::line_ending::none.
-		ui::line_ending type = ui::line_ending::none;
+		/// The type of this linebreak. For soft linebreaks, this will be \ref line_ending::none.
+		line_ending type = line_ending::none;
 	};
 	/// Indicates that the next fragment to be rendered is an image.
 	struct image_gizmo_fragment {
@@ -450,7 +450,7 @@ namespace codepad::editors::code {
 		/// Appends a \ref linebreak_fragment to the rendered document by simply moving the current position.
 		basic_rendering append(const linebreak_fragment &linebreak) {
 			// TODO use the width of a space?
-			basic_rendering r(get_position(), linebreak.type == ui::line_ending::none ? 0.0 : 10.0);
+			basic_rendering r(get_position(), linebreak.type == line_ending::none ? 0.0 : 10.0);
 			set_horizontal_position(0.0);
 			advance_vertical_position(1);
 			return r;

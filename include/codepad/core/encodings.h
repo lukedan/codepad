@@ -7,6 +7,7 @@
 /// Encoding settings, and conversions between one another.
 /// Currently supported encodings: UTF-8, UTF-16, UTF-32.
 
+#include <array>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -346,24 +347,27 @@ namespace codepad {
 			}
 		};
 
-		/*/// UTF-32 encoding.
+		/// UTF-32 encoding.
 		///
 		/// \tparam C Type of characters.
-		template <typename C = codepoint> class utf32 {
+		template <endianness Endianness = system_endianness> class utf32 {
 		public:
-			using char_type = C; ///< The character type.
+			/// Returns either `UTF-32 LE' or `UTF-32 BE', depending on the Endianness.
+			inline static std::u8string_view get_name() {
+				if constexpr (Endianness == endianness::little_endian) {
+					return "UTF-32 LE";
+				} else {
+					return "UTF-32 BE";
+				}
+			}
+			/// 4 bytes of a codepoint.
+			inline static std::size_t get_maximum_codepoint_length() {
+				return 4;
+			}
 
-			static_assert(sizeof(C) >= 3, "invalid character type for utf-32");
 			/// Moves the iterator to the next codepoint, extracting the current codepoint,
 			/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
-			///
-			/// \param i The `current' iterator.
-			/// \param end The end of the string.
-			/// \param v The value will hold the value of the current codepoint if the function returns \p true.
 			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint &v) {
-				static_cast<void>(end);
-				v = static_cast<codepoint>(*i);
-				++i;
 				return is_valid_codepoint(v);
 			}
 			/// Moves the iterator to the next codepoint and returns whether it is valid.
@@ -371,56 +375,64 @@ namespace codepad {
 			///
 			/// \param i The `current' iterator.
 			/// \param end The end of the string.
-			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
-				bool res = is_valid_codepoint(*i);
-				++i;
-				return res;
-			}
-			/// next_codepoint(It1, It2) without error checking.
-			/// Also, the caller doesn't need to check if <tt>i == end</tt>.
-			template <typename It1, typename It2> inline static void next_codepoint_rough(It1 &i, It2 end) {
-				if (i != end) {
-					++i;
+			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint c) {
+				std::array<std::byte, 4> data{ { 0, 0, 0, 0 } };
+				bool result = false;
+				data[0] = static_cast<std::byte>(*i);
+				if (++i != end) {
+					data[1] = static_cast<std::byte>(*i);
+					if (++i != end) {
+						data[2] = static_cast<std::byte>(*i);
+						if (++i != end) {
+							data[3] = static_cast<std::byte>(*i);
+							result = true;
+							++i;
+						}
+					}
 				}
+				if constexpr (Endianness == endianness::little_endian) {
+					c =
+						static_cast<codepoint>(data[0]) |
+						(static_cast<codepoint>(data[1]) << 8) |
+						(static_cast<codepoint>(data[2]) << 16) |
+						(static_cast<codepoint>(data[3]) << 24);
+				} else {
+					c =
+						(static_cast<codepoint>(data[0]) << 24) |
+						(static_cast<codepoint>(data[1]) << 16) |
+						(static_cast<codepoint>(data[2]) << 8) |
+						static_cast<codepoint>(data[3]);
+				}
+				return result && c <= unicode_max;
 			}
-			/// Go back to the previous codepoint. Note that the result is only an estimate.
-			///
-			/// \param i The `current' iterator.
-			/// \param beg The beginning of the string.
-			template <typename It1, typename It2> inline static void previous_codepoint_rough(It1 &i, It2 beg) {
-				if (i != beg) {
-					--i;
+			/// \overload
+			template <typename It1, typename It2> inline static void next_codepoint(It1 &i, It2 end) {
+				if (++i != end) {
+					if (++i != end) {
+						if (++i != end) {
+							++i;
+						}
+					}
 				}
 			}
 			/// Returns the UTF-32 representation of a Unicode codepoint.
-			inline static std::basic_string<C> encode_codepoint(codepoint c) {
-				return std::u32string(1, c);
-			}
-
-			/// Counts the number of codepoints in the given range.
-			/// Uses the distance between the two iterators if possible, otherwise falls back to the default behavior.
-			template <typename It1, typename It2> inline static std::size_t count_codepoints(It1 beg, It2 end) {
-				if constexpr (std::is_same_v<It1, It2>) {
-					return std::distance(beg, end);
+			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
+				if constexpr (Endianness == endianness::little_endian) {
+					return {
+						static_cast<std::byte>(c & 0xFF),
+						static_cast<std::byte>((c >> 8) & 0xFF),
+						static_cast<std::byte>((c >> 16) & 0xFF),
+						static_cast<std::byte>((c >> 24) & 0xFF)
+					};
 				} else {
-					return codepad::count_codepoints<It1, It2, codepad::utf32>(beg, end);
+					return {
+						static_cast<std::byte>((c >> 24) & 0xFF),
+						static_cast<std::byte>((c >> 16) & 0xFF),
+						static_cast<std::byte>((c >> 8) & 0xFF),
+						static_cast<std::byte>(c & 0xFF)
+					};
 				}
 			}
-			/// Skips an iterator forward, until the end is reached or a number of codepoints is skipped.
-			/// Directly increments the iterator if possible, otherwise falls back to the default behavior.
-			template <typename It1, typename It2> inline static std::size_t skip_codepoints(
-				It1 &beg, It2 end, std::size_t num
-			) {
-				if constexpr (std::is_same_v<It1, It2> && std::is_base_of_v<
-					std::random_access_iterator_tag, typename std::iterator_traits<It1>::iterator_category
-				>) {
-					auto dist = std::min(num, static_cast<std::size_t>(end - beg));
-					beg = beg + num;
-					return dist;
-				} else {
-					return codepad::skip_codepoints<It1, It2, codepad::utf32>(beg, end, num);
-				}
-			}
-		};*/
+		};
 	}
 }

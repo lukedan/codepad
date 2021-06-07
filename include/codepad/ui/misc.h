@@ -14,6 +14,7 @@
 #include "codepad/core/misc.h"
 #include "codepad/core/math.h"
 #include "codepad/core/color.h"
+#include "codepad/core/text.h"
 #include "codepad/core/json/misc.h"
 #include "codepad/core/json/parsing.h"
 
@@ -174,18 +175,6 @@ namespace codepad {
 	};
 
 	namespace ui {
-		/// The type of a line ending.
-		enum class line_ending : unsigned char {
-			none, ///< Unspecified or invalid. Sometimes also used to indicate EOF or soft linebreaks.
-			r, ///< \p \\r.
-			n, ///< \p \\n, usually used in Linux.
-			rn ///< \p \\r\\n, usually used in Windows.
-		};
-		/// Returns the length, in codepoints, of the string representation of a \ref line_ending.
-		[[nodiscard]] std::size_t get_line_ending_length(line_ending);
-		/// Returns the string representation of the given \ref line_ending.
-		[[nodiscard]] std::u32string_view line_ending_to_string(line_ending);
-
 		/// Used to analyze a sequence of codepoints and find linebreaks.
 		struct linebreak_analyzer {
 		public:

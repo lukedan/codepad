@@ -338,7 +338,7 @@ namespace codepad::lsp {
 				std::size_t token_end = line_info.first_char + character_offset + tok.length;
 				std::size_t line_end =
 					line_info.first_char + line_info.entry->nonbreak_chars +
-					(line_info.entry->ending != ui::line_ending::none ? 1 : 0);
+					(line_info.entry->ending != line_ending::none ? 1 : 0);
 				if (token_end > line_end) {
 					std::size_t codepoint =
 						linebreaks.get_beginning_codepoint_of(line_info.entry) +

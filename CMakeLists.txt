@@ -109,6 +109,7 @@ target_sources(codepad_core
 		"src/core/plugins.cpp"
 		"src/core/profiling.cpp"
 		"src/core/settings.cpp"
+		"src/core/text.cpp"
 
 		"src/ui/elements/tabs/host.cpp"
 		"src/ui/elements/tabs/manager.cpp"

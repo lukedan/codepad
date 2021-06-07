@@ -16,9 +16,82 @@
 
 #include "codepad/core/encodings.h"
 #include "codepad/core/assert.h"
+#include "codepad/core/text.h"
 
 namespace codepad::regex {
 	using codepoint_string = std::basic_string<codepoint>; ///< A string of codepoints.
+
+	/// Input stream type for basic strings.
+	template <typename Encoding> struct basic_string_input_stream {
+	public:
+		/// Default constructor.
+		basic_string_input_stream() = default;
+		/// Initializes \ref _string.
+		basic_string_input_stream(const std::byte *beg, const std::byte *end) : _cur(beg), _end(end) {
+			if (_cur != _end) {
+				if (!Encoding::next_codepoint(_cur, _end, _cp)) {
+					_cp = encodings::replacement_character;
+				}
+				--_cur;
+			}
+		}
+
+		/// Returns whether _position is at the end of the string.
+		[[nodiscard]] bool empty() const {
+			return _cur == _end;
+		}
+		/// Returns the current character and increments \ref _position.
+		codepoint take() {
+			assert_true_logical(!empty(), "taking from an empty stream");
+			codepoint res = _cp;
+			if (++_cur != _end) {
+				if (!Encoding::next_codepoint(_cur, _end, _cp)) {
+					_cp = encodings::replacement_character;
+				}
+				--_cur;
+			}
+			++_pos;
+			return res;
+		}
+		/// Returns the current character.
+		[[nodiscard]] codepoint peek() {
+			assert_true_logical(!empty(), "peeking an empty stream");
+			return _cp;
+		}
+
+		/// Returns the current position of this stream.
+		[[nodiscard]] std::size_t position() const {
+			return _pos;
+		}
+	protected:
+		std::size_t _pos = 0; ///< Position of the stream in codepoints.
+		codepoint _cp = 0; /// The current codepoint.
+		const std::byte *_cur = nullptr; ///< Last (not past!) byte of \ref _cp.
+		const std::byte *_end = nullptr; ///< Pointer past the final byte.
+	};
+
+	/// Consumes a line ending from the given stream.
+	///
+	/// \return Type of the consumed line ending.
+	template <typename Stream> line_ending consume_line_ending(Stream &s) {
+		if (s.empty()) {
+			return line_ending::none;
+		}
+		switch (s.peek()) {
+		case U'\r':
+			s.take();
+			if (s.empty() || s.peek() != U'\n') {
+				return line_ending::r;
+			}
+			s.take();
+			return line_ending::rn;
+		case U'\n':
+			s.take();
+			return line_ending::n;
+		}
+		return line_ending::none;
+	}
+
 
 	namespace ast {
 		struct node;
@@ -142,207 +215,158 @@ namespace codepad::regex {
 			}
 		};
 
-		namespace _details {
-			/// Dumps an AST.
-			template <typename Stream> struct dumper {
-			public:
-				/// Initializes \ref _stream.
-				explicit dumper(Stream &s) : _stream(s) {
-				}
 
-				/// Dumps a \ref nodes::error.
-				void dump(const nodes::error&) {
-					_indent();
-					_stream << "── [ERROR]\n";
-				}
-				/// Dumps a \ref nodes::feature.
-				void dump(const nodes::feature &n) {
-					_indent();
-					_stream << "── [feature: ";
-					for (codepoint cp : n.identifier) {
-						_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
-					}
-					_stream << "]\n";
-				}
-				/// Dumps a \ref nodes::literal.
-				void dump(const nodes::literal &n) {
-					_indent();
-					_stream << "── [literal: \"";
-					for (codepoint cp : n.contents) {
-						_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
-					}
-					_stream << "\"]\n";
-				}
-				/// Dumps a \ref nodes::character_class.
-				void dump(const nodes::character_class &n) {
-					_indent();
-					_stream << "── [character class " << (n.is_negate ? "[!]" : "") << ": ";
-					bool first = true;
-					for (auto [beg, end] : n.ranges) {
-						if (!first) {
-							_stream << ", ";
-						}
-						first = false;
-						if (beg == end) {
-							_stream << beg;
-						} else {
-							_stream << beg << " - " << end;
-						}
-					}
-					_stream << "]\n";
-				}
-				/// Dumps a \ref nodes::subexpression.
-				void dump(const nodes::subexpression &n) {
-					_indent();
-					if (n.nodes.empty()) {
-						_stream << "─";
-					} else {
-						_stream << "┬";
-					}
-					_stream << "─ [subexpression";
-					if (n.type_or_assertion != ast::nodes::subexpression::type::non_capturing) {
-						_stream << " #";
-						if (std::holds_alternative<std::size_t>(n.capture_index)) {
-							_stream << std::get<std::size_t>(n.capture_index);
-						} else {
-							auto &str = std::get<codepoint_string>(n.capture_index);
-							for (codepoint cp : str) {
-								_stream << reinterpret_cast<const char*>(
-									encodings::utf8::encode_codepoint(cp).c_str()
-								);
-							}
-						}
-					}
-					switch (n.type_or_assertion) {
-					case ast::nodes::subexpression::type::normal:
-						break;
-					case ast::nodes::subexpression::type::non_capturing:
-						_stream << " (non-capturing)";
-						break;
-					case ast::nodes::subexpression::type::duplicate:
-						_stream << " (duplicate)";
-						break;
-					case ast::nodes::subexpression::type::atomic:
-						_stream << " (atomic)";
-						break;
-					}
-					_stream << "]\n";
-					_branch.emplace_back(true);
-					for (std::size_t i = 0; i < n.nodes.size(); ++i) {
-						if (i + 1 == n.nodes.size()) {
-							_branch.back() = false;
-						}
-						dump(n.nodes[i]);
-					}
-					_branch.pop_back();
-				}
-				/// Dumps a \ref nodes::alternative.
-				void dump(const nodes::alternative &n) {
-					_indent();
-					_stream << "┬─ [alternative]\n";
-					_branch.emplace_back(true);
-					for (std::size_t i = 0; i < n.alternatives.size(); ++i) {
-						if (i + 1 == n.alternatives.size()) {
-							_branch.back() = false;
-						}
-						dump(n.alternatives[i]);
-					}
-					_branch.pop_back();
-				}
-				/// Dumps a \ref nodes::repetition.
-				void dump(const nodes::repetition &n) {
-					_indent();
-					_stream << "┬─ [repetition  min: " << n.min << "  max: " << n.max << "]\n";
-					_branch.emplace_back(false);
-					dump(n.expression);
-					_branch.pop_back();
-				}
-
-				/// Dumps a \ref node.
-				void dump(const node &n) {
-					std::visit(
-						[this](auto &&concrete_node) {
-							dump(concrete_node);
-						},
-						n.value
-					);
-				}
-			protected:
-				std::vector<bool> _branch; ///< Indicates whether there's an active branch at the given level.
-				Stream &_stream; ///< The output stream.
-
-				/// Indents to the correct level.
-				void _indent() {
-					if (_branch.size() > 0) {
-						_stream << "  ";
-					}
-					for (std::size_t i = 0; i + 1 < _branch.size(); ++i) {
-						_stream << (_branch[i] ? "│ " : "  ");
-					}
-					if (_branch.empty()) {
-						_stream << ">─";
-					} else if (_branch.back()) {
-						_stream << "├─";
-					} else {
-						_stream << "└─";
-					}
-				}
-			};
-			/// Shorthand for creating a \ref dumper.
-			template <typename Stream> dumper<Stream> make_dumper(Stream &s) {
-				return dumper<Stream>(s);
+		/// Dumps an AST.
+		template <typename Stream> struct dumper {
+		public:
+			/// Initializes \ref _stream.
+			explicit dumper(Stream &s) : _stream(s) {
 			}
+
+			/// Dumps a \ref nodes::error.
+			void dump(const nodes::error&) {
+				_indent();
+				_stream << "── [ERROR]\n";
+			}
+			/// Dumps a \ref nodes::feature.
+			void dump(const nodes::feature &n) {
+				_indent();
+				_stream << "── [feature: ";
+				for (codepoint cp : n.identifier) {
+					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
+				}
+				_stream << "]\n";
+			}
+			/// Dumps a \ref nodes::literal.
+			void dump(const nodes::literal &n) {
+				_indent();
+				_stream << "── [literal: \"";
+				for (codepoint cp : n.contents) {
+					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
+				}
+				_stream << "\"]\n";
+			}
+			/// Dumps a \ref nodes::character_class.
+			void dump(const nodes::character_class &n) {
+				_indent();
+				_stream << "── [character class " << (n.is_negate ? "[!]" : "") << ": ";
+				bool first = true;
+				for (auto [beg, end] : n.ranges) {
+					if (!first) {
+						_stream << ", ";
+					}
+					first = false;
+					if (beg == end) {
+						_stream << beg;
+					} else {
+						_stream << beg << " - " << end;
+					}
+				}
+				_stream << "]\n";
+			}
+			/// Dumps a \ref nodes::subexpression.
+			void dump(const nodes::subexpression &n) {
+				_indent();
+				if (n.nodes.empty()) {
+					_stream << "─";
+				} else {
+					_stream << "┬";
+				}
+				_stream << "─ [subexpression";
+				if (n.type_or_assertion != ast::nodes::subexpression::type::non_capturing) {
+					_stream << " #";
+					if (std::holds_alternative<std::size_t>(n.capture_index)) {
+						_stream << std::get<std::size_t>(n.capture_index);
+					} else {
+						auto &str = std::get<codepoint_string>(n.capture_index);
+						for (codepoint cp : str) {
+							_stream << reinterpret_cast<const char*>(
+								encodings::utf8::encode_codepoint(cp).c_str()
+							);
+						}
+					}
+				}
+				switch (n.type_or_assertion) {
+				case ast::nodes::subexpression::type::normal:
+					break;
+				case ast::nodes::subexpression::type::non_capturing:
+					_stream << " (non-capturing)";
+					break;
+				case ast::nodes::subexpression::type::duplicate:
+					_stream << " (duplicate)";
+					break;
+				case ast::nodes::subexpression::type::atomic:
+					_stream << " (atomic)";
+					break;
+				}
+				_stream << "]\n";
+				_branch.emplace_back(true);
+				for (std::size_t i = 0; i < n.nodes.size(); ++i) {
+					if (i + 1 == n.nodes.size()) {
+						_branch.back() = false;
+					}
+					dump(n.nodes[i]);
+				}
+				_branch.pop_back();
+			}
+			/// Dumps a \ref nodes::alternative.
+			void dump(const nodes::alternative &n) {
+				_indent();
+				_stream << "┬─ [alternative]\n";
+				_branch.emplace_back(true);
+				for (std::size_t i = 0; i < n.alternatives.size(); ++i) {
+					if (i + 1 == n.alternatives.size()) {
+						_branch.back() = false;
+					}
+					dump(n.alternatives[i]);
+				}
+				_branch.pop_back();
+			}
+			/// Dumps a \ref nodes::repetition.
+			void dump(const nodes::repetition &n) {
+				_indent();
+				_stream << "┬─ [repetition  min: " << n.min << "  max: " << n.max << "]\n";
+				_branch.emplace_back(false);
+				dump(n.expression);
+				_branch.pop_back();
+			}
+
+			/// Dumps a \ref node.
+			void dump(const node &n) {
+				std::visit(
+					[this](auto &&concrete_node) {
+						dump(concrete_node);
+					},
+					n.value
+				);
+			}
+		protected:
+			std::vector<bool> _branch; ///< Indicates whether there's an active branch at the given level.
+			Stream &_stream; ///< The output stream.
+
+			/// Indents to the correct level.
+			void _indent() {
+				if (_branch.size() > 0) {
+					_stream << "  ";
+				}
+				for (std::size_t i = 0; i + 1 < _branch.size(); ++i) {
+					_stream << (_branch[i] ? "│ " : "  ");
+				}
+				if (_branch.empty()) {
+					_stream << ">─";
+				} else if (_branch.back()) {
+					_stream << "├─";
+				} else {
+					_stream << "└─";
+				}
+			}
+		};
+		/// Shorthand for creating a \ref dumper.
+		template <typename Stream> dumper<Stream> make_dumper(Stream &s) {
+			return dumper<Stream>(s);
 		}
 	}
 
-	/// Input stream type for basic strings.
-	template <typename Encoding> struct basic_string_input_stream {
-	public:
-		/// Default constructor.
-		basic_string_input_stream() = default;
-		/// Initializes \ref _string.
-		basic_string_input_stream(const std::byte *beg, const std::byte *end) : _cur(beg), _end(end) {
-			if (_cur != _end) {
-				if (!Encoding::next_codepoint(_cur, _end, _cp)) {
-					_cp = encodings::replacement_character;
-				}
-				--_cur;
-			}
-		}
-
-		/// Returns whether _position is at the end of the string.
-		[[nodiscard]] bool empty() const {
-			return _cur == _end;
-		}
-		/// Returns the current character and increments \ref _position.
-		codepoint take() {
-			assert_true_logical(!empty(), "taking from an empty stream");
-			codepoint res = _cp;
-			if (++_cur != _end) {
-				if (!Encoding::next_codepoint(_cur, _end, _cp)) {
-					_cp = encodings::replacement_character;
-				}
-				--_cur;
-			}
-			++_pos;
-			return res;
-		}
-		/// Returns the current character.
-		[[nodiscard]] codepoint peek() {
-			assert_true_logical(!empty(), "peeking an empty stream");
-			return _cp;
-		}
-
-		/// Returns the current position of this stream.
-		[[nodiscard]] std::size_t position() const {
-			return _pos;
-		}
-	protected:
-		std::size_t _pos = 0; ///< Position of the stream in codepoints.
-		codepoint _cp = 0; /// The current codepoint.
-		const std::byte *_cur = nullptr; ///< Last (not past!) byte of \ref _cp.
-		const std::byte *_end = nullptr; ///< Pointer past the final byte.
-	};
 	/// Regular expression parser.
 	///
 	/// \tparam Stream The input stream. This should be a lightweight wrapper around the state of the stream because
@@ -767,6 +791,14 @@ namespace codepad::regex {
 					break;
 				case U'.':
 					result.nodes.emplace_back().value.emplace<ast::nodes::character_class>().is_negate = true;
+					break;
+
+				// anchors
+				case U'^':
+					// TODO
+					break;
+				case U'$':
+					// TODO
 					break;
 
 				// repetition

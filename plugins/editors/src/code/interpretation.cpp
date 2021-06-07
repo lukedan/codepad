@@ -80,7 +80,7 @@ namespace codepad::editors::code {
 		// TODO maybe get rid of this intermediate buffer and add the lines to _linebreaks directly
 		std::vector<linebreak_registry::line_info> lines;
 		ui::linebreak_analyzer line_analyzer(
-			[&lines](std::size_t len, ui::line_ending ending) {
+			[&lines](std::size_t len, line_ending ending) {
 				lines.emplace_back(len, ending);
 			}
 		);
@@ -131,7 +131,7 @@ namespace codepad::editors::code {
 		std::size_t bytesbefore = 0;
 		std::vector<linebreak_registry::line_info> lines;
 		ui::linebreak_analyzer linebreaks(
-			[&lines](std::size_t len, ui::line_ending ending) {
+			[&lines](std::size_t len, line_ending ending) {
 				lines.emplace_back(len, ending);
 			}
 		);
@@ -283,9 +283,9 @@ namespace codepad::editors::code {
 		std::vector<chunk_data> chunks;
 		// state
 		ui::linebreak_analyzer linebreaks(
-			[&](std::size_t len, ui::line_ending ending) {
+			[&](std::size_t len, line_ending ending) {
 				lines.emplace_back(len, ending);
-				new_content_chars += len + (ending == ui::line_ending::none ? 0 : 1);
+				new_content_chars += len + (ending == line_ending::none ? 0 : 1);
 			}
 		);
 		buffer::const_iterator

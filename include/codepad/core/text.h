@@ -70,4 +70,16 @@ namespace codepad {
 		Pattern _patt; ///< The pattern.
 		std::vector<std::size_t> _table; ///< The table for partial (prefix) matches.
 	};
+
+	/// The type of a line ending.
+	enum class line_ending : unsigned char {
+		none, ///< Unspecified or invalid. Sometimes also used to indicate EOF or soft linebreaks.
+		r, ///< \p \\r.
+		n, ///< \p \\n, usually used in Linux.
+		rn ///< \p \\r\\n, usually used in Windows.
+	};
+	/// Returns the length, in codepoints, of the string representation of a \ref line_ending.
+	[[nodiscard]] std::size_t get_line_ending_length(line_ending);
+	/// Returns the string representation of the given \ref line_ending.
+	[[nodiscard]] std::u32string_view line_ending_to_string(line_ending);
 }

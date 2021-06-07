@@ -8,13 +8,30 @@
 
 #include <iostream>
 
-#include "codepad/core/regex/parser.h"
-#include "codepad/core/regex/compiler.h"
-#include "codepad/core/regex/matcher.h"
+#define CATCH_CONFIG_RUNNER
+#include <catch2/catch.hpp>
+
+#include <codepad/core/regex/parser.h>
+#include <codepad/core/regex/compiler.h>
+#include <codepad/core/regex/matcher.h>
 
 namespace cp = codepad;
 
-int main() {
+int main(int argc, char **argv) {
+	Catch::Session session;
+	bool interactive = false;
+	auto cli =
+		session.cli() |
+		Catch::clara::Opt(interactive)["--interactive"]("Read and match in an interactive fashion.");
+	session.cli(cli);
+	int return_code = session.applyCommandLine(argc, argv);
+	if (return_code) {
+		return return_code;
+	}
+	if (!interactive) {
+		return session.run();
+	}
+
 	using stream_t = cp::regex::basic_string_input_stream<cp::encodings::utf8>;
 	using parser_t = cp::regex::parser<stream_t>;
 
@@ -28,12 +45,11 @@ int main() {
 		auto regex_data = reinterpret_cast<const std::byte*>(regex.data());
 		parser_t parser(stream_t(regex_data, regex_data + regex.size()));
 		auto ast = parser.parse();
-		auto dumper = cp::regex::ast::_details::make_dumper(std::cout);
+		auto dumper = cp::regex::ast::make_dumper(std::cout);
 		dumper.dump(ast);
 
 		cp::regex::compiler compiler;
-		compiler.compile(ast);
-		cp::regex::state_machine sm = std::move(compiler.result);
+		cp::regex::state_machine sm = compiler.compile(ast);
 
 		while (true) {
 			std::cout << "\nstring: ";

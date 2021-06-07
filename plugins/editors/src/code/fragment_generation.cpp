@@ -28,7 +28,7 @@ namespace codepad::editors::code {
 			if (position == nextpos) {
 				_prev_chars += _cur_softbreak->length;
 				++_cur_softbreak;
-				return fragment_generation_result(linebreak_fragment(ui::line_ending::none), 0);
+				return fragment_generation_result(linebreak_fragment(line_ending::none), 0);
 			}
 			return fragment_generation_result(no_fragment(), nextpos - position);
 		}

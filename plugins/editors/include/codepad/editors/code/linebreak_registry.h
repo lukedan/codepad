@@ -22,12 +22,12 @@ namespace codepad::editors::code {
 			/// Default constructor.
 			line_info() = default;
 			/// Constructor that initializes all the fields of the struct.
-			line_info(std::size_t d, ui::line_ending t) : nonbreak_chars(d), ending(t) {
+			line_info(std::size_t d, line_ending t) : nonbreak_chars(d), ending(t) {
 			}
 
 			std::size_t nonbreak_chars = 0; ///< The number of codepoints in this line, excluding the linebreak.
 			/// The type of the line ending. This will be line_ending::none for the last line.
-			ui::line_ending ending = ui::line_ending::none;
+			line_ending ending = line_ending::none;
 			red_black_tree::color color = red_black_tree::color::black; ///< The color of this node.
 		};
 		/// Stores additional data of a node in the tree.
@@ -40,14 +40,14 @@ namespace codepad::editors::code {
 				/// Returns the sum of line_info::nonbreak_chars and the corresponding length
 				/// of line_info::ending.
 				inline static std::size_t get(const node_type &n) {
-					return n.value.nonbreak_chars + ui::get_line_ending_length(n.value.ending);
+					return n.value.nonbreak_chars + get_line_ending_length(n.value.ending);
 				}
 			};
 			/// Used to obtain the number of linebreaks that follows the line.
 			struct get_node_linebreak_num {
 				/// Returns 0 if the line is the last line of the buffer, 1 otherwise.
 				inline static std::size_t get(const node_type &n) {
-					return n.value.ending == ui::line_ending::none ? 0 : 1;
+					return n.value.ending == line_ending::none ? 0 : 1;
 				}
 			};
 			/// Used to obtain the number of characters in a line. The linebreak counts as one character even
@@ -167,9 +167,9 @@ namespace codepad::editors::code {
 			std::vector<line_info> lines; ///< The information of all invidual lines.
 
 			/// Appends a line to this struct.
-			void append_line(std::size_t nonbreak_chars, ui::line_ending ending) {
+			void append_line(std::size_t nonbreak_chars, line_ending ending) {
 				total_chars += nonbreak_chars;
-				if (ending != ui::line_ending::none) {
+				if (ending != line_ending::none) {
 					++total_chars;
 				}
 				lines.emplace_back(nonbreak_chars, ending);
@@ -314,20 +314,20 @@ namespace codepad::editors::code {
 		/// \param lines Lines of the text clip.
 		insert_result insert_codepoints(iterator at, std::size_t offset, const std::vector<line_info> &lines) {
 			assert_true_logical(!(at == _t.end() && offset != 0), "invalid insert position");
-			assert_true_logical(!lines.empty() && lines.back().ending == ui::line_ending::none, "invalid text");
+			assert_true_logical(!lines.empty() && lines.back().ending == line_ending::none, "invalid text");
 			if (lines.size() == 1 && lines[0].nonbreak_chars == 0) {
 				return insert_result(); // nothing to insert; if we continue we would incorrectly break up \r\n
 			}
 			insert_result result;
 			if (at != _t.end() && offset > at->nonbreak_chars) { // break \r\n
-				assert_true_logical(at->ending == ui::line_ending::rn, "invalid begin padding");
+				assert_true_logical(at->ending == line_ending::rn, "invalid begin padding");
 				std::size_t n = at->nonbreak_chars;
 				{
 					auto mod = _t.get_modifier_for(at.get_node());
 					mod->nonbreak_chars = 0;
-					mod->ending = ui::line_ending::n;
+					mod->ending = line_ending::n;
 				}
-				_t.emplace_before(at, n, ui::line_ending::r);
+				_t.emplace_before(at, n, line_ending::r);
 				offset = 0;
 				result.split = true;
 			}
@@ -380,18 +380,18 @@ namespace codepad::editors::code {
 			}
 			if (beg->nonbreak_chars < begoff) { // break \r\n
 				result.split_front = true;
-				assert_true_logical(beg->ending == ui::line_ending::rn, "invalid begin padding");
-				_t.get_modifier_for(beg.get_node())->ending = ui::line_ending::r;
+				assert_true_logical(beg->ending == line_ending::rn, "invalid begin padding");
+				_t.get_modifier_for(beg.get_node())->ending = line_ending::r;
 				++beg;
 				begoff = 0;
 			}
 			if (end != _t.end() && end->nonbreak_chars < endoff) { // break \r\n
 				result.split_back = true;
-				assert_true_logical(end->ending == ui::line_ending::rn, "invalid end padding");
+				assert_true_logical(end->ending == line_ending::rn, "invalid end padding");
 				{
 					auto mod = _t.get_modifier_for(end.get_node());
 					endoff = mod->nonbreak_chars = (beg == end ? begoff : 0);
-					mod->ending = ui::line_ending::n;
+					mod->ending = line_ending::n;
 				}
 			}
 			if (beg != end) {
@@ -499,16 +499,16 @@ namespace codepad::editors::code {
 		/// \return Whether the merge operation took place.
 		bool _try_merge_rn_linebreak(iterator it) {
 			if (it != _t.begin() && it != _t.end()) {
-				if (it->nonbreak_chars == 0 && it->ending == ui::line_ending::n) {
+				if (it->nonbreak_chars == 0 && it->ending == line_ending::n) {
 					auto prev = it;
 					--prev;
-					if (prev->ending == ui::line_ending::r) { // bingo!
+					if (prev->ending == line_ending::r) { // bingo!
 						std::size_t nc = prev->nonbreak_chars;
 						_t.erase(prev);
 						{
 							auto mod = _t.get_modifier_for(it.get_node());
 							mod->nonbreak_chars = nc;
-							mod->ending = ui::line_ending::rn;
+							mod->ending = line_ending::rn;
 						}
 						return true;
 					}
