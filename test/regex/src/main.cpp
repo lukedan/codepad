@@ -43,8 +43,8 @@ int main(int argc, char **argv) {
 			break;
 		}
 		auto regex_data = reinterpret_cast<const std::byte*>(regex.data());
-		parser_t parser(stream_t(regex_data, regex_data + regex.size()));
-		auto ast = parser.parse();
+		parser_t parser;
+		auto ast = parser.parse(stream_t(regex_data, regex_data + regex.size()));
 		auto dumper = cp::regex::ast::make_dumper(std::cout);
 		dumper.dump(ast);
 

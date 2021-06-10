@@ -116,6 +116,12 @@ namespace codepad::regex {
 
 				codepoint_string contents; ///< The literal.
 			};
+			/// A backreference.
+			struct backreference {
+				std::variant<std::size_t, codepoint_string> index; ///< The index of this backreference.
+				/// Indicates that this may be an octal character code instead of a backreference.
+				bool is_ambiguous = false;
+			};
 			/// Node that represents a class of characters.
 			struct character_class {
 				std::vector<std::pair<codepoint, codepoint>> ranges; ///< Ranges in the character class.
@@ -201,6 +207,7 @@ namespace codepad::regex {
 				nodes::error,
 				nodes::feature,
 				nodes::literal,
+				nodes::backreference,
 				nodes::character_class,
 				nodes::subexpression,
 				nodes::alternative,
@@ -245,6 +252,22 @@ namespace codepad::regex {
 					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
 				}
 				_stream << "\"]\n";
+			}
+			/// Dumps a \ref nodes::backreference.
+			void dump(const nodes::backreference &n) {
+				_indent();
+				_stream << "── [backreference: ";
+				if (std::holds_alternative<codepoint_string>(n.index)) {
+					_stream << "\"";
+					const auto &id = std::get<codepoint_string>(n.index);
+					for (codepoint cp : id) {
+						_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
+					}
+					_stream << "\"";
+				} else {
+					_stream << "#" << std::get<std::size_t>(n.index);
+				}
+				_stream << "]\n";
 			}
 			/// Dumps a \ref nodes::character_class.
 			void dump(const nodes::character_class &n) {
@@ -373,15 +396,13 @@ namespace codepad::regex {
 	///                the parser checkpoints the stream by copying the entire object.
 	template <typename Stream> class parser {
 	public:
-		/// Initializes \ref _stream.
-		explicit parser(Stream s) {
-			_state_stack.emplace(std::move(s));
-		}
-
 		/// Parses the whole stream.
-		[[nodiscard]] ast::nodes::subexpression parse() {
+		[[nodiscard]] ast::nodes::subexpression parse(Stream s) {
+			_state_stack.emplace(std::move(s));
 			return _parse_subexpression(std::numeric_limits<codepoint>::max());
 		}
+
+		bool extended = false; ///< Whether or not to parse in extended mode.
 	protected:
 		std::stack<Stream> _state_stack; ///< The input stream.
 
@@ -413,9 +434,11 @@ namespace codepad::regex {
 		/// Parses an octal value. Terminates when a invalid character is encountered, when the stream ends, or when
 		/// the specified number of characters are consumed.
 		[[nodiscard]] codepoint _parse_numeric_value(
-			std::size_t base, std::size_t length_limit = std::numeric_limits<std::size_t>::max()
+			std::size_t base,
+			std::size_t length_limit = std::numeric_limits<std::size_t>::max(),
+			codepoint initial = 0
 		) {
-			codepoint value = 0;
+			codepoint value = initial;
 			for (std::size_t i = 0; i < length_limit && !_stream().empty(); ++i) {
 				codepoint digit = _stream().peek();
 				if (digit >= U'0' && digit <= U'9') {
@@ -438,7 +461,7 @@ namespace codepad::regex {
 		/// Parses an escaped sequence. This function checkpoints the stream in certain conditions, and should not be
 		/// called when a checkpoint is active.
 		[[nodiscard]] std::variant<
-			ast::nodes::error, ast::nodes::literal, ast::nodes::character_class
+			ast::nodes::error, ast::nodes::literal, ast::nodes::character_class, ast::nodes::backreference
 		> _parse_escaped_sequence(_escaped_sequence_context ctx) {
 			codepoint cp = _stream().take();
 			ast::nodes::literal lit;
@@ -499,6 +522,25 @@ namespace codepad::regex {
 				}
 
 			// backreference
+			case U'8':
+				[[fallthrough]];
+			case U'9':
+				{
+					if (ctx == _escaped_sequence_context::character_class) {
+						return ast::nodes::literal::from_codepoint(cp); // interpret as literals
+					}
+					ast::nodes::backreference result;
+					std::size_t &idx = std::get<std::size_t>(result.index);
+					idx = cp - U'0';
+					if (!_stream().empty()) {
+						cp = _stream().peek();
+						if (cp >= U'0' && cp <= U'9') {
+							_stream().take();
+							idx = idx * 10 + (cp - U'0');
+						}
+					}
+					return result;
+				}
 			case U'g':
 				// TODO backreference
 				break;
@@ -510,6 +552,21 @@ namespace codepad::regex {
 				}
 				// TODO non-newline character
 				break;
+			case U'd': // decimal digit
+				{
+					ast::nodes::character_class result;
+					result.ranges.emplace_back(U'0', U'9');
+					// TODO unicode
+					return result;
+				}
+			case U's': // white space
+				{
+					ast::nodes::character_class result;
+					result.ranges.emplace_back(0x9, 0xD);
+					result.ranges.emplace_back(0x20, 0x20);
+					// TODO unicode
+					return result;
+				}
 
 			// 'proper' escaped characters
 			case U'a':
@@ -524,6 +581,23 @@ namespace codepad::regex {
 				return ast::nodes::literal::from_codepoint(0x0D);
 			case U't':
 				return ast::nodes::literal::from_codepoint(0x09);
+			}
+			if (cp >= U'0' && cp <= U'7') { // octal character code or backreference
+				codepoint number = cp - U'0';
+				if (ctx == _escaped_sequence_context::subexpression) {
+					if (!_stream().empty()) {
+						cp = _stream().peek();
+						if (cp < U'0' || cp > U'9') { // must be a backreference
+							ast::nodes::backreference ref;
+							ref.index = number;
+							return ref;
+						}
+						/*_stream().take();
+						number = number * 10 + cp - U'0';*/
+					}
+				}
+				// read up to three octal digits, but we've read one already
+				return ast::nodes::literal::from_codepoint(_parse_numeric_value(8, 2, number));
 			}
 			return ast::nodes::literal::from_codepoint(cp);
 		}
@@ -541,7 +615,7 @@ namespace codepad::regex {
 				_stream().take();
 			}
 			auto parse_char = [this]() -> std::variant<
-				ast::nodes::error, ast::nodes::literal, ast::nodes::character_class
+				ast::nodes::error, ast::nodes::literal, ast::nodes::character_class, ast::nodes::backreference
 			> {
 				codepoint cp = _stream().take();
 				if (cp == U'\\') {
@@ -570,7 +644,7 @@ namespace codepad::regex {
 				} else if (std::holds_alternative<ast::nodes::literal>(elem)) {
 					auto &literal = std::get<ast::nodes::literal>(elem).contents;
 					auto &range = result.ranges.emplace_back(literal.front(), literal.front());
-					if (_stream().peek() == U'-') { // parse a range
+					if (!_stream().empty() && _stream().peek() == U'-') { // parse a range
 						_stream().take();
 						if (_stream().empty()) {
 							// TODO error
@@ -885,6 +959,19 @@ namespace codepad::regex {
 					}
 					break;
 				default:
+					if (extended) {
+						if (!is_graphical_char(cp)) {
+							continue;
+						}
+						if (cp == U'#') { // consume comment
+							auto &stream = _stream();
+							while (!stream.empty() && (stream.peek() != U'\r' && stream.peek() != U'\n')) {
+								stream.take();
+							}
+							consume_line_ending(stream);
+							continue;
+						}
+					}
 					_append_literal(result).contents.push_back(cp);
 					break;
 				}

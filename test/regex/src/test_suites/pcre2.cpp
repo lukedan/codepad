@@ -106,7 +106,7 @@ void fail(const char *msg = nullptr) {
 				case U'i':
 					result.case_insensitive = true;
 					break;
-				case U'e':
+				case U'x':
 					result.extended = true;
 					break;
 				}
@@ -121,6 +121,7 @@ void fail(const char *msg = nullptr) {
 /// Parses a string.
 [[nodiscard]] test_data parse_data(stream_t &stream) {
 	test_data result;
+	std::size_t non_graphic = 0;
 	while (!stream.empty()) {
 		if (stream.peek() == U'\r' || stream.peek() == U'\n') {
 			cp::regex::consume_line_ending(stream);
@@ -139,45 +140,115 @@ void fail(const char *msg = nullptr) {
 				result.expect_no_match = true;
 				return result;
 			}
-		} else {
-			// TODO the escape sequences are really weird for PCRE2 test data
-			if (c == U'\\' && !stream.empty()) {
-				c = stream.take();
-				switch (c) {
-				case U'a':
-					c = U'\a';
-					break;
-				case U'b':
-					c = U'\b';
-					break;
-				case U'e':
-					c = U'\x1B';
-					break;
-				case U'f':
-					c = U'\f';
-					break;
-				case U'n':
-					c = U'\n';
-					break;
-				case U'r':
-					c = U'\r';
-					break;
-				case U't':
-					c = U'\t';
-					break;
-				case U'v':
-					c = U'\v';
-					break;
+		}
+		// TODO the escape sequences are really weird for PCRE2 test data
+		if (c == U'\\' && !stream.empty()) {
+			c = stream.take();
+			switch (c) {
+			case U'\\':
+				c = U'\\';
+				break;
+			case U'a':
+				c = U'\a';
+				break;
+			case U'b':
+				c = U'\b';
+				break;
+			case U'e':
+				c = U'\x1B';
+				break;
+			case U'f':
+				c = U'\f';
+				break;
+			case U'n':
+				c = U'\n';
+				break;
+			case U'r':
+				c = U'\r';
+				break;
+			case U't':
+				c = U'\t';
+				break;
+			case U'v':
+				c = U'\v';
+				break;
 
-				// TODO
+			case U'o':
+				REQUIRE(!stream.empty());
+				REQUIRE(stream.take() == U'{');
+				c = 0;
+				while (true) {
+					REQUIRE(!stream.empty());
+					cp::codepoint next_cp = stream.take();
+					if (next_cp == U'}') {
+						break;
+					}
+					REQUIRE(next_cp >= U'0');
+					REQUIRE(next_cp <= U'7');
+					c = c * 8 + (next_cp - U'0');
 				}
+				break;
+			case U'x':
+				c = 0;
+				if (stream.empty() || stream.peek() != U'{') {
+					for (std::size_t i = 0; i < 2 && !stream.empty(); ++i) {
+						cp::codepoint next_cp = stream.peek();
+						if (next_cp >= U'0' && next_cp <= U'9') {
+							next_cp -= U'0';
+						} else if (next_cp >= U'a' && next_cp <= U'f') {
+							next_cp = next_cp - U'a' + 10;
+						} else if (next_cp >= U'A' && next_cp <= U'F') {
+							next_cp = next_cp - U'A' + 10;
+						} else {
+							break;
+						}
+						stream.take();
+						c = c * 16 + next_cp;
+					}
+				} else {
+					stream.take();
+					while (true) {
+						REQUIRE(!stream.empty());
+						cp::codepoint next_cp = stream.take();
+						if (next_cp == U'}') {
+							break;
+						}
+						if (next_cp >= U'0' && next_cp <= U'9') {
+							next_cp -= U'0';
+						} else if (next_cp >= U'a' && next_cp <= U'f') {
+							next_cp = next_cp - U'a' + 10;
+						} else if (next_cp >= U'A' && next_cp <= U'F') {
+							next_cp = next_cp - U'A' + 10;
+						} else {
+							REQUIRE(false);
+						}
+						c = c * 16 + next_cp;
+					}
+				}
+				break;
+
+			default:
+				if (c >= U'0' && c <= U'7') {
+					c -= U'0';
+					for (std::size_t i = 0; i < 2 && !stream.empty(); ++i) {
+						cp::codepoint next_cp = stream.peek();
+						if (next_cp < U'0' || next_cp > U'7') {
+							break;
+						}
+						stream.take();
+						c = c * 8 + (next_cp - U'0');
+					}
+				}
+			}
+			non_graphic = result.string.size() + 1;
+		} else {
+			if (cp::is_graphical_char(c)) {
+				non_graphic = result.string.size() + 1;
 			}
 		}
 		result.string.push_back(c);
 	}
-	while (!result.string.empty() && !cp::is_graphical_char(result.string.back())) {
-		result.string.pop_back();
-	}
+	result.string.erase(result.string.begin() + non_graphic, result.string.end());
 	return result;
 }
 
@@ -212,7 +283,7 @@ void fail(const char *msg = nullptr) {
 
 TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 	const std::set<std::filesystem::path> valid_test_files = {
-		"testinput1"
+		"testinput1", /*"testinput2", /*"testinput3", "testinput4", "testinput5", "testinput6", "testinput7"*/
 	};
 
 	std::filesystem::directory_iterator iter("thirdparty/pcre2/testdata");
@@ -233,11 +304,6 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 		}
 
 		for (const auto &test : tests) {
-			// TODO temporarily skip over certain tests
-			if (test.pattern.case_insensitive || test.pattern.extended) {
-				continue;
-			}
-
 			std::basic_string<std::byte> pattern_str;
 			for (cp::codepoint c : test.pattern.pattern) {
 				pattern_str.append(cp::encodings::utf8::encode_codepoint(c));
@@ -246,14 +312,17 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 				reinterpret_cast<const char*>(pattern_str.data()), pattern_str.size()
 			);
 			INFO("Pattern: " << pattern_view);
+			INFO("  Extended: " << test.pattern.extended);
+			INFO("  Case insensitive: " << test.pattern.case_insensitive);
 
 			// compile regex
 			cp::regex::ast::nodes::subexpression ast;
 			cp::regex::state_machine sm;
 			{
 				stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
-				cp::regex::parser<stream_t> parser(stream);
-				ast = parser.parse();
+				cp::regex::parser<stream_t> parser;
+				parser.extended = test.pattern.extended;
+				ast = parser.parse(stream);
 				cp::regex::compiler compiler;
 				sm = compiler.compile(ast);
 			}
@@ -269,23 +338,34 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 				for (cp::codepoint c : str.string) {
 					data_str.append(cp::encodings::utf8::encode_codepoint(c));
 				}
-				INFO("Data string: " << std::string_view(
-					reinterpret_cast<const char*>(data_str.data()), data_str.size()
-				));
-				stream_t stream(data_str.data(), data_str.data() + data_str.size());
-				bool has_match = false;
-				while (true) {
-					if (auto pos = matcher.find_next(stream, sm)) {
-						INFO("  Match at " << pos.value());
-						if (str.expect_no_match) {
-							fail();
+				std::stringstream data_ss;
+				{
+					for (cp::codepoint cp : str.string) {
+						data_ss << cp;
+						if (cp >= 0x20 && cp <= 0x7E) {
+							data_ss << "'" << static_cast<char>(cp) << "'";
 						}
-						has_match = true;
+						data_ss << ", ";
+					}
+				}
+				INFO("Data string: " << data_ss.str());
+				stream_t stream(data_str.data(), data_str.data() + data_str.size());
+				std::vector<std::size_t> matches;
+				std::size_t attempts = 0;
+				for (; attempts < 1000; ++attempts) {
+					if (auto pos = matcher.find_next(stream, sm)) {
+						matches.emplace_back(pos.value());
 					} else {
 						break;
 					}
 				}
-				REQUIRE(has_match != str.expect_no_match);
+				std::stringstream matches_str;
+				for (std::size_t i : matches) {
+					matches_str << i << ", ";
+				}
+				INFO("  Matches: " << matches_str.str());
+				CHECK(attempts < 1000);
+				CHECK(matches.empty() == str.expect_no_match);
 			}
 		}
 	}

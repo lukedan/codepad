@@ -16,9 +16,13 @@ namespace codepad::regex {
 	public:
 		/// Tests whether there is a match starting from the current position of the input stream.
 		[[nodiscard]] std::size_t try_match(Stream &stream, const state_machine &expr) {
+			std::stack<_state> state_stack;
 			_state current_state(std::move(stream), expr.start_state, 0);
 			while (current_state.automata_state != expr.end_state) {
 				Stream checkpoint_stream = current_state.stream;
+				if (current_state.get_automata_state(expr).transitions.size() <= current_state.transition) {
+					break;
+				}
 				const auto &transition = current_state.get_transition(expr);
 				bool transition_ok = true;
 				if (std::holds_alternative<codepoint_string>(transition.condition)) {
@@ -49,7 +53,7 @@ namespace codepad::regex {
 				++current_state.transition;
 				if (transition_ok) {
 					if (current_state.transition < current_state.get_automata_state(expr).transitions.size()) {
-						_state_stack.emplace(
+						state_stack.emplace(
 							std::move(checkpoint_stream), current_state.automata_state, current_state.transition
 						);
 					}
@@ -62,12 +66,12 @@ namespace codepad::regex {
 						continue; // try the next transition
 					}
 					// otherwise backtrack
-					if (_state_stack.empty()) {
+					if (state_stack.empty()) {
 						current_state.stream = std::move(checkpoint_stream);
 						break;
 					}
-					current_state = std::move(_state_stack.top());
-					_state_stack.pop();
+					current_state = std::move(state_stack.top());
+					state_stack.pop();
 				}
 			}
 			stream = std::move(current_state.stream);
@@ -88,6 +92,9 @@ namespace codepad::regex {
 				Stream temp = s;
 				std::size_t state = try_match(temp, expr);
 				if (state == expr.end_state) {
+					if (s.position() == temp.position()) {
+						temp.take();
+					}
 					std::size_t start_pos = s.position();
 					s = std::move(temp);
 					return start_pos;
@@ -119,7 +126,5 @@ namespace codepad::regex {
 				return sm.states[automata_state].transitions[transition];
 			}
 		};
-		/// The stack of states used for backtracking.
-		std::stack<_state> _state_stack;
 	};
 }
