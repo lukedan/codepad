@@ -17,16 +17,15 @@ namespace cp = codepad;
 
 /// A string to match against and associated options.
 struct test_data {
-	cp::regex::codepoint_string string; ///< The string to match agains.
+	cp::codepoint_string string; ///< The string to match agains.
 	/// Used to indicate that there should be no matches in all following strings. This is only valid when
 	/// \ref string is empty.
 	bool expect_no_match = false;
 };
 /// A pattern and associated options.
 struct pattern_data {
-	cp::regex::codepoint_string pattern; ///< The pattern.
-	bool case_insensitive = false; ///< Case insensitive matching.
-	bool extended = false; ///< Extended mode.
+	cp::codepoint_string pattern; ///< The pattern.
+	cp::regex::options options; ///< Matching options.
 };
 /// A test.
 struct test {
@@ -104,10 +103,10 @@ void fail(const char *msg = nullptr) {
 				}
 				switch (stream.take()) {
 				case U'i':
-					result.case_insensitive = true;
+					result.options.case_insensitive = true;
 					break;
 				case U'x':
-					result.extended = true;
+					result.options.extended = true;
 					break;
 				}
 			}
@@ -312,8 +311,8 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 				reinterpret_cast<const char*>(pattern_str.data()), pattern_str.size()
 			);
 			INFO("Pattern: " << pattern_view);
-			INFO("  Extended: " << test.pattern.extended);
-			INFO("  Case insensitive: " << test.pattern.case_insensitive);
+			INFO("  Extended: " << test.pattern.options.extended);
+			INFO("  Case insensitive: " << test.pattern.options.case_insensitive);
 
 			// compile regex
 			cp::regex::ast::nodes::subexpression ast;
@@ -321,8 +320,7 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 			{
 				stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
 				cp::regex::parser<stream_t> parser;
-				parser.extended = test.pattern.extended;
-				ast = parser.parse(stream);
+				ast = parser.parse(stream, test.pattern.options);
 				cp::regex::compiler compiler;
 				sm = compiler.compile(ast);
 			}

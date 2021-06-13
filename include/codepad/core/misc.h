@@ -308,7 +308,7 @@ namespace codepad {
 			auto char_beg = it;
 			codepoint cp;
 			if (!encodings::utf8::next_codepoint(it, str.end(), cp)) {
-				cp = encodings::replacement_character;
+				cp = unicode::replacement_character;
 			}
 			if (cp == split) {
 				std::u8string_view substring = str.substr(last - str.begin(), char_beg - last);

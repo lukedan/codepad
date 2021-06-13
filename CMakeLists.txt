@@ -34,9 +34,14 @@ target_sources(codepad_core
 		"include/codepad/core/json/rapidjson.h"
 		"include/codepad/core/json/storage.h"
 
+		"include/codepad/core/regex/ast.h"
 		"include/codepad/core/regex/compiler.h"
 		"include/codepad/core/regex/matcher.h"
+		"include/codepad/core/regex/misc.h"
 		"include/codepad/core/regex/parser.h"
+
+		"include/codepad/core/unicode/common.h"
+		"include/codepad/core/unicode/database.h"
 
 		"include/codepad/core/assert.h"
 		"include/codepad/core/binary_tree.h"
@@ -103,6 +108,10 @@ target_sources(codepad_core
 		"include/codepad/api_export.h"
 		"include/codepad/apigen_definitions.h"
 	PRIVATE
+		"src/core/regex/misc.cpp"
+
+		"src/core/unicode/database.cpp"
+
 		"src/core/globals.cpp"
 		"src/core/logger_sinks.cpp"
 		"src/core/logging.cpp"
@@ -590,6 +599,9 @@ if(MSVC)
 		PUBLIC /utf-8)
 endif()
 
+
+# tools
+add_subdirectory("tools/")
 
 # tests
 add_subdirectory("test/")

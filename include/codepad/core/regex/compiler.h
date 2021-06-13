@@ -16,7 +16,7 @@ namespace codepad::regex {
 	class state_machine {
 	public:
 		/// A key used to determine if a transition is viable.
-		using transition_key = std::variant<codepoint_string, std::vector<std::pair<codepoint, codepoint>>>;
+		using transition_key = std::variant<codepoint_string, codepoint_range_list>;
 		/// Stores the data of a transition.
 		struct transition {
 			transition_key condition; ///< Condition of this transition.
@@ -66,8 +66,8 @@ namespace codepad::regex {
 			transition.new_state_index = end;
 		}
 		/// Compiles the given backreference.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::backreference &node) {
-			
+		void _compile(std::size_t, std::size_t, const ast::nodes::backreference&) {
+			// TODO
 		}
 		/// Compiles the given character class.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::character_class &char_class) {

@@ -699,7 +699,7 @@ namespace codepad::os::direct2d {
 		for (auto it = text.begin(); it != text.end(); ++i) {
 			codepoint cp;
 			if (!encodings::utf8::next_codepoint(it, text.end(), cp)) {
-				cp = encodings::replacement_character;
+				cp = unicode::replacement_character;
 			}
 			auto encoded = encodings::utf16<>::encode_codepoint(cp);
 			if (encoded.size() == 4) {
@@ -998,9 +998,7 @@ namespace codepad::os::direct2d {
 		for (auto it = text.begin(); it != text.end(); ) {
 			codepoint cp;
 			if (!encodings::utf8::next_codepoint(it, text.end(), cp)) {
-				cp = encodings::replacement_character;
-			} else if (cp >= encodings::invalid_min && cp <= encodings::invalid_max) {
-				cp = encodings::replacement_character;
+				cp = unicode::replacement_character;
 			}
 
 			auto cp_bytes = encodings::utf16<>::encode_codepoint(cp);
@@ -1016,8 +1014,8 @@ namespace codepad::os::direct2d {
 		for (codepoint cp : text) {
 			// a codepoint in the invalid range will mislead the plain_text creation code to treat it as the start of
 			// a surrogate pair
-			if (cp >= encodings::invalid_min && cp <= encodings::invalid_max) {
-				cp = encodings::replacement_character;
+			if (!unicode::is_valid_codepoint(cp)) {
+				cp = unicode::replacement_character;
 			}
 			bytestr += encodings::utf16<>::encode_codepoint(cp);
 		}

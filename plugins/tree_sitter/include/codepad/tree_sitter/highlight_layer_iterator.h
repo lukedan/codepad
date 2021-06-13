@@ -31,9 +31,9 @@ namespace codepad::tree_sitter {
 	/// Returns the source code corresponding to the given byte range, decoded and re-encoded as UTF-8, with all
 	/// invalid codepoints replaced by the replacement character.
 	[[nodiscard]] inline std::u8string get_source_for_range(
-		uint32_t first_byte, uint32_t past_last_byte, const codepad::editors::code::interpretation &interp
+		uint32_t first_byte, uint32_t past_last_byte, const editors::code::interpretation &interp
 	) {
-		codepad::editors::byte_string raw_str = interp.get_buffer().get_clip(
+		editors::byte_string raw_str = interp.get_buffer().get_clip(
 			interp.get_buffer().at(static_cast<std::size_t>(first_byte)),
 			interp.get_buffer().at(static_cast<std::size_t>(past_last_byte))
 		);
@@ -43,9 +43,9 @@ namespace codepad::tree_sitter {
 		result.reserve(raw_str.size());
 		const std::byte *it = raw_str.data(), *end = raw_str.data() + raw_str.size();
 		while (it != end) {
-			codepad::codepoint cp;
+			codepoint cp;
 			if (!interp.get_encoding()->next_codepoint(it, end, cp)) {
-				cp = codepad::encodings::replacement_character;
+				cp = unicode::replacement_character;
 			}
 			auto str = interp.get_encoding()->encode_codepoint(cp);
 			result.append(reinterpret_cast<const char8_t*>(str.data()), str.size());
@@ -54,7 +54,7 @@ namespace codepad::tree_sitter {
 	}
 	/// Returns the source code corresponding to the given node using \ref get_source_for_range().
 	[[nodiscard]] inline std::u8string get_source_for_node(
-		const TSNode &node, const codepad::editors::code::interpretation &interp
+		const TSNode &node, const editors::code::interpretation &interp
 	) {
 		return get_source_for_range(ts_node_start_byte(node), ts_node_end_byte(node), interp);
 	}
@@ -70,7 +70,7 @@ namespace codepad::tree_sitter {
 		/// Extracts injection information from a \p TSQueryMatch.
 		[[nodiscard]] static injection from_match(
 			const TSQueryMatch&, const language_configuration&,
-			const query&, const codepad::editors::code::interpretation&
+			const query&, const editors::code::interpretation&
 		);
 	};
 
@@ -87,7 +87,7 @@ namespace codepad::tree_sitter {
 					language = std::move(inj.language);
 				} else {
 					if (language != inj.language) {
-						codepad::logger::get().log_warning(CP_HERE) <<
+						logger::get().log_warning(CP_HERE) <<
 							"languages of combined injections don't agree; got " <<
 							inj.language << " and " << language;
 					}
@@ -151,7 +151,7 @@ namespace codepad::tree_sitter {
 			ts_query_cursor_remove_match(_cursor.get(), match.id);
 		}
 		/// Returns the next capture and advances the iterator.
-		std::optional<capture> next_capture(const codepad::editors::code::interpretation &interp) {
+		std::optional<capture> next_capture(const editors::code::interpretation &interp) {
 			if (_peek) {
 				capture cp = std::move(_peek.value());
 				_peek.reset();
@@ -161,7 +161,7 @@ namespace codepad::tree_sitter {
 		}
 		/// Returns the next capture without advancing the iterator.
 		[[nodiscard]] const std::optional<capture> &peek_capture(
-			const codepad::editors::code::interpretation &interp
+			const editors::code::interpretation &interp
 		) {
 			if (!_peek) {
 				_peek = _next_capture_impl(interp);
@@ -178,7 +178,7 @@ namespace codepad::tree_sitter {
 		/// Processes the given source code. If there are any combined injections in the source code, this function
 		/// eagerly produces layer iterators for them as well. Normal injections are not handled here.
 		[[nodiscard]] static std::deque<highlight_layer_iterator> process_layers(
-			std::vector<TSRange> ranges, const TSInput&, const codepad::editors::code::interpretation&,
+			std::vector<TSRange> ranges, const TSInput&, const editors::code::interpretation&,
 			const parser_ptr&, const language_configuration&,
 			const std::function<const language_configuration*(std::u8string_view)> &lang_callback,
 			const std::size_t *cancellation_token
@@ -214,7 +214,7 @@ namespace codepad::tree_sitter {
 
 		/// Returns the next capture and advances this iterator. Does not handle anything peek-related.
 		[[nodiscard]] std::optional<capture> _next_capture_impl(
-			const codepad::editors::code::interpretation &interp
+			const editors::code::interpretation &interp
 		) const {
 			while (true) {
 				capture result;

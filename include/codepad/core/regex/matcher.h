@@ -38,15 +38,7 @@ namespace codepad::regex {
 						transition_ok = false;
 					} else {
 						codepoint cp = current_state.stream.take();
-						const auto &ranges =
-							std::get<std::vector<std::pair<codepoint, codepoint>>>(transition.condition);
-						auto it = std::lower_bound(
-							ranges.begin(), ranges.end(), cp,
-							[](std::pair<codepoint, codepoint> range, codepoint c) {
-								return range.second < c;
-							}
-						);
-						transition_ok = it != ranges.end() && cp >= it->first;
+						transition_ok = std::get<codepoint_range_list>(transition.condition).contains(cp);
 					}
 				}
 

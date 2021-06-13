@@ -22,7 +22,7 @@ namespace codepad::editors::code {
 				codepoint cp;
 				if (!encodings::utf8::next_codepoint(it, _pattern.end(), cp)) {
 					logger::get().log_error(CP_HERE) << "invalid codepoint in search string: " << cp;
-					cp = encodings::replacement_character;
+					cp = unicode::replacement_character;
 				}
 				pattern.push_back(cp);
 			}
@@ -48,7 +48,7 @@ namespace codepad::editors::code {
 						cp =
 							it.codepoint().is_codepoint_valid() ?
 							it.codepoint().get_codepoint() :
-							encodings::replacement_character;
+							unicode::replacement_character;
 					}
 					auto [new_st, match] = matcher.put(cp, st);
 

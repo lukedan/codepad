@@ -198,7 +198,7 @@ namespace codepad::lsp {
 			codepoint cp =
 				iter.is_codepoint_valid() ?
 				iter.get_codepoint() :
-				encodings::replacement_character;
+				unicode::replacement_character;
 			editors::byte_string str = encodings::utf8::encode_codepoint(cp);
 			change.text.append(std::u8string_view(
 				reinterpret_cast<const char8_t*>(str.data()), str.size()
@@ -237,7 +237,7 @@ namespace codepad::lsp {
 		types::string text;
 		text.reserve(_interp->get_buffer().length());
 		for (auto iter = _interp->codepoint_begin(); !iter.ended(); iter.next()) {
-			codepoint cp = iter.is_codepoint_valid() ? iter.get_codepoint() : encodings::replacement_character;
+			codepoint cp = iter.is_codepoint_valid() ? iter.get_codepoint() : unicode::replacement_character;
 			auto str = encodings::utf8::encode_codepoint(cp);
 			text += std::u8string_view(reinterpret_cast<const char8_t*>(str.data()), str.size());
 		}

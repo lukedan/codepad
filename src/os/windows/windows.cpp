@@ -290,7 +290,7 @@ namespace codepad::os {
 			for (auto it = arg.begin(); it != arg.end(); ) {
 				codepoint cp;
 				if (!encodings::utf8::next_codepoint(it, arg.end(), cp)) {
-					cp = encodings::replacement_character;
+					cp = unicode::replacement_character;
 				}
 				has_meta = has_meta || (cp == U' ' || cp == U'\t' || cp == U'\n' || cp == U'\v' || cp == U'"');
 				decoded.push_back(static_cast<char32_t>(cp));

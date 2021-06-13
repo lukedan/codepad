@@ -14,7 +14,7 @@ namespace codepad::editors::code {
 		for (auto it = txt.begin(); it != txt.end(); ) {
 			codepoint cp;
 			if (!encodings::utf8::next_codepoint(it, txt.end(), cp)) {
-				cp = encodings::replacement_character;
+				cp = unicode::replacement_character;
 			}
 			u32.push_back(cp);
 		}

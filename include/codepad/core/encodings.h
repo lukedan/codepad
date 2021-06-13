@@ -4,14 +4,15 @@
 #pragma once
 
 /// \file
-/// Encoding settings, and conversions between one another.
-/// Currently supported encodings: UTF-8, UTF-16, UTF-32.
+/// Encoding implementations for UTF-8, UTF-16, and UTF-32.
 
 #include <array>
 #include <cstddef>
 #include <string>
 #include <string_view>
 #include <iterator>
+
+#include "unicode/common.h"
 
 namespace codepad {
 	/// Specifies the byte order of words.
@@ -22,11 +23,7 @@ namespace codepad {
 	/// The endianness of the current system.
 	constexpr endianness system_endianness = endianness::little_endian;
 
-	/// Type used to store codepoints. \p char32_t is not used because its range is 0~0x10FFFF, so it may not be able
-	/// to correctly represent invalid codepoints.
-	using codepoint = std::uint32_t;
-
-	/// A template version of \p std::strlen().
+	/// A templated version of \p std::strlen().
 	template <typename Char> inline std::size_t get_unit_count(const Char *cs) {
 		std::size_t i = 0;
 		for (; *cs; ++i, ++cs) {
@@ -46,17 +43,6 @@ namespace codepad {
 	}
 	/// Implementation of various encodings. All implementations accept only byte sequences as input.
 	namespace encodings {
-		constexpr codepoint
-			replacement_character = 0xFFFD, ///< Unicode replacement character.
-			invalid_min = 0xD800, ///< Minimum code point value reserved by UTF-16.
-			invalid_max = 0xDFFF, ///< Maximum code point value (inclusive) reserved by UTF-16.
-			unicode_max = 0x10FFFF; ///< Maximum code point value (inclusive) of Unicode.
-
-		/// Determines if a codepoint lies in the valid range of Unicode points.
-		inline bool is_valid_codepoint(codepoint c) {
-			return c < invalid_min || (c > invalid_max && c <= unicode_max);
-		}
-
 		/// UTF-8 encoding.
 		///
 		/// \sa https://en.wikipedia.org/wiki/UTF-8.
@@ -141,7 +127,7 @@ namespace codepad {
 					return false;
 				}
 				++i;
-				return true;
+				return unicode::is_valid_codepoint(v);
 			}
 			/// \overload
 			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
@@ -266,7 +252,7 @@ namespace codepad {
 						return false;
 					}
 				}
-				return true;
+				return unicode::is_valid_codepoint(v);
 			}
 			/// \overload
 			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
@@ -365,17 +351,12 @@ namespace codepad {
 				return 4;
 			}
 
-			/// Moves the iterator to the next codepoint, extracting the current codepoint,
-			/// and returns whether it is valid. The caller is responsible of determining if <tt>i == end</tt>.
-			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint &v) {
-				return is_valid_codepoint(v);
-			}
 			/// Moves the iterator to the next codepoint and returns whether it is valid.
 			/// The caller is responsible of determining if <tt>i == end</tt>.
 			///
 			/// \param i The `current' iterator.
 			/// \param end The end of the string.
-			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint c) {
+			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint &c) {
 				std::array<std::byte, 4> data{ { 0, 0, 0, 0 } };
 				bool result = false;
 				data[0] = static_cast<std::byte>(*i);
@@ -403,7 +384,7 @@ namespace codepad {
 						(static_cast<codepoint>(data[2]) << 8) |
 						static_cast<codepoint>(data[3]);
 				}
-				return result && c <= unicode_max;
+				return unicode::is_valid_codepoint(c);
 			}
 			/// \overload
 			template <typename It1, typename It2> inline static void next_codepoint(It1 &i, It2 end) {
