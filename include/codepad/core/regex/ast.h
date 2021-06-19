@@ -32,6 +32,7 @@ namespace codepad::regex::ast {
 			}
 
 			codepoint_string contents; ///< The literal.
+			bool case_insensitive = false; ///< Whether this literal is matched in a case-insensitive manner.
 		};
 		/// A backreference.
 		struct backreference {
@@ -45,6 +46,7 @@ namespace codepad::regex::ast {
 			/// Indicates whether this matches all characters **not** in this class, as opposed to all characters
 			/// in this class.
 			bool is_negate = false;
+			bool case_insensitive = false; ///< Whether this character class is case-insensitive.
 
 			/// Handles negation. This function assumes that \ref sort_and_compact() has been called.
 			[[nodiscard]] codepoint_range_list get_effective_ranges() const {
@@ -81,7 +83,8 @@ namespace codepad::regex::ast {
 			};
 
 			std::vector<node> nodes; ///< Nodes in this sub-expression.
-			std::variant<std::size_t, codepoint_string> capture_index; ///< Capture index.
+			codepoint_string capture_name; ///< Capture name.
+			std::size_t capture_index = 0; ///< Capture index.
 			/// The type of this subexpression or assertion. Since subexpressions are used in many contexts, by
 			/// default the subexpression does not capture.
 			type type_or_assertion = type::non_capturing;
@@ -99,6 +102,43 @@ namespace codepad::regex::ast {
 			subexpression expression; ///< The expression to be repeated.
 			std::size_t min = 0; ///< The minimum number of repetitions.
 			std::size_t max = no_limit; ///< The maximum number of repetitions.
+			/// Whether this repetition matches as few repetitions as possible, instead of as many as possible.
+			bool lazy = false;
+		};
+		/// An assertion.
+		struct assertion {
+			/// The type of an assertion.
+			enum class type : std::uint8_t {
+				always_false, ///< An assertion that always fails.
+
+				line_start, ///< Matches the start of the entire subject or the start of a new line.
+				line_end, ///< Matches the end of the entire subject or the end of a new line.
+				subject_start, ///< Matches the start of the entire subject.
+				/// Matches the end of the entire subject, or a new line before the end.
+				subject_end_or_trailing_newline,
+				subject_end, ///< Matches the end of the entire subject.
+				range_start, ///< Matches the start of the selected region of the subject.
+
+				/// Matches a character boundary if one character is in a character class while the other isn't. The
+				/// character class is given by the first node of \ref expression.
+				character_class_boundary,
+				/// Matches a character boundary if both character are in the character class or if both character
+				/// are not in the character class. The character class is given by the first node of
+				/// \ref expression.
+				character_class_nonboundary,
+
+				positive_lookahead, ///< Lookahead assertion that expects to match \ref expression.
+				negative_lookahead, ///< Lookahead assertion that expects **not** to match \ref expression.
+				positive_lookbehind, ///< Lookbehind assertion that expects to match \ref expression.
+				negative_lookbehind, ///< Lookbehind assertion that expects **not** to match \ref expression.
+
+				/// The first assertion type that includes a character class in \ref expression.
+				character_class_first = character_class_boundary,
+				complex_first = positive_lookahead ///< The first assertion type for which \ref expression is tested.
+			};
+
+			subexpression expression; ///< The expression used by this assertion.
+			type assertion_type = type::always_false; ///< The type of this assertion.
 		};
 	}
 
@@ -113,7 +153,8 @@ namespace codepad::regex::ast {
 			nodes::character_class,
 			nodes::subexpression,
 			nodes::alternative,
-			nodes::repetition
+			nodes::repetition,
+			nodes::assertion
 		>;
 
 		storage value; ///< The value of this node.
@@ -175,18 +216,7 @@ namespace codepad::regex::ast {
 		void dump(const nodes::character_class &n) {
 			_indent();
 			_stream << "©¤©¤ [character class " << (n.is_negate ? "[!]" : "") << ": ";
-			bool first = true;
-			for (auto [beg, end] : n.ranges.ranges) {
-				if (!first) {
-					_stream << ", ";
-				}
-				first = false;
-				if (beg == end) {
-					_stream << beg;
-				} else {
-					_stream << beg << " - " << end;
-				}
-			}
+			_dump_character_class(n.ranges);
 			_stream << "]\n";
 		}
 		/// Dumps a \ref nodes::subexpression.
@@ -199,16 +229,15 @@ namespace codepad::regex::ast {
 			}
 			_stream << "©¤ [subexpression";
 			if (n.type_or_assertion != ast::nodes::subexpression::type::non_capturing) {
-				_stream << " #";
-				if (std::holds_alternative<std::size_t>(n.capture_index)) {
-					_stream << std::get<std::size_t>(n.capture_index);
-				} else {
-					auto &str = std::get<codepoint_string>(n.capture_index);
-					for (codepoint cp : str) {
+				_stream << " #" << n.capture_index;
+				if (!n.capture_name.empty()) {
+					_stream << " \"";
+					for (codepoint cp : n.capture_name) {
 						_stream << reinterpret_cast<const char*>(
 							encodings::utf8::encode_codepoint(cp).c_str()
-							);
+						);
 					}
+					_stream << "\"";
 				}
 			}
 			switch (n.type_or_assertion) {
@@ -255,6 +284,27 @@ namespace codepad::regex::ast {
 			dump(n.expression);
 			_branch.pop_back();
 		}
+		/// Dumps a \ref nodes::assertion.
+		void dump(const nodes::assertion &n) {
+			_indent();
+			if (n.assertion_type >= ast::nodes::assertion::type::complex_first) {
+				_stream << "©Ð©¤ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
+				_branch.emplace_back(false);
+				dump(n.expression);
+				_branch.pop_back();
+			} else if (n.assertion_type >= ast::nodes::assertion::type::character_class_first) {
+				assert_true_logical(
+					n.expression.nodes.size() == 1 &&
+					std::holds_alternative<ast::nodes::character_class>(n.expression.nodes[0].value),
+					"invalid character class assertion"
+				);
+				_stream << "©¤©¤ [assertion type: " << static_cast<int>(n.assertion_type) << " ranges: ";
+				_dump_character_class(std::get<ast::nodes::character_class>(n.expression.nodes[0].value).ranges);
+				_stream << "]\n";
+			} else {
+				_stream << "©¤©¤ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
+			}
+		}
 
 		/// Dumps a \ref node.
 		void dump(const node &n) {
@@ -263,7 +313,7 @@ namespace codepad::regex::ast {
 					dump(concrete_node);
 				},
 				n.value
-					);
+			);
 		}
 	protected:
 		std::vector<bool> _branch; ///< Indicates whether there's an active branch at the given level.
@@ -283,6 +333,21 @@ namespace codepad::regex::ast {
 				_stream << "©À©¤";
 			} else {
 				_stream << "©¸©¤";
+			}
+		}
+		/// Dumps the given list of codepoint ranges.
+		void _dump_character_class(const codepoint_range_list &ranges) {
+			bool first = true;
+			for (auto [beg, end] : ranges.ranges) {
+				if (!first) {
+					_stream << ", ";
+				}
+				first = false;
+				if (beg == end) {
+					_stream << beg;
+				} else {
+					_stream << beg << " - " << end;
+				}
 			}
 		}
 	};

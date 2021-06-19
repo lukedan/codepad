@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
 		return session.run();
 	}
 
-	using stream_t = cp::regex::basic_string_input_stream<cp::encodings::utf8>;
+	using stream_t = cp::regex::basic_input_stream<cp::encodings::utf8, const std::byte*>;
 	using parser_t = cp::regex::parser<stream_t>;
 
 	std::string regex;
@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
 		dumper.dump(ast);
 
 		cp::regex::compiler compiler;
-		cp::regex::state_machine sm = compiler.compile(ast);
+		cp::regex::compiled::state_machine sm = compiler.compile(ast);
 
 		while (true) {
 			std::cout << "\nstring: ";

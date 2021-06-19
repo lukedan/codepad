@@ -6,6 +6,8 @@
 /// \file
 /// Implementation of miscellaneous regex-related classes and definitions.
 
+#include "codepad/core/unicode/database.h"
+
 namespace codepad::regex {
 	namespace tables {
 		const codepoint_range_list &extended_mode_whitespaces() {
@@ -26,6 +28,19 @@ namespace codepad::regex {
 					codepoint_range(0x2029) // paragraph separator
 				};
 				_result.sort_and_compact();
+			}
+
+			return _result;
+		}
+
+		const codepoint_range_list &word_characters() {
+			static codepoint_range_list _result;
+
+			if (_result.ranges.empty()) {
+				_result = unicode::unicode_data::cache::get_codepoints_in_category(
+					unicode::general_category::letter | unicode::general_category::number
+				);
+				_result.ranges.emplace_back(U'_');
 			}
 
 			return _result;

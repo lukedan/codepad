@@ -15,7 +15,7 @@ namespace codepad::regex {
 	template <typename Stream> class matcher {
 	public:
 		/// Tests whether there is a match starting from the current position of the input stream.
-		[[nodiscard]] std::size_t try_match(Stream &stream, const state_machine &expr) {
+		[[nodiscard]] std::size_t try_match(Stream &stream, const compiled::state_machine &expr) {
 			std::stack<_state> state_stack;
 			_state current_state(std::move(stream), expr.start_state, 0);
 			while (current_state.automata_state != expr.end_state) {
@@ -24,23 +24,12 @@ namespace codepad::regex {
 					break;
 				}
 				const auto &transition = current_state.get_transition(expr);
-				bool transition_ok = true;
-				if (std::holds_alternative<codepoint_string>(transition.condition)) {
-					const auto &str = std::get<codepoint_string>(transition.condition);
-					for (codepoint cp : str) {
-						if (current_state.stream.empty() || current_state.stream.take() != cp) {
-							transition_ok = false;
-							break;
-						}
-					}
-				} else {
-					if (current_state.stream.empty()) {
-						transition_ok = false;
-					} else {
-						codepoint cp = current_state.stream.take();
-						transition_ok = std::get<codepoint_range_list>(transition.condition).contains(cp);
-					}
-				}
+				bool transition_ok = std::visit(
+					[&, this](auto &&cond) {
+						return _check_transition(current_state.stream, transition, cond);
+					},
+					transition.condition
+				);
 
 				++current_state.transition;
 				if (transition_ok) {
@@ -71,7 +60,7 @@ namespace codepad::regex {
 		}
 
 		/// Tests if the given expression matches the full input.
-		[[nodiscard]] bool match(Stream s, const state_machine &expr) {
+		[[nodiscard]] bool match(Stream s, const compiled::state_machine &expr) {
 			std::size_t end_state = try_match(s, expr);
 			return end_state == expr.end_state && s.empty();
 		}
@@ -79,7 +68,7 @@ namespace codepad::regex {
 		/// at the end of the input if no match is found, or be at the end position of the match.
 		///
 		/// \return Starting position of the match.
-		[[nodiscard]] std::optional<std::size_t> find_next(Stream &s, const state_machine &expr) {
+		[[nodiscard]] std::optional<std::size_t> find_next(Stream &s, const compiled::state_machine &expr) {
 			while (!s.empty()) {
 				Stream temp = s;
 				std::size_t state = try_match(temp, expr);
@@ -110,13 +99,104 @@ namespace codepad::regex {
 			std::size_t transition = 0; ///< Index of the current transition in \ref automata_state.
 
 			/// Returns the associated \ref state_machine::state.
-			[[nodiscard]] const state_machine::state &get_automata_state(const state_machine &sm) const {
+			[[nodiscard]] const compiled::state &get_automata_state(const compiled::state_machine &sm) const {
 				return sm.states[automata_state];
 			}
 			/// Returns the associated \ref state_machine::transition.
-			[[nodiscard]] const state_machine::transition &get_transition(const state_machine &sm) const {
+			[[nodiscard]] const compiled::transition &get_transition(const compiled::state_machine &sm) const {
 				return sm.states[automata_state].transitions[transition];
 			}
 		};
+
+		/// Checks if the contents in the given stream starts with the given string.
+		[[nodiscard]] bool _check_transition(
+			Stream &stream, const compiled::transition &trans, const codepoint_string &cond
+		) const {
+			for (codepoint cp : cond) {
+				if (stream.empty()) {
+					return false;
+				}
+				codepoint got_codepoint = stream.take();
+				if (trans.case_insensitive) {
+					got_codepoint = unicode::case_folding::get_cached().fold_simple(got_codepoint);
+				}
+				if (got_codepoint != cp) {
+					return false;
+				}
+			}
+			return true;
+		}
+		/// Checks if the next character in the stream is in the given codepoint ranges.
+		[[nodiscard]] bool _check_transition(
+			Stream &stream, const compiled::transition &trans, const codepoint_range_list &cond
+		) const {
+			if (stream.empty()) {
+				return false;
+			}
+			codepoint cp = stream.take();
+			if (cond.contains(cp)) {
+				return true;
+			}
+			if (trans.case_insensitive) {
+				if (cond.contains(unicode::case_folding::get_cached().fold_simple(cp))) {
+					return true;
+				}
+			}
+			return false;
+		}
+		/// Checks if the assertion is satisfied.
+		[[nodiscard]] bool _check_transition(
+			Stream stream, const compiled::transition &trans, const compiled::assertion &cond
+		) {
+			switch (cond.assertion_type) {
+			case ast::nodes::assertion::type::always_false:
+				return false;
+			case ast::nodes::assertion::type::line_start:
+				return false; // TODO
+			case ast::nodes::assertion::type::line_end:
+				if (stream.empty()) {
+					return true;
+				}
+				return false;
+			case ast::nodes::assertion::type::subject_start:
+				return false;
+			case ast::nodes::assertion::type::subject_end_or_trailing_newline:
+				if (stream.empty()) {
+					return true;
+				}
+				consume_line_ending(stream);
+				return false;
+			case ast::nodes::assertion::type::subject_end:
+				return stream.empty();
+			case ast::nodes::assertion::type::range_start:
+				return false; // TODO
+
+			case ast::nodes::assertion::type::character_class_boundary:
+				{
+					auto &boundary = std::get<codepoint_range_list>(
+						cond.expression.states[0].transitions[0].condition
+					);
+					// TODO
+				}
+				return false;
+			case ast::nodes::assertion::type::character_class_nonboundary:
+				{
+					auto &boundary = std::get<codepoint_range_list>(
+						cond.expression.states[0].transitions[0].condition
+					);
+					// TODO
+				}
+				return false;
+
+			case ast::nodes::assertion::type::positive_lookahead:
+				return false;
+			case ast::nodes::assertion::type::negative_lookahead:
+				return false;
+			case ast::nodes::assertion::type::positive_lookbehind:
+				return false;
+			case ast::nodes::assertion::type::negative_lookbehind:
+				return false;
+			}
+		}
 	};
 }

@@ -248,6 +248,8 @@ namespace codepad::unicode {
 			[[nodiscard]] static const unicode_data &get_database();
 			/// Returns all codepoints in the given category, computing it if necessary.
 			[[nodiscard]] static const codepoint_range_list &get_codepoints_in_category(general_category_index);
+			/// Returns all codepoints in the given category or categories, computing it if necessary.
+			[[nodiscard]] static const codepoint_range_list &get_codepoints_in_category(general_category);
 		};
 
 		std::vector<entry> entries; ///< Entries in this database.
@@ -274,9 +276,23 @@ namespace codepad::unicode {
 
 	/// The case folding database in CaseFolding.txt.
 	struct case_folding {
-		std::unordered_map<codepoint, codepoint> common; ///< Common case folding.
 		std::unordered_map<codepoint, codepoint> simple; ///< Simple case folding.
 		std::unordered_map<codepoint, codepoint_string> full; ///< Full case folding.
+
+		/// Folds the given codepoint with only the simple folding rules.
+		[[nodiscard]] codepoint fold_simple(codepoint cp) const {
+			if (auto it = simple.find(cp); it != simple.end()) {
+				return it->second;
+			}
+			return cp;
+		}
+		/// Folds the given codepoint with the full folding rules.
+		[[nodiscard]] codepoint_string fold_full(codepoint cp) const {
+			if (auto it = full.find(cp); it != full.end()) {
+				return it->second;
+			}
+			return codepoint_string{ fold_simple(cp) };
+		}
 
 		/// Parses the entire CaseFolding.txt.
 		[[nodiscard]] static case_folding parse(const std::filesystem::path&);

@@ -44,12 +44,13 @@ namespace codepad {
 			codepoint_string res;
 			while (seq_data != end) {
 				codepoint cp;
-				auto from_chars_res = std::from_chars(seq_data, end, cp);
-				if (from_chars_res.ptr == seq_data) {
-					break;
-				}
+				auto from_chars_res = std::from_chars(seq_data, end, cp, 16);
+				assert_true_sys(from_chars_res.ptr != seq_data, "invalid codepoint sequence");
 				res.push_back(cp);
 				seq_data = from_chars_res.ptr;
+				while (seq_data != end && *seq_data == ' ') {
+					++seq_data;
+				}
 			}
 			return res;
 		}
@@ -193,6 +194,16 @@ namespace codepad {
 			return result;
 		}
 
+		const codepoint_range_list &unicode_data::cache::get_codepoints_in_category(general_category category) {
+			static std::unordered_map<general_category, codepoint_range_list> _cached;
+
+			auto [it, inserted] = _cached.try_emplace(category);
+			if (inserted) {
+				it->second = get_database().get_codepoints_in_category(category);
+			}
+			return it->second;
+		}
+
 
 		codepoint_range_list unicode_data::get_codepoints_in_category(general_category category) const {
 			codepoint_range_list result;
@@ -287,16 +298,22 @@ namespace codepad {
 				codepoint_string replacement = database::parse_codepoint_sequence(line[2]);
 				bool inserted = false;
 				switch (line[1][0]) {
-				case 'C':
-					assert_true_sys(replacement.size() == 1, "too many replacement characters");
-					inserted = result.common.emplace(range.first, replacement[0]).second;
-					break;
 				case 'S':
+					assert_true_logical(
+						result.full.contains(range.first),
+						"simple case folding does not have corresponding full folding"
+					);
+					[[fallthrough]];
+				case 'C':
 					assert_true_sys(replacement.size() == 1, "too many replacement characters");
 					inserted = result.simple.emplace(range.first, replacement[0]).second;
 					break;
 				case 'F':
 					inserted = result.full.emplace(range.first, std::move(replacement)).second;
+					break;
+				case 'T':
+					// ignored
+					inserted = true;
 					break;
 				}
 				assert_true_logical(inserted, "duplicate case folding entries");
@@ -307,7 +324,7 @@ namespace codepad {
 		const case_folding &case_folding::get_cached() {
 			static case_folding _res;
 
-			if (_res.common.empty()) {
+			if (_res.simple.empty()) {
 				_res = parse("thirdparty/ucd/CaseFolding.txt");
 			}
 			return _res;

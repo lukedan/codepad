@@ -10,13 +10,13 @@
 #include "codepad/core/text.h"
 
 namespace codepad::regex {
-	/// Input stream type for basic strings.
-	template <typename Encoding> struct basic_string_input_stream {
+	/// Input stream type for a pair of iterators.
+	template <typename Encoding, typename Iter> struct basic_input_stream {
 	public:
 		/// Default constructor.
-		basic_string_input_stream() = default;
+		basic_input_stream() = default;
 		/// Initializes \ref _string.
-		basic_string_input_stream(const std::byte *beg, const std::byte *end) : _cur(beg), _end(end) {
+		basic_input_stream(Iter beg, Iter end) : _cur(beg), _end(end) {
 			if (_cur != _end) {
 				if (!Encoding::next_codepoint(_cur, _end, _cp)) {
 					_cp = unicode::replacement_character;
@@ -55,9 +55,15 @@ namespace codepad::regex {
 	protected:
 		std::size_t _pos = 0; ///< Position of the stream in codepoints.
 		codepoint _cp = 0; /// The current codepoint.
-		const std::byte *_cur = nullptr; ///< Last (not past!) byte of \ref _cp.
-		const std::byte *_end = nullptr; ///< Pointer past the final byte.
+		Iter _cur = nullptr; ///< Last (not past!) byte of \ref _cp.
+		Iter _end = nullptr; ///< Pointer past the final byte.
 	};
+	/// Creates a new input stream from the given pair of iterators.
+	template <
+		typename Encoding, typename Iter
+	> basic_input_stream<Encoding, std::decay_t<Iter>> make_basic_input_stream(Iter beg, Iter end) {
+		return basic_input_stream<Encoding, std::decay_t<Iter>>(std::move(beg), std::move(end));
+	}
 
 	/// Consumes a line ending from the given stream.
 	///
@@ -95,5 +101,7 @@ namespace codepad::regex {
 	namespace tables {
 		/// Returns the list of whitespaces that are ignored in extended mode.
 		[[nodiscard]] const codepoint_range_list &extended_mode_whitespaces();
+		/// Returns the list of `word' characters.
+		[[nodiscard]] const codepoint_range_list &word_characters();
 	}
 }

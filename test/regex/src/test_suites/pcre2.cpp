@@ -32,7 +32,7 @@ struct test {
 	pattern_data pattern; ///< The pattern.
 	std::vector<test_data> data; ///< Test strings.
 };
-using stream_t = cp::regex::basic_string_input_stream<cp::encodings::utf8>; ///< UTF-8 input stream type.
+using stream_t = cp::regex::basic_input_stream<cp::encodings::utf8, const std::byte*>; ///< UTF-8 input stream type.
 
 /// Fails with the given message.
 void fail(const char *msg = nullptr) {
@@ -94,6 +94,11 @@ void fail(const char *msg = nullptr) {
 					}
 					result.pattern.push_back(next);
 				}
+			}
+			if (!stream.empty() && stream.peek() == U'\\') {
+				// make the pattern end with a backslash
+				stream.take();
+				result.pattern.push_back(U'\\');
 			}
 
 			// read options
@@ -316,7 +321,7 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 
 			// compile regex
 			cp::regex::ast::nodes::subexpression ast;
-			cp::regex::state_machine sm;
+			cp::regex::compiled::state_machine sm;
 			{
 				stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
 				cp::regex::parser<stream_t> parser;

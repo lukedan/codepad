@@ -12,46 +12,58 @@
 #include "parser.h"
 
 namespace codepad::regex {
-	/// A state machine corresponding to a regular expression.
-	class state_machine {
-	public:
+	namespace compiled {
+		struct state;
+
+		/// A state machine corresponding to a regular expression.
+		class state_machine {
+		public:
+			std::vector<state> states; ///< States.
+			std::size_t start_state = 0; ///< The starting state.
+			std::size_t end_state = 0; ///< The ending state.
+
+			/// Creates a new state in this \ref state_machine and returns its index.
+			std::size_t create_state();
+		};
+		/// An assertion used in a transition.
+		struct assertion {
+			ast::nodes::assertion::type assertion_type; ///< The type of this assertion.
+			codepoint_range_list character_class; ///< The character class potentially using by this assertion.
+			state_machine expression; ///< The expression that is expected to match or not match.
+		};
 		/// A key used to determine if a transition is viable.
-		using transition_key = std::variant<codepoint_string, codepoint_range_list>;
+		using transition_key = std::variant<codepoint_string, codepoint_range_list, assertion>;
 		/// Stores the data of a transition.
 		struct transition {
 			transition_key condition; ///< Condition of this transition.
-			std::size_t new_state_index; ///< Index of the state to transition to.
+			std::size_t new_state_index = 0; ///< Index of the state to transition to.
+			bool case_insensitive = false; ///< Whether the condition is case-insensitive.
 		};
 		/// A state.
 		struct state {
 			std::vector<transition> transitions; ///< Transitions to new states.
 		};
 
-		std::vector<state> states; ///< States.
-		std::size_t start_state = 0; ///< The starting state.
-		std::size_t end_state = 0; ///< The ending state.
-
-		/// Creates a new state in this \ref state_machine and returns its index.
-		std::size_t create_state() {
+		inline std::size_t state_machine::create_state() {
 			std::size_t res = states.size();
 			states.emplace_back();
 			return res;
 		}
-	};
+	}
 
 	/// Regex compiler.
 	class compiler {
 	public:
 		/// Compiles the given AST.
-		[[nodiscard]] state_machine compile(const ast::nodes::subexpression &expr) {
-			_result = state_machine();
+		[[nodiscard]] compiled::state_machine compile(const ast::nodes::subexpression &expr) {
+			_result = compiled::state_machine();
 			_result.start_state = _result.create_state();
 			_result.end_state = _result.create_state();
 			_compile(_result.start_state, _result.end_state, expr);
 			return std::move(_result);
 		}
 	protected:
-		state_machine _result; ///< The result.
+		compiled::state_machine _result; ///< The result.
 
 		/// Does nothing for error nodes.
 		void _compile(std::size_t, std::size_t, const ast::nodes::error&) {
@@ -62,8 +74,16 @@ namespace codepad::regex {
 		/// Compiles the given literal node.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::literal &node) {
 			auto &transition = _result.states[start].transitions.emplace_back();
-			transition.condition = node.contents;
 			transition.new_state_index = end;
+			transition.case_insensitive = node.case_insensitive;
+			if (node.case_insensitive) {
+				auto &cond_str = transition.condition.emplace<codepoint_string>();
+				for (codepoint cp : node.contents) {
+					cond_str.push_back(unicode::case_folding::get_cached().fold_simple(cp));
+				}
+			} else {
+				transition.condition = node.contents;
+			}
 		}
 		/// Compiles the given backreference.
 		void _compile(std::size_t, std::size_t, const ast::nodes::backreference&) {
@@ -74,6 +94,7 @@ namespace codepad::regex {
 			auto &transition = _result.states[start].transitions.emplace_back();
 			transition.condition = char_class.get_effective_ranges();
 			transition.new_state_index = end;
+			transition.case_insensitive = char_class.case_insensitive;
 		}
 		/// Compiles the given subexpression, starting from the given state.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::subexpression &expr) {
@@ -110,7 +131,7 @@ namespace codepad::regex {
 				// TODO better algorithm?
 				return;
 			}
-			if (rep.max == 0) { // special case: don't match if the expression is matchedS
+			if (rep.max == 0) { // special case: don't match if the expression is matched zero times
 				std::size_t bad_state = _result.create_state();
 				_compile(start, bad_state, rep.expression);
 				_result.states[start].transitions.emplace_back().new_state_index = end;
@@ -131,9 +152,14 @@ namespace codepad::regex {
 					cur = next;
 				}
 				std::size_t next = _result.create_state();
-				_compile(cur, next, rep.expression);
+				if (rep.lazy) {
+					_result.states[cur].transitions.emplace_back().new_state_index = end;
+					_compile(cur, next, rep.expression);
+				} else {
+					_compile(cur, next, rep.expression);
+					_result.states[cur].transitions.emplace_back().new_state_index = end;
+				}
 				_result.states[next].transitions.emplace_back().new_state_index = cur;
-				_result.states[cur].transitions.emplace_back().new_state_index = end;
 			} else {
 				if (rep.min > 0) {
 					std::size_t next = _result.create_state();
@@ -142,12 +168,36 @@ namespace codepad::regex {
 				}
 				for (std::size_t i = rep.min + 1; i < rep.max; ++i) {
 					std::size_t next = _result.create_state();
-					_compile(cur, next, rep.expression);
-					_result.states[cur].transitions.emplace_back().new_state_index = end;
+					if (rep.lazy) {
+						_result.states[cur].transitions.emplace_back().new_state_index = end;
+						_compile(cur, next, rep.expression);
+					} else {
+						_compile(cur, next, rep.expression);
+						_result.states[cur].transitions.emplace_back().new_state_index = end;
+					}
 					cur = next;
 				}
-				_compile(cur, end, rep.expression);
-				_result.states[cur].transitions.emplace_back().new_state_index = end;
+				if (rep.lazy) {
+					_result.states[cur].transitions.emplace_back().new_state_index = end;
+					_compile(cur, end, rep.expression);
+				} else {
+					_compile(cur, end, rep.expression);
+					_result.states[cur].transitions.emplace_back().new_state_index = end;
+				}
+			}
+		}
+		/// Compiles the given assertion.
+		void _compile(std::size_t start, std::size_t end, const ast::nodes::assertion &rep) {
+			auto &transition = _result.states[start].transitions.emplace_back();
+			transition.new_state_index = end;
+			auto &assertion = transition.condition.emplace<compiled::assertion>();
+			assertion.assertion_type = rep.assertion_type;
+			if (rep.assertion_type >= ast::nodes::assertion::type::complex_first) {
+				assertion.expression.states.emplace_back().transitions.emplace_back().condition =
+					std::get<ast::nodes::character_class>(rep.expression.nodes[0].value).get_effective_ranges();
+			} else if (rep.assertion_type >= ast::nodes::assertion::type::character_class_first) {
+				compiler cmp;
+				assertion.expression = cmp.compile(rep.expression);
 			}
 		}
 	};
