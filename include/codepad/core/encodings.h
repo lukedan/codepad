@@ -31,34 +31,44 @@ namespace codepad {
 		return i;
 	}
 
-	/// Determines if a codepoint is a `new line' character.
-	inline bool is_newline(codepoint c) {
-		return c == '\n' || c == '\r';
-	}
-	/// Determines if a codepoint is a graphical char, i.e., is not blank.
-	///
-	/// \todo May not be complete.
-	inline bool is_graphical_char(codepoint c) {
-		return c != '\n' && c != '\r' && c != '\t' && c != ' ';
-	}
+	/// A \p std::basic_string whose elements are of type \p std::byte. This differs from \ref byte_array in that
+	/// this may contain optimizations designed for strings, e.g., short string optimization.
+	using byte_string = std::basic_string<std::byte>;
+	/// A \p std::vector whose elements are of type \p std::byte.
+	using byte_array = std::vector<std::byte>;
+
 	/// Implementation of various encodings. All implementations accept only byte sequences as input.
 	namespace encodings {
+		/// Aligns the given iterator to the given word boundary by moving it forward as little bytes as possible.
+		template <typename It> [[nodiscard]] inline It align_iterator(
+			const It &it, const It &begin, std::size_t align
+		) {
+			std::size_t count = (it - begin) % align;
+			It res = it;
+			for (std::size_t i = 0; i < count; ++i) {
+				--res;
+			}
+			return res;
+		}
+		/// \overload
+		template <
+			typename It, typename Encoding
+		> [[nodiscard]] inline It align_iterator(const It &i, const It &begin) {
+			return align_iterator<It>(i, begin, Encoding::get_word_length());
+		}
+
 		/// UTF-8 encoding.
 		///
 		/// \sa https://en.wikipedia.org/wiki/UTF-8.
 		class utf8 {
 		public:
+			constexpr static std::array<std::byte, 4>
+				/// Masks for detecting codepoints with length 1, 2, 3, and 4.
+				mask{ { std::byte(0x80), std::byte(0xE0), std::byte(0xF0), std::byte(0xF8) } },
+				/// Expected pattern starting byte of codepoints with length 1, 2, 3, and 4, masked with \ref mask.
+				patt{ { std::byte(0x00), std::byte(0xC0), std::byte(0xE0), std::byte(0xF0) } };
 			constexpr static std::byte
-				mask_1{0x80}, ///< Mask for detecting single-byte codepoints.
-				mask_2{0xE0}, ///< Mask for detecting bytes leading double-byte codepoints.
-				mask_3{0xF0}, ///< Mask for detecting triple-byte codepoints.
-				mask_4{0xF8}, ///< Mask for detecting quadruple-byte codepoints.
 				mask_cont{0xC0}, ///< Mask for detecting continuation bytes.
-
-				patt_1{0x00}, ///< Expected masked value of single-byte codepoints.
-				patt_2{0xC0}, ///< Expected masked value of bytes leading double-byte codepoints.
-				patt_3{0xE0}, ///< Expected masked value of bytes leading triple-byte codepoints.
-				patt_4{0xF0}, ///< Expected masked value of bytes leading quadruple-byte codepoints.
 				patt_cont{0x80}; ///< Expected masked value of continuation bytes.
 
 			/// Returns `UTF-8'.
@@ -69,31 +79,33 @@ namespace codepad {
 			inline static std::size_t get_maximum_codepoint_length() {
 				return 4;
 			}
+			/// Returns the length of a single word.
+			inline static std::size_t get_word_length() {
+				return 1;
+			}
 
 			/// Moves the iterator to the next codepoint, extracting the current codepoint to \p v, and returns
 			/// whether it is valid. The caller is responsible of determining if <tt>i == end</tt> before this call.
 			/// If the codepoint is not valid, \p v will contain the byte that \p i initially points to, and \p i
 			/// will be moved to point to the next byte. This function does not check if the resulting codepoint lies
 			/// between \ref invalid_min and \ref invalid_max.
-			template <typename It1, typename It2> inline static bool next_codepoint(
-				It1 &i, const It2 &end, codepoint &v
-			) {
+			template <typename It> inline static bool next_codepoint(It &i, const It &end, codepoint &v) {
 				std::byte fb = _get(i);
-				if ((fb & mask_1) == patt_1) {
-					v = static_cast<codepoint>(fb & ~mask_1);
-				} else if ((fb & mask_2) == patt_2) {
+				if ((fb & mask[0]) == patt[0]) {
+					v = static_cast<codepoint>(fb & ~mask[0]);
+				} else if ((fb & mask[1]) == patt[1]) {
 					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
-					v = static_cast<codepoint>(fb & ~mask_2) << 6;
+					v = static_cast<codepoint>(fb & ~mask[1]) << 6;
 					v |= static_cast<codepoint>(_get(i) & ~mask_cont);
-				} else if ((fb & mask_3) == patt_3) {
+				} else if ((fb & mask[2]) == patt[2]) {
 					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
-					v = static_cast<codepoint>(fb & ~mask_3) << 12;
+					v = static_cast<codepoint>(fb & ~mask[2]) << 12;
 					v |= static_cast<codepoint>(_get(i) & ~mask_cont) << 6;
 					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						--i;
@@ -101,12 +113,12 @@ namespace codepad {
 						return false;
 					}
 					v |= static_cast<codepoint>(_get(i) & ~mask_cont);
-				} else if ((fb & mask_4) == patt_4) {
+				} else if ((fb & mask[3]) == patt[3]) {
 					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						v = static_cast<codepoint>(fb);
 						return false;
 					}
-					v = static_cast<codepoint>(fb & ~mask_4) << 18;
+					v = static_cast<codepoint>(fb & ~mask[3]) << 18;
 					v |= static_cast<codepoint>(_get(i) & ~mask_cont) << 12;
 					if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 						--i;
@@ -130,14 +142,14 @@ namespace codepad {
 				return unicode::is_valid_codepoint(v);
 			}
 			/// \overload
-			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
+			template <typename It> inline static bool next_codepoint(It &i, const It &end) {
 				std::byte fb = _get(i);
-				if ((fb & mask_1) != patt_1) {
-					if ((fb & mask_2) == patt_2) {
+				if ((fb & mask[0]) != patt[0]) {
+					if ((fb & mask[1]) == patt[1]) {
 						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							return false;
 						}
-					} else if ((fb & mask_3) == patt_3) {
+					} else if ((fb & mask[2]) == patt[2]) {
 						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							return false;
 						}
@@ -145,7 +157,7 @@ namespace codepad {
 							--i;
 							return false;
 						}
-					} else if ((fb & mask_4) == patt_4) {
+					} else if ((fb & mask[3]) == patt[3]) {
 						if (++i == end || (_get(i) & mask_cont) != patt_cont) {
 							return false;
 						}
@@ -166,26 +178,98 @@ namespace codepad {
 				++i;
 				return true;
 			}
+
+			/// Moves the iterator to the previous codepoint, and stores the value of the codepoint in the given
+			/// parameter. The caller is responsible of checking that <tt>i != beg</tt>.
+			///
+			/// \return Whether a valid codepoint was extracted.
+			template <typename It> inline static bool previous_codepoint(It &i, const It &beg, codepoint &cp) {
+				std::array<std::byte, 3> continuation_bytes;
+				std::size_t count = 0; // number of continuation bytes
+				while (true) {
+					--i;
+					if ((_get(i) & mask_cont) != patt_cont) {
+						break;
+					}
+					if (i == beg || count == 3) {
+						// invalid - first byte is a continuation byte, or too many continuation bytes
+						for (; count > 0; ++i, --count) { // move the iterator back to the last byte
+						}
+						cp = static_cast<codepoint>(_get(i));
+						return false;
+					}
+					continuation_bytes[count] = _get(i);
+					++count;
+				}
+				if ((_get(i) & mask[count]) != patt[count]) { // invalid sequence
+					for (; count > 0; ++i, --count) { // move the iterator back to the last byte
+					}
+					cp = static_cast<codepoint>(_get(i));
+					return false;
+				}
+				// reconstruct the codepoint
+				if (count == 0) {
+					cp = static_cast<codepoint>(_get(i) & ~mask[0]);
+					return unicode::is_valid_codepoint(cp);
+				}
+				cp = static_cast<codepoint>(continuation_bytes[0] & ~mask_cont);
+				if (count == 1) {
+					cp |= static_cast<codepoint>(_get(i) & ~mask[1]) << 6;
+					return unicode::is_valid_codepoint(cp);
+				}
+				cp |= static_cast<codepoint>(continuation_bytes[1] & ~mask_cont) << 6;
+				if (count == 2) {
+					cp |= static_cast<codepoint>(_get(i) & ~mask[2]) << 12;
+					return unicode::is_valid_codepoint(cp);
+				}
+				cp |= static_cast<codepoint>(continuation_bytes[2] & ~mask_cont) << 12;
+				cp |= static_cast<codepoint>(_get(i) & ~mask[3]) << 18;
+				return unicode::is_valid_codepoint(cp);
+			}
+			/// \overload
+			template <typename It> inline static bool previous_codepoint(It &i, const It &beg) {
+				std::size_t count = 0; // number of continuation bytes
+				while (true) {
+					--i;
+					if ((_get(i) & mask_cont) != patt_cont) {
+						break;
+					}
+					if (i == beg || count == 3) {
+						// invalid - first byte is a continuation byte, or too many continuation bytes
+						for (; count > 0; ++i, --count) { // move the iterator back to the last byte
+						}
+						return false;
+					}
+					++count;
+				}
+				if ((_get(i) & mask[count]) != patt[count]) { // invalid sequence
+					for (; count > 0; ++i, --count) { // move the iterator back to the last byte
+					}
+					return false;
+				}
+				return true;
+			}
+
 			/// Returns the UTF-8 representation of a Unicode codepoint.
 			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
 				if (c < 0x80) {
-					return {static_cast<std::byte>(c) & ~mask_1};
+					return {static_cast<std::byte>(c) & ~mask[0]};
 				}
 				if (c < 0x800) {
 					return {
-						(static_cast<std::byte>(c >> 6) & ~mask_2) | patt_2,
+						(static_cast<std::byte>(c >> 6) & ~mask[1]) | patt[1],
 						(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
 					};
 				}
 				if (c < 0x10000) {
 					return {
-						(static_cast<std::byte>(c >> 12) & ~mask_3) | patt_3,
+						(static_cast<std::byte>(c >> 12) & ~mask[2]) | patt[2],
 						(static_cast<std::byte>(c >> 6) & ~mask_cont) | patt_cont,
 						(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
 					};
 				}
 				return {
-					(static_cast<std::byte>(c >> 18) & ~mask_4) | patt_4,
+					(static_cast<std::byte>(c >> 18) & ~mask[3]) | patt[3],
 					(static_cast<std::byte>(c >> 12) & ~mask_cont) | patt_cont,
 					(static_cast<std::byte>(c >> 6) & ~mask_cont) | patt_cont,
 					(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
@@ -205,7 +289,8 @@ namespace codepad {
 			constexpr static std::uint16_t
 				mask_pair = 0xDC00, ///< Mask for detecting surrogate pairs.
 				patt_pair = 0xD800, ///< Expected masked value of the first unit of the surrogate pair.
-				patt_pair_second = 0xDC00; ///< Expected masked value of the second unit of the surrogate pair.
+				patt_pair_second = 0xDC00, ///< Expected masked value of the second unit of the surrogate pair.
+				mask_data = 0x03FF; ///< Mask used for extracting data from surrogate pair words.
 
 			/// Returns either `UTF-16 LE' or `UTF-16 BE', depending on the Endianness.
 			inline static std::u8string_view get_name() {
@@ -219,10 +304,14 @@ namespace codepad {
 			inline static std::size_t get_maximum_codepoint_length() {
 				return 4;
 			}
+			/// Returns the length of a single word.
+			inline static std::size_t get_word_length() {
+				return 2;
+			}
 
 			/// Moves the iterator to the next codepoint, extracting the current codepoint, and returns whether it is
 			/// valid. The caller is responsible of determining if <tt>i == end</tt> before the call.
-			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint &v) {
+			template <typename It> inline static bool next_codepoint(It &i, const It end, codepoint &v) {
 				std::uint16_t word;
 				if (!_extract_word(i, end, word)) {
 					v = word;
@@ -245,22 +334,22 @@ namespace codepad {
 						v = word;
 						return false;
 					}
-					v = (static_cast<codepoint>(word & 0x03FF) << 10) | (w2 & 0x03FF);
+					v = (static_cast<codepoint>(word & mask_data) << 10) | (w2 & mask_data);
 				} else {
 					v = word;
 					if ((word & mask_pair) == patt_pair_second) {
 						return false;
 					}
 				}
-				return unicode::is_valid_codepoint(v);
+				return true;
 			}
 			/// \overload
-			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end) {
+			template <typename It> inline static bool next_codepoint(It &i, const It &end) {
 				std::uint16_t word;
 				if (!_extract_word(i, end, word)) {
 					return false;
 				}
-				if ((word & 0xDC00) == 0xD800) {
+				if ((word & mask_pair) == patt_pair) {
 					if (i == end) {
 						return false;
 					}
@@ -269,18 +358,61 @@ namespace codepad {
 						--i;
 						return false;
 					}
-					if ((w2 & 0xDC00) != 0xDC00) {
+					if ((w2 & mask_pair) != patt_pair_second) {
 						--i;
 						--i;
 						return false;
 					}
 				} else {
-					if ((word & 0xDC00) == 0xDC00) {
+					if ((word & mask_pair) == patt_pair_second) {
 						return false;
 					}
 				}
 				return true;
 			}
+
+			/// Moves the iterator to the previous codepoint, and stores the value of the codepoint in the given
+			/// parameter. The caller is responsible of checking that <tt>i != beg</tt>.
+			///
+			/// \return Whether a valid codepoint was extracted.
+			template <typename It> inline static bool previous_codepoint(It &i, const It &beg, codepoint &cp) {
+				std::uint16_t word = _extract_word_backwards(i);
+				if ((word & mask_pair) == patt_pair_second) {
+					if (i == beg) {
+						cp = word;
+						return false;
+					}
+					std::uint16_t prev_word = _extract_word_backwards(i);
+					if ((prev_word & mask_pair) != patt_pair) {
+						++i;
+						++i;
+						cp = word;
+						return false;
+					}
+					cp = (static_cast<codepoint>(prev_word & mask_data) << 10) | (word & mask_data);
+					return true;
+				}
+				cp = word;
+				return (word & mask_pair) != patt_pair;
+			}
+			/// \overload
+			template <typename It> inline static bool previous_codepoint(It &i, const It &beg) {
+				std::uint16_t word = _extract_word_backwards(i);
+				if ((word & mask_pair) == patt_pair_second) {
+					if (i == beg) {
+						return false;
+					}
+					std::uint16_t prev_word = _extract_word_backwards(i);
+					if ((prev_word & mask_pair) != patt_pair) {
+						++i;
+						++i;
+						return false;
+					}
+					return true;
+				}
+				return (word & mask_pair) != patt_pair;
+			}
+
 			/// Returns the UTF-16 representation of a Unicode codepoint.
 			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
 				if (c < 0x10000) {
@@ -288,16 +420,16 @@ namespace codepad {
 				}
 				codepoint mined = c - 0x10000;
 				return
-					_encode_word(static_cast<std::uint16_t>((mined >> 10) | 0xD800)) +
-					_encode_word(static_cast<std::uint16_t>((mined & 0x03FF) | 0xDC00));
+					_encode_word(static_cast<std::uint16_t>((mined >> 10) | patt_pair)) +
+					_encode_word(static_cast<std::uint16_t>((mined & mask_data) | patt_pair_second));
 			}
 		protected:
 			/// Extracts a two-byte word from the given range of bytes, with the specified endianness.
 			///
 			/// \return A boolean indicating whether it was successfully extracted. This operation fails only if
 			///         there are not enough bytes.
-			template <typename It1, typename It2> inline static bool _extract_word(
-				It1 &i, It2 end, std::uint16_t &word
+			template <typename It> inline static bool _extract_word(
+				It &i, const It &end, std::uint16_t &word
 			) {
 				auto b1 = static_cast<std::byte>(*i);
 				if (++i == end) {
@@ -309,13 +441,27 @@ namespace codepad {
 				if constexpr (Endianness == endianness::little_endian) {
 					word = static_cast<std::uint16_t>(
 						static_cast<std::uint16_t>(b1) | (static_cast<std::uint16_t>(b2) << 8)
-						);
+					);
 				} else {
 					word = static_cast<std::uint16_t>(
 						static_cast<std::uint16_t>(b2) | (static_cast<std::uint16_t>(b1) << 8)
-						);
+					);
 				}
 				return true;
+			}
+			/// Extracts a word going backwards.
+			template <typename It> [[nodiscard]] inline static std::uint16_t _extract_word_backwards(It &i) {
+				auto b2 = static_cast<std::byte>(*--i);
+				auto b1 = static_cast<std::byte>(*--i);
+				if constexpr (Endianness == endianness::little_endian) {
+					return static_cast<std::uint16_t>(
+						static_cast<std::uint16_t>(b1) | (static_cast<std::uint16_t>(b2) << 8)
+					);
+				} else {
+					return static_cast<std::uint16_t>(
+						static_cast<std::uint16_t>(b2) | (static_cast<std::uint16_t>(b1) << 8)
+					);
+				}
 			}
 			/// Rearranges the two bytes of the given word according to the current endianness.
 			inline static std::basic_string<std::byte> _encode_word(std::uint16_t word) {
@@ -341,13 +487,17 @@ namespace codepad {
 			/// Returns either `UTF-32 LE' or `UTF-32 BE', depending on the Endianness.
 			inline static std::u8string_view get_name() {
 				if constexpr (Endianness == endianness::little_endian) {
-					return "UTF-32 LE";
+					return u8"UTF-32 LE";
 				} else {
-					return "UTF-32 BE";
+					return u8"UTF-32 BE";
 				}
 			}
 			/// 4 bytes of a codepoint.
 			inline static std::size_t get_maximum_codepoint_length() {
+				return 4;
+			}
+			/// Returns the length of a single word.
+			inline static std::size_t get_word_length() {
 				return 4;
 			}
 
@@ -356,8 +506,9 @@ namespace codepad {
 			///
 			/// \param i The `current' iterator.
 			/// \param end The end of the string.
-			template <typename It1, typename It2> inline static bool next_codepoint(It1 &i, It2 end, codepoint &c) {
-				std::array<std::byte, 4> data{ { 0, 0, 0, 0 } };
+			template <typename It> inline static bool next_codepoint(It &i, const It &end, codepoint &c) {
+				std::array<std::byte, 4> data;
+				std::fill(data.begin(), data.end(), static_cast<std::byte>(0));
 				bool result = false;
 				data[0] = static_cast<std::byte>(*i);
 				if (++i != end) {
@@ -371,31 +522,45 @@ namespace codepad {
 						}
 					}
 				}
-				if constexpr (Endianness == endianness::little_endian) {
-					c =
-						static_cast<codepoint>(data[0]) |
-						(static_cast<codepoint>(data[1]) << 8) |
-						(static_cast<codepoint>(data[2]) << 16) |
-						(static_cast<codepoint>(data[3]) << 24);
-				} else {
-					c =
-						(static_cast<codepoint>(data[0]) << 24) |
-						(static_cast<codepoint>(data[1]) << 16) |
-						(static_cast<codepoint>(data[2]) << 8) |
-						static_cast<codepoint>(data[3]);
-				}
-				return unicode::is_valid_codepoint(c);
+				c = _make_codepoint(data);
+				return result && unicode::is_valid_codepoint(c);
 			}
 			/// \overload
-			template <typename It1, typename It2> inline static void next_codepoint(It1 &i, It2 end) {
+			template <typename It> inline static bool next_codepoint(It &i, const It &end) {
 				if (++i != end) {
 					if (++i != end) {
 						if (++i != end) {
 							++i;
+							return true;
 						}
 					}
 				}
+				return false;
 			}
+
+			/// Moves the iterator to the previous codepoint, and stores the value of the codepoint in the given
+			/// parameter.
+			///
+			/// \return Whether a valid codepoint was extracted.
+			template <typename It> inline static bool previous_codepoint(It &i, const It &beg, codepoint &cp) {
+				std::array<std::byte, 4> data;
+				std::fill(data.begin(), data.end(), static_cast<std::byte>(0));
+				data[3] = *--i;
+				data[2] = *--i;
+				data[1] = *--i;
+				data[0] = *--i;
+				cp = _make_codepoint(data);
+				return unicode::is_valid_codepoint(cp);
+			}
+			/// \overload
+			template <typename It> inline static bool previous_codepoint(It &i, const It &beg) {
+				--i;
+				--i;
+				--i;
+				--i;
+				return true;
+			}
+
 			/// Returns the UTF-32 representation of a Unicode codepoint.
 			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
 				if constexpr (Endianness == endianness::little_endian) {
@@ -412,6 +577,23 @@ namespace codepad {
 						static_cast<std::byte>((c >> 8) & 0xFF),
 						static_cast<std::byte>(c & 0xFF)
 					};
+				}
+			}
+		protected:
+			/// Constructs a codepoint from the given bytes, respecting the endianness.
+			[[nodiscard]] inline static codepoint _make_codepoint(const std::array<std::byte, 4> &bytes) {
+				if constexpr (Endianness == endianness::little_endian) {
+					return
+						static_cast<codepoint>(bytes[0]) |
+						(static_cast<codepoint>(bytes[1]) << 8) |
+						(static_cast<codepoint>(bytes[2]) << 16) |
+						(static_cast<codepoint>(bytes[3]) << 24);
+				} else {
+					return
+						(static_cast<codepoint>(bytes[0]) << 24) |
+						(static_cast<codepoint>(bytes[1]) << 16) |
+						(static_cast<codepoint>(bytes[2]) << 8) |
+						static_cast<codepoint>(bytes[3]);
 				}
 			}
 		};

@@ -32,9 +32,22 @@ namespace codepad::editors::code {
 		virtual ~buffer_encoding() = default;
 
 		/// Returns the name of this encoding.
-		virtual std::u8string_view get_name() const = 0;
+		[[nodiscard]] virtual std::u8string_view get_name() const = 0;
 		/// Returns the maximum possible length of a codepoint, in bytes.
-		virtual std::size_t get_maximum_codepoint_length() const = 0;
+		[[nodiscard]] virtual std::size_t get_maximum_codepoint_length() const = 0;
+		/// Returns the length of a word.
+		[[nodiscard]] virtual std::size_t get_word_length() const = 0;
+
+		/// Calls \ref encodings::align_iterator().
+		[[nodiscard]] buffer::const_iterator align_iterator(
+			const buffer::const_iterator &it, const buffer::const_iterator &beg
+		) const {
+			return encodings::align_iterator(it, beg, get_word_length());
+		}
+		/// Calls \ref encodings::align_iterator().
+		[[nodiscard]] const std::byte *align_iterator(const std::byte *it, const std::byte *beg) const {
+			return encodings::align_iterator(it, beg, get_word_length());
+		}
 
 		/// Moves \p it to the beginning of the next codepoint, where the last byte is indicated by \p end, and
 		/// stores the decoded codepoint in \p res.
@@ -53,17 +66,21 @@ namespace codepad::editors::code {
 		virtual bool next_codepoint(const std::byte *&it, const std::byte *end) const = 0;
 
 		/// Returns the encoded representation of the given codepoint.
-		virtual byte_string encode_codepoint(codepoint) const = 0;
+		[[nodiscard]] virtual byte_string encode_codepoint(codepoint) const = 0;
 	};
 	/// Encoding used to interpret a \ref buffer, based on a class in the \ref codepad::encodings namespace.
 	template <typename Encoding> class predefined_buffer_encoding : public buffer_encoding {
-		/// Calls \p get_name() in \p Encoding.
+		/// Calls \p Encoding::get_name().
 		std::u8string_view get_name() const override {
 			return Encoding::get_name();
 		}
-		/// Calls \p get_maximum_codepoint_length() in \p Encoding.
+		/// Calls \p Encoding::get_maximum_codepoint_length().
 		std::size_t get_maximum_codepoint_length() const override {
 			return Encoding::get_maximum_codepoint_length();
+		}
+		/// Calls \p Encoding::get_word_length().
+		std::size_t get_word_length() const override {
+			return Encoding::get_word_length();
 		}
 
 		/// Calls \p next_codepoint() in \p Encoding.
@@ -100,6 +117,8 @@ namespace codepad::editors::code {
 			register_builtin_encoding<encodings::utf8>();
 			register_builtin_encoding<encodings::utf16<endianness::little_endian>>();
 			register_builtin_encoding<encodings::utf16<endianness::big_endian>>();
+			register_builtin_encoding<encodings::utf32<endianness::little_endian>>();
+			register_builtin_encoding<encodings::utf32<endianness::big_endian>>();
 
 			set_default(*get_encoding(encodings::utf8::get_name()));
 		}

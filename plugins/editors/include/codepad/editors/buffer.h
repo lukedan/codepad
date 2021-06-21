@@ -23,12 +23,6 @@
 namespace codepad::editors {
 	class buffer_manager;
 
-	/// A \p std::basic_string whose elements are of type \p std::byte. This differs from \ref byte_array in that
-	/// this may contain optimizations designed for strings, e.g., short string optimization.
-	using byte_string = std::basic_string<std::byte>;
-	/// A \p std::vector whose elements are of type \p std::byte.
-	using byte_array = std::vector<std::byte>;
-
 	/// Indicates the specific type of a \ref buffer::edit.
 	enum class edit_type : unsigned char {
 		normal, ///< A normal edit made by the user through an editor.
@@ -139,6 +133,15 @@ namespace codepad::editors {
 				iterator_base ov = *this;
 				--*this;
 				return ov;
+			}
+
+			/// Returns the distance between the two iterators.
+			template <typename OtherIter> friend std::ptrdiff_t operator-(
+				const iterator_base &lhs, const OtherIter &rhs
+			) {
+				return
+					static_cast<std::ptrdiff_t>(lhs.get_position()) -
+					static_cast<std::ptrdiff_t>(rhs.get_position());
 			}
 
 			/// Equality.

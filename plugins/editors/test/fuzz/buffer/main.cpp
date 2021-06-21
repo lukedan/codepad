@@ -118,7 +118,7 @@ public:
 		} else {
 			positions = get_modify_positions_boundary(random_int(caret_count_range));
 		}
-		std::vector<cp::editors::byte_string> inserts;
+		std::vector<cp::byte_string> inserts;
 		for (std::size_t i = 0; i < positions.size(); ++i) {
 			double r = random_double();
 			if (r < 0.1) { // 10% chance: don't insert anything
@@ -147,7 +147,7 @@ public:
 
 
 	/// Generates and returns a series of codepoints and encodes them using the given encoding.
-	[[nodiscard]] cp::editors::byte_string generate_random_encoded_string(std::size_t length) {
+	[[nodiscard]] cp::byte_string generate_random_encoded_string(std::size_t length) {
 		constexpr std::pair<cp::codepoint, cp::codepoint> _codepoint_dist(0, 0x10FFFF - 0x800);
 
 		std::basic_string<cp::codepoint> str;
@@ -172,17 +172,17 @@ public:
 				str.push_back(cp);
 			}
 		}
-		cp::editors::byte_string res;
+		cp::byte_string res;
 		for (cp::codepoint cp : str) {
 			res.append(_interp->get_encoding()->encode_codepoint(cp));
 		}
 		return res;
 	}
 	/// Generates a random series of bytes.
-	cp::editors::byte_string generate_random_string(std::size_t length) {
+	cp::byte_string generate_random_string(std::size_t length) {
 		constexpr std::pair<int, int> _byte_dist{ 0, 255 };
 
-		cp::editors::byte_string res;
+		cp::byte_string res;
 		for (std::size_t i = 0; i < length; ++i) {
 			res.push_back(static_cast<std::byte>(random_int(_byte_dist)));
 		}

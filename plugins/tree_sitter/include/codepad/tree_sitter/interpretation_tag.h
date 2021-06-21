@@ -106,7 +106,7 @@ namespace codepad::tree_sitter {
 	protected:
 		/// Contains information used in a \p TSInput.
 		struct _payload {
-			editors::byte_string read_buffer; ///< Intermediate buffer.
+			byte_string read_buffer; ///< Intermediate buffer.
 			const editors::code::interpretation &interpretation; ///< Used to read the buffer.
 		};
 

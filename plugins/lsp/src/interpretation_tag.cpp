@@ -199,7 +199,7 @@ namespace codepad::lsp {
 				iter.is_codepoint_valid() ?
 				iter.get_codepoint() :
 				unicode::replacement_character;
-			editors::byte_string str = encodings::utf8::encode_codepoint(cp);
+			byte_string str = encodings::utf8::encode_codepoint(cp);
 			change.text.append(std::u8string_view(
 				reinterpret_cast<const char8_t*>(str.data()), str.size()
 			));

@@ -41,12 +41,17 @@ void fail(const char *msg = nullptr) {
 	}
 	REQUIRE(false);
 }
+// TODO replace this with a proper character class test
+/// Determines if a codepoint is a graphical char, i.e., is not blank.
+bool is_graphical_char(cp::codepoint c) {
+	return c != '\n' && c != '\r' && c != '\t' && c != ' ';
+}
 
 /// Parses a pattern and its options, and consumes the following line break.
 [[nodiscard]] pattern_data parse_pattern(stream_t &stream) {
 	pattern_data result;
 	while (true) {
-		while (!stream.empty() && !cp::is_graphical_char(stream.peek())) {
+		while (!stream.empty() && !is_graphical_char(stream.peek())) {
 			stream.take();
 		}
 		if (stream.empty()) {
@@ -133,7 +138,7 @@ void fail(const char *msg = nullptr) {
 		}
 		cp::codepoint c = stream.take();
 		if (result.string.empty()) {
-			if (!cp::is_graphical_char(c)) {
+			if (!is_graphical_char(c)) {
 				continue;
 			}
 			if (c == U'\\' && !stream.empty() && stream.peek() == U'=') {
@@ -246,7 +251,7 @@ void fail(const char *msg = nullptr) {
 			}
 			non_graphic = result.string.size() + 1;
 		} else {
-			if (cp::is_graphical_char(c)) {
+			if (is_graphical_char(c)) {
 				non_graphic = result.string.size() + 1;
 			}
 		}
