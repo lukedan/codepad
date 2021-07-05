@@ -39,21 +39,28 @@ namespace codepad {
 
 	/// Implementation of various encodings. All implementations accept only byte sequences as input.
 	namespace encodings {
+		/// Returns \p true if the given position is aligned.
+		[[nodiscard]] inline bool is_position_aligned(std::size_t pos, std::size_t align) {
+			return pos % align == 0;
+		}
+		/// \overload
+		template <typename Encoding> inline bool is_position_aligned(std::size_t pos) {
+			return is_position_aligned(pos, Encoding::get_word_length());
+		}
 		/// Aligns the given iterator to the given word boundary by moving it forward as little bytes as possible.
-		template <typename It> [[nodiscard]] inline It align_iterator(
-			const It &it, const It &begin, std::size_t align
-		) {
+		template <typename It> inline codepoint align_iterator(It &it, const It &begin, std::size_t align) {
+			codepoint res = 0;
 			std::size_t count = (it - begin) % align;
-			It res = it;
 			for (std::size_t i = 0; i < count; ++i) {
-				--res;
+				--it;
+				res = (res << 8) | static_cast<codepoint>(*it);
 			}
 			return res;
 		}
 		/// \overload
 		template <
-			typename It, typename Encoding
-		> [[nodiscard]] inline It align_iterator(const It &i, const It &begin) {
+			typename Encoding, typename It
+		> [[nodiscard]] inline codepoint align_iterator(It &i, const It &begin) {
 			return align_iterator<It>(i, begin, Encoding::get_word_length());
 		}
 

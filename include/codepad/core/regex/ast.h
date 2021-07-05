@@ -85,9 +85,9 @@ namespace codepad::regex::ast {
 			std::vector<node> nodes; ///< Nodes in this sub-expression.
 			codepoint_string capture_name; ///< Capture name.
 			std::size_t capture_index = 0; ///< Capture index.
-			/// The type of this subexpression or assertion. Since subexpressions are used in many contexts, by
-			/// default the subexpression does not capture.
-			type type_or_assertion = type::non_capturing;
+			/// The type of this subexpression. Since subexpressions are used in many scenarios, by default the
+			/// subexpression does not capture.
+			type subexpr_type = type::non_capturing;
 		};
 
 		/// Alternatives.
@@ -228,7 +228,7 @@ namespace codepad::regex::ast {
 				_stream << "й╨";
 			}
 			_stream << "йд [subexpression";
-			if (n.type_or_assertion != ast::nodes::subexpression::type::non_capturing) {
+			if (n.subexpr_type != ast::nodes::subexpression::type::non_capturing) {
 				_stream << " #" << n.capture_index;
 				if (!n.capture_name.empty()) {
 					_stream << " \"";
@@ -240,7 +240,7 @@ namespace codepad::regex::ast {
 					_stream << "\"";
 				}
 			}
-			switch (n.type_or_assertion) {
+			switch (n.subexpr_type) {
 			case ast::nodes::subexpression::type::normal:
 				break;
 			case ast::nodes::subexpression::type::non_capturing:
@@ -279,7 +279,11 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::repetition.
 		void dump(const nodes::repetition &n) {
 			_indent();
-			_stream << "й╨йд [repetition  min: " << n.min << "  max: " << n.max << "]\n";
+			_stream << "й╨йд [repetition ";
+			if (n.lazy) {
+				_stream << " lazy";
+			}
+			_stream << " min: " << n.min << "  max: " << n.max << "]\n";
 			_branch.emplace_back(false);
 			dump(n.expression);
 			_branch.pop_back();

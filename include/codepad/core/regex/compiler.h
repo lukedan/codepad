@@ -24,6 +24,9 @@ namespace codepad::regex {
 
 			/// Creates a new state in this \ref state_machine and returns its index.
 			std::size_t create_state();
+
+			/// Dumps this state macine into a DOT file.
+			template <typename Stream> void dump(Stream&, bool valid_only = true) const;
 		};
 		/// An assertion used in a transition.
 		struct assertion {
@@ -44,10 +47,66 @@ namespace codepad::regex {
 			std::vector<transition> transitions; ///< Transitions to new states.
 		};
 
+
 		inline std::size_t state_machine::create_state() {
 			std::size_t res = states.size();
 			states.emplace_back();
 			return res;
+		}
+
+		template <typename Stream> inline void state_machine::dump(Stream &stream, bool valid_only) const {
+			stream << "digraph {\n";
+			stream << "n" << start_state << "[color=red];\n";
+			stream << "n" << end_state << "[color=blue];\n";
+			auto is_printable_char = [](codepoint cp) {
+				return cp >= 0x20 && cp <= 0x7E;
+			};
+			auto print_char = [&](codepoint cp) {
+				if (is_printable_char(cp)) {
+					stream << static_cast<char>(cp);
+				}
+				stream << "[" << std::hex << cp << std::dec << "]";
+			};
+			for (std::size_t i = 0; i < states.size(); ++i) {
+				const auto &s = states[i];
+				for (std::size_t j = 0; j < s.transitions.size(); ++j) {
+					auto &t = s.transitions[j];
+					stream << "n" << i << " -> n" << t.new_state_index << " [label=\"" << j << ": ";
+					if (std::holds_alternative<codepoint_string>(t.condition)) {
+						const auto &str = std::get<codepoint_string>(t.condition);
+						for (codepoint cp : str) {
+							if (is_printable_char(cp)) {
+								stream << static_cast<char>(cp);
+							} else {
+								stream << "?";
+							}
+						}
+					} else if (std::holds_alternative<codepoint_range_list>(t.condition)) {
+						const auto &list = std::get<codepoint_range_list>(t.condition);
+						bool first = true;
+						for (auto range : list.ranges) {
+							if (first) {
+								first = false;
+							} else {
+								stream << ",";
+							}
+							if (valid_only && !is_printable_char(range.first)) {
+								stream << "...";
+								break;
+							}
+							print_char(range.first);
+							if (range.last != range.first) {
+								stream << "-";
+								print_char(range.last);
+							}
+						}
+					} else {
+						stream << "<assertion>";
+					}
+					stream << "\"];\n";
+				}
+			}
+			stream << "}\n";
 		}
 	}
 
@@ -150,6 +209,12 @@ namespace codepad::regex {
 					std::size_t next = _result.create_state();
 					_compile(cur, next, rep.expression);
 					cur = next;
+				} else {
+					// create a new state with epsilon transition,
+					// so that we don't have an edge back to the starting node
+					std::size_t next = _result.create_state();
+					_result.states[cur].transitions.emplace_back().new_state_index = next;
+					cur = next;
 				}
 				std::size_t next = _result.create_state();
 				if (rep.lazy) {
@@ -193,11 +258,11 @@ namespace codepad::regex {
 			auto &assertion = transition.condition.emplace<compiled::assertion>();
 			assertion.assertion_type = rep.assertion_type;
 			if (rep.assertion_type >= ast::nodes::assertion::type::complex_first) {
-				assertion.expression.states.emplace_back().transitions.emplace_back().condition =
-					std::get<ast::nodes::character_class>(rep.expression.nodes[0].value).get_effective_ranges();
-			} else if (rep.assertion_type >= ast::nodes::assertion::type::character_class_first) {
 				compiler cmp;
 				assertion.expression = cmp.compile(rep.expression);
+			} else if (rep.assertion_type >= ast::nodes::assertion::type::character_class_first) {
+				assertion.expression.states.emplace_back().transitions.emplace_back().condition =
+					std::get<ast::nodes::character_class>(rep.expression.nodes[0].value).get_effective_ranges();
 			}
 		}
 	};

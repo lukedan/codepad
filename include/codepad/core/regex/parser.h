@@ -222,10 +222,39 @@ namespace codepad::regex {
 					);
 					return result;
 				}
+			case U'D': // not decimal digit
+				{
+					ast::nodes::character_class result;
+					result.ranges = unicode::unicode_data::cache::get_codepoints_in_category(
+						unicode::general_category_index::decimal_number
+					);
+					result.is_negate = true;
+					return result;
+				}
 			case U's': // white space
 				{
 					ast::nodes::character_class result;
 					result.ranges = unicode::property_list::get_cached().white_space;
+					return result;
+				}
+			case U'S': // not white space
+				{
+					ast::nodes::character_class result;
+					result.ranges = unicode::property_list::get_cached().white_space;
+					result.is_negate = true;
+					return result;
+				}
+			case U'w': // word
+				{
+					ast::nodes::character_class result;
+					result.ranges = tables::word_characters();
+					return result;
+				}
+			case U'W': // not word
+				{
+					ast::nodes::character_class result;
+					result.ranges = tables::word_characters();
+					result.is_negate = true;
 					return result;
 				}
 
@@ -519,6 +548,7 @@ namespace codepad::regex {
 					{
 						bool is_subexpression = true;
 						auto expr_type = ast::nodes::subexpression::type::normal;
+						auto assertion_type = ast::nodes::assertion::type::always_false;
 						codepoint_string capture_name;
 						// determine if this is a named capture, assertion, etc.
 						if (!_stream().empty() && _stream().peek() == U'?') {
@@ -539,32 +569,27 @@ namespace codepad::regex {
 									_stream().take();
 									expr_type = ast::nodes::subexpression::type::atomic;
 									break;
-								case U'=': // positive assertions
-									_stream().take();
-									// TODO
-									break;
-								case U'!': // negative assertions
-									_stream().take();
-									// TODO
-									break;
 
 								// named subpatterns
-								case U'P':
-									_stream().take();
-									if (_stream().empty() || _stream().peek() != U'<') {
-										// TODO error
-										break;
-									}
+								case U'<':
+									// TODO check if this is actually an assertion
 									[[fallthrough]];
 								case U'\'':
 									[[fallthrough]];
-								case U'<':
+								case U'P':
 									{ // parse named capture
 										codepoint name_end = U'\0';
 										switch (_stream().take()) {
 										case U'\'':
 											name_end = U'\'';
 											break;
+										case U'P':
+											_stream().take();
+											if (_stream().empty() || _stream().peek() != U'<') {
+												// TODO error
+												break;
+											}
+											[[fallthrough]];
 										case U'<':
 											name_end = U'>';
 											break;
@@ -582,6 +607,16 @@ namespace codepad::regex {
 										}
 										// TODO validate capture name?
 									}
+									break;
+
+								// assertions
+								case U'=':
+									_stream().take();
+									assertion_type = ast::nodes::assertion::type::positive_lookahead;
+									break;
+								case U'!':
+									_stream().take();
+									assertion_type = ast::nodes::assertion::type::negative_lookahead;
 									break;
 
 								// TODO
@@ -632,9 +667,10 @@ namespace codepad::regex {
 													auto &new_expr = result.nodes.emplace_back().value.emplace<
 														ast::nodes::subexpression
 													>(_parse_subexpression(U')'));
-													new_expr.type_or_assertion =
+													new_expr.subexpr_type =
 														ast::nodes::subexpression::type::non_capturing;
-													// the options only affect this subexpression, not the outer one it contains
+													// the options only affect this subexpression,
+													// not the outer one it contains
 													--options_pushed;
 													_pop_options();
 												}
@@ -649,11 +685,17 @@ namespace codepad::regex {
 								}
 							}
 						}
-						if (is_subexpression) {
+						if (assertion_type != ast::nodes::assertion::type::always_false) {
+							auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::assertion>();
+							new_expr.assertion_type = assertion_type;
+							new_expr.expression.nodes.emplace_back().value.emplace<ast::nodes::subexpression>(
+								_parse_subexpression(U')')
+							);
+						} else if (is_subexpression) {
 							auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::subexpression>(
 								_parse_subexpression(U')')
 							);
-							new_expr.type_or_assertion = expr_type;
+							new_expr.subexpr_type = expr_type;
 							new_expr.capture_name = std::move(capture_name);
 						}
 					}
@@ -751,6 +793,7 @@ namespace codepad::regex {
 							break;
 						}
 						if (!_stream().empty() && _stream().peek() == U'?') {
+							_stream().take();
 							rep.lazy = true;
 						}
 						if (result.nodes.empty()) {

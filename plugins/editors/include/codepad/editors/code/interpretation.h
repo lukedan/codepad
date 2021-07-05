@@ -38,14 +38,16 @@ namespace codepad::editors::code {
 		/// Returns the length of a word.
 		[[nodiscard]] virtual std::size_t get_word_length() const = 0;
 
+		/// Calls \ref encodings::is_position_aligned().
+		[[nodiscard]] bool is_position_aligned(std::size_t off) const {
+			return encodings::is_position_aligned(off, get_word_length());
+		}
 		/// Calls \ref encodings::align_iterator().
-		[[nodiscard]] buffer::const_iterator align_iterator(
-			const buffer::const_iterator &it, const buffer::const_iterator &beg
-		) const {
+		codepoint align_iterator(buffer::const_iterator &it, const buffer::const_iterator &beg) const {
 			return encodings::align_iterator(it, beg, get_word_length());
 		}
 		/// Calls \ref encodings::align_iterator().
-		[[nodiscard]] const std::byte *align_iterator(const std::byte *it, const std::byte *beg) const {
+		codepoint align_iterator(const std::byte *&it, const std::byte *beg) const {
 			return encodings::align_iterator(it, beg, get_word_length());
 		}
 

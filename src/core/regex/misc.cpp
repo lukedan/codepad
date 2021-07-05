@@ -41,6 +41,26 @@ namespace codepad::regex {
 					unicode::general_category::letter | unicode::general_category::number
 				);
 				_result.ranges.emplace_back(U'_');
+				_result.sort_and_compact();
+			}
+
+			return _result;
+		}
+
+		const codepoint_range_list &newline_characters() {
+			static codepoint_range_list _result;
+
+			if (_result.ranges.empty()) {
+				_result.ranges = {
+					codepoint_range(0x000A), // line feed
+					codepoint_range(0x000B), // vertical tab
+					codepoint_range(0x000C), // form feed
+					codepoint_range(0x000D), // carriage return
+					codepoint_range(0x0085), // next line
+					codepoint_range(0x2028), // line separator
+					codepoint_range(0x2029), // paragraph separator
+				};
+				_result.sort_and_compact();
 			}
 
 			return _result;

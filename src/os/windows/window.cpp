@@ -691,7 +691,7 @@ namespace codepad::os {
 
 	window_impl::_wndclass::_wndclass() {
 		WNDCLASSEX wcex;
-		memset(&wcex, 0, sizeof(wcex));
+		std::memset(&wcex, 0, sizeof(wcex));
 		wcex.style = CS_HREDRAW | CS_VREDRAW;
 		wcex.hInstance = GetModuleHandle(nullptr);
 		_details::winapi_check(wcex.hCursor = LoadCursor(nullptr, IDC_ARROW));

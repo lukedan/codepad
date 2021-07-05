@@ -48,14 +48,14 @@ bool is_graphical_char(cp::codepoint c) {
 }
 
 /// Parses a pattern and its options, and consumes the following line break.
-[[nodiscard]] pattern_data parse_pattern(stream_t &stream) {
+[[nodiscard]] std::optional<pattern_data> parse_pattern(stream_t &stream) {
 	pattern_data result;
 	while (true) {
 		while (!stream.empty() && !is_graphical_char(stream.peek())) {
 			stream.take();
 		}
 		if (stream.empty()) {
-			break;
+			return std::nullopt;
 		}
 
 		cp::codepoint cpt = stream.take();
@@ -77,7 +77,7 @@ bool is_graphical_char(cp::codepoint c) {
 				cpt == U':' || cpt == U';' || cpt == U',' || cpt == U'@' || cpt == U'~';
 			if (!is_valid_delimiter) {
 				INFO(
-					"Invalid delimiter: " << static_cast<int>(cpt) <<
+					"Invalid delimiter at position " << stream.position() << ": " << static_cast<int>(cpt) <<
 					", " << (cpt < 128 ? static_cast<char>(cpt) : '?')
 				);
 				fail();
@@ -118,6 +118,14 @@ bool is_graphical_char(cp::codepoint c) {
 				case U'x':
 					result.options.extended = true;
 					break;
+				case U',':
+					while (!stream.empty() && stream.peek() != U'\r' && stream.peek() != U'\n') {
+						stream.take(); // TODO parse complex options. also they may start without a comma
+					}
+					break;
+				default:
+					/*REQUIRE(false);*/ // TODO add this after we have all options
+					break;
 				}
 			}
 			// consume the line ending
@@ -128,7 +136,10 @@ bool is_graphical_char(cp::codepoint c) {
 	return result;
 }
 /// Parses a string.
-[[nodiscard]] test_data parse_data(stream_t &stream) {
+[[nodiscard]] std::optional<test_data> parse_data(stream_t &stream) {
+	if (stream.empty()) {
+		return std::nullopt;
+	}
 	test_data result;
 	std::size_t non_graphic = 0;
 	while (!stream.empty()) {
@@ -150,8 +161,13 @@ bool is_graphical_char(cp::codepoint c) {
 				return result;
 			}
 		}
-		// TODO the escape sequences are really weird for PCRE2 test data
-		if (c == U'\\' && !stream.empty()) {
+		if (c == U'\\') {
+			// if the very last character in the line is a backslash (and there is no modifier list), it is ignored
+			if (stream.empty() || stream.peek() == U'\r' || stream.peek() == U'\n') {
+				cp::regex::consume_line_ending(stream);
+				return result;
+			}
+
 			c = stream.take();
 			switch (c) {
 			case U'\\':
@@ -258,7 +274,60 @@ bool is_graphical_char(cp::codepoint c) {
 		result.string.push_back(c);
 	}
 	result.string.erase(result.string.begin() + non_graphic, result.string.end());
+	if (result.string.empty()) {
+		return std::nullopt;
+	}
 	return result;
+}
+
+void dump_tests(std::ostream &out, const std::vector<test> &tests) {
+	auto _dump_pattern = [&](const cp::codepoint_string &str) {
+		for (auto cp : str) {
+			if ((cp >= 0x20 && cp <= 0x7E) || cp == U'\r' || cp == U'\n') {
+				out << static_cast<char>(cp);
+			} else {
+				out << "\\x{" << std::hex << cp << std::dec << "}";
+			}
+		}
+	};
+	auto _dump_data = [&](const cp::codepoint_string &str) {
+		for (auto cp : str) {
+			if (cp >= 0x20 && cp <= 0x7E) {
+				out << static_cast<char>(cp);
+			} else {
+				out << "\\x{" << std::hex << cp << std::dec << "}";
+			}
+		}
+	};
+
+	for (auto &t : tests) {
+		out << "/";
+		_dump_pattern(t.pattern.pattern);
+		out << "/";
+		if (t.pattern.options.case_insensitive) {
+			out << "i";
+		}
+		if (t.pattern.options.extended) {
+			out << "x";
+		}
+		out << "\n";
+
+		bool no_match = false;
+		for (auto &d : t.data) {
+			if (no_match) {
+				cp::assert_true_logical(d.expect_no_match, "incorrect expect_no_match flag");
+			} else {
+				if (d.expect_no_match) {
+					no_match = true;
+					out << "\\= Expect no match\n";
+				}
+			}
+			out << "    ";
+			_dump_data(d.string);
+			out << "\n";
+		}
+		out << "\n";
+	}
 }
 
 /// Parses the tests.
@@ -267,23 +336,26 @@ bool is_graphical_char(cp::codepoint c) {
 	std::vector<test> result;
 	while (!stream.empty()) {
 		test current_test;
-		current_test.pattern = parse_pattern(stream);
-		if (current_test.pattern.pattern.empty()) {
+		if (auto patt = parse_pattern(stream)) {
+			current_test.pattern = patt.value();
+		} else {
 			break;
 		}
 		bool expect_no_match = false;
 		while (!stream.empty()) {
-			test_data data = parse_data(stream);
-			if (data.string.empty()) {
-				if (data.expect_no_match) {
-					expect_no_match = true;
-					continue;
-				} else {
-					break;
+			auto data = parse_data(stream);
+			if (data) {
+				if (data->string.empty()) {
+					if (data->expect_no_match) {
+						expect_no_match = true;
+						continue;
+					}
 				}
+			} else {
+				break;
 			}
-			data.expect_no_match = expect_no_match;
-			current_test.data.emplace_back(std::move(data));
+			data->expect_no_match = expect_no_match;
+			current_test.data.emplace_back(std::move(data.value()));
 		}
 		result.emplace_back(std::move(current_test));
 	}
@@ -310,6 +382,11 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 			auto test_file = std::make_unique<std::byte[]>(file_size);
 			fin.read(reinterpret_cast<char*>(test_file.get()), file_size);
 			tests = parse_tests(test_file.get(), file_size);
+		}
+
+		{
+			std::ofstream fout("dumped_pcre2_tests.txt");
+			dump_tests(fout, tests);
 		}
 
 		for (const auto &test : tests) {
@@ -360,13 +437,10 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 				stream_t stream(data_str.data(), data_str.data() + data_str.size());
 				std::vector<std::size_t> matches;
 				std::size_t attempts = 0;
-				for (; attempts < 1000; ++attempts) {
-					if (auto pos = matcher.find_next(stream, sm)) {
-						matches.emplace_back(pos.value());
-					} else {
-						break;
-					}
-				}
+				matcher.find_all(stream, sm, [&](std::size_t pos) {
+					matches.emplace_back(pos);
+					return ++attempts < 1000;
+				});
 				std::stringstream matches_str;
 				for (std::size_t i : matches) {
 					matches_str << i << ", ";

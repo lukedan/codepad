@@ -15,10 +15,15 @@ namespace codepad::regex {
 	template <typename Stream> class matcher {
 	public:
 		/// Tests whether there is a match starting from the current position of the input stream.
-		[[nodiscard]] std::size_t try_match(Stream &stream, const compiled::state_machine &expr) {
+		///
+		/// \return The state of the state machine after it's been executed from this position.
+		[[nodiscard]] std::size_t try_match(Stream &stream, const compiled::state_machine &expr, std::size_t max_iters = 1000000) {
 			std::stack<_state> state_stack;
 			_state current_state(std::move(stream), expr.start_state, 0);
-			while (current_state.automata_state != expr.end_state) {
+			for (std::size_t i = 0; i < max_iters; ++i) {
+				if (current_state.automata_state != expr.end_state) {
+					break;
+				}
 				Stream checkpoint_stream = current_state.stream;
 				if (current_state.get_automata_state(expr).transitions.size() <= current_state.transition) {
 					break;
@@ -65,24 +70,50 @@ namespace codepad::regex {
 			return end_state == expr.end_state && s.empty();
 		}
 		/// Finds the starting point of the next match in the input stream. After the function returns, \p s will be
-		/// at the end of the input if no match is found, or be at the end position of the match.
+		/// at the end of the input if no match is found, or be at the end position of the match. The caller needs to pay
+		/// extra attention when handling empty input streams; use \ref find_all() when necessary.
 		///
 		/// \return Starting position of the match.
 		[[nodiscard]] std::optional<std::size_t> find_next(Stream &s, const compiled::state_machine &expr) {
-			while (!s.empty()) {
+			while (true) {
 				Stream temp = s;
 				std::size_t state = try_match(temp, expr);
 				if (state == expr.end_state) {
-					if (s.position() == temp.position()) {
+					if (!s.empty() && s.position() == temp.position()) {
 						temp.take();
 					}
 					std::size_t start_pos = s.position();
 					s = std::move(temp);
 					return start_pos;
 				}
+				if (s.empty()) {
+					break;
+				}
 				s.take();
 			}
 			return std::nullopt;
+		}
+		/// Finds all matches in the given stream, calling the given callback for each match. This is written so that
+		/// empty input streams can be handled correctly.
+		template <typename Callback> void find_all(Stream &s, const compiled::state_machine &expr, Callback &&cb) {
+			using _return_type = std::invoke_result_t<std::decay_t<Callback&&>, std::size_t>;
+
+			while (true) {
+				if (auto x = find_next(s, expr)) {
+					if constexpr (std::is_same_v<_return_type, bool>) {
+						if (!cb(x.value())) {
+							break;
+						}
+					} else {
+						cb(x.value());
+					}
+					if (s.empty()) {
+						break;
+					}
+				} else {
+					break;
+				}
+			}
 		}
 	protected:
 		/// The state of the automata at one moment.
@@ -151,21 +182,47 @@ namespace codepad::regex {
 			switch (cond.assertion_type) {
 			case ast::nodes::assertion::type::always_false:
 				return false;
+
 			case ast::nodes::assertion::type::line_start:
-				return false; // TODO
+				{
+					if (stream.prev_empty()) {
+						return true;
+					}
+					auto rev_stream = make_reverse_stream(stream);
+					if (consume_line_ending(rev_stream) != line_ending::none) {
+						return !is_within_crlf(stream);
+					}
+					return false;
+				}
+
 			case ast::nodes::assertion::type::line_end:
-				if (stream.empty()) {
-					return true;
+				{
+					if (stream.empty()) {
+						return true;
+					}
+					Stream checkpoint = stream;
+					if (consume_line_ending(stream) != line_ending::none) {
+						return !is_within_crlf(checkpoint);
+					}
+					return false;
 				}
-				return false;
+
 			case ast::nodes::assertion::type::subject_start:
-				return false;
+				return stream.prev_empty();
+
 			case ast::nodes::assertion::type::subject_end_or_trailing_newline:
-				if (stream.empty()) {
-					return true;
+				{
+					if (stream.empty()) {
+						return true;
+					}
+					Stream checkpoint = stream;
+					consume_line_ending(stream);
+					if (stream.empty()) {
+						return !is_within_crlf(checkpoint);
+					}
+					return false;
 				}
-				consume_line_ending(stream);
-				return false;
+
 			case ast::nodes::assertion::type::subject_end:
 				return stream.empty();
 			case ast::nodes::assertion::type::range_start:
@@ -176,26 +233,37 @@ namespace codepad::regex {
 					auto &boundary = std::get<codepoint_range_list>(
 						cond.expression.states[0].transitions[0].condition
 					);
-					// TODO
+					bool prev_in = stream.prev_empty() ? false : boundary.contains(stream.peek_prev());
+					bool next_in = stream.empty() ? false : boundary.contains(stream.peek());
+					return prev_in != next_in;
 				}
-				return false;
+
 			case ast::nodes::assertion::type::character_class_nonboundary:
 				{
 					auto &boundary = std::get<codepoint_range_list>(
 						cond.expression.states[0].transitions[0].condition
-					);
-					// TODO
+						);
+					bool prev_in = stream.prev_empty() ? false : boundary.contains(stream.peek_prev());
+					bool next_in = stream.empty() ? false : boundary.contains(stream.peek());
+					return prev_in == next_in;
 				}
-				return false;
 
 			case ast::nodes::assertion::type::positive_lookahead:
-				return false;
+				{
+					matcher<Stream> assertion_matcher;
+					std::size_t state = assertion_matcher.try_match(stream, cond.expression);
+					return state == cond.expression.end_state;
+				}
 			case ast::nodes::assertion::type::negative_lookahead:
-				return false;
+				{
+					matcher<Stream> assertion_matcher;
+					std::size_t state = assertion_matcher.try_match(stream, cond.expression);
+					return state != cond.expression.end_state;
+				}
 			case ast::nodes::assertion::type::positive_lookbehind:
-				return false;
+				return false; // TODO
 			case ast::nodes::assertion::type::negative_lookbehind:
-				return false;
+				return false; // TODO
 			}
 		}
 	};

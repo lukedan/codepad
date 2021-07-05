@@ -51,6 +51,11 @@ int main(int argc, char **argv) {
 		cp::regex::compiler compiler;
 		cp::regex::compiled::state_machine sm = compiler.compile(ast);
 
+		{
+			std::ofstream fout("regex.dot");
+			sm.dump(fout);
+		}
+
 		while (true) {
 			std::cout << "\nstring: ";
 		
@@ -61,13 +66,9 @@ int main(int argc, char **argv) {
 			}
 			auto string_data = reinterpret_cast<const std::byte*>(string.data());
 			stream_t str_stream(string_data, string_data + string.size());
-			while (true) {
-				if (auto x = matcher.find_next(str_stream, sm)) {
-					std::cout << "  match from " << x.value() << " to " << str_stream.position() << "\n";
-				} else {
-					break;
-				}
-			}
+			matcher.find_all(str_stream, sm, [&](std::size_t pos) {
+				std::cout << "  match from " << pos << " to " << str_stream.position() << "\n";
+			});
 		}
 	}
 	return 0;
