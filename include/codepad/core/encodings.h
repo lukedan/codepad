@@ -60,7 +60,7 @@ namespace codepad {
 		/// \overload
 		template <
 			typename Encoding, typename It
-		> [[nodiscard]] inline codepoint align_iterator(It &i, const It &begin) {
+		> inline codepoint align_iterator(It &i, const It &begin) {
 			return align_iterator<It>(i, begin, Encoding::get_word_length());
 		}
 
@@ -549,7 +549,7 @@ namespace codepad {
 			/// parameter.
 			///
 			/// \return Whether a valid codepoint was extracted.
-			template <typename It> inline static bool previous_codepoint(It &i, const It &beg, codepoint &cp) {
+			template <typename It> inline static bool previous_codepoint(It &i, const It&, codepoint &cp) {
 				std::array<std::byte, 4> data;
 				std::fill(data.begin(), data.end(), static_cast<std::byte>(0));
 				data[3] = *--i;
@@ -560,7 +560,7 @@ namespace codepad {
 				return unicode::is_valid_codepoint(cp);
 			}
 			/// \overload
-			template <typename It> inline static bool previous_codepoint(It &i, const It &beg) {
+			template <typename It> inline static bool previous_codepoint(It &i, const It&) {
 				--i;
 				--i;
 				--i;

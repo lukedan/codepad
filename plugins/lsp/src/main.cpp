@@ -87,7 +87,7 @@ extern "C" {
 		handlers.try_emplace(
 			u8"textDocument/publishDiagnostics",
 			cp::lsp::client::request_handler::create_notification_handler<cp::lsp::types::PublishDiagnosticsParams>(
-				[](cp::lsp::client& clnt, cp::lsp::types::PublishDiagnosticsParams params) {
+				[](cp::lsp::client &clnt, cp::lsp::types::PublishDiagnosticsParams params) {
 					std::filesystem::path path = cp::lsp::uri::to_current_os_path(params.uri);
 					std::shared_ptr<cp::editors::code::interpretation> doc;
 

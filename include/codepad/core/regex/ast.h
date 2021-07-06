@@ -9,6 +9,8 @@
 #include <variant>
 
 #include "codepad/core/unicode/common.h"
+#include "codepad/core/assert.h"
+#include "codepad/core/encodings.h"
 
 namespace codepad::regex::ast {
 	struct node;
@@ -49,26 +51,7 @@ namespace codepad::regex::ast {
 			bool case_insensitive = false; ///< Whether this character class is case-insensitive.
 
 			/// Handles negation. This function assumes that \ref sort_and_compact() has been called.
-			[[nodiscard]] codepoint_range_list get_effective_ranges() const {
-				if (is_negate) {
-					codepoint last = 0;
-					codepoint_range_list result;
-					auto iter = ranges.ranges.begin();
-					if (!ranges.ranges.empty() && ranges.ranges.front().first == 0) {
-						last = ranges.ranges.front().last + 1;
-						++iter;
-					}
-					for (; iter != ranges.ranges.end(); ++iter) {
-						result.ranges.emplace_back(last, iter->first - 1);
-						last = iter->last + 1;
-					}
-					if (last <= unicode::codepoint_max) {
-						result.ranges.emplace_back(last, unicode::codepoint_max);
-					}
-					return result;
-				}
-				return ranges;
-			}
+			[[nodiscard]] codepoint_range_list get_effective_ranges() const;
 		};
 
 		/// A subexpression. This is not necessarily surrounded by brackets; this node simply represents any
@@ -341,22 +324,28 @@ namespace codepad::regex::ast {
 		}
 		/// Dumps the given list of codepoint ranges.
 		void _dump_character_class(const codepoint_range_list &ranges) {
+			constexpr std::size_t _max_range_count = 5;
+
 			bool first = true;
-			for (auto [beg, end] : ranges.ranges) {
+			for (std::size_t i = 0; i < ranges.ranges.size() && i < _max_range_count; ++i) {
 				if (!first) {
 					_stream << ", ";
 				}
 				first = false;
+				auto [beg, end] = ranges.ranges[i];
 				if (beg == end) {
 					_stream << beg;
 				} else {
 					_stream << beg << " - " << end;
 				}
 			}
+			if (ranges.ranges.size() > _max_range_count) {
+				_stream << ", ...";
+			}
 		}
 	};
 	/// Shorthand for creating a \ref dumper.
-	template <typename Stream> dumper<Stream> make_dumper(Stream &s) {
+	template <typename Stream> [[nodiscard]] dumper<Stream> make_dumper(Stream &s) {
 		return dumper<Stream>(s);
 	}
 }

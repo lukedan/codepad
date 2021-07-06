@@ -39,6 +39,7 @@ target_sources(codepad_core
 		"include/codepad/core/regex/matcher.h"
 		"include/codepad/core/regex/misc.h"
 		"include/codepad/core/regex/parser.h"
+		"include/codepad/core/regex/parser.inl"
 
 		"include/codepad/core/unicode/common.h"
 		"include/codepad/core/unicode/database.h"
@@ -108,6 +109,8 @@ target_sources(codepad_core
 		"include/codepad/api_export.h"
 		"include/codepad/apigen_definitions.h"
 	PRIVATE
+		"src/core/regex/ast.cpp"
+		"src/core/regex/compiler.cpp"
 		"src/core/regex/misc.cpp"
 
 		"src/core/unicode/database.cpp"

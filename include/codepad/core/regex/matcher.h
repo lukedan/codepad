@@ -21,7 +21,7 @@ namespace codepad::regex {
 			std::stack<_state> state_stack;
 			_state current_state(std::move(stream), expr.start_state, 0);
 			for (std::size_t i = 0; i < max_iters; ++i) {
-				if (current_state.automata_state != expr.end_state) {
+				if (current_state.automata_state == expr.end_state) {
 					break;
 				}
 				Stream checkpoint_stream = current_state.stream;
@@ -38,7 +38,10 @@ namespace codepad::regex {
 
 				++current_state.transition;
 				if (transition_ok) {
-					if (current_state.transition < current_state.get_automata_state(expr).transitions.size()) {
+					if (
+						current_state.transition < current_state.get_automata_state(expr).transitions.size() &&
+						!current_state.get_automata_state(expr).is_atomic
+					) {
 						state_stack.emplace(
 							std::move(checkpoint_stream), current_state.automata_state, current_state.transition
 						);
@@ -177,7 +180,7 @@ namespace codepad::regex {
 		}
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transition &trans, const compiled::assertion &cond
+			Stream stream, const compiled::transition&, const compiled::assertion &cond
 		) {
 			switch (cond.assertion_type) {
 			case ast::nodes::assertion::type::always_false:
@@ -265,6 +268,9 @@ namespace codepad::regex {
 			case ast::nodes::assertion::type::negative_lookbehind:
 				return false; // TODO
 			}
+
+			assert_true_logical(false, "invalid assertion type"); // should not happen
+			return false;
 		}
 	};
 }

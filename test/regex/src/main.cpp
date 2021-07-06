@@ -12,6 +12,7 @@
 #include <catch2/catch.hpp>
 
 #include <codepad/core/regex/parser.h>
+#include <codepad/core/regex/parser.inl>
 #include <codepad/core/regex/compiler.h>
 #include <codepad/core/regex/matcher.h>
 
