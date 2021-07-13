@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
 
 	using stream_t = cp::regex::basic_input_stream<cp::encodings::utf8, const std::byte*>;
 	using parser_t = cp::regex::parser<stream_t>;
+	using matcher_t = cp::regex::matcher<stream_t>;
 
 	std::string regex;
 	std::string string;
@@ -60,15 +61,20 @@ int main(int argc, char **argv) {
 		while (true) {
 			std::cout << "\nstring: ";
 		
-			cp::regex::matcher<stream_t> matcher;
+			matcher_t matcher;
 			if (!std::getline(std::cin, string)) {
 				std::cin.clear();
 				break;
 			}
 			auto string_data = reinterpret_cast<const std::byte*>(string.data());
 			stream_t str_stream(string_data, string_data + string.size());
-			matcher.find_all(str_stream, sm, [&](std::size_t pos) {
-				std::cout << "  match from " << pos << " to " << str_stream.position() << "\n";
+			matcher.find_all(str_stream, sm, [&](matcher_t::result res) {
+				std::cout << "  match:\n";
+				for (std::size_t i = 0; i < res.captures.size(); ++i) {
+					std::size_t beg = res.captures[i].begin.position();
+					std::cout <<
+						"    " << i << ": " << beg << " to " << beg + res.captures[i].length << "\n";
+				}
 			});
 		}
 	}

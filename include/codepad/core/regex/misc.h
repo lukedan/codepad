@@ -216,6 +216,10 @@ namespace codepad::regex {
 	namespace tables {
 		/// Returns the list of whitespaces that are ignored in extended mode.
 		[[nodiscard]] const codepoint_range_list &extended_mode_whitespaces();
+		/// Returns the list of horizontal whitespaces.
+		[[nodiscard]] const codepoint_range_list &horizontal_whitespaces();
+		/// Returns the list of vertical whitespaces.
+		[[nodiscard]] const codepoint_range_list &vertical_whitespaces();
 		/// Returns the list of `word' characters.
 		[[nodiscard]] const codepoint_range_list &word_characters();
 		/// The list of unicode new line characters.

@@ -14,12 +14,43 @@ namespace codepad::regex {
 	/// Regular expression matcher.
 	template <typename Stream> class matcher {
 	public:
+		/// A match result.
+		struct result {
+			/// Position information about a capture in a match.
+			struct capture {
+				/// Used to mark that this capture is not in the input.
+				constexpr static std::size_t invalid_capture = std::numeric_limits<std::size_t>::max();
+
+				/// Default constructor.
+				capture() = default;
+				/// Initializes all fields of this structure.
+				capture(Stream beg, std::size_t len) : begin(std::move(beg)), length(len) {
+				}
+
+				/// The state of the stream at the beginning of this capture.
+				Stream begin;
+				/// The length of this capture.
+				std::size_t length = invalid_capture;
+
+				/// Returns whether the capture is valid.
+				[[nodiscard]] bool is_valid() const {
+					return length != invalid_capture;
+				}
+			};
+
+			std::vector<capture> captures; ///< Captures in the match.
+		};
+
 		/// Tests whether there is a match starting from the current position of the input stream.
 		///
 		/// \return The state of the state machine after it's been executed from this position.
-		[[nodiscard]] std::size_t try_match(Stream &stream, const compiled::state_machine &expr, std::size_t max_iters = 1000000) {
-			std::stack<_state> state_stack;
-			_state current_state(std::move(stream), expr.start_state, 0);
+		[[nodiscard]] std::optional<result> try_match(
+			Stream &stream, const compiled::state_machine &expr, std::size_t max_iters = 1000000
+		) {
+			_result = result();
+			_expr = &expr;
+
+			_state current_state(std::move(stream), expr.start_state, 0, 0);
 			for (std::size_t i = 0; i < max_iters; ++i) {
 				if (current_state.automata_state == expr.end_state) {
 					break;
@@ -42,8 +73,9 @@ namespace codepad::regex {
 						current_state.transition < current_state.get_automata_state(expr).transitions.size() &&
 						!current_state.get_automata_state(expr).is_atomic
 					) {
-						state_stack.emplace(
-							std::move(checkpoint_stream), current_state.automata_state, current_state.transition
+						_state_stack.emplace(
+							std::move(checkpoint_stream), current_state.automata_state, current_state.transition,
+							_ongoing_captures.size()
 						);
 					}
 					current_state.automata_state = transition.new_state_index;
@@ -55,39 +87,57 @@ namespace codepad::regex {
 						continue; // try the next transition
 					}
 					// otherwise backtrack
-					if (state_stack.empty()) {
+					if (_state_stack.empty()) {
 						current_state.stream = std::move(checkpoint_stream);
 						break;
 					}
-					current_state = std::move(state_stack.top());
-					state_stack.pop();
+					// update state
+					current_state = std::move(_state_stack.top());
+					_state_stack.pop();
+					// restore _ongoing_captures to the state we're backtracking to
+					std::size_t count =
+						current_state.initial_ongoing_captures - current_state.partial_finished_captures.size();
+					while (_ongoing_captures.size() > count) {
+						_ongoing_captures.pop();
+					}
+					while (!current_state.partial_finished_captures.empty()) {
+						_ongoing_captures.emplace(std::move(current_state.partial_finished_captures.top().capture));
+						current_state.partial_finished_captures.pop();
+					}
+					// restore _result.captures
+					while (!current_state.full_finished_captures.empty()) {
+						auto &cap = current_state.full_finished_captures.top();
+						_result.captures[cap.index] = std::move(cap.capture_data);
+						current_state.full_finished_captures.pop();
+					}
 				}
 			}
 			stream = std::move(current_state.stream);
-			return current_state.automata_state;
+
+			_state_stack = std::stack<_state>();
+			_ongoing_captures = std::stack<_capture_info>();
+			_expr = nullptr;
+
+			if (current_state.automata_state == expr.end_state) {
+				return std::move(_result);
+			}
+			return std::nullopt;
 		}
 
-		/// Tests if the given expression matches the full input.
-		[[nodiscard]] bool match(Stream s, const compiled::state_machine &expr) {
-			std::size_t end_state = try_match(s, expr);
-			return end_state == expr.end_state && s.empty();
-		}
 		/// Finds the starting point of the next match in the input stream. After the function returns, \p s will be
 		/// at the end of the input if no match is found, or be at the end position of the match. The caller needs to pay
 		/// extra attention when handling empty input streams; use \ref find_all() when necessary.
 		///
 		/// \return Starting position of the match.
-		[[nodiscard]] std::optional<std::size_t> find_next(Stream &s, const compiled::state_machine &expr) {
+		[[nodiscard]] std::optional<result> find_next(Stream &s, const compiled::state_machine &expr) {
 			while (true) {
 				Stream temp = s;
-				std::size_t state = try_match(temp, expr);
-				if (state == expr.end_state) {
-					if (!s.empty() && s.position() == temp.position()) {
+				if (auto res = try_match(temp, expr)) {
+					if (!temp.empty() && s.position() == temp.position()) {
 						temp.take();
 					}
-					std::size_t start_pos = s.position();
 					s = std::move(temp);
-					return start_pos;
+					return std::move(res.value());
 				}
 				if (s.empty()) {
 					break;
@@ -99,16 +149,16 @@ namespace codepad::regex {
 		/// Finds all matches in the given stream, calling the given callback for each match. This is written so that
 		/// empty input streams can be handled correctly.
 		template <typename Callback> void find_all(Stream &s, const compiled::state_machine &expr, Callback &&cb) {
-			using _return_type = std::invoke_result_t<std::decay_t<Callback&&>, std::size_t>;
+			using _return_type = std::invoke_result_t<std::decay_t<Callback&&>, result>;
 
 			while (true) {
 				if (auto x = find_next(s, expr)) {
 					if constexpr (std::is_same_v<_return_type, bool>) {
-						if (!cb(x.value())) {
+						if (!cb(std::move(x.value()))) {
 							break;
 						}
 					} else {
-						cb(x.value());
+						cb(std::move(x.value()));
 					}
 					if (s.empty()) {
 						break;
@@ -119,18 +169,64 @@ namespace codepad::regex {
 			}
 		}
 	protected:
+		/// Information about an ongoing capture.
+		struct _capture_info {
+			/// Default constructor.
+			_capture_info() = default;
+			/// Initializes all fields of this struct.
+			_capture_info(Stream s, std::size_t id) : stream_begin(std::move(s)), index(id) {
+			}
+
+			Stream stream_begin; ///< State of the input stream at the beginning of this capture.
+			std::size_t index = 0; ///< The index of this capture.
+		};
+		/// Information about a finished capture that needs to restart during backtracking.
+		struct _partial_finished_capture_info {
+			/// Default constructor.
+			_partial_finished_capture_info() = default;
+			/// Initializes all fields of this struct.
+			_partial_finished_capture_info(_capture_info cap, std::size_t len) :
+				capture(std::move(cap)), length(len) {
+			}
+
+			_capture_info capture; ///< Information about the starting of this capture.
+			std::size_t length = 0; ///< The length of this capture.
+		};
+		/// Information about a finished capture that needs to be reset back to the previous value during
+		/// backtracking.
+		struct _full_finished_capture_info {
+			/// Default constructor.
+			_full_finished_capture_info() = default;
+			/// Initializes all fields of this struct.
+			_full_finished_capture_info(result::capture cap, std::size_t id) :
+				capture_data(std::move(cap)), index(id) {
+			}
+
+			result::capture capture_data; ///< Capture data.
+			std::size_t index = 0; ///< The index of this capture.
+		};
 		/// The state of the automata at one moment.
 		struct _state {
 			/// Default constructor.
 			_state() = default;
 			/// Initializes all fields of this struct.
-			_state(Stream str, std::size_t st, std::size_t trans) :
-				stream(std::move(str)), automata_state(st), transition(trans) {
+			_state(Stream str, std::size_t st, std::size_t trans, std::size_t ongoing_captures) :
+				stream(std::move(str)), automata_state(st), transition(trans),
+				initial_ongoing_captures(ongoing_captures) {
 			}
 
 			Stream stream; ///< State of the input stream.
 			std::size_t automata_state = 0; ///< Current state in the automata.
 			std::size_t transition = 0; ///< Index of the current transition in \ref automata_state.
+
+			/// The number of captures that was ongoing before this state was pushed onto the stack.
+			std::size_t initial_ongoing_captures = 0;
+			/// The stack of captures that started before this state was pushed, and ended after this state was
+			/// pushed, but before the next state was pushed.
+			std::stack<_partial_finished_capture_info> partial_finished_captures;
+			/// All captures that started and finished after this state was pushed but before the next state was
+			/// pushed.
+			std::stack<_full_finished_capture_info> full_finished_captures;
 
 			/// Returns the associated \ref state_machine::state.
 			[[nodiscard]] const compiled::state &get_automata_state(const compiled::state_machine &sm) const {
@@ -141,6 +237,11 @@ namespace codepad::regex {
 				return sm.states[automata_state].transitions[transition];
 			}
 		};
+
+		result _result; ///< Cached match result.
+		std::stack<_state> _state_stack; ///< States for backtracking.
+		std::stack<_capture_info> _ongoing_captures; ///< Ongoing captures.
+		const compiled::state_machine *_expr = nullptr; ///< State machine for the expression.
 
 		/// Checks if the contents in the given stream starts with the given string.
 		[[nodiscard]] bool _check_transition(
@@ -181,7 +282,7 @@ namespace codepad::regex {
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
 			Stream stream, const compiled::transition&, const compiled::assertion &cond
-		) {
+		) const {
 			switch (cond.assertion_type) {
 			case ast::nodes::assertion::type::always_false:
 				return false;
@@ -254,14 +355,12 @@ namespace codepad::regex {
 			case ast::nodes::assertion::type::positive_lookahead:
 				{
 					matcher<Stream> assertion_matcher;
-					std::size_t state = assertion_matcher.try_match(stream, cond.expression);
-					return state == cond.expression.end_state;
+					return assertion_matcher.try_match(stream, cond.expression).has_value();
 				}
 			case ast::nodes::assertion::type::negative_lookahead:
 				{
 					matcher<Stream> assertion_matcher;
-					std::size_t state = assertion_matcher.try_match(stream, cond.expression);
-					return state != cond.expression.end_state;
+					return !assertion_matcher.try_match(stream, cond.expression).has_value();
 				}
 			case ast::nodes::assertion::type::positive_lookbehind:
 				return false; // TODO
@@ -271,6 +370,87 @@ namespace codepad::regex {
 
 			assert_true_logical(false, "invalid assertion type"); // should not happen
 			return false;
+		}
+		/// Starts a captured group.
+		[[nodiscard]] bool _check_transition(
+			Stream stream, const compiled::transition&, const compiled::capture_begin &beg
+		) {
+			_ongoing_captures.emplace(std::move(stream), beg.index);
+			return true;
+		}
+		/// Ends a captured group.
+		[[nodiscard]] bool _check_transition(
+			const Stream &stream, const compiled::transition&, const compiled::capture_end&
+		) {
+			auto res = std::move(_ongoing_captures.top());
+			_ongoing_captures.pop();
+			if (_result.captures.size() <= res.index) {
+				_result.captures.resize(res.index + 1);
+			}
+
+			if (!_state_stack.empty()) {
+				// if necessary, record that this capture has finished
+				auto &st = _state_stack.top();
+				if (_ongoing_captures.size() + st.partial_finished_captures.size() < st.initial_ongoing_captures) {
+					// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
+					st.partial_finished_captures.emplace(res, stream.position() - res.stream_begin.position());
+				} else {
+					// when backtracking, it's necessary to completely reset this capture to the previous state
+					st.full_finished_captures.emplace(_result.captures[res.index], res.index);
+				}
+			}
+
+			std::size_t index = res.index;
+			_result.captures[index].length = stream.position() - res.stream_begin.position();
+			_result.captures[index].begin = std::move(res.stream_begin);
+			return true;
+		}
+		/// Checks if a backreference matches.
+		[[nodiscard]] bool _check_transition(
+			Stream &stream, const compiled::transition &trans, const compiled::backreference &cond
+		) {
+			std::size_t index = cond.index;
+			if (cond.is_named) {
+				bool has_valid_index = false;
+				for (std::size_t id : _expr->named_captures.get_indices_for_name(cond.index)) {
+					if (id >= _result.captures.size()) {
+						return false; // capture not yet matched
+					}
+					if (_result.captures[id].is_valid()) {
+						has_valid_index = true;
+						index = id;
+						break;
+					}
+				}
+				if (!has_valid_index) {
+					return false; // capture not yet matched
+				}
+			} else {
+				if (index >= _result.captures.size() || !_result.captures[index].is_valid()) {
+					return false; // capture not yet matched
+				}
+			}
+
+			auto &cap = _result.captures[index];
+			Stream new_stream = stream;
+			Stream target_stream = cap.begin;
+			for (std::size_t i = 0; i < cap.length; ++i) {
+				if (new_stream.empty()) {
+					return false;
+				}
+				codepoint got = new_stream.take();
+				codepoint expected = target_stream.take();
+				if (trans.case_insensitive) {
+					got = unicode::case_folding::get_cached().fold_simple(got);
+					expected = unicode::case_folding::get_cached().fold_simple(expected);
+				}
+				if (got != expected) {
+					return false;
+				}
+			}
+			stream = std::move(new_stream);
+
+			return true;
 		}
 	};
 }

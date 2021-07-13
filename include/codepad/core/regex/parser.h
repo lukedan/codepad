@@ -32,11 +32,16 @@ namespace codepad::regex {
 		[[nodiscard]] ast::nodes::subexpression parse(Stream s, options options) {
 			_state_stack.emplace(std::move(s));
 			_option_stack.emplace(std::move(options));
-			auto result = _parse_subexpression(std::numeric_limits<codepoint>::max());
+			_capture_id_stack.emplace(1);
+			ast::nodes::subexpression result;
+			result.subexpr_type = ast::nodes::subexpression::type::normal;
+			_parse_subexpression(result, std::numeric_limits<codepoint>::max());
 			_state_stack.pop();
-			assert_true_logical(_state_stack.empty(), "stream state stack push/pop mismatch");
 			_option_stack.pop();
+			_capture_id_stack.pop();
+			assert_true_logical(_state_stack.empty(), "stream state stack push/pop mismatch");
 			assert_true_logical(_option_stack.empty(), "option stack push/pop mismatch");
+			assert_true_logical(_capture_id_stack.empty(), "capture stack push/pop mismatch");
 			return result;
 		}
 	
@@ -52,7 +57,8 @@ namespace codepad::regex {
 		>; ///< A node that could result from an escaped sequence.
 
 		std::stack<Stream> _state_stack; ///< The input stream.
-		std::stack<options> _option_stack;
+		std::stack<options> _option_stack; ///< Stack of regular expression options.
+		std::stack<std::size_t> _capture_id_stack; ///< Used to handle duplicate group numbers.
 
 		/// Returns the current stream in the stack of saved states.
 		[[nodiscard]] Stream &_stream() {
@@ -99,9 +105,9 @@ namespace codepad::regex {
 			bool continues = false; ///< Used to indicate that the alternative has ended.
 		};
 
-		/// Parses an octal value. Terminates when a invalid character is encountered, when the stream ends, or when
-		/// the specified number of characters are consumed.
-		[[nodiscard]] codepoint _parse_numeric_value(
+		/// Parses an numerical value. Terminates when a invalid character is encountered, when the stream ends, or
+		/// when the specified number of characters are consumed.
+		template <typename IntType> [[nodiscard]] IntType _parse_numeric_value(
 			std::size_t base,
 			std::size_t length_limit = std::numeric_limits<std::size_t>::max(),
 			codepoint initial = 0
@@ -118,7 +124,8 @@ namespace codepad::regex {
 		/// alternatives. This function basically calls \ref _parse_subexpression() until the termination condition
 		/// is met.
 		[[nodiscard]] ast::nodes::alternative _parse_alternative(
-			ast::nodes::subexpression first_alternative, codepoint terminate, std::size_t pushed_options
+			ast::nodes::subexpression first_alternative, codepoint terminate,
+			std::size_t pushed_options, ast::nodes::subexpression::type
 		);
 
 		/// Parses a group in round brackets, and adds the result to the end of the given subexpression.
@@ -142,10 +149,10 @@ namespace codepad::regex {
 			lit.case_insensitive = case_insensitive;
 			return lit;
 		}
-		/// Parses a subexpression or an alternative, terminating when the specified character is encountered or when
-		/// the stream is empty. The character that caused termination will be consumed.
-		[[nodiscard]] ast::nodes::subexpression _parse_subexpression(
-			codepoint terminate, _alternative_context *alt_context = nullptr
+		/// Parses a subexpression, an assertion, or an alternative, terminating when the specified character is
+		/// encountered or when the stream is empty. The character that caused termination will be consumed.
+		void _parse_subexpression(
+			ast::nodes::subexpression&, codepoint terminate, _alternative_context *alt_context = nullptr
 		);
 	};
 }

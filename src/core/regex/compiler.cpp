@@ -13,6 +13,80 @@ namespace codepad::regex {
 			states.emplace_back().is_atomic = is_atomic;
 			return res;
 		}
+
+		void state_machine::dump(std::ostream &stream, bool valid_only) const {
+			stream << "digraph {\n";
+			stream << "n" << start_state << "[color=red];\n";
+			stream << "n" << end_state << "[color=blue];\n";
+			auto is_printable_char = [](codepoint cp) {
+				return cp >= 0x20 && cp <= 0x7E;
+			};
+			auto print_char = [&](codepoint cp) {
+				if (is_printable_char(cp)) {
+					stream << static_cast<char>(cp);
+				}
+				stream << "[" << std::hex << cp << std::dec << "]";
+			};
+			for (std::size_t i = 0; i < states.size(); ++i) {
+				const auto &s = states[i];
+				for (std::size_t j = 0; j < s.transitions.size(); ++j) {
+					auto &t = s.transitions[j];
+					stream << "n" << i << " -> n" << t.new_state_index << " [label=\"" << j << ": ";
+					if (std::holds_alternative<codepoint_string>(t.condition)) {
+						const auto &str = std::get<codepoint_string>(t.condition);
+						for (codepoint cp : str) {
+							if (is_printable_char(cp)) {
+								stream << static_cast<char>(cp);
+							} else {
+								stream << "?";
+							}
+						}
+					} else if (std::holds_alternative<codepoint_range_list>(t.condition)) {
+						const auto &list = std::get<codepoint_range_list>(t.condition);
+						bool first = true;
+						for (auto range : list.ranges) {
+							if (first) {
+								first = false;
+							} else {
+								stream << ",";
+							}
+							if (valid_only && !is_printable_char(range.first)) {
+								stream << "...";
+								break;
+							}
+							print_char(range.first);
+							if (range.last != range.first) {
+								stream << "-";
+								print_char(range.last);
+							}
+						}
+					} else if (std::holds_alternative<assertion>(t.condition)) {
+						stream << "<assertion>";
+					} else if (std::holds_alternative<capture_begin>(t.condition)) {
+						const auto &cap = std::get<capture_begin>(t.condition);
+						stream << "<start capture " << cap.index;
+						if (cap.name_index != capture_begin::unnamed_capture) {
+							stream << " named:";
+							for (std::size_t index : named_captures.get_indices_for_name(cap.name_index)) {
+								stream << " " << index;
+							}
+						}
+						stream << ">";
+					} else if (std::holds_alternative<capture_end>(t.condition)) {
+						stream << "<end capture>";
+					} else if (std::holds_alternative<backreference>(t.condition)) {
+						const auto &backref = std::get<backreference>(t.condition);
+						stream << "<";
+						if (backref.is_named) {
+							stream << "named ";
+						}
+						stream << "backreference " << backref.index << ">";
+					}
+					stream << "\"];\n";
+				}
+			}
+			stream << "}\n";
+		}
 	}
 
 
@@ -30,12 +104,22 @@ namespace codepad::regex {
 		}
 	}
 
-	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::subexpression &expr) {
-		if (expr.nodes.empty()) {
-			_result.states[start].transitions.emplace_back().new_state_index = end;
-			return;
+	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::backreference &expr) {
+		auto &trans = _result.states[start].transitions.emplace_back();
+		/*trans.case_insensitive =*/ // TODO case insensitive
+		trans.new_state_index = end;
+		auto &ref = trans.condition.emplace<compiled::backreference>();
+		if (std::holds_alternative<std::size_t>(expr.index)) {
+			ref.index = std::get<std::size_t>(expr.index);
+		} else {
+			ref.is_named = true;
+			const auto &name = std::get<codepoint_string>(expr.index);
+			auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), name);
+			ref.index = (it - _capture_names.begin()) - 1;
 		}
+	}
 
+	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::subexpression &expr) {
 		auto compile_expr = [this](std::size_t cur, std::size_t next, const ast::node &n) {
 			std::visit(
 				[this, cur, next](const auto &v) {
@@ -45,25 +129,43 @@ namespace codepad::regex {
 			);
 		};
 
-		if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
-			++_atomic_counter;
-			// we need to make sure all states in this assertion is atomic
-			// so we create new start & finish nodes, and dummy transitions
+		if (expr.subexpr_type != ast::nodes::subexpression::type::non_capturing) {
+			// create states for starting and ending the capture
+			if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
+				// make sure all states within the group are marked atomic
+				++_atomic_counter;
+			}
 			auto new_start = _create_state();
 			auto new_end = _create_state();
-			_result.states[start].transitions.emplace_back().new_state_index = new_start;
-			_result.states[new_end].transitions.emplace_back().new_state_index = end;
+			auto &begin_trans = _result.states[start].transitions.emplace_back();
+			begin_trans.new_state_index = new_start;
+			auto &end_trans = _result.states[new_end].transitions.emplace_back();
+			end_trans.new_state_index = end;
 			start = new_start;
 			end = new_end;
+
+			auto &capture_beg = begin_trans.condition.emplace<compiled::capture_begin>();
+			capture_beg.index = expr.capture_index;
+			if (!expr.capture_name.empty()) {
+				auto iter = std::lower_bound(_capture_names.begin(), _capture_names.end(), expr.capture_name);
+				capture_beg.name_index = (iter - _capture_names.begin()) - 1;
+			}
+			end_trans.condition.emplace<compiled::capture_end>();
 		}
-		std::size_t current = start;
-		auto it = expr.nodes.begin();
-		for (; it + 1 != expr.nodes.end(); ++it) {
-			std::size_t next = _create_state();
-			compile_expr(current, next, *it);
-			current = next;
+
+		if (expr.nodes.empty()) {
+			_result.states[start].transitions.emplace_back().new_state_index = end;
+		} else {
+			std::size_t current = start;
+			auto it = expr.nodes.begin();
+			for (; it + 1 != expr.nodes.end(); ++it) {
+				std::size_t next = _create_state();
+				compile_expr(current, next, *it);
+				current = next;
+			}
+			compile_expr(current, end, *it);
 		}
-		compile_expr(current, end, *it);
+
 		if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
 			--_atomic_counter;
 		}

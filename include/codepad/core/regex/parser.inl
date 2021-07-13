@@ -8,10 +8,10 @@
 /// Implementation of the parser.
 
 namespace codepad::regex {
-	template <typename Stream> inline codepoint parser<Stream>::_parse_numeric_value(
+	template <typename Stream> template <typename IntType> inline IntType parser<Stream>::_parse_numeric_value(
 		std::size_t base, std::size_t length_limit, codepoint initial
 	) {
-		codepoint value = initial;
+		IntType value = initial;
 		for (std::size_t i = 0; i < length_limit && !_stream().empty(); ++i) {
 			codepoint digit = _stream().peek();
 			if (digit >= U'0' && digit <= U'9') {
@@ -27,7 +27,7 @@ namespace codepad::regex {
 				break; // digit too large; treat as invalid
 			}
 			_stream().take();
-			value = static_cast<codepoint>(value * base + digit);
+			value = value * base + static_cast<IntType>(digit);
 		}
 		return value;
 	}
@@ -39,14 +39,14 @@ namespace codepad::regex {
 		switch (cp) {
 		// octal character code
 		case U'0':
-			return ast::nodes::literal::from_codepoint(_parse_numeric_value(8, 2));
+			return ast::nodes::literal::from_codepoint(_parse_numeric_value<codepoint>(8, 2));
 		case U'o':
 			{
 				if (_stream().empty() || _stream().peek() != U'{') {
 					return ast::nodes::error(); // no starting bracket
 				}
 				_stream().take();
-				codepoint value = _parse_numeric_value(8);
+				auto value = _parse_numeric_value<codepoint>(8);
 				if (_stream().empty() || _stream().peek() != U'}') {
 					return ast::nodes::error(); // no ending bracket
 				}
@@ -58,12 +58,12 @@ namespace codepad::regex {
 		case U'x':
 			{
 				if (_stream().empty() || _stream().peek() != U'{') {
-					return ast::nodes::literal::from_codepoint(_parse_numeric_value(16, 2));
+					return ast::nodes::literal::from_codepoint(_parse_numeric_value<codepoint>(16, 2));
 				} else {
 					// \x{...}: if parsing fails, restore checkpoint
 					_checkpoint();
 					_stream().take();
-					codepoint value = _parse_numeric_value(16);
+					auto value = _parse_numeric_value<codepoint>(16);
 					if (_stream().empty() || _stream().peek() != U'}') {
 						// no ending bracket; resume parsing from the beginning bracket
 						_restore_checkpoint();
@@ -95,13 +95,8 @@ namespace codepad::regex {
 		case U'8':
 			[[fallthrough]];
 		case U'9':
-			{
-				if (ctx == _escaped_sequence_context::character_class) {
-					return ast::nodes::literal::from_codepoint(cp); // interpret as literals
-				}
-				ast::nodes::backreference result;
-				std::size_t &idx = std::get<std::size_t>(result.index);
-				idx = cp - U'0';
+			if (ctx == _escaped_sequence_context::subexpression) {
+				std::size_t idx = cp - U'0';
 				if (!_stream().empty()) {
 					cp = _stream().peek();
 					if (cp >= U'0' && cp <= U'9') {
@@ -109,10 +104,87 @@ namespace codepad::regex {
 						idx = idx * 10 + (cp - U'0');
 					}
 				}
-				return result;
+				return ast::nodes::backreference(idx);
 			}
+			break;
 		case U'g':
-			// TODO backreference
+			if (ctx == _escaped_sequence_context::subexpression) {
+				std::size_t index = 0;
+				if (!_stream().empty() && _stream().peek() == U'{') {
+					_stream().take();
+					if (_stream().empty()) {
+						// TODO error
+						break;
+					}
+					// test if this is a named backreferece
+					codepoint next_cp = _stream().peek();
+					if ((next_cp >= U'0' && next_cp <= U'9') || next_cp == U'-' || next_cp == U'+') {
+						// numbered backreference
+						index = _parse_numeric_value<std::size_t>(10);
+						if (_stream().empty() || _stream().peek() != U'}') {
+							// TODO error
+						} else {
+							_stream().take();
+						}
+					} else { // named backreference
+						codepoint_string res;
+						while (true) {
+							if (_stream().empty()) {
+								// TODO error
+								break;
+							}
+							codepoint cur_cp = _stream().take();
+							if (cur_cp == U'}') {
+								break;
+							}
+							res.push_back(cur_cp);
+						}
+						return ast::nodes::backreference(std::move(res));
+					}
+				} else {
+					while (!_stream().empty()) {
+						codepoint cur_cp = _stream().peek();
+						if (cur_cp < U'0' || cur_cp > U'9') {
+							break;
+						}
+						_stream().take();
+						index = index * 10 + (cur_cp - U'0');
+					}
+				}
+				return ast::nodes::backreference(index);
+			}
+			break;
+		case U'k':
+			if (ctx == _escaped_sequence_context::subexpression) {
+				if (_stream().empty()) {
+					// TODO error
+					break;
+				}
+				codepoint end = U'\0';
+				switch (_stream().take()) {
+				case U'{':
+					end = U'}';
+					break;
+				case U'<':
+					end = U'>';
+					break;
+				case U'\'':
+					end = U'\'';
+					break;
+				default:
+					// TODO error
+					break;
+				}
+				codepoint_string capture_name;
+				while (!_stream().empty()) {
+					codepoint cur_cp = _stream().take();
+					if (cur_cp == end) {
+						break;
+					}
+					capture_name.push_back(cur_cp);
+				}
+				return ast::nodes::backreference(std::move(capture_name));
+			}
 			break;
 
 		// character class
@@ -139,6 +211,19 @@ namespace codepad::regex {
 				result.is_negate = true;
 				return result;
 			}
+		case U'h': // horizontal white space
+			{
+				ast::nodes::character_class result;
+				result.ranges = tables::horizontal_whitespaces();
+				return result;
+			}
+		case U'H': // not horizontal white space
+			{
+				ast::nodes::character_class result;
+				result.ranges = tables::horizontal_whitespaces();
+				result.is_negate = true;
+				return result;
+			}
 		case U's': // white space
 			{
 				ast::nodes::character_class result;
@@ -149,6 +234,19 @@ namespace codepad::regex {
 			{
 				ast::nodes::character_class result;
 				result.ranges = unicode::property_list::get_cached().white_space;
+				result.is_negate = true;
+				return result;
+			}
+		case U'v': // vertical white space
+			{
+				ast::nodes::character_class result;
+				result.ranges = tables::vertical_whitespaces();
+				return result;
+			}
+		case U'V': // not vertical white space
+			{
+				ast::nodes::character_class result;
+				result.ranges = tables::vertical_whitespaces();
 				result.is_negate = true;
 				return result;
 			}
@@ -208,22 +306,39 @@ namespace codepad::regex {
 		case U't':
 			return ast::nodes::literal::from_codepoint(0x09);
 		}
-		if (cp >= U'0' && cp <= U'7') { // octal character code or backreference
-			codepoint number = cp - U'0';
+
+		if (cp >= U'1' && cp <= U'7') { // octal character code or backreference
 			if (ctx == _escaped_sequence_context::subexpression) {
-				if (!_stream().empty()) {
-					cp = _stream().peek();
-					if (cp < U'0' || cp > U'9') { // must be a backreference
-						ast::nodes::backreference ref;
-						ref.index = number;
-						return ref;
-					}
-					/*_stream().take();
-					number = number * 10 + cp - U'0';*/
+				if (_stream().empty()) { // single digit - must be a backreference
+					return ast::nodes::backreference(cp - U'0');
 				}
+				codepoint next_cp = _stream().peek();
+				if (next_cp < U'0' || next_cp > U'9') { // single digit - must be a backreference
+					return ast::nodes::backreference(cp - U'0');
+				}
+				// otherwise check if there are already this much captures
+				_checkpoint();
+				std::size_t index = (cp - U'0') * 10 + (next_cp - U'0');
+				_stream().take();
+				while (!_stream().empty()) {
+					next_cp = _stream().peek();
+					if (next_cp < U'0' || next_cp > U'9') {
+						break;
+					}
+					index = index * 10 + (next_cp - U'0');
+					_stream().take();
+				}
+				if (index <= _capture_id_stack.top()) {
+					_cancel_checkpoint();
+					// TODO what happens when
+					//      - we reference a capture while it's in progress?
+					//      - we have duplicate capture indices?
+					return ast::nodes::backreference(index);
+				}
+				_restore_checkpoint();
 			}
 			// read up to three octal digits, but we've read one already
-			return ast::nodes::literal::from_codepoint(_parse_numeric_value(8, 2, number));
+			return ast::nodes::literal::from_codepoint(_parse_numeric_value<codepoint>(8, 2, cp - U'0'));
 		}
 		return ast::nodes::literal::from_codepoint(cp);
 	}
@@ -231,7 +346,6 @@ namespace codepad::regex {
 	template <
 		typename Stream
 	> inline ast::nodes::character_class parser<Stream>::_parse_square_brackets_character_class() {
-		// TODO support \Q \E
 		ast::nodes::character_class result;
 		if (_stream().empty()) {
 			// TODO error - early termination
@@ -241,7 +355,8 @@ namespace codepad::regex {
 			result.is_negate = true;
 			_stream().take();
 		}
-		auto parse_char = [this]() -> _escaped_sequence_node {
+		// if we run into \Q, this function simply returns an empty literal
+		auto parse_char = [&]() -> _escaped_sequence_node {
 			codepoint cp = _stream().take();
 			if (_options().extended_more) {
 				while (cp == U' ' || cp == U'\t') {
@@ -252,14 +367,31 @@ namespace codepad::regex {
 				}
 			}
 			if (cp == U'\\') {
+				if (!_stream().empty() && _stream().peek() == U'Q') {
+					_stream().take();
+					return ast::nodes::literal();
+				}
 				return _parse_escaped_sequence(_escaped_sequence_context::character_class);
 			}
 			return ast::nodes::literal::from_codepoint(cp);
 		};
+		bool force_literal = false; // whether we're in a \Q \E sequence
 		while (true) {
 			if (_stream().empty()) {
 				// TODO error
 				break;
+			}
+			// handle \Q \E
+			if (force_literal) {
+				codepoint cp = _stream().take();
+				if (cp == U'\\' && !_stream().empty() && _stream().peek() == U'E') {
+					// end of the sequence
+					_stream().take();
+					force_literal = false;
+				} else {
+					result.ranges.ranges.emplace_back(cp, cp);
+				}
+				continue;
 			}
 			// the first character can be a closing bracket and will still count; otherwise finish & return
 			if (!result.ranges.ranges.empty() && _stream().peek() == U']') {
@@ -278,6 +410,10 @@ namespace codepad::regex {
 				);
 			} else if (std::holds_alternative<ast::nodes::literal>(elem)) {
 				auto &literal = std::get<ast::nodes::literal>(elem).contents;
+				if (literal.empty()) { // we've ran into a \Q
+					force_literal = true;
+					continue;
+				}
 				auto &range = result.ranges.ranges.emplace_back(literal.front(), literal.front());
 				if (!_stream().empty() && _stream().peek() == U'-') { // parse a range
 					_stream().take();
@@ -316,21 +452,38 @@ namespace codepad::regex {
 	}
 
 	template <typename Stream> inline ast::nodes::alternative parser<Stream>::_parse_alternative(
-		ast::nodes::subexpression first_alternative, codepoint terminate, std::size_t pushed_options
+		ast::nodes::subexpression first_alternative, codepoint terminate,
+		std::size_t pushed_options, ast::nodes::subexpression::type expr_type
 	) {
+		std::size_t max = 0;
+
 		ast::nodes::alternative result;
 		result.alternatives.emplace_back(std::move(first_alternative));
 		_alternative_context context;
 		context.pushed_options = pushed_options;
 		do {
+			if (expr_type == ast::nodes::subexpression::type::duplicate) {
+				// save & reset group index
+				max = std::max(max, _capture_id_stack.top());
+				_capture_id_stack.pop();
+				_capture_id_stack.emplace(_capture_id_stack.top());
+			}
 			context.continues = false;
-			result.alternatives.emplace_back(_parse_subexpression(terminate, &context));
+			_parse_subexpression(result.alternatives.emplace_back(), terminate, &context);
 			if (!context.continues) {
 				break;
 			}
 		} while (!_stream().empty());
+		// pop all pused options (that are shared across the alternatives)
 		for (std::size_t i = 0; i < context.pushed_options; ++i) {
 			_pop_options();
+		}
+		// handle duplicate indices
+		if (expr_type == ast::nodes::subexpression::type::duplicate) {
+			// update group index
+			max = std::max(max, _capture_id_stack.top());
+			_capture_id_stack.pop();
+			_capture_id_stack.top() = max;
 		}
 		return result;
 	}
@@ -343,6 +496,8 @@ namespace codepad::regex {
 			return;
 		}
 
+		// if assertion_type is not always_false, the result is an assertion;
+		// otherwise, the result depends on is_subexpresion
 		bool is_subexpression = true;
 		auto expr_type = ast::nodes::subexpression::type::normal;
 		auto assertion_type = ast::nodes::assertion::type::always_false;
@@ -363,6 +518,8 @@ namespace codepad::regex {
 			case U'|': // duplicate subexpression numbers
 				_stream().take();
 				expr_type = ast::nodes::subexpression::type::duplicate;
+				// save the subexpression number
+				_capture_id_stack.emplace(_capture_id_stack.top());
 				break;
 			case U'>': // atomic subexpression
 				_stream().take();
@@ -371,24 +528,46 @@ namespace codepad::regex {
 
 			// named subpatterns
 			case U'<':
-				// TODO check if this is actually an assertion
-				[[fallthrough]];
-			case U'\'':
 				[[fallthrough]];
 			case U'P':
-				{ // parse named capture
-					codepoint name_end = U'\0';
-					switch (_stream().take()) {
-					case U'\'':
-						name_end = U'\'';
-						break;
-					case U'P':
-						_stream().take();
-						if (_stream().empty() || _stream().peek() != U'<') {
+				[[fallthrough]];
+			case U'\'':
+				{
+					codepoint start = _stream().take();
+					if (start == U'<') {
+						if (!_stream().empty()) {
+							switch (_stream().peek()) {
+							case U'=': // positive lookbehind
+								_stream().take();
+								assertion_type = ast::nodes::assertion::type::positive_lookbehind;
+								break;
+							case U'!': // negative lookbehind
+								_stream().take();
+								assertion_type = ast::nodes::assertion::type::negative_lookbehind;
+								break;
+							}
+						}
+					}
+
+					if (start == U'P') {
+						if (_stream().empty()) {
 							// TODO error
 							break;
 						}
-						[[fallthrough]];
+						if (_stream().peek() != U'<') {
+							// TODO not a named capture
+							break;
+						}
+						_stream().take();
+						start = U'<';
+					}
+
+					// parse named capture
+					codepoint name_end = U'\0';
+					switch (start) {
+					case U'\'':
+						name_end = U'\'';
+						break;
 					case U'<':
 						name_end = U'>';
 						break;
@@ -463,13 +642,11 @@ namespace codepad::regex {
 							// syntax sugar - parse until the end for a subexpression
 							{
 								stop = true;
-								auto &new_expr = result.nodes.emplace_back().value.emplace<
-									ast::nodes::subexpression
-								>(_parse_subexpression(U')'));
-								new_expr.subexpr_type =
-									ast::nodes::subexpression::type::non_capturing;
-								// the options only affect this subexpression,
-								// not the outer one it contains
+								auto &new_expr =
+									result.nodes.emplace_back().value.emplace<ast::nodes::subexpression>();
+								new_expr.subexpr_type = ast::nodes::subexpression::type::non_capturing;
+								_parse_subexpression(new_expr, U')');
+								// the options only affect this subexpression, not the outer one it contains
 								--options_pushed;
 								_pop_options();
 							}
@@ -525,15 +702,18 @@ namespace codepad::regex {
 		if (assertion_type != ast::nodes::assertion::type::always_false) {
 			auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::assertion>();
 			new_expr.assertion_type = assertion_type;
-			new_expr.expression.nodes.emplace_back().value.emplace<ast::nodes::subexpression>(
-				_parse_subexpression(U')')
+			_parse_subexpression(
+				new_expr.expression.nodes.emplace_back().value.emplace<ast::nodes::subexpression>(), U')'
 			);
 		} else if (is_subexpression) {
-			auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::subexpression>(
-				_parse_subexpression(U')')
-			);
+			auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::subexpression>();
 			new_expr.subexpr_type = expr_type;
+			if (new_expr.subexpr_type == ast::nodes::subexpression::type::normal) {
+				new_expr.capture_index = _capture_id_stack.top();
+				++_capture_id_stack.top();
+			}
 			new_expr.capture_name = std::move(capture_name);
+			_parse_subexpression(new_expr, U')');
 		}
 	}
 
@@ -621,10 +801,9 @@ namespace codepad::regex {
 		return result;
 	}
 
-	template <typename Stream> inline ast::nodes::subexpression parser<Stream>::_parse_subexpression(
-		codepoint terminate, _alternative_context *alt_context
+	template <typename Stream> inline void parser<Stream>::_parse_subexpression(
+		ast::nodes::subexpression &result, codepoint terminate, _alternative_context *alt_context
 	) {
-		ast::nodes::subexpression result;
 		std::size_t options_pushed = 0;
 		while (!_stream().empty()) {
 			codepoint cp = _stream().take();
@@ -640,8 +819,13 @@ namespace codepad::regex {
 			case U'|':
 				if (alt_context == nullptr) {
 					// parse whatever remains using _parse_alternative()
-					auto alt = _parse_alternative(std::move(result), terminate, options_pushed);
-					result = ast::nodes::subexpression();
+					// here we want to keep the properties, capture index, etc. of the outer subexpression - so
+					// create a new non-capturing subexpression and move all the parsed nodes into it
+					ast::nodes::subexpression first_alt;
+					first_alt.nodes = std::exchange(result.nodes, std::vector<ast::node>());
+					auto alt = _parse_alternative(
+						std::move(first_alt), terminate, options_pushed, result.subexpr_type
+					);
 					result.nodes.emplace_back().value.emplace<ast::nodes::alternative>(std::move(alt));
 				} else {
 					// otherwise, return the subexpression and set it to continue
@@ -649,7 +833,7 @@ namespace codepad::regex {
 					alt_context->pushed_options += options_pushed;
 				}
 				options_pushed = 0;
-				return result;
+				return;
 
 			// character class
 			case U'[':
@@ -798,6 +982,12 @@ namespace codepad::regex {
 		for (std::size_t i = 0; i < options_pushed; ++i) {
 			_pop_options();
 		}
-		return result;
+		if (result.subexpr_type == ast::nodes::subexpression::type::duplicate) {
+			// if we're here, it means that this duplicate group does not actually have any alternatives, in which
+			// case we should pop the index pushed by _parse_round_brackets_group()
+			std::size_t id = _capture_id_stack.top();
+			_capture_id_stack.pop();
+			_capture_id_stack.top() = id;
+		}
 	}
 }

@@ -33,6 +33,7 @@ struct test {
 	std::vector<test_data> data; ///< Test strings.
 };
 using stream_t = cp::regex::basic_input_stream<cp::encodings::utf8, const std::byte*>; ///< UTF-8 input stream type.
+using matcher_t = cp::regex::matcher<stream_t>; /// Matcher type.
 
 /// Fails with the given message.
 void fail(const char *msg = nullptr) {
@@ -397,7 +398,7 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 			auto pattern_view = std::string_view(
 				reinterpret_cast<const char*>(pattern_str.data()), pattern_str.size()
 			);
-			INFO("Pattern: " << pattern_view);
+			INFO("Pattern: " << pattern_view.substr(0, std::min<std::size_t>(300, pattern_view.size())));
 			INFO("  Extended: " << test.pattern.options.extended);
 			INFO("  Case insensitive: " << test.pattern.options.case_insensitive);
 
@@ -416,7 +417,11 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 			// log ast
 			std::stringstream ss;
 			cp::regex::ast::make_dumper(ss).dump(ast);
-			INFO("Dumped pattern:\n" << ss.str());
+			std::string ast_str = ss.str();
+			if (pattern_str.size() > 300) {
+				ast_str = "[Too long]";
+			}
+			INFO("Dumped pattern:\n" << ast_str);
 
 			for (const auto &str : test.data) {
 				std::basic_string<std::byte> data_str;
@@ -435,15 +440,16 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 				}
 				INFO("Data string: " << data_ss.str());
 				stream_t stream(data_str.data(), data_str.data() + data_str.size());
-				std::vector<std::size_t> matches;
+				std::vector<matcher_t::result> matches;
 				std::size_t attempts = 0;
-				matcher.find_all(stream, sm, [&](std::size_t pos) {
+				matcher.find_all(stream, sm, [&](matcher_t::result pos) {
 					matches.emplace_back(pos);
 					return ++attempts < 1000;
 				});
 				std::stringstream matches_str;
-				for (std::size_t i : matches) {
-					matches_str << i << ", ";
+				for (const auto &match : matches) {
+					std::size_t beg = match.captures[0].begin.position();
+					matches_str << "[" << beg << ", " << beg + match.captures[0].length << "], ";
 				}
 				INFO("  Matches: " << matches_str.str());
 				CHECK(attempts < 1000);

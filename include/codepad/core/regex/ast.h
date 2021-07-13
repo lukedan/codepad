@@ -38,9 +38,16 @@ namespace codepad::regex::ast {
 		};
 		/// A backreference.
 		struct backreference {
+			/// Default constructor.
+			backreference() = default;
+			/// Initializes this backreference with the given numerical index.
+			explicit backreference(std::size_t id) : index(std::in_place_type<std::size_t>, id) {
+			}
+			/// Initializes this backreference with the given string index.
+			explicit backreference(codepoint_string id) : index(std::in_place_type<codepoint_string>, std::move(id)) {
+			}
+
 			std::variant<std::size_t, codepoint_string> index; ///< The index of this backreference.
-			/// Indicates that this may be an octal character code instead of a backreference.
-			bool is_ambiguous = false;
 		};
 		/// Node that represents a class of characters.
 		struct character_class {
@@ -61,8 +68,10 @@ namespace codepad::regex::ast {
 			enum class type {
 				normal, ///< Normal subexpressions.
 				non_capturing, ///< This subexpression does not capture its contents.
-				duplicate, ///< All captures within this alternative use the same capture indices.
-				atomic, ///< The matcher should not retry when matching fails after this subexpression.
+				/// A non-capturing group. All captures within this alternative use the same capture indices.
+				duplicate,
+				/// A non-capturing group. The matcher should not retry when matching fails after this subexpression.
+				atomic,
 			};
 
 			std::vector<node> nodes; ///< Nodes in this sub-expression.
