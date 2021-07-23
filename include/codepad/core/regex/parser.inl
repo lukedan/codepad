@@ -27,7 +27,7 @@ namespace codepad::regex {
 				break; // digit too large; treat as invalid
 			}
 			_stream().take();
-			value = value * base + static_cast<IntType>(digit);
+			value = value * static_cast<IntType>(base) + static_cast<IntType>(digit);
 		}
 		return value;
 	}
@@ -104,7 +104,7 @@ namespace codepad::regex {
 						idx = idx * 10 + (cp - U'0');
 					}
 				}
-				return ast::nodes::backreference(idx);
+				return ast::nodes::backreference(idx, _options().case_insensitive);
 			}
 			break;
 		case U'g':
@@ -139,7 +139,7 @@ namespace codepad::regex {
 							}
 							res.push_back(cur_cp);
 						}
-						return ast::nodes::backreference(std::move(res));
+						return ast::nodes::backreference(std::move(res), _options().case_insensitive);
 					}
 				} else {
 					while (!_stream().empty()) {
@@ -151,7 +151,7 @@ namespace codepad::regex {
 						index = index * 10 + (cur_cp - U'0');
 					}
 				}
-				return ast::nodes::backreference(index);
+				return ast::nodes::backreference(index, _options().case_insensitive);
 			}
 			break;
 		case U'k':
@@ -183,7 +183,7 @@ namespace codepad::regex {
 					}
 					capture_name.push_back(cur_cp);
 				}
-				return ast::nodes::backreference(std::move(capture_name));
+				return ast::nodes::backreference(std::move(capture_name), _options().case_insensitive);
 			}
 			break;
 
@@ -310,11 +310,11 @@ namespace codepad::regex {
 		if (cp >= U'1' && cp <= U'7') { // octal character code or backreference
 			if (ctx == _escaped_sequence_context::subexpression) {
 				if (_stream().empty()) { // single digit - must be a backreference
-					return ast::nodes::backreference(cp - U'0');
+					return ast::nodes::backreference(cp - U'0', _options().case_insensitive);
 				}
 				codepoint next_cp = _stream().peek();
 				if (next_cp < U'0' || next_cp > U'9') { // single digit - must be a backreference
-					return ast::nodes::backreference(cp - U'0');
+					return ast::nodes::backreference(cp - U'0', _options().case_insensitive);
 				}
 				// otherwise check if there are already this much captures
 				_checkpoint();
@@ -333,7 +333,7 @@ namespace codepad::regex {
 					// TODO what happens when
 					//      - we reference a capture while it's in progress?
 					//      - we have duplicate capture indices?
-					return ast::nodes::backreference(index);
+					return ast::nodes::backreference(index, _options().case_insensitive);
 				}
 				_restore_checkpoint();
 			}
@@ -429,20 +429,24 @@ namespace codepad::regex {
 					}
 					auto next_elem = parse_char();
 					if (std::holds_alternative<ast::nodes::literal>(next_elem)) {
-						range.last = std::get<ast::nodes::literal>(next_elem).contents.front();
-						if (range.last < range.first) {
-							// TODO error
-							std::swap(range.first, range.last);
+						auto lit = std::get<ast::nodes::literal>(next_elem);
+						if (!lit.contents.empty()) {
+							range.last = lit.contents.front();
+							if (range.last < range.first) {
+								// TODO error
+								std::swap(range.first, range.last);
+							}
+							continue;
 						}
-					} else {
-						result.ranges.ranges.emplace_back(U'-', U'-');
-						if (std::holds_alternative<ast::nodes::character_class>(next_elem)) {
-							auto &cls = std::get<ast::nodes::character_class>(next_elem);
-							result.ranges.ranges.insert(
-								result.ranges.ranges.end(), cls.ranges.ranges.begin(), cls.ranges.ranges.end()
-							);
-						} // ignore error
 					}
+					// we're unable to parse a full range - add the dash to the character class
+					result.ranges.ranges.emplace_back(U'-', U'-');
+					if (std::holds_alternative<ast::nodes::character_class>(next_elem)) {
+						auto &cls = std::get<ast::nodes::character_class>(next_elem);
+						result.ranges.ranges.insert(
+							result.ranges.ranges.end(), cls.ranges.ranges.begin(), cls.ranges.ranges.end()
+						);
+					} // ignore error
 				}
 			} // ignore errors
 		}
@@ -786,7 +790,9 @@ namespace codepad::regex {
 			auto &result_node = result.nodes.emplace_back();
 			if (last_node.is<ast::nodes::literal>()) {
 				auto &lit = std::get<ast::nodes::literal>(last_node.value);
-				result_node.value.emplace<ast::nodes::literal>().contents.push_back(lit.contents.back());
+				auto &res_lit = result_node.value.emplace<ast::nodes::literal>();
+				res_lit.contents.push_back(lit.contents.back());
+				res_lit.case_insensitive = lit.case_insensitive;
 				lit.contents.pop_back();
 				if (lit.contents.empty()) {
 					expr.nodes.pop_back();

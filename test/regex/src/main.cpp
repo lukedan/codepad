@@ -46,7 +46,9 @@ int main(int argc, char **argv) {
 		}
 		auto regex_data = reinterpret_cast<const std::byte*>(regex.data());
 		parser_t parser;
-		auto ast = parser.parse(stream_t(regex_data, regex_data + regex.size()), cp::regex::options());
+		cp::regex::options opt;
+		opt.case_insensitive = true;
+		auto ast = parser.parse(stream_t(regex_data, regex_data + regex.size()), opt);
 		auto dumper = cp::regex::ast::make_dumper(std::cout);
 		dumper.dump(ast);
 
@@ -71,7 +73,7 @@ int main(int argc, char **argv) {
 			matcher.find_all(str_stream, sm, [&](matcher_t::result res) {
 				std::cout << "  match:\n";
 				for (std::size_t i = 0; i < res.captures.size(); ++i) {
-					std::size_t beg = res.captures[i].begin.position();
+					std::size_t beg = res.captures[i].begin.codepoint_position();
 					std::cout <<
 						"    " << i << ": " << beg << " to " << beg + res.captures[i].length << "\n";
 				}

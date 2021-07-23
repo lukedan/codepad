@@ -19,7 +19,7 @@ namespace codepad::regex {
 			/// Position information about a capture in a match.
 			struct capture {
 				/// Used to mark that this capture is not in the input.
-				constexpr static std::size_t invalid_capture = std::numeric_limits<std::size_t>::max();
+				constexpr static std::size_t invalid_capture_length = std::numeric_limits<std::size_t>::max();
 
 				/// Default constructor.
 				capture() = default;
@@ -30,11 +30,11 @@ namespace codepad::regex {
 				/// The state of the stream at the beginning of this capture.
 				Stream begin;
 				/// The length of this capture.
-				std::size_t length = invalid_capture;
+				std::size_t length = invalid_capture_length;
 
 				/// Returns whether the capture is valid.
 				[[nodiscard]] bool is_valid() const {
-					return length != invalid_capture;
+					return length != invalid_capture_length;
 				}
 			};
 
@@ -78,6 +78,12 @@ namespace codepad::regex {
 							_ongoing_captures.size()
 						);
 					}
+					std::visit(
+						[&, this](auto &&trans) {
+							_execute_transition(current_state.stream, trans);
+						},
+						transition.condition
+					);
 					current_state.automata_state = transition.new_state_index;
 					current_state.transition = 0;
 					// continue to the next iteration
@@ -133,7 +139,7 @@ namespace codepad::regex {
 			while (true) {
 				Stream temp = s;
 				if (auto res = try_match(temp, expr)) {
-					if (!temp.empty() && s.position() == temp.position()) {
+					if (!temp.empty() && s.codepoint_position() == temp.codepoint_position()) {
 						temp.take();
 					}
 					s = std::move(temp);
@@ -277,6 +283,7 @@ namespace codepad::regex {
 					return true;
 				}
 			}
+			// TODO this is not correct - we need to map it both ways
 			return false;
 		}
 		/// Checks if the assertion is satisfied.
@@ -371,40 +378,6 @@ namespace codepad::regex {
 			assert_true_logical(false, "invalid assertion type"); // should not happen
 			return false;
 		}
-		/// Starts a captured group.
-		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transition&, const compiled::capture_begin &beg
-		) {
-			_ongoing_captures.emplace(std::move(stream), beg.index);
-			return true;
-		}
-		/// Ends a captured group.
-		[[nodiscard]] bool _check_transition(
-			const Stream &stream, const compiled::transition&, const compiled::capture_end&
-		) {
-			auto res = std::move(_ongoing_captures.top());
-			_ongoing_captures.pop();
-			if (_result.captures.size() <= res.index) {
-				_result.captures.resize(res.index + 1);
-			}
-
-			if (!_state_stack.empty()) {
-				// if necessary, record that this capture has finished
-				auto &st = _state_stack.top();
-				if (_ongoing_captures.size() + st.partial_finished_captures.size() < st.initial_ongoing_captures) {
-					// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
-					st.partial_finished_captures.emplace(res, stream.position() - res.stream_begin.position());
-				} else {
-					// when backtracking, it's necessary to completely reset this capture to the previous state
-					st.full_finished_captures.emplace(_result.captures[res.index], res.index);
-				}
-			}
-
-			std::size_t index = res.index;
-			_result.captures[index].length = stream.position() - res.stream_begin.position();
-			_result.captures[index].begin = std::move(res.stream_begin);
-			return true;
-		}
 		/// Checks if a backreference matches.
 		[[nodiscard]] bool _check_transition(
 			Stream &stream, const compiled::transition &trans, const compiled::backreference &cond
@@ -451,6 +424,53 @@ namespace codepad::regex {
 			stream = std::move(new_stream);
 
 			return true;
+		}
+		/// The capture group is started later in \ref _execute_transition().
+		[[nodiscard]] bool _check_transition(
+			Stream, const compiled::transition&, const compiled::capture_begin&
+		) {
+			return true;
+		}
+		/// The capture group is finished later in \ref _execute_transition().
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const compiled::transition&, const compiled::capture_end&
+		) {
+			return true;
+		}
+
+
+		/// By default nothing extra needs to be done for transitions.
+		template <typename Trans> void _execute_transition(const Stream&, const Trans&) {
+		}
+		/// Starts a capture.
+		void _execute_transition(Stream stream, const compiled::capture_begin &beg) {
+			_ongoing_captures.emplace(std::move(stream), beg.index);
+		}
+		/// Ends a capture.
+		void _execute_transition(const Stream &stream, const compiled::capture_end&) {
+			auto res = std::move(_ongoing_captures.top());
+			_ongoing_captures.pop();
+			if (_result.captures.size() <= res.index) {
+				_result.captures.resize(res.index + 1);
+			}
+
+			if (!_state_stack.empty()) {
+				// if necessary, record that this capture has finished
+				auto &st = _state_stack.top();
+				if (_ongoing_captures.size() + st.partial_finished_captures.size() < st.initial_ongoing_captures) {
+					// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
+					st.partial_finished_captures.emplace(
+						res, stream.codepoint_position() - res.stream_begin.codepoint_position()
+					);
+				} else {
+					// when backtracking, it's necessary to completely reset this capture to the previous state
+					st.full_finished_captures.emplace(_result.captures[res.index], res.index);
+				}
+			}
+
+			std::size_t index = res.index;
+			_result.captures[index].length = stream.codepoint_position() - res.stream_begin.codepoint_position();
+			_result.captures[index].begin = std::move(res.stream_begin);
 		}
 	};
 }

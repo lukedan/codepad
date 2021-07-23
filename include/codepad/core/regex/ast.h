@@ -41,13 +41,16 @@ namespace codepad::regex::ast {
 			/// Default constructor.
 			backreference() = default;
 			/// Initializes this backreference with the given numerical index.
-			explicit backreference(std::size_t id) : index(std::in_place_type<std::size_t>, id) {
+			backreference(std::size_t id, bool ignore_case) :
+				index(std::in_place_type<std::size_t>, id), case_insensitive(ignore_case) {
 			}
 			/// Initializes this backreference with the given string index.
-			explicit backreference(codepoint_string id) : index(std::in_place_type<codepoint_string>, std::move(id)) {
+			backreference(codepoint_string id, bool ignore_case) :
+				index(std::in_place_type<codepoint_string>, std::move(id)), case_insensitive(ignore_case) {
 			}
 
 			std::variant<std::size_t, codepoint_string> index; ///< The index of this backreference.
+			bool case_insensitive = false; ///< Whether this backreference is case-insensitive.
 		};
 		/// Node that represents a class of characters.
 		struct character_class {
@@ -186,7 +189,11 @@ namespace codepad::regex::ast {
 			for (codepoint cp : n.contents) {
 				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
 			}
-			_stream << "\"]\n";
+			_stream << "\"";
+			if (n.case_insensitive) {
+				_stream << "/i";
+			}
+			_stream << "]\n";
 		}
 		/// Dumps a \ref nodes::backreference.
 		void dump(const nodes::backreference &n) {
@@ -201,6 +208,9 @@ namespace codepad::regex::ast {
 				_stream << "\"";
 			} else {
 				_stream << "#" << std::get<std::size_t>(n.index);
+			}
+			if (n.case_insensitive) {
+				_stream << "/i";
 			}
 			_stream << "]\n";
 		}

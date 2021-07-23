@@ -68,9 +68,13 @@ namespace codepad::regex {
 			return _prev(_cur).second;
 		}
 
-		/// Returns the current position of this stream.
-		[[nodiscard]] std::size_t position() const {
+		/// Returns the current codepoint position.
+		[[nodiscard]] std::size_t codepoint_position() const {
 			return _pos;
+		}
+		/// Returns the current byte position.
+		template <typename Ret = decltype(Iter() - Iter())> [[nodiscard]] Ret byte_position() const {
+			return _cur - _beg;
 		}
 		/// Not reversed.
 		[[nodiscard]] bool is_reversed() const {
