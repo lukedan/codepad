@@ -53,6 +53,28 @@ namespace codepad::regex {
 			void dump(std::ostream&, bool valid_only = true) const;
 		};
 
+		/// A character class.
+		struct character_class {
+			codepoint_range_list ranges; ///< Ranges.
+			bool is_negate = false; ///< Whether the codepoint should not match any character in this class.
+
+			/// Tests whether the given codepoint is matched by this character class.
+			[[nodiscard]] bool matches(codepoint cp, bool case_insensitive) const {
+				bool result = ranges.contains(cp);
+				if (case_insensitive && !result) {
+					result = ranges.contains(unicode::case_folding::get_cached().fold_simple(cp));
+					if (!result) {
+						for (auto folded : unicode::case_folding::get_cached().inverse_fold_simple(cp)) {
+							if (ranges.contains(folded)) {
+								result = true;
+								break;
+							}
+						}
+					}
+				}
+				return is_negate ? !result : result;
+			}
+		};
 		/// An assertion used in a transition.
 		struct assertion {
 			ast::nodes::assertion::type assertion_type; ///< The type of this assertion.
@@ -78,17 +100,21 @@ namespace codepad::regex {
 			std::size_t index = 0;
 			bool is_named = false; ///< Indicates whether this references a named capture.
 		};
+		/// Resets the starting position of this match.
+		struct reset_match_start {
+		};
 
 		/// Stores the data of a transition.
 		struct transition {
 			/// A key used to determine if a transition is viable.
 			using key = std::variant<
 				codepoint_string,
-				codepoint_range_list,
+				character_class,
 				assertion,
 				capture_begin,
 				capture_end,
-				backreference
+				backreference,
+				reset_match_start
 			>;
 
 			key condition; ///< Condition of this transition.
@@ -194,6 +220,12 @@ namespace codepad::regex {
 		/// Does nothing for feature nodes.
 		void _compile(std::size_t, std::size_t, const ast::nodes::feature&) {
 		}
+		/// Compiles a \ref ast::nodes::match_start_override.
+		void _compile(std::size_t start, std::size_t end, const ast::nodes::match_start_override&) {
+			auto &transition = _result.states[start].transitions.emplace_back();
+			transition.condition.emplace<compiled::reset_match_start>();
+			transition.new_state_index = end;
+		}
 		/// Compiles the given literal node.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::literal&);
 		/// Compiles the given backreference.
@@ -201,7 +233,9 @@ namespace codepad::regex {
 		/// Compiles the given character class.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::character_class &char_class) {
 			auto &transition = _result.states[start].transitions.emplace_back();
-			transition.condition = char_class.get_effective_ranges();
+			auto &cls = transition.condition.emplace<compiled::character_class>();
+			cls.ranges = char_class.ranges;
+			cls.is_negate = char_class.is_negate;
 			transition.new_state_index = end;
 			transition.case_insensitive = char_class.case_insensitive;
 		}

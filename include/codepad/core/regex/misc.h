@@ -214,6 +214,7 @@ namespace codepad::regex {
 		bool dot_all = false; ///< . Matches any character.
 		bool extended = false; ///< Ignore new lines and # comments.
 		bool extended_more = false; ///< Similar to \ref extended, but also ignores spaces in character classes.
+		bool global = false; ///< Whether or not to enable global matching.
 	};
 
 	/// Codepoint ranges used by the parser.

@@ -41,10 +41,10 @@ namespace codepad::regex {
 								stream << "?";
 							}
 						}
-					} else if (std::holds_alternative<codepoint_range_list>(t.condition)) {
-						const auto &list = std::get<codepoint_range_list>(t.condition);
+					} else if (std::holds_alternative<character_class>(t.condition)) {
+						const auto &list = std::get<character_class>(t.condition);
 						bool first = true;
-						for (auto range : list.ranges) {
+						for (auto range : list.ranges.ranges) {
 							if (first) {
 								first = false;
 							} else {
@@ -59,6 +59,9 @@ namespace codepad::regex {
 								stream << "-";
 								print_char(range.last);
 							}
+						}
+						if (list.is_negate) {
+							stream << " <!>";
 						}
 					} else if (std::holds_alternative<assertion>(t.condition)) {
 						stream << "<assertion>";
@@ -106,7 +109,7 @@ namespace codepad::regex {
 
 	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::backreference &expr) {
 		auto &trans = _result.states[start].transitions.emplace_back();
-		/*trans.case_insensitive =*/ // TODO case insensitive
+		trans.case_insensitive = expr.case_insensitive;
 		trans.new_state_index = end;
 		auto &ref = trans.condition.emplace<compiled::backreference>();
 		if (std::holds_alternative<std::size_t>(expr.index)) {
@@ -247,8 +250,12 @@ namespace codepad::regex {
 			compiler cmp;
 			assertion.expression = cmp.compile(rep.expression);
 		} else if (rep.assertion_type >= ast::nodes::assertion::type::character_class_first) {
-			assertion.expression.states.emplace_back().transitions.emplace_back().condition =
-				std::get<ast::nodes::character_class>(rep.expression.nodes[0].value).get_effective_ranges();
+			auto &cls = assertion.expression.states.emplace_back().transitions.emplace_back().condition.emplace<
+				compiled::character_class
+			>();
+			const auto &cls_node = std::get<ast::nodes::character_class>(rep.expression.nodes[0].value);
+			cls.ranges = cls_node.ranges;
+			cls.is_negate = cls_node.is_negate;
 		}
 	}
 }

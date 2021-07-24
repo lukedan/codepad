@@ -318,6 +318,36 @@ namespace codepad {
 				}
 				assert_true_logical(inserted, "duplicate case folding entries");
 			}
+			// compute inverse simple mapping
+			for (const auto &[from, to] : result.simple) {
+				result._simple_inverse_info.try_emplace(to).first->second.count++;
+			}
+			std::vector<std::size_t> count(result._simple_inverse_info.size(), 0);
+			result._simple_inverse_data.resize(result.simple.size());
+			std::size_t index = 0, total = 0;
+			for (
+				auto it = result._simple_inverse_info.begin();
+				it != result._simple_inverse_info.end();
+				++it, ++index
+			) {
+				it->second.begin = total;
+				total += it->second.count;
+				count[index] = it->second.count;
+			}
+			for (const auto &[from, to] : result.simple) {
+				auto found = result._simple_inverse_info.find(to);
+				--found->second.count;
+				result._simple_inverse_data[found->second.begin + found->second.count] = from;
+			}
+			auto count_it = count.begin();
+			for (
+				auto it = result._simple_inverse_info.begin();
+				it != result._simple_inverse_info.end();
+				++it, ++count_it
+			) {
+				assert_true_logical(it->second.count == 0, "incorrect inverse simple case folding mappping");
+				it->second.count = *count_it;
+			}
 			return result;
 		}
 

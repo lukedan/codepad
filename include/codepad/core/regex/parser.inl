@@ -9,7 +9,7 @@
 
 namespace codepad::regex {
 	template <typename Stream> template <typename IntType> inline IntType parser<Stream>::_parse_numeric_value(
-		std::size_t base, std::size_t length_limit, codepoint initial
+		std::size_t base, std::size_t length_limit, IntType initial
 	) {
 		IntType value = initial;
 		for (std::size_t i = 0; i < length_limit && !_stream().empty(); ++i) {
@@ -265,6 +265,20 @@ namespace codepad::regex {
 			}
 
 		// anchor
+		case U'A':
+			if (ctx != _escaped_sequence_context::character_class) {
+				ast::nodes::assertion result;
+				result.assertion_type = ast::nodes::assertion::type::subject_start;
+				return result;
+			}
+			break;
+		case U'Z':
+			if (ctx != _escaped_sequence_context::character_class) {
+				ast::nodes::assertion result;
+				result.assertion_type = ast::nodes::assertion::type::subject_end_or_trailing_newline;
+				return result;
+			}
+			break;
 		case U'b':
 			{
 				if (ctx == _escaped_sequence_context::character_class) {
@@ -279,16 +293,14 @@ namespace codepad::regex {
 				return result;
 			}
 		case U'B':
-			{
-				if (ctx != _escaped_sequence_context::character_class) {
-					ast::nodes::assertion result;
-					result.assertion_type = ast::nodes::assertion::type::character_class_nonboundary;
-					auto &char_class =
-						result.expression.nodes.emplace_back().value.emplace<ast::nodes::character_class>();
-					char_class.case_insensitive = _options().case_insensitive;
-					char_class.ranges = tables::word_characters();
-					return result;
-				}
+			if (ctx != _escaped_sequence_context::character_class) {
+				ast::nodes::assertion result;
+				result.assertion_type = ast::nodes::assertion::type::character_class_nonboundary;
+				auto &char_class =
+					result.expression.nodes.emplace_back().value.emplace<ast::nodes::character_class>();
+				char_class.case_insensitive = _options().case_insensitive;
+				char_class.ranges = tables::word_characters();
+				return result;
 			}
 			break;
 
@@ -305,6 +317,13 @@ namespace codepad::regex {
 			return ast::nodes::literal::from_codepoint(0x0D);
 		case U't':
 			return ast::nodes::literal::from_codepoint(0x09);
+
+		// special
+		case U'K':
+			if (ctx != _escaped_sequence_context::character_class) {
+				return ast::nodes::match_start_override();
+			}
+			break;
 		}
 
 		if (cp >= U'1' && cp <= U'7') { // octal character code or backreference
@@ -328,7 +347,7 @@ namespace codepad::regex {
 					index = index * 10 + (next_cp - U'0');
 					_stream().take();
 				}
-				if (index <= _capture_id_stack.top()) {
+				if (index < _capture_id_stack.top()) {
 					_cancel_checkpoint();
 					// TODO what happens when
 					//      - we reference a capture while it's in progress?
@@ -404,10 +423,8 @@ namespace codepad::regex {
 			}
 			auto elem = parse_char();
 			if (std::holds_alternative<ast::nodes::character_class>(elem)) {
-				auto &cls = std::get<ast::nodes::character_class>(elem);
-				result.ranges.ranges.insert(
-					result.ranges.ranges.end(), cls.ranges.ranges.begin(), cls.ranges.ranges.end()
-				);
+				auto cls = std::get<ast::nodes::character_class>(elem).get_effective_ranges();
+				result.ranges.ranges.insert(result.ranges.ranges.end(), cls.ranges.begin(), cls.ranges.end());
 			} else if (std::holds_alternative<ast::nodes::literal>(elem)) {
 				auto &literal = std::get<ast::nodes::literal>(elem).contents;
 				if (literal.empty()) { // we've ran into a \Q
@@ -442,9 +459,9 @@ namespace codepad::regex {
 					// we're unable to parse a full range - add the dash to the character class
 					result.ranges.ranges.emplace_back(U'-', U'-');
 					if (std::holds_alternative<ast::nodes::character_class>(next_elem)) {
-						auto &cls = std::get<ast::nodes::character_class>(next_elem);
+						auto cls = std::get<ast::nodes::character_class>(next_elem).get_effective_ranges();
 						result.ranges.ranges.insert(
-							result.ranges.ranges.end(), cls.ranges.ranges.begin(), cls.ranges.ranges.end()
+							result.ranges.ranges.end(), cls.ranges.begin(), cls.ranges.end()
 						);
 					} // ignore error
 				}
@@ -621,7 +638,7 @@ namespace codepad::regex {
 							opts.case_insensitive = enable_feature;
 							break;
 						case U'm':
-							opts.case_insensitive = enable_feature;
+							opts.multiline = enable_feature;
 							break;
 						case U'n':
 							opts.no_auto_capture = enable_feature;
@@ -636,6 +653,13 @@ namespace codepad::regex {
 								opts.extended_more = true;
 							}
 							opts.extended = true;
+							break;
+
+						case U'-':
+							if (!enable_feature) {
+								// TODO error
+							}
+							enable_feature = false;
 							break;
 
 						case U')':

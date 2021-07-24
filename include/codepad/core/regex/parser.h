@@ -34,7 +34,7 @@ namespace codepad::regex {
 			_option_stack.emplace(std::move(options));
 			_capture_id_stack.emplace(1);
 			ast::nodes::subexpression result;
-			result.subexpr_type = ast::nodes::subexpression::type::normal;
+			result.subexpr_type = ast::nodes::subexpression::type::non_capturing;
 			_parse_subexpression(result, std::numeric_limits<codepoint>::max());
 			_state_stack.pop();
 			_option_stack.pop();
@@ -50,6 +50,7 @@ namespace codepad::regex {
 	protected:
 		using _escaped_sequence_node = std::variant<
 			ast::nodes::error,
+			ast::nodes::match_start_override,
 			ast::nodes::literal,
 			ast::nodes::character_class,
 			ast::nodes::backreference,
@@ -110,7 +111,7 @@ namespace codepad::regex {
 		template <typename IntType> [[nodiscard]] IntType _parse_numeric_value(
 			std::size_t base,
 			std::size_t length_limit = std::numeric_limits<std::size_t>::max(),
-			codepoint initial = 0
+			IntType initial = 0
 		);
 		/// Parses an escaped sequence. This function checkpoints the stream in certain conditions, and should not be
 		/// called when a checkpoint is active.

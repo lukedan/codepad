@@ -8,6 +8,7 @@
 
 #include <vector>
 #include <string>
+#include <span>
 
 #include "codepad/core/misc.h"
 #include "codepad/core/assert.h"
@@ -276,6 +277,7 @@ namespace codepad::unicode {
 
 	/// The case folding database in CaseFolding.txt.
 	struct case_folding {
+	public:
 		std::unordered_map<codepoint, codepoint> simple; ///< Simple case folding.
 		std::unordered_map<codepoint, codepoint_string> full; ///< Full case folding.
 
@@ -285,6 +287,14 @@ namespace codepad::unicode {
 				return it->second;
 			}
 			return cp;
+		}
+		/// Inverse maps the given codepoint using the simple folding rules.
+		[[nodiscard]] std::span<const codepoint> inverse_fold_simple(codepoint cp) const {
+			auto it = _simple_inverse_info.find(cp);
+			if (it == _simple_inverse_info.end()) {
+				return {};
+			}
+			return std::span<const codepoint>(_simple_inverse_data.begin() + it->second.begin, it->second.count);
 		}
 		/// Folds the given codepoint with the full folding rules.
 		[[nodiscard]] codepoint_string fold_full(codepoint cp) const {
@@ -298,5 +308,14 @@ namespace codepad::unicode {
 		[[nodiscard]] static case_folding parse(const std::filesystem::path&);
 		/// Returns the global case folding, loading it if necessary.
 		[[nodiscard]] static const case_folding &get_cached();
+	protected:
+		/// Information about a inverse mapping.
+		struct _inverse_mapping_info {
+			std::size_t begin = 0; ///< First inverse mapping element.
+			std::size_t count = 0; ///< The number of mapped elements.
+		};
+		/// Information about the inverse mapping for simple case folding.
+		std::unordered_map<codepoint, _inverse_mapping_info> _simple_inverse_info;
+		std::vector<codepoint> _simple_inverse_data; ///< Inverse mapped data.
 	};
 }

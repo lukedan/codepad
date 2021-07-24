@@ -38,7 +38,10 @@ namespace codepad::regex {
 				}
 			};
 
-			std::vector<capture> captures; ///< Captures in the match.
+			/// Captures in the match. The 0-th element will be the whole match, without taking
+			/// \ref overriden_match_begin into account.
+			std::vector<capture> captures;
+			std::optional<Stream> overriden_match_begin; ///< Match beginning position overriden using \p \\K.
 		};
 
 		/// Tests whether there is a match starting from the current position of the input stream.
@@ -48,9 +51,10 @@ namespace codepad::regex {
 			Stream &stream, const compiled::state_machine &expr, std::size_t max_iters = 1000000
 		) {
 			_result = result();
+			_result.captures.emplace_back().begin = stream;
 			_expr = &expr;
 
-			_state current_state(std::move(stream), expr.start_state, 0, 0);
+			_state current_state(std::move(stream), expr.start_state, 0, 0, std::nullopt);
 			for (std::size_t i = 0; i < max_iters; ++i) {
 				if (current_state.automata_state == expr.end_state) {
 					break;
@@ -75,7 +79,7 @@ namespace codepad::regex {
 					) {
 						_state_stack.emplace(
 							std::move(checkpoint_stream), current_state.automata_state, current_state.transition,
-							_ongoing_captures.size()
+							_ongoing_captures.size(), _result.overriden_match_begin
 						);
 					}
 					std::visit(
@@ -106,16 +110,21 @@ namespace codepad::regex {
 					while (_ongoing_captures.size() > count) {
 						_ongoing_captures.pop();
 					}
-					while (!current_state.partial_finished_captures.empty()) {
-						_ongoing_captures.emplace(std::move(current_state.partial_finished_captures.top().capture));
-						current_state.partial_finished_captures.pop();
-					}
 					// restore _result.captures
 					while (!current_state.full_finished_captures.empty()) {
 						auto &cap = current_state.full_finished_captures.top();
 						_result.captures[cap.index] = std::move(cap.capture_data);
 						current_state.full_finished_captures.pop();
 					}
+					while (!current_state.partial_finished_captures.empty()) {
+						_ongoing_captures.emplace(std::move(current_state.partial_finished_captures.top().capture));
+						_result.captures[_ongoing_captures.top().index] = std::move(
+							current_state.partial_finished_captures.top().prev_capture_data
+						);
+						current_state.partial_finished_captures.pop();
+					}
+					// restore _result.overriden_match_begin
+					_result.overriden_match_begin = current_state.initial_match_begin;
 				}
 			}
 			stream = std::move(current_state.stream);
@@ -125,6 +134,8 @@ namespace codepad::regex {
 			_expr = nullptr;
 
 			if (current_state.automata_state == expr.end_state) {
+				_result.captures.front().length =
+					stream.codepoint_position() - _result.captures.front().begin.codepoint_position();
 				return std::move(_result);
 			}
 			return std::nullopt;
@@ -191,11 +202,12 @@ namespace codepad::regex {
 			/// Default constructor.
 			_partial_finished_capture_info() = default;
 			/// Initializes all fields of this struct.
-			_partial_finished_capture_info(_capture_info cap, std::size_t len) :
-				capture(std::move(cap)), length(len) {
+			_partial_finished_capture_info(_capture_info cap, result::capture prev_cap_data, std::size_t len) :
+				capture(std::move(cap)), prev_capture_data(std::move(prev_cap_data)), length(len) {
 			}
 
 			_capture_info capture; ///< Information about the starting of this capture.
+			result::capture prev_capture_data; ///< Capture data before this capture was previously started.
 			std::size_t length = 0; ///< The length of this capture.
 		};
 		/// Information about a finished capture that needs to be reset back to the previous value during
@@ -216,9 +228,12 @@ namespace codepad::regex {
 			/// Default constructor.
 			_state() = default;
 			/// Initializes all fields of this struct.
-			_state(Stream str, std::size_t st, std::size_t trans, std::size_t ongoing_captures) :
+			_state(
+				Stream str, std::size_t st, std::size_t trans,
+				std::size_t ongoing_captures, std::optional<Stream> overriden_start
+			) :
 				stream(std::move(str)), automata_state(st), transition(trans),
-				initial_ongoing_captures(ongoing_captures) {
+				initial_ongoing_captures(ongoing_captures), initial_match_begin(std::move(overriden_start)) {
 			}
 
 			Stream stream; ///< State of the input stream.
@@ -233,6 +248,8 @@ namespace codepad::regex {
 			/// All captures that started and finished after this state was pushed but before the next state was
 			/// pushed.
 			std::stack<_full_finished_capture_info> full_finished_captures;
+			/// Overriden match starting position before this state was pushed onto the stack.
+			std::optional<Stream> initial_match_begin;
 
 			/// Returns the associated \ref state_machine::state.
 			[[nodiscard]] const compiled::state &get_automata_state(const compiled::state_machine &sm) const {
@@ -269,27 +286,17 @@ namespace codepad::regex {
 		}
 		/// Checks if the next character in the stream is in the given codepoint ranges.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition &trans, const codepoint_range_list &cond
+			Stream &stream, const compiled::transition &trans, const compiled::character_class &cond
 		) const {
 			if (stream.empty()) {
 				return false;
 			}
-			codepoint cp = stream.take();
-			if (cond.contains(cp)) {
-				return true;
-			}
-			if (trans.case_insensitive) {
-				if (cond.contains(unicode::case_folding::get_cached().fold_simple(cp))) {
-					return true;
-				}
-			}
-			// TODO this is not correct - we need to map it both ways
-			return false;
+			return cond.matches(stream.take(), trans.case_insensitive);
 		}
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transition&, const compiled::assertion &cond
-		) const {
+			Stream stream, const compiled::transition &trans, const compiled::assertion &cond
+		) {
 			switch (cond.assertion_type) {
 			case ast::nodes::assertion::type::always_false:
 				return false;
@@ -341,33 +348,49 @@ namespace codepad::regex {
 
 			case ast::nodes::assertion::type::character_class_boundary:
 				{
-					auto &boundary = std::get<codepoint_range_list>(
+					auto &boundary = std::get<compiled::character_class>(
 						cond.expression.states[0].transitions[0].condition
 					);
-					bool prev_in = stream.prev_empty() ? false : boundary.contains(stream.peek_prev());
-					bool next_in = stream.empty() ? false : boundary.contains(stream.peek());
+					bool prev_in =
+						stream.prev_empty() ? false : boundary.matches(stream.peek_prev(), trans.case_insensitive);
+					bool next_in =
+						stream.empty() ? false : boundary.matches(stream.peek(), trans.case_insensitive);
 					return prev_in != next_in;
 				}
 
 			case ast::nodes::assertion::type::character_class_nonboundary:
 				{
-					auto &boundary = std::get<codepoint_range_list>(
+					auto &boundary = std::get<compiled::character_class>(
 						cond.expression.states[0].transitions[0].condition
-						);
-					bool prev_in = stream.prev_empty() ? false : boundary.contains(stream.peek_prev());
-					bool next_in = stream.empty() ? false : boundary.contains(stream.peek());
+					);
+					bool prev_in =
+						stream.prev_empty() ? false : boundary.matches(stream.peek_prev(), trans.case_insensitive);
+					bool next_in =
+						stream.empty() ? false : boundary.matches(stream.peek(), trans.case_insensitive);
 					return prev_in == next_in;
 				}
 
 			case ast::nodes::assertion::type::positive_lookahead:
 				{
 					matcher<Stream> assertion_matcher;
-					return assertion_matcher.try_match(stream, cond.expression).has_value();
+					if (auto match = assertion_matcher.try_match(stream, cond.expression)) {
+						for (std::size_t i = 1; i < match->captures.size(); ++i) {
+							_add_capture(i, std::move(match->captures[i]));
+						}
+						return true;
+					}
+					return false;
 				}
 			case ast::nodes::assertion::type::negative_lookahead:
 				{
 					matcher<Stream> assertion_matcher;
-					return !assertion_matcher.try_match(stream, cond.expression).has_value();
+					if (auto match = assertion_matcher.try_match(stream, cond.expression)) {
+						for (std::size_t i = 1; i < match->captures.size(); ++i) {
+							_add_capture(i, std::move(match->captures[i]));
+						}
+						return false;
+					}
+					return true;
 				}
 			case ast::nodes::assertion::type::positive_lookbehind:
 				return false; // TODO
@@ -437,7 +460,32 @@ namespace codepad::regex {
 		) {
 			return true;
 		}
+		/// Resets the start of this match.
+		[[nodiscard]] bool _check_transition(
+			Stream &stream, const compiled::transition&, const compiled::reset_match_start&
+		) {
+			// do this before a state is potentially pushed for backtracking
+			if (!_state_stack.empty()) {
+				_state_stack.top().initial_match_begin = _result.overriden_match_begin;
+			}
+			_result.overriden_match_begin = std::move(stream);
+			return true;
+		}
 
+
+		/// Adds a capture that results from an assertion.
+		void _add_capture(std::size_t index, result::capture cap) {
+			if (!cap.is_valid()) {
+				return;
+			}
+			if (_result.captures.size() <= index) {
+				_result.captures.resize(index + 1);
+			}
+			if (!_state_stack.empty()) {
+				_state_stack.top().full_finished_captures.emplace(cap, index);
+			}
+			_result.captures[index] = std::move(cap);
+		}
 
 		/// By default nothing extra needs to be done for transitions.
 		template <typename Trans> void _execute_transition(const Stream&, const Trans&) {
@@ -457,10 +505,14 @@ namespace codepad::regex {
 			if (!_state_stack.empty()) {
 				// if necessary, record that this capture has finished
 				auto &st = _state_stack.top();
-				if (_ongoing_captures.size() + st.partial_finished_captures.size() < st.initial_ongoing_captures) {
+				if (
+					_ongoing_captures.size() + st.partial_finished_captures.size() <=
+					st.initial_ongoing_captures
+				) {
 					// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
 					st.partial_finished_captures.emplace(
-						res, stream.codepoint_position() - res.stream_begin.codepoint_position()
+						res, _result.captures[res.index],
+						stream.codepoint_position() - res.stream_begin.codepoint_position()
 					);
 				} else {
 					// when backtracking, it's necessary to completely reset this capture to the previous state

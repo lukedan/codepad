@@ -57,10 +57,22 @@ struct pattern_data {
 		if (!pattern.empty() && pattern.back() == U'\\') {
 			out << "\\";
 		}
+		if (options.global) {
+			out << "g";
+		}
 		if (options.case_insensitive) {
 			out << "i";
 		}
+		if (options.multiline) {
+			out << "m";
+		}
+		if (options.dot_all) {
+			out << "s";
+		}
 		if (options.extended) {
+			out << "x";
+		}
+		if (options.extended_more) {
 			out << "x";
 		}
 		out << "\n";
@@ -151,11 +163,24 @@ void fail(const char *msg = nullptr) {
 					break;
 				}
 				switch (stream.take()) {
+				case U'g':
+					result.options.global = true;
+					break;
 				case U'i':
 					result.options.case_insensitive = true;
 					break;
+				case U'm':
+					result.options.multiline = true;
+					break;
+				case U's':
+					result.options.dot_all = true;
+					break;
 				case U'x':
 					result.options.extended = true;
+					if (!stream.empty() && stream.peek() == U'x') {
+						result.options.extended_more = true;
+						stream.take();
+					}
 					break;
 				case U',':
 					while (!stream.empty() && stream.peek() != U'\r' && stream.peek() != U'\n') {
@@ -475,10 +500,16 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 				stream_t stream(data_str.data(), data_str.data() + data_str.size());
 				std::vector<matcher_t::result> matches;
 				std::size_t attempts = 0;
-				matcher.find_all(stream, sm, [&](matcher_t::result pos) {
-					matches.emplace_back(pos);
-					return attempts <= 1000;
-				});
+				if (test.pattern.options.global) {
+					matcher.find_all(stream, sm, [&](matcher_t::result pos) {
+						matches.emplace_back(pos);
+						return attempts <= 1000;
+					});
+				} else {
+					if (auto match = matcher.find_next(stream, sm)) {
+						matches.emplace_back(std::move(match.value()));
+					}
+				}
 				CHECK((attempts <= 1000 && matches.empty() == str.expect_no_match));
 
 				std::stringstream matches_str;

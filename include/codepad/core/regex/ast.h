@@ -24,6 +24,9 @@ namespace codepad::regex::ast {
 		struct feature {
 			codepoint_string identifier; ///< String used to identify the feature.
 		};
+		/// Overrides the start of the match.
+		struct match_start_override {
+		};
 		/// A node that contains a string literal.
 		struct literal {
 			/// Returns a \ref literal node that contains only the given codepoint.
@@ -143,6 +146,7 @@ namespace codepad::regex::ast {
 		using storage = std::variant<
 			nodes::error,
 			nodes::feature,
+			nodes::match_start_override,
 			nodes::literal,
 			nodes::backreference,
 			nodes::character_class,
@@ -181,6 +185,11 @@ namespace codepad::regex::ast {
 				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
 			}
 			_stream << "]\n";
+		}
+		/// Dumps a \ref nodes::match_start_override.
+		void dump(const nodes::match_start_override&) {
+			_indent();
+			_stream << "©¤©¤ [reset match start]\n";
 		}
 		/// Dumps a \ref nodes::literal.
 		void dump(const nodes::literal &n) {
