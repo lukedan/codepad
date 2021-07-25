@@ -8,9 +8,9 @@
 
 namespace codepad::regex {
 	namespace compiled {
-		std::size_t state_machine::create_state(bool is_atomic) {
+		std::size_t state_machine::create_state() {
 			std::size_t res = states.size();
-			states.emplace_back().is_atomic = is_atomic;
+			states.emplace_back();
 			return res;
 		}
 
@@ -132,14 +132,13 @@ namespace codepad::regex {
 			);
 		};
 
-		if (expr.subexpr_type != ast::nodes::subexpression::type::non_capturing) {
-			// create states for starting and ending the capture
-			if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
-				// make sure all states within the group are marked atomic
-				++_atomic_counter;
-			}
-			auto new_start = _create_state();
-			auto new_end = _create_state();
+		if (
+			expr.subexpr_type == ast::nodes::subexpression::type::normal ||
+			expr.subexpr_type == ast::nodes::subexpression::type::atomic
+		) {
+			// create states that allow for additional actions during the start and end of the group
+			auto new_start = _result.create_state();
+			auto new_end = _result.create_state();
 			auto &begin_trans = _result.states[start].transitions.emplace_back();
 			begin_trans.new_state_index = new_start;
 			auto &end_trans = _result.states[new_end].transitions.emplace_back();
@@ -147,13 +146,18 @@ namespace codepad::regex {
 			start = new_start;
 			end = new_end;
 
-			auto &capture_beg = begin_trans.condition.emplace<compiled::capture_begin>();
-			capture_beg.index = expr.capture_index;
-			if (!expr.capture_name.empty()) {
-				auto iter = std::lower_bound(_capture_names.begin(), _capture_names.end(), expr.capture_name);
-				capture_beg.name_index = (iter - _capture_names.begin()) - 1;
+			if (expr.subexpr_type == ast::nodes::subexpression::type::normal) {
+				auto &capture_beg = begin_trans.condition.emplace<compiled::capture_begin>();
+				capture_beg.index = expr.capture_index;
+				if (!expr.capture_name.empty()) {
+					auto iter = std::lower_bound(_capture_names.begin(), _capture_names.end(), expr.capture_name);
+					capture_beg.name_index = (iter - _capture_names.begin()) - 1;
+				}
+				end_trans.condition.emplace<compiled::capture_end>();
+			} else if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
+				begin_trans.condition.emplace<compiled::push_atomic>();
+				end_trans.condition.emplace<compiled::pop_atomic>();
 			}
-			end_trans.condition.emplace<compiled::capture_end>();
 		}
 
 		if (expr.nodes.empty()) {
@@ -162,15 +166,11 @@ namespace codepad::regex {
 			std::size_t current = start;
 			auto it = expr.nodes.begin();
 			for (; it + 1 != expr.nodes.end(); ++it) {
-				std::size_t next = _create_state();
+				std::size_t next = _result.create_state();
 				compile_expr(current, next, *it);
 				current = next;
 			}
 			compile_expr(current, end, *it);
-		}
-
-		if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
-			--_atomic_counter;
 		}
 	}
 
@@ -180,14 +180,14 @@ namespace codepad::regex {
 			return;
 		}
 		if (rep.max == 0) { // special case: don't match if the expression is matched zero times
-			std::size_t bad_state = _create_state();
+			std::size_t bad_state = _result.create_state();
 			_compile(start, bad_state, rep.expression);
 			_result.states[start].transitions.emplace_back().new_state_index = end;
 			return;
 		}
 		std::size_t cur = start;
 		for (std::size_t i = 1; i < rep.min; ++i) {
-			std::size_t next = _create_state();
+			std::size_t next = _result.create_state();
 			_compile(cur, next, rep.expression);
 			cur = next;
 		}
@@ -195,17 +195,17 @@ namespace codepad::regex {
 			_compile(cur, end, rep.expression);
 		} else if (rep.max == ast::nodes::repetition::no_limit) {
 			if (rep.min > 0) {
-				std::size_t next = _create_state();
+				std::size_t next = _result.create_state();
 				_compile(cur, next, rep.expression);
 				cur = next;
 			} else {
 				// create a new state with epsilon transition,
 				// so that we don't have an edge back to the starting node
-				std::size_t next = _create_state();
+				std::size_t next = _result.create_state();
 				_result.states[cur].transitions.emplace_back().new_state_index = next;
 				cur = next;
 			}
-			std::size_t next = _create_state();
+			std::size_t next = _result.create_state();
 			if (rep.lazy) {
 				_result.states[cur].transitions.emplace_back().new_state_index = end;
 				_compile(cur, next, rep.expression);
@@ -216,12 +216,12 @@ namespace codepad::regex {
 			_result.states[next].transitions.emplace_back().new_state_index = cur;
 		} else {
 			if (rep.min > 0) {
-				std::size_t next = _create_state();
+				std::size_t next = _result.create_state();
 				_compile(cur, next, rep.expression);
 				cur = next;
 			}
 			for (std::size_t i = rep.min + 1; i < rep.max; ++i) {
-				std::size_t next = _create_state();
+				std::size_t next = _result.create_state();
 				if (rep.lazy) {
 					_result.states[cur].transitions.emplace_back().new_state_index = end;
 					_compile(cur, next, rep.expression);

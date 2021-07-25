@@ -239,7 +239,7 @@ namespace codepad::regex::ast {
 				_stream << "й╨";
 			}
 			_stream << "йд [subexpression";
-			if (n.subexpr_type != ast::nodes::subexpression::type::non_capturing) {
+			if (n.subexpr_type == ast::nodes::subexpression::type::normal) {
 				_stream << " #" << n.capture_index;
 				if (!n.capture_name.empty()) {
 					_stream << " \"";

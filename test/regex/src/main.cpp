@@ -8,6 +8,15 @@
 
 #include <iostream>
 
+/// Enables printing UTF-8 strings using standard streams.
+std::ostream &operator<<(std::ostream &out, std::u8string_view sv) {
+	return out << std::string_view(reinterpret_cast<const char*>(sv.data()), sv.size());
+}
+/// Enables printing UTF-8 strings using standard streams.
+std::ostream &operator<<(std::ostream &out, const char8_t *str) {
+	return out << reinterpret_cast<const char*>(str);
+}
+
 #define CATCH_CONFIG_RUNNER
 #include <catch2/catch.hpp>
 
@@ -35,7 +44,7 @@ int main(int argc, char **argv) {
 
 	using stream_t = cp::regex::basic_input_stream<cp::encodings::utf8, const std::byte*>;
 	using parser_t = cp::regex::parser<stream_t>;
-	using matcher_t = cp::regex::matcher<stream_t>;
+	using matcher_t = cp::regex::matcher<stream_t, std::ostream&>;
 
 	std::string regex;
 	std::string string;
@@ -63,7 +72,7 @@ int main(int argc, char **argv) {
 		while (true) {
 			std::cout << "\nstring: ";
 		
-			matcher_t matcher;
+			matcher_t matcher(std::cout);
 			if (!std::getline(std::cin, string)) {
 				std::cin.clear();
 				break;

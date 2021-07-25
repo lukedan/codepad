@@ -51,31 +51,41 @@ struct pattern_data {
 	cp::regex::options options; ///< Matching options.
 	std::size_t byte_begin = 0; ///< Beginning position of this test data entry.
 	std::size_t byte_end = 0; ///< Ending position of this test data entry.
+	std::size_t options_begin = 0; ///< Beginning position of pattern options.
+	std::size_t options_end = 0; ///< Ending position of pattern options.
+	bool aftertext = false; ///< Indicates that text after each match should be printed.
 
 	/// Dumps the pattern string to the given output stream.
 	void dump_options(std::ostream &out) const {
-		if (!pattern.empty() && pattern.back() == U'\\') {
-			out << "\\";
-		}
+		bool first = true;
 		if (options.global) {
 			out << "g";
+			first = false;
 		}
 		if (options.case_insensitive) {
 			out << "i";
+			first = false;
 		}
 		if (options.multiline) {
 			out << "m";
+			first = false;
 		}
 		if (options.dot_all) {
 			out << "s";
+			first = false;
 		}
 		if (options.extended) {
 			out << "x";
+			first = false;
 		}
 		if (options.extended_more) {
 			out << "x";
+			first = false;
 		}
-		out << "\n";
+		if (aftertext) {
+			out << (first ? "" : ", ") << "aftertext";
+			first = false;
+		}
 	}
 };
 /// A test.
@@ -158,38 +168,59 @@ void fail(const char *msg = nullptr) {
 			}
 
 			// read options
+			result.options_begin = stream.byte_position();
+			std::vector<cp::codepoint_string> options_strings;
 			while (!stream.empty()) {
 				if (stream.peek() == U'\r' || stream.peek() == U'\n') {
+					result.options_end = stream.byte_position();
 					break;
 				}
-				switch (stream.take()) {
-				case U'g':
-					result.options.global = true;
-					break;
-				case U'i':
-					result.options.case_insensitive = true;
-					break;
-				case U'm':
-					result.options.multiline = true;
-					break;
-				case U's':
-					result.options.dot_all = true;
-					break;
-				case U'x':
-					result.options.extended = true;
-					if (!stream.empty() && stream.peek() == U'x') {
-						result.options.extended_more = true;
+				if (options_strings.empty() || stream.peek() == U',') {
+					if (stream.peek() == U',') {
 						stream.take();
 					}
-					break;
-				case U',':
-					while (!stream.empty() && stream.peek() != U'\r' && stream.peek() != U'\n') {
-						stream.take(); // TODO parse complex options. also they may start without a comma
+					options_strings.emplace_back();
+					while (!stream.empty() && (stream.peek() == U' ' || stream.peek() == U'\t')) {
+						stream.take();
 					}
-					break;
-				default:
-					/*cp::assert_true_logical(false, "invalid option");*/ // TODO add this after we have all options
-					break;
+				} else {
+					options_strings.back().push_back(stream.take());
+				}
+			}
+			for (auto &str : options_strings) {
+				while (!str.empty() && (str.back() == U' ' || str.back() == U'\t')) {
+					str.pop_back();
+				}
+				std::u32string_view sv(reinterpret_cast<const char32_t*>(str.data()), str.size());
+				if (sv == U"aftertext") {
+					result.aftertext = true;
+				} else { // parse single-letter options
+					for (std::size_t i = 0; i < str.size(); ++i) {
+						switch (str[i]) {
+						case U'g':
+							result.options.global = true;
+							break;
+						case U'i':
+							result.options.case_insensitive = true;
+							break;
+						case U'm':
+							result.options.multiline = true;
+							break;
+						case U's':
+							result.options.dot_all = true;
+							break;
+						case U'x':
+							result.options.extended = true;
+							if (i + 1 < str.size() && str[i + 1] == U'x') {
+								result.options.extended_more = true;
+								++i;
+							}
+							break;
+						default:
+							/*cp::assert_true_logical(false, "invalid option");*/ // TODO
+							break;
+						}
+					}
 				}
 			}
 			// consume the line ending
@@ -454,7 +485,19 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 				reinterpret_cast<const char*>(test_file.get() + test.pattern.byte_begin),
 				test.pattern.byte_end - test.pattern.byte_begin
 			) << "/";
-			test.pattern.dump_options(fout);
+			constexpr bool dump_original_options = false;
+			if (!test.pattern.pattern.empty() && test.pattern.pattern.back() == U'\\') {
+				fout << "\\";
+			}
+			if constexpr (dump_original_options) {
+				fout << std::string_view(
+					reinterpret_cast<const char*>(test_file.get() + test.pattern.options_begin),
+					test.pattern.options_end - test.pattern.options_begin
+				);
+			} else {
+				test.pattern.dump_options(fout);
+			}
+			fout << "\n";
 
 			// compile regex
 			cp::regex::ast::nodes::subexpression ast;
@@ -529,14 +572,31 @@ TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
 							if (match.captures[i].is_valid()) {
 								cp::codepoint_string capture_str;
 								stream_t capture_stream = match.captures[i].begin;
-								for (std::size_t j = 0; j < match.captures[i].length; ++j) {
+								std::size_t length = match.captures[i].length;
+								if (i == 0 && match.overriden_match_begin) {
+									capture_stream = match.overriden_match_begin.value();
+									length -=
+										capture_stream.codepoint_position() -
+										match.captures[i].begin.codepoint_position();
+								}
+								for (std::size_t j = 0; j < length; ++j) {
 									capture_str.push_back(capture_stream.take());
 								}
 								dump_string(fout, capture_str);
+								fout << "\n";
+
+								if (test.pattern.aftertext && i == 0) {
+									fout << std::setw(2) << std::setfill(' ') << i << "+ ";
+									cp::codepoint_string after_str;
+									while (!capture_stream.empty()) {
+										after_str.push_back(capture_stream.take());
+									}
+									dump_string(fout, after_str);
+									fout << "\n";
+								}
 							} else {
-								fout << "<unset>";
+								fout << "<unset>\n";
 							}
-							fout << "\n";
 						}
 					}
 				}

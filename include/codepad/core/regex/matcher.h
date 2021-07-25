@@ -7,42 +7,53 @@
 /// Used to search regex state machines.
 
 #include <optional>
+#include <format>
 
 #include "compiler.h"
 
 namespace codepad::regex {
-	/// Regular expression matcher.
-	template <typename Stream> class matcher {
-	public:
-		/// A match result.
-		struct result {
-			/// Position information about a capture in a match.
-			struct capture {
-				/// Used to mark that this capture is not in the input.
-				constexpr static std::size_t invalid_capture_length = std::numeric_limits<std::size_t>::max();
+	/// Does not log internal running data.
+	struct no_log {
+	};
+	/// A match result.
+	template <typename Stream> struct match_result {
+		/// Position information about a capture in a match.
+		struct capture {
+			/// Used to mark that this capture is not in the input.
+			constexpr static std::size_t invalid_capture_length = std::numeric_limits<std::size_t>::max();
 
-				/// Default constructor.
-				capture() = default;
-				/// Initializes all fields of this structure.
-				capture(Stream beg, std::size_t len) : begin(std::move(beg)), length(len) {
-				}
+			/// Default constructor.
+			capture() = default;
+			/// Initializes all fields of this structure.
+			capture(Stream beg, std::size_t len) : begin(std::move(beg)), length(len) {
+			}
 
-				/// The state of the stream at the beginning of this capture.
-				Stream begin;
-				/// The length of this capture.
-				std::size_t length = invalid_capture_length;
+			/// The state of the stream at the beginning of this capture.
+			Stream begin;
+			/// The length of this capture.
+			std::size_t length = invalid_capture_length;
 
-				/// Returns whether the capture is valid.
-				[[nodiscard]] bool is_valid() const {
-					return length != invalid_capture_length;
-				}
-			};
-
-			/// Captures in the match. The 0-th element will be the whole match, without taking
-			/// \ref overriden_match_begin into account.
-			std::vector<capture> captures;
-			std::optional<Stream> overriden_match_begin; ///< Match beginning position overriden using \p \\K.
+			/// Returns whether the capture is valid.
+			[[nodiscard]] bool is_valid() const {
+				return length != invalid_capture_length;
+			}
 		};
+
+		/// Captures in the match. The 0-th element will be the whole match, without taking
+		/// \ref overriden_match_begin into account.
+		std::vector<capture> captures;
+		std::optional<Stream> overriden_match_begin; ///< Match beginning position overriden using \p \\K.
+	};
+	/// Regular expression matcher.
+	template <typename Stream, typename LogFunc = no_log> class matcher {
+	public:
+		using result = match_result<Stream>; ///< Result type.
+
+		/// Default constructor.
+		matcher() = default;
+		/// Initializes \ref debug_log.
+		template <typename ...Args> explicit matcher(Args &&...f) : debug_log(std::forward<Args>(f)...) {
+		}
 
 		/// Tests whether there is a match starting from the current position of the input stream.
 		///
@@ -56,6 +67,36 @@ namespace codepad::regex {
 
 			_state current_state(std::move(stream), expr.start_state, 0, 0, std::nullopt);
 			for (std::size_t i = 0; i < max_iters; ++i) {
+				if constexpr (_uses_log) {
+					debug_log << u8"\nIteration " << i << u8"\n";
+					
+					debug_log << u8"\tCaptures:\n";
+					for (std::size_t j = 0; j < _result.captures.size(); ++j) {
+						debug_log <<
+							u8"\t\tPosition: " << _result.captures[j].begin.codepoint_position() <<
+							u8",  length: " << _result.captures[j].length << u8"\n";
+					}
+
+					debug_log << u8"\tOngoing captures:\n";
+					auto caps_copy = _ongoing_captures;
+					while (!caps_copy.empty()) {
+						const auto &cap = caps_copy.top();
+						debug_log <<
+							u8"\t\t" << caps_copy.size() <<
+							u8": #" << cap.index <<
+							u8",  begin: " << cap.begin.codepoint_position() << u8"\n";
+						caps_copy.pop();
+					}
+
+					_log(current_state, u8"\t");
+
+					debug_log << u8"\tState stack:\n";
+					auto states_copy = _state_stack;
+					while (!states_copy.empty()) {
+						_log(states_copy.top(), u8"\t\t");
+						states_copy.pop();
+					}
+				}
 				if (current_state.automata_state == expr.end_state) {
 					break;
 				}
@@ -73,10 +114,9 @@ namespace codepad::regex {
 
 				++current_state.transition;
 				if (transition_ok) {
-					if (
-						current_state.transition < current_state.get_automata_state(expr).transitions.size() &&
-						!current_state.get_automata_state(expr).is_atomic
-					) {
+					_log(u8"\tTransition OK\n");
+					if (current_state.transition < current_state.get_automata_state(expr).transitions.size()) {
+						_log(u8"\t\tPusing state\n");
 						_state_stack.emplace(
 							std::move(checkpoint_stream), current_state.automata_state, current_state.transition,
 							_ongoing_captures.size(), _result.overriden_match_begin
@@ -93,10 +133,12 @@ namespace codepad::regex {
 					// continue to the next iteration
 				} else {
 					if (current_state.transition < current_state.get_automata_state(expr).transitions.size()) {
+						_log(u8"\tTransition fail: next transition\n");
 						current_state.stream = std::move(checkpoint_stream);
 						continue; // try the next transition
 					}
 					// otherwise backtrack
+					_log(u8"\tTransition fail: backtracking\n");
 					if (_state_stack.empty()) {
 						current_state.stream = std::move(checkpoint_stream);
 						break;
@@ -104,6 +146,10 @@ namespace codepad::regex {
 					// update state
 					current_state = std::move(_state_stack.top());
 					_state_stack.pop();
+					// pop atomic groups
+					while (!_atomic_stack_sizes.empty() && _state_stack.size() < _atomic_stack_sizes.top()) {
+						_atomic_stack_sizes.pop();
+					}
 					// restore _ongoing_captures to the state we're backtracking to
 					std::size_t count =
 						current_state.initial_ongoing_captures - current_state.partial_finished_captures.size();
@@ -111,16 +157,15 @@ namespace codepad::regex {
 						_ongoing_captures.pop();
 					}
 					// restore _result.captures
-					while (!current_state.full_finished_captures.empty()) {
-						auto &cap = current_state.full_finished_captures.top();
+					while (!current_state.finished_captures.empty()) {
+						auto &cap = current_state.finished_captures.top();
 						_result.captures[cap.index] = std::move(cap.capture_data);
-						current_state.full_finished_captures.pop();
+						current_state.finished_captures.pop();
 					}
 					while (!current_state.partial_finished_captures.empty()) {
-						_ongoing_captures.emplace(std::move(current_state.partial_finished_captures.top().capture));
-						_result.captures[_ongoing_captures.top().index] = std::move(
-							current_state.partial_finished_captures.top().prev_capture_data
-						);
+						const auto &cap = current_state.partial_finished_captures.top();
+						_ongoing_captures.emplace(std::move(cap.begin), cap.capture.index);
+						_result.captures[_ongoing_captures.top().index] = std::move(cap.capture.capture_data);
 						current_state.partial_finished_captures.pop();
 					}
 					// restore _result.overriden_match_begin
@@ -130,14 +175,17 @@ namespace codepad::regex {
 			stream = std::move(current_state.stream);
 
 			_state_stack = std::stack<_state>();
-			_ongoing_captures = std::stack<_capture_info>();
 			_expr = nullptr;
 
 			if (current_state.automata_state == expr.end_state) {
+				assert_true_logical(_ongoing_captures.empty(), "there are still ongoing captures");
+				assert_true_logical(_atomic_stack_sizes.empty(), "there are still ongoing atomic groups");
 				_result.captures.front().length =
 					stream.codepoint_position() - _result.captures.front().begin.codepoint_position();
 				return std::move(_result);
 			}
+			_ongoing_captures = std::stack<_capture_info>();
+			_atomic_stack_sizes = std::stack<std::size_t>();
 			return std::nullopt;
 		}
 
@@ -185,43 +233,46 @@ namespace codepad::regex {
 				}
 			}
 		}
+	
+		[[no_unique_address]] LogFunc debug_log; ///< Used to log debug information.
 	protected:
+		constexpr static bool _uses_log = !std::is_same_v<LogFunc, no_log>; ///< Indicates whether logging is enabled.
+
 		/// Information about an ongoing capture.
 		struct _capture_info {
 			/// Default constructor.
 			_capture_info() = default;
 			/// Initializes all fields of this struct.
-			_capture_info(Stream s, std::size_t id) : stream_begin(std::move(s)), index(id) {
+			_capture_info(Stream s, std::size_t id) : begin(std::move(s)), index(id) {
 			}
 
-			Stream stream_begin; ///< State of the input stream at the beginning of this capture.
+			Stream begin; ///< State of the input stream at the beginning of this capture.
 			std::size_t index = 0; ///< The index of this capture.
-		};
-		/// Information about a finished capture that needs to restart during backtracking.
-		struct _partial_finished_capture_info {
-			/// Default constructor.
-			_partial_finished_capture_info() = default;
-			/// Initializes all fields of this struct.
-			_partial_finished_capture_info(_capture_info cap, result::capture prev_cap_data, std::size_t len) :
-				capture(std::move(cap)), prev_capture_data(std::move(prev_cap_data)), length(len) {
-			}
-
-			_capture_info capture; ///< Information about the starting of this capture.
-			result::capture prev_capture_data; ///< Capture data before this capture was previously started.
-			std::size_t length = 0; ///< The length of this capture.
 		};
 		/// Information about a finished capture that needs to be reset back to the previous value during
 		/// backtracking.
-		struct _full_finished_capture_info {
+		struct _finished_capture_info {
 			/// Default constructor.
-			_full_finished_capture_info() = default;
+			_finished_capture_info() = default;
 			/// Initializes all fields of this struct.
-			_full_finished_capture_info(result::capture cap, std::size_t id) :
+			_finished_capture_info(result::capture cap, std::size_t id) :
 				capture_data(std::move(cap)), index(id) {
 			}
 
 			result::capture capture_data; ///< Capture data.
 			std::size_t index = 0; ///< The index of this capture.
+		};
+		/// Information about a partially finished capture that needs to restart after backtracking.
+		struct _partial_finished_capture_info {
+			/// Default constructor.
+			_partial_finished_capture_info() = default;
+			/// Initializes all fields of this struct.
+			_partial_finished_capture_info(_finished_capture_info cap, Stream beg) :
+				capture(std::move(cap)), begin(std::move(beg)) {
+			}
+
+			_finished_capture_info capture; ///< Information about the starting of this capture.
+			Stream begin; ///< Beginning position of the ongoing capture when the state was pushed.
 		};
 		/// The state of the automata at one moment.
 		struct _state {
@@ -247,7 +298,7 @@ namespace codepad::regex {
 			std::stack<_partial_finished_capture_info> partial_finished_captures;
 			/// All captures that started and finished after this state was pushed but before the next state was
 			/// pushed.
-			std::stack<_full_finished_capture_info> full_finished_captures;
+			std::stack<_finished_capture_info> finished_captures;
 			/// Overriden match starting position before this state was pushed onto the stack.
 			std::optional<Stream> initial_match_begin;
 
@@ -264,7 +315,52 @@ namespace codepad::regex {
 		result _result; ///< Cached match result.
 		std::stack<_state> _state_stack; ///< States for backtracking.
 		std::stack<_capture_info> _ongoing_captures; ///< Ongoing captures.
+		/// Size of \ref _state_stack at the beginning of each ongoing atomic group.
+		std::stack<std::size_t> _atomic_stack_sizes;
 		const compiled::state_machine *_expr = nullptr; ///< State machine for the expression.
+
+		/// Logs the given string.
+		void _log([[maybe_unused]] std::u8string_view str) {
+			if constexpr (_uses_log) {
+				debug_log << str;
+			}
+		}
+		/// Logs information about the given state.
+		void _log([[maybe_unused]] const _state &s, [[maybe_unused]] std::u8string_view indent) {
+			if constexpr (_uses_log) {
+				debug_log <<
+					indent << u8"Stream position: " << s.stream.codepoint_position() <<
+					u8";  state: " << s.automata_state <<
+					", transition: " << s.transition << "\n";
+
+				debug_log << indent << u8"\tInitial ongoing captures: " << s.initial_ongoing_captures << "\n";
+
+				debug_log << indent << u8"\tPartial ongoing captures:\n";
+				auto partial_captures_copy = s.partial_finished_captures;
+				while (!partial_captures_copy.empty()) {
+					const auto &cap = partial_captures_copy.top();
+					debug_log <<
+						indent << u8"\t\t" << partial_captures_copy.size() <<
+						": #" << cap.capture.index <<
+						", from: " << cap.begin.codepoint_position() <<
+						";  old from : " << cap.capture.capture_data.begin.codepoint_position() <<
+						", old length : " << cap.capture.capture_data.length << "\n";
+					partial_captures_copy.pop();
+				}
+
+				debug_log << indent << u8"\tFinished ongoing captures:\n";
+				auto captures_copy = s.finished_captures;
+				while (!captures_copy.empty()) {
+					const auto &cap = captures_copy.top();
+					debug_log <<
+						indent << u8"\t\t" << captures_copy.size() <<
+						": #" << cap.index <<
+						", from: " << cap.capture_data.begin.codepoint_position() <<
+						", length: " << cap.capture_data.length << "\n";
+					captures_copy.pop();
+				}
+			}
+		}
 
 		/// Checks if the contents in the given stream starts with the given string.
 		[[nodiscard]] bool _check_transition(
@@ -471,7 +567,18 @@ namespace codepad::regex {
 			_result.overriden_match_begin = std::move(stream);
 			return true;
 		}
-
+		/// Atomic groups are handled in \ref _execute_transition().
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const compiled::transition&, const compiled::push_atomic&
+		) {
+			return true;
+		}
+		/// Atomic groups are handled in \ref _execute_transition().
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const compiled::transition&, const compiled::pop_atomic&
+		) {
+			return true;
+		}
 
 		/// Adds a capture that results from an assertion.
 		void _add_capture(std::size_t index, result::capture cap) {
@@ -482,7 +589,7 @@ namespace codepad::regex {
 				_result.captures.resize(index + 1);
 			}
 			if (!_state_stack.empty()) {
-				_state_stack.top().full_finished_captures.emplace(cap, index);
+				_state_stack.top().finished_captures.emplace(cap, index);
 			}
 			_result.captures[index] = std::move(cap);
 		}
@@ -506,23 +613,33 @@ namespace codepad::regex {
 				// if necessary, record that this capture has finished
 				auto &st = _state_stack.top();
 				if (
-					_ongoing_captures.size() + st.partial_finished_captures.size() <=
+					_ongoing_captures.size() + st.partial_finished_captures.size() <
 					st.initial_ongoing_captures
 				) {
 					// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
 					st.partial_finished_captures.emplace(
-						res, _result.captures[res.index],
-						stream.codepoint_position() - res.stream_begin.codepoint_position()
+						_finished_capture_info(_result.captures[res.index], res.index), res.begin
 					);
 				} else {
 					// when backtracking, it's necessary to completely reset this capture to the previous state
-					st.full_finished_captures.emplace(_result.captures[res.index], res.index);
+					st.finished_captures.emplace(_result.captures[res.index], res.index);
 				}
 			}
 
 			std::size_t index = res.index;
-			_result.captures[index].length = stream.codepoint_position() - res.stream_begin.codepoint_position();
-			_result.captures[index].begin = std::move(res.stream_begin);
+			_result.captures[index].length = stream.codepoint_position() - res.begin.codepoint_position();
+			_result.captures[index].begin = std::move(res.begin);
+		}
+		/// Pushes an atomic group.
+		void _execute_transition(const Stream&, const compiled::push_atomic&) {
+			_atomic_stack_sizes.emplace(_state_stack.size());
+		}
+		/// Pops all states associated with the current atomic group.
+		void _execute_transition(const Stream&, const compiled::pop_atomic&) {
+			while (_state_stack.size() > _atomic_stack_sizes.top()) {
+				_state_stack.pop();
+			}
+			_atomic_stack_sizes.pop();
 		}
 	};
 }

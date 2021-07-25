@@ -47,7 +47,7 @@ namespace codepad::regex {
 			std::size_t end_state = 0; ///< The ending state.
 
 			/// Creates a new state in this \ref state_machine and returns its index.
-			std::size_t create_state(bool is_atomic);
+			std::size_t create_state();
 
 			/// Dumps this state macine into a DOT file.
 			void dump(std::ostream&, bool valid_only = true) const;
@@ -103,6 +103,12 @@ namespace codepad::regex {
 		/// Resets the starting position of this match.
 		struct reset_match_start {
 		};
+		/// Pushes the start of an atomic range.
+		struct push_atomic {
+		};
+		/// Pops all states on stack pushed since the start of the last atomic range.
+		struct pop_atomic {
+		};
 
 		/// Stores the data of a transition.
 		struct transition {
@@ -114,7 +120,9 @@ namespace codepad::regex {
 				capture_begin,
 				capture_end,
 				backreference,
-				reset_match_start
+				reset_match_start,
+				push_atomic,
+				pop_atomic
 			>;
 
 			key condition; ///< Condition of this transition.
@@ -124,7 +132,6 @@ namespace codepad::regex {
 		/// A state.
 		struct state {
 			std::vector<transition> transitions; ///< Transitions to new states.
-			bool is_atomic = false; ///< Whether or not to disable backtracking for this node.
 		};
 	}
 
@@ -134,9 +141,8 @@ namespace codepad::regex {
 		/// Compiles the given AST.
 		[[nodiscard]] compiled::state_machine compile(const ast::nodes::subexpression &expr) {
 			_result = compiled::state_machine();
-			_atomic_counter = 0;
-			_result.start_state = _result.create_state(false);
-			_result.end_state = _result.create_state(false);
+			_result.start_state = _result.create_state();
+			_result.end_state = _result.create_state();
 
 			_collect_capture_names(expr);
 			std::sort(_named_captures.begin(), _named_captures.end());
@@ -154,7 +160,6 @@ namespace codepad::regex {
 
 			_compile(_result.start_state, _result.end_state, expr);
 
-			assert_true_logical(_atomic_counter == 0, "atomic counter has not been properly reset");
 			return std::move(_result);
 		}
 	protected:
@@ -174,13 +179,6 @@ namespace codepad::regex {
 		/// All unique capture names, sorted. Due to how they're computed, there's an empty element at the beginning,
 		/// which should be ignored.
 		std::vector<codepoint_string> _capture_names;
-		std::size_t _atomic_counter = 0; ///< Counts how many nested atomic groups we're currently in.
-
-		/// Creates a new state in \ref _result using \ref compiled::state_machine::create_state(), determining
-		/// whether it's atomic using \ref _atomic_counter.
-		std::size_t _create_state() {
-			return _result.create_state(_atomic_counter > 0);
-		}
 
 		/// Fallback for nodes with no capture names to collect.
 		template <typename Node> void _collect_capture_names(const Node&) {
