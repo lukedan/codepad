@@ -30,16 +30,14 @@ namespace codepad::regex {
 	public:
 		/// Parses the whole stream.
 		[[nodiscard]] ast::nodes::subexpression parse(Stream s, options options) {
-			_state_stack.emplace(std::move(s));
+			_stream = std::move(s);
 			_option_stack.emplace(std::move(options));
 			_capture_id_stack.emplace(1);
 			ast::nodes::subexpression result;
 			result.subexpr_type = ast::nodes::subexpression::type::non_capturing;
 			_parse_subexpression(result, std::numeric_limits<codepoint>::max());
-			_state_stack.pop();
 			_option_stack.pop();
 			_capture_id_stack.pop();
-			assert_true_logical(_state_stack.empty(), "stream state stack push/pop mismatch");
 			assert_true_logical(_option_stack.empty(), "option stack push/pop mismatch");
 			assert_true_logical(_capture_id_stack.empty(), "capture stack push/pop mismatch");
 			return result;
@@ -57,28 +55,9 @@ namespace codepad::regex {
 			ast::nodes::assertion
 		>; ///< A node that could result from an escaped sequence.
 
-		std::stack<Stream> _state_stack; ///< The input stream.
+		Stream _stream; ///< The input stream.
 		std::stack<options> _option_stack; ///< Stack of regular expression options.
 		std::stack<std::size_t> _capture_id_stack; ///< Used to handle duplicate group numbers.
-
-		/// Returns the current stream in the stack of saved states.
-		[[nodiscard]] Stream &_stream() {
-			return _state_stack.top();
-		}
-		/// Pushes the current stream state onto \ref _state_stack.
-		void _checkpoint() {
-			_state_stack.push(_state_stack.top());
-		}
-		/// Pops the current stream and replaces the previous state with it.
-		void _cancel_checkpoint() {
-			Stream s = std::move(_state_stack.top());
-			_state_stack.pop();
-			_state_stack.top() = std::move(s);
-		}
-		/// Pops the top element from \ref _state_stack.
-		void _restore_checkpoint() {
-			_state_stack.pop();
-		}
 
 		/// Returns the current options in effect.
 		[[nodiscard]] const options &_options() const {

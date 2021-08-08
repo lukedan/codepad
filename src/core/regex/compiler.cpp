@@ -179,6 +179,22 @@ namespace codepad::regex {
 			// TODO better algorithm?
 			return;
 		}
+
+		// handle posessed (atomic) repetition
+		if (rep.repetition_type == ast::nodes::repetition::type::posessed) {
+			std::size_t new_start = _result.create_state();
+			auto &start_trans = _result.states[start].transitions.emplace_back();
+			start_trans.new_state_index = new_start;
+			start_trans.condition.emplace<compiled::push_atomic>();
+			std::size_t new_end = _result.create_state();
+			auto &end_trans = _result.states[new_end].transitions.emplace_back();
+			end_trans.new_state_index = end;
+			end_trans.condition.emplace<compiled::pop_atomic>();
+
+			start = new_start;
+			end = new_end;
+		}
+
 		if (rep.max == 0) { // special case: don't match if the expression is matched zero times
 			std::size_t bad_state = _result.create_state();
 			_compile(start, bad_state, rep.expression);
@@ -206,7 +222,7 @@ namespace codepad::regex {
 				cur = next;
 			}
 			std::size_t next = _result.create_state();
-			if (rep.lazy) {
+			if (rep.repetition_type == ast::nodes::repetition::type::lazy) {
 				_result.states[cur].transitions.emplace_back().new_state_index = end;
 				_compile(cur, next, rep.expression);
 			} else {
@@ -222,7 +238,7 @@ namespace codepad::regex {
 			}
 			for (std::size_t i = rep.min + 1; i < rep.max; ++i) {
 				std::size_t next = _result.create_state();
-				if (rep.lazy) {
+				if (rep.repetition_type == ast::nodes::repetition::type::lazy) {
 					_result.states[cur].transitions.emplace_back().new_state_index = end;
 					_compile(cur, next, rep.expression);
 				} else {
@@ -231,7 +247,7 @@ namespace codepad::regex {
 				}
 				cur = next;
 			}
-			if (rep.lazy) {
+			if (rep.repetition_type == ast::nodes::repetition::type::lazy) {
 				_result.states[cur].transitions.emplace_back().new_state_index = end;
 				_compile(cur, end, rep.expression);
 			} else {

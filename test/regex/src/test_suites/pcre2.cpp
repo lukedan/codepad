@@ -443,166 +443,167 @@ void dump_tests(std::ostream &out, const std::vector<test> &tests) {
 	return result;
 }
 
-TEST_CASE("PCRE2 test cases for the regex engine", "[regex.pcre2]") {
-	const std::set<std::filesystem::path> valid_test_files = {
-		"testinput1", /*"testinput2", /*"testinput3", "testinput4", "testinput5", "testinput6", "testinput7"*/
-	};
+/// Runs all tests in the given file.
+void run_pcre2_tests(const std::filesystem::path &filename) {
+	std::vector<test> tests;
+	INFO("Test file: " << filename);
+	std::unique_ptr<std::byte[]> test_file;
+	{
+		std::ifstream fin(filename, std::ios::binary);
+		fin.seekg(0, std::ios::end);
+		auto file_size = fin.tellg();
+		fin.seekg(0, std::ios::beg);
+		test_file = std::make_unique<std::byte[]>(file_size);
+		fin.read(reinterpret_cast<char*>(test_file.get()), file_size);
+		tests = parse_tests(test_file.get(), file_size);
+	}
 
-	std::filesystem::directory_iterator iter("thirdparty/pcre2/testdata");
-	for (const auto &entry : iter) {
-		std::vector<test> tests;
-		if (!valid_test_files.contains(entry.path().filename())) {
-			continue;
+	std::ofstream fout(filename.filename().concat(".out"));
+
+	for (const auto &test : tests) {
+		std::basic_string<std::byte> pattern_str;
+		for (cp::codepoint c : test.pattern.pattern) {
+			pattern_str.append(cp::encodings::utf8::encode_codepoint(c));
 		}
-		INFO("Test file: " << entry.path());
-		std::unique_ptr<std::byte[]> test_file;
-		{
-			std::ifstream fin(entry.path(), std::ios::binary);
-			fin.seekg(0, std::ios::end);
-			auto file_size = fin.tellg();
-			fin.seekg(0, std::ios::beg);
-			test_file = std::make_unique<std::byte[]>(file_size);
-			fin.read(reinterpret_cast<char*>(test_file.get()), file_size);
-			tests = parse_tests(test_file.get(), file_size);
+
+		// dump pattern
+		auto pattern_view = std::string_view(
+			reinterpret_cast<const char*>(pattern_str.data()), pattern_str.size()
+		);
+		INFO("Pattern: " << pattern_view.substr(0, std::min<std::size_t>(300, pattern_view.size())));
+		INFO("  Extended: " << test.pattern.options.extended);
+		INFO("  Case insensitive: " << test.pattern.options.case_insensitive);
+		fout << "/" << std::string_view(
+			reinterpret_cast<const char*>(test_file.get() + test.pattern.byte_begin),
+			test.pattern.byte_end - test.pattern.byte_begin
+		) << "/";
+		constexpr bool dump_original_options = false;
+		if (!test.pattern.pattern.empty() && test.pattern.pattern.back() == U'\\') {
+			fout << "\\";
 		}
-
-		std::ofstream fout(entry.path().filename().concat(".out"));
-
-		for (const auto &test : tests) {
-			std::basic_string<std::byte> pattern_str;
-			for (cp::codepoint c : test.pattern.pattern) {
-				pattern_str.append(cp::encodings::utf8::encode_codepoint(c));
-			}
-
-			// dump pattern
-			auto pattern_view = std::string_view(
-				reinterpret_cast<const char*>(pattern_str.data()), pattern_str.size()
+		if constexpr (dump_original_options) {
+			fout << std::string_view(
+				reinterpret_cast<const char*>(test_file.get() + test.pattern.options_begin),
+				test.pattern.options_end - test.pattern.options_begin
 			);
-			INFO("Pattern: " << pattern_view.substr(0, std::min<std::size_t>(300, pattern_view.size())));
-			INFO("  Extended: " << test.pattern.options.extended);
-			INFO("  Case insensitive: " << test.pattern.options.case_insensitive);
-			fout << "/" << std::string_view(
-				reinterpret_cast<const char*>(test_file.get() + test.pattern.byte_begin),
-				test.pattern.byte_end - test.pattern.byte_begin
-			) << "/";
-			constexpr bool dump_original_options = false;
-			if (!test.pattern.pattern.empty() && test.pattern.pattern.back() == U'\\') {
-				fout << "\\";
+		} else {
+			test.pattern.dump_options(fout);
+		}
+		fout << "\n";
+
+		// compile regex
+		cp::regex::ast::nodes::subexpression ast;
+		cp::regex::compiled::state_machine sm;
+		{
+			stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
+			cp::regex::parser<stream_t> parser;
+			ast = parser.parse(stream, test.pattern.options);
+			cp::regex::compiler compiler;
+			sm = compiler.compile(ast);
+		}
+		cp::regex::matcher<stream_t> matcher;
+
+		// log ast
+		std::stringstream ss;
+		cp::regex::ast::make_dumper(ss).dump(ast);
+		std::string ast_str = ss.str();
+		if (pattern_str.size() > 300) {
+			ast_str = "[Too long]";
+		}
+		INFO("Dumped pattern:\n" << ast_str);
+
+		bool prev_no_match = false;
+		for (const auto &str : test.data) {
+			std::basic_string<std::byte> data_str;
+			for (cp::codepoint c : str.string) {
+				data_str.append(cp::encodings::utf8::encode_codepoint(c));
 			}
-			if constexpr (dump_original_options) {
-				fout << std::string_view(
-					reinterpret_cast<const char*>(test_file.get() + test.pattern.options_begin),
-					test.pattern.options_end - test.pattern.options_begin
-				);
+
+			// dump data string
+			std::stringstream data_ss;
+			dump_string(data_ss, str.string);
+			if (!prev_no_match && str.expect_no_match) {
+				fout << "\\= Expect no match\n";
+				prev_no_match = true;
+			}
+			cp::assert_true_logical(str.byte_end >= str.byte_begin, "invalid data range");
+			fout << "    " << std::string_view(
+				reinterpret_cast<const char*>(test_file.get() + str.byte_begin), str.byte_end - str.byte_begin
+			) << "\n";
+			INFO("Data string: " << data_ss.str());
+
+			stream_t stream(data_str.data(), data_str.data() + data_str.size());
+			std::vector<matcher_t::result> matches;
+			std::size_t attempts = 0;
+			if (test.pattern.options.global) {
+				matcher.find_all(stream, sm, [&](matcher_t::result pos) {
+					matches.emplace_back(pos);
+					return attempts <= 1000;
+				});
 			} else {
-				test.pattern.dump_options(fout);
-			}
-			fout << "\n";
-
-			// compile regex
-			cp::regex::ast::nodes::subexpression ast;
-			cp::regex::compiled::state_machine sm;
-			{
-				stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
-				cp::regex::parser<stream_t> parser;
-				ast = parser.parse(stream, test.pattern.options);
-				cp::regex::compiler compiler;
-				sm = compiler.compile(ast);
-			}
-			cp::regex::matcher<stream_t> matcher;
-
-			// log ast
-			std::stringstream ss;
-			cp::regex::ast::make_dumper(ss).dump(ast);
-			std::string ast_str = ss.str();
-			if (pattern_str.size() > 300) {
-				ast_str = "[Too long]";
-			}
-			INFO("Dumped pattern:\n" << ast_str);
-
-			bool prev_no_match = false;
-			for (const auto &str : test.data) {
-				std::basic_string<std::byte> data_str;
-				for (cp::codepoint c : str.string) {
-					data_str.append(cp::encodings::utf8::encode_codepoint(c));
+				if (auto match = matcher.find_next(stream, sm)) {
+					matches.emplace_back(std::move(match.value()));
 				}
+			}
+			CHECK((attempts <= 1000 && matches.empty() == str.expect_no_match));
 
-				// dump data string
-				std::stringstream data_ss;
-				dump_string(data_ss, str.string);
-				if (!prev_no_match && str.expect_no_match) {
-					fout << "\\= Expect no match\n";
-					prev_no_match = true;
-				}
-				cp::assert_true_logical(str.byte_end >= str.byte_begin, "invalid data range");
-				fout << "    " << std::string_view(
-					reinterpret_cast<const char*>(test_file.get() + str.byte_begin), str.byte_end - str.byte_begin
-				) << "\n";
-				INFO("Data string: " << data_ss.str());
+			std::stringstream matches_str;
+			for (const auto &match : matches) {
+				std::size_t beg = match.captures[0].begin.codepoint_position();
+				matches_str << "[" << beg << ", " << beg + match.captures[0].length << "], ";
+			}
 
-				stream_t stream(data_str.data(), data_str.data() + data_str.size());
-				std::vector<matcher_t::result> matches;
-				std::size_t attempts = 0;
-				if (test.pattern.options.global) {
-					matcher.find_all(stream, sm, [&](matcher_t::result pos) {
-						matches.emplace_back(pos);
-						return attempts <= 1000;
-					});
-				} else {
-					if (auto match = matcher.find_next(stream, sm)) {
-						matches.emplace_back(std::move(match.value()));
-					}
-				}
-				CHECK((attempts <= 1000 && matches.empty() == str.expect_no_match));
-
-				std::stringstream matches_str;
+			// dump matches
+			INFO("  Matches: " << matches_str.str());
+			if (matches.empty()) {
+				fout << "No match\n";
+			} else {
 				for (const auto &match : matches) {
-					std::size_t beg = match.captures[0].begin.codepoint_position();
-					matches_str << "[" << beg << ", " << beg + match.captures[0].length << "], ";
-				}
-
-				// dump matches
-				INFO("  Matches: " << matches_str.str());
-				if (matches.empty()) {
-					fout << "No match\n";
-				} else {
-					for (const auto &match : matches) {
-						for (std::size_t i = 0; i < match.captures.size(); ++i) {
-							fout << std::setw(2) << std::setfill(' ') << i << ": ";
-							if (match.captures[i].is_valid()) {
-								cp::codepoint_string capture_str;
-								stream_t capture_stream = match.captures[i].begin;
-								std::size_t length = match.captures[i].length;
-								if (i == 0 && match.overriden_match_begin) {
-									capture_stream = match.overriden_match_begin.value();
-									length -=
-										capture_stream.codepoint_position() -
-										match.captures[i].begin.codepoint_position();
-								}
-								for (std::size_t j = 0; j < length; ++j) {
-									capture_str.push_back(capture_stream.take());
-								}
-								dump_string(fout, capture_str);
-								fout << "\n";
-
-								if (test.pattern.aftertext && i == 0) {
-									fout << std::setw(2) << std::setfill(' ') << i << "+ ";
-									cp::codepoint_string after_str;
-									while (!capture_stream.empty()) {
-										after_str.push_back(capture_stream.take());
-									}
-									dump_string(fout, after_str);
-									fout << "\n";
-								}
-							} else {
-								fout << "<unset>\n";
+					for (std::size_t i = 0; i < match.captures.size(); ++i) {
+						fout << std::setw(2) << std::setfill(' ') << i << ": ";
+						if (match.captures[i].is_valid()) {
+							cp::codepoint_string capture_str;
+							stream_t capture_stream = match.captures[i].begin;
+							std::size_t length = match.captures[i].length;
+							if (i == 0 && match.overriden_match_begin) {
+								capture_stream = match.overriden_match_begin.value();
+								length -=
+									capture_stream.codepoint_position() -
+									match.captures[i].begin.codepoint_position();
 							}
+							for (std::size_t j = 0; j < length; ++j) {
+								capture_str.push_back(capture_stream.take());
+							}
+							dump_string(fout, capture_str);
+							fout << "\n";
+
+							if (test.pattern.aftertext && i == 0) {
+								fout << std::setw(2) << std::setfill(' ') << i << "+ ";
+								cp::codepoint_string after_str;
+								while (!capture_stream.empty()) {
+									after_str.push_back(capture_stream.take());
+								}
+								dump_string(fout, after_str);
+								fout << "\n";
+							}
+						} else {
+							fout << "<unset>\n";
 						}
 					}
 				}
 			}
-			
-			fout << "\n";
 		}
+			
+		fout << "\n";
 	}
+}
+
+const std::filesystem::path directory = "thirdparty/pcre2/testdata";
+
+TEST_CASE("PCRE2 testinput1", "[regex.pcre2.testinput1]") {
+	run_pcre2_tests(directory / "testinput1");
+}
+
+TEST_CASE("PCRE2 testinput2", "[regex.pcre2.testinput2]") {
+	run_pcre2_tests(directory / "testinput2");
 }

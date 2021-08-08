@@ -111,6 +111,8 @@ namespace codepad::regex {
 	/// A wrapper around another stream that reverses it.
 	template <typename Stream> struct basic_reverse_stream {
 	public:
+		using original_stream_t = Stream; ///< Original stream type.
+
 		/// Default constructor.
 		basic_reverse_stream() = default;
 		/// Initializes the underlying stream.
@@ -147,14 +149,35 @@ namespace codepad::regex {
 		[[nodiscard]] bool is_reversed() const {
 			return !_s.is_reversed();
 		}
+
+		/// Returns the original unreversed stream.
+		[[nodiscard]] const Stream &get_original_stream() const {
+			return _s;
+		}
 	protected:
 		Stream _s; ///< The underlying stream.
 	};
+
+	/// Helper class used to obtain the type of a reversed stream. By default \ref basic_reverse_stream is used.
+	template <typename Stream> struct reversed_stream_type {
+		using type = basic_reverse_stream<Stream>; ///< Reversed stream type using \ref basic_reverse_stream.
+	};
+	/// Shorthand for \ref reversed_stream_type::type.
+	template <typename Stream> using reversed_stream_type_t = reversed_stream_type<Stream>::type;
+	/// For \ref basic_reverse_stream types, the reversed stream type is the original stream type.
+	template <typename Stream> struct reversed_stream_type<basic_reverse_stream<Stream>> {
+		using type = typename basic_reverse_stream<Stream>::original_stream_t; ///< Original stream type.
+	};
+
 	/// Creates a reversed stream from the given stream.
-	template <typename Stream> [[nodiscard]] basic_reverse_stream<std::decay_t<Stream>> make_reverse_stream(
-		Stream &&s
-	) {
-		return basic_reverse_stream<std::decay_t<Stream>>(std::move(s));
+	template <
+		typename Stream
+	> [[nodiscard]] basic_reverse_stream<std::decay_t<Stream>> make_reverse_stream(Stream &&s) {
+		return basic_reverse_stream<std::decay_t<Stream>>(std::forward<Stream>(s));
+	}
+	/// Overload for reversed streams - returns the original stream.
+	template <typename Stream> [[nodiscard]] Stream make_reverse_stream(const basic_reverse_stream<Stream> &stream) {
+		return stream.get_original_stream();
 	}
 
 

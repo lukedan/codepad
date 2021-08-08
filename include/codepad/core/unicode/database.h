@@ -69,63 +69,63 @@ namespace codepad::unicode {
 		uppercase_letter = 1 << 0, ///< Lu, Uppercase_Letter.
 		lowercase_letter = 1 << 1, ///< Ll, Lowercase_Letter.
 		titlecase_letter = 1 << 2, ///< Lt, Titlecase_Letter.
-		cased_letter     = 1 << 3, ///< LC, Cased_Letter.
-		modifier_letter  = 1 << 4, ///< Lm, Modifier_Letter.
-		other_letter     = 1 << 5, ///< Lo, Other_Letter.
+		cased_letter = uppercase_letter | lowercase_letter | titlecase_letter, ///< LC, Cased_Letter.
+
+		modifier_letter  = 1 << 3, ///< Lm, Modifier_Letter.
+		other_letter     = 1 << 4, ///< Lo, Other_Letter.
 		letter =
 			uppercase_letter |
 			lowercase_letter |
 			titlecase_letter |
-			cased_letter |
-			modifier_letter |
+			modifier_letter  |
 			other_letter,///< L, Letter.
 
-		nonspacing_mark = 1 << 6, ///< Mn, Nonspacing_Mark.
-		spacing_mark    = 1 << 7, ///< Mc, Spacing_Mark.
-		enclosing_mark  = 1 << 8, ///< Me, Enclosing_Mark.
+		nonspacing_mark = 1 << 5, ///< Mn, Nonspacing_Mark.
+		spacing_mark    = 1 << 6, ///< Mc, Spacing_Mark.
+		enclosing_mark  = 1 << 7, ///< Me, Enclosing_Mark.
 		mark = nonspacing_mark | spacing_mark | enclosing_mark, ///< M, Mark.
 
-		decimal_number = 1 << 9, ///< Nd, Decimal_Number.
-		letter_number  = 1 << 10, ///< Nl, Letter_Number.
-		other_number   = 1 << 11, ///< No, Other_Number.
+		decimal_number = 1 << 8, ///< Nd, Decimal_Number.
+		letter_number  = 1 << 9, ///< Nl, Letter_Number.
+		other_number   = 1 << 10, ///< No, Other_Number.
 		number = decimal_number | letter_number | other_number, ///< N, Number.
 
-		connector_punctuation = 1 << 12, ///< Pc, Connector_Punctuation.
-		dash_punctuation      = 1 << 13, ///< Pd, Dash_Punctuation.
-		open_punctuation      = 1 << 14, ///< Ps, Open_Punctuation.
-		close_punctuation     = 1 << 15, ///< Pe, Close_Punctuation.
-		initial_punctuation   = 1 << 16, ///< Pi, Initial_Punctuation.
-		final_punctuation     = 1 << 17, ///< Pf, Final_Punctuation.
-		other_punctuation     = 1 << 18, ///< Po, Other_Punctuation.
+		connector_punctuation = 1 << 11, ///< Pc, Connector_Punctuation.
+		dash_punctuation      = 1 << 12, ///< Pd, Dash_Punctuation.
+		open_punctuation      = 1 << 13, ///< Ps, Open_Punctuation.
+		close_punctuation     = 1 << 14, ///< Pe, Close_Punctuation.
+		initial_punctuation   = 1 << 15, ///< Pi, Initial_Punctuation.
+		final_punctuation     = 1 << 16, ///< Pf, Final_Punctuation.
+		other_punctuation     = 1 << 17, ///< Po, Other_Punctuation.
 		punctuation =
 			connector_punctuation |
-			dash_punctuation |
-			open_punctuation |
-			close_punctuation |
-			initial_punctuation |
-			final_punctuation |
+			dash_punctuation      |
+			open_punctuation      |
+			close_punctuation     |
+			initial_punctuation   |
+			final_punctuation     |
 			other_punctuation, ///< P, Punctuation.
 
-		math_symbol     = 1 << 19, ///< Sm, Math_Symbol.
-		currency_symbol = 1 << 20, ///< Sc, Currency_Symbol.
-		modifier_symbol = 1 << 21, ///< Sk, Modifier_Symbol.
-		other_symbol    = 1 << 22, ///< So, Other_Symbol.
+		math_symbol     = 1 << 18, ///< Sm, Math_Symbol.
+		currency_symbol = 1 << 19, ///< Sc, Currency_Symbol.
+		modifier_symbol = 1 << 20, ///< Sk, Modifier_Symbol.
+		other_symbol    = 1 << 21, ///< So, Other_Symbol.
 		symbol = math_symbol | currency_symbol | modifier_symbol | other_symbol, ///< S, Symbol.
 
-		space_separator     = 1 << 23, ///< Zs, Space_Separator.
-		line_separator      = 1 << 24, ///< Zl, Line_Separator.
-		paragraph_separator = 1 << 25, ///< Zp, Paragraph_Separator.
+		space_separator     = 1 << 22, ///< Zs, Space_Separator.
+		line_separator      = 1 << 23, ///< Zl, Line_Separator.
+		paragraph_separator = 1 << 24, ///< Zp, Paragraph_Separator.
 		separator = space_separator | line_separator | paragraph_separator, ///< Z, Separator.
 
-		control     = 1 << 26, ///< Cc, Control.
-		format      = 1 << 27, ///< Cf, Format.
-		surrogate   = 1 << 28, ///< Cs, Surrogate.
-		private_use = 1 << 29, ///< Co, Private_Use.
-		unassigned  = 1 << 30, ///< Cn, Unassigned.
+		control     = 1 << 25, ///< Cc, Control.
+		format      = 1 << 26, ///< Cf, Format.
+		surrogate   = 1 << 27, ///< Cs, Surrogate.
+		private_use = 1 << 28, ///< Co, Private_Use.
+		unassigned  = 1 << 29, ///< Cn, Unassigned.
 		other =
-			control |
-			format |
-			surrogate |
+			control     |
+			format      |
+			surrogate   |
 			private_use |
 			unassigned, ///< C, Other.
 
@@ -147,39 +147,38 @@ namespace codepad {
 namespace codepad::unicode {
 	/// Indices corresponding to non-generic categories in \ref general_category.
 	enum class general_category_index : std::uint8_t {
-		uppercase_letter = 0, ///< Lu, Uppercase_Letter.
-		lowercase_letter = 1, ///< Ll, Lowercase_Letter.
-		titlecase_letter = 2, ///< Lt, Titlecase_Letter.
-		cased_letter = 3, ///< LC, Cased_Letter.
-		modifier_letter = 4, ///< Lm, Modifier_Letter.
-		other_letter = 5, ///< Lo, Other_Letter.
-		nonspacing_mark = 6, ///< Mn, Nonspacing_Mark.
-		spacing_mark = 7, ///< Mc, Spacing_Mark.
-		enclosing_mark = 8, ///< Me, Enclosing_Mark.
-		decimal_number = 9, ///< Nd, Decimal_Number.
-		letter_number = 10, ///< Nl, Letter_Number.
-		other_number = 11, ///< No, Other_Number.
-		connector_punctuation = 12, ///< Pc, Connector_Punctuation.
-		dash_punctuation = 13, ///< Pd, Dash_Punctuation.
-		open_punctuation = 14, ///< Ps, Open_Punctuation.
-		close_punctuation = 15, ///< Pe, Close_Punctuation.
-		initial_punctuation = 16, ///< Pi, Initial_Punctuation.
-		final_punctuation = 17, ///< Pf, Final_Punctuation.
-		other_punctuation = 18, ///< Po, Other_Punctuation.
-		math_symbol = 19, ///< Sm, Math_Symbol.
-		currency_symbol = 20, ///< Sc, Currency_Symbol.
-		modifier_symbol = 21, ///< Sk, Modifier_Symbol.
-		other_symbol = 22, ///< So, Other_Symbol.
-		space_separator = 23, ///< Zs, Space_Separator.
-		line_separator = 24, ///< Zl, Line_Separator.
-		paragraph_separator = 25, ///< Zp, Paragraph_Separator.
-		control = 26, ///< Cc, Control.
-		format = 27, ///< Cf, Format.
-		surrogate = 28, ///< Cs, Surrogate.
-		private_use = 29, ///< Co, Private_Use.
-		unassigned = 30, ///< Cn, Unassigned.
+		uppercase_letter      = 0, ///< Lu, Uppercase_Letter.
+		lowercase_letter      = 1, ///< Ll, Lowercase_Letter.
+		titlecase_letter      = 2, ///< Lt, Titlecase_Letter.
+		modifier_letter       = 3, ///< Lm, Modifier_Letter.
+		other_letter          = 4, ///< Lo, Other_Letter.
+		nonspacing_mark       = 5, ///< Mn, Nonspacing_Mark.
+		spacing_mark          = 6, ///< Mc, Spacing_Mark.
+		enclosing_mark        = 7, ///< Me, Enclosing_Mark.
+		decimal_number        = 8, ///< Nd, Decimal_Number.
+		letter_number         = 9, ///< Nl, Letter_Number.
+		other_number          = 10, ///< No, Other_Number.
+		connector_punctuation = 11, ///< Pc, Connector_Punctuation.
+		dash_punctuation      = 12, ///< Pd, Dash_Punctuation.
+		open_punctuation      = 13, ///< Ps, Open_Punctuation.
+		close_punctuation     = 14, ///< Pe, Close_Punctuation.
+		initial_punctuation   = 15, ///< Pi, Initial_Punctuation.
+		final_punctuation     = 16, ///< Pf, Final_Punctuation.
+		other_punctuation     = 17, ///< Po, Other_Punctuation.
+		math_symbol           = 18, ///< Sm, Math_Symbol.
+		currency_symbol       = 19, ///< Sc, Currency_Symbol.
+		modifier_symbol       = 20, ///< Sk, Modifier_Symbol.
+		other_symbol          = 21, ///< So, Other_Symbol.
+		space_separator       = 22, ///< Zs, Space_Separator.
+		line_separator        = 23, ///< Zl, Line_Separator.
+		paragraph_separator   = 24, ///< Zp, Paragraph_Separator.
+		control               = 25, ///< Cc, Control.
+		format                = 26, ///< Cf, Format.
+		surrogate             = 27, ///< Cs, Surrogate.
+		private_use           = 28, ///< Co, Private_Use.
+		unassigned            = 29, ///< Cn, Unassigned.
 
-		num_categories = 31 ///< The number of categories.
+		num_categories = 30 ///< The number of categories.
 	};
 	/// Converts a \ref general_category_index to a \ref general_category.
 	[[nodiscard]] constexpr inline general_category general_category_index_to_cateogry(general_category_index id) {

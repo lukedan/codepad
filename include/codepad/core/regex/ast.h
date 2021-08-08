@@ -62,9 +62,6 @@ namespace codepad::regex::ast {
 			/// in this class.
 			bool is_negate = false;
 			bool case_insensitive = false; ///< Whether this character class is case-insensitive.
-
-			/// Handles negation. This function assumes that \ref sort_and_compact() has been called.
-			[[nodiscard]] codepoint_range_list get_effective_ranges() const;
 		};
 
 		/// A subexpression. This is not necessarily surrounded by brackets; this node simply represents any
@@ -97,11 +94,17 @@ namespace codepad::regex::ast {
 			/// Indicates that there's no limit for the upper or lower bound of the number of repetitions.
 			constexpr static std::size_t no_limit = std::numeric_limits<std::size_t>::max();
 
+			/// The type of a repetition.
+			enum class type : std::uint8_t {
+				normal, ///< A normal greedy repetition.
+				lazy, ///< A lazy repetition that matches as few as possible instead of as many as possible.
+				posessed, ///< A posessed (atomic) repetition.
+			};
+
 			subexpression expression; ///< The expression to be repeated.
 			std::size_t min = 0; ///< The minimum number of repetitions.
 			std::size_t max = no_limit; ///< The maximum number of repetitions.
-			/// Whether this repetition matches as few repetitions as possible, instead of as many as possible.
-			bool lazy = false;
+			type repetition_type = type::normal; ///< The type of this repetition.
 		};
 		/// An assertion.
 		struct assertion {
@@ -175,12 +178,12 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::error.
 		void dump(const nodes::error&) {
 			_indent();
-			_stream << "©¤©¤ [ERROR]\n";
+			_stream << "ï¿½ï¿½ï¿½ï¿½ [ERROR]\n";
 		}
 		/// Dumps a \ref nodes::feature.
 		void dump(const nodes::feature &n) {
 			_indent();
-			_stream << "©¤©¤ [feature: ";
+			_stream << "ï¿½ï¿½ï¿½ï¿½ [feature: ";
 			for (codepoint cp : n.identifier) {
 				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
 			}
@@ -189,12 +192,12 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::match_start_override.
 		void dump(const nodes::match_start_override&) {
 			_indent();
-			_stream << "©¤©¤ [reset match start]\n";
+			_stream << "ï¿½ï¿½ï¿½ï¿½ [reset match start]\n";
 		}
 		/// Dumps a \ref nodes::literal.
 		void dump(const nodes::literal &n) {
 			_indent();
-			_stream << "©¤©¤ [literal: \"";
+			_stream << "ï¿½ï¿½ï¿½ï¿½ [literal: \"";
 			for (codepoint cp : n.contents) {
 				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
 			}
@@ -207,7 +210,7 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::backreference.
 		void dump(const nodes::backreference &n) {
 			_indent();
-			_stream << "©¤©¤ [backreference: ";
+			_stream << "ï¿½ï¿½ï¿½ï¿½ [backreference: ";
 			if (std::holds_alternative<codepoint_string>(n.index)) {
 				_stream << "\"";
 				const auto &id = std::get<codepoint_string>(n.index);
@@ -226,7 +229,7 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::character_class.
 		void dump(const nodes::character_class &n) {
 			_indent();
-			_stream << "©¤©¤ [character class " << (n.is_negate ? "[!]" : "") << ": ";
+			_stream << "ï¿½ï¿½ï¿½ï¿½ [character class " << (n.is_negate ? "[!]" : "") << ": ";
 			_dump_character_class(n.ranges);
 			_stream << "]\n";
 		}
@@ -234,11 +237,11 @@ namespace codepad::regex::ast {
 		void dump(const nodes::subexpression &n) {
 			_indent();
 			if (n.nodes.empty()) {
-				_stream << "©¤";
+				_stream << "ï¿½ï¿½";
 			} else {
-				_stream << "©Ð";
+				_stream << "ï¿½ï¿½";
 			}
-			_stream << "©¤ [subexpression";
+			_stream << "ï¿½ï¿½ [subexpression";
 			if (n.subexpr_type == ast::nodes::subexpression::type::normal) {
 				_stream << " #" << n.capture_index;
 				if (!n.capture_name.empty()) {
@@ -277,7 +280,7 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::alternative.
 		void dump(const nodes::alternative &n) {
 			_indent();
-			_stream << "©Ð©¤ [alternative]\n";
+			_stream << "ï¿½Ð©ï¿½ [alternative]\n";
 			_branch.emplace_back(true);
 			for (std::size_t i = 0; i < n.alternatives.size(); ++i) {
 				if (i + 1 == n.alternatives.size()) {
@@ -290,9 +293,15 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::repetition.
 		void dump(const nodes::repetition &n) {
 			_indent();
-			_stream << "©Ð©¤ [repetition ";
-			if (n.lazy) {
-				_stream << " lazy";
+			_stream << "ï¿½Ð©ï¿½ [repetition";
+			switch (n.repetition_type) {
+			case nodes::repetition::type::normal:
+				break;
+			case nodes::repetition::type::lazy:
+				_stream << " (lazy)";
+			case nodes::repetition::type::posessed:
+				_stream << " (posessed)";
+				break;
 			}
 			_stream << " min: " << n.min << "  max: " << n.max << "]\n";
 			_branch.emplace_back(false);
@@ -303,7 +312,7 @@ namespace codepad::regex::ast {
 		void dump(const nodes::assertion &n) {
 			_indent();
 			if (n.assertion_type >= ast::nodes::assertion::type::complex_first) {
-				_stream << "©Ð©¤ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
+				_stream << "ï¿½Ð©ï¿½ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
 				_branch.emplace_back(false);
 				dump(n.expression);
 				_branch.pop_back();
@@ -313,11 +322,11 @@ namespace codepad::regex::ast {
 					std::holds_alternative<ast::nodes::character_class>(n.expression.nodes[0].value),
 					"invalid character class assertion"
 				);
-				_stream << "©¤©¤ [assertion type: " << static_cast<int>(n.assertion_type) << " ranges: ";
+				_stream << "ï¿½ï¿½ï¿½ï¿½ [assertion type: " << static_cast<int>(n.assertion_type) << " ranges: ";
 				_dump_character_class(std::get<ast::nodes::character_class>(n.expression.nodes[0].value).ranges);
 				_stream << "]\n";
 			} else {
-				_stream << "©¤©¤ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
+				_stream << "ï¿½ï¿½ï¿½ï¿½ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
 			}
 		}
 
@@ -340,14 +349,14 @@ namespace codepad::regex::ast {
 				_stream << "  ";
 			}
 			for (std::size_t i = 0; i + 1 < _branch.size(); ++i) {
-				_stream << (_branch[i] ? "©¦ " : "  ");
+				_stream << (_branch[i] ? "ï¿½ï¿½ " : "  ");
 			}
 			if (_branch.empty()) {
-				_stream << ">©¤";
+				_stream << ">ï¿½ï¿½";
 			} else if (_branch.back()) {
-				_stream << "©À©¤";
+				_stream << "ï¿½ï¿½ï¿½ï¿½";
 			} else {
-				_stream << "©¸©¤";
+				_stream << "ï¿½ï¿½ï¿½ï¿½";
 			}
 		}
 		/// Dumps the given list of codepoint ranges.

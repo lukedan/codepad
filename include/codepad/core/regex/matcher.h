@@ -588,7 +588,7 @@ namespace codepad::regex {
 			if (_result.captures.size() <= index) {
 				_result.captures.resize(index + 1);
 			}
-			if (!_state_stack.empty()) {
+			if (!_state_stack.empty()) { // TODO we should add these after the state has been pushed
 				_state_stack.top().finished_captures.emplace(cap, index);
 			}
 			_result.captures[index] = std::move(cap);

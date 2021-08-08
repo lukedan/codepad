@@ -17,6 +17,19 @@ namespace codepad {
 	using codepoint = std::uint32_t;
 	using codepoint_string = std::basic_string<codepoint>; ///< A string of codepoints.
 
+	namespace unicode {
+		constexpr codepoint
+			replacement_character = 0xFFFD, ///< Unicode replacement character.
+			codepoint_invalid_min = 0xD800, ///< Minimum code point value reserved by UTF-16.
+			codepoint_invalid_max = 0xDFFF, ///< Maximum code point value (inclusive) reserved by UTF-16.
+			codepoint_max = 0x10FFFF; ///< Maximum code point value (inclusive) of Unicode.
+
+		/// Determines if a codepoint lies in the valid range of Unicode points.
+		constexpr inline bool is_valid_codepoint(codepoint c) {
+			return c < codepoint_invalid_min || (c > codepoint_invalid_max && c <= codepoint_max);
+		}
+	}
+
 	/// A range of codepoints.
 	struct codepoint_range {
 		/// Default constructor.
@@ -56,6 +69,24 @@ namespace codepad {
 				ranges.erase(prev + 1, ranges.end());
 			}
 		}
+		/// Returns all ranges not in this list. This function assumes that \ref sort_and_compact() has been called.
+		[[nodiscard]] codepoint_range_list get_negated() const {
+			codepoint last = 0;
+			codepoint_range_list result;
+			auto iter = ranges.begin();
+			if (!ranges.empty() && ranges.front().first == 0) {
+				last = ranges.front().last + 1;
+				++iter;
+			}
+			for (; iter != ranges.end(); ++iter) {
+				result.ranges.emplace_back(last, iter->first - 1);
+				last = iter->last + 1;
+			}
+			if (last <= unicode::codepoint_max) {
+				result.ranges.emplace_back(last, unicode::codepoint_max);
+			}
+			return result;
+		}
 
 		/// Returns whether this list contains the given codepoint. This should only be called after
 		/// \ref sort_and_compact() has been called.
@@ -69,17 +100,4 @@ namespace codepad {
 			return it != ranges.end() && cp >= it->first;
 		}
 	};
-
-	namespace unicode {
-		constexpr codepoint
-			replacement_character = 0xFFFD, ///< Unicode replacement character.
-			codepoint_invalid_min = 0xD800, ///< Minimum code point value reserved by UTF-16.
-			codepoint_invalid_max = 0xDFFF, ///< Maximum code point value (inclusive) reserved by UTF-16.
-			codepoint_max = 0x10FFFF; ///< Maximum code point value (inclusive) of Unicode.
-
-		/// Determines if a codepoint lies in the valid range of Unicode points.
-		constexpr inline bool is_valid_codepoint(codepoint c) {
-			return c < codepoint_invalid_min || (c > codepoint_invalid_max && c <= codepoint_max);
-		}
-	}
 }
