@@ -107,7 +107,7 @@ namespace codepad::regex {
 						idx = idx * 10 + (cp - U'0');
 					}
 				}
-				return ast::nodes::backreference(idx, _options().case_insensitive);
+				return ast::nodes::numbered_backreference(idx, _options().case_insensitive);
 			}
 			break;
 		case U'g':
@@ -119,38 +119,13 @@ namespace codepad::regex {
 						// TODO error
 						break;
 					}
-					// test if this is a named backreferece
-					codepoint next_cp = _stream.peek();
-					if ((next_cp >= U'0' && next_cp <= U'9') || next_cp == U'-' || next_cp == U'+') {
-						int direction = 0; // 1: relative forward, -1: relative backward
-						if (next_cp == U'-') {
-							_stream.take();
-							direction = -1;
-						} else if (next_cp == U'+') {
-							_stream.take();
-							direction = 1;
-						}
-						// numbered backreference
-						index = _parse_numeric_value<std::size_t>(10);
+					if (auto id = _parse_capture_index()) { // numbered backreference
 						if (_stream.empty() || _stream.peek() != U'}') {
 							// TODO error
 						} else {
 							_stream.take();
 						}
-						// handle relative backreferences
-						if (direction > 0) {
-							if (index > 0) {
-								index = _capture_id_stack.top() + index - 1;
-							} else {
-								// TODO error
-							}
-						} else if (direction < 0) {
-							if (_capture_id_stack.top() > index) {
-								index = _capture_id_stack.top() - index;
-							} else {
-								// TODO error
-							}
-						}
+						index = id.value();
 					} else { // named backreference
 						codepoint_string res;
 						while (true) {
@@ -164,19 +139,12 @@ namespace codepad::regex {
 							}
 							res.push_back(cur_cp);
 						}
-						return ast::nodes::backreference(std::move(res), _options().case_insensitive);
+						return ast::nodes::named_backreference(std::move(res), _options().case_insensitive);
 					}
 				} else {
-					while (!_stream.empty()) {
-						codepoint cur_cp = _stream.peek();
-						if (cur_cp < U'0' || cur_cp > U'9') {
-							break;
-						}
-						_stream.take();
-						index = index * 10 + (cur_cp - U'0');
-					}
+					index = _parse_numeric_value<std::size_t>(10);
 				}
-				return ast::nodes::backreference(index, _options().case_insensitive);
+				return ast::nodes::numbered_backreference(index, _options().case_insensitive);
 			}
 			break;
 		case U'k':
@@ -208,7 +176,7 @@ namespace codepad::regex {
 					}
 					capture_name.push_back(cur_cp);
 				}
-				return ast::nodes::backreference(std::move(capture_name), _options().case_insensitive);
+				return ast::nodes::named_backreference(std::move(capture_name), _options().case_insensitive);
 			}
 			break;
 
@@ -361,11 +329,11 @@ namespace codepad::regex {
 		if (cp >= U'1' && cp <= U'7') { // octal character code or backreference
 			if (ctx == _escaped_sequence_context::subexpression) {
 				if (_stream.empty()) { // single digit - must be a backreference
-					return ast::nodes::backreference(cp - U'0', _options().case_insensitive);
+					return ast::nodes::numbered_backreference(cp - U'0', _options().case_insensitive);
 				}
 				codepoint next_cp = _stream.peek();
 				if (next_cp < U'0' || next_cp > U'9') { // single digit - must be a backreference
-					return ast::nodes::backreference(cp - U'0', _options().case_insensitive);
+					return ast::nodes::numbered_backreference(cp - U'0', _options().case_insensitive);
 				}
 				// otherwise check if there are already this much captures
 				Stream checkpoint = _stream;
@@ -383,7 +351,7 @@ namespace codepad::regex {
 					// TODO what happens when
 					//      - we reference a capture while it's in progress?
 					//      - we have duplicate capture indices?
-					return ast::nodes::backreference(index, _options().case_insensitive);
+					return ast::nodes::numbered_backreference(index, _options().case_insensitive);
 				}
 				_stream = std::move(checkpoint); // it's a hexadecimal codepoint; restore checkpoint
 			}
@@ -391,6 +359,35 @@ namespace codepad::regex {
 			return ast::nodes::literal::from_codepoint(_parse_numeric_value<codepoint>(8, 2, cp - U'0'));
 		}
 		return ast::nodes::literal::from_codepoint(cp);
+	}
+
+	template <typename Stream> inline std::optional<std::size_t> parser<Stream>::_parse_capture_index() {
+		int direction = 0; // 1: relative forward, -1: relative backward
+		codepoint next_cp = _stream.peek();
+		if (next_cp == U'-') {
+			_stream.take();
+			direction = -1;
+		} else if (next_cp == U'+') {
+			_stream.take();
+			direction = 1;
+		} else if (next_cp < U'0' || next_cp > U'9') { // invalid
+			return std::nullopt;
+		}
+		// numbered backreference
+		std::size_t index = _parse_numeric_value<std::size_t>(10);
+		// relative backreferences
+		if (direction > 0) {
+			if (index == 0) {
+				return std::nullopt;
+			}
+			index = _capture_id_stack.top() + index - 1;
+		} else if (direction < 0) {
+			if (_capture_id_stack.top() <= index) {
+				return std::nullopt;
+			}
+			index = _capture_id_stack.top() - index;
+		}
+		return index;
 	}
 
 	template <
@@ -728,10 +725,107 @@ namespace codepad::regex {
 				assertion_type = ast::nodes::assertion::type::negative_lookahead;
 				break;
 
+			// conditional subexpression
+			case U'(':
+				{
+					_stream.take();
+					if (_stream.empty()) {
+						// TODO error
+						break;
+					}
+					auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::conditional_expression>();
+					do {
+						// parse condition
+						Stream checkpoint = _stream;
+
+						// named capture
+						if (_stream.peek() == U'<' || _stream.peek() == U'\'') {
+							codepoint termination = U')';
+							switch (_stream.take()) {
+							case U'<':
+								termination = U'>';
+								break;
+							case U'\'':
+								termination = U'\'';
+								break;
+							default:
+								// TODO error
+								break;
+							}
+							auto &cond = new_expr.condition.emplace<
+								ast::nodes::conditional_expression::named_capture_available
+							>();
+							while (!_stream.empty()) {
+								codepoint cp = _stream.take();
+								if (cp == termination) {
+									break;
+								}
+								cond.name.push_back(cp);
+							}
+							break;
+						}
+
+						// numbered capture
+						if (auto id = _parse_capture_index()) {
+							new_expr.condition.emplace<
+								ast::nodes::conditional_expression::numbered_capture_available
+							>().index = id.value();
+							break;
+						}
+						_stream = checkpoint;
+
+						// otherwise this is an assertion
+						ast::nodes::subexpression temp_expr;
+						std::size_t tmp_options_pushed = 0;
+						_parse_round_brackets_group(temp_expr, tmp_options_pushed);
+						if (temp_expr.nodes.size() > 0 && temp_expr.nodes[0].is<ast::nodes::assertion>()) {
+							auto &assertion = std::get<ast::nodes::assertion>(temp_expr.nodes[0].value);
+							if (assertion.assertion_type >= ast::nodes::assertion::type::complex_first) {
+								new_expr.condition.emplace<ast::nodes::assertion>(std::move(assertion));
+							} else {
+								// TODO error
+							}
+						} else {
+							// TODO error
+							for (; tmp_options_pushed > 0; --tmp_options_pushed) {
+								_option_stack.pop();
+							}
+						}
+					} while (false);
+					// consume ending bracket
+					if (!_stream.empty() && _stream.peek() == U')') {
+						_stream.take();
+					} else {
+						// TODO error
+					}
+
+					// parse expressions
+					ast::nodes::subexpression temp_expr;
+					_parse_subexpression(temp_expr, U')');
+					if (!temp_expr.nodes.empty() && temp_expr.nodes[0].is<ast::nodes::alternative>()) {
+						// two branches
+						if (temp_expr.nodes.size() > 1) {
+							// TODO error
+						}
+						auto &alt = std::get<ast::nodes::alternative>(temp_expr.nodes[0].value);
+						if (alt.alternatives.size() == 2) {
+							new_expr.if_true = std::move(alt.alternatives[0]);
+							new_expr.if_false = std::move(alt.alternatives[1]);
+						} else {
+							// TODO error
+						}
+					} else {
+						// single branch
+						new_expr.if_true = std::move(temp_expr);
+					}
+
+					return;
+				}
+
 			// TODO
 
-			default: // enable/disabe features midway through the expression
-				{
+			default:
+				{ // enable/disabe features midway through the expression
 					is_subexpression = false;
 					bool enable_feature = true;
 					bool allow_disable = true;

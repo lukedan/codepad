@@ -39,20 +39,26 @@ namespace codepad::regex::ast {
 			codepoint_string contents; ///< The literal.
 			bool case_insensitive = false; ///< Whether this literal is matched in a case-insensitive manner.
 		};
-		/// A backreference.
-		struct backreference {
+		/// A numbered backreference.
+		struct numbered_backreference {
 			/// Default constructor.
-			backreference() = default;
+			numbered_backreference() = default;
 			/// Initializes this backreference with the given numerical index.
-			backreference(std::size_t id, bool ignore_case) :
-				index(std::in_place_type<std::size_t>, id), case_insensitive(ignore_case) {
-			}
-			/// Initializes this backreference with the given string index.
-			backreference(codepoint_string id, bool ignore_case) :
-				index(std::in_place_type<codepoint_string>, std::move(id)), case_insensitive(ignore_case) {
+			numbered_backreference(std::size_t id, bool ignore_case) : index(id), case_insensitive(ignore_case) {
 			}
 
-			std::variant<std::size_t, codepoint_string> index; ///< The index of this backreference.
+			std::size_t index = 0; ///< The index of this backreference.
+			bool case_insensitive = false; ///< Whether this backreference is case-insensitive.
+		};
+		struct named_backreference {
+			/// Default constructor.
+			named_backreference() = default;
+			/// Initializes all fields of this struct.
+			named_backreference(codepoint_string n, bool ignore_case) :
+				name(std::move(n)), case_insensitive(ignore_case) {
+			}
+
+			codepoint_string name; ///< Name of this backreference.
 			bool case_insensitive = false; ///< Whether this backreference is case-insensitive.
 		};
 		/// Node that represents a class of characters.
@@ -141,6 +147,34 @@ namespace codepad::regex::ast {
 			subexpression expression; ///< The expression used by this assertion.
 			type assertion_type = type::always_false; ///< The type of this assertion.
 		};
+		/// An conditional subexpression.
+		struct conditional_expression {
+			/// A condition that tests if a particular capture group has matched.
+			struct numbered_capture_available {
+				std::size_t index = 0; ///< The index of this capture.
+			};
+			/// A condition that tests if a named capture is available.
+			struct named_capture_available {
+				codepoint_string name; ///< Name of the capture.
+			};
+			// TODO recursion
+			/// Used to define groups that can be later referenced. This condition is always false and there must
+			/// only be one alternative.
+			struct define {
+			};
+
+			/// Type for the condition.
+			using condition_t = std::variant<
+				define,
+				numbered_capture_available,
+				named_capture_available,
+				assertion
+			>;
+
+			condition_t condition; ///< The condition.
+			subexpression if_true; ///< Subexpression that's matched if the condition matches.
+			std::optional<subexpression> if_false; ///< Subexpression that's matched if the condition does not match.
+		};
 	}
 
 	/// A generic node.
@@ -151,12 +185,14 @@ namespace codepad::regex::ast {
 			nodes::feature,
 			nodes::match_start_override,
 			nodes::literal,
-			nodes::backreference,
+			nodes::numbered_backreference,
+			nodes::named_backreference,
 			nodes::character_class,
 			nodes::subexpression,
 			nodes::alternative,
 			nodes::repetition,
-			nodes::assertion
+			nodes::assertion,
+			nodes::conditional_expression
 		>;
 
 		storage value; ///< The value of this node.
@@ -178,12 +214,12 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::error.
 		void dump(const nodes::error&) {
 			_indent();
-			_stream << "ï¿½ï¿½ï¿½ï¿½ [ERROR]\n";
+			_stream << "©¤©¤ [ERROR]\n";
 		}
 		/// Dumps a \ref nodes::feature.
 		void dump(const nodes::feature &n) {
 			_indent();
-			_stream << "ï¿½ï¿½ï¿½ï¿½ [feature: ";
+			_stream << "©¤©¤ [feature: ";
 			for (codepoint cp : n.identifier) {
 				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
 			}
@@ -192,12 +228,12 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::match_start_override.
 		void dump(const nodes::match_start_override&) {
 			_indent();
-			_stream << "ï¿½ï¿½ï¿½ï¿½ [reset match start]\n";
+			_stream << "©¤©¤ [reset match start]\n";
 		}
 		/// Dumps a \ref nodes::literal.
 		void dump(const nodes::literal &n) {
 			_indent();
-			_stream << "ï¿½ï¿½ï¿½ï¿½ [literal: \"";
+			_stream << "©¤©¤ [literal: \"";
 			for (codepoint cp : n.contents) {
 				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
 			}
@@ -207,20 +243,23 @@ namespace codepad::regex::ast {
 			}
 			_stream << "]\n";
 		}
-		/// Dumps a \ref nodes::backreference.
-		void dump(const nodes::backreference &n) {
+		/// Dumps a \ref nodes::numbered_backreference.
+		void dump(const nodes::numbered_backreference &n) {
 			_indent();
-			_stream << "ï¿½ï¿½ï¿½ï¿½ [backreference: ";
-			if (std::holds_alternative<codepoint_string>(n.index)) {
-				_stream << "\"";
-				const auto &id = std::get<codepoint_string>(n.index);
-				for (codepoint cp : id) {
-					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
-				}
-				_stream << "\"";
-			} else {
-				_stream << "#" << std::get<std::size_t>(n.index);
+			_stream << "©¤©¤ [backreference: #" << n.index;
+			if (n.case_insensitive) {
+				_stream << "/i";
 			}
+			_stream << "]\n";
+		}
+		/// Dumps a \ref nodes::named_backreference.
+		void dump(const nodes::named_backreference &n) {
+			_indent();
+			_stream << "©¤©¤ [backreference: \"";
+			for (codepoint cp : n.name) {
+				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
+			}
+			_stream << "\"";
 			if (n.case_insensitive) {
 				_stream << "/i";
 			}
@@ -229,7 +268,7 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::character_class.
 		void dump(const nodes::character_class &n) {
 			_indent();
-			_stream << "ï¿½ï¿½ï¿½ï¿½ [character class " << (n.is_negate ? "[!]" : "") << ": ";
+			_stream << "©¤©¤ [character class " << (n.is_negate ? "[!]" : "") << ": ";
 			_dump_character_class(n.ranges);
 			_stream << "]\n";
 		}
@@ -237,11 +276,11 @@ namespace codepad::regex::ast {
 		void dump(const nodes::subexpression &n) {
 			_indent();
 			if (n.nodes.empty()) {
-				_stream << "ï¿½ï¿½";
+				_stream << "©¤";
 			} else {
-				_stream << "ï¿½ï¿½";
+				_stream << "©Ð";
 			}
-			_stream << "ï¿½ï¿½ [subexpression";
+			_stream << "©¤ [subexpression";
 			if (n.subexpr_type == ast::nodes::subexpression::type::normal) {
 				_stream << " #" << n.capture_index;
 				if (!n.capture_name.empty()) {
@@ -280,7 +319,7 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::alternative.
 		void dump(const nodes::alternative &n) {
 			_indent();
-			_stream << "ï¿½Ð©ï¿½ [alternative]\n";
+			_stream << "©Ð©¤ [alternative]\n";
 			_branch.emplace_back(true);
 			for (std::size_t i = 0; i < n.alternatives.size(); ++i) {
 				if (i + 1 == n.alternatives.size()) {
@@ -293,7 +332,7 @@ namespace codepad::regex::ast {
 		/// Dumps a \ref nodes::repetition.
 		void dump(const nodes::repetition &n) {
 			_indent();
-			_stream << "ï¿½Ð©ï¿½ [repetition";
+			_stream << "©Ð©¤ [repetition";
 			switch (n.repetition_type) {
 			case nodes::repetition::type::normal:
 				break;
@@ -312,7 +351,7 @@ namespace codepad::regex::ast {
 		void dump(const nodes::assertion &n) {
 			_indent();
 			if (n.assertion_type >= ast::nodes::assertion::type::complex_first) {
-				_stream << "ï¿½Ð©ï¿½ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
+				_stream << "©Ð©¤ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
 				_branch.emplace_back(false);
 				dump(n.expression);
 				_branch.pop_back();
@@ -322,12 +361,40 @@ namespace codepad::regex::ast {
 					std::holds_alternative<ast::nodes::character_class>(n.expression.nodes[0].value),
 					"invalid character class assertion"
 				);
-				_stream << "ï¿½ï¿½ï¿½ï¿½ [assertion type: " << static_cast<int>(n.assertion_type) << " ranges: ";
+				_stream << "©¤©¤ [assertion type: " << static_cast<int>(n.assertion_type) << " ranges: ";
 				_dump_character_class(std::get<ast::nodes::character_class>(n.expression.nodes[0].value).ranges);
 				_stream << "]\n";
 			} else {
-				_stream << "ï¿½ï¿½ï¿½ï¿½ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
+				_stream << "©¤©¤ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
 			}
+		}
+		void dump(const nodes::conditional_expression &n) {
+			_indent();
+			_stream << "©Ð©¤ [conditional: ";
+			std::visit(
+				[this](auto &&cond) {
+					_dump_condition(cond);
+				},
+				n.condition
+			);
+			_stream << "]\n";
+
+			_branch.emplace_back(true);
+			if (std::holds_alternative<nodes::assertion>(n.condition)) {
+				const auto &ass = std::get<nodes::assertion>(n.condition);
+				dump(ass);
+			}
+
+			if (!n.if_false.has_value()) {
+				_branch.back() = false;
+			}
+			dump(n.if_true);
+
+			if (n.if_false) {
+				_branch.back() = false;
+				dump(n.if_false.value());
+			}
+			_branch.pop_back();
 		}
 
 		/// Dumps a \ref node.
@@ -349,14 +416,14 @@ namespace codepad::regex::ast {
 				_stream << "  ";
 			}
 			for (std::size_t i = 0; i + 1 < _branch.size(); ++i) {
-				_stream << (_branch[i] ? "ï¿½ï¿½ " : "  ");
+				_stream << (_branch[i] ? "©¦ " : "  ");
 			}
 			if (_branch.empty()) {
-				_stream << ">ï¿½ï¿½";
+				_stream << ">©¤";
 			} else if (_branch.back()) {
-				_stream << "ï¿½ï¿½ï¿½ï¿½";
+				_stream << "©À©¤";
 			} else {
-				_stream << "ï¿½ï¿½ï¿½ï¿½";
+				_stream << "©¸©¤";
 			}
 		}
 		/// Dumps the given list of codepoint ranges.
@@ -379,6 +446,27 @@ namespace codepad::regex::ast {
 			if (ranges.ranges.size() > _max_range_count) {
 				_stream << ", ...";
 			}
+		}
+
+		/// Dumps a condition that checks for a numbered assertion.
+		void _dump_condition(const nodes::conditional_expression::numbered_capture_available &cap) {
+			_stream << "capture #" << cap.index;
+		}
+		/// Dumps a condition that checks for a named assertion.
+		void _dump_condition(const nodes::conditional_expression::named_capture_available &cap) {
+			_stream << "capture \"";
+			for (codepoint cp : cap.name) {
+				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
+			}
+			_stream << "\"";
+		}
+		/// Dumps a definition condition.
+		void _dump_condition(const nodes::conditional_expression::define&) {
+			_stream << "<define>";
+		}
+		/// Dumps an assertion that's used as a condition.
+		void _dump_condition(const nodes::assertion&) {
+			_stream << "<assertion>";
 		}
 	};
 	/// Shorthand for creating a \ref dumper.

@@ -12,6 +12,7 @@
 
 #include <codepad/core/logging.h>
 #include <codepad/core/regex/matcher.h>
+#include <codepad/core/regex/matcher.inl>
 
 namespace cp = codepad;
 

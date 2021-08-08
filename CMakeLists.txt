@@ -37,6 +37,7 @@ target_sources(codepad_core
 		"include/codepad/core/regex/ast.h"
 		"include/codepad/core/regex/compiler.h"
 		"include/codepad/core/regex/matcher.h"
+		"include/codepad/core/regex/matcher.inl"
 		"include/codepad/core/regex/misc.h"
 		"include/codepad/core/regex/parser.h"
 		"include/codepad/core/regex/parser.inl"

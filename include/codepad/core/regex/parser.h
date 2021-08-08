@@ -51,7 +51,8 @@ namespace codepad::regex {
 			ast::nodes::match_start_override,
 			ast::nodes::literal,
 			ast::nodes::character_class,
-			ast::nodes::backreference,
+			ast::nodes::numbered_backreference,
+			ast::nodes::named_backreference,
 			ast::nodes::assertion
 		>; ///< A node that could result from an escaped sequence.
 
@@ -95,6 +96,8 @@ namespace codepad::regex {
 		/// Parses an escaped sequence. This function checkpoints the stream in certain conditions, and should not be
 		/// called when a checkpoint is active.
 		[[nodiscard]] _escaped_sequence_node _parse_escaped_sequence(_escaped_sequence_context);
+		/// Parses a capture index.
+		[[nodiscard]] std::optional<std::size_t> _parse_capture_index();
 
 		/// Parses a character class in square brackets.
 		[[nodiscard]] ast::nodes::character_class _parse_square_brackets_character_class();

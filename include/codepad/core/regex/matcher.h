@@ -59,135 +59,8 @@ namespace codepad::regex {
 		///
 		/// \return The state of the state machine after it's been executed from this position.
 		[[nodiscard]] std::optional<result> try_match(
-			Stream &stream, const compiled::state_machine &expr, std::size_t max_iters = 1000000
-		) {
-			_result = result();
-			_result.captures.emplace_back().begin = stream;
-			_expr = &expr;
-
-			_state current_state(std::move(stream), expr.start_state, 0, 0, std::nullopt);
-			for (std::size_t i = 0; i < max_iters; ++i) {
-				if constexpr (_uses_log) {
-					debug_log << u8"\nIteration " << i << u8"\n";
-					
-					debug_log << u8"\tCaptures:\n";
-					for (std::size_t j = 0; j < _result.captures.size(); ++j) {
-						debug_log <<
-							u8"\t\tPosition: " << _result.captures[j].begin.codepoint_position() <<
-							u8",  length: " << _result.captures[j].length << u8"\n";
-					}
-
-					debug_log << u8"\tOngoing captures:\n";
-					auto caps_copy = _ongoing_captures;
-					while (!caps_copy.empty()) {
-						const auto &cap = caps_copy.top();
-						debug_log <<
-							u8"\t\t" << caps_copy.size() <<
-							u8": #" << cap.index <<
-							u8",  begin: " << cap.begin.codepoint_position() << u8"\n";
-						caps_copy.pop();
-					}
-
-					_log(current_state, u8"\t");
-
-					debug_log << u8"\tState stack:\n";
-					auto states_copy = _state_stack;
-					while (!states_copy.empty()) {
-						_log(states_copy.top(), u8"\t\t");
-						states_copy.pop();
-					}
-				}
-				if (current_state.automata_state == expr.end_state) {
-					break;
-				}
-				Stream checkpoint_stream = current_state.stream;
-				if (current_state.get_automata_state(expr).transitions.size() <= current_state.transition) {
-					break;
-				}
-				const auto &transition = current_state.get_transition(expr);
-				bool transition_ok = std::visit(
-					[&, this](auto &&cond) {
-						return _check_transition(current_state.stream, transition, cond);
-					},
-					transition.condition
-				);
-
-				++current_state.transition;
-				if (transition_ok) {
-					_log(u8"\tTransition OK\n");
-					if (current_state.transition < current_state.get_automata_state(expr).transitions.size()) {
-						_log(u8"\t\tPusing state\n");
-						_state_stack.emplace(
-							std::move(checkpoint_stream), current_state.automata_state, current_state.transition,
-							_ongoing_captures.size(), _result.overriden_match_begin
-						);
-					}
-					std::visit(
-						[&, this](auto &&trans) {
-							_execute_transition(current_state.stream, trans);
-						},
-						transition.condition
-					);
-					current_state.automata_state = transition.new_state_index;
-					current_state.transition = 0;
-					// continue to the next iteration
-				} else {
-					if (current_state.transition < current_state.get_automata_state(expr).transitions.size()) {
-						_log(u8"\tTransition fail: next transition\n");
-						current_state.stream = std::move(checkpoint_stream);
-						continue; // try the next transition
-					}
-					// otherwise backtrack
-					_log(u8"\tTransition fail: backtracking\n");
-					if (_state_stack.empty()) {
-						current_state.stream = std::move(checkpoint_stream);
-						break;
-					}
-					// update state
-					current_state = std::move(_state_stack.top());
-					_state_stack.pop();
-					// pop atomic groups
-					while (!_atomic_stack_sizes.empty() && _state_stack.size() < _atomic_stack_sizes.top()) {
-						_atomic_stack_sizes.pop();
-					}
-					// restore _ongoing_captures to the state we're backtracking to
-					std::size_t count =
-						current_state.initial_ongoing_captures - current_state.partial_finished_captures.size();
-					while (_ongoing_captures.size() > count) {
-						_ongoing_captures.pop();
-					}
-					// restore _result.captures
-					while (!current_state.finished_captures.empty()) {
-						auto &cap = current_state.finished_captures.top();
-						_result.captures[cap.index] = std::move(cap.capture_data);
-						current_state.finished_captures.pop();
-					}
-					while (!current_state.partial_finished_captures.empty()) {
-						const auto &cap = current_state.partial_finished_captures.top();
-						_ongoing_captures.emplace(std::move(cap.begin), cap.capture.index);
-						_result.captures[_ongoing_captures.top().index] = std::move(cap.capture.capture_data);
-						current_state.partial_finished_captures.pop();
-					}
-					// restore _result.overriden_match_begin
-					_result.overriden_match_begin = current_state.initial_match_begin;
-				}
-			}
-			stream = std::move(current_state.stream);
-
-			_state_stack = std::stack<_state>();
-			_expr = nullptr;
-
-			if (current_state.automata_state == expr.end_state) {
-				assert_true_logical(_ongoing_captures.empty(), "there are still ongoing captures");
-				assert_true_logical(_atomic_stack_sizes.empty(), "there are still ongoing atomic groups");
-				_result.captures.front().length =
-					stream.codepoint_position() - _result.captures.front().begin.codepoint_position();
-				return std::move(_result);
-			}
-			_ongoing_captures = std::stack<_capture_info>();
-			_atomic_stack_sizes = std::stack<std::size_t>();
-			return std::nullopt;
-		}
+			Stream&, const compiled::state_machine&, std::size_t max_iters = 1000000
+		);
 
 		/// Finds the starting point of the next match in the input stream. After the function returns, \p s will be
 		/// at the end of the input if no match is found, or be at the end position of the match. The caller needs to pay
@@ -326,41 +199,25 @@ namespace codepad::regex {
 			}
 		}
 		/// Logs information about the given state.
-		void _log([[maybe_unused]] const _state &s, [[maybe_unused]] std::u8string_view indent) {
-			if constexpr (_uses_log) {
-				debug_log <<
-					indent << u8"Stream position: " << s.stream.codepoint_position() <<
-					u8";  state: " << s.automata_state <<
-					", transition: " << s.transition << "\n";
+		void _log([[maybe_unused]] const _state&, [[maybe_unused]] std::u8string_view indent);
 
-				debug_log << indent << u8"\tInitial ongoing captures: " << s.initial_ongoing_captures << "\n";
-
-				debug_log << indent << u8"\tPartial ongoing captures:\n";
-				auto partial_captures_copy = s.partial_finished_captures;
-				while (!partial_captures_copy.empty()) {
-					const auto &cap = partial_captures_copy.top();
-					debug_log <<
-						indent << u8"\t\t" << partial_captures_copy.size() <<
-						": #" << cap.capture.index <<
-						", from: " << cap.begin.codepoint_position() <<
-						";  old from : " << cap.capture.capture_data.begin.codepoint_position() <<
-						", old length : " << cap.capture.capture_data.length << "\n";
-					partial_captures_copy.pop();
+		/// Finds the index of the first matched group that has the given name.
+		[[nodiscard]] std::optional<std::size_t> _find_matched_named_capture(std::size_t name_index) const {
+			for (std::size_t id : _expr->named_captures.get_indices_for_name(name_index)) {
+				if (id >= _result.captures.size()) {
+					// since the captures are ordered, no captures after this one can be matched
+					break;
 				}
-
-				debug_log << indent << u8"\tFinished ongoing captures:\n";
-				auto captures_copy = s.finished_captures;
-				while (!captures_copy.empty()) {
-					const auto &cap = captures_copy.top();
-					debug_log <<
-						indent << u8"\t\t" << captures_copy.size() <<
-						": #" << cap.index <<
-						", from: " << cap.capture_data.begin.codepoint_position() <<
-						", length: " << cap.capture_data.length << "\n";
-					captures_copy.pop();
+				if (_result.captures[id].is_valid()) {
+					return id;
 				}
 			}
+			return std::nullopt; // capture not yet matched
 		}
+
+		/// Checks if a backreference that has already been matched matches the string starting from the current
+		/// position.
+		[[nodiscard]] bool _check_backreference_transition(Stream&, std::size_t index, bool case_insensitive) const;
 
 		/// Checks if the contents in the given stream starts with the given string.
 		[[nodiscard]] bool _check_transition(
@@ -382,7 +239,7 @@ namespace codepad::regex {
 		}
 		/// Checks if the next character in the stream is in the given codepoint ranges.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition &trans, const compiled::character_class &cond
+			Stream &stream, const compiled::transition &trans, const compiled::transitions::character_class &cond
 		) const {
 			if (stream.empty()) {
 				return false;
@@ -391,7 +248,7 @@ namespace codepad::regex {
 		}
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transition &trans, const compiled::assertion &cond
+			Stream stream, const compiled::transition &trans, const compiled::transitions::assertion &cond
 		) {
 			switch (cond.assertion_type) {
 			case ast::nodes::assertion::type::always_false:
@@ -444,7 +301,7 @@ namespace codepad::regex {
 
 			case ast::nodes::assertion::type::character_class_boundary:
 				{
-					auto &boundary = std::get<compiled::character_class>(
+					auto &boundary = std::get<compiled::transitions::character_class>(
 						cond.expression.states[0].transitions[0].condition
 					);
 					bool prev_in =
@@ -456,7 +313,7 @@ namespace codepad::regex {
 
 			case ast::nodes::assertion::type::character_class_nonboundary:
 				{
-					auto &boundary = std::get<compiled::character_class>(
+					auto &boundary = std::get<compiled::transitions::character_class>(
 						cond.expression.states[0].transitions[0].condition
 					);
 					bool prev_in =
@@ -497,68 +354,41 @@ namespace codepad::regex {
 			assert_true_logical(false, "invalid assertion type"); // should not happen
 			return false;
 		}
-		/// Checks if a backreference matches.
+		/// Checks if a numbered backreference matches.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition &trans, const compiled::backreference &cond
+			Stream &stream, const compiled::transition &trans,
+			const compiled::transitions::numbered_backreference &cond
 		) {
-			std::size_t index = cond.index;
-			if (cond.is_named) {
-				bool has_valid_index = false;
-				for (std::size_t id : _expr->named_captures.get_indices_for_name(cond.index)) {
-					if (id >= _result.captures.size()) {
-						return false; // capture not yet matched
-					}
-					if (_result.captures[id].is_valid()) {
-						has_valid_index = true;
-						index = id;
-						break;
-					}
-				}
-				if (!has_valid_index) {
-					return false; // capture not yet matched
-				}
-			} else {
-				if (index >= _result.captures.size() || !_result.captures[index].is_valid()) {
-					return false; // capture not yet matched
-				}
+			if (cond.index >= _result.captures.size() || !_result.captures[cond.index].is_valid()) {
+				return false; // capture not yet matched
 			}
-
-			auto &cap = _result.captures[index];
-			Stream new_stream = stream;
-			Stream target_stream = cap.begin;
-			for (std::size_t i = 0; i < cap.length; ++i) {
-				if (new_stream.empty()) {
-					return false;
-				}
-				codepoint got = new_stream.take();
-				codepoint expected = target_stream.take();
-				if (trans.case_insensitive) {
-					got = unicode::case_folding::get_cached().fold_simple(got);
-					expected = unicode::case_folding::get_cached().fold_simple(expected);
-				}
-				if (got != expected) {
-					return false;
-				}
+			return _check_backreference_transition(stream, cond.index, trans.case_insensitive);
+		}
+		/// Checks if a named backreference matches.
+		[[nodiscard]] bool _check_transition(
+			Stream &stream, const compiled::transition &trans,
+			const compiled::transitions::named_backreference &cond
+		) {
+			if (auto id = _find_matched_named_capture(cond.index)) {
+				return _check_backreference_transition(stream, id.value(), trans.case_insensitive);
 			}
-			stream = std::move(new_stream);
-
-			return true;
+			return false;
 		}
 		/// The capture group is started later in \ref _execute_transition().
 		[[nodiscard]] bool _check_transition(
-			Stream, const compiled::transition&, const compiled::capture_begin&
+			Stream, const compiled::transition&, const compiled::transitions::capture_begin&
 		) {
 			return true;
 		}
 		/// The capture group is finished later in \ref _execute_transition().
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&, const compiled::capture_end&
+			const Stream&, const compiled::transition&, const compiled::transitions::capture_end&
 		) {
 			return true;
 		}
 		/// Resets the start of this match.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition&, const compiled::reset_match_start&
+			Stream &stream, const compiled::transition&, const compiled::transitions::reset_match_start&
 		) {
 			// do this before a state is potentially pushed for backtracking
 			if (!_state_stack.empty()) {
@@ -569,15 +399,29 @@ namespace codepad::regex {
 		}
 		/// Atomic groups are handled in \ref _execute_transition().
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&, const compiled::push_atomic&
+			const Stream&, const compiled::transition&, const compiled::transitions::push_atomic&
 		) {
 			return true;
 		}
 		/// Atomic groups are handled in \ref _execute_transition().
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&, const compiled::pop_atomic&
+			const Stream&, const compiled::transition&, const compiled::transitions::pop_atomic&
 		) {
 			return true;
+		}
+		/// Checks if the given numbered group has been matched.
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const compiled::transition&,
+			const compiled::transitions::conditions::numbered_capture &cap
+		) {
+			return _result.captures.size() > cap.index && _result.captures[cap.index].is_valid();
+		}
+		/// Checks if the given numbered group has been matched.
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const compiled::transition&,
+			const compiled::transitions::conditions::named_capture &cap
+		) {
+			return _find_matched_named_capture(cap.name_index).has_value();
 		}
 
 		/// Adds a capture that results from an assertion.
@@ -598,44 +442,17 @@ namespace codepad::regex {
 		template <typename Trans> void _execute_transition(const Stream&, const Trans&) {
 		}
 		/// Starts a capture.
-		void _execute_transition(Stream stream, const compiled::capture_begin &beg) {
+		void _execute_transition(Stream stream, const compiled::transitions::capture_begin &beg) {
 			_ongoing_captures.emplace(std::move(stream), beg.index);
 		}
 		/// Ends a capture.
-		void _execute_transition(const Stream &stream, const compiled::capture_end&) {
-			auto res = std::move(_ongoing_captures.top());
-			_ongoing_captures.pop();
-			if (_result.captures.size() <= res.index) {
-				_result.captures.resize(res.index + 1);
-			}
-
-			if (!_state_stack.empty()) {
-				// if necessary, record that this capture has finished
-				auto &st = _state_stack.top();
-				if (
-					_ongoing_captures.size() + st.partial_finished_captures.size() <
-					st.initial_ongoing_captures
-				) {
-					// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
-					st.partial_finished_captures.emplace(
-						_finished_capture_info(_result.captures[res.index], res.index), res.begin
-					);
-				} else {
-					// when backtracking, it's necessary to completely reset this capture to the previous state
-					st.finished_captures.emplace(_result.captures[res.index], res.index);
-				}
-			}
-
-			std::size_t index = res.index;
-			_result.captures[index].length = stream.codepoint_position() - res.begin.codepoint_position();
-			_result.captures[index].begin = std::move(res.begin);
-		}
+		void _execute_transition(const Stream&, const compiled::transitions::capture_end&);
 		/// Pushes an atomic group.
-		void _execute_transition(const Stream&, const compiled::push_atomic&) {
+		void _execute_transition(const Stream&, const compiled::transitions::push_atomic&) {
 			_atomic_stack_sizes.emplace(_state_stack.size());
 		}
 		/// Pops all states associated with the current atomic group.
-		void _execute_transition(const Stream&, const compiled::pop_atomic&) {
+		void _execute_transition(const Stream&, const compiled::transitions::pop_atomic&) {
 			while (_state_stack.size() > _atomic_stack_sizes.top()) {
 				_state_stack.pop();
 			}

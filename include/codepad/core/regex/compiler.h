@@ -53,76 +53,92 @@ namespace codepad::regex {
 			void dump(std::ostream&, bool valid_only = true) const;
 		};
 
-		/// A character class.
-		struct character_class {
-			codepoint_range_list ranges; ///< Ranges.
-			bool is_negate = false; ///< Whether the codepoint should not match any character in this class.
+		namespace transitions {
+			/// A character class.
+			struct character_class {
+				codepoint_range_list ranges; ///< Ranges.
+				bool is_negate = false; ///< Whether the codepoint should not match any character in this class.
 
-			/// Tests whether the given codepoint is matched by this character class.
-			[[nodiscard]] bool matches(codepoint cp, bool case_insensitive) const {
-				bool result = ranges.contains(cp);
-				if (case_insensitive && !result) {
-					result = ranges.contains(unicode::case_folding::get_cached().fold_simple(cp));
-					if (!result) {
-						for (auto folded : unicode::case_folding::get_cached().inverse_fold_simple(cp)) {
-							if (ranges.contains(folded)) {
-								result = true;
-								break;
+				/// Tests whether the given codepoint is matched by this character class.
+				[[nodiscard]] bool matches(codepoint cp, bool case_insensitive) const {
+					bool result = ranges.contains(cp);
+					if (case_insensitive && !result) {
+						result = ranges.contains(unicode::case_folding::get_cached().fold_simple(cp));
+						if (!result) {
+							for (auto folded : unicode::case_folding::get_cached().inverse_fold_simple(cp)) {
+								if (ranges.contains(folded)) {
+									result = true;
+									break;
+								}
 							}
 						}
 					}
+					return is_negate ? !result : result;
 				}
-				return is_negate ? !result : result;
+			};
+			/// An assertion used in a transition.
+			struct assertion {
+				ast::nodes::assertion::type assertion_type; ///< The type of this assertion.
+				codepoint_range_list character_class; ///< The character class potentially using by this assertion.
+				state_machine expression; ///< The expression that is expected to match or not match.
+			};
+			/// Starts a capture.
+			struct capture_begin {
+				/// Indicates that a capture does not have a name.
+				constexpr static std::size_t unnamed_capture = std::numeric_limits<std::size_t>::max();
+
+				std::size_t index = 0; ///< Index of the capture.
+				std::size_t name_index = unnamed_capture; ///< Name index of this capture.
+			};
+			/// Ends a capture.
+			struct capture_end {
+			};
+			/// A numbered backreference.
+			struct numbered_backreference {
+				std::size_t index = 0; ///< Index of the capture.
+			};
+			/// A named backreference.
+			struct named_backreference {
+				std::size_t index = 0; ///< Index of the capture.
+			};
+			/// Resets the starting position of this match.
+			struct reset_match_start {
+			};
+			/// Pushes the start of an atomic range.
+			struct push_atomic {
+			};
+			/// Pops all states on stack pushed since the start of the last atomic range.
+			struct pop_atomic {
+			};
+
+			/// Transitions that are conditions.
+			namespace conditions {
+				/// Checks if the given numbered group has been matched.
+				struct numbered_capture {
+					std::size_t index = 0; ///< The index of the capture.
+				};
+				/// Checks if the given named group has been matched.
+				struct named_capture {
+					std::size_t name_index = 0; ///< The index of the name.
+				};
 			}
-		};
-		/// An assertion used in a transition.
-		struct assertion {
-			ast::nodes::assertion::type assertion_type; ///< The type of this assertion.
-			codepoint_range_list character_class; ///< The character class potentially using by this assertion.
-			state_machine expression; ///< The expression that is expected to match or not match.
-		};
-		/// Starts a capture.
-		struct capture_begin {
-			/// Indicates that a capture does not have a name.
-			constexpr static std::size_t unnamed_capture = std::numeric_limits<std::size_t>::max();
-
-			std::size_t index = 0; ///< Index of the capture.
-			std::size_t name_index = unnamed_capture; ///< Name index of this capture.
-		};
-		/// Ends a capture.
-		struct capture_end {
-		};
-		/// A backreference.
-		struct backreference {
-			/// Index of the capture.
-			///
-			/// \sa is_named
-			std::size_t index = 0;
-			bool is_named = false; ///< Indicates whether this references a named capture.
-		};
-		/// Resets the starting position of this match.
-		struct reset_match_start {
-		};
-		/// Pushes the start of an atomic range.
-		struct push_atomic {
-		};
-		/// Pops all states on stack pushed since the start of the last atomic range.
-		struct pop_atomic {
-		};
-
+		}
 		/// Stores the data of a transition.
 		struct transition {
 			/// A key used to determine if a transition is viable.
 			using key = std::variant<
 				codepoint_string,
-				character_class,
-				assertion,
-				capture_begin,
-				capture_end,
-				backreference,
-				reset_match_start,
-				push_atomic,
-				pop_atomic
+				transitions::character_class,
+				transitions::assertion,
+				transitions::capture_begin,
+				transitions::capture_end,
+				transitions::numbered_backreference,
+				transitions::named_backreference,
+				transitions::reset_match_start,
+				transitions::push_atomic,
+				transitions::pop_atomic,
+				transitions::conditions::numbered_capture,
+				transitions::conditions::named_capture
 			>;
 
 			key condition; ///< Condition of this transition.
@@ -132,6 +148,7 @@ namespace codepad::regex {
 		/// A state.
 		struct state {
 			std::vector<transition> transitions; ///< Transitions to new states.
+			bool no_backtracking = false; ///< Whether the matcher should not backtrack to this state.
 		};
 	}
 
@@ -221,17 +238,19 @@ namespace codepad::regex {
 		/// Compiles a \ref ast::nodes::match_start_override.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::match_start_override&) {
 			auto &transition = _result.states[start].transitions.emplace_back();
-			transition.condition.emplace<compiled::reset_match_start>();
+			transition.condition.emplace<compiled::transitions::reset_match_start>();
 			transition.new_state_index = end;
 		}
 		/// Compiles the given literal node.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::literal&);
-		/// Compiles the given backreference.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::backreference&);
+		/// Compiles the given numbered backreference.
+		void _compile(std::size_t start, std::size_t end, const ast::nodes::numbered_backreference&);
+		/// Compiles the given named backreference.
+		void _compile(std::size_t start, std::size_t end, const ast::nodes::named_backreference&);
 		/// Compiles the given character class.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::character_class &char_class) {
 			auto &transition = _result.states[start].transitions.emplace_back();
-			auto &cls = transition.condition.emplace<compiled::character_class>();
+			auto &cls = transition.condition.emplace<compiled::transitions::character_class>();
 			cls.ranges = char_class.ranges;
 			cls.is_negate = char_class.is_negate;
 			transition.new_state_index = end;
@@ -249,5 +268,27 @@ namespace codepad::regex {
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::repetition&);
 		/// Compiles the given assertion.
 		void _compile(std::size_t start, std::size_t end, const ast::nodes::assertion&);
+		/// Compiles the given conditional subexpression.
+		void _compile(std::size_t start, std::size_t end, const ast::nodes::conditional_expression&);
+
+		/// Does nothing - <tt>DEFINE</tt>'s are handled separately.
+		void _compile_condition(compiled::transition&, const ast::nodes::conditional_expression::define&) {
+		}
+		/// Compiles the given condition that checks for a numbered capture.
+		void _compile_condition(
+			compiled::transition &trans, const ast::nodes::conditional_expression::numbered_capture_available &cond
+		) {
+			trans.condition.emplace<compiled::transitions::conditions::numbered_capture>().index = cond.index;
+		}
+		/// Compiles the given condition that checks for a named capature.
+		void _compile_condition(
+			compiled::transition &trans, const ast::nodes::conditional_expression::named_capture_available &cond
+		) {
+			auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), cond.name);
+			trans.condition.emplace<compiled::transitions::conditions::named_capture>().name_index =
+				it - _capture_names.begin();
+		}
+		/// Compiles the given assertion.
+		void _compile_condition(compiled::transition&, const ast::nodes::assertion&);
 	};
 }

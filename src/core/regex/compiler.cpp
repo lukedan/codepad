@@ -41,8 +41,8 @@ namespace codepad::regex {
 								stream << "?";
 							}
 						}
-					} else if (std::holds_alternative<character_class>(t.condition)) {
-						const auto &list = std::get<character_class>(t.condition);
+					} else if (std::holds_alternative<transitions::character_class>(t.condition)) {
+						const auto &list = std::get<transitions::character_class>(t.condition);
 						bool first = true;
 						for (auto range : list.ranges.ranges) {
 							if (first) {
@@ -63,27 +63,28 @@ namespace codepad::regex {
 						if (list.is_negate) {
 							stream << " <!>";
 						}
-					} else if (std::holds_alternative<assertion>(t.condition)) {
+					} else if (std::holds_alternative<transitions::assertion>(t.condition)) {
 						stream << "<assertion>";
-					} else if (std::holds_alternative<capture_begin>(t.condition)) {
-						const auto &cap = std::get<capture_begin>(t.condition);
+					} else if (std::holds_alternative<transitions::capture_begin>(t.condition)) {
+						const auto &cap = std::get<transitions::capture_begin>(t.condition);
 						stream << "<start capture " << cap.index;
-						if (cap.name_index != capture_begin::unnamed_capture) {
+						if (cap.name_index != transitions::capture_begin::unnamed_capture) {
 							stream << " named:";
 							for (std::size_t index : named_captures.get_indices_for_name(cap.name_index)) {
 								stream << " " << index;
 							}
 						}
 						stream << ">";
-					} else if (std::holds_alternative<capture_end>(t.condition)) {
+					} else if (std::holds_alternative<transitions::capture_end>(t.condition)) {
 						stream << "<end capture>";
-					} else if (std::holds_alternative<backreference>(t.condition)) {
-						const auto &backref = std::get<backreference>(t.condition);
-						stream << "<";
-						if (backref.is_named) {
-							stream << "named ";
-						}
-						stream << "backreference " << backref.index << ">";
+					} else if (std::holds_alternative<transitions::numbered_backreference>(t.condition)) {
+						const auto &backref = std::get<transitions::numbered_backreference>(t.condition);
+						stream << "<backref #" << backref.index << ">";
+					} else if (std::holds_alternative<transitions::named_backreference>(t.condition)) {
+						const auto &backref = std::get<transitions::named_backreference>(t.condition);
+						stream << "<named backref #" << backref.index << ">";
+					} else {
+						stream << "<UNHANDLED>";
 					}
 					stream << "\"];\n";
 				}
@@ -107,19 +108,20 @@ namespace codepad::regex {
 		}
 	}
 
-	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::backreference &expr) {
+	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::numbered_backreference &expr) {
 		auto &trans = _result.states[start].transitions.emplace_back();
 		trans.case_insensitive = expr.case_insensitive;
 		trans.new_state_index = end;
-		auto &ref = trans.condition.emplace<compiled::backreference>();
-		if (std::holds_alternative<std::size_t>(expr.index)) {
-			ref.index = std::get<std::size_t>(expr.index);
-		} else {
-			ref.is_named = true;
-			const auto &name = std::get<codepoint_string>(expr.index);
-			auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), name);
-			ref.index = (it - _capture_names.begin()) - 1;
-		}
+		trans.condition.emplace<compiled::transitions::numbered_backreference>().index = expr.index;
+	}
+
+	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::named_backreference &expr) {
+		auto &trans = _result.states[start].transitions.emplace_back();
+		trans.case_insensitive = expr.case_insensitive;
+		trans.new_state_index = end;
+		auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), expr.name);
+		auto &ref = trans.condition.emplace<compiled::transitions::named_backreference>();
+		ref.index = (it - _capture_names.begin()) - 1;
 	}
 
 	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::subexpression &expr) {
@@ -147,16 +149,16 @@ namespace codepad::regex {
 			end = new_end;
 
 			if (expr.subexpr_type == ast::nodes::subexpression::type::normal) {
-				auto &capture_beg = begin_trans.condition.emplace<compiled::capture_begin>();
+				auto &capture_beg = begin_trans.condition.emplace<compiled::transitions::capture_begin>();
 				capture_beg.index = expr.capture_index;
 				if (!expr.capture_name.empty()) {
 					auto iter = std::lower_bound(_capture_names.begin(), _capture_names.end(), expr.capture_name);
 					capture_beg.name_index = (iter - _capture_names.begin()) - 1;
 				}
-				end_trans.condition.emplace<compiled::capture_end>();
+				end_trans.condition.emplace<compiled::transitions::capture_end>();
 			} else if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
-				begin_trans.condition.emplace<compiled::push_atomic>();
-				end_trans.condition.emplace<compiled::pop_atomic>();
+				begin_trans.condition.emplace<compiled::transitions::push_atomic>();
+				end_trans.condition.emplace<compiled::transitions::pop_atomic>();
 			}
 		}
 
@@ -183,13 +185,17 @@ namespace codepad::regex {
 		// handle posessed (atomic) repetition
 		if (rep.repetition_type == ast::nodes::repetition::type::posessed) {
 			std::size_t new_start = _result.create_state();
-			auto &start_trans = _result.states[start].transitions.emplace_back();
-			start_trans.new_state_index = new_start;
-			start_trans.condition.emplace<compiled::push_atomic>();
+			{
+				auto &start_trans = _result.states[start].transitions.emplace_back();
+				start_trans.new_state_index = new_start;
+				start_trans.condition.emplace<compiled::transitions::push_atomic>();
+			}
 			std::size_t new_end = _result.create_state();
-			auto &end_trans = _result.states[new_end].transitions.emplace_back();
-			end_trans.new_state_index = end;
-			end_trans.condition.emplace<compiled::pop_atomic>();
+			{
+				auto &end_trans = _result.states[new_end].transitions.emplace_back();
+				end_trans.new_state_index = end;
+				end_trans.condition.emplace<compiled::transitions::pop_atomic>();
+			}
 
 			start = new_start;
 			end = new_end;
@@ -260,18 +266,61 @@ namespace codepad::regex {
 	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::assertion &rep) {
 		auto &transition = _result.states[start].transitions.emplace_back();
 		transition.new_state_index = end;
-		auto &assertion = transition.condition.emplace<compiled::assertion>();
+		auto &assertion = transition.condition.emplace<compiled::transitions::assertion>();
 		assertion.assertion_type = rep.assertion_type;
 		if (rep.assertion_type >= ast::nodes::assertion::type::complex_first) {
 			compiler cmp;
 			assertion.expression = cmp.compile(rep.expression);
 		} else if (rep.assertion_type >= ast::nodes::assertion::type::character_class_first) {
 			auto &cls = assertion.expression.states.emplace_back().transitions.emplace_back().condition.emplace<
-				compiled::character_class
+				compiled::transitions::character_class
 			>();
 			const auto &cls_node = std::get<ast::nodes::character_class>(rep.expression.nodes[0].value);
 			cls.ranges = cls_node.ranges;
 			cls.is_negate = cls_node.is_negate;
 		}
+	}
+
+	void compiler::_compile(std::size_t start, std::size_t end, const ast::nodes::conditional_expression &expr) {
+		if (std::holds_alternative<ast::nodes::conditional_expression::define>(expr.condition)) {
+			// do not actually generate graph for DEFINE's
+			_result.states[start].transitions.emplace_back().new_state_index = end;
+			return;
+		}
+
+		auto branch_state_index = _result.create_state();
+		auto yes_state_index = _result.create_state();
+		auto no_state_index = _result.create_state();
+
+		_result.states[start].transitions.emplace_back().new_state_index = branch_state_index;
+
+		auto &branch_state = _result.states[branch_state_index];
+		branch_state.no_backtracking = true;
+		{
+			auto &yes_transition = branch_state.transitions.emplace_back();
+			std::visit(
+				[&](auto &&cond) {
+					_compile_condition(yes_transition, cond);
+				},
+				expr.condition
+			);
+			yes_transition.condition;// TODO;
+			yes_transition.new_state_index = yes_state_index;
+		}
+		branch_state.transitions.emplace_back().new_state_index = no_state_index;
+
+		_compile(yes_state_index, end, expr.if_true);
+		if (expr.if_false) {
+			_compile(no_state_index, end, expr.if_false.value());
+		} else {
+			_result.states[no_state_index].transitions.emplace_back().new_state_index = end;
+		}
+	}
+
+	void compiler::_compile_condition(compiled::transition &trans, const ast::nodes::assertion &cond) {
+		auto &cond_val = trans.condition.emplace<compiled::transitions::assertion>();
+		cond_val.assertion_type = cond.assertion_type;
+		compiler cmp;
+		cond_val.expression = cmp.compile(cond.expression);
 	}
 }

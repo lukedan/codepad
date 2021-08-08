@@ -24,6 +24,7 @@ std::ostream &operator<<(std::ostream &out, const char8_t *str) {
 #include <codepad/core/regex/parser.inl>
 #include <codepad/core/regex/compiler.h>
 #include <codepad/core/regex/matcher.h>
+#include <codepad/core/regex/matcher.inl>
 
 namespace cp = codepad;
 
