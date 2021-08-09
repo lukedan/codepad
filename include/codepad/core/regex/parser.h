@@ -93,6 +93,10 @@ namespace codepad::regex {
 			std::size_t length_limit = std::numeric_limits<std::size_t>::max(),
 			IntType initial = 0
 		);
+		/// Checks if the next characters are the same as the given string. If it is, then the characters will be
+		/// consumed; otherwise, no changes will be made to \ref _stream.
+		[[nodiscard]] bool _check_prefix(std::u32string_view);
+
 		/// Parses an escaped sequence. This function checkpoints the stream in certain conditions, and should not be
 		/// called when a checkpoint is active.
 		[[nodiscard]] _escaped_sequence_node _parse_escaped_sequence(_escaped_sequence_context);

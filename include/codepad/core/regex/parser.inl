@@ -32,6 +32,17 @@ namespace codepad::regex {
 		return value;
 	}
 
+	template <typename Stream> bool parser<Stream>::_check_prefix(std::u32string_view sv) {
+		Stream temp = _stream;
+		for (char32_t c : sv) {
+			if (temp.empty() || temp.take() != c) {
+				return false;
+			}
+		}
+		_stream = std::move(temp);
+		return true;
+	}
+
 	template <typename Stream> inline parser<Stream>::_escaped_sequence_node parser<Stream>::_parse_escaped_sequence(
 		_escaped_sequence_context ctx
 	) {
@@ -318,6 +329,10 @@ namespace codepad::regex {
 		case U't':
 			return ast::nodes::literal::from_codepoint(0x09);
 
+		// nothing - we handle \Q\E elsewhere
+		case U'E':
+			return ast::nodes::literal();
+
 		// special
 		case U'K':
 			if (ctx != _escaped_sequence_context::character_class) {
@@ -404,23 +419,34 @@ namespace codepad::regex {
 		}
 		// if we run into \Q, this function simply returns an empty literal
 		auto parse_char = [&]() -> _escaped_sequence_node {
-			codepoint cp = _stream.take();
-			if (_options().extended_more) {
-				while (cp == U' ' || cp == U'\t') {
-					if (_stream.empty()) {
-						return ast::nodes::error();
+			while (!_stream.empty()) {
+				codepoint cp = _stream.take();
+				if (_options().extended_more) {
+					while (cp == U' ' || cp == U'\t') {
+						if (_stream.empty()) {
+							return ast::nodes::error();
+						}
+						cp = _stream.take();
 					}
-					cp = _stream.take();
 				}
-			}
-			if (cp == U'\\') {
-				if (!_stream.empty() && _stream.peek() == U'Q') {
-					_stream.take();
-					return ast::nodes::literal();
+				if (cp == U'\\') {
+					if (_stream.empty()) {
+						break;
+					}
+					if (_stream.peek() == U'Q') {
+						_stream.take();
+						return ast::nodes::literal();
+					}
+					// an isolated \E - ignore it
+					if (_stream.peek() == U'E') {
+						_stream.take();
+						continue;
+					}
+					return _parse_escaped_sequence(_escaped_sequence_context::character_class);
 				}
-				return _parse_escaped_sequence(_escaped_sequence_context::character_class);
+				return ast::nodes::literal::from_codepoint(cp);
 			}
-			return ast::nodes::literal::from_codepoint(cp);
+			return ast::nodes::literal();
 		};
 		bool force_literal = false; // whether we're in a \Q \E sequence
 		while (true) {
@@ -497,7 +523,7 @@ namespace codepad::regex {
 						} else if (sv == U"punct") {
 							// TODO
 						} else if (sv == U"space") {
-							// TODO
+							ranges = tables::posix_spaces();
 						} else if (sv == U"upper") {
 							ranges = unicode::unicode_data::cache::get_codepoints_in_category(
 								unicode::general_category_index::uppercase_letter
@@ -773,6 +799,12 @@ namespace codepad::regex {
 							break;
 						}
 						_stream = checkpoint;
+
+						// DEFINE
+						if (_check_prefix(U"DEFINE")) {
+							new_expr.condition.emplace<ast::nodes::conditional_expression::define>();
+							break;
+						}
 
 						// otherwise this is an assertion
 						ast::nodes::subexpression temp_expr;
@@ -1187,8 +1219,11 @@ namespace codepad::regex {
 					// otherwise parse the literal/character class
 					auto escaped = _parse_escaped_sequence(_escaped_sequence_context::subexpression);
 					if (std::holds_alternative<ast::nodes::literal>(escaped)) {
-						auto &lit = _append_literal(result, _options().case_insensitive);
-						lit.contents.append(std::get<ast::nodes::literal>(escaped).contents);
+						const auto &str = std::get<ast::nodes::literal>(escaped).contents;
+						if (!str.empty()) {
+							auto &lit = _append_literal(result, _options().case_insensitive);
+							lit.contents.append(str);
+						}
 					} else {
 						std::visit(
 							[&result](auto &&v) {

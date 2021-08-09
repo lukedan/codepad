@@ -252,5 +252,7 @@ namespace codepad::regex {
 		[[nodiscard]] const codepoint_range_list &word_characters();
 		/// The list of unicode new line characters.
 		[[nodiscard]] const codepoint_range_list &newline_characters();
+		/// The list of POSIX white spaces.
+		[[nodiscard]] const codepoint_range_list &posix_spaces();
 	}
 }

@@ -182,6 +182,11 @@ namespace codepad::regex {
 			return;
 		}
 
+		if (rep.max == 0) { // ignore the expression
+			_result.states[start].transitions.emplace_back().new_state_index = end;
+			return;
+		}
+
 		// handle posessed (atomic) repetition
 		if (rep.repetition_type == ast::nodes::repetition::type::posessed) {
 			std::size_t new_start = _result.create_state();
@@ -201,12 +206,6 @@ namespace codepad::regex {
 			end = new_end;
 		}
 
-		if (rep.max == 0) { // special case: don't match if the expression is matched zero times
-			std::size_t bad_state = _result.create_state();
-			_compile(start, bad_state, rep.expression);
-			_result.states[start].transitions.emplace_back().new_state_index = end;
-			return;
-		}
 		std::size_t cur = start;
 		for (std::size_t i = 1; i < rep.min; ++i) {
 			std::size_t next = _result.create_state();

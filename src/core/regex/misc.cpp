@@ -115,5 +115,23 @@ namespace codepad::regex {
 
 			return _result;
 		}
+
+		const codepoint_range_list &posix_spaces() {
+			static codepoint_range_list _result;
+
+			if (_result.ranges.empty()) {
+				_result = unicode::unicode_data::cache::get_codepoints_in_category(
+					unicode::general_category::separator
+				);
+				_result.ranges.emplace_back(0x0009); // horizontal tab
+				_result.ranges.emplace_back(0x000A); // line feed
+				_result.ranges.emplace_back(0x000B); // vertical tab
+				_result.ranges.emplace_back(0x000C); // form feed
+				_result.ranges.emplace_back(0x000D); // carriage return
+				_result.sort_and_compact();
+			}
+
+			return _result;
+		}
 	}
 }
