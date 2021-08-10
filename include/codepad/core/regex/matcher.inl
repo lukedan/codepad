@@ -137,6 +137,9 @@ namespace codepad::regex {
 			assert_true_logical(_atomic_stack_sizes.empty(), "there are still ongoing atomic groups");
 			_result.captures.front().length =
 				stream.codepoint_position() - _result.captures.front().begin.codepoint_position();
+			while (!_result.captures.empty() && !_result.captures.back().is_valid()) {
+				_result.captures.pop_back();
+			}
 			return std::move(_result);
 		}
 		_ongoing_captures = std::stack<_capture_info>();
@@ -236,5 +239,62 @@ namespace codepad::regex {
 		std::size_t index = res.index;
 		_result.captures[index].length = stream.codepoint_position() - res.begin.codepoint_position();
 		_result.captures[index].begin = std::move(res.begin);
+	}
+
+	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
+		const Stream&, const compiled::transitions::pop_atomic&
+	) {
+		if (_atomic_stack_sizes.top() > 0 && _atomic_stack_sizes.top() < _state_stack.size()) {
+			// we need to fold the completed captures information back to the previous state
+			auto &new_top_state = _state_stack[_atomic_stack_sizes.top() - 1];
+			// this stores the number of captures that started after new top state but before the current state
+			std::size_t captures_started_before_current = 0;
+			for (std::size_t i = _atomic_stack_sizes.top(); i < _state_stack.size(); ++i) {
+				const auto &prev_state = _state_stack[i - 1];
+				const auto &cur_state = _state_stack[i];
+
+				// update the variable with the number of captures that started after the previous state and
+				// before the current state
+				captures_started_before_current +=
+					cur_state.initial_ongoing_captures -
+					(prev_state.initial_ongoing_captures - prev_state.partial_finished_captures.size());
+
+				// this is the number of states that started after the new top state, and finished after this
+				// state was pushed, but before the next state was pushed
+				std::size_t fully_finished_partial_captures = std::min(
+					captures_started_before_current, cur_state.partial_finished_captures.size()
+				);
+
+				// captures that started after new_top_state but before cur_state, and finished after cur_state
+				// but before the next state
+				for (std::size_t j = 0; j < fully_finished_partial_captures; ++j) {
+					new_top_state.finished_captures.emplace_back(
+						std::move(cur_state.partial_finished_captures[j].capture)
+					);
+				}
+
+				// captures that started before new_top_state, and finished after cur_state but before the next
+				// state
+				for (
+					std::size_t j = fully_finished_partial_captures;
+					j < cur_state.partial_finished_captures.size();
+					++j
+				) {
+					new_top_state.partial_finished_captures.emplace_back(
+						std::move(cur_state.partial_finished_captures[j])
+					);
+				}
+
+				// captures that started & finished after cur_state but before the next state
+				for (auto &s : cur_state.finished_captures) {
+					new_top_state.finished_captures.emplace_back(std::move(s));
+				}
+
+				// update captures_started_before_current
+				captures_started_before_current -= fully_finished_partial_captures;
+			}
+		}
+		_state_stack.erase(_state_stack.begin() + _atomic_stack_sizes.top(), _state_stack.end());
+		_atomic_stack_sizes.pop();
 	}
 }

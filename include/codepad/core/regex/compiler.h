@@ -19,6 +19,7 @@
 namespace codepad::regex {
 	namespace compiled {
 		struct state;
+		struct state_ref;
 
 		/// Records the corresponding numbered capture indices of all named captures.
 		struct named_capture_registry {
@@ -47,7 +48,7 @@ namespace codepad::regex {
 			std::size_t end_state = 0; ///< The ending state.
 
 			/// Creates a new state in this \ref state_machine and returns its index.
-			std::size_t create_state();
+			state_ref create_state();
 
 			/// Dumps this state macine into a DOT file.
 			void dump(std::ostream&, bool valid_only = true) const;
@@ -150,6 +151,48 @@ namespace codepad::regex {
 			std::vector<transition> transitions; ///< Transitions to new states.
 			bool no_backtracking = false; ///< Whether the matcher should not backtrack to this state.
 		};
+
+		struct transition_ref;
+
+		/// Safe reference to a \ref state in a \ref state_machine.
+		struct state_ref {
+			/// Initializes all fields of the struct.
+			state_ref(state_machine &sm, std::size_t i) : graph(&sm), index(i) {
+			}
+
+			/// Returns the referenced state.
+			[[nodiscard]] state &get() const {
+				return graph->states[index];
+			}
+			/// \overload
+			[[nodiscard]] state *operator->() const {
+				return &get();
+			}
+
+			/// Shorthand for appending a transition to \ref state::transitions.
+			transition_ref create_transition();
+
+			state_machine *graph = nullptr; ///< The \ref state_machine that contains the state.
+			std::size_t index = 0; ///< The index of the state.
+		};
+		/// Safe reference to a \ref transition.
+		struct transition_ref {
+			/// Initializes all fields of this struct.
+			transition_ref(state_ref s, std::size_t i) : state(s), index(i) {
+			}
+
+			/// Returns the referenced transition.
+			[[nodiscard]] transition &get() const {
+				return state->transitions[index];
+			}
+			/// \overload
+			[[nodiscard]] transition *operator->() const {
+				return &get();
+			}
+
+			state_ref state; ///< Reference to the \ref state that contains this transition.
+			std::size_t index = 0; ///< The index of this transition.
+		};
 	}
 
 	/// Regex compiler.
@@ -158,8 +201,10 @@ namespace codepad::regex {
 		/// Compiles the given AST.
 		[[nodiscard]] compiled::state_machine compile(const ast::nodes::subexpression &expr) {
 			_result = compiled::state_machine();
-			_result.start_state = _result.create_state();
-			_result.end_state = _result.create_state();
+			auto start_state = _result.create_state();
+			auto end_state = _result.create_state();
+			_result.start_state = start_state.index;
+			_result.end_state = end_state.index;
 
 			_collect_capture_names(expr);
 			std::sort(_named_captures.begin(), _named_captures.end());
@@ -175,7 +220,7 @@ namespace codepad::regex {
 			_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
 			_capture_names.emplace_back(std::move(last_name));
 
-			_compile(_result.start_state, _result.end_state, expr);
+			_compile(start_state, end_state, expr);
 
 			return std::move(_result);
 		}
@@ -230,46 +275,48 @@ namespace codepad::regex {
 		}
 
 		/// Does nothing for error nodes.
-		void _compile(std::size_t, std::size_t, const ast::nodes::error&) {
+		void _compile(compiled::state_ref, compiled::state_ref, const ast::nodes::error&) {
 		}
 		/// Does nothing for feature nodes.
-		void _compile(std::size_t, std::size_t, const ast::nodes::feature&) {
+		void _compile(compiled::state_ref, compiled::state_ref, const ast::nodes::feature&) {
 		}
 		/// Compiles a \ref ast::nodes::match_start_override.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::match_start_override&) {
-			auto &transition = _result.states[start].transitions.emplace_back();
-			transition.condition.emplace<compiled::transitions::reset_match_start>();
-			transition.new_state_index = end;
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::match_start_override&) {
+			auto transition = start.create_transition();
+			transition->condition.emplace<compiled::transitions::reset_match_start>();
+			transition->new_state_index = end.index;
 		}
 		/// Compiles the given literal node.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::literal&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::literal&);
 		/// Compiles the given numbered backreference.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::numbered_backreference&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::numbered_backreference&);
 		/// Compiles the given named backreference.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::named_backreference&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_backreference&);
 		/// Compiles the given character class.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::character_class &char_class) {
-			auto &transition = _result.states[start].transitions.emplace_back();
-			auto &cls = transition.condition.emplace<compiled::transitions::character_class>();
+		void _compile(
+			compiled::state_ref start, compiled::state_ref end, const ast::nodes::character_class &char_class
+		) {
+			auto transition = start.create_transition();
+			auto &cls = transition->condition.emplace<compiled::transitions::character_class>();
 			cls.ranges = char_class.ranges;
 			cls.is_negate = char_class.is_negate;
-			transition.new_state_index = end;
-			transition.case_insensitive = char_class.case_insensitive;
+			transition->new_state_index = end.index;
+			transition->case_insensitive = char_class.case_insensitive;
 		}
 		/// Compiles the given subexpression, starting from the given state.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::subexpression&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::subexpression&);
 		/// Compiles the given alternative expression.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::alternative &expr) {
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::alternative &expr) {
 			for (const auto &alt : expr.alternatives) {
 				_compile(start, end, alt);
 			}
 		}
 		/// Compiles the given repetition.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::repetition&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::repetition&);
 		/// Compiles the given assertion.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::assertion&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::assertion&);
 		/// Compiles the given conditional subexpression.
-		void _compile(std::size_t start, std::size_t end, const ast::nodes::conditional_expression&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::conditional_expression&);
 
 		/// Does nothing - <tt>DEFINE</tt>'s are handled separately.
 		void _compile_condition(compiled::transition&, const ast::nodes::conditional_expression::define&) {
