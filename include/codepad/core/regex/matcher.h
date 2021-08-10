@@ -132,7 +132,7 @@ namespace codepad::regex {
 				capture_data(std::move(cap)), index(id) {
 			}
 
-			result::capture capture_data; ///< Capture data.
+			result::capture capture_data; ///< Previous capture data overwritten by this match.
 			std::size_t index = 0; ///< The index of this capture.
 		};
 		/// Information about a partially finished capture that needs to restart after backtracking.
@@ -168,10 +168,10 @@ namespace codepad::regex {
 			std::size_t initial_ongoing_captures = 0;
 			/// The stack of captures that started before this state was pushed, and ended after this state was
 			/// pushed, but before the next state was pushed.
-			std::stack<_partial_finished_capture_info> partial_finished_captures;
+			std::deque<_partial_finished_capture_info> partial_finished_captures;
 			/// All captures that started and finished after this state was pushed but before the next state was
 			/// pushed.
-			std::stack<_finished_capture_info> finished_captures;
+			std::deque<_finished_capture_info> finished_captures;
 			/// Overriden match starting position before this state was pushed onto the stack.
 			std::optional<Stream> initial_match_begin;
 
@@ -186,7 +186,7 @@ namespace codepad::regex {
 		};
 
 		result _result; ///< Cached match result.
-		std::stack<_state> _state_stack; ///< States for backtracking.
+		std::deque<_state> _state_stack; ///< States for backtracking.
 		std::stack<_capture_info> _ongoing_captures; ///< Ongoing captures.
 		/// Size of \ref _state_stack at the beginning of each ongoing atomic group.
 		std::stack<std::size_t> _atomic_stack_sizes;
@@ -392,7 +392,7 @@ namespace codepad::regex {
 		) {
 			// do this before a state is potentially pushed for backtracking
 			if (!_state_stack.empty()) {
-				_state_stack.top().initial_match_begin = _result.overriden_match_begin;
+				_state_stack.back().initial_match_begin = _result.overriden_match_begin;
 			}
 			_result.overriden_match_begin = std::move(stream);
 			return true;
@@ -433,7 +433,7 @@ namespace codepad::regex {
 				_result.captures.resize(index + 1);
 			}
 			if (!_state_stack.empty()) { // TODO we should add these after the state has been pushed
-				_state_stack.top().finished_captures.emplace(cap, index);
+				_state_stack.back().finished_captures.emplace_back(cap, index);
 			}
 			_result.captures[index] = std::move(cap);
 		}
@@ -453,9 +453,57 @@ namespace codepad::regex {
 		}
 		/// Pops all states associated with the current atomic group.
 		void _execute_transition(const Stream&, const compiled::transitions::pop_atomic&) {
-			while (_state_stack.size() > _atomic_stack_sizes.top()) {
-				_state_stack.pop();
+			if (_atomic_stack_sizes.top() > 0 && _atomic_stack_sizes.top() < _state_stack.size()) {
+				// we need to fold the completed captures information back to the previous state
+				auto &new_top_state = _state_stack[_atomic_stack_sizes.top() - 1];
+				// this stores the number of captures that started after new top state but before the current state
+				std::size_t captures_started_before_current = 0;
+				for (std::size_t i = _atomic_stack_sizes.top(); i < _state_stack.size(); ++i) {
+					const auto &prev_state = _state_stack[i - 1];
+					const auto &cur_state = _state_stack[i];
+
+					// update the variable with the number of captures that started after the previous state and
+					// before the current state
+					captures_started_before_current +=
+						cur_state.initial_ongoing_captures -
+						(prev_state.initial_ongoing_captures - prev_state.partial_finished_captures.size());
+
+					// this is the number of states that started after the new top state, and finished after this
+					// state was pushed, but before the next state was pushed
+					std::size_t fully_finished_partial_captures = std::min(
+						captures_started_before_current, cur_state.partial_finished_captures.size()
+					);
+
+					// captures that started after new_top_state but before cur_state, and finished after cur_state
+					// but before the next state
+					for (std::size_t j = 0; j < fully_finished_partial_captures; ++j) {
+						new_top_state.finished_captures.emplace_back(
+							std::move(cur_state.partial_finished_captures[j].capture)
+						);
+					}
+
+					// captures that started before new_top_state, and finished after cur_state but before the next
+					// state
+					for (
+						std::size_t j = fully_finished_partial_captures;
+						j < cur_state.partial_finished_captures.size();
+						++j
+					) {
+						new_top_state.partial_finished_captures.emplace_back(
+							std::move(cur_state.partial_finished_captures[j])
+						);
+					}
+
+					// captures that started & finished after cur_state but before the next state
+					for (auto &s : cur_state.finished_captures) {
+						new_top_state.finished_captures.emplace_back();
+					}
+
+					// update captures_started_before_current
+					captures_started_before_current -= fully_finished_partial_captures;
+				}
 			}
+			_state_stack.erase(_state_stack.begin() + _atomic_stack_sizes.top(), _state_stack.end());
 			_atomic_stack_sizes.pop();
 		}
 	};

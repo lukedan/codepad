@@ -45,8 +45,8 @@ namespace codepad::regex {
 				debug_log << u8"\tState stack:\n";
 				auto states_copy = _state_stack;
 				while (!states_copy.empty()) {
-					_log(states_copy.top(), u8"\t\t");
-					states_copy.pop();
+					_log(states_copy.back(), u8"\t\t");
+					states_copy.pop_back();
 				}
 			}
 			if (current_state.automata_state == expr.end_state) {
@@ -72,7 +72,7 @@ namespace codepad::regex {
 					!current_state.get_automata_state(expr).no_backtracking
 				) {
 					_log(u8"\t\tPushing state\n");
-					_state_stack.emplace(
+					_state_stack.emplace_back(
 						std::move(checkpoint_stream), current_state.automata_state, current_state.transition,
 						_ongoing_captures.size(), _result.overriden_match_begin
 					);
@@ -99,8 +99,8 @@ namespace codepad::regex {
 					break;
 				}
 				// update state
-				current_state = std::move(_state_stack.top());
-				_state_stack.pop();
+				current_state = std::move(_state_stack.back());
+				_state_stack.pop_back();
 				// pop atomic groups
 				while (!_atomic_stack_sizes.empty() && _state_stack.size() < _atomic_stack_sizes.top()) {
 					_atomic_stack_sizes.pop();
@@ -113,15 +113,15 @@ namespace codepad::regex {
 				}
 				// restore _result.captures
 				while (!current_state.finished_captures.empty()) {
-					auto &cap = current_state.finished_captures.top();
+					auto &cap = current_state.finished_captures.back();
 					_result.captures[cap.index] = std::move(cap.capture_data);
-					current_state.finished_captures.pop();
+					current_state.finished_captures.pop_back();
 				}
 				while (!current_state.partial_finished_captures.empty()) {
-					const auto &cap = current_state.partial_finished_captures.top();
+					const auto &cap = current_state.partial_finished_captures.back();
 					_ongoing_captures.emplace(std::move(cap.begin), cap.capture.index);
 					_result.captures[_ongoing_captures.top().index] = std::move(cap.capture.capture_data);
-					current_state.partial_finished_captures.pop();
+					current_state.partial_finished_captures.pop_back();
 				}
 				// restore _result.overriden_match_begin
 				_result.overriden_match_begin = current_state.initial_match_begin;
@@ -129,7 +129,7 @@ namespace codepad::regex {
 		}
 		stream = std::move(current_state.stream);
 
-		_state_stack = std::stack<_state>();
+		_state_stack = std::deque<_state>();
 		_expr = nullptr;
 
 		if (current_state.automata_state == expr.end_state) {
@@ -158,26 +158,26 @@ namespace codepad::regex {
 			debug_log << indent << u8"\tPartial ongoing captures:\n";
 			auto partial_captures_copy = s.partial_finished_captures;
 			while (!partial_captures_copy.empty()) {
-				const auto &cap = partial_captures_copy.top();
+				const auto &cap = partial_captures_copy.back();
 				debug_log <<
 					indent << u8"\t\t" << partial_captures_copy.size() <<
 					": #" << cap.capture.index <<
 					", from: " << cap.begin.codepoint_position() <<
 					";  old from : " << cap.capture.capture_data.begin.codepoint_position() <<
 					", old length : " << cap.capture.capture_data.length << "\n";
-				partial_captures_copy.pop();
+				partial_captures_copy.pop_back();
 			}
 
 			debug_log << indent << u8"\tFinished ongoing captures:\n";
 			auto captures_copy = s.finished_captures;
 			while (!captures_copy.empty()) {
-				const auto &cap = captures_copy.top();
+				const auto &cap = captures_copy.back();
 				debug_log <<
 					indent << u8"\t\t" << captures_copy.size() <<
 					": #" << cap.index <<
 					", from: " << cap.capture_data.begin.codepoint_position() <<
 					", length: " << cap.capture_data.length << "\n";
-				captures_copy.pop();
+				captures_copy.pop_back();
 			}
 		}
 	}
@@ -218,18 +218,18 @@ namespace codepad::regex {
 
 		if (!_state_stack.empty()) {
 			// if necessary, record that this capture has finished
-			auto &st = _state_stack.top();
+			auto &st = _state_stack.back();
 			if (
 				_ongoing_captures.size() + st.partial_finished_captures.size() <
 				st.initial_ongoing_captures
 			) {
 				// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
-				st.partial_finished_captures.emplace(
+				st.partial_finished_captures.emplace_back(
 					_finished_capture_info(_result.captures[res.index], res.index), res.begin
 				);
 			} else {
 				// when backtracking, it's necessary to completely reset this capture to the previous state
-				st.finished_captures.emplace(_result.captures[res.index], res.index);
+				st.finished_captures.emplace_back(_result.captures[res.index], res.index);
 			}
 		}
 
