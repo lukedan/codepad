@@ -199,31 +199,7 @@ namespace codepad::regex {
 	class compiler {
 	public:
 		/// Compiles the given AST.
-		[[nodiscard]] compiled::state_machine compile(const ast::nodes::subexpression &expr) {
-			_result = compiled::state_machine();
-			auto start_state = _result.create_state();
-			auto end_state = _result.create_state();
-			_result.start_state = start_state.index;
-			_result.end_state = end_state.index;
-
-			_collect_capture_names(expr);
-			std::sort(_named_captures.begin(), _named_captures.end());
-			// collect named capture info
-			codepoint_string last_name;
-			for (auto &cap : _named_captures) {
-				if (cap.name != last_name) {
-					_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
-					_capture_names.emplace_back(std::exchange(last_name, std::move(cap.name)));
-				}
-				_result.named_captures.indices.emplace_back(cap.index);
-			}
-			_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
-			_capture_names.emplace_back(std::move(last_name));
-
-			_compile(start_state, end_state, expr);
-
-			return std::move(_result);
-		}
+		[[nodiscard]] compiled::state_machine compile(const ast::nodes::subexpression&);
 	protected:
 		/// Information about a named capture.
 		struct _named_capture_info {
@@ -238,9 +214,7 @@ namespace codepad::regex {
 
 		compiled::state_machine _result; ///< The result.
 		std::vector<_named_capture_info> _named_captures; ///< Information about all named captures.
-		/// All unique capture names, sorted. Due to how they're computed, there's an empty element at the beginning,
-		/// which should be ignored.
-		std::vector<codepoint_string> _capture_names;
+		std::vector<codepoint_string> _capture_names; ///< All unique capture names, sorted.
 
 		/// Fallback for nodes with no capture names to collect.
 		template <typename Node> void _collect_capture_names(const Node&) {

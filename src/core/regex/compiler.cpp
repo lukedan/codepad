@@ -89,6 +89,12 @@ namespace codepad::regex {
 					} else if (std::holds_alternative<transitions::named_backreference>(t.condition)) {
 						const auto &backref = std::get<transitions::named_backreference>(t.condition);
 						stream << "<named backref #" << backref.index << ">";
+					} else if (std::holds_alternative<transitions::conditions::numbered_capture>(t.condition)) {
+						const auto &cond = std::get<transitions::conditions::numbered_capture>(t.condition);
+						stream << "<cond: capture #" << cond.index << ">";
+					} else if (std::holds_alternative<transitions::conditions::named_capture>(t.condition)) {
+						const auto &cond = std::get<transitions::conditions::named_capture>(t.condition);
+						stream << "<cond: named capture #" << cond.name_index << ">";
 					} else {
 						stream << "<UNHANDLED>";
 					}
@@ -99,6 +105,38 @@ namespace codepad::regex {
 		}
 	}
 
+
+	compiled::state_machine compiler::compile(const ast::nodes::subexpression &expr) {
+		_result = compiled::state_machine();
+
+		auto start_state = _result.create_state();
+		auto end_state = _result.create_state();
+		_result.start_state = start_state.index;
+		_result.end_state = end_state.index;
+
+		_collect_capture_names(expr);
+		if (!_named_captures.empty()) {
+			std::sort(_named_captures.begin(), _named_captures.end());
+			// collect named capture info
+			codepoint_string last_name = _named_captures[0].name;
+			_result.named_captures.start_indices.emplace_back(0);
+			for (auto &cap : _named_captures) {
+				if (cap.name != last_name) {
+					_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
+					_capture_names.emplace_back(std::exchange(last_name, std::move(cap.name)));
+				}
+				_result.named_captures.indices.emplace_back(cap.index);
+			}
+			_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
+			_capture_names.emplace_back(std::move(last_name));
+		}
+
+		_compile(start_state, end_state, expr);
+
+		_named_captures.clear();
+		_capture_names.clear();
+		return std::move(_result);
+	}
 
 	void compiler::_compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::literal &node) {
 		auto transition = start.create_transition();
@@ -131,7 +169,7 @@ namespace codepad::regex {
 		trans->new_state_index = end.index;
 		auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), expr.name);
 		auto &ref = trans->condition.emplace<compiled::transitions::named_backreference>();
-		ref.index = (it - _capture_names.begin()) - 1;
+		ref.index = it - _capture_names.begin();
 	}
 
 	void compiler::_compile(
