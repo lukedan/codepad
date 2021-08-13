@@ -147,6 +147,14 @@ namespace codepad::regex {
 			_finished_capture_info capture; ///< Information about the starting of this capture.
 			Stream begin; ///< Beginning position of the ongoing capture when the state was pushed.
 		};
+		/// Stackframe of a subroutine.
+		struct _subroutine_stackframe {
+			std::size_t target = 0; ///< \sa \ref compiled::jump::target
+			std::size_t return_state = 0; ///< \sa \ref compiled::jump::return_state
+			/// When backtracking to before this state, this subroutine stackframe becomes invalid and should be
+			/// popped.
+			std::size_t state_stack_size = 0;
+		};
 		/// The state of the automata at one moment.
 		struct _state {
 			/// Default constructor.
@@ -172,6 +180,9 @@ namespace codepad::regex {
 			/// All captures that started and finished after this state was pushed but before the next state was
 			/// pushed.
 			std::deque<_finished_capture_info> finished_captures;
+			// TODO implement this
+			/// Subroutines that finished after this state is pushed but before the next state was pushed.
+			std::deque<_subroutine_stackframe> finished_subroutines;
 			/// Overriden match starting position before this state was pushed onto the stack.
 			std::optional<Stream> initial_match_begin;
 
@@ -190,6 +201,7 @@ namespace codepad::regex {
 		std::stack<_capture_info> _ongoing_captures; ///< Ongoing captures.
 		/// Size of \ref _state_stack at the beginning of each ongoing atomic group.
 		std::stack<std::size_t> _atomic_stack_sizes;
+		std::stack<_subroutine_stackframe> _subroutine_stack; ///< Subroutine stack.
 		const compiled::state_machine *_expr = nullptr; ///< State machine for the expression.
 
 		/// Logs the given string.
@@ -374,6 +386,12 @@ namespace codepad::regex {
 			}
 			return false;
 		}
+		/// A jump is always executed.
+		[[nodiscard]] bool _check_transition(
+			Stream, const compiled::transition&, const compiled::transitions::jump&
+		) {
+			return true;
+		}
 		/// The capture group is started later in \ref _execute_transition().
 		[[nodiscard]] bool _check_transition(
 			Stream, const compiled::transition&, const compiled::transitions::capture_begin&
@@ -453,5 +471,7 @@ namespace codepad::regex {
 		}
 		/// Pops all states associated with the current atomic group.
 		void _execute_transition(const Stream&, const compiled::transitions::pop_atomic&);
+		/// Pushes a subroutine stack frame.
+		void _execute_transition(const Stream&, const compiled::transitions::jump&);
 	};
 }

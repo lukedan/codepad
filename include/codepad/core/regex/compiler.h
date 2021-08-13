@@ -85,11 +85,7 @@ namespace codepad::regex {
 			};
 			/// Starts a capture.
 			struct capture_begin {
-				/// Indicates that a capture does not have a name.
-				constexpr static std::size_t unnamed_capture = std::numeric_limits<std::size_t>::max();
-
 				std::size_t index = 0; ///< Index of the capture.
-				std::size_t name_index = unnamed_capture; ///< Name index of this capture.
 			};
 			/// Ends a capture.
 			struct capture_end {
@@ -101,6 +97,14 @@ namespace codepad::regex {
 			/// A named backreference.
 			struct named_backreference {
 				std::size_t index = 0; ///< Index of the capture.
+			};
+			/// Pushes a subroutine stack frame indicating that once \ref target is reached, jumps to
+			/// \ref return_state.
+			struct jump {
+				/// The target state. Once this state is reached, matching jumps back to \ref final.
+				std::size_t target = 0;
+				/// The state to jump to once \ref target is reached.
+				std::size_t return_state = 0;
 			};
 			/// Resets the starting position of this match.
 			struct reset_match_start {
@@ -135,6 +139,7 @@ namespace codepad::regex {
 				transitions::capture_end,
 				transitions::numbered_backreference,
 				transitions::named_backreference,
+				transitions::jump,
 				transitions::reset_match_start,
 				transitions::push_atomic,
 				transitions::pop_atomic,
@@ -156,6 +161,8 @@ namespace codepad::regex {
 
 		/// Safe reference to a \ref state in a \ref state_machine.
 		struct state_ref {
+			/// Initializes this object as empty.
+			state_ref() = default;
 			/// Initializes all fields of the struct.
 			state_ref(state_machine &sm, std::size_t i) : graph(&sm), index(i) {
 			}
@@ -169,6 +176,11 @@ namespace codepad::regex {
 				return &get();
 			}
 
+			/// Returns whether this object is empty.
+			[[nodiscard]] bool is_empty() const {
+				return graph == nullptr;
+			}
+
 			/// Shorthand for appending a transition to \ref state::transitions.
 			transition_ref create_transition();
 
@@ -177,6 +189,8 @@ namespace codepad::regex {
 		};
 		/// Safe reference to a \ref transition.
 		struct transition_ref {
+			/// Default constructor.
+			transition_ref() = default;
 			/// Initializes all fields of this struct.
 			transition_ref(state_ref s, std::size_t i) : state(s), index(i) {
 			}
@@ -211,10 +225,31 @@ namespace codepad::regex {
 				const _named_capture_info&, const _named_capture_info&
 			) = default;
 		};
+		/// States of a capture group.
+		struct _capture_info {
+			compiled::state_ref start; ///< The starting state.
+			compiled::state_ref end; ///< The end state.
+
+			/// Returns whether this slot is currently empty.
+			[[nodiscard]] bool is_empty() const {
+				return start.is_empty();
+			}
+		};
+		/// Information about a subroutine transition.
+		struct _subroutine_transition {
+			/// Initializes all fields of this struct.
+			_subroutine_transition(compiled::transition_ref t, std::size_t i) : transition(t), index(i) {
+			}
+
+			compiled::transition_ref transition; ///< The transition.
+			std::size_t index = 0; ///< The group index.
+		};
 
 		compiled::state_machine _result; ///< The result.
 		std::vector<_named_capture_info> _named_captures; ///< Information about all named captures.
 		std::vector<codepoint_string> _capture_names; ///< All unique capture names, sorted.
+		std::vector<_capture_info> _captures; ///< First occurences of all capture groups.
+		std::vector<_subroutine_transition> _subroutines; ///< All subroutine transitions.
 
 		/// Fallback for nodes with no capture names to collect.
 		template <typename Node> void _collect_capture_names(const Node&) {
@@ -247,6 +282,14 @@ namespace codepad::regex {
 				_collect_capture_names(expr.expression);
 			}
 		}
+		/// Finds the index of the given capture name.
+		[[nodiscard]] std::optional<std::size_t> _find_capture_name(codepoint_string_view sv) const {
+			auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), sv);
+			if (it == _capture_names.end() || sv != *it) {
+				return std::nullopt;
+			}
+			return it - _capture_names.begin();
+		}
 
 		/// Does nothing for error nodes.
 		void _compile(compiled::state_ref, compiled::state_ref, const ast::nodes::error&) {
@@ -266,6 +309,10 @@ namespace codepad::regex {
 		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::numbered_backreference&);
 		/// Compiles the given named backreference.
 		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_backreference&);
+		/// Compiles the given numbered subroutine.
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::numbered_subroutine&);
+		/// Compiles the given named subroutine.
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_subroutine&);
 		/// Compiles the given character class.
 		void _compile(
 			compiled::state_ref start, compiled::state_ref end, const ast::nodes::character_class &char_class
@@ -305,9 +352,11 @@ namespace codepad::regex {
 		void _compile_condition(
 			compiled::transition &trans, const ast::nodes::conditional_expression::named_capture_available &cond
 		) {
-			auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), cond.name);
-			trans.condition.emplace<compiled::transitions::conditions::named_capture>().name_index =
-				it - _capture_names.begin();
+			if (auto id = _find_capture_name(cond.name)) {
+				trans.condition.emplace<compiled::transitions::conditions::named_capture>().name_index = id.value();
+			} else {
+				// TODO error
+			}
 		}
 		/// Compiles the given assertion.
 		void _compile_condition(compiled::transition&, const ast::nodes::assertion&);

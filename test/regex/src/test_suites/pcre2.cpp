@@ -461,6 +461,11 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 
 	std::ofstream fout(filename.filename().concat(".out"));
 
+	// use the same set of objects to test that their internal states are reset properly
+	cp::regex::matcher<stream_t> matcher;
+	cp::regex::parser<stream_t> parser;
+	cp::regex::compiler compiler;
+
 	for (const auto &test : tests) {
 		std::basic_string<std::byte> pattern_str;
 		for (cp::codepoint c : test.pattern.pattern) {
@@ -497,12 +502,9 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 		cp::regex::compiled::state_machine sm;
 		{
 			stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
-			cp::regex::parser<stream_t> parser;
 			ast = parser.parse(stream, test.pattern.options);
-			cp::regex::compiler compiler;
 			sm = compiler.compile(ast);
 		}
-		cp::regex::matcher<stream_t> matcher;
 
 		// log ast
 		std::stringstream ss;

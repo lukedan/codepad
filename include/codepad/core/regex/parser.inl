@@ -153,7 +153,11 @@ namespace codepad::regex {
 						return ast::nodes::named_backreference(std::move(res), _options().case_insensitive);
 					}
 				} else {
-					index = _parse_numeric_value<std::size_t>(10);
+					if (auto id = _parse_capture_index()) {
+						index = id.value();
+					} else {
+						// TODO error
+					}
 				}
 				return ast::nodes::numbered_backreference(index, _options().case_insensitive);
 			}
@@ -377,6 +381,10 @@ namespace codepad::regex {
 	}
 
 	template <typename Stream> inline std::optional<std::size_t> parser<Stream>::_parse_capture_index() {
+		if (_stream.empty()) {
+			return std::nullopt;
+		}
+		Stream checkpoint = _stream;
 		int direction = 0; // 1: relative forward, -1: relative backward
 		codepoint next_cp = _stream.peek();
 		if (next_cp == U'-') {
@@ -385,7 +393,14 @@ namespace codepad::regex {
 		} else if (next_cp == U'+') {
 			_stream.take();
 			direction = 1;
-		} else if (next_cp < U'0' || next_cp > U'9') { // invalid
+		}
+		if (_stream.empty()) {
+			_stream = checkpoint;
+			return std::nullopt;
+		}
+		next_cp = _stream.peek();
+		if (next_cp < U'0' || next_cp > U'9') { // invalid
+			_stream = checkpoint;
 			return std::nullopt;
 		}
 		// numbered backreference
@@ -393,11 +408,13 @@ namespace codepad::regex {
 		// relative backreferences
 		if (direction > 0) {
 			if (index == 0) {
+				_stream = checkpoint;
 				return std::nullopt;
 			}
 			index = _capture_id_stack.top() + index - 1;
 		} else if (direction < 0) {
 			if (_capture_id_stack.top() <= index) {
+				_stream = checkpoint;
 				return std::nullopt;
 			}
 			index = _capture_id_stack.top() - index;
@@ -755,6 +772,7 @@ namespace codepad::regex {
 			case U'(':
 				{
 					_stream.take();
+					is_subexpression = false;
 					if (_stream.empty()) {
 						// TODO error
 						break;
@@ -850,15 +868,51 @@ namespace codepad::regex {
 						// single branch
 						new_expr.if_true = std::move(temp_expr);
 					}
-
-					return;
 				}
+				break;
+
+			// recursion
+			case U'R':
+				_stream.take();
+				is_subexpression = false;
+				if (_stream.empty() || _stream.take() != U')') {
+					// TODO error
+				}
+				result.nodes.emplace_back().value.emplace<ast::nodes::numbered_subroutine>(0);
+				break;
+
+			// named subroutine
+			case U'&':
+				{
+					_stream.take();
+					is_subexpression = false;
+					auto &ref = result.nodes.emplace_back().value.emplace<ast::nodes::named_backreference>();
+					while (true) {
+						if (_stream.empty()) {
+							// TODO error
+							break;
+						}
+						codepoint cp = _stream.take();
+						if (cp == U')') {
+							break;
+						}
+						ref.name.push_back(cp);
+					}
+				}
+				break;
 
 			// TODO
 
 			default:
-				{ // enable/disabe features midway through the expression
-					is_subexpression = false;
+				is_subexpression = false;
+				if (auto index = _parse_capture_index()) {
+					// subroutine
+					if (_stream.empty() || _stream.take() != U')') {
+						// TODO error
+					}
+					result.nodes.emplace_back().value.emplace<ast::nodes::numbered_subroutine>(index.value());
+				} else {
+					// enable/disabe features midway through the expression
 					bool enable_feature = true;
 					bool allow_disable = true;
 					auto &opts = _push_options();

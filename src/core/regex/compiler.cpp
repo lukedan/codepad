@@ -73,14 +73,7 @@ namespace codepad::regex {
 						stream << "<assertion>";
 					} else if (std::holds_alternative<transitions::capture_begin>(t.condition)) {
 						const auto &cap = std::get<transitions::capture_begin>(t.condition);
-						stream << "<start capture " << cap.index;
-						if (cap.name_index != transitions::capture_begin::unnamed_capture) {
-							stream << " named:";
-							for (std::size_t index : named_captures.get_indices_for_name(cap.name_index)) {
-								stream << " " << index;
-							}
-						}
-						stream << ">";
+						stream << "<start capture " << cap.index << ">";
 					} else if (std::holds_alternative<transitions::capture_end>(t.condition)) {
 						stream << "<end capture>";
 					} else if (std::holds_alternative<transitions::numbered_backreference>(t.condition)) {
@@ -95,6 +88,13 @@ namespace codepad::regex {
 					} else if (std::holds_alternative<transitions::conditions::named_capture>(t.condition)) {
 						const auto &cond = std::get<transitions::conditions::named_capture>(t.condition);
 						stream << "<cond: named capture #" << cond.name_index << ">";
+					} else if (std::holds_alternative<transitions::jump>(t.condition)) {
+						const auto &jmp = std::get<transitions::jump>(t.condition);
+						stream << "<jump>\"];\n";
+						// additional edge for jumping back
+						stream <<
+							"n" << jmp.target << " -> n" << jmp.return_state <<
+							" [color=green,label=\"n" << i << " -> n" << t.new_state_index;
 					} else {
 						stream << "<UNHANDLED>";
 					}
@@ -133,8 +133,31 @@ namespace codepad::regex {
 
 		_compile(start_state, end_state, expr);
 
+		// subroutine for the whole pattern, i.e., recursion
+		if (_captures.empty()) {
+			_captures.emplace_back();
+		}
+		_captures[0].start = start_state;
+		_captures[0].end = end_state;
+		// initialize all subroutine data
+		for (auto sub : _subroutines) {
+			auto &jmp = std::get<compiled::transitions::jump>(sub.transition->condition);
+			if (sub.index >= _captures.size() || _captures[sub.index].is_empty()) {
+				_result = compiled::state_machine();
+				_result.start_state = _result.create_state().index;
+				_result.end_state = _result.create_state().index;
+				// TODO error
+				continue;
+			}
+			auto &group_info = _captures[sub.index];
+			sub.transition->new_state_index = group_info.start.index;
+			jmp.target = group_info.end.index;
+		}
+
 		_named_captures.clear();
 		_capture_names.clear();
+		_captures.clear();
+		_subroutines.clear();
 		return std::move(_result);
 	}
 
@@ -164,12 +187,37 @@ namespace codepad::regex {
 	void compiler::_compile(
 		compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_backreference &expr
 	) {
+		if (auto id = _find_capture_name(expr.name)) {
+			auto trans = start.create_transition();
+			trans->case_insensitive = expr.case_insensitive;
+			trans->new_state_index = end.index;
+			auto &ref = trans->condition.emplace<compiled::transitions::named_backreference>();
+			ref.index = id.value();
+		} else {
+			// TODO error
+		}
+	}
+
+	void compiler::_compile(
+		compiled::state_ref start, compiled::state_ref end, const ast::nodes::numbered_subroutine &expr
+	) {
 		auto trans = start.create_transition();
-		trans->case_insensitive = expr.case_insensitive;
-		trans->new_state_index = end.index;
-		auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), expr.name);
-		auto &ref = trans->condition.emplace<compiled::transitions::named_backreference>();
-		ref.index = it - _capture_names.begin();
+		auto &jmp = trans->condition.emplace<compiled::transitions::jump>();
+		jmp.return_state = end.index;
+		_subroutines.emplace_back(trans, expr.index);
+	}
+
+	void compiler::_compile(
+		compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_subroutine &expr
+	) {
+		if (auto id = _find_capture_name(expr.name)) {
+			auto trans = start.create_transition();
+			auto &jmp = trans->condition.emplace<compiled::transitions::jump>();
+			jmp.return_state = end.index;
+			_subroutines.emplace_back(trans, id.value());
+		} else {
+			// TODO error
+		}
 	}
 
 	void compiler::_compile(
@@ -201,11 +249,15 @@ namespace codepad::regex {
 			if (expr.subexpr_type == ast::nodes::subexpression::type::normal) {
 				auto &capture_beg = begin_trans->condition.emplace<compiled::transitions::capture_begin>();
 				capture_beg.index = expr.capture_index;
-				if (!expr.capture_name.empty()) {
-					auto iter = std::lower_bound(_capture_names.begin(), _capture_names.end(), expr.capture_name);
-					capture_beg.name_index = (iter - _capture_names.begin()) - 1;
-				}
 				end_trans->condition.emplace<compiled::transitions::capture_end>();
+				// save capture group information
+				if (expr.capture_index >= _captures.size() || _captures[expr.capture_index].is_empty()) {
+					// this is the first occurence - save it
+					_captures.resize(std::max(_captures.size(), expr.capture_index + 1));
+					// save the range without the push/pop capture transitions - we don't need them for subroutines
+					_captures[expr.capture_index].start = start;
+					_captures[expr.capture_index].end = end;
+				}
 			} else if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
 				begin_trans->condition.emplace<compiled::transitions::push_atomic>();
 				end_trans->condition.emplace<compiled::transitions::pop_atomic>();
@@ -332,8 +384,11 @@ namespace codepad::regex {
 		compiled::state_ref start, compiled::state_ref end, const ast::nodes::conditional_expression &expr
 	) {
 		if (std::holds_alternative<ast::nodes::conditional_expression::define>(expr.condition)) {
-			// do not actually generate graph for DEFINE's
 			start.create_transition()->new_state_index = end.index;
+			// generate a separate graph for DEFINE's
+			auto define_start = _result.create_state();
+			auto define_end = _result.create_state();
+			_compile(define_start, define_end, expr.if_true);
 			return;
 		}
 

@@ -70,10 +70,10 @@ int main(int argc, char **argv) {
 			sm.dump(fout);
 		}
 
+		matcher_t matcher(std::cout);
 		while (true) {
 			std::cout << "\nstring: ";
 		
-			matcher_t matcher(std::cout);
 			if (!std::getline(std::cin, string)) {
 				std::cin.clear();
 				break;

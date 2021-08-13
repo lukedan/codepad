@@ -49,6 +49,20 @@ namespace codepad::regex {
 					states_copy.pop_back();
 				}
 			}
+			if (!_subroutine_stack.empty() && current_state.automata_state == _subroutine_stack.top().target) {
+				// check subroutines before checking if we're finished, so that we correctly handle recursion
+				current_state.automata_state = _subroutine_stack.top().return_state;
+				current_state.transition = 0;
+				if (_subroutine_stack.top().state_stack_size < _state_stack.size()) {
+					// this subroutine started before the last backtracking state; we need to save it so that when
+					// backtracking we can restart it
+					_state_stack.back().finished_subroutines.emplace_back(std::move(_subroutine_stack.top()));
+				}
+				_subroutine_stack.pop();
+				_log(u8"\tSubroutine finished");
+				// TODO revert capture groups
+				continue;
+			}
 			if (current_state.automata_state == expr.end_state) {
 				break;
 			}
@@ -105,6 +119,13 @@ namespace codepad::regex {
 				while (!_atomic_stack_sizes.empty() && _state_stack.size() < _atomic_stack_sizes.top()) {
 					_atomic_stack_sizes.pop();
 				}
+				// pop subroutine stackframes
+				while (
+					!_subroutine_stack.empty() &&
+					_state_stack.size() < _subroutine_stack.top().state_stack_size
+				) {
+					_subroutine_stack.pop();
+				}
 				// restore _ongoing_captures to the state we're backtracking to
 				std::size_t count =
 					current_state.initial_ongoing_captures - current_state.partial_finished_captures.size();
@@ -125,6 +146,11 @@ namespace codepad::regex {
 				}
 				// restore _result.overriden_match_begin
 				_result.overriden_match_begin = current_state.initial_match_begin;
+				// restore subroutines
+				while (!current_state.finished_subroutines.empty()) {
+					_subroutine_stack.emplace(std::move(current_state.finished_subroutines.back()));
+					current_state.finished_subroutines.pop_back();
+				}
 			}
 		}
 		stream = std::move(current_state.stream);
@@ -135,6 +161,7 @@ namespace codepad::regex {
 		if (current_state.automata_state == expr.end_state) {
 			assert_true_logical(_ongoing_captures.empty(), "there are still ongoing captures");
 			assert_true_logical(_atomic_stack_sizes.empty(), "there are still ongoing atomic groups");
+			assert_true_logical(_subroutine_stack.empty(), "there are still ongoing subroutines");
 			_result.captures.front().length =
 				stream.codepoint_position() - _result.captures.front().begin.codepoint_position();
 			while (!_result.captures.empty() && !_result.captures.back().is_valid()) {
@@ -144,6 +171,7 @@ namespace codepad::regex {
 		}
 		_ongoing_captures = std::stack<_capture_info>();
 		_atomic_stack_sizes = std::stack<std::size_t>();
+		_subroutine_stack = std::stack<_subroutine_stackframe>();
 		return std::nullopt;
 	}
 
@@ -253,6 +281,14 @@ namespace codepad::regex {
 				const auto &prev_state = _state_stack[i - 1];
 				const auto &cur_state = _state_stack[i];
 
+				// save information of all subroutines that needs restarting
+				for (auto &subroutine : cur_state.finished_subroutines) {
+					if (subroutine.state_stack_size < _atomic_stack_sizes.top()) {
+						new_top_state.finished_subroutines.emplace_back(std::move(subroutine));
+					}
+					// otherwise, this subroutine started after the new top state
+				}
+
 				// update the variable with the number of captures that started after the previous state and
 				// before the current state
 				captures_started_before_current +=
@@ -296,5 +332,14 @@ namespace codepad::regex {
 		}
 		_state_stack.erase(_state_stack.begin() + _atomic_stack_sizes.top(), _state_stack.end());
 		_atomic_stack_sizes.pop();
+	}
+
+	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
+		const Stream&, const compiled::transitions::jump &jmp
+	) {
+		auto &sf = _subroutine_stack.emplace();
+		sf.target = jmp.target;
+		sf.return_state = jmp.return_state;
+		sf.state_stack_size = _state_stack.size();
 	}
 }

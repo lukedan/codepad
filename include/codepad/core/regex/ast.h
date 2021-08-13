@@ -61,6 +61,27 @@ namespace codepad::regex::ast {
 			codepoint_string name; ///< Name of this backreference.
 			bool case_insensitive = false; ///< Whether this backreference is case-insensitive.
 		};
+		/// A numbered subroutine.
+		struct numbered_subroutine {
+			/// Default constructor.
+			numbered_subroutine() = default;
+			/// Initializes \ref index.
+			explicit numbered_subroutine(std::size_t id) : index(id) {
+			}
+
+			/// The index of the capture group. If this is 0, the subroutine references the entire pattern.
+			std::size_t index = 0;
+		};
+		/// A named subroutine.
+		struct named_subroutine {
+			/// Default constructor.
+			named_subroutine() = default;
+			/// Initializes \ref name.
+			explicit named_subroutine(codepoint_string n) : name(std::move(n)) {
+			}
+
+			codepoint_string name; ///< Name of the group.
+		};
 		/// Node that represents a class of characters.
 		struct character_class {
 			codepoint_range_list ranges; ///< Ranges in the character class.
@@ -187,6 +208,8 @@ namespace codepad::regex::ast {
 			nodes::literal,
 			nodes::numbered_backreference,
 			nodes::named_backreference,
+			nodes::numbered_subroutine,
+			nodes::named_subroutine,
 			nodes::character_class,
 			nodes::subexpression,
 			nodes::alternative,
@@ -264,6 +287,20 @@ namespace codepad::regex::ast {
 				_stream << "/i";
 			}
 			_stream << "]\n";
+		}
+		/// Dumps a \ref nodes::numbered_subroutine.
+		void dump(const nodes::numbered_subroutine &n) {
+			_indent();
+			_stream << "©¤©¤ [subroutine: #" << n.index << "]\n";
+		}
+		/// Dumps a \ref nodes::named_subroutine.
+		void dump(const nodes::named_subroutine &n) {
+			_indent();
+			_stream << "©¤©¤ [subroutine: \"";
+			for (codepoint cp : n.name) {
+				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
+			}
+			_stream << "\"" << "]\n";
 		}
 		/// Dumps a \ref nodes::character_class.
 		void dump(const nodes::character_class &n) {

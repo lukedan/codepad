@@ -16,6 +16,7 @@ namespace codepad {
 	/// to correctly represent invalid codepoints.
 	using codepoint = std::uint32_t;
 	using codepoint_string = std::basic_string<codepoint>; ///< A string of codepoints.
+	using codepoint_string_view = std::basic_string_view<codepoint>; ///< A view of a \ref codepoint_string.
 
 	namespace unicode {
 		constexpr codepoint
