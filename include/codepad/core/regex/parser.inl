@@ -275,22 +275,22 @@ namespace codepad::regex {
 		// anchor
 		case U'A':
 			if (ctx != _escaped_sequence_context::character_class) {
-				ast::nodes::assertion result;
-				result.assertion_type = ast::nodes::assertion::type::subject_start;
+				ast::nodes::simple_assertion result;
+				result.assertion_type = ast::nodes::simple_assertion::type::subject_start;
 				return result;
 			}
 			break;
 		case U'Z':
 			if (ctx != _escaped_sequence_context::character_class) {
-				ast::nodes::assertion result;
-				result.assertion_type = ast::nodes::assertion::type::subject_end_or_trailing_newline;
+				ast::nodes::simple_assertion result;
+				result.assertion_type = ast::nodes::simple_assertion::type::subject_end_or_trailing_newline;
 				return result;
 			}
 			break;
 		case U'z':
 			if (ctx != _escaped_sequence_context::character_class) {
-				ast::nodes::assertion result;
-				result.assertion_type = ast::nodes::assertion::type::subject_end;
+				ast::nodes::simple_assertion result;
+				result.assertion_type = ast::nodes::simple_assertion::type::subject_end;
 				return result;
 			}
 			break;
@@ -299,22 +299,18 @@ namespace codepad::regex {
 				if (ctx == _escaped_sequence_context::character_class) {
 					return ast::nodes::literal::from_codepoint(0x08);
 				}
-				ast::nodes::assertion result;
-				result.assertion_type = ast::nodes::assertion::type::character_class_boundary;
-				auto &char_class =
-					result.expression.nodes.emplace_back().value.emplace<ast::nodes::character_class>();
-				char_class.case_insensitive = _options().case_insensitive;
-				char_class.ranges = tables::word_characters();
+				ast::nodes::character_class_assertion result;
+				result.boundary = true;
+				result.char_class.case_insensitive = _options().case_insensitive;
+				result.char_class.ranges = tables::word_characters();
 				return result;
 			}
 		case U'B':
 			if (ctx != _escaped_sequence_context::character_class) {
-				ast::nodes::assertion result;
-				result.assertion_type = ast::nodes::assertion::type::character_class_nonboundary;
-				auto &char_class =
-					result.expression.nodes.emplace_back().value.emplace<ast::nodes::character_class>();
-				char_class.case_insensitive = _options().case_insensitive;
-				char_class.ranges = tables::word_characters();
+				ast::nodes::character_class_assertion result;
+				result.boundary = false;
+				result.char_class.case_insensitive = _options().case_insensitive;
+				result.char_class.ranges = tables::word_characters();
 				return result;
 			}
 			break;
@@ -664,11 +660,13 @@ namespace codepad::regex {
 			return;
 		}
 
-		// if assertion_type is not always_false, the result is an assertion;
+		// is_complex_assertion is used to indicate whether we need to continue parsing the assertion, and the
+		// attributes of the assertion are stored in complex_ass
+		bool is_complex_assertion = false;
+		ast::nodes::complex_assertion complex_ass;
 		// otherwise, the result depends on is_subexpresion
 		bool is_subexpression = true;
 		auto expr_type = ast::nodes::subexpression::type::normal;
-		auto assertion_type = ast::nodes::assertion::type::always_false;
 		codepoint_string capture_name;
 		// determine if this is a named capture, assertion, etc.
 		switch (_stream.peek()) {
@@ -707,14 +705,18 @@ namespace codepad::regex {
 							switch (_stream.peek()) {
 							case U'=': // positive lookbehind
 								_stream.take();
-								assertion_type = ast::nodes::assertion::type::positive_lookbehind;
+								is_complex_assertion = true;
+								complex_ass.backward = true;
+								complex_ass.negative = false;
 								break;
 							case U'!': // negative lookbehind
 								_stream.take();
-								assertion_type = ast::nodes::assertion::type::negative_lookbehind;
+								is_complex_assertion = true;
+								complex_ass.backward = true;
+								complex_ass.negative = true;
 								break;
 							}
-							if (assertion_type != ast::nodes::assertion::type::always_false) {
+							if (is_complex_assertion) {
 								break; // parse as an assertion instead
 							}
 						}
@@ -761,11 +763,15 @@ namespace codepad::regex {
 			// assertions
 			case U'=':
 				_stream.take();
-				assertion_type = ast::nodes::assertion::type::positive_lookahead;
+				is_complex_assertion = true;
+				complex_ass.backward = false;
+				complex_ass.negative = false;
 				break;
 			case U'!':
 				_stream.take();
-				assertion_type = ast::nodes::assertion::type::negative_lookahead;
+				is_complex_assertion = true;
+				complex_ass.backward = false;
+				complex_ass.negative = true;
 				break;
 
 			// conditional subexpression
@@ -828,18 +834,14 @@ namespace codepad::regex {
 						ast::nodes::subexpression temp_expr;
 						std::size_t tmp_options_pushed = 0;
 						_parse_round_brackets_group(temp_expr, tmp_options_pushed);
-						if (temp_expr.nodes.size() > 0 && temp_expr.nodes[0].is<ast::nodes::assertion>()) {
-							auto &assertion = std::get<ast::nodes::assertion>(temp_expr.nodes[0].value);
-							if (assertion.assertion_type >= ast::nodes::assertion::type::complex_first) {
-								new_expr.condition.emplace<ast::nodes::assertion>(std::move(assertion));
-							} else {
-								// TODO error
-							}
+						if (temp_expr.nodes.size() > 0 && temp_expr.nodes[0].is<ast::nodes::complex_assertion>()) {
+							auto &assertion = std::get<ast::nodes::complex_assertion>(temp_expr.nodes[0].value);
+							new_expr.condition.emplace<ast::nodes::complex_assertion>(std::move(assertion));
 						} else {
 							// TODO error
-							for (; tmp_options_pushed > 0; --tmp_options_pushed) {
-								_option_stack.pop();
-							}
+						}
+						for (; tmp_options_pushed > 0; --tmp_options_pushed) {
+							_option_stack.pop();
 						}
 					} while (false);
 					// consume ending bracket
@@ -993,13 +995,21 @@ namespace codepad::regex {
 							is_subexpression = true;
 							expr_type = ast::nodes::subexpression::type::atomic;
 						} else if (command == u8"positive_lookahead" || command == u8"pla") {
-							assertion_type = ast::nodes::assertion::type::positive_lookahead;
+							is_complex_assertion = true;
+							complex_ass.backward = false;
+							complex_ass.negative = false;
 						} else if (command == u8"negative_lookahead" || command == u8"nla") {
-							assertion_type = ast::nodes::assertion::type::negative_lookahead;
+							is_complex_assertion = true;
+							complex_ass.backward = false;
+							complex_ass.negative = true;
 						} else if (command == u8"positive_lookbehind" || command == u8"plb") {
-							assertion_type = ast::nodes::assertion::type::positive_lookbehind;
+							is_complex_assertion = true;
+							complex_ass.backward = true;
+							complex_ass.negative = false;
 						} else if (command == u8"negative_lookbehind" || command == u8"nlb") {
-							assertion_type = ast::nodes::assertion::type::negative_lookbehind;
+							is_complex_assertion = true;
+							complex_ass.backward = true;
+							complex_ass.negative = true;
 						} else {
 							// TODO error
 							return;
@@ -1017,12 +1027,9 @@ namespace codepad::regex {
 			}
 			break;
 		}
-		if (assertion_type != ast::nodes::assertion::type::always_false) {
-			auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::assertion>();
-			new_expr.assertion_type = assertion_type;
-			_parse_subexpression(
-				new_expr.expression.nodes.emplace_back().value.emplace<ast::nodes::subexpression>(), U')'
-			);
+		if (is_complex_assertion) {
+			_parse_subexpression(complex_ass.expression, U')');
+			result.nodes.emplace_back().value.emplace<ast::nodes::complex_assertion>() = std::move(complex_ass);
 		} else if (is_subexpression) {
 			auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::subexpression>();
 			new_expr.subexpr_type = expr_type;
@@ -1176,20 +1183,20 @@ namespace codepad::regex {
 			// anchors
 			case U'^':
 				{
-					auto &assertion = result.nodes.emplace_back().value.emplace<ast::nodes::assertion>();
+					auto &assertion = result.nodes.emplace_back().value.emplace<ast::nodes::simple_assertion>();
 					assertion.assertion_type =
 						_options().multiline ?
-						ast::nodes::assertion::type::line_start :
-						ast::nodes::assertion::type::subject_start;
+						ast::nodes::simple_assertion::type::line_start :
+						ast::nodes::simple_assertion::type::subject_start;
 				}
 				break;
 			case U'$':
 				{
-					auto &assertion = result.nodes.emplace_back().value.emplace<ast::nodes::assertion>();
+					auto &assertion = result.nodes.emplace_back().value.emplace<ast::nodes::simple_assertion>();
 					assertion.assertion_type =
 						_options().multiline ?
-						ast::nodes::assertion::type::line_end :
-						ast::nodes::assertion::type::subject_end_or_trailing_newline;
+						ast::nodes::simple_assertion::type::line_end :
+						ast::nodes::simple_assertion::type::subject_end_or_trailing_newline;
 				}
 				break;
 

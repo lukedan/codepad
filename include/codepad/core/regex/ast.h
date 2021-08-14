@@ -133,8 +133,8 @@ namespace codepad::regex::ast {
 			std::size_t max = no_limit; ///< The maximum number of repetitions.
 			type repetition_type = type::normal; ///< The type of this repetition.
 		};
-		/// An assertion.
-		struct assertion {
+		/// A simple assertion.
+		struct simple_assertion {
 			/// The type of an assertion.
 			enum class type : std::uint8_t {
 				always_false, ///< An assertion that always fails.
@@ -146,27 +146,26 @@ namespace codepad::regex::ast {
 				subject_end_or_trailing_newline,
 				subject_end, ///< Matches the end of the entire subject.
 				range_start, ///< Matches the start of the selected region of the subject.
-
-				/// Matches a character boundary if one character is in a character class while the other isn't. The
-				/// character class is given by the first node of \ref expression.
-				character_class_boundary,
-				/// Matches a character boundary if both character are in the character class or if both character
-				/// are not in the character class. The character class is given by the first node of
-				/// \ref expression.
-				character_class_nonboundary,
-
-				positive_lookahead, ///< Lookahead assertion that expects to match \ref expression.
-				negative_lookahead, ///< Lookahead assertion that expects **not** to match \ref expression.
-				positive_lookbehind, ///< Lookbehind assertion that expects to match \ref expression.
-				negative_lookbehind, ///< Lookbehind assertion that expects **not** to match \ref expression.
-
-				/// The first assertion type that includes a character class in \ref expression.
-				character_class_first = character_class_boundary,
-				complex_first = positive_lookahead ///< The first assertion type for which \ref expression is tested.
 			};
 
-			subexpression expression; ///< The expression used by this assertion.
 			type assertion_type = type::always_false; ///< The type of this assertion.
+		};
+		/// An assertion that tests whether the two consecutive characters around the current position belong in the
+		/// specified character class.
+		struct character_class_assertion {
+			character_class char_class; ///< The character class.
+			/// If \p true, this assertion is only true if we're at a boundary of the character class; otherwise this
+			/// assertion is only true if we're not at a boundary.
+			bool boundary = false;
+		};
+		/// An assertion that involves a subexpression (i.e., a lookahead/lookbehind).
+		struct complex_assertion {
+			subexpression expression; ///< The expression.
+			bool backward = false; ///< If \p true, this is a lookbehind; otherwise this is a lookahead.
+			bool negative = false; ///< If \p true, this assertion is satisifed iff the subexpression does not match.
+			/// If \p true, allow backtracking into this assertion. This is only meaningful if \ref negative is
+			/// \p false.
+			bool non_atomic = false;
 		};
 		/// An conditional subexpression.
 		struct conditional_expression {
@@ -189,7 +188,7 @@ namespace codepad::regex::ast {
 				define,
 				numbered_capture_available,
 				named_capture_available,
-				assertion
+				complex_assertion
 			>;
 
 			condition_t condition; ///< The condition.
@@ -214,7 +213,9 @@ namespace codepad::regex::ast {
 			nodes::subexpression,
 			nodes::alternative,
 			nodes::repetition,
-			nodes::assertion,
+			nodes::simple_assertion,
+			nodes::character_class_assertion,
+			nodes::complex_assertion,
 			nodes::conditional_expression
 		>;
 
@@ -384,26 +385,35 @@ namespace codepad::regex::ast {
 			dump(n.expression);
 			_branch.pop_back();
 		}
-		/// Dumps a \ref nodes::assertion.
-		void dump(const nodes::assertion &n) {
+		/// Dumps a \ref nodes::simple_assertion.
+		void dump(const nodes::simple_assertion &n) {
 			_indent();
-			if (n.assertion_type >= ast::nodes::assertion::type::complex_first) {
-				_stream << "©Ð©¤ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
-				_branch.emplace_back(false);
-				dump(n.expression);
-				_branch.pop_back();
-			} else if (n.assertion_type >= ast::nodes::assertion::type::character_class_first) {
-				assert_true_logical(
-					n.expression.nodes.size() == 1 &&
-					std::holds_alternative<ast::nodes::character_class>(n.expression.nodes[0].value),
-					"invalid character class assertion"
-				);
-				_stream << "©¤©¤ [assertion type: " << static_cast<int>(n.assertion_type) << " ranges: ";
-				_dump_character_class(std::get<ast::nodes::character_class>(n.expression.nodes[0].value).ranges);
-				_stream << "]\n";
-			} else {
-				_stream << "©¤©¤ [assertion type: " << static_cast<int>(n.assertion_type) << "]\n";
+			_stream << "©¤©¤ [assertion (simple) type: " << static_cast<int>(n.assertion_type) << "]\n";
+		}
+		/// Dumps a \ref nodes::character_class_assertion.
+		void dump(const nodes::character_class_assertion &n) {
+			_indent();
+			_stream << "©¤©¤ [assertion (char class " << (n.boundary ? "boundary" : "non-boundary") << ") ranges: ";
+			_dump_character_class(n.char_class.ranges);
+			_stream << "]\n";
+		}
+		/// Dumps a \ref nodes::complex_assertion.
+		void dump(const nodes::complex_assertion &n) {
+			_indent();
+			_stream << "©Ð©¤ [assertion (complex)";
+			if (n.negative) {
+				_stream << " (neg)";
 			}
+			if (n.backward) {
+				_stream << " (back)";
+			}
+			if (n.non_atomic) {
+				_stream << " (non-atomic)";
+			}
+			_stream << "]\n";
+			_branch.emplace_back(false);
+			dump(n.expression);
+			_branch.pop_back();
 		}
 		void dump(const nodes::conditional_expression &n) {
 			_indent();
@@ -417,8 +427,8 @@ namespace codepad::regex::ast {
 			_stream << "]\n";
 
 			_branch.emplace_back(true);
-			if (std::holds_alternative<nodes::assertion>(n.condition)) {
-				const auto &ass = std::get<nodes::assertion>(n.condition);
+			if (std::holds_alternative<nodes::complex_assertion>(n.condition)) {
+				const auto &ass = std::get<nodes::complex_assertion>(n.condition);
 				dump(ass);
 			}
 
@@ -502,7 +512,7 @@ namespace codepad::regex::ast {
 			_stream << "<define>";
 		}
 		/// Dumps an assertion that's used as a condition.
-		void _dump_condition(const nodes::assertion&) {
+		void _dump_condition(const nodes::complex_assertion&) {
 			_stream << "<assertion>";
 		}
 	};

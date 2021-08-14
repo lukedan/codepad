@@ -77,11 +77,11 @@ namespace codepad::regex {
 					return is_negate ? !result : result;
 				}
 			};
-			/// An assertion used in a transition.
-			struct assertion {
-				ast::nodes::assertion::type assertion_type; ///< The type of this assertion.
-				codepoint_range_list character_class; ///< The character class potentially using by this assertion.
-				state_machine expression; ///< The expression that is expected to match or not match.
+			using simple_assertion = ast::nodes::simple_assertion; ///< Simple assertion.
+			/// An assertion that checks if we are at a character class boundary.
+			struct character_class_assertion {
+				character_class char_class; ///< The character class.
+				bool boundary = false; ///< Whether we're expecting a boundary.
 			};
 			/// Starts a capture.
 			struct capture_begin {
@@ -115,6 +115,13 @@ namespace codepad::regex {
 			/// Pops all states on stack pushed since the start of the last atomic range.
 			struct pop_atomic {
 			};
+			/// Pushes the current input stream as a checkpoint, which can be restored later using
+			/// \ref restore_stream_checkpoint.
+			struct push_stream_checkpoint {
+			};
+			/// Restores the checkpointed stream, previously pushed using \ref push_stream_checkpoint.
+			struct restore_stream_checkpoint {
+			};
 
 			/// Transitions that are conditions.
 			namespace conditions {
@@ -134,7 +141,8 @@ namespace codepad::regex {
 			using key = std::variant<
 				codepoint_string,
 				transitions::character_class,
-				transitions::assertion,
+				transitions::simple_assertion,
+				transitions::character_class_assertion,
 				transitions::capture_begin,
 				transitions::capture_end,
 				transitions::numbered_backreference,
@@ -143,6 +151,8 @@ namespace codepad::regex {
 				transitions::reset_match_start,
 				transitions::push_atomic,
 				transitions::pop_atomic,
+				transitions::push_stream_checkpoint,
+				transitions::restore_stream_checkpoint,
 				transitions::conditions::numbered_capture,
 				transitions::conditions::named_capture
 			>;
@@ -154,7 +164,6 @@ namespace codepad::regex {
 		/// A state.
 		struct state {
 			std::vector<transition> transitions; ///< Transitions to new states.
-			bool no_backtracking = false; ///< Whether the matcher should not backtrack to this state.
 		};
 
 		struct transition_ref;
@@ -277,10 +286,8 @@ namespace codepad::regex {
 			_collect_capture_names(expr.expression);
 		}
 		/// Collects names from the lookahead/lookbehind if necessary.
-		void _collect_capture_names(const ast::nodes::assertion &expr) {
-			if (expr.assertion_type >= ast::nodes::assertion::type::complex_first) {
-				_collect_capture_names(expr.expression);
-			}
+		void _collect_capture_names(const ast::nodes::complex_assertion &expr) {
+			_collect_capture_names(expr.expression);
 		}
 		/// Finds the index of the given capture name.
 		[[nodiscard]] std::optional<std::size_t> _find_capture_name(codepoint_string_view sv) const {
@@ -334,31 +341,58 @@ namespace codepad::regex {
 		}
 		/// Compiles the given repetition.
 		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::repetition&);
-		/// Compiles the given assertion.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::assertion&);
+		/// Compiles the given simple assertion.
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::simple_assertion &ass) {
+			auto trans = start.create_transition();
+			trans->condition.emplace<compiled::transitions::simple_assertion>(ass);
+			trans->new_state_index = end.index;
+		}
+		/// Compiles the given character class assertion.
+		void _compile(
+			compiled::state_ref start, compiled::state_ref end, const ast::nodes::character_class_assertion &ass
+		) {
+			auto trans = start.create_transition();
+			auto &cond = trans->condition.emplace<compiled::transitions::character_class_assertion>();
+			cond.char_class.ranges = ass.char_class.ranges;
+			cond.char_class.is_negate = ass.char_class.is_negate;
+			cond.boundary = ass.boundary;
+			trans->new_state_index = end.index;
+		}
+		/// Compiles the given complex assertion.
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion&);
 		/// Compiles the given conditional subexpression.
 		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::conditional_expression&);
 
 		/// Does nothing - <tt>DEFINE</tt>'s are handled separately.
-		void _compile_condition(compiled::transition&, const ast::nodes::conditional_expression::define&) {
+		void _compile_condition(
+			compiled::state_ref, compiled::state_ref, const ast::nodes::conditional_expression::define&
+		) {
 		}
 		/// Compiles the given condition that checks for a numbered capture.
 		void _compile_condition(
-			compiled::transition &trans, const ast::nodes::conditional_expression::numbered_capture_available &cond
+			compiled::state_ref start, compiled::state_ref end,
+			const ast::nodes::conditional_expression::numbered_capture_available &cond
 		) {
-			trans.condition.emplace<compiled::transitions::conditions::numbered_capture>().index = cond.index;
+			auto trans = start.create_transition();
+			trans->new_state_index = end.index;
+			trans->condition.emplace<compiled::transitions::conditions::numbered_capture>().index = cond.index;
 		}
 		/// Compiles the given condition that checks for a named capature.
 		void _compile_condition(
-			compiled::transition &trans, const ast::nodes::conditional_expression::named_capture_available &cond
+			compiled::state_ref start, compiled::state_ref end,
+			const ast::nodes::conditional_expression::named_capture_available &cond
 		) {
 			if (auto id = _find_capture_name(cond.name)) {
-				trans.condition.emplace<compiled::transitions::conditions::named_capture>().name_index = id.value();
+				auto trans = start.create_transition();
+				trans->new_state_index = end.index;
+				trans->condition.emplace<compiled::transitions::conditions::named_capture>().name_index = id.value();
 			} else {
 				// TODO error
 			}
 		}
 		/// Compiles the given assertion.
-		void _compile_condition(compiled::transition&, const ast::nodes::assertion&);
+		void _compile_condition(
+			compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion&
+		);
 	};
 }

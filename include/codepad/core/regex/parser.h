@@ -53,7 +53,8 @@ namespace codepad::regex {
 			ast::nodes::character_class,
 			ast::nodes::numbered_backreference,
 			ast::nodes::named_backreference,
-			ast::nodes::assertion
+			ast::nodes::simple_assertion,
+			ast::nodes::character_class_assertion
 		>; ///< A node that could result from an escaped sequence.
 
 		Stream _stream; ///< The input stream.

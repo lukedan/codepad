@@ -155,6 +155,11 @@ namespace codepad::regex {
 			/// popped.
 			std::size_t state_stack_size = 0;
 		};
+		/// A checkpointed stream position.
+		struct _checkpointed_stream {
+			Stream position; ///< The stream.
+			std::size_t state_stack_size = 0; ///< State stack size when this stream was checkpointed.
+		};
 		/// The state of the automata at one moment.
 		struct _state {
 			/// Default constructor.
@@ -180,9 +185,12 @@ namespace codepad::regex {
 			/// All captures that started and finished after this state was pushed but before the next state was
 			/// pushed.
 			std::deque<_finished_capture_info> finished_captures;
-			// TODO implement this
-			/// Subroutines that finished after this state is pushed but before the next state was pushed.
+			/// Subroutines that started before this state, and finished after this state is pushed but before the
+			/// next state was pushed.
 			std::deque<_subroutine_stackframe> finished_subroutines;
+			/// Checkpoints that were set before this state was pushed, and finished after this state was pushed and
+			/// before the next state was pushed.
+			std::deque<_checkpointed_stream> restored_checkpoints;
 			/// Overriden match starting position before this state was pushed onto the stack.
 			std::optional<Stream> initial_match_begin;
 
@@ -202,6 +210,7 @@ namespace codepad::regex {
 		/// Size of \ref _state_stack at the beginning of each ongoing atomic group.
 		std::stack<std::size_t> _atomic_stack_sizes;
 		std::stack<_subroutine_stackframe> _subroutine_stack; ///< Subroutine stack.
+		std::stack<_checkpointed_stream> _checkpoint_stack; ///< Checkpoint stack.
 		const compiled::state_machine *_expr = nullptr; ///< State machine for the expression.
 
 		/// Logs the given string.
@@ -231,6 +240,12 @@ namespace codepad::regex {
 		/// position.
 		[[nodiscard]] bool _check_backreference_transition(Stream&, std::size_t index, bool case_insensitive) const;
 
+		/// Blanket overload that handles all conditions that always passes.
+		template <typename Condition> [[nodiscard]] bool _check_transition(
+			const Stream&, const compiled::transition&, const Condition&
+		) const {
+			return true;
+		}
 		/// Checks if the contents in the given stream starts with the given string.
 		[[nodiscard]] bool _check_transition(
 			Stream &stream, const compiled::transition &trans, const codepoint_string &cond
@@ -260,13 +275,13 @@ namespace codepad::regex {
 		}
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transition &trans, const compiled::transitions::assertion &cond
+			Stream stream, const compiled::transition&, const compiled::transitions::simple_assertion &cond
 		) {
 			switch (cond.assertion_type) {
-			case ast::nodes::assertion::type::always_false:
+			case ast::nodes::simple_assertion::type::always_false:
 				return false;
 
-			case ast::nodes::assertion::type::line_start:
+			case ast::nodes::simple_assertion::type::line_start:
 				{
 					if (stream.prev_empty()) {
 						return true;
@@ -278,7 +293,7 @@ namespace codepad::regex {
 					return false;
 				}
 
-			case ast::nodes::assertion::type::line_end:
+			case ast::nodes::simple_assertion::type::line_end:
 				{
 					if (stream.empty()) {
 						return true;
@@ -290,10 +305,10 @@ namespace codepad::regex {
 					return false;
 				}
 
-			case ast::nodes::assertion::type::subject_start:
+			case ast::nodes::simple_assertion::type::subject_start:
 				return stream.prev_empty();
 
-			case ast::nodes::assertion::type::subject_end_or_trailing_newline:
+			case ast::nodes::simple_assertion::type::subject_end_or_trailing_newline:
 				{
 					if (stream.empty()) {
 						return true;
@@ -306,65 +321,25 @@ namespace codepad::regex {
 					return false;
 				}
 
-			case ast::nodes::assertion::type::subject_end:
+			case ast::nodes::simple_assertion::type::subject_end:
 				return stream.empty();
-			case ast::nodes::assertion::type::range_start:
-				return false; // TODO
-
-			case ast::nodes::assertion::type::character_class_boundary:
-				{
-					auto &boundary = std::get<compiled::transitions::character_class>(
-						cond.expression.states[0].transitions[0].condition
-					);
-					bool prev_in =
-						stream.prev_empty() ? false : boundary.matches(stream.peek_prev(), trans.case_insensitive);
-					bool next_in =
-						stream.empty() ? false : boundary.matches(stream.peek(), trans.case_insensitive);
-					return prev_in != next_in;
-				}
-
-			case ast::nodes::assertion::type::character_class_nonboundary:
-				{
-					auto &boundary = std::get<compiled::transitions::character_class>(
-						cond.expression.states[0].transitions[0].condition
-					);
-					bool prev_in =
-						stream.prev_empty() ? false : boundary.matches(stream.peek_prev(), trans.case_insensitive);
-					bool next_in =
-						stream.empty() ? false : boundary.matches(stream.peek(), trans.case_insensitive);
-					return prev_in == next_in;
-				}
-
-			case ast::nodes::assertion::type::positive_lookahead:
-				{
-					matcher<Stream> assertion_matcher;
-					if (auto match = assertion_matcher.try_match(stream, cond.expression)) {
-						for (std::size_t i = 1; i < match->captures.size(); ++i) {
-							_add_capture(i, std::move(match->captures[i]));
-						}
-						return true;
-					}
-					return false;
-				}
-			case ast::nodes::assertion::type::negative_lookahead:
-				{
-					matcher<Stream> assertion_matcher;
-					if (auto match = assertion_matcher.try_match(stream, cond.expression)) {
-						for (std::size_t i = 1; i < match->captures.size(); ++i) {
-							_add_capture(i, std::move(match->captures[i]));
-						}
-						return false;
-					}
-					return true;
-				}
-			case ast::nodes::assertion::type::positive_lookbehind:
-				return false; // TODO
-			case ast::nodes::assertion::type::negative_lookbehind:
+			case ast::nodes::simple_assertion::type::range_start:
 				return false; // TODO
 			}
 
 			assert_true_logical(false, "invalid assertion type"); // should not happen
 			return false;
+		}
+		/// Checks if the assertion is satisfied.
+		[[nodiscard]] bool _check_transition(
+			Stream stream, const compiled::transition &trans,
+			const compiled::transitions::character_class_assertion &cond
+		) {
+			bool prev_in =
+				stream.prev_empty() ? false : cond.char_class.matches(stream.peek_prev(), trans.case_insensitive);
+			bool next_in =
+				stream.empty() ? false : cond.char_class.matches(stream.peek(), trans.case_insensitive);
+			return cond.boundary ? prev_in != next_in : prev_in == next_in;
 		}
 		/// Checks if a numbered backreference matches.
 		[[nodiscard]] bool _check_transition(
@@ -386,24 +361,6 @@ namespace codepad::regex {
 			}
 			return false;
 		}
-		/// A jump is always executed.
-		[[nodiscard]] bool _check_transition(
-			Stream, const compiled::transition&, const compiled::transitions::jump&
-		) {
-			return true;
-		}
-		/// The capture group is started later in \ref _execute_transition().
-		[[nodiscard]] bool _check_transition(
-			Stream, const compiled::transition&, const compiled::transitions::capture_begin&
-		) {
-			return true;
-		}
-		/// The capture group is finished later in \ref _execute_transition().
-		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&, const compiled::transitions::capture_end&
-		) {
-			return true;
-		}
 		/// Resets the start of this match.
 		[[nodiscard]] bool _check_transition(
 			Stream &stream, const compiled::transition&, const compiled::transitions::reset_match_start&
@@ -413,18 +370,6 @@ namespace codepad::regex {
 				_state_stack.back().initial_match_begin = _result.overriden_match_begin;
 			}
 			_result.overriden_match_begin = std::move(stream);
-			return true;
-		}
-		/// Atomic groups are handled in \ref _execute_transition().
-		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&, const compiled::transitions::push_atomic&
-		) {
-			return true;
-		}
-		/// Atomic groups are handled in \ref _execute_transition().
-		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&, const compiled::transitions::pop_atomic&
-		) {
 			return true;
 		}
 		/// Checks if the given numbered group has been matched.
@@ -471,6 +416,10 @@ namespace codepad::regex {
 		}
 		/// Pops all states associated with the current atomic group.
 		void _execute_transition(const Stream&, const compiled::transitions::pop_atomic&);
+		/// Pushes and checkpoints the current stream.
+		void _execute_transition(Stream, const compiled::transitions::push_stream_checkpoint&);
+		/// Restores a previously checkpointed stream.
+		void _execute_transition(Stream&, const compiled::transitions::restore_stream_checkpoint&);
 		/// Pushes a subroutine stack frame.
 		void _execute_transition(const Stream&, const compiled::transitions::jump&);
 	};

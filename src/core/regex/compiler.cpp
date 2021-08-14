@@ -69,8 +69,10 @@ namespace codepad::regex {
 						if (list.is_negate) {
 							stream << " <!>";
 						}
-					} else if (std::holds_alternative<transitions::assertion>(t.condition)) {
-						stream << "<assertion>";
+					} else if (std::holds_alternative<transitions::simple_assertion>(t.condition)) {
+						stream << "<simple assertion>";
+					} else if (std::holds_alternative<transitions::character_class_assertion>(t.condition)) {
+						stream << "<char class assertion>";
 					} else if (std::holds_alternative<transitions::capture_begin>(t.condition)) {
 						const auto &cap = std::get<transitions::capture_begin>(t.condition);
 						stream << "<start capture " << cap.index << ">";
@@ -82,6 +84,14 @@ namespace codepad::regex {
 					} else if (std::holds_alternative<transitions::named_backreference>(t.condition)) {
 						const auto &backref = std::get<transitions::named_backreference>(t.condition);
 						stream << "<named backref #" << backref.index << ">";
+					} else if (std::holds_alternative<transitions::push_atomic>(t.condition)) {
+						stream << "<push atomic>";
+					} else if (std::holds_alternative<transitions::pop_atomic>(t.condition)) {
+						stream << "<pop atomic>";
+					} else if (std::holds_alternative<transitions::push_stream_checkpoint>(t.condition)) {
+						stream << "<checkpoint>";
+					} else if (std::holds_alternative<transitions::restore_stream_checkpoint>(t.condition)) {
+						stream << "<restore checkpoint>";
 					} else if (std::holds_alternative<transitions::conditions::numbered_capture>(t.condition)) {
 						const auto &cond = std::get<transitions::conditions::numbered_capture>(t.condition);
 						stream << "<cond: capture #" << cond.index << ">";
@@ -286,8 +296,13 @@ namespace codepad::regex {
 			return;
 		}
 
-		if (rep.max == 0) { // ignore the expression
+		if (rep.max == 0) {
+			// ignore the expression
 			start.create_transition()->new_state_index = end.index;
+			// and compile the graph to an island, in case it's called as a subroutine
+			auto island_start = _result.create_state();
+			auto island_end = _result.create_state();
+			_compile(island_start, island_end, rep.expression);
 			return;
 		}
 
@@ -362,21 +377,64 @@ namespace codepad::regex {
 		}
 	}
 
-	void compiler::_compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::assertion &rep) {
-		auto transition = start.create_transition();
-		transition->new_state_index = end.index;
-		auto &assertion = transition->condition.emplace<compiled::transitions::assertion>();
-		assertion.assertion_type = rep.assertion_type;
-		if (rep.assertion_type >= ast::nodes::assertion::type::complex_first) {
-			compiler cmp;
-			assertion.expression = cmp.compile(rep.expression);
-		} else if (rep.assertion_type >= ast::nodes::assertion::type::character_class_first) {
-			auto &cls = assertion.expression.states.emplace_back().transitions.emplace_back().condition.emplace<
-				compiled::transitions::character_class
-			>();
-			const auto &cls_node = std::get<ast::nodes::character_class>(rep.expression.nodes[0].value);
-			cls.ranges = cls_node.ranges;
-			cls.is_negate = cls_node.is_negate;
+	void compiler::_compile(
+		compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion &ass
+	) {
+		{ // checkpoint & restore the stream
+			auto new_start = _result.create_state();
+			auto new_end = _result.create_state();
+
+			auto start_trans = start.create_transition();
+			start_trans->condition.emplace<compiled::transitions::push_stream_checkpoint>();
+			start_trans->new_state_index = new_start.index;
+
+			auto end_trans = new_end.create_transition();
+			end_trans->condition.emplace<compiled::transitions::restore_stream_checkpoint>();
+			end_trans->new_state_index = end.index;
+
+			start = new_start;
+			end = new_end;
+		}
+
+		if (!ass.non_atomic) {
+			auto new_start = _result.create_state();
+			auto new_end = _result.create_state();
+
+			auto start_trans = start.create_transition();
+			start_trans->condition.emplace<compiled::transitions::push_atomic>();
+			start_trans->new_state_index = new_start.index;
+
+			auto end_trans = new_end.create_transition();
+			end_trans->condition.emplace<compiled::transitions::pop_atomic>();
+			end_trans->new_state_index = end.index;
+
+			start = new_start;
+			end = new_end;
+		}
+		if (ass.backward) {
+			// TODO handle reversed stream
+		}
+		
+		auto assertion_begin = _result.create_state();
+		auto assertion_end = _result.create_state();
+		_compile(assertion_begin, assertion_end, ass.expression);
+
+		auto jump_trans = start.create_transition();
+		jump_trans->new_state_index = assertion_begin.index;
+		auto &jump = jump_trans->condition.emplace<compiled::transitions::jump>();
+		jump.target = assertion_end.index;
+		if (ass.negative) {
+			auto fail_state = _result.create_state();
+			auto before_fail_state = _result.create_state();
+			jump.return_state = before_fail_state.index;
+			// prevent backtracking by inserting a pop_atomic
+			auto trans = before_fail_state.create_transition();
+			trans->condition.emplace<compiled::transitions::pop_atomic>();
+			trans->new_state_index = fail_state.index;
+
+			start.create_transition()->new_state_index = end.index;
+		} else {
+			jump.return_state = end.index;
 		}
 	}
 
@@ -393,21 +451,30 @@ namespace codepad::regex {
 		}
 
 		auto branch_state = _result.create_state();
+		auto before_yes_state = _result.create_state();
 		auto yes_state = _result.create_state();
+		auto before_no_state = _result.create_state();
 		auto no_state = _result.create_state();
 
-		start.create_transition()->new_state_index = branch_state.index;
+		auto start_trans = start.create_transition();
+		start_trans->new_state_index = branch_state.index;
+		start_trans->condition.emplace<compiled::transitions::push_atomic>();
 
-		branch_state->no_backtracking = true;
-		auto yes_transition = branch_state.create_transition();
 		std::visit(
 			[&](auto &&cond) {
-				_compile_condition(yes_transition.get(), cond);
+				_compile_condition(branch_state, before_yes_state, cond);
 			},
 			expr.condition
 		);
-		yes_transition->new_state_index = yes_state.index;
-		branch_state.create_transition()->new_state_index = no_state.index;
+		branch_state.create_transition()->new_state_index = before_no_state.index;
+
+		auto pop_trans1 = before_yes_state.create_transition();
+		pop_trans1->new_state_index = yes_state.index;
+		pop_trans1->condition.emplace<compiled::transitions::pop_atomic>();
+
+		auto pop_trans2 = before_no_state.create_transition();
+		pop_trans2->new_state_index = no_state.index;
+		pop_trans2->condition.emplace<compiled::transitions::pop_atomic>();
 
 		_compile(yes_state, end, expr.if_true);
 		if (expr.if_false) {
@@ -417,10 +484,9 @@ namespace codepad::regex {
 		}
 	}
 
-	void compiler::_compile_condition(compiled::transition &trans, const ast::nodes::assertion &cond) {
-		auto &cond_val = trans.condition.emplace<compiled::transitions::assertion>();
-		cond_val.assertion_type = cond.assertion_type;
-		compiler cmp;
-		cond_val.expression = cmp.compile(cond.expression);
+	void compiler::_compile_condition(
+		compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion &cond
+	) {
+		_compile(start, end, cond);
 	}
 }
