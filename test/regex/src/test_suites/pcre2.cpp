@@ -55,6 +55,7 @@ struct pattern_data {
 	std::size_t options_begin = 0; ///< Beginning position of pattern options.
 	std::size_t options_end = 0; ///< Ending position of pattern options.
 	bool aftertext = false; ///< Indicates that text after each match should be printed.
+	bool subject_literal = false; ///< Indicates that subject lines are not escaped.
 
 	/// Dumps the pattern string to the given output stream.
 	void dump_options(std::ostream &out) const {
@@ -85,6 +86,10 @@ struct pattern_data {
 		}
 		if (aftertext) {
 			out << (first ? "" : ", ") << "aftertext";
+			first = false;
+		}
+		if (subject_literal) {
+			out << (first ? "" : ", ") << "subject_literal";
 			first = false;
 		}
 	}
@@ -195,6 +200,8 @@ void fail(const char *msg = nullptr) {
 				std::u32string_view sv(reinterpret_cast<const char32_t*>(str.data()), str.size());
 				if (sv == U"aftertext") {
 					result.aftertext = true;
+				} else if (sv == U"subject_literal") {
+					result.subject_literal = true;
 				} else { // parse single-letter options
 					for (std::size_t i = 0; i < str.size(); ++i) {
 						switch (str[i]) {
@@ -232,150 +239,174 @@ void fail(const char *msg = nullptr) {
 	return result;
 }
 /// Parses a string.
-[[nodiscard]] std::optional<test_data> parse_data(stream_t &stream) {
+[[nodiscard]] std::optional<test_data> parse_data(stream_t &stream, const pattern_data &p) {
 	if (stream.empty()) {
 		return std::nullopt;
 	}
 	test_data result;
-	std::size_t non_graphic = 0;
-	while (!stream.empty()) {
-		if (stream.peek() == U'\r' || stream.peek() == U'\n') {
-			cp::regex::consume_line_ending(stream);
-			break;
-		}
-
-		if (result.string.empty()) {
-			result.byte_begin = stream.byte_position();
-		}
-		cp::codepoint c = stream.take();
-		if (result.string.empty()) {
-			if (!is_graphical_char(c)) {
-				continue;
-			}
-			if (c == U'\\' && !stream.empty() && stream.peek() == U'=') {
-				while (!stream.empty() && stream.peek() != U'\r' && stream.peek() != U'\n') {
-					stream.take();
-				}
+	if (p.subject_literal) {
+		while (!stream.empty()) {
+			if (stream.peek() == U'\r' || stream.peek() == U'\n') {
 				cp::regex::consume_line_ending(stream);
-				result.expect_no_match = true;
-				return result;
+				break;
 			}
-		}
-		if (c == U'\\') {
-			// if the very last character in the line is a backslash (and there is no modifier list), it is ignored
-			if (stream.empty() || stream.peek() == U'\r' || stream.peek() == U'\n') {
+
+			if (result.string.empty()) {
+				result.byte_begin = stream.byte_position();
+			}
+			cp::codepoint c = stream.take();
+			if (is_graphical_char(c)) {
 				result.byte_end = stream.byte_position();
-				cp::regex::consume_line_ending(stream);
-				return result;
+			} else {
+				if (result.string.empty()) {
+					continue;
+				}
 			}
 
-			c = stream.take();
-			switch (c) {
-			case U'\\':
-				c = U'\\';
+			result.string.push_back(c);
+		}
+	} else {
+		std::size_t non_graphic = 0;
+		while (!stream.empty()) {
+			if (stream.peek() == U'\r' || stream.peek() == U'\n') {
+				cp::regex::consume_line_ending(stream);
 				break;
-			case U'a':
-				c = U'\a';
-				break;
-			case U'b':
-				c = U'\b';
-				break;
-			case U'e':
-				c = U'\x1B';
-				break;
-			case U'f':
-				c = U'\f';
-				break;
-			case U'n':
-				c = U'\n';
-				break;
-			case U'r':
-				c = U'\r';
-				break;
-			case U't':
-				c = U'\t';
-				break;
-			case U'v':
-				c = U'\v';
-				break;
+			}
 
-			case U'o':
-				cp::assert_true_logical(!stream.empty(), "stream terminated too early");
-				cp::assert_true_logical(stream.take() == U'{', "invalid octal sequence");
-				c = 0;
-				while (true) {
-					cp::assert_true_logical(!stream.empty(), "stream terminated too early");
-					cp::codepoint next_cp = stream.take();
-					if (next_cp == U'}') {
-						break;
-					}
-					cp::assert_true_logical(next_cp >= U'0' && next_cp <= U'7', "invalid octal character");
-					c = c * 8 + (next_cp - U'0');
+			if (result.string.empty()) {
+				result.byte_begin = stream.byte_position();
+			}
+			cp::codepoint c = stream.take();
+			if (result.string.empty()) {
+				if (!is_graphical_char(c)) {
+					continue;
 				}
-				break;
-			case U'x':
-				c = 0;
-				if (stream.empty() || stream.peek() != U'{') {
-					for (std::size_t i = 0; i < 2 && !stream.empty(); ++i) {
-						cp::codepoint next_cp = stream.peek();
-						if (next_cp >= U'0' && next_cp <= U'9') {
-							next_cp -= U'0';
-						} else if (next_cp >= U'a' && next_cp <= U'f') {
-							next_cp = next_cp - U'a' + 10;
-						} else if (next_cp >= U'A' && next_cp <= U'F') {
-							next_cp = next_cp - U'A' + 10;
-						} else {
-							break;
-						}
+				if (c == U'\\' && !stream.empty() && stream.peek() == U'=') {
+					while (!stream.empty() && stream.peek() != U'\r' && stream.peek() != U'\n') {
 						stream.take();
-						c = c * 16 + next_cp;
 					}
-				} else {
-					stream.take();
+					cp::regex::consume_line_ending(stream);
+					result.expect_no_match = true;
+					return result;
+				}
+			}
+			if (c == U'\\') {
+				// if the very last character in the line is a backslash (and there is no modifier list),
+				// it is ignored
+				if (stream.empty() || stream.peek() == U'\r' || stream.peek() == U'\n') {
+					result.byte_end = stream.byte_position();
+					cp::regex::consume_line_ending(stream);
+					return result;
+				}
+
+				c = stream.take();
+				switch (c) {
+				case U'\\':
+					c = U'\\';
+					break;
+				case U'a':
+					c = U'\a';
+					break;
+				case U'b':
+					c = U'\b';
+					break;
+				case U'e':
+					c = U'\x1B';
+					break;
+				case U'f':
+					c = U'\f';
+					break;
+				case U'n':
+					c = U'\n';
+					break;
+				case U'r':
+					c = U'\r';
+					break;
+				case U't':
+					c = U'\t';
+					break;
+				case U'v':
+					c = U'\v';
+					break;
+
+				case U'o':
+					cp::assert_true_logical(!stream.empty(), "stream terminated too early");
+					cp::assert_true_logical(stream.take() == U'{', "invalid octal sequence");
+					c = 0;
 					while (true) {
 						cp::assert_true_logical(!stream.empty(), "stream terminated too early");
 						cp::codepoint next_cp = stream.take();
 						if (next_cp == U'}') {
 							break;
 						}
-						if (next_cp >= U'0' && next_cp <= U'9') {
-							next_cp -= U'0';
-						} else if (next_cp >= U'a' && next_cp <= U'f') {
-							next_cp = next_cp - U'a' + 10;
-						} else if (next_cp >= U'A' && next_cp <= U'F') {
-							next_cp = next_cp - U'A' + 10;
-						} else {
-							cp::assert_true_logical(false, "invalid hexadecimal character");
-						}
-						c = c * 16 + next_cp;
-					}
-				}
-				break;
-
-			default:
-				if (c >= U'0' && c <= U'7') {
-					c -= U'0';
-					for (std::size_t i = 0; i < 2 && !stream.empty(); ++i) {
-						cp::codepoint next_cp = stream.peek();
-						if (next_cp < U'0' || next_cp > U'7') {
-							break;
-						}
-						stream.take();
+						cp::assert_true_logical(next_cp >= U'0' && next_cp <= U'7', "invalid octal character");
 						c = c * 8 + (next_cp - U'0');
 					}
+					break;
+				case U'x':
+					c = 0;
+					if (stream.empty() || stream.peek() != U'{') {
+						for (std::size_t i = 0; i < 2 && !stream.empty(); ++i) {
+							cp::codepoint next_cp = stream.peek();
+							if (next_cp >= U'0' && next_cp <= U'9') {
+								next_cp -= U'0';
+							} else if (next_cp >= U'a' && next_cp <= U'f') {
+								next_cp = next_cp - U'a' + 10;
+							} else if (next_cp >= U'A' && next_cp <= U'F') {
+								next_cp = next_cp - U'A' + 10;
+							} else {
+								break;
+							}
+							stream.take();
+							c = c * 16 + next_cp;
+						}
+					} else {
+						stream.take();
+						while (true) {
+							cp::assert_true_logical(!stream.empty(), "stream terminated too early");
+							cp::codepoint next_cp = stream.take();
+							if (next_cp == U'}') {
+								break;
+							}
+							if (next_cp >= U'0' && next_cp <= U'9') {
+								next_cp -= U'0';
+							} else if (next_cp >= U'a' && next_cp <= U'f') {
+								next_cp = next_cp - U'a' + 10;
+							} else if (next_cp >= U'A' && next_cp <= U'F') {
+								next_cp = next_cp - U'A' + 10;
+							} else {
+								cp::assert_true_logical(false, "invalid hexadecimal character");
+							}
+							c = c * 16 + next_cp;
+						}
+					}
+					break;
+
+				default:
+					if (c >= U'0' && c <= U'7') {
+						c -= U'0';
+						for (std::size_t i = 0; i < 2 && !stream.empty(); ++i) {
+							cp::codepoint next_cp = stream.peek();
+							if (next_cp < U'0' || next_cp > U'7') {
+								break;
+							}
+							stream.take();
+							c = c * 8 + (next_cp - U'0');
+						}
+					}
 				}
-			}
-			non_graphic = result.string.size() + 1;
-			result.byte_end = stream.byte_position();
-		} else {
-			if (is_graphical_char(c)) {
 				non_graphic = result.string.size() + 1;
 				result.byte_end = stream.byte_position();
+			} else {
+				if (is_graphical_char(c)) {
+					non_graphic = result.string.size() + 1;
+					result.byte_end = stream.byte_position();
+				}
 			}
+			result.string.push_back(c);
 		}
-		result.string.push_back(c);
+		result.string.erase(result.string.begin() + non_graphic, result.string.end());
 	}
-	result.string.erase(result.string.begin() + non_graphic, result.string.end());
 	if (result.string.empty()) {
 		return std::nullopt;
 	}
@@ -425,7 +456,7 @@ void dump_tests(std::ostream &out, const std::vector<test> &tests) {
 		}
 		bool expect_no_match = false;
 		while (!stream.empty()) {
-			auto data = parse_data(stream);
+			auto data = parse_data(stream, current_test.pattern);
 			if (data) {
 				if (data->string.empty()) {
 					if (data->expect_no_match) {

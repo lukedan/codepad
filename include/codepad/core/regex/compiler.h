@@ -121,6 +121,16 @@ namespace codepad::regex {
 			/// Restores the checkpointed stream, previously pushed using \ref push_stream_checkpoint.
 			struct restore_stream_checkpoint {
 			};
+			/// Paired with \ref infinite_loop, this transition pushes the current stream position onto a stack so
+			/// that we can later check if we're stuck in an infinite loop where the body doesn't consume any
+			/// characters.
+			struct push_position {
+			};
+			/// This transition can only happen if any characters have been consumed since the last
+			/// \ref push_position. Regardless of whether this transition happens, it will pop the previously pushed
+			/// stream position.
+			struct check_infinite_loop {
+			};
 
 			/// Transitions that are conditions.
 			namespace conditions {
@@ -164,6 +174,8 @@ namespace codepad::regex {
 				transitions::pop_atomic,
 				transitions::push_stream_checkpoint,
 				transitions::restore_stream_checkpoint,
+				transitions::push_position,
+				transitions::check_infinite_loop,
 				transitions::conditions::numbered_recursion,
 				transitions::conditions::named_recursion,
 				transitions::conditions::numbered_capture,
@@ -401,40 +413,8 @@ namespace codepad::regex {
 		/// Compiles the given condition that checks for a named capature.
 		void _compile_condition(
 			compiled::state_ref start, compiled::state_ref end,
-			const ast::nodes::conditional_expression::named_capture_available &cond
-		) {
-			auto trans = start.create_transition();
-			trans->new_state_index = end.index;
-			if (auto id = _find_capture_name(cond.name)) {
-				trans->condition.emplace<compiled::transitions::conditions::named_capture>().name_index = id.value();
-				return;
-			}
-			// check if this is a recursion
-			if (cond.name.size() > 0 && cond.name[0] == U'R') {
-				if (cond.name.size() > 1 && cond.name[1] == U'&') { // named
-					if (auto id = _find_capture_name(codepoint_string_view(cond.name).substr(2))) {
-						auto &rec = trans->condition.emplace<compiled::transitions::conditions::named_recursion>();
-						rec.name_index = id.value();
-					} else {
-						// TODO error
-					}
-				} else { // numbered
-					auto &rec = trans->condition.emplace<compiled::transitions::conditions::numbered_recursion>();
-					if (cond.name.size() > 1) {
-						// an index follows - parse it
-						for (std::size_t i = 1; i < cond.name.size(); ++i) {
-							if (cond.name[i] < U'0' || cond.name[i] > U'9') {
-								// TODO error
-								return;
-							}
-							rec.index = rec.index * 10 + (cond.name[i] - U'0');
-						}
-					}
-				}
-				return;
-			}
-			// TODO error
-		}
+			const ast::nodes::conditional_expression::named_capture_available&
+		);
 		/// Compiles the given assertion.
 		void _compile_condition(
 			compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion&

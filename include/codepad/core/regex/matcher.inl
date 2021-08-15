@@ -18,9 +18,10 @@ namespace codepad::regex {
 		_expr = &expr;
 
 		_state current_state(std::move(stream), expr.start_state, 0, 0, std::nullopt);
-		for (std::size_t i = 0; i < max_iters; ++i) {
+		std::size_t iter = 0;
+		for (; iter < max_iters; ++iter) {
 			if constexpr (_uses_log) {
-				debug_log << u8"\nIteration " << i << u8"\n";
+				debug_log << u8"\nIteration " << iter << u8"\n";
 					
 				debug_log << u8"\tCaptures:\n";
 				for (std::size_t j = 0; j < _result.captures.size(); ++j) {
@@ -30,14 +31,25 @@ namespace codepad::regex {
 				}
 
 				debug_log << u8"\tOngoing captures:\n";
-				auto caps_copy = _ongoing_captures;
-				while (!caps_copy.empty()) {
-					const auto &cap = caps_copy.back();
+				for (auto it = _ongoing_captures.crbegin(); it != _ongoing_captures.crend(); ++it) {
 					debug_log <<
-						u8"\t\t" << caps_copy.size() <<
-						u8": #" << cap.index <<
-						u8",  begin: " << cap.begin.codepoint_position() << u8"\n";
-					caps_copy.pop_back();
+						u8"\t\t" << (_ongoing_captures.size() - (it - _ongoing_captures.crbegin())) <<
+						u8": #" << it->index <<
+						u8",  begin: " << it->begin.codepoint_position() << u8"\n";
+				}
+
+				debug_log << u8"\tOngoing subroutines:\n";
+				for (auto it = _subroutine_stack.crbegin(); it != _subroutine_stack.crend(); ++it) {
+					debug_log <<
+						u8"\t\t" << (_subroutine_stack.size() - (it - _subroutine_stack.crbegin())) <<
+						u8": #" << it->subroutine_index << u8"\n";
+					for (auto it2 = it->finished_captures.crbegin(); it2 != it->finished_captures.crend(); ++it2) {
+						debug_log <<
+							u8"\t\t\t" << (it->finished_captures.size() - (it2 - it->finished_captures.crbegin())) <<
+							u8": #" << it2->index <<
+							u8",  begin: " << it2->capture_data.begin.codepoint_position() <<
+							u8",  length: " << it2->capture_data.length << u8"\n";
+					}
 				}
 
 				_log(current_state, u8"\t");
@@ -51,16 +63,31 @@ namespace codepad::regex {
 			}
 			if (!_subroutine_stack.empty() && current_state.automata_state == _subroutine_stack.back().target) {
 				// check subroutines before checking if we're finished, so that we correctly handle recursion
-				current_state.automata_state = _subroutine_stack.back().return_state;
+				_log(u8"\tSubroutine finished\n");
+				auto &stackframe = _subroutine_stack.back();
+				current_state.automata_state = stackframe.return_state;
 				current_state.transition = 0;
-				if (_subroutine_stack.back().state_stack_size < _state_stack.size()) {
+				// revert captures during the subroutine
+				for (
+					auto it = stackframe.finished_captures.rbegin();
+					it != stackframe.finished_captures.rend();
+					++it
+				) {
+					_result.captures[it->index] = it->capture_data;
+					if constexpr (_uses_log) {
+						debug_log <<
+							u8"\t\tRestoring capture #" << it->index <<
+							u8"  begin:" << _result.captures[it->index].begin.codepoint_position() <<
+							u8"  length: " << _result.captures[it->index].length << u8"\n";
+					}
+				}
+				if (stackframe.state_stack_size < _state_stack.size()) {
 					// this subroutine started before the last backtracking state; we need to save it so that when
 					// backtracking we can restart it
-					_state_stack.back().finished_subroutines.emplace_back(std::move(_subroutine_stack.back()));
+					_state_stack.back().finished_subroutines.emplace_back(std::move(stackframe));
 				}
+				// pop stack frame
 				_subroutine_stack.pop_back();
-				_log(u8"\tSubroutine finished");
-				// TODO revert capture groups
 				continue;
 			}
 			if (current_state.automata_state == expr.end_state) {
@@ -131,6 +158,13 @@ namespace codepad::regex {
 				) {
 					_checkpoint_stack.pop_back();
 				}
+				// pop stream positions saved after this state
+				while (
+					!_stream_position_stack.empty() &&
+					_state_stack.size() < _stream_position_stack.back().state_stack_size
+				) {
+					_stream_position_stack.pop_back();
+				}
 
 				// restore _ongoing_captures to the state we're backtracking to
 				std::size_t count =
@@ -162,6 +196,11 @@ namespace codepad::regex {
 					_checkpoint_stack.emplace_back(std::move(current_state.restored_checkpoints.back()));
 					current_state.restored_checkpoints.pop_back();
 				}
+				// restore stream positions
+				while (!current_state.finished_stream_positions.empty()) {
+					_stream_position_stack.emplace_back(std::move(current_state.finished_stream_positions.back()));
+					current_state.finished_stream_positions.pop_back();
+				}
 			}
 		}
 		stream = std::move(current_state.stream);
@@ -169,11 +208,12 @@ namespace codepad::regex {
 		_state_stack = std::deque<_state>();
 		_expr = nullptr;
 
-		if (current_state.automata_state == expr.end_state) {
+		if (iter < max_iters && current_state.automata_state == expr.end_state) {
 			assert_true_logical(_ongoing_captures.empty(), "there are still ongoing captures");
 			assert_true_logical(_atomic_stack_sizes.empty(), "there are still ongoing atomic groups");
 			assert_true_logical(_subroutine_stack.empty(), "there are still ongoing subroutines");
 			assert_true_logical(_checkpoint_stack.empty(), "there are still checkpoints");
+			assert_true_logical(_stream_position_stack.empty(), "there are still stream positions");
 			_result.captures.front().length =
 				stream.codepoint_position() - _result.captures.front().begin.codepoint_position();
 			while (!_result.captures.empty() && !_result.captures.back().is_valid()) {
@@ -185,6 +225,7 @@ namespace codepad::regex {
 		_atomic_stack_sizes = std::deque<std::size_t>();
 		_subroutine_stack = std::deque<_subroutine_stackframe>();
 		_checkpoint_stack = std::deque<_checkpointed_stream>();
+		_stream_position_stack = std::deque<_stream_position>();
 		return std::nullopt;
 	}
 
@@ -276,6 +317,10 @@ namespace codepad::regex {
 				st.finished_captures.emplace_back(_result.captures[res.index], res.index);
 			}
 		}
+		if (!_subroutine_stack.empty()) {
+			// a capture cannot span across subroutine calls
+			_subroutine_stack.back().finished_captures.emplace_back(_result.captures[res.index], res.index);
+		}
 
 		std::size_t index = res.index;
 		_result.captures[index].length = stream.codepoint_position() - res.begin.codepoint_position();
@@ -309,6 +354,14 @@ namespace codepad::regex {
 						new_top_state.restored_checkpoints.emplace_back(std::move(checkpoint));
 					}
 					// otherwise, this checkpoint was restored after the new top state and we don't care
+				}
+
+				// save information of all saved stream positions
+				for (auto &pos : cur_state.finished_stream_positions) {
+					if (pos.state_stack_size < target_stack_size) {
+						new_top_state.finished_stream_positions.emplace_back(std::move(pos));
+					}
+					// otherwise, this position was saved after the new top state and we don't care
 				}
 
 				// update the variable with the number of captures that started after the previous state and

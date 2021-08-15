@@ -98,6 +98,16 @@ namespace codepad::regex {
 					} else if (std::holds_alternative<transitions::conditions::named_capture>(t.condition)) {
 						const auto &cond = std::get<transitions::conditions::named_capture>(t.condition);
 						stream << "<cond: named capture #" << cond.name_index << ">";
+					} else if (std::holds_alternative<transitions::conditions::numbered_recursion>(t.condition)) {
+						const auto &cond = std::get<transitions::conditions::numbered_recursion>(t.condition);
+						stream << "<cond: recursion #" << cond.index << ">";
+					} else if (std::holds_alternative<transitions::conditions::named_recursion>(t.condition)) {
+						const auto &cond = std::get<transitions::conditions::named_recursion>(t.condition);
+						stream << "<cond: named recursion #" << cond.name_index << ">";
+					} else if (std::holds_alternative<transitions::push_position>(t.condition)) {
+						stream << "<push pos>";
+					} else if (std::holds_alternative<transitions::check_infinite_loop>(t.condition)) {
+						stream << "<check loop>";
 					} else if (std::holds_alternative<transitions::jump>(t.condition)) {
 						const auto &jmp = std::get<transitions::jump>(t.condition);
 						stream << "<jump>\"];\n";
@@ -384,11 +394,26 @@ namespace codepad::regex {
 			if (rep.repetition_type == ast::nodes::repetition::type::lazy) {
 				cur.create_transition()->new_state_index = end.index;
 				_compile(cur, next, rep.expression);
+				next.create_transition()->new_state_index = cur.index;
 			} else {
-				_compile(cur, next, rep.expression);
+				auto body_start = _result.create_state();
+				// push the current stream position so that we can detect infinite loops
+				auto enter = cur.create_transition();
+				enter->condition.emplace<compiled::transitions::push_position>();
+				enter->new_state_index = body_start.index;
+				// if the current iteration does not match the body, then continue on to the rest of the expression
+				// this should start from cur instead of start to avoid pushing unnecessary stream positions
 				cur.create_transition()->new_state_index = end.index;
+
+				_compile(body_start, next, rep.expression);
+
+				// loop back - watch out for infinite loops
+				auto loopback = next.create_transition();
+				loopback->new_state_index = cur.index;
+				loopback->condition.emplace<compiled::transitions::check_infinite_loop>();
+				// if loop back does not pass, then just jump to the end
+				next.create_transition()->new_state_index = end.index;
 			}
-			next.create_transition()->new_state_index = cur.index;
 		} else {
 			if (rep.min > 0) {
 				auto next = _result.create_state();
@@ -513,6 +538,44 @@ namespace codepad::regex {
 		} else {
 			no_state.create_transition()->new_state_index = end.index;
 		}
+	}
+
+	void compiler::_compile_condition(
+		compiled::state_ref start, compiled::state_ref end,
+		const ast::nodes::conditional_expression::named_capture_available &cond
+	) {
+		auto trans = start.create_transition();
+		trans->new_state_index = end.index;
+		if (auto id = _find_capture_name(cond.name)) {
+			trans->condition.emplace<compiled::transitions::conditions::named_capture>().name_index = id.value();
+			return;
+		}
+		// check if this is a recursion
+		if (cond.name.size() > 0 && cond.name[0] == U'R') {
+			if (cond.name.size() > 1 && cond.name[1] == U'&') { // named
+				if (auto id = _find_capture_name(codepoint_string_view(cond.name).substr(2))) {
+					auto &rec = trans->condition.emplace<compiled::transitions::conditions::named_recursion>();
+					rec.name_index = id.value();
+				} else {
+					// TODO error
+				}
+			} else { // numbered
+				auto &rec = trans->condition.emplace<compiled::transitions::conditions::numbered_recursion>();
+				if (cond.name.size() > 1) {
+					// an index follows - parse it
+					rec.index = 0;
+					for (std::size_t i = 1; i < cond.name.size(); ++i) {
+						if (cond.name[i] < U'0' || cond.name[i] > U'9') {
+							// TODO error
+							return;
+						}
+						rec.index = rec.index * 10 + (cond.name[i] - U'0');
+					}
+				}
+			}
+			return;
+		}
+		// TODO error
 	}
 
 	void compiler::_compile_condition(

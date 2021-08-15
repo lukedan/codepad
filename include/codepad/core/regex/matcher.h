@@ -150,6 +150,8 @@ namespace codepad::regex {
 		};
 		/// Stackframe of a subroutine.
 		struct _subroutine_stackframe {
+			/// Used to revert captures back to their initial value after a subroutine finishes.
+			std::vector<_finished_capture_info> finished_captures;
 			std::size_t target = 0; ///< \sa \ref compiled::jump::target
 			std::size_t return_state = 0; ///< \sa \ref compiled::jump::return_state
 			/// When backtracking to before this state, this subroutine stackframe becomes invalid and should be
@@ -161,6 +163,11 @@ namespace codepad::regex {
 		struct _checkpointed_stream {
 			Stream position; ///< The stream.
 			std::size_t state_stack_size = 0; ///< State stack size when this stream was checkpointed.
+		};
+		/// Saved stream position used for detecting infinite loops.
+		struct _stream_position {
+			std::size_t codepoint_position = 0; ///< Codepoint position of the stream.
+			std::size_t state_stack_size = 0; ///< State stack size when this position was pushed.
 		};
 		/// The state of the automata at one moment.
 		struct _state {
@@ -193,6 +200,9 @@ namespace codepad::regex {
 			/// Checkpoints that were set before this state was pushed, and finished after this state was pushed and
 			/// before the next state was pushed.
 			std::deque<_checkpointed_stream> restored_checkpoints;
+			/// Stream positions saved before this state was pushed, and was popped after this state was pushed but
+			/// before the next state was pushed.
+			std::deque<_stream_position> finished_stream_positions;
 			/// Overriden match starting position before this state was pushed onto the stack.
 			std::optional<Stream> initial_match_begin;
 
@@ -213,6 +223,7 @@ namespace codepad::regex {
 		std::deque<std::size_t> _atomic_stack_sizes;
 		std::deque<_subroutine_stackframe> _subroutine_stack; ///< Subroutine stack.
 		std::deque<_checkpointed_stream> _checkpoint_stack; ///< Checkpoint stack.
+		std::deque<_stream_position> _stream_position_stack; ///< Saved stream positions.
 		const compiled::state_machine *_expr = nullptr; ///< State machine for the expression.
 
 		/// Logs the given string.
@@ -374,6 +385,17 @@ namespace codepad::regex {
 			_result.overriden_match_begin = std::move(stream);
 			return true;
 		}
+		/// Checks if we're in an infinite loop.
+		[[nodiscard]] bool _check_transition(
+			Stream &stream, const compiled::transition&, const compiled::transitions::check_infinite_loop&
+		) {
+			auto pos = _stream_position_stack.back();
+			_stream_position_stack.pop_back();
+			if (!_state_stack.empty() && pos.state_stack_size < _state_stack.size()) {
+				_state_stack.back().finished_stream_positions.emplace_back(pos);
+			}
+			return stream.codepoint_position() != pos.codepoint_position;
+		}
 		/// Checks if we're currently in a numbered recursion.
 		[[nodiscard]] bool _check_transition(
 			const Stream&, const compiled::transition&,
@@ -449,5 +471,11 @@ namespace codepad::regex {
 		void _execute_transition(Stream&, const compiled::transitions::restore_stream_checkpoint&);
 		/// Pushes a subroutine stack frame.
 		void _execute_transition(const Stream&, const compiled::transitions::jump&);
+		/// Pushes the current stream position
+		void _execute_transition(const Stream &stream, const compiled::transitions::push_position&) {
+			auto &pushed = _stream_position_stack.emplace_back();
+			pushed.codepoint_position = stream.codepoint_position();
+			pushed.state_stack_size = _state_stack.size();
+		}
 	};
 }
