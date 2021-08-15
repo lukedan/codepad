@@ -8,6 +8,7 @@
 
 #include <optional>
 #include <format>
+#include <deque>
 
 #include "compiler.h"
 
@@ -154,6 +155,7 @@ namespace codepad::regex {
 			/// When backtracking to before this state, this subroutine stackframe becomes invalid and should be
 			/// popped.
 			std::size_t state_stack_size = 0;
+			std::size_t subroutine_index = 0; ///< Index of this subroutine.
 		};
 		/// A checkpointed stream position.
 		struct _checkpointed_stream {
@@ -206,11 +208,11 @@ namespace codepad::regex {
 
 		result _result; ///< Cached match result.
 		std::deque<_state> _state_stack; ///< States for backtracking.
-		std::stack<_capture_info> _ongoing_captures; ///< Ongoing captures.
+		std::deque<_capture_info> _ongoing_captures; ///< Ongoing captures.
 		/// Size of \ref _state_stack at the beginning of each ongoing atomic group.
-		std::stack<std::size_t> _atomic_stack_sizes;
-		std::stack<_subroutine_stackframe> _subroutine_stack; ///< Subroutine stack.
-		std::stack<_checkpointed_stream> _checkpoint_stack; ///< Checkpoint stack.
+		std::deque<std::size_t> _atomic_stack_sizes;
+		std::deque<_subroutine_stackframe> _subroutine_stack; ///< Subroutine stack.
+		std::deque<_checkpointed_stream> _checkpoint_stack; ///< Checkpoint stack.
 		const compiled::state_machine *_expr = nullptr; ///< State machine for the expression.
 
 		/// Logs the given string.
@@ -372,6 +374,31 @@ namespace codepad::regex {
 			_result.overriden_match_begin = std::move(stream);
 			return true;
 		}
+		/// Checks if we're currently in a numbered recursion.
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const compiled::transition&,
+			const compiled::transitions::conditions::numbered_recursion &cond
+		) {
+			if (!_subroutine_stack.empty()) {
+				if (cond.index != compiled::transitions::conditions::numbered_recursion::any_index) {
+					return _subroutine_stack.back().subroutine_index == cond.index;
+				}
+				return true;
+			}
+			return false;
+		}
+		/// Checks if we're currently in a named recursion.
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const compiled::transition&,
+			const compiled::transitions::conditions::named_recursion &cond
+		) {
+			if (!_subroutine_stack.empty()) {
+				std::size_t current_name_index =
+					_expr->named_captures.reverse_mapping[_subroutine_stack.back().subroutine_index];
+				return current_name_index == cond.name_index;
+			}
+			return false;
+		}
 		/// Checks if the given numbered group has been matched.
 		[[nodiscard]] bool _check_transition(
 			const Stream&, const compiled::transition&,
@@ -406,13 +433,13 @@ namespace codepad::regex {
 		}
 		/// Starts a capture.
 		void _execute_transition(Stream stream, const compiled::transitions::capture_begin &beg) {
-			_ongoing_captures.emplace(std::move(stream), beg.index);
+			_ongoing_captures.emplace_back(std::move(stream), beg.index);
 		}
 		/// Ends a capture.
 		void _execute_transition(const Stream&, const compiled::transitions::capture_end&);
 		/// Pushes an atomic group.
 		void _execute_transition(const Stream&, const compiled::transitions::push_atomic&) {
-			_atomic_stack_sizes.emplace(_state_stack.size());
+			_atomic_stack_sizes.emplace_back(_state_stack.size());
 		}
 		/// Pops all states associated with the current atomic group.
 		void _execute_transition(const Stream&, const compiled::transitions::pop_atomic&);

@@ -23,12 +23,17 @@ namespace codepad::regex {
 
 		/// Records the corresponding numbered capture indices of all named captures.
 		struct named_capture_registry {
+			/// Indicates that a numbered capture does not have a corresponding reverse mapping.
+			constexpr static std::size_t no_reverse_mapping = std::numeric_limits<std::size_t>::max();
+
 			/// Numbered capture indices for all named captures. Use \ref start_indices to obtain the range of
 			/// indices that correspond to a specific name.
 			std::vector<std::size_t> indices;
 			/// Starting indices in \ref indices. This array has one additional element at the end (which is the
 			/// length of \ref indices) for convenience.
 			std::vector<std::size_t> start_indices;
+			/// Mapping from numbered capture indices to the corresponding named capture indices.
+			std::vector<std::size_t> reverse_mapping;
 
 			/// Returns the range in \ref indices that correspond to the given name.
 			[[nodiscard]] std::span<const std::size_t> get_indices_for_name(std::size_t name_index) const {
@@ -36,6 +41,13 @@ namespace codepad::regex {
 					indices.begin() + start_indices[name_index],
 					indices.begin() + start_indices[name_index + 1]
 				};
+			}
+			/// Returns the index of the name corresponding to the group at the given index.
+			[[nodiscard]] std::size_t get_name_index_for_group(std::size_t index) const {
+				if (index < reverse_mapping.size()) {
+					return reverse_mapping[index];
+				}
+				return no_reverse_mapping;
 			}
 		};
 
@@ -61,21 +73,7 @@ namespace codepad::regex {
 				bool is_negate = false; ///< Whether the codepoint should not match any character in this class.
 
 				/// Tests whether the given codepoint is matched by this character class.
-				[[nodiscard]] bool matches(codepoint cp, bool case_insensitive) const {
-					bool result = ranges.contains(cp);
-					if (case_insensitive && !result) {
-						result = ranges.contains(unicode::case_folding::get_cached().fold_simple(cp));
-						if (!result) {
-							for (auto folded : unicode::case_folding::get_cached().inverse_fold_simple(cp)) {
-								if (ranges.contains(folded)) {
-									result = true;
-									break;
-								}
-							}
-						}
-					}
-					return is_negate ? !result : result;
-				}
+				[[nodiscard]] bool matches(codepoint, bool case_insensitive) const;
 			};
 			using simple_assertion = ast::nodes::simple_assertion; ///< Simple assertion.
 			/// An assertion that checks if we are at a character class boundary.
@@ -99,12 +97,13 @@ namespace codepad::regex {
 				std::size_t index = 0; ///< Index of the capture.
 			};
 			/// Pushes a subroutine stack frame indicating that once \ref target is reached, jumps to
-			/// \ref return_state.
+			/// \ref return_state. This should only be used to implement subroutines and recursions.
 			struct jump {
 				/// The target state. Once this state is reached, matching jumps back to \ref final.
 				std::size_t target = 0;
 				/// The state to jump to once \ref target is reached.
 				std::size_t return_state = 0;
+				std::size_t subroutine_index = 0; ///< Index of the subroutine.
 			};
 			/// Resets the starting position of this match.
 			struct reset_match_start {
@@ -125,13 +124,25 @@ namespace codepad::regex {
 
 			/// Transitions that are conditions.
 			namespace conditions {
+				/// Checks if we're currently in a recursion.
+				struct numbered_recursion {
+					/// Indicates that any ongoing recursion satisfies this condition.
+					constexpr static std::size_t any_index = std::numeric_limits<std::size_t>::max();
+
+					/// Index of the group to check for, or \ref any_index to indicate any recursion.
+					std::size_t index = any_index;
+				};
+				/// Checks if we're currently in the specified named subroutine call.
+				struct named_recursion {
+					std::size_t name_index = 0; ///< Index of the name in \ref state_machine::named_captures.
+				};
 				/// Checks if the given numbered group has been matched.
 				struct numbered_capture {
 					std::size_t index = 0; ///< The index of the capture.
 				};
 				/// Checks if the given named group has been matched.
 				struct named_capture {
-					std::size_t name_index = 0; ///< The index of the name.
+					std::size_t name_index = 0; ///< Index of the name in \ref state_machine::named_captures.
 				};
 			}
 		}
@@ -153,6 +164,8 @@ namespace codepad::regex {
 				transitions::pop_atomic,
 				transitions::push_stream_checkpoint,
 				transitions::restore_stream_checkpoint,
+				transitions::conditions::numbered_recursion,
+				transitions::conditions::named_recursion,
 				transitions::conditions::numbered_capture,
 				transitions::conditions::named_capture
 			>;
@@ -289,6 +302,14 @@ namespace codepad::regex {
 		void _collect_capture_names(const ast::nodes::complex_assertion &expr) {
 			_collect_capture_names(expr.expression);
 		}
+		/// Collects names from the conditional expression.
+		void _collect_capture_names(const ast::nodes::conditional_expression &expr) {
+			_collect_capture_names(expr.if_true);
+			if (expr.if_false) {
+				_collect_capture_names(expr.if_false);
+			}
+		}
+
 		/// Finds the index of the given capture name.
 		[[nodiscard]] std::optional<std::size_t> _find_capture_name(codepoint_string_view sv) const {
 			auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), sv);
@@ -382,13 +403,37 @@ namespace codepad::regex {
 			compiled::state_ref start, compiled::state_ref end,
 			const ast::nodes::conditional_expression::named_capture_available &cond
 		) {
+			auto trans = start.create_transition();
+			trans->new_state_index = end.index;
 			if (auto id = _find_capture_name(cond.name)) {
-				auto trans = start.create_transition();
-				trans->new_state_index = end.index;
 				trans->condition.emplace<compiled::transitions::conditions::named_capture>().name_index = id.value();
-			} else {
-				// TODO error
+				return;
 			}
+			// check if this is a recursion
+			if (cond.name.size() > 0 && cond.name[0] == U'R') {
+				if (cond.name.size() > 1 && cond.name[1] == U'&') { // named
+					if (auto id = _find_capture_name(codepoint_string_view(cond.name).substr(2))) {
+						auto &rec = trans->condition.emplace<compiled::transitions::conditions::named_recursion>();
+						rec.name_index = id.value();
+					} else {
+						// TODO error
+					}
+				} else { // numbered
+					auto &rec = trans->condition.emplace<compiled::transitions::conditions::numbered_recursion>();
+					if (cond.name.size() > 1) {
+						// an index follows - parse it
+						for (std::size_t i = 1; i < cond.name.size(); ++i) {
+							if (cond.name[i] < U'0' || cond.name[i] > U'9') {
+								// TODO error
+								return;
+							}
+							rec.index = rec.index * 10 + (cond.name[i] - U'0');
+						}
+					}
+				}
+				return;
+			}
+			// TODO error
 		}
 		/// Compiles the given assertion.
 		void _compile_condition(

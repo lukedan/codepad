@@ -784,37 +784,7 @@ namespace codepad::regex {
 						break;
 					}
 					auto &new_expr = result.nodes.emplace_back().value.emplace<ast::nodes::conditional_expression>();
-					do {
-						// parse condition
-						Stream checkpoint = _stream;
-
-						// named capture
-						if (_stream.peek() == U'<' || _stream.peek() == U'\'') {
-							codepoint termination = U')';
-							switch (_stream.take()) {
-							case U'<':
-								termination = U'>';
-								break;
-							case U'\'':
-								termination = U'\'';
-								break;
-							default:
-								// TODO error
-								break;
-							}
-							auto &cond = new_expr.condition.emplace<
-								ast::nodes::conditional_expression::named_capture_available
-							>();
-							while (!_stream.empty()) {
-								codepoint cp = _stream.take();
-								if (cp == termination) {
-									break;
-								}
-								cond.name.push_back(cp);
-							}
-							break;
-						}
-
+					while (true) {
 						// numbered capture
 						if (auto id = _parse_capture_index()) {
 							new_expr.condition.emplace<
@@ -822,7 +792,6 @@ namespace codepad::regex {
 							>().index = id.value();
 							break;
 						}
-						_stream = checkpoint;
 
 						// DEFINE
 						if (_check_prefix(U"DEFINE")) {
@@ -830,20 +799,49 @@ namespace codepad::regex {
 							break;
 						}
 
-						// otherwise this is an assertion
-						ast::nodes::subexpression temp_expr;
-						std::size_t tmp_options_pushed = 0;
-						_parse_round_brackets_group(temp_expr, tmp_options_pushed);
-						if (temp_expr.nodes.size() > 0 && temp_expr.nodes[0].is<ast::nodes::complex_assertion>()) {
-							auto &assertion = std::get<ast::nodes::complex_assertion>(temp_expr.nodes[0].value);
-							new_expr.condition.emplace<ast::nodes::complex_assertion>(std::move(assertion));
-						} else {
-							// TODO error
+						// assertion
+						if (_stream.peek() == U'?') {
+							ast::nodes::subexpression temp_expr;
+							std::size_t tmp_options_pushed = 0;
+							_parse_round_brackets_group(temp_expr, tmp_options_pushed);
+							if (temp_expr.nodes.size() > 0 && temp_expr.nodes[0].is<ast::nodes::complex_assertion>()) {
+								auto &assertion = std::get<ast::nodes::complex_assertion>(temp_expr.nodes[0].value);
+								new_expr.condition.emplace<ast::nodes::complex_assertion>(std::move(assertion));
+							} else {
+								// TODO error
+							}
+							for (; tmp_options_pushed > 0; --tmp_options_pushed) {
+								_option_stack.pop();
+							}
+							break;
 						}
-						for (; tmp_options_pushed > 0; --tmp_options_pushed) {
-							_option_stack.pop();
+
+						{ // named capture
+							codepoint termination = U')';
+							switch (_stream.peek()) {
+							case U'<':
+								_stream.take();
+								termination = U'>';
+								break;
+							case U'\'':
+								_stream.take();
+								termination = U'\'';
+								break;
+							default: // no delimiters
+								break;
+							}
+							auto &cond = new_expr.condition.emplace<
+								ast::nodes::conditional_expression::named_capture_available
+							>();
+							while (!_stream.empty() && _stream.peek() != termination) {
+								cond.name.push_back(_stream.take());
+							}
+							if (!_stream.empty() && termination != U')') {
+								_stream.take();
+							}
+							break;
 						}
-					} while (false);
+					}
 					// consume ending bracket
 					if (!_stream.empty() && _stream.peek() == U')') {
 						_stream.take();
@@ -888,7 +886,7 @@ namespace codepad::regex {
 				{
 					_stream.take();
 					is_subexpression = false;
-					auto &ref = result.nodes.emplace_back().value.emplace<ast::nodes::named_backreference>();
+					auto &ref = result.nodes.emplace_back().value.emplace<ast::nodes::named_subroutine>();
 					while (true) {
 						if (_stream.empty()) {
 							// TODO error

@@ -113,6 +113,23 @@ namespace codepad::regex {
 			}
 			stream << "}\n";
 		}
+
+
+		bool transitions::character_class::matches(codepoint cp, bool case_insensitive) const {
+			bool result = ranges.contains(cp);
+			if (case_insensitive && !result) {
+				result = ranges.contains(unicode::case_folding::get_cached().fold_simple(cp));
+				if (!result) {
+					for (auto folded : unicode::case_folding::get_cached().inverse_fold_simple(cp)) {
+						if (ranges.contains(folded)) {
+							result = true;
+							break;
+						}
+					}
+				}
+			}
+			return is_negate ? !result : result;
+		}
 	}
 
 
@@ -139,8 +156,23 @@ namespace codepad::regex {
 			}
 			_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
 			_capture_names.emplace_back(std::move(last_name));
-		}
 
+			// build reverse name mapping
+			for (std::size_t i = 0; i + 1 < _result.named_captures.start_indices.size(); ++i) {
+				for (auto id : _result.named_captures.get_indices_for_name(i)) {
+					if (id >= _result.named_captures.reverse_mapping.size()) {
+						_result.named_captures.reverse_mapping.resize(
+							id + 1, compiled::named_capture_registry::no_reverse_mapping
+						);
+					}
+					std::size_t &value = _result.named_captures.reverse_mapping[id];
+					if (value != compiled::named_capture_registry::no_reverse_mapping && value != i) {
+						// TODO error
+					}
+					value = i;
+				}
+			}
+		}
 		_compile(start_state, end_state, expr);
 
 		// subroutine for the whole pattern, i.e., recursion
@@ -214,6 +246,7 @@ namespace codepad::regex {
 		auto trans = start.create_transition();
 		auto &jmp = trans->condition.emplace<compiled::transitions::jump>();
 		jmp.return_state = end.index;
+		jmp.subroutine_index = expr.index;
 		_subroutines.emplace_back(trans, expr.index);
 	}
 
@@ -221,10 +254,16 @@ namespace codepad::regex {
 		compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_subroutine &expr
 	) {
 		if (auto id = _find_capture_name(expr.name)) {
-			auto trans = start.create_transition();
-			auto &jmp = trans->condition.emplace<compiled::transitions::jump>();
-			jmp.return_state = end.index;
-			_subroutines.emplace_back(trans, id.value());
+			auto indices = _result.named_captures.get_indices_for_name(id.value());
+			if (indices.size() > 0) {
+				auto trans = start.create_transition();
+				auto &jmp = trans->condition.emplace<compiled::transitions::jump>();
+				jmp.return_state = end.index;
+				jmp.subroutine_index = indices[0];
+				_subroutines.emplace_back(trans, indices[0]);
+			} else {
+				// TODO error
+			}
 		} else {
 			// TODO error
 		}
@@ -396,7 +435,7 @@ namespace codepad::regex {
 			end = new_end;
 		}
 
-		if (!ass.non_atomic) {
+		if (ass.negative || !ass.non_atomic) { // negative assertions are always atomic
 			auto new_start = _result.create_state();
 			auto new_end = _result.create_state();
 
@@ -415,26 +454,18 @@ namespace codepad::regex {
 			// TODO handle reversed stream
 		}
 		
-		auto assertion_begin = _result.create_state();
-		auto assertion_end = _result.create_state();
-		_compile(assertion_begin, assertion_end, ass.expression);
-
-		auto jump_trans = start.create_transition();
-		jump_trans->new_state_index = assertion_begin.index;
-		auto &jump = jump_trans->condition.emplace<compiled::transitions::jump>();
-		jump.target = assertion_end.index;
 		if (ass.negative) {
 			auto fail_state = _result.create_state();
 			auto before_fail_state = _result.create_state();
-			jump.return_state = before_fail_state.index;
 			// prevent backtracking by inserting a pop_atomic
 			auto trans = before_fail_state.create_transition();
 			trans->condition.emplace<compiled::transitions::pop_atomic>();
 			trans->new_state_index = fail_state.index;
 
+			_compile(start, before_fail_state, ass.expression);
 			start.create_transition()->new_state_index = end.index;
 		} else {
-			jump.return_state = end.index;
+			_compile(start, end, ass.expression);
 		}
 	}
 

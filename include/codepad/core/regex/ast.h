@@ -169,6 +169,10 @@ namespace codepad::regex::ast {
 		};
 		/// An conditional subexpression.
 		struct conditional_expression {
+			/// Used to define groups that can be later referenced. This condition is always false and there must
+			/// only be one alternative.
+			struct define {
+			};
 			/// A condition that tests if a particular capture group has matched.
 			struct numbered_capture_available {
 				std::size_t index = 0; ///< The index of this capture.
@@ -176,11 +180,6 @@ namespace codepad::regex::ast {
 			/// A condition that tests if a named capture is available.
 			struct named_capture_available {
 				codepoint_string name; ///< Name of the capture.
-			};
-			// TODO recursion
-			/// Used to define groups that can be later referenced. This condition is always false and there must
-			/// only be one alternative.
-			struct define {
 			};
 
 			/// Type for the condition.
@@ -495,6 +494,10 @@ namespace codepad::regex::ast {
 			}
 		}
 
+		/// Dumps a definition condition.
+		void _dump_condition(const nodes::conditional_expression::define&) {
+			_stream << "<define>";
+		}
 		/// Dumps a condition that checks for a numbered assertion.
 		void _dump_condition(const nodes::conditional_expression::numbered_capture_available &cap) {
 			_stream << "capture #" << cap.index;
@@ -506,10 +509,6 @@ namespace codepad::regex::ast {
 				_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
 			}
 			_stream << "\"";
-		}
-		/// Dumps a definition condition.
-		void _dump_condition(const nodes::conditional_expression::define&) {
-			_stream << "<define>";
 		}
 		/// Dumps an assertion that's used as a condition.
 		void _dump_condition(const nodes::complex_assertion&) {

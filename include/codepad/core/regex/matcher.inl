@@ -32,12 +32,12 @@ namespace codepad::regex {
 				debug_log << u8"\tOngoing captures:\n";
 				auto caps_copy = _ongoing_captures;
 				while (!caps_copy.empty()) {
-					const auto &cap = caps_copy.top();
+					const auto &cap = caps_copy.back();
 					debug_log <<
 						u8"\t\t" << caps_copy.size() <<
 						u8": #" << cap.index <<
 						u8",  begin: " << cap.begin.codepoint_position() << u8"\n";
-					caps_copy.pop();
+					caps_copy.pop_back();
 				}
 
 				_log(current_state, u8"\t");
@@ -49,16 +49,16 @@ namespace codepad::regex {
 					states_copy.pop_back();
 				}
 			}
-			if (!_subroutine_stack.empty() && current_state.automata_state == _subroutine_stack.top().target) {
+			if (!_subroutine_stack.empty() && current_state.automata_state == _subroutine_stack.back().target) {
 				// check subroutines before checking if we're finished, so that we correctly handle recursion
-				current_state.automata_state = _subroutine_stack.top().return_state;
+				current_state.automata_state = _subroutine_stack.back().return_state;
 				current_state.transition = 0;
-				if (_subroutine_stack.top().state_stack_size < _state_stack.size()) {
+				if (_subroutine_stack.back().state_stack_size < _state_stack.size()) {
 					// this subroutine started before the last backtracking state; we need to save it so that when
 					// backtracking we can restart it
-					_state_stack.back().finished_subroutines.emplace_back(std::move(_subroutine_stack.top()));
+					_state_stack.back().finished_subroutines.emplace_back(std::move(_subroutine_stack.back()));
 				}
-				_subroutine_stack.pop();
+				_subroutine_stack.pop_back();
 				_log(u8"\tSubroutine finished");
 				// TODO revert capture groups
 				continue;
@@ -116,27 +116,27 @@ namespace codepad::regex {
 				_state_stack.pop_back();
 
 				// pop atomic groups that started after the state
-				while (!_atomic_stack_sizes.empty() && _state_stack.size() < _atomic_stack_sizes.top()) {
-					_atomic_stack_sizes.pop();
+				while (!_atomic_stack_sizes.empty() && _state_stack.size() < _atomic_stack_sizes.back()) {
+					_atomic_stack_sizes.pop_back();
 				}
 				// pop subroutine stackframes that started after the state
 				while (
-					!_subroutine_stack.empty() && _state_stack.size() < _subroutine_stack.top().state_stack_size
+					!_subroutine_stack.empty() && _state_stack.size() < _subroutine_stack.back().state_stack_size
 				) {
-					_subroutine_stack.pop();
+					_subroutine_stack.pop_back();
 				}
 				// pop checkpoints that started after the state
 				while (
-					!_checkpoint_stack.empty() && _state_stack.size() < _checkpoint_stack.top().state_stack_size
+					!_checkpoint_stack.empty() && _state_stack.size() < _checkpoint_stack.back().state_stack_size
 				) {
-					_checkpoint_stack.pop();
+					_checkpoint_stack.pop_back();
 				}
 
 				// restore _ongoing_captures to the state we're backtracking to
 				std::size_t count =
 					current_state.initial_ongoing_captures - current_state.partial_finished_captures.size();
 				while (_ongoing_captures.size() > count) {
-					_ongoing_captures.pop();
+					_ongoing_captures.pop_back();
 				}
 				// restore _result.captures
 				while (!current_state.finished_captures.empty()) {
@@ -146,20 +146,20 @@ namespace codepad::regex {
 				}
 				while (!current_state.partial_finished_captures.empty()) {
 					const auto &cap = current_state.partial_finished_captures.back();
-					_ongoing_captures.emplace(std::move(cap.begin), cap.capture.index);
-					_result.captures[_ongoing_captures.top().index] = std::move(cap.capture.capture_data);
+					_ongoing_captures.emplace_back(std::move(cap.begin), cap.capture.index);
+					_result.captures[_ongoing_captures.back().index] = std::move(cap.capture.capture_data);
 					current_state.partial_finished_captures.pop_back();
 				}
 				// restore _result.overriden_match_begin
 				_result.overriden_match_begin = current_state.initial_match_begin;
 				// restore subroutines
 				while (!current_state.finished_subroutines.empty()) {
-					_subroutine_stack.emplace(std::move(current_state.finished_subroutines.back()));
+					_subroutine_stack.emplace_back(std::move(current_state.finished_subroutines.back()));
 					current_state.finished_subroutines.pop_back();
 				}
 				// restore checkpoints
 				while (!current_state.restored_checkpoints.empty()) {
-					_checkpoint_stack.emplace(std::move(current_state.restored_checkpoints.back()));
+					_checkpoint_stack.emplace_back(std::move(current_state.restored_checkpoints.back()));
 					current_state.restored_checkpoints.pop_back();
 				}
 			}
@@ -181,10 +181,10 @@ namespace codepad::regex {
 			}
 			return std::move(_result);
 		}
-		_ongoing_captures = std::stack<_capture_info>();
-		_atomic_stack_sizes = std::stack<std::size_t>();
-		_subroutine_stack = std::stack<_subroutine_stackframe>();
-		_checkpoint_stack = std::stack<_checkpointed_stream>();
+		_ongoing_captures = std::deque<_capture_info>();
+		_atomic_stack_sizes = std::deque<std::size_t>();
+		_subroutine_stack = std::deque<_subroutine_stackframe>();
+		_checkpoint_stack = std::deque<_checkpointed_stream>();
 		return std::nullopt;
 	}
 
@@ -254,8 +254,8 @@ namespace codepad::regex {
 	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
 		const Stream &stream, const compiled::transitions::capture_end&
 	) {
-		auto res = std::move(_ongoing_captures.top());
-		_ongoing_captures.pop();
+		auto res = std::move(_ongoing_captures.back());
+		_ongoing_captures.pop_back();
 		if (_result.captures.size() <= res.index) {
 			_result.captures.resize(res.index + 1);
 		}
@@ -285,18 +285,19 @@ namespace codepad::regex {
 	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
 		const Stream&, const compiled::transitions::pop_atomic&
 	) {
-		if (_atomic_stack_sizes.top() > 0 && _atomic_stack_sizes.top() < _state_stack.size()) {
+		std::size_t target_stack_size = _atomic_stack_sizes.back();
+		if (target_stack_size > 0 && target_stack_size < _state_stack.size()) {
 			// we need to fold the completed captures information back to the previous state
-			auto &new_top_state = _state_stack[_atomic_stack_sizes.top() - 1];
+			auto &new_top_state = _state_stack[target_stack_size - 1];
 			// this stores the number of captures that started after new top state but before the current state
 			std::size_t captures_started_before_current = 0;
-			for (std::size_t i = _atomic_stack_sizes.top(); i < _state_stack.size(); ++i) {
+			for (std::size_t i = target_stack_size; i < _state_stack.size(); ++i) {
 				const auto &prev_state = _state_stack[i - 1];
 				const auto &cur_state = _state_stack[i];
 
 				// save information of all subroutines that needs restarting
 				for (auto &subroutine : cur_state.finished_subroutines) {
-					if (subroutine.state_stack_size < _atomic_stack_sizes.top()) {
+					if (subroutine.state_stack_size < target_stack_size) {
 						new_top_state.finished_subroutines.emplace_back(std::move(subroutine));
 					}
 					// otherwise, this subroutine started after the new top state and we don't care
@@ -304,7 +305,7 @@ namespace codepad::regex {
 
 				// save information of all restored checkpoints that may need restoring
 				for (auto &checkpoint : cur_state.restored_checkpoints) {
-					if (checkpoint.state_stack_size < _atomic_stack_sizes.top()) {
+					if (checkpoint.state_stack_size < target_stack_size) {
 						new_top_state.restored_checkpoints.emplace_back(std::move(checkpoint));
 					}
 					// otherwise, this checkpoint was restored after the new top state and we don't care
@@ -351,14 +352,14 @@ namespace codepad::regex {
 				captures_started_before_current -= fully_finished_partial_captures;
 			}
 		}
-		_state_stack.erase(_state_stack.begin() + _atomic_stack_sizes.top(), _state_stack.end());
-		_atomic_stack_sizes.pop();
+		_state_stack.erase(_state_stack.begin() + target_stack_size, _state_stack.end());
+		_atomic_stack_sizes.pop_back();
 	}
 
 	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
 		Stream stream, const compiled::transitions::push_stream_checkpoint&
 	) {
-		auto &checkpoint = _checkpoint_stack.emplace();
+		auto &checkpoint = _checkpoint_stack.emplace_back();
 		checkpoint.position = std::move(stream);
 		checkpoint.state_stack_size = _state_stack.size();
 	}
@@ -366,8 +367,8 @@ namespace codepad::regex {
 	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
 		Stream &stream, const compiled::transitions::restore_stream_checkpoint&
 	) {
-		auto checkpoint = std::move(_checkpoint_stack.top());
-		_checkpoint_stack.pop();
+		auto checkpoint = std::move(_checkpoint_stack.back());
+		_checkpoint_stack.pop_back();
 		stream = checkpoint.position;
 		if (checkpoint.state_stack_size < _state_stack.size()) {
 			// this was checkpointed before the current state was pushed; we need to save it for backtracking
@@ -378,9 +379,10 @@ namespace codepad::regex {
 	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
 		const Stream&, const compiled::transitions::jump &jmp
 	) {
-		auto &sf = _subroutine_stack.emplace();
+		auto &sf = _subroutine_stack.emplace_back();
 		sf.target = jmp.target;
 		sf.return_state = jmp.return_state;
+		sf.subroutine_index = jmp.subroutine_index;
 		sf.state_stack_size = _state_stack.size();
 	}
 }
