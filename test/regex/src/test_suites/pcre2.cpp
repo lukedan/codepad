@@ -6,6 +6,7 @@
 
 #include <set>
 #include <fstream>
+#include <sstream>
 #include <filesystem>
 
 #include <catch2/catch.hpp>
@@ -56,42 +57,37 @@ struct pattern_data {
 	std::size_t options_end = 0; ///< Ending position of pattern options.
 	bool aftertext = false; ///< Indicates that text after each match should be printed.
 	bool subject_literal = false; ///< Indicates that subject lines are not escaped.
+	/// Whether or not to dump binary code (which we don't have, so only a placeholder for now).
+	bool bincode = false;
+	bool hex = false; ///< Whether the pattern is expressed as hexadecimal bytes.
 
 	/// Dumps the pattern string to the given output stream.
 	void dump_options(std::ostream &out) const {
 		bool first = true;
-		if (options.global) {
-			out << "g";
-			first = false;
-		}
-		if (options.case_insensitive) {
-			out << "i";
-			first = false;
-		}
-		if (options.multiline) {
-			out << "m";
-			first = false;
-		}
-		if (options.dot_all) {
-			out << "s";
-			first = false;
-		}
-		if (options.extended) {
-			out << "x";
-			first = false;
-		}
-		if (options.extended_more) {
-			out << "x";
-			first = false;
-		}
-		if (aftertext) {
-			out << (first ? "" : ", ") << "aftertext";
-			first = false;
-		}
-		if (subject_literal) {
-			out << (first ? "" : ", ") << "subject_literal";
-			first = false;
-		}
+		auto print_bit = [&](bool enable, std::string_view sv) {
+			if (enable) {
+				out << sv;
+				first = false;
+			}
+		};
+		auto print_word = [&](bool enable, std::string_view sv) {
+			if (enable) {
+				out << (first ? "" : ",") << sv;
+				first = false;
+			}
+		};
+
+		print_bit(options.global, "g");
+		print_bit(options.case_insensitive, "i");
+		print_bit(options.multiline, "m");
+		print_bit(options.dot_all, "s");
+		print_bit(options.extended, "x");
+		print_bit(options.extended_more, "x");
+		print_bit(bincode, "B");
+
+		print_word(hex, "hex");
+		print_word(aftertext, "aftertext");
+		print_word(subject_literal, "subject_literal");
 	}
 };
 /// A test.
@@ -202,9 +198,28 @@ void fail(const char *msg = nullptr) {
 					result.aftertext = true;
 				} else if (sv == U"subject_literal") {
 					result.subject_literal = true;
+				} else if (sv == U"hex") {
+					std::stringstream ss;
+					for (cp::codepoint cp : result.pattern) {
+						auto cpstr = cp::encodings::utf8::encode_codepoint(cp);
+						ss << std::string_view(reinterpret_cast<const char*>(cpstr.data()), cpstr.size());
+					}
+					result.pattern.clear();
+					while (true) {
+						std::uint32_t b = 0;
+						ss >> std::hex >> b;
+						if (!ss) {
+							break;
+						}
+						result.pattern.push_back(b);
+					}
+					result.hex = true;
 				} else { // parse single-letter options
 					for (std::size_t i = 0; i < str.size(); ++i) {
 						switch (str[i]) {
+						case U'B':
+							result.bincode = true;
+							break;
 						case U'g':
 							result.options.global = true;
 							break;
@@ -494,7 +509,11 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 
 	// use the same set of objects to test that their internal states are reset properly
 	cp::regex::matcher<stream_t> matcher;
-	cp::regex::parser<stream_t> parser;
+	cp::regex::parser<stream_t> parser([&](const stream_t &s, const std::u8string_view msg) {
+		fout <<
+			"Error at byte " << s.byte_position() << ", codepoint " << s.codepoint_position() <<
+			": " << std::string_view(reinterpret_cast<const char*>(msg.data()), msg.length());
+	});
 	cp::regex::compiler compiler;
 
 	for (const auto &test : tests) {
@@ -527,6 +546,12 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 			test.pattern.dump_options(fout);
 		}
 		fout << "\n";
+		if (test.pattern.bincode) {
+			fout <<
+				"------------------------------------------------------------------\n" <<
+				"        No bincode available\n" <<
+				"------------------------------------------------------------------\n";
+		}
 
 		// compile regex
 		cp::regex::ast::nodes::subexpression ast;
@@ -601,9 +626,9 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 							std::size_t length = match.captures[i].length;
 							if (i == 0 && match.overriden_match_begin) {
 								capture_stream = match.overriden_match_begin.value();
-								length -=
-									capture_stream.codepoint_position() -
-									match.captures[i].begin.codepoint_position();
+								std::size_t new_start = capture_stream.codepoint_position();
+								std::size_t old_start = match.captures[i].begin.codepoint_position();
+								length = std::max(length + old_start, new_start) - new_start;
 							}
 							for (std::size_t j = 0; j < length; ++j) {
 								capture_str.push_back(capture_stream.take());

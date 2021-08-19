@@ -55,7 +55,11 @@ int main(int argc, char **argv) {
 			break;
 		}
 		auto regex_data = reinterpret_cast<const std::byte*>(regex.data());
-		parser_t parser;
+		parser_t parser([](const stream_t &s, const std::u8string_view msg) {
+			std::cout <<
+				"Error at byte " << s.byte_position() << ", codepoint " << s.codepoint_position() <<
+				": " << std::string_view(reinterpret_cast<const char*>(msg.data()), msg.length());
+		});
 		cp::regex::options opt;
 		opt.case_insensitive = true;
 		auto ast = parser.parse(stream_t(regex_data, regex_data + regex.size()), opt);

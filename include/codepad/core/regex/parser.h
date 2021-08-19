@@ -28,6 +28,13 @@ namespace codepad::regex {
 	///                the parser checkpoints the stream by copying the entire object.
 	template <typename Stream> class parser {
 	public:
+		/// Type for error callbacks.
+		using error_callback_t = std::function<void(const Stream&, std::u8string_view)>;
+
+		/// Initializes \ref on_error_callback.
+		explicit parser(error_callback_t e) : on_error_callback(std::move(e)) {
+		}
+
 		/// Parses the whole stream.
 		[[nodiscard]] ast::nodes::subexpression parse(Stream s, options options) {
 			_stream = std::move(s);
@@ -44,7 +51,7 @@ namespace codepad::regex {
 		}
 	
 		/// The callback that will be called whenever an error is encountered.
-		std::function<bool(Stream, std::u8string_view)> on_error_callback;
+		std::function<void(const Stream&, std::u8string_view)> on_error_callback;
 	protected:
 		using _escaped_sequence_node = std::variant<
 			ast::nodes::error,

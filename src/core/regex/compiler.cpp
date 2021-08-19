@@ -193,7 +193,6 @@ namespace codepad::regex {
 		_captures[0].end = end_state;
 		// initialize all subroutine data
 		for (auto sub : _subroutines) {
-			auto &jmp = std::get<compiled::transitions::jump>(sub.transition->condition);
 			if (sub.index >= _captures.size() || _captures[sub.index].is_empty()) {
 				_result = compiled::state_machine();
 				_result.start_state = _result.create_state().index;
@@ -202,6 +201,7 @@ namespace codepad::regex {
 				continue;
 			}
 			auto &group_info = _captures[sub.index];
+			auto &jmp = std::get<compiled::transitions::jump>(sub.transition->condition);
 			sub.transition->new_state_index = group_info.start.index;
 			jmp.target = group_info.end.index;
 		}

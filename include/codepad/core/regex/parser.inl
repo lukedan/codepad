@@ -47,8 +47,8 @@ namespace codepad::regex {
 		_escaped_sequence_context ctx
 	) {
 		if (_stream.empty()) {
-			// TODO error
-			return _escaped_sequence_node();
+			on_error_callback(_stream, u8"Pattern ends with a back slash");
+			return ast::nodes::error();
 		}
 		codepoint cp = _stream.take();
 		switch (cp) {
@@ -58,14 +58,16 @@ namespace codepad::regex {
 		case U'o':
 			{
 				if (_stream.empty() || _stream.peek() != U'{') {
+					on_error_callback(_stream, u8"Missing opening curly bracket for \\o escaped sequence");
 					return ast::nodes::error(); // no starting bracket
 				}
 				_stream.take();
 				auto value = _parse_numeric_value<codepoint>(8);
 				if (_stream.empty() || _stream.peek() != U'}') {
-					return ast::nodes::error(); // no ending bracket
+					on_error_callback(_stream, u8"Missing closing curly bracket for \\o escaped sequence");
+				} else {
+					_stream.take();
 				}
-				_stream.take();
 				return ast::nodes::literal::from_codepoint(value);
 			}
 
@@ -76,15 +78,13 @@ namespace codepad::regex {
 					return ast::nodes::literal::from_codepoint(_parse_numeric_value<codepoint>(16, 2));
 				} else {
 					// \x{...}: if parsing fails, restore checkpoint
-					Stream checkpoint = _stream;
 					_stream.take();
 					auto value = _parse_numeric_value<codepoint>(16);
 					if (_stream.empty() || _stream.peek() != U'}') {
-						// no ending bracket; resume parsing from the beginning bracket
-						_stream = std::move(checkpoint);
-						return ast::nodes::literal::from_codepoint(0);
+						on_error_callback(_stream, u8"Missing closing curly bracket for \\x escaped sequence");
+					} else {
+						_stream.take();
 					}
-					_stream.take();
 					return ast::nodes::literal::from_codepoint(value);
 				}
 			}
@@ -93,6 +93,7 @@ namespace codepad::regex {
 		case U'c':
 			{
 				if (_stream.empty()) {
+					on_error_callback(_stream, u8"Invalid \\c escaped sequence");
 					return ast::nodes::error();
 				}
 				codepoint val = _stream.take();
@@ -100,6 +101,7 @@ namespace codepad::regex {
 					val = val - U'a' + U'A';
 				}
 				if (val >= 128) { // accept all characters < 128
+					on_error_callback(_stream, u8"Value too large for \\c escaped sequence");
 					return ast::nodes::error();
 				}
 				return ast::nodes::literal::from_codepoint(val ^ 0x40);
@@ -124,15 +126,13 @@ namespace codepad::regex {
 		case U'g':
 			if (ctx == _escaped_sequence_context::subexpression) {
 				std::size_t index = 0;
-				if (!_stream.empty() && _stream.peek() == U'{') {
+				if (_stream.empty()) {
+					on_error_callback(_stream, u8"\\g escaped sequence not followed by group name or index");
+				} else if (_stream.peek() == U'{') {
 					_stream.take();
-					if (_stream.empty()) {
-						// TODO error
-						break;
-					}
 					if (auto id = _parse_capture_index()) { // numbered backreference
 						if (_stream.empty() || _stream.peek() != U'}') {
-							// TODO error
+							on_error_callback(_stream, u8"Missing closing curly bracket for \\g escaped sequence");
 						} else {
 							_stream.take();
 						}
@@ -141,7 +141,9 @@ namespace codepad::regex {
 						codepoint_string res;
 						while (true) {
 							if (_stream.empty()) {
-								// TODO error
+								on_error_callback(
+									_stream, u8"Missing closing curly bracket for \\g escaped sequence"
+								);
 								break;
 							}
 							codepoint cur_cp = _stream.take();
@@ -156,7 +158,7 @@ namespace codepad::regex {
 					if (auto id = _parse_capture_index()) {
 						index = id.value();
 					} else {
-						// TODO error
+						on_error_callback(_stream, u8"Invalid \\g escaped sequence");
 					}
 				}
 				return ast::nodes::numbered_backreference(index, _options().case_insensitive);
@@ -165,7 +167,7 @@ namespace codepad::regex {
 		case U'k':
 			if (ctx == _escaped_sequence_context::subexpression) {
 				if (_stream.empty()) {
-					// TODO error
+					on_error_callback(_stream, u8"\\k escaped sequence not followed by capture name");
 					break;
 				}
 				codepoint end = U'\0';
@@ -180,7 +182,7 @@ namespace codepad::regex {
 					end = U'\'';
 					break;
 				default:
-					// TODO error
+					on_error_callback(_stream, u8"Invalid capture name delimiter for \\k escaped sequence");
 					break;
 				}
 				codepoint_string capture_name;
@@ -363,9 +365,6 @@ namespace codepad::regex {
 					_stream.take();
 				}
 				if (index < _capture_id_stack.top()) {
-					// TODO what happens when
-					//      - we reference a capture while it's in progress?
-					//      - we have duplicate capture indices?
 					return ast::nodes::numbered_backreference(index, _options().case_insensitive);
 				}
 				_stream = std::move(checkpoint); // it's a hexadecimal codepoint; restore checkpoint
@@ -422,11 +421,7 @@ namespace codepad::regex {
 		typename Stream
 	> inline ast::nodes::character_class parser<Stream>::_parse_square_brackets_character_class() {
 		ast::nodes::character_class result;
-		if (_stream.empty()) {
-			// TODO error - early termination
-			return result;
-		}
-		if (_stream.peek() == U'^') {
+		if (!_stream.empty() && _stream.peek() == U'^') {
 			result.is_negate = true;
 			_stream.take();
 		}
@@ -464,7 +459,7 @@ namespace codepad::regex {
 		bool force_literal = false; // whether we're in a \Q \E sequence
 		while (true) {
 			if (_stream.empty()) {
-				// TODO error
+				on_error_callback(_stream, u8"Missing closing square bracket for character class");
 				break;
 			}
 			// handle \Q \E
@@ -484,7 +479,7 @@ namespace codepad::regex {
 				_stream.take();
 				break;
 			}
-			// TODO check for special character classes
+			// check for special character classes
 			if (_stream.peek() == U'[') {
 				Stream checkpoint = _stream;
 				_stream.take();
@@ -577,7 +572,7 @@ namespace codepad::regex {
 				if (!_stream.empty() && _stream.peek() == U'-') { // parse a range
 					_stream.take();
 					if (_stream.empty()) {
-						// TODO error
+						on_error_callback(_stream, u8"Missing closing square bracket for character class");
 						break;
 					}
 					if (_stream.peek() == U']') {
@@ -591,8 +586,8 @@ namespace codepad::regex {
 						auto lit = std::get<ast::nodes::literal>(next_elem);
 						if (!lit.contents.empty()) {
 							range.last = lit.contents.front();
-							if (range.last < range.first) {
-								// TODO error
+							if (range.last <= range.first) {
+								on_error_callback(_stream, u8"Inverted character range in character class");
 								std::swap(range.first, range.last);
 							}
 							continue;
@@ -656,7 +651,7 @@ namespace codepad::regex {
 		ast::nodes::subexpression &result, std::size_t &options_pushed
 	) {
 		if (_stream.empty()) {
-			// TODO error
+			on_error_callback(_stream, u8"Missing closing round bracket");
 			return;
 		}
 
@@ -804,7 +799,10 @@ namespace codepad::regex {
 							ast::nodes::subexpression temp_expr;
 							std::size_t tmp_options_pushed = 0;
 							_parse_round_brackets_group(temp_expr, tmp_options_pushed);
-							if (temp_expr.nodes.size() > 0 && temp_expr.nodes[0].is<ast::nodes::complex_assertion>()) {
+							if (
+								temp_expr.nodes.size() > 0 &&
+								temp_expr.nodes[0].is<ast::nodes::complex_assertion>()
+							) {
 								auto &assertion = std::get<ast::nodes::complex_assertion>(temp_expr.nodes[0].value);
 								new_expr.condition.emplace<ast::nodes::complex_assertion>(std::move(assertion));
 							} else {
