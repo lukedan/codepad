@@ -554,7 +554,7 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 		}
 
 		// compile regex
-		cp::regex::ast::nodes::subexpression ast;
+		cp::regex::ast ast;
 		cp::regex::compiled::state_machine sm;
 		{
 			stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
@@ -564,7 +564,7 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 
 		// log ast
 		std::stringstream ss;
-		cp::regex::ast::make_dumper(ss).dump(ast);
+		ast.create_dumper(ss).dump(ast.root());
 		std::string ast_str = ss.str();
 		if (pattern_str.size() > 300) {
 			ast_str = "[Too long]";

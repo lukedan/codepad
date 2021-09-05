@@ -99,7 +99,7 @@ namespace codepad::regex {
 				transition = &current_state.get_transition(expr);
 				std::visit(
 					[&, this](auto &&cond) {
-						if (!_check_transition(current_state.stream, *transition, cond)) {
+						if (!_check_transition(current_state.stream, cond)) {
 							transition = nullptr;
 						}
 					},

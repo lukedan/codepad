@@ -38,9 +38,9 @@ namespace codepad::regex {
 				for (std::size_t j = 0; j < s.transitions.size(); ++j) {
 					auto &t = s.transitions[j];
 					stream << "n" << i << " -> n" << t.new_state_index << " [label=\"" << j << ": ";
-					if (std::holds_alternative<codepoint_string>(t.condition)) {
-						const auto &str = std::get<codepoint_string>(t.condition);
-						for (codepoint cp : str) {
+					if (std::holds_alternative<transitions::literal>(t.condition)) {
+						const auto &cond = std::get<transitions::literal>(t.condition);
+						for (codepoint cp : cond.contents) {
 							if (is_printable_char(cp)) {
 								stream << static_cast<char>(cp);
 							} else {
@@ -125,7 +125,7 @@ namespace codepad::regex {
 		}
 
 
-		bool transitions::character_class::matches(codepoint cp, bool case_insensitive) const {
+		bool transitions::character_class::matches(codepoint cp) const {
 			bool result = ranges.contains(cp);
 			if (case_insensitive && !result) {
 				result = ranges.contains(unicode::case_folding::get_cached().fold_simple(cp));
@@ -143,7 +143,8 @@ namespace codepad::regex {
 	}
 
 
-	compiled::state_machine compiler::compile(const ast::nodes::subexpression &expr) {
+	compiled::state_machine compiler::compile(const ast &expr) {
+		_ast = &expr;
 		_result = compiled::state_machine();
 
 		auto start_state = _result.create_state();
@@ -183,7 +184,7 @@ namespace codepad::regex {
 				}
 			}
 		}
-		_compile(start_state, end_state, expr);
+		_compile(start_state, end_state, expr.root());
 
 		// subroutine for the whole pattern, i.e., recursion
 		if (_captures.empty()) {
@@ -210,48 +211,50 @@ namespace codepad::regex {
 		_capture_names.clear();
 		_captures.clear();
 		_subroutines.clear();
+		_ast = nullptr;
 		return std::move(_result);
 	}
 
-	void compiler::_compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::literal &node) {
+	void compiler::_compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::literal &node) {
 		auto transition = start.create_transition();
 		transition->new_state_index = end.index;
-		transition->case_insensitive = node.case_insensitive;
+		auto &cond = transition->condition.emplace<compiled::transitions::literal>();
+		cond.case_insensitive = node.case_insensitive;
 		if (node.case_insensitive) {
-			auto &cond_str = transition->condition.emplace<codepoint_string>();
 			for (codepoint cp : node.contents) {
-				cond_str.push_back(unicode::case_folding::get_cached().fold_simple(cp));
+				cond.contents.push_back(unicode::case_folding::get_cached().fold_simple(cp));
 			}
 		} else {
-			transition->condition = node.contents;
+			cond.contents = node.contents;
 		}
 	}
 
 	void compiler::_compile(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::numbered_backreference &expr
+		compiled::state_ref start, compiled::state_ref end, const ast_nodes::numbered_backreference &expr
 	) {
 		auto trans = start.create_transition();
-		trans->case_insensitive = expr.case_insensitive;
 		trans->new_state_index = end.index;
-		trans->condition.emplace<compiled::transitions::numbered_backreference>().index = expr.index;
+		auto &cond = trans->condition.emplace<compiled::transitions::numbered_backreference>();
+		cond.index = expr.index;
+		cond.case_insensitive = expr.case_insensitive;
 	}
 
 	void compiler::_compile(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_backreference &expr
+		compiled::state_ref start, compiled::state_ref end, const ast_nodes::named_backreference &expr
 	) {
 		if (auto id = _find_capture_name(expr.name)) {
 			auto trans = start.create_transition();
-			trans->case_insensitive = expr.case_insensitive;
 			trans->new_state_index = end.index;
 			auto &ref = trans->condition.emplace<compiled::transitions::named_backreference>();
 			ref.index = id.value();
+			ref.case_insensitive = expr.case_insensitive;
 		} else {
 			// TODO error
 		}
 	}
 
 	void compiler::_compile(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::numbered_subroutine &expr
+		compiled::state_ref start, compiled::state_ref end, const ast_nodes::numbered_subroutine &expr
 	) {
 		auto trans = start.create_transition();
 		auto &jmp = trans->condition.emplace<compiled::transitions::jump>();
@@ -261,7 +264,7 @@ namespace codepad::regex {
 	}
 
 	void compiler::_compile(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_subroutine &expr
+		compiled::state_ref start, compiled::state_ref end, const ast_nodes::named_subroutine &expr
 	) {
 		if (auto id = _find_capture_name(expr.name)) {
 			auto indices = _result.named_captures.get_indices_for_name(id.value());
@@ -280,20 +283,11 @@ namespace codepad::regex {
 	}
 
 	void compiler::_compile(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::subexpression &expr
+		compiled::state_ref start, compiled::state_ref end, const ast_nodes::subexpression &expr
 	) {
-		auto compile_expr = [this](compiled::state_ref cur, compiled::state_ref next, const ast::node &n) {
-			std::visit(
-				[this, cur, next](const auto &v) {
-					_compile(cur, next, v);
-				},
-				n.value
-			);
-		};
-
 		if (
-			expr.subexpr_type == ast::nodes::subexpression::type::normal ||
-			expr.subexpr_type == ast::nodes::subexpression::type::atomic
+			expr.subexpr_type == ast_nodes::subexpression::type::normal ||
+			expr.subexpr_type == ast_nodes::subexpression::type::atomic
 		) {
 			// create states that allow for additional actions during the start and end of the group
 			auto new_start = _result.create_state();
@@ -305,7 +299,7 @@ namespace codepad::regex {
 			start = new_start;
 			end = new_end;
 
-			if (expr.subexpr_type == ast::nodes::subexpression::type::normal) {
+			if (expr.subexpr_type == ast_nodes::subexpression::type::normal) {
 				auto &capture_beg = begin_trans->condition.emplace<compiled::transitions::capture_begin>();
 				capture_beg.index = expr.capture_index;
 				end_trans->condition.emplace<compiled::transitions::capture_end>();
@@ -317,7 +311,7 @@ namespace codepad::regex {
 					_captures[expr.capture_index].start = start;
 					_captures[expr.capture_index].end = end;
 				}
-			} else if (expr.subexpr_type == ast::nodes::subexpression::type::atomic) {
+			} else if (expr.subexpr_type == ast_nodes::subexpression::type::atomic) {
 				begin_trans->condition.emplace<compiled::transitions::push_atomic>();
 				end_trans->condition.emplace<compiled::transitions::pop_atomic>();
 			}
@@ -330,17 +324,17 @@ namespace codepad::regex {
 			auto it = expr.nodes.begin();
 			for (; it + 1 != expr.nodes.end(); ++it) {
 				auto next = _result.create_state();
-				compile_expr(current, next, *it);
+				_compile(current, next, *it);
 				current = next;
 			}
-			compile_expr(current, end, *it);
+			_compile(current, end, *it);
 		}
 	}
 
 	void compiler::_compile(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::repetition &rep
+		compiled::state_ref start, compiled::state_ref end, const ast_nodes::repetition &rep
 	) {
-		if (rep.min > 1000000 || (rep.max != ast::nodes::repetition::no_limit && rep.max > 1000000)) {
+		if (rep.min > 1000000 || (rep.max != ast_nodes::repetition::no_limit && rep.max > 1000000)) {
 			// TODO better algorithm?
 			return;
 		}
@@ -356,7 +350,7 @@ namespace codepad::regex {
 		}
 
 		// handle posessed (atomic) repetition
-		if (rep.repetition_type == ast::nodes::repetition::type::posessed) {
+		if (rep.repetition_type == ast_nodes::repetition::type::posessed) {
 			auto new_start = _result.create_state();
 			auto start_trans = start.create_transition();
 			start_trans->new_state_index = new_start.index;
@@ -378,7 +372,7 @@ namespace codepad::regex {
 		}
 		if (rep.min == rep.max) {
 			_compile(cur, end, rep.expression);
-		} else if (rep.max == ast::nodes::repetition::no_limit) {
+		} else if (rep.max == ast_nodes::repetition::no_limit) {
 			if (rep.min > 0) {
 				auto next = _result.create_state();
 				_compile(cur, next, rep.expression);
@@ -391,7 +385,7 @@ namespace codepad::regex {
 				cur = next;
 			}
 			auto next = _result.create_state();
-			if (rep.repetition_type == ast::nodes::repetition::type::lazy) {
+			if (rep.repetition_type == ast_nodes::repetition::type::lazy) {
 				cur.create_transition()->new_state_index = end.index;
 				_compile(cur, next, rep.expression);
 				next.create_transition()->new_state_index = cur.index;
@@ -422,7 +416,7 @@ namespace codepad::regex {
 			}
 			for (std::size_t i = rep.min + 1; i < rep.max; ++i) {
 				auto next = _result.create_state();
-				if (rep.repetition_type == ast::nodes::repetition::type::lazy) {
+				if (rep.repetition_type == ast_nodes::repetition::type::lazy) {
 					cur.create_transition()->new_state_index = end.index;
 					_compile(cur, next, rep.expression);
 				} else {
@@ -431,7 +425,7 @@ namespace codepad::regex {
 				}
 				cur = next;
 			}
-			if (rep.repetition_type == ast::nodes::repetition::type::lazy) {
+			if (rep.repetition_type == ast_nodes::repetition::type::lazy) {
 				cur.create_transition()->new_state_index = end.index;
 				_compile(cur, end, rep.expression);
 			} else {
@@ -442,7 +436,7 @@ namespace codepad::regex {
 	}
 
 	void compiler::_compile(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion &ass
+		compiled::state_ref start, compiled::state_ref end, const ast_nodes::complex_assertion &ass
 	) {
 		{ // checkpoint & restore the stream
 			auto new_start = _result.create_state();
@@ -495,9 +489,9 @@ namespace codepad::regex {
 	}
 
 	void compiler::_compile(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::conditional_expression &expr
+		compiled::state_ref start, compiled::state_ref end, const ast_nodes::conditional_expression &expr
 	) {
-		if (std::holds_alternative<ast::nodes::conditional_expression::define>(expr.condition)) {
+		if (std::holds_alternative<ast_nodes::conditional_expression::define>(expr.condition)) {
 			start.create_transition()->new_state_index = end.index;
 			// generate a separate graph for DEFINE's
 			auto define_start = _result.create_state();
@@ -542,7 +536,7 @@ namespace codepad::regex {
 
 	void compiler::_compile_condition(
 		compiled::state_ref start, compiled::state_ref end,
-		const ast::nodes::conditional_expression::named_capture_available &cond
+		const ast_nodes::conditional_expression::named_capture_available &cond
 	) {
 		auto trans = start.create_transition();
 		trans->new_state_index = end.index;
@@ -579,8 +573,9 @@ namespace codepad::regex {
 	}
 
 	void compiler::_compile_condition(
-		compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion &cond
+		compiled::state_ref start, compiled::state_ref end,
+		const ast_nodes::conditional_expression::complex_assertion &cond
 	) {
-		_compile(start, end, cond);
+		_compile(start, end, cond.node);
 	}
 }

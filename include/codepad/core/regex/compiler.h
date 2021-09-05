@@ -67,19 +67,26 @@ namespace codepad::regex {
 		};
 
 		namespace transitions {
+			/// A literal.
+			struct literal {
+				codepoint_string contents; ///< Contents of this literal.
+				bool case_insensitive = false; ///< Whether the literal is matched in a case-insensitive manner.
+			};
 			/// A character class.
 			struct character_class {
 				codepoint_range_list ranges; ///< Ranges.
 				bool is_negate = false; ///< Whether the codepoint should not match any character in this class.
+				bool case_insensitive = false; ///< Whether the condition is case-insensitive.
 
 				/// Tests whether the given codepoint is matched by this character class.
-				[[nodiscard]] bool matches(codepoint, bool case_insensitive) const;
+				[[nodiscard]] bool matches(codepoint) const;
 			};
-			using simple_assertion = ast::nodes::simple_assertion; ///< Simple assertion.
+			using simple_assertion = ast_nodes::simple_assertion; ///< Simple assertion.
 			/// An assertion that checks if we are at a character class boundary.
 			struct character_class_assertion {
 				character_class char_class; ///< The character class.
 				bool boundary = false; ///< Whether we're expecting a boundary.
+				bool case_insensitive = false; ///< Whether the condition is case-insensitive.
 			};
 			/// Starts a capture.
 			struct capture_begin {
@@ -91,10 +98,12 @@ namespace codepad::regex {
 			/// A numbered backreference.
 			struct numbered_backreference {
 				std::size_t index = 0; ///< Index of the capture.
+				bool case_insensitive = false; ///< Whether the condition is case-insensitive.
 			};
 			/// A named backreference.
 			struct named_backreference {
 				std::size_t index = 0; ///< Index of the capture.
+				bool case_insensitive = false; ///< Whether the condition is case-insensitive.
 			};
 			/// Pushes a subroutine stack frame indicating that once \ref target is reached, jumps to
 			/// \ref return_state. This should only be used to implement subroutines and recursions.
@@ -160,7 +169,7 @@ namespace codepad::regex {
 		struct transition {
 			/// A key used to determine if a transition is viable.
 			using key = std::variant<
-				codepoint_string,
+				transitions::literal,
 				transitions::character_class,
 				transitions::simple_assertion,
 				transitions::character_class_assertion,
@@ -184,7 +193,6 @@ namespace codepad::regex {
 
 			key condition; ///< Condition of this transition.
 			std::size_t new_state_index = 0; ///< Index of the state to transition to.
-			bool case_insensitive = false; ///< Whether the condition is case-insensitive.
 		};
 		/// A state.
 		struct state {
@@ -247,15 +255,21 @@ namespace codepad::regex {
 	class compiler {
 	public:
 		/// Compiles the given AST.
-		[[nodiscard]] compiled::state_machine compile(const ast::nodes::subexpression&);
+		[[nodiscard]] compiled::state_machine compile(const ast&);
 	protected:
 		/// Information about a named capture.
 		struct _named_capture_info {
+			/// Default constructor.
+			_named_capture_info() = default;
+			/// Initializes all fields of this struct.
+			_named_capture_info(codepoint_string n, std::size_t i) : name(std::move(n)), index(i) {
+			}
+
 			codepoint_string name; ///< The name of this capture.
 			std::size_t index = 0; ///< Corresponding capture index.
 
 			/// Default comparisons.
-			friend static std::strong_ordering operator<=>(
+			friend std::strong_ordering operator<=>(
 				const _named_capture_info&, const _named_capture_info&
 			) = default;
 		};
@@ -284,38 +298,42 @@ namespace codepad::regex {
 		std::vector<codepoint_string> _capture_names; ///< All unique capture names, sorted.
 		std::vector<_capture_info> _captures; ///< First occurences of all capture groups.
 		std::vector<_subroutine_transition> _subroutines; ///< All subroutine transitions.
+		const ast *_ast = nullptr; ///< The \ref ast that's being compiled.
 
 		/// Fallback for nodes with no capture names to collect.
 		template <typename Node> void _collect_capture_names(const Node&) {
 		}
 		/// Collects a name if the subexpression is named, and then recursively collects capture names from its
 		/// children.
-		void _collect_capture_names(const ast::nodes::subexpression &expr) {
+		void _collect_capture_names(const ast_nodes::subexpression &expr) {
 			if (!expr.capture_name.empty()) {
 				_named_captures.emplace_back(expr.capture_name, expr.capture_index);
 			}
 			for (const auto &n : expr.nodes) {
-				std::visit([this](auto &&val) {
-					_collect_capture_names(val);
-				}, n.value);
+				std::visit(
+					[this](auto &&val) {
+						_collect_capture_names(val);
+					},
+					_ast->get_node(n).value
+				);
 			}
 		}
 		/// Collects names from all alternatives.
-		void _collect_capture_names(const ast::nodes::alternative &expr) {
+		void _collect_capture_names(const ast_nodes::alternative &expr) {
 			for (const auto &alt : expr.alternatives) {
 				_collect_capture_names(alt);
 			}
 		}
 		/// Collects names from the repeated sequence.
-		void _collect_capture_names(const ast::nodes::repetition &expr) {
+		void _collect_capture_names(const ast_nodes::repetition &expr) {
 			_collect_capture_names(expr.expression);
 		}
 		/// Collects names from the lookahead/lookbehind if necessary.
-		void _collect_capture_names(const ast::nodes::complex_assertion &expr) {
+		void _collect_capture_names(const ast_nodes::complex_assertion &expr) {
 			_collect_capture_names(expr.expression);
 		}
 		/// Collects names from the conditional expression.
-		void _collect_capture_names(const ast::nodes::conditional_expression &expr) {
+		void _collect_capture_names(const ast_nodes::conditional_expression &expr) {
 			_collect_capture_names(expr.if_true);
 			if (expr.if_false) {
 				_collect_capture_names(expr.if_false);
@@ -331,58 +349,68 @@ namespace codepad::regex {
 			return it - _capture_names.begin();
 		}
 
+		/// Compiles the given \ref ast_nodes::node_ref.
+		void _compile(compiled::state_ref start, compiled::state_ref end, ast_nodes::node_ref n) {
+			std::visit(
+				[&, this](const auto &node) {
+					_compile(start, end, node);
+				},
+				_ast->get_node(n).value
+			);
+		}
+
 		/// Does nothing for error nodes.
-		void _compile(compiled::state_ref, compiled::state_ref, const ast::nodes::error&) {
+		void _compile(compiled::state_ref, compiled::state_ref, const ast_nodes::error&) {
 		}
 		/// Does nothing for feature nodes.
-		void _compile(compiled::state_ref, compiled::state_ref, const ast::nodes::feature&) {
+		void _compile(compiled::state_ref, compiled::state_ref, const ast_nodes::feature&) {
 		}
-		/// Compiles a \ref ast::nodes::match_start_override.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::match_start_override&) {
+		/// Compiles a \ref ast_nodes::match_start_override.
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::match_start_override&) {
 			auto transition = start.create_transition();
 			transition->condition.emplace<compiled::transitions::reset_match_start>();
 			transition->new_state_index = end.index;
 		}
 		/// Compiles the given literal node.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::literal&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::literal&);
 		/// Compiles the given numbered backreference.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::numbered_backreference&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::numbered_backreference&);
 		/// Compiles the given named backreference.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_backreference&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::named_backreference&);
 		/// Compiles the given numbered subroutine.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::numbered_subroutine&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::numbered_subroutine&);
 		/// Compiles the given named subroutine.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::named_subroutine&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::named_subroutine&);
 		/// Compiles the given character class.
 		void _compile(
-			compiled::state_ref start, compiled::state_ref end, const ast::nodes::character_class &char_class
+			compiled::state_ref start, compiled::state_ref end, const ast_nodes::character_class &char_class
 		) {
 			auto transition = start.create_transition();
 			auto &cls = transition->condition.emplace<compiled::transitions::character_class>();
 			cls.ranges = char_class.ranges;
 			cls.is_negate = char_class.is_negate;
+			cls.case_insensitive = char_class.case_insensitive;
 			transition->new_state_index = end.index;
-			transition->case_insensitive = char_class.case_insensitive;
 		}
 		/// Compiles the given subexpression, starting from the given state.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::subexpression&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::subexpression&);
 		/// Compiles the given alternative expression.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::alternative &expr) {
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::alternative &expr) {
 			for (const auto &alt : expr.alternatives) {
 				_compile(start, end, alt);
 			}
 		}
 		/// Compiles the given repetition.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::repetition&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::repetition&);
 		/// Compiles the given simple assertion.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::simple_assertion &ass) {
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::simple_assertion &ass) {
 			auto trans = start.create_transition();
 			trans->condition.emplace<compiled::transitions::simple_assertion>(ass);
 			trans->new_state_index = end.index;
 		}
 		/// Compiles the given character class assertion.
 		void _compile(
-			compiled::state_ref start, compiled::state_ref end, const ast::nodes::character_class_assertion &ass
+			compiled::state_ref start, compiled::state_ref end, const ast_nodes::character_class_assertion &ass
 		) {
 			auto trans = start.create_transition();
 			auto &cond = trans->condition.emplace<compiled::transitions::character_class_assertion>();
@@ -392,19 +420,19 @@ namespace codepad::regex {
 			trans->new_state_index = end.index;
 		}
 		/// Compiles the given complex assertion.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::complex_assertion&);
 		/// Compiles the given conditional subexpression.
-		void _compile(compiled::state_ref start, compiled::state_ref end, const ast::nodes::conditional_expression&);
+		void _compile(compiled::state_ref start, compiled::state_ref end, const ast_nodes::conditional_expression&);
 
 		/// Does nothing - <tt>DEFINE</tt>'s are handled separately.
 		void _compile_condition(
-			compiled::state_ref, compiled::state_ref, const ast::nodes::conditional_expression::define&
+			compiled::state_ref, compiled::state_ref, const ast_nodes::conditional_expression::define&
 		) {
 		}
 		/// Compiles the given condition that checks for a numbered capture.
 		void _compile_condition(
 			compiled::state_ref start, compiled::state_ref end,
-			const ast::nodes::conditional_expression::numbered_capture_available &cond
+			const ast_nodes::conditional_expression::numbered_capture_available &cond
 		) {
 			auto trans = start.create_transition();
 			trans->new_state_index = end.index;
@@ -413,11 +441,12 @@ namespace codepad::regex {
 		/// Compiles the given condition that checks for a named capature.
 		void _compile_condition(
 			compiled::state_ref start, compiled::state_ref end,
-			const ast::nodes::conditional_expression::named_capture_available&
+			const ast_nodes::conditional_expression::named_capture_available&
 		);
 		/// Compiles the given assertion.
 		void _compile_condition(
-			compiled::state_ref start, compiled::state_ref end, const ast::nodes::complex_assertion&
+			compiled::state_ref start, compiled::state_ref end,
+			const ast_nodes::conditional_expression::complex_assertion&
 		);
 	};
 }

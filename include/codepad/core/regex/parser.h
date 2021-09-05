@@ -22,6 +22,120 @@
 #include "ast.h"
 
 namespace codepad::regex {
+	namespace _details {
+		/// Information about an escaped sequence.
+		struct escaped_sequence {
+		public:
+			using error = ast_nodes::error; /// Indicates that an error occurred when parsing this sequence.
+			/// Overrides the start of the match.
+			using match_start_override = ast_nodes::match_start_override;
+			/// An escaped character class.
+			struct character_class {
+				codepoint_range_list ranges; ///< Codepoint ranges of this character class.
+				bool is_negate = false; ///< Whether to match all characters **not** in \ref ranges.
+			};
+			/// A numbered backreference.
+			struct numbered_backreference {
+				/// Default constructor.
+				numbered_backreference() = default;
+				/// Initializes \ref index.
+				explicit numbered_backreference(std::size_t i) : index(i) {
+				}
+
+				std::size_t index = 0; ///< Index of the referenced group.
+			};
+			/// A named backreference.
+			struct named_backreference {
+				/// Default constructor.
+				named_backreference() = default;
+				/// Initializes \ref name.
+				explicit named_backreference(codepoint_string s) : name(std::move(s)) {
+				}
+
+				codepoint_string name; ///< The name of the group.
+			};
+			/// A simple assertion.
+			using simple_assertion = ast_nodes::simple_assertion;
+			/// A character class assertion.
+			struct character_class_assertion {
+				character_class char_class; ///< The character class.
+				bool boundary = false; ///< Whether to match at any boundary.
+			};
+
+			using storage = std::variant<
+				error,
+				match_start_override,
+				codepoint_string,
+				character_class,
+				numbered_backreference,
+				named_backreference,
+				simple_assertion,
+				character_class_assertion
+			>; ///< Storage for escaped sequence data.
+
+			/// Default constructor.
+			escaped_sequence() = default;
+			/// Initializes \ref value.
+			template <typename T> escaped_sequence(T v) : value(std::in_place_type<std::decay_t<T>>, std::move(v)) {
+			}
+			/// Creates a \ref escaped_sequence object that contains the given codepoint.
+			[[nodiscard]] inline static escaped_sequence from_codepoint(codepoint cp) {
+				escaped_sequence result;
+				result.value.emplace<codepoint_string>(1, cp);
+				return result;
+			}
+
+			/// Converts this into a \ref ast::node.
+			void into_node(ast::node &n, const options &opt) && {
+				std::visit(
+					[&](auto &&val) {
+						_into_node(std::move(val), n, opt);
+					},
+					std::move(value)
+				);
+			}
+
+			storage value; ///< The value of this escaped sequence.
+		protected:
+			/// Conversion for nodes that are imported from \ref ast_nodes.
+			template <typename Node> inline static void _into_node(Node &&val, ast::node &n, const options&) {
+				n.value.emplace<std::decay_t<Node>>(std::move(val));
+			}
+			/// Conversion from a \ref codepoint_string to a \ref ast_nodes::literal.
+			inline static void _into_node(codepoint_string &&val, ast::node &n, const options &opt) {
+				auto &out = n.value.emplace<ast_nodes::literal>();
+				out.contents = std::move(val);
+				out.case_insensitive = opt.case_insensitive;
+			}
+			/// Conversion from a \ref character_class to a \ref ast_nodes::character_class.
+			inline static void _into_node(character_class &&val, ast::node &n, const options &opt) {
+				auto &out = n.value.emplace<ast_nodes::character_class>();
+				out.ranges = std::move(val.ranges);
+				out.is_negate = val.is_negate;
+				out.case_insensitive = opt.case_insensitive;
+			}
+			/// Conversion from a \ref numbered_backreference to a \ref ast_nodes::numbered_backreference.
+			inline static void _into_node(numbered_backreference &&val, ast::node &n, const options &opt) {
+				auto &out = n.value.emplace<ast_nodes::numbered_backreference>();
+				out.index = val.index;
+				out.case_insensitive = opt.case_insensitive;
+			}
+			/// Conversion from a \ref named_backreference to a \ref ast_nodes::named_backreference.
+			inline static void _into_node(named_backreference &&val, ast::node &n, const options &opt) {
+				auto &out = n.value.emplace<ast_nodes::named_backreference>();
+				out.name = std::move(val.name);
+				out.case_insensitive = opt.case_insensitive;
+			}
+			/// Conversion from a \ref character_class_assertion to a \ref ast_nodes::character_class_assertion.
+			inline static void _into_node(character_class_assertion &&val, ast::node &n, const options&) {
+				auto &out = n.value.emplace<ast_nodes::character_class_assertion>();
+				out.char_class.ranges = std::move(val.char_class.ranges);
+				out.char_class.is_negate = val.char_class.is_negate;
+				out.boundary = val.boundary;
+			}
+		};
+	}
+
 	/// Regular expression parser.
 	///
 	/// \tparam Stream The input stream. This should be a lightweight wrapper around the state of the stream because
@@ -36,34 +150,29 @@ namespace codepad::regex {
 		}
 
 		/// Parses the whole stream.
-		[[nodiscard]] ast::nodes::subexpression parse(Stream s, options options) {
+		[[nodiscard]] ast parse(Stream s, options options) {
+			// reset all state
+			_result = ast();
 			_stream = std::move(s);
 			_option_stack.emplace(std::move(options));
 			_capture_id_stack.emplace(1);
-			ast::nodes::subexpression result;
-			result.subexpr_type = ast::nodes::subexpression::type::non_capturing;
-			_parse_subexpression(result, std::numeric_limits<codepoint>::max());
+
+			_result._root = _parse_subexpression(
+				ast_nodes::subexpression::type::non_capturing, std::numeric_limits<codepoint>::max()
+			).first;
+
+			// clean up
 			_option_stack.pop();
 			_capture_id_stack.pop();
 			assert_true_logical(_option_stack.empty(), "option stack push/pop mismatch");
 			assert_true_logical(_capture_id_stack.empty(), "capture stack push/pop mismatch");
-			return result;
+			return std::move(_result);
 		}
 	
 		/// The callback that will be called whenever an error is encountered.
 		std::function<void(const Stream&, std::u8string_view)> on_error_callback;
 	protected:
-		using _escaped_sequence_node = std::variant<
-			ast::nodes::error,
-			ast::nodes::match_start_override,
-			ast::nodes::literal,
-			ast::nodes::character_class,
-			ast::nodes::numbered_backreference,
-			ast::nodes::named_backreference,
-			ast::nodes::simple_assertion,
-			ast::nodes::character_class_assertion
-		>; ///< A node that could result from an escaped sequence.
-
+		ast _result; ///< The result.
 		Stream _stream; ///< The input stream.
 		std::stack<options> _option_stack; ///< Stack of regular expression options.
 		std::stack<std::size_t> _capture_id_stack; ///< Used to handle duplicate group numbers.
@@ -72,8 +181,8 @@ namespace codepad::regex {
 		[[nodiscard]] const options &_options() const {
 			return _option_stack.top();
 		}
-		/// Pushes a new set of options.
-		options &_push_options() {
+		/// Pushes a new set of options that's the same as the current options, and returns a reference to it.
+		[[nodiscard]] options &_push_options() {
 			_option_stack.push(_option_stack.top());
 			return _option_stack.top();
 		}
@@ -101,53 +210,64 @@ namespace codepad::regex {
 			std::size_t length_limit = std::numeric_limits<std::size_t>::max(),
 			IntType initial = 0
 		);
+		/// Parses a capture index.
+		[[nodiscard]] std::optional<std::size_t> _parse_capture_index();
+		/// Parses a repetition in curly brackets.
+		[[nodiscard]] std::optional<std::pair<std::size_t, std::size_t>> _parse_curly_brackets_repetition();
 		/// Checks if the next characters are the same as the given string. If it is, then the characters will be
 		/// consumed; otherwise, no changes will be made to \ref _stream.
 		[[nodiscard]] bool _check_prefix(std::u32string_view);
 
-		/// Parses an escaped sequence. This function checkpoints the stream in certain conditions, and should not be
-		/// called when a checkpoint is active.
-		[[nodiscard]] _escaped_sequence_node _parse_escaped_sequence(_escaped_sequence_context);
-		/// Parses a capture index.
-		[[nodiscard]] std::optional<std::size_t> _parse_capture_index();
+		/// Parses an escaped sequence.
+		[[nodiscard]] _details::escaped_sequence _parse_escaped_sequence(_escaped_sequence_context);
 
 		/// Parses a character class in square brackets.
-		[[nodiscard]] ast::nodes::character_class _parse_square_brackets_character_class();
+		[[nodiscard]] std::pair<
+			ast_nodes::node_ref, ast_nodes::character_class&
+		> _parse_square_brackets_character_class();
 
 		/// Parses an alternative. This is called when a \p | is encountered in a subexpression, and therefore takes
 		/// the first subexpression before the vertical bar as a parameter, so that it can be added as one of the
 		/// alternatives. This function basically calls \ref _parse_subexpression() until the termination condition
 		/// is met.
-		[[nodiscard]] ast::nodes::alternative _parse_alternative(
-			ast::nodes::subexpression first_alternative, codepoint terminate,
-			std::size_t pushed_options, ast::nodes::subexpression::type
+		[[nodiscard]] std::pair<ast_nodes::node_ref, ast_nodes::alternative&> _parse_alternative(
+			ast_nodes::node_ref first_alternative, codepoint terminate,
+			std::size_t pushed_options, ast_nodes::subexpression::type
 		);
 
-		/// Parses a group in round brackets, and adds the result to the end of the given subexpression.
-		void _parse_round_brackets_group(ast::nodes::subexpression&, std::size_t &options_pushed);
+		/// Parses an expression in round brackets. This function determines what exact type the expression is
+		/// (assertion, subroutine call, etc.), then calls the appropriate function (in most cases
+		/// \ref _parse_subexpression()) to handle the actual parsing.
+		///
+		/// \param options_pushed Used to record the effective number of \ref options objects pushed by this
+		///                       function.
+		[[nodiscard]] ast_nodes::node_ref _parse_round_brackets_group(std::size_t &options_pushed);
 
-		/// Parses a repetition in curly brackets. If parsing fails, the codepoint string will be returned instead.
-		[[nodiscard]] std::optional<std::pair<std::size_t, std::size_t>> _parse_curly_brackets_repetition();
-		/// Removes and reutrns the last subexpression of the given subexpression. The input subexpression must not
-		/// be empty.
-		ast::nodes::subexpression _pop_last_element_of_subexpression(ast::nodes::subexpression&);
+		/// Removes and reutrns the last subexpression of the given subexpression. If the subexpression is empty or
+		/// if the last element is not valid for repetitions, an empty \ref ast_nodes::node_ref will be returned.
+		[[nodiscard]] ast_nodes::node_ref _pop_last_element_of_subexpression(ast_nodes::subexpression&);
 
 		/// Makes sure that the last element of the subexpression is a literal, and returns it.
-		ast::nodes::literal &_append_literal(ast::nodes::subexpression &expr, bool case_insensitive) {
-			if (!expr.nodes.empty() && expr.nodes.back().is<ast::nodes::literal>()) {
-				auto &lit = std::get<ast::nodes::literal>(expr.nodes.back().value);
+		[[nodiscard]] std::pair<ast_nodes::node_ref, ast_nodes::literal&> _prepare_append_literal(
+			ast_nodes::subexpression &expr, bool case_insensitive
+		) {
+			if (!expr.nodes.empty() && _result.get_node(expr.nodes.back()).is<ast_nodes::literal>()) {
+				auto &lit = std::get<ast_nodes::literal>(_result.get_node(expr.nodes.back()).value);
 				if (lit.case_insensitive == case_insensitive) {
-					return lit;
+					return { expr.nodes.back(), lit };
 				}
 			}
-			auto &lit = expr.nodes.emplace_back().value.emplace<ast::nodes::literal>();
-			lit.case_insensitive = case_insensitive;
-			return lit;
+			auto [res_ref, res] = _result.create_node<ast_nodes::literal>();
+			expr.nodes.emplace_back(res_ref);
+			res.case_insensitive = case_insensitive;
+			return { res_ref, res };
 		}
-		/// Parses a subexpression, an assertion, or an alternative, terminating when the specified character is
-		/// encountered or when the stream is empty. The character that caused termination will be consumed.
-		void _parse_subexpression(
-			ast::nodes::subexpression&, codepoint terminate, _alternative_context *alt_context = nullptr
+		/// Parses a subexpression or an alternative, terminating when the specified character is encountered or when
+		/// the stream is empty. The character that caused termination will be consumed. The returned node can only
+		/// be either an \ref ast_nodes::subexpression, or if the given \ref ast_nodes::subexpression::type is
+		/// \ref ast_nodes::subexpression::type::non_capturing, an \ref ast_nodes::alternative.
+		[[nodiscard]] std::pair<ast_nodes::node_ref, ast_nodes::subexpression&> _parse_subexpression(
+			ast_nodes::subexpression::type, codepoint terminate, _alternative_context *alt_context = nullptr
 		);
 	};
 }

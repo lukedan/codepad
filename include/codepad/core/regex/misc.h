@@ -163,7 +163,7 @@ namespace codepad::regex {
 		using type = basic_reverse_stream<Stream>; ///< Reversed stream type using \ref basic_reverse_stream.
 	};
 	/// Shorthand for \ref reversed_stream_type::type.
-	template <typename Stream> using reversed_stream_type_t = reversed_stream_type<Stream>::type;
+	template <typename Stream> using reversed_stream_type_t = typename reversed_stream_type<Stream>::type;
 	/// For \ref basic_reverse_stream types, the reversed stream type is the original stream type.
 	template <typename Stream> struct reversed_stream_type<basic_reverse_stream<Stream>> {
 		using type = typename basic_reverse_stream<Stream>::original_stream_t; ///< Original stream type.

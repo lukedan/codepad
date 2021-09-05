@@ -254,21 +254,17 @@ namespace codepad::regex {
 		[[nodiscard]] bool _check_backreference_transition(Stream&, std::size_t index, bool case_insensitive) const;
 
 		/// Blanket overload that handles all conditions that always passes.
-		template <typename Condition> [[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&, const Condition&
-		) const {
+		template <typename Condition> [[nodiscard]] bool _check_transition(const Stream&, const Condition&) const {
 			return true;
 		}
 		/// Checks if the contents in the given stream starts with the given string.
-		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition &trans, const codepoint_string &cond
-		) const {
-			for (codepoint cp : cond) {
+		[[nodiscard]] bool _check_transition(Stream &stream, const compiled::transitions::literal &cond) const {
+			for (codepoint cp : cond.contents) {
 				if (stream.empty()) {
 					return false;
 				}
 				codepoint got_codepoint = stream.take();
-				if (trans.case_insensitive) {
+				if (cond.case_insensitive) {
 					got_codepoint = unicode::case_folding::get_cached().fold_simple(got_codepoint);
 				}
 				if (got_codepoint != cp) {
@@ -279,22 +275,22 @@ namespace codepad::regex {
 		}
 		/// Checks if the next character in the stream is in the given codepoint ranges.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition &trans, const compiled::transitions::character_class &cond
+			Stream &stream, const compiled::transitions::character_class &cond
 		) const {
 			if (stream.empty()) {
 				return false;
 			}
-			return cond.matches(stream.take(), trans.case_insensitive);
+			return cond.matches(stream.take());
 		}
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transition&, const compiled::transitions::simple_assertion &cond
-		) {
+			Stream stream, const compiled::transitions::simple_assertion &cond
+		) const {
 			switch (cond.assertion_type) {
-			case ast::nodes::simple_assertion::type::always_false:
+			case ast_nodes::simple_assertion::type::always_false:
 				return false;
 
-			case ast::nodes::simple_assertion::type::line_start:
+			case ast_nodes::simple_assertion::type::line_start:
 				{
 					if (stream.prev_empty()) {
 						return true;
@@ -306,7 +302,7 @@ namespace codepad::regex {
 					return false;
 				}
 
-			case ast::nodes::simple_assertion::type::line_end:
+			case ast_nodes::simple_assertion::type::line_end:
 				{
 					if (stream.empty()) {
 						return true;
@@ -318,10 +314,10 @@ namespace codepad::regex {
 					return false;
 				}
 
-			case ast::nodes::simple_assertion::type::subject_start:
+			case ast_nodes::simple_assertion::type::subject_start:
 				return stream.prev_empty();
 
-			case ast::nodes::simple_assertion::type::subject_end_or_trailing_newline:
+			case ast_nodes::simple_assertion::type::subject_end_or_trailing_newline:
 				{
 					if (stream.empty()) {
 						return true;
@@ -334,9 +330,9 @@ namespace codepad::regex {
 					return false;
 				}
 
-			case ast::nodes::simple_assertion::type::subject_end:
+			case ast_nodes::simple_assertion::type::subject_end:
 				return stream.empty();
-			case ast::nodes::simple_assertion::type::range_start:
+			case ast_nodes::simple_assertion::type::range_start:
 				return false; // TODO
 			}
 
@@ -345,38 +341,35 @@ namespace codepad::regex {
 		}
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transition &trans,
-			const compiled::transitions::character_class_assertion &cond
-		) {
+			Stream stream, const compiled::transitions::character_class_assertion &cond
+		) const {
 			bool prev_in =
-				stream.prev_empty() ? false : cond.char_class.matches(stream.peek_prev(), trans.case_insensitive);
+				stream.prev_empty() ? false : cond.char_class.matches(stream.peek_prev());
 			bool next_in =
-				stream.empty() ? false : cond.char_class.matches(stream.peek(), trans.case_insensitive);
+				stream.empty() ? false : cond.char_class.matches(stream.peek());
 			return cond.boundary ? prev_in != next_in : prev_in == next_in;
 		}
 		/// Checks if a numbered backreference matches.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition &trans,
-			const compiled::transitions::numbered_backreference &cond
-		) {
+			Stream &stream, const compiled::transitions::numbered_backreference &cond
+		) const {
 			if (cond.index >= _result.captures.size() || !_result.captures[cond.index].is_valid()) {
 				return false; // capture not yet matched
 			}
-			return _check_backreference_transition(stream, cond.index, trans.case_insensitive);
+			return _check_backreference_transition(stream, cond.index, cond.case_insensitive);
 		}
 		/// Checks if a named backreference matches.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition &trans,
-			const compiled::transitions::named_backreference &cond
-		) {
+			Stream &stream, const compiled::transitions::named_backreference &cond
+		) const {
 			if (auto id = _find_matched_named_capture(cond.index)) {
-				return _check_backreference_transition(stream, id.value(), trans.case_insensitive);
+				return _check_backreference_transition(stream, id.value(), cond.case_insensitive);
 			}
 			return false;
 		}
 		/// Resets the start of this match.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition&, const compiled::transitions::reset_match_start&
+			Stream &stream, const compiled::transitions::reset_match_start&
 		) {
 			// do this before a state is potentially pushed for backtracking
 			if (!_state_stack.empty()) {
@@ -387,7 +380,7 @@ namespace codepad::regex {
 		}
 		/// Checks if we're in an infinite loop.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transition&, const compiled::transitions::check_infinite_loop&
+			Stream &stream, const compiled::transitions::check_infinite_loop&
 		) {
 			auto pos = _stream_position_stack.back();
 			_stream_position_stack.pop_back();
@@ -398,9 +391,8 @@ namespace codepad::regex {
 		}
 		/// Checks if we're currently in a numbered recursion.
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&,
-			const compiled::transitions::conditions::numbered_recursion &cond
-		) {
+			const Stream&, const compiled::transitions::conditions::numbered_recursion &cond
+		) const {
 			if (!_subroutine_stack.empty()) {
 				if (cond.index != compiled::transitions::conditions::numbered_recursion::any_index) {
 					return _subroutine_stack.back().subroutine_index == cond.index;
@@ -411,9 +403,8 @@ namespace codepad::regex {
 		}
 		/// Checks if we're currently in a named recursion.
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&,
-			const compiled::transitions::conditions::named_recursion &cond
-		) {
+			const Stream&, const compiled::transitions::conditions::named_recursion &cond
+		) const {
 			if (!_subroutine_stack.empty()) {
 				std::size_t current_name_index =
 					_expr->named_captures.reverse_mapping[_subroutine_stack.back().subroutine_index];
@@ -423,16 +414,14 @@ namespace codepad::regex {
 		}
 		/// Checks if the given numbered group has been matched.
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&,
-			const compiled::transitions::conditions::numbered_capture &cap
-		) {
+			const Stream&, const compiled::transitions::conditions::numbered_capture &cap
+		) const {
 			return _result.captures.size() > cap.index && _result.captures[cap.index].is_valid();
 		}
 		/// Checks if the given numbered group has been matched.
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transition&,
-			const compiled::transitions::conditions::named_capture &cap
-		) {
+			const Stream&, const compiled::transitions::conditions::named_capture &cap
+		) const {
 			return _find_matched_named_capture(cap.name_index).has_value();
 		}
 

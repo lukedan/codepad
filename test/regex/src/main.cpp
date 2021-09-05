@@ -63,8 +63,8 @@ int main(int argc, char **argv) {
 		cp::regex::options opt;
 		opt.case_insensitive = true;
 		auto ast = parser.parse(stream_t(regex_data, regex_data + regex.size()), opt);
-		auto dumper = cp::regex::ast::make_dumper(std::cout);
-		dumper.dump(ast);
+		auto dumper = ast.create_dumper(std::cout);
+		dumper.dump(ast.root());
 
 		cp::regex::compiler compiler;
 		cp::regex::compiled::state_machine sm = compiler.compile(ast);
