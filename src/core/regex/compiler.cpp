@@ -143,7 +143,7 @@ namespace codepad::regex {
 	}
 
 
-	compiled::state_machine compiler::compile(const ast &expr) {
+	compiled::state_machine compiler::compile(const ast &expr, const ast::analysis&) {
 		_ast = &expr;
 		_result = compiled::state_machine();
 
@@ -152,7 +152,10 @@ namespace codepad::regex {
 		_result.start_state = start_state.index;
 		_result.end_state = end_state.index;
 
-		_collect_capture_names(expr);
+		for (std::size_t i = 0; i < expr._nodes.size(); ++i) {
+			_collect_capture_names(expr._nodes[i]);
+		}
+
 		if (!_named_captures.empty()) {
 			std::sort(_named_captures.begin(), _named_captures.end());
 			// collect named capture info

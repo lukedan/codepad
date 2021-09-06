@@ -1255,8 +1255,7 @@ namespace codepad::regex {
 							} else {
 								// failed to parse range; interpret it as a literal
 								_stream = std::move(checkpoint);
-								auto &lit = _prepare_append_literal(result, _options().case_insensitive).second;
-								lit.contents.push_back(U'{');
+								_append_literal(result, codepoint_string(1, U'{'), _options().case_insensitive);
 								continue; // outer loop
 							}
 						}
@@ -1315,19 +1314,13 @@ namespace codepad::regex {
 						}
 						lit.push_back(ch);
 					}
-					if (!lit.empty()) {
-						// do not create an empty literal node
-						_prepare_append_literal(result, _options().case_insensitive).second.contents.append(lit);
-					}
+					_append_literal(result, std::move(lit), _options().case_insensitive);
 				} else {
 					// otherwise parse the literal/character class
 					auto escaped = _parse_escaped_sequence(_escaped_sequence_context::subexpression);
 					if (std::holds_alternative<codepoint_string>(escaped.value)) {
-						const auto &str = std::get<codepoint_string>(escaped.value);
-						if (!str.empty()) {
-							auto &lit = _prepare_append_literal(result, _options().case_insensitive).second;
-							lit.contents.append(str);
-						}
+						auto &str = std::get<codepoint_string>(escaped.value);
+						_append_literal(result, std::move(str), _options().case_insensitive);
 					} else {
 						auto node_ref = _result.create_node();
 						std::move(escaped).into_node(_result.get_node(node_ref), _options());
@@ -1349,7 +1342,7 @@ namespace codepad::regex {
 						continue;
 					}
 				}
-				_prepare_append_literal(result, _options().case_insensitive).second.contents.push_back(cp);
+				_append_literal(result, codepoint_string(1, cp), _options().case_insensitive);
 				break;
 			}
 		}

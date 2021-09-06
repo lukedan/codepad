@@ -110,6 +110,7 @@ target_sources(codepad_core
 		"include/codepad/api_export.h"
 		"include/codepad/apigen_definitions.h"
 	PRIVATE
+		"src/core/regex/ast.cpp"
 		"src/core/regex/compiler.cpp"
 		"src/core/regex/misc.cpp"
 

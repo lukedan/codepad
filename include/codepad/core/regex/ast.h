@@ -6,6 +6,7 @@
 /// \file
 /// The parsed syntax tree for regular expressions.
 
+#include <deque>
 #include <variant>
 
 #include "codepad/core/unicode/common.h"
@@ -14,8 +15,16 @@
 
 namespace codepad::regex {
 	class ast;
+	class compiler;
 
 	namespace ast_nodes {
+		/// Additional information computed for a node.
+		struct analysis {
+			std::size_t minimum_length = 0; ///< Minimum potential length of matched strings.
+			/// Maximum potential length of matched strings.
+			std::size_t maximum_length = std::numeric_limits<std::size_t>::max();
+		};
+
 		/// Reference to a node.
 		struct node_ref {
 			friend ast;
@@ -40,10 +49,9 @@ namespace codepad::regex {
 		};
 
 
-		/// A node indicating an error.
+		/// Node used to indicate that this part of the expression failed to parse.
 		struct error {
 		};
-
 		/// Node used to signal a feature is enabled.
 		struct feature {
 			codepoint_string identifier; ///< String used to identify the feature.
@@ -67,6 +75,7 @@ namespace codepad::regex {
 			std::size_t index = 0; ///< The index of this backreference.
 			bool case_insensitive = false; ///< Whether this backreference is case-insensitive.
 		};
+		/// A named backreference.
 		struct named_backreference {
 			/// Default constructor.
 			named_backreference() = default;
@@ -221,6 +230,7 @@ namespace codepad::regex {
 	/// An abstract syntax tree for a regular expression.
 	class ast {
 		template <typename> friend class parser;
+		friend compiler;
 	public:
 		/// A generic node.
 		struct node {
@@ -250,6 +260,17 @@ namespace codepad::regex {
 			template <typename Node> [[nodiscard]] bool is() const {
 				return std::holds_alternative<Node>(value);
 			}
+		};
+		/// Analysis for an entire AST.
+		struct analysis {
+			friend ast;
+		public:
+			/// Returns the analysis result for the specified node.
+			const ast_nodes::analysis get_for(ast_nodes::node_ref n) const {
+				return _node_analysis[n._index];
+			}
+		protected:
+			std::vector<ast_nodes::analysis> _node_analysis; ///< Analysis result for all nodes.
 		};
 		/// Dumps an AST.
 		template <typename Stream> struct dumper {
@@ -564,8 +585,11 @@ namespace codepad::regex {
 			return { result, res_ref };
 		}
 
+		/// Analyzes the entire AST.
+		[[nodiscard]] analysis analyze() const;
+
 		/// Returns a reference to the root node.
-		ast_nodes::node_ref root() const {
+		[[nodiscard]] ast_nodes::node_ref root() const {
 			return _root;
 		}
 
@@ -574,7 +598,165 @@ namespace codepad::regex {
 			return dumper<Stream>(s, *this);
 		}
 	protected:
+		/// Additional information about an analysis.
+		struct _analysis_context {
+			/// Nodes queued to have their \ref _collect_dependencies() function called.
+			std::deque<ast_nodes::node_ref> dependency_queue;
+			/// Nodes queued to have their \ref _end_analysis() function called.
+			std::deque<ast_nodes::node_ref> end_stack;
+			analysis output; ///< Analysis result.
+		};
+
 		ast_nodes::node_ref _root; ///< Reference to the root node.
 		std::deque<node> _nodes; ///< The list of nodes.
+
+
+		/// Forwards the call to the function that accepts the corresponding node type.
+		void _collect_dependencies(ast_nodes::node_ref n, _analysis_context &ctx) const {
+			std::visit(
+				[&, this](const auto &val) {
+					_collect_dependencies(val, ctx);
+				},
+				get_node(n).value
+			);
+		}
+		/// Fallback for nodes that don't have dependencies.
+		template <typename Node> void _collect_dependencies(const Node&, _analysis_context&) const {
+		}
+		// TODO: analyze referenced group for numbered & named backreferences?
+		/// Marks all subnodes as dependencies.
+		void _collect_dependencies(const ast_nodes::subexpression &expr, _analysis_context &ctx) const {
+			for (auto n : expr.nodes) {
+				ctx.dependency_queue.emplace_back(n);
+			}
+		}
+		/// Marks all alternatives as dependencies.
+		void _collect_dependencies(const ast_nodes::alternative &expr, _analysis_context &ctx) const {
+			for (auto n : expr.alternatives) {
+				ctx.dependency_queue.emplace_back(n);
+			}
+		}
+		/// Marks the repeated sequence as a dependency.
+		void _collect_dependencies(const ast_nodes::repetition &expr, _analysis_context &ctx) const {
+			ctx.dependency_queue.emplace_back(expr.expression);
+		}
+		/// Marks the expression as a dependency.
+		void _collect_dependencies(const ast_nodes::complex_assertion &expr, _analysis_context &ctx) const {
+			ctx.dependency_queue.emplace_back(expr.expression);
+		}
+		/// Marks the clauses and (if necessary) the condition as a dependency.
+		void _collect_dependencies(const ast_nodes::conditional_expression &expr, _analysis_context &ctx) const {
+			ctx.dependency_queue.emplace_back(expr.if_true);
+			if (expr.if_false) {
+				ctx.dependency_queue.emplace_back(expr.if_false.value());
+			}
+			if (std::holds_alternative<ast_nodes::conditional_expression::complex_assertion>(expr.condition)) {
+				ctx.dependency_queue.emplace_back(
+					std::get<ast_nodes::conditional_expression::complex_assertion>(expr.condition).node
+				);
+			}
+		}
+
+		/// Forwards the call to the function that accepts the corresponding node type, and writes the analysis
+		/// result back to the \ref _analysis_context.
+		void _analyze(ast_nodes::node_ref n, _analysis_context &ctx) const {
+			ctx.output._node_analysis[n._index] = std::visit(
+				[&, this](const auto &val) {
+					return _analyze(val, ctx);
+				},
+				get_node(n).value
+			);
+		}
+		/// Analyzes a \ref ast_nodes::error node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::error&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.maximum_length = 0;
+			result.maximum_length = 0;
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::feature node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::feature&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.maximum_length = 0;
+			result.maximum_length = 0;
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::match_start_override node.
+		[[nodiscard]] ast_nodes::analysis _analyze(
+			const ast_nodes::match_start_override&, _analysis_context&
+		) const {
+			ast_nodes::analysis result;
+			result.maximum_length = 0;
+			result.maximum_length = 0;
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::literal node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::literal &n, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.minimum_length = result.maximum_length = n.contents.size();
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::numbered_backreference node.
+		[[nodiscard]] ast_nodes::analysis _analyze(
+			const ast_nodes::numbered_backreference&, _analysis_context&
+		) const {
+			ast_nodes::analysis result;
+			// TODO we can do more analysis here
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::named_backreference node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::named_backreference&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			// TODO we can do more analysis here
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::numbered_subroutine node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::numbered_subroutine&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			// TODO we can do more analysis here
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::named_subroutine node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::named_subroutine&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			// TODO we can do more analysis here
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::character_class node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::character_class&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.minimum_length = result.maximum_length = 1;
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::simple_assertion node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::simple_assertion&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.minimum_length = result.maximum_length = 0;
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::character_class_assertion node.
+		[[nodiscard]] ast_nodes::analysis _analyze(
+			const ast_nodes::character_class_assertion&, _analysis_context&
+		) const {
+			ast_nodes::analysis result;
+			result.minimum_length = result.maximum_length = 0;
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::subexpression node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::subexpression&, _analysis_context&) const;
+		/// Analyzes a \ref ast_nodes::alternative node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::alternative&, _analysis_context&) const;
+		/// Analyzes a \ref ast_nodes::repetition node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::repetition&, _analysis_context&) const;
+		/// Analyzes a \ref ast_nodes::complex_assertion node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::complex_assertion&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.minimum_length = result.maximum_length = 0;
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::conditional_expression node.
+		[[nodiscard]] ast_nodes::analysis _analyze(
+			const ast_nodes::conditional_expression&, _analysis_context&
+		) const;
 	};
 }

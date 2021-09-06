@@ -555,11 +555,13 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 
 		// compile regex
 		cp::regex::ast ast;
+		cp::regex::ast::analysis analysis;
 		cp::regex::compiled::state_machine sm;
 		{
 			stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
 			ast = parser.parse(stream, test.pattern.options);
-			sm = compiler.compile(ast);
+			analysis = ast.analyze();
+			sm = compiler.compile(ast, analysis);
 		}
 
 		// log ast

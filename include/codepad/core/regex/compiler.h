@@ -255,7 +255,7 @@ namespace codepad::regex {
 	class compiler {
 	public:
 		/// Compiles the given AST.
-		[[nodiscard]] compiled::state_machine compile(const ast&);
+		[[nodiscard]] compiled::state_machine compile(const ast&, const ast::analysis&);
 	protected:
 		/// Information about a named capture.
 		struct _named_capture_info {
@@ -300,43 +300,13 @@ namespace codepad::regex {
 		std::vector<_subroutine_transition> _subroutines; ///< All subroutine transitions.
 		const ast *_ast = nullptr; ///< The \ref ast that's being compiled.
 
-		/// Fallback for nodes with no capture names to collect.
-		template <typename Node> void _collect_capture_names(const Node&) {
-		}
-		/// Collects a name if the subexpression is named, and then recursively collects capture names from its
-		/// children.
-		void _collect_capture_names(const ast_nodes::subexpression &expr) {
-			if (!expr.capture_name.empty()) {
-				_named_captures.emplace_back(expr.capture_name, expr.capture_index);
-			}
-			for (const auto &n : expr.nodes) {
-				std::visit(
-					[this](auto &&val) {
-						_collect_capture_names(val);
-					},
-					_ast->get_node(n).value
-				);
-			}
-		}
-		/// Collects names from all alternatives.
-		void _collect_capture_names(const ast_nodes::alternative &expr) {
-			for (const auto &alt : expr.alternatives) {
-				_collect_capture_names(alt);
-			}
-		}
-		/// Collects names from the repeated sequence.
-		void _collect_capture_names(const ast_nodes::repetition &expr) {
-			_collect_capture_names(expr.expression);
-		}
-		/// Collects names from the lookahead/lookbehind if necessary.
-		void _collect_capture_names(const ast_nodes::complex_assertion &expr) {
-			_collect_capture_names(expr.expression);
-		}
-		/// Collects names from the conditional expression.
-		void _collect_capture_names(const ast_nodes::conditional_expression &expr) {
-			_collect_capture_names(expr.if_true);
-			if (expr.if_false) {
-				_collect_capture_names(expr.if_false);
+		/// Collects capture names from a node.
+		void _collect_capture_names(const ast::node &node) {
+			if (node.is<ast_nodes::subexpression>()) {
+				const auto &expr = std::get<ast_nodes::subexpression>(node.value);
+				if (!expr.capture_name.empty()) {
+					_named_captures.emplace_back(expr.capture_name, expr.capture_index);
+				}
 			}
 		}
 

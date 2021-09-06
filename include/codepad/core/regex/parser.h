@@ -26,7 +26,7 @@ namespace codepad::regex {
 		/// Information about an escaped sequence.
 		struct escaped_sequence {
 		public:
-			using error = ast_nodes::error; /// Indicates that an error occurred when parsing this sequence.
+			using error = ast_nodes::error; ///< Indicates that an error occurred when parsing this sequence.
 			/// Overrides the start of the match.
 			using match_start_override = ast_nodes::match_start_override;
 			/// An escaped character class.
@@ -247,20 +247,24 @@ namespace codepad::regex {
 		/// if the last element is not valid for repetitions, an empty \ref ast_nodes::node_ref will be returned.
 		[[nodiscard]] ast_nodes::node_ref _pop_last_element_of_subexpression(ast_nodes::subexpression&);
 
-		/// Makes sure that the last element of the subexpression is a literal, and returns it.
-		[[nodiscard]] std::pair<ast_nodes::node_ref, ast_nodes::literal&> _prepare_append_literal(
-			ast_nodes::subexpression &expr, bool case_insensitive
+		/// Appends a literal to the given expression.
+		void _append_literal(
+			ast_nodes::subexpression &expr, codepoint_string str, bool case_insensitive
 		) {
+			if (str.empty()) {
+				return;
+			}
 			if (!expr.nodes.empty() && _result.get_node(expr.nodes.back()).is<ast_nodes::literal>()) {
 				auto &lit = std::get<ast_nodes::literal>(_result.get_node(expr.nodes.back()).value);
 				if (lit.case_insensitive == case_insensitive) {
-					return { expr.nodes.back(), lit };
+					lit.contents.append(str);
+					return;
 				}
 			}
 			auto [res_ref, res] = _result.create_node<ast_nodes::literal>();
 			expr.nodes.emplace_back(res_ref);
 			res.case_insensitive = case_insensitive;
-			return { res_ref, res };
+			res.contents = std::move(str);
 		}
 		/// Parses a subexpression or an alternative, terminating when the specified character is encountered or when
 		/// the stream is empty. The character that caused termination will be consumed. The returned node can only
