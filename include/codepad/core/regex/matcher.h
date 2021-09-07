@@ -369,7 +369,7 @@ namespace codepad::regex {
 		}
 		/// Resets the start of this match.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transitions::reset_match_start&
+			const Stream &stream, const compiled::transitions::reset_match_start&
 		) {
 			// do this before a state is potentially pushed for backtracking
 			if (!_state_stack.empty()) {
@@ -380,7 +380,7 @@ namespace codepad::regex {
 		}
 		/// Checks if we're in an infinite loop.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transitions::check_infinite_loop&
+			const Stream &stream, const compiled::transitions::check_infinite_loop&
 		) {
 			auto pos = _stream_position_stack.back();
 			_stream_position_stack.pop_back();
@@ -388,6 +388,12 @@ namespace codepad::regex {
 				_state_stack.back().finished_stream_positions.emplace_back(pos);
 			}
 			return stream.codepoint_position() != pos.codepoint_position;
+		}
+		/// Makes sure that there is enough room for the rewind.
+		[[nodiscard]] bool _check_transition(
+			const Stream &stream, const compiled::transitions::rewind &trans
+		) const {
+			return stream.codepoint_position() >= trans.num_codepoints;
 		}
 		/// Checks if we're currently in a numbered recursion.
 		[[nodiscard]] bool _check_transition(
@@ -465,6 +471,12 @@ namespace codepad::regex {
 			auto &pushed = _stream_position_stack.emplace_back();
 			pushed.codepoint_position = stream.codepoint_position();
 			pushed.state_stack_size = _state_stack.size();
+		}
+		/// Rewinds the stream.
+		void _execute_transition(Stream &stream, const compiled::transitions::rewind &trans) {
+			for (std::size_t i = 0; i < trans.num_codepoints; ++i) {
+				stream.prev();
+			}
 		}
 	};
 }

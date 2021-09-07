@@ -143,8 +143,9 @@ namespace codepad::regex {
 	}
 
 
-	compiled::state_machine compiler::compile(const ast &expr, const ast::analysis&) {
+	compiled::state_machine compiler::compile(const ast &expr, const ast::analysis &analysis) {
 		_ast = &expr;
+		_analysis = &analysis;
 		_result = compiled::state_machine();
 
 		auto start_state = _result.create_state();
@@ -215,6 +216,7 @@ namespace codepad::regex {
 		_captures.clear();
 		_subroutines.clear();
 		_ast = nullptr;
+		_analysis = nullptr;
 		return std::move(_result);
 	}
 
@@ -472,10 +474,8 @@ namespace codepad::regex {
 			start = new_start;
 			end = new_end;
 		}
-		if (ass.backward) {
-			// TODO handle reversed stream
-		}
 		
+		auto end_state_for_negative = end;
 		if (ass.negative) {
 			auto fail_state = _result.create_state();
 			auto before_fail_state = _result.create_state();
@@ -483,11 +483,48 @@ namespace codepad::regex {
 			auto trans = before_fail_state.create_transition();
 			trans->condition.emplace<compiled::transitions::pop_atomic>();
 			trans->new_state_index = fail_state.index;
+			end = before_fail_state;
+		}
 
-			_compile(start, before_fail_state, ass.expression);
-			start.create_transition()->new_state_index = end.index;
+		// actually compile the expression
+		if (ass.backward) {
+			const auto &expr = std::get<ast_nodes::subexpression>(_ast->get_node(ass.expression).value);
+			if (expr.nodes.size() == 1 && _ast->get_node(expr.nodes[0]).is<ast_nodes::alternative>()) {
+				auto &alt_node = std::get<ast_nodes::alternative>(_ast->get_node(expr.nodes[0]).value);
+				for (auto alt : alt_node.alternatives) {
+					const auto &alt_expr = std::get<ast_nodes::subexpression>(_ast->get_node(alt).value);
+					auto analysis = _analysis->get_for(alt);
+					if (analysis.minimum_length != analysis.maximum_length) {
+						// TODO error
+					} else {
+						auto state = _result.create_state();
+						auto trans = start.create_transition();
+						trans->new_state_index = state.index;
+						auto &cond = trans->condition.emplace<compiled::transitions::rewind>();
+						cond.num_codepoints = analysis.minimum_length;
+						_compile(state, end, alt);
+					}
+				}
+			} else {
+				auto analysis = _analysis->get_for(ass.expression);
+				if (analysis.minimum_length != analysis.maximum_length) {
+					// TODO error
+				} else {
+					auto state = _result.create_state();
+					auto trans = start.create_transition();
+					trans->new_state_index = state.index;
+					auto &cond = trans->condition.emplace<compiled::transitions::rewind>();
+					cond.num_codepoints = analysis.minimum_length;
+					_compile(state, end, ass.expression);
+				}
+			}
+			// TODO handle reversed stream
 		} else {
 			_compile(start, end, ass.expression);
+		}
+
+		if (ass.negative) {
+			start.create_transition()->new_state_index = end_state_for_negative.index;
 		}
 	}
 

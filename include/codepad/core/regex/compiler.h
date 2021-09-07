@@ -140,6 +140,10 @@ namespace codepad::regex {
 			/// stream position.
 			struct check_infinite_loop {
 			};
+			/// Rewinds the stream back the specified number of codepoints.
+			struct rewind {
+				std::size_t num_codepoints = 0; ///< The number of codepoints to rewind.
+			};
 
 			/// Transitions that are conditions.
 			namespace conditions {
@@ -185,6 +189,7 @@ namespace codepad::regex {
 				transitions::restore_stream_checkpoint,
 				transitions::push_position,
 				transitions::check_infinite_loop,
+				transitions::rewind,
 				transitions::conditions::numbered_recursion,
 				transitions::conditions::named_recursion,
 				transitions::conditions::numbered_capture,
@@ -299,6 +304,7 @@ namespace codepad::regex {
 		std::vector<_capture_info> _captures; ///< First occurences of all capture groups.
 		std::vector<_subroutine_transition> _subroutines; ///< All subroutine transitions.
 		const ast *_ast = nullptr; ///< The \ref ast that's being compiled.
+		const ast::analysis *_analysis = nullptr; ///< Analysis of \ref _ast.
 
 		/// Collects capture names from a node.
 		void _collect_capture_names(const ast::node &node) {
