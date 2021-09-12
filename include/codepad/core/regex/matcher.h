@@ -46,8 +46,11 @@ namespace codepad::regex {
 		std::optional<Stream> overriden_match_begin; ///< Match beginning position overriden using \p \\K.
 	};
 	/// Regular expression matcher.
-	template <typename Stream, typename LogFunc = no_log> class matcher {
+	template <typename Stream, typename DataTypes, typename LogFunc = no_log> class matcher {
 	public:
+		using state_index = typename DataTypes::state_index; ///< State index type.
+		using transition_index = typename DataTypes::transition_index; ///< Transition index type.
+		using compiled_types = compiled<DataTypes>; ///< All compiled types.
 		using result = match_result<Stream>; ///< Result type.
 
 		/// Default constructor.
@@ -60,15 +63,17 @@ namespace codepad::regex {
 		///
 		/// \return The state of the state machine after it's been executed from this position.
 		[[nodiscard]] std::optional<result> try_match(
-			Stream&, const compiled::state_machine&, std::size_t max_iters = 1000000
+			Stream&, const typename compiled_types::state_machine&, std::size_t max_iters = 1000000
 		);
 
 		/// Finds the starting point of the next match in the input stream. After the function returns, \p s will be
-		/// at the end of the input if no match is found, or be at the end position of the match. The caller needs to pay
-		/// extra attention when handling empty input streams; use \ref find_all() when necessary.
+		/// at the end of the input if no match is found, or be at the end position of the match. The caller needs to
+		/// pay extra attention when handling empty input streams; use \ref find_all() when necessary.
 		///
 		/// \return Starting position of the match.
-		[[nodiscard]] std::optional<result> find_next(Stream &s, const compiled::state_machine &expr) {
+		[[nodiscard]] std::optional<result> find_next(
+			Stream &s, const typename compiled_types::state_machine &expr
+		) {
 			while (true) {
 				Stream temp = s;
 				if (auto res = try_match(temp, expr)) {
@@ -87,7 +92,9 @@ namespace codepad::regex {
 		}
 		/// Finds all matches in the given stream, calling the given callback for each match. This is written so that
 		/// empty input streams can be handled correctly.
-		template <typename Callback> void find_all(Stream &s, const compiled::state_machine &expr, Callback &&cb) {
+		template <typename Callback> void find_all(
+			Stream &s, const typename compiled_types::state_machine &expr, Callback &&cb
+		) {
 			using _return_type = std::invoke_result_t<std::decay_t<Callback&&>, result>;
 
 			while (true) {
@@ -110,7 +117,8 @@ namespace codepad::regex {
 	
 		[[no_unique_address]] LogFunc debug_log; ///< Used to log debug information.
 	protected:
-		constexpr static bool _uses_log = !std::is_same_v<LogFunc, no_log>; ///< Indicates whether logging is enabled.
+		/// Indicates whether logging is enabled.
+		constexpr static bool _uses_log = !std::is_same_v<LogFunc, no_log>;
 
 		/// Information about an ongoing capture.
 		struct _capture_info {
@@ -152,8 +160,8 @@ namespace codepad::regex {
 		struct _subroutine_stackframe {
 			/// Used to revert captures back to their initial value after a subroutine finishes.
 			std::vector<_finished_capture_info> finished_captures;
-			std::size_t target = 0; ///< \sa \ref compiled::jump::target
-			std::size_t return_state = 0; ///< \sa \ref compiled::jump::return_state
+			typename compiled_types::state_ref target; ///< \sa \ref compiled_types::jump::target
+			typename compiled_types::state_ref return_state; ///< \sa \ref compiled_types::jump::return_state
 			/// When backtracking to before this state, this subroutine stackframe becomes invalid and should be
 			/// popped.
 			std::size_t state_stack_size = 0;
@@ -175,7 +183,7 @@ namespace codepad::regex {
 			_state() = default;
 			/// Initializes all fields of this struct.
 			_state(
-				Stream str, std::size_t st, std::size_t trans,
+				Stream str, typename compiled_types::state_ref st, typename compiled_types::transition_index trans,
 				std::size_t ongoing_captures, std::optional<Stream> overriden_start
 			) :
 				stream(std::move(str)), automata_state(st), transition(trans),
@@ -183,8 +191,8 @@ namespace codepad::regex {
 			}
 
 			Stream stream; ///< State of the input stream.
-			std::size_t automata_state = 0; ///< Current state in the automata.
-			std::size_t transition = 0; ///< Index of the current transition in \ref automata_state.
+			typename compiled_types::state_ref automata_state; ///< Current state in the automata.
+			transition_index transition = 0; ///< Index of the current transition in \ref automata_state.
 
 			/// The number of captures that was ongoing before this state was pushed onto the stack.
 			std::size_t initial_ongoing_captures = 0;
@@ -206,13 +214,17 @@ namespace codepad::regex {
 			/// Overriden match starting position before this state was pushed onto the stack.
 			std::optional<Stream> initial_match_begin;
 
-			/// Returns the associated \ref state_machine::state.
-			[[nodiscard]] const compiled::state &get_automata_state(const compiled::state_machine &sm) const {
-				return sm.states[automata_state];
+			/// Returns all transitions of the state.
+			[[nodiscard]] std::span<const typename compiled_types::transition> get_transitions(
+				const typename compiled_types::state_machine &sm
+			) const {
+				return sm.get_transitions(automata_state);
 			}
 			/// Returns the associated \ref state_machine::transition.
-			[[nodiscard]] const compiled::transition &get_transition(const compiled::state_machine &sm) const {
-				return sm.states[automata_state].transitions[transition];
+			[[nodiscard]] const typename compiled_types::transition &get_current_transition(
+				const typename compiled_types::state_machine &sm
+			) const {
+				return get_transitions(sm)[transition];
 			}
 		};
 
@@ -224,7 +236,7 @@ namespace codepad::regex {
 		std::deque<_subroutine_stackframe> _subroutine_stack; ///< Subroutine stack.
 		std::deque<_checkpointed_stream> _checkpoint_stack; ///< Checkpoint stack.
 		std::deque<_stream_position> _stream_position_stack; ///< Saved stream positions.
-		const compiled::state_machine *_expr = nullptr; ///< State machine for the expression.
+		const typename compiled_types::state_machine *_expr = nullptr; ///< State machine for the expression.
 
 		/// Logs the given string.
 		void _log([[maybe_unused]] std::u8string_view str) {
@@ -237,7 +249,7 @@ namespace codepad::regex {
 
 		/// Finds the index of the first matched group that has the given name.
 		[[nodiscard]] std::optional<std::size_t> _find_matched_named_capture(std::size_t name_index) const {
-			for (std::size_t id : _expr->named_captures.get_indices_for_name(name_index)) {
+			for (std::size_t id : _expr->get_named_captures().get_indices_for_name(name_index)) {
 				if (id >= _result.captures.size()) {
 					// since the captures are ordered, no captures after this one can be matched
 					break;
@@ -258,7 +270,9 @@ namespace codepad::regex {
 			return true;
 		}
 		/// Checks if the contents in the given stream starts with the given string.
-		[[nodiscard]] bool _check_transition(Stream &stream, const compiled::transitions::literal &cond) const {
+		[[nodiscard]] bool _check_transition(
+			Stream &stream, const typename compiled_types::transitions::literal &cond
+		) const {
 			for (codepoint cp : cond.contents) {
 				if (stream.empty()) {
 					return false;
@@ -275,7 +289,7 @@ namespace codepad::regex {
 		}
 		/// Checks if the next character in the stream is in the given codepoint ranges.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transitions::character_class &cond
+			Stream &stream, const typename compiled_types::transitions::character_class &cond
 		) const {
 			if (stream.empty()) {
 				return false;
@@ -284,7 +298,7 @@ namespace codepad::regex {
 		}
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transitions::simple_assertion &cond
+			Stream stream, const typename compiled_types::transitions::simple_assertion &cond
 		) const {
 			switch (cond.assertion_type) {
 			case ast_nodes::simple_assertion::type::always_false:
@@ -341,7 +355,7 @@ namespace codepad::regex {
 		}
 		/// Checks if the assertion is satisfied.
 		[[nodiscard]] bool _check_transition(
-			Stream stream, const compiled::transitions::character_class_assertion &cond
+			Stream stream, const typename compiled_types::transitions::character_class_assertion &cond
 		) const {
 			bool prev_in =
 				stream.prev_empty() ? false : cond.char_class.matches(stream.peek_prev());
@@ -351,7 +365,7 @@ namespace codepad::regex {
 		}
 		/// Checks if a numbered backreference matches.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transitions::numbered_backreference &cond
+			Stream &stream, const typename compiled_types::transitions::numbered_backreference &cond
 		) const {
 			if (cond.index >= _result.captures.size() || !_result.captures[cond.index].is_valid()) {
 				return false; // capture not yet matched
@@ -360,27 +374,16 @@ namespace codepad::regex {
 		}
 		/// Checks if a named backreference matches.
 		[[nodiscard]] bool _check_transition(
-			Stream &stream, const compiled::transitions::named_backreference &cond
+			Stream &stream, const typename compiled_types::transitions::named_backreference &cond
 		) const {
 			if (auto id = _find_matched_named_capture(cond.index)) {
 				return _check_backreference_transition(stream, id.value(), cond.case_insensitive);
 			}
 			return false;
 		}
-		/// Resets the start of this match.
-		[[nodiscard]] bool _check_transition(
-			const Stream &stream, const compiled::transitions::reset_match_start&
-		) {
-			// do this before a state is potentially pushed for backtracking
-			if (!_state_stack.empty()) {
-				_state_stack.back().initial_match_begin = _result.overriden_match_begin;
-			}
-			_result.overriden_match_begin = std::move(stream);
-			return true;
-		}
 		/// Checks if we're in an infinite loop.
 		[[nodiscard]] bool _check_transition(
-			const Stream &stream, const compiled::transitions::check_infinite_loop&
+			const Stream &stream, const typename compiled_types::transitions::check_infinite_loop&
 		) {
 			auto pos = _stream_position_stack.back();
 			_stream_position_stack.pop_back();
@@ -391,16 +394,16 @@ namespace codepad::regex {
 		}
 		/// Makes sure that there is enough room for the rewind.
 		[[nodiscard]] bool _check_transition(
-			const Stream &stream, const compiled::transitions::rewind &trans
+			const Stream &stream, const typename compiled_types::transitions::rewind &trans
 		) const {
 			return stream.codepoint_position() >= trans.num_codepoints;
 		}
 		/// Checks if we're currently in a numbered recursion.
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transitions::conditions::numbered_recursion &cond
+			const Stream&, const typename compiled_types::transitions::conditions::numbered_recursion &cond
 		) const {
 			if (!_subroutine_stack.empty()) {
-				if (cond.index != compiled::transitions::conditions::numbered_recursion::any_index) {
+				if (cond.index != compiled_types::transitions::conditions::numbered_recursion::any_index) {
 					return _subroutine_stack.back().subroutine_index == cond.index;
 				}
 				return true;
@@ -409,26 +412,32 @@ namespace codepad::regex {
 		}
 		/// Checks if we're currently in a named recursion.
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transitions::conditions::named_recursion &cond
+			const Stream&, const typename compiled_types::transitions::conditions::named_recursion &cond
 		) const {
 			if (!_subroutine_stack.empty()) {
 				std::size_t current_name_index =
-					_expr->named_captures.reverse_mapping[_subroutine_stack.back().subroutine_index];
+					_expr->get_named_captures().reverse_mapping[_subroutine_stack.back().subroutine_index];
 				return current_name_index == cond.name_index;
 			}
 			return false;
 		}
 		/// Checks if the given numbered group has been matched.
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transitions::conditions::numbered_capture &cap
+			const Stream&, const typename compiled_types::transitions::conditions::numbered_capture &cap
 		) const {
 			return _result.captures.size() > cap.index && _result.captures[cap.index].is_valid();
 		}
 		/// Checks if the given numbered group has been matched.
 		[[nodiscard]] bool _check_transition(
-			const Stream&, const compiled::transitions::conditions::named_capture &cap
+			const Stream&, const typename compiled_types::transitions::conditions::named_capture &cap
 		) const {
 			return _find_matched_named_capture(cap.name_index).has_value();
+		}
+		/// Always returns \p false.
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const typename compiled_types::transitions::verbs::fail&
+		) const {
+			return false;
 		}
 
 		/// Adds a capture that results from an assertion.
@@ -449,31 +458,40 @@ namespace codepad::regex {
 		template <typename Trans> void _execute_transition(const Stream&, const Trans&) {
 		}
 		/// Starts a capture.
-		void _execute_transition(Stream stream, const compiled::transitions::capture_begin &beg) {
+		void _execute_transition(Stream stream, const typename compiled_types::transitions::capture_begin &beg) {
 			_ongoing_captures.emplace_back(std::move(stream), beg.index);
 		}
 		/// Ends a capture.
-		void _execute_transition(const Stream&, const compiled::transitions::capture_end&);
+		void _execute_transition(const Stream&, const typename compiled_types::transitions::capture_end&);
+		/// Resets the start of this match.
+		void _execute_transition(
+			Stream stream, const typename compiled_types::transitions::reset_match_start&
+		) {
+			if (!_state_stack.empty()) {
+				_state_stack.back().initial_match_begin = _result.overriden_match_begin;
+			}
+			_result.overriden_match_begin = std::move(stream);
+		}
 		/// Pushes an atomic group.
-		void _execute_transition(const Stream&, const compiled::transitions::push_atomic&) {
+		void _execute_transition(const Stream&, const typename compiled_types::transitions::push_atomic&) {
 			_atomic_stack_sizes.emplace_back(_state_stack.size());
 		}
 		/// Pops all states associated with the current atomic group.
-		void _execute_transition(const Stream&, const compiled::transitions::pop_atomic&);
+		void _execute_transition(const Stream&, const typename compiled_types::transitions::pop_atomic&);
 		/// Pushes and checkpoints the current stream.
-		void _execute_transition(Stream, const compiled::transitions::push_stream_checkpoint&);
+		void _execute_transition(Stream, const typename compiled_types::transitions::push_stream_checkpoint&);
 		/// Restores a previously checkpointed stream.
-		void _execute_transition(Stream&, const compiled::transitions::restore_stream_checkpoint&);
+		void _execute_transition(Stream&, const typename compiled_types::transitions::restore_stream_checkpoint&);
 		/// Pushes a subroutine stack frame.
-		void _execute_transition(const Stream&, const compiled::transitions::jump&);
+		void _execute_transition(const Stream&, const typename compiled_types::transitions::jump&);
 		/// Pushes the current stream position
-		void _execute_transition(const Stream &stream, const compiled::transitions::push_position&) {
+		void _execute_transition(const Stream &stream, const typename compiled_types::transitions::push_position&) {
 			auto &pushed = _stream_position_stack.emplace_back();
 			pushed.codepoint_position = stream.codepoint_position();
 			pushed.state_stack_size = _state_stack.size();
 		}
 		/// Rewinds the stream.
-		void _execute_transition(Stream &stream, const compiled::transitions::rewind &trans) {
+		void _execute_transition(Stream &stream, const typename compiled_types::transitions::rewind &trans) {
 			for (std::size_t i = 0; i < trans.num_codepoints; ++i) {
 				stream.prev();
 			}

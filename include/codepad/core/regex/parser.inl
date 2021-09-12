@@ -800,6 +800,22 @@ namespace codepad::regex {
 							on_error_callback(_stream, u8"Missing closing round bracket");
 							return ast_nodes::node_ref();
 						}
+						if (_stream.peek() == U'>') { // named subroutine
+							_stream.take();
+							auto [node_ref, node] = _result.create_node<ast_nodes::named_subroutine>();
+							while (true) {
+								if (_stream.empty()) {
+									on_error_callback(_stream, u8"Missing end round bracket for named subroutine");
+									break;
+								}
+								codepoint cp = _stream.take();
+								if (cp == U')') {
+									break;
+								}
+								node.name.push_back(cp);
+							}
+							return node_ref;
+						}
 						if (_stream.peek() != U'<') {
 							// TODO not a named capture
 							break;
@@ -1089,14 +1105,17 @@ namespace codepad::regex {
 							// TODO error
 							return ast_nodes::node_ref();
 						}
-						command.clear();
+						command.clear(); // reset `command' to indicate that it's handled
 						break;
 					} else {
 						auto encoded = encodings::utf8::encode_codepoint(cp);
 						command.append(reinterpret_cast<const char8_t*>(encoded.data()), encoded.size());
 					}
 				}
-				if (!command.empty()) { // parse special option
+				if (!command.empty()) { // parse verb or option
+					if (command == u8"F" || command == u8"FAIL") {
+						return _result.create_node<ast_nodes::verbs::fail>().first;
+					}
 					// TODO
 					return ast_nodes::node_ref();
 				}

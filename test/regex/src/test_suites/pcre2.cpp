@@ -60,6 +60,7 @@ struct pattern_data {
 	/// Whether or not to dump binary code (which we don't have, so only a placeholder for now).
 	bool bincode = false;
 	bool hex = false; ///< Whether the pattern is expressed as hexadecimal bytes.
+	bool mark = false; ///< Whether or not to print out the marker after matching finishes.
 
 	/// Dumps the pattern string to the given output stream.
 	void dump_options(std::ostream &out) const {
@@ -86,6 +87,7 @@ struct pattern_data {
 		print_bit(bincode, "B");
 
 		print_word(hex, "hex");
+		print_word(mark, "mark");
 		print_word(aftertext, "aftertext");
 		print_word(subject_literal, "subject_literal");
 	}
@@ -96,7 +98,8 @@ struct test {
 	std::vector<test_data> data; ///< Test strings.
 };
 using stream_t = cp::regex::basic_input_stream<cp::encodings::utf8, const std::byte*>; ///< UTF-8 input stream type.
-using matcher_t = cp::regex::matcher<stream_t>; /// Matcher type.
+using data_types = cp::regex::data_types::small_expression; ///< Data types.
+using matcher_t = cp::regex::matcher<stream_t, data_types>; /// Matcher type.
 
 /// Fails with the given message.
 void fail(const char *msg = nullptr) {
@@ -198,6 +201,8 @@ void fail(const char *msg = nullptr) {
 					result.aftertext = true;
 				} else if (sv == U"subject_literal") {
 					result.subject_literal = true;
+				} else if (sv == U"mark") {
+					result.mark = true;
 				} else if (sv == U"hex") {
 					std::stringstream ss;
 					for (cp::codepoint cp : result.pattern) {
@@ -508,11 +513,11 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 	std::ofstream fout(filename.filename().concat(".out"));
 
 	// use the same set of objects to test that their internal states are reset properly
-	cp::regex::matcher<stream_t> matcher;
+	cp::regex::matcher<stream_t, data_types> matcher;
 	cp::regex::parser<stream_t> parser([&](const stream_t &s, const std::u8string_view msg) {
 		fout <<
 			"Error at byte " << s.byte_position() << ", codepoint " << s.codepoint_position() <<
-			": " << std::string_view(reinterpret_cast<const char*>(msg.data()), msg.length());
+			": " << std::string_view(reinterpret_cast<const char*>(msg.data()), msg.length()) << "\n";
 	});
 	cp::regex::compiler compiler;
 
@@ -556,12 +561,12 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 		// compile regex
 		cp::regex::ast ast;
 		cp::regex::ast::analysis analysis;
-		cp::regex::compiled::state_machine sm;
+		cp::regex::compiled<data_types>::state_machine sm;
 		{
 			stream_t stream(pattern_str.data(), pattern_str.data() + pattern_str.size());
 			ast = parser.parse(stream, test.pattern.options);
 			analysis = ast.analyze();
-			sm = compiler.compile(ast, analysis);
+			sm = compiler.compile(ast, analysis).finalize<data_types>();
 		}
 
 		// log ast

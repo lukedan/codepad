@@ -43,9 +43,10 @@ int main(int argc, char **argv) {
 		return session.run();
 	}
 
+	using data_types = cp::regex::data_types::unoptimized;
 	using stream_t = cp::regex::basic_input_stream<cp::encodings::utf8, const std::byte*>;
 	using parser_t = cp::regex::parser<stream_t>;
-	using matcher_t = cp::regex::matcher<stream_t, std::ostream&>;
+	using matcher_t = cp::regex::matcher<stream_t, data_types, std::ostream&>;
 
 	std::string regex;
 	std::string string;
@@ -58,7 +59,7 @@ int main(int argc, char **argv) {
 		parser_t parser([](const stream_t &s, const std::u8string_view msg) {
 			std::cout <<
 				"Error at byte " << s.byte_position() << ", codepoint " << s.codepoint_position() <<
-				": " << std::string_view(reinterpret_cast<const char*>(msg.data()), msg.length());
+				": " << std::string_view(reinterpret_cast<const char*>(msg.data()), msg.length()) << "\n";
 		});
 		cp::regex::options opt;
 		opt.case_insensitive = true;
@@ -68,12 +69,13 @@ int main(int argc, char **argv) {
 		dumper.dump(ast.root());
 
 		cp::regex::compiler compiler;
-		cp::regex::compiled::state_machine sm = compiler.compile(ast, analysis);
-
+		cp::regex::half_compiled::state_machine sm_half = compiler.compile(ast, analysis);
 		{
 			std::ofstream fout("regex.dot");
-			sm.dump(fout);
+			sm_half.dump(fout);
 		}
+
+		cp::regex::compiled<data_types>::state_machine sm = std::move(sm_half).finalize<data_types>();
 
 		matcher_t matcher(std::cout);
 		while (true) {

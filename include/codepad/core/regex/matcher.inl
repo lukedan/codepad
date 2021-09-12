@@ -9,15 +9,15 @@
 
 namespace codepad::regex {
 	template <
-		typename Stream, typename LogFunc
-	> std::optional<match_result<Stream>> matcher<Stream, LogFunc>::try_match(
-		Stream &stream, const compiled::state_machine &expr, std::size_t max_iters
+		typename Stream, typename DataTypes, typename LogFunc
+	> std::optional<match_result<Stream>> matcher<Stream, DataTypes, LogFunc>::try_match(
+		Stream &stream, const typename compiled_types::state_machine &expr, std::size_t max_iters
 	) {
 		_result = result();
 		_result.captures.emplace_back().begin = stream;
 		_expr = &expr;
 
-		_state current_state(std::move(stream), expr.start_state, 0, 0, std::nullopt);
+		_state current_state(std::move(stream), expr.get_start_state(), 0, 0, std::nullopt);
 		std::size_t iter = 0;
 		for (; iter < max_iters; ++iter) {
 			if constexpr (_uses_log) {
@@ -90,13 +90,13 @@ namespace codepad::regex {
 				_subroutine_stack.pop_back();
 				continue;
 			}
-			if (current_state.automata_state == expr.end_state) {
+			if (current_state.automata_state == expr.get_end_state()) {
 				break; // we've reached the end state
 			}
 			Stream checkpoint_stream = current_state.stream;
-			const compiled::transition *transition = nullptr;
-			if (!current_state.get_automata_state(expr).transitions.empty()) {
-				transition = &current_state.get_transition(expr);
+			const compiled_types::transition *transition = nullptr;
+			if (!current_state.get_transitions(expr).empty()) {
+				transition = &current_state.get_current_transition(expr);
 				std::visit(
 					[&, this](auto &&cond) {
 						if (!_check_transition(current_state.stream, cond)) {
@@ -110,7 +110,7 @@ namespace codepad::regex {
 			++current_state.transition;
 			if (transition) {
 				_log(u8"\tTransition OK\n");
-				if (current_state.transition < current_state.get_automata_state(expr).transitions.size()) {
+				if (current_state.transition < current_state.get_transitions(expr).size()) {
 					_log(u8"\t\tPushing state\n");
 					_state_stack.emplace_back(
 						std::move(checkpoint_stream), current_state.automata_state, current_state.transition,
@@ -123,11 +123,11 @@ namespace codepad::regex {
 					},
 					transition->condition
 				);
-				current_state.automata_state = transition->new_state_index;
+				current_state.automata_state = transition->new_state;
 				current_state.transition = 0;
 				// continue to the next iteration
 			} else {
-				if (current_state.transition < current_state.get_automata_state(expr).transitions.size()) {
+				if (current_state.transition < current_state.get_transitions(expr).size()) {
 					_log(u8"\tTransition fail: next transition\n");
 					current_state.stream = std::move(checkpoint_stream);
 					continue; // try the next transition
@@ -208,7 +208,7 @@ namespace codepad::regex {
 		_state_stack = std::deque<_state>();
 		_expr = nullptr;
 
-		if (iter < max_iters && current_state.automata_state == expr.end_state) {
+		if (iter < max_iters && current_state.automata_state == expr.get_end_state()) {
 			assert_true_logical(_ongoing_captures.empty(), "there are still ongoing captures");
 			assert_true_logical(_atomic_stack_sizes.empty(), "there are still ongoing atomic groups");
 			assert_true_logical(_subroutine_stack.empty(), "there are still ongoing subroutines");
@@ -229,13 +229,13 @@ namespace codepad::regex {
 		return std::nullopt;
 	}
 
-	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_log(
+	template <typename Stream, typename DataTypes, typename LogFunc> void matcher<Stream, DataTypes, LogFunc>::_log(
 		[[maybe_unused]] const _state &s, [[maybe_unused]] std::u8string_view indent
 	) {
 		if constexpr (_uses_log) {
 			debug_log <<
 				indent << u8"Stream position: " << s.stream.codepoint_position() <<
-				u8";  state: " << s.automata_state <<
+				u8";  state: " << s.automata_state.get_index() <<
 				", transition: " << s.transition << "\n";
 
 			debug_log << indent << u8"\tInitial ongoing captures: " << s.initial_ongoing_captures << "\n";
@@ -267,7 +267,9 @@ namespace codepad::regex {
 		}
 	}
 
-	template <typename Stream, typename LogFunc> bool matcher<Stream, LogFunc>::_check_backreference_transition(
+	template <
+		typename Stream, typename DataTypes, typename LogFunc
+	> bool matcher<Stream, DataTypes, LogFunc>::_check_backreference_transition(
 		Stream &stream, std::size_t index, bool case_insensitive
 	) const {
 		auto &cap = _result.captures[index];
@@ -292,8 +294,10 @@ namespace codepad::regex {
 		return true;
 	}
 
-	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
-		const Stream &stream, const compiled::transitions::capture_end&
+	template <
+		typename Stream, typename DataTypes, typename LogFunc
+	> void matcher<Stream, DataTypes, LogFunc>::_execute_transition(
+		const Stream &stream, const typename compiled_types::transitions::capture_end&
 	) {
 		auto res = std::move(_ongoing_captures.back());
 		_ongoing_captures.pop_back();
@@ -327,8 +331,10 @@ namespace codepad::regex {
 		_result.captures[index].begin = std::move(res.begin);
 	}
 
-	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
-		const Stream&, const compiled::transitions::pop_atomic&
+	template <
+		typename Stream, typename DataTypes, typename LogFunc
+	> void matcher<Stream, DataTypes, LogFunc>::_execute_transition(
+		const Stream&, const typename compiled_types::transitions::pop_atomic&
 	) {
 		std::size_t target_stack_size = _atomic_stack_sizes.back();
 		if (target_stack_size > 0 && target_stack_size < _state_stack.size()) {
@@ -409,16 +415,20 @@ namespace codepad::regex {
 		_atomic_stack_sizes.pop_back();
 	}
 
-	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
-		Stream stream, const compiled::transitions::push_stream_checkpoint&
+	template <
+		typename Stream, typename DataTypes, typename LogFunc
+	> void matcher<Stream, DataTypes, LogFunc>::_execute_transition(
+		Stream stream, const typename compiled_types::transitions::push_stream_checkpoint&
 	) {
 		auto &checkpoint = _checkpoint_stack.emplace_back();
 		checkpoint.position = std::move(stream);
 		checkpoint.state_stack_size = _state_stack.size();
 	}
 
-	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
-		Stream &stream, const compiled::transitions::restore_stream_checkpoint&
+	template <
+		typename Stream, typename DataTypes, typename LogFunc
+	> void matcher<Stream, DataTypes, LogFunc>::_execute_transition(
+		Stream &stream, const typename compiled_types::transitions::restore_stream_checkpoint&
 	) {
 		auto checkpoint = std::move(_checkpoint_stack.back());
 		_checkpoint_stack.pop_back();
@@ -429,8 +439,10 @@ namespace codepad::regex {
 		}
 	}
 
-	template <typename Stream, typename LogFunc> void matcher<Stream, LogFunc>::_execute_transition(
-		const Stream&, const compiled::transitions::jump &jmp
+	template <
+		typename Stream, typename DataTypes, typename LogFunc
+	> void matcher<Stream, DataTypes, LogFunc>::_execute_transition(
+		const Stream&, const typename compiled_types::transitions::jump &jmp
 	) {
 		auto &sf = _subroutine_stack.emplace_back();
 		sf.target = jmp.target;

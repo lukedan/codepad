@@ -224,6 +224,13 @@ namespace codepad::regex {
 			node_ref if_true; ///< Subexpression that's matched if the condition matches.
 			std::optional<node_ref> if_false; ///< Subexpression that's matched if the condition does not match.
 		};
+
+		/// Backtracking control verbs.
+		namespace verbs {
+			/// Fails immediately and causes backtracking.
+			struct fail {
+			};
+		}
 	}
 
 
@@ -251,7 +258,8 @@ namespace codepad::regex {
 				ast_nodes::alternative,
 				ast_nodes::repetition,
 				ast_nodes::complex_assertion,
-				ast_nodes::conditional_expression
+				ast_nodes::conditional_expression,
+				ast_nodes::verbs::fail
 			>;
 
 			storage value; ///< The value of this node.
@@ -487,6 +495,11 @@ namespace codepad::regex {
 					dump(n.if_false.value());
 				}
 				_branch.pop_back();
+			}
+			/// Dumps a \ref ast_nodes::verbs::fail.
+			void dump(const ast_nodes::verbs::fail&) {
+				_indent();
+				_stream << "©¤©¤ [*FAIL]\n";
 			}
 
 			/// Dumps a \ref node.
@@ -758,5 +771,11 @@ namespace codepad::regex {
 		[[nodiscard]] ast_nodes::analysis _analyze(
 			const ast_nodes::conditional_expression&, _analysis_context&
 		) const;
+		/// Analyzes a \ref ast_nodes::verbs::fail node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::verbs::fail&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.minimum_length = result.maximum_length = 0;
+			return result;
+		}
 	};
 }
