@@ -17,6 +17,7 @@
 #include "parser.inl"
 
 namespace codepad::regex {
+	class compiler;
 	namespace half_compiled {
 		class state_machine;
 	}
@@ -29,6 +30,8 @@ namespace codepad::regex {
 		public:
 			using state_index = std::size_t; ///< Index type for states.
 			using transition_index = std::size_t; ///< Index type for transitions.
+			using capture_index = std::size_t; ///< Index for captures.
+			using capture_name_index = std::size_t; ///< Index for capture names.
 		};
 
 		/// Uses \p std::uint16_t for all index types.
@@ -36,6 +39,8 @@ namespace codepad::regex {
 		public:
 			using state_index = std::uint16_t; ///< Index type for states.
 			using transition_index = std::uint16_t; ///< Index type for transitions.
+			using capture_index = std::uint16_t; ///< Index for captures.
+			using capture_name_index = std::uint16_t; ///< Index for capture names.
 		};
 	}
 
@@ -47,34 +52,100 @@ namespace codepad::regex {
 
 		using state_index = typename DataTypes::state_index; ///< State index type.
 		using transition_index = typename DataTypes::transition_index; ///< Transition index type.
+		using capture_index = typename DataTypes::capture_index; ///< Capture index type.
+		using capture_name_index = typename DataTypes::capture_name_index; ///< Capture name index type.
+
+		/// Contains a capture index.
+		struct capture_ref {
+		public:
+			/// Default constructor.
+			capture_ref() = default;
+			/// Initializes this capture with the given index.
+			explicit capture_ref(capture_index i) : _index(i) {
+			}
+			/// Initializes this struct from a capture reference that uses another type.
+			template <
+				typename OtherDataType
+			> [[nodiscard]] typename compiled<OtherDataType>::capture_ref into() const {
+				return typename compiled<OtherDataType>::capture_ref(
+					static_cast<typename OtherDataType::capture_index>(_index)
+				);
+			}
+
+			/// Equality.
+			[[nodiscard]] friend bool operator==(capture_ref, capture_ref) = default;
+
+			/// Returns the capture index.
+			[[nodiscard]] capture_index get_index() const {
+				return _index;
+			}
+		protected:
+			capture_index _index = 0; ///< Index of the capture.
+		};
+		/// Contains a capture name index.
+		struct capture_name_ref {
+			template <typename> friend class compiled;
+			friend compiler;
+		public:
+			/// Index indicating that this reference is invalid.
+			constexpr static capture_name_index invalid_index = std::numeric_limits<capture_name_index>::max();
+
+			/// Default constructor.
+			capture_name_ref() = default;
+			/// Initializes this struct from a capture name reference that uses another type.
+			template <
+				typename OtherDataType
+			> [[nodiscard]] typename compiled<OtherDataType>::capture_name_ref into() const {
+				return typename compiled<OtherDataType>::capture_name_ref(
+					static_cast<typename OtherDataType::capture_name_index>(_index)
+				);
+			}
+
+			/// Returns the index of the capture name.
+			[[nodiscard]] capture_name_index get_name_index() const {
+				return _index;
+			}
+
+			/// Equality.
+			[[nodiscard]] friend bool operator==(capture_name_ref, capture_name_ref) = default;
+
+			/// Checks if this reference is valid.
+			[[nodiscard]] bool is_empty() const {
+				return _index == invalid_index;
+			}
+			/// \overload
+			[[nodiscard]] explicit operator bool() const {
+				return !is_empty();
+			}
+		protected:
+			capture_name_index _index = invalid_index; ///< Index of the capture name.
+
+			/// Initializes the name reference with the given index.
+			explicit capture_name_ref(capture_name_index i) : _index(i) {
+			}
+		};
 
 		/// Records the corresponding numbered capture indices of all named captures.
 		struct named_capture_registry {
-			/// Indicates that a numbered capture does not have a corresponding reverse mapping.
-			constexpr static std::size_t no_reverse_mapping = std::numeric_limits<std::size_t>::max();
-
 			/// Numbered capture indices for all named captures. Use \ref start_indices to obtain the range of
 			/// indices that correspond to a specific name.
-			std::vector<std::size_t> indices;
+			std::vector<capture_ref> indices;
 			/// Starting indices in \ref indices. This array has one additional element at the end (which is the
 			/// length of \ref indices) for convenience.
 			std::vector<std::size_t> start_indices;
 			/// Mapping from numbered capture indices to the corresponding named capture indices.
-			std::vector<std::size_t> reverse_mapping;
+			std::vector<capture_name_ref> reverse_mapping;
 
 			/// Returns the range in \ref indices that correspond to the given name.
-			[[nodiscard]] std::span<const std::size_t> get_indices_for_name(std::size_t name_index) const {
+			[[nodiscard]] std::span<const capture_ref> get_indices_for_name(capture_name_ref name) const {
 				return {
-					indices.begin() + start_indices[name_index],
-					indices.begin() + start_indices[name_index + 1]
+					indices.begin() + start_indices[name.get_name_index()],
+					indices.begin() + start_indices[name.get_name_index() + 1]
 				};
 			}
 			/// Returns the index of the name corresponding to the group at the given index.
-			[[nodiscard]] std::size_t get_name_index_for_group(std::size_t index) const {
-				if (index < reverse_mapping.size()) {
-					return reverse_mapping[index];
-				}
-				return no_reverse_mapping;
+			[[nodiscard]] capture_name_ref get_name_index_for_group(capture_ref cap) const {
+				return reverse_mapping[cap.get_index()];
 			}
 
 			/// Converts this struct into one that uses a different set of data types.
@@ -82,9 +153,15 @@ namespace codepad::regex {
 				typename OtherDataTypes
 			> [[nodiscard]] typename compiled<OtherDataTypes>::named_capture_registry into() const {
 				typename compiled<OtherDataTypes>::named_capture_registry result;
-				result.indices = indices;
+				result.indices.resize(indices.size());
+				for (std::size_t i = 0; i < indices.size(); ++i) {
+					result.indices[i] = indices[i].into<OtherDataTypes>();
+				}
 				result.start_indices = start_indices;
-				result.reverse_mapping = reverse_mapping;
+				result.reverse_mapping.resize(reverse_mapping.size());
+				for (std::size_t i = 0; i < reverse_mapping.size(); ++i) {
+					result.reverse_mapping[i] = reverse_mapping[i].into<OtherDataTypes>();
+				}
 				return result;
 			}
 		};
@@ -153,6 +230,7 @@ namespace codepad::regex {
 					return result;
 				}
 			};
+
 			/// A character class.
 			struct character_class {
 				codepoint_range_list ranges; ///< Ranges.
@@ -187,6 +265,7 @@ namespace codepad::regex {
 					return result;
 				}
 			};
+
 			/// Simple assertion.
 			struct simple_assertion {
 				/// The type of this assertion.
@@ -201,6 +280,7 @@ namespace codepad::regex {
 					return result;
 				}
 			};
+
 			/// An assertion that checks if we are at a character class boundary.
 			struct character_class_assertion {
 				character_class char_class; ///< The character class.
@@ -216,19 +296,21 @@ namespace codepad::regex {
 					return result;
 				}
 			};
+
 			/// Starts a capture.
 			struct capture_begin {
-				std::size_t index = 0; ///< Index of the capture.
+				capture_ref capture; ///< The capture.
 
 				/// Converts to another data type.
 				template <
 					typename OtherDataTypes
 				> typename compiled<OtherDataTypes>::transitions::capture_begin into() && {
 					typename compiled<OtherDataTypes>::transitions::capture_begin result;
-					result.index = index;
+					result.capture = capture.into<OtherDataTypes>();
 					return result;
 				}
 			};
+
 			/// Ends a capture.
 			struct capture_end {
 				/// Converts to another data type.
@@ -238,9 +320,10 @@ namespace codepad::regex {
 					return typename compiled<OtherDataTypes>::transitions::capture_end();
 				}
 			};
+
 			/// A numbered backreference.
 			struct numbered_backreference {
-				std::size_t index = 0; ///< Index of the capture.
+				capture_ref capture; ///< The capture.
 				bool case_insensitive = false; ///< Whether the condition is case-insensitive.
 
 				/// Converts to another data type.
@@ -248,14 +331,15 @@ namespace codepad::regex {
 					typename OtherDataTypes
 				> typename compiled<OtherDataTypes>::transitions::numbered_backreference into() && {
 					typename compiled<OtherDataTypes>::transitions::numbered_backreference result;
-					result.index = index;
+					result.capture = capture.into<OtherDataTypes>();
 					result.case_insensitive = case_insensitive;
 					return result;
 				}
 			};
+
 			/// A named backreference.
 			struct named_backreference {
-				std::size_t index = 0; ///< Index of the capture.
+				capture_name_ref name; ///< Name of the capture.
 				bool case_insensitive = false; ///< Whether the condition is case-insensitive.
 
 				/// Converts to another data type.
@@ -263,15 +347,16 @@ namespace codepad::regex {
 					typename OtherDataTypes
 				> typename compiled<OtherDataTypes>::transitions::named_backreference into() && {
 					typename compiled<OtherDataTypes>::transitions::named_backreference result;
-					result.index = index;
+					result.name = name.into<OtherDataTypes>();
 					result.case_insensitive = case_insensitive;
 					return result;
 				}
 			};
+
 			/// Pushes a subroutine stack frame indicating that once \ref target is reached, jumps to
 			/// \ref return_state. This should only be used to implement subroutines and recursions.
 			struct jump {
-				std::size_t subroutine_index = 0; ///< Index of the subroutine.
+				capture_ref subroutine_capture; ///< Capture index of the subroutine.
 				/// The target state. Once this state is reached, matching jumps back to \ref final.
 				state_ref target;
 				/// The state to jump to once \ref target is reached.
@@ -280,12 +365,13 @@ namespace codepad::regex {
 				/// Converts to another data type.
 				template <typename OtherDataTypes> typename compiled<OtherDataTypes>::transitions::jump into() && {
 					typename compiled<OtherDataTypes>::transitions::jump result;
-					result.subroutine_index = subroutine_index;
+					result.subroutine_capture = subroutine_capture.into<OtherDataTypes>();
 					result.target = target.into<OtherDataTypes>();
 					result.return_state = return_state.into<OtherDataTypes>();
 					return result;
 				}
 			};
+
 			/// Resets the starting position of this match.
 			struct reset_match_start {
 				/// Converts to another data type.
@@ -295,6 +381,7 @@ namespace codepad::regex {
 					return typename compiled<OtherDataTypes>::transitions::reset_match_start();
 				}
 			};
+
 			/// Pushes the start of an atomic range.
 			struct push_atomic {
 				/// Converts to another data type.
@@ -304,6 +391,7 @@ namespace codepad::regex {
 					return typename compiled<OtherDataTypes>::transitions::push_atomic();
 				}
 			};
+
 			/// Pops all states on stack pushed since the start of the last atomic range.
 			struct pop_atomic {
 				/// Converts to another data type.
@@ -313,6 +401,7 @@ namespace codepad::regex {
 					return typename compiled<OtherDataTypes>::transitions::pop_atomic();
 				}
 			};
+
 			/// Pushes the current input stream as a checkpoint, which can be restored later using
 			/// \ref restore_stream_checkpoint.
 			struct push_stream_checkpoint {
@@ -323,6 +412,7 @@ namespace codepad::regex {
 					return typename compiled<OtherDataTypes>::transitions::push_stream_checkpoint();
 				}
 			};
+
 			/// Restores the checkpointed stream, previously pushed using \ref push_stream_checkpoint.
 			struct restore_stream_checkpoint {
 				/// Converts to another data type.
@@ -332,6 +422,7 @@ namespace codepad::regex {
 					return typename compiled<OtherDataTypes>::transitions::restore_stream_checkpoint();
 				}
 			};
+
 			/// Paired with \ref infinite_loop, this transition pushes the current stream position onto a stack so
 			/// that we can later check if we're stuck in an infinite loop where the body doesn't consume any
 			/// characters.
@@ -343,6 +434,7 @@ namespace codepad::regex {
 					return typename compiled<OtherDataTypes>::transitions::push_position();
 				}
 			};
+
 			/// This transition can only happen if any characters have been consumed since the last
 			/// \ref push_position. Regardless of whether this transition happens, it will pop the previously pushed
 			/// stream position.
@@ -354,6 +446,7 @@ namespace codepad::regex {
 					return typename compiled<OtherDataTypes>::transitions::check_infinite_loop();
 				}
 			};
+
 			/// Rewinds the stream back the specified number of codepoints.
 			struct rewind {
 				std::size_t num_codepoints = 0; ///< The number of codepoints to rewind.
@@ -369,62 +462,69 @@ namespace codepad::regex {
 			/// Transitions that are conditions.
 			class conditions {
 			public:
-				/// Checks if we're currently in a recursion.
-				struct numbered_recursion {
-					/// Indicates that any ongoing recursion satisfies this condition.
-					constexpr static std::size_t any_index = std::numeric_limits<std::size_t>::max();
+				/// Checks if we're currently in any recursion call.
+				struct any_recursion {
+					/// Converts to another data type.
+					template <
+						typename OtherDataTypes
+					> typename compiled<OtherDataTypes>::transitions::conditions::any_recursion into() && {
+						return typename compiled<OtherDataTypes>::transitions::conditions::any_recursion();
+					}
+				};
 
+				/// Checks if we're currently in a specific numbered recursion call.
+				struct numbered_recursion {
 					/// Index of the group to check for, or \ref any_index to indicate any recursion.
-					std::size_t index = any_index;
+					capture_ref capture;
 
 					/// Converts to another data type.
 					template <
 						typename OtherDataTypes
 					> typename compiled<OtherDataTypes>::transitions::conditions::numbered_recursion into() && {
 						typename compiled<OtherDataTypes>::transitions::conditions::numbered_recursion result;
-						result.index =
-							index == any_index ?
-							compiled<OtherDataTypes>::transitions::conditions::numbered_recursion::any_index :
-							index;
+						result.capture = capture.into<OtherDataTypes>();
 						return result;
 					}
 				};
+
 				/// Checks if we're currently in the specified named subroutine call.
 				struct named_recursion {
-					std::size_t name_index = 0; ///< Index of the name in \ref state_machine::named_captures.
+					capture_name_ref name; ///< Capture name to check for.
 
 					/// Converts to another data type.
 					template <
 						typename OtherDataTypes
 					> typename compiled<OtherDataTypes>::transitions::conditions::named_recursion into() && {
 						typename compiled<OtherDataTypes>::transitions::conditions::named_recursion result;
-						result.name_index = name_index;
+						result.name = name.into<OtherDataTypes>();
 						return result;
 					}
 				};
+
 				/// Checks if the given numbered group has been matched.
 				struct numbered_capture {
-					std::size_t index = 0; ///< The index of the capture.
+					capture_ref capture; ///< The capture.
 
 					/// Converts to another data type.
 					template <
 						typename OtherDataTypes
 					> typename compiled<OtherDataTypes>::transitions::conditions::numbered_capture into() && {
 						typename compiled<OtherDataTypes>::transitions::conditions::numbered_capture result;
-						result.index = index;
+						result.capture = capture.into<OtherDataTypes>();
 						return result;
 					}
 				};
+
 				/// Checks if the given named group has been matched.
 				struct named_capture {
-					std::size_t name_index = 0; ///< Index of the name in \ref state_machine::named_captures.
+					capture_name_ref name; ///< Name of the capture.
 
 					/// Converts to another data type.
 					template <
 						typename OtherDataTypes
 					> typename compiled<OtherDataTypes>::transitions::conditions::named_capture into() && {
 						typename compiled<OtherDataTypes>::transitions::conditions::named_capture result;
-						result.name_index = name_index;
+						result.name = name.into<OtherDataTypes>();
 						return result;
 					}
 				};
@@ -436,7 +536,9 @@ namespace codepad::regex {
 				/// Fails and causes backtracking immediately.
 				struct fail {
 					/// Converts to another data type.
-					template <typename OtherDataTypes> typename compiled<OtherDataTypes>::transitions::verbs::fail into() && {
+					template <
+						typename OtherDataTypes
+					> typename compiled<OtherDataTypes>::transitions::verbs::fail into() && {
 						return typename compiled<OtherDataTypes>::transitions::verbs::fail();
 					}
 				};
@@ -464,6 +566,7 @@ namespace codepad::regex {
 				typename transitions::push_position,
 				typename transitions::check_infinite_loop,
 				typename transitions::rewind,
+				typename transitions::conditions::any_recursion,
 				typename transitions::conditions::numbered_recursion,
 				typename transitions::conditions::named_recursion,
 				typename transitions::conditions::numbered_capture,
@@ -496,9 +599,10 @@ namespace codepad::regex {
 			/// Returns the transitions associated with the given \ref state_ref.
 			[[nodiscard]] std::span<const transition> get_transitions(state_ref r) const {
 				const auto &s = _states[r._index];
-				return std::span<const transition>(
-					_transitions.begin() + s.first_transition, _transitions.begin() + s.past_last_transition
-				);
+				return {
+					_transitions.begin() + s.first_transition,
+					_transitions.begin() + s.past_last_transition
+				};
 			}
 			/// Returns the \ref named_capture_registry.
 			[[nodiscard]] const named_capture_registry &get_named_captures() const {
@@ -611,16 +715,23 @@ namespace codepad::regex {
 			/// Default constructor.
 			_named_capture_info() = default;
 			/// Initializes all fields of this struct.
-			_named_capture_info(codepoint_string n, std::size_t i) : name(std::move(n)), index(i) {
+			_named_capture_info(codepoint_string n, compiled_unoptimized::capture_ref cap) :
+				name(std::move(n)), capture(cap) {
 			}
 
 			codepoint_string name; ///< The name of this capture.
-			std::size_t index = 0; ///< Corresponding capture index.
+			compiled_unoptimized::capture_ref capture; ///< Corresponding capture index.
 
-			/// Default comparisons.
-			friend std::strong_ordering operator<=>(
-				const _named_capture_info&, const _named_capture_info&
-			) = default;
+			/// Order by name first, then by capture index.
+			[[nodiscard]] friend std::strong_ordering operator<=>(
+				const _named_capture_info &lhs, const _named_capture_info &rhs
+			) {
+				auto name_cmp = lhs.name <=> rhs.name;
+				if (name_cmp == std::strong_ordering::equal) {
+					return lhs.capture.get_index() <=> rhs.capture.get_index();
+				}
+				return name_cmp;
+			}
 		};
 		/// States of a capture group.
 		struct _capture_info {
@@ -635,11 +746,12 @@ namespace codepad::regex {
 		/// Information about a subroutine transition.
 		struct _subroutine_transition {
 			/// Initializes all fields of this struct.
-			_subroutine_transition(half_compiled::transition_ref t, std::size_t i) : transition(t), index(i) {
+			_subroutine_transition(half_compiled::transition_ref t, compiled_unoptimized::capture_ref cap) :
+				transition(t), capture(cap) {
 			}
 
 			half_compiled::transition_ref transition; ///< The transition.
-			std::size_t index = 0; ///< The group index.
+			compiled_unoptimized::capture_ref capture; ///< The group index.
 		};
 
 		half_compiled::state_machine _result; ///< The result.
@@ -656,7 +768,9 @@ namespace codepad::regex {
 			if (node.is<ast_nodes::subexpression>()) {
 				const auto &expr = std::get<ast_nodes::subexpression>(node.value);
 				if (!expr.capture_name.empty()) {
-					_named_captures.emplace_back(expr.capture_name, expr.capture_index);
+					_named_captures.emplace_back(
+						expr.capture_name, compiled_unoptimized::capture_ref(expr.capture_index)
+					);
 				}
 			}
 		}
@@ -670,12 +784,12 @@ namespace codepad::regex {
 		}
 
 		/// Finds the index of the given capture name.
-		[[nodiscard]] std::optional<std::size_t> _find_capture_name(codepoint_string_view sv) const {
+		[[nodiscard]] compiled_unoptimized::capture_name_ref _find_capture_name(codepoint_string_view sv) const {
 			auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), sv);
 			if (it == _capture_names.end() || sv != *it) {
-				return std::nullopt;
+				return compiled_unoptimized::capture_name_ref();
 			}
-			return it - _capture_names.begin();
+			return compiled_unoptimized::capture_name_ref(it - _capture_names.begin());
 		}
 
 		/// Compiles the given \ref ast_nodes::node_ref.
@@ -794,6 +908,18 @@ namespace codepad::regex {
 		) {
 			_result.create_transition_from_to(start, _get_fail_state());
 		}
+		/// Compiles the given verb.
+		void _compile(
+			compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref end, const ast_nodes::verbs::accept&
+		) {
+			_result.create_transition_from_to(start, end); // TODO actually fail
+		}
+		/// Compiles the given verb.
+		void _compile(
+			compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref end, const ast_nodes::verbs::mark&
+		) {
+			_result.create_transition_from_to(start, end); // TODO mark
+		}
 
 		/// Does nothing - <tt>DEFINE</tt>'s are handled separately.
 		void _compile_condition(
@@ -809,7 +935,7 @@ namespace codepad::regex {
 			auto [trans_ref, trans] = _result.create_transition_from_to(start, end);
 			trans.condition.emplace<
 				compiled_unoptimized::transitions::conditions::numbered_capture
-			>().index = cond.index;
+			>().capture = compiled_unoptimized::capture_ref(cond.index);
 		}
 		/// Compiles the given condition that checks for a named capature.
 		void _compile_condition(

@@ -84,15 +84,15 @@ namespace codepad::regex {
 						stream << "<char class assertion>";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::capture_begin>(t.condition)) {
 						const auto &cap = std::get<compiled_unoptimized::transitions::capture_begin>(t.condition);
-						stream << "<start capture " << cap.index << ">";
+						stream << "<start capture " << cap.capture.get_index() << ">";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::capture_end>(t.condition)) {
 						stream << "<end capture>";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::numbered_backreference>(t.condition)) {
 						const auto &backref = std::get<compiled_unoptimized::transitions::numbered_backreference>(t.condition);
-						stream << "<backref #" << backref.index << ">";
+						stream << "<backref #" << backref.capture.get_index() << ">";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::named_backreference>(t.condition)) {
 						const auto &backref = std::get<compiled_unoptimized::transitions::named_backreference>(t.condition);
-						stream << "<named backref #" << backref.index << ">";
+						stream << "<named backref #" << backref.name.get_name_index() << ">";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::push_atomic>(t.condition)) {
 						stream << "<push atomic>";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::pop_atomic>(t.condition)) {
@@ -103,16 +103,16 @@ namespace codepad::regex {
 						stream << "<restore checkpoint>";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::conditions::numbered_capture>(t.condition)) {
 						const auto &cond = std::get<compiled_unoptimized::transitions::conditions::numbered_capture>(t.condition);
-						stream << "<cond: capture #" << cond.index << ">";
+						stream << "<cond: capture #" << cond.capture.get_index() << ">";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::conditions::named_capture>(t.condition)) {
 						const auto &cond = std::get<compiled_unoptimized::transitions::conditions::named_capture>(t.condition);
-						stream << "<cond: named capture #" << cond.name_index << ">";
+						stream << "<cond: named capture #" << cond.name.get_name_index() << ">";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::conditions::numbered_recursion>(t.condition)) {
 						const auto &cond = std::get<compiled_unoptimized::transitions::conditions::numbered_recursion>(t.condition);
-						stream << "<cond: recursion #" << cond.index << ">";
+						stream << "<cond: recursion #" << cond.capture.get_index() << ">";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::conditions::named_recursion>(t.condition)) {
 						const auto &cond = std::get<compiled_unoptimized::transitions::conditions::named_recursion>(t.condition);
-						stream << "<cond: named recursion #" << cond.name_index << ">";
+						stream << "<cond: named recursion #" << cond.name.get_name_index() << ">";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::push_position>(t.condition)) {
 						stream << "<push pos>";
 					} else if (std::holds_alternative<compiled_unoptimized::transitions::check_infinite_loop>(t.condition)) {
@@ -159,24 +159,23 @@ namespace codepad::regex {
 					_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
 					_capture_names.emplace_back(std::exchange(last_name, std::move(cap.name)));
 				}
-				_result.named_captures.indices.emplace_back(cap.index);
+				_result.named_captures.indices.emplace_back(cap.capture);
 			}
 			_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
 			_capture_names.emplace_back(std::move(last_name));
 
 			// build reverse name mapping
 			for (std::size_t i = 0; i + 1 < _result.named_captures.start_indices.size(); ++i) {
-				for (auto id : _result.named_captures.get_indices_for_name(i)) {
-					if (id >= _result.named_captures.reverse_mapping.size()) {
-						_result.named_captures.reverse_mapping.resize(
-							id + 1, compiled_unoptimized::named_capture_registry::no_reverse_mapping
-						);
+				compiled_unoptimized::capture_name_ref ref(i);
+				for (auto id : _result.named_captures.get_indices_for_name(ref)) {
+					if (id.get_index() >= _result.named_captures.reverse_mapping.size()) {
+						_result.named_captures.reverse_mapping.resize(id.get_index() + 1);
 					}
-					std::size_t &value = _result.named_captures.reverse_mapping[id];
-					if (value != compiled_unoptimized::named_capture_registry::no_reverse_mapping && value != i) {
+					auto &value = _result.named_captures.reverse_mapping[id.get_index()];
+					if (value && value != ref) {
 						// TODO error
 					}
-					value = i;
+					value = ref;
 				}
 			}
 		}
@@ -190,14 +189,14 @@ namespace codepad::regex {
 		_captures[0].end = end_state;
 		// initialize all subroutine data
 		for (auto sub : _subroutines) {
-			if (sub.index >= _captures.size() || _captures[sub.index].is_empty()) {
+			if (sub.capture.get_index() >= _captures.size() || _captures[sub.capture.get_index()].is_empty()) {
 				_result = half_compiled::state_machine();
 				_result.start_state = _result.create_state();
 				_result.end_state = _result.create_state();
 				// TODO error
 				continue;
 			}
-			auto &group_info = _captures[sub.index];
+			auto &group_info = _captures[sub.capture.get_index()];
 			auto &trans = _result.get_transition(sub.transition);
 			auto &jmp = std::get<compiled_unoptimized::transitions::jump>(trans.condition);
 			trans.new_state = group_info.start;
@@ -235,7 +234,7 @@ namespace codepad::regex {
 	) {
 		auto [trans_ref, trans] = _result.create_transition_from_to(start, end);
 		auto &cond = trans.condition.emplace<compiled_unoptimized::transitions::numbered_backreference>();
-		cond.index = expr.index;
+		cond.capture = compiled_unoptimized::capture_ref(expr.index);
 		cond.case_insensitive = expr.case_insensitive;
 	}
 
@@ -243,10 +242,10 @@ namespace codepad::regex {
 		compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref end,
 		const ast_nodes::named_backreference &expr
 	) {
-		if (auto id = _find_capture_name(expr.name)) {
+		if (auto name_index = _find_capture_name(expr.name)) {
 			auto [trans_ref, trans] = _result.create_transition_from_to(start, end);
 			auto &ref = trans.condition.emplace<compiled_unoptimized::transitions::named_backreference>();
-			ref.index = id.value();
+			ref.name = name_index;
 			ref.case_insensitive = expr.case_insensitive;
 		} else {
 			// TODO error
@@ -260,8 +259,8 @@ namespace codepad::regex {
 		auto [trans_ref, trans] = _result.create_transition_from_to(start, compiled_unoptimized::state_ref());
 		auto &jmp = trans.condition.emplace<compiled_unoptimized::transitions::jump>();
 		jmp.return_state = end;
-		jmp.subroutine_index = expr.index;
-		_subroutines.emplace_back(trans_ref, expr.index);
+		jmp.subroutine_capture = compiled_unoptimized::capture_ref(expr.index);
+		_subroutines.emplace_back(trans_ref, jmp.subroutine_capture);
 	}
 
 	void compiler::_compile(
@@ -269,13 +268,13 @@ namespace codepad::regex {
 		const ast_nodes::named_subroutine &expr
 	) {
 		if (auto id = _find_capture_name(expr.name)) {
-			auto indices = _result.named_captures.get_indices_for_name(id.value());
+			auto indices = _result.named_captures.get_indices_for_name(id);
 			if (indices.size() > 0) {
 				auto [trans_ref, trans] =
 					_result.create_transition_from_to(start, compiled_unoptimized::state_ref());
 				auto &jmp = trans.condition.emplace<compiled_unoptimized::transitions::jump>();
 				jmp.return_state = end;
-				jmp.subroutine_index = indices[0];
+				jmp.subroutine_capture = indices[0];
 				_subroutines.emplace_back(trans_ref, indices[0]);
 			} else {
 				// TODO error
@@ -304,7 +303,7 @@ namespace codepad::regex {
 			if (expr.subexpr_type == ast_nodes::subexpression::type::normal) {
 				auto &capture_beg =
 					begin_trans.condition.emplace<compiled_unoptimized::transitions::capture_begin>();
-				capture_beg.index = expr.capture_index;
+				capture_beg.capture = compiled_unoptimized::capture_ref(expr.capture_index);
 				end_trans.condition.emplace<compiled_unoptimized::transitions::capture_end>();
 				// save capture group information
 				if (expr.capture_index >= _captures.size() || _captures[expr.capture_index].is_empty()) {
@@ -564,9 +563,7 @@ namespace codepad::regex {
 	) {
 		auto [trans_ref, trans] = _result.create_transition_from_to(start, end);
 		if (auto id = _find_capture_name(cond.name)) {
-			trans.condition.emplace<
-				compiled_unoptimized::transitions::conditions::named_capture
-			>().name_index = id.value();
+			trans.condition.emplace<compiled_unoptimized::transitions::conditions::named_capture>().name = id;
 			return;
 		}
 		// check if this is a recursion
@@ -576,24 +573,27 @@ namespace codepad::regex {
 					auto &rec = trans.condition.emplace<
 						compiled_unoptimized::transitions::conditions::named_recursion
 					>();
-					rec.name_index = id.value();
+					rec.name = id;
 				} else {
 					// TODO error
 				}
 			} else { // numbered
-				auto &rec = trans.condition.emplace<
-					compiled_unoptimized::transitions::conditions::numbered_recursion
-				>();
 				if (cond.name.size() > 1) {
 					// an index follows - parse it
-					rec.index = 0;
+					std::size_t index = 0;
 					for (std::size_t i = 1; i < cond.name.size(); ++i) {
 						if (cond.name[i] < U'0' || cond.name[i] > U'9') {
 							// TODO error
 							return;
 						}
-						rec.index = rec.index * 10 + (cond.name[i] - U'0');
+						index = index * 10 + (cond.name[i] - U'0');
 					}
+					auto &rec = trans.condition.emplace<
+						compiled_unoptimized::transitions::conditions::numbered_recursion
+					>();
+					rec.capture = compiled_unoptimized::capture_ref(index);
+				} else {
+					trans.condition.emplace<compiled_unoptimized::transitions::conditions::any_recursion>();
 				}
 			}
 			return;

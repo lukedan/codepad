@@ -125,11 +125,11 @@ namespace codepad::regex {
 			/// Default constructor.
 			_capture_info() = default;
 			/// Initializes all fields of this struct.
-			_capture_info(Stream s, std::size_t id) : begin(std::move(s)), index(id) {
+			_capture_info(Stream s, typename compiled_types::capture_ref cap) : begin(std::move(s)), capture(cap) {
 			}
 
 			Stream begin; ///< State of the input stream at the beginning of this capture.
-			std::size_t index = 0; ///< The index of this capture.
+			typename compiled_types::capture_ref capture; ///< The capture.
 		};
 		/// Information about a finished capture that needs to be reset back to the previous value during
 		/// backtracking.
@@ -137,12 +137,12 @@ namespace codepad::regex {
 			/// Default constructor.
 			_finished_capture_info() = default;
 			/// Initializes all fields of this struct.
-			_finished_capture_info(result::capture cap, std::size_t id) :
-				capture_data(std::move(cap)), index(id) {
+			_finished_capture_info(result::capture cap, typename compiled_types::capture_ref cap_ref) :
+				capture_data(std::move(cap)), capture(cap_ref) {
 			}
 
 			result::capture capture_data; ///< Previous capture data overwritten by this match.
-			std::size_t index = 0; ///< The index of this capture.
+			typename compiled_types::capture_ref capture; ///< The capture.
 		};
 		/// Information about a partially finished capture that needs to restart after backtracking.
 		struct _partial_finished_capture_info {
@@ -165,7 +165,7 @@ namespace codepad::regex {
 			/// When backtracking to before this state, this subroutine stackframe becomes invalid and should be
 			/// popped.
 			std::size_t state_stack_size = 0;
-			std::size_t subroutine_index = 0; ///< Index of this subroutine.
+			typename compiled_types::capture_ref subroutine_capture; ///< Index of this subroutine.
 		};
 		/// A checkpointed stream position.
 		struct _checkpointed_stream {
@@ -248,13 +248,15 @@ namespace codepad::regex {
 		void _log([[maybe_unused]] const _state&, [[maybe_unused]] std::u8string_view indent);
 
 		/// Finds the index of the first matched group that has the given name.
-		[[nodiscard]] std::optional<std::size_t> _find_matched_named_capture(std::size_t name_index) const {
-			for (std::size_t id : _expr->get_named_captures().get_indices_for_name(name_index)) {
-				if (id >= _result.captures.size()) {
+		[[nodiscard]] std::optional<typename compiled_types::capture_ref> _find_matched_named_capture(
+			typename compiled_types::capture_name_ref name
+		) const {
+			for (auto id : _expr->get_named_captures().get_indices_for_name(name)) {
+				if (id.get_index() >= _result.captures.size()) {
 					// since the captures are ordered, no captures after this one can be matched
 					break;
 				}
-				if (_result.captures[id].is_valid()) {
+				if (_result.captures[id.get_index()].is_valid()) {
 					return id;
 				}
 			}
@@ -263,7 +265,9 @@ namespace codepad::regex {
 
 		/// Checks if a backreference that has already been matched matches the string starting from the current
 		/// position.
-		[[nodiscard]] bool _check_backreference_transition(Stream&, std::size_t index, bool case_insensitive) const;
+		[[nodiscard]] bool _check_backreference_transition(
+			Stream&, typename compiled_types::capture_ref, bool case_insensitive
+		) const;
 
 		/// Blanket overload that handles all conditions that always passes.
 		template <typename Condition> [[nodiscard]] bool _check_transition(const Stream&, const Condition&) const {
@@ -367,16 +371,19 @@ namespace codepad::regex {
 		[[nodiscard]] bool _check_transition(
 			Stream &stream, const typename compiled_types::transitions::numbered_backreference &cond
 		) const {
-			if (cond.index >= _result.captures.size() || !_result.captures[cond.index].is_valid()) {
+			if (
+				cond.capture.get_index() >= _result.captures.size() ||
+				!_result.captures[cond.capture.get_index()].is_valid()
+			) {
 				return false; // capture not yet matched
 			}
-			return _check_backreference_transition(stream, cond.index, cond.case_insensitive);
+			return _check_backreference_transition(stream, cond.capture, cond.case_insensitive);
 		}
 		/// Checks if a named backreference matches.
 		[[nodiscard]] bool _check_transition(
 			Stream &stream, const typename compiled_types::transitions::named_backreference &cond
 		) const {
-			if (auto id = _find_matched_named_capture(cond.index)) {
+			if (auto id = _find_matched_named_capture(cond.name)) {
 				return _check_backreference_transition(stream, id.value(), cond.case_insensitive);
 			}
 			return false;
@@ -398,15 +405,18 @@ namespace codepad::regex {
 		) const {
 			return stream.codepoint_position() >= trans.num_codepoints;
 		}
+		/// Checks if we're currently in a recursion.
+		[[nodiscard]] bool _check_transition(
+			const Stream&, const typename compiled_types::transitions::conditions::any_recursion&
+		) const {
+			return !_subroutine_stack.empty();
+		}
 		/// Checks if we're currently in a numbered recursion.
 		[[nodiscard]] bool _check_transition(
 			const Stream&, const typename compiled_types::transitions::conditions::numbered_recursion &cond
 		) const {
 			if (!_subroutine_stack.empty()) {
-				if (cond.index != compiled_types::transitions::conditions::numbered_recursion::any_index) {
-					return _subroutine_stack.back().subroutine_index == cond.index;
-				}
-				return true;
+				return _subroutine_stack.back().subroutine_capture == cond.capture;
 			}
 			return false;
 		}
@@ -415,9 +425,10 @@ namespace codepad::regex {
 			const Stream&, const typename compiled_types::transitions::conditions::named_recursion &cond
 		) const {
 			if (!_subroutine_stack.empty()) {
-				std::size_t current_name_index =
-					_expr->get_named_captures().reverse_mapping[_subroutine_stack.back().subroutine_index];
-				return current_name_index == cond.name_index;
+				auto current_name = _expr->get_named_captures().get_name_index_for_group(
+					_subroutine_stack.back().subroutine_capture
+				);
+				return current_name == cond.name;
 			}
 			return false;
 		}
@@ -425,13 +436,15 @@ namespace codepad::regex {
 		[[nodiscard]] bool _check_transition(
 			const Stream&, const typename compiled_types::transitions::conditions::numbered_capture &cap
 		) const {
-			return _result.captures.size() > cap.index && _result.captures[cap.index].is_valid();
+			return
+				_result.captures.size() > cap.capture.get_index() &&
+				_result.captures[cap.capture.get_index()].is_valid();
 		}
 		/// Checks if the given numbered group has been matched.
 		[[nodiscard]] bool _check_transition(
 			const Stream&, const typename compiled_types::transitions::conditions::named_capture &cap
 		) const {
-			return _find_matched_named_capture(cap.name_index).has_value();
+			return _find_matched_named_capture(cap.name).has_value();
 		}
 		/// Always returns \p false.
 		[[nodiscard]] bool _check_transition(
@@ -459,7 +472,7 @@ namespace codepad::regex {
 		}
 		/// Starts a capture.
 		void _execute_transition(Stream stream, const typename compiled_types::transitions::capture_begin &beg) {
-			_ongoing_captures.emplace_back(std::move(stream), beg.index);
+			_ongoing_captures.emplace_back(std::move(stream), beg.capture);
 		}
 		/// Ends a capture.
 		void _execute_transition(const Stream&, const typename compiled_types::transitions::capture_end&);

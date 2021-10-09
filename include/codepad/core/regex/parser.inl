@@ -1073,6 +1073,8 @@ namespace codepad::regex {
 		case U'*':
 			{
 				_stream.take();
+				bool handled = false;
+				bool has_mark = false;
 				std::u8string command;
 				while (true) {
 					if (_stream.empty()) {
@@ -1084,39 +1086,67 @@ namespace codepad::regex {
 						break;
 					} else if (cp == U':') {
 						if (command == u8"atomic") {
+							handled = true;
 							expr_type = ast_nodes::subexpression::type::atomic;
 						} else if (command == u8"positive_lookahead" || command == u8"pla") {
+							handled = true;
 							is_complex_assertion = true;
 							complex_assertion_backward = false;
 							complex_assertion_negative = false;
 						} else if (command == u8"negative_lookahead" || command == u8"nla") {
+							handled = true;
 							is_complex_assertion = true;
 							complex_assertion_backward = false;
 							complex_assertion_negative = true;
 						} else if (command == u8"positive_lookbehind" || command == u8"plb") {
+							handled = true;
 							is_complex_assertion = true;
 							complex_assertion_backward = true;
 							complex_assertion_negative = false;
 						} else if (command == u8"negative_lookbehind" || command == u8"nlb") {
+							handled = true;
 							is_complex_assertion = true;
 							complex_assertion_backward = true;
 							complex_assertion_negative = true;
 						} else {
-							// TODO error
-							return ast_nodes::node_ref();
+							has_mark = true;
 						}
-						command.clear(); // reset `command' to indicate that it's handled
 						break;
 					} else {
 						auto encoded = encodings::utf8::encode_codepoint(cp);
 						command.append(reinterpret_cast<const char8_t*>(encoded.data()), encoded.size());
 					}
 				}
-				if (!command.empty()) { // parse verb or option
-					if (command == u8"F" || command == u8"FAIL") {
-						return _result.create_node<ast_nodes::verbs::fail>().first;
+				if (!handled) { // parse verb or option
+					codepoint_string mark;
+					if (has_mark) {
+						while (true) {
+							if (_stream.empty()) {
+								on_error_callback(_stream, u8"Missing closing round bracket");
+								break;
+							}
+							codepoint cp = _stream.take();
+							if (cp == U')') {
+								break;
+							}
+							mark.push_back(cp);
+						}
 					}
-					// TODO
+					if (command == u8"F" || command == u8"FAIL") {
+						auto [node_ref, node] = _result.create_node<ast_nodes::verbs::fail>();
+						node.mark = std::move(mark);
+						return node_ref;
+					} else if (command == u8"ACCEPT") {
+						auto [node_ref, node] = _result.create_node<ast_nodes::verbs::accept>();
+						node.mark = std::move(mark);
+						return node_ref;
+					} else if (command == u8"" || command == u8"MARK") {
+						auto [node_ref, node] = _result.create_node<ast_nodes::verbs::mark>();
+						node.mark = std::move(mark);
+						return node_ref;
+					}
+					// TODO other verbs
+					// TODO error
 					return ast_nodes::node_ref();
 				}
 			}

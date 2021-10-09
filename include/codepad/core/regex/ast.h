@@ -229,6 +229,15 @@ namespace codepad::regex {
 		namespace verbs {
 			/// Fails immediately and causes backtracking.
 			struct fail {
+				codepoint_string mark; ///< The mark associated with this verb.
+			};
+			/// Finishes and accepts the match immediately.
+			struct accept {
+				codepoint_string mark; ///< The mark associated with this verb.
+			};
+			/// Activates the specified mark.
+			struct mark {
+				codepoint_string mark; ///< The mark.
 			};
 		}
 	}
@@ -259,7 +268,9 @@ namespace codepad::regex {
 				ast_nodes::repetition,
 				ast_nodes::complex_assertion,
 				ast_nodes::conditional_expression,
-				ast_nodes::verbs::fail
+				ast_nodes::verbs::accept,
+				ast_nodes::verbs::fail,
+				ast_nodes::verbs::mark
 			>;
 
 			storage value; ///< The value of this node.
@@ -500,6 +511,16 @@ namespace codepad::regex {
 			void dump(const ast_nodes::verbs::fail&) {
 				_indent();
 				_stream << "©¤©¤ [*FAIL]\n";
+			}
+			/// Dumps a \ref ast_nodes::verbs::accept.
+			void dump(const ast_nodes::verbs::accept&) {
+				_indent();
+				_stream << "©¤©¤ [*ACCEPT]\n";
+			}
+			/// Dumps a \ref ast_nodes::verbs::mark.
+			void dump(const ast_nodes::verbs::mark&) {
+				_indent();
+				_stream << "©¤©¤ [*MARK]\n";
 			}
 
 			/// Dumps a \ref node.
@@ -771,8 +792,20 @@ namespace codepad::regex {
 		[[nodiscard]] ast_nodes::analysis _analyze(
 			const ast_nodes::conditional_expression&, _analysis_context&
 		) const;
+		/// Analyzes a \ref ast_nodes::verbs::accept node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::verbs::accept&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.minimum_length = result.maximum_length = 0;
+			return result;
+		}
 		/// Analyzes a \ref ast_nodes::verbs::fail node.
 		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::verbs::fail&, _analysis_context&) const {
+			ast_nodes::analysis result;
+			result.minimum_length = result.maximum_length = 0;
+			return result;
+		}
+		/// Analyzes a \ref ast_nodes::verbs::mark node.
+		[[nodiscard]] ast_nodes::analysis _analyze(const ast_nodes::verbs::mark&, _analysis_context&) const {
 			ast_nodes::analysis result;
 			result.minimum_length = result.maximum_length = 0;
 			return result;

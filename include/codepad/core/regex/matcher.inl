@@ -34,7 +34,7 @@ namespace codepad::regex {
 				for (auto it = _ongoing_captures.crbegin(); it != _ongoing_captures.crend(); ++it) {
 					debug_log <<
 						u8"\t\t" << (_ongoing_captures.size() - (it - _ongoing_captures.crbegin())) <<
-						u8": #" << it->index <<
+						u8": #" << it->capture.get_index() <<
 						u8",  begin: " << it->begin.codepoint_position() << u8"\n";
 				}
 
@@ -42,11 +42,11 @@ namespace codepad::regex {
 				for (auto it = _subroutine_stack.crbegin(); it != _subroutine_stack.crend(); ++it) {
 					debug_log <<
 						u8"\t\t" << (_subroutine_stack.size() - (it - _subroutine_stack.crbegin())) <<
-						u8": #" << it->subroutine_index << u8"\n";
+						u8": #" << it->subroutine_capture.get_index() << u8"\n";
 					for (auto it2 = it->finished_captures.crbegin(); it2 != it->finished_captures.crend(); ++it2) {
 						debug_log <<
 							u8"\t\t\t" << (it->finished_captures.size() - (it2 - it->finished_captures.crbegin())) <<
-							u8": #" << it2->index <<
+							u8": #" << it2->capture.get_index() <<
 							u8",  begin: " << it2->capture_data.begin.codepoint_position() <<
 							u8",  length: " << it2->capture_data.length << u8"\n";
 					}
@@ -73,12 +73,12 @@ namespace codepad::regex {
 					it != stackframe.finished_captures.rend();
 					++it
 				) {
-					_result.captures[it->index] = it->capture_data;
+					_result.captures[it->capture.get_index()] = it->capture_data;
 					if constexpr (_uses_log) {
 						debug_log <<
-							u8"\t\tRestoring capture #" << it->index <<
-							u8"  begin:" << _result.captures[it->index].begin.codepoint_position() <<
-							u8"  length: " << _result.captures[it->index].length << u8"\n";
+							u8"\t\tRestoring capture #" << it->capture.get_index() <<
+							u8"  begin:" << _result.captures[it->capture.get_index()].begin.codepoint_position() <<
+							u8"  length: " << _result.captures[it->capture.get_index()].length << u8"\n";
 					}
 				}
 				if (stackframe.state_stack_size < _state_stack.size()) {
@@ -175,13 +175,14 @@ namespace codepad::regex {
 				// restore _result.captures
 				while (!current_state.finished_captures.empty()) {
 					auto &cap = current_state.finished_captures.back();
-					_result.captures[cap.index] = std::move(cap.capture_data);
+					_result.captures[cap.capture.get_index()] = std::move(cap.capture_data);
 					current_state.finished_captures.pop_back();
 				}
 				while (!current_state.partial_finished_captures.empty()) {
 					const auto &cap = current_state.partial_finished_captures.back();
-					_ongoing_captures.emplace_back(std::move(cap.begin), cap.capture.index);
-					_result.captures[_ongoing_captures.back().index] = std::move(cap.capture.capture_data);
+					_ongoing_captures.emplace_back(std::move(cap.begin), cap.capture.capture);
+					_result.captures[_ongoing_captures.back().capture.get_index()] =
+						std::move(cap.capture.capture_data);
 					current_state.partial_finished_captures.pop_back();
 				}
 				// restore _result.overriden_match_begin
@@ -246,7 +247,7 @@ namespace codepad::regex {
 				const auto &cap = partial_captures_copy.back();
 				debug_log <<
 					indent << u8"\t\t" << partial_captures_copy.size() <<
-					": #" << cap.capture.index <<
+					": #" << cap.capture.capture.get_index() <<
 					", from: " << cap.begin.codepoint_position() <<
 					";  old from : " << cap.capture.capture_data.begin.codepoint_position() <<
 					", old length : " << cap.capture.capture_data.length << "\n";
@@ -259,7 +260,7 @@ namespace codepad::regex {
 				const auto &cap = captures_copy.back();
 				debug_log <<
 					indent << u8"\t\t" << captures_copy.size() <<
-					": #" << cap.index <<
+					": #" << cap.capture.get_index() <<
 					", from: " << cap.capture_data.begin.codepoint_position() <<
 					", length: " << cap.capture_data.length << "\n";
 				captures_copy.pop_back();
@@ -270,9 +271,9 @@ namespace codepad::regex {
 	template <
 		typename Stream, typename DataTypes, typename LogFunc
 	> bool matcher<Stream, DataTypes, LogFunc>::_check_backreference_transition(
-		Stream &stream, std::size_t index, bool case_insensitive
+		Stream &stream, typename compiled_types::capture_ref capture, bool case_insensitive
 	) const {
-		auto &cap = _result.captures[index];
+		auto &cap = _result.captures[capture.get_index()];
 		Stream new_stream = stream;
 		Stream target_stream = cap.begin;
 		for (std::size_t i = 0; i < cap.length; ++i) {
@@ -300,9 +301,10 @@ namespace codepad::regex {
 		const Stream &stream, const typename compiled_types::transitions::capture_end&
 	) {
 		auto res = std::move(_ongoing_captures.back());
+		auto index = res.capture.get_index();
 		_ongoing_captures.pop_back();
-		if (_result.captures.size() <= res.index) {
-			_result.captures.resize(res.index + 1);
+		if (_result.captures.size() <= index) {
+			_result.captures.resize(index + 1);
 		}
 
 		if (!_state_stack.empty()) {
@@ -314,19 +316,18 @@ namespace codepad::regex {
 			) {
 				// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
 				st.partial_finished_captures.emplace_back(
-					_finished_capture_info(_result.captures[res.index], res.index), res.begin
+					_finished_capture_info(_result.captures[index], res.capture), res.begin
 				);
 			} else {
 				// when backtracking, it's necessary to completely reset this capture to the previous state
-				st.finished_captures.emplace_back(_result.captures[res.index], res.index);
+				st.finished_captures.emplace_back(_result.captures[index], res.capture);
 			}
 		}
 		if (!_subroutine_stack.empty()) {
 			// a capture cannot span across subroutine calls
-			_subroutine_stack.back().finished_captures.emplace_back(_result.captures[res.index], res.index);
+			_subroutine_stack.back().finished_captures.emplace_back(_result.captures[index], res.capture);
 		}
 
-		std::size_t index = res.index;
 		_result.captures[index].length = stream.codepoint_position() - res.begin.codepoint_position();
 		_result.captures[index].begin = std::move(res.begin);
 	}
@@ -447,7 +448,7 @@ namespace codepad::regex {
 		auto &sf = _subroutine_stack.emplace_back();
 		sf.target = jmp.target;
 		sf.return_state = jmp.return_state;
-		sf.subroutine_index = jmp.subroutine_index;
+		sf.subroutine_capture = jmp.subroutine_capture;
 		sf.state_stack_size = _state_stack.size();
 	}
 }
