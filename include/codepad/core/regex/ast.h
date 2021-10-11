@@ -439,6 +439,7 @@ namespace codepad::regex {
 					break;
 				case ast_nodes::repetition::type::lazy:
 					_stream << " (lazy)";
+					break;
 				case ast_nodes::repetition::type::posessed:
 					_stream << " (posessed)";
 					break;

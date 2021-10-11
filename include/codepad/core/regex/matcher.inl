@@ -11,13 +11,16 @@ namespace codepad::regex {
 	template <
 		typename Stream, typename DataTypes, typename LogFunc
 	> std::optional<match_result<Stream>> matcher<Stream, DataTypes, LogFunc>::try_match(
-		Stream &stream, const typename compiled_types::state_machine &expr, std::size_t max_iters
+		Stream &stream, const typename compiled_types::state_machine &expr,
+		bool reject_empty_match, std::size_t max_iters
 	) {
 		_result = result();
 		_result.captures.emplace_back().begin = stream;
 		_expr = &expr;
+		std::size_t reject_starting_position =
+			reject_empty_match ? stream.codepoint_position() : std::numeric_limits<std::size_t>::max();
 
-		_state current_state(std::move(stream), expr.get_start_state(), 0, 0, std::nullopt);
+		_state current_state(std::move(stream), expr.get_start_state(), 0, *this, std::nullopt);
 		std::size_t iter = 0;
 		for (; iter < max_iters; ++iter) {
 			if constexpr (_uses_log) {
@@ -52,13 +55,11 @@ namespace codepad::regex {
 					}
 				}
 
-				_log(current_state, u8"\t");
+				_log(current_state, &current_state, u8"\t");
 
 				debug_log << u8"\tState stack:\n";
-				auto states_copy = _state_stack;
-				while (!states_copy.empty()) {
-					_log(states_copy.back(), u8"\t\t");
-					states_copy.pop_back();
+				for (std::size_t i = 0; i < _state_stack.size(); ++i) {
+					_log(_state_stack[i], i + 1 < _state_stack.size() ? &_state_stack[i + 1] : nullptr, u8"\t\t");
 				}
 			}
 			if (!_subroutine_stack.empty() && current_state.automata_state == _subroutine_stack.back().target) {
@@ -84,14 +85,17 @@ namespace codepad::regex {
 				if (stackframe.state_stack_size < _state_stack.size()) {
 					// this subroutine started before the last backtracking state; we need to save it so that when
 					// backtracking we can restart it
-					_state_stack.back().finished_subroutines.emplace_back(std::move(stackframe));
+					_state_finished_subroutines.emplace(std::move(stackframe));
 				}
 				// pop stack frame
 				_subroutine_stack.pop_back();
 				continue;
 			}
 			if (current_state.automata_state == expr.get_end_state()) {
-				break; // we've reached the end state
+				// check if the match is empty and should be rejected
+				if (current_state.stream.codepoint_position() != reject_starting_position) {
+					break; // we've reached the end state
+				}
 			}
 			Stream checkpoint_stream = current_state.stream;
 			const compiled_types::transition *transition = nullptr;
@@ -114,7 +118,7 @@ namespace codepad::regex {
 					_log(u8"\t\tPushing state\n");
 					_state_stack.emplace_back(
 						std::move(checkpoint_stream), current_state.automata_state, current_state.transition,
-						_ongoing_captures.size(), _result.overriden_match_begin
+						*this, _result.overriden_match_begin
 					);
 				}
 				std::visit(
@@ -166,47 +170,55 @@ namespace codepad::regex {
 					_stream_position_stack.pop_back();
 				}
 
-				// restore _ongoing_captures to the state we're backtracking to
+				// throw away captures that started after this state
 				std::size_t count =
-					current_state.initial_ongoing_captures - current_state.partial_finished_captures.size();
+					current_state.initial_ongoing_captures -
+					_state_partial_finished_captures.count_since(current_state.partial_finished_captures);
 				while (_ongoing_captures.size() > count) {
 					_ongoing_captures.pop_back();
 				}
-				// restore _result.captures
-				while (!current_state.finished_captures.empty()) {
-					auto &cap = current_state.finished_captures.back();
+				// restore finished captures that started after the state to their previously captured values
+				while (!_state_finished_captures.is_at_bookmark(current_state.finished_captures)) {
+					auto &cap = _state_finished_captures.top();
 					_result.captures[cap.capture.get_index()] = std::move(cap.capture_data);
-					current_state.finished_captures.pop_back();
+					_state_finished_captures.pop();
 				}
-				while (!current_state.partial_finished_captures.empty()) {
-					const auto &cap = current_state.partial_finished_captures.back();
+				// restart finished captures that started before the state
+				while (!_state_partial_finished_captures.is_at_bookmark(current_state.partial_finished_captures)) {
+					const auto &cap = _state_partial_finished_captures.top();
 					_ongoing_captures.emplace_back(std::move(cap.begin), cap.capture.capture);
 					_result.captures[_ongoing_captures.back().capture.get_index()] =
 						std::move(cap.capture.capture_data);
-					current_state.partial_finished_captures.pop_back();
+					_state_partial_finished_captures.pop();
 				}
 				// restore _result.overriden_match_begin
 				_result.overriden_match_begin = current_state.initial_match_begin;
 				// restore subroutines
-				while (!current_state.finished_subroutines.empty()) {
-					_subroutine_stack.emplace_back(std::move(current_state.finished_subroutines.back()));
-					current_state.finished_subroutines.pop_back();
+				while (!_state_finished_subroutines.is_at_bookmark(current_state.finished_subroutines)) {
+					_subroutine_stack.emplace_back(std::move(_state_finished_subroutines.top()));
+					_state_finished_subroutines.pop();
 				}
 				// restore checkpoints
-				while (!current_state.restored_checkpoints.empty()) {
-					_checkpoint_stack.emplace_back(std::move(current_state.restored_checkpoints.back()));
-					current_state.restored_checkpoints.pop_back();
+				while (!_state_restored_checkpoints.is_at_bookmark(current_state.restored_checkpoints)) {
+					_checkpoint_stack.emplace_back(std::move(_state_restored_checkpoints.top()));
+					_state_restored_checkpoints.pop();
 				}
 				// restore stream positions
-				while (!current_state.finished_stream_positions.empty()) {
-					_stream_position_stack.emplace_back(std::move(current_state.finished_stream_positions.back()));
-					current_state.finished_stream_positions.pop_back();
+				while (!_state_finished_stream_positions.is_at_bookmark(current_state.finished_stream_positions)) {
+					_stream_position_stack.emplace_back(std::move(_state_finished_stream_positions.top()));
+					_state_finished_stream_positions.pop();
 				}
 			}
 		}
 		stream = std::move(current_state.stream);
 
 		_state_stack = std::deque<_state>();
+		_state_partial_finished_captures = spliced_stack<_partial_finished_capture_info>();
+		_state_finished_captures = spliced_stack<_finished_capture_info>();
+		_state_finished_subroutines = spliced_stack<_subroutine_stackframe>();
+		_state_restored_checkpoints = spliced_stack<_checkpointed_stream>();
+		_state_finished_stream_positions = spliced_stack<_stream_position>();
+
 		_expr = nullptr;
 
 		if (iter < max_iters && current_state.automata_state == expr.get_end_state()) {
@@ -215,23 +227,29 @@ namespace codepad::regex {
 			assert_true_logical(_subroutine_stack.empty(), "there are still ongoing subroutines");
 			assert_true_logical(_checkpoint_stack.empty(), "there are still checkpoints");
 			assert_true_logical(_stream_position_stack.empty(), "there are still stream positions");
-			_result.captures.front().length =
-				stream.codepoint_position() - _result.captures.front().begin.codepoint_position();
-			while (!_result.captures.empty() && !_result.captures.back().is_valid()) {
-				_result.captures.pop_back();
+
+			// don't report a match if it should be rejected
+			if (stream.codepoint_position() != reject_starting_position) {
+				_result.captures.front().length =
+					stream.codepoint_position() - _result.captures.front().begin.codepoint_position();
+				while (!_result.captures.empty() && !_result.captures.back().is_valid()) {
+					_result.captures.pop_back();
+				}
+				return std::move(_result);
 			}
-			return std::move(_result);
 		}
+
 		_ongoing_captures = std::deque<_capture_info>();
 		_atomic_stack_sizes = std::deque<std::size_t>();
 		_subroutine_stack = std::deque<_subroutine_stackframe>();
 		_checkpoint_stack = std::deque<_checkpointed_stream>();
 		_stream_position_stack = std::deque<_stream_position>();
+
 		return std::nullopt;
 	}
 
 	template <typename Stream, typename DataTypes, typename LogFunc> void matcher<Stream, DataTypes, LogFunc>::_log(
-		[[maybe_unused]] const _state &s, [[maybe_unused]] std::u8string_view indent
+		const _state &s, const _state *next, std::u8string_view indent
 	) {
 		if constexpr (_uses_log) {
 			debug_log <<
@@ -241,29 +259,38 @@ namespace codepad::regex {
 
 			debug_log << indent << u8"\tInitial ongoing captures: " << s.initial_ongoing_captures << "\n";
 
-			debug_log << indent << u8"\tPartial ongoing captures:\n";
-			auto partial_captures_copy = s.partial_finished_captures;
-			while (!partial_captures_copy.empty()) {
-				const auto &cap = partial_captures_copy.back();
-				debug_log <<
-					indent << u8"\t\t" << partial_captures_copy.size() <<
-					": #" << cap.capture.capture.get_index() <<
-					", from: " << cap.begin.codepoint_position() <<
-					";  old from : " << cap.capture.capture_data.begin.codepoint_position() <<
-					", old length : " << cap.capture.capture_data.length << "\n";
-				partial_captures_copy.pop_back();
-			}
+			if (next != &s) {
+				debug_log << indent << u8"\tPartial ongoing captures:\n";
+				auto partial_cap_beg =
+					_state_partial_finished_captures.get_iterator_for(s.partial_finished_captures);
+				auto partial_cap_end =
+					next ?
+					_state_partial_finished_captures.get_iterator_for(next->partial_finished_captures) :
+					_state_partial_finished_captures.end();
+				std::size_t i = 0;
+				for (auto it = partial_cap_beg; it != partial_cap_end; ++it, ++i) {
+					debug_log <<
+						indent << u8"\t\t" << i <<
+						": #" << it->capture.capture.get_index() <<
+						", from: " << it->begin.codepoint_position() <<
+						";  old from : " << it->capture.capture_data.begin.codepoint_position() <<
+						", old length : " << it->capture.capture_data.length << "\n";
+				}
 
-			debug_log << indent << u8"\tFinished ongoing captures:\n";
-			auto captures_copy = s.finished_captures;
-			while (!captures_copy.empty()) {
-				const auto &cap = captures_copy.back();
-				debug_log <<
-					indent << u8"\t\t" << captures_copy.size() <<
-					": #" << cap.capture.get_index() <<
-					", from: " << cap.capture_data.begin.codepoint_position() <<
-					", length: " << cap.capture_data.length << "\n";
-				captures_copy.pop_back();
+				debug_log << indent << u8"\tFinished ongoing captures:\n";
+				auto cap_beg = _state_finished_captures.get_iterator_for(s.finished_captures);
+				auto cap_end =
+					next ?
+					_state_finished_captures.get_iterator_for(next->finished_captures) :
+					_state_finished_captures.end();
+				i = 0;
+				for (auto it = cap_beg; it != cap_end; ++it, ++i) {
+					debug_log <<
+						indent << u8"\t\t" << i <<
+						": #" << it->capture.get_index() <<
+						", from: " << it->capture_data.begin.codepoint_position() <<
+						", length: " << it->capture_data.length << "\n";
+				}
 			}
 		}
 	}
@@ -311,16 +338,17 @@ namespace codepad::regex {
 			// if necessary, record that this capture has finished
 			auto &st = _state_stack.back();
 			if (
-				_ongoing_captures.size() + st.partial_finished_captures.size() <
+				_ongoing_captures.size() +
+					_state_partial_finished_captures.count_since(st.partial_finished_captures) <
 				st.initial_ongoing_captures
 			) {
 				// when backtracking to the state, it's necessary to restore _ongoing_captures to this state
-				st.partial_finished_captures.emplace_back(
+				_state_partial_finished_captures.emplace(
 					_finished_capture_info(_result.captures[index], res.capture), res.begin
 				);
 			} else {
 				// when backtracking, it's necessary to completely reset this capture to the previous state
-				st.finished_captures.emplace_back(_result.captures[index], res.capture);
+				_state_finished_captures.emplace(_result.captures[index], res.capture);
 			}
 		}
 		if (!_subroutine_stack.empty()) {
@@ -339,77 +367,154 @@ namespace codepad::regex {
 	) {
 		std::size_t target_stack_size = _atomic_stack_sizes.back();
 		if (target_stack_size > 0 && target_stack_size < _state_stack.size()) {
-			// we need to fold the completed captures information back to the previous state
-			auto &new_top_state = _state_stack[target_stack_size - 1];
-			// this stores the number of captures that started after new top state but before the current state
-			std::size_t captures_started_before_current = 0;
-			for (std::size_t i = target_stack_size; i < _state_stack.size(); ++i) {
-				const auto &prev_state = _state_stack[i - 1];
-				const auto &cur_state = _state_stack[i];
-
-				// save information of all subroutines that needs restarting
-				for (auto &subroutine : cur_state.finished_subroutines) {
-					if (subroutine.state_stack_size < target_stack_size) {
-						new_top_state.finished_subroutines.emplace_back(std::move(subroutine));
-					}
-					// otherwise, this subroutine started after the new top state and we don't care
+			auto &first_erased_state = _state_stack[target_stack_size];
+			// filter out saved information that we don't care about anymore (since they don't span across saved
+			// states)
+			_state_finished_subroutines.filter(
+				_state_finished_subroutines.get_iterator_for(first_erased_state.finished_subroutines),
+				_state_finished_subroutines.end(),
+				[&](const _subroutine_stackframe &frame) {
+					return frame.state_stack_size < target_stack_size;
 				}
-
-				// save information of all restored checkpoints that may need restoring
-				for (auto &checkpoint : cur_state.restored_checkpoints) {
-					if (checkpoint.state_stack_size < target_stack_size) {
-						new_top_state.restored_checkpoints.emplace_back(std::move(checkpoint));
-					}
-					// otherwise, this checkpoint was restored after the new top state and we don't care
+			);
+			_state_restored_checkpoints.filter(
+				_state_restored_checkpoints.get_iterator_for(first_erased_state.restored_checkpoints),
+				_state_restored_checkpoints.end(),
+				[&](const _checkpointed_stream &checkpoint) {
+					return checkpoint.state_stack_size < target_stack_size;
 				}
-
-				// save information of all saved stream positions
-				for (auto &pos : cur_state.finished_stream_positions) {
-					if (pos.state_stack_size < target_stack_size) {
-						new_top_state.finished_stream_positions.emplace_back(std::move(pos));
-					}
-					// otherwise, this position was saved after the new top state and we don't care
+			);
+			_state_finished_stream_positions.filter(
+				_state_finished_stream_positions.get_iterator_for(first_erased_state.finished_stream_positions),
+				_state_finished_stream_positions.end(),
+				[&](const _stream_position &pos) {
+					return pos.state_stack_size < target_stack_size;
 				}
+			);
 
-				// update the variable with the number of captures that started after the previous state and
-				// before the current state
-				captures_started_before_current +=
-					cur_state.initial_ongoing_captures -
-					(prev_state.initial_ongoing_captures - prev_state.partial_finished_captures.size());
+			// it's more complicated for captures: we may need to convert partial finished captures into full
+			// finished captures, since the new top state happens earlier
 
-				// this is the number of states that started after the new top state, and finished after this
-				// state was pushed, but before the next state was pushed
-				std::size_t fully_finished_partial_captures = std::min(
-					captures_started_before_current, cur_state.partial_finished_captures.size()
+			// first, compute the number of captures to convert for each state
+			// ** here we avoid an allocation by storing the number in initial_ongoing_captures - the states are
+			// going to be erased anyway **
+			std::size_t total_number_to_convert = 0;
+			{
+
+				// the number of captures that started after new top state but before the current state
+				std::size_t captures_started_before_current = 0;
+				// initial_ongoing_captures of the previous state
+				std::size_t prev_initial_ongoing_captures =
+					_state_stack[target_stack_size - 1].initial_ongoing_captures;
+				for (std::size_t i = target_stack_size; i < _state_stack.size(); ++i) {
+					const auto &prev_state = _state_stack[i - 1];
+					auto &cur_state = _state_stack[i];
+
+					// update the variable with the number of captures that started after the previous state and
+					// before the current state
+					captures_started_before_current +=
+						cur_state.initial_ongoing_captures -
+						(prev_initial_ongoing_captures - (
+							_state_partial_finished_captures.count_since(prev_state.partial_finished_captures) -
+							_state_partial_finished_captures.count_since(cur_state.partial_finished_captures)
+						));
+
+					// this is the number of states that started after the new top state, and finished after this
+					// state was pushed, but before the next state was pushed; in other words, the number of states
+					// that need to be converted
+					std::size_t fully_finished_partial_captures = std::min(
+						captures_started_before_current,
+						_state_partial_finished_captures.count_since(cur_state.partial_finished_captures) - (
+							i + 1 < _state_stack.size() ?
+							_state_partial_finished_captures.count_since(
+								_state_stack[i + 1].partial_finished_captures
+							) :
+							0
+						)
+					);
+
+					// this number of captures didn't finish before this state
+					captures_started_before_current -= fully_finished_partial_captures;
+
+					prev_initial_ongoing_captures = cur_state.initial_ongoing_captures;
+					// for the next phase we need to work from back to front, so it's more convenient to not include
+					// the count between this state and the next state
+					cur_state.initial_ongoing_captures = total_number_to_convert;
+					// this sum is the total offset for all captures of this state
+					total_number_to_convert += fully_finished_partial_captures;
+				}
+			}
+			// then, rearrange the entries in _state_finished_captures to leave enough space for the converted
+			// entries, and take elemnts from partial finished captures to fill the gaps
+			{
+				std::size_t old_size = _state_finished_captures.size();
+				_state_finished_captures.resize(old_size + total_number_to_convert);
+				// do it back to front
+				auto old_it = _state_finished_captures.begin() + old_size;
+				auto it = _state_finished_captures.end();
+				std::size_t prev_offset = total_number_to_convert;
+				std::size_t prev_count = total_number_to_convert; // account for the resize
+				for (std::size_t i = _state_stack.size(); i > target_stack_size; ) {
+					--i;
+					auto &cur_state = _state_stack[i];
+
+					std::size_t total_offset = cur_state.initial_ongoing_captures;
+					std::size_t this_offset = prev_offset - total_offset;
+					std::size_t total_count = _state_finished_captures.count_since(cur_state.finished_captures);
+					std::size_t this_count = total_count - prev_count;
+					
+					// copy fully finished captures
+					for (std::size_t j = 0; j < this_count; ++j) {
+						--old_it;
+						--it;
+						*it = std::move(*old_it);
+					}
+
+					// old partially finished range to convert to fully finished
+					auto cvt_it =
+						_state_partial_finished_captures.get_iterator_for(cur_state.partial_finished_captures) +
+						this_offset;
+					for (std::size_t j = 0; j < this_offset; ++j) {
+						--cvt_it;
+						--it;
+						*it = std::move(cvt_it->capture);
+					}
+
+					// update to include the count between this state and the next state, because we're workingn from
+					// front to back next
+					cur_state.initial_ongoing_captures = prev_offset;
+
+					prev_offset = total_offset;
+					prev_count = total_count;
+				}
+			}
+			// finally, remove all converted partially finished ranges
+			{
+				std::size_t prev_offset = 0;
+				auto to_it = _state_partial_finished_captures.get_iterator_for(
+					_state_stack[target_stack_size].partial_finished_captures
 				);
+				auto from_it = to_it;
+				for (std::size_t i = target_stack_size; i < _state_stack.size(); ++i) {
+					const auto &state = _state_stack[i];
+					std::size_t total_offset = state.initial_ongoing_captures;
+					std::size_t this_offset = total_offset - prev_offset;
+					std::size_t this_count =
+						_state_partial_finished_captures.count_since(state.partial_finished_captures) - this_offset;
+					if (i + 1 < _state_stack.size()) {
+						this_count -= _state_partial_finished_captures.count_since(
+							_state_stack[i + 1].partial_finished_captures
+						);
+					}
 
-				// captures that started after new_top_state but before cur_state, and finished after cur_state
-				// but before the next state
-				for (std::size_t j = 0; j < fully_finished_partial_captures; ++j) {
-					new_top_state.finished_captures.emplace_back(
-						std::move(cur_state.partial_finished_captures[j].capture)
-					);
+					from_it += this_offset;
+					for (std::size_t j = 0; j < this_count; ++j, ++from_it, ++to_it) {
+						*to_it = std::move(*from_it);
+					}
+
+					prev_offset = total_offset;
 				}
-
-				// captures that started before new_top_state, and finished after cur_state but before the next
-				// state
-				for (
-					std::size_t j = fully_finished_partial_captures;
-					j < cur_state.partial_finished_captures.size();
-					++j
-				) {
-					new_top_state.partial_finished_captures.emplace_back(
-						std::move(cur_state.partial_finished_captures[j])
-					);
-				}
-
-				// captures that started & finished after cur_state but before the next state
-				for (auto &s : cur_state.finished_captures) {
-					new_top_state.finished_captures.emplace_back(std::move(s));
-				}
-
-				// update captures_started_before_current
-				captures_started_before_current -= fully_finished_partial_captures;
+				_state_partial_finished_captures.erase(to_it, _state_partial_finished_captures.end());
 			}
 		}
 		_state_stack.erase(_state_stack.begin() + target_stack_size, _state_stack.end());
@@ -436,7 +541,7 @@ namespace codepad::regex {
 		stream = checkpoint.position;
 		if (checkpoint.state_stack_size < _state_stack.size()) {
 			// this was checkpointed before the current state was pushed; we need to save it for backtracking
-			_state_stack.back().restored_checkpoints.emplace_back(std::move(checkpoint));
+			_state_restored_checkpoints.emplace(std::move(checkpoint));
 		}
 	}
 

@@ -607,7 +607,8 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 					return attempts <= 1000;
 				});
 			} else {
-				if (auto match = matcher.find_next(stream, sm)) {
+				bool reject_empty_match = false;
+				if (auto match = matcher.find_next(stream, sm, reject_empty_match)) {
 					matches.emplace_back(std::move(match.value()));
 				}
 			}

@@ -188,7 +188,7 @@ namespace codepad::regex {
 		_captures[0].start = start_state;
 		_captures[0].end = end_state;
 		// initialize all subroutine data
-		for (auto sub : _subroutines) {
+		for (const auto &sub : _subroutines) {
 			if (sub.capture.get_index() >= _captures.size() || _captures[sub.capture.get_index()].is_empty()) {
 				_result = half_compiled::state_machine();
 				_result.start_state = _result.create_state();

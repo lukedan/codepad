@@ -889,7 +889,7 @@ namespace codepad::regex {
 						}
 
 						// assertion
-						if (_stream.peek() == U'?') {
+						if (_stream.peek() == U'?' || _stream.peek() == U'*') {
 							std::size_t tmp_options_pushed = 0;
 							if (auto cond = _parse_round_brackets_group(tmp_options_pushed)) {
 								ending_bracket_consumed = true;
