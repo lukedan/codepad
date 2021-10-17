@@ -32,15 +32,17 @@ namespace codepad::regex {
 			using transition_index = std::size_t; ///< Index type for transitions.
 			using capture_index = std::size_t; ///< Index for captures.
 			using capture_name_index = std::size_t; ///< Index for capture names.
+			using marker_name_index = std::size_t; ///< Index for marker names.
 		};
 
-		/// Uses \p std::uint16_t for all index types.
+		/// Data types for a small regular expression with less than 255 captures.
 		class small_expression {
 		public:
 			using state_index = std::uint16_t; ///< Index type for states.
 			using transition_index = std::uint16_t; ///< Index type for transitions.
-			using capture_index = std::uint16_t; ///< Index for captures.
-			using capture_name_index = std::uint16_t; ///< Index for capture names.
+			using capture_index = std::uint8_t; ///< Index for captures.
+			using capture_name_index = std::uint8_t; ///< Index for capture names.
+			using marker_name_index = std::uint8_t; ///< Index for marker names.
 		};
 	}
 
@@ -54,6 +56,7 @@ namespace codepad::regex {
 		using transition_index = typename DataTypes::transition_index; ///< Transition index type.
 		using capture_index = typename DataTypes::capture_index; ///< Capture index type.
 		using capture_name_index = typename DataTypes::capture_name_index; ///< Capture name index type.
+		using marker_name_index = typename DataTypes::marker_name_index; ///< Marker name index type.
 
 		/// Contains a capture index.
 		struct capture_ref {
@@ -63,7 +66,7 @@ namespace codepad::regex {
 			/// Initializes this capture with the given index.
 			explicit capture_ref(capture_index i) : _index(i) {
 			}
-			/// Initializes this struct from a capture reference that uses another type.
+			/// Initializes an object from a capture reference that uses another type.
 			template <
 				typename OtherDataType
 			> [[nodiscard]] typename compiled<OtherDataType>::capture_ref into() const {
@@ -92,7 +95,7 @@ namespace codepad::regex {
 
 			/// Default constructor.
 			capture_name_ref() = default;
-			/// Initializes this struct from a capture name reference that uses another type.
+			/// Initializes an object from a capture name reference that uses another type.
 			template <
 				typename OtherDataType
 			> [[nodiscard]] typename compiled<OtherDataType>::capture_name_ref into() const {
@@ -122,6 +125,43 @@ namespace codepad::regex {
 
 			/// Initializes the name reference with the given index.
 			explicit capture_name_ref(capture_name_index i) : _index(i) {
+			}
+		};
+		/// Contains a marker index.
+		struct marker_ref {
+			template <typename> friend class compiled;
+			friend half_compiled::state_machine;
+		public:
+			/// Index indicating that this reference is invalid.
+			constexpr static marker_name_index invalid_index = std::numeric_limits<marker_name_index>::max();
+
+			/// Default constructor - creates an invalid reference.
+			marker_ref() = default;
+			/// Initializes an object from a marker reference that uses another type.
+			template <
+				typename OtherDataType
+			> [[nodiscard]] typename compiled<OtherDataType>::marker_ref into() const {
+				return typename compiled<OtherDataType>::marker_ref(
+					static_cast<typename OtherDataType::marker_name_index>(_index)
+				);
+			}
+
+			/// Equality.
+			[[nodiscard]] friend bool operator==(marker_ref, marker_ref) = default;
+
+			/// Checks if this reference is valid.
+			[[nodiscard]] bool is_empty() const {
+				return _index == invalid_index;
+			}
+			/// \overload
+			[[nodiscard]] explicit operator bool() const {
+				return !is_empty();
+			}
+		protected:
+			marker_name_index _index = invalid_index; ///< Index of the marker.
+
+			/// Initializes the reference with the given index.
+			explicit marker_ref(marker_name_index i) : _index(i) {
 			}
 		};
 
@@ -533,13 +573,17 @@ namespace codepad::regex {
 			/// Backtracking control verbs.
 			class verbs {
 			public:
-				/// Fails and causes backtracking immediately.
-				struct fail {
+				/// Sets a marker.
+				struct mark {
+					marker_ref marker; ///< The marker.
+
 					/// Converts to another data type.
 					template <
 						typename OtherDataTypes
-					> typename compiled<OtherDataTypes>::transitions::verbs::fail into() && {
-						return typename compiled<OtherDataTypes>::transitions::verbs::fail();
+					> typename compiled<OtherDataTypes>::transitions::verbs::mark into() && {
+						typename compiled<OtherDataTypes>::transitions::verbs::mark result;
+						result.marker = marker.into<OtherDataTypes>();
+						return result;
 					}
 				};
 			};
@@ -571,7 +615,7 @@ namespace codepad::regex {
 				typename transitions::conditions::named_recursion,
 				typename transitions::conditions::numbered_capture,
 				typename transitions::conditions::named_capture,
-				typename transitions::verbs::fail
+				typename transitions::verbs::mark
 			>;
 
 			key condition; ///< Condition of this transition.
@@ -608,9 +652,15 @@ namespace codepad::regex {
 			[[nodiscard]] const named_capture_registry &get_named_captures() const {
 				return _named_captures;
 			}
+
+			/// Returns the marker name corresponding to the given marker reference.
+			[[nodiscard]] const std::u8string &get_marker_name(marker_ref m) const {
+				return _marker_names[m._index];
+			}
 		protected:
 			std::vector<state> _states; ///< States.
 			std::vector<transition> _transitions; ///< Transitions.
+			std::vector<std::u8string> _marker_names; ///< Sorted marker names.
 			/// Mapping from named captures to regular indexed captures.
 			named_capture_registry _named_captures;
 			state_ref _start_state; ///< The starting state.
@@ -654,6 +704,7 @@ namespace codepad::regex {
 			compiled_unoptimized::named_capture_registry named_captures;
 			compiled_unoptimized::state_ref start_state; ///< The starting state.
 			compiled_unoptimized::state_ref end_state; ///< The ending state.
+			std::vector<std::u8string> marker_names; ///< Sorted marker names.
 
 			/// Creates a new state in this \ref state_machine and returns its index.
 			[[nodiscard]] compiled_unoptimized::state_ref create_state();
@@ -665,6 +716,14 @@ namespace codepad::regex {
 			[[nodiscard]] compiled_unoptimized::transition &get_transition(transition_ref r) {
 				return states[r._state._index].transitions[r._index];
 			}
+			/// Returns a reference corresponding to the given name.
+			[[nodiscard]] compiled_unoptimized::marker_ref find_marker(std::u8string_view name) const {
+				auto it = std::lower_bound(marker_names.begin(), marker_names.end(), name, std::less<void>());
+				if (it == marker_names.end() || *it != name) {
+					return compiled_unoptimized::marker_ref();
+				}
+				return compiled_unoptimized::marker_ref(it - marker_names.begin());
+			}
 
 			/// Condenses this state machine into a representation that's better for matching.
 			template <
@@ -675,6 +734,7 @@ namespace codepad::regex {
 				typename compiled_types::state_machine result;
 				result._named_captures = named_captures.into<TargetDataTypes>();
 				result._start_state = start_state.into<TargetDataTypes>();
+				result._marker_names = std::move(marker_names);
 				result._end_state = end_state.into<TargetDataTypes>();
 				result._states.reserve(states.size());
 				for (auto &st : states) {
@@ -715,11 +775,11 @@ namespace codepad::regex {
 			/// Default constructor.
 			_named_capture_info() = default;
 			/// Initializes all fields of this struct.
-			_named_capture_info(codepoint_string n, compiled_unoptimized::capture_ref cap) :
+			_named_capture_info(std::u8string n, compiled_unoptimized::capture_ref cap) :
 				name(std::move(n)), capture(cap) {
 			}
 
-			codepoint_string name; ///< The name of this capture.
+			std::u8string name; ///< The name of this capture.
 			compiled_unoptimized::capture_ref capture; ///< Corresponding capture index.
 
 			/// Order by name first, then by capture index.
@@ -755,24 +815,33 @@ namespace codepad::regex {
 		};
 
 		half_compiled::state_machine _result; ///< The result.
-		std::vector<_named_capture_info> _named_captures; ///< Information about all named captures.
-		std::vector<codepoint_string> _capture_names; ///< All unique capture names, sorted.
+		std::vector<std::u8string> _capture_names; ///< All unique capture names, sorted.
 		std::vector<_capture_info> _captures; ///< First occurences of all capture groups.
 		std::vector<_subroutine_transition> _subroutines; ///< All subroutine transitions.
 		compiled_unoptimized::state_ref _fail_state; ///< Fail state. This is created on-demand.
 		const ast *_ast = nullptr; ///< The \ref ast that's being compiled.
 		const ast::analysis *_analysis = nullptr; ///< Analysis of \ref _ast.
 
-		/// Collects capture names from a node.
-		void _collect_capture_names(const ast::node &node) {
-			if (node.is<ast_nodes::subexpression>()) {
-				const auto &expr = std::get<ast_nodes::subexpression>(node.value);
-				if (!expr.capture_name.empty()) {
-					_named_captures.emplace_back(
-						expr.capture_name, compiled_unoptimized::capture_ref(expr.capture_index)
-					);
-				}
+		/// Collects marker name from a \ref ast_nodes::verbs::fail.
+		void _collect_marker_name(const ast_nodes::verbs::fail &node) {
+			if (!node.mark.empty()) {
+				_result.marker_names.emplace_back(node.mark);
 			}
+		}
+		/// Collects marker name from a \ref ast_nodes::verbs::accept.
+		void _collect_marker_name(const ast_nodes::verbs::accept &node) {
+			if (!node.mark.empty()) {
+				_result.marker_names.emplace_back(node.mark);
+			}
+		}
+		/// Collects marker name from a \ref ast_nodes::verbs::mark.
+		void _collect_marker_name(const ast_nodes::verbs::mark &node) {
+			if (!node.mark.empty()) {
+				_result.marker_names.emplace_back(node.mark);
+			}
+		}
+		/// No name to collect for other types of nodes.
+		template <typename Node> void _collect_marker_name(const Node&) {
 		}
 
 		/// Returns the fail state, creating it if necessary.
@@ -784,7 +853,7 @@ namespace codepad::regex {
 		}
 
 		/// Finds the index of the given capture name.
-		[[nodiscard]] compiled_unoptimized::capture_name_ref _find_capture_name(codepoint_string_view sv) const {
+		[[nodiscard]] compiled_unoptimized::capture_name_ref _find_capture_name(std::u8string_view sv) const {
 			auto it = std::lower_bound(_capture_names.begin(), _capture_names.end(), sv);
 			if (it == _capture_names.end() || sv != *it) {
 				return compiled_unoptimized::capture_name_ref();
@@ -904,21 +973,29 @@ namespace codepad::regex {
 		);
 		/// Compiles the given verb.
 		void _compile(
-			compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref, const ast_nodes::verbs::fail&
+			compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref,
+			const ast_nodes::verbs::fail &node
 		) {
-			_result.create_transition_from_to(start, _get_fail_state());
+			auto [trans_ref, trans] = _result.create_transition_from_to(start, _get_fail_state());
+			trans.condition.emplace<compiled_unoptimized::transitions::verbs::mark>().marker =
+				_result.find_marker(node.mark);
 		}
 		/// Compiles the given verb.
 		void _compile(
-			compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref end, const ast_nodes::verbs::accept&
+			compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref end,
+			const ast_nodes::verbs::accept&
 		) {
-			_result.create_transition_from_to(start, end); // TODO actually fail
+			auto [trans_ref, trans] = _result.create_transition_from_to(start, end);
+			// TODO accept
 		}
 		/// Compiles the given verb.
 		void _compile(
-			compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref end, const ast_nodes::verbs::mark&
+			compiled_unoptimized::state_ref start, compiled_unoptimized::state_ref end,
+			const ast_nodes::verbs::mark &node
 		) {
-			_result.create_transition_from_to(start, end); // TODO mark
+			auto [trans_ref, trans] = _result.create_transition_from_to(start, end);
+			trans.condition.emplace<compiled_unoptimized::transitions::verbs::mark>().marker =
+				_result.find_marker(node.mark);
 		}
 
 		/// Does nothing - <tt>DEFINE</tt>'s are handled separately.

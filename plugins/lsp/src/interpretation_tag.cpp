@@ -199,10 +199,7 @@ namespace codepad::lsp {
 				iter.is_codepoint_valid() ?
 				iter.get_codepoint() :
 				unicode::replacement_character;
-			byte_string str = encodings::utf8::encode_codepoint(cp);
-			change.text.append(std::u8string_view(
-				reinterpret_cast<const char8_t*>(str.data()), str.size()
-			));
+			change.text += encodings::utf8::encode_codepoint_u8(cp);
 		}
 	}
 
@@ -238,8 +235,7 @@ namespace codepad::lsp {
 		text.reserve(_interp->get_buffer().length());
 		for (auto iter = _interp->codepoint_begin(); !iter.ended(); iter.next()) {
 			codepoint cp = iter.is_codepoint_valid() ? iter.get_codepoint() : unicode::replacement_character;
-			auto str = encodings::utf8::encode_codepoint(cp);
-			text += std::u8string_view(reinterpret_cast<const char8_t*>(str.data()), str.size());
+			text += encodings::utf8::encode_codepoint_u8(cp);
 		}
 		didopen.textDocument.text = std::move(text);
 		_client->send_notification(u8"textDocument/didOpen", didopen);

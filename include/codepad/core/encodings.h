@@ -11,18 +11,11 @@
 #include <string>
 #include <string_view>
 #include <iterator>
+#include <bit>
 
 #include "unicode/common.h"
 
 namespace codepad {
-	/// Specifies the byte order of words.
-	enum class endianness : unsigned char {
-		little_endian, ///< Little endian.
-		big_endian ///< Big endian.
-	};
-	/// The endianness of the current system.
-	constexpr endianness system_endianness = endianness::little_endian;
-
 	/// A templated version of \p std::strlen().
 	template <typename Char> inline std::size_t get_unit_count(const Char *cs) {
 		std::size_t i = 0;
@@ -258,29 +251,39 @@ namespace codepad {
 			}
 
 			/// Returns the UTF-8 representation of a Unicode codepoint.
-			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
+			template <
+				typename Char = std::byte
+			> inline static std::basic_string<Char> encode_codepoint(codepoint c) {
 				if (c < 0x80) {
-					return {static_cast<std::byte>(c) & ~mask[0]};
+					return {std::bit_cast<Char>(static_cast<std::byte>(c) & ~mask[0])};
 				}
 				if (c < 0x800) {
 					return {
-						(static_cast<std::byte>(c >> 6) & ~mask[1]) | patt[1],
-						(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
+						std::bit_cast<Char>((static_cast<std::byte>(c >> 6) & ~mask[1]) | patt[1]),
+						std::bit_cast<Char>((static_cast<std::byte>(c) & ~mask_cont) | patt_cont)
 					};
 				}
 				if (c < 0x10000) {
 					return {
-						(static_cast<std::byte>(c >> 12) & ~mask[2]) | patt[2],
-						(static_cast<std::byte>(c >> 6) & ~mask_cont) | patt_cont,
-						(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
+						std::bit_cast<Char>((static_cast<std::byte>(c >> 12) & ~mask[2]) | patt[2]),
+						std::bit_cast<Char>((static_cast<std::byte>(c >> 6) & ~mask_cont) | patt_cont),
+						std::bit_cast<Char>((static_cast<std::byte>(c) & ~mask_cont) | patt_cont)
 					};
 				}
 				return {
-					(static_cast<std::byte>(c >> 18) & ~mask[3]) | patt[3],
-					(static_cast<std::byte>(c >> 12) & ~mask_cont) | patt_cont,
-					(static_cast<std::byte>(c >> 6) & ~mask_cont) | patt_cont,
-					(static_cast<std::byte>(c) & ~mask_cont) | patt_cont
+					std::bit_cast<Char>((static_cast<std::byte>(c >> 18) & ~mask[3]) | patt[3]),
+					std::bit_cast<Char>((static_cast<std::byte>(c >> 12) & ~mask_cont) | patt_cont),
+					std::bit_cast<Char>((static_cast<std::byte>(c >> 6) & ~mask_cont) | patt_cont),
+					std::bit_cast<Char>((static_cast<std::byte>(c) & ~mask_cont) | patt_cont)
 				};
+			}
+			/// Shorthand for \ref encode_codepoint<char8_t>().
+			inline static std::u8string encode_codepoint_u8(codepoint c) {
+				return encode_codepoint<char8_t>(c);
+			}
+			/// Shorthand for \ref encode_codepoint<char>().
+			inline static std::string encode_codepoint_char(codepoint c) {
+				return encode_codepoint<char>(c);
 			}
 		protected:
 			/// Extracts an element (char, unsigned char, etc.) from the given iterator, and converts it into a
@@ -291,8 +294,9 @@ namespace codepad {
 		};
 
 		/// UTF-16 encoding.
-		template <endianness Endianness = system_endianness> class utf16 {
+		template <std::endian Endianness = std::endian::native> class utf16 {
 		public:
+			static_assert(Endianness == std::endian::little || Endianness == std::endian::big, "Unknown endianess");
 			constexpr static std::uint16_t
 				mask_pair = 0xDC00, ///< Mask for detecting surrogate pairs.
 				patt_pair = 0xD800, ///< Expected masked value of the first unit of the surrogate pair.
@@ -301,7 +305,7 @@ namespace codepad {
 
 			/// Returns either `UTF-16 LE' or `UTF-16 BE', depending on the Endianness.
 			inline static std::u8string_view get_name() {
-				if constexpr (Endianness == endianness::little_endian) {
+				if constexpr (Endianness == std::endian::little) {
 					return u8"UTF-16 LE";
 				} else {
 					return u8"UTF-16 BE";
@@ -445,7 +449,7 @@ namespace codepad {
 				}
 				auto b2 = static_cast<std::byte>(*i);
 				++i;
-				if constexpr (Endianness == endianness::little_endian) {
+				if constexpr (Endianness == std::endian::little) {
 					word = static_cast<std::uint16_t>(
 						static_cast<std::uint16_t>(b1) | (static_cast<std::uint16_t>(b2) << 8)
 					);
@@ -460,7 +464,7 @@ namespace codepad {
 			template <typename It> [[nodiscard]] inline static std::uint16_t _extract_word_backwards(It &i) {
 				auto b2 = static_cast<std::byte>(*--i);
 				auto b1 = static_cast<std::byte>(*--i);
-				if constexpr (Endianness == endianness::little_endian) {
+				if constexpr (Endianness == std::endian::little) {
 					return static_cast<std::uint16_t>(
 						static_cast<std::uint16_t>(b1) | (static_cast<std::uint16_t>(b2) << 8)
 					);
@@ -472,7 +476,7 @@ namespace codepad {
 			}
 			/// Rearranges the two bytes of the given word according to the current endianness.
 			inline static std::basic_string<std::byte> _encode_word(std::uint16_t word) {
-				if constexpr (Endianness == endianness::little_endian) {
+				if constexpr (Endianness == std::endian::little) {
 					return {
 						static_cast<std::byte>(word & 0xFF),
 						static_cast<std::byte>(word >> 8)
@@ -489,11 +493,12 @@ namespace codepad {
 		/// UTF-32 encoding.
 		///
 		/// \tparam C Type of characters.
-		template <endianness Endianness = system_endianness> class utf32 {
+		template <std::endian Endianness = std::endian::native> class utf32 {
 		public:
+			static_assert(Endianness == std::endian::little || Endianness == std::endian::big, "Unknown endianess");
 			/// Returns either `UTF-32 LE' or `UTF-32 BE', depending on the Endianness.
 			inline static std::u8string_view get_name() {
-				if constexpr (Endianness == endianness::little_endian) {
+				if constexpr (Endianness == std::endian::little) {
 					return u8"UTF-32 LE";
 				} else {
 					return u8"UTF-32 BE";
@@ -570,7 +575,7 @@ namespace codepad {
 
 			/// Returns the UTF-32 representation of a Unicode codepoint.
 			inline static std::basic_string<std::byte> encode_codepoint(codepoint c) {
-				if constexpr (Endianness == endianness::little_endian) {
+				if constexpr (Endianness == std::endian::little) {
 					return {
 						static_cast<std::byte>(c & 0xFF),
 						static_cast<std::byte>((c >> 8) & 0xFF),
@@ -589,7 +594,7 @@ namespace codepad {
 		protected:
 			/// Constructs a codepoint from the given bytes, respecting the endianness.
 			[[nodiscard]] inline static codepoint _make_codepoint(const std::array<std::byte, 4> &bytes) {
-				if constexpr (Endianness == endianness::little_endian) {
+				if constexpr (Endianness == std::endian::little) {
 					return
 						static_cast<codepoint>(bytes[0]) |
 						(static_cast<codepoint>(bytes[1]) << 8) |

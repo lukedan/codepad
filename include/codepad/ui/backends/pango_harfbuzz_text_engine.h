@@ -581,15 +581,12 @@ namespace codepad::ui {
 				const font_parameters &font, colord c, vec2d size, wrapping_mode wrap,
 				horizontal_text_alignment halign, vertical_text_alignment valign
 			) {
-				std::basic_string<std::byte> text;
+				std::u8string text;
 				text.reserve(utf32.size());
 				for (codepoint cp : utf32) {
-					text += encodings::utf8::encode_codepoint(cp);
+					text += encodings::utf8::encode_codepoint_u8(cp);
 				}
-				return create_formatted_text(
-					std::u8string_view(reinterpret_cast<const char8_t*>(text.c_str()), text.size()),
-					font, c, size, wrap, halign, valign
-				);
+				return create_formatted_text(text, font, c, size, wrap, halign, valign);
 			}
 
 			/// Creates a new \ref plain_text object for the given text and font.

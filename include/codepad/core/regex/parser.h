@@ -49,10 +49,10 @@ namespace codepad::regex {
 				/// Default constructor.
 				named_backreference() = default;
 				/// Initializes \ref name.
-				explicit named_backreference(codepoint_string s) : name(std::move(s)) {
+				explicit named_backreference(std::u8string s) : name(std::move(s)) {
 				}
 
-				codepoint_string name; ///< The name of the group.
+				std::u8string name; ///< The name of the group.
 			};
 			/// A simple assertion.
 			using simple_assertion = ast_nodes::simple_assertion;

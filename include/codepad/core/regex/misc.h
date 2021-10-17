@@ -76,10 +76,6 @@ namespace codepad::regex {
 		template <typename Ret = decltype(Iter() - Iter())> [[nodiscard]] Ret byte_position() const {
 			return _cur - _beg;
 		}
-		/// Not reversed.
-		[[nodiscard]] bool is_reversed() const {
-			return false;
-		}
 	protected:
 		std::size_t _pos = 0; ///< Position of the stream in codepoints.
 		codepoint _cp = 0; /// The current codepoint.
@@ -108,78 +104,6 @@ namespace codepad::regex {
 		return basic_input_stream<Encoding, std::decay_t<Iter>>(std::move(beg), std::move(end));
 	}
 
-	/// A wrapper around another stream that reverses it.
-	template <typename Stream> struct basic_reverse_stream {
-	public:
-		using original_stream_t = Stream; ///< Original stream type.
-
-		/// Default constructor.
-		basic_reverse_stream() = default;
-		/// Initializes the underlying stream.
-		explicit basic_reverse_stream(Stream s) : _s(std::move(s)) {
-		}
-
-		/// Returns \ref _empty.
-		[[nodiscard]] bool empty() const {
-			return _s.prev_empty();
-		}
-		/// Takes a codepoint from this reversed stream.
-		codepoint take() {
-			return _s.prev();
-		}
-		/// Previews the next codepoint in this reversed stream.
-		[[nodiscard]] codepoint peek() const {
-			return _s.peek_prev();
-		}
-
-		/// Returns \ref _next_empty.
-		[[nodiscard]] bool prev_empty() const {
-			return _s.empty();
-		}
-		/// Returns the previous character and decrements \ref _position;
-		codepoint prev() {
-			return _s.take();
-		}
-		/// Peeks the previous codepoint.
-		[[nodiscard]] codepoint peek_prev() const {
-			return _s.peek();
-		}
-
-		/// This stream is reversed if the underlying stream is not, and vice versa.
-		[[nodiscard]] bool is_reversed() const {
-			return !_s.is_reversed();
-		}
-
-		/// Returns the original unreversed stream.
-		[[nodiscard]] const Stream &get_original_stream() const {
-			return _s;
-		}
-	protected:
-		Stream _s; ///< The underlying stream.
-	};
-
-	/// Helper class used to obtain the type of a reversed stream. By default \ref basic_reverse_stream is used.
-	template <typename Stream> struct reversed_stream_type {
-		using type = basic_reverse_stream<Stream>; ///< Reversed stream type using \ref basic_reverse_stream.
-	};
-	/// Shorthand for \ref reversed_stream_type::type.
-	template <typename Stream> using reversed_stream_type_t = typename reversed_stream_type<Stream>::type;
-	/// For \ref basic_reverse_stream types, the reversed stream type is the original stream type.
-	template <typename Stream> struct reversed_stream_type<basic_reverse_stream<Stream>> {
-		using type = typename basic_reverse_stream<Stream>::original_stream_t; ///< Original stream type.
-	};
-
-	/// Creates a reversed stream from the given stream.
-	template <
-		typename Stream
-	> [[nodiscard]] basic_reverse_stream<std::decay_t<Stream>> make_reverse_stream(Stream &&s) {
-		return basic_reverse_stream<std::decay_t<Stream>>(std::forward<Stream>(s));
-	}
-	/// Overload for reversed streams - returns the original stream.
-	template <typename Stream> [[nodiscard]] Stream make_reverse_stream(const basic_reverse_stream<Stream> &stream) {
-		return stream.get_original_stream();
-	}
-
 
 	/// Consumes a line ending from the given stream.
 	///
@@ -188,32 +112,36 @@ namespace codepad::regex {
 		if (s.empty()) {
 			return line_ending::none;
 		}
-		if (s.is_reversed()) {
-			switch (s.peek()) {
-			case U'\r':
-				s.take();
-				if (s.empty() || s.peek() != U'\n') {
-					return line_ending::r;
-				}
-				s.take();
-				return line_ending::rn;
-			case U'\n':
-				s.take();
-				return line_ending::n;
-			}
-		} else {
-			switch (s.peek()) {
-			case U'\n':
-				s.take();
-				if (s.empty() || s.peek() != U'\r') {
-					return line_ending::n;
-				}
-				s.take();
-				return line_ending::rn;
-			case U'\r':
-				s.take();
+		switch (s.peek()) {
+		case U'\r':
+			s.take();
+			if (s.empty() || s.peek() != U'\n') {
 				return line_ending::r;
 			}
+			s.take();
+			return line_ending::rn;
+		case U'\n':
+			s.take();
+			return line_ending::n;
+		}
+		return line_ending::none;
+	}
+	/// Similar to \ref consume_line_ending(), but backwards.
+	template <typename Stream> line_ending consume_line_ending_backwards(Stream &s) {
+		if (s.prev_empty()) {
+			return line_ending::none;
+		}
+		switch (s.peek_prev()) {
+		case U'\n':
+			s.prev();
+			if (s.prev_empty() || s.peek_prev() != U'\r') {
+				return line_ending::n;
+			}
+			s.prev();
+			return line_ending::rn;
+		case U'\r':
+			s.prev();
+			return line_ending::r;
 		}
 		return line_ending::none;
 	}
@@ -222,11 +150,7 @@ namespace codepad::regex {
 		if (s.empty() || s.prev_empty()) {
 			return false;
 		}
-		if (s.is_reversed()) {
-			return s.peek() == U'\r' && s.peek_prev() == U'\n';
-		} else {
-			return s.peek() == U'\n' && s.peek_prev() == U'\r';
-		}
+		return s.peek() == U'\n' && s.peek_prev() == U'\r';
 	}
 
 	/// Regular expresion options. All options are disabled by default.

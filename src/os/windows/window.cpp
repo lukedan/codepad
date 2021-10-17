@@ -165,9 +165,7 @@ namespace codepad::os {
 					if (wparam == VK_RETURN) {
 						content = u8"\n";
 					} else {
-						content = reinterpret_cast<const char8_t*>(
-							encodings::utf8::encode_codepoint(static_cast<codepoint>(wparam)).c_str()
-						);
+						content = encodings::utf8::encode_codepoint_u8(static_cast<codepoint>(wparam));
 					}
 					_wnd_onevent<ui::text_info>(wnd, &ui::window::_on_keyboard_text, content);
 				}
@@ -186,7 +184,7 @@ namespace codepad::os {
 							// TODO check if this will ever be triggered
 							return 0;
 						}
-						content = reinterpret_cast<const char8_t*>(encodings::utf8::encode_codepoint(res).c_str());
+						content = encodings::utf8::encode_codepoint_u8(res);
 					}
 					_wnd_onevent<ui::text_info>(wnd, &ui::window::_on_keyboard_text, content);
 				}
@@ -220,7 +218,7 @@ namespace codepad::os {
 					int wheel_delta = GET_WHEEL_DELTA_WPARAM(wparam);
 					_wnd_onevent<ui::mouse_scroll_info>(
 						wnd, &ui::window::_on_mouse_scroll,
-						vec2d(wheel_delta / -static_cast<double>(WHEEL_DELTA), 0.0),
+						vec2d(wheel_delta / static_cast<double>(WHEEL_DELTA), 0.0),
 						wnd._update_mouse_position(wnd_impl->_physical_to_logical_position(vec2d(p.x, p.y))),
 						wheel_delta % WHEEL_DELTA != 0
 					);

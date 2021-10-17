@@ -54,7 +54,7 @@ namespace codepad::regex {
 		};
 		/// Node used to signal a feature is enabled.
 		struct feature {
-			codepoint_string identifier; ///< String used to identify the feature.
+			std::u8string identifier; ///< String used to identify the feature.
 		};
 		/// Overrides the start of the match.
 		struct match_start_override {
@@ -80,11 +80,11 @@ namespace codepad::regex {
 			/// Default constructor.
 			named_backreference() = default;
 			/// Initializes all fields of this struct.
-			named_backreference(codepoint_string n, bool ignore_case) :
+			named_backreference(std::u8string n, bool ignore_case) :
 				name(std::move(n)), case_insensitive(ignore_case) {
 			}
 
-			codepoint_string name; ///< Name of this backreference.
+			std::u8string name; ///< Name of this backreference.
 			bool case_insensitive = false; ///< Whether this backreference is case-insensitive.
 		};
 		/// A numbered subroutine.
@@ -103,10 +103,10 @@ namespace codepad::regex {
 			/// Default constructor.
 			named_subroutine() = default;
 			/// Initializes \ref name.
-			explicit named_subroutine(codepoint_string n) : name(std::move(n)) {
+			explicit named_subroutine(std::u8string n) : name(std::move(n)) {
 			}
 
-			codepoint_string name; ///< Name of the group.
+			std::u8string name; ///< Name of the group.
 		};
 		/// Node that represents a class of characters.
 		struct character_class {
@@ -156,7 +156,7 @@ namespace codepad::regex {
 			};
 
 			std::vector<node_ref> nodes; ///< Nodes in this sub-expression.
-			codepoint_string capture_name; ///< Capture name.
+			std::u8string capture_name; ///< Capture name.
 			std::size_t capture_index = 0; ///< Capture index.
 			/// The type of this subexpression. Since subexpressions are used in many scenarios, by default the
 			/// subexpression does not capture.
@@ -205,7 +205,7 @@ namespace codepad::regex {
 			};
 			/// A condition that tests if a named capture is available.
 			struct named_capture_available {
-				codepoint_string name; ///< Name of the capture.
+				std::u8string name; ///< Name of the capture.
 			};
 			/// A complex assertion used as a condition.
 			struct complex_assertion {
@@ -229,15 +229,15 @@ namespace codepad::regex {
 		namespace verbs {
 			/// Fails immediately and causes backtracking.
 			struct fail {
-				codepoint_string mark; ///< The mark associated with this verb.
+				std::u8string mark; ///< The mark associated with this verb.
 			};
 			/// Finishes and accepts the match immediately.
 			struct accept {
-				codepoint_string mark; ///< The mark associated with this verb.
+				std::u8string mark; ///< The mark associated with this verb.
 			};
 			/// Activates the specified mark.
 			struct mark {
-				codepoint_string mark; ///< The mark.
+				std::u8string mark; ///< The mark.
 			};
 		}
 	}
@@ -306,11 +306,10 @@ namespace codepad::regex {
 			/// Dumps a \ref ast_nodes::feature.
 			void dump(const ast_nodes::feature &n) {
 				_indent();
-				_stream << "©¤©¤ [feature: ";
-				for (codepoint cp : n.identifier) {
-					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
-				}
-				_stream << "]\n";
+				_stream <<
+					"©¤©¤ [feature: " <<
+					std::string_view(reinterpret_cast<const char*>(n.identifier.data()), n.identifier.size()) <<
+					"]\n";
 			}
 			/// Dumps a \ref ast_nodes::match_start_override.
 			void dump(const ast_nodes::match_start_override&) {
@@ -322,7 +321,7 @@ namespace codepad::regex {
 				_indent();
 				_stream << "©¤©¤ [literal: \"";
 				for (codepoint cp : n.contents) {
-					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
+					_stream << encodings::utf8::encode_codepoint_char(cp);
 				}
 				_stream << "\"";
 				if (n.case_insensitive) {
@@ -342,11 +341,9 @@ namespace codepad::regex {
 			/// Dumps a \ref ast_nodes::named_backreference.
 			void dump(const ast_nodes::named_backreference &n) {
 				_indent();
-				_stream << "©¤©¤ [backreference: \"";
-				for (codepoint cp : n.name) {
-					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
-				}
-				_stream << "\"";
+				_stream <<
+					"©¤©¤ [backreference: \"" <<
+					std::string_view(reinterpret_cast<const char*>(n.name.data()), n.name.size()) << "\"";
 				if (n.case_insensitive) {
 					_stream << "/i";
 				}
@@ -362,7 +359,7 @@ namespace codepad::regex {
 				_indent();
 				_stream << "©¤©¤ [subroutine: \"";
 				for (codepoint cp : n.name) {
-					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
+					_stream << encodings::utf8::encode_codepoint_char(cp);
 				}
 				_stream << "\"" << "]\n";
 			}
@@ -387,9 +384,7 @@ namespace codepad::regex {
 					if (!n.capture_name.empty()) {
 						_stream << " \"";
 						for (codepoint cp : n.capture_name) {
-							_stream << reinterpret_cast<const char*>(
-								encodings::utf8::encode_codepoint(cp).c_str()
-							);
+							_stream << encodings::utf8::encode_codepoint_char(cp);
 						}
 						_stream << "\"";
 					}
@@ -586,11 +581,9 @@ namespace codepad::regex {
 			}
 			/// Dumps a condition that checks for a named assertion.
 			void _dump_condition(const ast_nodes::conditional_expression::named_capture_available &cap) {
-				_stream << "capture \"";
-				for (codepoint cp : cap.name) {
-					_stream << reinterpret_cast<const char*>(encodings::utf8::encode_codepoint(cp).c_str());
-				}
-				_stream << "\"";
+				_stream <<
+					"capture \"" <<
+					std::string_view(reinterpret_cast<const char*>(cap.name.data()), cap.name.size()) << "\"";
 			}
 			/// Dumps an assertion that's used as a condition.
 			void _dump_condition(const ast_nodes::conditional_expression::complex_assertion&) {

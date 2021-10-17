@@ -47,7 +47,7 @@ namespace codepad::os {
 			// https://cairographics.org/manual/cairo-Image-Surfaces.html#cairo-format-t
 			// this means that for little endian, CAIRO_FORMAT_ARGB32 is exactly the same as WICPixelFormat32bppPBGRA
 			// since for WIC the order is that in which each color channel appears in the bit stream
-			if constexpr (system_endianness == endianness::big_endian) { // convert from BGRA to ARGB
+			if constexpr (std::endian::native == std::endian::big) { // convert from BGRA to ARGB
 				for (UINT y = 0; y < height; ++y) {
 					unsigned char *row = data + stride * y;
 					for (UINT x = 0; x < width; ++x, row += 4) {

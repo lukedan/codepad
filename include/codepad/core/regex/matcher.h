@@ -181,7 +181,8 @@ namespace codepad::regex {
 		using state_index = typename DataTypes::state_index; ///< State index type.
 		using transition_index = typename DataTypes::transition_index; ///< Transition index type.
 		using compiled_types = compiled<DataTypes>; ///< All compiled types.
-		using result = match_result<Stream>; ///< Result type.
+		using marker_ref = typename compiled_types::marker_ref; ///< Marker reference type.
+		using result = match_result<Stream>; ///< Match result.
 
 		/// Default constructor.
 		matcher() = default;
@@ -233,13 +234,13 @@ namespace codepad::regex {
 
 			bool reject_empty = false;
 			while (true) {
-				if (auto x = find_next(s, expr, reject_empty, max_iters)) {
+				if (auto res = find_next(s, expr, reject_empty, max_iters)) {
 					if constexpr (std::is_same_v<_return_type, bool>) {
-						if (!cb(std::move(x.value()))) {
+						if (!cb(std::move(res.value()))) {
 							break;
 						}
 					} else {
-						cb(std::move(x.value()));
+						cb(std::move(res.value()));
 					}
 				} else {
 					break;
@@ -248,6 +249,7 @@ namespace codepad::regex {
 		}
 	
 		[[no_unique_address]] LogFunc debug_log; ///< Used to log debug information.
+		marker_ref marker; ///< Last marker encountered during the match.
 	protected:
 		/// Indicates whether logging is enabled.
 		constexpr static bool _uses_log = !std::is_same_v<LogFunc, no_log>;
@@ -466,9 +468,12 @@ namespace codepad::regex {
 					if (stream.prev_empty()) {
 						return true;
 					}
-					auto rev_stream = make_reverse_stream(stream);
-					if (consume_line_ending(rev_stream) != line_ending::none) {
-						return !is_within_crlf(stream);
+					if (stream.empty()) {
+						return false; // ignore final blank line
+					}
+					Stream checkpoint = stream;
+					if (consume_line_ending_backwards(stream) != line_ending::none) {
+						return !is_within_crlf(checkpoint);
 					}
 					return false;
 				}
@@ -599,12 +604,6 @@ namespace codepad::regex {
 		) const {
 			return _find_matched_named_capture(cap.name).has_value();
 		}
-		/// Always returns \p false.
-		[[nodiscard]] bool _check_transition(
-			const Stream&, const typename compiled_types::transitions::verbs::fail&
-		) const {
-			return false;
-		}
 
 		/// Adds a capture that results from an assertion.
 		void _add_capture(std::size_t index, result::capture cap) {
@@ -661,6 +660,10 @@ namespace codepad::regex {
 			for (std::size_t i = 0; i < trans.num_codepoints; ++i) {
 				stream.prev();
 			}
+		}
+		/// Sets the mark.
+		void _execute_transition(const Stream&, const typename compiled_types::transitions::verbs::mark &trans) {
+			marker = trans.marker;
 		}
 	};
 }

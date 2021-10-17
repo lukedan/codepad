@@ -206,8 +206,7 @@ void fail(const char *msg = nullptr) {
 				} else if (sv == U"hex") {
 					std::stringstream ss;
 					for (cp::codepoint cp : result.pattern) {
-						auto cpstr = cp::encodings::utf8::encode_codepoint(cp);
-						ss << std::string_view(reinterpret_cast<const char*>(cpstr.data()), cpstr.size());
+						ss << cp::encodings::utf8::encode_codepoint_char(cp);
 					}
 					result.pattern.clear();
 					while (true) {
@@ -219,6 +218,8 @@ void fail(const char *msg = nullptr) {
 						result.pattern.push_back(b);
 					}
 					result.hex = true;
+				} else if (sv.starts_with(U"jitstack=")) {
+					// ignore - we don't have JIT
 				} else { // parse single-letter options
 					for (std::size_t i = 0; i < str.size(); ++i) {
 						switch (str[i]) {
@@ -598,24 +599,25 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 			) << "\n";
 			INFO("Data string: " << data_ss.str());
 
+			matcher.marker = matcher_t::marker_ref();
 			stream_t stream(data_str.data(), data_str.data() + data_str.size());
-			std::vector<matcher_t::result> matches;
+			std::vector<std::pair<matcher_t::result, matcher_t::marker_ref>> matches;
 			std::size_t attempts = 0;
 			if (test.pattern.options.global) {
 				matcher.find_all(stream, sm, [&](matcher_t::result pos) {
-					matches.emplace_back(pos);
+					matches.emplace_back(pos, matcher.marker);
 					return attempts <= 1000;
 				});
 			} else {
 				bool reject_empty_match = false;
 				if (auto match = matcher.find_next(stream, sm, reject_empty_match)) {
-					matches.emplace_back(std::move(match.value()));
+					matches.emplace_back(std::move(match.value()), matcher.marker);
 				}
 			}
 			CHECK((attempts <= 1000 && matches.empty() == str.expect_no_match));
 
 			std::stringstream matches_str;
-			for (const auto &match : matches) {
+			for (const auto &[match, marker] : matches) {
 				std::size_t beg = match.captures[0].begin.codepoint_position();
 				matches_str << "[" << beg << ", " << beg + match.captures[0].length << "], ";
 			}
@@ -623,9 +625,16 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 			// dump matches
 			INFO("  Matches: " << matches_str.str());
 			if (matches.empty()) {
-				fout << "No match\n";
+				if (matcher.marker) {
+					const auto &name = sm.get_marker_name(matcher.marker);
+					fout <<
+						"No match, mark = " <<
+						std::string_view(reinterpret_cast<const char*>(name.data()), name.size()) << "\n";
+				} else {
+					fout << "No match\n";
+				}
 			} else {
-				for (const auto &match : matches) {
+				for (const auto &[match, marker] : matches) {
 					for (std::size_t i = 0; i < match.captures.size(); ++i) {
 						fout << std::setw(2) << std::setfill(' ') << i << ": ";
 						if (match.captures[i].is_valid()) {
@@ -655,6 +664,12 @@ void run_pcre2_tests(const std::filesystem::path &filename) {
 							}
 						} else {
 							fout << "<unset>\n";
+						}
+						if (marker) {
+							const auto &name = sm.get_marker_name(marker);
+							fout <<
+								"MK: " <<
+								std::string_view(reinterpret_cast<const char*>(name.data()), name.size()) << "\n";
 						}
 					}
 				}

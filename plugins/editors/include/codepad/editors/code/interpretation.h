@@ -117,10 +117,10 @@ namespace codepad::editors::code {
 		/// Registers a series of built-in encodings, and sets the default encoding to UTF-8.
 		encoding_registry() {
 			register_builtin_encoding<encodings::utf8>();
-			register_builtin_encoding<encodings::utf16<endianness::little_endian>>();
-			register_builtin_encoding<encodings::utf16<endianness::big_endian>>();
-			register_builtin_encoding<encodings::utf32<endianness::little_endian>>();
-			register_builtin_encoding<encodings::utf32<endianness::big_endian>>();
+			register_builtin_encoding<encodings::utf16<std::endian::little>>();
+			register_builtin_encoding<encodings::utf16<std::endian::big>>();
+			register_builtin_encoding<encodings::utf32<std::endian::little>>();
+			register_builtin_encoding<encodings::utf32<std::endian::big>>();
 
 			set_default(*get_encoding(encodings::utf8::get_name()));
 		}

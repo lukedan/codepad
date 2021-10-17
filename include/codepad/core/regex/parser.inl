@@ -237,7 +237,7 @@ namespace codepad::regex {
 						}
 						index = id.value();
 					} else { // named backreference
-						codepoint_string res;
+						std::u8string res;
 						while (true) {
 							if (_stream.empty()) {
 								on_error_callback(
@@ -249,7 +249,7 @@ namespace codepad::regex {
 							if (cur_cp == U'}') {
 								break;
 							}
-							res.push_back(cur_cp);
+							res += encodings::utf8::encode_codepoint_u8(cur_cp);
 						}
 						return _details::escaped_sequence::named_backreference(std::move(res));
 					}
@@ -284,24 +284,34 @@ namespace codepad::regex {
 					on_error_callback(_stream, u8"Invalid capture name delimiter for \\k escaped sequence");
 					break;
 				}
-				codepoint_string capture_name;
+				std::u8string capture_name;
 				while (!_stream.empty()) {
 					codepoint cur_cp = _stream.take();
 					if (cur_cp == end) {
 						break;
 					}
-					capture_name.push_back(cur_cp);
+					capture_name += encodings::utf8::encode_codepoint_u8(cur_cp);
 				}
 				return _details::escaped_sequence::named_backreference(std::move(capture_name));
 			}
 			break;
 
 		// character class
-		case U'N':
+		case U'N': // non-newline character
 			if (ctx == _escaped_sequence_context::character_class) {
+				// TODO error
 				break; // \N not allowed in character classes
 			}
-			// TODO non-newline character
+			// TODO check if we're specifying a unicode codepoint value?
+			{
+				_details::escaped_sequence::character_class result;
+				result.ranges.ranges.emplace_back(U'\r');
+				result.ranges.ranges.emplace_back(U'\n');
+				// TODO more ranges (vertical tab etc.)? also we should use the same table as dot
+				result.is_negate = true;
+				result.ranges.sort_and_compact();
+				return result;
+			}
 			break;
 		case U'd': // decimal digit
 			{
@@ -490,7 +500,7 @@ namespace codepad::regex {
 		auto parse_char = [&]() -> _token {
 			while (!_stream.empty()) {
 				codepoint cp = _stream.take();
-				if (_options().extended_more) {
+				if (_options().extended && _options().extended_more) {
 					while (cp == U' ' || cp == U'\t') {
 						if (_stream.empty()) {
 							return _details::escaped_sequence::error();
@@ -739,7 +749,7 @@ namespace codepad::regex {
 		bool complex_assertion_non_atomic = false;
 		// otherwise, the result is a subexpresion (other types return early)
 		auto expr_type = ast_nodes::subexpression::type::normal;
-		codepoint_string capture_name;
+		std::u8string capture_name;
 
 		// determine if this is a named capture, assertion, etc.
 		switch (_stream.peek()) {
@@ -812,7 +822,7 @@ namespace codepad::regex {
 								if (cp == U')') {
 									break;
 								}
-								node.name.push_back(cp);
+								node.name += encodings::utf8::encode_codepoint_u8(cp);
 							}
 							return node_ref;
 						}
@@ -843,7 +853,7 @@ namespace codepad::regex {
 						if (next_cp == name_end) {
 							break;
 						}
-						capture_name.push_back(next_cp);
+						capture_name += encodings::utf8::encode_codepoint_u8(next_cp);
 					}
 					// TODO validate capture name?
 				}
@@ -929,7 +939,7 @@ namespace codepad::regex {
 								ast_nodes::conditional_expression::named_capture_available
 							>();
 							while (!_stream.empty() && _stream.peek() != termination) {
-								cond.name.push_back(_stream.take());
+								cond.name += encodings::utf8::encode_codepoint_u8(_stream.take());
 							}
 							if (_stream.empty()) {
 								on_error_callback(_stream, u8"Missing ending delimiter for named capture condition");
@@ -995,7 +1005,7 @@ namespace codepad::regex {
 						if (cp == U')') {
 							break;
 						}
-						result.name.push_back(cp);
+						result.name += encodings::utf8::encode_codepoint_u8(cp);
 					}
 					return result_ref;
 				}
@@ -1046,7 +1056,12 @@ namespace codepad::regex {
 
 						case U'-':
 							if (!enable_feature) {
-								// TODO error
+								on_error_callback(_stream, u8"Multiple hyphens are not allowed");
+							}
+							if (!allow_disable) {
+								on_error_callback(
+									_stream, u8"Hyphen is not allowed in this case for unsetting options"
+								);
 							}
 							enable_feature = false;
 							break;
@@ -1113,12 +1128,11 @@ namespace codepad::regex {
 						}
 						break;
 					} else {
-						auto encoded = encodings::utf8::encode_codepoint(cp);
-						command.append(reinterpret_cast<const char8_t*>(encoded.data()), encoded.size());
+						command += encodings::utf8::encode_codepoint_u8(cp);
 					}
 				}
 				if (!handled) { // parse verb or option
-					codepoint_string mark;
+					std::u8string mark;
 					if (has_mark) {
 						while (true) {
 							if (_stream.empty()) {
@@ -1129,7 +1143,7 @@ namespace codepad::regex {
 							if (cp == U')') {
 								break;
 							}
-							mark.push_back(cp);
+							mark += encodings::utf8::encode_codepoint_u8(cp);
 						}
 					}
 					if (command == u8"F" || command == u8"FAIL") {

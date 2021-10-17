@@ -145,40 +145,64 @@ namespace codepad::regex {
 		_result.start_state = start_state;
 		_result.end_state = end_state;
 
-		for (std::size_t i = 0; i < expr._nodes.size(); ++i) {
-			_collect_capture_names(expr._nodes[i]);
+		{
+			std::vector<_named_capture_info> named_captures;
+			for (const auto &node : expr._nodes) {
+				// collect capture names
+				if (node.is<ast_nodes::subexpression>()) {
+					const auto &subexpr = std::get<ast_nodes::subexpression>(node.value);
+					if (!subexpr.capture_name.empty()) {
+						named_captures.emplace_back(
+							subexpr.capture_name, compiled_unoptimized::capture_ref(subexpr.capture_index)
+						);
+					}
+				}
+
+				// collect marker names
+				std::visit(
+					[this](const auto &node) {
+						_collect_marker_name(node);
+					},
+					node.value
+				);
+			}
+
+			if (!named_captures.empty()) {
+				std::sort(named_captures.begin(), named_captures.end());
+				// collect named capture info
+				std::u8string last_name = named_captures[0].name;
+				_result.named_captures.start_indices.emplace_back(0);
+				for (auto &cap : named_captures) {
+					if (cap.name != last_name) {
+						_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
+						_capture_names.emplace_back(std::exchange(last_name, std::move(cap.name)));
+					}
+					_result.named_captures.indices.emplace_back(cap.capture);
+				}
+				_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
+				_capture_names.emplace_back(std::move(last_name));
+
+				// build reverse name mapping
+				for (std::size_t i = 0; i + 1 < _result.named_captures.start_indices.size(); ++i) {
+					compiled_unoptimized::capture_name_ref ref(i);
+					for (auto id : _result.named_captures.get_indices_for_name(ref)) {
+						if (id.get_index() >= _result.named_captures.reverse_mapping.size()) {
+							_result.named_captures.reverse_mapping.resize(id.get_index() + 1);
+						}
+						auto &value = _result.named_captures.reverse_mapping[id.get_index()];
+						if (value && value != ref) {
+							// TODO error
+						}
+						value = ref;
+					}
+				}
+			}
+			
+			std::sort(_result.marker_names.begin(), _result.marker_names.end());
+			auto it = std::unique(_result.marker_names.begin(), _result.marker_names.end());
+			_result.marker_names.erase(it, _result.marker_names.end());
 		}
 
-		if (!_named_captures.empty()) {
-			std::sort(_named_captures.begin(), _named_captures.end());
-			// collect named capture info
-			codepoint_string last_name = _named_captures[0].name;
-			_result.named_captures.start_indices.emplace_back(0);
-			for (auto &cap : _named_captures) {
-				if (cap.name != last_name) {
-					_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
-					_capture_names.emplace_back(std::exchange(last_name, std::move(cap.name)));
-				}
-				_result.named_captures.indices.emplace_back(cap.capture);
-			}
-			_result.named_captures.start_indices.emplace_back(_result.named_captures.indices.size());
-			_capture_names.emplace_back(std::move(last_name));
-
-			// build reverse name mapping
-			for (std::size_t i = 0; i + 1 < _result.named_captures.start_indices.size(); ++i) {
-				compiled_unoptimized::capture_name_ref ref(i);
-				for (auto id : _result.named_captures.get_indices_for_name(ref)) {
-					if (id.get_index() >= _result.named_captures.reverse_mapping.size()) {
-						_result.named_captures.reverse_mapping.resize(id.get_index() + 1);
-					}
-					auto &value = _result.named_captures.reverse_mapping[id.get_index()];
-					if (value && value != ref) {
-						// TODO error
-					}
-					value = ref;
-				}
-			}
-		}
 		_compile(start_state, end_state, expr.root());
 
 		// subroutine for the whole pattern, i.e., recursion
@@ -203,7 +227,6 @@ namespace codepad::regex {
 			jmp.target = group_info.end;
 		}
 
-		_named_captures.clear();
 		_capture_names.clear();
 		_captures.clear();
 		_subroutines.clear();
@@ -567,9 +590,9 @@ namespace codepad::regex {
 			return;
 		}
 		// check if this is a recursion
-		if (cond.name.size() > 0 && cond.name[0] == U'R') {
-			if (cond.name.size() > 1 && cond.name[1] == U'&') { // named
-				if (auto id = _find_capture_name(codepoint_string_view(cond.name).substr(2))) {
+		if (!cond.name.empty() && cond.name[0] == u8'R') {
+			if (cond.name.size() > 1 && cond.name[1] == u8'&') { // named
+				if (auto id = _find_capture_name(std::u8string_view(cond.name).substr(2))) {
 					auto &rec = trans.condition.emplace<
 						compiled_unoptimized::transitions::conditions::named_recursion
 					>();
