@@ -13,9 +13,6 @@ namespace codepad::ui {
 	/// A scroll bar.
 	class scrollbar : public panel {
 	public:
-		/// The default thickness of scrollbars.
-		constexpr static double default_thickness = 10.0;
-
 		/// Contains the old value when the value of this \ref scrollbar has changed.
 		using value_changed_info = value_update_info<double, value_update_info_contents::old_value>;
 

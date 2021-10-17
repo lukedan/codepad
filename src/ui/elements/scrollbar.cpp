@@ -36,7 +36,7 @@ namespace codepad::ui {
 		double
 			totsize = max - min,
 			btnlen = totsize * _visible_range / _total_range;
-		_drag_button_extended = btnlen < get_minimum_drag_button_length() && _total_range < _visible_range;
+		_drag_button_extended = btnlen < get_minimum_drag_button_length() && _visible_range < _total_range;
 		if (_drag_button_extended) {
 			btnlen = std::min(get_minimum_drag_button_length(), 0.5 * totsize);
 			double percentage = get_actual_value() / (_total_range - _visible_range);
