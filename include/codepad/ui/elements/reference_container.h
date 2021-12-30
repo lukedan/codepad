@@ -69,11 +69,11 @@ namespace codepad::ui {
 				if (auto *elem = dynamic_cast<Elem*>(it->second)) {
 					return reference<Elem>(elem);
 				} else {
-					logger::get().log_error(CP_HERE) <<
+					logger::get().log_error() <<
 						"failed: reference '" << name << "' exists, but is not of the expected type";
 				}
 			} else {
-				logger::get().log_error(CP_HERE) << "failed: no reference named '" << name << "'";
+				logger::get().log_error() << "failed: no reference named '" << name << "'";
 			}
 			return reference<Elem>();
 		}
@@ -89,7 +89,7 @@ namespace codepad::ui {
 		bool _handle_reference(std::u8string_view ref, element *elem) {
 			auto [it, inserted] = _references.emplace(ref, elem);
 			if (!inserted) {
-				logger::get().log_error(CP_HERE) << "duplicate references: " << ref;
+				logger::get().log_error() << "duplicate references: " << ref;
 			}
 			return true;
 		}

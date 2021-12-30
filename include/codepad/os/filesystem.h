@@ -73,7 +73,7 @@ namespace codepad::os {
 		~file_mapping() {
 			auto result = unmap();
 			if (result) {
-				logger::get().log_error(CP_HERE) << "file_mapping::unmap() failed with error: " << result;
+				logger::get().log_error() << "file_mapping::unmap() failed with error: " << result;
 			}
 		}
 
@@ -162,7 +162,7 @@ namespace codepad::os {
 		~file() {
 			auto result = close();
 			if (result) {
-				logger::get().log_error(CP_HERE) << "file::close() failed with error: " << result;
+				logger::get().log_error() << "file::close() failed with error: " << result;
 			}
 		}
 

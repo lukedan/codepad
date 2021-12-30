@@ -25,7 +25,7 @@ namespace codepad::ui {
 		/// Checks the given Freetype return value.
 		inline void ft_check(FT_Error err) {
 			if (err != FT_Err_Ok) {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"Freetype error " << err << ": " << FT_Error_String(err);
 				assert_true_sys(false, "Freetype error");
 			}
@@ -49,7 +49,7 @@ namespace codepad::ui {
 				} else if constexpr (std::is_same_v<T, hb_font_t>) {
 					hb_font_reference(this->_handle);
 				} else {
-					logger::get().log_error(CP_HERE) <<
+					logger::get().log_error() <<
 						"add ref operation not implemented for " << demangle(typeid(T).name());
 					std::abort();
 				}
@@ -65,7 +65,7 @@ namespace codepad::ui {
 				} else if constexpr (std::is_same_v<T, hb_font_t>) {
 					hb_font_destroy(this->_handle);
 				} else {
-					logger::get().log_error(CP_HERE) <<
+					logger::get().log_error() <<
 						"release operation for not implemented for " << demangle(typeid(T).name());
 					std::abort();
 				}

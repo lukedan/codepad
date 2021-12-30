@@ -29,7 +29,7 @@ namespace codepad::editors::_details {
 		if (!encoding.empty()) {
 			enc = get_manager().encodings.get_encoding(encoding);
 			if (enc == nullptr) {
-				logger::get().log_warning(CP_HERE) <<
+				logger::get().log_warning() <<
 					"encoding not registered: " << encoding << ", using default encoding instead";
 			}
 		}
@@ -263,7 +263,7 @@ namespace codepad::editors::_details {
 						last = _open_file_with_encoding(path, th, u8"");
 					}
 					if (last) {
-						th.activate_tab(*last);
+						th.activate_tab_and_focus(*last);
 					}
 				}
 				)
@@ -286,7 +286,7 @@ namespace codepad::editors::_details {
 					);
 					get_manager().buffers.initialize_code_editor(*edt, std::move(interp));
 					tb->children().add(*edt);
-					th.activate_tab(*tb);
+					th.activate_tab_and_focus(*tb);
 				}
 				)
 		);
@@ -303,7 +303,7 @@ namespace codepad::editors::_details {
 						last = _open_binary_file(path, th);
 					}
 					if (last) {
-						th.activate_tab(*last);
+						th.activate_tab_and_focus(*last);
 					}
 				}
 				)

@@ -46,7 +46,7 @@ namespace codepad::os {
 		GError *err = nullptr;
 		GdkPixbuf *buf = gdk_pixbuf_new_from_file(path.c_str(), &err);
 		if (err) {
-			logger::get().log_error(CP_HERE, "gdk error ", err->message);
+			logger::get().log_error("gdk error ", err->message);
 			assert_true_sys(false, "cannot load image");
 		}
 		assert_true_usage(gdk_pixbuf_get_bits_per_sample(buf) == 8, "invalid bits per sample");

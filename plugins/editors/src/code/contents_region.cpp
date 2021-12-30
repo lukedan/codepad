@@ -38,7 +38,7 @@ namespace codepad::editors::code {
 			if (encodings::utf8::next_codepoint(it, end, cp)) {
 				str.append(_doc->get_encoding()->encode_codepoint(cp));
 			} else {
-				logger::get().log_warning(CP_HERE) << "skipped invalid byte sequence in input";
+				logger::get().log_warning() << "skipped invalid byte sequence in input";
 			}
 		}
 		_doc->on_insert(_carets, str, this);
@@ -353,7 +353,7 @@ namespace codepad::editors::code {
 			if (family) {
 				families.emplace_back(std::move(family));
 			} else {
-				logger::get().log_info(CP_HERE) << "font family not found: " << f;
+				logger::get().log_info() << "font family not found: " << f;
 			}
 		}
 		set_font_families(std::move(families));

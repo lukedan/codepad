@@ -45,7 +45,7 @@ namespace codepad::ui {
 					property_path::component_list components;
 					auto res = property_path::parser::parse(it.name(), components);
 					if (res != property_path::parser::result::completed) {
-						logger::get().log_error(CP_HERE) << "failed to parse property path: " << it.name();
+						logger::get().log_error() << "failed to parse property path: " << it.name();
 						continue;
 					}
 					json::value_storage attr_value = json::store(it.value());
@@ -68,7 +68,7 @@ namespace codepad::ui {
 							property_path::component_list components;
 							auto res = property_path::parser::parse(aniit.name(), components);
 							if (res != property_path::parser::result::completed) {
-								aniit.value().template log<log_level::error>(CP_HERE) <<
+								aniit.value().log(log_level::error) <<
 									"failed to segment property path, skipping";
 								continue;
 							}
@@ -138,7 +138,7 @@ namespace codepad::ui {
 						i.name(), std::move(arr)
 					);
 					if (!inserted) {
-						logger::get().log_warning(CP_HERE) << "duplicate class arrangements";
+						logger::get().log_warning() << "duplicate class arrangements";
 					}
 				}
 			}
@@ -168,7 +168,7 @@ namespace codepad::ui {
 			if (auto act = obj.template parse_member<hotkey_group::action>(u8"action")) {
 				action = std::move(act.value());
 			} else {
-				obj.template log<log_level::error>(CP_HERE) << "failed to parse action";
+				obj.log(log_level::error) << "failed to parse action";
 				return false;
 			}
 			if (auto gestures = obj.find_member(u8"gestures"); gestures != obj.member_end()) {
@@ -203,7 +203,7 @@ namespace codepad::ui {
 					if (parse_hotkey_entry(gs, act, obj.value())) {
 						gp.register_hotkey(gs, std::move(act));
 					} else {
-						logger::get().log_warning(CP_HERE) << "invalid hotkey entry";
+						logger::get().log_warning() << "invalid hotkey entry";
 					}
 				}
 			}
@@ -224,7 +224,7 @@ namespace codepad::ui {
 							if (auto iter = mapping.find(inherit_name.value()); iter != mapping.end()) {
 								gp = iter->second;
 							} else {
-								inherit.value().template log<log_level::error>(CP_HERE) << "invalid inherit group name";
+								inherit.value().log(log_level::error) << "invalid inherit group name";
 							}
 						}
 					}
@@ -232,7 +232,7 @@ namespace codepad::ui {
 						key_array = hotkeys.value();
 					}
 				} else {
-					i.value().template log<log_level::error>(CP_HERE) << "invalid class hotkey group format";
+					i.value().log(log_level::error) << "invalid class hotkey group format";
 					continue;
 				}
 				if (key_array) {

@@ -10,7 +10,8 @@
 
 namespace codepad::logger_sinks {
 	void console_sink::on_message(
-		const std::chrono::duration<double> &time, const code_position &pos, log_level level, std::u8string_view text
+		const std::chrono::duration<double> &time, const std::source_location &pos,
+		log_level level, std::u8string_view text
 	) {
 		// _get_console_width may fail which may invoke on_message() recursively
 		// this is to avoid blowing the stack
@@ -32,7 +33,7 @@ namespace codepad::logger_sinks {
 
 		// TODO use std::format instead
 		std::stringstream ss;
-		ss << pos.function << " @ " << pos.file << ":" << pos.line;
+		ss << pos.function_name() << " @ " << pos.file_name() << ":" << pos.line() << ":" << pos.column();
 		std::string res = ss.str();
 		_print_w(
 			std::u8string_view(reinterpret_cast<const char8_t*>(res.data()), res.size()),
@@ -119,12 +120,14 @@ namespace codepad::logger_sinks {
 
 
 	void file_sink::on_message(
-		const std::chrono::duration<double> &time, const code_position &pos, log_level level, std::u8string_view text
+		const std::chrono::duration<double> &time, const std::source_location &pos,
+		log_level level, std::u8string_view text
 	) {
 		_fout <<
 			std::setiosflags(std::ios::fixed) << std::setw(static_cast<int>(_time_width)) <<
-			std::setprecision(2) << time.count() << "  " <<
-			_get_level_label(level) << "  " << pos.file << " : " << pos.line << " @ " << pos.function << "\n";
+			std::setprecision(2) << time.count() << "  " << _get_level_label(level) <<
+			"  " << pos.file_name() << " : " << pos.line() << ":" << pos.column() <<
+			" @ " << pos.function_name() << "\n";
 		_fout << std::string_view(reinterpret_cast<const char*>(text.data()), text.size()) << "\n";
 	}
 

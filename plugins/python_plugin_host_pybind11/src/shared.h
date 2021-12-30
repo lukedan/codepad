@@ -73,14 +73,14 @@ namespace pybind11::detail {
 	try {                                                                                            \
 		PYBIND11_OVERLOAD(RETURN_TYPE, CLASS_NAME, FUNC_NAME, __VA_ARGS__);                          \
 	} catch (const ::pybind11::error_already_set &_err) {                                            \
-		::codepad::logger::get().log_error(CP_HERE) << _err.what() << ::codepad::logger::stacktrace; \
+		::codepad::logger::get().log_error() << _err.what() << ::codepad::logger::stacktrace; \
 	}
 
 #define TRY_OVERRIDE_PURE(RETURN_TYPE, CLASS_NAME, FUNC_NAME, ...)                                   \
 	try {                                                                                            \
 		PYBIND11_OVERLOAD_PURE(RETURN_TYPE, CLASS_NAME, FUNC_NAME, __VA_ARGS__);                     \
 	} catch (const ::pybind11::error_already_set &_err) {                                            \
-		::codepad::logger::get().log_error(CP_HERE) << _err.what() << ::codepad::logger::stacktrace; \
+		::codepad::logger::get().log_error() << _err.what() << ::codepad::logger::stacktrace; \
 	}
 
 namespace python_plugin_host_pybind11 {

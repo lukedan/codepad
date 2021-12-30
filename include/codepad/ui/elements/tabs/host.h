@@ -95,7 +95,7 @@ namespace codepad::ui::tabs {
 
 	/// An element for displaying multiple tabs. It contains a ``tabs'' region for displaying the
 	/// \ref tab_button "tab_buttons" of all available \ref tab "tabs" and a region that displays the currently
-	/// selected tab.
+	/// active tab.
 	class host final : public panel {
 		friend tab;
 		friend tab_manager;
@@ -109,11 +109,20 @@ namespace codepad::ui::tabs {
 			_tab_contents_region->children().remove(t);
 		}
 
-		/// Switches the currently visible tab without changing the focus.
-		void switch_tab(tab*);
-		/// Switches the currently visible tab and sets the focus to that tab.
-		void activate_tab(tab &t) {
-			switch_tab(&t);
+		/// Switches the currently visible tab without changing the focus. This cancels the selection on all other
+		/// tabs.
+		void activate_tab(tab*);
+		/// Shorthand for \ref activate_tab() and \ref scheduler::set_focused_element().
+		void activate_tab_and_focus(tab &t) {
+			activate_tab(&t);
+			get_manager().get_scheduler().set_focused_element(&t);
+		}
+		/// Switches the currently visible tab without changing the focus, and without cancelling the selection of
+		/// all other tabs.
+		void activate_tab_keep_selection(tab*);
+		/// Shorthand for \ref activate_tab_keep_selection() and \ref scheduler::set_focused_element().
+		void activate_tab_keep_selection_and_focus(tab &t) {
+			activate_tab_keep_selection(&t);
 			get_manager().get_scheduler().set_focused_element(&t);
 		}
 
@@ -126,42 +135,45 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Returns the \ref panel that contains all tab buttons.
-		panel &get_tab_buttons_region() const {
+		[[nodiscard]] panel &get_tab_buttons_region() const {
 			return *_tab_buttons_region;
 		}
 
+		/// Returns the tab that's currently active.
+		[[nodiscard]] tab *get_active_tab() const {
+			return _active_tab;
+		}
 		/// Returns the total number of tabs in the \ref host.
-		std::size_t get_tab_count() const {
+		[[nodiscard]] std::size_t get_tab_count() const {
 			return _tab_contents_region->children().size();
 		}
 
 		/// Returns the manager of this tab.
-		tab_manager &get_tab_manager() const {
+		[[nodiscard]] tab_manager &get_tab_manager() const {
 			return *_tab_manager;
 		}
 
 		/// Returns the list of tabs.
-		const element_collection &get_tabs() const {
+		[[nodiscard]] const element_collection &get_tabs() const {
 			return _tab_contents_region->children();
 		}
 
 		/// Returns the default class of elements of type \ref host.
-		inline static std::u8string_view get_default_class() {
+		[[nodiscard]] inline static std::u8string_view get_default_class() {
 			return u8"tab_host";
 		}
 
 		/// Returns the name identifier of the region that contains all tab buttons.
-		inline static std::u8string_view get_tab_buttons_region_name() {
+		[[nodiscard]] inline static std::u8string_view get_tab_buttons_region_name() {
 			return u8"tab_buttons_region";
 		}
 		/// Returns the name identifier of the region that contains tab contents.
-		inline static std::u8string_view get_tab_contents_region_name() {
+		[[nodiscard]] inline static std::u8string_view get_tab_contents_region_name() {
 			return u8"tab_contents_region";
 		}
 	protected:
-		panel
-			*_tab_buttons_region = nullptr, ///< The panel that contains all tab buttons.
-			*_tab_contents_region = nullptr; ///< The panel that contains the contents of all tabs.
+		panel *_tab_buttons_region = nullptr; ///< The panel that contains all tab buttons.
+		panel *_tab_contents_region = nullptr; ///< The panel that contains the contents of all tabs.
 
 		/// Pointer to the active tab.
 		tab *_active_tab = nullptr;

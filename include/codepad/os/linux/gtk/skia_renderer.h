@@ -40,7 +40,7 @@ namespace codepad::os {
 			if (!data.renderer->_skia_context) {
 				int major, minor;
 				gdk_gl_context_get_version(gtk_gl_area_get_context(area), &major, &minor);
-				logger::get().log_debug(CP_HERE) << "OpenGL version: " << major << "." << minor;
+				logger::get().log_debug() << "OpenGL version: " << major << "." << minor;
 				data.renderer->_skia_context = GrDirectContext::MakeGL();
 			}
 			data.surface = data.renderer->_create_surface_for_window(*wnd, wnd->get_scaling_factor());

@@ -127,7 +127,7 @@ namespace codepad::os {
 
 			GLenum error = glGetError();
 			if (error != GL_NO_ERROR) {
-				logger::get().log_error(CP_HERE) << "OpenGL error: " << error;
+				logger::get().log_error() << "OpenGL error: " << error;
 				assert_true_sys(false);
 			}
 		}

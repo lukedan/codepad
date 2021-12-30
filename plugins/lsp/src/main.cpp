@@ -95,14 +95,14 @@ extern "C" {
 						// TODO handle multiple encodings
 						[&doc](const std::u8string&, std::shared_ptr<cp::editors::code::interpretation> interp) {
 							if (doc) {
-								cp::logger::get().log_error(CP_HERE) << "document opened using multiple encodings";
+								cp::logger::get().log_error() << "document opened using multiple encodings";
 							}
 							doc = std::move(interp);
 						},
 						path
 					);
 					if (!doc) {
-						cp::logger::get().log_error(CP_HERE) <<
+						cp::logger::get().log_error() <<
 							"received diagnostics for document that's not open: " << path;
 						return;
 					}
@@ -163,7 +163,7 @@ extern "C" {
 		cp::lsp::_client->initialize(
 			init, [](const cp::lsp::types::InitializeResult &res) {
 				if (!res.offsetEncoding.value || res.offsetEncoding.value.value() != u8"utf-32") {
-					cp::logger::get().log_error(CP_HERE) << "LSP server does not support UTF-32";
+					cp::logger::get().log_error() << "LSP server does not support UTF-32";
 				}
 			}
 		);

@@ -51,7 +51,7 @@ namespace codepad::editors {
 			>();
 			return rend_type->property_finder(builder, man);
 		}
-		logger::get().log_error(CP_HERE) << "unregistered decoration renderer type: " << next->type;
+		logger::get().log_error() << "unregistered decoration renderer type: " << next->type;
 		return builder.fail();
 	}
 

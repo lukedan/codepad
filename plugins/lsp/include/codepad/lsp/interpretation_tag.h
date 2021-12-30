@@ -148,7 +148,7 @@ namespace codepad::lsp {
 				const std::vector<types::uinteger> &arr, Callback &&cb
 			) {
 				if (arr.size() % 5 != 0) {
-					logger::get().log_error(CP_HERE) << "semantic token array size is not a multiple of 5";
+					logger::get().log_error() << "semantic token array size is not a multiple of 5";
 				}
 				for (std::size_t i = 0; i + 4 < arr.size(); i += 5) {
 					_semantic_token tok;

@@ -111,8 +111,10 @@ namespace codepad::json {
 
 			/// Creates a new \ref logger::log_entry and logs the path to the current node. This function hides the
 			/// implementation in \ref json::_details::value_type_base to provide additional logging.
-			template <log_level Level> logger::log_entry log(code_position pos) const {
-				logger::log_entry entry = logger::get().log<Level>(std::move(pos));
+			[[nodiscard]] logger::log_entry log(
+				log_level level, std::source_location pos = std::source_location::current()
+			) const {
+				logger::log_entry entry = logger::get().log(level, std::move(pos));
 				entry << u8"at ";
 				_node->print_path(entry);
 				entry << u8":\n";
@@ -222,8 +224,10 @@ namespace codepad::json {
 
 			/// Creates a new \ref logger::log_entry and logs the path to the current node. This function hides the
 			/// implementation in \ref json::_details::value_type_base to provide additional logging.
-			template <log_level Level> logger::log_entry log(code_position pos) const {
-				logger::log_entry entry = logger::get().log<Level>(std::move(pos));
+			[[nodiscard]] logger::log_entry log(
+				log_level level, std::source_location pos = std::source_location::current()
+			) const {
+				logger::log_entry entry = logger::get().log(level, std::move(pos));
 				entry << u8"at ";
 				_node->print_path(entry);
 				entry << u8":\n";

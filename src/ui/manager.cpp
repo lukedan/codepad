@@ -56,7 +56,7 @@ namespace codepad::ui {
 					}
 					_create_children_recursive(*pnl, arrangements.children, *root, scope_it->second);
 				} else {
-					logger::get().log_error(CP_HERE) << "children specified for non-panel elements";
+					logger::get().log_error() << "children specified for non-panel elements";
 				}
 			}
 			// step 2: handle references
@@ -92,7 +92,7 @@ namespace codepad::ui {
 	element *manager::_construction_context::_create_element(std::u8string_view type, std::u8string_view cls) {
 		auto it = _manager._element_registry.find(type);
 		if (it == _manager._element_registry.end()) {
-			logger::get().log_error(CP_HERE) << "failed to create element of type: " << type;
+			logger::get().log_error() << "failed to create element of type: " << type;
 			return nullptr;
 		}
 		element *elem = it->second(); // the constructor must not use element::_manager
@@ -115,7 +115,7 @@ namespace codepad::ui {
 				if (!child.configuration.name.empty()) {
 					auto [it, inserted] = scope.emplace(child.configuration.name, elem);
 					if (!inserted) {
-						logger::get().log_error(CP_HERE) << "duplicate element names: " << child.configuration.name;
+						logger::get().log_error() << "duplicate element names: " << child.configuration.name;
 					}
 				}
 
@@ -123,7 +123,7 @@ namespace codepad::ui {
 				if (!child.element_class.empty()) {
 					default_arrangements = _manager.get_class_arrangements().get(child.element_class);
 					if (!default_arrangements) {
-						logger::get().log_error(CP_HERE) << "element class not found: " << child.element_class;
+						logger::get().log_error() << "element class not found: " << child.element_class;
 					}
 				}
 				auto *default_configuration = default_arrangements ? &default_arrangements->configuration : nullptr;
@@ -144,7 +144,7 @@ namespace codepad::ui {
 						}
 						_create_children_recursive(*pnl, child.children, custom_subtree_root, scope);
 					} else {
-						logger::get().log_error(CP_HERE) << "children specified for non-panel elements";
+						logger::get().log_error() << "children specified for non-panel elements";
 					}
 				}
 			}
@@ -171,7 +171,7 @@ namespace codepad::ui {
 		if (current) {
 			return current;
 		}
-		auto entry = logger::get().log_warning(CP_HERE);
+		auto entry = logger::get().log_warning();
 		entry << "failed to find element by name: ";
 		bool first = true;
 		for (const auto &level : name) {
@@ -190,12 +190,12 @@ namespace codepad::ui {
 		std::vector<_animation_data> anis;
 		for (auto &ani : ev.animations) {
 			if (ani.subject.empty()) {
-				logger::get().log_error(CP_HERE) << "empty property path";
+				logger::get().log_error() << "empty property path";
 				continue;
 			}
 			property_info prop = affected._find_property_path(ani.subject);
 			if (prop.accessor == nullptr || prop.value_handler == nullptr) {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"failed to find property corresponding to property path: " <<
 					property_path::to_string(ani.subject.begin(), ani.subject.end());
 				continue;
@@ -208,7 +208,7 @@ namespace codepad::ui {
 				target->_start_animation(ani.animation->start(target, ani.property.accessor));
 			}
 		})) {
-			logger::get().log_error(CP_HERE) << "unknown event name: " << ev.event_name;
+			logger::get().log_error() << "unknown event name: " << ev.event_name;
 		}
 	}
 
@@ -218,7 +218,7 @@ namespace codepad::ui {
 		for (const auto &ref : refs) {
 			auto *ref_elem = _find_element_by_name(root, ref.name);
 			if (!elem._handle_reference(ref.role, ref_elem)) {
-				auto entry = logger::get().log_error(CP_HERE);
+				auto entry = logger::get().log_error();
 				entry << "unhandled reference: " << ref.role << " -> ";
 				bool first = true;
 				for (const auto &part : ref.name) {
@@ -240,7 +240,7 @@ namespace codepad::ui {
 			if (!trigger.instigator.empty()) {
 				target_elem = _find_element_by_name(root, trigger.instigator);
 				if (!target_elem) {
-					logger::get().log_error(CP_HERE) << "failed to find event trigger element";
+					logger::get().log_error() << "failed to find event trigger element";
 					continue;
 				}
 			}
@@ -253,12 +253,12 @@ namespace codepad::ui {
 	) {
 		for (const auto &attr : attrs) {
 			if (attr.property.empty()) {
-				logger::get().log_error(CP_HERE) << "empty property path";
+				logger::get().log_error() << "empty property path";
 				continue;
 			}
 			property_info prop = elem._find_property_path(attr.property);
 			if (prop.accessor == nullptr || prop.value_handler == nullptr) {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"failed to find property corresponding to property path: " <<
 					property_path::to_string(attr.property.begin(), attr.property.end());
 				continue;
@@ -307,7 +307,7 @@ namespace codepad::ui {
 			if (cmd) {
 				(*cmd)(info.subject, info.command.arguments);
 			} else {
-				logger::get().log_warning(CP_HERE) << "invalid command: " << info.command.identifier;
+				logger::get().log_warning() << "invalid command: " << info.command.identifier;
 			}
 		};
 	}

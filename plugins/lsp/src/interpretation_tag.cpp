@@ -307,7 +307,7 @@ namespace codepad::lsp {
 				}
 				std::size_t v = theme->get_index_for(std::move(strings));
 				if (v == editors::theme_configuration::no_associated_theme) {
-					logger::get().log_warning(CP_HERE) << "no associated theme";
+					logger::get().log_warning() << "no associated theme";
 				} else {
 					it->second = theme->entries[v].theme;
 				}

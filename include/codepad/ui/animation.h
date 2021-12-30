@@ -144,7 +144,7 @@ namespace codepad::ui {
 				} else if (auto frame = val.template try_parse<_keyframe>(keyframe_parser)) {
 					res.keyframes.emplace_back(std::move(frame.value()));
 				} else {
-					val.template log<log_level::error>(CP_HERE) << "no keyframe found in animation";
+					val.log(log_level::error) << "no keyframe found in animation";
 					return std::nullopt;
 				}
 				if (auto it = obj->find_member(u8"repeat"); it != obj->member_end()) {
@@ -154,8 +154,7 @@ namespace codepad::ui {
 					} else if (auto boolean = repeat_val.template try_cast<bool>()) {
 						res.repeat_times = boolean.value() ? 0 : 1;
 					} else {
-						repeat_val.template log<log_level::error>(CP_HERE) <<
-							"invalid repeat for keyframe animation";
+						repeat_val.log(log_level::error) << "invalid repeat for keyframe animation";
 					}
 				}
 				return res;
@@ -232,10 +231,10 @@ namespace codepad::ui {
 				if (auto val = parse(value)) {
 					typed_access->set_value(obj, val.value());
 				} else {
-					logger::get().log_error(CP_HERE) << "failed to parse value";
+					logger::get().log_error() << "failed to parse value";
 				}
 			} else {
-				logger::get().log_error(CP_HERE) << "accessor has incorrect type";
+				logger::get().log_error() << "accessor has incorrect type";
 			}
 		}
 	};
@@ -357,7 +356,7 @@ namespace codepad::ui {
 			if (auto from_val = _accessor->get_value(_subject)) {
 				_from = from_val.value();
 			} else {
-				logger::get().log_error(CP_HERE) << "failed to retrieve animation starting value. using default";
+				logger::get().log_error() << "failed to retrieve animation starting value. using default";
 			}
 		}
 
@@ -400,7 +399,7 @@ namespace codepad::ui {
 					}
 				}
 			}
-			logger::get().log_warning(CP_HERE) << "potential zero-duration loop in animation";
+			logger::get().log_warning() << "potential zero-duration loop in animation";
 			return std::nullopt;
 		}
 
@@ -428,7 +427,7 @@ namespace codepad::ui {
 		if (auto typed = std::dynamic_pointer_cast<property_path::accessors::typed_accessor<T>>(access)) {
 			return std::make_unique<playing_keyframe_animation<T>>(*this, subject, typed);
 		}
-		logger::get().log_warning(CP_HERE) << "the given subject of the animation is not typed";
+		logger::get().log_warning() << "the given subject of the animation is not typed";
 		return nullptr;
 	}
 
@@ -524,7 +523,7 @@ namespace codepad::ui {
 						if (auto *obj = dynamic_cast<const Owner*>(&owner)) {
 							return get(*obj);
 						}
-						logger::get().log_error(CP_HERE) <<
+						logger::get().log_error() <<
 							"incorrect dynamic type: expected " << demangle(typeid(Owner).name());
 						return std::nullopt;
 					},
@@ -532,7 +531,7 @@ namespace codepad::ui {
 						if (auto *obj = dynamic_cast<Owner*>(&owner)) {
 							set(*obj, std::move(val));
 						} else {
-							logger::get().log_error(CP_HERE) <<
+							logger::get().log_error() <<
 								"incorrect dynamic type: expected " << demangle(typeid(Owner).name());
 						}
 					},
@@ -558,14 +557,14 @@ namespace codepad::ui {
 					} else {
 						desired_ptr = dynamic_cast<Derived*>(typed_ptr);
 						if (desired_ptr == nullptr) {
-							logger::get().log_error(CP_HERE) <<
+							logger::get().log_error() <<
 								"pointer for modification callback has incorrect dynamic type";
 							return;
 						}
 					}
 					callback(*desired_ptr);
 				} else {
-					logger::get().log_error(CP_HERE) <<
+					logger::get().log_error() <<
 						"failed to cast any_ptr to " << demangle(typeid(Base).name());
 				}
 			};
@@ -596,7 +595,7 @@ namespace codepad::ui {
 		/// \return Whether there are more components to process, i.e., whether \ref ended() will return \p false.
 		bool move_next() {
 			if (_begin->index.has_value() && !_index_used) {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"unused index in property path: " << property_path::to_string(_begin, _end);
 			}
 			++_begin;
@@ -621,7 +620,7 @@ namespace codepad::ui {
 		/// Sets \ref _index_used. If it's already set, logs an error.
 		void mark_index_used() {
 			if (_index_used) {
-				logger::get().log_error(CP_HERE) << "mark_index_used() called multiple times for the same index";
+				logger::get().log_error() << "mark_index_used() called multiple times for the same index";
 			}
 			_index_used = true;
 		}
@@ -647,7 +646,7 @@ namespace codepad::ui {
 		/// Logs an error if the current component's type is not empty and is not the given type.
 		void expect_type(std::u8string_view type) const {
 			if (!_begin->is_type_or_empty(type)) {
-				logger::get().log_error(CP_HERE) << "incorrect type: expected " << type << ", got " << _begin->type;
+				logger::get().log_error() << "incorrect type: expected " << type << ", got " << _begin->type;
 			}
 		}
 
@@ -683,7 +682,7 @@ namespace codepad::ui {
 		}
 		/// Logs an error message and returns an empty \ref property_info.
 		[[nodiscard]] property_info fail() {
-			auto entry = logger::get().log_error(CP_HERE);
+			auto entry = logger::get().log_error();
 			entry << "failed to find property path";
 			if (!has_ended()) {
 				entry << ": " << property_path::to_string(_begin, _end);
@@ -749,7 +748,7 @@ namespace codepad::ui {
 			component_property_accessor_builder &builder
 		) {
 			if (builder.move_next()) {
-				logger::get().log_error(CP_HERE) << "primitive types have no properties";
+				logger::get().log_error() << "primitive types have no properties";
 			}
 			return builder.finish_and_create_property_info<Object>();
 		}
@@ -758,7 +757,7 @@ namespace codepad::ui {
 			component_property_accessor_builder &builder, manager &man
 		) {
 			if (builder.move_next()) {
-				logger::get().log_error(CP_HERE) << "primitive types have no properties";
+				logger::get().log_error() << "primitive types have no properties";
 			}
 			return builder.finish_and_create_property_info_managed<Object>(man);
 		}

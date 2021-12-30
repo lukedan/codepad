@@ -1075,6 +1075,21 @@
 						"type": "rectangle",
 						"top_left": [
 							[ 0.0, 1.0 ],
+							[ 5.0, 0.0 ]
+						],
+						"bottom_right": [
+							[ 1.0, 1.0 ],
+							[ -5.0, 0.0 ]
+						],
+						"fill": {
+							"type": "solid",
+							"color": [ 0.3, 0.3, 0.3, 1.0 ]
+						}
+					},
+					{
+						"type": "rectangle",
+						"top_left": [
+							[ 0.0, 1.0 ],
 							[ 0.0, 0.0 ]
 						],
 						"bottom_right": [
@@ -1083,7 +1098,7 @@
 						],
 						"fill": {
 							"type": "solid",
-							"color": [ 1.0, 1.0, 1.0, 0.15 ]
+							"color": [ 0.15, 0.15, 0.15, 1.0 ]
 						}
 					}
 				]
@@ -1091,14 +1106,34 @@
 		},
 		"animations": {
 			"tab_selected": {
-				"visuals.geometries[0].(rectangle.top_left).relative.y": {
+				"visuals.geometries[0].(rectangle.top_left)": {
+					"to": [
+						[ 0.0, 0.0 ],
+						[ 5.0, 5.0 ]
+					],
+					"duration": 0.1,
+					"transition": "convex_quadratic"
+				}
+			},
+			"tab_deselected": {
+				"visuals.geometries[0].(rectangle.top_left)": {
+					"to": [
+						[ 0.0, 1.0 ],
+						[ 5.0, 0.0 ]
+					],
+					"duration": 0.1,
+					"transition": "concave_quadratic"
+				}
+			},
+			"tab_activated": {
+				"visuals.geometries[1].(rectangle.top_left).relative.y": {
 					"to": 0.0,
 					"duration": 0.1,
 					"transition": "convex_quadratic"
 				}
 			},
-			"tab_unselected": {
-				"visuals.geometries[0].(rectangle.top_left).relative.y": {
+			"tab_deactivated": {
+				"visuals.geometries[1].(rectangle.top_left).relative.y": {
 					"to": 1.0,
 					"duration": 0.1,
 					"transition": "concave_quadratic"

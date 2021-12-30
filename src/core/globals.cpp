@@ -50,7 +50,7 @@ namespace codepad {
 		template <typename ...Args> explicit _global_wrapper(Args &&...args) : object(forward<Args>(args)...) {
 			// logging is not performed for logger since it may lead to recursive initialization
 			if constexpr (!std::is_same_v<T, logger>) {
-				logger::get().log_debug(CP_HERE) <<
+				logger::get().log_debug() <<
 					std::u8string((_global_init_stk.size() - 1) * 2, u8' ') <<
 					"finish init: " << _global_init_stk.top();
 			}
@@ -70,7 +70,7 @@ namespace codepad {
 			_init_marker() {
 				std::u8string tname = demangle(typeid(T).name());
 				if constexpr (!std::is_same_v<T, logger>) { // logging is not performed for logger
-					logger::get().log_debug(CP_HERE) <<
+					logger::get().log_debug() <<
 						std::u8string(_global_init_stk.size() * 2, u8' ') << "begin init: " << tname;
 				}
 				_global_init_stk.emplace(move(tname));
@@ -78,7 +78,7 @@ namespace codepad {
 			/// Destructor. Logs when the object has been destructed.
 			~_init_marker() {
 				if constexpr (!std::is_same_v<T, logger>) { // logging is not performed for logger
-					logger::get().log_debug(CP_HERE) << "disposed: " << _cur_global_dispose;
+					logger::get().log_debug() << "disposed: " << _cur_global_dispose;
 				}
 				_cur_global_dispose.clear();
 			}

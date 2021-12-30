@@ -371,7 +371,7 @@ namespace codepad::ui {
 		bool _handle_reference(std::u8string_view name, element *e) override {
 			if (name == get_hit_test_fallback_name()) {
 				if (e && e->parent() != this) {
-					logger::get().log_error(CP_HERE) << "hit test fallback must be a direct child";
+					logger::get().log_error() << "hit test fallback must be a direct child";
 				} else {
 					_hit_test_fallback = e;
 				}

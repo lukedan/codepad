@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <optional>
 #include <cmath>
+#include <source_location>
 
 #include "codepad/apigen_definitions.h"
 
@@ -35,28 +36,28 @@ namespace codepad {
 		enable_enum_bitwise_operators<T>::value;
 
 	/// Bitwise and for enum classes.
-	template <typename Enum> inline constexpr std::enable_if_t<
+	template <typename Enum> [[nodiscard]] inline constexpr std::enable_if_t<
 		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
 	> operator&(Enum lhs, Enum rhs) {
 		using _base = std::underlying_type_t<Enum>;
 		return static_cast<Enum>(static_cast<_base>(lhs) & static_cast<_base>(rhs));
 	}
 	/// Bitwise or for enum classes.
-	template <typename Enum> inline constexpr std::enable_if_t<
+	template <typename Enum> [[nodiscard]] inline constexpr std::enable_if_t<
 		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
 	> operator|(Enum lhs, Enum rhs) {
 		using _base = std::underlying_type_t<Enum>;
 		return static_cast<Enum>(static_cast<_base>(lhs) | static_cast<_base>(rhs));
 	}
 	/// Bitwise xor for enum classes.
-	template <typename Enum> inline constexpr std::enable_if_t<
+	template <typename Enum> [[nodiscard]] inline constexpr std::enable_if_t<
 		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
 	> operator^(Enum lhs, Enum rhs) {
 		using _base = std::underlying_type_t<Enum>;
 		return static_cast<Enum>(static_cast<_base>(lhs) ^ static_cast<_base>(rhs));
 	}
 	/// Bitwise not for enum classes.
-	template <typename Enum> inline constexpr std::enable_if_t<
+	template <typename Enum> [[nodiscard]] inline constexpr std::enable_if_t<
 		std::is_enum_v<Enum> && enable_enum_bitwise_operators_v<Enum>, Enum
 	> operator~(Enum v) {
 		using _base = std::underlying_type_t<Enum>;
@@ -91,7 +92,7 @@ namespace codepad {
 
 	/// Parses enums from strings. Specialize this class to provide parsing for a specific enum type.
 	template <typename Enum> struct enum_parser {
-		static std::optional<Enum> parse(std::u8string_view);
+		[[nodiscard]] static std::optional<Enum> parse(std::u8string_view);
 	};
 
 
@@ -112,67 +113,55 @@ namespace codepad {
 		using hash_type = std::hash<std::basic_string_view<Char>>; ///< Underlying \p std::hash type.
 
 		/// Computes hash for a C-style string.
-		std::size_t operator()(const Char *str) const {
+		[[nodiscard]] std::size_t operator()(const Char *str) const {
 			// FIXME this will compute the length of the string which is O(n). however, since we don't use this
 			//       function often this is probably fine
 			return hash_type{}(str);
 		}
 		/// Computes hash for a \p std::basic_string_view.
-		std::size_t operator()(std::basic_string_view<Char> str) const {
+		[[nodiscard]] std::size_t operator()(std::basic_string_view<Char> str) const {
 			return hash_type{}(str);
 		}
 		/// Computes hash for a \p std::basic_string.
-		std::size_t operator()(const std::basic_string<Char> &str) const {
+		[[nodiscard]] std::size_t operator()(const std::basic_string<Char> &str) const {
 			return hash_type{}(str);
 		}
 	};
-
-
-	/// Information about a position in the code of codepad.
-	///
-	/// \todo Use std::source_location.
-	struct code_position {
-		/// Constructs the \ref code_position with the corresponding information.
-		code_position(const char *fil, const char *func, int l) : file(fil), function(func), line(l) {
-		}
-
-		/// Prints a \ref code_position to a stream.
-		friend std::ostream &operator<<(std::ostream &out, const code_position &cp) {
-			return out << cp.function << " @" << cp.file << ":" << cp.line;
-		}
-
-		const char
-			*file = nullptr, ///< The file.
-			*function = nullptr; ///< The function.
-		int line = 0; ///< The line of the file.
-
-		/// Equality.
-		friend bool operator==(const code_position &lhs, const code_position &rhs) {
-			return lhs.file == rhs.file && lhs.function == rhs.function && lhs.line == rhs.line;
-		}
-		/// Inequality.
-		friend bool operator!=(const code_position &lhs, const code_position &rhs) {
-			return !(lhs == rhs);
-		}
-	};
-	/// A \ref codepad::code_position representing where it appears.
-#define CP_HERE ::codepad::code_position(__FILE__, __func__, __LINE__)
-}
-namespace std {
-	/// Hash specialization for \ref codepad::code_position.
-	template <> struct hash<codepad::code_position> {
+	/// \p std::hash equivalent for \p std::source_location.
+	struct source_location_hash {
 		/// The implementation.
-		std::size_t operator()(const codepad::code_position &pos) const {
-			std::size_t res = hash<int>()(pos.line);
-			hash<string_view> viewhasher;
-			res = codepad::combine_hashes(res, viewhasher(pos.function));
-			res = codepad::combine_hashes(res, viewhasher(pos.file));
+		[[nodiscard]] std::size_t operator()(const std::source_location &pos) const {
+			std::hash<int> numhasher;
+			std::hash<std::string_view> viewhasher;
+			std::size_t res = numhasher(pos.line());
+			res = codepad::combine_hashes(res, numhasher(pos.column()));
+			res = codepad::combine_hashes(res, viewhasher(pos.function_name()));
+			res = codepad::combine_hashes(res, viewhasher(pos.file_name()));
 			return res;
 		}
 	};
-}
+	/// \p std::equal_to equivalent for \p std::source_location.
+	struct source_location_equal_to {
+		/// Tests the equality of the two \p std::source_location objects.
+		[[nodiscard]] bool operator()(
+			const std::source_location &lhs, const std::source_location &rhs
+		) const {
+			if (lhs.line() == rhs.line() && lhs.column() == rhs.column()) {
+				if (lhs.file_name() != rhs.file_name() && std::strcmp(lhs.file_name(), rhs.file_name()) != 0) {
+					return false;
+				}
+				if (
+					lhs.function_name() != rhs.function_name() &&
+					std::strcmp(lhs.function_name(), rhs.function_name()) != 0
+				) {
+					return false;
+				}
+				return true;
+			}
+			return false;
+		}
+	};
 
-namespace codepad {
 	/// Returns the index of the highest bit in the given integer. Returns 64 if \p v is 0.
 	inline constexpr std::size_t high_bit_index(std::uint64_t v) {
 		if (v == 0) {

@@ -162,11 +162,11 @@ namespace codepad::tree_sitter {
 			if (!ts_parser_set_included_ranges(
 				parser.get(), cur_layer.ranges.data(), static_cast<uint32_t>(cur_layer.ranges.size())
 			)) {
-				logger::get().log_error(CP_HERE) << "failed to parse document: invalid ranges";
+				logger::get().log_error() << "failed to parse document: invalid ranges";
 				break;
 			}
 			if (!ts_parser_set_language(parser.get(), cur_layer.lang_config->get_language())) {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"failed to parse document: language version mismatch";
 				break;
 			}

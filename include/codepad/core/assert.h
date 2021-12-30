@@ -48,7 +48,7 @@ namespace codepad {
 	/// \ref assert_true specialization of error_level::system_error.
 	template <> inline void assert_true<error_level::system_error>(bool v, const char *msg) {
 		if (!v) {
-			logger::get().log_error(CP_HERE) << "System error encountered: " << msg << logger::stacktrace;
+			logger::get().log_error() << "System error encountered: " << msg << logger::stacktrace;
 			std::abort();
 		}
 	}
@@ -60,7 +60,7 @@ namespace codepad {
 	/// \ref assert_true specialization of error_level::usage_error.
 	template <> inline void assert_true<error_level::usage_error>(bool v, const char *msg) {
 		if (!v) {
-			logger::get().log_error(CP_HERE) << "Usage error encountered: " << msg << logger::stacktrace;
+			logger::get().log_error() << "Usage error encountered: " << msg << logger::stacktrace;
 			std::abort();
 		}
 	}
@@ -72,7 +72,7 @@ namespace codepad {
 	/// \ref assert_true specialization of error_level::logical_error.
 	template <> inline void assert_true<error_level::logical_error>(bool v, const char *msg) {
 		if (!v) {
-			logger::get().log_error(CP_HERE) << "Logical error encountered: " << msg << logger::stacktrace;
+			logger::get().log_error() << "Logical error encountered: " << msg << logger::stacktrace;
 			std::abort();
 		}
 	}

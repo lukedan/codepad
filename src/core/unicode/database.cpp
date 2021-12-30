@@ -8,6 +8,7 @@
 
 #include <fstream>
 #include <map>
+#include <charconv>
 
 namespace codepad {
 	namespace unicode::database {

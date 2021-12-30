@@ -20,7 +20,7 @@ namespace codepad::lsp::uri {
 		auto *res_data = reinterpret_cast<char*>(res.data());
 		int error = convert(reinterpret_cast<const char*>(p.c_str()), res_data);
 		if (error != 0) {
-			logger::get().log_error(CP_HERE) << "failed to convert: " << p << ", error: " << error;
+			logger::get().log_error() << "failed to convert: " << p << ", error: " << error;
 			assert_true_sys(false, "failed to convert between path and uri");
 		}
 		res.resize(std::strlen(res_data));

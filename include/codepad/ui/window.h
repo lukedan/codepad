@@ -263,7 +263,7 @@ namespace codepad::ui {
 		}
 		/// Releases the mouse capture. Derived classes should override this function to notify the system.
 		void release_mouse_capture() {
-			logger::get().log_debug(CP_HERE) << "release mouse capture";
+			logger::get().log_debug() << "release mouse capture";
 			assert_true_usage(_capture != nullptr, "mouse not captured");
 			_capture = nullptr;
 			// TODO send a mouse_move message to correct mouse over information?

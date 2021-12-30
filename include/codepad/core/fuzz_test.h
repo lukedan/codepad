@@ -83,7 +83,7 @@ namespace codepad {
 
 			codepad::initialize(argc, argv);
 
-			logger::get().log_info(CP_HERE) << "Initializing fuzz test: " << test->get_name();
+			logger::get().log_info() << "Initializing fuzz test: " << test->get_name();
 			test->initialize();
 
 			auto last_log = std::chrono::high_resolution_clock::now();
@@ -95,7 +95,7 @@ namespace codepad {
 				auto now = std::chrono::high_resolution_clock::now();
 				if (std::chrono::duration_cast<std::chrono::seconds>(now - last_log).count() >= 1) {
 					auto secs = std::chrono::duration<double>(now - start_time).count();
-					auto entry = logger::get().log_info(CP_HERE);
+					auto entry = logger::get().log_info();
 					entry <<
 						"Fuzz test: " << test->get_name() << "\n" <<
 						"Elapsed time: " << std::chrono::duration<double>(now - start_time) << "\n" <<
@@ -106,7 +106,7 @@ namespace codepad {
 				}
 			}
 
-			logger::get().log_info(CP_HERE) << "Exiting fuzz test normally: " << test->get_name();
+			logger::get().log_info() << "Exiting fuzz test normally: " << test->get_name();
 
 			return 0;
 		}

@@ -73,7 +73,7 @@ namespace codepad::logger_sinks {
 
 		/// Prints the logging message.
 		void on_message(
-			const std::chrono::duration<double>&, const code_position&, log_level, std::u8string_view
+			const std::chrono::duration<double>&, const std::source_location&, log_level, std::u8string_view
 		) override;
 
 		/// Returns the current color scheme.
@@ -125,7 +125,7 @@ namespace codepad::logger_sinks {
 
 		/// Writes the log message to the file.
 		void on_message(
-			const std::chrono::duration<double>&, const code_position&, log_level, std::u8string_view
+			const std::chrono::duration<double>&, const std::source_location&, log_level, std::u8string_view
 		) override;
 
 		/// Returns a reference to the time output width.

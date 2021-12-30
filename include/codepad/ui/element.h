@@ -102,7 +102,7 @@ namespace codepad::ui {
 			double product = new_value * current;
 			if (product < 0.0) {
 				if (product < -1e-6) {
-					logger::get().log_warning(CP_HERE) <<
+					logger::get().log_warning() <<
 						"consuming too much scroll delta on the " << name << "axis" << logger::stacktrace;
 				}
 				new_value = 0.0;
@@ -667,7 +667,7 @@ namespace codepad::ui {
 		template <typename DesiredType> inline static bool _reference_cast_to(DesiredType *&target, element *value) {
 			target = dynamic_cast<DesiredType*>(value);
 			if (target == nullptr) {
-				auto entry = logger::get().log_error(CP_HERE);
+				auto entry = logger::get().log_error();
 				entry << "incorrect reference type, need " << demangle(typeid(DesiredType).name());
 				if (value) {
 					entry << ", found " << demangle(typeid(*value).name());

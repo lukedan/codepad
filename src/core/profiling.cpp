@@ -28,15 +28,15 @@ namespace codepad {
 	performance_monitor::~performance_monitor() {
 		auto dur = clock_t::now() - _beg_time;
 		if (dur > _expected && _cond != log_condition::never) {
-			logger::get().log_info(CP_HERE) <<
+			logger::get().log_info() <<
 				"operation took longer(" << dur << ") than expected(" << _expected << "): " << _label;
 		} else if (_cond == log_condition::always) {
-			logger::get().log_debug(CP_HERE) << "operation took " << dur << ": " << _label;
+			logger::get().log_debug() << "operation took " << dur << ": " << _label;
 		}
 	}
 
 	void performance_monitor::log_time() {
 		auto dur = std::chrono::duration_cast<std::chrono::duration<double>>(clock_t::now() - _beg_time);
-		logger::get().log_debug(CP_HERE) << _label << ": operation has been running for " << dur.count() << "s";
+		logger::get().log_debug() << _label << ": operation has been running for " << dur.count() << "s";
 	}
 }

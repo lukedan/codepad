@@ -200,7 +200,7 @@ namespace codepad::editors::code {
 				std::size_t, std::size_t posafter, decoration_gatherer &rend
 			) {
 				double xmax = rendering.topleft.x;
-				logger::get().log_debug(CP_HERE) << "xmax: " << xmax;
+				logger::get().log_debug() << "xmax: " << xmax;
 				xmax += rendering.width;
 				if (_end <= posafter) {
 					_terminate(xmax, rend);

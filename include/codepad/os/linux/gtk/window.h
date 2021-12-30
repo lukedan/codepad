@@ -187,7 +187,7 @@ namespace codepad::os {
 				nullptr, nullptr, nullptr, nullptr
 			);
 			if (status != GDK_GRAB_SUCCESS) {
-				logger::get().log_error(CP_HERE) << "grab failed: " << status;
+				logger::get().log_error() << "grab failed: " << status;
 				assert_true_sys(false);
 			}
 		}

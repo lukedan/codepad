@@ -227,7 +227,7 @@ namespace codepad::lsp::types {
 			} else if (json_val.is<std::u8string_view>()) { // MarkedString can be a simple string
 				v.visit(value.emplace<MarkedString>());
 			} else { // error
-				logger::get().log_error(CP_HERE) << "invalid JSON for Hover.contents";
+				logger::get().log_error() << "invalid JSON for Hover.contents";
 			}
 		}
 		/// Calls \p std::visit().

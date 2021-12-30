@@ -56,7 +56,7 @@ namespace codepad {
 	struct call_counter {
 	public:
 		/// Registers the given number of calls for the specific slot.
-		void increment(const code_position &pos, std::size_t count = 1) {
+		void increment(const std::source_location &pos, std::size_t count = 1) {
 			auto &&[iter, inserted] = _counters.try_emplace(pos, 0);
 			iter->second += count;
 			_has_calls = true; // count could be 0, but whatever
@@ -65,10 +65,12 @@ namespace codepad {
 		/// Dumps the result of all slots.
 		void dump() const {
 			if (_has_calls) {
-				auto log = logger::get().log_debug(CP_HERE);
+				auto log = logger::get().log_debug();
 				log << "dumping call counters:";
 				for (auto &pair : _counters) {
-					log << "\n  " << reinterpret_cast<const char8_t*>(pair.first.function) << ": " << pair.second;
+					log <<
+						"\n  " << reinterpret_cast<const char8_t*>(pair.first.function_name()) << ": " <<
+						pair.second;
 				}
 			}
 		}
@@ -80,7 +82,10 @@ namespace codepad {
 			_has_calls = false;
 		}
 	protected:
-		std::unordered_map<code_position, std::size_t> _counters; ///< The counters.
+		std::unordered_map<
+			std::source_location, std::size_t,
+			source_location_hash, source_location_equal_to
+		> _counters; ///< The counters.
 		bool _has_calls = false; ///< Records if any calls have been registered.
 	};
 }

@@ -427,7 +427,7 @@ namespace codepad::os::direct2d {
 
 		std::size_t offset = i - (prev_surrogate_word_index + 1);
 		if (offset == 0) {
-			logger::get().log_warning(CP_HERE) << "word index is at second word of a surrogate pair: " << i;
+			logger::get().log_warning() << "word index is at second word of a surrogate pair: " << i;
 		}
 		return *beg + offset;
 	}
@@ -756,7 +756,7 @@ namespace codepad::os::direct2d {
 			&created_feature_level,
 			nullptr
 		));
-		logger::get().log_debug(CP_HERE) << "D3D feature level: " << created_feature_level;
+		logger::get().log_debug() << "D3D feature level: " << created_feature_level;
 		_details::com_check(_d3d_device->QueryInterface(_dxgi_device.get_ref()));
 
 		_details::com_check(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, _d2d_factory.get_ref()));
@@ -1397,7 +1397,7 @@ namespace codepad::os::direct2d {
 			for (std::size_t i = result->_char_count - 1; i > 0; ) {
 				--i;
 				if (result->_cluster_map[i + 1] < result->_cluster_map[i]) {
-					logger::get().log_warning(CP_HERE) << "non-monotonic cluster map encountered at position " << i;
+					logger::get().log_warning() << "non-monotonic cluster map encountered at position " << i;
 					result->_cluster_map[i] = result->_cluster_map[i + 1];
 				}
 			}

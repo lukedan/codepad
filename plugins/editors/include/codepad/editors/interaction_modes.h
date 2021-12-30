@@ -439,7 +439,7 @@ namespace codepad::editors {
 					auto it = man.get_contents_region().get_carets().begin(); // TODO select a better caret
 					if (it.get_iterator() == man.get_contents_region().get_carets().carets.end()) {
 						// should not happen
-						logger::get().log_error(CP_HERE) << "empty caret set when starting mouse interaction";
+						logger::get().log_error() << "empty caret set when starting mouse interaction";
 						return nullptr;
 					}
 					typename CaretSet::selection caret_sel = CaretSet::get_caret_selection(it);
@@ -491,8 +491,8 @@ namespace codepad::editors {
 			bool on_mouse_move(ui::mouse_move_info &info) override {
 				if (
 					(info.new_position.get(this->_manager.get_contents_region()) - _init_pos).length_sqr() > 25.0
-					) { // TODO magic value
-					logger::get().log_debug(CP_HERE) << "start drag drop";
+				) { // TODO magic value
+					logger::get().log_debug() << "start drag drop";
 					// TODO start
 					this->_manager.get_contents_region().get_window()->release_mouse_capture();
 					return false;

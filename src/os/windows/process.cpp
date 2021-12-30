@@ -63,10 +63,10 @@ namespace codepad::os {
 
 		// we don't report these errors as they're less interesting
 		if (!CloseHandle(process_info.hProcess)) {
-			logger::get().log_error(CP_HERE) << "error while closing process handle";
+			logger::get().log_error() << "error while closing process handle";
 		}
 		if (!CloseHandle(process_info.hThread)) {
-			logger::get().log_error(CP_HERE) << "error while closing thread handle";
+			logger::get().log_error() << "error while closing thread handle";
 		}
 		return std::error_code();
 	}

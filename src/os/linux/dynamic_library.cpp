@@ -14,7 +14,7 @@ namespace codepad::os {
 	dynamic_library::symbol_t dynamic_library::find_symbol_raw(const std::u8string &symbol) const {
 		symbol_t result = dlsym(_handle, reinterpret_cast<const char*>(symbol.c_str()));
 		if (result == nullptr) {
-			logger::get().log_warning(CP_HERE) << "find symbol failed: " << dlerror();
+			logger::get().log_warning() << "find symbol failed: " << dlerror();
 		}
 		return result;
 	}
@@ -22,14 +22,14 @@ namespace codepad::os {
 	dynamic_library::native_handle_t dynamic_library::_load_impl(const std::filesystem::path &path) {
 		native_handle_t handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_GLOBAL);
 		if (handle == nullptr) {
-			logger::get().log_warning(CP_HERE) << "failed to load dynamic library: " << dlerror();
+			logger::get().log_warning() << "failed to load dynamic library: " << dlerror();
 		}
 		return handle;
 	}
 
 	void dynamic_library::_unload_impl(native_handle_t handle) {
 		if (dlclose(handle) != 0) {
-			logger::get().log_warning(CP_HERE) << "failed to close dynamic library: " << dlerror();
+			logger::get().log_warning() << "failed to close dynamic library: " << dlerror();
 		}
 	}
 }

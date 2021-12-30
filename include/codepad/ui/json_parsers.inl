@@ -18,7 +18,7 @@ namespace codepad::json {
 		if (auto arr = val.template try_cast<typename Value::array_type>()) {
 			if (arr->size() >= 2) {
 				if (arr->size() > 2) {
-					val.template log<log_level::warning>(CP_HERE) <<
+					val.log(log_level::warning) <<
 						"redundant members in relative vec2d definition";
 				}
 				if (auto x = arr->at(0).template try_cast<double>()) { // only absolute component
@@ -30,10 +30,10 @@ namespace codepad::json {
 						return ui::relative_vec2d(rel_vec.value(), abs_vec.value());
 					}
 				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid relative vec2d component format";
+					val.log(log_level::error) << "invalid relative vec2d component format";
 				}
 			} else {
-				val.template log<log_level::error>(CP_HERE) << "not enough entries in relative vec2d definition";
+				val.log(log_level::error) << "not enough entries in relative vec2d definition";
 			}
 		} else if (auto full = val.template try_cast<typename Value::object_type>()) { // full representation
 			if (auto abs = full->template parse_member<vec2d>(u8"absolute")) {
@@ -42,7 +42,7 @@ namespace codepad::json {
 				}
 			}
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid relative vec2d format";
+			val.log(log_level::error) << "invalid relative vec2d format";
 		}
 		return std::nullopt;
 	}
@@ -55,7 +55,7 @@ namespace codepad::json {
 			if (auto abs = full->template parse_member<double>(u8"absolute")) {
 				if (auto rel = full->template parse_member<double>(u8"relative")) {
 					if (full->size() > 2) {
-						val.template log<log_level::warning>(CP_HERE) << "redundant fields in relative double";
+						val.log(log_level::warning) << "redundant fields in relative double";
 					}
 					return ui::relative_double(rel.value(), abs.value());
 				}
@@ -63,7 +63,7 @@ namespace codepad::json {
 		} else if (auto arr = val.template try_cast<typename Value::array_type>()) { // a list of two doubles
 			if (arr->size() >= 2) {
 				if (arr->size() > 2) {
-					val.template log<log_level::warning>(CP_HERE) << "redundant elements in relative double";
+					val.log(log_level::warning) << "redundant elements in relative double";
 				}
 				auto
 					rel = arr->at(0).template cast<double>(),
@@ -72,12 +72,12 @@ namespace codepad::json {
 					return ui::relative_double(rel.value(), abs.value());
 				}
 			} else {
-				val.template log<log_level::error>(CP_HERE) << "too few elements in relative double";
+				val.log(log_level::error) << "too few elements in relative double";
 			}
 		} else if (auto abs = val.template try_cast<double>()) { // absolute only
 			return ui::relative_double(0.0, abs.value());
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid relative double format";
+			val.log(log_level::error) << "invalid relative double format";
 		}
 		return std::nullopt;
 	}
@@ -121,7 +121,7 @@ namespace codepad::json {
 			}
 			return ui::transform_parameters::generic::make<ui::transform_parameters::collection>(std::move(res));
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid transform format";
+			val.log(log_level::error) << "invalid transform format";
 		}
 		return std::nullopt;
 	}
@@ -245,7 +245,7 @@ namespace codepad::json {
 		if (auto obj = val.template cast<typename Value::object_type>()) {
 			if (obj->size() > 0) {
 				if (obj->size() > 1) {
-					val.template log<log_level::warning>(CP_HERE) << "too many fields in subpath part";
+					val.log(log_level::warning) << "too many fields in subpath part";
 				}
 				auto member = obj->member_begin();
 				if (member.name() == u8"line_to") {
@@ -265,7 +265,7 @@ namespace codepad::json {
 								} else if (auto rval = it.value().template parse<ui::relative_vec2d>()) {
 									arc.radius = rval.value();
 								} else {
-									it.value().template log<log_level::error>(CP_HERE) <<
+									it.value().log(log_level::error) <<
 										"invalid radius format";
 									return std::nullopt;
 								}
@@ -275,9 +275,7 @@ namespace codepad::json {
 								arc.type =
 									part_obj->template parse_member<bool>(u8"major").value_or(false) ?
 									ui::arc_type::major : ui::arc_type::minor;
-								if (
-									auto rot = part_obj->template parse_optional_member<double>(u8"rotation")
-									) {
+								if (auto rot = part_obj->template parse_optional_member<double>(u8"rotation")) {
 									arc.rotation = rot.value();
 								}
 								return res;
@@ -304,10 +302,10 @@ namespace codepad::json {
 						}
 					}
 				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid subpath part type";
+					val.log(log_level::error) << "invalid subpath part type";
 				}
 			} else {
-				val.template log<log_level::error>(CP_HERE) << "empty subpath part";
+				val.log(log_level::error) << "empty subpath part";
 			}
 		}
 		return std::nullopt;
@@ -352,10 +350,10 @@ namespace codepad::json {
 					}
 				}
 			} else {
-				val.template log<log_level::error>(CP_HERE) << "too few elements in subpath";
+				val.log(log_level::error) << "too few elements in subpath";
 			}
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid subpath format";
+			val.log(log_level::error) << "invalid subpath format";
 		}
 		return std::nullopt;
 	}
@@ -426,7 +424,7 @@ namespace codepad::json {
 			ty = alloc->is_pixels ? ui::size_allocation_type::fixed : ui::size_allocation_type::proportion;
 			return;
 		}
-		val.template log<log_level::error>(CP_HERE) << "failed to parse size component";
+		val.log(log_level::error) << "failed to parse size component";
 	}
 
 
@@ -443,7 +441,7 @@ namespace codepad::json {
 				{ u8'f', ui::visibility::focus }
 				}, str.value());
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid visibility format";
+			val.log(log_level::error) << "invalid visibility format";
 		}
 		return std::nullopt;
 	}
@@ -491,7 +489,7 @@ namespace codepad::json {
 		if (auto arr = val.template try_cast<typename Value::array_type>()) {
 			if (arr->size() >= 4) {
 				if (arr->size() > 4) {
-					val.template log<log_level::error>(CP_HERE) <<
+					val.log(log_level::error) <<
 						"redundant elements in thickness definition";
 				}
 				auto
@@ -503,12 +501,12 @@ namespace codepad::json {
 					return ui::thickness(l.value(), t.value(), r.value(), b.value());
 				}
 			} else {
-				val.template log<log_level::error>(CP_HERE) << "too few elements in thickness";
+				val.log(log_level::error) << "too few elements in thickness";
 			}
 		} else if (auto v = val.template try_cast<double>()) {
 			return ui::thickness(v.value());
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid thickness format";
+			val.log(log_level::error) << "invalid thickness format";
 		}
 		return std::nullopt;
 	}
@@ -541,12 +539,12 @@ namespace codepad::json {
 			auto is_pixels = full->template parse_member<bool>(u8"is_pixels");
 			if (value && is_pixels) {
 				if (full->size() > 2) {
-					full->template log<log_level::error>(CP_HERE) << "redundant fields in size allocation";
+					full->log(log_level::error) << "redundant fields in size allocation";
 				}
 				return ui::size_allocation(value.value(), is_pixels.value());
 			}
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid size allocation format";
+			val.log(log_level::error) << "invalid size allocation format";
 		}
 		return std::nullopt;
 	}
@@ -618,7 +616,7 @@ namespace codepad::json {
 			params.family = std::move(family.value());
 			return params;
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid font parameter format";
+			val.log(log_level::error) << "invalid font parameter format";
 		}
 		return std::nullopt;
 	}
@@ -631,24 +629,24 @@ namespace codepad::json {
 		std::optional<colord> color; // TODO parse color using managed parser?
 		if (auto object = val.template try_cast<typename ValueType::object_type>()) {
 			if (object->size() > 2) {
-				val.template log<log_level::warning>(CP_HERE) << "redundant fields in gradient stop definition";
+				val.log(log_level::warning) << "redundant fields in gradient stop definition";
 			}
 			pos = object->template parse_member<double>(u8"position");
 			color = object->template parse_member<colord>(u8"color");
 		} else if (auto arr = val.template try_cast<typename ValueType::array_type>()) {
 			if (arr->size() >= 2) {
 				if (arr->size() > 2) {
-					val.template log<log_level::warning>(CP_HERE) <<
+					val.log(log_level::warning) <<
 						"redundant data in gradient stop definition";
 				}
 				pos = arr->at(0).template parse<double>();
 				color = arr->at(1).template parse<colord>();
 			} else {
-				val.template log<log_level::error>(CP_HERE) <<
+				val.log(log_level::error) <<
 					"not enough information in gradient stop definition";
 			}
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid gradient stop format";
+			val.log(log_level::error) << "invalid gradient stop format";
 		}
 		if (pos && color) {
 			return ui::gradient_stop(color.value(), pos.value());
@@ -667,13 +665,13 @@ namespace codepad::json {
 			res.identifier = str.value();
 		} else if (auto full_repr = val.template try_cast<typename Value::object_type>()) {
 			if (full_repr->size() != 1) {
-				val.template log<log_level::error>(CP_HERE) << "action must have one and only one member";
+				val.log(log_level::error) << "action must have one and only one member";
 			}
 			auto member = full_repr->member_begin();
 			res.identifier = member.name();
 			res.arguments = store(member.value());
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid action representation";
+			val.log(log_level::error) << "invalid action representation";
 			return std::nullopt;
 		}
 		return res;
@@ -733,7 +731,7 @@ namespace codepad::ui {
 			if (auto func = _manager.find_transition_function(str.value())) {
 				return func;
 			}
-			val.template log<log_level::error>(CP_HERE) << "unrecognized transition function: " << str.value();
+			val.log(log_level::error) << "unrecognized transition function: " << str.value();
 		}
 		return std::nullopt;
 	}
@@ -770,7 +768,7 @@ namespace codepad::ui {
 						result.value.emplace<brush_parameters::bitmap_pattern>(std::move(brush.value()));
 					}
 				} else if (type.value() != u8"none") {
-					val.template log<log_level::error>(CP_HERE) << "invalid brush type";
+					val.log(log_level::error) << "invalid brush type";
 					return std::nullopt;
 				}
 			}
@@ -840,7 +838,7 @@ namespace codepad::ui {
 						return std::nullopt;
 					}
 				} else {
-					val.template log<log_level::error>(CP_HERE) << "invalid geometry type";
+					val.log(log_level::error) << "invalid geometry type";
 					return std::nullopt;
 				}
 				if (auto trans = obj->template parse_optional_member<transform_parameters::generic>(u8"transform")) {
@@ -887,7 +885,7 @@ namespace codepad::ui {
 				return res;
 			}
 		} else {
-			val.template log<log_level::error>(CP_HERE) << "invalid visuals format";
+			val.log(log_level::error) << "invalid visuals format";
 		}
 		return std::nullopt;
 	}

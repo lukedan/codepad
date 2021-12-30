@@ -38,7 +38,7 @@ namespace codepad::ui::cairo {
 				} else if constexpr (std::is_same_v<T, cairo_font_face_t>) {
 					cairo_font_face_reference(this->_handle);
 				} else {
-					logger::get().log_error(CP_HERE) <<
+					logger::get().log_error() <<
 						"add ref operation not implemented for " << demangle(typeid(T).name());
 					std::abort();
 				}
@@ -54,7 +54,7 @@ namespace codepad::ui::cairo {
 				} else if constexpr (std::is_same_v<T, cairo_font_face_t>) {
 					cairo_font_face_destroy(this->_handle);
 				} else {
-					logger::get().log_error(CP_HERE) <<
+					logger::get().log_error() <<
 						"release operation for not implemented for " << demangle(typeid(T).name());
 					std::abort();
 				}

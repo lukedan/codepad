@@ -87,7 +87,7 @@ public:
 		bool has_error = false;
 		auto error = [&]() {
 			has_error = true;
-			return cp::logger::get().log_error(CP_HERE);
+			return cp::logger::get().log_error();
 		};
 
 		bool is_modification = false;

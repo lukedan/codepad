@@ -310,7 +310,7 @@ namespace codepad::lsp::types {
 			if constexpr (_id) {
 				value.template emplace<_id.value()>();
 			} else {
-				logger::get().log_error(CP_HERE) << "variant does not contain a null";
+				logger::get().log_error() << "variant does not contain a null";
 			}
 		}
 		/// Sets this variant to a \ref boolean.
@@ -319,7 +319,7 @@ namespace codepad::lsp::types {
 			if constexpr (_id) {
 				value.template emplace<_id.value()>(b);
 			} else {
-				logger::get().log_error(CP_HERE) << "variant does not contain a boolean";
+				logger::get().log_error() << "variant does not contain a boolean";
 			}
 		}
 		/// Sets this variant to a \ref integer.
@@ -338,21 +338,21 @@ namespace codepad::lsp::types {
 						i < static_cast<std::int64_t>(std::numeric_limits<integer>::min()) ||
 						i > static_cast<std::int64_t>(std::numeric_limits<integer>::max())
 					) {
-						logger::get().log_error(CP_HERE) << "value out of range of int32";
+						logger::get().log_error() << "value out of range of int32";
 					} else {
 						value.template emplace<_id_int.value()>(static_cast<integer>(i));
 					}
 				} else {
 					if (i < 0 || i > static_cast<std::int64_t>(std::numeric_limits<uinteger>::max())) {
-						logger::get().log_error(CP_HERE) << "value out of range of uint32";
+						logger::get().log_error() << "value out of range of uint32";
 					} else {
 						value.template emplace<_id_uint.value()>(static_cast<uinteger>(i));
 					}
 				}
 			} else if constexpr (_count > 1) {
-				logger::get().log_error(CP_HERE) << "variant contains multiple integral types or enums";
+				logger::get().log_error() << "variant contains multiple integral types or enums";
 			} else {
-				logger::get().log_error(CP_HERE) << "variant does not contain any integral types or enums";
+				logger::get().log_error() << "variant does not contain any integral types or enums";
 			}
 		}
 		/// Sets this variant to a \ref decimal.
@@ -361,7 +361,7 @@ namespace codepad::lsp::types {
 			if constexpr (_id) {
 				value.emplace<_id.value()>(d);
 			} else {
-				logger::get().log_error(CP_HERE) << "variant does not contain a decimal";
+				logger::get().log_error() << "variant does not contain a decimal";
 			}
 		}
 		/// Sets this variant to a \ref string.
@@ -377,9 +377,9 @@ namespace codepad::lsp::types {
 					value.template emplace<_id_enum.value()>().set_value(s);
 				}
 			} else if constexpr (_count > 1) {
-				logger::get().log_error(CP_HERE) << "variant contains multiple string types or enums";
+				logger::get().log_error() << "variant contains multiple string types or enums";
 			} else {
-				logger::get().log_error(CP_HERE) << "variant does not contain any string types or enums";
+				logger::get().log_error() << "variant does not contain any string types or enums";
 			}
 		}
 		/// Sets this variant to an \ref array_base.
@@ -388,7 +388,7 @@ namespace codepad::lsp::types {
 			if constexpr (_id) {
 				vis.visit(value.template emplace<_id.value()>());
 			} else {
-				logger::get().log_error(CP_HERE) << "variant does not contain an array type";
+				logger::get().log_error() << "variant does not contain an array type";
 			}
 		}
 		/// Sets this variant to an \ref object or a \ref map_base.
@@ -404,9 +404,9 @@ namespace codepad::lsp::types {
 					vis.visit(value.template emplace<_id_map.value()>());
 				}
 			} else if constexpr (_count > 1) {
-				logger::get().log_error(CP_HERE) << "variant contains multiple object types or enums";
+				logger::get().log_error() << "variant contains multiple object types or enums";
 			} else {
-				logger::get().log_error(CP_HERE) << "variant does not contain any object types or enums";
+				logger::get().log_error() << "variant does not contain any object types or enums";
 			}
 		}
 

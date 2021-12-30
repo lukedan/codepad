@@ -21,7 +21,7 @@ namespace codepad::editors::code {
 			for (auto it = _pattern.begin(); it != _pattern.end(); ) {
 				codepoint cp;
 				if (!encodings::utf8::next_codepoint(it, _pattern.end(), cp)) {
-					logger::get().log_error(CP_HERE) << "invalid codepoint in search string: " << cp;
+					logger::get().log_error() << "invalid codepoint in search string: " << cp;
 					cp = unicode::replacement_character;
 				}
 				pattern.push_back(cp);

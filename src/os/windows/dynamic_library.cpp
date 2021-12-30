@@ -17,7 +17,7 @@ namespace codepad::os {
 	dynamic_library::native_handle_t dynamic_library::_load_impl(const std::filesystem::path &path) {
 		native_handle_t res = LoadLibrary(path.c_str());
 		if (res == nullptr) {
-			logger::get().log_warning(CP_HERE) <<
+			logger::get().log_warning() <<
 				"failed to load dll: " << GetLastError();
 		}
 		return res;

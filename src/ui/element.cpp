@@ -143,7 +143,7 @@ namespace codepad::ui {
 			}
 
 		}
-		logger::get().log_error(CP_HERE) <<
+		logger::get().log_error() <<
 			"invalid property path: " << property_path::to_string(path.begin(), path.end());
 		return property_info();
 	}
@@ -190,7 +190,7 @@ namespace codepad::ui {
 			std::isnan(get_layout().xmin) || std::isnan(get_layout().xmax) ||
 			std::isnan(get_layout().ymin) || std::isnan(get_layout().ymax)
 		) {
-			logger::get().log_warning(CP_HERE) <<
+			logger::get().log_warning() <<
 				"layout system produced nan on " << demangle(typeid(*this).name());
 		}
 		invalidate_visual();

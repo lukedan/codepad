@@ -179,7 +179,7 @@ namespace codepad::os {
 						auto *ptr = reinterpret_cast<const std::byte*>(&wparam);
 						codepoint res;
 						if (!encodings::utf16<>::next_codepoint(ptr, ptr + 4, res)) {
-							logger::get().log_warning(CP_HERE) <<
+							logger::get().log_warning() <<
 								"invalid UTF-16 codepoint, possible faulty windows message handling";
 							// TODO check if this will ever be triggered
 							return 0;
@@ -570,7 +570,7 @@ namespace codepad::os {
 				new_height = border_height + std::max<LONG>(static_cast<LONG>(height.value * _cached_scaling.y), 0);
 			}
 			if (has_proportion) {
-				logger::get().log_warning(CP_HERE) <<
+				logger::get().log_warning() <<
 					"window size managed by application, but has a proportional value; "
 					"it'll be treated as a pixel value instead";
 			}

@@ -171,11 +171,11 @@ namespace codepad::lsp::types {
 		/// Does nothing for \p null's.
 		void visit(null&) override {
 			if (_stack.top().empty()) {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 				return;
 			}
 			if (!_stack.top().is<json::null_t>()) {
-				logger::get().log_error(CP_HERE) << "value is not null";
+				logger::get().log_error() << "value is not null";
 				return;
 			}
 		}
@@ -202,7 +202,7 @@ namespace codepad::lsp::types {
 		/// Deserializes a \ref any.
 		void visit(any &a) override {
 			if (_stack.top().empty()) {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 				return;
 			}
 			a = json::store(_stack.top());
@@ -229,7 +229,7 @@ namespace codepad::lsp::types {
 		/// Deserializes an \ref array_base.
 		void visit(array_base &arr) override {
 			if (_stack.top().empty()) {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 				return;
 			}
 			if (auto json_arr = _stack.top().try_cast<json::array_t>()) {
@@ -242,12 +242,12 @@ namespace codepad::lsp::types {
 				}
 				return;
 			}
-			logger::get().log_error(CP_HERE) << "invalid value type: expected array";
+			logger::get().log_error() << "invalid value type: expected array";
 		}
 		/// Deserializes a \ref primitive_variant_base.
 		void visit(primitive_variant_base &var) override {
 			if (_stack.top().empty()) {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 				return;
 			}
 			if (_stack.top().is<json::null_t>()) {
@@ -283,7 +283,7 @@ namespace codepad::lsp::types {
 		/// Deserializes a \ref custom_variant_base.
 		void visit(custom_variant_base &var) override {
 			if (_stack.top().empty()) {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 				return;
 			}
 			var.deduce_type_and_visit(*this, _stack.top());
@@ -291,7 +291,7 @@ namespace codepad::lsp::types {
 		/// Deserializes a \ref map_base.
 		void visit(map_base &map) override {
 			if (_stack.top().empty()) {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 				return;
 			}
 			if (auto obj = _stack.top().try_cast<json::object_t>()) {
@@ -302,13 +302,13 @@ namespace codepad::lsp::types {
 				}
 				return;
 			}
-			logger::get().log_error(CP_HERE) << "invalid value type: expected object";
+			logger::get().log_error() << "invalid value type: expected object";
 		}
 
 		/// Finds a field with the given name, and deserializes it if one exists.
 		void visit_field(std::u8string_view name, optional_base &opt) override {
 			if (_stack.top().empty()) {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 				return;
 			}
 			if (auto obj = _stack.top().try_cast<json::object_t>()) {
@@ -323,7 +323,7 @@ namespace codepad::lsp::types {
 				}
 				return;
 			}
-			logger::get().log_error(CP_HERE) << "current value is not an object";
+			logger::get().log_error() << "current value is not an object";
 			return;
 		}
 	protected:
@@ -339,13 +339,13 @@ namespace codepad::lsp::types {
 						_stack.push(it.value());
 						return;
 					} else {
-						logger::get().log_error(CP_HERE) << "member " << name << " not found";
+						logger::get().log_error() << "member " << name << " not found";
 					}
 				} else {
-					logger::get().log_error(CP_HERE) << "current value is not an object";
+					logger::get().log_error() << "current value is not an object";
 				}
 			} else {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 			}
 			_stack.push(json::value_t());
 		}
@@ -359,11 +359,11 @@ namespace codepad::lsp::types {
 		/// \return \p false if failed to obtain the value.
 		template <typename T> bool _get_value(T &val) {
 			if (_stack.top().empty()) {
-				logger::get().log_error(CP_HERE) << "invalid value";
+				logger::get().log_error() << "invalid value";
 				return false;
 			}
 			if (!_stack.top().is<T>()) {
-				logger::get().log_error(CP_HERE) << "invalid value type: expected " << demangle(typeid(T).name());
+				logger::get().log_error() << "invalid value type: expected " << demangle(typeid(T).name());
 				return false;
 			}
 			val = _stack.top().get<T>();

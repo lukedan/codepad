@@ -122,7 +122,7 @@ namespace codepad::editors::code {
 		for (const chunk_data &chk : _chunks) {
 			if (chk.num_codepoints == 0 || chk.num_bytes == 0) {
 				error = true;
-				logger::get().log_error(CP_HERE) << "empty chunk encountered";
+				logger::get().log_error() << "empty chunk encountered";
 			}
 		}
 
@@ -148,7 +148,7 @@ namespace codepad::editors::code {
 				}
 				if (it.get_position() > chkend) {
 					error = true;
-					logger::get().log_error(CP_HERE) <<
+					logger::get().log_error() <<
 						"codepoint boundary mismatch at byte " << chkend <<
 						": expected " << it.get_position();
 				}
@@ -159,11 +159,11 @@ namespace codepad::editors::code {
 		if (it != get_buffer().end() || chk != _chunks.end()) {
 			error = true;
 			if (it != get_buffer().end()) {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"document length mismatch: chunks ended abruptly at byte " << it.get_position() <<
 					", expected " << get_buffer().length();
 			} else {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"document length mismatch: got " <<
 					(_chunks.empty() ? 0 : _chunks.root()->synth_data.total_bytes) << " bytes, expected " <<
 					get_buffer().length() << " bytes";
@@ -177,14 +177,14 @@ namespace codepad::editors::code {
 		while (explineit != lines.end() && gotlineit != _linebreaks.end()) {
 			if (gotlineit->nonbreak_chars != explineit->nonbreak_chars) {
 				error = true;
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"line length mismatch at line " << line << ", starting at codepoint " <<
 					_linebreaks.get_beginning_codepoint_of(gotlineit) << ": expected " << explineit->nonbreak_chars <<
 					", got " << gotlineit->nonbreak_chars;
 			}
 			if (gotlineit->ending != explineit->ending) {
 				error = true;
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"linebreak type mismatch at line " << line << ", starting at codepoint " <<
 					_linebreaks.get_beginning_codepoint_of(gotlineit) << ": expected " <<
 					static_cast<int>(explineit->ending) << ", got " << static_cast<int>(gotlineit->ending);
@@ -195,7 +195,7 @@ namespace codepad::editors::code {
 		}
 		if (_linebreaks.num_linebreaks() + 1 != lines.size()) {
 			error = true;
-			logger::get().log_error(CP_HERE) <<
+			logger::get().log_error() <<
 				"number of lines mismatch: got " << _linebreaks.num_linebreaks() + 1 <<
 				", expected " << lines.size();
 		}

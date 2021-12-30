@@ -195,7 +195,7 @@ namespace codepad::editors::code {
 		if (ibeg != _pgcache.pages.begin()) {
 			--ibeg;
 		} else {
-			logger::get().log_error(CP_HERE) << "agnomaly in page range selection";
+			logger::get().log_error() << "agnomaly in page range selection";
 		}
 
 		ui::renderer_base &r = get_manager().get_renderer();

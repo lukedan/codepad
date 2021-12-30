@@ -151,8 +151,7 @@ namespace codepad::ui {
 				// check if the scheduler has shut down to make sure the queue is always empty after shutdown.
 				// this is checked here when the lock is held to avoid any possible race conditions
 				if (_shutdown) {
-					logger::get().log_warning(CP_HERE) <<
-						"attempting to start task after shutdown; task is discarded";
+					logger::get().log_warning() << "attempting to start task after shutdown; task is discarded";
 					return token<Task>();
 				}
 				_queued_tasks.emplace_back(task);

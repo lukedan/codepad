@@ -65,7 +65,7 @@ namespace codepad::editors {
 
 		performance_monitor mon(u8"load file", performance_monitor::log_condition::always);
 
-		logger::get().log_debug(CP_HERE) << "opening file " << filename;
+		logger::get().log_debug() << "opening file " << filename;
 
 		// read version
 		if (auto f = os::file::open(filename, os::access_rights::read, os::open_mode::open)) {

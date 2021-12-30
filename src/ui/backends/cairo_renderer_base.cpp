@@ -312,7 +312,7 @@ namespace codepad::ui::cairo {
 		if (_random_window) {
 			result = _create_similar_surface(*_random_window, width, height);
 		} else {
-			logger::get().log_warning(CP_HERE) <<
+			logger::get().log_warning() <<
 				"no window has been created before creating this offscreen surface: " <<
 				"an image surface has been created which could lead to poor performance" <<
 				logger::stacktrace;

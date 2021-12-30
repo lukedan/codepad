@@ -23,7 +23,7 @@ namespace codepad::tree_sitter {
 		if (node1 && node2) {
 			return (text_cb(*node1) == text_cb(*node2)) != inequality;
 		}
-		codepad::logger::get().log_error(CP_HERE) << "invalid capture indices";
+		codepad::logger::get().log_error() << "invalid capture indices";
 		return false;
 	}
 
@@ -34,7 +34,7 @@ namespace codepad::tree_sitter {
 		if (node) {
 			return (text_cb(*node) == literal) != inequality;
 		}
-		codepad::logger::get().log_error(CP_HERE) << "invalid capture index";
+		codepad::logger::get().log_error() << "invalid capture index";
 		return false;
 	}
 
@@ -46,7 +46,7 @@ namespace codepad::tree_sitter {
 			const char *end = beg + text.size();
 			return std::regex_match(beg, end, regex) != inequality;
 		}
-		codepad::logger::get().log_error(CP_HERE) << "invalid capture index";
+		codepad::logger::get().log_error() << "invalid capture index";
 		return false;
 	}
 
@@ -60,7 +60,7 @@ namespace codepad::tree_sitter {
 			&error_offset, &error
 		));
 		if (!res._query) {
-			codepad::logger::get().log_error(CP_HERE) <<
+			codepad::logger::get().log_error() <<
 				"failed to parse queries, offset: " << error_offset << ", error code: " << error;
 			return res;
 		}
@@ -93,7 +93,7 @@ namespace codepad::tree_sitter {
 				for (; cur < num_preds && preds[cur].type != TSQueryPredicateStepTypeDone; ++cur) {
 				}
 				if (preds[start].type != TSQueryPredicateStepTypeString) {
-					codepad::logger::get().log_error(CP_HERE) << "invalid predicate name for pattern " << i;
+					codepad::logger::get().log_error() << "invalid predicate name for pattern " << i;
 					continue;
 				}
 
@@ -175,11 +175,11 @@ namespace codepad::tree_sitter {
 		const TSQueryPredicateStep *pred, uint32_t pred_length, bool inequality
 	) const {
 		if (pred_length != 3) {
-			codepad::logger::get().log_error(CP_HERE) << "invalid number of arguments for equality predicate";
+			codepad::logger::get().log_error() << "invalid number of arguments for equality predicate";
 			return text_predicate();
 		}
 		if (pred[1].type != TSQueryPredicateStepTypeCapture) {
-			codepad::logger::get().log_error(CP_HERE) << "first parameter of #eq? or #not-eq? must be a capture";
+			codepad::logger::get().log_error() << "first parameter of #eq? or #not-eq? must be a capture";
 			return text_predicate();
 		}
 
@@ -202,16 +202,16 @@ namespace codepad::tree_sitter {
 		const TSQueryPredicateStep *pred, uint32_t pred_length, bool inequality
 	) const {
 		if (pred_length != 3) {
-			codepad::logger::get().log_error(CP_HERE) << "invalid number of arguments for match predicate";
+			codepad::logger::get().log_error() << "invalid number of arguments for match predicate";
 			return text_predicate();
 		}
 		if (pred[1].type != TSQueryPredicateStepTypeCapture) {
-			codepad::logger::get().log_error(CP_HERE) <<
+			codepad::logger::get().log_error() <<
 				"first parameter of #match? or #not-match? must be a capture";
 			return text_predicate();
 		}
 		if (pred[2].type == TSQueryPredicateStepTypeCapture) {
-			codepad::logger::get().log_error(CP_HERE) <<
+			codepad::logger::get().log_error() <<
 				"second parameter of #match? or #not-match? must be a literal";
 			return text_predicate();
 		}
@@ -229,7 +229,7 @@ namespace codepad::tree_sitter {
 		const TSQueryPredicateStep *pred, uint32_t pred_length
 	) const {
 		if (pred_length <= 1) {
-			codepad::logger::get().log_error(CP_HERE) << "empty property predicate";
+			codepad::logger::get().log_error() << "empty property predicate";
 			return std::nullopt;
 		}
 
@@ -238,7 +238,7 @@ namespace codepad::tree_sitter {
 		for (++pred; pred != pred_end; ++pred) {
 			if (pred->type == TSQueryPredicateStepTypeCapture) {
 				if (result.capture.has_value()) {
-					codepad::logger::get().log_error(CP_HERE) << "too many captures in property predicate";
+					codepad::logger::get().log_error() << "too many captures in property predicate";
 					return std::nullopt;
 				}
 				result.capture.emplace(pred->value_id);
@@ -247,7 +247,7 @@ namespace codepad::tree_sitter {
 					result.key = get_string_at(pred->value_id);
 				} else {
 					if (!result.value.empty()) {
-						codepad::logger::get().log_error(CP_HERE) << "too many literals in property predicate";
+						codepad::logger::get().log_error() << "too many literals in property predicate";
 						return std::nullopt;
 					}
 					result.value = get_string_at(pred->value_id);
@@ -256,7 +256,7 @@ namespace codepad::tree_sitter {
 		}
 
 		if (result.key.empty()) {
-			codepad::logger::get().log_error(CP_HERE) << "no key in property predicate";
+			codepad::logger::get().log_error() << "no key in property predicate";
 			return std::nullopt;
 		}
 		return std::move(result);

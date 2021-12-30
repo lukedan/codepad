@@ -12,7 +12,7 @@
 
 namespace codepad::ui {
 	void window::set_mouse_capture(element &elem) {
-		logger::get().log_debug(CP_HERE) <<
+		logger::get().log_debug() <<
 			"set mouse capture 0x" << &elem << " <" << demangle(typeid(elem).name()) << ">";
 		assert_true_usage(_capture == nullptr, "mouse already captured");
 		_capture = &elem;

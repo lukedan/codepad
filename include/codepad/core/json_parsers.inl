@@ -29,21 +29,21 @@ namespace codepad::json {
 		if (auto arr = val.template try_cast<typename Value::array_type>()) {
 			if (arr->size() >= 2) {
 				if (arr->size() > 2) {
-					val.template log<log_level::warning>(CP_HERE) << u8"too many elements in vec2";
+					val.log(log_level::warning) << u8"too many elements in vec2";
 				}
 				x = arr->at(0).template parse<double>();
 				y = arr->at(1).template parse<double>();
 			} else {
-				val.template log<log_level::error>(CP_HERE) << u8"too few elements in vec2";
+				val.log(log_level::error) << u8"too few elements in vec2";
 			}
 		} else if (auto obj = val.template try_cast<typename Value::object_type>()) {
 			if (obj->size() > 2) {
-				val.template log<log_level::warning>(CP_HERE) << u8"redundant fields in vec2 definition";
+				val.log(log_level::warning) << u8"redundant fields in vec2 definition";
 			}
 			x = obj->template parse_member<double>(u8"x");
 			y = obj->template parse_member<double>(u8"y");
 		} else {
-			val.template log<log_level::error>(CP_HERE) << u8"invalid vec2 format";
+			val.log(log_level::error) << u8"invalid vec2 format";
 		}
 		if (x && y) {
 			return vec2d(x.value(), y.value());
@@ -67,7 +67,7 @@ namespace codepad::json {
 							if (arr->size() > 4) {
 								result.a = arr->at(3).template cast<double>().value_or(1.0);
 								if (arr->size() > 5) {
-									val.template log<log_level::error>(CP_HERE) <<
+									val.log(log_level::error) <<
 										"redundant fields in color definition";
 								}
 							}
@@ -77,7 +77,7 @@ namespace codepad::json {
 						result.a = arr->at(3).template cast<double>().value_or(1.0);
 					}
 					if (arr->size() > 4) {
-						val.template log<log_level::error>(CP_HERE) <<
+						val.log(log_level::error) <<
 							"redundant fields in color definition";
 					}
 				}
@@ -86,11 +86,11 @@ namespace codepad::json {
 				result.b = arr->at(2).template cast<double>().value_or(0.0);
 				return result;
 			} else {
-				val.template log<log_level::error>(CP_HERE) << "too few elements in color definition";
+				val.log(log_level::error) << "too few elements in color definition";
 			}
 		} else if (auto str = val.template try_cast<std::u8string_view>()) {
 			if (str->empty()) {
-				val.template log<log_level::error>(CP_HERE) << "empty color string";
+				val.log(log_level::error) << "empty color string";
 				return std::nullopt;
 			}
 			auto it = str->begin();
@@ -110,7 +110,7 @@ namespace codepad::json {
 				(u32_val >> 16) & 0xFF, (u32_val >> 8) & 0xFF, u32_val & 0xFF, 0xFF
 			).convert<double>();
 		}
-		val.template log<log_level::error>(CP_HERE) << "invalid color format";
+		val.log(log_level::error) << "invalid color format";
 		return std::nullopt;
 	}
 }

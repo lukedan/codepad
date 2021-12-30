@@ -211,7 +211,7 @@ namespace codepad::lsp {
 		inline static void default_error_handler(
 			types::integer code, std::u8string_view msg, const json::value_t&
 		) {
-			logger::get().log_error(CP_HERE) << "LSP server returned error " << code << ": " << msg;
+			logger::get().log_error() << "LSP server returned error " << code << ": " << msg;
 		}
 	protected:
 		types::InitializeResult _initialize_result; ///< Initialization result with server capabilities.
@@ -301,7 +301,7 @@ namespace codepad::lsp {
 		handler.callback = [callback = std::forward<Callback>(cb)](const json::object_t &v, client &c) {
 			auto id_it = v.find_member(u8"id");
 			if (id_it == v.member_end()) {
-				logger::get().log_error(CP_HERE) << "invalid LSP request: id field missing";
+				logger::get().log_error() << "invalid LSP request: id field missing";
 				return;
 			}
 			id_t id;
@@ -310,7 +310,7 @@ namespace codepad::lsp {
 			} else if (auto id_str = id_it.value().cast<std::u8string_view>()) {
 				id.emplace<std::u8string_view>(id_str.value());
 			} else {
-				logger::get().log_error(CP_HERE) << "invalid LSP request: invalid id type";
+				logger::get().log_error() << "invalid LSP request: invalid id type";
 				return;
 			}
 			if constexpr (std::is_same_v<Param, std::nullopt_t>) {
@@ -322,7 +322,7 @@ namespace codepad::lsp {
 					static_cast<types::visitor_base*>(&des)->visit(args);
 				} else {
 					if constexpr (!_details::is_optional_v<Param>) {
-						logger::get().log_error(CP_HERE) << "request expects parameters but none is found";
+						logger::get().log_error() << "request expects parameters but none is found";
 						return;
 					}
 				}
@@ -346,7 +346,7 @@ namespace codepad::lsp {
 					static_cast<types::visitor_base*>(&des)->visit(args);
 				} else {
 					if constexpr (!_details::is_optional_v<Param>) {
-						logger::get().log_error(CP_HERE) << "notification expects parameters but none is found";
+						logger::get().log_error() << "notification expects parameters but none is found";
 						return;
 					}
 				}

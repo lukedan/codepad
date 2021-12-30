@@ -30,7 +30,7 @@ namespace codepad::ui {
 		} else if (auto clr = val.template try_parse<colord>(managed_json_parser<colord>(_manager))) {
 			return editors::text_theme(clr.value(), font_style::normal, font_weight::normal);
 		}
-		val.template log<log_level::error>(CP_HERE) << "invalid text_theme format";
+		val.log(log_level::error) << "invalid text_theme format";
 		return std::nullopt;
 	}
 
@@ -49,7 +49,7 @@ namespace codepad::ui {
 			}
 			return result;
 		}
-		val.template log<log_level::error>(CP_HERE) << "invalid theme_configuration format";
+		val.log(log_level::error) << "invalid theme_configuration format";
 		return std::nullopt;
 	}
 }

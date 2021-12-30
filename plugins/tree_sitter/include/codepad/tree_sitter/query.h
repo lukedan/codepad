@@ -31,7 +31,7 @@ namespace codepad::tree_sitter {
 		struct invalid_predicate {
 			/// Logs an error indicating that an invalid predicate is tested.
 			bool test(const TSQueryMatch&, const text_callback&) const {
-				codepad::logger::get().log_error(CP_HERE) << "invalid predicate tested";
+				codepad::logger::get().log_error() << "invalid predicate tested";
 				return false;
 			}
 		};

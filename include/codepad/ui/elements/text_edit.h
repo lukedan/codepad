@@ -188,7 +188,7 @@ namespace codepad::ui {
 		void _on_key_down(key_info &p) override {
 			label::_on_key_down(p);
 			if (p.key_pressed == key::control) {
-				logger::get().log_debug(CP_HERE) << "set red";
+				logger::get().log_debug() << "set red";
 				auto [smin, smax] = _caret.get_range();
 				_formatted_text->set_text_color(colord(1.0, 0.0, 0.0, 1.0), smin, smax - smin);
 				invalidate_visual();

@@ -34,7 +34,7 @@ namespace codepad::ui {
 				for (_hotkey_group_state &j : _groups) {
 					// all state should be empty, otherwise there are conflicts
 					if (!j.state.is_empty()) {
-						logger::get().log_warning(CP_HERE) << "found conflicting hotkey chains";
+						logger::get().log_warning() << "found conflicting hotkey chains";
 						j.state = hotkey_group::state(); // clear them
 					}
 				}
@@ -48,7 +48,7 @@ namespace codepad::ui {
 		}
 		if (all_emp) {
 			if (_gests.size() > 1) {
-				logger::get().log_debug(CP_HERE) << "hotkey chain interrupted";
+				logger::get().log_debug() << "hotkey chain interrupted";
 				chain_interrupted.invoke();
 			}
 			_gests.clear();

@@ -40,7 +40,7 @@ load_module(module_name, path)
 			locals["path"] = py::cast(path.c_str());
 			py::eval<py::eval_statements>(python_import_module, py::globals(), locals);
 		} catch (const py::error_already_set &err) {
-			cp::logger::get().log_error(CP_HERE) << err.what() << cp::logger::stacktrace;
+			cp::logger::get().log_error() << err.what() << cp::logger::stacktrace;
 		}
 	}
 }

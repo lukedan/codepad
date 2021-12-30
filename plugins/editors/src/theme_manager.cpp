@@ -75,7 +75,7 @@ namespace codepad::editors {
 			}
 		}
 
-		auto entry = logger::get().log_debug(CP_HERE);
+		auto entry = logger::get().log_debug();
 		bool first = true;
 		for (auto &part : key_parts) {
 			if (!first) {
@@ -98,7 +98,7 @@ namespace codepad::editors {
 			}
 		}
 		if (max_matches > 0 && conflicts > 0) {
-			logger::get().log_error(CP_HERE) << "multiple candidates found; which one is picked is unspecified";
+			logger::get().log_error() << "multiple candidates found; which one is picked is unspecified";
 		}
 
 		return max_index;

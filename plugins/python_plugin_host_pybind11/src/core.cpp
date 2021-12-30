@@ -138,7 +138,7 @@ namespace python_plugin_host_pybind11 {
 			logger.def(
 				"log",
 				[](cp::logger &log, cp::log_level lvl, std::u8string message) {
-					log.log(lvl, CP_HERE) << message; // TODO use proper source location in python
+					log.log(lvl) << message; // TODO use proper source location in python
 				}
 			);
 		}

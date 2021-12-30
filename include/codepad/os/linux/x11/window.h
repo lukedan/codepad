@@ -199,7 +199,7 @@ namespace codepad::os {
 								_onevent(&window::_on_mouse_scroll, -1.0, vec2d(event.xbutton.x, event.xbutton.y));
 								break;
 							default:
-								logger::get().log_warning(CP_HERE,
+								logger::get().log_warning(
 									"unrecognized mouse button: ", event.xbutton.button
 								);
 								break;
@@ -266,7 +266,7 @@ namespace codepad::os {
 					invalidate_visual();
 					break;
 				default:
-					logger::get().log_warning(CP_HERE, "unrecognized message: ", event.type);
+					logger::get().log_warning("unrecognized message: ", event.type);
 					break;
 				}
 				return true;

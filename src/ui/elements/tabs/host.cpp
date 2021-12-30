@@ -61,21 +61,57 @@ namespace codepad::ui::tabs {
 
 		t.set_visibility(visibility::none);
 		if (get_tab_count() == 1) {
-			switch_tab(&t);
+			activate_tab(&t);
 		}
 	}
 
-	void host::switch_tab(tab *t) {
+	void host::activate_tab(tab *to_activate) {
 		if (_active_tab) {
 			_active_tab->set_visibility(visibility::none);
 			_active_tab->_btn->set_zindex(0); // TODO a bit hacky
-			_active_tab->_on_unselected();
+			_active_tab->_on_deactivated();
+			_active_tab = nullptr;
 		}
-		_active_tab = t;
+
+		// deselect all tabs but the activated one
+		for (auto *elem : get_tabs().items()) {
+			if (auto *t = dynamic_cast<tab*>(elem)) {
+				if (t == to_activate) {
+					if (!t->is_selected()) {
+						t->select();
+					}
+				} else {
+					if (t->is_selected()) {
+						t->deselect();
+					}
+				}
+			}
+		}
+
+		_active_tab = to_activate;
 		if (_active_tab) {
 			_active_tab->set_visibility(visibility::full);
 			_active_tab->_btn->set_zindex(1);
-			_active_tab->_on_selected();
+			_active_tab->_on_activated();
+		}
+	}
+
+	void host::activate_tab_keep_selection(tab *to_activate) {
+		if (_active_tab) {
+			_active_tab->set_visibility(visibility::none);
+			_active_tab->_btn->set_zindex(0); // TODO a bit hacky
+			_active_tab->_on_deactivated();
+			_active_tab = nullptr;
+		}
+		// mark the tab selected if it's not already
+		if (!to_activate->is_selected()) {
+			to_activate->select();
+		}
+		_active_tab = to_activate;
+		if (_active_tab) {
+			_active_tab->set_visibility(visibility::full);
+			_active_tab->_btn->set_zindex(1);
+			_active_tab->_on_activated();
 		}
 	}
 
@@ -95,7 +131,7 @@ namespace codepad::ui::tabs {
 	void host::_on_tab_removing(tab &t) {
 		if (&t == _active_tab) { // change active tab
 			if (_tab_contents_region->children().size() == 1) {
-				switch_tab(nullptr);
+				activate_tab(nullptr);
 			} else {
 				auto it = _tab_contents_region->children().items().begin();
 				for (; it != _tab_contents_region->children().items().end() && *it != &t; ++it) {
@@ -108,7 +144,7 @@ namespace codepad::ui::tabs {
 				if (++it == _tab_contents_region->children().items().end()) {
 					it = --original;
 				}
-				switch_tab(dynamic_cast<tab*>(*it));
+				activate_tab_keep_selection(dynamic_cast<tab*>(*it));
 			}
 		}
 	}

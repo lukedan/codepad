@@ -42,6 +42,15 @@ namespace codepad::ui::tabs {
 	}
 
 
+	void tab::deselect() {
+		assert_true_logical(_selected, "tab is not selected");
+		assert_true_logical(
+			get_host() == nullptr || get_host()->get_active_tab() != this, "cannot deselect active tab"
+		);
+		_selected = false;
+		_on_deselected();
+	}
+
 	void tab::_initialize() {
 		panel::_initialize();
 
@@ -49,17 +58,33 @@ namespace codepad::ui::tabs {
 
 		_btn = get_manager().create_element<tab_button>();
 		_btn->click += [this](tab_button::click_info &info) {
-			get_host()->activate_tab(*this);
+			if (info.button_info.modifiers == modifier_keys::shift) {
+				// TODO
+			} else if (info.button_info.modifiers == modifier_keys::control) {
+				if (get_host()->get_active_tab() != this) {
+					if (is_selected()) {
+						deselect();
+						get_manager().get_scheduler().set_focused_element(get_host());
+					} else {
+						get_host()->activate_tab_keep_selection_and_focus(*this);
+					}
+				}
+			} else {
+				if (get_host()->get_active_tab() != this) {
+					get_host()->activate_tab_and_focus(*this);
+				}
+			}
 			info.button_info.mark_focus_set();
 		};
 		_btn->request_close += [this]() {
 			request_close();
 		};
 		_btn->start_drag += [this](tab_button::drag_start_info &p) {
-			// place the tab so that it appears as if this tab is the first tab in the given host
-			// FIXME this doesn't work when the tab buttons are arranged right-to-left or bottom-to-top.
-			vec2d windowpos = p.reference + get_host()->get_tab_buttons_region().get_layout().xmin_ymin();
-			get_tab_manager().start_dragging_tab(*this, p.reference, get_layout().translated(-windowpos));
+			vec2d window_pos = p.reference + _btn->get_layout().xmin_ymin();
+			vec2d reference_pos = window_pos - get_host()->get_tab_buttons_region().get_layout().xmin_ymin();
+			get_tab_manager().start_dragging_selected_tabs(
+				*get_host(), reference_pos, get_layout().translated(-window_pos)
+			);
 		};
 	}
 

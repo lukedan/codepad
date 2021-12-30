@@ -41,11 +41,11 @@ namespace codepad {
 		p->initialize(*context);
 		auto [it, inserted] = _plugins.try_emplace(p->get_name(), std::move(p));
 		if (!inserted) {
-			logger::get().log_warning(CP_HERE) <<
+			logger::get().log_warning() <<
 				"plugin " << it->first << " already exists";
 			return handle();
 		} else {
-			logger::get().log_info(CP_HERE) << "plugin attached: " << it->second->get_name();
+			logger::get().log_info() << "plugin attached: " << it->second->get_name();
 		}
 		return handle(it);
 	}
@@ -94,7 +94,7 @@ namespace codepad {
 		}
 
 		if (!_plugins.empty()) {
-			logger::get().log_warning(CP_HERE) << "cycles in the plugin dependency graph";
+			logger::get().log_warning() << "cycles in the plugin dependency graph";
 			// at this point, if there are still entries in _plugins
 			// then there must be cycles in the dependency graph
 			// TODO figure out a better way to take apart the cycle
@@ -120,7 +120,7 @@ namespace codepad {
 			p.disable();
 		}
 		p.finalize();
-		logger::get().log_info(CP_HERE) << "plugin finalized: " << p.get_name();
+		logger::get().log_info() << "plugin finalized: " << p.get_name();
 	}
 
 	void plugin_manager::_on_plugin_detached(std::shared_ptr<plugin> ptr) {
@@ -139,7 +139,7 @@ namespace codepad {
 		if (auto lib = os::dynamic_library::load(path)) {
 			return load(std::move(lib.value()));
 		}
-		logger::get().log_warning(CP_HERE) << "failed to load dynamic library";
+		logger::get().log_warning() << "failed to load dynamic library";
 		return nullptr;
 	}
 
@@ -147,7 +147,7 @@ namespace codepad {
 	template <typename T> T _try_load_symbol(const os::dynamic_library &lib, const std::u8string &name) {
 		T symbol = lib.find_symbol<T>(name);
 		if (symbol == nullptr) {
-			logger::get().log_warning(CP_HERE) << name << ": symbol not found in dynamic library";
+			logger::get().log_warning() << name << ": symbol not found in dynamic library";
 		}
 		return symbol;
 	}

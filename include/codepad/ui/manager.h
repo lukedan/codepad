@@ -99,7 +99,7 @@ namespace codepad::ui {
 		void register_transition_function(std::u8string name, transition_function func) {
 			auto [it, inserted] = _transfunc_map.emplace(std::move(name), std::move(func));
 			if (!inserted) {
-				logger::get().log_warning(CP_HERE) << "duplicate transition function name: " << name;
+				logger::get().log_warning() << "duplicate transition function name: " << name;
 			}
 		}
 		/// Finds and returns the transition function corresponding to the given name. If none is found, \p nullptr
@@ -308,7 +308,7 @@ namespace codepad::ui {
 			if (auto target = parse(kf.target)) {
 				keyframes.emplace_back(target.value(), kf.duration, kf.transition_func);
 			} else {
-				logger::get().log_error(CP_HERE) << "failed to parse keyframe target";
+				logger::get().log_error() << "failed to parse keyframe target";
 			}
 		}
 		return std::make_shared<animation>(std::move(keyframes), *this, def.repeat_times);

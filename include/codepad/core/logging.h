@@ -32,7 +32,7 @@ namespace codepad {
 
 		/// Called when a message is sent.
 		virtual void on_message(
-			const std::chrono::duration<double>&, const code_position&, log_level, std::u8string_view
+			const std::chrono::duration<double>&, const std::source_location&, log_level, std::u8string_view
 		) = 0;
 	};
 
@@ -118,7 +118,7 @@ namespace codepad {
 #endif
 		protected:
 			/// Initializes \ref _parent.
-			log_entry(logger &p, code_position pos, log_level lvl) : _pos(std::move(pos)), _parent(&p), _level(lvl) {
+			log_entry(logger &p, std::source_location pos, log_level lvl) : _pos(std::move(pos)), _parent(&p), _level(lvl) {
 			}
 
 			/// Submits this entry and resets \ref _parent, if this entry is valid.
@@ -142,7 +142,7 @@ namespace codepad {
 			/// Stores the contents of this entry. Since the standard library only provides \p basic_stringstream
 			/// implementations for \p char and \p wchar_t, we're stuck with \p std::stringstream here.
 			std::stringstream _contents;
-			code_position _pos; ///< The location where this entry is created.
+			std::source_location _pos; ///< The location where this entry is created.
 			logger *_parent = nullptr; ///< The \ref logger that created this entry.
 			log_level _level = log_level::error; ///< The log level of this entry.
 		};
@@ -158,29 +158,25 @@ namespace codepad {
 			sinks(std::move(sinks)), _creation(clock_t::now()) {
 		}
 
-		/// Creates a new \ref log_entry with the specified \ref log_level.
-		template <log_level Level> log_entry log(code_position cp) {
-			return log_entry(*this, std::move(cp), Level);
-		}
 		/// Non-template version of \ref log().
-		log_entry log(log_level lvl, code_position cp) {
+		log_entry log(log_level lvl, std::source_location cp = std::source_location::current()) {
 			return log_entry(*this, std::move(cp), lvl);
 		}
 		/// Invokes \ref log() with \ref log_level::error.
-		log_entry log_error(code_position cp) {
-			return log<log_level::error>(cp);
+		log_entry log_error(std::source_location cp = std::source_location::current()) {
+			return log(log_level::error, cp);
 		}
 		/// Invokes \ref log() with \ref log_level::warning.
-		log_entry log_warning(code_position cp) {
-			return log<log_level::warning>(cp);
+		log_entry log_warning(std::source_location cp = std::source_location::current()) {
+			return log(log_level::warning, cp);
 		}
 		/// Invokes \ref log() with \ref log_level::info.
-		log_entry log_info(code_position cp) {
-			return log<log_level::info>(cp);
+		log_entry log_info(std::source_location cp = std::source_location::current()) {
+			return log(log_level::info, cp);
 		}
 		/// Invokes \ref log() with \ref log_level::debug.
-		log_entry log_debug(code_position cp) {
-			return log<log_level::debug>(cp);
+		log_entry log_debug(std::source_location cp = std::source_location::current()) {
+			return log(log_level::debug, cp);
 		}
 
 		/// Returns the time of this logger's creation.

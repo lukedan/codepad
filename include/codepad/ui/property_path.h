@@ -236,7 +236,7 @@ namespace codepad::ui::property_path {
 				if (auto *result = ptr.get<T>()) {
 					return *result;
 				}
-				logger::get().log_error(CP_HERE) << "failed to get value of type " << demangle(typeid(T).name());
+				logger::get().log_error() << "failed to get value of type " << demangle(typeid(T).name());
 				return std::nullopt;
 			}
 			/// Walks through all components to find the pointer to the actual value and sets it. No-op if the
@@ -255,7 +255,7 @@ namespace codepad::ui::property_path {
 						modification_callback(ptr);
 					}
 				} else {
-					logger::get().log_error(CP_HERE) << "failed to set value of type " << demangle(typeid(T).name());
+					logger::get().log_error() << "failed to set value of type " << demangle(typeid(T).name());
 				}
 			}
 
@@ -295,7 +295,7 @@ namespace codepad::ui::property_path {
 				if (auto *typed_ptr = ptr.get<Owner>()) {
 					return getter(*typed_ptr);
 				}
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"failed to get value of type " << demangle(typeid(T).name()) << " using getter";
 				return std::nullopt;
 			}
@@ -304,7 +304,7 @@ namespace codepad::ui::property_path {
 				if (auto *typed_ptr = ptr.get<Owner>()) {
 					setter(*typed_ptr, std::move(val));
 				} else {
-					logger::get().log_error(CP_HERE) << "invalid type for getter_setter_accessor";
+					logger::get().log_error() << "invalid type for getter_setter_accessor";
 				}
 			}
 

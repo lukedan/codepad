@@ -51,7 +51,7 @@ namespace codepad::ui {
 				if (reg.register_command(_name, _exec)) {
 					_registered = true;
 				} else {
-					logger::get().log_warning(CP_HERE) << "failed to register command: " << _name;
+					logger::get().log_warning() << "failed to register command: " << _name;
 				}
 			}
 			/// Unregisters this command.
@@ -131,7 +131,7 @@ namespace codepad::ui {
 			return[func = std::move(f)](element *e, const json::value_storage &args) {
 				Elem *te = dynamic_cast<Elem*>(e);
 				if (e != nullptr && te == nullptr) { // not the right type
-					logger::get().log_warning(CP_HERE) <<
+					logger::get().log_warning() <<
 						"callback with invalid element type " << demangle(typeid(*e).name()) <<
 						", expected " << demangle(typeid(Elem).name());
 					return;

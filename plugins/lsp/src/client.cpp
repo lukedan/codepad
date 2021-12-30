@@ -17,7 +17,7 @@ namespace codepad::lsp {
 		// otherwise handle error
 		auto err_it = reply.find_member(u8"error");
 		if (err_it == reply.member_end()) {
-			logger::get().log_error(CP_HERE) << "LSP response has neither result nor error; skipping error handler";
+			logger::get().log_error() << "LSP response has neither result nor error; skipping error handler";
 		}
 		if (on_error) {
 			if (auto err_obj = err_it.value().try_cast<json::object_t>()) {
@@ -32,7 +32,7 @@ namespace codepad::lsp {
 					data
 				);
 			} else {
-				logger::get().log_error(CP_HERE) << "LSP response with invalid error";
+				logger::get().log_error() << "LSP response with invalid error";
 			}
 		}
 	}
@@ -46,7 +46,7 @@ namespace codepad::lsp {
 			// check for errors first
 			auto root_obj = doc.root().try_cast<json::object_t>();
 			if (!root_obj.has_value()) {
-				logger::get().log_error(CP_HERE) << "invalid LSP response: not an object";
+				logger::get().log_error() << "invalid LSP response: not an object";
 				continue;
 			}
 			// check for the jsonrpc field
@@ -54,14 +54,14 @@ namespace codepad::lsp {
 			if (auto jsonrpc_it = root_obj->find_member(u8"jsonrpc"); jsonrpc_it != root_obj->member_end()) {
 				if (auto jsonrpc_str = jsonrpc_it.value().try_cast<std::u8string_view>()) {
 					if (jsonrpc_str.value() != u8"2.0") {
-						logger::get().log_error(CP_HERE) <<
+						logger::get().log_error() <<
 							"LSP response without invalid version: expected 2.0, got " << jsonrpc_str.value();
 					}
 				} else {
-					logger::get().log_error(CP_HERE) << "LSP response without invalid type for jsonrpc version";
+					logger::get().log_error() << "LSP response without invalid type for jsonrpc version";
 				}
 			} else {
-				logger::get().log_error(CP_HERE) << "LSP response without jsonrpc version";
+				logger::get().log_error() << "LSP response without jsonrpc version";
 			}
 
 			// handle requests and notifications
@@ -74,7 +74,7 @@ namespace codepad::lsp {
 						[&c, doc_ptr = std::move(ptr), method = method_str.value()]() {
 							auto handler_it = c.request_handlers().find(method);
 							if (handler_it == c.request_handlers().end()) {
-								logger::get().log_warning(CP_HERE) <<
+								logger::get().log_warning() <<
 									"unhandled LSP request/notification: " << method;
 								return;
 							}
@@ -82,7 +82,7 @@ namespace codepad::lsp {
 						}
 					);
 				} else {
-					logger::get().log_error(CP_HERE) << "invalid LSP response: method field is not a string";
+					logger::get().log_error() << "invalid LSP response: method field is not a string";
 				}
 				continue;
 			}
@@ -109,7 +109,7 @@ namespace codepad::lsp {
 						[&c, id = id.value(), doc_ptr = std::move(ptr)]() {
 							auto handler_it = c._reply_handlers.find(id);
 							if (handler_it == c._reply_handlers.end()) {
-								logger::get().log_error(CP_HERE) <<
+								logger::get().log_error() <<
 									"no handler registered for the given LSP response";
 								return;
 							}
@@ -120,17 +120,17 @@ namespace codepad::lsp {
 					);
 				} else {
 					if (id_it.value().is<std::u8string_view>()) {
-						logger::get().log_error(CP_HERE) <<
+						logger::get().log_error() <<
 							"the codepad LSP client does not use string IDs by default. " <<
 							"who could've sent this message?";
 					} else {
-						logger::get().log_error(CP_HERE) << "invalid LSP response: invalid id type";
+						logger::get().log_error() << "invalid LSP response: invalid id type";
 					}
 				}
 				continue;
 			}
 
-			logger::get().log_error(CP_HERE) << "invalid LSP message received: no valid id or method specified";
+			logger::get().log_error() << "invalid LSP message received: no valid id or method specified";
 			continue;
 		}
 	}

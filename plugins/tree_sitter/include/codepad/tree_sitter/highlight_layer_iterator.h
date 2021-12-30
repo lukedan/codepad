@@ -87,7 +87,7 @@ namespace codepad::tree_sitter {
 					language = std::move(inj.language);
 				} else {
 					if (language != inj.language) {
-						logger::get().log_warning(CP_HERE) <<
+						logger::get().log_warning() <<
 							"languages of combined injections don't agree; got " <<
 							inj.language << " and " << language;
 					}

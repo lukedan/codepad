@@ -124,6 +124,7 @@ target_sources(codepad_core
 		"src/core/settings.cpp"
 		"src/core/text.cpp"
 
+		"src/ui/elements/tabs/animated_tab_button_panel.cpp"
 		"src/ui/elements/tabs/host.cpp"
 		"src/ui/elements/tabs/manager.cpp"
 		"src/ui/elements/tabs/tab.cpp"

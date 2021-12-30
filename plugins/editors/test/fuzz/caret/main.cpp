@@ -244,7 +244,7 @@ protected:
 
 	/// Prints all current carets.
 	void _print_data() const {
-		auto entry = cp::logger::get().log_info(CP_HERE);
+		auto entry = cp::logger::get().log_info();
 		entry << "Test carets:\n";
 		for (auto it = _carets.begin(); it.get_iterator() != _carets.carets.end(); it.move_next()) {
 			auto caret_sel = it.get_caret_selection();
@@ -269,23 +269,23 @@ protected:
 		for (auto refit = _reference.begin(); it.get_iterator() != _carets.carets.end(); it.move_next(), ++refit) {
 			if (refit == _reference.end()) {
 				_print_data();
-				cp::logger::get().log_error(CP_HERE) << "missing carets in caret_set";
+				cp::logger::get().log_error() << "missing carets in caret_set";
 				return false;
 			}
 			if (it.get_caret_selection() != refit->first) {
 				_print_data();
-				cp::logger::get().log_error(CP_HERE) << "incorrect caret position";
+				cp::logger::get().log_error() << "incorrect caret position";
 				return false;
 			}
 			if (it.get_iterator()->data != refit->second) {
 				_print_data();
-				cp::logger::get().log_error(CP_HERE) << "incorrect caret data";
+				cp::logger::get().log_error() << "incorrect caret data";
 				return false;
 			}
 		}
 		if (it.get_iterator() != _carets.carets.end()) {
 			_print_data();
-			cp::logger::get().log_error(CP_HERE) << "too many carets in caret_set";
+			cp::logger::get().log_error() << "too many carets in caret_set";
 			return false;
 		}
 		return true;

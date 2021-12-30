@@ -19,7 +19,7 @@ namespace codepad {
 							if (auto comp = enum_parser<modifier_keys>::parse(comp_str)) {
 								mod |= comp.value();
 							} else {
-								logger::get().log_warning(CP_HERE) << "failed to parse modifier keys: " << comp_str;
+								logger::get().log_warning() << "failed to parse modifier keys: " << comp_str;
 							}
 							start = cur;
 						}

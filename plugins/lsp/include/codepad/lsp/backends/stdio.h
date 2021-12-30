@@ -21,13 +21,13 @@ namespace codepad::lsp {
 		stdio_backend(const std::filesystem::path &exec, const std::vector<std::u8string_view> &args) {
 			auto stdin_pipes = os::pipe::create();
 			if (!stdin_pipes) {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"failed to create pipe for stdin: " << stdin_pipes.error_code();
 				return;
 			}
 			auto stdout_pipes = os::pipe::create();
 			if (!stdout_pipes) {
-				logger::get().log_error(CP_HERE) <<
+				logger::get().log_error() <<
 					"failed to create pipe for stdout: " << stdout_pipes.error_code();
 				return;
 			}
@@ -36,7 +36,7 @@ namespace codepad::lsp {
 			_stdout_read_pipe = std::move(stdout_pipes->read);
 
 			if (auto err = os::process::start_process(exec, args, stdin_pipes->read, stdout_pipes->write)) {
-				logger::get().log_error(CP_HERE) << "failed to spawn server process: " << err;
+				logger::get().log_error() << "failed to spawn server process: " << err;
 			}
 		}
 	protected:
@@ -53,21 +53,21 @@ namespace codepad::lsp {
 			for (std::size_t i = 0; len > 0 && i < _num_retries; ++i) {
 				auto res = _stdin_write_pipe.write(data, len);
 				if (!res) {
-					logger::get().log_error(CP_HERE) << "failed to send LSP message: " << res.error_code();
+					logger::get().log_error() << "failed to send LSP message: " << res.error_code();
 					return;
 				}
 				data = static_cast<const std::byte*>(data) + res.value();
 				len -= res.value();
 			}
 			if (len > 0) {
-				logger::get().log_error(CP_HERE) << "failed to send LSP message: too many attempts";
+				logger::get().log_error() << "failed to send LSP message: too many attempts";
 			}
 		}
 		/// Receives a message from \ref _stdout_read_pipe.
 		std::size_t _receive_bytes(void *data, std::size_t len) override {
 			auto res = _stdout_read_pipe.read(len, data);
 			if (!res) {
-				logger::get().log_error(CP_HERE) << "failed to receive LSP message: " << res.error_code();
+				logger::get().log_error() << "failed to receive LSP message: " << res.error_code();
 				return 0;
 			}
 			return res.value();

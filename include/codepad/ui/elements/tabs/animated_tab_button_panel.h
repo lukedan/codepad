@@ -36,6 +36,18 @@ namespace codepad::ui::tabs {
 			return u8"animated_tab_buttons_panel";
 		}
 	protected:
+		/// Returns whether the given tab button is being dragged.
+		[[nodiscard]] inline static bool _is_tab_button_being_dragged(tab_manager &tabman, element &e) {
+			if (tabman.is_dragging_any_tab()) {
+				for (tab *t : tabman.get_dragging_tabs()) {
+					if (&t->get_button() == &e) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
 		/// The data associated with a \ref tab_button.
 		struct _child_data {
 			/// Default constructor.
@@ -46,38 +58,7 @@ namespace codepad::ui::tabs {
 
 			/// Starts the animation for this specific tab button. Since this struct does not store any reference to
 			/// the element, it must be passed in as the argument.
-			void set_offset(animated_tab_buttons_panel &pnl, element &e, double offset) {
-				if (!task.empty()) {
-					e.get_manager().get_scheduler().cancel_synchronous_task(task);
-				}
-				current_offset = offset;
-				if (
-					pnl._get_tab_manager().is_dragging_tab() &&
-					&pnl._get_tab_manager().get_dragging_tab()->get_button() == &e
-				) {
-					// the tab is being dragged, do not start animation
-					e.invalidate_layout();
-				} else {
-					starting_offset = current_offset;
-					start = scheduler::clock_t::now();
-					task = e.get_manager().get_scheduler().register_synchronous_task(
-						scheduler::clock_t::now(), &e,
-						[this, panel = &pnl](element *e) -> std::optional<scheduler::clock_t::time_point> {
-							e->invalidate_layout();
-							double dur = std::chrono::duration<double>(scheduler::clock_t::now() - start).count();
-							if (dur > panel->get_animation_duration()) {
-								current_offset = 0.0;
-								task = scheduler::sync_task_token();
-								return std::nullopt;
-							}
-							double progress = dur / panel->get_animation_duration();
-							double position = panel->get_transition_function()(progress);
-							current_offset = starting_offset * (1.0 - position);
-							return scheduler::clock_t::now();
-						}
-					);
-				}
-			}
+			void set_offset(animated_tab_buttons_panel&, element&, double offset);
 
 			/// The token used to listen to \ref tab_button::start_drag.
 			info_event<tab_button::drag_start_info>::token token;
@@ -128,8 +109,9 @@ namespace codepad::ui::tabs {
 			stack_panel::_on_child_added(elem, before);
 			if (auto *btn = dynamic_cast<tab_button*>(&elem)) { // initialize info
 				tab_manager &man = _get_tab_manager();
-				if (man.is_dragging_tab() && &man.get_dragging_tab()->get_button() == &elem) {
-					// the button is already being dragged
+				// only respond to the first element - we don't want to register for the event multiple times
+				if (man.is_dragging_any_tab() && &man.get_dragging_tabs()[0]->get_button() == &elem) {
+					// the button is being dragged into this host
 					_on_start_drag();
 				}
 				auto tok = btn->start_drag += [this](tab_button::drag_start_info&) {
@@ -158,7 +140,8 @@ namespace codepad::ui::tabs {
 
 			if (auto *btn = dynamic_cast<tab_button*>(&elem)) {
 				tab_manager &man = _get_tab_manager();
-				if (man.is_dragging_tab() && &man.get_dragging_tab()->get_button() == &elem) {
+				// only respond to the first element - don't unregister multiple times
+				if (man.is_dragging_any_tab() && &man.get_dragging_tabs()[0]->get_button() == &elem) {
 					// the button is being dragged away
 					_on_end_drag();
 				}
@@ -182,41 +165,7 @@ namespace codepad::ui::tabs {
 		}
 
 		/// Starts animation for affected elements.
-		void _on_child_order_changing(element &elem, element *before) override {
-			stack_panel::_on_child_order_changing(elem, before);
-
-			// find positions
-			auto elemit = _children.items().begin(), beforeit = _children.items().begin();
-			bool move_forward = true;
-			for (; elemit != _children.items().end() && *elemit != &elem; ++elemit) {
-			}
-			for (; beforeit != _children.items().end() && *beforeit != before; ++beforeit) {
-				if (*beforeit == &elem) {
-					move_forward = false;
-				}
-			}
-			if (auto next = elemit; ++next == beforeit) { // just in place
-				return;
-			}
-			auto layout_helper = _get_children_layout_helper();
-			double offset = layout_helper.compute_span_for(elem), elemoffset = 0.0;
-			// add offset
-			if (move_forward) {
-				for (auto it = beforeit; it != elemit; ++it) {
-					auto *data = _get_data(**it);
-					data->set_offset(*this, **it, data->current_offset - offset);
-					elemoffset += layout_helper.compute_span_for(**it);
-				}
-			} else {
-				for (auto it = ++elemit; it != beforeit; ++it) {
-					auto *data = _get_data(**it);
-					data->set_offset(*this, **it, data->current_offset + offset);
-					elemoffset -= layout_helper.compute_span_for(**it);
-				}
-			}
-			auto *data = _get_data(elem);
-			data->set_offset(*this, elem, data->current_offset + elemoffset);
-		}
+		void _on_child_order_changing(element &elem, element *before) override;
 
 		/// Updates the layout of all children like \ref stack_panel, but adds the offset to it.
 		void _on_update_children_layout() override {
@@ -239,9 +188,11 @@ namespace codepad::ui::tabs {
 			tab_manager &man = _get_tab_manager();
 			_droptok = man.drag_ended += [this](tab_drag_ended_info &info) {
 				// animation
-				tabs::tab_button &button = info.dragging_tab->get_button();
-				auto *data = _get_data(button);
-				data->set_offset(*this, button, data->current_offset);
+				for (tab *t : info.dragging_tabs) {
+					tabs::tab_button &button = t->get_button();
+					auto *data = _get_data(button);
+					data->set_offset(*this, button, data->current_offset);
+				}
 				_on_end_drag();
 			};
 			_updatetok = man.drag_move_tab_button += [this](tab_drag_update_info &info) {
@@ -257,38 +208,7 @@ namespace codepad::ui::tabs {
 			man.drag_move_tab_button -= _updatetok;
 		}
 		/// Called when \ref tab_manager::drag_move_tab_button is invoked.
-		void _on_drag_update(tab_drag_update_info &info) {
-			// update position in tab list
-			stack_layout_helper layout = _get_children_layout_helper();
-			host *host = _host;
-			tab_manager &man = _get_tab_manager();
-			tab_button &dragbtn = man.get_dragging_tab()->get_button();
-			double accu = 0.0, relpos =
-				get_orientation() == orientation::vertical ?
-				info.position.y :
-				info.position.x;
-			auto beforeit = host->get_tabs().items().begin();
-			for (element *e : _children.items()) {
-				if (e != &dragbtn) {
-					double mysz = layout.compute_span_for(*e);
-					if (accu + 0.5 * mysz > relpos) { // should be here
-						break;
-					}
-					accu += mysz;
-				}
-				++beforeit;
-			}
-			// calculate current position
-			auto [margin_before, size, margin_after] = layout.compute_detailed_span_for(dragbtn);
-			relpos -= margin_before;
-			// actually set stuff
-			host->move_tab_before(
-				*man.get_dragging_tab(),
-				beforeit == host->get_tabs().items().end() ? nullptr : dynamic_cast<tab*>(*beforeit)
-			);
-			auto *data = _get_data(dragbtn);
-			data->set_offset(*this, dragbtn, relpos - accu);
-		}
+		void _on_drag_update(tab_drag_update_info&);
 
 		/// Handles \ref _host.
 		bool _handle_reference(std::u8string_view role, element *elem) override {

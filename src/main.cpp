@@ -166,7 +166,7 @@ int main(int argc, char **argv) {
 					plugman.attach(std::move(plugin));
 					plug_ref.enable();
 				} else {
-					logger::get().log_warning(CP_HERE) << "failed to load plugin " << p;
+					logger::get().log_warning() << "failed to load plugin " << p;
 					continue;
 				}
 			}
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
 				settings::basic_parsers::basic_type_with_default<std::u8string_view>(default_graphics_backend)
 				);
 			std::u8string_view renderer = parser->get_main_profile().get_value();
-			logger::get().log_debug(CP_HERE) << "using renderer: " << renderer;
+			logger::get().log_debug() << "using renderer: " << renderer;
 #ifdef CP_PLATFORM_WINDOWS
 			if (renderer == u8"direct2d") {
 				man.set_renderer(std::make_unique<direct2d::renderer>());
@@ -246,7 +246,7 @@ int main(int argc, char **argv) {
 		tabs::tab *tmptab = tabman.new_tab();
 		tmptab->set_label(u8"Welcome");
 		tmptab->children().add(*stack);
-		tmptab->get_host()->activate_tab(*tmptab);
+		tmptab->get_host()->activate_tab_and_focus(*tmptab);
 
 
 		make_textbox_test_tab(man, tabman);

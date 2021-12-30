@@ -141,7 +141,7 @@ namespace codepad::os {
 	}
 
 	gboolean window_impl::_on_scroll_event(GtkWidget*, GdkEvent *event, window_impl *wnd) {
-		logger::get().log_debug(CP_HERE) <<
+		logger::get().log_debug() <<
 			"scroll direction: " << event->scroll.direction <<
 			"\nx = " << event->scroll.delta_x <<
 			"\ny = " << event->scroll.delta_y;
@@ -150,7 +150,7 @@ namespace codepad::os {
 		// https://searchfox.org/mozilla-central/source/widget/gtk/nsWindow.cpp, in nsWindow::OnScrollEvent()
 		// FIXME not my fault smooth scrolling doesn't work
 		if (event->scroll.direction != GDK_SCROLL_SMOOTH && event->scroll.time == wnd->_prev_scroll_timestamp) {
-			logger::get().log_debug(CP_HERE) << "duplicate scroll event ignored";
+			logger::get().log_debug() << "duplicate scroll event ignored";
 			return true;
 		}
 
