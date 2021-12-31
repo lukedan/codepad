@@ -119,6 +119,7 @@ target_sources(codepad_core
 		"src/core/globals.cpp"
 		"src/core/logger_sinks.cpp"
 		"src/core/logging.cpp"
+		"src/core/misc.cpp"
 		"src/core/plugins.cpp"
 		"src/core/profiling.cpp"
 		"src/core/settings.cpp"

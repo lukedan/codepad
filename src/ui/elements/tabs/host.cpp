@@ -77,13 +77,9 @@ namespace codepad::ui::tabs {
 		for (auto *elem : get_tabs().items()) {
 			if (auto *t = dynamic_cast<tab*>(elem)) {
 				if (t == to_activate) {
-					if (!t->is_selected()) {
-						t->select();
-					}
+					t->select();
 				} else {
-					if (t->is_selected()) {
-						t->deselect();
-					}
+					t->deselect();
 				}
 			}
 		}
@@ -104,7 +100,7 @@ namespace codepad::ui::tabs {
 			_active_tab = nullptr;
 		}
 		// mark the tab selected if it's not already
-		if (!to_activate->is_selected()) {
+		if (to_activate) {
 			to_activate->select();
 		}
 		_active_tab = to_activate;
@@ -131,7 +127,7 @@ namespace codepad::ui::tabs {
 	void host::_on_tab_removing(tab &t) {
 		if (&t == _active_tab) { // change active tab
 			if (_tab_contents_region->children().size() == 1) {
-				activate_tab(nullptr);
+				activate_tab_keep_selection(nullptr);
 			} else {
 				auto it = _tab_contents_region->children().items().begin();
 				for (; it != _tab_contents_region->children().items().end() && *it != &t; ++it) {
@@ -180,5 +176,10 @@ namespace codepad::ui::tabs {
 			return true;
 		}
 		return panel::_handle_reference(role, elem);
+	}
+
+	void host::_dispose() {
+		get_tab_manager()._on_host_disposing(*this);
+		panel::_dispose();
 	}
 }

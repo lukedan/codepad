@@ -151,13 +151,14 @@ namespace codepad::ui::tabs {
 			return _btn->get_label();
 		}
 
-		/// Marks this tab as selected. This tab must not have been selected previously.
+		/// Marks this tab as selected if it isn't.
 		void select() {
-			assert_true_logical(!_selected, "tab is already selected");
-			_selected = true;
-			_on_selected();
+			if (!_selected) {
+				_selected = true;
+				_on_selected();
+			}
 		}
-		/// Marks this tab as unselected. This tab must have been selected previously and must not be active.
+		/// Marks this tab as unselected if it's selected.
 		void deselect();
 		/// Returns whether this tab is selected.
 		[[nodiscard]] bool is_selected() const {

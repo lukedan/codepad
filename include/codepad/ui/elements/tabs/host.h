@@ -194,6 +194,9 @@ namespace codepad::ui::tabs {
 
 		/// Handles \ref _tab_buttons_region and \ref _tab_contents_region, and registers for events.
 		bool _handle_reference(std::u8string_view, element*) override;
+
+		/// Calls \ref tab_manager::_on_host_disposing().
+		void _dispose() override;
 	private:
 		tab_manager *_tab_manager = nullptr; ///< The manager of this tab.
 	};

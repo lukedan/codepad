@@ -30,15 +30,15 @@ namespace codepad::ui::tabs {
 		return t;
 	}
 
-	void tab_manager::move_tab_to_new_window(tab &t) {
-		rectd tglayout = t.get_layout();
-		host *hst = t.get_host();
-		window *wnd = t.get_window();
+	void tab_manager::move_tabs_to_new_window(std::span<tab *const> tabs) {
+		rectd tglayout = tabs[0]->get_layout();
+		host *hst = tabs[0]->get_host();
+		window *wnd = tabs[0]->get_window();
 		if (hst != nullptr && wnd != nullptr) {
 			vec2d windowpos = wnd->client_to_screen(hst->get_layout().xmin_ymin());
 			tglayout = rectd::from_corner_and_size(windowpos, tglayout.size());
 		}
-		_move_tab_to_new_window(t, tglayout);
+		_move_tabs_to_new_window(tabs, tglayout);
 	}
 
 	void tab_manager::update_changed_hosts() {
@@ -50,10 +50,8 @@ namespace codepad::ui::tabs {
 					if (auto father = dynamic_cast<split_panel*>(hst->parent()); father) {
 						// only merge when two empty hosts are side by side
 						auto *other = dynamic_cast<host*>(
-							hst == father->get_child1() ?
-							father->get_child2() :
-							father->get_child1()
-							);
+							hst == father->get_child1() ? father->get_child2() : father->get_child1()
+						);
 						if (other && other->get_tab_count() == 0) { // merge
 							father->set_child1(nullptr);
 							father->set_child2(nullptr);
@@ -67,12 +65,8 @@ namespace codepad::ui::tabs {
 									ff->set_child2(other);
 								}
 							} else {
-#ifdef CP_CHECK_LOGICAL_ERRORS
 								auto f = dynamic_cast<window*>(father->parent());
 								assert_true_logical(f != nullptr, "parent of parent must be a window or a split panel");
-#else
-								auto f = static_cast<window*>(father->parent());
-#endif
 								f->children().remove(*father);
 								f->children().add(*other);
 							}
@@ -223,9 +217,11 @@ namespace codepad::ui::tabs {
 		return sp;
 	}
 
-	void tab_manager::_split_tab(host &hst, tab &t, orientation orient, bool newfirst) {
-		if (t.get_host() == &hst) {
-			hst.remove_tab(t);
+	void tab_manager::_split_tabs(host &hst, std::span<tab *const> ts, orientation orient, bool newfirst) {
+		for (tab *t : ts) {
+			if (t->get_host() == &hst) {
+				hst.remove_tab(*t);
+			}
 		}
 		split_panel *sp = _replace_with_split_panel(hst);
 		host *th = _new_tab_host();
@@ -236,21 +232,26 @@ namespace codepad::ui::tabs {
 			sp->set_child1(&hst);
 			sp->set_child2(th);
 		}
-		th->add_tab(t);
+		for (tab *t : ts) {
+			th->add_tab(*t);
+		}
 		sp->set_orientation(orient);
 	}
 
-	void tab_manager::_move_tab_to_new_window(tab &t, rectd layout) {
-		host *hst = t.get_host();
-		if (hst != nullptr) {
-			hst->remove_tab(t);
+	void tab_manager::_move_tabs_to_new_window(std::span<tab *const> ts, rectd layout) {
+		for (tab *t : ts) {
+			if (host *hst = t->get_host()) {
+				hst->remove_tab(*t);
+			}
 		}
 		window *wnd = _new_window();
 		wnd->set_client_size(layout.size());
 		wnd->set_position(layout.xmin_ymin());
 		host *nhst = _new_tab_host();
 		wnd->children().add(*nhst);
-		nhst->add_tab(t);
+		for (tab *t : ts) {
+			nhst->add_tab(*t);
+		}
 		wnd->show_and_activate();
 	}
 
@@ -373,25 +374,25 @@ namespace codepad::ui::tabs {
 				for (tab *t : _dragging_tabs) {
 					_drag_destination->add_tab(*t);
 				}
-				_drag_destination->activate_tab_and_focus(*_dragging_tabs[0]);
+				_drag_destination->activate_tab_keep_selection_and_focus(*_dragging_tabs[0]);
 				break;
 			case drag_split_type::new_window:
 				{
-					/*_move_tab_to_new_window(
-						*_drag, rectd::from_corner_and_size(window_pos, translated_host.size())
-					);*/
+					_move_tabs_to_new_window(
+						_dragging_tabs, rectd::from_corner_and_size(window_pos, translated_host.size())
+					);
 					break;
 				}
 			default: // split
 				assert_true_logical(_drag_destination != nullptr, "invalid split target");
-				/*_split_tab(
-					*_drag_destination, *_drag,
+				_split_tabs(
+					*_drag_destination, _dragging_tabs,
 					split == drag_split_type::split_top ||
 					split == drag_split_type::split_bottom ?
 					orientation::vertical : orientation::horizontal,
 					split == drag_split_type::split_left ||
 					split == drag_split_type::split_top
-				);*/
+				);
 				break;
 			}
 		}

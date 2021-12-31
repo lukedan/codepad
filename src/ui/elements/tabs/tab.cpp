@@ -43,12 +43,13 @@ namespace codepad::ui::tabs {
 
 
 	void tab::deselect() {
-		assert_true_logical(_selected, "tab is not selected");
-		assert_true_logical(
-			get_host() == nullptr || get_host()->get_active_tab() != this, "cannot deselect active tab"
-		);
-		_selected = false;
-		_on_deselected();
+		if (_selected) {
+			assert_true_logical(
+				get_host() == nullptr || get_host()->get_active_tab() != this, "cannot deselect active tab"
+			);
+			_selected = false;
+			_on_deselected();
+		}
 	}
 
 	void tab::_initialize() {
@@ -59,7 +60,28 @@ namespace codepad::ui::tabs {
 		_btn = get_manager().create_element<tab_button>();
 		_btn->click += [this](tab_button::click_info &info) {
 			if (info.button_info.modifiers == modifier_keys::shift) {
-				// TODO
+				// select all tabs from the active tab to this one
+				if (get_host()->get_active_tab() != this) {
+					auto &tabs = get_host()->get_tabs().items();
+					for (auto it = tabs.begin(); it != tabs.end(); ++it) {
+						if (*it == this) {
+							for (; *it != get_host()->get_active_tab(); ++it) {
+								if (auto *t = checked_dynamic_cast<tab>(*it)) {
+									t->select();
+								}
+							}
+							break;
+						} else if (*it == get_host()->get_active_tab()) {
+							for (; *it != this; ++it) {
+								if (auto *t = checked_dynamic_cast<tab>(*it)) {
+									t->select();
+								}
+							}
+						}
+						// otherwise continue looking
+					}
+					get_host()->activate_tab_keep_selection_and_focus(*this);
+				}
 			} else if (info.button_info.modifiers == modifier_keys::control) {
 				if (get_host()->get_active_tab() != this) {
 					if (is_selected()) {

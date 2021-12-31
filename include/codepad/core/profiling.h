@@ -13,10 +13,6 @@
 #include "assert.h"
 
 namespace codepad {
-	/// Demangles a given type name for more human-readable output.
-	std::u8string demangle(const char*);
-
-
 	/// Struct that monitors the beginning, ending, and duration of its lifespan.
 	struct performance_monitor {
 	public:

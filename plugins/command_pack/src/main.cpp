@@ -151,7 +151,7 @@ extern "C" {
 			u8"tab.split_left",
 			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>(
 				[](cp::ui::tabs::tab &t, const cp::json::value_storage&) {
-					t.get_tab_manager().split_tab(t, cp::ui::orientation::horizontal, true);
+					t.get_tab_manager().split_tabs({ &t }, cp::ui::orientation::horizontal, true);
 				}
 				)
 		);
@@ -159,7 +159,7 @@ extern "C" {
 			u8"tab.split_right",
 			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>(
 				[](cp::ui::tabs::tab &t, const cp::json::value_storage&) {
-					t.get_tab_manager().split_tab(t, cp::ui::orientation::horizontal, false);
+					t.get_tab_manager().split_tabs({ &t }, cp::ui::orientation::horizontal, false);
 				}
 				)
 		);
@@ -167,7 +167,7 @@ extern "C" {
 			u8"tab.split_up",
 			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>(
 				[](cp::ui::tabs::tab &t, const cp::json::value_storage&) {
-					t.get_tab_manager().split_tab(t, cp::ui::orientation::vertical, true);
+					t.get_tab_manager().split_tabs({ &t }, cp::ui::orientation::vertical, true);
 				}
 				)
 		);
@@ -175,7 +175,7 @@ extern "C" {
 			u8"tab.split_down",
 			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>(
 				[](cp::ui::tabs::tab &t, const cp::json::value_storage&) {
-					t.get_tab_manager().split_tab(t, cp::ui::orientation::vertical, false);
+					t.get_tab_manager().split_tabs({ &t }, cp::ui::orientation::vertical, false);
 				}
 				)
 		);
@@ -184,7 +184,7 @@ extern "C" {
 			u8"tab.move_to_new_window",
 			cp::ui::command_registry::convert_type<cp::ui::tabs::tab>(
 				[](cp::ui::tabs::tab &t, const cp::json::value_storage&) {
-					t.get_tab_manager().move_tab_to_new_window(t);
+					t.get_tab_manager().move_tabs_to_new_window({ &t });
 				}
 				)
 		);

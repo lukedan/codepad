@@ -6,6 +6,8 @@
 /// \file
 /// Manager for tabs and tab hosts.
 
+#include <span>
+
 #include "codepad/ui/element.h"
 #include "codepad/ui/panel.h"
 #include "split_panel.h"
@@ -36,11 +38,14 @@ namespace codepad::ui::tabs {
 		/// Constructor. Initializes \ref _drag_dest_selector and update tasks.
 		tab_manager(ui::manager &man) : _manager(man) {
 		}
-		/// Disposes \ref _drag_dest_selector, and unregisters update tasks.
+		/// Checks that dragging has stopped, and unregisters update tasks.
 		~tab_manager() {
 			assert_true_logical(
 				_dragging_tabs.empty(), "dragging operation still in progress during tab manager disposal"
 			);
+			if (_update_hosts_task) {
+				_manager.get_scheduler().cancel_synchronous_task(_update_hosts_task);
+			}
 		}
 
 		/// Creates a new \ref tab in a \ref host in the last focused \ref window. If there are no windows,
@@ -68,14 +73,22 @@ namespace codepad::ui::tabs {
 		/// \param orient The orientation in which this \ref host should split.
 		/// \param newfirst If \p true, \p t will be placed in the top/left \ref host while other remaining
 		///                 tabs will be put in the bottom/right \ref host.
-		void split_tab(tab &t, orientation orient, bool newfirst) {
-			host *host = t.get_host();
+		void split_tabs(std::span<tab *const> ts, orientation orient, bool newfirst) {
+			host *host = ts[0]->get_host();
 			assert_true_usage(host != nullptr, "cannot split tab without host");
-			_split_tab(*host, t, orient, newfirst);
+			_split_tabs(*host, ts, orient, newfirst);
 		}
-		/// Creates a new \ref window and a \ref host and moves the given tab into the newly created
-		/// \ref host. The size of the tab will be kept unchanged.
-		void move_tab_to_new_window(tab&);
+		/// \overload
+		void split_tabs(std::initializer_list<tab*> ts, orientation orient, bool newfirst) {
+			split_tabs({ ts.begin(), ts.end() }, orient, newfirst);
+		}
+		/// Creates a new \ref window and a \ref host and moves the given tabs into the newly created
+		/// \ref host. The size of the tab will be that of the first tab.
+		void move_tabs_to_new_window(std::span<tab *const>);
+		/// \overload
+		void move_tabs_to_new_window(std::initializer_list<tab*> tabs) {
+			move_tabs_to_new_window({ tabs.begin(), tabs.end() });
+		}
 
 		/// Updates all \ref host "tab_hosts" whose tabs have been closed or moved. This is mainly intended to
 		/// automatically merge empty tab hosts when they are emptied.
@@ -108,6 +121,7 @@ namespace codepad::ui::tabs {
 	protected:
 		std::set<host*> _changed; ///< The set of \ref host "tab_hosts" whose children have changed.
 		std::list<window*> _wndlist; ///< The list of windows, ordered according to their z-indices.
+		scheduler::sync_task_token _update_hosts_task; ///< Token for the task for updating changed tab hosts.
 
 		// drag destination
 		/// The destination \ref host of the \ref tab that's currently being dragged.
@@ -160,15 +174,23 @@ namespace codepad::ui::tabs {
 		/// \ref host will be detached from its parent.
 		split_panel *_replace_with_split_panel(host&);
 
-		/// Splits the given \ref host into halves, moving the given tab to one half and all others to the
+		/// Splits the given \ref host into halves, moving the specified tabs to one half and all others to the
 		/// other half.
 		///
 		/// \sa split_tab
-		void _split_tab(host&, tab&, orientation, bool newfirst);
+		void _split_tabs(host&, std::span<tab *const>, orientation, bool newfirst);
+		/// \overload
+		void _split_tabs(host &h, std::initializer_list<tab*> tabs, orientation ori, bool newfirst) {
+			_split_tabs(h, { tabs.begin(), tabs.end() }, ori, newfirst);
+		}
 
-		/// Moves the given \ref tab to a new window with the given layout, detaching it from its original parent.
-		/// Note that the position of the window (and hence \p layout) is in screen coordinates.
-		void _move_tab_to_new_window(tab&, rectd layout);
+		/// Moves the given \ref tab to a new window with the given layout, detaching them from their original
+		/// parent. Note that the position of the window (and hence \p layout) is in screen coordinates.
+		void _move_tabs_to_new_window(std::span<tab *const>, rectd layout);
+		/// \overload
+		void _move_tabs_to_new_window(std::initializer_list<tab*> tabs, rectd layout) {
+			_move_tabs_to_new_window({ tabs.begin(), tabs.end() }, layout);
+		}
 
 		/// Detaches \ref _drag_dest_selector from its parent if it has one.
 		void _try_detach_destination_selector() {
@@ -284,7 +306,21 @@ namespace codepad::ui::tabs {
 		/// update it afterwards, and schedules \ref update_changed_hosts() to be called.
 		void _on_tab_detached(host &host, tab&) {
 			_changed.insert(&host);
-			update_changed_hosts();
+			if (_update_hosts_task.empty()) {
+				_update_hosts_task = _manager.get_scheduler().register_synchronous_task(
+					scheduler::clock_t::now(), nullptr,
+					[this](element*) -> std::optional<scheduler::clock_t::time_point> {
+						_update_hosts_task = scheduler::sync_task_token();
+						update_changed_hosts();
+						return std::nullopt;
+					}
+				);
+			}
+		}
+
+		/// Called when a host is being disposed to remove it from \ref _changed.
+		void _on_host_disposing(host &hst) {
+			_changed.erase(&hst);
 		}
 	};
 }

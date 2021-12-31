@@ -398,6 +398,10 @@ namespace codepad {
 	};
 
 
+	/// Demangles a given type name for more human-readable output.
+	std::u8string demangle(const char*);
+
+
 	/// Initializes the program by calling \ref os::initialize first and then performing several other
 	/// initialization steps.
 	void initialize(int, char**);

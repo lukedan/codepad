@@ -105,4 +105,22 @@ namespace codepad {
 	inline void assert_true_logical(bool v) {
 		assert_true<error_level::logical_error>(v, "default logical error message");
 	}
+
+
+	/// Attempts to \p dynamic_cast the pointer, logging a warning if fails.
+	template <typename Desired, typename Base> [[nodiscard]] Desired *checked_dynamic_cast(
+		Base *b, std::u8string_view usage = u8""
+	) {
+		static_assert(std::is_base_of_v<Base, Desired>, "dynamic_cast to non-derived class");
+		if (auto *res = dynamic_cast<Desired*>(b)) {
+			return res;
+		}
+		auto log = logger::get().log_warning();
+		log << "dynamic_cast to " << demangle(typeid(Desired).name());
+		if (!usage.empty()) {
+			log << " (" << usage << ")";
+		}
+		log << " failed for " << b << " (type: " << demangle(typeid(*b).name()) << ")";
+		return nullptr;
+	}
 }
