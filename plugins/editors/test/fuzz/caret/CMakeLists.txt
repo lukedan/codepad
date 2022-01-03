@@ -1,4 +1,5 @@
 add_executable(caret_test)
+configure_codepad_target(caret_test)
 
 target_sources(caret_test
 	PRIVATE "main.cpp")

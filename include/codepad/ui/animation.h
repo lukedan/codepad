@@ -227,14 +227,15 @@ namespace codepad::ui {
 			property_path::any_ptr obj, const property_path::accessors::accessor_base &access,
 			const json::value_storage &value
 		) const override {
-			if (auto *typed_access = dynamic_cast<const property_path::accessors::typed_accessor<T>*>(&access)) {
+			auto *typed_access = checked_dynamic_cast<const property_path::accessors::typed_accessor<T>>(
+				&access, u8"property accessor"
+			);
+			if (typed_access) {
 				if (auto val = parse(value)) {
 					typed_access->set_value(obj, val.value());
 				} else {
 					logger::get().log_error() << "failed to parse value";
 				}
-			} else {
-				logger::get().log_error() << "accessor has incorrect type";
 			}
 		}
 	};
@@ -520,19 +521,14 @@ namespace codepad::ui {
 			} else {
 				result.accessor = std::make_shared<property_path::accessors::getter_setter_accessor<T, StaticOwner>>(
 					[get = std::forward<Getter>(getter)](const StaticOwner &owner) -> std::optional<T> {
-						if (auto *obj = dynamic_cast<const Owner*>(&owner)) {
+						if (auto *obj = checked_dynamic_cast<const Owner>(&owner, u8"property owner")) {
 							return get(*obj);
 						}
-						logger::get().log_error() <<
-							"incorrect dynamic type: expected " << demangle(typeid(Owner).name());
 						return std::nullopt;
 					},
 					[set = std::forward<Setter>(setter)](StaticOwner &owner, T val) {
-						if (auto *obj = dynamic_cast<Owner*>(&owner)) {
+						if (auto *obj = checked_dynamic_cast<Owner>(&owner, u8"property owner")) {
 							set(*obj, std::move(val));
-						} else {
-							logger::get().log_error() <<
-								"incorrect dynamic type: expected " << demangle(typeid(Owner).name());
 						}
 					},
 					id
@@ -658,7 +654,11 @@ namespace codepad::ui {
 			return res;
 		}
 		/// Creates and appends a \ref property_path::address_accessor_components::member_pointer_component.
-		template <auto MemberPtr> void make_append_member_pointer_component() {
+		template <auto MemberPtr> void make_append_member_pointer_component(
+			// FIXME it seems that clang-cl uses only the offset when mangling names which causes multiple
+			//       definitions with the same mangled name
+			typename member_pointer_traits<decltype(MemberPtr)>::owner_type* = nullptr
+		) {
 			make_append_accessor_component<
 				property_path::address_accessor_components::member_pointer_component<MemberPtr>
 			>();
@@ -692,14 +692,23 @@ namespace codepad::ui {
 
 		/// Appends a \ref property_path::address_accessor_components::member_pointer_component, and calls
 		/// \ref property_finders::find_property_info() to continue to find the property.
-		template <auto MemberPtr> property_info append_member_and_find_property_info() {
+		template <auto MemberPtr> property_info append_member_and_find_property_info(
+			// FIXME it seems that clang-cl uses only the offset when mangling names which causes multiple
+			//       definitions with the same mangled name
+			typename member_pointer_traits<decltype(MemberPtr)>::owner_type* = nullptr
+		) {
 			using _value_type = typename member_pointer_traits<decltype(MemberPtr)>::value_type;
 			make_append_member_pointer_component<MemberPtr>();
 			return property_finders::find_property_info<_value_type>(*this);
 		}
 		/// Similar to \ref append_member_and_find_property_info(), but uses
 		/// \ref property_finders::find_property_info_managed() instead.
-		template <auto MemberPtr> property_info append_member_and_find_property_info_managed(manager &man) {
+		template <auto MemberPtr> property_info append_member_and_find_property_info_managed(
+			manager &man,
+			// FIXME it seems that clang-cl uses only the offset when mangling names which causes multiple
+			//       definitions with the same mangled name
+			typename member_pointer_traits<decltype(MemberPtr)>::owner_type* = nullptr
+		) {
 			using _value_type = typename member_pointer_traits<decltype(MemberPtr)>::value_type;
 			make_append_member_pointer_component<MemberPtr>();
 			return property_finders::find_property_info_managed<_value_type>(*this, man);

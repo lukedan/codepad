@@ -68,7 +68,6 @@ namespace codepad::ui::tabs {
 	void host::activate_tab(tab *to_activate) {
 		if (_active_tab) {
 			_active_tab->set_visibility(visibility::none);
-			_active_tab->_btn->set_zindex(0); // TODO a bit hacky
 			_active_tab->_on_deactivated();
 			_active_tab = nullptr;
 		}
@@ -87,7 +86,6 @@ namespace codepad::ui::tabs {
 		_active_tab = to_activate;
 		if (_active_tab) {
 			_active_tab->set_visibility(visibility::full);
-			_active_tab->_btn->set_zindex(1);
 			_active_tab->_on_activated();
 		}
 	}
@@ -95,7 +93,6 @@ namespace codepad::ui::tabs {
 	void host::activate_tab_keep_selection(tab *to_activate) {
 		if (_active_tab) {
 			_active_tab->set_visibility(visibility::none);
-			_active_tab->_btn->set_zindex(0); // TODO a bit hacky
 			_active_tab->_on_deactivated();
 			_active_tab = nullptr;
 		}
@@ -106,7 +103,6 @@ namespace codepad::ui::tabs {
 		_active_tab = to_activate;
 		if (_active_tab) {
 			_active_tab->set_visibility(visibility::full);
-			_active_tab->_btn->set_zindex(1);
 			_active_tab->_on_activated();
 		}
 	}

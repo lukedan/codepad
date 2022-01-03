@@ -339,7 +339,7 @@ namespace codepad::editors {
 			/// \ref buffer::begin_edit.
 			void begin(edit_type type = edit_type::normal) {
 				_type = type;
-				_buf.begin_edit.invoke_noret(_type, _src);
+				_buf.begin_edit.construct_info_and_invoke(_type, _src);
 				_buf._lock.lock();
 			}
 
@@ -349,13 +349,13 @@ namespace codepad::editors {
 			void end() {
 				_buf._append_edit(std::move(_edt));
 				_buf._lock.unlock();
-				_buf.end_edit.invoke_noret(_type, _src, _buf._history[_buf._curedit - 1], std::move(_pos));
+				_buf.end_edit.construct_info_and_invoke(_type, _src, _buf._history[_buf._curedit - 1], std::move(_pos));
 			}
 			/// Finishes the edit with the specified edit contents by invoking \ref buffer::end_edit and unlocking
 			/// \ref buffer::_lock, normally used for redoing or undoing.
 			void end_custom(const edit &edt) {
 				_buf._lock.unlock();
-				_buf.end_edit.invoke_noret(_type, _src, edt, std::move(_pos));
+				_buf.end_edit.construct_info_and_invoke(_type, _src, edt, std::move(_pos));
 			}
 
 			/// Erases a sequence of bytes starting from \p pos with length \p eraselen, and inserts \p insert at
@@ -531,7 +531,7 @@ namespace codepad::editors {
 				!lang.empty(), "language list cannot be empty - must at least contain an empty string"
 			);
 			std::swap(_language, lang);
-			language_changed.invoke_noret(std::move(lang));
+			language_changed.construct_info_and_invoke(std::move(lang));
 		}
 		/// Returns the current language.
 		[[nodiscard]] const language_id &get_language() const {

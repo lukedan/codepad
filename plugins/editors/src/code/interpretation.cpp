@@ -424,7 +424,7 @@ namespace codepad::editors::code {
 		auto [end_info, end_char] =
 			_linebreaks.get_line_and_column_and_char_of_codepoint(current_target_codepoint);
 		std::size_t original_line_length = end_info.line_iterator->nonbreak_chars;
-		modification_decoded.invoke_noret(
+		modification_decoded.construct_info_and_invoke(
 			start_info, end_info, start_char, end_char,
 			first_changed_codepoint, current_target_codepoint, current_codepoint,
 			byte_of_first_changed_codepoint, byte_iter.get_position(), info
@@ -497,7 +497,7 @@ namespace codepad::editors::code {
 			end_info.position_in_line = std::min(end_info.position_in_line, original_line_length);
 		}
 
-		end_modification.invoke_noret(
+		end_modification.construct_info_and_invoke(
 			start_char, end_char - start_char, new_content_chars, end_info.line, end_info.position_in_line, info
 		);
 

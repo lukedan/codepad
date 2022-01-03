@@ -30,7 +30,7 @@ namespace codepad::ui::tabs {
 		return t;
 	}
 
-	void tab_manager::move_tabs_to_new_window(std::span<tab *const> tabs) {
+	host *tab_manager::move_tabs_to_new_window(std::span<tab *const> tabs) {
 		rectd tglayout = tabs[0]->get_layout();
 		host *hst = tabs[0]->get_host();
 		window *wnd = tabs[0]->get_window();
@@ -38,7 +38,7 @@ namespace codepad::ui::tabs {
 			vec2d windowpos = wnd->client_to_screen(hst->get_layout().xmin_ymin());
 			tglayout = rectd::from_corner_and_size(windowpos, tglayout.size());
 		}
-		_move_tabs_to_new_window(tabs, tglayout);
+		return _move_tabs_to_new_window(tabs, tglayout);
 	}
 
 	void tab_manager::update_changed_hosts() {
@@ -90,7 +90,7 @@ namespace codepad::ui::tabs {
 		for (element *e : h.get_tabs().items()) {
 			if (auto *t = dynamic_cast<tab*>(e)) {
 				if (t->is_selected()) {
-					_dragging_tabs.emplace_back(t);
+					_dragging_tabs.emplace_back(*t, rectd()); // initialize layout later
 				}
 			}
 		}
@@ -100,22 +100,29 @@ namespace codepad::ui::tabs {
 			std::numeric_limits<double>::max(), -std::numeric_limits<double>::max()
 		);
 		vec2d absolute_mouse_pos = offset + h.get_tab_buttons_region().get_layout().xmin_ymin();
+		_active_dragging_tab = std::numeric_limits<std::size_t>::max();
 		for (std::size_t i = 0; i < _dragging_tabs.size(); ++i) {
-			tab *t = _dragging_tabs[i];
-			rectd layout = t->get_button().get_layout();
+			auto &t = _dragging_tabs[i];
+			rectd layout = t.target->get_button().get_layout();
 			_drag_button_rect = rectd::bounding_box(_drag_button_rect, layout);
 			// fill in correct mouse offsets for all tab buttons
-			t->get_button()._drag_pos = absolute_mouse_pos - t->get_button().get_layout().xmin_ymin();
-
-			// switch around the tabs so that the active tab is the first one
-			if (h.get_active_tab() == t) {
-				std::swap(_dragging_tabs[0], _dragging_tabs[i]);
+			t.offset = layout.translated(-absolute_mouse_pos);
+			// update dragging tab index
+			if (h.get_active_tab() == t.target) {
+				assert_true_logical(
+					_active_dragging_tab == std::numeric_limits<std::size_t>::max(), "multiple active tabs"
+				);
+				_active_dragging_tab = i;
 			}
+		}
+		if (_active_dragging_tab == std::numeric_limits<std::size_t>::max()) {
+			logger::get().log_info() << "no active dragging tab; using the first one";
+			_active_dragging_tab = 0;
 		}
 		_drag_button_rect = _drag_button_rect.translated(-h.get_layout().xmin_ymin() - offset);
 		_drag_client_rect = client_region;
 
-		_drag_tab_window = dynamic_cast<window*>(_manager.create_element(
+		_drag_tab_window = checked_dynamic_cast<window>(_manager.create_element(
 			u8"window", u8"tabs.drag_ghost_window"
 		));
 		assert_true_logical(_drag_tab_window, "failed to create transparent window for dragging");
@@ -126,18 +133,24 @@ namespace codepad::ui::tabs {
 		_drag_tab_window->set_topmost(true);
 		_drag_tab_window->set_client_size(_drag_button_rect.size());
 
+		_drag_tab_panel = checked_dynamic_cast<overriden_layout_panel>(_manager.create_element(
+			u8"overriden_layout_panel", u8"tabs.drag_ghost_panel"
+		));
+		assert_true_logical(_drag_tab_panel, "failed to create panel for dragging");
+		_drag_tab_window->children().add(*_drag_tab_panel);
+
 		assert_true_logical(_drag_dest_selector == nullptr, "overlapping drag operations");
 		_drag_dest_selector = dynamic_cast<drag_destination_selector*>(_manager.create_element(
 			u8"drag_destination_selector", u8"drag_destination_selector"
 		));
 
 		_stop_drag_token = (
-			_dragging_tabs[0]->get_button().mouse_up += [this](mouse_button_info&) {
+			get_active_dragging_tab().target->get_button().mouse_up += [this](mouse_button_info&) {
 				_stop_dragging();
 			}
 		);
 		_capture_lost_token = (
-			_dragging_tabs[0]->get_button().lost_capture += [this]() {
+			get_active_dragging_tab().target->get_button().lost_capture += [this]() {
 				_stop_dragging();
 			}
 		);
@@ -217,7 +230,7 @@ namespace codepad::ui::tabs {
 		return sp;
 	}
 
-	void tab_manager::_split_tabs(host &hst, std::span<tab *const> ts, orientation orient, bool newfirst) {
+	std::pair<host*, host*> tab_manager::_split_tabs(host &hst, std::span<tab *const> ts, orientation orient, bool newfirst) {
 		for (tab *t : ts) {
 			if (t->get_host() == &hst) {
 				hst.remove_tab(*t);
@@ -236,9 +249,10 @@ namespace codepad::ui::tabs {
 			th->add_tab(*t);
 		}
 		sp->set_orientation(orient);
+		return { th, &hst };
 	}
 
-	void tab_manager::_move_tabs_to_new_window(std::span<tab *const> ts, rectd layout) {
+	host *tab_manager::_move_tabs_to_new_window(std::span<tab *const> ts, rectd layout) {
 		for (tab *t : ts) {
 			if (host *hst = t->get_host()) {
 				hst->remove_tab(*t);
@@ -253,34 +267,38 @@ namespace codepad::ui::tabs {
 			nhst->add_tab(*t);
 		}
 		wnd->show_and_activate();
+		return nhst;
 	}
 
 	void tab_manager::_start_dragging_in_host(host &h) {
 		_drag_destination = &h;
 		_dragging_in_host = true;
 		assert_true_logical(
-			_dragging_tabs[0]->get_button().parent(), "the tab should've already been added to the host"
+			get_active_dragging_tab().target->get_button().parent(),
+			"the tab should've already been added to the host"
 		);
-		_dragging_tabs[0]->get_window()->set_mouse_capture(_dragging_tabs[0]->get_button());
+		get_active_dragging_tab().target->get_window()->set_mouse_capture(
+			get_active_dragging_tab().target->get_button()
+		);
 		_mouse_move_token = (
-			_dragging_tabs[0]->get_button().mouse_move += [this](mouse_move_info &p) {
+			get_active_dragging_tab().target->get_button().mouse_move += [this](mouse_move_info &p) {
 				_update_dragging_in_host(p);
 			}
 		);
 	}
 
 	void tab_manager::_update_dragging_in_host(mouse_move_info &p) {
-		panel &region = _dragging_tabs[0]->get_host()->get_tab_buttons_region();
+		panel &region = get_active_dragging_tab().target->get_host()->get_tab_buttons_region();
 		vec2d mouse = p.new_position.get(region);
 		// TODO this way of testing if the mouse is still inside can be improved
 		if (!rectd::from_corners(vec2d(), region.get_layout().size()).contains(mouse)) {
-			window *wnd = _dragging_tabs[0]->get_window();
+			window *wnd = get_active_dragging_tab().target->get_window();
 			vec2d button_topleft_screen = wnd->client_to_screen(
 				p.new_position.get(*wnd) + _drag_button_rect.xmin_ymin()
 			);
 			_exit_dragging_in_host();
-			for (tab *t : _dragging_tabs) {
-				_drag_destination->remove_tab(*t);
+			for (auto &t : _dragging_tabs) {
+				_drag_destination->remove_tab(*t.target);
 			}
 			_start_dragging_free(button_topleft_screen);
 			return;
@@ -291,14 +309,17 @@ namespace codepad::ui::tabs {
 	void tab_manager::_start_dragging_free(vec2d topleft) {
 		_drag_destination = nullptr;
 		_dragging_in_host = false;
-		for (tab *t : _dragging_tabs) {
-			_drag_tab_window->children().add(t->get_button());
+		for (auto &t : _dragging_tabs) {
+			_drag_tab_panel->children().add(t.target->get_button());
+			_drag_tab_panel->set_child_layout(
+				t.target->get_button(), t.offset.translated(-_drag_button_rect.xmin_ymin())
+			);
 		}
 		_drag_tab_window->show();
-		_drag_tab_window->set_mouse_capture(_dragging_tabs[0]->get_button());
+		_drag_tab_window->set_mouse_capture(get_active_dragging_tab().target->get_button());
 		_drag_tab_window->set_position(topleft);
 		_mouse_move_token = (
-			_dragging_tabs[0]->get_button().mouse_move += [this](mouse_move_info &p) {
+			get_active_dragging_tab().target->get_button().mouse_move += [this](mouse_move_info &p) {
 				_update_dragging_free(p);
 			}
 		);
@@ -329,12 +350,12 @@ namespace codepad::ui::tabs {
 			if (buttons.hit_test(p.new_position.get(buttons))) { // should be dragged in the tab button area
 				_exit_dragging_free();
 
-				for (tab *t : _dragging_tabs) {
-					target->add_tab(*t);
+				for (auto &t : _dragging_tabs) {
+					target->add_tab(*t.target);
 				}
-				target->activate_tab_keep_selection_and_focus(*_dragging_tabs[0]);
+				target->activate_tab_keep_selection_and_focus(*get_active_dragging_tab().target);
 				_update_drag_tab_position(p.new_position.get(
-					_dragging_tabs[0]->get_host()->get_tab_buttons_region()
+					get_active_dragging_tab().target->get_host()->get_tab_buttons_region()
 				));
 
 				_start_dragging_in_host(*target);
@@ -371,45 +392,58 @@ namespace codepad::ui::tabs {
 			}
 			switch (split) {
 			case drag_split_type::combine:
-				for (tab *t : _dragging_tabs) {
-					_drag_destination->add_tab(*t);
+				for (auto &t : _dragging_tabs) {
+					_drag_destination->add_tab(*t.target);
 				}
-				_drag_destination->activate_tab_keep_selection_and_focus(*_dragging_tabs[0]);
+				_drag_destination->activate_tab_keep_selection_and_focus(*get_active_dragging_tab().target);
 				break;
 			case drag_split_type::new_window:
 				{
-					_move_tabs_to_new_window(
-						_dragging_tabs, rectd::from_corner_and_size(window_pos, translated_host.size())
+					std::vector<tab*> ts;
+					ts.reserve(get_dragging_tabs().size());
+					for (auto &t : get_dragging_tabs()) {
+						ts.emplace_back(t.target);
+					}
+					host *h = _move_tabs_to_new_window(
+						ts, rectd::from_corner_and_size(window_pos, translated_host.size())
 					);
+					h->activate_tab_keep_selection_and_focus(*get_active_dragging_tab().target);
 					break;
 				}
 			default: // split
-				assert_true_logical(_drag_destination != nullptr, "invalid split target");
-				_split_tabs(
-					*_drag_destination, _dragging_tabs,
-					split == drag_split_type::split_top ||
-					split == drag_split_type::split_bottom ?
-					orientation::vertical : orientation::horizontal,
-					split == drag_split_type::split_left ||
-					split == drag_split_type::split_top
-				);
+				{
+					assert_true_logical(_drag_destination != nullptr, "invalid split target");
+					std::vector<tab*> ts;
+					ts.reserve(get_dragging_tabs().size());
+					for (auto &t : get_dragging_tabs()) {
+						ts.emplace_back(t.target);
+					}
+					auto hosts = _split_tabs(
+						*_drag_destination, ts,
+						split == drag_split_type::split_top || split == drag_split_type::split_bottom ?
+						orientation::vertical : orientation::horizontal,
+						split == drag_split_type::split_left || split == drag_split_type::split_top
+					);
+					hosts.first->activate_tab_keep_selection_and_focus(*get_active_dragging_tab().target);
+				}
 				break;
 			}
 		}
 
 		// dispose of _drag_tab_window
-		_drag_tab_window->children().clear();
+		_drag_tab_panel->children().clear();
 		_manager.get_scheduler().mark_for_disposal(*_drag_tab_window);
 		_drag_tab_window = nullptr;
+		_drag_tab_panel = nullptr;
 		// unregister events
-		_dragging_tabs[0]->get_button().mouse_up -= _stop_drag_token;
-		_dragging_tabs[0]->get_button().lost_capture -= _capture_lost_token;
+		get_active_dragging_tab().target->get_button().mouse_up -= _stop_drag_token;
+		get_active_dragging_tab().target->get_button().lost_capture -= _capture_lost_token;
 
-		std::vector<tab*> dragged_tabs = std::exchange(_dragging_tabs, std::vector<tab*>());
+		std::vector<dragging_tab> dragged_tabs = std::exchange(_dragging_tabs, std::vector<dragging_tab>());
 		_drag_destination = nullptr;
 		_manager.get_scheduler().mark_for_disposal(*_drag_dest_selector);
 		_drag_dest_selector = nullptr;
-		drag_ended.invoke_noret(std::move(dragged_tabs));
+		drag_ended.construct_info_and_invoke(std::move(dragged_tabs));
 
 		// TODO maybe notify the tab of mouse up
 	}

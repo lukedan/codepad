@@ -32,15 +32,6 @@ namespace codepad::ui::tabs {
 			const vec2d reference;
 		};
 
-		/// Contains information about the user clicking a \ref tab_button.
-		struct click_info {
-			/// Initializes all fields of the struct.
-			explicit click_info(mouse_button_info &i) : button_info(i) {
-			}
-			/// The \ref mouse_button_info of the \ref element::mouse_down event.
-			mouse_button_info &button_info;
-		};
-
 		/// Sets the label displayed on the button.
 		void set_label(std::u8string str) {
 			_label->set_text(std::move(str));
@@ -50,15 +41,11 @@ namespace codepad::ui::tabs {
 			return _label->get_text();
 		}
 
-		/// Invoked when the ``close'' button is clicked, or when the user presses the tertiary mouse button on the
-		/// \ref tab_button.
-		info_event<> request_close;
 		info_event<> tab_activated; ///< Invoked when the associated tab is activated.
 		info_event<> tab_deactivated; ///< Invoked when the associated tab is deactivated.
 		info_event<> tab_selected; ///< Invoked when the associated tab is selected.
 		info_event<> tab_deselected; ///< Invoked when the associated tab is deselected.
-		info_event<drag_start_info> start_drag; ///< Invoked when the user starts dragging the \ref tab_button.
-		info_event<click_info> click; ///< Invoked when the user clicks the \ref tab_button.
+		info_event<drag_start_info> start_drag; ///< Invoked when the user starts dragging this tab.
 
 		/// Returns the default class of elements of type \ref tab_button.
 		inline static std::u8string_view get_default_class() {
@@ -75,32 +62,20 @@ namespace codepad::ui::tabs {
 		}
 	protected:
 		drag_deadzone _drag; ///< Used when starting dragging.
-		/// The reference point for dragging. This is the position of the mouse relative to this \ref tab_button
-		/// without transformations (i.e., if no transformations were applied to this element).
-		vec2d _drag_pos;
 		label *_label = nullptr; ///< Used to display the tab's label.
 		button *_close_btn = nullptr; ///< The `close' button.
+		tab *_tab = nullptr; ///< The tab that owns this button.
+		/// Whether \ref click_activate should be emitted during mouse up.
+		bool _handle_activate_on_mouse_up = false;
 
 		/// Handles mouse button interactions.
 		///
 		/// \todo Make actions customizable.
 		void _on_mouse_down(mouse_button_info&) override;
-		/// Updates \ref _drag, and invokes \ref start_drag if necessary.
-		void _on_mouse_move(mouse_move_info &p) override {
-			if (_drag.is_active()) {
-				if (_drag.update(p.new_position, *this)) {
-					start_drag.invoke_noret(_drag_pos);
-				}
-			}
-			panel::_on_mouse_move(p);
-		}
-		/// Cancels \ref _drag if necessary.
-		void _on_mouse_up(mouse_button_info &p) override {
-			if (_drag.is_active()) {
-				_drag.on_cancel(*this);
-			}
-			panel::_on_mouse_up(p);
-		}
+		/// Updates \ref _drag and invokes \ref click_activate and/or \ref start_drag if necessary.
+		void _on_mouse_move(mouse_move_info&) override;
+		/// Cancels \ref _drag and invokes \ref click_activate if necessary.
+		void _on_mouse_up(mouse_button_info&) override;
 		/// Cancels \ref _drag if necessary.
 		void _on_capture_lost() override {
 			_drag.on_capture_lost();
@@ -119,20 +94,24 @@ namespace codepad::ui::tabs {
 		/// Handles \ref _label and \ref _close_btn, and registers for events.
 		bool _handle_reference(std::u8string_view, element*) override;
 
-		/// Called when the associated tab is activated. Invokes \ref tab_activated.
+		/// Called when the associated tab is activated. Updates Z-index and invokes \ref tab_activated.
 		virtual void _on_tab_activated() {
+			set_zindex(2);
 			tab_activated.invoke();
 		}
-		/// Called when the associated tab is deactivated. Invokes \ref tab_deactivated.
+		/// Called when the associated tab is deactivated. Updates Z-index and invokes \ref tab_deactivated.
 		virtual void _on_tab_deactivated() {
+			set_zindex(1);
 			tab_deactivated.invoke();
 		}
-		/// Called when the associated tab is selected. Invokes \ref tab_selected.
+		/// Called when the associated tab is selected. Updates Z-index and invokes \ref tab_selected.
 		virtual void _on_tab_selected() {
+			set_zindex(1);
 			tab_selected.invoke();
 		}
-		/// Called when the associated tab is de-selected. Invokes \ref tab_deselected.
+		/// Called when the associated tab is de-selected. Updates Z-index and invokes \ref tab_deselected.
 		virtual void _on_tab_deselected() {
+			set_zindex(0);
 			tab_deselected.invoke();
 		}
 	};
@@ -141,6 +120,7 @@ namespace codepad::ui::tabs {
 	class tab : public panel {
 		friend host;
 		friend tab_manager;
+		friend tab_button;
 	public:
 		/// Sets the text displayed on the \ref tab_button.
 		void set_label(std::u8string s) {
@@ -201,6 +181,11 @@ namespace codepad::ui::tabs {
 		/// Called when this tab is closed. By default, this function simply marks this tab for disposal. Derived
 		/// classes can override this for further cleanup.
 		virtual void _on_close();
+
+		/// Called by the \ref tab_button when the user intends to activate this tab.
+		void _on_request_activate(bool range_selection, bool keep_selection, bool start_drag);
+		/// Called by the \ref tab_button when the user starts dragging this tab.
+		void _on_start_drag(vec2d mouse_offset);
 
 		/// Initializes \ref _btn and sets \ref _is_focus_scope to \p true.
 		void _initialize() override;

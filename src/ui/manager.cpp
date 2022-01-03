@@ -15,6 +15,7 @@
 #include "codepad/ui/elements/input_prompt.h"
 #include "codepad/ui/elements/label.h"
 #include "codepad/ui/elements/list_viewport.h"
+#include "codepad/ui/elements/overriden_layout_panel.h"
 #include "codepad/ui/elements/popup.h"
 #include "codepad/ui/elements/reference_container.h"
 #include "codepad/ui/elements/scroll_viewport.h"
@@ -283,6 +284,7 @@ namespace codepad::ui {
 		register_element_type<stack_panel>();
 		register_element_type<label>();
 		register_element_type<virtual_list_viewport>();
+		register_element_type<overriden_layout_panel>();
 		register_element_type<button>();
 		register_element_type<popup>();
 		register_element_type<reference_container>();

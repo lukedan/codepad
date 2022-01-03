@@ -9,11 +9,37 @@
 #include <filesystem>
 #include <optional>
 #include <cmath>
+#include <string_view>
 #include <source_location>
 
 #include "codepad/apigen_definitions.h"
 
 #include "encodings.h"
+
+#if defined(__clang__) && defined(_MSC_VER)
+// TODO nasty hack to make the program compile on windows with clang
+namespace std {
+	struct source_location {
+	public:
+		inline static constexpr source_location current() {
+			return source_location();
+		}
+
+		[[nodiscard]] constexpr uint32_t line() const {
+			return 0;
+		}
+		[[nodiscard]] constexpr uint32_t column() const {
+			return 0;
+		}
+		[[nodiscard]] constexpr const char *file_name() const {
+			return "unknown";
+		}
+		[[nodiscard]] constexpr const char *function_name() const {
+			return "unknown";
+		}
+	};
+}
+#endif
 
 namespace std {
 	/// Specialize \p std::hash<std::filesystem::path> that std doesn't specialize for some reason.

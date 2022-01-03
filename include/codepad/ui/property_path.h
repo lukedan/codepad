@@ -98,7 +98,12 @@ namespace codepad::ui::property_path {
 		};
 
 		/// A component that retrieves the value through a member pointer.
-		template <auto MemberPtr> class member_pointer_component : public component_base {
+		template <
+			auto MemberPtr,
+			// FIXME it seems that clang-cl uses only the offset when mangling names which causes multiple
+			//       definitions with the same mangled name
+			typename = typename member_pointer_traits<decltype(MemberPtr)>::owner_type
+		> class member_pointer_component : public component_base {
 		public:
 			/// Retrieves the value through \p MemberPtr.
 			[[nodiscard]] any_ptr get(const any_ptr &p) const override {

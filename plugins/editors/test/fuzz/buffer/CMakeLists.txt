@@ -1,4 +1,5 @@
 add_executable(buffer_test)
+configure_codepad_target(buffer_test)
 
 target_sources(buffer_test
 	PRIVATE "main.cpp")

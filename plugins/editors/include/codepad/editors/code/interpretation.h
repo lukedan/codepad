@@ -596,11 +596,11 @@ namespace codepad::editors::code {
 
 			/// Invokes \ref appearance_changed with \ref appearance_change_type::visual_only.
 			void on_list_changed() {
-				interp->appearance_changed.invoke_noret(appearance_change_type::visual_only);
+				interp->appearance_changed.construct_info_and_invoke(appearance_change_type::visual_only);
 			}
 			/// Invokes \ref appearance_changed with \ref appearance_change_type::visual_only.
 			void on_element_changed() {
-				interp->appearance_changed.invoke_noret(appearance_change_type::visual_only);
+				interp->appearance_changed.construct_info_and_invoke(appearance_change_type::visual_only);
 			}
 
 			interpretation *interp = nullptr; ///< The \ref interpretation.
@@ -948,9 +948,9 @@ namespace codepad::editors::code {
 		void _on_end_edit(buffer::end_edit_info &info) {
 			buffer::edit_positions pos;
 			std::swap(pos, _mod_cache.modification_chars);
-			end_edit.invoke_noret(std::move(pos), info);
+			end_edit.construct_info_and_invoke(std::move(pos), info);
 
-			appearance_changed.invoke_noret(appearance_change_type::layout_and_visual);
+			appearance_changed.construct_info_and_invoke(appearance_change_type::layout_and_visual);
 		}
 	};
 }

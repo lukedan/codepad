@@ -162,7 +162,7 @@ namespace codepad::editors {
 				return !empty();
 			}
 		protected:
-			std::list<ProviderPtr>::const_iterator _iter; ///< Iterator to the provider.
+			typename std::list<ProviderPtr>::const_iterator _iter; ///< Iterator to the provider.
 			decoration_provider_list *_list = nullptr; /// The list that created this token.
 
 			/// Initializes all fields of this struct.
@@ -225,7 +225,7 @@ namespace codepad::editors {
 	};
 	template <
 		typename Owner, typename ProviderPtr
-	> decoration_provider_list<Owner, ProviderPtr>::modifier
+	> typename decoration_provider_list<Owner, ProviderPtr>::modifier
 		decoration_provider_list<Owner, ProviderPtr>::token::modify() {
 		return modifier(*this);
 	}

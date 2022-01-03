@@ -1,4 +1,5 @@
 add_executable(editors_test)
+configure_codepad_target(editors_test)
 
 target_sources(editors_test
 	PRIVATE

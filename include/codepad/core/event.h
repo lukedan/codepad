@@ -123,7 +123,7 @@ namespace codepad {
 		/// and when the caller doesn't wish to explicitly create an instance of the parameters.
 		///
 		/// \param args Arguments used to initialize an instance, which is then passed to the handlers.
-		template <typename ...Con> void invoke_noret(Con &&...args) {
+		template <typename ...Con> void construct_info_and_invoke(Con &&...args) {
 			T p(std::forward<Con>(args)...);
 			this->invoke(p);
 		}

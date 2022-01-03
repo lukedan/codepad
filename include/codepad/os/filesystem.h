@@ -140,7 +140,7 @@ namespace codepad::os {
 #endif
 
 		/// The value of an empty handle.
-		constexpr static native_handle_t empty_handle =
+		inline const static native_handle_t empty_handle =
 #if defined(CP_PLATFORM_WINDOWS)
 			INVALID_HANDLE_VALUE;
 #elif defined(CP_PLATFORM_UNIX)

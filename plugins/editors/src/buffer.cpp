@@ -14,7 +14,7 @@ namespace codepad::editors {
 
 	void buffer::modifier::modify_nofixup(std::size_t pos, std::size_t eraselen, byte_string insert) {
 		modification mod;
-		_buf.begin_modify.invoke_noret(pos, eraselen, insert);
+		_buf.begin_modify.construct_info_and_invoke(pos, eraselen, insert);
 		mod.position = pos;
 		if (eraselen > 0) {
 			const_iterator posit = _buf.at(pos), endit = _buf.at(pos + eraselen);
@@ -25,7 +25,7 @@ namespace codepad::editors {
 			_buf._insert(_buf.at(pos), insert.begin(), insert.end());
 			mod.added_content = std::move(insert);
 		}
-		_buf.end_modify.invoke_noret(pos, mod.removed_content, mod.added_content);
+		_buf.end_modify.construct_info_and_invoke(pos, mod.removed_content, mod.added_content);
 		_diff += mod.added_content.size() - mod.removed_content.size();
 		_pos.emplace_back(mod.position, mod.removed_content.size(), mod.added_content.size());
 		_edt.emplace_back(std::move(mod));
@@ -33,28 +33,28 @@ namespace codepad::editors {
 
 	void buffer::modifier::_undo_modification(const modification &mod) {
 		std::size_t pos = mod.position + _diff;
-		_buf.begin_modify.invoke_noret(pos, mod.added_content.size(), mod.removed_content);
+		_buf.begin_modify.construct_info_and_invoke(pos, mod.added_content.size(), mod.removed_content);
 		if (!mod.added_content.empty()) {
 			_buf._erase(_buf.at(pos), _buf.at(pos + mod.added_content.size()));
 		}
 		if (!mod.removed_content.empty()) {
 			_buf._insert(_buf.at(pos), mod.removed_content.begin(), mod.removed_content.end());
 		}
-		_buf.end_modify.invoke_noret(pos, mod.added_content, mod.removed_content);
+		_buf.end_modify.construct_info_and_invoke(pos, mod.added_content, mod.removed_content);
 		_diff += mod.removed_content.size() - mod.added_content.size();
 		_pos.emplace_back(pos, mod.added_content.size(), mod.removed_content.size());
 	}
 
 	void buffer::modifier::_redo_modification(const modification &mod) {
 		// the modification already stores adjusted positions
-		_buf.begin_modify.invoke_noret(mod.position, mod.removed_content.size(), mod.added_content);
+		_buf.begin_modify.construct_info_and_invoke(mod.position, mod.removed_content.size(), mod.added_content);
 		if (!mod.removed_content.empty()) {
 			_buf._erase(_buf.at(mod.position), _buf.at(mod.position + mod.removed_content.size()));
 		}
 		if (!mod.added_content.empty()) {
 			_buf._insert(_buf.at(mod.position), mod.added_content.begin(), mod.added_content.end());
 		}
-		_buf.end_modify.invoke_noret(mod.position, mod.removed_content, mod.added_content);
+		_buf.end_modify.construct_info_and_invoke(mod.position, mod.removed_content, mod.added_content);
 		_diff += mod.added_content.size() - mod.removed_content.size();
 		_pos.emplace_back(mod.position, mod.removed_content.size(), mod.added_content.size());
 	}

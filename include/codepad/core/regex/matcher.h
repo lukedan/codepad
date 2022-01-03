@@ -271,11 +271,11 @@ namespace codepad::regex {
 			/// Default constructor.
 			_finished_capture_info() = default;
 			/// Initializes all fields of this struct.
-			_finished_capture_info(result::capture cap, typename compiled_types::capture_ref cap_ref) :
+			_finished_capture_info(typename result::capture cap, typename compiled_types::capture_ref cap_ref) :
 				capture_data(std::move(cap)), capture(cap_ref) {
 			}
 
-			result::capture capture_data; ///< Previous capture data overwritten by this match.
+			typename result::capture capture_data; ///< Previous capture data overwritten by this match.
 			typename compiled_types::capture_ref capture; ///< The capture.
 		};
 		/// Information about a partially finished capture that needs to restart after backtracking.
@@ -335,15 +335,15 @@ namespace codepad::regex {
 			/// The number of captures that was ongoing before this state was pushed onto the stack.
 			std::size_t initial_ongoing_captures = 0;
 			/// Bookmark in \ref _state_partial_finished_captures for the first element for this state.
-			spliced_stack<_partial_finished_capture_info>::bookmark partial_finished_captures;
+			typename spliced_stack<_partial_finished_capture_info>::bookmark partial_finished_captures;
 			/// Bookmark in \ref _state_finished_captures for the first element for this state.
-			spliced_stack<_finished_capture_info>::bookmark finished_captures;
+			typename spliced_stack<_finished_capture_info>::bookmark finished_captures;
 			/// Bookmark in \ref _state_finished_subroutines for the first element for this state.
-			spliced_stack<_subroutine_stackframe>::bookmark finished_subroutines;
+			typename spliced_stack<_subroutine_stackframe>::bookmark finished_subroutines;
 			/// Bookmark in \ref _state_restored_checkpoints for the first element for this state.
-			spliced_stack<_checkpointed_stream>::bookmark restored_checkpoints;
+			typename spliced_stack<_checkpointed_stream>::bookmark restored_checkpoints;
 			/// Bookmark in \ref _state_finished_stream_positions for the first element for this state.
-			spliced_stack<_stream_position>::bookmark finished_stream_positions;
+			typename spliced_stack<_stream_position>::bookmark finished_stream_positions;
 			/// Overriden match starting position before this state was pushed onto the stack.
 			std::optional<Stream> initial_match_begin;
 

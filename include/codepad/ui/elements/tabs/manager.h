@@ -10,31 +10,43 @@
 
 #include "codepad/ui/element.h"
 #include "codepad/ui/panel.h"
+#include "codepad/ui/elements/overriden_layout_panel.h"
 #include "split_panel.h"
 #include "tab.h"
 #include "host.h"
 
 namespace codepad::ui::tabs {
-	/// Information about the user dragging a \ref tab_button.
-	struct tab_drag_update_info {
-		/// Initializes all fields of this struct.
-		explicit tab_drag_update_info(vec2d pos) : position(pos) {
-		}
-		const vec2d position; /// New position of the mouse cursor relative to the tab buttons region.
-	};
-	/// Contains related information when the user stops dragging a tab.
-	struct tab_drag_ended_info {
-		/// Initializes \ref dragging_tab.
-		explicit tab_drag_ended_info(std::vector<tab*> t) : dragging_tabs(t) {
-		}
-		const std::vector<tab*> dragging_tabs; ///< The tabs that the user was dragging.
-	};
-
 	/// Manages all \ref tab "tabs" and \ref host "tab_hosts".
 	class tab_manager {
 		friend tab;
 		friend host;
 	public:
+		/// Information about a tab being dragged.
+		struct dragging_tab {
+			/// Default constructor.
+			dragging_tab() = default;
+			/// Initializes all fields of this struct.
+			dragging_tab(tab &t, rectd off) : offset(off), target(&t) {
+			}
+
+			rectd offset; ///< The offset of the tab button relative to the mouse cursor.
+			tab *target = nullptr; ///< The tab that's being dragged.
+		};
+		/// Information about the user dragging a \ref tab_button.
+		struct drag_update_info {
+			/// Initializes all fields of this struct.
+			explicit drag_update_info(vec2d pos) : position(pos) {
+			}
+			const vec2d position; /// New position of the mouse cursor relative to the tab buttons region.
+		};
+		/// Contains related information when the user stops dragging a tab.
+		struct drag_ended_info {
+			/// Initializes \ref dragging_tab.
+			explicit drag_ended_info(std::vector<dragging_tab> ts) : dragging_tabs(std::move(ts)) {
+			}
+			const std::vector<dragging_tab> dragging_tabs; ///< The tabs that the user was dragging.
+		};
+
 		/// Constructor. Initializes \ref _drag_dest_selector and update tasks.
 		tab_manager(ui::manager &man) : _manager(man) {
 		}
@@ -50,14 +62,14 @@ namespace codepad::ui::tabs {
 
 		/// Creates a new \ref tab in a \ref host in the last focused \ref window. If there are no windows,
 		/// a new one is created.
-		tab *new_tab();
+		[[nodiscard]] tab *new_tab();
 		/// Creates a new \ref tab in the given \ref host and returns it. If the given \ref host is
 		/// \p nullptr, a new window containing a new \ref host will be created, in which the \ref tab will be
 		/// created.
-		tab *new_tab_in(host* = nullptr);
+		[[nodiscard]] tab *new_tab_in(host* = nullptr);
 
 		/// Returns the total number of windows managed by \ref tab_manager.
-		std::size_t window_count() const {
+		[[nodiscard]] std::size_t window_count() const {
 			return _wndlist.size();
 		}
 
@@ -84,10 +96,12 @@ namespace codepad::ui::tabs {
 		}
 		/// Creates a new \ref window and a \ref host and moves the given tabs into the newly created
 		/// \ref host. The size of the tab will be that of the first tab.
-		void move_tabs_to_new_window(std::span<tab *const>);
+		///
+		/// \return The newly created \ref host.
+		host *move_tabs_to_new_window(std::span<tab *const>);
 		/// \overload
-		void move_tabs_to_new_window(std::initializer_list<tab*> tabs) {
-			move_tabs_to_new_window({ tabs.begin(), tabs.end() });
+		host *move_tabs_to_new_window(std::initializer_list<tab*> tabs) {
+			return move_tabs_to_new_window({ tabs.begin(), tabs.end() });
 		}
 
 		/// Updates all \ref host "tab_hosts" whose tabs have been closed or moved. This is mainly intended to
@@ -98,13 +112,17 @@ namespace codepad::ui::tabs {
 		[[nodiscard]] bool is_dragging_any_tab() const {
 			return !_dragging_tabs.empty();
 		}
-		/// Returns the tab that's currently being dragged.
-		[[nodiscard]] const std::vector<tab*> &get_dragging_tabs() const {
+		/// Returns the tabs that are currently being dragged.
+		[[nodiscard]] std::span<const dragging_tab> get_dragging_tabs() const {
 			return _dragging_tabs;
 		}
-		/// Returns the offset of the mouse relative to the given \ref tab_button while it's being dragged.
-		[[nodiscard]] vec2d get_dragging_tab_offset_for(tab_button &t) const {
-			return t._drag_pos;
+		/// Returns \ref _active_dragging_tab.
+		[[nodiscard]] std::size_t get_active_dragging_tab_index() const {
+			return _active_dragging_tab;
+		}
+		/// Shorthand for \ref get_dragging_tabs() and \ref get_active_dragging_tab_index().
+		[[nodiscard]] dragging_tab get_active_dragging_tab() const {
+			return get_dragging_tabs()[get_active_dragging_tab_index()];
 		}
 
 		/// Starts dragging all selected tabs in the given host.
@@ -115,9 +133,9 @@ namespace codepad::ui::tabs {
 		/// \param client_region The layout of the \ref tab's main region, relative to the mouse cursor.
 		void start_dragging_selected_tabs(host &h, vec2d offset, rectd client_region);
 
-		info_event<tab_drag_ended_info> drag_ended; ///< Invoked when the user finishes dragging a \ref tab_button.
-		/// Invoked while the user is dragging a \ref tab_button.
-		info_event<tab_drag_update_info> drag_move_tab_button;
+		info_event<drag_ended_info> drag_ended; ///< Invoked when the user finishes dragging a \ref tab_button.
+		/// Invoked while the user is dragging tab buttons.
+		info_event<drag_update_info> drag_move_tab_buttons;
 	protected:
 		std::set<host*> _changed; ///< The set of \ref host "tab_hosts" whose children have changed.
 		std::list<window*> _wndlist; ///< The list of windows, ordered according to their z-indices.
@@ -135,12 +153,14 @@ namespace codepad::ui::tabs {
 		info_event<mouse_button_info>::token _stop_drag_token; ///< Used to know when to stop dragging.
 		info_event<>::token _capture_lost_token; ///< Used to listen to capture lost events and stop dragging.
 		// drag ui
-		window *_drag_tab_window = nullptr; ///< The window used to display the tab that's being dragged.
+		window *_drag_tab_window = nullptr; ///< The window used to display the tabs that are being dragged.
+		overriden_layout_panel *_drag_tab_panel = nullptr; ///< Child of \ref _drag_tab_window containing all 
 		drag_destination_selector *_drag_dest_selector = nullptr; ///< The \ref drag_destination_selector.
 		// drag parameters
-		/// Tabs that are currently being dragged. The first tab in this array will be the active tab; it will also
-		/// get mouse capture and be used for receiving events.
-		std::vector<tab*> _dragging_tabs;
+		/// Tabs that are currently being dragged. These will be in the same order as they were originally in the
+		/// host before dragging started.
+		std::vector<dragging_tab> _dragging_tabs;
+		std::size_t _active_dragging_tab = 0; ///< The index of the active tab in \ref _dragging_tabs.
 		rectd _drag_button_rect; ///< The boundaries of \ref _drag_tab_window, relative to the mouse cursor.
 		/// The boundaries of the "client" area of the tabs being dragged, relative to the mouse cursor.
 		rectd _drag_client_rect;
@@ -177,19 +197,22 @@ namespace codepad::ui::tabs {
 		/// Splits the given \ref host into halves, moving the specified tabs to one half and all others to the
 		/// other half.
 		///
+		/// \return The new \ref host and the old one.
 		/// \sa split_tab
-		void _split_tabs(host&, std::span<tab *const>, orientation, bool newfirst);
+		std::pair<host*, host*> _split_tabs(host&, std::span<tab *const>, orientation, bool newfirst);
 		/// \overload
-		void _split_tabs(host &h, std::initializer_list<tab*> tabs, orientation ori, bool newfirst) {
-			_split_tabs(h, { tabs.begin(), tabs.end() }, ori, newfirst);
+		std::pair<host*, host*> _split_tabs(
+			host &h, std::initializer_list<tab*> tabs, orientation ori, bool newfirst
+		) {
+			return _split_tabs(h, { tabs.begin(), tabs.end() }, ori, newfirst);
 		}
 
 		/// Moves the given \ref tab to a new window with the given layout, detaching them from their original
 		/// parent. Note that the position of the window (and hence \p layout) is in screen coordinates.
-		void _move_tabs_to_new_window(std::span<tab *const>, rectd layout);
+		host *_move_tabs_to_new_window(std::span<tab *const>, rectd layout);
 		/// \overload
-		void _move_tabs_to_new_window(std::initializer_list<tab*> tabs, rectd layout) {
-			_move_tabs_to_new_window({ tabs.begin(), tabs.end() }, layout);
+		host *_move_tabs_to_new_window(std::initializer_list<tab*> tabs, rectd layout) {
+			return _move_tabs_to_new_window({ tabs.begin(), tabs.end() }, layout);
 		}
 
 		/// Detaches \ref _drag_dest_selector from its parent if it has one.
@@ -266,8 +289,8 @@ namespace codepad::ui::tabs {
 		/// Called when the user stops dragging in a \ref host or when the tab is dragged away from one. This
 		/// function unregisters event handlers and releases mouse capture.
 		void _exit_dragging_in_host() {
-			_dragging_tabs[0]->get_button().mouse_move -= _mouse_move_token;
-			_dragging_tabs[0]->get_window()->release_mouse_capture();
+			get_active_dragging_tab().target->get_button().mouse_move -= _mouse_move_token;
+			get_active_dragging_tab().target->get_window()->release_mouse_capture();
 		}
 
 		/// Called when starting to drag a new tab or when the user drags a tab out of the tab buttons area. This
@@ -285,10 +308,10 @@ namespace codepad::ui::tabs {
 			_try_detach_destination_selector();
 			_drag_tab_window->release_mouse_capture();
 			_drag_tab_window->hide();
-			for (tab *t : _dragging_tabs) {
-				_drag_tab_window->children().remove(t->get_button());
+			for (const auto &t : _dragging_tabs) {
+				_drag_tab_panel->children().remove(t.target->get_button());
 			}
-			_dragging_tabs[0]->get_button().mouse_move -= _mouse_move_token;
+			get_active_dragging_tab().target->get_button().mouse_move -= _mouse_move_token;
 		}
 
 		/// Stops dragging.
@@ -299,7 +322,7 @@ namespace codepad::ui::tabs {
 		/// \param pos The position of the mouse cursor, relative to the area that contains all
 		///            \ref tab_button "tab_buttons"
 		void _update_drag_tab_position(vec2d pos) {
-			drag_move_tab_button.invoke_noret(pos);
+			drag_move_tab_buttons.construct_info_and_invoke(pos);
 		}
 
 		/// Called when a \ref tab is removed from a \ref host. Inserts the \ref host to \ref _changed to

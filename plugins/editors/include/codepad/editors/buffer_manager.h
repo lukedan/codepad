@@ -103,7 +103,7 @@ namespace codepad::editors {
 			auto res = std::make_shared<buffer>(path, *this);
 			ins.first->second.buf = res;
 			res->_tags.resize(_buffer_tag_alloc_max); // allocate space for tags
-			buffer_created.invoke_noret(*res);
+			buffer_created.construct_info_and_invoke(*res);
 			return res;
 		}
 		/// Creates a new file not yet associated with a path, identified by a \p std::size_t.
@@ -118,7 +118,7 @@ namespace codepad::editors {
 				_noname_alloc.pop();
 			}
 			buf->_tags.resize(_buffer_tag_alloc_max); // allocate space for tags
-			buffer_created.invoke_noret(*buf);
+			buffer_created.construct_info_and_invoke(*buf);
 			return buf;
 		}
 
@@ -143,7 +143,7 @@ namespace codepad::editors {
 			auto ptr = std::make_shared<code::interpretation>(buf.shared_from_this(), encoding);
 			ptr->_tags.resize(_interpretation_tag_alloc_max); // allocate space for tags
 			it->second = ptr;
-			interpretation_created.invoke_noret(*ptr);
+			interpretation_created.construct_info_and_invoke(*ptr);
 			return ptr;
 		}
 
@@ -153,7 +153,7 @@ namespace codepad::editors {
 			auto *contents = dynamic_cast<code::contents_region*>(edt.get_contents_region());
 			assert_true_usage(contents, "editor does not contain a content_region for code");
 			contents->_set_document(std::move(interp));
-			code_editor_created.invoke_noret(edt, *contents);
+			code_editor_created.construct_info_and_invoke(edt, *contents);
 		}
 
 
@@ -332,7 +332,7 @@ namespace codepad::editors {
 		/// Called when a buffer is being disposed, to remove the corresponding entry in \ref _file_map or add its
 		/// index to \ref _noname_alloc.
 		void _on_deleting_buffer(buffer &buf) {
-			buffer_disposing.invoke_noret(buf);
+			buffer_disposing.construct_info_and_invoke(buf);
 			if (std::holds_alternative<std::size_t>(buf._fileid)) {
 				std::size_t index = std::get<std::size_t>(buf._fileid);
 				_noname_map[index] = _buffer_data();

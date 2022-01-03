@@ -665,16 +665,8 @@ namespace codepad::ui {
 		///
 		/// \return Whether the casted pointer is non-null.
 		template <typename DesiredType> inline static bool _reference_cast_to(DesiredType *&target, element *value) {
-			target = dynamic_cast<DesiredType*>(value);
-			if (target == nullptr) {
-				auto entry = logger::get().log_error();
-				entry << "incorrect reference type, need " << demangle(typeid(DesiredType).name());
-				if (value) {
-					entry << ", found " << demangle(typeid(*value).name());
-				}
-				return false;
-			}
-			return true;
+			target = checked_dynamic_cast<DesiredType>(value, u8"element reference");
+			return target != nullptr;
 		}
 
 

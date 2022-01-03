@@ -1,4 +1,5 @@
 add_executable(red_black_tree_test)
+configure_codepad_target(red_black_tree_test)
 
 target_sources(red_black_tree_test
 	PRIVATE "main.cpp")

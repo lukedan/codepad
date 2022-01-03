@@ -442,7 +442,7 @@ namespace codepad::ui {
 			return this;
 		}
 		/// \override
-		[[nodiscard]] virtual const window *_get_as_window() const {
+		[[nodiscard]] const window *_get_as_window() const override {
 			return this;
 		}
 	};

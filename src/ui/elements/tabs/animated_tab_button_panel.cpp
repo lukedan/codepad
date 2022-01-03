@@ -7,7 +7,20 @@
 /// Implementation of the animated tab button panel.
 
 namespace codepad::ui::tabs {
-	void animated_tab_buttons_panel::_child_data::set_offset(animated_tab_buttons_panel &pnl, element &e, double offset) {
+	/// Returns whether the given tab button is being dragged.
+	[[nodiscard]] inline static bool _is_tab_button_being_dragged(tab_manager &tabman, element &e) {
+		if (tabman.is_dragging_any_tab()) {
+			for (auto &t : tabman.get_dragging_tabs()) {
+				if (&t.target->get_button() == &e) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	void animated_tab_buttons_panel::_child_data::set_offset(
+		animated_tab_buttons_panel &pnl, element &e, double offset
+	) {
 		if (!task.empty()) {
 			e.get_manager().get_scheduler().cancel_synchronous_task(task);
 		}
@@ -35,6 +48,16 @@ namespace codepad::ui::tabs {
 				}
 			);
 		}
+	}
+
+	void animated_tab_buttons_panel::_child_data::set_dragging_offset(
+		animated_tab_buttons_panel&, element &e, double offset
+	) {
+		if (!task.empty()) {
+			e.get_manager().get_scheduler().cancel_synchronous_task(task);
+		}
+		current_offset = offset;
+		e.invalidate_layout();
 	}
 
 
@@ -92,20 +115,19 @@ namespace codepad::ui::tabs {
 		tab *put_before = nullptr; ///< Which tab to put this before.
 		double final_offset = 0.0; ///< Final computed offset for this tab.
 	};
-	void animated_tab_buttons_panel::_on_drag_update(tab_drag_update_info &info) {
+	void animated_tab_buttons_panel::_on_drag_update(tab_manager::drag_update_info &info) {
 		tab_manager &man = _get_tab_manager();
 		stack_layout_helper layout = _get_children_layout_helper();
 
 		// gather size information for all tabs being dragged & sort
 		std::vector<_tab_record> records;
 		records.reserve(man.get_dragging_tabs().size());
-		for (tab *t : man.get_dragging_tabs()) {
-			auto [mbefore, sz, mafter] = layout.compute_detailed_span_for(t->get_button());
+		for (auto &t : man.get_dragging_tabs()) {
+			auto [mbefore, sz, mafter] = layout.compute_detailed_span_for(t.target->get_button());
 			double pos =
 				get_orientation() == orientation::vertical ?
-				info.position.y - man.get_dragging_tab_offset_for(t->get_button()).y :
-				info.position.x - man.get_dragging_tab_offset_for(t->get_button()).x;
-			records.emplace_back(*t, mbefore, sz, mafter, pos);
+				info.position.y + t.offset.ymin : info.position.x + t.offset.xmin;
+			records.emplace_back(*t.target, mbefore, sz, mafter, pos);
 		}
 		std::sort(records.begin(), records.end(), [](const _tab_record &lhs, const _tab_record &rhs) {
 			return lhs.position < rhs.position;
@@ -149,7 +171,7 @@ namespace codepad::ui::tabs {
 		// setting and overriding the offset values
 		for (const auto &rec : records) {
 			auto *data = _get_data(rec.target->get_button());
-			data->set_offset(*this, rec.target->get_button(), rec.final_offset);
+			data->set_dragging_offset(*this, rec.target->get_button(), rec.final_offset);
 		}
 	}
 }

@@ -1,4 +1,5 @@
 add_executable(overlapping_range_test)
+configure_codepad_target(overlapping_range_test)
 
 target_sources(overlapping_range_test
 	PRIVATE "main.cpp")

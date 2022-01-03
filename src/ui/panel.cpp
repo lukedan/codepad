@@ -18,7 +18,7 @@ namespace codepad::ui {
 	void element_collection::insert_before(element *before, element &target) {
 		assert_true_usage(target._parent == nullptr, "the element is already a child of another panel");
 		_f._on_child_adding(target, before);
-		changing.invoke_noret(change_info::type::add, target, before);
+		changing.construct_info_and_invoke(change_info::type::add, target, before);
 
 		target._parent = &_f;
 		// find the first item whose z-index is less or equal
@@ -47,13 +47,13 @@ namespace codepad::ui {
 		_children.insert(posbefore, &target);
 
 		_f._on_child_added(target, before);
-		changed.invoke_noret(change_info::type::add, target, before);
+		changed.construct_info_and_invoke(change_info::type::add, target, before);
 		target._on_added_to_parent();
 	}
 
 	void element_collection::set_zindex(element &elem, int newz) {
 		_f._on_child_zindex_changing(elem);
-		changing.invoke_noret(change_info::type::set_zindex, elem, nullptr);
+		changing.construct_info_and_invoke(change_info::type::set_zindex, elem, nullptr);
 		if (elem._zindex != newz) {
 			// remove elem from _zorder
 			for (auto it = _zorder.begin(); it != _zorder.end(); ++it) {
@@ -84,12 +84,12 @@ namespace codepad::ui {
 			elem._zindex = newz;
 		}
 		_f._on_child_zindex_changed(elem);
-		changed.invoke_noret(change_info::type::set_zindex, elem, nullptr);
+		changed.construct_info_and_invoke(change_info::type::set_zindex, elem, nullptr);
 	}
 
 	void element_collection::move_before(element &elem, element *before) {
 		_f._on_child_order_changing(elem, before);
-		changing.invoke_noret(change_info::type::set_order, elem, before);
+		changing.construct_info_and_invoke(change_info::type::set_order, elem, before);
 		// erase from both containers
 		_children.erase(std::find(_children.begin(), _children.end(), &elem));
 		_zorder.erase(std::find(_zorder.begin(), _zorder.end(), &elem));
@@ -117,7 +117,7 @@ namespace codepad::ui {
 		}
 		_zorder.emplace(zpos, &elem);
 		_f._on_child_order_changed(elem, before);
-		changed.invoke_noret(change_info::type::set_order, elem, before);
+		changed.construct_info_and_invoke(change_info::type::set_order, elem, before);
 	}
 
 	void element_collection::remove(element &elem) {
@@ -125,12 +125,12 @@ namespace codepad::ui {
 		_f.get_manager().get_scheduler()._on_removing_element(elem);
 		elem._on_removing_from_parent();
 		_f._on_child_removing(elem);
-		changing.invoke_noret(change_info::type::remove, elem, nullptr);
+		changing.construct_info_and_invoke(change_info::type::remove, elem, nullptr);
 		elem._parent = nullptr;
 		_children.erase(find(_children.begin(), _children.end(), &elem));
 		_zorder.erase(find(_zorder.begin(), _zorder.end(), &elem));
 		_f._on_child_removed(elem);
-		changed.invoke_noret(change_info::type::remove, elem, nullptr);
+		changed.construct_info_and_invoke(change_info::type::remove, elem, nullptr);
 	}
 
 	void element_collection::clear() {

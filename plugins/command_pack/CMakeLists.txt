@@ -1,4 +1,5 @@
 add_library(command_pack SHARED)
+configure_codepad_target(command_pack)
 
 target_sources(command_pack PRIVATE "src/main.cpp")
 target_link_libraries(command_pack PRIVATE codepad_core)

@@ -16,14 +16,14 @@ namespace codepad::ui {
 	void drag_deadzone::start(const mouse_position &mouse, element &parent) {
 		if (window *wnd = parent.get_window()) { // start only if the element's in a window
 			wnd->set_mouse_capture(parent);
-			_start = mouse.get(*wnd);
+			_start = mouse.get(parent);
 			_deadzone = true;
 		}
 	}
 
 	bool drag_deadzone::update(const mouse_position &mouse, element &parent) {
 		if (window *wnd = parent.get_window()) {
-			double sqrdiff = (mouse.get(*wnd) - _start).length_sqr();
+			double sqrdiff = (mouse.get(parent) - _start).length_sqr();
 			if (sqrdiff > radius * radius) { // start dragging
 				wnd->release_mouse_capture();
 				_deadzone = false;

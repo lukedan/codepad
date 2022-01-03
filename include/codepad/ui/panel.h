@@ -65,16 +65,16 @@ namespace codepad::ui {
 		void move_before(element&, element*);
 
 		/// Returns all elements in this collection.
-		const std::list<element*> &items() const {
+		[[nodiscard]] const std::list<element*> &items() const {
 			return _children;
 		}
 		/// Returns all children of this collection, but in descending order of their Z-indices.
-		const std::list<element*> &z_ordered() const {
+		[[nodiscard]] const std::list<element*> &z_ordered() const {
 			return _zorder;
 		}
 
 		/// Returns the number of elements currently in the collection.
-		std::size_t size() const {
+		[[nodiscard]] std::size_t size() const {
 			return _children.size();
 		}
 

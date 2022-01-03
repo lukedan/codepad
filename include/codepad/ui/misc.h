@@ -420,7 +420,7 @@ namespace codepad {
 			///
 			/// \return \p true if the mouse has moved out of the deadzone and dragging should start, or \p false if
 			///         the mouse is still in the deadzone.
-			bool update(const mouse_position &mouse, element &parent);
+			[[nodiscard]] bool update(const mouse_position &mouse, element &parent);
 			/// Cancels the drag operation.
 			void on_cancel(element &parent);
 			/// Cancels the drag operation without releasing the capture (as it has already been lost).
@@ -428,8 +428,13 @@ namespace codepad {
 				_deadzone = false;
 			}
 
+			/// Returns the starting mouse position (within the \ref element passed in when calling \ref start()) of
+			/// the drag operation.
+			[[nodiscard]] vec2d get_starting_position() const {
+				return _start;
+			}
 			/// Returns \p true if the user is trying to drag the associated object but is in the deadzone.
-			bool is_active() const {
+			[[nodiscard]] bool is_active() const {
 				return _deadzone;
 			}
 

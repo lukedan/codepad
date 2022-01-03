@@ -1,4 +1,5 @@
 add_executable(unicode_dump)
+configure_codepad_target(unicode_dump)
 
 target_sources(unicode_dump
 	PRIVATE "main.cpp")

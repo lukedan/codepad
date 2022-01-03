@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(codepad)
 
+cmake_policy(SET CMP0091 NEW) # MSVC library flags as a target property
 cmake_policy(SET CMP0092 NEW) # don't add /W3 for MSVC
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
@@ -23,9 +24,23 @@ set(CODEPAD_ENABLE_BACKTRACE YES CACHE BOOL "Whether or not to support printing 
 set(CODEPAD_ENABLE_SANITIZERS NO CACHE BOOL "Whether or not to enable sanitizers provided by compilers.")
 
 
+# configuration
+function(configure_codepad_target TARGET)
+	target_compile_features("${TARGET}" PUBLIC cxx_std_20)
+	if(CODEPAD_ENABLE_SANITIZERS)
+		if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+			if(MSVC)
+				set_target_properties("${TARGET}"
+					PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
+			endif()
+		endif()
+	endif()
+endfunction()
+
+
 # main library
 add_library(codepad_core SHARED)
-target_compile_features(codepad_core PUBLIC cxx_std_20)
+configure_codepad_target(codepad_core)
 target_sources(codepad_core
 	PUBLIC
 		"include/codepad/core/json/default_engine.h"
@@ -81,6 +96,7 @@ target_sources(codepad_core
 		"include/codepad/ui/elements/input_prompt.h"
 		"include/codepad/ui/elements/label.h"
 		"include/codepad/ui/elements/list_viewport.h"
+		"include/codepad/ui/elements/overriden_layout_panel.h"
 		"include/codepad/ui/elements/popup.h"
 		"include/codepad/ui/elements/reference_container.h"
 		"include/codepad/ui/elements/scroll_viewport.h"
@@ -164,7 +180,17 @@ if(CODEPAD_ENABLE_BACKTRACE)
 		PUBLIC CP_LOG_STACKTRACE)
 endif()
 if(CODEPAD_ENABLE_SANITIZERS)
-	if(MSVC)
+	if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+		target_compile_options(codepad_core
+			PUBLIC -fsanitize=address,undefined)
+		if(MSVC)
+			target_link_libraries(codepad_core
+				PUBLIC clang_rt.asan-x86_64.lib)
+		else()
+			target_link_options(codepad_core
+				PUBLIC -fsanitize=address,undefined)
+		endif()
+	elseif(MSVC)
 		target_compile_options(codepad_core
 			PUBLIC /fsanitize=address)
 	endif()
@@ -593,6 +619,7 @@ add_subdirectory("plugins/lsp/")
 
 # main executable
 add_executable(codepad)
+configure_codepad_target(codepad)
 target_link_libraries(codepad
 	PRIVATE codepad_core)
 target_sources(codepad

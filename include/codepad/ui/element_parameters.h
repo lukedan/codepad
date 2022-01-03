@@ -967,6 +967,13 @@ namespace codepad::ui {
 		};
 		/// A property name and the associated value.
 		struct property_value {
+			/// Default constructor.
+			property_value() = default;
+			/// Initializes all fields of this struct.
+			property_value(property_path::component_list prop, json::value_storage val) :
+				property(std::move(prop)), value(std::move(val)) {
+			}
+
 			property_path::component_list property; ///< Property name.
 			json::value_storage value; ///< The value of this property.
 		};

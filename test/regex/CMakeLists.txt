@@ -1,4 +1,5 @@
 add_executable(codepad_regex_test)
+configure_codepad_target(codepad_regex_test)
 
 target_sources(codepad_regex_test
 	PRIVATE

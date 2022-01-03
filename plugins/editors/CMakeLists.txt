@@ -1,4 +1,5 @@
 add_library(editors SHARED)
+configure_codepad_target(editors)
 
 target_sources(editors
 	PUBLIC

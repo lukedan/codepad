@@ -123,17 +123,15 @@ namespace codepad::ui {
 			return it == _cmds.end() ? nullptr : &it->second;
 		}
 
-		/// Wraps a function that accepts a certain type of element into a function that accepts a \ref element.
+		/// Wraps a function that accepts a certain type of element into a function that accepts a \ref element. The
+		/// callback will not be called if the input element type is incorrect.
 		template <typename Elem> [[nodiscard]] inline static command convert_type(
 			std::function<void(Elem&, const json::value_storage&)> f
 		) {
 			static_assert(std::is_base_of_v<element, Elem>, "invalid element type");
 			return[func = std::move(f)](element *e, const json::value_storage &args) {
-				Elem *te = dynamic_cast<Elem*>(e);
+				Elem *te = checked_dynamic_cast<Elem>(e, u8"command argument");
 				if (e != nullptr && te == nullptr) { // not the right type
-					logger::get().log_warning() <<
-						"callback with invalid element type " << demangle(typeid(*e).name()) <<
-						", expected " << demangle(typeid(Elem).name());
 					return;
 				}
 				func(*te, args);

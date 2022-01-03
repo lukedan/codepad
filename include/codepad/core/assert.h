@@ -115,12 +115,14 @@ namespace codepad {
 		if (auto *res = dynamic_cast<Desired*>(b)) {
 			return res;
 		}
-		auto log = logger::get().log_warning();
-		log << "dynamic_cast to " << demangle(typeid(Desired).name());
-		if (!usage.empty()) {
-			log << " (" << usage << ")";
+		if (b) { // incorrect type
+			auto log = logger::get().log_warning();
+			log << "dynamic_cast to " << demangle(typeid(Desired).name());
+			if (!usage.empty()) {
+				log << " (" << usage << ")";
+			}
+			log << " failed for " << b << " (type: " << demangle(typeid(*b).name()) << ")";
 		}
-		log << " failed for " << b << " (type: " << demangle(typeid(*b).name()) << ")";
 		return nullptr;
 	}
 }

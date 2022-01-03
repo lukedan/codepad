@@ -1,4 +1,5 @@
 add_library(tree_sitter_lib STATIC)
+configure_codepad_target(tree_sitter_lib)
 
 target_sources(tree_sitter_lib
 	PRIVATE
@@ -26,6 +27,7 @@ set_property(TARGET tree_sitter_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 
 add_library(tree_sitter SHARED)
+configure_codepad_target(tree_sitter)
 
 target_sources(tree_sitter
 	PUBLIC

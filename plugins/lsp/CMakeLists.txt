@@ -1,4 +1,5 @@
 add_library(lsp SHARED)
+configure_codepad_target(lsp)
 
 target_sources(lsp
 	PUBLIC

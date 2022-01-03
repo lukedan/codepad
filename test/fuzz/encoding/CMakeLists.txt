@@ -1,4 +1,5 @@
 add_executable(encoding_test)
+configure_codepad_target(encoding_test)
 
 target_sources(encoding_test
 	PRIVATE "main.cpp")
